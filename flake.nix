@@ -43,6 +43,8 @@
                 perf
               ];
             buildInputs = [ llvmPackages.llvm ];
+            # tests/proofs.sh proves theorems about this exact source.
+            ZLIB_SRC = pkgs.zlib.src;
           };
         }
       );
