@@ -37,7 +37,11 @@
                 nixfmt
                 (python3.withPackages (p: [ p.pyyaml ]))
               ]
-              ++ lib.optionals stdenv.hostPlatform.isLinux [ perf ];
+              ++ lib.optionals stdenv.hostPlatform.isLinux [
+                # Checks poison and UB behavior in tests/opcheck.py, which skips it if absent.
+                alive2
+                perf
+              ];
             buildInputs = [ llvmPackages.llvm ];
           };
         }

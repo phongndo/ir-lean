@@ -15,3 +15,18 @@ target_include_directories(llvm-lean SYSTEM PRIVATE ${LLVM_INCLUDE_DIRS})
 target_compile_definitions(llvm-lean PRIVATE ${LLVM_DEFINITIONS})
 target_compile_options(llvm-lean PRIVATE -Wall -Wextra -fno-rtti)
 llvm_config(llvm-lean USE_SHARED core irreader support)
+
+# Tests need the Lean library: run `lake build` first.
+enable_testing()
+add_test(NAME opcheck COMMAND ${CMAKE_SOURCE_DIR}/tests/opcheck.py $<TARGET_FILE:llvm-lean>)
+add_test(NAME differential COMMAND ${CMAKE_SOURCE_DIR}/tests/differential.py $<TARGET_FILE:llvm-lean>
+  ${CMAKE_SOURCE_DIR}/tests/real/bi_reverse.c ${CMAKE_SOURCE_DIR}/tests/real/calls.c
+  ${CMAKE_SOURCE_DIR}/tests/real/memory.c
+  --bound fib=20 --bound is_even=200 --bound is_odd=200)
+add_test(NAME vectors_pointers COMMAND ${CMAKE_SOURCE_DIR}/tests/differential.py $<TARGET_FILE:llvm-lean>
+  ${CMAKE_SOURCE_DIR}/tests/real/pointers.c ${CMAKE_SOURCE_DIR}/tests/real/vectors.ll
+  ${CMAKE_SOURCE_DIR}/tests/real/heap.ll --strict)
+add_test(NAME undefined COMMAND ${CMAKE_SOURCE_DIR}/tests/differential.py $<TARGET_FILE:llvm-lean>
+  ${CMAKE_SOURCE_DIR}/tests/real/ub.ll --runs 3 --expect-ub)
+add_test(NAME fuzz COMMAND ${CMAKE_SOURCE_DIR}/tests/fuzz.py $<TARGET_FILE:llvm-lean>)
+add_test(NAME names COMMAND ${CMAKE_SOURCE_DIR}/tests/names.sh)
