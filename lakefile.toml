@@ -1,0 +1,6 @@
+name = "llvm-lean"
+version = "0.1.0"
+defaultTargets = ["LLVMLean"]
+
+[[lean_lib]]
+name = "LLVMLean"
