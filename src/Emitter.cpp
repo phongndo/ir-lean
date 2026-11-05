@@ -1,0 +1,1698 @@
+// Each function becomes a type with one constructor per basic block, whose fields are the block's
+// phi values and the values it needs from earlier blocks, plus a `step` function that runs one
+// block. LLVMLean.run loops over `step`. Recursive functions can't go through that driver, so their
+// blocks call each other directly, in a `mutual` block. Anything this file can't model exactly is
+// refused, so the semantics stay in Lean and this stays a printer.
+
+#include "Emitter.h"
+
+#include "llvm/ADT/BitVector.h"
+#include "llvm/ADT/DenseMap.h"
+#include "llvm/ADT/DepthFirstIterator.h"
+#include "llvm/ADT/SmallVector.h"
+#include "llvm/ADT/StringExtras.h"
+#include "llvm/IR/CFG.h"
+#include "llvm/IR/ConstantRange.h"
+#include "llvm/IR/Constants.h"
+#include "llvm/IR/DataLayout.h"
+#include "llvm/IR/Function.h"
+#include "llvm/IR/GetElementPtrTypeIterator.h"
+#include "llvm/IR/GlobalVariable.h"
+#include "llvm/IR/InstrTypes.h"
+#include "llvm/IR/Instructions.h"
+#include "llvm/IR/IntrinsicInst.h"
+#include "llvm/IR/LLVMContext.h"
+#include "llvm/IR/Operator.h"
+#include "llvm/Support/raw_ostream.h"
+
+#include <algorithm>
+#include <cctype>
+#include <map>
+#include <memory>
+#include <optional>
+#include <set>
+#include <string>
+#include <vector>
+
+using namespace llvm;
+
+namespace llvm_lean {
+namespace {
+
+// Larger functions nest their blocks, because a Lean type holds at most 244 constructors.
+constexpr unsigned MaxBlocksPerGroup = 200;
+
+struct Unsupported {
+  std::string Why;
+};
+
+[[noreturn]] void reject(const std::string &Why) { throw Unsupported{Why}; }
+
+template <typename T> std::string printed(const T &V) {
+  std::string S;
+  raw_string_ostream OS(S);
+  V.print(OS);
+  // Instructions print with leading spaces and any metadata, which only makes reports noisier.
+  size_t First = S.find_first_not_of(' ');
+  return First == std::string::npos ? S : S.substr(First);
+}
+
+std::string printedType(Type *T) {
+  std::string S;
+  raw_string_ostream OS(S);
+  T->print(OS);
+  return S;
+}
+
+// Names the emitted code relies on, and words Lean reserves, can't be used for anything else.
+const std::set<std::string> &reservedNames() {
+  static const std::set<std::string> Names = {
+      // Every token in Lean's table that looks like an identifier, as tests/names.sh checks, and two
+      // more that the table doesn't list.
+      "module", "this",
+      "Prop", "Sort", "StateRefT", "Type", "_", "abbrev", "add_decl_doc", "assert_not_exists",
+      "assert_not_imported", "at", "attribute", "axiom", "bif", "binder_predicate", "break",
+      "builtin_cbv_simproc", "builtin_cbv_simproc_decl", "builtin_dsimproc",
+      "builtin_dsimproc_decl", "builtin_grind_propagator", "builtin_initialize", "builtin_simproc",
+      "builtin_simproc_decl", "by", "by_elab", "calc", "catch", "cbv_eval", "cbv_simproc",
+      "cbv_simproc_decl", "class", "coinductive", "coinductive_fixpoint", "continue", "dbg_trace",
+      "declare_bitwise_int_theorems", "declare_bitwise_uint_theorems",
+      "declare_command_config_elab", "declare_command_config_elab_legacy", "declare_config_elab",
+      "declare_config_elab_legacy", "declare_core_config_elab", "declare_eval_bin",
+      "declare_eval_bin_bitwise", "declare_eval_bin_bool_pred", "declare_int_theorems",
+      "declare_simp_like_tactic", "declare_sint_simprocs", "declare_syntax_cat",
+      "declare_term_config_elab", "declare_uint_simprocs", "declare_uint_theorems", "decreasing_by",
+      "def", "def_eval_config_item", "deprecated_module", "deprecated_syntax", "deriving", "do",
+      "docs_to_verso", "dsimproc", "dsimproc_decl", "elab", "elab_rules", "elab_stx_quot", "else",
+      "end", "eval_prec", "eval_prio", "example", "exists", "export", "extends", "finally", "for",
+      "forall", "from", "fun", "generalizing", "grind_annotated", "grind_pattern",
+      "grind_propagator", "have", "haveI", "hiding", "idbg", "if", "import", "in", "include",
+      "include_str", "inductive", "inductive_fixpoint", "inferInstanceAs", "infix", "infixl",
+      "infixr", "init_grind_norm", "init_quot", "initialize", "instance", "leading_parser", "let",
+      "letI", "let_delayed", "let_expr", "let_fun", "let_tmp", "local", "logNamedError",
+      "logNamedErrorAt", "logNamedWarning", "logNamedWarningAt", "macro", "macro_rules", "match",
+      "match_expr", "matches", "max_prec", "meta", "mod_cast", "monotonicity_by", "mut", "mutual",
+      "namespace", "nat_lit", "no_index", "nofun", "nomatch", "noncomputable", "nonrec",
+      "norm_cast_add_elim", "notation", "omit", "opaque", "open", "partial", "partial_fixpoint",
+      "postfix", "prefix", "private", "protected", "public", "recall", "recommended_spelling",
+      "register_builtin_option", "register_error_explanation", "register_grind_attr",
+      "register_label_attr", "register_linter_set", "register_option", "register_parser_alias",
+      "register_simp_attr", "register_sym_dsimp", "register_sym_simp", "register_sym_simp_attr",
+      "register_tactic_tag", "renaming", "repeat", "reprove", "return", "run_cmd", "run_elab",
+      "run_meta", "scoped", "seal", "section", "set_library_suggestions", "set_option", "show",
+      "show_panel_widgets", "show_term", "show_term_elab", "simproc", "simproc_decl", "sorry",
+      "structure", "suffices", "syntax", "tactic_alt", "tactic_extension", "tactic_name",
+      "tactic_tag", "termination_by", "test_extern", "then", "theorem", "throwError",
+      "throwErrorAt", "throwNamedError", "throwNamedErrorAt", "trailing_parser", "try", "unif_hint",
+      "universe", "unless", "unlock_limits", "unsafe", "unseal", "until", "using", "variable",
+      "where", "while", "with", "with_annotate_term", "with_weak_namespace",
+      "without_expected_type",
+      // Names emitted code uses.
+      "Block", "LLVMLean", "Next", "Outcome", "Val", "andThen", "assume", "br", "branch", "false",
+      "jump", "loop", "none", "noundef", "ret", "run", "select", "some", "step", "sw", "true",
+      "unreachable", "HasPoison", "Mem", "Ptr", "PtrVal", "initial", "m", "indirect", "Vec", "Vector",
+      "a", "b",
+      // Names Lean generates for every inductive type.
+      "below", "binductionOn", "brecOn", "casesOn", "ctorElim", "ctorElimType", "ctorIdx", "ibelow",
+      "injEq", "noConfusion", "noConfusionType", "rec", "recOn", "sizeOf", "toCtorIdx"};
+  return Names;
+}
+
+// Hands out valid, unique Lean identifiers.
+class NameTable {
+public:
+  std::string make(StringRef Wanted, const char *Fallback) {
+    std::string S;
+    for (char C : Wanted)
+      S += (std::isalnum(static_cast<unsigned char>(C)) || C == '_') ? C : '_';
+    if (S.empty())
+      S = Fallback + std::to_string(Used.size());
+    if (std::isdigit(static_cast<unsigned char>(S[0])))
+      S = Fallback + S;
+    while (S.front() == '_' && S.size() > 1 && S[1] == '_')
+      S.erase(0, 1);
+    if (S == "_")
+      S = Fallback;
+    std::string Candidate = S;
+    for (unsigned N = 1; reservedNames().count(Candidate) || !Used.insert(Candidate).second; ++N)
+      Candidate = S + "_" + std::to_string(N);
+    return Candidate;
+  }
+
+private:
+  std::set<std::string> Used;
+};
+
+std::string leanType(Type *T) {
+  if (auto *I = dyn_cast<IntegerType>(T))
+    return "Val " + std::to_string(I->getBitWidth());
+  if (auto *P = dyn_cast<PointerType>(T)) {
+    if (P->getAddressSpace() != 0)
+      reject("type " + printedType(T));
+    return "PtrVal";
+  }
+  if (T->isVoidTy())
+    return "Unit";
+  if (auto *V = dyn_cast<FixedVectorType>(T)) {
+    if (!V->getElementType()->isIntegerTy())
+      reject("type " + printedType(T));
+    return "(Vec " + std::to_string(V->getNumElements()) + " " +
+           std::to_string(V->getElementType()->getIntegerBitWidth()) + ")";
+  }
+  if (auto *S = dyn_cast<StructType>(T)) {
+    if (S->isOpaque() || S->getNumElements() == 0)
+      reject("type " + printedType(T));
+    std::string Out = "(";
+    for (unsigned I = 0, E = S->getNumElements(); I != E; ++I)
+      Out += (I ? " × " : "") + leanType(S->getElementType(I));
+    return Out + ")";
+  }
+  reject("type " + printedType(T));
+}
+
+bool mentionsPointer(Type *T) {
+  if (T->isPointerTy())
+    return true;
+  if (auto *S = dyn_cast<StructType>(T))
+    for (Type *E : S->elements())
+      if (mentionsPointer(E))
+        return true;
+  return false;
+}
+
+std::string bitVec(const APInt &V) {
+  return toString(V, 10, false) + "#" + std::to_string(V.getBitWidth());
+}
+
+std::string poisonOf(Type *T) {
+  if (T->isIntegerTy() || T->isPointerTy())
+    return "(none : " + leanType(T) + ")";
+  return "(HasPoison.poison : " + leanType(T) + ")";
+}
+
+std::string zeroOf(Type *T) {
+  if (auto *I = dyn_cast<IntegerType>(T))
+    return "(some 0#" + std::to_string(I->getBitWidth()) + ")";
+  if (T->isPointerTy())
+    return "(some Ptr.null)";
+  if (auto *V = dyn_cast<FixedVectorType>(T)) {
+    leanType(T);
+    return "(Vector.replicate " + std::to_string(V->getNumElements()) + " " + zeroOf(V->getElementType()) + ")";
+  }
+  if (auto *S = dyn_cast<StructType>(T)) {
+    std::string Out = "(";
+    for (unsigned I = 0, E = S->getNumElements(); I != E; ++I)
+      Out += (I ? ", " : "") + zeroOf(S->getElementType(I));
+    return Out + ")";
+  }
+  reject("type " + printedType(T));
+}
+
+// The module-wide things functions refer to: its globals and data layout.
+class ModuleContext {
+public:
+  explicit ModuleContext(Module &M) : DL(M.getDataLayout()) {
+    NameTable GlobalNames;
+    unsigned Block = 1;
+    // Every global gets its allocation before any initializer is read, since initializers can point
+    // at each other.
+    for (const GlobalVariable &G : M.globals()) {
+      if (!G.hasInitializer()) {
+        Rejected[&G] = "external global @" + G.getName().str();
+        continue;
+      }
+      if (G.isThreadLocal()) {
+        Rejected[&G] = "thread-local global @" + G.getName().str();
+        continue;
+      }
+      Global Info;
+      Info.Name = GlobalNames.make("g_" + G.getName().str(), "g");
+      GlobalNames.make(Info.Name + "_init", "g");
+      Info.Block = Block++;
+      Info.Size = DL.getTypeAllocSize(G.getValueType());
+      Info.ReadOnly = G.isConstant();
+      Globals[&G] = std::move(Info);
+    }
+    for (const Function &F : M) {
+      if (!F.hasAddressTaken())
+        continue;
+      FunctionAddresses[&F] = {GlobalNames.make("fn_" + F.getName().str(), "fn"), Block++};
+      if (!F.isDeclaration())
+        ByType[F.getFunctionType()].push_back(&F);
+    }
+    NextBlock = Block;
+    // Rejecting a global rejects whatever points at it, so go until nothing changes.
+    bool Changed = true;
+    while (Changed) {
+      Changed = false;
+      for (auto It = Globals.begin(); It != Globals.end();) {
+        const GlobalVariable *G = It->first;
+        Global &Info = It->second;
+        Info.Init.clear();
+        Info.Relocs.clear();
+        try {
+          flatten(G->getInitializer(), Info.Init, Info.Relocs);
+          ++It;
+        } catch (const Unsupported &U) {
+          Rejected[G] = "global @" + G->getName().str() + ": " + U.Why;
+          It = Globals.erase(It);
+          Changed = true;
+        }
+      }
+    }
+    for (auto &G : Globals)
+      while (!G.second.Init.empty() && G.second.Init.back() == 0)
+        G.second.Init.pop_back();
+  }
+
+  const DataLayout &DL;
+
+  std::string constant(const Constant *C) const {
+    if (isa<PoisonValue>(C))
+      return poisonOf(C->getType());
+    if (isa<UndefValue>(C))
+      reject("undef");
+    if (auto *I = dyn_cast<ConstantInt>(C))
+      return "(some " + bitVec(I->getValue()) + ")";
+    if (isa<ConstantPointerNull>(C)) {
+      leanType(C->getType());
+      return "(some Ptr.null)";
+    }
+    if (isa<ConstantAggregateZero>(C))
+      return zeroOf(C->getType());
+    if (auto *V = dyn_cast<FixedVectorType>(C->getType())) {
+      leanType(V);
+      std::string Out = "#v[";
+      for (unsigned I = 0, E = V->getNumElements(); I != E; ++I)
+        Out += (I ? ", " : "") + constant(C->getAggregateElement(I));
+      return Out + "]";
+    }
+    if (auto *S = dyn_cast<ConstantStruct>(C)) {
+      std::string Out = "(";
+      for (unsigned I = 0, E = S->getNumOperands(); I != E; ++I)
+        Out += (I ? ", " : "") + constant(S->getOperand(I));
+      return Out + ")";
+    }
+    if (C->getType()->isPointerTy()) {
+      APInt Offset(64, 0);
+      const Value *Base = C->stripAndAccumulateConstantOffsets(DL, Offset, /*AllowNonInbounds=*/true);
+      if (auto *G = dyn_cast<GlobalVariable>(Base)) {
+        const std::string &Name = global(G);
+        if (Offset.isZero())
+          return "(some " + Name + ")";
+        return "(some { " + Name + " with offset := " + bitVec(Offset) + " })";
+      }
+      if (auto *F = dyn_cast<Function>(Base)) {
+        auto It = FunctionAddresses.find(F);
+        if (It == FunctionAddresses.end())
+          reject("constant " + printed(*C));
+        if (Offset.isZero())
+          return "(some " + It->second.Name + ")";
+        return "(some { " + It->second.Name + " with offset := " + bitVec(Offset) + " })";
+      }
+    }
+    reject("constant " + printed(*C));
+  }
+
+  // The functions a call through a pointer of this type could reach, among those in this module.
+  const std::vector<const Function *> &candidates(const FunctionType *T) const {
+    static const std::vector<const Function *> None;
+    auto It = ByType.find(T);
+    return It == ByType.end() ? None : It->second;
+  }
+
+  const std::string &functionAddress(const Function *F) const {
+    return FunctionAddresses.at(F).Name;
+  }
+
+  // Lean definitions for every global and function address, and the memory holding the globals.
+  std::string emitGlobals() const {
+    std::string Out;
+    std::vector<const Global *> Ordered;
+    for (const auto &G : Globals)
+      Ordered.push_back(&G.second);
+    std::sort(Ordered.begin(), Ordered.end(),
+              [](const Global *A, const Global *B) { return A->Block < B->Block; });
+    std::vector<const FunctionAddress *> Addresses;
+    for (const auto &F : FunctionAddresses)
+      Addresses.push_back(&F.second);
+    std::sort(Addresses.begin(), Addresses.end(),
+              [](const FunctionAddress *A, const FunctionAddress *B) { return A->Block < B->Block; });
+    for (const Global *G : Ordered)
+      Out += "def " + G->Name + " : Ptr := ⟨" + std::to_string(G->Block) + ", 0#64⟩\n";
+    for (const FunctionAddress *F : Addresses)
+      Out += "def " + F->Name + " : Ptr := ⟨" + std::to_string(F->Block) + ", 0#64⟩\n";
+    if (!Ordered.empty() || !Addresses.empty())
+      Out += "\n";
+    for (const Global *G : Ordered) {
+      Out += "def " + G->Name + "_init : Array Nat := #[";
+      for (size_t I = 0; I != G->Init.size(); ++I)
+        Out += (I ? "," : "") + std::to_string(G->Init[I]);
+      Out += "]\n";
+    }
+    if (!Ordered.empty())
+      Out += "\n";
+    Out += "/-- Memory holding this module's globals. -/\n"
+           "def initial (base : Nat → BitVec 64 := Mem.spacedOut) : Mem :=\n  Mem.empty base";
+    for (const Global *G : Ordered)
+      Out += "\n  |>.addGlobal " + std::to_string(G->Block) + " " + std::to_string(G->Size) + " " +
+             (G->ReadOnly ? "true" : "false") + " " + G->Name + "_init";
+    for (const Global *G : Ordered)
+      for (const Reloc &R : G->Relocs)
+        Out += "\n  |>.addReloc " + std::to_string(G->Block) + " " + std::to_string(R.Offset) + " ⟨" +
+               std::to_string(R.Block) + ", " + bitVec(R.Addend) + "⟩";
+    Out += "\n  |>.reserve " + std::to_string(NextBlock);
+    return Out + "\n\n";
+  }
+
+private:
+  // A pointer in a global's initial contents.
+  struct Reloc {
+    uint64_t Offset;
+    unsigned Block;
+    APInt Addend;
+  };
+  struct Global {
+    std::string Name;
+    unsigned Block = 0;
+    uint64_t Size = 0;
+    bool ReadOnly = false;
+    std::vector<unsigned> Init;
+    std::vector<Reloc> Relocs;
+  };
+  struct FunctionAddress {
+    std::string Name;
+    unsigned Block = 0;
+  };
+
+  const std::string &global(const GlobalVariable *G) const {
+    auto It = Globals.find(G);
+    if (It != Globals.end())
+      return It->second.Name;
+    auto R = Rejected.find(G);
+    reject(R != Rejected.end() ? R->second : "global @" + G->getName().str());
+  }
+
+  // Appends a constant's bytes, little-endian. 256 stands for an uninitialized byte.
+  void flatten(const Constant *C, std::vector<unsigned> &Out, std::vector<Reloc> &Relocs) const {
+    if (!DL.isLittleEndian())
+      reject("big-endian data");
+    Type *T = C->getType();
+    uint64_t Size = DL.getTypeAllocSize(T);
+    if (isa<UndefValue>(C)) {
+      Out.insert(Out.end(), Size, 256);
+      return;
+    }
+    if (C->isNullValue()) {
+      Out.insert(Out.end(), Size, 0);
+      return;
+    }
+    if (T->isPointerTy()) {
+      APInt Offset(64, 0);
+      const Value *Base = C->stripAndAccumulateConstantOffsets(DL, Offset, /*AllowNonInbounds=*/true);
+      unsigned Block = 0;
+      if (auto *G = dyn_cast<GlobalVariable>(Base)) {
+        global(G);
+        Block = Globals.at(G).Block;
+      } else if (auto *F = dyn_cast<Function>(Base)) {
+        auto It = FunctionAddresses.find(F);
+        if (It != FunctionAddresses.end())
+          Block = It->second.Block;
+      }
+      if (!Block)
+        reject("initializer " + printed(*C));
+      Relocs.push_back({Out.size(), Block, Offset});
+      Out.insert(Out.end(), Size, 0);
+      return;
+    }
+    if (auto *I = dyn_cast<ConstantInt>(C)) {
+      appendInt(I->getValue(), Size, Out);
+      return;
+    }
+    if (auto *D = dyn_cast<ConstantDataSequential>(C)) {
+      if (!D->getElementType()->isIntegerTy())
+        reject("constant " + printed(*C));
+      for (unsigned I = 0, E = D->getNumElements(); I != E; ++I)
+        appendInt(D->getElementAsAPInt(I), DL.getTypeAllocSize(D->getElementType()), Out);
+      return;
+    }
+    if (isa<ConstantArray>(C)) {
+      for (const Use &U : C->operands())
+        flatten(cast<Constant>(U.get()), Out, Relocs);
+      return;
+    }
+    if (auto *S = dyn_cast<ConstantStruct>(C)) {
+      const StructLayout *L = DL.getStructLayout(S->getType());
+      size_t Start = Out.size();
+      for (unsigned I = 0, E = S->getNumOperands(); I != E; ++I) {
+        Out.resize(Start + L->getElementOffset(I), 256);
+        flatten(S->getOperand(I), Out, Relocs);
+      }
+      Out.resize(Start + Size, 256);
+      return;
+    }
+    reject("initializer " + printed(*C));
+  }
+
+  static void appendInt(const APInt &V, uint64_t Size, std::vector<unsigned> &Out) {
+    for (uint64_t I = 0; I != Size; ++I)
+      Out.push_back(8 * I < V.getBitWidth() ? V.extractBitsAsZExtValue(
+                                                  std::min<unsigned>(8, V.getBitWidth() - 8 * I), 8 * I)
+                                            : 0);
+  }
+
+  std::map<const GlobalVariable *, Global> Globals;
+  std::map<const GlobalVariable *, std::string> Rejected;
+  std::map<const Function *, FunctionAddress> FunctionAddresses;
+  std::map<const FunctionType *, std::vector<const Function *>> ByType;
+  unsigned NextBlock = 1;
+};
+
+// Attributes on a parameter or return value. These either change what the value means, and are
+// emitted as checks below, or are promises about the function that the model doesn't check.
+void checkValueAttributes(AttributeSet Attrs, const Type *T, const char *Where) {
+  for (Attribute A : Attrs) {
+    if (A.isStringAttribute())
+      continue;
+    switch (A.getKindAsEnum()) {
+    case Attribute::NoUndef:
+    case Attribute::Range:
+    case Attribute::NonNull:
+    case Attribute::Alignment:
+    case Attribute::Dereferenceable:
+      // The checks these emit only take one value, not a vector's lanes.
+      if (T->isVectorTy())
+        reject(std::string(Where) + " attribute " + A.getAsString() + " on a vector");
+      continue;
+    // These only describe how a target passes the value, not what it is.
+    case Attribute::SExt:
+    case Attribute::ZExt:
+    // Promises about the function's behavior, listed in the README.
+    case Attribute::Returned:
+    case Attribute::NoFree:
+    case Attribute::ReadOnly:
+    case Attribute::WriteOnly:
+    case Attribute::ReadNone:
+    case Attribute::NoAlias:
+    case Attribute::Captures:
+    case Attribute::DereferenceableOrNull:
+    case Attribute::Initializes:
+      continue;
+    default:
+      reject(std::string(Where) + " attribute " + A.getAsString());
+    }
+  }
+}
+
+// Wraps `Value` in what `range`, `nonnull` and `align` attributes imply.
+std::string withValueChecks(AttributeSet Attrs, const std::string &Value) {
+  std::string Out = Value;
+  if (Attrs.hasAttribute(Attribute::Range)) {
+    const ConstantRange &R = Attrs.getAttribute(Attribute::Range).getValueAsConstantRange();
+    Out = "(Val.range " + bitVec(R.getLower()) + " " + bitVec(R.getUpper()) + " " + Out + ")";
+  }
+  if (Attrs.hasAttribute(Attribute::NonNull))
+    Out = "(Mem.nonnull m " + Out + ")";
+  if (Attrs.hasAttribute(Attribute::Alignment))
+    Out = "(Mem.aligned m " + std::to_string(Attrs.getAlignment()->value()) + " " + Out + ")";
+  return Out;
+}
+
+bool hasValueChecks(AttributeSet Attrs) {
+  return Attrs.hasAttribute(Attribute::Range) || Attrs.hasAttribute(Attribute::NonNull) ||
+         Attrs.hasAttribute(Attribute::Alignment);
+}
+
+// One line of a block's body.
+struct Line {
+  enum Kind {
+    Let,   // let Name := Expr
+    Bind,  // andThen (Expr) fun Name =>
+    Guard, // Expr <|
+  } K;
+  std::string Name;
+  std::string Expr;
+};
+
+class FunctionEmitter {
+public:
+  FunctionEmitter(Function &F, std::string LeanName, bool Recursive, bool UsesMemory,
+                  const DenseMap<const Function *, std::string> &Callees,
+                  const std::set<const Function *> &MemoryFunctions, const ModuleContext &Context)
+      : F(F), LeanName(std::move(LeanName)), Recursive(Recursive), UsesMemory(UsesMemory),
+        Callees(Callees), MemoryFunctions(MemoryFunctions), Context(Context) {}
+
+  // Checks the function can be translated, and sets up names and liveness.
+  void prepare();
+  // The function's namespace: its block type, and `step` unless the function is recursive.
+  std::string emitBlocks();
+  // For recursive functions: the blocks calling each other, for a `mutual` block.
+  std::string emitLoop();
+  // The function itself.
+  std::string emitFunction();
+  unsigned blockCount() const { return Blocks.size(); }
+  unsigned instructionCount() const { return Instructions; }
+
+private:
+  void collectBlocks();
+  void nameValues();
+  void computeLiveness();
+
+  std::string operand(const Value *V);
+  std::string flag(bool On, const char *Name) { return On ? std::string(" (") + Name + " := true)" : ""; }
+  std::string callArgument(const CallBase &C, unsigned N, std::vector<Line> &Out);
+  void checkCallResult(const CallBase &C, std::vector<Line> &Out);
+  std::string target(const BasicBlock *From, const BasicBlock *To);
+  std::string goTo(const BasicBlock *From, const BasicBlock *To);
+  std::string constructorPath(const BasicBlock *BB, const std::string &Inner);
+  std::string emitConstructor(const BasicBlock *BB);
+  std::string emitArm(const BasicBlock *BB);
+  std::string emitTerminator(const BasicBlock *BB);
+  void emitInstruction(const Instruction &I, std::vector<Line> &Out);
+  void emitLoad(const LoadInst &L, std::vector<Line> &Out);
+  void emitStore(const StoreInst &S, std::vector<Line> &Out);
+  void emitGep(const GetElementPtrInst &G, std::vector<Line> &Out);
+  void emitAlloca(const AllocaInst &A, std::vector<Line> &Out);
+  void checkMetadata(const Instruction &I);
+  std::string pointerAsInt(const Value *V);
+  std::string resultType() const {
+    return UsesMemory ? RetType + " × Mem" : RetType;
+  }
+  void emitCall(const CallBase &C, std::vector<Line> &Out);
+  bool emitIntrinsic(const IntrinsicInst &C, std::vector<Line> &Out);
+  void addLet(const Instruction &I, std::vector<Line> &Out, std::string Expr) {
+    Out.push_back({Line::Let, Names.at(&I), std::move(Expr)});
+  }
+  void addBind(const Instruction &I, std::vector<Line> &Out, std::string Expr) {
+    Out.push_back({Line::Bind, I.getType()->isVoidTy() ? "_" : Names.at(&I), std::move(Expr)});
+  }
+  // A step that changes memory: later instructions see the new memory, under the same name.
+  void addMemoryUpdate(std::vector<Line> &Out, std::string Expr) {
+    Out.push_back({Line::Bind, "m", std::move(Expr)});
+  }
+
+  std::vector<const Value *> blockParams(const BasicBlock *BB) const;
+
+  Function &F;
+  std::string LeanName;
+  bool Recursive;
+  bool UsesMemory;
+  bool HasAlloca = false;
+  const DenseMap<const Function *, std::string> &Callees;
+  const std::set<const Function *> &MemoryFunctions;
+  const ModuleContext &Context;
+  std::string RetType;
+
+  std::vector<const BasicBlock *> Blocks;
+  DenseMap<const BasicBlock *, unsigned> BlockIndex;
+  DenseMap<const BasicBlock *, std::string> BlockNames;
+  DenseMap<const Value *, unsigned> ValueIndex;
+  std::vector<const Value *> Values;
+  std::map<const Value *, std::string> Names;
+  std::vector<BitVector> LiveIn;
+  unsigned Instructions = 0;
+};
+
+void FunctionEmitter::collectBlocks() {
+  std::set<const BasicBlock *> Reachable;
+  for (const BasicBlock *BB : depth_first(&F.getEntryBlock()))
+    Reachable.insert(BB);
+  // Function order keeps emitted code in the order someone reading the IR expects.
+  for (const BasicBlock &BB : F)
+    if (Reachable.count(&BB)) {
+      BlockIndex[&BB] = Blocks.size();
+      Blocks.push_back(&BB);
+    }
+}
+
+void FunctionEmitter::nameValues() {
+  NameTable ValueNames, BlockTable;
+  // Group constructors are named g0, g1, ... so block names mustn't collide with them.
+  for (unsigned I = 0, E = Blocks.size() / MaxBlocksPerGroup + 1; I != E; ++I)
+    BlockTable.make("g" + std::to_string(I), "g");
+  auto Add = [&](const Value *V, const char *Fallback) {
+    ValueIndex[V] = Values.size();
+    Values.push_back(V);
+    Names[V] = ValueNames.make(V->getName(), Fallback);
+  };
+  for (const Argument &A : F.args())
+    Add(&A, "a");
+  for (const BasicBlock *BB : Blocks) {
+    BlockNames[BB] = BlockTable.make(BB->getName(), "bb");
+    for (const Instruction &I : *BB) {
+      ++Instructions;
+      if (!I.getType()->isVoidTy())
+        Add(&I, "v");
+    }
+  }
+}
+
+// Standard backward liveness. A phi's operands count as used at the end of the matching
+// predecessor, and a phi itself arrives as a field of its block.
+void FunctionEmitter::computeLiveness() {
+  unsigned N = Values.size();
+  LiveIn.assign(Blocks.size(), BitVector(N));
+  std::vector<BitVector> Gen(Blocks.size(), BitVector(N)), Kill(Blocks.size(), BitVector(N));
+  auto IsTracked = [&](const Value *V) { return isa<Instruction>(V) || isa<Argument>(V); };
+  for (unsigned B = 0; B != Blocks.size(); ++B)
+    for (const Instruction &I : *Blocks[B]) {
+      if (!isa<PHINode>(I))
+        for (const Use &U : I.operands())
+          if (IsTracked(U.get()) && !Kill[B].test(ValueIndex.lookup(U.get())))
+            Gen[B].set(ValueIndex.lookup(U.get()));
+      if (!I.getType()->isVoidTy())
+        Kill[B].set(ValueIndex.lookup(&I));
+    }
+  bool Changed = true;
+  while (Changed) {
+    Changed = false;
+    for (unsigned B = Blocks.size(); B-- != 0;) {
+      BitVector Out(N);
+      for (const BasicBlock *S : successors(Blocks[B])) {
+        BitVector FromSucc = LiveIn[BlockIndex.lookup(S)];
+        for (const PHINode &P : S->phis()) {
+          FromSucc.reset(ValueIndex.lookup(&P));
+          const Value *In = P.getIncomingValueForBlock(Blocks[B]);
+          if (IsTracked(In))
+            FromSucc.set(ValueIndex.lookup(In));
+        }
+        Out |= FromSucc;
+      }
+      Out.reset(Kill[B]);
+      Out |= Gen[B];
+      if (Out != LiveIn[B]) {
+        LiveIn[B] = std::move(Out);
+        Changed = true;
+      }
+    }
+  }
+}
+
+std::vector<const Value *> FunctionEmitter::blockParams(const BasicBlock *BB) const {
+  std::vector<const Value *> Params;
+  for (const PHINode &P : BB->phis())
+    Params.push_back(&P);
+  const BitVector &Live = LiveIn[BlockIndex.lookup(BB)];
+  for (unsigned V : Live.set_bits())
+    Params.push_back(Values[V]);
+  return Params;
+}
+
+std::string FunctionEmitter::operand(const Value *V) {
+  if (auto *C = dyn_cast<Constant>(V))
+    return Context.constant(C);
+  auto It = Names.find(V);
+  if (It == Names.end())
+    reject("operand " + printed(*V));
+  return It->second;
+}
+
+// `Inner` is a constructor applied to its fields, named from inside the function's namespace.
+std::string FunctionEmitter::constructorPath(const BasicBlock *BB, const std::string &Inner) {
+  if (Recursive || Blocks.size() <= MaxBlocksPerGroup)
+    return "(." + Inner + ")";
+  return "(.g" + std::to_string(BlockIndex.lookup(BB) / MaxBlocksPerGroup) + " (." + Inner + "))";
+}
+
+// How a block continues at `To`: returning it to the driver, or calling it.
+std::string FunctionEmitter::goTo(const BasicBlock *From, const BasicBlock *To) {
+  if (Recursive)
+    return "(" + LeanName + ".loop " + target(From, To) + ")";
+  return "jump " + target(From, To);
+}
+
+std::string FunctionEmitter::target(const BasicBlock *From, const BasicBlock *To) {
+  std::string Inner = BlockNames.lookup(To);
+  if (UsesMemory)
+    Inner += " m";
+  for (const PHINode &P : To->phis())
+    Inner += " " + operand(P.getIncomingValueForBlock(From));
+  for (unsigned V : LiveIn[BlockIndex.lookup(To)].set_bits())
+    Inner += " " + Names.at(Values[V]);
+  return constructorPath(To, Inner);
+}
+
+std::string FunctionEmitter::emitConstructor(const BasicBlock *BB) {
+  std::string Out = "  | " + BlockNames.lookup(BB);
+  if (UsesMemory)
+    Out += " (m : Mem)";
+  std::vector<const Value *> Params = blockParams(BB);
+  for (size_t I = 0; I != Params.size();) {
+    std::string Type = leanType(Params[I]->getType());
+    std::string Group;
+    for (; I != Params.size() && leanType(Params[I]->getType()) == Type; ++I)
+      Group += (Group.empty() ? "" : " ") + Names.at(Params[I]);
+    Out += " (" + Group + " : " + Type + ")";
+  }
+  return Out + "\n";
+}
+
+// Metadata is either a hint with no meaning for one run of the program, or can make a result poison
+// or undefined. `noundef` on a load is handled by the load, and the rest of that kind are refused.
+void FunctionEmitter::checkMetadata(const Instruction &I) {
+  SmallVector<std::pair<unsigned, MDNode *>, 4> MDs;
+  I.getAllMetadataOtherThanDebugLoc(MDs);
+  SmallVector<StringRef, 32> Kinds;
+  I.getContext().getMDKindNames(Kinds);
+  static const std::set<std::string> Harmless = {
+      "tbaa", "tbaa.struct", "alias.scope", "noalias", "llvm.access.group", "llvm.loop", "prof",
+      "unpredictable", "nosanitize", "heapallocsite", "noundef", "srcloc", "annotation",
+      "inline_history"};
+  for (const auto &MD : MDs)
+    if (!Harmless.count(Kinds[MD.first].str()))
+      reject("metadata !" + Kinds[MD.first].str() + " on " + printed(I));
+}
+
+// An integer that can be stored whole, or a pointer. Other types in memory aren't modeled yet.
+static void checkMemoryType(Type *T, const Instruction &I) {
+  if (T->isPointerTy())
+    return;
+  if (T->isIntOrIntVectorTy() && T->getScalarSizeInBits() % 8 == 0)
+    return;
+  reject("instruction " + printed(I));
+}
+
+void FunctionEmitter::emitLoad(const LoadInst &L, std::vector<Line> &Out) {
+  if (L.isVolatile() || L.isAtomic())
+    reject("instruction " + printed(L));
+  checkMemoryType(L.getType(), L);
+  std::string Align = std::to_string(L.getAlign().value());
+  std::string P = operand(L.getPointerOperand());
+  if (L.getType()->isPointerTy())
+    addBind(L, Out, "Mem.loadPtr m " + P + " " + Align);
+  else if (auto *V = dyn_cast<FixedVectorType>(L.getType())) {
+    if (L.hasMetadata(LLVMContext::MD_noundef))
+      reject("instruction " + printed(L));
+    addBind(L, Out, "Mem.loadVec " + std::to_string(V->getNumElements()) + " " +
+                        std::to_string(V->getScalarSizeInBits()) + " m " + P + " " + Align);
+  } else
+    addBind(L, Out, "Mem.loadInt " + std::to_string(L.getType()->getIntegerBitWidth()) + " m " + P + " " + Align);
+  if (L.hasMetadata(LLVMContext::MD_noundef))
+    Out.push_back({Line::Guard, "", "noundef " + Names.at(&L)});
+}
+
+void FunctionEmitter::emitStore(const StoreInst &S, std::vector<Line> &Out) {
+  if (S.isVolatile() || S.isAtomic())
+    reject("instruction " + printed(S));
+  checkMemoryType(S.getValueOperand()->getType(), S);
+  std::string Align = std::to_string(S.getAlign().value());
+  Type *T = S.getValueOperand()->getType();
+  const char *Fn = T->isPointerTy() ? "Mem.storePtr m " : T->isVectorTy() ? "Mem.storeVec m " : "Mem.storeInt m ";
+  addMemoryUpdate(Out, Fn + operand(S.getPointerOperand()) + " " + operand(S.getValueOperand()) + " " + Align);
+}
+
+// The byte offset is written out from the data layout, so `Mem.gep` only sees a number.
+void FunctionEmitter::emitGep(const GetElementPtrInst &G, std::vector<Line> &Out) {
+  const DataLayout &DL = Context.DL;
+  if (G.getType()->isVectorTy() || DL.getIndexSizeInBits(0) != 64)
+    reject("instruction " + printed(G));
+  bool InBounds = G.isInBounds();
+  bool NoUnsigned = G.hasNoUnsignedWrap();
+  bool NoSigned = InBounds || G.hasNoUnsignedSignedWrap();
+  std::string Flags = flag(NoUnsigned, "nuw") + flag(NoSigned, "nsw");
+  // Flags forbid overflow in each partial sum, so offsets add up in index order. Constants before
+  // the first variable index are added here, and overflow there makes the result poison.
+  APInt Constant(64, 0);
+  std::string Sum;
+  bool Poison = false;
+  auto AddConstant = [&](const APInt &Index, uint64_t Size) {
+    APInt Scale(64, Size);
+    bool SignedMul, UnsignedMul, SignedAdd, UnsignedAdd;
+    APInt Offset = Index.smul_ov(Scale, SignedMul);
+    (void)Index.umul_ov(Scale, UnsignedMul);
+    Poison |= (NoSigned && SignedMul) || (NoUnsigned && UnsignedMul);
+    if (!Sum.empty()) {
+      if (!Offset.isZero())
+        Sum = "(Val.add " + Sum + " (some " + bitVec(Offset) + ")" + Flags + ")";
+      return;
+    }
+    (void)Constant.sadd_ov(Offset, SignedAdd);
+    Constant = Constant.uadd_ov(Offset, UnsignedAdd);
+    Poison |= (NoSigned && SignedAdd) || (NoUnsigned && UnsignedAdd);
+  };
+  for (auto It = gep_type_begin(G), E = gep_type_end(G); It != E; ++It) {
+    const Value *Index = It.getOperand();
+    if (StructType *S = It.getStructTypeOrNull()) {
+      unsigned Field = cast<ConstantInt>(Index)->getZExtValue();
+      AddConstant(APInt(64, DL.getStructLayout(S)->getElementOffset(Field)), 1);
+      continue;
+    }
+    // A wider index has its own rules about truncating, and no real code needs one.
+    if (It.isVector() || Index->getType()->getIntegerBitWidth() > 64)
+      reject("instruction " + printed(G));
+    uint64_t Stride = It.getSequentialElementStride(DL);
+    if (auto *K = dyn_cast<ConstantInt>(Index)) {
+      AddConstant(K->getValue().sext(64), Stride);
+      continue;
+    }
+    std::string I = operand(Index);
+    if (Index->getType()->getIntegerBitWidth() < 64)
+      I = "(Val.sext 64 " + I + ")";
+    if (Stride != 1)
+      I = "(Val.mul " + I + " (some " + std::to_string(Stride) + "#64)" + Flags + ")";
+    if (!Sum.empty())
+      Sum = "(Val.add " + Sum + " " + I + Flags + ")";
+    else if (Constant.isZero())
+      Sum = I;
+    else
+      Sum = "(Val.add " + I + " (some " + bitVec(Constant) + ")" + Flags + ")";
+  }
+  std::string Offset = Poison ? "(none : Val 64)" : !Sum.empty() ? Sum : "(some " + bitVec(Constant) + ")";
+  addLet(G, Out, "Mem.gep m " + operand(G.getPointerOperand()) + " " + Offset +
+                     flag(InBounds, "inbounds") + flag(NoUnsigned, "nuw"));
+}
+
+void FunctionEmitter::emitAlloca(const AllocaInst &A, std::vector<Line> &Out) {
+  std::optional<TypeSize> Size = A.getAllocationSize(Context.DL);
+  std::string Bytes;
+  if (Size && !Size->isScalable()) {
+    Bytes = "(some " + std::to_string(Size->getFixedValue()) + "#64)";
+  } else {
+    const Value *Count = A.getArraySize();
+    unsigned Width = Count->getType()->getIntegerBitWidth();
+    std::string C = operand(Count);
+    if (Width != 64)
+      C = (Width < 64 ? "(Val.zext 64 " : "(Val.trunc 64 ") + C + ")";
+    uint64_t Each = Context.DL.getTypeAllocSize(A.getAllocatedType());
+    Bytes = "(Val.mul " + C + " (some " + std::to_string(Each) + "#64))";
+  }
+  // An alloca with `lifetime.start` is dead until that runs.
+  bool Dead = any_of(A.users(), [](const User *U) {
+    const auto *I = dyn_cast<IntrinsicInst>(U);
+    return I && I->getIntrinsicID() == Intrinsic::lifetime_start;
+  });
+  Out.push_back({Line::Bind, "(" + Names.at(&A) + ", m)", "Mem.alloca m " + Bytes + flag(Dead, "dead")});
+}
+
+// A pointer as an address, for comparisons and `ptrtoint`.
+std::string FunctionEmitter::pointerAsInt(const Value *V) {
+  return "(Mem.toVal m " + operand(V) + ")";
+}
+
+void FunctionEmitter::emitInstruction(const Instruction &I, std::vector<Line> &Out) {
+  checkMetadata(I);
+  auto Op = [&](unsigned N) { return operand(I.getOperand(N)); };
+  bool IsVector = I.getType()->isVectorTy();
+  // A binary operation, which on vectors applies to each lane.
+  auto Binary = [&](const std::string &Fn, const std::string &Flags = "") {
+    if (IsVector)
+      addLet(I, Out, "Vec.map2 (fun a b => " + Fn + " a b" + Flags + ") " + Op(0) + " " + Op(1));
+    else
+      addLet(I, Out, Fn + " " + Op(0) + " " + Op(1) + Flags);
+  };
+  // A cast. `Fn` takes the result's lane width first, and the flags come after the operand.
+  auto Cast = [&](const std::string &Fn, const std::string &Flags = "") {
+    std::string Width = std::to_string(I.getType()->getScalarSizeInBits());
+    if (IsVector)
+      addLet(I, Out, "Vec.map (fun a => " + Fn + " " + Width + " a" + Flags + ") " + Op(0));
+    else
+      addLet(I, Out, Fn + " " + Width + " " + Op(0) + Flags);
+  };
+  // Effects on one lane of a vector don't have a meaning here yet.
+  auto ScalarOnly = [&] {
+    if (IsVector)
+      reject("instruction " + printed(I));
+  };
+  auto Wrap = [&] {
+    std::string Flags;
+    if (I.hasNoUnsignedWrap())
+      Flags += flag(true, "nuw");
+    if (I.hasNoSignedWrap())
+      Flags += flag(true, "nsw");
+    return Flags;
+  };
+  switch (I.getOpcode()) {
+  case Instruction::Add:
+    Binary("Val.add", Wrap());
+    return;
+  case Instruction::Sub:
+    Binary("Val.sub", Wrap());
+    return;
+  case Instruction::Mul:
+    Binary("Val.mul", Wrap());
+    return;
+  case Instruction::Shl:
+    Binary("Val.shl", Wrap());
+    return;
+  case Instruction::LShr:
+    Binary("Val.lshr", flag(I.isExact(), "exact"));
+    return;
+  case Instruction::AShr:
+    Binary("Val.ashr", flag(I.isExact(), "exact"));
+    return;
+  case Instruction::UDiv:
+    ScalarOnly();
+    addBind(I, Out, "Val.udiv " + Op(0) + " " + Op(1) + flag(I.isExact(), "exact"));
+    return;
+  case Instruction::SDiv:
+    ScalarOnly();
+    addBind(I, Out, "Val.sdiv " + Op(0) + " " + Op(1) + flag(I.isExact(), "exact"));
+    return;
+  case Instruction::URem:
+    ScalarOnly();
+    addBind(I, Out, "Val.urem " + Op(0) + " " + Op(1));
+    return;
+  case Instruction::SRem:
+    ScalarOnly();
+    addBind(I, Out, "Val.srem " + Op(0) + " " + Op(1));
+    return;
+  case Instruction::And:
+    Binary("Val.and");
+    return;
+  case Instruction::Or:
+    Binary("Val.or", flag(cast<PossiblyDisjointInst>(I).isDisjoint(), "disjoint"));
+    return;
+  case Instruction::Xor:
+    Binary("Val.xor");
+    return;
+  case Instruction::ICmp: {
+    const auto &C = cast<ICmpInst>(I);
+    const char *Fn;
+    switch (C.getPredicate()) {
+    case CmpInst::ICMP_EQ: Fn = "Val.icmpEq"; break;
+    case CmpInst::ICMP_NE: Fn = "Val.icmpNe"; break;
+    case CmpInst::ICMP_UGT: Fn = "Val.icmpUgt"; break;
+    case CmpInst::ICMP_UGE: Fn = "Val.icmpUge"; break;
+    case CmpInst::ICMP_ULT: Fn = "Val.icmpUlt"; break;
+    case CmpInst::ICMP_ULE: Fn = "Val.icmpUle"; break;
+    case CmpInst::ICMP_SGT: Fn = "Val.icmpSgt"; break;
+    case CmpInst::ICMP_SGE: Fn = "Val.icmpSge"; break;
+    case CmpInst::ICMP_SLT: Fn = "Val.icmpSlt"; break;
+    case CmpInst::ICMP_SLE: Fn = "Val.icmpSle"; break;
+    default: reject("instruction " + printed(I));
+    }
+    bool IsPointer = C.getOperand(0)->getType()->isPointerTy();
+    if (IsVector) {
+      Binary(Fn, flag(C.hasSameSign(), "samesign"));
+      return;
+    }
+    addLet(I, Out, std::string(Fn) + " " + (IsPointer ? pointerAsInt(C.getOperand(0)) : Op(0)) + " " +
+                       (IsPointer ? pointerAsInt(C.getOperand(1)) : Op(1)) +
+                       flag(C.hasSameSign(), "samesign"));
+    return;
+  }
+  case Instruction::Load:
+    emitLoad(cast<LoadInst>(I), Out);
+    return;
+  case Instruction::Store:
+    emitStore(cast<StoreInst>(I), Out);
+    return;
+  case Instruction::GetElementPtr:
+    emitGep(cast<GetElementPtrInst>(I), Out);
+    return;
+  case Instruction::Alloca:
+    emitAlloca(cast<AllocaInst>(I), Out);
+    return;
+  // `ptrtoaddr` doesn't capture the pointer, which only matters to the compiler, so here it's the same.
+  case Instruction::PtrToAddr:
+  case Instruction::PtrToInt: {
+    unsigned Width = I.getType()->getIntegerBitWidth();
+    std::string V = pointerAsInt(I.getOperand(0));
+    addLet(I, Out, Width == 64 ? V : "Val.trunc " + std::to_string(Width) + " " + V);
+    return;
+  }
+  case Instruction::Select:
+    addLet(I, Out, std::string(I.getOperand(0)->getType()->isVectorTy() ? "Vec.select " : "select ") +
+                       Op(0) + " " + Op(1) + " " + Op(2));
+    return;
+  case Instruction::ZExt:
+    Cast("Val.zext", flag(I.hasNonNeg(), "nneg"));
+    return;
+  case Instruction::SExt:
+    Cast("Val.sext");
+    return;
+  case Instruction::Trunc: {
+    const auto &T = cast<TruncInst>(I);
+    Cast("Val.trunc", flag(T.hasNoUnsignedWrap(), "nuw") + flag(T.hasNoSignedWrap(), "nsw"));
+    return;
+  }
+  case Instruction::ExtractElement:
+    addLet(I, Out, "Vec.extract " + Op(0) + " " + Op(1));
+    return;
+  case Instruction::InsertElement:
+    addLet(I, Out, "Vec.insert " + Op(0) + " " + Op(1) + " " + Op(2));
+    return;
+  case Instruction::ShuffleVector: {
+    const auto &V = cast<ShuffleVectorInst>(I);
+    auto *Result = dyn_cast<FixedVectorType>(V.getType());
+    if (!Result)
+      reject("instruction " + printed(I));
+    std::string Mask = "#[";
+    bool First = true;
+    for (int M : V.getShuffleMask()) {
+      Mask += std::string(First ? "" : ", ") + (M < 0 ? "none" : "some " + std::to_string(M));
+      First = false;
+    }
+    addLet(I, Out, "Vec.shuffle " + std::to_string(Result->getNumElements()) + " " + Op(0) + " " + Op(1) +
+                       " " + Mask + "]");
+    return;
+  }
+  case Instruction::Freeze:
+    ScalarOnly();
+    addBind(I, Out, "Val.freeze " + Op(0));
+    return;
+  case Instruction::ExtractValue: {
+    const auto &E = cast<ExtractValueInst>(I);
+    std::string Expr = Op(0);
+    Type *T = E.getAggregateOperand()->getType();
+    for (unsigned Idx : E.indices()) {
+      auto *S = dyn_cast<StructType>(T);
+      if (!S)
+        reject("instruction " + printed(I));
+      // Lean tuples nest to the right, so a middle field is reached through `.2`s then `.1`.
+      for (unsigned K = 0; K != Idx; ++K)
+        Expr += ".2";
+      if (Idx + 1 != S->getNumElements())
+        Expr += ".1";
+      T = S->getElementType(Idx);
+    }
+    addLet(I, Out, Expr);
+    return;
+  }
+  case Instruction::InsertValue: {
+    const auto &V = cast<InsertValueInst>(I);
+    auto *S = dyn_cast<StructType>(V.getType());
+    if (!S || V.getNumIndices() != 1)
+      reject("instruction " + printed(I));
+    unsigned Idx = V.getIndices()[0];
+    std::string Base = Op(0), Expr = "(";
+    for (unsigned K = 0, E = S->getNumElements(); K != E; ++K) {
+      std::string Field = Base;
+      for (unsigned J = 0; J != K; ++J)
+        Field += ".2";
+      if (K + 1 != E)
+        Field += ".1";
+      Expr += (K ? ", " : "") + (K == Idx ? Op(1) : Field);
+    }
+    addLet(I, Out, Expr + ")");
+    return;
+  }
+  case Instruction::Call:
+    emitCall(cast<CallBase>(I), Out);
+    return;
+  default:
+    reject("instruction " + printed(I));
+  }
+}
+
+// An argument with what its attributes imply, and the checks they require before the call.
+std::string FunctionEmitter::callArgument(const CallBase &C, unsigned N, std::vector<Line> &Out) {
+  AttributeSet Param = C.getAttributes().getParamAttrs(N);
+  checkValueAttributes(Param, C.getArgOperand(N)->getType(), "call parameter");
+  std::string Arg = withValueChecks(Param, operand(C.getArgOperand(N)));
+  if (Param.hasAttribute(Attribute::NoUndef))
+    Out.push_back({Line::Guard, "", "noundef " + Arg});
+  if (Param.hasAttribute(Attribute::Dereferenceable))
+    Out.push_back({Line::Guard, "", "Mem.dereferenceable m " + Arg + " " +
+                                        std::to_string(Param.getDereferenceableBytes())});
+  return Arg;
+}
+
+// The call-site return attributes apply to the value the call produced.
+void FunctionEmitter::checkCallResult(const CallBase &C, std::vector<Line> &Out) {
+  if (C.getType()->isVoidTy())
+    return;
+  AttributeSet Ret = C.getAttributes().getRetAttrs();
+  const std::string &Name = Names.at(&C);
+  if (hasValueChecks(Ret))
+    Out.push_back({Line::Let, Name, withValueChecks(Ret, Name)});
+  if (Ret.hasAttribute(Attribute::NoUndef))
+    Out.push_back({Line::Guard, "", "noundef " + Name});
+}
+
+bool FunctionEmitter::emitIntrinsic(const IntrinsicInst &C, std::vector<Line> &Out) {
+  // An argument's attributes count even if the intrinsic's meaning doesn't use the argument.
+  std::vector<std::string> Args;
+  for (unsigned N = 0, E = C.arg_size(); N != E; ++N)
+    Args.push_back(isa<MetadataAsValue>(C.getArgOperand(N)) ? "" : callArgument(C, N, Out));
+  auto Op = [&](unsigned N) { return Args[N]; };
+  auto BoolArg = [&](unsigned N) -> std::string {
+    auto *K = dyn_cast<ConstantInt>(C.getArgOperand(N));
+    if (!K)
+      reject("instruction " + printed(C));
+    return K->isOne() ? "true" : "false";
+  };
+  auto Unary = [&](const char *Fn) { addLet(C, Out, std::string(Fn) + " " + Op(0)); return true; };
+  auto Binary = [&](const char *Fn) {
+    if (C.getType()->isVectorTy())
+      addLet(C, Out, "Vec.map2 (fun a b => " + std::string(Fn) + " a b) " + Op(0) + " " + Op(1));
+    else
+      addLet(C, Out, std::string(Fn) + " " + Op(0) + " " + Op(1));
+    return true;
+  };
+  auto Reduce = [&](const char *Fn) {
+    addLet(C, Out, "Vec.reduce (fun a b => " + std::string(Fn) + " a b) " + Op(0));
+    return true;
+  };
+  auto Ternary = [&](const char *Fn) {
+    addLet(C, Out, std::string(Fn) + " " + Op(0) + " " + Op(1) + " " + Op(2));
+    return true;
+  };
+  switch (C.getIntrinsicID()) {
+  case Intrinsic::assume:
+    if (C.hasOperandBundles())
+      reject("instruction " + printed(C));
+    Out.push_back({Line::Guard, "", "assume " + Op(0)});
+    return true;
+  // These say nothing about what the program computes.
+  case Intrinsic::donothing:
+  case Intrinsic::sideeffect:
+  case Intrinsic::experimental_noalias_scope_decl:
+    return true;
+  case Intrinsic::expect:
+    addLet(C, Out, Op(0));
+    return true;
+  case Intrinsic::lifetime_start:
+    addMemoryUpdate(Out, "Mem.lifetime m " + Op(0) + " true");
+    return true;
+  case Intrinsic::lifetime_end:
+    addMemoryUpdate(Out, "Mem.lifetime m " + Op(0) + " false");
+    return true;
+  case Intrinsic::memset:
+    if (BoolArg(3) != "false")
+      reject("instruction " + printed(C));
+    addMemoryUpdate(Out, "Mem.memset m " + Op(0) + " " + Op(1) + " " + Op(2));
+    return true;
+  case Intrinsic::memcpy:
+    if (BoolArg(3) != "false")
+      reject("instruction " + printed(C));
+    addMemoryUpdate(Out, "Mem.memcpy m " + Op(0) + " " + Op(1) + " " + Op(2));
+    return true;
+  case Intrinsic::vector_reduce_add: return Reduce("Val.add");
+  case Intrinsic::vector_reduce_mul: return Reduce("Val.mul");
+  case Intrinsic::vector_reduce_and: return Reduce("Val.and");
+  case Intrinsic::vector_reduce_or: return Reduce("Val.or");
+  case Intrinsic::vector_reduce_xor: return Reduce("Val.xor");
+  case Intrinsic::vector_reduce_umin: return Reduce("Val.umin");
+  case Intrinsic::vector_reduce_umax: return Reduce("Val.umax");
+  case Intrinsic::vector_reduce_smin: return Reduce("Val.smin");
+  case Intrinsic::vector_reduce_smax: return Reduce("Val.smax");
+  case Intrinsic::ctpop: return Unary("Val.ctpop");
+  case Intrinsic::bitreverse: return Unary("Val.bitreverse");
+  case Intrinsic::bswap: return Unary("Val.bswap");
+  case Intrinsic::ctlz:
+    addLet(C, Out, "Val.ctlz " + Op(0) + " " + BoolArg(1));
+    return true;
+  case Intrinsic::cttz:
+    addLet(C, Out, "Val.cttz " + Op(0) + " " + BoolArg(1));
+    return true;
+  case Intrinsic::abs:
+    addLet(C, Out, "Val.abs " + Op(0) + " " + BoolArg(1));
+    return true;
+  case Intrinsic::umin: return Binary("Val.umin");
+  case Intrinsic::umax: return Binary("Val.umax");
+  case Intrinsic::smin: return Binary("Val.smin");
+  case Intrinsic::smax: return Binary("Val.smax");
+  case Intrinsic::fshl: return Ternary("Val.fshl");
+  case Intrinsic::fshr: return Ternary("Val.fshr");
+  case Intrinsic::uadd_sat: return Binary("Val.uaddSat");
+  case Intrinsic::usub_sat: return Binary("Val.usubSat");
+  case Intrinsic::sadd_sat: return Binary("Val.saddSat");
+  case Intrinsic::ssub_sat: return Binary("Val.ssubSat");
+  case Intrinsic::uadd_with_overflow: return Binary("Val.uaddWithOverflow");
+  case Intrinsic::sadd_with_overflow: return Binary("Val.saddWithOverflow");
+  case Intrinsic::usub_with_overflow: return Binary("Val.usubWithOverflow");
+  case Intrinsic::ssub_with_overflow: return Binary("Val.ssubWithOverflow");
+  case Intrinsic::umul_with_overflow: return Binary("Val.umulWithOverflow");
+  case Intrinsic::smul_with_overflow: return Binary("Val.smulWithOverflow");
+  case Intrinsic::ucmp:
+  case Intrinsic::scmp:
+    addLet(C, Out, std::string(C.getIntrinsicID() == Intrinsic::ucmp ? "Val.ucmp " : "Val.scmp ") +
+                       std::to_string(C.getType()->getIntegerBitWidth()) + " " + Op(0) + " " + Op(1));
+    return true;
+  default:
+    return false;
+  }
+}
+
+void FunctionEmitter::emitCall(const CallBase &C, std::vector<Line> &Out) {
+  checkValueAttributes(C.getAttributes().getRetAttrs(), C.getType(), "call return");
+  if (const auto *Intr = dyn_cast<IntrinsicInst>(&C)) {
+    if (!emitIntrinsic(*Intr, Out))
+      reject("intrinsic " + Intr->getCalledFunction()->getName().str());
+    checkCallResult(C, Out);
+    return;
+  }
+  if (C.getFunctionType()->isVarArg())
+    reject("variadic call");
+  if (C.hasOperandBundles())
+    reject("instruction " + printed(C));
+  const Function *Callee = C.getCalledFunction();
+  if (Callee && !Callees.count(Callee))
+    reject(Callee->isDeclaration() ? "call to external @" + Callee->getName().str()
+                                   : "call to @" + Callee->getName().str() + ", which isn't translated");
+
+  std::string Args;
+  for (unsigned I = 0, E = C.arg_size(); I != E; ++I)
+    Args += " " + callArgument(C, I, Out);
+  bool Void = C.getType()->isVoidTy();
+  std::string Bound = "(" + (Void ? std::string("_") : Names.at(&C)) + ", m)";
+  if (Callee) {
+    std::string Expr = Callees.lookup(Callee) + Args;
+    if (MemoryFunctions.count(Callee))
+      Out.push_back({Line::Bind, Bound, Expr + " m"});
+    else
+      addBind(C, Out, Expr);
+  } else {
+    // Try each function of this type whose address is taken. Anything else stops the model.
+    std::string Expr = "(indirect " + operand(C.getCalledOperand()) + " fun q' =>";
+    for (const Function *Target : Context.candidates(C.getFunctionType())) {
+      if (!Callees.count(Target))
+        reject("indirect call that can reach @" + Target->getName().str() + ", which isn't translated");
+      std::string Call = Callees.lookup(Target) + Args;
+      if (MemoryFunctions.count(Target))
+        Call += " m";
+      else
+        Call = "andThen (" + Call + ") fun r' => Outcome.ok (r', m)";
+      Expr += "\n      if q' == " + Context.functionAddress(Target) + " then " + Call + " else";
+    }
+    Expr += "\n      Outcome.ub .unknownCallee : Outcome (" + leanType(C.getType()) + " × Mem))";
+    Out.push_back({Line::Bind, Bound, Expr});
+  }
+  checkCallResult(C, Out);
+}
+
+std::string FunctionEmitter::emitTerminator(const BasicBlock *BB) {
+  const Instruction *T = BB->getTerminator();
+  const char *Ret = Recursive ? "Outcome.ok " : "ret ";
+  auto WithMemory = [&](const std::string &V) { return UsesMemory ? "(" + V + ", m)" : V; };
+  if (const auto *R = dyn_cast<ReturnInst>(T)) {
+    if (!R->getReturnValue())
+      return std::string(Ret) + WithMemory("()");
+    AttributeSet Attrs = F.getAttributes().getRetAttrs();
+    std::string V = withValueChecks(Attrs, operand(R->getReturnValue()));
+    if (Attrs.hasAttribute(Attribute::NoUndef))
+      return "noundef " + V + " <| " + Ret + WithMemory(V);
+    return Ret + WithMemory(V);
+  }
+  if (const auto *B = dyn_cast<UncondBrInst>(T))
+    return goTo(BB, B->getSuccessor(0));
+  if (const auto *B = dyn_cast<CondBrInst>(T)) {
+    if (Recursive)
+      return "branch " + operand(B->getCondition()) + " " + goTo(BB, B->getSuccessor(0)) + " " +
+             goTo(BB, B->getSuccessor(1));
+    return "br " + operand(B->getCondition()) + " " + target(BB, B->getSuccessor(0)) + " " +
+           target(BB, B->getSuccessor(1));
+  }
+  if (const auto *S = dyn_cast<SwitchInst>(T)) {
+    std::string Out = "sw " + operand(S->getCondition()) + " fun sel =>";
+    for (const auto &Case : S->cases())
+      Out += "\n      if sel == " + bitVec(Case.getCaseValue()->getValue()) + " then " +
+             goTo(BB, Case.getCaseSuccessor()) + " else";
+    return Out + "\n      " + goTo(BB, S->getDefaultDest());
+  }
+  if (isa<UnreachableInst>(T))
+    return "unreachable";
+  reject("instruction " + printed(*T));
+}
+
+std::string FunctionEmitter::emitArm(const BasicBlock *BB) {
+  std::string Out = "  | ." + BlockNames.lookup(BB);
+  if (UsesMemory)
+    Out += " m";
+  for (const Value *V : blockParams(BB))
+    Out += " " + Names.at(V);
+  Out += " =>\n";
+  std::vector<Line> Lines;
+  for (const Instruction &I : *BB) {
+    if (isa<PHINode>(I) || I.isTerminator())
+      continue;
+    emitInstruction(I, Lines);
+  }
+  for (const Line &L : Lines) {
+    switch (L.K) {
+    case Line::Let:
+      Out += "    let " + L.Name + " := " + L.Expr + "\n";
+      break;
+    case Line::Bind:
+      Out += "    andThen (" + L.Expr + ") fun " + L.Name + " =>\n";
+      break;
+    case Line::Guard:
+      Out += "    " + L.Expr + " <|\n";
+      break;
+    }
+  }
+  return Out + "    " + emitTerminator(BB) + "\n";
+}
+
+void FunctionEmitter::prepare() {
+  if (F.isVarArg())
+    reject("variadic function");
+  if (F.hasPersonalityFn())
+    reject("exception handling");
+  collectBlocks();
+  nameValues();
+  computeLiveness();
+  if (Recursive && Blocks.size() > MaxBlocksPerGroup)
+    reject("recursive function with more than " + std::to_string(MaxBlocksPerGroup) + " blocks");
+  RetType = leanType(F.getReturnType());
+  checkValueAttributes(F.getAttributes().getRetAttrs(), F.getReturnType(), "return");
+  for (const Value *V : Values)
+    leanType(V->getType());
+  if (UsesMemory && (Context.DL.getPointerSizeInBits() != 64 || !Context.DL.isLittleEndian()))
+    reject("data layout " + F.getParent()->getDataLayoutStr());
+  for (const BasicBlock *BB : Blocks)
+    for (const Instruction &I : *BB)
+      HasAlloca |= isa<AllocaInst>(I);
+}
+
+std::string FunctionEmitter::emitBlocks() {
+  std::string NextType = "Outcome (Next Block (" + resultType() + "))";
+  std::string Out = "namespace " + LeanName + "\n\n";
+  if (Recursive || Blocks.size() <= MaxBlocksPerGroup) {
+    Out += "inductive Block where\n";
+    for (const BasicBlock *BB : Blocks)
+      Out += emitConstructor(BB);
+    if (!Recursive) {
+      Out += "\ndef step : Block → " + NextType + "\n";
+      for (const BasicBlock *BB : Blocks)
+        Out += emitArm(BB);
+    }
+  } else {
+    unsigned Groups = (Blocks.size() + MaxBlocksPerGroup - 1) / MaxBlocksPerGroup;
+    for (unsigned G = 0; G != Groups; ++G) {
+      Out += "inductive G" + std::to_string(G) + " where\n";
+      for (unsigned I = G * MaxBlocksPerGroup; I != Blocks.size() && I != (G + 1) * MaxBlocksPerGroup; ++I)
+        Out += emitConstructor(Blocks[I]);
+      Out += "\n";
+    }
+    Out += "inductive Block where\n";
+    for (unsigned G = 0; G != Groups; ++G)
+      Out += "  | g" + std::to_string(G) + " (block : G" + std::to_string(G) + ")\n";
+    Out += "\n";
+    for (unsigned G = 0; G != Groups; ++G) {
+      Out += "def G" + std::to_string(G) + ".step : G" + std::to_string(G) + " → " + NextType + "\n";
+      for (unsigned I = G * MaxBlocksPerGroup; I != Blocks.size() && I != (G + 1) * MaxBlocksPerGroup; ++I)
+        Out += emitArm(Blocks[I]);
+      Out += "\n";
+    }
+    Out += "def step : Block → " + NextType + "\n";
+    for (unsigned G = 0; G != Groups; ++G)
+      Out += "  | .g" + std::to_string(G) + " block => G" + std::to_string(G) + ".step block\n";
+  }
+  return Out + "\nend " + LeanName + "\n";
+}
+
+std::string FunctionEmitter::emitLoop() {
+  std::string Out = "def " + LeanName + ".loop : " + LeanName + ".Block → Outcome (" + resultType() + ")\n";
+  for (const BasicBlock *BB : Blocks)
+    Out += emitArm(BB);
+  return Out + "partial_fixpoint\n";
+}
+
+std::string FunctionEmitter::emitFunction() {
+  std::string Out = "def " + LeanName;
+  for (const Argument &A : F.args())
+    Out += " (" + Names.at(&A) + " : " + leanType(A.getType()) + ")";
+  if (UsesMemory)
+    Out += " (m : Mem)";
+  Out += " : Outcome (" + resultType() + ") :=\n";
+  AttributeList Attrs = F.getAttributes();
+  for (const Argument &A : F.args()) {
+    AttributeSet Param = Attrs.getParamAttrs(A.getArgNo());
+    checkValueAttributes(Param, A.getType(), "parameter");
+    const std::string &Name = Names.at(&A);
+    if (hasValueChecks(Param))
+      Out += "  let " + Name + " := " + withValueChecks(Param, Name) + "\n";
+    if (Param.hasAttribute(Attribute::NoUndef))
+      Out += "  noundef " + Name + " <|\n";
+    if (Param.hasAttribute(Attribute::Dereferenceable))
+      Out += "  Mem.dereferenceable m " + Name + " " + std::to_string(Param.getDereferenceableBytes()) + " <|\n";
+  }
+  if (HasAlloca)
+    Out += "  Mem.withFrame m fun m =>\n";
+  std::string Entry = BlockNames.lookup(Blocks.front());
+  if (UsesMemory)
+    Entry += " m";
+  for (const Value *V : blockParams(Blocks.front()))
+    Entry += " " + Names.at(V);
+  if (Recursive)
+    return Out + "  " + LeanName + ".loop (." + Entry + ")\npartial_fixpoint\n";
+  return Out + "  run " + LeanName + ".step " + constructorPath(Blocks.front(), Entry) + "\n";
+}
+
+std::string describeSignature(const Function &F) {
+  std::string S = "(";
+  bool First = true;
+  for (const Argument &A : F.args()) {
+    S += (First ? "" : ",") + printedType(A.getType());
+    First = false;
+  }
+  return S + ")->" + printedType(F.getReturnType());
+}
+
+// Whether a function needs memory passed in, leaving aside what it calls.
+bool usesMemoryDirectly(const Function &F) {
+  for (const Argument &A : F.args())
+    if (mentionsPointer(A.getType()))
+      return true;
+  if (mentionsPointer(F.getReturnType()))
+    return true;
+  for (const BasicBlock &BB : F)
+    for (const Instruction &I : BB) {
+      if (mentionsPointer(I.getType()) || I.mayReadOrWriteMemory()) {
+        // Some intrinsics claim to touch memory only so they aren't moved around.
+        if (const auto *C = dyn_cast<IntrinsicInst>(&I))
+          switch (C->getIntrinsicID()) {
+          case Intrinsic::assume:
+          case Intrinsic::donothing:
+          case Intrinsic::sideeffect:
+          case Intrinsic::experimental_noalias_scope_decl:
+            continue;
+          default:
+            break;
+          }
+        else if (isa<CallBase>(I))
+          continue;
+        return true;
+      }
+      for (const Use &U : I.operands())
+        if (U->getType()->isPointerTy() && !isa<Function>(U.get()))
+          return true;
+    }
+  return false;
+}
+
+// Tarjan's algorithm over calls, where a call through a pointer might reach any function of its type
+// whose address is taken. Callees come first in Lean, and this produces components with every callee
+// before its callers. A component that can reach itself becomes a `mutual` block.
+class CallGraphOrder {
+public:
+  std::vector<std::vector<Function *>> Components;
+  std::set<const Function *> Recursive;
+
+  explicit CallGraphOrder(Module &M) {
+    for (Function &F : M)
+      if (!F.isDeclaration() && F.hasAddressTaken())
+        ByType[F.getFunctionType()].push_back(&F);
+    for (Function &F : M)
+      if (!F.isDeclaration() && !Index.count(&F))
+        visit(&F);
+  }
+
+private:
+  void visit(Function *F) {
+    unsigned Mine = Index.size();
+    Index[F] = Mine;
+    LowLink[F] = Mine;
+    Stack.push_back(F);
+    OnStack.insert(F);
+    auto Edge = [&](Function *Callee) {
+      if (!Callee || Callee->isDeclaration())
+        return;
+      if (Callee == F)
+        Recursive.insert(F);
+      if (!Index.count(Callee))
+        visit(Callee);
+      if (OnStack.count(Callee))
+        LowLink[F] = std::min(LowLink[F], LowLink[Callee]);
+    };
+    for (const BasicBlock &BB : *F)
+      for (const Instruction &I : BB) {
+        const auto *C = dyn_cast<CallBase>(&I);
+        if (!C)
+          continue;
+        if (C->getCalledFunction()) {
+          Edge(C->getCalledFunction());
+          continue;
+        }
+        auto It = ByType.find(C->getFunctionType());
+        if (It != ByType.end())
+          for (Function *Target : It->second)
+            Edge(Target);
+      }
+    if (LowLink[F] != Mine)
+      return;
+    std::vector<Function *> Component;
+    Function *Member;
+    do {
+      Member = Stack.back();
+      Stack.pop_back();
+      OnStack.erase(Member);
+      Component.push_back(Member);
+    } while (Member != F);
+    if (Component.size() > 1)
+      Recursive.insert(Component.begin(), Component.end());
+    Components.push_back(std::move(Component));
+  }
+
+  std::map<const FunctionType *, std::vector<Function *>> ByType;
+  std::map<const Function *, unsigned> Index, LowLink;
+  std::vector<Function *> Stack;
+  std::set<const Function *> OnStack;
+};
+
+// The Lean for a C library function the model knows, if `F` is one with its standard signature.
+const char *libraryFunction(const Function &F) {
+  LLVMContext &Context = F.getContext();
+  Type *I64 = Type::getInt64Ty(Context);
+  Type *Ptr = PointerType::getUnqual(Context);
+  FunctionType *T = F.getFunctionType();
+  if (F.getName() == "malloc" && T == FunctionType::get(Ptr, {I64}, false))
+    return "Mem.malloc";
+  if (F.getName() == "free" && T == FunctionType::get(Type::getVoidTy(Context), {Ptr}, false))
+    return "Mem.free";
+  if (F.getName() == "strlen" && T == FunctionType::get(I64, {Ptr}, false))
+    return "Mem.strlen";
+  return nullptr;
+}
+
+} // namespace
+
+Emitted emitModule(Module &M, const std::string &Namespace, const std::string &SourceName) {
+  CallGraphOrder Order(M);
+  ModuleContext Context(M);
+  std::set<const Function *> MemoryFunctions;
+
+  NameTable FunctionNames;
+  DenseMap<const Function *, std::string> LeanNames, Translated;
+  std::map<const Function *, FunctionReport> Reports;
+  for (Function &F : M) {
+    if (!F.isDeclaration()) {
+      LeanNames[&F] = FunctionNames.make(F.getName(), "f");
+    } else if (const char *Library = libraryFunction(F)) {
+      Translated[&F] = Library;
+      MemoryFunctions.insert(&F);
+    }
+  }
+
+  // Modules are files, and some filesystems ignore case.
+  std::set<std::string> ModuleNames;
+  auto uniqueModuleName = [&](std::string Name) {
+    std::string Unique = Name;
+    for (unsigned I = 1;; ++I) {
+      if (ModuleNames.insert(StringRef(Unique).lower()).second)
+        return Unique;
+      Unique = Name + "_" + std::to_string(I);
+    }
+  };
+  std::map<const Function *, std::string> ModuleOf;
+  std::vector<Piece> Pieces;
+
+  std::string Body;
+  for (const std::vector<Function *> &Component : Order.Components) {
+    bool Recursive = Order.Recursive.count(Component.front());
+    // Members of a cycle call each other, so they must all be known before any is emitted.
+    for (Function *F : Component)
+      if (Recursive)
+        Translated[F] = LeanNames.lookup(F);
+
+    // A function uses memory if it does so itself, or calls something that does. Members of a
+    // cycle pass memory along for each other, so they share the answer.
+    bool UsesMemory = false;
+    for (const Function *F : Component) {
+      UsesMemory |= usesMemoryDirectly(*F);
+      for (const BasicBlock &BB : *F)
+        for (const Instruction &I : BB)
+          if (const auto *C = dyn_cast<CallBase>(&I))
+            UsesMemory |= MemoryFunctions.count(C->getCalledFunction()) != 0;
+    }
+    if (UsesMemory)
+      MemoryFunctions.insert(Component.begin(), Component.end());
+
+    std::vector<std::unique_ptr<FunctionEmitter>> Emitters;
+    std::string Types, Loops, Functions, Failure;
+    for (Function *F : Component) {
+      Emitters.push_back(std::make_unique<FunctionEmitter>(*F, LeanNames.lookup(F), Recursive, UsesMemory,
+                                                           Translated, MemoryFunctions, Context));
+      FunctionEmitter &E = *Emitters.back();
+      try {
+        E.prepare();
+        Types += E.emitBlocks() + "\n";
+        if (Recursive)
+          Loops += E.emitLoop() + "\n";
+        Functions += E.emitFunction() + "\n";
+      } catch (const Unsupported &U) {
+        Failure = U.Why;
+      }
+      FunctionReport R;
+      R.LLVMName = F->getName().str();
+      R.LeanName = LeanNames.lookup(F);
+      R.Signature = describeSignature(*F);
+      R.Blocks = E.blockCount();
+      R.Instructions = E.instructionCount();
+      R.UsesMemory = UsesMemory;
+      Reports[F] = std::move(R);
+    }
+    if (!Failure.empty()) {
+      for (Function *F : Component) {
+        Reports[F].Unsupported = Component.size() > 1 ? "in a cycle with a function that has " + Failure : Failure;
+        Translated.erase(F);
+      }
+      continue;
+    }
+    for (Function *F : Component)
+      Translated[F] = LeanNames.lookup(F);
+    std::string Text = Types + (Recursive ? "mutual\n\n" + Loops + Functions + "end\n\n" : Functions);
+    Body += Text;
+
+    Piece P;
+    P.Module = uniqueModuleName(LeanNames.lookup(Component.front()));
+    P.Lean = std::move(Text);
+    std::set<std::string> Imports;
+    for (Function *F : Component) {
+      ModuleOf[F] = P.Module;
+      for (const BasicBlock &BB : *F)
+        for (const Instruction &I : BB) {
+          const auto *C = dyn_cast<CallBase>(&I);
+          if (!C)
+            continue;
+          auto Need = [&](const Function *Callee) {
+            auto It = ModuleOf.find(Callee);
+            if (It != ModuleOf.end() && It->second != P.Module)
+              Imports.insert(It->second);
+          };
+          if (const Function *Callee = C->getCalledFunction())
+            Need(Callee);
+          else
+            for (const Function *Target : Context.candidates(C->getFunctionType()))
+              Need(Target);
+        }
+    }
+    P.Imports.assign(Imports.begin(), Imports.end());
+    Pieces.push_back(std::move(P));
+  }
+
+  Emitted Out;
+  for (Function &F : M)
+    if (!F.isDeclaration())
+      Out.Functions.push_back(Reports[&F]);
+
+  Out.Lean = "-- Generated by llvm-lean from " + SourceName + ". Do not edit.\n";
+  for (const FunctionReport &R : Out.Functions)
+    if (!R.Unsupported.empty()) {
+      std::string Why = R.Unsupported;
+      Why = Why.substr(0, Why.find('\n'));
+      Out.Lean += "-- Left out @" + R.LLVMName + ": " + Why + "\n";
+    }
+  Out.Header = Out.Lean;
+  Out.Lean += "import LLVMLean\n\nopen LLVMLean\n\n"
+              "set_option maxHeartbeats 0\nset_option maxRecDepth 1000000\n"
+              "set_option linter.unusedVariables false\n\n"
+              "namespace " + Namespace + "\n\n" + Context.emitGlobals() + Body + "end " + Namespace + "\n";
+  Out.Globals = Context.emitGlobals();
+  Out.Pieces = std::move(Pieces);
+  return Out;
+}
+
+} // namespace llvm_lean
