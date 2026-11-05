@@ -1,0 +1,5 @@
+/.direnv/
+/.lake/
+/build/
+/result*
+/compile_commands.json
