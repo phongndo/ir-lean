@@ -30,3 +30,10 @@ add_test(NAME undefined COMMAND ${CMAKE_SOURCE_DIR}/tests/differential.py $<TARG
   ${CMAKE_SOURCE_DIR}/tests/real/ub.ll --runs 3 --expect-ub)
 add_test(NAME fuzz COMMAND ${CMAKE_SOURCE_DIR}/tests/fuzz.py $<TARGET_FILE:llvm-lean>)
 add_test(NAME names COMMAND ${CMAKE_SOURCE_DIR}/tests/names.sh)
+add_test(NAME zlib COMMAND ${CMAKE_SOURCE_DIR}/tests/zlib.sh $<TARGET_FILE:llvm-lean>
+  --only harness_ --runs 10 --slow harness_slow=0)
+# About 20 minutes: these run far enough for `deflate` to slide its window. Skip with `ctest -LE slow`.
+add_test(NAME zlib_slow COMMAND ${CMAKE_SOURCE_DIR}/tests/zlib.sh $<TARGET_FILE:llvm-lean> --runs 1
+  --only harness_slow)
+set_tests_properties(zlib zlib_slow PROPERTIES TIMEOUT 3600)
+set_tests_properties(zlib_slow PROPERTIES LABELS slow)
