@@ -8,9 +8,9 @@ produced.
 
 ## Status
 
-All 88 functions in zlib's core library translate at `-O2`, and agree with native code on all 117 results of
-a test harness, on inputs of about 800 bytes. Three functions, as clang compiles them for x86-64 Linux at `-O2`, are
-proved correct for every input, with no undefined behavior or poison:
+All 88 functions in zlib's core library translate at `-O2 -fno-strict-aliasing`, and agree with native code on all
+117 results of a test harness, on inputs of about 800 bytes. Three functions, as clang compiles them that way for
+x86-64 Linux, are proved correct for every input, with no undefined behavior, poison or broken promises:
 
 | Proof | Source | Against |
 | --- | --- | --- |
@@ -19,8 +19,7 @@ proved correct for every input, with no undefined behavior or poison:
 | [`Crc32.lean`](tests/proofs/Crc32.lean) | zlib's `crc32_z` | RFC 1952 |
 
 These are theorems about the LLVM IR, in this project's model of it. They aren't about source programs or
-machine code, and they rest on an unverified emitter and on promises from the optimizer that the model
-doesn't check. [Trust](docs/trust.md) has the details.
+machine code, and they rest on an unverified emitter. [Trust](docs/trust.md) has the details, and the known gaps.
 
 ## Quickstart
 
@@ -28,7 +27,7 @@ doesn't check. [Trust](docs/trust.md) has the details.
 nix develop
 lake build
 cmake -S . -B build -G Ninja && ninja -C build
-clang -O2 -S -emit-llvm -fno-discard-value-names tests/real/bi_reverse.c -o build/popcount.ll
+clang -O2 -fno-strict-aliasing -S -emit-llvm -fno-discard-value-names tests/real/bi_reverse.c -o build/popcount.ll
 build/ir-lean build/popcount.ll -o build/Popcount.lean
 lake env lean build/Popcount.lean
 ```

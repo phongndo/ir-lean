@@ -156,7 +156,7 @@ define i64 @f(ptr %p) { %n = call i64 @strlen(ptr %p) nounwind willreturn memory
   ret i64 %n }'
 # Two `initializes` arguments could overlap, and each needs its own record of what it wrote.
 refuses 'initializes' 'define void @f(ptr initializes((0, 4)) %p, ptr initializes((0, 4)) %q) { ret void }'
-# `tbaa` has no rule to model, and the others aren't used. -fno-strict-aliasing leaves `tbaa` out.
+# `tbaa` isn't modeled yet, and the others aren't used. -fno-strict-aliasing leaves `tbaa` out.
 refuses 'metadata !tbaa' 'define i32 @f(ptr %p) { %v = load i32, ptr %p, !tbaa !0
   ret i32 %v }
 !0 = !{!1, !1, i64 0}

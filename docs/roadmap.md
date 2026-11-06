@@ -76,12 +76,12 @@ Each is reached when its checks pass in CI, not on a date.
 
 | | Milestone | Depends on | Status |
 | --- | --- | --- | --- |
-| M0 | Phase 0A done: axioms allow-listed, GEP gaps closed, pinned target and manifest | | Not started |
+| M0 | Phase 0A done: axioms allow-listed, GEP gaps closed, pinned target and manifest | | In progress: axioms, GEPs and allow-lists are done |
 | M1 | `inflate_table` proved: entries stay inside `codes`, links stay in the table | M0 | Not started |
 | M2 | `inflate_fast` proved safe, given such tables | M1 | Not started |
 | M3 | The invariant holds across `inflate`'s stored-block path | M2 | Not started |
 | M4 | **Headline:** `inflate` proved memory-safe | M3 | Not started |
-| M5 | Phase 0B done: full inventory, semantic mutation, two-machine determinism | M0 | Not started |
+| M5 | Phase 0B done: full inventory, semantic mutation, two-machine determinism | M0 | In progress: promises, model stops and Alive2 are done |
 | M6 | Contracts reused by three callers, and the cost comparison published | M4, M5 | Not started |
 | M7 | C++ demonstration | M6 | Not started |
 | M8 | Rust demonstration | M7 | Not started |
@@ -102,10 +102,8 @@ listed as an assumption of each theorem it affects.
 
 **0A, which blocks safety proofs:**
 
-- Allow-list axioms in `tests/proofs.sh`, so anything but the standard three and `bv_decide`'s fails.
-- Close the [GEP gaps](trust.md#known-gaps-in-the-model): multi-index steps, base in bounds, `nusw`, `nuw`. Add a negative test to
-  `tests/real/ub.ll` for each, which must stop the model.
-- Refuse by default any function attribute or linkage not on a reviewed list.
+- Done: axioms allow-listed in `tests/proofs.sh`, the [GEP gaps](trust.md#closed) closed with negative tests, and
+  function attributes and linkage refused unless reviewed.
 - Pin the target in `tests/zlib.sh`, as `tests/proofs.sh` already does through `PROOF_CFLAGS`.
 - Write a manifest next to each generated module: hashes of source and `.ll`, compile flags, compiler,
   LLVM and Lean versions, triple, data layout, emitter commit, axioms, and the list of promises the
@@ -117,18 +115,18 @@ listed as an assumption of each theorem it affects.
 - **Inventory:** `ir-lean --report` lists, for an input, every opcode, intrinsic, attribute, metadata
   kind and linkage it saw, and how each was handled. A table in the repo classifies each as modeled,
   refused or assumed.
-- **Promises:** decide `noalias`, `readonly`, `tbaa` and the rest, one at a time. Start with what zlib's
-  IR really contains, and then what Rust emits everywhere.
+- **Promises:** done for what zlib's IR contains, [apart from `mustprogress` and `willreturn`](trust.md#known-gaps-in-the-model).
+  What Rust emits everywhere, starting with `noalias` on arguments, is refused until [Phase 3](#phase-3-c-and-rust-demonstrations)
+  needs it. An independent check of these rules, as Alive2 is for GEPs, is still to try.
 - **Poison, `undef`, provenance:** write down the choice for each, with its direction and a test.
-- **Separate model stops from real UB** in the `UB` type, keeping existing theorems' meaning.
 - **Mutation beyond the C:** change each `Val.*` and `Mem.*` definition, and each emitter case, and
   require some test to fail. Survivors show what the tests can't see.
-- **Hermetic pipeline:** Lean from a pinned source, LLVM pinned to a version and not `_latest`, Alive2 on
-  a known LLVM, and CI failing when an oracle is missing. Record what each LLVM bump breaks.
+- **Hermetic pipeline:** Lean from a pinned source, and LLVM pinned to a version and not `_latest`. Record what
+  each LLVM bump breaks. Alive2 is on a known LLVM, and CI fails when it's missing.
 - **Determinism:** `.ll`, `.lean`, manifest and axiom lists are byte-identical on two independent machines
   for the same target, and proofs check on the supported hosts.
 
-**Demo:** an out-of-bounds-and-back GEP that passes today's model now stops it, with its theorem's manifest
+**Demo:** an out-of-bounds-and-back GEP stops the model, which is done. What's left is its theorem's manifest
 showing every assumption that theorem rests on.
 
 **Exit criteria:**
@@ -145,8 +143,9 @@ showing every assumption that theorem rests on.
 **Hold or pivot:**
 
 - 0A must not wait on 0B. If `inflate` work stalls on a 0B item, record the assumption and move on.
-- If closing a promise needs a much heavier model, such as tagging every access for `noalias`, keep it as
-  a stated assumption, and say so in every theorem that relies on it.
+- This is a foundation for optimization proofs, so correctness beats proof cost. If closing a promise needs a
+  heavier model, build it, as [#19](https://github.com/phongndo/ir-lean/pull/19) did. Until it's built, refuse
+  it, as with `tbaa`. A stated assumption is the last resort, and doesn't work for refinement.
 - If a fix invalidates `adler32` or `crc32`, that's a real finding. Update the proof, don't weaken the fix.
 
 ### Phase 1: zlib inflate memory safety
@@ -160,13 +159,15 @@ inside its buffers across calls.
 
 ```lean
 -- A sketch of the target, not a proved theorem. Names and shape will change.
-theorem inflate_no_ub (h : StreamInv m strm) (hc : CallerBuffers m strm) :
-    ∀ r, inflate (some strm) (some flush) m = some r →
-      ∃ code m', r = .ok (code, m') ∧ (StreamInv m' strm ∨ Finished code)
+theorem inflate_safe (h : StreamInv m strm) (hc : CallerBuffers m strm) :
+    ∃ code m', inflate (some strm) (some flush) m = Outcome.ok (code, m') ∧
+      (StreamInv m' strm ∨ Finished code)
 ```
 
-It says nothing about non-termination, which the outer `none` of `Outcome` still allows, and nothing about
-decompressing correctly. Both could come later, as separate theorems.
+It also says `inflate` finishes. That's on purpose: 28 of zlib's functions have loops marked
+`llvm.loop.mustprogress`, and LLVM calls one of those that spins undefined, where the model says `none`. A theorem
+that allowed `none` would [have a hole there](trust.md#known-gaps-in-the-model). This makes the proof harder, and it has to assume the
+allocator returns. It says nothing about decompressing correctly, which could come later as a separate theorem.
 
 **Scope and preconditions** to settle in that review:
 
@@ -296,8 +297,8 @@ functions, with the flags and versions recorded.
 | **Runtime and calls** | `operator new` and `delete`, `__cxa_*` through contracts | `__rust_alloc`, and panics through contracts |
 | **Unwinding** | `invoke` and `landingpad` refused, so exceptions are out of scope at first | The same for `panic=unwind` |
 | **Layout and ABI** | Itanium ABI and vtables come from the front end, and are read as bytes and addresses in the IR | `repr(Rust)` is unstable and niche-optimized, so a theorem holds for that compiled layout only |
-| **Linkage** | `linkonce_odr` assumes the one-definition rule, and is an assumption of the theorem | Generics are monomorphized in, and `core` may or may not be inlined |
-| **Promises** | Fewer than Rust, but TBAA is there | `noalias`, `dereferenceable` and `range` everywhere, so Phase 0's decisions matter most here |
+| **Linkage** | `linkonce_odr` is refused today. Decide whether the one-definition rule is an assumption of the theorem | Generics are monomorphized in, and `core` may or may not be inlined |
+| **Promises** | Fewer than Rust. TBAA is left out with `-fno-strict-aliasing` | `noalias` on arguments, refused today, and `dereferenceable` and `range` everywhere, so Phase 0's decisions matter most here |
 | **Gaps in the probes** | External `operator delete`, exceptions | `undef` in `phi`, external panics |
 | **Version skew** | Same compiler as the emitter | `rustc`'s LLVM differs, and the emitter upgrades its IR on reading. Pin it, or use a matching LLVM |
 | **Language guarantees** | The object model and lifetimes aren't in the IR | The borrow checker's guarantees aren't proved here, and aren't assumed either |
@@ -329,8 +330,9 @@ work on it is keeping Phase 0's choices compatible with it, which is why they se
 **Goal:** for a proposed replacement of code, whoever proposed it, Lean checks a theorem that it refines the
 original. Search tools and AI are untrusted, and only the certificate counts.
 
-**Prerequisites:** M6, the separated UB type, and a decision on `undef`. Memory stages need Phase 2's
-frame reasoning.
+**Prerequisites:** M6, a decision on `undef`, and an answer for `mustprogress`: deleting a loop that never ends can't
+be certified while the model says the source hangs and the target returns. Memory stages need Phase 2's frame
+reasoning.
 
 **What's being certified:**
 
@@ -346,8 +348,8 @@ def Refines (src tgt : Input → Mem → Outcome (Val w × Mem)) : Prop :=
 
 The hard parts are here, and they're mostly not the arithmetic. Poison and `undef` on each side, with the
 polarity problem [in the known gaps](trust.md#known-gaps-in-the-model). A target may allocate differently, so allocation numbers
-don't line up, and memory needs a relation instead of equality. Ignored promises on the target would
-let it claim things the certificate didn't check, so they must be stripped or checked.
+don't line up, and memory needs a relation instead of equality. Promises are checked or refused, so a target can't
+claim one the certificate didn't check, apart from `mustprogress` and `willreturn`.
 
 **Stages,** each opened only by the one before:
 
@@ -414,26 +416,26 @@ first outside user. This phase doesn't depend on Phase 4.
 
 ## Near-term pull requests
 
-Small, independent slices, roughly in order. Each is reviewable alone. Nothing here has started, and this
-document doesn't implement any of them.
+Small, independent slices, roughly in order. Each is reviewable alone.
+
+Done: axiom allow-list ([#11](https://github.com/phongndo/ir-lean/pull/11)), Alive2 required and on the same LLVM
+([#13](https://github.com/phongndo/ir-lean/pull/13)), model stops ([#14](https://github.com/phongndo/ir-lean/pull/14)),
+GEP flags ([#15](https://github.com/phongndo/ir-lean/pull/15)), attribute and linkage allow-lists
+([#16](https://github.com/phongndo/ir-lean/pull/16)), `-fno-strict-aliasing` and refusing `tbaa`
+([#18](https://github.com/phongndo/ir-lean/pull/18)), and the promise model
+([#19](https://github.com/phongndo/ir-lean/pull/19)).
 
 | # | Slice | Phase | Done when |
 | --- | --- | --- | --- |
-| 1 | Allow-list axioms in `tests/proofs.sh` | 0A | A proof with an extra `axiom` fails. Today's three pass |
-| 2 | Negative GEP tests in `tests/real/ub.ll`, for out and back, and an out-of-bounds base | 0A | They fail today, documenting the gap, then pass after 3 |
-| 3 | Fix `Mem.gep` and `emitGep`, per step, or refuse | 0A | Slice 2 passes, and proofs are updated or still check |
-| 4 | `nusw` and `nuw` on addresses, or refusal, with tests | 0A | `getelementptr nusw` no longer prints as a plain one |
-| 5 | Allow-list function attributes and linkage in the emitter | 0A | An unlisted attribute is refused, and zlib stays 88 of 88 |
 | 6 | Pin the target in `tests/zlib.sh`, as `tests/proofs.sh` already does | 0A | Generated IR's triple is the pinned one on any host |
 | 7 | Write a manifest for each generated module | 0A | Each proof's manifest has hashes, versions and axioms |
 | 8 | `Layout.WF`, with lemmas replacing `hnn` and alignment hypotheses | 0A | `adler32` and `crc32` use it, with statements no weaker for real layouts |
-| 9 | Fail CI if Alive2 is missing, and report skips and its LLVM version | 0B | Removing `alive-tv` from CI's path fails `opcheck` |
 | 10 | `--report` lists opcodes, intrinsics, attributes, metadata and linkage | 0B | Zlib's list is checked into a table, and a change fails a test |
-| 11 | Separate model stops from real UB in the `UB` type | 0B | Proofs still check, and the `undefined` test tells them apart |
 | 12 | Semantic mutation script | 0B | Kill rate is reported, with survivors triaged |
 | 13 | Statement of `inflate_table`'s theorem, for review, with no proof | 1 | Someone other than the author has reviewed it |
 | 14 | `inflate_table` proof | 1 | Checks in CI, costs recorded, and the 30:1 gate evaluated |
 | 15 | Executable memory representation, proved to agree with `Mem` | 1 | Differential tests run past 800 bytes |
+| 16 | An independent check of the promise rules, as `tests/gepcheck.py` is for GEPs | 0B | Each rule Alive2 can express is checked against it, and the rest are listed |
 
 ## How we measure
 
@@ -447,7 +449,7 @@ that produced it. Current values live in [status](status.md).
 | IR features classified | No | Fidelity |
 | Known gaps open | [Listed](trust.md#known-gaps-in-the-model) | Fidelity |
 | Mutants killed in C | Yes | Do proofs depend on the code |
-| Mutants killed in semantics and emitter | No | Do tests depend on the model |
+| Mutants killed in semantics and emitter | Partly, as a one-off for GEPs and promises | Do tests depend on the model |
 | Assumptions per theorem | No | How much a theorem really says |
 | Lean lines per IR instruction, for blocks | Yes | Whether cost falls |
 | Lean lines per line of C, in total | Yes | Whether cost falls, overall |
@@ -494,4 +496,4 @@ check it again at each gate. The "someone else ships it" rule depends on that.
 ## Open questions
 
 The ones with the most leverage, for research collaborators: the `inflate` invariant, what to do about
-`noalias` and TBAA, and how far a check inside Lean can replace trust in the emitter.
+`mustprogress`, `noalias` on arguments and TBAA, and how far a check inside Lean can replace trust in the emitter.
