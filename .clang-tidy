@@ -1,0 +1,20 @@
+# Left out, because the emitter is built around them or they're wrong here:
+# - performance-inefficient-string-concatenation: it builds text, and translating all of zlib takes 0.04 s.
+# - performance-enum-size: these enums are few and short-lived.
+# - bugprone-std-exception-baseclass: `Unsupported` only carries a reason to the function's caller.
+# - clang-analyzer-security.ArrayBound: false positives on how LLVM lays out an instruction's operands.
+Checks: >
+  -*,
+  bugprone-*,
+  -bugprone-easily-swappable-parameters,
+  -bugprone-std-exception-baseclass,
+  clang-analyzer-*,
+  -clang-analyzer-security.ArrayBound,
+  misc-unused-*,
+  performance-*,
+  -performance-enum-size,
+  -performance-inefficient-string-concatenation,
+  readability-container-size-empty,
+  readability-redundant-*
+HeaderFilterRegex: 'src/.*'
+WarningsAsErrors: '*'

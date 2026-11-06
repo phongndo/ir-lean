@@ -1,0 +1,2 @@
+# These are inputs written for the IR they compile to. `tests/lint.sh` still has clang warn about them.
+Checks: "-*"

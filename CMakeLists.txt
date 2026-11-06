@@ -12,7 +12,9 @@ find_package(LLVM REQUIRED CONFIG)
 
 add_executable(llvm-lean src/main.cpp src/Emitter.cpp)
 target_include_directories(llvm-lean SYSTEM PRIVATE ${LLVM_INCLUDE_DIRS})
-target_compile_definitions(llvm-lean PRIVATE ${LLVM_DEFINITIONS})
+# LLVM gives its definitions as one string.
+separate_arguments(LLVM_DEFINITIONS_LIST NATIVE_COMMAND ${LLVM_DEFINITIONS})
+target_compile_definitions(llvm-lean PRIVATE ${LLVM_DEFINITIONS_LIST})
 target_compile_options(llvm-lean PRIVATE -Wall -Wextra -fno-rtti)
 llvm_config(llvm-lean USE_SHARED core irreader support)
 
