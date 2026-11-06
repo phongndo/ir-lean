@@ -146,7 +146,8 @@ modules stay in `build/lean-cache`, so a run only recompiles what changed.
 `tests/lint.sh` runs them all, and `tests/lint.sh --fix` has the formatters rewrite what they can.
 `editorconfig-checker` also checks whitespace in every file, which is the only check on how Lean files are
 laid out. CI runs all of this, the tests and the proofs on every pull request and push to `main`, and
-`zlib_slow` on pushes to `main`.
+`zlib_slow` on pushes to `main`. To run `zlib_slow` on a branch before merging it, use
+`gh workflow run CI --ref BRANCH`.
 
 Python scripts need nothing beyond the standard library, and run through `uv`, which also pins `ruff` and
 `ty` in `uv.lock`.
