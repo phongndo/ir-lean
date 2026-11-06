@@ -10,7 +10,12 @@ NOINLINE static unsigned twice(unsigned x) { return x * 2; }
 NOINLINE static unsigned negate(unsigned x) { return 0u - x; }
 // Uses memory where the others don't, so a pointer of this type reaches both kinds of function.
 static unsigned last;
-NOINLINE static unsigned remember(unsigned x) { unsigned old = last; last = x; last = old; return old ^ x; }
+NOINLINE static unsigned remember(unsigned x) {
+  unsigned old = last;
+  last = x;
+  last = old;
+  return old ^ x;
+}
 
 typedef unsigned (*op)(unsigned);
 static op const ops[4] = {add_one, twice, negate, remember};
@@ -19,9 +24,9 @@ static const char hello[] = "hello";
 static const char *const inner = hello + 2;
 
 struct entry {
-    const char *name;
-    op function;
-    unsigned weight;
+  const char *name;
+  op function;
+  unsigned weight;
 };
 static const struct entry table[2] = {{"first", add_one, 3}, {"second!", twice, 5}};
 
@@ -37,23 +42,23 @@ unsigned name_length(unsigned which) { return (unsigned)strlen(names[which % 3])
 unsigned offset_pointer(unsigned i) { return (unsigned char)inner[i % 4]; }
 
 unsigned table_entry(unsigned which, unsigned x) {
-    const struct entry *e = &table[which % 2];
-    return e->function(x) + e->weight + (unsigned)strlen(e->name);
+  const struct entry *e = &table[which % 2];
+  return e->function(x) + e->weight + (unsigned)strlen(e->name);
 }
 
 unsigned heap_sum(unsigned n, unsigned seed) {
-    n %= 40;
-    unsigned *p = malloc(sizeof(unsigned) * (n + 1));
-    if (!p)
-        return 0xffffffffu;
-    for (unsigned i = 0; i <= n; i++)
-        p[i] = seed * i;
-    unsigned total = 0;
-    for (unsigned i = 0; i <= n; i++)
-        total += p[i];
-    free(p);
-    free(NULL);
-    return total;
+  n %= 40;
+  unsigned *p = malloc(sizeof(unsigned) * (n + 1));
+  if (!p)
+    return 0xffffffffu;
+  for (unsigned i = 0; i <= n; i++)
+    p[i] = seed * i;
+  unsigned total = 0;
+  for (unsigned i = 0; i <= n; i++)
+    total += p[i];
+  free(p);
+  free(NULL);
+  return total;
 }
 
 // Recursion that goes through a pointer: `down` calls itself through this table.

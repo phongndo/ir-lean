@@ -69,52 +69,46 @@ const std::set<std::string> &reservedNames() {
   static const std::set<std::string> Names = {
       // Every token in Lean's table that looks like an identifier, as tests/names.sh checks, and two
       // more that the table doesn't list.
-      "module", "this",
-      "Prop", "Sort", "StateRefT", "Type", "_", "abbrev", "add_decl_doc", "assert_not_exists",
-      "assert_not_imported", "at", "attribute", "axiom", "bif", "binder_predicate", "break",
-      "builtin_cbv_simproc", "builtin_cbv_simproc_decl", "builtin_dsimproc",
-      "builtin_dsimproc_decl", "builtin_grind_propagator", "builtin_initialize", "builtin_simproc",
-      "builtin_simproc_decl", "by", "by_elab", "calc", "catch", "cbv_eval", "cbv_simproc",
-      "cbv_simproc_decl", "class", "coinductive", "coinductive_fixpoint", "continue", "dbg_trace",
-      "declare_bitwise_int_theorems", "declare_bitwise_uint_theorems",
-      "declare_command_config_elab", "declare_command_config_elab_legacy", "declare_config_elab",
-      "declare_config_elab_legacy", "declare_core_config_elab", "declare_eval_bin",
+      "module", "this", "Prop", "Sort", "StateRefT", "Type", "_", "abbrev", "add_decl_doc",
+      "assert_not_exists", "assert_not_imported", "at", "attribute", "axiom", "bif", "binder_predicate",
+      "break", "builtin_cbv_simproc", "builtin_cbv_simproc_decl", "builtin_dsimproc", "builtin_dsimproc_decl",
+      "builtin_grind_propagator", "builtin_initialize", "builtin_simproc", "builtin_simproc_decl", "by",
+      "by_elab", "calc", "catch", "cbv_eval", "cbv_simproc", "cbv_simproc_decl", "class", "coinductive",
+      "coinductive_fixpoint", "continue", "dbg_trace", "declare_bitwise_int_theorems",
+      "declare_bitwise_uint_theorems", "declare_command_config_elab", "declare_command_config_elab_legacy",
+      "declare_config_elab", "declare_config_elab_legacy", "declare_core_config_elab", "declare_eval_bin",
       "declare_eval_bin_bitwise", "declare_eval_bin_bool_pred", "declare_int_theorems",
-      "declare_simp_like_tactic", "declare_sint_simprocs", "declare_syntax_cat",
-      "declare_term_config_elab", "declare_uint_simprocs", "declare_uint_theorems", "decreasing_by",
-      "def", "def_eval_config_item", "deprecated_module", "deprecated_syntax", "deriving", "do",
-      "docs_to_verso", "dsimproc", "dsimproc_decl", "elab", "elab_rules", "elab_stx_quot", "else",
-      "end", "eval_prec", "eval_prio", "example", "exists", "export", "extends", "finally", "for",
-      "forall", "from", "fun", "generalizing", "grind_annotated", "grind_pattern",
-      "grind_propagator", "have", "haveI", "hiding", "idbg", "if", "import", "in", "include",
-      "include_str", "inductive", "inductive_fixpoint", "inferInstanceAs", "infix", "infixl",
-      "infixr", "init_grind_norm", "init_quot", "initialize", "instance", "leading_parser", "let",
-      "letI", "let_delayed", "let_expr", "let_fun", "let_tmp", "local", "logNamedError",
-      "logNamedErrorAt", "logNamedWarning", "logNamedWarningAt", "macro", "macro_rules", "match",
-      "match_expr", "matches", "max_prec", "meta", "mod_cast", "monotonicity_by", "mut", "mutual",
-      "namespace", "nat_lit", "no_index", "nofun", "nomatch", "noncomputable", "nonrec",
-      "norm_cast_add_elim", "notation", "omit", "opaque", "open", "partial", "partial_fixpoint",
-      "postfix", "prefix", "private", "protected", "public", "recall", "recommended_spelling",
-      "register_builtin_option", "register_error_explanation", "register_grind_attr",
+      "declare_simp_like_tactic", "declare_sint_simprocs", "declare_syntax_cat", "declare_term_config_elab",
+      "declare_uint_simprocs", "declare_uint_theorems", "decreasing_by", "def", "def_eval_config_item",
+      "deprecated_module", "deprecated_syntax", "deriving", "do", "docs_to_verso", "dsimproc",
+      "dsimproc_decl", "elab", "elab_rules", "elab_stx_quot", "else", "end", "eval_prec", "eval_prio",
+      "example", "exists", "export", "extends", "finally", "for", "forall", "from", "fun", "generalizing",
+      "grind_annotated", "grind_pattern", "grind_propagator", "have", "haveI", "hiding", "idbg", "if",
+      "import", "in", "include", "include_str", "inductive", "inductive_fixpoint", "inferInstanceAs", "infix",
+      "infixl", "infixr", "init_grind_norm", "init_quot", "initialize", "instance", "leading_parser", "let",
+      "letI", "let_delayed", "let_expr", "let_fun", "let_tmp", "local", "logNamedError", "logNamedErrorAt",
+      "logNamedWarning", "logNamedWarningAt", "macro", "macro_rules", "match", "match_expr", "matches",
+      "max_prec", "meta", "mod_cast", "monotonicity_by", "mut", "mutual", "namespace", "nat_lit", "no_index",
+      "nofun", "nomatch", "noncomputable", "nonrec", "norm_cast_add_elim", "notation", "omit", "opaque",
+      "open", "partial", "partial_fixpoint", "postfix", "prefix", "private", "protected", "public", "recall",
+      "recommended_spelling", "register_builtin_option", "register_error_explanation", "register_grind_attr",
       "register_label_attr", "register_linter_set", "register_option", "register_parser_alias",
       "register_simp_attr", "register_sym_dsimp", "register_sym_simp", "register_sym_simp_attr",
-      "register_tactic_tag", "renaming", "repeat", "reprove", "return", "run_cmd", "run_elab",
-      "run_meta", "scoped", "seal", "section", "set_library_suggestions", "set_option", "show",
-      "show_panel_widgets", "show_term", "show_term_elab", "simproc", "simproc_decl", "sorry",
-      "structure", "suffices", "syntax", "tactic_alt", "tactic_extension", "tactic_name",
-      "tactic_tag", "termination_by", "test_extern", "then", "theorem", "throwError",
-      "throwErrorAt", "throwNamedError", "throwNamedErrorAt", "trailing_parser", "try", "unif_hint",
-      "universe", "unless", "unlock_limits", "unsafe", "unseal", "until", "using", "variable",
-      "where", "while", "with", "with_annotate_term", "with_weak_namespace",
+      "register_tactic_tag", "renaming", "repeat", "reprove", "return", "run_cmd", "run_elab", "run_meta",
+      "scoped", "seal", "section", "set_library_suggestions", "set_option", "show", "show_panel_widgets",
+      "show_term", "show_term_elab", "simproc", "simproc_decl", "sorry", "structure", "suffices", "syntax",
+      "tactic_alt", "tactic_extension", "tactic_name", "tactic_tag", "termination_by", "test_extern", "then",
+      "theorem", "throwError", "throwErrorAt", "throwNamedError", "throwNamedErrorAt", "trailing_parser",
+      "try", "unif_hint", "universe", "unless", "unlock_limits", "unsafe", "unseal", "until", "using",
+      "variable", "where", "while", "with", "with_annotate_term", "with_weak_namespace",
       "without_expected_type",
       // Names emitted code uses.
-      "Block", "LLVMLean", "Next", "Outcome", "Val", "andThen", "assume", "br", "branch", "false",
-      "jump", "loop", "none", "noundef", "ret", "run", "select", "some", "step", "sw", "true",
-      "unreachable", "HasPoison", "Mem", "Ptr", "PtrVal", "initial", "m", "indirect", "Vec", "Vector",
-      "a", "b",
+      "Block", "LLVMLean", "Next", "Outcome", "Val", "andThen", "assume", "br", "branch", "false", "jump",
+      "loop", "none", "noundef", "ret", "run", "select", "some", "step", "sw", "true", "unreachable",
+      "HasPoison", "Mem", "Ptr", "PtrVal", "initial", "m", "indirect", "Vec", "Vector", "a", "b",
       // Names Lean generates for every inductive type.
-      "below", "binductionOn", "brecOn", "casesOn", "ctorElim", "ctorElimType", "ctorIdx", "ibelow",
-      "injEq", "noConfusion", "noConfusionType", "rec", "recOn", "sizeOf", "toCtorIdx"};
+      "below", "binductionOn", "brecOn", "casesOn", "ctorElim", "ctorElimType", "ctorIdx", "ibelow", "injEq",
+      "noConfusion", "noConfusionType", "rec", "recOn", "sizeOf", "toCtorIdx"};
   return Names;
 }
 
@@ -180,9 +174,7 @@ bool mentionsPointer(Type *T) {
   return false;
 }
 
-std::string bitVec(const APInt &V) {
-  return toString(V, 10, false) + "#" + std::to_string(V.getBitWidth());
-}
+std::string bitVec(const APInt &V) { return toString(V, 10, false) + "#" + std::to_string(V.getBitWidth()); }
 
 std::string poisonOf(Type *T) {
   if (T->isIntegerTy() || T->isPointerTy())
@@ -197,7 +189,8 @@ std::string zeroOf(Type *T) {
     return "(some Ptr.null)";
   if (auto *V = dyn_cast<FixedVectorType>(T)) {
     leanType(T);
-    return "(Vector.replicate " + std::to_string(V->getNumElements()) + " " + zeroOf(V->getElementType()) + ")";
+    return "(Vector.replicate " + std::to_string(V->getNumElements()) + " " + zeroOf(V->getElementType()) +
+           ")";
   }
   if (auto *S = dyn_cast<StructType>(T)) {
     std::string Out = "(";
@@ -321,9 +314,7 @@ public:
     return It == ByType.end() ? None : It->second;
   }
 
-  const std::string &functionAddress(const Function *F) const {
-    return FunctionAddresses.at(F).Name;
-  }
+  const std::string &functionAddress(const Function *F) const { return FunctionAddresses.at(F).Name; }
 
   // Lean definitions for every global and function address, and the memory holding the globals.
   std::string emitGlobals() const {
@@ -456,9 +447,9 @@ private:
 
   static void appendInt(const APInt &V, uint64_t Size, std::vector<unsigned> &Out) {
     for (uint64_t I = 0; I != Size; ++I)
-      Out.push_back(8 * I < V.getBitWidth() ? V.extractBitsAsZExtValue(
-                                                  std::min<unsigned>(8, V.getBitWidth() - 8 * I), 8 * I)
-                                            : 0);
+      Out.push_back(8 * I < V.getBitWidth()
+                        ? V.extractBitsAsZExtValue(std::min<unsigned>(8, V.getBitWidth() - 8 * I), 8 * I)
+                        : 0);
   }
 
   std::map<const GlobalVariable *, Global> Globals;
@@ -539,8 +530,8 @@ public:
   FunctionEmitter(Function &F, std::string LeanName, bool Recursive, bool UsesMemory,
                   const DenseMap<const Function *, std::string> &Callees,
                   const std::set<const Function *> &MemoryFunctions, const ModuleContext &Context)
-      : F(F), LeanName(std::move(LeanName)), Recursive(Recursive), UsesMemory(UsesMemory),
-        Callees(Callees), MemoryFunctions(MemoryFunctions), Context(Context) {}
+      : F(F), LeanName(std::move(LeanName)), Recursive(Recursive), UsesMemory(UsesMemory), Callees(Callees),
+        MemoryFunctions(MemoryFunctions), Context(Context) {}
 
   // Checks the function can be translated, and sets up names and liveness.
   void prepare();
@@ -575,9 +566,7 @@ private:
   void emitAlloca(const AllocaInst &A, std::vector<Line> &Out);
   void checkMetadata(const Instruction &I);
   std::string pointerAsInt(const Value *V);
-  std::string resultType() const {
-    return UsesMemory ? RetType + " × Mem" : RetType;
-  }
+  std::string resultType() const { return UsesMemory ? RetType + " × Mem" : RetType; }
   void emitCall(const CallBase &C, std::vector<Line> &Out);
   bool emitIntrinsic(const IntrinsicInst &C, std::vector<Line> &Out);
   void addLet(const Instruction &I, std::vector<Line> &Out, std::string Expr) {
@@ -755,9 +744,9 @@ void FunctionEmitter::checkMetadata(const Instruction &I) {
   SmallVector<StringRef, 32> Kinds;
   I.getContext().getMDKindNames(Kinds);
   static const std::set<std::string> Harmless = {
-      "tbaa", "tbaa.struct", "alias.scope", "noalias", "llvm.access.group", "llvm.loop", "prof",
-      "unpredictable", "nosanitize", "heapallocsite", "noundef", "srcloc", "annotation",
-      "inline_history"};
+      "tbaa",      "tbaa.struct", "alias.scope",   "noalias",       "llvm.access.group",
+      "llvm.loop", "prof",        "unpredictable", "nosanitize",    "heapallocsite",
+      "noundef",   "srcloc",      "annotation",    "inline_history"};
   for (const auto &MD : MDs)
     if (!Harmless.count(Kinds[MD.first].str()))
       reject("metadata !" + Kinds[MD.first].str() + " on " + printed(I));
@@ -783,10 +772,12 @@ void FunctionEmitter::emitLoad(const LoadInst &L, std::vector<Line> &Out) {
   else if (auto *V = dyn_cast<FixedVectorType>(L.getType())) {
     if (L.hasMetadata(LLVMContext::MD_noundef))
       reject("instruction " + printed(L));
-    addBind(L, Out, "Mem.loadVec " + std::to_string(V->getNumElements()) + " " +
-                        std::to_string(V->getScalarSizeInBits()) + " m " + P + " " + Align);
+    addBind(L, Out,
+            "Mem.loadVec " + std::to_string(V->getNumElements()) + " " +
+                std::to_string(V->getScalarSizeInBits()) + " m " + P + " " + Align);
   } else
-    addBind(L, Out, "Mem.loadInt " + std::to_string(L.getType()->getIntegerBitWidth()) + " m " + P + " " + Align);
+    addBind(L, Out,
+            "Mem.loadInt " + std::to_string(L.getType()->getIntegerBitWidth()) + " m " + P + " " + Align);
   if (L.hasMetadata(LLVMContext::MD_noundef))
     Out.push_back({Line::Guard, "", "noundef " + Names.at(&L)});
 }
@@ -797,8 +788,11 @@ void FunctionEmitter::emitStore(const StoreInst &S, std::vector<Line> &Out) {
   checkMemoryType(S.getValueOperand()->getType(), S);
   std::string Align = std::to_string(S.getAlign().value());
   Type *T = S.getValueOperand()->getType();
-  const char *Fn = T->isPointerTy() ? "Mem.storePtr m " : T->isVectorTy() ? "Mem.storeVec m " : "Mem.storeInt m ";
-  addMemoryUpdate(Out, Fn + operand(S.getPointerOperand()) + " " + operand(S.getValueOperand()) + " " + Align);
+  const char *Fn = T->isPointerTy()  ? "Mem.storePtr m "
+                   : T->isVectorTy() ? "Mem.storeVec m "
+                                     : "Mem.storeInt m ";
+  addMemoryUpdate(Out,
+                  Fn + operand(S.getPointerOperand()) + " " + operand(S.getValueOperand()) + " " + Align);
 }
 
 // The byte offset is written out from the data layout, so `Mem.gep` only sees a number.
@@ -858,8 +852,9 @@ void FunctionEmitter::emitGep(const GetElementPtrInst &G, std::vector<Line> &Out
       Sum = "(Val.add " + I + " (some " + bitVec(Constant) + ")" + Flags + ")";
   }
   std::string Offset = Poison ? "(none : Val 64)" : !Sum.empty() ? Sum : "(some " + bitVec(Constant) + ")";
-  addLet(G, Out, "Mem.gep m " + operand(G.getPointerOperand()) + " " + Offset +
-                     flag(InBounds, "inbounds") + flag(NoUnsigned, "nuw"));
+  addLet(G, Out,
+         "Mem.gep m " + operand(G.getPointerOperand()) + " " + Offset + flag(InBounds, "inbounds") +
+             flag(NoUnsigned, "nuw"));
 }
 
 void FunctionEmitter::emitAlloca(const AllocaInst &A, std::vector<Line> &Out) {
@@ -885,9 +880,7 @@ void FunctionEmitter::emitAlloca(const AllocaInst &A, std::vector<Line> &Out) {
 }
 
 // A pointer as an address, for comparisons and `ptrtoint`.
-std::string FunctionEmitter::pointerAsInt(const Value *V) {
-  return "(Mem.toVal m " + operand(V) + ")";
-}
+std::string FunctionEmitter::pointerAsInt(const Value *V) { return "(Mem.toVal m " + operand(V) + ")"; }
 
 void FunctionEmitter::emitInstruction(const Instruction &I, std::vector<Line> &Out) {
   checkMetadata(I);
@@ -969,26 +962,47 @@ void FunctionEmitter::emitInstruction(const Instruction &I, std::vector<Line> &O
     const auto &C = cast<ICmpInst>(I);
     const char *Fn;
     switch (C.getPredicate()) {
-    case CmpInst::ICMP_EQ: Fn = "Val.icmpEq"; break;
-    case CmpInst::ICMP_NE: Fn = "Val.icmpNe"; break;
-    case CmpInst::ICMP_UGT: Fn = "Val.icmpUgt"; break;
-    case CmpInst::ICMP_UGE: Fn = "Val.icmpUge"; break;
-    case CmpInst::ICMP_ULT: Fn = "Val.icmpUlt"; break;
-    case CmpInst::ICMP_ULE: Fn = "Val.icmpUle"; break;
-    case CmpInst::ICMP_SGT: Fn = "Val.icmpSgt"; break;
-    case CmpInst::ICMP_SGE: Fn = "Val.icmpSge"; break;
-    case CmpInst::ICMP_SLT: Fn = "Val.icmpSlt"; break;
-    case CmpInst::ICMP_SLE: Fn = "Val.icmpSle"; break;
-    default: reject("instruction " + printed(I));
+    case CmpInst::ICMP_EQ:
+      Fn = "Val.icmpEq";
+      break;
+    case CmpInst::ICMP_NE:
+      Fn = "Val.icmpNe";
+      break;
+    case CmpInst::ICMP_UGT:
+      Fn = "Val.icmpUgt";
+      break;
+    case CmpInst::ICMP_UGE:
+      Fn = "Val.icmpUge";
+      break;
+    case CmpInst::ICMP_ULT:
+      Fn = "Val.icmpUlt";
+      break;
+    case CmpInst::ICMP_ULE:
+      Fn = "Val.icmpUle";
+      break;
+    case CmpInst::ICMP_SGT:
+      Fn = "Val.icmpSgt";
+      break;
+    case CmpInst::ICMP_SGE:
+      Fn = "Val.icmpSge";
+      break;
+    case CmpInst::ICMP_SLT:
+      Fn = "Val.icmpSlt";
+      break;
+    case CmpInst::ICMP_SLE:
+      Fn = "Val.icmpSle";
+      break;
+    default:
+      reject("instruction " + printed(I));
     }
     bool IsPointer = C.getOperand(0)->getType()->isPointerTy();
     if (IsVector) {
       Binary(Fn, flag(C.hasSameSign(), "samesign"));
       return;
     }
-    addLet(I, Out, std::string(Fn) + " " + (IsPointer ? pointerAsInt(C.getOperand(0)) : Op(0)) + " " +
-                       (IsPointer ? pointerAsInt(C.getOperand(1)) : Op(1)) +
-                       flag(C.hasSameSign(), "samesign"));
+    addLet(I, Out,
+           std::string(Fn) + " " + (IsPointer ? pointerAsInt(C.getOperand(0)) : Op(0)) + " " +
+               (IsPointer ? pointerAsInt(C.getOperand(1)) : Op(1)) + flag(C.hasSameSign(), "samesign"));
     return;
   }
   case Instruction::Load:
@@ -1012,8 +1026,9 @@ void FunctionEmitter::emitInstruction(const Instruction &I, std::vector<Line> &O
     return;
   }
   case Instruction::Select:
-    addLet(I, Out, std::string(I.getOperand(0)->getType()->isVectorTy() ? "Vec.select " : "select ") +
-                       Op(0) + " " + Op(1) + " " + Op(2));
+    addLet(I, Out,
+           std::string(I.getOperand(0)->getType()->isVectorTy() ? "Vec.select " : "select ") + Op(0) + " " +
+               Op(1) + " " + Op(2));
     return;
   case Instruction::ZExt:
     Cast("Val.zext", flag(I.hasNonNeg(), "nneg"));
@@ -1043,8 +1058,9 @@ void FunctionEmitter::emitInstruction(const Instruction &I, std::vector<Line> &O
       Mask += std::string(First ? "" : ", ") + (M < 0 ? "none" : "some " + std::to_string(M));
       First = false;
     }
-    addLet(I, Out, "Vec.shuffle " + std::to_string(Result->getNumElements()) + " " + Op(0) + " " + Op(1) +
-                       " " + Mask + "]");
+    addLet(I, Out,
+           "Vec.shuffle " + std::to_string(Result->getNumElements()) + " " + Op(0) + " " + Op(1) + " " +
+               Mask + "]");
     return;
   }
   case Instruction::Freeze:
@@ -1103,8 +1119,8 @@ std::string FunctionEmitter::callArgument(const CallBase &C, unsigned N, std::ve
   if (Param.hasAttribute(Attribute::NoUndef))
     Out.push_back({Line::Guard, "", "noundef " + Arg});
   if (Param.hasAttribute(Attribute::Dereferenceable))
-    Out.push_back({Line::Guard, "", "Mem.dereferenceable m " + Arg + " " +
-                                        std::to_string(Param.getDereferenceableBytes())});
+    Out.push_back({Line::Guard, "",
+                   "Mem.dereferenceable m " + Arg + " " + std::to_string(Param.getDereferenceableBytes())});
   return Arg;
 }
 
@@ -1132,7 +1148,10 @@ bool FunctionEmitter::emitIntrinsic(const IntrinsicInst &C, std::vector<Line> &O
       reject("instruction " + printed(C));
     return K->isOne() ? "true" : "false";
   };
-  auto Unary = [&](const char *Fn) { addLet(C, Out, std::string(Fn) + " " + Op(0)); return true; };
+  auto Unary = [&](const char *Fn) {
+    addLet(C, Out, std::string(Fn) + " " + Op(0));
+    return true;
+  };
   auto Binary = [&](const char *Fn) {
     if (C.getType()->isVectorTy())
       addLet(C, Out, "Vec.map2 (fun a b => " + std::string(Fn) + " a b) " + Op(0) + " " + Op(1));
@@ -1178,18 +1197,30 @@ bool FunctionEmitter::emitIntrinsic(const IntrinsicInst &C, std::vector<Line> &O
       reject("instruction " + printed(C));
     addMemoryUpdate(Out, "Mem.memcpy m " + Op(0) + " " + Op(1) + " " + Op(2));
     return true;
-  case Intrinsic::vector_reduce_add: return Reduce("Val.add");
-  case Intrinsic::vector_reduce_mul: return Reduce("Val.mul");
-  case Intrinsic::vector_reduce_and: return Reduce("Val.and");
-  case Intrinsic::vector_reduce_or: return Reduce("Val.or");
-  case Intrinsic::vector_reduce_xor: return Reduce("Val.xor");
-  case Intrinsic::vector_reduce_umin: return Reduce("Val.umin");
-  case Intrinsic::vector_reduce_umax: return Reduce("Val.umax");
-  case Intrinsic::vector_reduce_smin: return Reduce("Val.smin");
-  case Intrinsic::vector_reduce_smax: return Reduce("Val.smax");
-  case Intrinsic::ctpop: return Unary("Val.ctpop");
-  case Intrinsic::bitreverse: return Unary("Val.bitreverse");
-  case Intrinsic::bswap: return Unary("Val.bswap");
+  case Intrinsic::vector_reduce_add:
+    return Reduce("Val.add");
+  case Intrinsic::vector_reduce_mul:
+    return Reduce("Val.mul");
+  case Intrinsic::vector_reduce_and:
+    return Reduce("Val.and");
+  case Intrinsic::vector_reduce_or:
+    return Reduce("Val.or");
+  case Intrinsic::vector_reduce_xor:
+    return Reduce("Val.xor");
+  case Intrinsic::vector_reduce_umin:
+    return Reduce("Val.umin");
+  case Intrinsic::vector_reduce_umax:
+    return Reduce("Val.umax");
+  case Intrinsic::vector_reduce_smin:
+    return Reduce("Val.smin");
+  case Intrinsic::vector_reduce_smax:
+    return Reduce("Val.smax");
+  case Intrinsic::ctpop:
+    return Unary("Val.ctpop");
+  case Intrinsic::bitreverse:
+    return Unary("Val.bitreverse");
+  case Intrinsic::bswap:
+    return Unary("Val.bswap");
   case Intrinsic::ctlz:
     addLet(C, Out, "Val.ctlz " + Op(0) + " " + BoolArg(1));
     return true;
@@ -1199,26 +1230,43 @@ bool FunctionEmitter::emitIntrinsic(const IntrinsicInst &C, std::vector<Line> &O
   case Intrinsic::abs:
     addLet(C, Out, "Val.abs " + Op(0) + " " + BoolArg(1));
     return true;
-  case Intrinsic::umin: return Binary("Val.umin");
-  case Intrinsic::umax: return Binary("Val.umax");
-  case Intrinsic::smin: return Binary("Val.smin");
-  case Intrinsic::smax: return Binary("Val.smax");
-  case Intrinsic::fshl: return Ternary("Val.fshl");
-  case Intrinsic::fshr: return Ternary("Val.fshr");
-  case Intrinsic::uadd_sat: return Binary("Val.uaddSat");
-  case Intrinsic::usub_sat: return Binary("Val.usubSat");
-  case Intrinsic::sadd_sat: return Binary("Val.saddSat");
-  case Intrinsic::ssub_sat: return Binary("Val.ssubSat");
-  case Intrinsic::uadd_with_overflow: return Binary("Val.uaddWithOverflow");
-  case Intrinsic::sadd_with_overflow: return Binary("Val.saddWithOverflow");
-  case Intrinsic::usub_with_overflow: return Binary("Val.usubWithOverflow");
-  case Intrinsic::ssub_with_overflow: return Binary("Val.ssubWithOverflow");
-  case Intrinsic::umul_with_overflow: return Binary("Val.umulWithOverflow");
-  case Intrinsic::smul_with_overflow: return Binary("Val.smulWithOverflow");
+  case Intrinsic::umin:
+    return Binary("Val.umin");
+  case Intrinsic::umax:
+    return Binary("Val.umax");
+  case Intrinsic::smin:
+    return Binary("Val.smin");
+  case Intrinsic::smax:
+    return Binary("Val.smax");
+  case Intrinsic::fshl:
+    return Ternary("Val.fshl");
+  case Intrinsic::fshr:
+    return Ternary("Val.fshr");
+  case Intrinsic::uadd_sat:
+    return Binary("Val.uaddSat");
+  case Intrinsic::usub_sat:
+    return Binary("Val.usubSat");
+  case Intrinsic::sadd_sat:
+    return Binary("Val.saddSat");
+  case Intrinsic::ssub_sat:
+    return Binary("Val.ssubSat");
+  case Intrinsic::uadd_with_overflow:
+    return Binary("Val.uaddWithOverflow");
+  case Intrinsic::sadd_with_overflow:
+    return Binary("Val.saddWithOverflow");
+  case Intrinsic::usub_with_overflow:
+    return Binary("Val.usubWithOverflow");
+  case Intrinsic::ssub_with_overflow:
+    return Binary("Val.ssubWithOverflow");
+  case Intrinsic::umul_with_overflow:
+    return Binary("Val.umulWithOverflow");
+  case Intrinsic::smul_with_overflow:
+    return Binary("Val.smulWithOverflow");
   case Intrinsic::ucmp:
   case Intrinsic::scmp:
-    addLet(C, Out, std::string(C.getIntrinsicID() == Intrinsic::ucmp ? "Val.ucmp " : "Val.scmp ") +
-                       std::to_string(C.getType()->getIntegerBitWidth()) + " " + Op(0) + " " + Op(1));
+    addLet(C, Out,
+           std::string(C.getIntrinsicID() == Intrinsic::ucmp ? "Val.ucmp " : "Val.scmp ") +
+               std::to_string(C.getType()->getIntegerBitWidth()) + " " + Op(0) + " " + Op(1));
     return true;
   default:
     return false;
@@ -1417,7 +1465,8 @@ std::string FunctionEmitter::emitFunction() {
     if (Param.hasAttribute(Attribute::NoUndef))
       Out += "  noundef " + Name + " <|\n";
     if (Param.hasAttribute(Attribute::Dereferenceable))
-      Out += "  Mem.dereferenceable m " + Name + " " + std::to_string(Param.getDereferenceableBytes()) + " <|\n";
+      Out +=
+          "  Mem.dereferenceable m " + Name + " " + std::to_string(Param.getDereferenceableBytes()) + " <|\n";
   }
   if (HasAlloca)
     Out += "  Mem.withFrame m fun m =>\n";
@@ -1636,7 +1685,8 @@ Emitted emitModule(Module &M, const std::string &Namespace, const std::string &S
     }
     if (!Failure.empty()) {
       for (Function *F : Component) {
-        Reports[F].Unsupported = Component.size() > 1 ? "in a cycle with a function that has " + Failure : Failure;
+        Reports[F].Unsupported =
+            Component.size() > 1 ? "in a cycle with a function that has " + Failure : Failure;
         Translated.erase(F);
       }
       continue;
@@ -1689,7 +1739,8 @@ Emitted emitModule(Module &M, const std::string &Namespace, const std::string &S
   Out.Lean += "import LLVMLean\n\nopen LLVMLean\n\n"
               "set_option maxHeartbeats 0\nset_option maxRecDepth 1000000\n"
               "set_option linter.unusedVariables false\n\n"
-              "namespace " + Namespace + "\n\n" + Context.emitGlobals() + Body + "end " + Namespace + "\n";
+              "namespace " +
+              Namespace + "\n\n" + Context.emitGlobals() + Body + "end " + Namespace + "\n";
   Out.Globals = Context.emitGlobals();
   Out.Pieces = std::move(Pieces);
   return Out;

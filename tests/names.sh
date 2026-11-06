@@ -6,7 +6,7 @@ set -euo pipefail
 root=$(cd "$(dirname "$0")/.." && pwd)
 work=$(mktemp -d)
 trap 'rm -rf "$work"' EXIT
-cat > "$work/tokens.lean" <<'LEAN'
+cat >"$work/tokens.lean" <<'LEAN'
 import LLVMLean
 open Lean Parser
 #eval show CoreM Unit from do
