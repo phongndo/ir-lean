@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # shellcheck disable=SC2329 # `start` and `in_dir` call these functions.
-# Regenerates Lean from real compiler output, then checks the proofs against it. Anything that
-# depends on `sorry` fails, and so does a proof the regenerated code no longer satisfies.
+# Regenerates Lean from real compiler output, then checks the proofs against it. A proof fails if it
+# relies on any axiom outside `check_axioms`' list, which rules out `sorry`, or if the regenerated code
+# no longer satisfies it.
 # usage: tests/proofs.sh path/to/llvm-lean [--generate DIR]
 # `--generate` only writes the modules the proofs import to DIR, where `lake build Proofs` and the
 # language server look for them.
@@ -46,18 +47,72 @@ start() {
   pids+=("$!")
 }
 
+# Prints the axioms of everything in a compiled proof module, or fails naming any that aren't allowed.
+# This looks at the module rather than trusting its `#print axioms`, which a proof could leave out. The
+# standard three are allowed, and so is what `bv_decide` adds for each call, an axiom that a Bool it
+# worked out natively is true. A name is easy to fake, so each of those gets worked out again here.
+check_axioms() {
+  in_dir "$work" lean --stdin <<LEAN
+import Lean
+import $1
+open Lean Meta
+
+def bvDecideResult? (env : Environment) : Name → Option Expr
+  | n@(.str (.str (.str _ "_native") "bv_decide") ax) =>
+    if ax.startsWith "ax_" then
+      match env.find? n with
+      | some (.axiomInfo info) =>
+        if info.type.isAppOfArity \`\`Eq 3 && info.type.appArg! == mkConst \`\`Bool.true then
+          some info.type.appFn!.appArg!
+        else none
+      | _ => none
+    else none
+  | _ => none
+
+run_meta do
+  let env ← getEnv
+  let some index := env.getModuleIdx? \`$1 | throwError "no module $1"
+  let mut axioms : NameSet := {}
+  for declaration in env.header.moduleData[index.toNat]!.constNames do
+    for axiom' in ← collectAxioms declaration do
+      axioms := axioms.insert axiom'
+  let mut count : Nat := 0
+  for axiom' in axioms do
+    if [\`\`propext, \`\`Classical.choice, \`\`Quot.sound].contains axiom' then continue
+    let some result := bvDecideResult? env axiom' | throwError "not an allowed axiom: {axiom'}"
+    match ← nativeEqTrue \`bv_decide result with
+    | .success _ => count := count + 1
+    | .notTrue => throwError "not what bv_decide would add: {axiom'}"
+  IO.println s!"at most the standard three, and {count} from bv_decide"
+LEAN
+}
+
 check_proof() {
-  local name=${1##*/}
-  if ! in_dir "$work" lean "$1" >"$work/$name.out" 2>&1; then
+  local name=${1##*/} module axioms
+  module=${name%.lean}
+  if ! in_dir "$work" lean -R "$(dirname "$1")" -o "$work/$module.olean" "$1" >"$work/$name.out" 2>&1; then
     printf 'FAIL  %s\n' "$name"
     head -c 4000 "$work/$name.out"
     return 1
-  elif grep -q sorryAx "$work/$name.out"; then
-    printf 'FAIL  %s depends on sorry\n' "$name"
+  elif ! axioms=$(check_axioms "$module" 2>&1); then
+    printf 'FAIL  %s\n%s\n' "$name" "${axioms:0:4000}"
     return 1
   fi
-  printf 'ok    %s (%s axioms besides the standard three)\n' "$name" \
-    "$(grep -c '_native' "$work/$name.out" || true)"
+  printf 'ok    %s (axioms: %s)\n' "$name" "$axioms"
+}
+
+# Each of these has to fail in the axiom check itself, and not for some other reason.
+# usage: must_reject NAME LEAN_SOURCE
+must_reject() {
+  local dir output
+  dir=$(mktemp -d -p "$work")
+  printf '%s\n' "$2" >"$dir/Bad${1//[^a-z]/}.lean"
+  output=$(check_proof "$dir/Bad${1//[^a-z]/}.lean" 2>&1 || true)
+  if ! grep -qE 'not an allowed axiom|not what bv_decide would add' <<<"$output"; then
+    printf 'FAIL  a proof with %s still passes\n%s\n' "$1" "$output"
+    return 1
+  fi
+  printf 'ok    a proof with %s fails\n' "$1"
 }
 
 # A proof has to depend on the code. Break the C, and the same proof must stop checking.
@@ -92,6 +147,19 @@ fi
 for proof in "$root"/tests/proofs/*.lean; do
   start check_proof "$proof"
 done
+
+start must_reject 'its own axiom' 'axiom cheat : 1 = 2
+theorem wrong : 1 = 2 := cheat
+#print axioms wrong'
+start must_reject 'an axiom it never prints' 'axiom cheat : 1 = 2
+theorem wrong : 1 = 2 := cheat'
+start must_reject 'an axiom nothing uses' 'axiom cheat : 1 = 2'
+start must_reject 'sorry' 'theorem wrong : 1 = 2 := sorry'
+start must_reject 'native_decide' 'theorem right : 1 = 1 := by native_decide'
+start must_reject 'an axiom named like bv_decide' 'axiom t._native.bv_decide.ax_1_1 : 1 = 2
+theorem wrong : 1 = 2 := t._native.bv_decide.ax_1_1'
+start must_reject 'a false axiom shaped like bv_decide' 'axiom t._native.bv_decide.ax_1_1 : false = true
+theorem wrong : 1 = 2 := by have := t._native.bv_decide.ax_1_1; contradiction'
 
 breaks_popcount() { must_break "popcount $1" Real "$root/tests/real" bi_reverse.c bi_reverse.c "$root/tests/proofs/Popcount.lean" "$2"; }
 breaks_adler() { must_break "adler32 $1" Zlib "$work/zlib" adler32.c adler32.c "$root/tests/proofs/Adler32.lean" "$2"; }
