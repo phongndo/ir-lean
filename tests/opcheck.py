@@ -12,6 +12,9 @@ Two oracles, because neither is enough alone:
     table in IR, and Alive2 must prove the table and the instruction refine each other.
 
 usage: tests/opcheck.py path/to/llvm-lean [--no-alive]
+
+Without `alive-tv` on PATH this fails. `--no-alive` is how to say that's fine, for hosts that don't have
+it, and it means poison flags go unchecked.
 """
 
 import concurrent.futures
@@ -357,6 +360,13 @@ def alive_case(tool_args):
     return name, verdicts
 
 
+def llvm_version(*command):
+    """The LLVM version a tool prints with `--version`."""
+    out = subprocess.run([*command, "--version"], text=True, capture_output=True, check=False)
+    m = re.search(r"LLVM version (\S+)", out.stdout + out.stderr)
+    return m.group(1) if m else "unknown"
+
+
 def check_alive(table, shapes, results, work):
     jobs = []
     for name, _, w, shape, ret, body, ds in table:
@@ -387,6 +397,10 @@ def check_alive(table, shapes, results, work):
 def main():
     tool = os.path.abspath(sys.argv[1])
     use_alive = "--no-alive" not in sys.argv
+    if use_alive and not shutil.which("alive-tv"):
+        sys.exit(
+            "FAIL  alive2: alive-tv is not on PATH. Pass --no-alive to run without checking poison flags"
+        )
     work = tempfile.mkdtemp(prefix="opcheck-")
     try:
         table, shapes, lean = build_table(tool, work)
@@ -401,7 +415,11 @@ def main():
         for b in bad[:25]:
             print("  WRONG", b)
         failed = bool(bad)
-        if use_alive and shutil.which("alive-tv"):
+        if use_alive:
+            alive, ours = llvm_version("alive-tv"), llvm_version("opt")
+            print(f"alive2: built on LLVM {alive}, and this code is on LLVM {ours}")
+            if alive != ours:
+                print("alive2: those differ, so it may not read this code's IR the way LLVM does")
             proved, afail, skipped = check_alive(table, shapes, results, work)
             print(
                 f"alive2: {proved} variants proved exact in both directions, {len(afail)} wrong, "
@@ -411,9 +429,9 @@ def main():
                 print("  WRONG", name, v[1], "\n", v[2])
             for name, why in skipped[:8]:
                 print("  skipped", name, why.strip().splitlines()[-1][:160] if why.strip() else "")
-            failed = failed or bool(afail)
-        elif use_alive:
-            print("alive2: alive-tv is not on PATH, so poison flags were not checked")
+            failed = failed or bool(afail) or bool(skipped) or not proved
+        else:
+            print("alive2: skipped by --no-alive, so poison flags were not checked")
         sys.exit(1 if failed else 0)
     finally:
         shutil.rmtree(work, ignore_errors=True)
