@@ -35,7 +35,9 @@
                 ninja
                 nixd
                 nixfmt
-                (python3.withPackages (p: [ p.pyyaml ]))
+                python3
+                # ruff and ty come from uv.lock, so `uv run` is what picks their versions.
+                uv
               ]
               ++ lib.optionals stdenv.hostPlatform.isLinux [
                 # Checks poison and UB behavior in tests/opcheck.py, which skips it if absent.
@@ -45,6 +47,9 @@
             buildInputs = [ llvmPackages.llvm ];
             # tests/proofs.sh proves theorems about this exact source.
             ZLIB_SRC = pkgs.zlib.src;
+            # uv uses this Python instead of downloading its own.
+            UV_PYTHON = "${pkgs.python3}/bin/python3";
+            UV_PYTHON_DOWNLOADS = "never";
           };
         }
       );

@@ -1,4 +1,8 @@
-#!/usr/bin/env python3
+#!/usr/bin/env -S uv run --script
+# /// script
+# requires-python = ">=3.12"
+# dependencies = []
+# ///
 """Runs emitted Lean and the natively compiled function on the same inputs, and compares results.
 
 Where Lean says poison or UB, native code may do anything, so those inputs are skipped. Lean runs
@@ -14,6 +18,7 @@ code that shouldn't hit poison or UB, where a bug in the semantics would otherwi
 runs functions whose names start with PREFIX only N times. `--expect-ub` fails unless every function
 translates and every call stops on undefined behavior.
 """
+
 import os
 import random
 import re
@@ -37,7 +42,7 @@ class Stats:
 
 
 def sh(args, **kw):
-    r = subprocess.run(args, text=True, capture_output=True, **kw)
+    r = subprocess.run(args, text=True, capture_output=True, check=False, **kw)
     if r.returncode != 0:
         sys.exit(f"{args[0]} failed:\n{(r.stdout + r.stderr)[:3000]}")
     return r
@@ -50,7 +55,8 @@ def lean_env(work):
 
 
 def report(tool, ll, only=""):
-    """Returns ([(llvm name, lean name, parameter widths, result width, uses memory)], unsupported reasons)."""
+    """Returns ([(llvm name, lean name, parameter widths, result width, uses memory)], unsupported
+    reasons)."""
     out = sh([tool, ll, "--report"]).stdout.splitlines()
     runnable, reasons = [], {}
     for line in out:
@@ -59,8 +65,9 @@ def report(tool, ll, only=""):
             reasons[fields[1]] = fields[2]
         elif fields[0] == "ok" and fields[1].startswith(only):
             m = re.fullmatch(r"\((.*)\)->(\w+)", fields[3])
+            assert m, fields[3]
             params = [p for p in m.group(1).split(",") if p]
-            if all(re.fullmatch(r"i\d+", t) for t in params + [m.group(2)]):
+            if all(re.fullmatch(r"i\d+", t) for t in [*params, m.group(2)]):
                 widths = [int(t[1:]) for t in params]
                 ret = int(m.group(2)[1:])
                 if ret <= MAX_WIDTH and all(w <= MAX_WIDTH for w in widths):
@@ -76,7 +83,9 @@ def edge_values(w):
 def inputs_for(widths, runs, rand):
     picked = []
     for _ in range(runs):
-        picked.append([rand.choice(edge_values(w)) if rand.random() < 0.4 else rand.getrandbits(w) for w in widths])
+        picked.append(
+            [rand.choice(edge_values(w)) if rand.random() < 0.4 else rand.getrandbits(w) for w in widths]
+        )
     return picked
 
 
@@ -85,7 +94,7 @@ def build_lean(tool, ll, work, split):
     env = lean_env(work)
     lean = os.path.join(work, "M.lean")
     args = [tool, ll, "--namespace", "M"] + (["--split", work] if split else ["-o", lean])
-    r = subprocess.run(args, text=True, capture_output=True)
+    r = subprocess.run(args, text=True, capture_output=True, check=False)
     if r.returncode not in (0, 3):
         sys.exit(f"llvm-lean failed:\n{r.stderr}")
     modules = []
@@ -93,21 +102,36 @@ def build_lean(tool, ll, work, split):
         with open(lean) as f:
             modules = [line.split()[1].removeprefix("M.") for line in f if line.startswith("import ")]
     for module in modules:
-        sh(["lean", "-M", LEAN_MAX_MB, "-R", work, "-o", os.path.join(work, "M", module + ".olean"),
-            os.path.join(work, "M", module + ".lean")], env=env)
+        sh(
+            [
+                "lean",
+                "-M",
+                LEAN_MAX_MB,
+                "-R",
+                work,
+                "-o",
+                os.path.join(work, "M", module + ".olean"),
+                os.path.join(work, "M", module + ".lean"),
+            ],
+            env=env,
+        )
     sh(["lean", "-M", LEAN_MAX_MB, "-R", work, "-o", os.path.join(work, "M.olean"), lean], env=env)
 
 
 def run_lean(functions, cases, work):
     env = lean_env(work)
-    src = ["import M", "open LLVMLean", "set_option maxRecDepth 1000000",
-           "def show' {w : Nat} : Outcome (Val w) → String",
-           "  | some (.ok (some v)) => toString v.toNat",
-           "  | some (.ok none) => \"poison\"",
-           "  | some (.error e) => \"ub:\" ++ reprStr e",
-           "  | none => \"diverged\"",
-           "def showMem {w : Nat} (x : Outcome (Val w × Mem)) : String :=",
-           "  show' (andThen x fun r => Outcome.ok r.1)"]
+    src = [
+        "import M",
+        "open LLVMLean",
+        "set_option maxRecDepth 1000000",
+        "def show' {w : Nat} : Outcome (Val w) → String",
+        "  | some (.ok (some v)) => toString v.toNat",
+        '  | some (.ok none) => "poison"',
+        '  | some (.error e) => "ub:" ++ reprStr e',
+        '  | none => "diverged"',
+        "def showMem {w : Nat} (x : Outcome (Val w × Mem)) : String :=",
+        "  show' (andThen x fun r => Outcome.ok r.1)",
+    ]
     runners = []
     for i, (_, name, widths, _, memory) in enumerate(functions):
         args = " ".join(f"(some (BitVec.ofNat {w} c[{k}]!))" for k, w in enumerate(widths))
@@ -141,13 +165,15 @@ def run_native(functions, cases, keep, ll, work):
     calls, n = [], 0
     for i, (name, _, widths, ret, _) in enumerate(functions):
         fn_attrs = attrs.get(name, [""] * len(widths))
-        params = ", ".join(f"i{w} {a}".strip() for w, a in zip(widths, fn_attrs))
-        decls.append(f"declare i{ret} @\"{name}\"({params})")
-        for c, wanted in zip(cases[i], keep[i]):
+        params = ", ".join(f"i{w} {a}".strip() for w, a in zip(widths, fn_attrs, strict=True))
+        decls.append(f'declare i{ret} @"{name}"({params})')
+        for c, wanted in zip(cases[i], keep[i], strict=True):
             if not wanted:
                 continue
-            args = ", ".join(f"i{w} {a} {v}".replace("  ", " ") for w, a, v in zip(widths, fn_attrs, c))
-            calls.append(f"  %r{n} = call i{ret} @\"{name}\"({args})")
+            args = ", ".join(
+                f"i{w} {a} {v}".replace("  ", " ") for w, a, v in zip(widths, fn_attrs, c, strict=True)
+            )
+            calls.append(f'  %r{n} = call i{ret} @"{name}"({args})')
             if ret < 64:
                 calls.append(f"  %z{n} = zext i{ret} %r{n} to i64")
                 value = f"%z{n}"
@@ -182,14 +208,14 @@ def compare_ll(tool, ll, runs, rand, stats, bounds=None, split=False, only="", s
             if name in bounds:
                 cases[i] = [[v % (bounds[name] + 1) for v in c] for c in cases[i]]
             if slow and name.startswith(slow[0]):
-                cases[i] = cases[i][:slow[1]]
-        kept = [(f, c) for f, c in zip(functions, cases) if c]
+                cases[i] = cases[i][: slow[1]]
+        kept = [(f, c) for f, c in zip(functions, cases, strict=True) if c]
         functions, cases = [f for f, _ in kept], [c for _, c in kept]
         stats.functions += len(functions)
         lean_out = run_lean(functions, cases, work)
         keep, values, pos = [], [], 0
         for i in range(len(functions)):
-            row = lean_out[pos:pos + len(cases[i])]
+            row = lean_out[pos : pos + len(cases[i])]
             pos += len(cases[i])
             keep.append([x != "poison" and x != "diverged" and not x.startswith("ub:") for x in row])
             values.append(row)
@@ -200,7 +226,7 @@ def compare_ll(tool, ll, runs, rand, stats, bounds=None, split=False, only="", s
                     stats.skip_reasons[why] = stats.skip_reasons.get(why, 0) + 1
         native = iter(run_native(functions, cases, keep, ll, work))
         for i, (name, *_) in enumerate(functions):
-            for c, k, v in zip(cases[i], keep[i], values[i]):
+            for c, k, v in zip(cases[i], keep[i], values[i], strict=True):
                 if not k:
                     continue
                 stats.compared += 1
@@ -218,8 +244,10 @@ def compile_input(path, work):
 
 
 def summarize(stats, strict=False):
-    print(f"{stats.functions} functions: {stats.compared} results compared with native, "
-          f"{stats.skipped} skipped (poison or UB), {len(stats.mismatches)} mismatches")
+    print(
+        f"{stats.functions} functions: {stats.compared} results compared with native, "
+        f"{stats.skipped} skipped (poison or UB), {len(stats.mismatches)} mismatches"
+    )
     if stats.skip_reasons:
         print("skipped because of: " + ", ".join(f"{k} {v}" for k, v in sorted(stats.skip_reasons.items())))
     for m in stats.mismatches[:20]:
@@ -238,8 +266,12 @@ def all_stopped(stats):
     print("because of: " + ", ".join(f"{k} {v}" for k, v in sorted(stats.skip_reasons.items())))
     for name, why in stats.unsupported.items():
         print(f"  left out @{name}: {why[:120]}")
-    defined = [k for k in stats.skip_reasons if k.split()[0] in
-               ("poison", "diverged", "freezePoison", "readUninit", "pointerBytes", "unknownCallee")]
+    defined = [
+        k
+        for k in stats.skip_reasons
+        if k.split()[0]
+        in ("poison", "diverged", "freezePoison", "readUninit", "pointerBytes", "unknownCallee")
+    ]
     return bool(stats.skipped) and not (stats.compared or stats.unsupported or defined)
 
 
@@ -249,13 +281,13 @@ def main():
     if "--runs" in args:
         i = args.index("--runs")
         runs = int(args[i + 1])
-        del args[i:i + 2]
+        del args[i : i + 2]
     bounds = {}
     while "--bound" in args:
         i = args.index("--bound")
         name, limit = args[i + 1].split("=")
         bounds[name] = int(limit)
-        del args[i:i + 2]
+        del args[i : i + 2]
     split = "--split" in args
     if split:
         args.remove("--split")
@@ -263,7 +295,7 @@ def main():
     if "--only" in args:
         i = args.index("--only")
         only = args[i + 1]
-        del args[i:i + 2]
+        del args[i : i + 2]
     strict = "--strict" in args
     if strict:
         args.remove("--strict")
@@ -272,7 +304,7 @@ def main():
         i = args.index("--slow")
         prefix, count = args[i + 1].split("=")
         slow = (prefix, int(count))
-        del args[i:i + 2]
+        del args[i : i + 2]
     expect_ub = "--expect-ub" in args
     if expect_ub:
         args.remove("--expect-ub")
