@@ -97,12 +97,14 @@ exceptions, or calls to anything else outside the module, and the emitter leaves
 and says why.
 
 For large modules, `--split DIR` writes one Lean module per function, which takes far less memory to
-check. All of zlib takes about 3 minutes, and `inflate` about 4 GB.
+check. All of zlib takes about 3 minutes one module at a time, and `inflate` about 4 GB. Lean that's only
+proved about, not run, can use `--no-code`, so Lean doesn't generate code for it: `crc32_z` checks in under
+a second instead of 9.
 
 ## Testing
 
-Run `lake build`, then `ctest --test-dir build`, which takes about 30 minutes. Add `-LE slow` to skip
-`zlib_slow` and take about 10.
+Run `lake build`, then `ctest --test-dir build`, which takes about 25 minutes. Add `-LE slow` to skip
+`zlib_slow` and take about 5.
 
 | Test | What it checks |
 | --- | --- |
@@ -115,6 +117,42 @@ Run `lake build`, then `ctest --test-dir build`, which takes about 30 minutes. A
 | `names` | Every word Lean reserves is avoided in generated names |
 | `zlib` | At least 90% of zlib translates, and real calls into it match native code, failing if any input is skipped |
 | `zlib_slow` | The same for the calls that slide `deflate`'s window, at minutes each |
+| `lint` | Every formatter and linter below, for every language |
+| `lsp` | Every language server below starts, opens real files, and reports no errors in them |
+
+`LEAN_JOBS` sets how many Lean processes run at once, 4 by default. What limits it is memory. Compiled
+modules stay in `build/lean-cache`, so a run only recompiles what changed.
+
+## Formatters, linters and language servers
+
+| Language | Formatter | Linter | Language server |
+| --- | --- | --- | --- |
+| C++ | `clang-format` | `clang-tidy` | `clangd` |
+| C test inputs | `clang-format` | `clang -Wall -Wextra` | `clangd` |
+| Lean | None exists | Lean's own linters, with `lake build --wfail` | `lake serve` |
+| Python | `ruff format` | `ruff check`, `ty check` | `ty server`, `ruff server` |
+| Shell | `shfmt` | `shellcheck` | `bash-language-server` |
+| Nix | `nixfmt` | `statix`, `deadnix` | `nixd` |
+| CMake | `gersemi` | `cmakelint` | `neocmakelsp` |
+| TOML | `taplo fmt` | `taplo lint` | `taplo lsp` |
+| YAML | `yamlfmt` | `actionlint` | `yaml-language-server` |
+| Markdown | `rumdl fmt` | `rumdl check` | `rumdl server` |
+| LLVM IR test inputs | None exists | `opt -passes=verify` | None exists |
+
+`tests/lint.sh` runs them all, and `tests/lint.sh --fix` has the formatters rewrite what they can.
+`editorconfig-checker` also checks whitespace in every file, which is the only check on how Lean files are
+laid out. CI runs all of this, the tests and the proofs on every pull request and push to `main`, and
+`zlib_slow` on pushes to `main`.
+
+Python scripts need nothing beyond the standard library, and run through `uv`, which also pins `ruff` and
+`ty` in `uv.lock`.
+
+`clangd` needs `build/compile_commands.json`, which `cmake` writes. To open the proofs in an editor, first
+run this, so the language server can find the generated modules they import:
+
+```console
+tests/proofs.sh build/llvm-lean --generate build/generated
+```
 
 ## What a proof relies on
 
