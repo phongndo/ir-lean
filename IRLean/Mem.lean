@@ -385,6 +385,43 @@ def assemblePtr (bytes : List Byte) : Except ModelStop PtrVal :=
             (q.tags.any (fun t => t.call == c.id && t.initializes) && here b i) || c.initialized b i }
       else c }
 
+/-! Running a store wraps an allocation's bytes in another closure, so a load walks back through every
+earlier store to that allocation. The compiler replaces `write` with `writeCompacting`, which now and
+then copies what the closures say into an array. Lean proves below that this changes nothing, so proofs
+never see it. -/
+
+/-- `f`, with the answers below the size of `table` saved once they're asked for. This takes `table`
+instead of building it, because Lean would otherwise build it again on every call. -/
+def lookup {β : Type} (table : Array (Thunk β)) (f : Nat → β) (i : Nat) : β :=
+  if h : i < table.size then table[i].get else f i
+
+theorem lookup_ofFn {β : Type} (n : Nat) (f : Nat → β) :
+    lookup (Array.ofFn (n := n) fun i => Thunk.mk fun _ => f i) f = f := by
+  funext i
+  simp only [lookup]
+  split <;> simp [Thunk.get]
+
+/-- Which stores to compact at. This has to be a function of the store alone, and which ones it picks
+can't change any result, by `lookup_ofFn`. -/
+def compactNow (m : Mem) (size o : Nat) (first : Byte) : Bool :=
+  let v := match first with
+    | .val x => x.toNat
+    | _ => 0
+  (o + 2654435761 * v + 40503 * m.nextCall + 1) % (61 + size / 64) == 0
+
+/-- `write`, but now and then with the closures flattened first. -/
+def writeCompacting (m : Mem) (q : Ptr) (a : Alloc) (n : Nat) (f : Nat → Byte) : Mem :=
+  if a.size ≤ 1048576 && compactNow m a.size q.offset.toNat (f 0) then
+    let table := Array.ofFn (n := a.size) fun i => Thunk.mk fun _ => a.bytes i
+    write m q { a with bytes := lookup table a.bytes } n f
+  else
+    write m q a n f
+
+@[csimp] theorem write_eq_writeCompacting : @write = @writeCompacting := by
+  funext m q a n f
+  simp only [writeCompacting, lookup_ofFn]
+  split <;> rfl
+
 /-- Byte `i` of a little-endian integer. -/
 @[llvm] def intByte (x : BitVec w) (i : Nat) : Byte :=
   .val (BitVec.ofNat 8 (x.toNat >>> (8 * i)))

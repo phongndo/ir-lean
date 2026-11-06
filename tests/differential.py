@@ -40,6 +40,12 @@ LEAN_MAX_MB = os.environ.get("LEAN_MAX_MB", "6000")
 # Modules at a time. What limits this is memory: `inflate` alone peaks near 4 GB.
 LEAN_JOBS = int(os.environ.get("LEAN_JOBS", "4"))
 LEAN_CACHE = os.environ.get("LEAN_CACHE", os.path.join(ROOT, "build", "lean-cache"))
+# The library, natively. `lake build` makes it. Interpreting it is about 10 times slower.
+LIBRARY = os.path.join(ROOT, ".lake", "build", "lib", "libir_x2dlean_IRLean")
+NATIVE = [
+    f"--load-dynlib={LIBRARY}.{'dylib' if sys.platform == 'darwin' else 'so'}",
+    "-Dinterpreter.prefer_native=true",
+]
 
 
 class Stats:
@@ -191,7 +197,7 @@ def run_lean(functions, cases, work):
     path = os.path.join(work, "Drive.lean")
     with open(path, "w") as f:
         f.write("\n".join(src) + "\n")
-    out = sh(["lean", "-M", LEAN_MAX_MB, "--run", path], env=env).stdout.split()
+    out = sh(["lean", "-M", LEAN_MAX_MB, *NATIVE, "--run", path], env=env).stdout.split()
     return out
 
 

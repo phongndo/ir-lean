@@ -66,6 +66,9 @@ not run, can use `--no-code`, so Lean doesn't generate code for it: `inflate` ch
 - **Lean holds at most 244 constructors per type**, and checking a type gets slower faster than it grows,
   so functions over 32 blocks nest their blocks in groups of 16. Recursive functions can't, which limits
   them to 200.
+- **Tests run the library natively**, and the compiler replaces `Mem.write` with `Mem.writeCompacting`, which
+  keeps a load from walking back through every earlier store. `write_eq_writeCompacting` proves the two equal,
+  so a test still runs what the proofs are about, and proofs never see the replacement.
 - **Choices the program can't see are oracles in `Mem`:** where each allocation lives, and whether each
   `malloc` fails. A theorem that holds for every `Mem` holds whatever those choices are.
 - **Function addresses are allocations that hold nothing.** A call through a pointer tries each function in the
