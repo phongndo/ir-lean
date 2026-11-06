@@ -34,7 +34,8 @@ add_test(
     COMMAND
         ${CMAKE_SOURCE_DIR}/tests/differential.py $<TARGET_FILE:llvm-lean>
         ${CMAKE_SOURCE_DIR}/tests/real/pointers.c ${CMAKE_SOURCE_DIR}/tests/real/vectors.ll
-        ${CMAKE_SOURCE_DIR}/tests/real/heap.ll ${CMAKE_SOURCE_DIR}/tests/real/gep.ll --strict
+        ${CMAKE_SOURCE_DIR}/tests/real/heap.ll ${CMAKE_SOURCE_DIR}/tests/real/gep.ll
+        ${CMAKE_SOURCE_DIR}/tests/real/promises.ll --strict
 )
 add_test(
     NAME undefined

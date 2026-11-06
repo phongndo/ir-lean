@@ -79,6 +79,38 @@ for attribute in mustprogress willreturn 'memory(none)' nofree nosync norecurse 
   accepts "define i32 @f(i32 %x) $attribute { ret i32 %x }"
 done
 
+# Promises the model has no rule for, or that are only checked on a function's own parameters.
+for attribute in noalias 'dereferenceable_or_null(4)'; do
+  refuses "parameter attribute" "define ptr @f(ptr $attribute %p) { ret ptr %p }"
+done
+refuses 'parameter attribute' 'define { i32, i32 } @f({ i32, i32 } returned %x) { ret { i32, i32 } %x }'
+refuses 'call parameter attribute' 'define void @g(ptr %p) { ret void }
+define void @f(ptr %p) { call void @g(ptr readonly %p)
+  ret void }'
+refuses 'call attribute memory' 'define void @g() { ret void }
+define void @f() { call void @g() memory(none)
+  ret void }'
+refuses 'call return attribute' 'define ptr @g() { ret ptr null }
+define ptr @f() { %r = call noalias ptr @g()
+  ret ptr %r }'
+refuses 'parameter attribute' 'define ptr @f(ptr captures(ret: address, provenance) %p) { ret ptr %p }'
+refuses 'norecurse' 'define i32 @f(i32 %x) norecurse { %r = call i32 @f(i32 %x)
+  ret i32 %r }'
+refuses 'nofree' 'declare void @free(ptr)
+define void @f(ptr %p) nofree { call void @free(ptr %p)
+  ret void }'
+refuses 'nofree' 'declare void @free(ptr)
+define void @g(ptr %p) { call void @free(ptr %p)
+  ret void }
+define void @f(ptr %p) nofree { call void @g(ptr %p)
+  ret void }'
+refuses 'nofree' 'declare void @free(ptr)
+define void @g(ptr %p) { call void @free(ptr %p)
+  ret void }
+@h = global ptr @g
+define void @f(ptr %p) nofree { %t = load ptr, ptr @h
+  call void %t(ptr %p)
+  ret void }'
 # A promise at a call isn't checked, so it can't be taken on trust either.
 for attribute in nofree norecurse willreturn mustprogress; do
   refuses 'call attribute' "define void @g() { ret void }
@@ -122,6 +154,8 @@ define void @f(ptr %p) { call void @free(ptr %p)
 accepts 'declare i64 @strlen(ptr noundef captures(none)) nocallback nofree nounwind willreturn memory(argmem: read)
 define i64 @f(ptr %p) { %n = call i64 @strlen(ptr %p) nounwind willreturn memory(read)
   ret i64 %n }'
+# Two `initializes` arguments could overlap, and each needs its own record of what it wrote.
+refuses 'initializes' 'define void @f(ptr initializes((0, 4)) %p, ptr initializes((0, 4)) %q) { ret void }'
 # `tbaa` has no rule to model, and the others aren't used. -fno-strict-aliasing leaves `tbaa` out.
 refuses 'metadata !tbaa' 'define i32 @f(ptr %p) { %v = load i32, ptr %p, !tbaa !0
   ret i32 %v }
@@ -175,7 +209,7 @@ import LLVMLean
 open LLVMLean
 
 example :
-    Mem.gep ((Mem.empty fun _ => BitVec.ofNat 64 (2 ^ 64 - 4)).addGlobal 1 8 false #[]) (some ⟨1, 0#64⟩)
+    Mem.gep ((Mem.empty fun _ => BitVec.ofNat 64 (2 ^ 64 - 4)).addGlobal 1 8 false #[]) (some ⟨1, 0#64, []⟩)
       (some 8#64) (inbounds := true) = none := rfl
 
 example (a x y : BitVec 64) (hx : a.uaddOverflow x = false) (hy : (a + x).uaddOverflow y = false) :
