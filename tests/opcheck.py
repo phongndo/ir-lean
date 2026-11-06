@@ -1,4 +1,8 @@
-#!/usr/bin/env python3
+#!/usr/bin/env -S uv run --script
+# /// script
+# requires-python = ">=3.12"
+# dependencies = []
+# ///
 """Checks every integer operation in LLVMLean, through the emitter, against LLVM itself.
 
 Two oracles, because neither is enough alone:
@@ -9,6 +13,7 @@ Two oracles, because neither is enough alone:
 
 usage: tests/opcheck.py path/to/llvm-lean [--no-alive]
 """
+
 import concurrent.futures
 import itertools
 import os
@@ -27,7 +32,9 @@ POISON = 1 << 200
 
 
 def binary(name, flags, w):
-    return [(f"{name} {f}".strip(), [w, w], w, f"%r = {name} {f} i{w} %a0, %a1\n  ret i{w} %r") for f in flags]
+    return [
+        (f"{name} {f}".strip(), [w, w], w, f"%r = {name} {f} i{w} %a0, %a1\n  ret i{w} %r") for f in flags
+    ]
 
 
 def intrinsic(name, args, ret, extra="", suffix=None):
@@ -44,25 +51,52 @@ def intrinsic(name, args, ret, extra="", suffix=None):
 def variants(w):
     """Yields (id, parameter widths, result width, body, declarations)."""
     out = []
-    for name, flags in [("add", WRAP), ("sub", WRAP), ("mul", WRAP), ("shl", WRAP),
-                        ("udiv", ["", "exact"]), ("sdiv", ["", "exact"]), ("urem", [""]), ("srem", [""]),
-                        ("lshr", ["", "exact"]), ("ashr", ["", "exact"]),
-                        ("and", [""]), ("or", ["", "disjoint"]), ("xor", [""])]:
+    for name, flags in [
+        ("add", WRAP),
+        ("sub", WRAP),
+        ("mul", WRAP),
+        ("shl", WRAP),
+        ("udiv", ["", "exact"]),
+        ("sdiv", ["", "exact"]),
+        ("urem", [""]),
+        ("srem", [""]),
+        ("lshr", ["", "exact"]),
+        ("ashr", ["", "exact"]),
+        ("and", [""]),
+        ("or", ["", "disjoint"]),
+        ("xor", [""]),
+    ]:
         out += [(i, a, r, b, []) for i, a, r, b in binary(name, flags, w)]
     for p in PREDS:
         for f in ["", "samesign"]:
-            out.append((f"icmp {f} {p}".replace("  ", " "), [w, w], 1,
-                        f"%r = icmp {f} {p} i{w} %a0, %a1\n  ret i1 %r", []))
+            out.append(
+                (
+                    f"icmp {f} {p}".replace("  ", " "),
+                    [w, w],
+                    1,
+                    f"%r = icmp {f} {p} i{w} %a0, %a1\n  ret i1 %r",
+                    [],
+                )
+            )
     out.append(("select", [1, w, w], w, f"%r = select i1 %a0, i{w} %a1, i{w} %a2\n  ret i{w} %r", []))
     out.append(("freeze", [w], w, f"%r = freeze i{w} %a0\n  ret i{w} %r", []))
     wider, narrower = w * 2, max(1, w // 2)
     for f in ["", "nneg"]:
-        out.append((f"zext {f}".strip(), [w], wider, f"%r = zext {f} i{w} %a0 to i{wider}\n  ret i{wider} %r", []))
+        out.append(
+            (f"zext {f}".strip(), [w], wider, f"%r = zext {f} i{w} %a0 to i{wider}\n  ret i{wider} %r", [])
+        )
     out.append(("sext", [w], wider, f"%r = sext i{w} %a0 to i{wider}\n  ret i{wider} %r", []))
     if narrower < w:
         for f in WRAP:
-            out.append((f"trunc {f}".strip(), [w], narrower,
-                        f"%r = trunc {f} i{w} %a0 to i{narrower}\n  ret i{narrower} %r", []))
+            out.append(
+                (
+                    f"trunc {f}".strip(),
+                    [w],
+                    narrower,
+                    f"%r = trunc {f} i{w} %a0 to i{narrower}\n  ret i{narrower} %r",
+                    [],
+                )
+            )
     for n in "umin umax smin smax uadd.sat usub.sat sadd.sat ssub.sat".split():
         d, b = intrinsic(n, [w, w], w)
         out.append((n, [w, w], w, b, [d]))
@@ -83,8 +117,10 @@ def variants(w):
         name = f"{n}.with.overflow"
         decl = f"declare {{i{w}, i1}} @llvm.{name}.i{w}(i{w}, i{w})"
         for field, ret in [(0, w), (1, 1)]:
-            body = (f"%p = call {{i{w}, i1}} @llvm.{name}.i{w}(i{w} %a0, i{w} %a1)\n"
-                    f"  %r = extractvalue {{i{w}, i1}} %p, {field}\n  ret i{ret} %r")
+            body = (
+                f"%p = call {{i{w}, i1}} @llvm.{name}.i{w}(i{w} %a0, i{w} %a1)\n"
+                f"  %r = extractvalue {{i{w}, i1}} %p, {field}\n  ret i{ret} %r"
+            )
             out.append((f"{name} {field}", [w, w], ret, body, [decl]))
     if w >= 2:
         for n in "ucmp scmp".split():
@@ -99,7 +135,19 @@ def fn_name(ident, w):
 
 def interesting(w):
     m = (1 << w) - 1
-    vals = {0, 1, 2, 3, m, m - 1, 1 << (w - 1), (1 << (w - 1)) - 1, ((1 << (w - 1)) + 1) & m, w & m, (w - 1) & m}
+    vals = {
+        0,
+        1,
+        2,
+        3,
+        m,
+        m - 1,
+        1 << (w - 1),
+        (1 << (w - 1)) - 1,
+        ((1 << (w - 1)) + 1) & m,
+        w & m,
+        (w - 1) & m,
+    }
     return sorted(v & m for v in vals)
 
 
@@ -109,7 +157,9 @@ def cases_for(widths, rand):
         return [list(c) for c in itertools.product(*[range(1 << w) for w in widths])]
     picked = []
     for _ in range(96):
-        picked.append([rand.choice(interesting(w)) if rand.random() < 0.5 else rand.getrandbits(w) for w in widths])
+        picked.append(
+            [rand.choice(interesting(w)) if rand.random() < 0.5 else rand.getrandbits(w) for w in widths]
+        )
     for position in range(len(widths)):
         for _ in range(4):
             case = [rand.choice(interesting(w)) for w in widths]
@@ -119,7 +169,7 @@ def cases_for(widths, rand):
 
 
 def sh(args, **kw):
-    r = subprocess.run(args, text=True, capture_output=True, **kw)
+    r = subprocess.run(args, text=True, capture_output=True, check=False, **kw)
     if r.returncode != 0:
         sys.exit(f"{args[0]} failed:\n{(r.stdout + r.stderr)[:3000]}")
     return r
@@ -148,7 +198,9 @@ def build_table(tool, work):
     with open(ops, "w") as f:
         f.write("\n".join(sorted(decls)) + "\n\n" + "\n".join(funcs))
     lean = os.path.join(work, "Ops.lean")
-    r = subprocess.run([tool, ops, "-o", lean, "--namespace", "Ops"], text=True, capture_output=True)
+    r = subprocess.run(
+        [tool, ops, "-o", lean, "--namespace", "Ops"], text=True, capture_output=True, check=False
+    )
     if r.returncode != 0:
         sys.exit(f"emitter left functions out:\n{r.stderr}")
     return table, shapes, lean
@@ -158,19 +210,25 @@ def eval_in_lean(table, shapes, lean, work):
     env = lean_env(work)
     sh(["lean", "-R", work, "-o", os.path.join(work, "Ops.olean"), lean], env=env)
     shape_names = {s: "shape_" + "_".join(map(str, s)) for s in shapes}
-    src = ["import Ops", "open LLVMLean", "set_option maxRecDepth 1000000",
-           "def show' {w : Nat} : Outcome (Val w) → String",
-           "  | some (.ok (some v)) => toString v.toNat",
-           "  | some (.ok none) => \"poison\"",
-           "  | some (.error _) => \"ub\"",
-           "  | none => \"diverged\""]
+    src = [
+        "import Ops",
+        "open LLVMLean",
+        "set_option maxRecDepth 1000000",
+        "def show' {w : Nat} : Outcome (Val w) → String",
+        "  | some (.ok (some v)) => toString v.toNat",
+        '  | some (.ok none) => "poison"',
+        '  | some (.error _) => "ub"',
+        '  | none => "diverged"',
+    ]
     for s, n in shape_names.items():
         src.append(f"def {n} : List (List Nat) := {shapes[s]}")
     src.append(f"def lit (w n : Nat) : Val w := if n == {POISON} then none else some (BitVec.ofNat w n)")
     runners = []
     for i, (name, _, _, shape, _, _, _) in enumerate(table):
         args = " ".join(f"(lit {w} c[{k}]!)" for k, w in enumerate(shape))
-        src.append(f"def r{i} : IO Unit := for c in {shape_names[shape]} do IO.println (show' (Ops.{name} {args}))")
+        src.append(
+            f"def r{i} : IO Unit := for c in {shape_names[shape]} do IO.println (show' (Ops.{name} {args}))"
+        )
         runners.append(f"r{i}")
     src.append("def main : IO Unit := do\n  for r in [" + ", ".join(runners) + "] do r")
     path = os.path.join(work, "Drive.lean")
@@ -180,7 +238,7 @@ def eval_in_lean(table, shapes, lean, work):
     results, pos = {}, 0
     for name, _, _, shape, _, _, _ in table:
         n = len(shapes[shape])
-        results[name] = out[pos:pos + n]
+        results[name] = out[pos : pos + n]
         pos += n
     if pos != len(out):
         sys.exit("Lean printed the wrong number of results")
@@ -195,7 +253,7 @@ def check_folder(table, shapes, results, work):
         decls.update(ds)
         for ci, c in enumerate(shapes[shape]):
             text = body
-            for k, (w, v) in enumerate(zip(shape, c)):
+            for k, (w, v) in enumerate(zip(shape, c, strict=True)):
                 constant = "poison" if v == POISON else str(v) if w > 1 else ("true" if v else "false")
                 text = text.replace(f"%a{k}", constant)
             fn = f"{name}__{ci}"
@@ -208,11 +266,16 @@ def check_folder(table, shapes, results, work):
     found = {}
     for m in re.finditer(r"define i(\d+) @(\w+)\(\) [^{]*\{\n((?:.*\n)*?)\}", folded):
         ret_w, fn, body = int(m.group(1)), m.group(2), m.group(3)
-        lines = [l for l in body.splitlines() if l.strip()]
+        lines = [line for line in body.splitlines() if line.strip()]
         r = re.fullmatch(r"\s*ret i\d+ (poison|true|false|-?\d+)", lines[-1]) if len(lines) == 1 else None
         if r:
             v = r.group(1)
-            found[fn] = v if v == "poison" else {"true": 1, "false": 0}.get(v, int(v) if v not in ("true", "false") else 0) & ((1 << ret_w) - 1)
+            found[fn] = (
+                v
+                if v == "poison"
+                else {"true": 1, "false": 0}.get(v, int(v) if v not in ("true", "false") else 0)
+                & ((1 << ret_w) - 1)
+            )
     agreed = refined = unfolded = 0
     bad = []
     for name, ci in keys:
@@ -241,9 +304,9 @@ def alive_case(tool_args):
         idx.append(f"  %o{k} = or i{bits} {cur}, %s{k}")
         cur, shift = f"%o{k}", shift + w
     arms, blocks = [], []
-    for ci, (c, r) in enumerate(zip(cases, res)):
+    for ci, (c, r) in enumerate(zip(cases, res, strict=True)):
         key, sh_ = 0, 0
-        for w, v in zip(shape, c):
+        for w, v in zip(shape, c, strict=True):
             key |= v << sh_
             sh_ += w
         arms.append(f"i{bits} {key}, label %c{ci}")
@@ -251,22 +314,43 @@ def alive_case(tool_args):
             blocks.append(f"c{ci}:\n  unreachable")
         else:
             blocks.append(f"c{ci}:\n  ret i{ret} {'poison' if r == 'poison' else r}")
-    table = (f"define i{ret} @F({params}) {{\n" + "\n".join(idx) +
-             f"\n  switch i{bits} {cur}, label %d [\n    " + "\n    ".join(arms) + "\n  ]\nd:\n  unreachable\n" +
-             "\n".join(blocks) + "\n}\n")
+    table = (
+        f"define i{ret} @F({params}) {{\n"
+        + "\n".join(idx)
+        + f"\n  switch i{bits} {cur}, label %d [\n    "
+        + "\n    ".join(arms)
+        + "\n  ]\nd:\n  unreachable\n"
+        + "\n".join(blocks)
+        + "\n}\n"
+    )
     src = f"define i{ret} @F({params}) {{\n  {body}\n}}\n"
     verdicts = []
-    for direction, (a, b) in (("instruction refines table", (src, table)), ("table refines instruction", (table, src))):
+    for direction, (a, b) in (
+        ("instruction refines table", (src, table)),
+        ("table refines instruction", (table, src)),
+    ):
         with tempfile.TemporaryDirectory(dir=work) as d:
             pa, pb = os.path.join(d, "a.ll"), os.path.join(d, "b.ll")
             decl = "\n".join(ds) + "\n"
-            open(pa, "w").write(decl + a)
-            open(pb, "w").write(decl + b)
-            r = subprocess.run(["alive-tv", "--disable-undef-input", pa, pb], text=True, capture_output=True, timeout=300)
+            with open(pa, "w") as f:
+                f.write(decl + a)
+            with open(pb, "w") as f:
+                f.write(decl + b)
+            r = subprocess.run(
+                ["alive-tv", "--disable-undef-input", pa, pb],
+                text=True,
+                capture_output=True,
+                timeout=300,
+                check=False,
+            )
             o = r.stdout + r.stderr
             if "1 correct transformations" in o and "0 incorrect" in o:
                 verdicts.append(None)
-            elif "ERROR:" in o and "doesn't verify" not in o and "incorrect" not in o.split("Summary")[0].lower().replace("0 incorrect", ""):
+            elif (
+                "ERROR:" in o
+                and "doesn't verify" not in o
+                and "incorrect" not in o.split("Summary")[0].lower().replace("0 incorrect", "")
+            ):
                 verdicts.append(("skip", o[:400]))
             else:
                 verdicts.append(("fail", direction, o[:800]))
@@ -277,7 +361,11 @@ def check_alive(table, shapes, results, work):
     jobs = []
     for name, _, w, shape, ret, body, ds in table:
         cases = shapes[shape]
-        if sum(shape) > 8 or len(cases) != 1 << sum(shape) or w not in (1, 2, 4) and not (w == 3 and len(shape) == 3):
+        if (
+            sum(shape) > 8
+            or len(cases) != 1 << sum(shape)
+            or (w not in (1, 2, 4) and not (w == 3 and len(shape) == 3))
+        ):
             continue
         res = results[name]
         if "diverged" in res:
@@ -288,9 +376,9 @@ def check_alive(table, shapes, results, work):
         for name, verdicts in pool.map(alive_case, jobs):
             kinds = [v[0] for v in verdicts if v]
             if "fail" in kinds:
-                failed.append((name, [v for v in verdicts if v and v[0] == "fail"][0]))
+                failed.append((name, next(v for v in verdicts if v and v[0] == "fail")))
             elif "skip" in kinds:
-                skipped.append((name, [v for v in verdicts if v][0][1]))
+                skipped.append((name, next(v for v in verdicts if v)[1]))
             else:
                 proved += 1
     return proved, failed, skipped
@@ -306,15 +394,19 @@ def main():
         total = sum(len(shapes[t[3]]) for t in table)
         print(f"{len(table)} operation variants, {total} cases")
         agreed, refined, unfolded, bad = check_folder(table, shapes, results, work)
-        print(f"constant folder: {agreed} agree, {refined} where Lean is poison or UB and LLVM refines it, "
-              f"{unfolded} not folded, {len(bad)} wrong")
+        print(
+            f"constant folder: {agreed} agree, {refined} where Lean is poison or UB and LLVM refines it, "
+            f"{unfolded} not folded, {len(bad)} wrong"
+        )
         for b in bad[:25]:
             print("  WRONG", b)
         failed = bool(bad)
         if use_alive and shutil.which("alive-tv"):
             proved, afail, skipped = check_alive(table, shapes, results, work)
-            print(f"alive2: {proved} variants proved exact in both directions, {len(afail)} wrong, "
-                  f"{len(skipped)} it couldn't check")
+            print(
+                f"alive2: {proved} variants proved exact in both directions, {len(afail)} wrong, "
+                f"{len(skipped)} it couldn't check"
+            )
             for name, v in afail[:15]:
                 print("  WRONG", name, v[1], "\n", v[2])
             for name, why in skipped[:8]:

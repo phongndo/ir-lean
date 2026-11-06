@@ -1,0 +1,25 @@
+[project]
+name = "llvm-lean-tests"
+version = "0.1.0"
+description = "The Python scripts in tests/, which need nothing beyond the standard library."
+requires-python = ">=3.12"
+dependencies = []
+
+[tool.uv]
+package = false
+
+[tool.ruff]
+line-length = 110
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP", "B", "C4", "SIM", "RUF", "PLE", "PLW"]
+# `"a b c".split()` is the clearer way to write these lists of words, and the Lean in these strings
+# uses `×` on purpose.
+ignore = ["SIM905", "RUF001"]
+
+[tool.ty.environment]
+# tests/fuzz.py imports tests/differential.py, which Python finds next to the script.
+extra-paths = ["tests"]
+
+[dependency-groups]
+dev = ["ruff>=0.17.4", "ty>=0.0.98"]
