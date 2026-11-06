@@ -113,12 +113,10 @@ int main(int Argc, char **Argv) {
   if (Report) {
     for (const llvm_lean::FunctionReport &F : E.Functions) {
       if (F.Unsupported.empty())
-        outs() << "ok\t" << F.LLVMName << "\t" << F.LeanName << "\t" << F.Signature << "\t"
-               << F.Blocks << "\t" << F.Instructions << "\t" << (F.UsesMemory ? "memory" : "pure")
-               << "\n";
+        outs() << "ok\t" << F.LLVMName << "\t" << F.LeanName << "\t" << F.Signature << "\t" << F.Blocks
+               << "\t" << F.Instructions << "\t" << (F.UsesMemory ? "memory" : "pure") << "\n";
       else
-        outs() << "unsupported\t" << F.LLVMName << "\t"
-               << StringRef(F.Unsupported).split('\n').first << "\n";
+        outs() << "unsupported\t" << F.LLVMName << "\t" << StringRef(F.Unsupported).split('\n').first << "\n";
     }
     outs() << "translated " << Translated << "/" << E.Functions.size() << "\n";
     return ExitOk;
@@ -126,8 +124,8 @@ int main(int Argc, char **Argv) {
 
   for (const llvm_lean::FunctionReport &F : E.Functions)
     if (!F.Unsupported.empty())
-      errs() << "llvm-lean: left out @" << F.LLVMName << ": "
-             << StringRef(F.Unsupported).split('\n').first << "\n";
+      errs() << "llvm-lean: left out @" << F.LLVMName << ": " << StringRef(F.Unsupported).split('\n').first
+             << "\n";
 
   if (!SplitDir.empty()) {
     SmallString<128> Dir(SplitDir);
@@ -145,8 +143,10 @@ int main(int Argc, char **Argv) {
       }
       OS << Text;
     };
-    const std::string Options = "open LLVMLean\n\nset_option maxHeartbeats 0\nset_option maxRecDepth 1000000\n"
-                                "set_option linter.unusedVariables false\n\nnamespace " + Namespace + "\n\n";
+    const std::string Options =
+        "open LLVMLean\n\nset_option maxHeartbeats 0\nset_option maxRecDepth 1000000\n"
+        "set_option linter.unusedVariables false\n\nnamespace " +
+        Namespace + "\n\n";
     const std::string Close = "end " + Namespace + "\n";
     Write(Twine(Dir) + "/Globals.lean", E.Header + "import LLVMLean\n\n" + Options + E.Globals + Close);
     std::string All = E.Header + "import " + Namespace + ".Globals\n";

@@ -13,11 +13,11 @@ at `-O2`, safe and correct against their RFCs. See [docs/PLAN.md](docs/PLAN.md) 
 going, which is proving `inflate` memory-safe.
 
 ```console
-$ nix develop
-$ lake build
-$ cmake -S . -B build -G Ninja && ninja -C build
-$ clang -O2 -S -emit-llvm -fno-discard-value-names popcount.c
-$ build/llvm-lean popcount.ll -o Popcount.lean
+nix develop
+lake build
+cmake -S . -B build -G Ninja && ninja -C build
+clang -O2 -S -emit-llvm -fno-discard-value-names popcount.c
+build/llvm-lean popcount.ll -o Popcount.lean
 ```
 
 Each function becomes a type with one constructor per basic block, and a `step` function:
