@@ -11,6 +11,7 @@ runs:
           ~/.elan
           ~/.cache/uv
           .lake
+          build/lean-cache
         key: tools-${{ runner.os }}-${{ hashFiles('lean-toolchain', 'uv.lock', 'flake.lock') }}-${{ github.sha }}
         restore-keys: tools-${{ runner.os }}-${{ hashFiles('lean-toolchain', 'uv.lock', 'flake.lock') }}-
     - name: Build

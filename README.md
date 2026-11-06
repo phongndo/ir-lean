@@ -97,13 +97,14 @@ exceptions, or calls to anything else outside the module, and the emitter leaves
 and says why.
 
 For large modules, `--split DIR` writes one Lean module per function, which takes far less memory to
-check. All of zlib takes about 3 minutes, and `inflate` about 4 GB. Lean that's only proved about, not run,
-can use `--no-code`, so Lean doesn't generate code for it: `crc32_z` checks in under a second instead of 9.
+check. All of zlib takes about 3 minutes one module at a time, and `inflate` about 4 GB. Lean that's only
+proved about, not run, can use `--no-code`, so Lean doesn't generate code for it: `crc32_z` checks in under
+a second instead of 9.
 
 ## Testing
 
-Run `lake build`, then `ctest --test-dir build`, which takes about 30 minutes. Add `-LE slow` to skip
-`zlib_slow` and take about 10.
+Run `lake build`, then `ctest --test-dir build`, which takes about 25 minutes. Add `-LE slow` to skip
+`zlib_slow` and take about 5.
 
 | Test | What it checks |
 | --- | --- |
@@ -119,7 +120,8 @@ Run `lake build`, then `ctest --test-dir build`, which takes about 30 minutes. A
 | `lint` | Every formatter and linter below, for every language |
 | `lsp` | Every language server below starts, opens real files, and reports no errors in them |
 
-`LEAN_JOBS` sets how many Lean processes run at once, 4 by default. What limits it is memory.
+`LEAN_JOBS` sets how many Lean processes run at once, 4 by default. What limits it is memory. Compiled
+modules stay in `build/lean-cache`, so a run only recompiles what changed.
 
 ## Formatters, linters and language servers
 
