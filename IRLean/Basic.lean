@@ -74,9 +74,9 @@ inductive Stop where
 abbrev Outcome (α : Type) := Option (Except Stop α)
 
 namespace Outcome
-@[llvm, inline] def ok (x : α) : Outcome α := some (.ok x)
-@[llvm, inline] def ub (reason : UB) : Outcome α := some (.error (.undefined reason))
-@[llvm, inline] def stop (reason : ModelStop) : Outcome α := some (.error (.model reason))
+@[llvm] def ok (x : α) : Outcome α := some (.ok x)
+@[llvm] def ub (reason : UB) : Outcome α := some (.error (.undefined reason))
+@[llvm] def stop (reason : ModelStop) : Outcome α := some (.error (.model reason))
 end Outcome
 
 /-- Runs `k` on the result of `x`, stopping if `x` stopped or never finishes. -/
@@ -105,20 +105,20 @@ def run (step : β → Outcome (Next β ρ)) (b : β) : Outcome ρ :=
   | some (.ok (.jump next)) => run step next
 partial_fixpoint
 
-@[llvm, inline] def jump (b : β) : Outcome (Next β ρ) := Outcome.ok (.jump b)
+@[llvm] def jump (b : β) : Outcome (Next β ρ) := Outcome.ok (.jump b)
 
-@[llvm, inline] def ret (v : ρ) : Outcome (Next β ρ) := Outcome.ok (.ret v)
+@[llvm] def ret (v : ρ) : Outcome (Next β ρ) := Outcome.ok (.ret v)
 
-@[llvm, inline] def unreachable : Outcome α := Outcome.ub .unreachable
+@[llvm] def unreachable : Outcome α := Outcome.ub .unreachable
 
 /-- Branching on poison is undefined behavior. -/
-@[llvm, inline] def br (c : Val 1) (t e : β) : Outcome (Next β ρ) :=
+@[llvm] def br (c : Val 1) (t e : β) : Outcome (Next β ρ) :=
   match c with
   | none => Outcome.ub .branchOnPoison
   | some b => jump (if b == 1#1 then t else e)
 
 /-- Switching on poison is undefined behavior. `k` chooses the block from the value. -/
-@[llvm, inline] def sw (x : Val w) (k : BitVec w → Outcome α) : Outcome α :=
+@[llvm] def sw (x : Val w) (k : BitVec w → Outcome α) : Outcome α :=
   match x with
   | none => Outcome.ub .switchOnPoison
   | some v => k v
@@ -136,7 +136,7 @@ partial_fixpoint
   | some _ => k
 
 /-- A call through a pointer: `k` picks the function. -/
-@[llvm, inline] def indirect {τ : Type} (p : Option τ) (k : τ → Outcome α) : Outcome α :=
+@[llvm] def indirect {τ : Type} (p : Option τ) (k : τ → Outcome α) : Outcome α :=
   match p with
   | none => Outcome.ub .poisonPointer
   | some q => k q
@@ -235,7 +235,7 @@ instance : HasPoison Unit := ⟨()⟩
 instance [HasPoison α] [HasPoison β] : HasPoison (α × β) := ⟨HasPoison.poison, HasPoison.poison⟩
 
 /-- `select`: a poison condition gives poison, and only the chosen arm matters. -/
-@[llvm, inline] def select [HasPoison α] (c : Val 1) (t e : α) : α :=
+@[llvm] def select [HasPoison α] (c : Val 1) (t e : α) : α :=
   match c with
   | none => HasPoison.poison
   | some b => if b == 1#1 then t else e

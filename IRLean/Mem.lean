@@ -42,7 +42,7 @@ namespace Ptr
 def null : Ptr := ⟨0, 0#64, []⟩
 
 /-- Whether two pointers have the same address in the same allocation, whatever their tags are. -/
-@[llvm, inline] def same (p q : Ptr) : Bool := p.block == q.block && p.offset == q.offset
+@[llvm] def same (p q : Ptr) : Bool := p.block == q.block && p.offset == q.offset
 end Ptr
 
 /-- An LLVM pointer value. `none` is poison. -/
@@ -130,7 +130,7 @@ def empty (base : Nat → BitVec 64) : Mem :=
 /-- A layout for running code: allocations are aligned and far apart. -/
 def spacedOut (block : Nat) : BitVec 64 := BitVec.ofNat 64 (block * 0x100000000)
 
-@[llvm, inline] def setAlloc (m : Mem) (block : Nat) (a : Option Alloc) : Mem :=
+@[llvm] def setAlloc (m : Mem) (block : Nat) (a : Option Alloc) : Mem :=
   { m with allocs := fun b => if b == block then a else m.allocs b }
 
 /-- A global's initial contents. Values above 255 stand for uninitialized bytes, and bytes past the
@@ -163,7 +163,7 @@ def reserve (m : Mem) (next : Nat) : Mem :=
   { m with next := max m.next next }
 
 /-- A pointer's address. Null is always 0. -/
-@[llvm, inline] def addr (m : Mem) (p : Ptr) : BitVec 64 :=
+@[llvm] def addr (m : Mem) (p : Ptr) : BitVec 64 :=
   if p.block == 0 then p.offset else m.base p.block + p.offset
 
 /-- What `ptrtoint` and comparing pointers need of a pointer: `nullCheck` is for asking if it's null. See
@@ -176,12 +176,12 @@ def reserve (m : Mem) (next : Nat) : Mem :=
   | none => k
 
 /-- A pointer as an integer: for `ptrtoint` and for comparing pointers. -/
-@[llvm, inline] def toVal (m : Mem) : PtrVal → Val 64
+@[llvm] def toVal (m : Mem) : PtrVal → Val 64
   | some p => some (m.addr p)
   | none => none
 
 /-- The allocation an access of `n` bytes at `p` falls in, or the reason it isn't valid. -/
-@[llvm, inline] def access (m : Mem) (p : PtrVal) (n align : Nat) : Except UB (Ptr × Alloc) :=
+@[llvm] def access (m : Mem) (p : PtrVal) (n align : Nat) : Except UB (Ptr × Alloc) :=
   match p with
   | none => .error .poisonPointer
   | some q =>
@@ -197,10 +197,10 @@ def reserve (m : Mem) (next : Nat) : Mem :=
 Each is LangRef's. A pointer's tags say what its own argument promised, and a running call's effects say
 what its function promised. -/
 
-@[llvm, inline] def isRunning (m : Mem) (call : Nat) : Bool := m.calls.any fun c => c.id == call
+@[llvm] def isRunning (m : Mem) (call : Nat) : Bool := m.calls.any fun c => c.id == call
 
 /-- What a tag says about an access: writes if `write`, otherwise reads. -/
-@[llvm, inline] def tagRule (m : Mem) (write : Bool) (t : Tag) : Option Stop :=
+@[llvm] def tagRule (m : Mem) (write : Bool) (t : Tag) : Option Stop :=
   if m.isRunning t.call then
     if t.readnone then some (.undefined .forbiddenAccess)
     else if write && t.readonly then some (.undefined .forbiddenWrite)
@@ -209,13 +209,13 @@ what its function promised. -/
   else none
 
 /-- Which kind of memory an access is, for this call. Its own allocas are always allowed. -/
-@[llvm, inline] def callAccess (c : Call) (q : Ptr) (a : Alloc) : Access :=
+@[llvm] def callAccess (c : Call) (q : Ptr) (a : Alloc) : Access :=
   if a.stack && decide (c.start ≤ q.block) then .readwrite
   else if q.tags.any (fun t => t.call == c.id) then c.effects.arg
   else c.effects.other
 
 /-- What this call's `memory(...)` says about an access. Reading a constant is always allowed. -/
-@[llvm, inline] def callRule (c : Call) (q : Ptr) (a : Alloc) (write : Bool) : Option Stop :=
+@[llvm] def callRule (c : Call) (q : Ptr) (a : Alloc) (write : Bool) : Option Stop :=
   if !write && a.readonly then none else
   match callAccess c q a with
   | .none => some (.model .unobservableAccess)
@@ -223,13 +223,13 @@ what its function promised. -/
   | .write | .readwrite => none
 
 /-- Why the rules forbid an access, if they do. -/
-@[llvm, inline] def check (m : Mem) (q : Ptr) (a : Alloc) (write : Bool) : Option Stop :=
+@[llvm] def check (m : Mem) (q : Ptr) (a : Alloc) (write : Bool) : Option Stop :=
   match q.tags.findSome? (m.tagRule write) with
   | some e => some e
   | none => m.calls.findSome? fun c => callRule c q a write
 
 /-- Whether reading this byte gives poison, because something promised to write it first and nothing has. -/
-@[llvm, inline] def unwritten (m : Mem) (q : Ptr) (a : Alloc) (o : Nat) : Bool :=
+@[llvm] def unwritten (m : Mem) (q : Ptr) (a : Alloc) (o : Nat) : Bool :=
   m.calls.any fun c =>
     c.tracked && !a.readonly &&
       ((!c.written q.block o && (callAccess c q a == Access.write ||
@@ -238,12 +238,12 @@ what its function promised. -/
           c.ranges.any fun (b, s, n) => b == q.block && decide (s ≤ o) && decide (o < s + n)))
 
 /-- A byte as this pointer reads it. -/
-@[llvm, inline] def visible (m : Mem) (q : Ptr) (a : Alloc) (o : Nat) : Byte :=
+@[llvm] def visible (m : Mem) (q : Ptr) (a : Alloc) (o : Nat) : Byte :=
   if m.unwritten q a o then .poison else a.bytes o
 
 /-- What `malloc` and `free` need of every running call: `failing` is for `malloc` failing, which writes
 `errno`. -/
-@[llvm, inline] def allocatorRule (m : Mem) (failing : Bool) : Option Stop :=
+@[llvm] def allocatorRule (m : Mem) (failing : Bool) : Option Stop :=
   m.calls.findSome? fun c =>
     let rule (x : Access) : Option Stop :=
       match x with
@@ -255,7 +255,7 @@ what its function promised. -/
     | none => if failing then rule c.effects.errno else none
 
 /-- Runs a function that made promises about memory. `k` gets the new call's number, for `tag`. -/
-@[llvm, inline] def call (m : Mem) (e : Effects) (tracked : Bool) (k : Mem → Nat → Outcome (α × Mem)) :
+@[llvm] def call (m : Mem) (e : Effects) (tracked : Bool) (k : Mem → Nat → Outcome (α × Mem)) :
     Outcome (α × Mem) :=
   let id := m.nextCall
   andThen (k { m with
@@ -279,11 +279,11 @@ what its function promised. -/
           | _, x => x })
 
 /-- Gives a pointer argument what its attributes promise. -/
-@[llvm, inline] def tag (t : Tag) (p : PtrVal) : PtrVal :=
+@[llvm] def tag (t : Tag) (p : PtrVal) : PtrVal :=
   p.map fun q => { q with tags := t :: q.tags }
 
 /-- The `initializes` attribute: adds a range, relative to the argument, to the running call. -/
-@[llvm, inline] def addInitializes (m : Mem) (p : PtrVal) (lo hi : BitVec 64) : Mem :=
+@[llvm] def addInitializes (m : Mem) (p : PtrVal) (lo hi : BitVec 64) : Mem :=
   match p, m.calls with
   | some q, c :: rest =>
     { m with calls := { c with
@@ -327,11 +327,11 @@ def collect : List Byte → Except ModelStop (Option Nat)
     | .ok none => .ok none
     | .ok (some k) => .ok (some (b.toNat + 256 * k))
 
-@[llvm, inline] def read (m : Mem) (q : Ptr) (a : Alloc) (offset n : Nat) : List Byte :=
+@[llvm] def read (m : Mem) (q : Ptr) (a : Alloc) (offset n : Nat) : List Byte :=
   (List.range n).map fun i => m.visible q a (offset + i)
 
 /-- `load` of a `w`-bit integer, where `w` is a whole number of bytes. -/
-@[llvm, inline] def loadInt (w : Nat) (m : Mem) (p : PtrVal) (align : Nat) : Outcome (Val w) :=
+@[llvm] def loadInt (w : Nat) (m : Mem) (p : PtrVal) (align : Nat) : Outcome (Val w) :=
   match m.access p (w / 8) align with
   | .error e => Outcome.ub e
   | .ok (q, a) =>
@@ -360,7 +360,7 @@ def assemblePtr (bytes : List Byte) : Except ModelStop PtrVal :=
     | .ok (some 0) => .ok (some Ptr.null)
     | .ok (some _) => .error .pointerBytes
 
-@[llvm, inline] def loadPtr (m : Mem) (p : PtrVal) (align : Nat) : Outcome PtrVal :=
+@[llvm] def loadPtr (m : Mem) (p : PtrVal) (align : Nat) : Outcome PtrVal :=
   match m.access p 8 align with
   | .error e => Outcome.ub e
   | .ok (q, a) =>
@@ -372,7 +372,7 @@ def assemblePtr (bytes : List Byte) : Except ModelStop PtrVal :=
       | .ok v => Outcome.ok v
 
 /-- Overwrites `n` bytes starting at `offset`. `f` gets each byte's position in the write. -/
-@[llvm, inline] def write (m : Mem) (q : Ptr) (a : Alloc) (n : Nat) (f : Nat → Byte) : Mem :=
+@[llvm] def write (m : Mem) (q : Ptr) (a : Alloc) (n : Nat) (f : Nat → Byte) : Mem :=
   let o := q.offset.toNat
   { m.setAlloc q.block (some { a with
       bytes := fun i => if o ≤ i ∧ i < o + n then f (i - o) else a.bytes i }) with
@@ -386,11 +386,11 @@ def assemblePtr (bytes : List Byte) : Except ModelStop PtrVal :=
       else c }
 
 /-- Byte `i` of a little-endian integer. -/
-@[llvm, inline] def intByte (x : BitVec w) (i : Nat) : Byte :=
+@[llvm] def intByte (x : BitVec w) (i : Nat) : Byte :=
   .val (BitVec.ofNat 8 (x.toNat >>> (8 * i)))
 
 /-- `store` of a `w`-bit integer. A poison value makes every byte poison. -/
-@[llvm, inline] def storeInt (m : Mem) (p : PtrVal) (v : Val w) (align : Nat) : Outcome Mem :=
+@[llvm] def storeInt (m : Mem) (p : PtrVal) (v : Val w) (align : Nat) : Outcome Mem :=
   match m.access p (w / 8) align with
   | .error e => Outcome.ub e
   | .ok (q, a) =>
@@ -403,7 +403,7 @@ def assemblePtr (bytes : List Byte) : Except ModelStop PtrVal :=
         | none => .poison
         | some x => intByte x i
 
-@[llvm, inline] def storePtr (m : Mem) (p : PtrVal) (v : PtrVal) (align : Nat) : Outcome Mem :=
+@[llvm] def storePtr (m : Mem) (p : PtrVal) (v : PtrVal) (align : Nat) : Outcome Mem :=
   match m.access p 8 align with
   | .error e => Outcome.ub e
   | .ok (q, a) =>
@@ -418,7 +418,7 @@ def assemblePtr (bytes : List Byte) : Except ModelStop PtrVal :=
 
 /-- Whether adding `d`, read as a signed number, to the unsigned address `a` goes below zero or past
 the top of the address space. -/
-@[llvm, inline] def addressWraps (a d : BitVec 64) : Bool :=
+@[llvm] def addressWraps (a d : BitVec 64) : Bool :=
   if d.msb then BitVec.ult a (-d) else a.uaddOverflow d
 
 /-- One step of `getelementptr`, given its offset in bytes. The rules are LangRef's:
@@ -431,7 +431,7 @@ the top of the address space. -/
 
 The emitter refuses an `inbounds` whose non-zero index gives a zero offset, so here a zero offset means
 the index was zero. -/
-@[llvm, inline] def gep (m : Mem) (p : PtrVal) (off : Val 64) (inbounds nusw nuw : Bool := false) : PtrVal :=
+@[llvm] def gep (m : Mem) (p : PtrVal) (off : Val 64) (inbounds nusw nuw : Bool := false) : PtrVal :=
   match p, off with
   | some q, some d =>
     let moved : Ptr := { q with offset := q.offset + d }
@@ -458,13 +458,13 @@ where
       | total' => go (gep m p off inbounds nusw nuw) total' rest
 
 /-- The `nonnull` attribute. -/
-@[llvm, inline] def nonnull (m : Mem) (p : PtrVal) : PtrVal :=
+@[llvm] def nonnull (m : Mem) (p : PtrVal) : PtrVal :=
   match p with
   | some q => if m.addr q == 0#64 then none else some q
   | none => none
 
 /-- The `align` attribute. -/
-@[llvm, inline] def aligned (m : Mem) (align : Nat) (p : PtrVal) : PtrVal :=
+@[llvm] def aligned (m : Mem) (align : Nat) (p : PtrVal) : PtrVal :=
   match p with
   | some q => if (m.addr q).toNat % align == 0 then some q else none
   | none => none
@@ -484,7 +484,7 @@ here, since the attribute it's equivalent to gives poison and an assume's failur
 
 /-- `alloca`: fresh, uninitialized memory in the current function's frame. `dead` is for one that
 has `llvm.lifetime.start`, which can't be written until that runs. -/
-@[llvm, inline] def alloca (m : Mem) (size : Val 64) (dead : Bool := false) : Outcome (PtrVal × Mem) :=
+@[llvm] def alloca (m : Mem) (size : Val 64) (dead : Bool := false) : Outcome (PtrVal × Mem) :=
   match size with
   | none => Outcome.ub .poisonPointer
   | some n =>
@@ -499,7 +499,7 @@ has `llvm.lifetime.start`, which can't be written until that runs. -/
         frame := block :: m.frame })
 
 /-- Runs a function body that uses `alloca`, then frees what it allocated. -/
-@[llvm, inline] def withFrame (m : Mem) (body : Mem → Outcome (α × Mem)) : Outcome (α × Mem) :=
+@[llvm] def withFrame (m : Mem) (body : Mem → Outcome (α × Mem)) : Outcome (α × Mem) :=
   andThen (body { m with frame := [] }) fun (r, m') =>
     Outcome.ok (r, { m' with
       allocs := fun b => if m'.frame.contains b then none else m'.allocs b
@@ -507,7 +507,7 @@ has `llvm.lifetime.start`, which can't be written until that runs. -/
 
 /-- `llvm.lifetime.start` and `.end`: a stack object comes alive or dies, with uninitialized contents
 either way. Poison does nothing. -/
-@[llvm, inline] def lifetime (m : Mem) (p : PtrVal) (alive : Bool) : Outcome Mem :=
+@[llvm] def lifetime (m : Mem) (p : PtrVal) (alive : Bool) : Outcome Mem :=
   match p with
   | none => Outcome.ok m
   | some q =>
@@ -517,7 +517,7 @@ either way. Poison does nothing. -/
       Outcome.ok (m.setAlloc q.block (some { a with readonly := !alive, bytes := fun _ => .uninit }))
 
 /-- `llvm.memset`. Setting zero bytes does nothing, whatever the pointer is. -/
-@[llvm, inline] def memset (m : Mem) (p : PtrVal) (v : Val 8) (n : Val 64) : Outcome Mem :=
+@[llvm] def memset (m : Mem) (p : PtrVal) (v : Val 8) (n : Val 64) : Outcome Mem :=
   match n with
   | none => Outcome.ub .poisonPointer
   | some k =>
@@ -535,7 +535,7 @@ either way. Poison does nothing. -/
           | some x => .val x
 
 /-- `llvm.memcpy`. The two ranges must be identical or not overlap. -/
-@[llvm, inline] def memcpy (m : Mem) (dst src : PtrVal) (n : Val 64) : Outcome Mem :=
+@[llvm] def memcpy (m : Mem) (dst src : PtrVal) (n : Val 64) : Outcome Mem :=
   match n with
   | none => Outcome.ub .poisonPointer
   | some k =>

@@ -148,7 +148,9 @@ int main(int Argc, char **Argv) {
       OS << Text;
     };
     const std::string Options = "open IRLean\n\nset_option maxHeartbeats 0\nset_option maxRecDepth 1000000\n"
-                                "set_option linter.unusedVariables false\n\nnamespace " +
+                                "set_option linter.unusedVariables false\n"
+                                "set_option genInjectivity false\nset_option genSizeOf false\nset_option "
+                                "genSizeOfSpec false\n\nnamespace " +
                                 Namespace + "\n\n";
     const std::string Close = "end " + Namespace + "\n";
     Write(Twine(Dir) + "/Globals.lean", E.Header + "import IRLean\n\n" + Options + E.Globals + Close);

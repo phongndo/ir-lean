@@ -39,8 +39,16 @@ using namespace llvm;
 namespace ir_lean {
 namespace {
 
-// Larger functions nest their blocks, because a Lean type holds at most 244 constructors.
-constexpr unsigned MaxBlocksPerGroup = 200;
+// A Lean type holds at most 244 constructors. Recursive functions can't nest their blocks, so this is their
+// limit.
+constexpr unsigned MaxRecursiveBlocks = 200;
+// Larger functions nest their blocks, since what it costs to check a type grows faster than its constructors
+// do.
+constexpr unsigned MaxFlatBlocks = 32;
+constexpr unsigned BlocksPerGroup = 16;
+// A type holds 244 groups of 16, so past a round number under that, groups need to be larger.
+constexpr unsigned MaxBlocksInSmallGroups = 3200;
+constexpr unsigned BlocksPerLargeGroup = 200;
 
 struct Unsupported {
   std::string Why;
@@ -66,49 +74,56 @@ std::string printedType(Type *T) {
 
 // Names the emitted code relies on, and words Lean reserves, can't be used for anything else.
 const std::set<std::string> &reservedNames() {
-  static const std::set<std::string> Names = {
-      // Every token in Lean's table that looks like an identifier, as tests/names.sh checks, and two
-      // more that the table doesn't list.
-      "module", "this", "Prop", "Sort", "StateRefT", "Type", "_", "abbrev", "add_decl_doc",
-      "assert_not_exists", "assert_not_imported", "at", "attribute", "axiom", "bif", "binder_predicate",
-      "break", "builtin_cbv_simproc", "builtin_cbv_simproc_decl", "builtin_dsimproc", "builtin_dsimproc_decl",
-      "builtin_grind_propagator", "builtin_initialize", "builtin_simproc", "builtin_simproc_decl", "by",
-      "by_elab", "calc", "catch", "cbv_eval", "cbv_simproc", "cbv_simproc_decl", "class", "coinductive",
-      "coinductive_fixpoint", "continue", "dbg_trace", "declare_bitwise_int_theorems",
-      "declare_bitwise_uint_theorems", "declare_command_config_elab", "declare_command_config_elab_legacy",
-      "declare_config_elab", "declare_config_elab_legacy", "declare_core_config_elab", "declare_eval_bin",
-      "declare_eval_bin_bitwise", "declare_eval_bin_bool_pred", "declare_int_theorems",
-      "declare_simp_like_tactic", "declare_sint_simprocs", "declare_syntax_cat", "declare_term_config_elab",
-      "declare_uint_simprocs", "declare_uint_theorems", "decreasing_by", "def", "def_eval_config_item",
-      "deprecated_module", "deprecated_syntax", "deriving", "do", "docs_to_verso", "dsimproc",
-      "dsimproc_decl", "elab", "elab_rules", "elab_stx_quot", "else", "end", "eval_prec", "eval_prio",
-      "example", "exists", "export", "extends", "finally", "for", "forall", "from", "fun", "generalizing",
-      "grind_annotated", "grind_pattern", "grind_propagator", "have", "haveI", "hiding", "idbg", "if",
-      "import", "in", "include", "include_str", "inductive", "inductive_fixpoint", "inferInstanceAs", "infix",
-      "infixl", "infixr", "init_grind_norm", "init_quot", "initialize", "instance", "leading_parser", "let",
-      "letI", "let_delayed", "let_expr", "let_fun", "let_tmp", "local", "logNamedError", "logNamedErrorAt",
-      "logNamedWarning", "logNamedWarningAt", "macro", "macro_rules", "match", "match_expr", "matches",
-      "max_prec", "meta", "mod_cast", "monotonicity_by", "mut", "mutual", "namespace", "nat_lit", "no_index",
-      "nofun", "nomatch", "noncomputable", "nonrec", "norm_cast_add_elim", "notation", "omit", "opaque",
-      "open", "partial", "partial_fixpoint", "postfix", "prefix", "private", "protected", "public", "recall",
-      "recommended_spelling", "register_builtin_option", "register_error_explanation", "register_grind_attr",
-      "register_label_attr", "register_linter_set", "register_option", "register_parser_alias",
-      "register_simp_attr", "register_sym_dsimp", "register_sym_simp", "register_sym_simp_attr",
-      "register_tactic_tag", "renaming", "repeat", "reprove", "return", "run_cmd", "run_elab", "run_meta",
-      "scoped", "seal", "section", "set_library_suggestions", "set_option", "show", "show_panel_widgets",
-      "show_term", "show_term_elab", "simproc", "simproc_decl", "sorry", "structure", "suffices", "syntax",
-      "tactic_alt", "tactic_extension", "tactic_name", "tactic_tag", "termination_by", "test_extern", "then",
-      "theorem", "throwError", "throwErrorAt", "throwNamedError", "throwNamedErrorAt", "trailing_parser",
-      "try", "unif_hint", "universe", "unless", "unlock_limits", "unsafe", "unseal", "until", "using",
-      "variable", "where", "while", "with", "with_annotate_term", "with_weak_namespace",
-      "without_expected_type",
-      // Names emitted code uses.
-      "Block", "IRLean", "Next", "Outcome", "Val", "andThen", "assume", "br", "branch", "false", "jump",
-      "loop", "none", "noundef", "ret", "run", "select", "some", "step", "sw", "true", "unreachable",
-      "HasPoison", "Mem", "Ptr", "PtrVal", "initial", "m", "indirect", "Vec", "Vector", "a", "b",
-      // Names Lean generates for every inductive type.
-      "below", "binductionOn", "brecOn", "casesOn", "ctorElim", "ctorElimType", "ctorIdx", "ibelow", "injEq",
-      "noConfusion", "noConfusionType", "rec", "recOn", "sizeOf", "toCtorIdx"};
+  static const std::set<std::string> Names = [] {
+    std::set<std::string> Reserved = {
+        // Every token in Lean's table that looks like an identifier, as tests/names.sh checks, and two
+        // more that the table doesn't list.
+        "module", "this", "Prop", "Sort", "StateRefT", "Type", "_", "abbrev", "add_decl_doc",
+        "assert_not_exists", "assert_not_imported", "at", "attribute", "axiom", "bif", "binder_predicate",
+        "break", "builtin_cbv_simproc", "builtin_cbv_simproc_decl", "builtin_dsimproc",
+        "builtin_dsimproc_decl", "builtin_grind_propagator", "builtin_initialize", "builtin_simproc",
+        "builtin_simproc_decl", "by", "by_elab", "calc", "catch", "cbv_eval", "cbv_simproc",
+        "cbv_simproc_decl", "class", "coinductive", "coinductive_fixpoint", "continue", "dbg_trace",
+        "declare_bitwise_int_theorems", "declare_bitwise_uint_theorems", "declare_command_config_elab",
+        "declare_command_config_elab_legacy", "declare_config_elab", "declare_config_elab_legacy",
+        "declare_core_config_elab", "declare_eval_bin", "declare_eval_bin_bitwise",
+        "declare_eval_bin_bool_pred", "declare_int_theorems", "declare_simp_like_tactic",
+        "declare_sint_simprocs", "declare_syntax_cat", "declare_term_config_elab", "declare_uint_simprocs",
+        "declare_uint_theorems", "decreasing_by", "def", "def_eval_config_item", "deprecated_module",
+        "deprecated_syntax", "deriving", "do", "docs_to_verso", "dsimproc", "dsimproc_decl", "elab",
+        "elab_rules", "elab_stx_quot", "else", "end", "eval_prec", "eval_prio", "example", "exists", "export",
+        "extends", "finally", "for", "forall", "from", "fun", "generalizing", "grind_annotated",
+        "grind_pattern", "grind_propagator", "have", "haveI", "hiding", "idbg", "if", "import", "in",
+        "include", "include_str", "inductive", "inductive_fixpoint", "inferInstanceAs", "infix", "infixl",
+        "infixr", "init_grind_norm", "init_quot", "initialize", "instance", "leading_parser", "let", "letI",
+        "let_delayed", "let_expr", "let_fun", "let_tmp", "local", "logNamedError", "logNamedErrorAt",
+        "logNamedWarning", "logNamedWarningAt", "macro", "macro_rules", "match", "match_expr", "matches",
+        "max_prec", "meta", "mod_cast", "monotonicity_by", "mut", "mutual", "namespace", "nat_lit",
+        "no_index", "nofun", "nomatch", "noncomputable", "nonrec", "norm_cast_add_elim", "notation", "omit",
+        "opaque", "open", "partial", "partial_fixpoint", "postfix", "prefix", "private", "protected",
+        "public", "recall", "recommended_spelling", "register_builtin_option", "register_error_explanation",
+        "register_grind_attr", "register_label_attr", "register_linter_set", "register_option",
+        "register_parser_alias", "register_simp_attr", "register_sym_dsimp", "register_sym_simp",
+        "register_sym_simp_attr", "register_tactic_tag", "renaming", "repeat", "reprove", "return", "run_cmd",
+        "run_elab", "run_meta", "scoped", "seal", "section", "set_library_suggestions", "set_option", "show",
+        "show_panel_widgets", "show_term", "show_term_elab", "simproc", "simproc_decl", "sorry", "structure",
+        "suffices", "syntax", "tactic_alt", "tactic_extension", "tactic_name", "tactic_tag", "termination_by",
+        "test_extern", "then", "theorem", "throwError", "throwErrorAt", "throwNamedError",
+        "throwNamedErrorAt", "trailing_parser", "try", "unif_hint", "universe", "unless", "unlock_limits",
+        "unsafe", "unseal", "until", "using", "variable", "where", "while", "with", "with_annotate_term",
+        "with_weak_namespace", "without_expected_type",
+        // Names emitted code uses.
+        "Block", "IRLean", "Next", "Outcome", "Val", "andThen", "assume", "br", "branch", "false", "jump",
+        "loop", "none", "noundef", "ret", "run", "select", "some", "step", "sw", "true", "unreachable",
+        "HasPoison", "Mem", "Ptr", "PtrVal", "initial", "m", "indirect", "Vec", "Vector", "a", "b",
+        // Names Lean generates for every inductive type.
+        "below", "binductionOn", "brecOn", "casesOn", "ctorElim", "ctorElimType", "ctorIdx", "ibelow",
+        "injEq", "noConfusion", "noConfusionType", "rec", "recOn", "sizeOf", "toCtorIdx"};
+    // The types that hold a function's nested blocks.
+    for (unsigned I = 0; I != 244; ++I)
+      Reserved.insert("G" + std::to_string(I));
+    return Reserved;
+  }();
   return Names;
 }
 
@@ -741,6 +756,9 @@ private:
   void checkCallResult(const CallBase &C, std::vector<Line> &Out);
   std::string target(const BasicBlock *From, const BasicBlock *To);
   std::string goTo(const BasicBlock *From, const BasicBlock *To);
+  unsigned blocksPerGroup() const {
+    return Blocks.size() > MaxBlocksInSmallGroups ? BlocksPerLargeGroup : BlocksPerGroup;
+  }
   std::string constructorPath(const BasicBlock *BB, const std::string &Inner);
   std::string emitConstructor(const BasicBlock *BB);
   std::string emitArm(const BasicBlock *BB);
@@ -806,7 +824,7 @@ void FunctionEmitter::collectBlocks() {
 void FunctionEmitter::nameValues() {
   NameTable ValueNames, BlockTable;
   // Group constructors are named g0, g1, ... so block names mustn't collide with them.
-  for (unsigned I = 0, E = Blocks.size() / MaxBlocksPerGroup + 1; I != E; ++I)
+  for (unsigned I = 0, E = Blocks.size() / blocksPerGroup() + 1; I != E; ++I)
     BlockTable.make("g" + std::to_string(I), "g");
   auto Add = [&](const Value *V, const char *Fallback) {
     ValueIndex[V] = Values.size();
@@ -892,9 +910,9 @@ std::string FunctionEmitter::operand(const Value *V) {
 
 // `Inner` is a constructor applied to its fields, named from inside the function's namespace.
 std::string FunctionEmitter::constructorPath(const BasicBlock *BB, const std::string &Inner) {
-  if (Recursive || Blocks.size() <= MaxBlocksPerGroup)
+  if (Recursive || Blocks.size() <= MaxFlatBlocks)
     return "(." + Inner + ")";
-  return "(.g" + std::to_string(BlockIndex.lookup(BB) / MaxBlocksPerGroup) + " (." + Inner + "))";
+  return "(.g" + std::to_string(BlockIndex.lookup(BB) / blocksPerGroup()) + " (." + Inner + "))";
 }
 
 // How a block continues at `To`: returning it to the driver, or calling it.
@@ -1639,8 +1657,8 @@ void FunctionEmitter::prepare() {
   collectBlocks();
   nameValues();
   computeLiveness();
-  if (Recursive && Blocks.size() > MaxBlocksPerGroup)
-    reject("recursive function with more than " + std::to_string(MaxBlocksPerGroup) + " blocks");
+  if (Recursive && Blocks.size() > MaxRecursiveBlocks)
+    reject("recursive function with more than " + std::to_string(MaxRecursiveBlocks) + " blocks");
   RetType = leanType(F.getReturnType());
   checkValueAttributes(F.getAttributes().getRetAttrs(), F.getReturnType(), Position::Return);
   for (const Value *V : Values)
@@ -1675,7 +1693,7 @@ void FunctionEmitter::prepare() {
 std::string FunctionEmitter::emitBlocks() {
   std::string NextType = "Outcome (Next Block (" + resultType() + "))";
   std::string Out = "namespace " + LeanName + "\n\n";
-  if (Recursive || Blocks.size() <= MaxBlocksPerGroup) {
+  if (Recursive || Blocks.size() <= MaxFlatBlocks) {
     Out += "inductive Block where\n";
     for (const BasicBlock *BB : Blocks)
       Out += emitConstructor(BB);
@@ -1685,10 +1703,10 @@ std::string FunctionEmitter::emitBlocks() {
         Out += emitArm(BB);
     }
   } else {
-    unsigned Groups = (Blocks.size() + MaxBlocksPerGroup - 1) / MaxBlocksPerGroup;
+    unsigned Groups = (Blocks.size() + blocksPerGroup() - 1) / blocksPerGroup();
     for (unsigned G = 0; G != Groups; ++G) {
       Out += "inductive G" + std::to_string(G) + " where\n";
-      for (unsigned I = G * MaxBlocksPerGroup; I != Blocks.size() && I != (G + 1) * MaxBlocksPerGroup; ++I)
+      for (unsigned I = G * blocksPerGroup(); I != Blocks.size() && I != (G + 1) * blocksPerGroup(); ++I)
         Out += emitConstructor(Blocks[I]);
       Out += '\n';
     }
@@ -1699,7 +1717,7 @@ std::string FunctionEmitter::emitBlocks() {
     for (unsigned G = 0; G != Groups; ++G) {
       Out +=
           Context.Def + "G" + std::to_string(G) + ".step : G" + std::to_string(G) + " → " + NextType + "\n";
-      for (unsigned I = G * MaxBlocksPerGroup; I != Blocks.size() && I != (G + 1) * MaxBlocksPerGroup; ++I)
+      for (unsigned I = G * blocksPerGroup(); I != Blocks.size() && I != (G + 1) * blocksPerGroup(); ++I)
         Out += emitArm(Blocks[I]);
       Out += '\n';
     }
@@ -2100,11 +2118,14 @@ Emitted emitModule(Module &M, const std::string &Namespace, const std::string &S
       Out.Lean += "-- Left out @" + R.LLVMName + ": " + Why + "\n";
     }
   Out.Header = Out.Lean;
-  Out.Lean += "import IRLean\n\nopen IRLean\n\n"
-              "set_option maxHeartbeats 0\nset_option maxRecDepth 1000000\n"
-              "set_option linter.unusedVariables false\n\n"
-              "namespace " +
-              Namespace + "\n\n" + Context.emitGlobals() + Body + "end " + Namespace + "\n";
+  Out.Lean +=
+      "import IRLean\n\nopen IRLean\n\n"
+      "set_option maxHeartbeats 0\nset_option maxRecDepth 1000000\n"
+      "set_option linter.unusedVariables false\n"
+      // Proofs don't need these, and they are most of the cost of checking a large function.
+      "set_option genInjectivity false\nset_option genSizeOf false\nset_option genSizeOfSpec false\n\n"
+      "namespace " +
+      Namespace + "\n\n" + Context.emitGlobals() + Body + "end " + Namespace + "\n";
   Out.Globals = Context.emitGlobals();
   Out.Pieces = std::move(Pieces);
   return Out;

@@ -12,39 +12,39 @@ instance {τ : Type} : HasPoison (Vector (Option τ) n) := ⟨Vector.replicate n
 
 namespace Vec
 
-@[llvm, inline] def map (f : Val w → Val v) (a : Vec n w) : Vec n v := Vector.map f a
+@[llvm] def map (f : Val w → Val v) (a : Vec n w) : Vec n v := Vector.map f a
 
-@[llvm, inline] def map2 (f : Val w → Val u → Val v) (a : Vec n w) (b : Vec n u) : Vec n v :=
+@[llvm] def map2 (f : Val w → Val u → Val v) (a : Vec n w) (b : Vec n u) : Vec n v :=
   Vector.ofFn fun i => f a[i] b[i]
 
 /-- A lane, or poison if there's no such lane. -/
-@[llvm, inline] def lane (a : Vec n w) (i : Nat) : Val w :=
+@[llvm] def lane (a : Vec n w) (i : Nat) : Val w :=
   if h : i < n then a[i] else none
 
 /-- `select` with a condition for each lane. -/
-@[llvm, inline] def select (c : Vec n 1) (t e : Vec n w) : Vec n w :=
+@[llvm] def select (c : Vec n 1) (t e : Vec n w) : Vec n w :=
   Vector.ofFn fun i => IRLean.select c[i] t[i] e[i]
 
-@[llvm, inline] def extract (a : Vec n w) (i : Val k) : Val w :=
+@[llvm] def extract (a : Vec n w) (i : Val k) : Val w :=
   match i with
   | none => none
   | some j => lane a j.toNat
 
 /-- An index past the end gives poison in every lane. -/
-@[llvm, inline] def insert (a : Vec n w) (x : Val w) (i : Val k) : Vec n w :=
+@[llvm] def insert (a : Vec n w) (x : Val w) (i : Val k) : Vec n w :=
   match i with
   | none => HasPoison.poison
   | some j => if h : j.toNat < n then a.set j.toNat x h else HasPoison.poison
 
 /-- `shufflevector`. Each mask entry picks a lane, counting on through `b`, and `none` is poison. -/
-@[llvm, inline] def shuffle (k : Nat) (a b : Vec n w) (mask : Array (Option Nat)) : Vec k w :=
+@[llvm] def shuffle (k : Nat) (a b : Vec n w) (mask : Array (Option Nat)) : Vec k w :=
   Vector.ofFn fun i =>
     match mask[i.val]? with
     | some (some j) => if j < n then lane a j else lane b (j - n)
     | _ => none
 
 /-- `llvm.vector.reduce.*`: combines the lanes, starting from the first. -/
-@[llvm, inline] def reduce (f : Val w → Val w → Val w) (a : Vec n w) : Val w :=
+@[llvm] def reduce (f : Val w → Val w → Val w) (a : Vec n w) : Val w :=
   match a.toList with
   | [] => none
   | x :: rest => rest.foldl f x
@@ -54,7 +54,7 @@ end Vec
 namespace Mem
 
 /-- `load` of a vector, whose lanes are a whole number of bytes each. -/
-@[llvm, inline] def loadVec (n w : Nat) (m : Mem) (p : PtrVal) (align : Nat) : Outcome (Vec n w) :=
+@[llvm] def loadVec (n w : Nat) (m : Mem) (p : PtrVal) (align : Nat) : Outcome (Vec n w) :=
   match m.access p (n * (w / 8)) align with
   | .error e => Outcome.ub e
   | .ok (q, a) =>
@@ -72,7 +72,7 @@ namespace Mem
           | _ => none
 
 /-- `store` of a vector. A poison lane makes that lane's bytes poison. -/
-@[llvm, inline] def storeVec (m : Mem) (p : PtrVal) (v : Vec n w) (align : Nat) : Outcome Mem :=
+@[llvm] def storeVec (m : Mem) (p : PtrVal) (v : Vec n w) (align : Nat) : Outcome Mem :=
   match m.access p (n * (w / 8)) align with
   | .error e => Outcome.ub e
   | .ok (q, a) =>

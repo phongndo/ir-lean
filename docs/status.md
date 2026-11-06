@@ -96,9 +96,8 @@ What `inflate` will take, on clang's `-O2` output:
 | `inflate_table` | 86 | 563 |
 | `updatewindow` | 11 | 83 |
 
-Checking the translation takes 47 seconds, in its own module. Measured before the promise model, the median
-`inflate` block was 4 lines of Lean and the largest 49, the module peaked at 4 GB, and proving things about its
-blocks cost about 14 seconds once per proof file, to build the equations for its `step`, then almost nothing
+Checking the translation takes 9 seconds and 2.3 GB, in its own module. Measured before the promise model, the
+median `inflate` block was 4 lines of Lean and the largest 49, and proving things about its blocks cost about 14 seconds once per proof file, to build the equations for its `step`, then almost nothing
 per block.
 
 So the mechanics scale. At `crc32`'s 0.63 lines per instruction, the 4,191 instructions above come to
