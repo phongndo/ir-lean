@@ -1,0 +1,22 @@
+name: Set up
+description: Installs Nix, restores what's slow to rebuild, and builds the translator and the Lean library.
+runs:
+  using: composite
+  steps:
+    - uses: cachix/install-nix-action@v31
+    - name: Restore caches
+      uses: actions/cache@v6
+      with:
+        path: |
+          ~/.elan
+          ~/.cache/uv
+          .lake
+          build/lean-cache
+        key: tools-${{ runner.os }}-${{ hashFiles('lean-toolchain', 'uv.lock', 'flake.lock') }}-${{ github.sha }}
+        restore-keys: tools-${{ runner.os }}-${{ hashFiles('lean-toolchain', 'uv.lock', 'flake.lock') }}-
+    - name: Build
+      shell: bash
+      run: |
+        nix develop -c cmake -S . -B build -G Ninja
+        nix develop -c cmake --build build
+        nix develop -c lake build
