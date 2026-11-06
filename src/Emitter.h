@@ -44,4 +44,7 @@ struct Emitted {
 Emitted emitModule(llvm::Module &M, const std::string &Namespace, const std::string &SourceName,
                    bool NoCode = false);
 
+// Whether Lean, or the code this emits, already uses this name.
+bool isReservedName(const std::string &Name);
+
 } // namespace llvm_lean

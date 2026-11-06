@@ -482,7 +482,7 @@ void checkValueAttributes(AttributeSet Attrs, const Type *T, const char *Where) 
     // These only describe how a target passes the value, not what it is.
     case Attribute::SExt:
     case Attribute::ZExt:
-    // Promises about the function's behavior, listed in the README.
+    // Promises about the function's behavior, listed in docs/trust.md.
     case Attribute::Returned:
     case Attribute::NoFree:
     case Attribute::ReadOnly:
@@ -1613,6 +1613,8 @@ const char *libraryFunction(const Function &F) {
 }
 
 } // namespace
+
+bool isReservedName(const std::string &Name) { return reservedNames().count(Name) != 0; }
 
 Emitted emitModule(Module &M, const std::string &Namespace, const std::string &SourceName, bool NoCode) {
   CallGraphOrder Order(M);
