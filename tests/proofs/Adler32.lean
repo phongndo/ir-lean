@@ -610,6 +610,20 @@ theorem adler32_z_correct {adler len : BitVec 64} {m : Mem} {block o : Nat}
 example : result (spec 1 0 (fun i => BitVec.ofNat 8
     ([87, 105, 107, 105, 112, 101, 100, 105, 97].getD i 0)) 9) = 0x11E60398#64 := by decide
 
+/-- The theorem on a real buffer, which shows its hypotheses can all hold at once. -/
+theorem adler32_z_check_value :
+    let init : Array Nat := #[87, 105, 107, 105, 112, 101, 100, 105, 97]
+    let m := Zlib.initial.addGlobal 100 init.size false init
+    adler32_z (some 1#64) (some (bufPtr 100 0 0)) (some 9#64) m = Outcome.ok (some 0x11E60398#64, m) := by
+  intro init m
+  have B := Readable.ofGlobal Zlib.initial 100 init (by decide) (by decide) (by decide)
+  have hnn : m.addr (bufPtr 100 0 0) ≠ 0#64 := by decide
+  rw [adler32_z_correct (len := 9#64) (a0 := 1) (b0 := 0) B hnn (by decide) (by decide) (by decide)
+    (by decide)]
+  congr 3
+  decide +kernel
+
 end Adler
 
 #print axioms Adler.adler32_z_correct
+#print axioms Adler.adler32_z_check_value

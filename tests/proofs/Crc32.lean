@@ -1162,6 +1162,20 @@ theorem crc32_z_null (crc len : BitVec 64) :
 example : finish (spec (start 0#64) (fun i => BitVec.ofNat 8
     ([49, 50, 51, 52, 53, 54, 55, 56, 57].getD i 0)) 9) = 0xCBF43926#64 := by decide +kernel
 
+/-- The theorem on a real buffer, which shows its hypotheses can all hold at once. -/
+theorem crc32_z_check_value :
+    let init : Array Nat := #[49, 50, 51, 52, 53, 54, 55, 56, 57]
+    let m := Crc.initial.addGlobal 100 init.size false init
+    crc32_z (some 0#64) (some (bufPtr 100 0 0)) (some 9#64) m = Outcome.ok (some 0xCBF43926#64, m) := by
+  intro init m
+  have B := Readable.ofGlobal Crc.initial 100 init (by decide) (by decide) (by decide)
+  have T : Tables m := ⟨rfl, rfl, by decide, by decide, by decide, by decide⟩
+  have hnn : m.addr (bufPtr 100 0 0) ≠ 0#64 := by decide
+  rw [crc32_z_correct (len := 9#64) B T hnn]
+  congr 3
+  decide +kernel
+
 #print axioms crc32_z_correct
+#print axioms crc32_z_check_value
 
 end CrcProof
