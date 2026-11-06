@@ -12,13 +12,17 @@ usage: tests/differential.py path/to/llvm-lean file.c|file.ll [...] [--runs N] [
                              [--split] [--only PREFIX] [--strict] [--slow PREFIX=N] [--expect-ub]
 
 `--bound` keeps a function's inputs small, for functions that would otherwise run for too long or
-overflow the stack. `--split` builds one Lean module per function, which large inputs need. `--only`
+overflow the stack. `--split` builds one Lean module per function, which large inputs need. It builds
+LEAN_JOBS at a time, and keeps them in LEAN_CACHE so another run doesn't repeat that work. `--only`
 tests just the functions whose names start with PREFIX. `--strict` fails on any skipped input, for
 code that shouldn't hit poison or UB, where a bug in the semantics would otherwise only skip it. `--slow`
 runs functions whose names start with PREFIX only N times. `--expect-ub` fails unless every function
 translates and every call stops on undefined behavior.
 """
 
+import concurrent.futures
+import glob
+import hashlib
 import os
 import random
 import re
@@ -31,6 +35,9 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 MAX_WIDTH = 64
 # A runaway check fails with Lean's own error instead of taking the machine's memory.
 LEAN_MAX_MB = os.environ.get("LEAN_MAX_MB", "6000")
+# Modules at a time. What limits this is memory: `inflate` alone peaks near 4 GB.
+LEAN_JOBS = int(os.environ.get("LEAN_JOBS", "4"))
+LEAN_CACHE = os.environ.get("LEAN_CACHE", os.path.join(ROOT, "build", "lean-cache"))
 
 
 class Stats:
@@ -97,25 +104,62 @@ def build_lean(tool, ll, work, split):
     r = subprocess.run(args, text=True, capture_output=True, check=False)
     if r.returncode not in (0, 3):
         sys.exit(f"llvm-lean failed:\n{r.stderr}")
-    modules = []
     if split:
-        with open(lean) as f:
-            modules = [line.split()[1].removeprefix("M.") for line in f if line.startswith("import ")]
+        build_modules(work, env)
+    sh(["lean", "-M", LEAN_MAX_MB, "-R", work, "-o", os.path.join(work, "M.olean"), lean], env=env)
+
+
+def build_modules(work, env):
+    """Compiles what `--split` wrote, each module after what it imports. A module's cache entry is named
+    after its text, what it imports and the library, so a change to any of them misses the cache."""
+    with open(os.path.join(work, "M.lean")) as f:
+        modules = [line.split()[1].removeprefix("M.") for line in f if line.startswith("import ")]
+    library = hashlib.sha256(sh(["lean", "--version"]).stdout.encode())
+    lib_dir = os.path.join(ROOT, ".lake", "build", "lib", "lean")
+    for path in sorted(
+        glob.glob(os.path.join(lib_dir, "LLVMLean*")) + glob.glob(os.path.join(lib_dir, "LLVMLean", "*"))
+    ):
+        if path.endswith(".olean"):
+            with open(path, "rb") as f:
+                library.update(f.read())
+    keys, waiting = {}, {}
     for module in modules:
+        with open(os.path.join(work, "M", module + ".lean")) as f:
+            text = f.read()
+        imports = re.findall(r"^import M\.(\w+)$", text, flags=re.M)
+        waiting[module] = set(imports)
+        key = hashlib.sha256(library.digest() + text.encode() + "".join(keys[i] for i in imports).encode())
+        keys[module] = key.hexdigest()
+
+    def build(module):
+        target = os.path.join(work, "M", module + ".olean")
+        cached = os.path.join(LEAN_CACHE, f"{module}.{keys[module]}.olean")
+        if os.path.exists(cached):
+            shutil.copyfile(cached, target)
+            return
         sh(
-            [
-                "lean",
-                "-M",
-                LEAN_MAX_MB,
-                "-R",
-                work,
-                "-o",
-                os.path.join(work, "M", module + ".olean"),
-                os.path.join(work, "M", module + ".lean"),
-            ],
+            ["lean", "-M", LEAN_MAX_MB, "-R", work, "-o", target, os.path.join(work, "M", module + ".lean")],
             env=env,
         )
-    sh(["lean", "-M", LEAN_MAX_MB, "-R", work, "-o", os.path.join(work, "M.olean"), lean], env=env)
+        os.makedirs(LEAN_CACHE, exist_ok=True)
+        for old in glob.glob(os.path.join(glob.escape(LEAN_CACHE), glob.escape(module) + ".*.olean")):
+            os.remove(old)
+        partial = f"{cached}.{os.getpid()}"
+        shutil.copyfile(target, partial)
+        os.replace(partial, cached)
+
+    with concurrent.futures.ThreadPoolExecutor(LEAN_JOBS) as pool:
+        running = {}
+        while waiting or running:
+            for module in [m for m, needs in waiting.items() if not needs]:
+                running[pool.submit(build, module)] = module
+                del waiting[module]
+            done, _ = concurrent.futures.wait(running, return_when=concurrent.futures.FIRST_COMPLETED)
+            for future in done:
+                finished = running.pop(future)
+                future.result()
+                for needs in waiting.values():
+                    needs.discard(finished)
 
 
 def run_lean(functions, cases, work):
