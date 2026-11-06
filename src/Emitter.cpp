@@ -867,10 +867,12 @@ void FunctionEmitter::checkMetadata(const Instruction &I) {
   I.getAllMetadataOtherThanDebugLoc(MDs);
   SmallVector<StringRef, 32> Kinds;
   I.getContext().getMDKindNames(Kinds);
-  static const std::set<std::string> Harmless = {
-      "tbaa",      "tbaa.struct", "alias.scope",   "noalias",       "llvm.access.group",
-      "llvm.loop", "prof",        "unpredictable", "nosanitize",    "heapallocsite",
-      "noundef",   "srcloc",      "annotation",    "inline_history"};
+  // `tbaa` is refused because LLVM gives no rule for what makes a run violate it, so it can't be modeled
+  // exactly. Compiling with -fno-strict-aliasing leaves it out. The others that promise pointers don't
+  // alias come from `restrict` being inlined, which zlib doesn't use.
+  static const std::set<std::string> Harmless = {"llvm.loop",  "prof",       "unpredictable",
+                                                 "nosanitize", "noundef",    "heapallocsite",
+                                                 "srcloc",     "annotation", "inline_history"};
   for (const auto &MD : MDs)
     if (!Harmless.count(Kinds[MD.first].str()))
       reject("metadata !" + Kinds[MD.first].str() + " on " + printed(I));
@@ -1295,14 +1297,17 @@ bool FunctionEmitter::emitIntrinsic(const IntrinsicInst &C, std::vector<Line> &O
   };
   switch (C.getIntrinsicID()) {
   case Intrinsic::assume:
-    if (C.hasOperandBundles())
-      reject("instruction " + printed(C));
+    for (unsigned B = 0, E = C.getNumOperandBundles(); B != E; ++B) {
+      OperandBundleUse Bundle = C.getOperandBundleAt(B);
+      if (Bundle.getTagName() != "nonnull" || Bundle.Inputs.size() != 1)
+        reject("instruction " + printed(C));
+      Out.push_back({Line::Guard, "", "Mem.assumeNonnull m " + operand(Bundle.Inputs[0].get())});
+    }
     Out.push_back({Line::Guard, "", "assume " + Op(0)});
     return true;
   // These say nothing about what the program computes.
   case Intrinsic::donothing:
   case Intrinsic::sideeffect:
-  case Intrinsic::experimental_noalias_scope_decl:
     return true;
   case Intrinsic::expect:
     addLet(C, Out, Op(0));
@@ -1653,9 +1658,11 @@ bool usesMemoryDirectly(const Function &F) {
         if (const auto *C = dyn_cast<IntrinsicInst>(&I))
           switch (C->getIntrinsicID()) {
           case Intrinsic::assume:
+            if (C->hasOperandBundles())
+              return true;
+            continue;
           case Intrinsic::donothing:
           case Intrinsic::sideeffect:
-          case Intrinsic::experimental_noalias_scope_decl:
             continue;
           default:
             break;

@@ -122,6 +122,21 @@ define void @f(ptr %p) { call void @free(ptr %p)
 accepts 'declare i64 @strlen(ptr noundef captures(none)) nocallback nofree nounwind willreturn memory(argmem: read)
 define i64 @f(ptr %p) { %n = call i64 @strlen(ptr %p) nounwind willreturn memory(read)
   ret i64 %n }'
+# `tbaa` has no rule to model, and the others aren't used. -fno-strict-aliasing leaves `tbaa` out.
+refuses 'metadata !tbaa' 'define i32 @f(ptr %p) { %v = load i32, ptr %p, !tbaa !0
+  ret i32 %v }
+!0 = !{!1, !1, i64 0}
+!1 = !{!"int", !2, i64 0}
+!2 = !{!"root"}'
+refuses 'metadata !alias.scope' 'define i32 @f(ptr %p) { %v = load i32, ptr %p, !alias.scope !0
+  ret i32 %v }
+!0 = !{!1}
+!1 = distinct !{!1, !2}
+!2 = distinct !{!2}'
+refuses 'instruction' 'declare void @llvm.assume(i1)
+define void @f(ptr %p) { call void @llvm.assume(i1 true) [ "align"(ptr %p, i64 8) ]
+  ret void }'
+
 # `mustprogress` is on the list on purpose, and this is what that means: a run LLVM calls undefined is
 # `none` here, not a stop. If the model ever starts to treat it as undefined, this has to change with it.
 cat >"$work/Spin.ll" <<'IR'

@@ -259,6 +259,13 @@ where
   | .error e => Outcome.ub e
   | .ok _ => k
 
+/-- `llvm.assume` with a `nonnull` bundle: a null pointer is undefined. LLVM doesn't say what poison does
+here, since the attribute it's equivalent to gives poison and an assume's failure is undefined. -/
+@[llvm, inline] def assumeNonnull (m : Mem) (p : PtrVal) (k : Outcome α) : Outcome α :=
+  match p with
+  | none => Outcome.stop .assumeOnPoison
+  | some q => if m.addr q == 0#64 then Outcome.ub .assumeFailed else k
+
 /-- `alloca`: fresh, uninitialized memory in the current function's frame. `dead` is for one that
 has `llvm.lifetime.start`, which can't be written until that runs. -/
 @[llvm, inline] def alloca (m : Mem) (size : Val 64) (dead : Bool := false) : Outcome (PtrVal × Mem) :=
@@ -408,6 +415,17 @@ theorem Mem.monotone_dereferenceable (m : Mem) (p : PtrVal) (n : Nat) (k : γ �
   split
   · exact FlatOrder.rel.refl
   · exact hk g g' h
+
+@[partial_fixpoint_monotone]
+theorem Mem.monotone_assumeNonnull (m : Mem) (p : PtrVal) (k : γ → Outcome α)
+    (hk : monotone k) : monotone fun g => Mem.assumeNonnull m p (k g) := by
+  intro g g' h
+  simp only [Mem.assumeNonnull]
+  split
+  · exact FlatOrder.rel.refl
+  · split
+    · exact FlatOrder.rel.refl
+    · exact hk g g' h
 
 end Monotone
 

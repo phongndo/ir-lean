@@ -296,6 +296,7 @@ def compile_input(path, work):
         [
             "clang",
             "-O2",
+            "-fno-strict-aliasing",
             "-S",
             "-emit-llvm",
             "-fno-discard-value-names",

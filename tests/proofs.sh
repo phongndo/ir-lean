@@ -29,10 +29,11 @@ tar -xf "$zlib_src" -C "$work/zlib" --strip-components=1
 
 # Compiles a C file with stock clang and translates it to the Lean module `$2` in the directory `$3`.
 # Proofs never run the code, so Lean doesn't have to generate any. PROOF_CFLAGS comes from the dev shell
-# and fixes the target, so a proof checks the same IR on every host.
+# and fixes the target, so a proof checks the same IR on every host. -fno-strict-aliasing leaves out `tbaa`,
+# which the emitter refuses.
 gen() {
   # shellcheck disable=SC2086 # PROOF_CFLAGS is several flags.
-  clang $PROOF_CFLAGS -O2 -S -emit-llvm -fno-discard-value-names -D_LARGEFILE64_SOURCE=1 -o "$3/$2.ll" "$1"
+  clang $PROOF_CFLAGS -O2 -fno-strict-aliasing -S -emit-llvm -fno-discard-value-names -D_LARGEFILE64_SOURCE=1 -o "$3/$2.ll" "$1"
   "$tool" "$3/$2.ll" -o "$3/$2.lean" --namespace "$2" --no-code >/dev/null
   in_dir "$3" lean -R "$3" -o "$3/$2.olean" "$3/$2.lean"
 }

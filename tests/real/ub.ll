@@ -7,6 +7,7 @@ declare void @llvm.lifetime.start.p0(ptr)
 declare void @llvm.lifetime.end.p0(ptr)
 declare void @llvm.memset.p0.i64(ptr, i8, i64, i1)
 declare void @llvm.memcpy.p0.p0.i64(ptr, ptr, i64, i1)
+declare void @llvm.assume(i1)
 declare i32 @llvm.ctpop.i32(i32)
 declare i32 @llvm.expect.i32(i32, i32)
 
@@ -157,4 +158,10 @@ define i32 @gep_nuw_constant_multiplication_wraps(i32 %x) {
   %p = getelementptr nuw i64, ptr %a, i64 2305843009213693952
   %v = load i32, ptr %p, align 4
   ret i32 %v
+}
+
+; `nonnull` in an assume is a promise like any other.
+define i32 @assume_nonnull_of_null(i32 %x) {
+  call void @llvm.assume(i1 true) [ "nonnull"(ptr null) ]
+  ret i32 %x
 }
