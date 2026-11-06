@@ -204,7 +204,7 @@ std::string zeroOf(Type *T) {
 // The module-wide things functions refer to: its globals and data layout.
 class ModuleContext {
 public:
-  explicit ModuleContext(Module &M) : DL(M.getDataLayout()) {
+  ModuleContext(Module &M, bool NoCode) : DL(M.getDataLayout()), Def(NoCode ? "noncomputable def " : "def ") {
     NameTable GlobalNames;
     unsigned Block = 1;
     // Every global gets its allocation before any initializer is read, since initializers can point
@@ -259,6 +259,8 @@ public:
   }
 
   const DataLayout &DL;
+  // What starts a definition in the output.
+  const std::string Def;
 
   std::string constant(const Constant *C) const {
     if (isa<PoisonValue>(C))
@@ -330,21 +332,21 @@ public:
     std::sort(Addresses.begin(), Addresses.end(),
               [](const FunctionAddress *A, const FunctionAddress *B) { return A->Block < B->Block; });
     for (const Global *G : Ordered)
-      Out += "def " + G->Name + " : Ptr := ⟨" + std::to_string(G->Block) + ", 0#64⟩\n";
+      Out += Def + G->Name + " : Ptr := ⟨" + std::to_string(G->Block) + ", 0#64⟩\n";
     for (const FunctionAddress *F : Addresses)
-      Out += "def " + F->Name + " : Ptr := ⟨" + std::to_string(F->Block) + ", 0#64⟩\n";
+      Out += Def + F->Name + " : Ptr := ⟨" + std::to_string(F->Block) + ", 0#64⟩\n";
     if (!Ordered.empty() || !Addresses.empty())
       Out += "\n";
     for (const Global *G : Ordered) {
-      Out += "def " + G->Name + "_init : Array Nat := #[";
+      Out += Def + G->Name + "_init : Array Nat := #[";
       for (size_t I = 0; I != G->Init.size(); ++I)
         Out += (I ? "," : "") + std::to_string(G->Init[I]);
       Out += "]\n";
     }
     if (!Ordered.empty())
       Out += "\n";
-    Out += "/-- Memory holding this module's globals. -/\n"
-           "def initial (base : Nat → BitVec 64 := Mem.spacedOut) : Mem :=\n  Mem.empty base";
+    Out += "/-- Memory holding this module's globals. -/\n" + Def +
+           "initial (base : Nat → BitVec 64 := Mem.spacedOut) : Mem :=\n  Mem.empty base";
     for (const Global *G : Ordered)
       Out += "\n  |>.addGlobal " + std::to_string(G->Block) + " " + std::to_string(G->Size) + " " +
              (G->ReadOnly ? "true" : "false") + " " + G->Name + "_init";
@@ -1412,7 +1414,7 @@ std::string FunctionEmitter::emitBlocks() {
     for (const BasicBlock *BB : Blocks)
       Out += emitConstructor(BB);
     if (!Recursive) {
-      Out += "\ndef step : Block → " + NextType + "\n";
+      Out += "\n" + Context.Def + "step : Block → " + NextType + "\n";
       for (const BasicBlock *BB : Blocks)
         Out += emitArm(BB);
     }
@@ -1429,12 +1431,13 @@ std::string FunctionEmitter::emitBlocks() {
       Out += "  | g" + std::to_string(G) + " (block : G" + std::to_string(G) + ")\n";
     Out += "\n";
     for (unsigned G = 0; G != Groups; ++G) {
-      Out += "def G" + std::to_string(G) + ".step : G" + std::to_string(G) + " → " + NextType + "\n";
+      Out +=
+          Context.Def + "G" + std::to_string(G) + ".step : G" + std::to_string(G) + " → " + NextType + "\n";
       for (unsigned I = G * MaxBlocksPerGroup; I != Blocks.size() && I != (G + 1) * MaxBlocksPerGroup; ++I)
         Out += emitArm(Blocks[I]);
       Out += "\n";
     }
-    Out += "def step : Block → " + NextType + "\n";
+    Out += Context.Def + "step : Block → " + NextType + "\n";
     for (unsigned G = 0; G != Groups; ++G)
       Out += "  | .g" + std::to_string(G) + " block => G" + std::to_string(G) + ".step block\n";
   }
@@ -1442,14 +1445,15 @@ std::string FunctionEmitter::emitBlocks() {
 }
 
 std::string FunctionEmitter::emitLoop() {
-  std::string Out = "def " + LeanName + ".loop : " + LeanName + ".Block → Outcome (" + resultType() + ")\n";
+  std::string Out =
+      Context.Def + LeanName + ".loop : " + LeanName + ".Block → Outcome (" + resultType() + ")\n";
   for (const BasicBlock *BB : Blocks)
     Out += emitArm(BB);
   return Out + "partial_fixpoint\n";
 }
 
 std::string FunctionEmitter::emitFunction() {
-  std::string Out = "def " + LeanName;
+  std::string Out = Context.Def + LeanName;
   for (const Argument &A : F.args())
     Out += " (" + Names.at(&A) + " : " + leanType(A.getType()) + ")";
   if (UsesMemory)
@@ -1608,9 +1612,9 @@ const char *libraryFunction(const Function &F) {
 
 } // namespace
 
-Emitted emitModule(Module &M, const std::string &Namespace, const std::string &SourceName) {
+Emitted emitModule(Module &M, const std::string &Namespace, const std::string &SourceName, bool NoCode) {
   CallGraphOrder Order(M);
-  ModuleContext Context(M);
+  ModuleContext Context(M, NoCode);
   std::set<const Function *> MemoryFunctions;
 
   NameTable FunctionNames;

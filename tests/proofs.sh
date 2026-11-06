@@ -16,10 +16,11 @@ zlib_src=${ZLIB_SRC:-$(nix build --inputs-from "$root" --no-link --print-out-pat
 mkdir "$work/zlib"
 tar -xf "$zlib_src" -C "$work/zlib" --strip-components=1
 
-# Compiles a C file with stock clang and translates it to the Lean module `$2`.
+# Compiles a C file with stock clang and translates it to the Lean module `$2`. Proofs never run the
+# code, so Lean doesn't have to generate any.
 gen() {
   clang -O2 -S -emit-llvm -fno-discard-value-names -D_LARGEFILE64_SOURCE=1 -o "$work/$2.ll" "$1"
-  "$tool" "$work/$2.ll" -o "$work/$2.lean" --namespace "$2" >/dev/null
+  "$tool" "$work/$2.ll" -o "$work/$2.lean" --namespace "$2" --no-code >/dev/null
   lean -R "$work" -o "$work/$2.olean" "$work/$2.lean"
 }
 

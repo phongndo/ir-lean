@@ -91,7 +91,7 @@ theorem crc_table_bytes :
   decide +kernel
 
 /-- One of the braid tables, which take 8 steps less for each byte further along a word. -/
-def braidSlice (k : Nat) : List Nat :=
+noncomputable def braidSlice (k : Nat) : List Nat :=
   ((g_crc_braid_table_init.toList.drop (1024 * k)).take 1024)
 
 def braidExpected (k : Nat) : List Nat :=

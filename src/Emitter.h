@@ -39,6 +39,9 @@ struct Emitted {
   std::vector<FunctionReport> Functions;
 };
 
-Emitted emitModule(llvm::Module &M, const std::string &Namespace, const std::string &SourceName);
+// With `NoCode`, Lean doesn't generate code for the output, which then checks far faster but can only
+// be proved about, not run.
+Emitted emitModule(llvm::Module &M, const std::string &Namespace, const std::string &SourceName,
+                   bool NoCode = false);
 
 } // namespace llvm_lean
