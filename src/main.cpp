@@ -49,7 +49,7 @@ std::string defaultNamespace(StringRef Input) {
   std::string Name;
   for (char C : sys::path::stem(Input))
     Name += std::isalnum(static_cast<unsigned char>(C)) ? C : '_';
-  if (Name.empty() || std::isdigit(static_cast<unsigned char>(Name[0])))
+  if (Name.empty() || std::isdigit(static_cast<unsigned char>(Name[0])) || llvm_lean::isReservedName(Name))
     Name = "m" + Name;
   return Name;
 }
