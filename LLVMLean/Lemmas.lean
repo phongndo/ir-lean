@@ -86,13 +86,39 @@ theorem run_ret (step : β → Outcome (Next β ρ)) {b : β} {r : ρ} (h : step
 
 /-! ### Reading a buffer -/
 
-/-- `n` initialized bytes at offset `o` of allocation `block`, holding `data`. -/
-structure Readable (m : Mem) (block o n : Nat) (data : Nat → BitVec 8) : Prop where
-  alloc : ∃ a : Alloc, m.allocs block = some a ∧ o + n ≤ a.size ∧ a.size < 2 ^ 64 ∧
-    ∀ i, i < n → a.bytes (o + i) = .val (data i)
-
 /-- The pointer `i` bytes into a buffer. -/
 abbrev bufPtr (block o i : Nat) : Ptr := ⟨block, BitVec.ofNat 64 (o + i)⟩
+
+/-- `n` initialized bytes at offset `o` of allocation `block`, holding `data`. Every real allocation
+meets the size limits, which are LangRef's rules for an allocated object: it's smaller than `2 ^ 63`,
+and neither it nor the pointer just past its end crosses the top of the address space. -/
+structure Readable (m : Mem) (block o n : Nat) (data : Nat → BitVec 8) : Prop where
+  alloc : ∃ a : Alloc, m.allocs block = some a ∧ o + n ≤ a.size ∧ a.size < 2 ^ 63 ∧
+    ∀ i, i < n → a.bytes (o + i) = .val (data i)
+  fits : (m.addr (bufPtr block o 0)).toNat + n < 2 ^ 64
+
+/-- Moving forward inside an allocation, in a layout where its address doesn't wrap. -/
+theorem Mem.gep_forward {m : Mem} {q : Ptr} {a : Alloc} {k : Nat} (ha : m.allocs q.block = some a)
+    (hq : q.offset.toNat + k ≤ a.size) (hmax : a.size < 2 ^ 64) (hfit : (m.addr q).toNat + k < 2 ^ 64)
+    (hk : k < 2 ^ 63) :
+    Mem.gep m (some q) (some (BitVec.ofNat 64 k)) (inbounds := true) (nuw := true) =
+      some { q with offset := q.offset + BitVec.ofNat 64 k } := by
+  have tk : (BitVec.ofNat 64 k).toNat = k := by
+    simp only [BitVec.toNat_ofNat]; exact Nat.mod_eq_of_lt (by omega)
+  have hu : (m.addr q).uaddOverflow (BitVec.ofNat 64 k) = false := by
+    simp only [BitVec.uaddOverflow, tk]
+    simp only [decide_eq_false_iff_not, Nat.not_le, ge_iff_le]
+    omega
+  have hs : (BitVec.ofNat 64 k).msb = false := by
+    simp only [BitVec.msb_eq_decide, tk, decide_eq_false_iff_not]
+    omega
+  have hmoved : (q.offset.toNat + k) % 18446744073709551616 ≤ a.size := by
+    rw [Nat.mod_eq_of_lt (by omega)]; omega
+  simp only [Mem.gep, Mem.addressWraps, hu, hs, Bool.true_and, Bool.true_or, Bool.false_eq_true,
+    ite_false, ha]
+  by_cases h0 : BitVec.ofNat 64 k = 0#64
+  · simp [h0]
+  · simp [h0, hmoved, show q.offset.toNat ≤ a.size by omega]
 
 namespace Readable
 
@@ -108,33 +134,33 @@ theorem load (B : Readable m block o n data) {i : Nat} (h : i < n) :
   have fits : ¬ o + i + 8 / 8 > a.size := by omega
   simp [Mem.loadInt, Mem.access, ha, Mem.read, Mem.collect, bufPtr, off, fits, hb, Outcome.ok]
 
+/-- The address `i` bytes in, for `i` up to one past the end. -/
+theorem toNat_addr (B : Readable m block o n data) {i : Nat} (h : i ≤ n) :
+    (m.addr (bufPtr block o i)).toNat = (m.addr (bufPtr block o 0)).toNat + i := by
+  obtain ⟨a, _, hsz, hmax, _⟩ := B.alloc
+  have hf := B.fits
+  by_cases hb : block = 0
+  · subst hb
+    simp only [Mem.addr, beq_self_eq_true, ite_true, BitVec.toNat_ofNat] at hf ⊢
+    omega
+  · have hb' : (block == 0) = false := by simpa using hb
+    simp only [Mem.addr, hb', Bool.false_eq_true, ite_false, BitVec.toNat_add, BitVec.toNat_ofNat]
+      at hf ⊢
+    omega
+
 theorem gep (B : Readable m block o n data) {i k : Nat} (h : i + k ≤ n) :
     Mem.gep m (some (bufPtr block o i)) (some (BitVec.ofNat 64 k)) (inbounds := true) (nuw := true) =
       some (bufPtr block o (i + k)) := by
   obtain ⟨a, ha, hsz, hmax, hd⟩ := B.alloc
-  have hlt : o + i + k < 2 ^ 64 := by omega
   have hoff : BitVec.ofNat 64 (o + i) + BitVec.ofNat 64 k = BitVec.ofNat 64 (o + (i + k)) := by
     rw [← Nat.add_assoc]; simp [BitVec.ofNat_add]
-  have hno : BitVec.uaddOverflow (BitVec.ofNat 64 (o + i)) (BitVec.ofNat 64 k) = false := by
-    have h1 : (BitVec.ofNat 64 (o + i)).toNat = o + i := by
-      simp only [BitVec.toNat_ofNat]; exact Nat.mod_eq_of_lt (by omega)
-    have h2 : (BitVec.ofNat 64 k).toNat = k := by
-      simp only [BitVec.toNat_ofNat]; exact Nat.mod_eq_of_lt (by omega)
-    simp only [BitVec.uaddOverflow, h1, h2]
-    simp only [decide_eq_false_iff_not, Nat.not_le, ge_iff_le]
-    omega
-  have hin : (o + (i + k)) % 18446744073709551616 ≤ a.size := by
-    rw [Nat.mod_eq_of_lt (by omega)]; omega
-  simp only [Mem.gep, hno, Bool.true_and]
-  by_cases h0 : BitVec.ofNat 64 k = 0#64
-  · have : k = 0 := by
-      have := congrArg BitVec.toNat h0
-      simp only [BitVec.toNat_ofNat, BitVec.toNat_ofNat] at this
-      rw [Nat.mod_eq_of_lt (by omega)] at this
-      simpa using this
-    subst this
-    simp [bufPtr]
-  · simp [h0, ha, bufPtr, hoff, hin]
+  have ho : (BitVec.ofNat 64 (o + i)).toNat = o + i := by
+    simp only [BitVec.toNat_ofNat]; exact Nat.mod_eq_of_lt (by omega)
+  have ht := B.toNat_addr (i := i) (by omega)
+  have hf := B.fits
+  have := Mem.gep_forward (m := m) (q := bufPtr block o i) (a := a) (k := k) ha (by simp only [ho]; omega)
+    (by omega) (by omega) (by omega)
+  simpa [bufPtr, hoff] using this
 
 /-- The same, for a `getelementptr` with no flags, which can't fail. -/
 theorem gep_plain (m : Mem) (block o i k : Nat) :

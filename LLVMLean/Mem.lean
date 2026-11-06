@@ -200,19 +200,46 @@ def assemblePtr (bytes : List Byte) : Except ModelStop PtrVal :=
       | none => .poison
       | some x => .ptr x i
 
-/-- `getelementptr`, given the total offset in bytes. `inbounds` makes the result poison outside
-its allocation, except that adding zero is always allowed. -/
-@[llvm, inline] def gep (m : Mem) (p : PtrVal) (off : Val 64) (inbounds nuw : Bool := false) : PtrVal :=
+/-- Whether adding `d`, read as a signed number, to the unsigned address `a` goes below zero or past
+the top of the address space. -/
+@[llvm, inline] def addressWraps (a d : BitVec 64) : Bool :=
+  if d.msb then BitVec.ult a (-d) else a.uaddOverflow d
+
+/-- One step of `getelementptr`, given its offset in bytes. The rules are LangRef's:
+
+- `nuw` and `nusw`: adding the offset to the address doesn't wrap, reading the offset as unsigned and
+  as signed. `inbounds` implies `nusw`.
+- `inbounds`: unless the offset is zero, the base and the result are both inside the allocation or just
+  past its end. LLVM also allows this in an allocation that's gone. The model has forgotten its size,
+  so that's poison here, which is stricter, and any access through it is undefined either way.
+
+The emitter refuses an `inbounds` whose non-zero index gives a zero offset, so here a zero offset means
+the index was zero. -/
+@[llvm, inline] def gep (m : Mem) (p : PtrVal) (off : Val 64) (inbounds nusw nuw : Bool := false) : PtrVal :=
   match p, off with
   | some q, some d =>
     let moved : Ptr := { q with offset := q.offset + d }
-    if nuw && q.offset.uaddOverflow d then none
+    if nuw && (m.addr q).uaddOverflow d then none
+    else if (inbounds || nusw) && addressWraps (m.addr q) d then none
     else if inbounds && d != 0#64 then
       match m.allocs q.block with
-      | some a => if moved.offset.toNat ≤ a.size then some moved else none
+      | some a => if q.offset.toNat ≤ a.size ∧ moved.offset.toNat ≤ a.size then some moved else none
       | none => none
     else some moved
   | _, _ => none
+
+/-- `getelementptr` with several non-zero indices: each offset is a step, checked where it lands, and
+the offsets' running total can't wrap either. `go` carries the total. -/
+@[llvm] def gepSteps (m : Mem) (p : PtrVal) (offsets : List (Val 64)) (inbounds nusw nuw : Bool := false) :
+    PtrVal :=
+  go p (some 0#64) offsets
+where
+  @[llvm] go (p : PtrVal) (total : Val 64) : List (Val 64) → PtrVal
+    | [] => p
+    | off :: rest =>
+      match Val.add total off (nsw := inbounds || nusw) (nuw := nuw) with
+      | none => none
+      | total' => go (gep m p off inbounds nusw nuw) total' rest
 
 /-- The `nonnull` attribute. -/
 @[llvm, inline] def nonnull (m : Mem) (p : PtrVal) : PtrVal :=
