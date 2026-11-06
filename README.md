@@ -9,8 +9,8 @@ compiler actually produced.
 ## Status
 
 Translates all of zlib's core library, and proves zlib's `adler32` and `crc32`, as clang compiles them
-at `-O2`, safe and correct against their RFCs. See [docs/PLAN.md](docs/PLAN.md) for where this is
-going, which is proving `inflate` memory-safe.
+for x86-64 Linux at `-O2`, safe and correct against their RFCs. See [docs/PLAN.md](docs/PLAN.md) for
+where this is going, which is proving `inflate` memory-safe.
 
 ```console
 nix develop
@@ -102,6 +102,10 @@ proved about, not run, can use `--no-code`, so Lean doesn't generate code for it
 a second instead of 9.
 
 ## Testing
+
+The dev shell works on Linux and on Apple silicon Macs. The proofs compile for x86-64 Linux on every
+host, so they check the same IR everywhere. On Macs, `lint` and `lsp` fail on C++ only: `clang-tidy` and
+`clangd` report errors there that don't appear on Linux, so use `-LE 'lint|slow'` to skip them.
 
 Run `lake build`, then `ctest --test-dir build`, which takes about 25 minutes. Add `-LE slow` to skip
 `zlib_slow` and take about 5.

@@ -311,6 +311,6 @@ unsigned harness_misc(unsigned x, unsigned y) {
   status += (unsigned)uncompress_z(out, &out_len, packed, packed_len);
   status += (unsigned)strlen_of(zError((int)(x % 8) - 6)) + (unsigned)strlen_of(zlibVersion());
   return status ^ digest(out, (unsigned)out_len, 1) ^ (unsigned)get_crc_table()[x & 255] ^
-         (unsigned)adler32_combine64(x, y, x) ^ (unsigned)crc32_combine64(x, y, y) ^
-         (unsigned)crc32_combine_op(x, y, crc32_combine_gen64(x));
+         (unsigned)adler32_combine(x, y, x) ^ (unsigned)crc32_combine(x, y, y) ^
+         (unsigned)crc32_combine_op(x, y, crc32_combine_gen(x));
 }

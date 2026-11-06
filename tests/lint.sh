@@ -17,12 +17,13 @@ mapfile -t shell < <(files '*.sh')
 mapfile -t toml < <(files '*.toml')
 mapfile -t yaml < <(files '*.yml' '*.yaml')
 mapfile -t markdown < <(files '*.md')
+mapfile -t nix < <(files '*.nix')
 
 if [ "${1:-}" = --fix ]; then
   clang-format -i "${cpp[@]}" "${c[@]}"
   uv run --quiet ruff format
   shfmt -w -i 2 "${shell[@]}"
-  nixfmt flake.nix
+  nixfmt "${nix[@]}"
   gersemi -i --quiet CMakeLists.txt
   taplo fmt --no-auto-config "${toml[@]}" 2>/dev/null
   yamlfmt "${yaml[@]}"
@@ -67,9 +68,9 @@ check 'Python types' uv run --quiet ty check
 check 'Shell format' shfmt -d -i 2 "${shell[@]}"
 check 'Shell lint' shellcheck "${shell[@]}"
 
-check 'Nix format' nixfmt --check flake.nix
+check 'Nix format' nixfmt --check "${nix[@]}"
 check 'Nix lint' statix check .
-check 'Nix unused code' deadnix --fail flake.nix
+check 'Nix unused code' deadnix --fail "${nix[@]}"
 
 check 'CMake format' gersemi --check --quiet CMakeLists.txt
 check 'CMake lint' cmakelint --linelength=110 CMakeLists.txt
