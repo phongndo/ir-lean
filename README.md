@@ -1,4 +1,4 @@
-# llvm-lean
+# ir-lean
 
 A Lean backend for LLVM IR.
 
@@ -29,7 +29,7 @@ nix develop
 lake build
 cmake -S . -B build -G Ninja && ninja -C build
 clang -O2 -S -emit-llvm -fno-discard-value-names tests/real/bi_reverse.c -o build/popcount.ll
-build/llvm-lean build/popcount.ll -o build/Popcount.lean
+build/ir-lean build/popcount.ll -o build/Popcount.lean
 lake env lean build/Popcount.lean
 ```
 

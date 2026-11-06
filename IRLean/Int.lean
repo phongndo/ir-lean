@@ -1,9 +1,9 @@
-import LLVMLean.Basic
+import IRLean.Basic
 
 /-! LLVM's integer instructions and intrinsics, following the LangRef. `tests/opcheck.py` compares
 each of these with LLVM's own constant folder. -/
 
-namespace LLVMLean.Val
+namespace IRLean.Val
 
 variable {w v : Nat}
 
@@ -277,4 +277,4 @@ def fshrRaw (x y s : BitVec w) : BitVec w :=
 @[llvm, inline] def ucmp (v : Nat) : Val w → Val w → Val v := threeWay BitVec.ult v
 @[llvm, inline] def scmp (v : Nat) : Val w → Val w → Val v := threeWay BitVec.slt v
 
-end LLVMLean.Val
+end IRLean.Val

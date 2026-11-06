@@ -6,7 +6,7 @@
 """Generates random integer functions with branches, loops and switches, optimizes them at random
 levels, and compares emitted Lean with native code.
 
-usage: tests/fuzz.py path/to/llvm-lean [--seeds N] [--functions N] [--start S]
+usage: tests/fuzz.py path/to/ir-lean [--seeds N] [--functions N] [--start S]
 """
 
 import os

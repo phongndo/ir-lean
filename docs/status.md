@@ -1,6 +1,6 @@
 # Status
 
-What is true of `llvm-lean` today. For what comes next, see the [roadmap](roadmap.md).
+What is true of `ir-lean` today. For what comes next, see the [roadmap](roadmap.md).
 
 Claims are kept apart by kind on purpose. Don't promote one to another in a talk or a paper.
 

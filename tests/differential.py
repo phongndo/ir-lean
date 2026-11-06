@@ -8,7 +8,7 @@
 Where Lean says poison or UB, native code may do anything, so those inputs are skipped. Lean runs
 first, so inputs that would crash native code never reach it.
 
-usage: tests/differential.py path/to/llvm-lean file.c|file.ll [...] [--runs N] [--bound FUNCTION=MAX]
+usage: tests/differential.py path/to/ir-lean file.c|file.ll [...] [--runs N] [--bound FUNCTION=MAX]
                              [--split] [--only PREFIX] [--strict] [--slow PREFIX=N]
                              [--expect-ub | --expect-stop]
 
@@ -105,7 +105,7 @@ def build_lean(tool, ll, work, split):
     args = [tool, ll, "--namespace", "M"] + (["--split", work] if split else ["-o", lean])
     r = subprocess.run(args, text=True, capture_output=True, check=False)
     if r.returncode not in (0, 3):
-        sys.exit(f"llvm-lean failed:\n{r.stderr}")
+        sys.exit(f"ir-lean failed:\n{r.stderr}")
     if split:
         build_modules(work, env)
     sh(["lean", "-M", LEAN_MAX_MB, "-R", work, "-o", os.path.join(work, "M.olean"), lean], env=env)
@@ -119,7 +119,7 @@ def build_modules(work, env):
     library = hashlib.sha256(sh(["lean", "--version"]).stdout.encode())
     lib_dir = os.path.join(ROOT, ".lake", "build", "lib", "lean")
     for path in sorted(
-        glob.glob(os.path.join(lib_dir, "LLVMLean*")) + glob.glob(os.path.join(lib_dir, "LLVMLean", "*"))
+        glob.glob(os.path.join(lib_dir, "IRLean*")) + glob.glob(os.path.join(lib_dir, "IRLean", "*"))
     ):
         if path.endswith(".olean"):
             with open(path, "rb") as f:
@@ -168,7 +168,7 @@ def run_lean(functions, cases, work):
     env = lean_env(work)
     src = [
         "import M",
-        "open LLVMLean",
+        "open IRLean",
         "set_option maxRecDepth 1000000",
         # Lean prints warnings with the results, and a function with no parameters doesn't use `c`.
         "set_option linter.unusedVariables false",
@@ -275,8 +275,8 @@ def compare_ll(tool, ll, runs, rand, stats, bounds=None, split=False, only="", s
             stats.skipped += sum(not k for k in keep[-1])
             for x in row:
                 if has_no_result(x):
-                    kind = x.replace("ub:LLVMLean.UB.", "undefined: ")
-                    kind = kind.replace("stop:LLVMLean.ModelStop.", "model stop: ")
+                    kind = x.replace("ub:IRLean.UB.", "undefined: ")
+                    kind = kind.replace("stop:IRLean.ModelStop.", "model stop: ")
                     why = f"{kind} in @{functions[i][0]}"
                     stats.skip_reasons[why] = stats.skip_reasons.get(why, 0) + 1
         native = iter(run_native(functions, cases, keep, ll, work))

@@ -3,7 +3,7 @@ import Zlib
 /-! zlib's `adler32_z`, as clang compiles it at `-O2`, proved safe and correct against RFC 1950.
 `tests/proofs.sh` regenerates `Zlib` from zlib's own source. -/
 
-open LLVMLean Zlib
+open IRLean Zlib
 
 namespace Adler
 

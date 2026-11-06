@@ -1,10 +1,10 @@
-import LLVMLean.Int
-import LLVMLean.Mem
+import IRLean.Int
+import IRLean.Mem
 
 /-! Vectors of integers. Each lane is a `Val`, so one lane can be poison without the others, and an
 operation on a vector is the scalar operation on each lane. -/
 
-namespace LLVMLean
+namespace IRLean
 
 abbrev Vec (n w : Nat) := Vector (Val w) n
 
@@ -23,7 +23,7 @@ namespace Vec
 
 /-- `select` with a condition for each lane. -/
 @[llvm, inline] def select (c : Vec n 1) (t e : Vec n w) : Vec n w :=
-  Vector.ofFn fun i => LLVMLean.select c[i] t[i] e[i]
+  Vector.ofFn fun i => IRLean.select c[i] t[i] e[i]
 
 @[llvm, inline] def extract (a : Vec n w) (i : Val k) : Val w :=
   match i with
@@ -87,4 +87,4 @@ namespace Mem
 
 end Mem
 
-end LLVMLean
+end IRLean

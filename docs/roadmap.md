@@ -1,6 +1,6 @@
 # Roadmap
 
-What we want to be true of `llvm-lean`, in what order, and how we'd know we were wrong. For what's true
+What we want to be true of `ir-lean`, in what order, and how we'd know we were wrong. For what's true
 today, see [status](status.md). For what any theorem means, see [trust](trust.md).
 
 Nothing here is a promise of dates. Effort figures are estimates that hold only if the gates before them
@@ -9,7 +9,7 @@ gets written down here with its reason, so that a gate can't quietly move.
 
 ## The goal
 
-Prove the foundation first. Point `llvm-lean` at code compiled by stock compilers and get a Lean
+Prove the foundation first. Point `ir-lean` at code compiled by stock compilers and get a Lean
 theorem about that exact compiled code, against a semantics that people have good reason to believe,
 at a cost someone would actually pay.
 
@@ -114,7 +114,7 @@ listed as an assumption of each theorem it affects.
 
 **0B, which blocks Phases 2 and 4:**
 
-- **Inventory:** `llvm-lean --report` lists, for an input, every opcode, intrinsic, attribute, metadata
+- **Inventory:** `ir-lean --report` lists, for an input, every opcode, intrinsic, attribute, metadata
   kind and linkage it saw, and how each was handled. A table in the repo classifies each as modeled,
   refused or assumed.
 - **Promises:** decide `noalias`, `readonly`, `tbaa` and the rest, one at a time. Start with what zlib's
@@ -390,8 +390,8 @@ first outside user. This phase doesn't depend on Phase 4.
 
 - **A license.** The repo doesn't have one, so no one outside can safely use it. This is the maintainers'
   decision, and should come well before the rest of this phase.
-- **A stable surface:** versioned `LLVMLean` modules, contract and tactic APIs, a documented manifest, and a
-  `llvm-lean` command line with a compatibility policy.
+- **A stable surface:** versioned `IRLean` modules, contract and tactic APIs, a documented manifest, and a
+  `ir-lean` command line with a compatibility policy.
 - **A contributor path:** a walkthrough from a small C function to a checked theorem, in an hour.
 - **An artifact:** a pinned, reproducible package that rebuilds every published claim from sources.
 - **Papers,** with each result stating its scope in the terms of the [trust model](trust.md).

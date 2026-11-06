@@ -1,4 +1,4 @@
-// Prints an LLVM module as Lean, against the semantics in LLVMLean/.
+// Prints an LLVM module as Lean, against the semantics in IRLean/.
 #pragma once
 
 #include "llvm/IR/Module.h"
@@ -6,7 +6,7 @@
 #include <string>
 #include <vector>
 
-namespace llvm_lean {
+namespace ir_lean {
 
 struct FunctionReport {
   std::string LLVMName;
@@ -47,4 +47,4 @@ Emitted emitModule(llvm::Module &M, const std::string &Namespace, const std::str
 // Whether Lean, or the code this emits, already uses this name.
 bool isReservedName(const std::string &Name);
 
-} // namespace llvm_lean
+} // namespace ir_lean

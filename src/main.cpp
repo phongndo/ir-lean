@@ -1,4 +1,4 @@
-// llvm-lean: prints LLVM IR as Lean.
+// ir-lean: prints LLVM IR as Lean.
 
 #include "Emitter.h"
 
@@ -22,10 +22,10 @@ namespace {
 enum ExitCode { ExitOk = 0, ExitError = 1, ExitUsage = 2, ExitSomeUnsupported = 3 };
 
 void printUsage(raw_ostream &OS) {
-  OS << R"(usage: llvm-lean <input.ll|input.bc> [options]
+  OS << R"(usage: ir-lean <input.ll|input.bc> [options]
 
 Prints the functions in an LLVM module as Lean, against the semantics in the
-LLVMLean library. Functions the semantics can't model yet are left out, and
+IRLean library. Functions the semantics can't model yet are left out, and
 named on stderr.
 
 options:
@@ -49,7 +49,7 @@ std::string defaultNamespace(StringRef Input) {
   std::string Name;
   for (char C : sys::path::stem(Input))
     Name += std::isalnum(static_cast<unsigned char>(C)) ? C : '_';
-  if (Name.empty() || std::isdigit(static_cast<unsigned char>(Name[0])) || llvm_lean::isReservedName(Name))
+  if (Name.empty() || std::isdigit(static_cast<unsigned char>(Name[0])) || ir_lean::isReservedName(Name))
     Name = "m" + Name;
   return Name;
 }
@@ -63,7 +63,7 @@ int main(int Argc, char **Argv) {
     StringRef A = Argv[I];
     auto Value = [&](const char *Flag) -> std::string {
       if (++I >= Argc) {
-        errs() << "llvm-lean: " << Flag << " needs a value\n";
+        errs() << "ir-lean: " << Flag << " needs a value\n";
         std::exit(ExitUsage);
       }
       return Argv[I];
@@ -82,7 +82,7 @@ int main(int Argc, char **Argv) {
       printUsage(outs());
       return ExitOk;
     } else if (A.starts_with("-")) {
-      errs() << "llvm-lean: unknown option " << A << "\n";
+      errs() << "ir-lean: unknown option " << A << "\n";
       printUsage(errs());
       return ExitUsage;
     } else if (Input.empty()) {
@@ -103,19 +103,19 @@ int main(int Argc, char **Argv) {
   SMDiagnostic Diagnostic;
   std::unique_ptr<Module> M = parseIRFile(Input, Diagnostic, Context);
   if (!M) {
-    Diagnostic.print("llvm-lean", errs());
+    Diagnostic.print("ir-lean", errs());
     return ExitError;
   }
 
-  llvm_lean::Emitted E = llvm_lean::emitModule(*M, Namespace, sys::path::filename(Input).str(), NoCode);
+  ir_lean::Emitted E = ir_lean::emitModule(*M, Namespace, sys::path::filename(Input).str(), NoCode);
 
   unsigned Translated = 0;
-  for (const llvm_lean::FunctionReport &F : E.Functions)
+  for (const ir_lean::FunctionReport &F : E.Functions)
     Translated += F.Unsupported.empty();
   bool AllTranslated = Translated == E.Functions.size();
 
   if (Report) {
-    for (const llvm_lean::FunctionReport &F : E.Functions) {
+    for (const ir_lean::FunctionReport &F : E.Functions) {
       if (F.Unsupported.empty())
         outs() << "ok\t" << F.LLVMName << "\t" << F.LeanName << "\t" << F.Signature << "\t" << F.Blocks
                << "\t" << F.Instructions << "\t" << (F.UsesMemory ? "memory" : "pure") << "\n";
@@ -126,36 +126,35 @@ int main(int Argc, char **Argv) {
     return ExitOk;
   }
 
-  for (const llvm_lean::FunctionReport &F : E.Functions)
+  for (const ir_lean::FunctionReport &F : E.Functions)
     if (!F.Unsupported.empty())
-      errs() << "llvm-lean: left out @" << F.LLVMName << ": " << StringRef(F.Unsupported).split('\n').first
+      errs() << "ir-lean: left out @" << F.LLVMName << ": " << StringRef(F.Unsupported).split('\n').first
              << "\n";
 
   if (!SplitDir.empty()) {
     SmallString<128> Dir(SplitDir);
     sys::path::append(Dir, Namespace);
     if (std::error_code EC = sys::fs::create_directories(Dir)) {
-      errs() << "llvm-lean: can't create " << Dir << ": " << EC.message() << "\n";
+      errs() << "ir-lean: can't create " << Dir << ": " << EC.message() << "\n";
       return ExitError;
     }
     auto Write = [&](const Twine &Path, const std::string &Text) {
       std::error_code EC;
       raw_fd_ostream OS(Path.str(), EC, sys::fs::OF_Text);
       if (EC) {
-        errs() << "llvm-lean: can't write " << Path << ": " << EC.message() << "\n";
+        errs() << "ir-lean: can't write " << Path << ": " << EC.message() << "\n";
         std::exit(ExitError);
       }
       OS << Text;
     };
-    const std::string Options =
-        "open LLVMLean\n\nset_option maxHeartbeats 0\nset_option maxRecDepth 1000000\n"
-        "set_option linter.unusedVariables false\n\nnamespace " +
-        Namespace + "\n\n";
+    const std::string Options = "open IRLean\n\nset_option maxHeartbeats 0\nset_option maxRecDepth 1000000\n"
+                                "set_option linter.unusedVariables false\n\nnamespace " +
+                                Namespace + "\n\n";
     const std::string Close = "end " + Namespace + "\n";
-    Write(Twine(Dir) + "/Globals.lean", E.Header + "import LLVMLean\n\n" + Options + E.Globals + Close);
+    Write(Twine(Dir) + "/Globals.lean", E.Header + "import IRLean\n\n" + Options + E.Globals + Close);
     std::string All = E.Header + "import " + Namespace + ".Globals\n";
-    for (const llvm_lean::Piece &P : E.Pieces) {
-      std::string Imports = "import LLVMLean\nimport " + Namespace + ".Globals\n";
+    for (const ir_lean::Piece &P : E.Pieces) {
+      std::string Imports = "import IRLean\nimport " + Namespace + ".Globals\n";
       for (const std::string &I : P.Imports)
         Imports += "import " + Namespace + "." + I + "\n";
       Write(Twine(Dir) + "/" + P.Module + ".lean", Imports + "\n" + Options + P.Lean + Close);
@@ -168,7 +167,7 @@ int main(int Argc, char **Argv) {
     std::error_code EC;
     raw_fd_ostream OS(Output, EC, sys::fs::OF_Text);
     if (EC) {
-      errs() << "llvm-lean: can't write " << Output << ": " << EC.message() << "\n";
+      errs() << "ir-lean: can't write " << Output << ": " << EC.message() << "\n";
       return ExitError;
     }
     OS << E.Lean;

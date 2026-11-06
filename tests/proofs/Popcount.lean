@@ -3,7 +3,7 @@ import Real
 /-! Clang's `popcount` at `-O2`, proved correct. `tests/proofs.sh` regenerates `Real` from
 `tests/real/bi_reverse.c`, so this is about what the compiler produced, not a copy of it. -/
 
-open LLVMLean Real
+open IRLean Real
 
 /-- The number of set bits, as a formula with no loop. -/
 def pop (x : BitVec 32) : BitVec 32 :=

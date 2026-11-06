@@ -1,10 +1,10 @@
-import LLVMLean.Int
+import IRLean.Int
 
 /-! Memory. A pointer is an allocation and an offset into it, so an access can only reach the
 allocation its pointer came from. Memory is passed explicitly, so functions that don't touch it
 keep their simple types. `tests/differential.py` compares this with native code. -/
 
-namespace LLVMLean
+namespace IRLean
 
 /-- What a function promised about a pointer argument, carried by every pointer based on that argument,
 which is every copy, offset or `select` of it, in memory too. LangRef calls this derived provenance. -/
@@ -721,4 +721,4 @@ theorem Mem.monotone_assumeNonnull (m : Mem) (p : PtrVal) (k : γ → Outcome α
 
 end Monotone
 
-end LLVMLean
+end IRLean

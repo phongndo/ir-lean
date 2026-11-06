@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.20)
-project(llvm-lean LANGUAGES CXX)
+project(ir-lean LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -10,29 +10,29 @@ endif()
 
 find_package(LLVM REQUIRED CONFIG)
 
-add_executable(llvm-lean src/main.cpp src/Emitter.cpp)
-target_include_directories(llvm-lean SYSTEM PRIVATE ${LLVM_INCLUDE_DIRS})
+add_executable(ir-lean src/main.cpp src/Emitter.cpp)
+target_include_directories(ir-lean SYSTEM PRIVATE ${LLVM_INCLUDE_DIRS})
 # LLVM gives its definitions as one string.
 separate_arguments(LLVM_DEFINITIONS_LIST NATIVE_COMMAND ${LLVM_DEFINITIONS})
-target_compile_definitions(llvm-lean PRIVATE ${LLVM_DEFINITIONS_LIST})
-target_compile_options(llvm-lean PRIVATE -Wall -Wextra -fno-rtti)
-llvm_config(llvm-lean USE_SHARED core irreader support)
+target_compile_definitions(ir-lean PRIVATE ${LLVM_DEFINITIONS_LIST})
+target_compile_options(ir-lean PRIVATE -Wall -Wextra -fno-rtti)
+llvm_config(ir-lean USE_SHARED core irreader support)
 
 # Tests need the Lean library: run `lake build` first.
 enable_testing()
-add_test(NAME opcheck COMMAND ${CMAKE_SOURCE_DIR}/tests/opcheck.py $<TARGET_FILE:llvm-lean>)
-add_test(NAME gepcheck COMMAND ${CMAKE_SOURCE_DIR}/tests/gepcheck.py $<TARGET_FILE:llvm-lean>)
+add_test(NAME opcheck COMMAND ${CMAKE_SOURCE_DIR}/tests/opcheck.py $<TARGET_FILE:ir-lean>)
+add_test(NAME gepcheck COMMAND ${CMAKE_SOURCE_DIR}/tests/gepcheck.py $<TARGET_FILE:ir-lean>)
 add_test(
     NAME differential
     COMMAND
-        ${CMAKE_SOURCE_DIR}/tests/differential.py $<TARGET_FILE:llvm-lean>
+        ${CMAKE_SOURCE_DIR}/tests/differential.py $<TARGET_FILE:ir-lean>
         ${CMAKE_SOURCE_DIR}/tests/real/bi_reverse.c ${CMAKE_SOURCE_DIR}/tests/real/calls.c
         ${CMAKE_SOURCE_DIR}/tests/real/memory.c --bound fib=20 --bound is_even=200 --bound is_odd=200
 )
 add_test(
     NAME vectors_pointers
     COMMAND
-        ${CMAKE_SOURCE_DIR}/tests/differential.py $<TARGET_FILE:llvm-lean>
+        ${CMAKE_SOURCE_DIR}/tests/differential.py $<TARGET_FILE:ir-lean>
         ${CMAKE_SOURCE_DIR}/tests/real/pointers.c ${CMAKE_SOURCE_DIR}/tests/real/vectors.ll
         ${CMAKE_SOURCE_DIR}/tests/real/heap.ll ${CMAKE_SOURCE_DIR}/tests/real/gep.ll
         ${CMAKE_SOURCE_DIR}/tests/real/promises.ll --strict
@@ -40,40 +40,40 @@ add_test(
 add_test(
     NAME undefined
     COMMAND
-        ${CMAKE_SOURCE_DIR}/tests/differential.py $<TARGET_FILE:llvm-lean>
-        ${CMAKE_SOURCE_DIR}/tests/real/ub.ll --runs 3 --expect-ub
+        ${CMAKE_SOURCE_DIR}/tests/differential.py $<TARGET_FILE:ir-lean> ${CMAKE_SOURCE_DIR}/tests/real/ub.ll
+        --runs 3 --expect-ub
 )
 add_test(
     NAME model_stops
     COMMAND
-        ${CMAKE_SOURCE_DIR}/tests/differential.py $<TARGET_FILE:llvm-lean>
+        ${CMAKE_SOURCE_DIR}/tests/differential.py $<TARGET_FILE:ir-lean>
         ${CMAKE_SOURCE_DIR}/tests/real/stops.ll --runs 3 --expect-stop
 )
 # `--expect-ub` has to say these aren't undefined. Comparing the output keeps any other failure from passing.
 add_test(
     NAME model_stops_are_not_undefined
     COMMAND
-        ${CMAKE_SOURCE_DIR}/tests/differential.py $<TARGET_FILE:llvm-lean>
+        ${CMAKE_SOURCE_DIR}/tests/differential.py $<TARGET_FILE:ir-lean>
         ${CMAKE_SOURCE_DIR}/tests/real/stops.ll --runs 3 --expect-ub
 )
 set_tests_properties(
     model_stops_are_not_undefined
     PROPERTIES PASS_REGULAR_EXPRESSION "not undefined: .*model stop: freezePoison"
 )
-add_test(NAME emitter COMMAND ${CMAKE_SOURCE_DIR}/tests/emitter.sh $<TARGET_FILE:llvm-lean>)
-add_test(NAME fuzz COMMAND ${CMAKE_SOURCE_DIR}/tests/fuzz.py $<TARGET_FILE:llvm-lean>)
-add_test(NAME proofs COMMAND ${CMAKE_SOURCE_DIR}/tests/proofs.sh $<TARGET_FILE:llvm-lean>)
+add_test(NAME emitter COMMAND ${CMAKE_SOURCE_DIR}/tests/emitter.sh $<TARGET_FILE:ir-lean>)
+add_test(NAME fuzz COMMAND ${CMAKE_SOURCE_DIR}/tests/fuzz.py $<TARGET_FILE:ir-lean>)
+add_test(NAME proofs COMMAND ${CMAKE_SOURCE_DIR}/tests/proofs.sh $<TARGET_FILE:ir-lean>)
 add_test(NAME names COMMAND ${CMAKE_SOURCE_DIR}/tests/names.sh)
 add_test(
     NAME zlib
     COMMAND
-        ${CMAKE_SOURCE_DIR}/tests/zlib.sh $<TARGET_FILE:llvm-lean> --only harness_ --runs 10 --slow
+        ${CMAKE_SOURCE_DIR}/tests/zlib.sh $<TARGET_FILE:ir-lean> --only harness_ --runs 10 --slow
         harness_slow=0
 )
 # About 20 minutes: these run far enough for `deflate` to slide its window. Skip with `ctest -LE slow`.
 add_test(
     NAME zlib_slow
-    COMMAND ${CMAKE_SOURCE_DIR}/tests/zlib.sh $<TARGET_FILE:llvm-lean> --runs 1 --only harness_slow
+    COMMAND ${CMAKE_SOURCE_DIR}/tests/zlib.sh $<TARGET_FILE:ir-lean> --runs 1 --only harness_slow
 )
 set_tests_properties(zlib zlib_slow PROPERTIES TIMEOUT 5400)
 # ctest has no limit of its own, and a Lean run that never ends would otherwise hang these.

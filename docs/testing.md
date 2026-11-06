@@ -57,5 +57,5 @@ Python scripts need nothing beyond the standard library, and run through `uv`, w
 run this, so the language server can find the generated modules they import:
 
 ```console
-tests/proofs.sh build/llvm-lean --generate build/generated
+tests/proofs.sh build/ir-lean --generate build/generated
 ```

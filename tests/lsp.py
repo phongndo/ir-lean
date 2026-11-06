@@ -6,7 +6,7 @@
 """Starts each language server the way an editor would, opens real files, and fails if a server crashes,
 doesn't answer, or reports an error in a file.
 
-The proofs need their generated modules, so run `tests/proofs.sh build/llvm-lean --generate build/generated`
+The proofs need their generated modules, so run `tests/proofs.sh build/ir-lean --generate build/generated`
 first.
 
 usage: tests/lsp.py
@@ -32,7 +32,7 @@ SERVERS = [
     (
         ["lake", "serve"],
         "lean",
-        ["LLVMLean/Mem.lean", "tests/proofs/Popcount.lean", "tests/proofs/Adler32.lean"],
+        ["IRLean/Mem.lean", "tests/proofs/Popcount.lean", "tests/proofs/Adler32.lean"],
     ),
     (["uv", "run", "--quiet", "ty", "server"], "python", ["tests/differential.py", "tests/fuzz.py"]),
     (["uv", "run", "--quiet", "ruff", "server"], "python", ["tests/lsp.py"]),
@@ -166,7 +166,7 @@ def check_server(command, language, paths):
             {
                 "processId": os.getpid(),
                 "rootUri": "file://" + ROOT,
-                "workspaceFolders": [{"uri": "file://" + ROOT, "name": "llvm-lean"}],
+                "workspaceFolders": [{"uri": "file://" + ROOT, "name": "ir-lean"}],
                 "capabilities": {
                     "textDocument": {
                         "publishDiagnostics": {},
