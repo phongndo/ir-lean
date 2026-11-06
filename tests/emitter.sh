@@ -44,6 +44,114 @@ accepts() {
   fi
 }
 
+# Linkage: only a definition that's certainly the one a run uses can be proved about.
+for linkage in weak weak_odr linkonce linkonce_odr available_externally; do
+  refuses linkage "define $linkage i32 @f(i32 %x) { ret i32 %x }"
+done
+refuses "isn't translated" 'define weak i32 @g() { ret i32 0 }
+define i32 @f() { %r = call i32 @g()
+  ret i32 %r }'
+for linkage in weak weak_odr linkonce linkonce_odr common; do
+  refuses 'initial value' "@g = $linkage global i32 0
+define ptr @f() { ret ptr @g }"
+done
+refuses 'initial value' '@g = externally_initialized global i32 0
+define ptr @f() { ret ptr @g }'
+refuses 'external @malloc' 'declare extern_weak ptr @malloc(i64)
+define ptr @f() { %r = call ptr @malloc(i64 1)
+  ret ptr %r }'
+for linkage in '' internal private dso_local; do
+  accepts "define $linkage i32 @f(i32 %x) { ret i32 %x }"
+done
+
+# Function attributes: anything that isn't on the reviewed list.
+for attribute in noreturn naked returns_twice sanitize_address strictfp null_pointer_is_valid \
+  convergent nocf_check speculatable nocallback '"made-up"="1"'; do
+  refuses "attribute" "define i32 @f(i32 %x) $attribute { ret i32 %x }"
+done
+refuses 'call attribute noreturn' 'declare void @llvm.donothing()
+define void @f() { call void @llvm.donothing() noreturn
+  ret void }'
+refuses 'garbage collector' 'define i32 @f(i32 %x) gc "statepoint-example" { ret i32 %x }'
+refuses 'prefix data' 'define i32 @f(i32 %x) prefix i32 1 { ret i32 %x }'
+for attribute in mustprogress willreturn 'memory(none)' nofree nosync norecurse nounwind uwtable sspstrong \
+  noinline '"target-cpu"="x86-64"'; do
+  accepts "define i32 @f(i32 %x) $attribute { ret i32 %x }"
+done
+
+# A promise at a call isn't checked, so it can't be taken on trust either.
+for attribute in nofree norecurse willreturn mustprogress; do
+  refuses 'call attribute' "define void @g() { ret void }
+define void @f() { call void @g() $attribute
+  ret void }"
+done
+refuses 'call attribute nofree' 'declare void @free(ptr)
+define void @f(ptr %p) { call void @free(ptr %p) nofree
+  ret void }'
+# Declaring the C library with promises it doesn't keep means it isn't that library.
+refuses 'external @free' 'declare void @free(ptr nofree)
+define void @f(ptr %p) { call void @free(ptr %p)
+  ret void }'
+refuses 'external @free' 'declare void @free(ptr) memory(none)
+define void @f(ptr %p) { call void @free(ptr %p)
+  ret void }'
+refuses 'external @free' 'declare void @free(ptr) nofree
+define void @f(ptr %p) { call void @free(ptr %p)
+  ret void }'
+refuses 'external @strlen' 'declare i64 @strlen(ptr readnone)
+define i64 @f(ptr %p) { %n = call i64 @strlen(ptr %p)
+  ret i64 %n }'
+refuses 'external @strlen' 'declare i64 @strlen(ptr) memory(none)
+define i64 @f(ptr %p) { %n = call i64 @strlen(ptr %p)
+  ret i64 %n }'
+refuses 'external @malloc' 'declare nonnull ptr @malloc(i64)
+define ptr @f() { %r = call ptr @malloc(i64 1)
+  ret ptr %r }'
+refuses 'external @malloc' 'declare ptr @malloc(i64) memory(none)
+define ptr @f() { %r = call ptr @malloc(i64 1)
+  ret ptr %r }'
+refuses 'external @malloc' 'declare ptr @malloc(i64) memory(inaccessiblemem: readwrite, errnomem: read)
+define ptr @f() { %r = call ptr @malloc(i64 1)
+  ret ptr %r }'
+accepts 'declare noalias noundef ptr @malloc(i64 noundef) mustprogress nofree nounwind willreturn allockind("alloc,uninitialized") allocsize(0) memory(inaccessiblemem: readwrite, errnomem: write)
+define ptr @f() { %r = call noalias ptr @malloc(i64 1)
+  ret ptr %r }'
+accepts 'declare void @free(ptr allocptr noundef captures(none)) mustprogress nounwind willreturn allockind("free") memory(argmem: readwrite, inaccessiblemem: readwrite)
+define void @f(ptr %p) { call void @free(ptr %p)
+  ret void }'
+accepts 'declare i64 @strlen(ptr noundef captures(none)) nocallback nofree nounwind willreturn memory(argmem: read)
+define i64 @f(ptr %p) { %n = call i64 @strlen(ptr %p) nounwind willreturn memory(read)
+  ret i64 %n }'
+# `mustprogress` is on the list on purpose, and this is what that means: a run LLVM calls undefined is
+# `none` here, not a stop. If the model ever starts to treat it as undefined, this has to change with it.
+cat >"$work/Spin.ll" <<'IR'
+define i32 @spin(i32 %x) mustprogress {
+entry:
+  br label %again
+again:
+  br label %again
+}
+IR
+"$tool" "$work/Spin.ll" -o "$work/Spin.lean" --namespace Spin --no-code
+cat >"$work/SpinProof.lean" <<'LEAN'
+import Spin
+open LLVMLean Spin Lean.Order
+
+theorem spin_never_finishes (x : Val 32) : spin x = none := by
+  have loop : run spin.step .again = none := by
+    refine run.fixpoint_induct spin.step (fun f => f .again = none) ?_ ?_
+    · exact admissible_apply (fun _ r => r = none) spin.Block.again (admissible_flatOrder _ rfl)
+    · intro f h
+      simpa [spin.step, jump, Outcome.ok] using h
+  rw [spin, run]
+  simpa [spin.step, jump, Outcome.ok] using loop
+LEAN
+if lean -R "$work" -o "$work/Spin.olean" "$work/Spin.lean" && lean "$work/SpinProof.lean"; then
+  printf 'ok    a mustprogress function that spins never finishes in the model\n'
+else
+  fail 'the model no longer treats a mustprogress function that spins as never finishing'
+fi
+
 # Two rules no real program can show, since the rest imply them on every layout LLVM allows. The first only
 # matters for an object that crosses the top of the address space, which LLVM rules out. The second says the
 # offsets' running total can't wrap under `nuw`, which adding them to the address one by one already says.
