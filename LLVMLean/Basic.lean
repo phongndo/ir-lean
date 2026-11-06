@@ -26,6 +26,14 @@ inductive UB where
   | overlappingCopy
   /-- `free` of something `malloc` didn't return, or that's already freed. -/
   | badFree
+  /-- A write that `readonly` or `memory(read)` rules out. -/
+  | forbiddenWrite
+  /-- An access through a `readnone` argument. -/
+  | forbiddenAccess
+  /-- An access through an argument whose function returned without capturing its provenance. -/
+  | expiredProvenance
+  /-- `free` through a `nofree` argument. -/
+  | forbiddenFree
   deriving Repr, DecidableEq, Inhabited
 
 /-- Why the model stopped instead of choosing an answer. These aren't undefined in LLVM, or LLVM's rules
@@ -42,6 +50,18 @@ inductive ModelStop where
   | unknownCallee
   /-- `llvm.assume` with a bundle about poison, which LangRef doesn't settle. -/
   | assumeOnPoison
+  /-- An access `memory(...)` lists as `none`. LLVM only rules out accesses observed from outside the
+  function, and the model can't tell whether this one is. -/
+  | unobservableAccess
+  /-- A look at an address `captures` left out. LLVM only rules out a look that changes what's observed,
+  which depends on what other addresses would have done. -/
+  | addressObserved
+  /-- A function returning something other than its `returned` argument. LangRef says it always returns
+  that argument, but not what happens if it doesn't. -/
+  | returnedDiffers
+  /-- A `noalias` result that isn't new in this call. LLVM only rules out storage the caller can reach,
+  and the model can't tell whether it can. -/
+  | noaliasResult
   deriving Repr, DecidableEq, Inhabited
 
 /-- Why a run ended without a result. -/

@@ -145,8 +145,8 @@ theorem load_entry {m : Mem} {block s off n x v : Nat} {init : Array Nat} {f : N
     (hA : m.allocs block = some { size := s, readonly := true, bytes := Mem.globalBytes init })
     (h : (init.toList.drop off).take (4 * n) = (List.range n).flatMap fun e => bytes4 (f e))
     (hx : x < n) (hv : f x = v) (hlt : v < 4294967296) (hs : off + 4 * n ≤ s) (hmax : s < 2 ^ 64)
-    (halign : (m.addr ⟨block, BitVec.ofNat 64 (off + 4 * x)⟩).toNat % 4 = 0) :
-    Mem.loadInt 32 m (some ⟨block, BitVec.ofNat 64 (off + 4 * x)⟩) 4 =
+    (halign : (m.addr ⟨block, BitVec.ofNat 64 (off + 4 * x), []⟩).toNat % 4 = 0) :
+    Mem.loadInt 32 m (some ⟨block, BitVec.ofNat 64 (off + 4 * x), []⟩) 4 =
       Outcome.ok (some (BitVec.ofNat 32 v)) := by
   have l0 := lookup h hx (j := 0) (by omega)
   have l1 := lookup h hx (j := 1) (by omega)
@@ -169,7 +169,13 @@ theorem load_entry {m : Mem} {block s off n x v : Nat} {init : Array Nat} {f : N
   have t1 : (BitVec.ofNat 8 (v / 256 % 256)).toNat = v / 256 % 256 := by simp [BitVec.toNat_ofNat]
   have t2 : (BitVec.ofNat 8 (v / 65536 % 256)).toNat = v / 65536 % 256 := by simp [BitVec.toNat_ofNat]
   have t3 : (BitVec.ofNat 8 (v / 16777216 % 256)).toNat = v / 16777216 % 256 := by simp [BitVec.toNat_ofNat]
-  simp only [Mem.loadInt, Mem.access, hA, hoff, fits, if_false, halign, Mem.read]
+  have hc : m.check ⟨block, BitVec.ofNat 64 (off + 4 * x), []⟩
+      { size := s, readonly := true, bytes := Mem.globalBytes init } false = none :=
+    Mem.check_constant rfl rfl
+  simp only [Mem.loadInt, Mem.access, hA, hoff, fits, if_false, halign, hc, Mem.read, Mem.visible]
+  have hw : ∀ o', m.unwritten ⟨block, BitVec.ofNat 64 (off + 4 * x), []⟩
+      { size := s, readonly := true, bytes := Mem.globalBytes init } o' = false :=
+    fun _ => Mem.unwritten_constant rfl
   have e0 : Mem.globalBytes init (off + 4 * x + 0) = .val (BitVec.ofNat 8 (v % 256)) := by
     simp only [Mem.globalBytes, b0, g0, ite_false]
   have e1 : Mem.globalBytes init (off + 4 * x + 1) = .val (BitVec.ofNat 8 (v / 256 % 256)) := by
@@ -179,7 +185,7 @@ theorem load_entry {m : Mem} {block s off n x v : Nat} {init : Array Nat} {f : N
   have e3 : Mem.globalBytes init (off + 4 * x + 3) = .val (BitVec.ofNat 8 (v / 16777216 % 256)) := by
     simp only [Mem.globalBytes, b3, g3, ite_false]
   have c : ((4 : Nat) != 1 && (0 : Nat) != 0) = false := rfl
-  simp only [List.range, List.range.loop, List.map, c, Bool.false_eq_true, ite_false, hoff, e0, e1, e2,
+  simp only [List.range, List.range.loop, List.map, c, Bool.false_eq_true, ite_false, hoff, hc, hw, e0, e1, e2,
     e3, Mem.collect, t0, t1, t2, t3, total]
 
 /-! ### What the code reads and computes -/
@@ -197,16 +203,18 @@ theorem zext_entry (n : Nat) {x : BitVec 64} (hx : x.toNat < 4294967296) :
 /-- The two global tables are in memory, untouched, where the code expects them. Every real layout
 meets the size limits: LangRef says no object crosses the top of the address space, even one past its
 end. -/
-structure Tables (m : Mem) : Prop where
+structure Tables (m : Mem) (ts : List Tag) : Prop where
   crc : m.allocs g_crc_table.block = Crc.initial.allocs g_crc_table.block
   braid : m.allocs g_crc_braid_table.block = Crc.initial.allocs g_crc_braid_table.block
   crcAlign : (m.base g_crc_table.block).toNat % 4 = 0
   braidAlign : (m.base g_crc_braid_table.block).toNat % 4 = 0
   crcFits : (m.base g_crc_table.block).toNat + 1024 < 2 ^ 64
   braidFits : (m.base g_crc_braid_table.block).toNat + 8192 < 2 ^ 64
+  /-- The code looks at the buffer pointer's address, to find its alignment, which its tags have to allow. -/
+  addressFree : ∀ x, x ∈ ts → x.noAddress = false
 
 theorem addr_align {m : Mem} {block k : Nat} (hb : block ≠ 0) (ha : (m.base block).toNat % 4 = 0)
-    : (m.addr ⟨block, BitVec.ofNat 64 (4 * k)⟩).toNat % 4 = 0 := by
+    : (m.addr ⟨block, BitVec.ofNat 64 (4 * k), []⟩).toNat % 4 = 0 := by
   have h : (block == 0) = false := by simpa using hb
   simp only [Mem.addr, h, Bool.false_eq_true, ite_false, BitVec.toNat_add, BitVec.toNat_ofNat]
   omega
@@ -222,12 +230,12 @@ theorem mul4 {x : BitVec 64} (hx : x.toNat < 256) :
     omega
   simp [Val.mul, h1, h2, e]
 
-variable {m : Mem}
+variable {m : Mem} {ts : List Tag}
 
 /-- Reads an entry of a table of 256 at offset `off` of a read-only global. -/
 theorem table_load {P : Ptr} {init : Array Nat} {s off n : Nat} {f : Nat → Nat} {x : BitVec 64}
     (hA : m.allocs P.block = some { size := s, readonly := true, bytes := Mem.globalBytes init })
-    (hP : P.offset = BitVec.ofNat 64 off) (hb : P.block ≠ 0)
+    (hP : P.offset = BitVec.ofNat 64 off) (hPt : P.tags = []) (hb : P.block ≠ 0)
     (h : (init.toList.drop off).take 1024 = (List.range 256).flatMap fun e => bytes4 (f e))
     (hf : ∀ e, f e = stepsN n e) (hs : off + 1024 ≤ s) (hmax : s < 2 ^ 64) (h4 : off % 4 = 0)
     (ha : (m.base P.block).toNat % 4 = 0) (hfit : (m.base P.block).toNat + s < 2 ^ 64)
@@ -238,7 +246,7 @@ theorem table_load {P : Ptr} {init : Array Nat} {s off n : Nat} {f : Nat → Nat
       Outcome.ok (some (entryV n x)) := by
   have hv : f x.toNat = (steps n x).toNat := by rw [hf, toNat_steps]
   have hlt := steps_lt n (c := x) (by omega)
-  have hal : (m.addr ⟨P.block, BitVec.ofNat 64 (off + 4 * x.toNat)⟩).toNat % 4 = 0 := by
+  have hal : (m.addr ⟨P.block, BitVec.ofNat 64 (off + 4 * x.toNat), []⟩).toNat % 4 = 0 := by
     have e : off + 4 * x.toNat = 4 * (off / 4 + x.toNat) := by omega
     rw [e]
     exact addr_align hb ha
@@ -254,8 +262,9 @@ theorem table_load {P : Ptr} {init : Array Nat} {s off n : Nat} {f : Nat → Nat
     simp only [Mem.addr, hb', Bool.false_eq_true, ite_false, BitVec.toNat_add, hP, toff]
     omega
   have hgep : Mem.gep m (some P) (some (BitVec.ofNat 64 (4 * x.toNat))) (inbounds := true) (nuw := true) =
-      some ⟨P.block, BitVec.ofNat 64 (off + 4 * x.toNat)⟩ := by
+      some ⟨P.block, BitVec.ofNat 64 (off + 4 * x.toNat), []⟩ := by
     rw [Mem.gep_forward hA (by simp only [hP, toff]; omega) hmax haddr (by omega), hP, hsum]
+    cases P; simp_all
   rw [mul4 hx, hgep, hload]
   rfl
 
@@ -273,7 +282,7 @@ theorem shr56 (x : BitVec 64) : (x >>> 56#64).toNat < 256 := by
   have h : x >>> 56#64 < 256#64 := by bv_decide
   exact BitVec.lt_def.mp h
 
-theorem crc_load (T : Tables m) {x : BitVec 64} (hx : x.toNat < 256) :
+theorem crc_load (T : Tables m ts) {x : BitVec 64} (hx : x.toNat < 256) :
     Mem.loadInt 32 m
         (Mem.gep m (some g_crc_table) (Val.mul (some x) (some 4#64) (nuw := true) (nsw := true))
           (inbounds := true) (nuw := true)) 4 =
@@ -282,18 +291,18 @@ theorem crc_load (T : Tables m) {x : BitVec 64} (hx : x.toNat < 256) :
       (List.range 256).flatMap fun e => bytes4 (stepsN 8 e) := by
     rw [List.drop_zero, crc_table_bytes]
     exact List.take_of_length_le (by rw [length_flatMap_range _ (fun e => length_bytes4 _)]; omega)
-  exact table_load (s := 1024) (off := 0) T.crc rfl (by simp [g_crc_table]) hl (fun _ => rfl)
+  exact table_load (s := 1024) (off := 0) T.crc rfl rfl (by simp [g_crc_table]) hl (fun _ => rfl)
     (by omega) (by omega) (by omega) T.crcAlign T.crcFits hx
 
 /-- Reads table `k` of `crc_braid_table`, whose pointer the code writes as `P`. -/
-theorem braid_load (T : Tables m) {P : Ptr} {k : Nat} (hP : P = ⟨2, BitVec.ofNat 64 (1024 * k)⟩)
+theorem braid_load (T : Tables m ts) {P : Ptr} {k : Nat} (hP : P = ⟨2, BitVec.ofNat 64 (1024 * k), []⟩)
     (hk : k < 8) (hS : braidSlice k = braidExpected k) {x : BitVec 64} (hx : x.toNat < 256) :
     Mem.loadInt 32 m
         (Mem.gep m (some P) (Val.mul (some x) (some 4#64) (nuw := true) (nsw := true))
           (inbounds := true) (nuw := true)) 4 =
       Outcome.ok (some (entryV (320 - 8 * k) x)) := by
   subst hP
-  exact table_load (s := 8192) (off := 1024 * k) T.braid rfl (by simp) hS (fun _ => rfl)
+  exact table_load (s := 8192) (off := 1024 * k) T.braid rfl rfl (by simp) hS (fun _ => rfl)
     (by omega) (by omega) (by omega) T.braidAlign T.braidFits hx
 
 /-- A table read, as the code writes it. -/
@@ -302,40 +311,40 @@ abbrev tableRead (m : Mem) (P : Ptr) (x : BitVec 64) : Outcome (Val 32) :=
     (Mem.gep m (some P) (Val.mul (some x) (some 4#64) (nuw := true) (nsw := true))
       (inbounds := true) (nuw := true)) 4
 
-theorem crc_and (T : Tables m) (x : BitVec 64) :
+theorem crc_and (T : Tables m ts) (x : BitVec 64) :
     tableRead m g_crc_table (x &&& 255#64) = Outcome.ok (some (entryV 8 (x &&& 255#64))) :=
   crc_load T (and255 x)
-theorem crc_byte (T : Tables m) (b : BitVec 8) :
+theorem crc_byte (T : Tables m ts) (b : BitVec 8) :
     tableRead m g_crc_table (b.setWidth 64) = Outcome.ok (some (entryV 8 (b.setWidth 64))) :=
   crc_load T (zext8 b)
-theorem braid0 (T : Tables m) (x : BitVec 64) :
+theorem braid0 (T : Tables m ts) (x : BitVec 64) :
     tableRead m g_crc_braid_table (x &&& 255#64) = Outcome.ok (some (entryV 320 (x &&& 255#64))) :=
   braid_load T (k := 0) rfl (by omega) braid_slice0 (and255 x)
-theorem braid1 (T : Tables m) (x : BitVec 64) :
+theorem braid1 (T : Tables m ts) (x : BitVec 64) :
     tableRead m { g_crc_braid_table with offset := 1024#64 } (x &&& 255#64) =
       Outcome.ok (some (entryV 312 (x &&& 255#64))) :=
   braid_load T (k := 1) rfl (by omega) braid_slice1 (and255 x)
-theorem braid2 (T : Tables m) (x : BitVec 64) :
+theorem braid2 (T : Tables m ts) (x : BitVec 64) :
     tableRead m { g_crc_braid_table with offset := 2048#64 } (x &&& 255#64) =
       Outcome.ok (some (entryV 304 (x &&& 255#64))) :=
   braid_load T (k := 2) rfl (by omega) braid_slice2 (and255 x)
-theorem braid3 (T : Tables m) (x : BitVec 64) :
+theorem braid3 (T : Tables m ts) (x : BitVec 64) :
     tableRead m { g_crc_braid_table with offset := 3072#64 } (x &&& 255#64) =
       Outcome.ok (some (entryV 296 (x &&& 255#64))) :=
   braid_load T (k := 3) rfl (by omega) braid_slice3 (and255 x)
-theorem braid4 (T : Tables m) (x : BitVec 64) :
+theorem braid4 (T : Tables m ts) (x : BitVec 64) :
     tableRead m { g_crc_braid_table with offset := 4096#64 } (x &&& 255#64) =
       Outcome.ok (some (entryV 288 (x &&& 255#64))) :=
   braid_load T (k := 4) rfl (by omega) braid_slice4 (and255 x)
-theorem braid5 (T : Tables m) (x : BitVec 64) :
+theorem braid5 (T : Tables m ts) (x : BitVec 64) :
     tableRead m { g_crc_braid_table with offset := 5120#64 } (x &&& 255#64) =
       Outcome.ok (some (entryV 280 (x &&& 255#64))) :=
   braid_load T (k := 5) rfl (by omega) braid_slice5 (and255 x)
-theorem braid6 (T : Tables m) (x : BitVec 64) :
+theorem braid6 (T : Tables m ts) (x : BitVec 64) :
     tableRead m { g_crc_braid_table with offset := 6144#64 } (x &&& 255#64) =
       Outcome.ok (some (entryV 272 (x &&& 255#64))) :=
   braid_load T (k := 6) rfl (by omega) braid_slice6 (and255 x)
-theorem braid7 (T : Tables m) (x : BitVec 64) :
+theorem braid7 (T : Tables m ts) (x : BitVec 64) :
     tableRead m { g_crc_braid_table with offset := 7168#64 } (x >>> 56#64) =
       Outcome.ok (some (entryV 264 (x >>> 56#64))) :=
   braid_load T (k := 7) rfl (by omega) braid_slice7 (shr56 x)
@@ -610,7 +619,7 @@ theorem zext_steps320 (W : BitVec 64) : ((steps 320 W).setWidth 32).setWidth 64 
 /-! ### Reading words of the buffer -/
 
 theorem addr_bufPtr (m : Mem) (block o i k : Nat) :
-    m.addr (bufPtr block o (i + k)) = m.addr (bufPtr block o i) + BitVec.ofNat 64 k := by
+    m.addr (bufPtr ts block o (i + k)) = m.addr (bufPtr ts block o i) + BitVec.ofNat 64 k := by
   have hoff : BitVec.ofNat 64 (o + (i + k)) = BitVec.ofNat 64 (o + i) + BitVec.ofNat 64 k := by
     rw [← Nat.add_assoc]; simp [BitVec.ofNat_add]
   simp only [Mem.addr, bufPtr, hoff]
@@ -623,9 +632,9 @@ theorem addr_mod8 (A : BitVec 64) {k : Nat} (hk : k < 2 ^ 64) :
   simp only [BitVec.toNat_add, BitVec.toNat_ofNat]
   omega
 
-theorem load64 {block o n : Nat} {d : Nat → BitVec 8} (B : Readable m block o n d) {i : Nat}
-    (h : i + 8 ≤ n) (ha : (m.addr (bufPtr block o i)).toNat % 8 = 0) :
-    Mem.loadInt 64 m (some (bufPtr block o i)) 8 = Outcome.ok (some (word d i)) := by
+theorem load64 {block o n : Nat} {d : Nat → BitVec 8} (B : Readable m ts block o n d) {i : Nat}
+    (h : i + 8 ≤ n) (ha : (m.addr (bufPtr ts block o i)).toNat % 8 = 0) :
+    Mem.loadInt 64 m (some (bufPtr ts block o i)) 8 = Outcome.ok (some (word d i)) := by
   obtain ⟨a, hA, hsz, hmax, hd⟩ := B.alloc
   have hoff : (BitVec.ofNat 64 (o + i)).toNat = o + i := by
     simp only [BitVec.toNat_ofNat]; exact Nat.mod_eq_of_lt (by omega)
@@ -640,10 +649,20 @@ theorem load64 {block o n : Nat} {d : Nat → BitVec 8} (B : Readable m block o 
   have b7 := hd (i + 7) (by omega)
   have c : ((8 : Nat) != 1 && (0 : Nat) != 0) = false := rfl
   have fits' : ¬ o + (i + 64 / 8) > a.size := by omega
-  simp only [Mem.loadInt, Mem.access, hA, bufPtr, hoff, ite_false, ha, Mem.read,
+  have hc := B.allowed a hA (BitVec.ofNat 64 (o + i))
+  have w0 := B.clean a hA i (by omega) (BitVec.ofNat 64 (o + i))
+  have w1 := B.clean a hA (i + 1) (by omega) (BitVec.ofNat 64 (o + i))
+  have w2 := B.clean a hA (i + 2) (by omega) (BitVec.ofNat 64 (o + i))
+  have w3 := B.clean a hA (i + 3) (by omega) (BitVec.ofNat 64 (o + i))
+  have w4 := B.clean a hA (i + 4) (by omega) (BitVec.ofNat 64 (o + i))
+  have w5 := B.clean a hA (i + 5) (by omega) (BitVec.ofNat 64 (o + i))
+  have w6 := B.clean a hA (i + 6) (by omega) (BitVec.ofNat 64 (o + i))
+  have w7 := B.clean a hA (i + 7) (by omega) (BitVec.ofNat 64 (o + i))
+  simp only [Mem.loadInt, Mem.access, hA, bufPtr, hoff, ite_false, ha, hc, Mem.read, Mem.visible,
     List.range, List.range.loop, List.map, c, Bool.false_eq_true, Nat.add_assoc, Nat.add_zero, fits',
     word, le, Nat.reduceAdd]
-  simp only [hoff, Nat.add_assoc, Nat.reduceAdd, b0, b1, b2, b3, b4, b5, b6, b7, Mem.collect]
+  simp only [hoff, Nat.add_assoc, Nat.reduceAdd, w0, w1, w2, w3, w4, w5, w6, w7, Bool.false_eq_true, if_false,
+    b0, b1, b2, b3, b4, b5, b6, b7, Mem.collect]
 
 /-! ### Running the blocks, from the end backward -/
 
@@ -709,6 +728,15 @@ theorem trunc32 {x : BitVec 64} (h : x.toNat < 4294967296) :
     omega
   simp [Val.trunc, e]
 
+/-- Looking at the buffer pointer's address breaks no promise. -/
+theorem Tables.observe {m : Mem} {ts : List Tag} (T : Tables m ts) (block o i : Nat) (k : Outcome α) :
+    Mem.observeAddress (some (bufPtr ts block o i)) false k = k := by
+  have h : ts.any (fun x => x.noAddress && !(false && x.nullCheck)) = false := by
+    rw [List.any_eq_false]
+    intro x hx
+    simp [T.addressFree x hx]
+  simp only [Mem.observeAddress, h, Bool.false_eq_true, ite_false]
+
 local notation "St" => Crc.crc32_z.step
 
 /-- Runs one block: evaluates it on known values, folding the CRC rounds as they appear, and leaves
@@ -721,7 +749,7 @@ macro_rules
         braid3 $t:term, braid4 $t:term, braid5 $t:term, braid6 $t:term, braid7 $t:term,
         Readable.load $b:term, Readable.gep $b:term, Readable.gep_plain, load64 $b:term,
         round_word', round_mid, round_byte, spec_byte, steps_steps, braid_lane, zext_xor32, select_and,
-        toNat_and7, Mem.toVal, udiv40, Val.mul_some, dec1_nsw, trunc32,
+        toNat_and7, Mem.toVal, Tables.observe $t:term, udiv40, Val.mul_some, dec1_nsw, trunc32,
         Bool.and_eq_true, Bool.not_eq_true', decide_eq_false_iff_not,
         jump, ret, andThen, Outcome.ok, beq_toNat, bne_toNat, ult_toNat, decide_eq_true_eq,
         BitVec.toNat_ofNat, Nat.reducePow, Nat.reduceMod, Nat.reduceAdd, Nat.add_assoc]))
@@ -742,17 +770,17 @@ theorem while_end299_run (hs : s0.toNat < 4294967296) :
   rfl
 
 /-- The last bytes, one at a time, in the seven blocks clang unrolled them to. -/
-theorem while_body289_6_run (B : Readable m block o n d) (T : Tables m) (hs : s0.toNat < 4294967296)
+theorem while_body289_6_run (B : Readable m ts block o n d) (T : Tables m ts) (hs : s0.toNat < 4294967296)
     {i : Nat} (hi : i + 7 = n) :
-    run St (.while_body289_6 m (some (bufPtr block o i)) (some (spec s0 d (i + 6)))) =
+    run St (.while_body289_6 m (some (bufPtr ts block o i)) (some (spec s0 d (i + 6)))) =
       Outcome.ok (some (finish (spec s0 d n)), m) := by
   exec B, T
   subst hi
   exact while_end299_run hs
 
-theorem while_body289_5_run (B : Readable m block o n d) (T : Tables m) (hs : s0.toNat < 4294967296)
+theorem while_body289_5_run (B : Readable m ts block o n d) (T : Tables m ts) (hs : s0.toNat < 4294967296)
     {i : Nat} {L : BitVec 64} (h0 : L.toNat ≤ 7) (hL : 5 < L.toNat) (hi : i + L.toNat = n) :
-    run St (.while_body289_5 m (some L) (some (bufPtr block o i)) (some (spec s0 d (i + 5)))) =
+    run St (.while_body289_5 m (some L) (some (bufPtr ts block o i)) (some (spec s0 d (i + 5)))) =
       Outcome.ok (some (finish (spec s0 d n)), m) := by
   exec B, T
   split
@@ -761,9 +789,9 @@ theorem while_body289_5_run (B : Readable m block o n d) (T : Tables m) (hs : s0
     exact while_end299_run hs
   · exact while_body289_6_run B T hs (by omega)
 
-theorem while_body289_4_run (B : Readable m block o n d) (T : Tables m) (hs : s0.toNat < 4294967296)
+theorem while_body289_4_run (B : Readable m ts block o n d) (T : Tables m ts) (hs : s0.toNat < 4294967296)
     {i : Nat} {L : BitVec 64} (h0 : L.toNat ≤ 7) (hL : 4 < L.toNat) (hi : i + L.toNat = n) :
-    run St (.while_body289_4 m (some L) (some (bufPtr block o i)) (some (spec s0 d (i + 4)))) =
+    run St (.while_body289_4 m (some L) (some (bufPtr ts block o i)) (some (spec s0 d (i + 4)))) =
       Outcome.ok (some (finish (spec s0 d n)), m) := by
   exec B, T
   split
@@ -772,9 +800,9 @@ theorem while_body289_4_run (B : Readable m block o n d) (T : Tables m) (hs : s0
     exact while_end299_run hs
   · exact while_body289_5_run B T hs h0 (by omega) hi
 
-theorem while_body289_3_run (B : Readable m block o n d) (T : Tables m) (hs : s0.toNat < 4294967296)
+theorem while_body289_3_run (B : Readable m ts block o n d) (T : Tables m ts) (hs : s0.toNat < 4294967296)
     {i : Nat} {L : BitVec 64} (h0 : L.toNat ≤ 7) (hL : 3 < L.toNat) (hi : i + L.toNat = n) :
-    run St (.while_body289_3 m (some L) (some (bufPtr block o i)) (some (spec s0 d (i + 3)))) =
+    run St (.while_body289_3 m (some L) (some (bufPtr ts block o i)) (some (spec s0 d (i + 3)))) =
       Outcome.ok (some (finish (spec s0 d n)), m) := by
   exec B, T
   split
@@ -783,9 +811,9 @@ theorem while_body289_3_run (B : Readable m block o n d) (T : Tables m) (hs : s0
     exact while_end299_run hs
   · exact while_body289_4_run B T hs h0 (by omega) hi
 
-theorem while_body289_2_run (B : Readable m block o n d) (T : Tables m) (hs : s0.toNat < 4294967296)
+theorem while_body289_2_run (B : Readable m ts block o n d) (T : Tables m ts) (hs : s0.toNat < 4294967296)
     {i : Nat} {L : BitVec 64} (h0 : L.toNat ≤ 7) (hL : 2 < L.toNat) (hi : i + L.toNat = n) :
-    run St (.while_body289_2 m (some L) (some (bufPtr block o i)) (some (spec s0 d (i + 2)))) =
+    run St (.while_body289_2 m (some L) (some (bufPtr ts block o i)) (some (spec s0 d (i + 2)))) =
       Outcome.ok (some (finish (spec s0 d n)), m) := by
   exec B, T
   split
@@ -794,9 +822,9 @@ theorem while_body289_2_run (B : Readable m block o n d) (T : Tables m) (hs : s0
     exact while_end299_run hs
   · exact while_body289_3_run B T hs h0 (by omega) hi
 
-theorem while_body289_1_run (B : Readable m block o n d) (T : Tables m) (hs : s0.toNat < 4294967296)
+theorem while_body289_1_run (B : Readable m ts block o n d) (T : Tables m ts) (hs : s0.toNat < 4294967296)
     {i : Nat} {L : BitVec 64} (h0 : L.toNat ≤ 7) (hL : 1 < L.toNat) (hi : i + L.toNat = n) :
-    run St (.while_body289_1 m (some L) (some (bufPtr block o i)) (some (spec s0 d (i + 1)))) =
+    run St (.while_body289_1 m (some L) (some (bufPtr ts block o i)) (some (spec s0 d (i + 1)))) =
       Outcome.ok (some (finish (spec s0 d n)), m) := by
   exec B, T
   split
@@ -805,9 +833,9 @@ theorem while_body289_1_run (B : Readable m block o n d) (T : Tables m) (hs : s0
     exact while_end299_run hs
   · exact while_body289_2_run B T hs h0 (by omega) hi
 
-theorem while_body289_run (B : Readable m block o n d) (T : Tables m) (hs : s0.toNat < 4294967296)
+theorem while_body289_run (B : Readable m ts block o n d) (T : Tables m ts) (hs : s0.toNat < 4294967296)
     {i : Nat} {L : BitVec 64} (h0 : L.toNat ≤ 7) (hL : 0 < L.toNat) (hi : i + L.toNat = n) :
-    run St (.while_body289 m (some L) (some (bufPtr block o i)) (some (spec s0 d i))) =
+    run St (.while_body289 m (some L) (some (bufPtr ts block o i)) (some (spec s0 d i))) =
       Outcome.ok (some (finish (spec s0 d n)), m) := by
   exec B, T
   split
@@ -816,9 +844,9 @@ theorem while_body289_run (B : Readable m block o n d) (T : Tables m) (hs : s0.t
     exact while_end299_run hs
   · exact while_body289_1_run B T hs h0 (by omega) hi
 
-theorem while_cond287_preheader_run (B : Readable m block o n d) (T : Tables m)
+theorem while_cond287_preheader_run (B : Readable m ts block o n d) (T : Tables m ts)
     (hs : s0.toNat < 4294967296) {i : Nat} {L : BitVec 64} (h0 : L.toNat ≤ 7) (hi : i + L.toNat = n) :
-    run St (.while_cond287_preheader m (some L) (some (bufPtr block o i)) (some (spec s0 d i))) =
+    run St (.while_cond287_preheader m (some L) (some (bufPtr ts block o i)) (some (spec s0 d i))) =
       Outcome.ok (some (finish (spec s0 d n)), m) := by
   exec B, T
   split
@@ -828,10 +856,10 @@ theorem while_cond287_preheader_run (B : Readable m block o n d) (T : Tables m)
   · exact while_body289_run B T hs h0 (by omega) hi
 
 /-- Eight bytes at a time, while there are that many. -/
-theorem while_body220_run (B : Readable m block o n d) (T : Tables m) (hs : s0.toNat < 4294967296)
+theorem while_body220_run (B : Readable m ts block o n d) (T : Tables m ts) (hs : s0.toNat < 4294967296)
     (r : Nat) :
     ∀ (i : Nat) (L : BitVec 64), 8 ≤ L.toNat → L.toNat < 8 * (r + 1) → i + L.toNat = n →
-      run St (.while_body220 m (some (spec s0 d i)) (some (bufPtr block o i)) (some L)) =
+      run St (.while_body220 m (some (spec s0 d i)) (some (bufPtr ts block o i)) (some L)) =
         Outcome.ok (some (finish (spec s0 d n)), m) := by
   induction r with
   | zero => intro i L h8 hr; omega
@@ -844,26 +872,26 @@ theorem while_body220_run (B : Readable m block o n d) (T : Tables m) (hs : s0.t
     · exact ih (i + 8) _ (by omega) (by omega) (by omega)
     · exact while_cond287_preheader_run B T hs (by omega) (by omega)
 
-theorem if_end216_run (B : Readable m block o n d) (T : Tables m) (hs : s0.toNat < 4294967296)
+theorem if_end216_run (B : Readable m ts block o n d) (T : Tables m ts) (hs : s0.toNat < 4294967296)
     {i : Nat} {L : BitVec 64} (hi : i + L.toNat = n) :
-    run St (.if_end216 m (some L) (some (bufPtr block o i)) (some (spec s0 d i))) =
+    run St (.if_end216 m (some L) (some (bufPtr ts block o i)) (some (spec s0 d i))) =
       Outcome.ok (some (finish (spec s0 d n)), m) := by
   exec B, T
   split
   · exact while_body220_run B T hs (L.toNat / 8) i L (by omega) (by omega) hi
   · exact while_cond287_preheader_run B T hs (by omega) hi
 
-theorem aligned_add {i k : Nat} (h : (m.addr (bufPtr block o i)).toNat % 8 = 0) (hk : k % 8 = 0)
-    (hk' : k < 2 ^ 64) : (m.addr (bufPtr block o (i + k))).toNat % 8 = 0 := by
+theorem aligned_add {i k : Nat} (h : (m.addr (bufPtr ts block o i)).toNat % 8 = 0) (hk : k % 8 = 0)
+    (hk' : k < 2 ^ 64) : (m.addr (bufPtr ts block o (i + k))).toNat % 8 = 0 := by
   rw [addr_bufPtr, addr_mod8 _ hk']
   omega
 
 /-- The last block of the braid: combine the lanes. -/
-theorem while_end80_run (B : Readable m block o n d) (T : Tables m) (hs : s0.toNat < 4294967296)
+theorem while_end80_run (B : Readable m ts block o n d) (T : Tables m ts) (hs : s0.toNat < 4294967296)
     {i : Nat} {L c0 c1 c2 c3 c4 : BitVec 64} (hi : i + 40 + L.toNat = n)
-    (ha : (m.addr (bufPtr block o i)).toNat % 8 = 0) (h : Lanes s0 d i c0 c1 c2 c3 c4) :
+    (ha : (m.addr (bufPtr ts block o i)).toNat % 8 = 0) (h : Lanes s0 d i c0 c1 c2 c3 c4) :
     run St (.while_end80 m (some c2) (some c1) (some c3) (some c0) (some c4)
-        (some (bufPtr block o i)) (some L)) =
+        (some (bufPtr ts block o i)) (some L)) =
       Outcome.ok (some (finish (spec s0 d n)), m) := by
   have a1 := aligned_add (k := 8) ha (by omega) (by omega)
   have a2 := aligned_add (k := 16) ha (by omega) (by omega)
@@ -885,7 +913,7 @@ theorem mul40 {D : BitVec 64} (h : 40 * D.toNat < 2 ^ 64) :
   simp [Val.mul, hno, e]
 
 theorem bufPtr_back {j c : Nat} (hc : c + 40 = 18446744073709551616) (h : 40 ≤ j) :
-    bufPtr block o (j + c) = bufPtr block o (j - 40) := by
+    bufPtr ts block o (j + c) = bufPtr ts block o (j - 40) := by
   have e : o + (j + c) = o + (j - 40) + 2 ^ 64 := by omega
   have hb : BitVec.ofNat 64 (o + (j + c)) = BitVec.ofNat 64 (o + (j - 40)) := by
     apply BitVec.eq_of_toNat_eq
@@ -895,15 +923,15 @@ theorem bufPtr_back {j c : Nat} (hc : c + 40 = 18446744073709551616) (h : 40 ≤
 
 /-- Leaving the loop: the code works out the pointer to the last block by going to the end of the
 blocks and back one. -/
-theorem while_end80_loopexit_run (B : Readable m block o n d) (T : Tables m)
+theorem while_end80_loopexit_run (B : Readable m ts block o n d) (T : Tables m ts)
     (hs : s0.toNat < 4294967296) {i i0 : Nat} {D L : BitVec 64} {C0 C1 C2 C3 C4 : BitVec 32}
     (hi0 : i0 + 40 * D.toNat = i + 40) (hD : 40 * D.toNat < 2 ^ 64) (hn : i + 40 + L.toNat = n)
-    (ha : (m.addr (bufPtr block o i)).toNat % 8 = 0)
+    (ha : (m.addr (bufPtr ts block o i)).toNat % 8 = 0)
     (h : Lanes s0 d i (C0.setWidth 64) (C1.setWidth 64) (C2.setWidth 64) (C3.setWidth 64) (C4.setWidth 64)) :
-    run St (.while_end80_loopexit m (some (bufPtr block o i0)) (some D) (some L) (some C0) (some C1)
+    run St (.while_end80_loopexit m (some (bufPtr ts block o i0)) (some D) (some L) (some C0) (some C1)
         (some C2) (some C3) (some C4)) =
       Outcome.ok (some (finish (spec s0 d n)), m) := by
-  have g := bufPtr_back (block := block) (o := o) (j := i0 + 40 * D.toNat) (c := 18446744073709551576)
+  have g := bufPtr_back (ts := ts) (block := block) (o := o) (j := i0 + 40 * D.toNat) (c := 18446744073709551576)
     rfl (by omega)
   rw [show i0 + 40 * D.toNat - 40 = i by omega] at g
   rw [run]
@@ -922,14 +950,14 @@ theorem lanes_step32 {i : Nat} {C0 C1 C2 C3 C4 : BitVec 32}
   exact lanes_step h
 
 /-- The main loop, five words at a time: `r + 1` iterations left, then the last block. -/
-theorem while_body15_run (B : Readable m block o n d) (T : Tables m) (hs : s0.toNat < 4294967296)
+theorem while_body15_run (B : Readable m ts block o n d) (T : Tables m ts) (hs : s0.toNat < 4294967296)
     {i0 : Nat} {D L : BitVec 64} (hD : 40 * D.toNat < 2 ^ 64) (hn : i0 + 40 * D.toNat + L.toNat = n)
     (r : Nat) :
     ∀ (i : Nat) (dec : BitVec 64) (C0 C1 C2 C3 C4 : BitVec 32), dec.toNat = r + 1 →
-      i + 40 * (r + 1) + 40 = i0 + 40 * D.toNat → (m.addr (bufPtr block o i)).toNat % 8 = 0 →
+      i + 40 * (r + 1) + 40 = i0 + 40 * D.toNat → (m.addr (bufPtr ts block o i)).toNat % 8 = 0 →
       Lanes s0 d i (C0.setWidth 64) (C1.setWidth 64) (C2.setWidth 64) (C3.setWidth 64) (C4.setWidth 64) →
-      run St (.while_body15 m (some dec) (some (bufPtr block o i)) (some C4) (some C0) (some C3)
-          (some C1) (some C2) (some (bufPtr block o i0)) (some D) (some L)) =
+      run St (.while_body15 m (some dec) (some (bufPtr ts block o i)) (some C4) (some C0) (some C3)
+          (some C1) (some C2) (some (bufPtr ts block o i0)) (some D) (some L)) =
         Outcome.ok (some (finish (spec s0 d n)), m) := by
   induction r with
   | zero =>
@@ -980,10 +1008,10 @@ theorem toNat_left {L : BitVec 64} :
   omega
 
 /-- Past the alignment loop, the braid proper. -/
-theorem while_end_run (B : Readable m block o n d) (T : Tables m) (hs : s0.toNat < 4294967296)
+theorem while_end_run (B : Readable m ts block o n d) (T : Tables m ts) (hs : s0.toNat < 4294967296)
     {i : Nat} {L : BitVec 64} (hL : 40 ≤ L.toNat) (hi : i + L.toNat = n)
-    (ha : (m.addr (bufPtr block o i)).toNat % 8 = 0) :
-    run St (.while_end m (some L) (some (bufPtr block o i)) (some (spec s0 d i))) =
+    (ha : (m.addr (bufPtr ts block o i)).toNat % 8 = 0) :
+    run St (.while_end m (some L) (some (bufPtr ts block o i)) (some (spec s0 d i))) =
       Outcome.ok (some (finish (spec s0 d n)), m) := by
   have hD := toNat_div40 L
   have hleft := toNat_left (L := L)
@@ -1010,111 +1038,111 @@ theorem while_end_run (B : Readable m block o n d) (T : Tables m) (hs : s0.toNat
 /-- The byte loop that gets the pointer to a multiple of eight, unrolled into eight blocks. The eighth
 can't be reached: one of the eight addresses before it is a multiple of eight. -/
 theorem while_body_7_run {i0 : Nat} {R : Outcome (Val 64 × Mem)} {L : Val 64} {p : PtrVal} {x : Val 64}
-    (hA : (m.addr (bufPtr block o i0)).toNat % 8 ≠ 0) (hj : (m.addr (bufPtr block o i0)).toNat % 8 + 7 < 8) :
-    run St (.while_body_7 m (some (bufPtr block o i0)) L p x) = R := by
+    (hA : (m.addr (bufPtr ts block o i0)).toNat % 8 ≠ 0) (hj : (m.addr (bufPtr ts block o i0)).toNat % 8 + 7 < 8) :
+    run St (.while_body_7 m (some (bufPtr ts block o i0)) L p x) = R := by
   omega
 
-theorem while_body_6_run (B : Readable m block o n d) (T : Tables m) (hs : s0.toNat < 4294967296)
+theorem while_body_6_run (B : Readable m ts block o n d) (T : Tables m ts) (hs : s0.toNat < 4294967296)
     {i0 : Nat} {L : BitVec 64} (hL : 47 ≤ L.toNat) (hi : i0 + L.toNat = n)
-    (hA : (m.addr (bufPtr block o i0)).toNat % 8 ≠ 0) (hj : (m.addr (bufPtr block o i0)).toNat % 8 + 6 < 8) :
-    run St (.while_body_6 m (some (bufPtr block o i0)) (some L) (some (bufPtr block o (i0 + 6))) (some (spec s0 d (i0 + 6)))) =
+    (hA : (m.addr (bufPtr ts block o i0)).toNat % 8 ≠ 0) (hj : (m.addr (bufPtr ts block o i0)).toNat % 8 + 6 < 8) :
+    run St (.while_body_6 m (some (bufPtr ts block o i0)) (some L) (some (bufPtr ts block o (i0 + 6))) (some (spec s0 d (i0 + 6)))) =
       Outcome.ok (some (finish (spec s0 d n)), m) := by
   have hdec : (L + 18446744073709551609#64).toNat = L.toNat - 7 := toNat_dec 7 rfl (by omega) (by omega)
-  have haddr := addr_bufPtr m block o i0 7
-  have hm := addr_mod8 (m.addr (bufPtr block o i0)) (k := 7) (by omega)
+  have haddr := addr_bufPtr (ts := ts) m block o i0 7
+  have hm := addr_mod8 (m.addr (bufPtr ts block o i0)) (k := 7) (by omega)
   rw [← haddr] at hm
   exec B, T
   split
   · exact while_body_7_run hA (by omega)
   · exact while_end_run B T hs (by omega) (by omega) (by omega)
 
-theorem while_body_5_run (B : Readable m block o n d) (T : Tables m) (hs : s0.toNat < 4294967296)
+theorem while_body_5_run (B : Readable m ts block o n d) (T : Tables m ts) (hs : s0.toNat < 4294967296)
     {i0 : Nat} {L : BitVec 64} (hL : 47 ≤ L.toNat) (hi : i0 + L.toNat = n)
-    (hA : (m.addr (bufPtr block o i0)).toNat % 8 ≠ 0) (hj : (m.addr (bufPtr block o i0)).toNat % 8 + 5 < 8) :
-    run St (.while_body_5 m (some (bufPtr block o i0)) (some L) (some (bufPtr block o (i0 + 5))) (some (spec s0 d (i0 + 5)))) =
+    (hA : (m.addr (bufPtr ts block o i0)).toNat % 8 ≠ 0) (hj : (m.addr (bufPtr ts block o i0)).toNat % 8 + 5 < 8) :
+    run St (.while_body_5 m (some (bufPtr ts block o i0)) (some L) (some (bufPtr ts block o (i0 + 5))) (some (spec s0 d (i0 + 5)))) =
       Outcome.ok (some (finish (spec s0 d n)), m) := by
   have hdec : (L + 18446744073709551610#64).toNat = L.toNat - 6 := toNat_dec 6 rfl (by omega) (by omega)
-  have haddr := addr_bufPtr m block o i0 6
-  have hm := addr_mod8 (m.addr (bufPtr block o i0)) (k := 6) (by omega)
+  have haddr := addr_bufPtr (ts := ts) m block o i0 6
+  have hm := addr_mod8 (m.addr (bufPtr ts block o i0)) (k := 6) (by omega)
   rw [← haddr] at hm
   exec B, T
   split
   · exact while_body_6_run B T hs hL hi hA (by omega)
   · exact while_end_run B T hs (by omega) (by omega) (by omega)
 
-theorem while_body_4_run (B : Readable m block o n d) (T : Tables m) (hs : s0.toNat < 4294967296)
+theorem while_body_4_run (B : Readable m ts block o n d) (T : Tables m ts) (hs : s0.toNat < 4294967296)
     {i0 : Nat} {L : BitVec 64} (hL : 47 ≤ L.toNat) (hi : i0 + L.toNat = n)
-    (hA : (m.addr (bufPtr block o i0)).toNat % 8 ≠ 0) (hj : (m.addr (bufPtr block o i0)).toNat % 8 + 4 < 8) :
-    run St (.while_body_4 m (some (bufPtr block o i0)) (some L) (some (bufPtr block o (i0 + 4))) (some (spec s0 d (i0 + 4)))) =
+    (hA : (m.addr (bufPtr ts block o i0)).toNat % 8 ≠ 0) (hj : (m.addr (bufPtr ts block o i0)).toNat % 8 + 4 < 8) :
+    run St (.while_body_4 m (some (bufPtr ts block o i0)) (some L) (some (bufPtr ts block o (i0 + 4))) (some (spec s0 d (i0 + 4)))) =
       Outcome.ok (some (finish (spec s0 d n)), m) := by
   have hdec : (L + 18446744073709551611#64).toNat = L.toNat - 5 := toNat_dec 5 rfl (by omega) (by omega)
-  have haddr := addr_bufPtr m block o i0 5
-  have hm := addr_mod8 (m.addr (bufPtr block o i0)) (k := 5) (by omega)
+  have haddr := addr_bufPtr (ts := ts) m block o i0 5
+  have hm := addr_mod8 (m.addr (bufPtr ts block o i0)) (k := 5) (by omega)
   rw [← haddr] at hm
   exec B, T
   split
   · exact while_body_5_run B T hs hL hi hA (by omega)
   · exact while_end_run B T hs (by omega) (by omega) (by omega)
 
-theorem while_body_3_run (B : Readable m block o n d) (T : Tables m) (hs : s0.toNat < 4294967296)
+theorem while_body_3_run (B : Readable m ts block o n d) (T : Tables m ts) (hs : s0.toNat < 4294967296)
     {i0 : Nat} {L : BitVec 64} (hL : 47 ≤ L.toNat) (hi : i0 + L.toNat = n)
-    (hA : (m.addr (bufPtr block o i0)).toNat % 8 ≠ 0) (hj : (m.addr (bufPtr block o i0)).toNat % 8 + 3 < 8) :
-    run St (.while_body_3 m (some (bufPtr block o i0)) (some L) (some (bufPtr block o (i0 + 3))) (some (spec s0 d (i0 + 3)))) =
+    (hA : (m.addr (bufPtr ts block o i0)).toNat % 8 ≠ 0) (hj : (m.addr (bufPtr ts block o i0)).toNat % 8 + 3 < 8) :
+    run St (.while_body_3 m (some (bufPtr ts block o i0)) (some L) (some (bufPtr ts block o (i0 + 3))) (some (spec s0 d (i0 + 3)))) =
       Outcome.ok (some (finish (spec s0 d n)), m) := by
   have hdec : (L + 18446744073709551612#64).toNat = L.toNat - 4 := toNat_dec 4 rfl (by omega) (by omega)
-  have haddr := addr_bufPtr m block o i0 4
-  have hm := addr_mod8 (m.addr (bufPtr block o i0)) (k := 4) (by omega)
+  have haddr := addr_bufPtr (ts := ts) m block o i0 4
+  have hm := addr_mod8 (m.addr (bufPtr ts block o i0)) (k := 4) (by omega)
   rw [← haddr] at hm
   exec B, T
   split
   · exact while_body_4_run B T hs hL hi hA (by omega)
   · exact while_end_run B T hs (by omega) (by omega) (by omega)
 
-theorem while_body_2_run (B : Readable m block o n d) (T : Tables m) (hs : s0.toNat < 4294967296)
+theorem while_body_2_run (B : Readable m ts block o n d) (T : Tables m ts) (hs : s0.toNat < 4294967296)
     {i0 : Nat} {L : BitVec 64} (hL : 47 ≤ L.toNat) (hi : i0 + L.toNat = n)
-    (hA : (m.addr (bufPtr block o i0)).toNat % 8 ≠ 0) (hj : (m.addr (bufPtr block o i0)).toNat % 8 + 2 < 8) :
-    run St (.while_body_2 m (some (bufPtr block o i0)) (some L) (some (bufPtr block o (i0 + 2))) (some (spec s0 d (i0 + 2)))) =
+    (hA : (m.addr (bufPtr ts block o i0)).toNat % 8 ≠ 0) (hj : (m.addr (bufPtr ts block o i0)).toNat % 8 + 2 < 8) :
+    run St (.while_body_2 m (some (bufPtr ts block o i0)) (some L) (some (bufPtr ts block o (i0 + 2))) (some (spec s0 d (i0 + 2)))) =
       Outcome.ok (some (finish (spec s0 d n)), m) := by
   have hdec : (L + 18446744073709551613#64).toNat = L.toNat - 3 := toNat_dec 3 rfl (by omega) (by omega)
-  have haddr := addr_bufPtr m block o i0 3
-  have hm := addr_mod8 (m.addr (bufPtr block o i0)) (k := 3) (by omega)
+  have haddr := addr_bufPtr (ts := ts) m block o i0 3
+  have hm := addr_mod8 (m.addr (bufPtr ts block o i0)) (k := 3) (by omega)
   rw [← haddr] at hm
   exec B, T
   split
   · exact while_body_3_run B T hs hL hi hA (by omega)
   · exact while_end_run B T hs (by omega) (by omega) (by omega)
 
-theorem while_body_1_run (B : Readable m block o n d) (T : Tables m) (hs : s0.toNat < 4294967296)
+theorem while_body_1_run (B : Readable m ts block o n d) (T : Tables m ts) (hs : s0.toNat < 4294967296)
     {i0 : Nat} {L : BitVec 64} (hL : 47 ≤ L.toNat) (hi : i0 + L.toNat = n)
-    (hA : (m.addr (bufPtr block o i0)).toNat % 8 ≠ 0) (hj : (m.addr (bufPtr block o i0)).toNat % 8 + 1 < 8) :
-    run St (.while_body_1 m (some (bufPtr block o i0)) (some L) (some (bufPtr block o (i0 + 1))) (some (spec s0 d (i0 + 1)))) =
+    (hA : (m.addr (bufPtr ts block o i0)).toNat % 8 ≠ 0) (hj : (m.addr (bufPtr ts block o i0)).toNat % 8 + 1 < 8) :
+    run St (.while_body_1 m (some (bufPtr ts block o i0)) (some L) (some (bufPtr ts block o (i0 + 1))) (some (spec s0 d (i0 + 1)))) =
       Outcome.ok (some (finish (spec s0 d n)), m) := by
   have hdec : (L + 18446744073709551614#64).toNat = L.toNat - 2 := toNat_dec 2 rfl (by omega) (by omega)
-  have haddr := addr_bufPtr m block o i0 2
-  have hm := addr_mod8 (m.addr (bufPtr block o i0)) (k := 2) (by omega)
+  have haddr := addr_bufPtr (ts := ts) m block o i0 2
+  have hm := addr_mod8 (m.addr (bufPtr ts block o i0)) (k := 2) (by omega)
   rw [← haddr] at hm
   exec B, T
   split
   · exact while_body_2_run B T hs hL hi hA (by omega)
   · exact while_end_run B T hs (by omega) (by omega) (by omega)
 
-theorem while_body_run (B : Readable m block o n d) (T : Tables m) (hs : s0.toNat < 4294967296)
+theorem while_body_run (B : Readable m ts block o n d) (T : Tables m ts) (hs : s0.toNat < 4294967296)
     {i0 : Nat} {L : BitVec 64} (hL : 47 ≤ L.toNat) (hi : i0 + L.toNat = n)
-    (hA : (m.addr (bufPtr block o i0)).toNat % 8 ≠ 0) (hj : (m.addr (bufPtr block o i0)).toNat % 8 + 0 < 8) :
-    run St (.while_body m (some (bufPtr block o i0)) (some L) (some (spec s0 d i0))) =
+    (hA : (m.addr (bufPtr ts block o i0)).toNat % 8 ≠ 0) (hj : (m.addr (bufPtr ts block o i0)).toNat % 8 + 0 < 8) :
+    run St (.while_body m (some (bufPtr ts block o i0)) (some L) (some (spec s0 d i0))) =
       Outcome.ok (some (finish (spec s0 d n)), m) := by
   have hdec : (L + 18446744073709551615#64).toNat = L.toNat - 1 := toNat_dec 1 rfl (by omega) (by omega)
-  have haddr := addr_bufPtr m block o i0 1
-  have hm := addr_mod8 (m.addr (bufPtr block o i0)) (k := 1) (by omega)
+  have haddr := addr_bufPtr (ts := ts) m block o i0 1
+  have hm := addr_mod8 (m.addr (bufPtr ts block o i0)) (k := 1) (by omega)
   rw [← haddr] at hm
   exec B, T
   split
   · exact while_body_1_run B T hs hL hi hA (by omega)
   · exact while_end_run B T hs (by omega) (by omega) (by omega)
 
-theorem while_cond_preheader_run (B : Readable m block o n d) (T : Tables m)
+theorem while_cond_preheader_run (B : Readable m ts block o n d) (T : Tables m ts)
     (hs : s0.toNat < 4294967296) {L : BitVec 64} (hL : 47 ≤ L.toNat) (hi : L.toNat = n) :
-    run St (.while_cond_preheader m (some (bufPtr block o 0)) (some L) (some (spec s0 d 0))) =
+    run St (.while_cond_preheader m (some (bufPtr ts block o 0)) (some L) (some (spec s0 d 0))) =
       Outcome.ok (some (finish (spec s0 d n)), m) := by
   have hi' : 0 + L.toNat = n := by omega
   exec B, T
@@ -1122,21 +1150,19 @@ theorem while_cond_preheader_run (B : Readable m block o n d) (T : Tables m)
   · exact while_end_run B T hs (by omega) hi' (by omega)
   · exact while_body_run B T hs hL hi' (by omega) (by omega)
 
-/-- Reading `len` bytes of a buffer, `crc32_z` returns the CRC of RFC 1952 and leaves memory as it
-found it, and being `ok` also says it never hits undefined behavior or poison on the way. -/
-theorem crc32_z_correct {crc len : BitVec 64} (B : Readable m block o len.toNat d) (T : Tables m)
-    (hnn : m.addr (bufPtr block o 0) ≠ 0#64) :
-    crc32_z (some crc) (some (bufPtr block o 0)) (some len) m =
+/-- The function's body, in whatever call it's running in. -/
+theorem crc32_z_run {crc len : BitVec 64} (B : Readable m ts block o len.toNat d) (T : Tables m ts)
+    (hnn : m.addr (bufPtr ts block o 0) ≠ 0#64) :
+    run St (.entry m (some crc) (some (bufPtr ts block o 0)) (some len)) =
       Outcome.ok (some (finish (spec (start crc) d len.toNat)), m) := by
-  have hnn' : (m.addr (bufPtr block o 0)).toNat ≠ 0 := fun e => hnn (BitVec.eq_of_toNat_eq e)
+  have hnn' : (m.addr (bufPtr ts block o 0)).toNat ≠ 0 := fun e => hnn (BitVec.eq_of_toNat_eq e)
   have hnull : m.addr Ptr.null = 0#64 := rfl
   have hs : (start crc).toNat < 4294967296 := by
     have h : start crc < 4294967296#64 := by simp only [start]; bv_decide
     simpa [BitVec.lt_def] using h
   have h0 : (crc &&& 4294967295#64) ^^^ 4294967295#64 = spec (start crc) d 0 := rfl
-  simp only [crc32_z, noundef_some]
   rw [run]
-  simp only [Crc.crc32_z.step, Mem.toVal, hnull, llvm_val, beq_toNat, decide_eq_true_eq,
+  simp only [Crc.crc32_z.step, Readable.observeNull B, Mem.toVal, hnull, llvm_val, beq_toNat, decide_eq_true_eq,
     BitVec.toNat_ofNat, Nat.reducePow, Nat.reduceMod, jump, andThen, Outcome.ok]
   split
   · omega
@@ -1147,14 +1173,36 @@ theorem crc32_z_correct {crc len : BitVec 64} (B : Readable m block o len.toNat 
     · exact while_cond_preheader_run B T hs (by omega) rfl
     · exact if_end216_run B T hs (Nat.zero_add _)
 
+/-- What `crc32_z`'s `memory(...)` says. -/
+abbrev crcEffects : Effects := { other := .read, arg := .read, inaccessible := .none, errno := .read }
+
+/-- Reading `len` bytes of a buffer, `crc32_z` returns the CRC of RFC 1952 and leaves memory as it
+found it, apart from counting the call. Being `ok` also says it never hits undefined behavior or poison on
+the way, including by breaking what its attributes promise. -/
+theorem crc32_z_correct {crc len : BitVec 64} (B : Readable m ts block o len.toNat d) (T : Tables m ts)
+    (hnn : m.addr (bufPtr ts block o 0) ≠ 0#64) :
+    crc32_z (some crc) (some (bufPtr ts block o 0)) (some len) m =
+      Outcome.ok (some (finish (spec (start crc) d len.toNat)), m.afterCall) := by
+  have B' := B.enter (e := crcEffects) (T := { call := m.nextCall }) (Or.inl rfl) rfl rfl rfl rfl (Or.inl rfl)
+  have T' : Tables (m.inCall crcEffects) ({ call := m.nextCall } :: ts) :=
+    ⟨T.crc, T.braid, T.crcAlign, T.braidAlign, T.crcFits, T.braidFits, fun x hx => by
+      rcases List.mem_cons.mp hx with rfl | hx
+      · rfl
+      · exact T.addressFree x hx⟩
+  have hnn' : (m.inCall crcEffects).addr (bufPtr ({ call := m.nextCall } :: ts) block o 0) ≠ 0#64 := hnn
+  have h := crc32_z_run (crc := crc) B' T' hnn'
+  simp only [crc32_z, noundef_some, Mem.call, Mem.tag, Option.map]
+  rw [show run Crc.crc32_z.step _ = _ from h]
+  rfl
+
 /-- zlib's documented way to get the initial value: a null buffer gives 0. -/
 theorem crc32_z_null (crc len : BitVec 64) :
-    crc32_z (some crc) (some Ptr.null) (some len) m = Outcome.ok (some 0#64, m) := by
-  simp only [crc32_z, noundef_some]
+    crc32_z (some crc) (some Ptr.null) (some len) m = Outcome.ok (some 0#64, m.afterCall) := by
+  simp only [crc32_z, noundef_some, Mem.call, Mem.tag, Option.map]
   rw [run]
-  simp only [Crc.crc32_z.step, Mem.toVal, llvm_val, jump, andThen, Outcome.ok]
-  rw [show (m.addr Ptr.null == m.addr Ptr.null) = true by simp]
-  simp only [ite_true]
+  simp only [Crc.crc32_z.step, Mem.observeAddress, List.any_cons, List.any_nil, Bool.false_and, Bool.or_false,
+    Bool.false_eq_true, ite_false, Mem.toVal, llvm_val, jump, andThen, Outcome.ok, Ptr.null, Mem.addr,
+    beq_self_eq_true, ite_true]
   rw [run]
   simp [Crc.crc32_z.step, ret, Outcome.ok, Val.range, BitVec.ult]
 
@@ -1166,11 +1214,12 @@ example : finish (spec (start 0#64) (fun i => BitVec.ofNat 8
 theorem crc32_z_check_value :
     let init : Array Nat := #[49, 50, 51, 52, 53, 54, 55, 56, 57]
     let m := Crc.initial.addGlobal 100 init.size false init
-    crc32_z (some 0#64) (some (bufPtr 100 0 0)) (some 9#64) m = Outcome.ok (some 0xCBF43926#64, m) := by
+    crc32_z (some 0#64) (some (bufPtr [] 100 0 0)) (some 9#64) m =
+      Outcome.ok (some 0xCBF43926#64, m.afterCall) := by
   intro init m
-  have B := Readable.ofGlobal Crc.initial 100 init (by decide) (by decide) (by decide)
-  have T : Tables m := ⟨rfl, rfl, by decide, by decide, by decide, by decide⟩
-  have hnn : m.addr (bufPtr 100 0 0) ≠ 0#64 := by decide
+  have B := Readable.ofGlobal Crc.initial 100 init rfl (by decide) (by decide) (by decide)
+  have T : Tables m [] := ⟨rfl, rfl, by decide, by decide, by decide, by decide, by simp⟩
+  have hnn : m.addr (bufPtr [] 100 0 0) ≠ 0#64 := by decide
   rw [crc32_z_correct (len := 9#64) B T hnn]
   congr 3
   decide +kernel

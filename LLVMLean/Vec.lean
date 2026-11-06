@@ -58,15 +58,18 @@ namespace Mem
   match m.access p (n * (w / 8)) align with
   | .error e => Outcome.ub e
   | .ok (q, a) =>
-    let lanes := (List.range n).map fun i =>
-      collect (read a (q.offset.toNat + i * (w / 8)) (w / 8))
-    match lanes.findSome? fun l => match l with | .error e => some e | .ok _ => none with
-    | some e => Outcome.stop e
+    match m.check q a false with
+    | some e => some (.error e)
     | none =>
-      Outcome.ok <| Vector.ofFn fun i =>
-        match lanes[i.val]? with
-        | some (.ok (some x)) => some (BitVec.ofNat w x)
-        | _ => none
+      let lanes := (List.range n).map fun i =>
+        collect (m.read q a (q.offset.toNat + i * (w / 8)) (w / 8))
+      match lanes.findSome? fun l => match l with | .error e => some e | .ok _ => none with
+      | some e => Outcome.stop e
+      | none =>
+        Outcome.ok <| Vector.ofFn fun i =>
+          match lanes[i.val]? with
+          | some (.ok (some x)) => some (BitVec.ofNat w x)
+          | _ => none
 
 /-- `store` of a vector. A poison lane makes that lane's bytes poison. -/
 @[llvm, inline] def storeVec (m : Mem) (p : PtrVal) (v : Vec n w) (align : Nat) : Outcome Mem :=
@@ -74,10 +77,13 @@ namespace Mem
   | .error e => Outcome.ub e
   | .ok (q, a) =>
     if a.readonly then Outcome.ub .writeToConstant else
-    Outcome.ok <| m.write q a (n * (w / 8)) fun i =>
-      match Vec.lane v (i / (w / 8)) with
-      | none => .poison
-      | some x => intByte x (i % (w / 8))
+    match m.check q a true with
+    | some e => some (.error e)
+    | none =>
+      Outcome.ok <| m.write q a (n * (w / 8)) fun i =>
+        match Vec.lane v (i / (w / 8)) with
+        | none => .poison
+        | some x => intByte x (i % (w / 8))
 
 end Mem
 

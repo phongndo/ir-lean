@@ -346,9 +346,9 @@ public:
     std::sort(Addresses.begin(), Addresses.end(),
               [](const FunctionAddress *A, const FunctionAddress *B) { return A->Block < B->Block; });
     for (const Global *G : Ordered)
-      Out += Def + G->Name + " : Ptr := ⟨" + std::to_string(G->Block) + ", 0#64⟩\n";
+      Out += Def + G->Name + " : Ptr := ⟨" + std::to_string(G->Block) + ", 0#64, []⟩\n";
     for (const FunctionAddress *F : Addresses)
-      Out += Def + F->Name + " : Ptr := ⟨" + std::to_string(F->Block) + ", 0#64⟩\n";
+      Out += Def + F->Name + " : Ptr := ⟨" + std::to_string(F->Block) + ", 0#64, []⟩\n";
     if (!Ordered.empty() || !Addresses.empty())
       Out += '\n';
     for (const Global *G : Ordered) {
@@ -367,7 +367,7 @@ public:
     for (const Global *G : Ordered)
       for (const Reloc &R : G->Relocs)
         Out += "\n  |>.addReloc " + std::to_string(G->Block) + " " + std::to_string(R.Offset) + " ⟨" +
-               std::to_string(R.Block) + ", " + bitVec(R.Addend) + "⟩";
+               std::to_string(R.Block) + ", " + bitVec(R.Addend) + ", []⟩";
     Out += "\n  |>.reserve " + std::to_string(NextBlock);
     return Out + "\n\n";
   }
@@ -525,9 +525,18 @@ private:
   unsigned NextBlock = 1;
 };
 
-// Attributes on a parameter or return value. These either change what the value means, and are
-// emitted as checks below, or are promises about the function that the model doesn't check.
-void checkValueAttributes(AttributeSet Attrs, const Type *T, const char *Where) {
+const char *libraryFunction(const Function &F);
+
+enum class Position { Parameter, Return, CallParameter, CallReturn };
+
+// Attributes on a parameter or return value. These either change what the value means, and are emitted as
+// checks below, or are promises `Mem` checks on the function's own parameters. Promises at a call, and the
+// rest, are refused: zlib doesn't use them, and the model has no rule for them yet.
+void checkValueAttributes(AttributeSet Attrs, const Type *T, Position At, bool MallocResult = false) {
+  const char *Where = At == Position::Parameter       ? "parameter"
+                      : At == Position::Return        ? "return"
+                      : At == Position::CallParameter ? "call parameter"
+                                                      : "call return";
   for (Attribute A : Attrs) {
     if (A.isStringAttribute())
       continue;
@@ -544,16 +553,32 @@ void checkValueAttributes(AttributeSet Attrs, const Type *T, const char *Where) 
     // These only describe how a target passes the value, not what it is.
     case Attribute::SExt:
     case Attribute::ZExt:
-    // Promises about the function's behavior, listed in docs/trust.md.
-    case Attribute::Returned:
-    case Attribute::NoFree:
+      continue;
     case Attribute::ReadOnly:
     case Attribute::WriteOnly:
     case Attribute::ReadNone:
-    case Attribute::NoAlias:
-    case Attribute::Captures:
-    case Attribute::DereferenceableOrNull:
+    case Attribute::NoFree:
     case Attribute::Initializes:
+      if (At != Position::Parameter)
+        reject(std::string(Where) + " attribute " + A.getAsString());
+      continue;
+    // Provenance has a rule about a run, which `Mem` checks. Whether an address is captured depends on what
+    // a run with another address would have done, so the model stops at any look at one:
+    // `Mem.observeAddress`.
+    case Attribute::Captures: {
+      CaptureInfo Info = A.getCaptureInfo();
+      if (At != Position::Parameter || Info.getRetComponents() != Info.getOtherComponents())
+        reject(std::string(Where) + " attribute " + A.getAsString());
+      continue;
+    }
+    // Checked against the result.
+    case Attribute::Returned:
+      if (At != Position::Parameter || !(T->isPointerTy() || T->isIntegerTy()))
+        reject(std::string(Where) + " attribute " + A.getAsString());
+      continue;
+    case Attribute::NoAlias:
+      if (At != Position::Return && !MallocResult)
+        reject(std::string(Where) + " attribute " + A.getAsString());
       continue;
     default:
       reject(std::string(Where) + " attribute " + A.getAsString());
@@ -561,7 +586,43 @@ void checkValueAttributes(AttributeSet Attrs, const Type *T, const char *Where) 
   }
 }
 
-const char *libraryFunction(const Function &F);
+// What `memory(...)` allows for a kind of memory.
+const char *leanAccess(ModRefInfo Info) {
+  switch (Info) {
+  case ModRefInfo::NoModRef:
+    return ".none";
+  case ModRefInfo::Ref:
+    return ".read";
+  case ModRefInfo::Mod:
+    return ".write";
+  case ModRefInfo::ModRef:
+    return ".readwrite";
+  }
+  reject("memory effects");
+}
+
+// The promises a pointer parameter makes, as a `Tag`.
+std::string leanTag(AttributeSet Attrs) {
+  std::string Out = "{ call := call'";
+  auto Set = [&](bool On, const char *Field) {
+    if (On)
+      Out += std::string(", ") + Field + " := true";
+  };
+  Set(Attrs.hasAttribute(Attribute::ReadOnly), "readonly");
+  Set(Attrs.hasAttribute(Attribute::ReadNone), "readnone");
+  Set(Attrs.hasAttribute(Attribute::WriteOnly), "writeonly");
+  Set(Attrs.hasAttribute(Attribute::Initializes), "initializes");
+  Set(Attrs.hasAttribute(Attribute::NoFree), "nofree");
+  if (Attrs.hasAttribute(Attribute::Captures)) {
+    CaptureInfo Info = Attrs.getCaptureInfo();
+    Set(!capturesAnyProvenance(Info.getOtherComponents()), "expires");
+    Set(capturesReadProvenanceOnly(Info.getOtherComponents()), "readAfter");
+    Set(!capturesAddress(Info.getOtherComponents()) || capturesAddressIsNullOnly(Info.getOtherComponents()),
+        "noAddress");
+    Set(capturesAddressIsNullOnly(Info.getOtherComponents()), "nullCheck");
+  }
+  return Out + " }";
+}
 
 // Attributes on a function or a call. Each one here has been reviewed, and anything else is refused, so a
 // new attribute can't pass unnoticed.
@@ -653,9 +714,10 @@ class FunctionEmitter {
 public:
   FunctionEmitter(Function &F, std::string LeanName, bool Recursive, bool UsesMemory,
                   const DenseMap<const Function *, std::string> &Callees,
-                  const std::set<const Function *> &MemoryFunctions, const ModuleContext &Context)
+                  const std::set<const Function *> &MemoryFunctions,
+                  const std::set<const Function *> &ReachesFree, const ModuleContext &Context)
       : F(F), LeanName(std::move(LeanName)), Recursive(Recursive), UsesMemory(UsesMemory), Callees(Callees),
-        MemoryFunctions(MemoryFunctions), Context(Context) {}
+        MemoryFunctions(MemoryFunctions), ReachesFree(ReachesFree), Context(Context) {}
 
   // Checks the function can be translated, and sets up names and liveness.
   void prepare();
@@ -690,6 +752,7 @@ private:
   void emitAlloca(const AllocaInst &A, std::vector<Line> &Out);
   void checkMetadata(const Instruction &I);
   std::string pointerAsInt(const Value *V);
+  void observeAddress(const Value *V, bool NullCheck, std::vector<Line> &Out);
   std::string resultType() const { return UsesMemory ? RetType + " × Mem" : RetType; }
   void emitCall(const CallBase &C, std::vector<Line> &Out);
   bool emitIntrinsic(const IntrinsicInst &C, std::vector<Line> &Out);
@@ -711,8 +774,10 @@ private:
   bool Recursive;
   bool UsesMemory;
   bool HasAlloca = false;
+  bool HasCall = false;
   const DenseMap<const Function *, std::string> &Callees;
   const std::set<const Function *> &MemoryFunctions;
+  const std::set<const Function *> &ReachesFree;
   const ModuleContext &Context;
   std::string RetType;
 
@@ -773,6 +838,11 @@ void FunctionEmitter::computeLiveness() {
         for (const Use &U : I.operands())
           if (IsTracked(U.get()) && !Kill[B].test(ValueIndex.lookup(U.get())))
             Gen[B].set(ValueIndex.lookup(U.get()));
+      // A `returned` argument is checked against the result.
+      if (isa<ReturnInst>(I))
+        for (const Argument &A : F.args())
+          if (A.hasReturnedAttr())
+            Gen[B].set(ValueIndex.lookup(&A));
       if (!I.getType()->isVoidTy())
         Kill[B].set(ValueIndex.lookup(&I));
     }
@@ -1010,6 +1080,12 @@ void FunctionEmitter::emitAlloca(const AllocaInst &A, std::vector<Line> &Out) {
 // A pointer as an address, for comparisons and `ptrtoint`.
 std::string FunctionEmitter::pointerAsInt(const Value *V) { return "(Mem.toVal m " + operand(V) + ")"; }
 
+// A look at a pointer's address. A constant has no tags, so there's nothing to check.
+void FunctionEmitter::observeAddress(const Value *V, bool NullCheck, std::vector<Line> &Out) {
+  if (!isa<Constant>(V))
+    Out.push_back({Line::Guard, "", "Mem.observeAddress " + operand(V) + (NullCheck ? " true" : " false")});
+}
+
 void FunctionEmitter::emitInstruction(const Instruction &I, std::vector<Line> &Out) {
   checkMetadata(I);
   auto Op = [&](unsigned N) { return operand(I.getOperand(N)); };
@@ -1128,6 +1204,10 @@ void FunctionEmitter::emitInstruction(const Instruction &I, std::vector<Line> &O
       Binary(Fn, flag(C.hasSameSign(), "samesign"));
       return;
     }
+    if (IsPointer) {
+      observeAddress(C.getOperand(0), C.isEquality() && isa<ConstantPointerNull>(C.getOperand(1)), Out);
+      observeAddress(C.getOperand(1), C.isEquality() && isa<ConstantPointerNull>(C.getOperand(0)), Out);
+    }
     addLet(I, Out,
            std::string(Fn) + " " + (IsPointer ? pointerAsInt(C.getOperand(0)) : Op(0)) + " " +
                (IsPointer ? pointerAsInt(C.getOperand(1)) : Op(1)) + flag(C.hasSameSign(), "samesign"));
@@ -1149,6 +1229,7 @@ void FunctionEmitter::emitInstruction(const Instruction &I, std::vector<Line> &O
   case Instruction::PtrToAddr:
   case Instruction::PtrToInt: {
     unsigned Width = I.getType()->getIntegerBitWidth();
+    observeAddress(I.getOperand(0), false, Out);
     std::string V = pointerAsInt(I.getOperand(0));
     addLet(I, Out, Width == 64 ? V : "Val.trunc " + std::to_string(Width) + " " + V);
     return;
@@ -1242,7 +1323,7 @@ void FunctionEmitter::emitInstruction(const Instruction &I, std::vector<Line> &O
 // An argument with what its attributes imply, and the checks they require before the call.
 std::string FunctionEmitter::callArgument(const CallBase &C, unsigned N, std::vector<Line> &Out) {
   AttributeSet Param = C.getAttributes().getParamAttrs(N);
-  checkValueAttributes(Param, C.getArgOperand(N)->getType(), "call parameter");
+  checkValueAttributes(Param, C.getArgOperand(N)->getType(), Position::CallParameter);
   std::string Arg = withValueChecks(Param, operand(C.getArgOperand(N)));
   if (Param.hasAttribute(Attribute::NoUndef))
     Out.push_back({Line::Guard, "", "noundef " + Arg});
@@ -1421,7 +1502,9 @@ void FunctionEmitter::emitCall(const CallBase &C, std::vector<Line> &Out) {
   for (Attribute::AttrKind Kind : {Attribute::NoFree, Attribute::NoRecurse})
     if (CallAttrs.hasAttribute(Kind) && !(Library && Direct->getName() != "free"))
       reject("call attribute " + CallAttrs.getAttribute(Kind).getAsString() + " on " + printed(C));
-  checkValueAttributes(C.getAttributes().getRetAttrs(), C.getType(), "call return");
+  // A `noalias` result is what `Mem.malloc` gives, and a function declaring it is checked at its return.
+  bool NoAliasResult = Direct && ((Library && Direct->getName() == "malloc") || Direct->returnDoesNotAlias());
+  checkValueAttributes(C.getAttributes().getRetAttrs(), C.getType(), Position::CallReturn, NoAliasResult);
   if (const auto *Intr = dyn_cast<IntrinsicInst>(&C)) {
     if (!emitIntrinsic(*Intr, Out))
       reject("intrinsic " + Intr->getCalledFunction()->getName().str());
@@ -1459,7 +1542,7 @@ void FunctionEmitter::emitCall(const CallBase &C, std::vector<Line> &Out) {
         Call += " m";
       else
         Call = "andThen (" + Call + ") fun r' => Outcome.ok (r', m)";
-      Expr += "\n      if q' == " + Context.functionAddress(Target) + " then " + Call + " else";
+      Expr += "\n      if q'.same " + Context.functionAddress(Target) + " then " + Call + " else";
     }
     Expr += "\n      Outcome.stop .unknownCallee : Outcome (" + leanType(C.getType()) + " × Mem))";
     Out.push_back({Line::Bind, Bound, Expr});
@@ -1476,9 +1559,16 @@ std::string FunctionEmitter::emitTerminator(const BasicBlock *BB) {
       return std::string(Ret) + WithMemory("()");
     AttributeSet Attrs = F.getAttributes().getRetAttrs();
     std::string V = withValueChecks(Attrs, operand(R->getReturnValue()));
+    std::string Checks;
     if (Attrs.hasAttribute(Attribute::NoUndef))
-      return "noundef " + V + " <| " + Ret + WithMemory(V);
-    return Ret + WithMemory(V);
+      Checks += "noundef " + V + " <| ";
+    if (Attrs.hasAttribute(Attribute::NoAlias))
+      Checks += "Mem.noaliasResult m " + V + " <| ";
+    for (const Argument &A : F.args())
+      if (A.hasReturnedAttr())
+        Checks += std::string(A.getType()->isPointerTy() ? "Mem.returnedArgument " : "Mem.returnedInt ") +
+                  Names.at(&A) + " " + V + " <| ";
+    return Checks + Ret + WithMemory(V);
   }
   if (const auto *B = dyn_cast<UncondBrInst>(T))
     return goTo(BB, B->getSuccessor(0));
@@ -1540,13 +1630,18 @@ void FunctionEmitter::prepare() {
   if (F.hasPrefixData() || F.hasPrologueData() || F.hasGC())
     reject("function with prefix data, prologue data or a garbage collector");
   checkFunctionAttributes(F.getAttributes().getFnAttrs(), "function");
+  // Neither needs checking on each run: what's reachable shows they hold, or the function is refused.
+  if (Recursive && F.hasFnAttribute(Attribute::NoRecurse))
+    reject("function attribute norecurse on a function in a cycle");
+  if (F.hasFnAttribute(Attribute::NoFree) && ReachesFree.count(&F))
+    reject("function attribute nofree on a function that can reach free");
   collectBlocks();
   nameValues();
   computeLiveness();
   if (Recursive && Blocks.size() > MaxBlocksPerGroup)
     reject("recursive function with more than " + std::to_string(MaxBlocksPerGroup) + " blocks");
   RetType = leanType(F.getReturnType());
-  checkValueAttributes(F.getAttributes().getRetAttrs(), F.getReturnType(), "return");
+  checkValueAttributes(F.getAttributes().getRetAttrs(), F.getReturnType(), Position::Return);
   for (const Value *V : Values)
     leanType(V->getType());
   if (UsesMemory && (Context.DL.getPointerSizeInBits() != 64 || !Context.DL.isLittleEndian()))
@@ -1554,6 +1649,26 @@ void FunctionEmitter::prepare() {
   for (const BasicBlock *BB : Blocks)
     for (const Instruction &I : *BB)
       HasAlloca |= isa<AllocaInst>(I);
+  // A call only needs a frame if its function promised something about memory.
+  AttributeList Attrs = F.getAttributes();
+  HasCall = UsesMemory &&
+            (F.getMemoryEffects() != MemoryEffects::unknown() || Attrs.hasRetAttr(Attribute::NoAlias));
+  for (const Argument &A : F.args()) {
+    AttributeSet Param = Attrs.getParamAttrs(A.getArgNo());
+    HasCall |=
+        UsesMemory && (Param.hasAttribute(Attribute::ReadOnly) || Param.hasAttribute(Attribute::ReadNone) ||
+                       Param.hasAttribute(Attribute::WriteOnly) || Param.hasAttribute(Attribute::NoFree) ||
+                       Param.hasAttribute(Attribute::Captures) || Param.hasAttribute(Attribute::Initializes));
+  }
+  // Each would need its own record of what it wrote, and no real code has two that could overlap.
+  if (count_if(F.args(), [&](const Argument &A) {
+        return Attrs.getParamAttrs(A.getArgNo()).hasAttribute(Attribute::Initializes);
+      }) > 1)
+    reject("more than one parameter with attribute initializes");
+  if (HasCall)
+    for (const Argument &A : F.args())
+      if (!A.getType()->isPointerTy() && mentionsPointer(A.getType()))
+        reject("parameter with pointers in it, in a function that promises something about memory");
 }
 
 std::string FunctionEmitter::emitBlocks() {
@@ -1612,7 +1727,7 @@ std::string FunctionEmitter::emitFunction() {
   AttributeList Attrs = F.getAttributes();
   for (const Argument &A : F.args()) {
     AttributeSet Param = Attrs.getParamAttrs(A.getArgNo());
-    checkValueAttributes(Param, A.getType(), "parameter");
+    checkValueAttributes(Param, A.getType(), Position::Parameter);
     const std::string &Name = Names.at(&A);
     if (hasValueChecks(Param))
       Out += "  let " + Name + " := " + withValueChecks(Param, Name) + "\n";
@@ -1621,6 +1736,34 @@ std::string FunctionEmitter::emitFunction() {
     if (Param.hasAttribute(Attribute::Dereferenceable))
       Out +=
           "  Mem.dereferenceable m " + Name + " " + std::to_string(Param.getDereferenceableBytes()) + " <|\n";
+  }
+  if (HasCall) {
+    MemoryEffects Effects = F.getMemoryEffects();
+    bool Tracked = isModSet(Effects.getModRef(IRMemLocation::Other)) &&
+                   !isRefSet(Effects.getModRef(IRMemLocation::Other));
+    Tracked |= isModSet(Effects.getModRef(IRMemLocation::ArgMem)) &&
+               !isRefSet(Effects.getModRef(IRMemLocation::ArgMem));
+    for (const Argument &A : F.args()) {
+      AttributeSet Param = Attrs.getParamAttrs(A.getArgNo());
+      Tracked |= Param.hasAttribute(Attribute::WriteOnly) || Param.hasAttribute(Attribute::Initializes);
+    }
+    Out += std::string("  Mem.call m { other := ") + leanAccess(Effects.getModRef(IRMemLocation::Other)) +
+           ", arg := " + leanAccess(Effects.getModRef(IRMemLocation::ArgMem)) +
+           ", inaccessible := " + leanAccess(Effects.getModRef(IRMemLocation::InaccessibleMem)) +
+           ", errno := " + leanAccess(Effects.getModRef(IRMemLocation::ErrnoMem)) + " } " +
+           (Tracked ? "true" : "false") + " fun m call' =>\n";
+    for (const Argument &A : F.args()) {
+      if (!A.getType()->isPointerTy())
+        continue;
+      AttributeSet Param = Attrs.getParamAttrs(A.getArgNo());
+      const std::string &Name = Names.at(&A);
+      Out += "  let " + Name + " := Mem.tag " + leanTag(Param) + " " + Name + "\n";
+      if (Param.hasAttribute(Attribute::Initializes))
+        for (const ConstantRange &R :
+             Param.getAttribute(Attribute::Initializes).getValueAsConstantRangeList())
+          Out += "  let m := Mem.addInitializes m " + Name + " " + bitVec(R.getLower().sextOrTrunc(64)) +
+                 " " + bitVec(R.getUpper().sextOrTrunc(64)) + "\n";
+    }
   }
   if (HasAlloca)
     Out += "  Mem.withFrame m fun m =>\n";
@@ -1836,6 +1979,28 @@ Emitted emitModule(Module &M, const std::string &Namespace, const std::string &S
   std::map<const Function *, std::string> ModuleOf;
   std::vector<Piece> Pieces;
 
+  // What can call `free`, callees first. A call through a pointer can reach anything of its type in the
+  // module, and stops the model otherwise.
+  std::set<const Function *> ReachesFree;
+  for (const std::vector<Function *> &Component : Order.Components) {
+    bool Reaches = false;
+    for (const Function *F : Component)
+      for (const BasicBlock &BB : *F)
+        for (const Instruction &I : BB) {
+          const auto *C = dyn_cast<CallBase>(&I);
+          if (!C)
+            continue;
+          if (const Function *Callee = C->getCalledFunction()) {
+            Reaches |= Callee->getName() == "free" || ReachesFree.count(Callee);
+            continue;
+          }
+          for (const Function *Target : Context.candidates(C->getFunctionType()))
+            Reaches |= ReachesFree.count(Target) != 0;
+        }
+    if (Reaches)
+      ReachesFree.insert(Component.begin(), Component.end());
+  }
+
   std::string Body;
   for (const std::vector<Function *> &Component : Order.Components) {
     bool Recursive = Order.Recursive.count(Component.front());
@@ -1860,8 +2025,8 @@ Emitted emitModule(Module &M, const std::string &Namespace, const std::string &S
     std::vector<std::unique_ptr<FunctionEmitter>> Emitters;
     std::string Types, Loops, Functions, Failure;
     for (Function *F : Component) {
-      Emitters.push_back(std::make_unique<FunctionEmitter>(*F, LeanNames.lookup(F), Recursive, UsesMemory,
-                                                           Translated, MemoryFunctions, Context));
+      Emitters.push_back(std::make_unique<FunctionEmitter>(
+          *F, LeanNames.lookup(F), Recursive, UsesMemory, Translated, MemoryFunctions, ReachesFree, Context));
       FunctionEmitter &E = *Emitters.back();
       try {
         E.prepare();

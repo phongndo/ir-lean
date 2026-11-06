@@ -170,6 +170,8 @@ def run_lean(functions, cases, work):
         "import M",
         "open LLVMLean",
         "set_option maxRecDepth 1000000",
+        # Lean prints warnings with the results, and a function with no parameters doesn't use `c`.
+        "set_option linter.unusedVariables false",
         "def show' {w : Nat} : Outcome (Val w) → String",
         "  | some (.ok (some v)) => toString v.toNat",
         '  | some (.ok none) => "poison"',
@@ -183,7 +185,7 @@ def run_lean(functions, cases, work):
     for i, (_, name, widths, _, memory) in enumerate(functions):
         args = " ".join(f"(some (BitVec.ofNat {w} c[{k}]!))" for k, w in enumerate(widths))
         call = f"showMem (M.{name} {args} M.initial)" if memory else f"show' (M.{name} {args})"
-        src.append(f"def r{i} : IO Unit := for c in {cases[i]} do IO.println ({call})")
+        src.append(f"def r{i} : IO Unit := for c in ({cases[i]} : List (List Nat)) do IO.println ({call})")
         runners.append(f"r{i}")
     src.append("def main : IO Unit := do\n  for r in [" + ", ".join(runners) + "] do r")
     path = os.path.join(work, "Drive.lean")
