@@ -3,7 +3,7 @@
 # Runs the formatters and linters for every language in the repo, and fails if any of them complain.
 # Lean has no formatter, so `editorconfig-checker` is the only check on how its files are laid out.
 # usage: tests/lint.sh [--fix]
-# `--fix` first has the formatters rewrite what they can. It needs build/ to exist, with llvm-lean built.
+# `--fix` first has the formatters rewrite what they can. It needs build/ to exist, with ir-lean built.
 set -uo pipefail
 root=$(cd "$(dirname "$0")/.." && pwd)
 cd "$root" || exit 1
@@ -57,8 +57,8 @@ verify_ir() {
 }
 check 'LLVM IR is valid' verify_ir "${ll[@]}"
 
-check 'Lean generated modules' tests/proofs.sh build/llvm-lean --generate build/generated
-check 'Lean lint' lake build --wfail LLVMLean Proofs
+check 'Lean generated modules' tests/proofs.sh build/ir-lean --generate build/generated
+check 'Lean lint' lake build --wfail IRLean Proofs
 
 check 'Python lockfile' uv lock --check
 check 'Python format' uv run --quiet ruff format --check

@@ -1,9 +1,9 @@
-import LLVMLean.Mem
+import IRLean.Mem
 
 /-! A kit for proofs about emitted code. `simp only [foo.step, llvm_val, ...]` runs a block on
 values known not to be poison, leaving the arithmetic for `bv_decide` or `omega`. -/
 
-namespace LLVMLean
+namespace IRLean
 
 namespace Val
 variable {w v : Nat} (x y : BitVec w)
@@ -299,4 +299,4 @@ theorem ofGlobal (m : Mem) (block : Nat) (init : Array Nat) (hcalls : m.calls = 
 
 end Readable
 
-end LLVMLean
+end IRLean

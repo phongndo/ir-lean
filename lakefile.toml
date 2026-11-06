@@ -1,11 +1,11 @@
-name = "llvm-lean"
+name = "ir-lean"
 version = "0.1.0"
-defaultTargets = ["LLVMLean"]
+defaultTargets = ["IRLean"]
 
 [[lean_lib]]
-name = "LLVMLean"
+name = "IRLean"
 
-# The proofs, and the generated modules they import, from `tests/proofs.sh build/llvm-lean --generate
+# The proofs, and the generated modules they import, from `tests/proofs.sh build/ir-lean --generate
 # build/generated`. These are for `lake build Proofs` and the language server. tests/proofs.sh checks
 # the proofs against freshly generated modules instead.
 [[lean_lib]]

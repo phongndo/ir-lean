@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Translates all of real zlib, fails if any function is refused, and compares it against native code.
-# usage: tests/zlib.sh path/to/llvm-lean [differential.py arguments]
+# usage: tests/zlib.sh path/to/ir-lean [differential.py arguments]
 # The arguments choose what to run. `--only harness_` is the harness, which can call zlib's functions
 # with real pointers, and `harness_slow` is the part of it that takes minutes per call.
 set -euo pipefail

@@ -1,6 +1,6 @@
 # Trust
 
-What a theorem from `llvm-lean` means, and what it rests on. Read this before citing a result.
+What a theorem from `ir-lean` means, and what it rests on. Read this before citing a result.
 
 Facts here were checked at commit `9bf49e1` on 2026-11-05, with clang 23.1.3, Lean 4.35.0 and zlib 1.3.2,
 unless they say otherwise. The probes were run at `4377c07`, and the code they exercise hasn't changed since.
@@ -9,7 +9,7 @@ unless they say otherwise. The probes were run at `4377c07`, and the code they e
 
 | Scope | What it would say | Today |
 | --- | --- | --- |
-| **Modeled IR** | The function, as this LLVM IR, behaves this way in `LLVMLean`'s semantics | **This is what's proved** |
+| **Modeled IR** | The function, as this LLVM IR, behaves this way in `IRLean`'s semantics | **This is what's proved** |
 | **LLVM IR** | The same in LLVM's real semantics | Holds if the model is faithful and the promises below hold. LLVM's semantics are prose, so this can't be a theorem |
 | **Native code** | The machine code the backend produced behaves this way | Not claimed. There's no machine-code correspondence |
 | **Source** | The C, C++ or Rust program behaves this way | Not claimed. It needs a proof about the front end's lowering |
@@ -35,7 +35,7 @@ alone shows nothing about whether either program is safe.
 | LLVM optimizer | Not trusted for what it did, since the proof covers its output. Trusted for promises it left behind | An attribute or metadata that's false | Nothing yet | [Phase 0](roadmap.md#phase-0-semantic-fidelity-and-trust-infrastructure) inventory |
 | LLVM's IR parser | Trusted | Reads IR differently from the tool that wrote it, or upgrades older IR | Native-code comparison | Pin versions, and record them |
 | Emitter, about 1,750 lines of C++ | Trusted, unverified | Prints Lean that means something else | Differential tests, 13 C-level mutations | Semantic and emitter mutation, then a check inside Lean ([in design](design.md#ir-and-lean-both-ways)) |
-| `LLVMLean`, about 1,100 lines | Trusted, incomplete | Doesn't match LLVM | Constant folder, Alive2, native code | [Phase 0](roadmap.md#phase-0-semantic-fidelity-and-trust-infrastructure) |
+| `IRLean`, about 1,100 lines | Trusted, incomplete | Doesn't match LLVM | Constant folder, Alive2, native code | [Phase 0](roadmap.md#phase-0-semantic-fidelity-and-trust-infrastructure) |
 | Lean kernel | Trusted | A kernel bug | Lean's own process | Nothing planned |
 | `bv_decide` | Trusted | Proofs using it also trust Lean's compiled code through its native axioms | `#print axioms` | Allow-list them, and count which proofs use them |
 | Spec and theorem statement | Read by a person | The theorem proves the wrong thing | Review, and known test vectors | Publish statements separately from proofs |

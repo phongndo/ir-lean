@@ -1,9 +1,9 @@
-import LLVMLean.Attr
+import IRLean.Attr
 import Std.Tactic.BVDecide
 
 /-! The shape every emitted function shares: values, outcomes, and the block driver. -/
 
-namespace LLVMLean
+namespace IRLean
 
 /-- An LLVM integer of width `w`. `none` is poison. -/
 abbrev Val (w : Nat) := Option (BitVec w)
@@ -240,4 +240,4 @@ instance [HasPoison α] [HasPoison β] : HasPoison (α × β) := ⟨HasPoison.po
   | none => HasPoison.poison
   | some b => if b == 1#1 then t else e
 
-end LLVMLean
+end IRLean

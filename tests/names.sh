@@ -7,7 +7,7 @@ root=$(cd "$(dirname "$0")/.." && pwd)
 work=$(mktemp -d)
 trap 'rm -rf "$work"' EXIT
 cat >"$work/tokens.lean" <<'LEAN'
-import LLVMLean
+import IRLean
 open Lean Parser
 #eval show CoreM Unit from do
   let toks := (getTokenTable (← getEnv)).values.filter fun s =>

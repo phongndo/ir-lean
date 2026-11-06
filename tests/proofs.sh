@@ -3,7 +3,7 @@
 # Regenerates Lean from real compiler output, then checks the proofs against it. A proof fails if it
 # relies on any axiom outside `check_axioms`' list, which rules out `sorry`, or if the regenerated code
 # no longer satisfies it.
-# usage: tests/proofs.sh path/to/llvm-lean [--generate DIR]
+# usage: tests/proofs.sh path/to/ir-lean [--generate DIR]
 # `--generate` only writes the modules the proofs import to DIR, where `lake build Proofs` and the
 # language server look for them.
 set -euo pipefail

@@ -1,6 +1,6 @@
 # Design
 
-How `llvm-lean` works, and the decisions behind it. Change a decision only with a reason written here.
+How `ir-lean` works, and the decisions behind it. Change a decision only with a reason written here.
 
 ## What gets emitted
 
@@ -46,11 +46,11 @@ run, can use `--no-code`, so Lean doesn't generate code for it: `crc32_z` checks
 
 ## Decisions
 
-- **The C++ emitter is a printer.** All semantics live in the `LLVMLean` Lean library. Anything the library
+- **The C++ emitter is a printer.** All semantics live in the `IRLean` Lean library. Anything the library
   can't model exactly is refused, not guessed.
 - **No LLVM passes in the emitter.** It translates IR as given, so a proof covers what was compiled.
 - **Blocks are data.** Each function gets a type with one constructor per basic block, carrying its `phi`
-  values and whatever it needs from earlier blocks, plus a `step` function. `LLVMLean.run` loops over `step`,
+  values and whatever it needs from earlier blocks, plus a `step` function. `IRLean.run` loops over `step`,
   so an emitted non-recursive function contains no recursion of its own.
 - **Recursive functions** call their blocks directly, inside a `mutual` block.
 - **Poison is a value** (`Val w` is `Option (BitVec w)`), and **UB is separate from non-termination**

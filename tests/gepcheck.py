@@ -11,7 +11,7 @@ runs in the model on several layouts, and then:
     each other.
   - If it does, then Alive2 must find a layout where the instruction is poison and the answer isn't.
 
-usage: tests/gepcheck.py path/to/llvm-lean
+usage: tests/gepcheck.py path/to/ir-lean
 """
 
 import concurrent.futures
@@ -85,7 +85,7 @@ def model(tool, bodies, work):
     sh(["lean", "-R", work, "-o", os.path.join(work, "Cases.olean"), lean], env=env)
     src = [
         "import Cases",
-        "open LLVMLean",
+        "open IRLean",
         "set_option maxRecDepth 1000000",
         "def show' : Outcome (PtrVal × Mem) → String",
         '  | some (.ok (some p, _)) => s!"{p.block}:{p.offset.toNat}"',

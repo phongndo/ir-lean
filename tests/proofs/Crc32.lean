@@ -11,7 +11,7 @@ set_option linter.unusedSimpArgs false
 set_option linter.deprecated false
 set_option linter.unusedVariables false
 
-open LLVMLean Crc
+open IRLean Crc
 
 namespace CrcProof
 

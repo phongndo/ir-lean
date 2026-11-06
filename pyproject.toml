@@ -1,5 +1,5 @@
 [project]
-name = "llvm-lean-tests"
+name = "ir-lean-tests"
 version = "0.1.0"
 description = "The Python scripts in tests/, which need nothing beyond the standard library."
 requires-python = ">=3.12"

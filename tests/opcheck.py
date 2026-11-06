@@ -3,7 +3,7 @@
 # requires-python = ">=3.12"
 # dependencies = []
 # ///
-"""Checks every integer operation in LLVMLean, through the emitter, against LLVM itself.
+"""Checks every integer operation in IRLean, through the emitter, against LLVM itself.
 
 Two oracles, because neither is enough alone:
   - LLVM's constant folder, for values at many widths. It usually ignores poison flags, folding
@@ -11,7 +11,7 @@ Two oracles, because neither is enough alone:
   - Alive2, for exact poison and UB behavior. For small widths, the Lean results become a lookup
     table in IR, and Alive2 must prove the table and the instruction refine each other.
 
-usage: tests/opcheck.py path/to/llvm-lean [--no-alive]
+usage: tests/opcheck.py path/to/ir-lean [--no-alive]
 
 Without `alive-tv` on PATH this fails. `--no-alive` is how to say that's fine, for hosts that don't have
 it, and it means poison flags go unchecked.
@@ -215,7 +215,7 @@ def eval_in_lean(table, shapes, lean, work):
     shape_names = {s: "shape_" + "_".join(map(str, s)) for s in shapes}
     src = [
         "import Ops",
-        "open LLVMLean",
+        "open IRLean",
         "set_option maxRecDepth 1000000",
         "def show' {w : Nat} : Outcome (Val w) → String",
         "  | some (.ok (some v)) => toString v.toNat",

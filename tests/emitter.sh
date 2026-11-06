@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # What the emitter refuses, what it accepts on purpose, and what it does with the input's name. Also that
 # tests/opcheck.py can't quietly pass without Alive2.
-# usage: tests/emitter.sh path/to/llvm-lean
+# usage: tests/emitter.sh path/to/ir-lean
 set -uo pipefail
 tool=$(realpath "$1")
 root=$(cd "$(dirname "$0")/.." && pwd)
@@ -184,7 +184,7 @@ IR
 "$tool" "$work/Spin.ll" -o "$work/Spin.lean" --namespace Spin --no-code
 cat >"$work/SpinProof.lean" <<'LEAN'
 import Spin
-open LLVMLean Spin Lean.Order
+open IRLean Spin Lean.Order
 
 theorem spin_never_finishes (x : Val 32) : spin x = none := by
   have loop : run spin.step .again = none := by
@@ -205,8 +205,8 @@ fi
 # matters for an object that crosses the top of the address space, which LLVM rules out. The second says the
 # offsets' running total can't wrap under `nuw`, which adding them to the address one by one already says.
 cat >"$work/GepRules.lean" <<'LEAN'
-import LLVMLean
-open LLVMLean
+import IRLean
+open IRLean
 
 example :
     Mem.gep ((Mem.empty fun _ => BitVec.ofNat 64 (2 ^ 64 - 4)).addGlobal 1 8 false #[]) (some ⟨1, 0#64, []⟩)
