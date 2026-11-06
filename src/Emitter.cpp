@@ -937,9 +937,10 @@ void FunctionEmitter::checkMetadata(const Instruction &I) {
   I.getAllMetadataOtherThanDebugLoc(MDs);
   SmallVector<StringRef, 32> Kinds;
   I.getContext().getMDKindNames(Kinds);
-  // `tbaa` is refused because LLVM gives no rule for what makes a run violate it, so it can't be modeled
-  // exactly. Compiling with -fno-strict-aliasing leaves it out. The others that promise pointers don't
-  // alias come from `restrict` being inlined, which zlib doesn't use.
+  // `tbaa` is refused because the model doesn't have it yet: LangRef makes accesses that alias undefined if
+  // their tags say they don't, which takes a tag on every byte to check. Compiling with -fno-strict-aliasing
+  // leaves it out. The others that promise pointers don't alias come from `restrict` being inlined, which
+  // zlib doesn't use.
   static const std::set<std::string> Harmless = {"llvm.loop",  "prof",       "unpredictable",
                                                  "nosanitize", "noundef",    "heapallocsite",
                                                  "srcloc",     "annotation", "inline_history"};

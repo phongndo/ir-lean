@@ -54,7 +54,15 @@ run, can use `--no-code`, so Lean doesn't generate code for it: `crc32_z` checks
   so an emitted non-recursive function contains no recursion of its own.
 - **Recursive functions** call their blocks directly, inside a `mutual` block.
 - **Poison is a value** (`Val w` is `Option (BitVec w)`), and **UB is separate from non-termination**
-  (`Outcome α` is `Option (Except UB α)`), so a proof can rule out UB.
+  (`Outcome α` is `Option (Except Stop α)`), so a proof can rule out UB.
+- **Undefined isn't the same as no answer.** `Stop` is either `undefined`, what LLVM calls undefined behavior, or
+  `model`, where the model stops instead of choosing an answer. A refinement can't count the second as UB.
+- **Promises are checked, not trusted.** A pointer carries a `Tag` for each argument it came through, saying what
+  that argument promised, and tags follow copies, offsets and memory. A function that promises something about
+  memory runs in a `Call`, holding its `memory(...)` effects and what it has written. Every access checks both.
+  Each call gets a new number, since a pointer can outlive its call, so a theorem's final memory is `m.afterCall`.
+- **`tbaa` is out of the IR.** The model doesn't check it yet, so proof targets compile with
+  `-fno-strict-aliasing`, and the emitter refuses it.
 - **Lean holds at most 244 constructors per type**, so functions over 200 blocks nest their blocks.
 - **Choices the program can't see are oracles in `Mem`:** where each allocation lives, and whether each
   `malloc` fails. A theorem that holds for every `Mem` holds whatever those choices are.

@@ -13,14 +13,18 @@ Run `lake build`, then `ctest --test-dir build`, which takes about 25 minutes. A
 
 | Test | What it checks |
 | --- | --- |
-| `opcheck` | Each integer operation against LLVM's constant folder, and against Alive2 for exact poison and UB behavior |
+| `opcheck` | Each integer operation against LLVM's constant folder, and against Alive2 for exact poison and UB behavior. Fails without `alive-tv`, or if it can't check a variant. `--no-alive` is the opt-out. Prints Alive2's LLVM version and this code's |
+| `gepcheck` | `getelementptr`'s flags against Alive2, on many layouts, since native code can't see poison pointers |
 | `differential` | Emitted Lean against natively compiled code, on real C |
-| `vectors_pointers` | The same for vectors, function pointers, pointers in globals and the heap, failing if any input is skipped |
+| `vectors_pointers` | The same for vectors, function pointers, pointers in globals and the heap, GEPs LLVM defines, and promises kept, failing if any input is skipped |
 | `undefined` | Code LLVM calls undefined stops the model, since comparing with native code can't show that |
+| `model_stops` | Where LLVM doesn't say it's undefined, the model stops without an answer |
+| `model_stops_are_not_undefined` | `--expect-ub` says those aren't undefined |
+| `emitter` | What the emitter refuses and accepts on purpose, the default namespace, and that `opcheck` can't pass quietly without Alive2 |
 | `fuzz` | The same comparison on random functions, optimized at random levels |
-| `proofs` | The proofs against freshly generated Lean, and that breaking the C breaks the proof |
+| `proofs` | The proofs against freshly generated Lean, that breaking the C breaks the proof, and that a proof can only rest on the standard axioms and `bv_decide`'s |
 | `names` | Every word Lean reserves is avoided in generated names |
-| `zlib` | At least 90% of zlib translates, and real calls into it match native code, failing if any input is skipped |
+| `zlib` | All of zlib translates, and real calls into it match native code, failing if any input is skipped |
 | `zlib_slow` | The same for the calls that slide `deflate`'s window, at minutes each |
 | `lint` | Every formatter and linter below, for every language |
 | `lsp` | Every language server below starts, opens real files, and reports no errors in them |
