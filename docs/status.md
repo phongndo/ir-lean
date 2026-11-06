@@ -18,7 +18,7 @@ promise from its attributes broken, for every input meeting its hypotheses.
 | --- | --- | --- | --- | --- | --- |
 | [`Popcount.lean`](../tests/proofs/Popcount.lean) | A small example | Counting bits | 66 | About 1 second | None |
 | [`Adler32.lean`](../tests/proofs/Adler32.lean) | zlib's `adler32_z` | RFC 1950 | 651 | About 4 seconds | `Readable` buffer, non-null address, reduced starting sums |
-| [`Crc32.lean`](../tests/proofs/Crc32.lean) | zlib's `crc32_z` | RFC 1952 | 1,230 | About 20 seconds | `Readable` buffer, non-null address, `Tables` in place and aligned, and a pointer whose address may be looked at |
+| [`Crc32.lean`](../tests/proofs/Crc32.lean), with [`CrcSpec.lean`](../tests/proofs/CrcSpec.lean) and [`CrcTables.lean`](../tests/proofs/CrcTables.lean) | zlib's `crc32_z` | RFC 1952 | 1,266 | About 8 seconds | `Readable` buffer, non-null address, `Tables` in place and aligned, and a pointer whose address may be looked at |
 
 `Readable` and `Tables` hold for every real layout, called from outside any function that promised something
 about memory: LangRef requires of every object that it's smaller than `2^63` and doesn't cross the top of the
