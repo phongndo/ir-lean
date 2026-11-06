@@ -39,7 +39,6 @@ struct Emitted {
   std::vector<FunctionReport> Functions;
 };
 
-Emitted emitModule(llvm::Module &M, const std::string &Namespace,
-                   const std::string &SourceName);
+Emitted emitModule(llvm::Module &M, const std::string &Namespace, const std::string &SourceName);
 
 } // namespace llvm_lean

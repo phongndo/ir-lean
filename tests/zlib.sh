@@ -23,11 +23,11 @@ clang -O2 -S -emit-llvm -fno-discard-value-names -I"$work/zlib" \
   -o "$work/harness.ll" "$root/tests/real/zlib_harness.c"
 llvm-link -S -o "$work/zlib.ll" "$work"/*.ll
 
-"$tool" "$work/zlib.ll" --report > "$work/report"
+"$tool" "$work/zlib.ll" --report >"$work/report"
 tail -1 "$work/report"
 grep '^unsupported' "$work/report" || true
 ok=$(grep -c '^ok' "$work/report")
-total=$(($(wc -l < "$work/report") - 1))
+total=$(($(wc -l <"$work/report") - 1))
 if [ $((ok * 10)) -lt $((total * 9)) ]; then
   printf 'FAIL  under 90%% of zlib translates\n'
   exit 1
