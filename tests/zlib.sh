@@ -14,10 +14,11 @@ zlib_src=${ZLIB_SRC:-$(nix build --inputs-from "$root" --no-link --print-out-pat
 mkdir "$work/zlib"
 tar -xf "$zlib_src" -C "$work/zlib" --strip-components=1
 
-# The library itself. The gz* files are left out: they're a layer over file descriptors.
+# The library itself. The gz* files are left out: they're a layer over file descriptors. The undefine
+# keeps crc32 in C on ARM, where it would otherwise be inline assembly.
 for f in adler32 compress crc32 deflate infback inffast inflate inftrees trees uncompr zutil; do
-  clang -O2 -S -emit-llvm -fno-discard-value-names -D_LARGEFILE64_SOURCE=1 -I"$work/zlib" \
-    -o "$work/$f.ll" "$work/zlib/$f.c"
+  clang -O2 -S -emit-llvm -fno-discard-value-names -D_LARGEFILE64_SOURCE=1 -U__ARM_FEATURE_CRC32 \
+    -I"$work/zlib" -o "$work/$f.ll" "$work/zlib/$f.c"
 done
 clang -O2 -S -emit-llvm -fno-discard-value-names -I"$work/zlib" \
   -o "$work/harness.ll" "$root/tests/real/zlib_harness.c"

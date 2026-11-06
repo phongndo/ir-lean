@@ -37,7 +37,7 @@ SERVERS = [
     (["uv", "run", "--quiet", "ty", "server"], "python", ["tests/differential.py", "tests/fuzz.py"]),
     (["uv", "run", "--quiet", "ruff", "server"], "python", ["tests/lsp.py"]),
     (["bash-language-server", "start"], "shellscript", ["tests/proofs.sh"]),
-    (["nixd"], "nix", ["flake.nix"]),
+    (["nixd"], "nix", ["flake.nix", "nix/shell.nix"]),
     (["neocmakelsp", "stdio"], "cmake", ["CMakeLists.txt"]),
     (["taplo", "lsp", "stdio"], "toml", ["pyproject.toml", "lakefile.toml"]),
     (["yaml-language-server", "--stdio"], "yaml", [".github/workflows/ci.yml"]),
