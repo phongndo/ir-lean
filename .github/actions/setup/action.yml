@@ -9,9 +9,10 @@ runs:
       with:
         path: |
           ~/.elan
+          ~/.cache/uv
           .lake
-        key: tools-${{ runner.os }}-${{ hashFiles('lean-toolchain', 'flake.lock') }}-${{ github.sha }}
-        restore-keys: tools-${{ runner.os }}-${{ hashFiles('lean-toolchain', 'flake.lock') }}-
+        key: tools-${{ runner.os }}-${{ hashFiles('lean-toolchain', 'uv.lock', 'flake.lock') }}-${{ github.sha }}
+        restore-keys: tools-${{ runner.os }}-${{ hashFiles('lean-toolchain', 'uv.lock', 'flake.lock') }}-
     - name: Build
       shell: bash
       run: |

@@ -1,9 +1,14 @@
-#!/usr/bin/env python3
+#!/usr/bin/env -S uv run --script
+# /// script
+# requires-python = ">=3.12"
+# dependencies = []
+# ///
 """Generates random integer functions with branches, loops and switches, optimizes them at random
 levels, and compares emitted Lean with native code.
 
 usage: tests/fuzz.py path/to/llvm-lean [--seeds N] [--functions N] [--start S]
 """
+
 import os
 import random
 import shutil
@@ -11,13 +16,18 @@ import subprocess
 import sys
 import tempfile
 
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-import differential  # noqa: E402
+import differential
 
 WIDTHS = [8, 16, 32, 64]
 BINOPS = ["add", "sub", "mul", "and", "or", "xor", "shl", "lshr", "ashr"]
-FLAGS = {"add": ["nuw", "nsw"], "sub": ["nuw", "nsw"], "mul": ["nuw", "nsw"], "shl": ["nuw", "nsw"],
-         "lshr": ["exact"], "ashr": ["exact"]}
+FLAGS = {
+    "add": ["nuw", "nsw"],
+    "sub": ["nuw", "nsw"],
+    "mul": ["nuw", "nsw"],
+    "shl": ["nuw", "nsw"],
+    "lshr": ["exact"],
+    "ashr": ["exact"],
+}
 PREDS = "eq ne ugt uge ult ule sgt sge slt sle".split()
 INTRINSICS2 = "umin umax smin smax uadd.sat usub.sat sadd.sat ssub.sat".split()
 INTRINSICS1 = "ctpop bitreverse".split()
@@ -163,10 +173,10 @@ class Gen:
         end = self.label("end")
         default, cases = self.label("default"), [self.label("case") for _ in range(self.r.randint(1, 3))]
         keys = self.r.sample(range(8), len(cases))
-        table = " ".join(f"i{w} {k}, label %{c}" for k, c in zip(keys, cases))
+        table = " ".join(f"i{w} {k}, label %{c}" for k, c in zip(keys, cases, strict=True))
         self.emit(f"switch i{w} {sel}, label %{default} [ {table} ]")
         arms = []
-        for label in [default] + cases:
+        for label in [default, *cases]:
             self.start(label)
             e = self.statements(env, depth - 1)
             arms.append((self.block, e))
@@ -223,13 +233,15 @@ def function(name, rand, decls):
 
 def main():
     args = sys.argv[1:]
+
     def flag(name, default):
         if name in args:
             i = args.index(name)
             value = int(args[i + 1])
-            del args[i:i + 2]
+            del args[i : i + 2]
             return value
         return default
+
     seeds = flag("--seeds", 5)
     per_module = flag("--functions", 30)
     start = flag("--start", 1)
