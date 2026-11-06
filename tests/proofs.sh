@@ -1,7 +1,9 @@
 #!/usr/bin/env bash
 # Regenerates Lean from real compiler output, then checks the proofs against it. Anything that
 # depends on `sorry` fails, and so does a proof the regenerated code no longer satisfies.
-# usage: tests/proofs.sh path/to/llvm-lean
+# usage: tests/proofs.sh path/to/llvm-lean [--generate DIR]
+# `--generate` only writes the modules the proofs import to DIR, where `lake build Proofs` and the
+# language server look for them.
 set -euo pipefail
 tool=$(realpath "$1")
 root=$(cd "$(dirname "$0")/.." && pwd)
@@ -11,7 +13,7 @@ trap 'rm -rf "$work"' EXIT
 jobs=${LEAN_JOBS:-4}
 # A runaway proof fails with Lean's own error instead of taking the machine's memory.
 lean() { command lean -M "${LEAN_MAX_MB:-4000}" "$@"; }
-# Runs a command with the modules in `dir` first.
+# Modules from `dir` come first, in case `lake build Proofs` left older ones in the library's directory.
 in_dir() {
   local dir=$1
   shift
@@ -77,6 +79,12 @@ must_break() {
 gen "$root/tests/real/bi_reverse.c" Real "$work"
 gen "$work/zlib/adler32.c" Zlib "$work"
 gen "$work/zlib/crc32.c" Crc "$work"
+
+if [ "${2:-}" = --generate ]; then
+  mkdir -p "$3"
+  cp "$work"/{Real,Zlib,Crc}.lean "$3"
+  exit 0
+fi
 
 for proof in "$root"/tests/proofs/*.lean; do
   start check_proof "$proof"
