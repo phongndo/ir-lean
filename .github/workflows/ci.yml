@@ -9,6 +9,14 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 jobs:
+  lint:
+    name: Formatters, linters and language servers
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/setup
+      - run: nix develop -c ctest --test-dir build -L lint --output-on-failure
   test:
     name: Tests and proofs
     runs-on: ubuntu-latest
@@ -16,7 +24,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - uses: ./.github/actions/setup
-      - run: nix develop -c ctest --test-dir build -LE slow --output-on-failure
+      - run: nix develop -c ctest --test-dir build -LE 'lint|slow' --output-on-failure
   slow:
     name: Slow zlib tests
     if: github.event_name == 'push'

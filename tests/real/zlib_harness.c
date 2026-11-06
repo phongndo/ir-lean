@@ -78,7 +78,7 @@ static unsigned digest(const unsigned char *p, unsigned n, unsigned status) {
 // buffer so `inflate_fast` runs.
 static unsigned slide_and_back(unsigned seed, unsigned n, int level, int strategy) {
   unsigned char in[1000], packed[1300], out[1000];
-  z_stream d = {0}, i = {0};
+  z_stream d = {}, i = {};
   n = 780 + n % 40;
   fill(in, n, seed);
   if (deflateInit2(&d, level, Z_DEFLATED, 9, 1, strategy) != Z_OK)
@@ -130,7 +130,7 @@ unsigned harness_slow_fixed(unsigned seed, unsigned n) { return slide_and_back(s
 // A preset dictionary, both ways.
 unsigned harness_dictionary(unsigned seed, unsigned n) {
   unsigned char dict[32], got[64], in[HARNESS_INPUT], packed[HARNESS_INPUT + 128], out[HARNESS_INPUT];
-  z_stream d = {0}, i = {0};
+  z_stream d = {}, i = {};
   uInt got_len = 0;
   n %= HARNESS_INPUT;
   fill(dict, sizeof dict, seed);
@@ -168,7 +168,7 @@ unsigned harness_dictionary(unsigned seed, unsigned n) {
 // The rest of the `deflate` calls, with flushes that write each kind of block.
 unsigned harness_deflate_calls(unsigned seed, unsigned n, unsigned level) {
   unsigned char in[HARNESS_INPUT], packed[HARNESS_INPUT + 256];
-  z_stream d = {0}, copy = {0};
+  z_stream d = {}, copy = {};
   unsigned pending = 0, status = 0;
   int bits = 0;
   n %= HARNESS_INPUT;
@@ -204,8 +204,8 @@ unsigned harness_deflate_calls(unsigned seed, unsigned n, unsigned level) {
 unsigned harness_inflate_calls(unsigned seed, unsigned n, unsigned where) {
   unsigned char in[HARNESS_INPUT], packed[HARNESS_INPUT + 256], out[HARNESS_INPUT];
   Bytef name[] = "name", comment[] = "note", extra[] = "extra", got_name[8], got_comment[8], got_extra[8];
-  gz_header head = {0}, got = {0};
-  z_stream d = {0}, i = {0}, copy = {0};
+  gz_header head = {}, got = {};
+  z_stream d = {}, i = {}, copy = {};
   unsigned status = 0;
   n %= HARNESS_INPUT;
   fill(in, n, seed);
@@ -283,7 +283,7 @@ static int back_out(void *desc, unsigned char *buf, unsigned n) {
 
 unsigned harness_back(unsigned seed, unsigned n) {
   unsigned char in[HARNESS_INPUT], packed[HARNESS_INPUT + 128], window[32768];
-  z_stream d = {0}, i = {0};
+  z_stream d = {}, i = {};
   struct back_state s = {packed, 0, 0, 1};
   n %= HARNESS_INPUT;
   fill(in, n, seed);

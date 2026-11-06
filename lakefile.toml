@@ -4,3 +4,16 @@ defaultTargets = ["LLVMLean"]
 
 [[lean_lib]]
 name = "LLVMLean"
+
+# The proofs, and the generated modules they import, from `tests/proofs.sh build/llvm-lean --generate
+# build/generated`. These are for `lake build Proofs` and the language server. tests/proofs.sh checks
+# the proofs against freshly generated modules instead.
+[[lean_lib]]
+name = "Generated"
+srcDir = "build/generated"
+roots = ["Real", "Zlib", "Crc"]
+
+[[lean_lib]]
+name = "Proofs"
+srcDir = "tests/proofs"
+roots = ["Adler32", "Crc32", "Popcount"]

@@ -1,0 +1,4 @@
+-xc
+-std=gnu17
+-Wall
+-Wextra
