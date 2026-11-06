@@ -1,13 +1,30 @@
 { pkgs, proofPkgs }:
 let
   llvmPackages = pkgs.llvmPackages_latest;
+  # Alive2's releases trail LLVM, and nixpkgs builds it on an older LLVM than the one this shell has.
+  # This is the upstream commit that builds on LLVM 23, so tests/opcheck.py reads IR the way clang
+  # writes it. Moving llvmPackages_latest to another LLVM needs another commit here.
+  alive2 =
+    (pkgs.alive2.override {
+      inherit (llvmPackages) llvm;
+      clangStdenv = llvmPackages.stdenv;
+    }).overrideAttrs
+      {
+        version = "21.0-unstable-2026-07-23";
+        src = pkgs.fetchFromGitHub {
+          owner = "AliveToolkit";
+          repo = "alive2";
+          rev = "a68009c9e81575bdcc249d3cc534514a76112221";
+          hash = "sha256-Aaktd78j9lwcme8HS6+Ex1vL9++V71q2vt1hYMVMsCI=";
+        };
+      };
 in
 # The shell's compiler matches the LLVM headers, so pass plugins load in `opt`.
 pkgs.mkShell.override { inherit (llvmPackages) stdenv; } {
   packages =
     with pkgs;
     [
-      # Checks poison and UB behavior in tests/opcheck.py, which skips it if absent.
+      # Checks poison and UB behavior in tests/opcheck.py, which fails if it's absent.
       alive2
       cmake
       # Provides lean and lake; lean-toolchain picks the version.
