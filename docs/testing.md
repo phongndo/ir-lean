@@ -8,8 +8,8 @@ The dev shell works on Linux and on Apple silicon Macs. The proofs compile for x
 they check the same IR everywhere. On Macs, `lint` and `lsp` fail on C++ only: `clang-tidy` and `clangd` report
 errors there that don't appear on Linux, so use `-LE 'lint|slow'` to skip them.
 
-Run `lake build`, then `ctest --test-dir build`, which takes about 25 minutes. Add `-LE slow` to skip
-`zlib_slow` and take about 5.
+Run `lake build`, then `ctest --test-dir build`, which takes about a minute on 32 cores. Add `-LE slow` to skip
+`zlib_slow`.
 
 | Test | What it checks |
 | --- | --- |
@@ -29,8 +29,9 @@ Run `lake build`, then `ctest --test-dir build`, which takes about 25 minutes. A
 | `lint` | Every formatter and linter below, for every language |
 | `lsp` | Every language server below starts, opens real files, and reports no errors in them |
 
-`LEAN_JOBS` sets how many Lean processes run at once, 4 by default. What limits it is memory. Compiled modules
-stay in `build/lean-cache`, so a run only recompiles what changed.
+The dev shell sets `CTEST_PARALLEL_LEVEL`, how many tests run at once, and `LEAN_JOBS`, how many Lean processes
+each runs at once, from the machine's cores and memory. Compiled modules stay in `build/lean-cache`, so a run only
+recompiles what changed.
 
 ## Formatters, linters and language servers
 

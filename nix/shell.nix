@@ -68,7 +68,20 @@ pkgs.mkShell.override { inherit (llvmPackages) stdenv; } {
   UV_PYTHON = "${pkgs.python3}/bin/python3";
   UV_PYTHON_DOWNLOADS = "never";
   # Python tools in this shell put their dependencies here, which isn't what uv's Python should see.
-  shellHook = "unset PYTHONPATH";
+  # Tests and Lean processes at once: every core, unless memory runs out first, as a Lean process can take 3 GB.
+  shellHook = ''
+    unset PYTHONPATH
+    if [ "$(uname)" = Darwin ]; then
+      memory=$(sysctl -n hw.memsize)
+    else
+      memory=$(( $(getconf _PHYS_PAGES) * $(getconf PAGESIZE) ))
+    fi
+    jobs=$(( memory / 3000000000 ))
+    [ "$(nproc)" -lt "$jobs" ] && jobs=$(nproc)
+    [ "$jobs" -ge 1 ] || jobs=1
+    export LEAN_JOBS=''${LEAN_JOBS:-$jobs}
+    export CTEST_PARALLEL_LEVEL=''${CTEST_PARALLEL_LEVEL:-$jobs}
+  '';
   # The proofs follow the shape of the IR, which depends on the target and its headers, so every
   # host compiles them for this one target.
   PROOF_CFLAGS = toString [

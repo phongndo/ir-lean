@@ -119,7 +119,7 @@ class Server:
         try:
             self.request("shutdown", None)
             self.notify("exit", None)
-            self.process.wait(timeout=10)
+            self.process.wait(timeout=1)
         except (RuntimeError, OSError, subprocess.TimeoutExpired):
             pass
         self.process.kill()
