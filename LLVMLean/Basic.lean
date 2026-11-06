@@ -40,6 +40,8 @@ inductive ModelStop where
   | pointerBytes
   /-- A call through a pointer to no function this module defines with the call's signature. -/
   | unknownCallee
+  /-- `llvm.assume` with a bundle about poison, which LangRef doesn't settle. -/
+  | assumeOnPoison
   deriving Repr, DecidableEq, Inhabited
 
 /-- Why a run ended without a result. -/

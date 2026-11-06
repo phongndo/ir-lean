@@ -36,3 +36,11 @@ define i64 @strlen_of_uninit(i32 %x) {
   %r = call i64 @strlen(ptr %a)
   ret i64 %r
 }
+
+; LangRef doesn't settle what a bundle says about poison.
+declare void @llvm.assume(i1)
+
+define i32 @assume_nonnull_of_poison(i32 %x) {
+  call void @llvm.assume(i1 true) [ "nonnull"(ptr poison) ]
+  ret i32 %x
+}
