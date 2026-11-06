@@ -170,6 +170,17 @@ theorem gep_plain (m : Mem) (block o i k : Nat) :
     rw [← Nat.add_assoc]; simp [BitVec.ofNat_add]
   simp [Mem.gep, bufPtr, hoff]
 
+/-- A global holding bytes is `Readable`, so its hypotheses can all hold at once. -/
+theorem ofGlobal (m : Mem) (block : Nat) (init : Array Nat)
+    (hbytes : ∀ i (h : i < init.size), init[i] ≤ 255) (hsize : init.size < 2 ^ 63)
+    (hfits : ((m.addGlobal block init.size false init).addr (bufPtr block 0 0)).toNat + init.size < 2 ^ 64) :
+    Readable (m.addGlobal block init.size false init) block 0 init.size
+      (fun i => BitVec.ofNat 8 (init[i]?.getD 0)) := by
+  refine ⟨⟨{ size := init.size, readonly := false, bytes := Mem.globalBytes init },
+    by simp [Mem.addGlobal], by simp, hsize, fun i hi => ?_⟩, hfits⟩
+  have h := hbytes i hi
+  simp [Mem.globalBytes, hi, Nat.not_lt.mpr h]
+
 end Readable
 
 end LLVMLean
