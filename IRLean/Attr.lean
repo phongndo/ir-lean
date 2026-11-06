@@ -1,4 +1,4 @@
-import Lean
+import Lean.Meta.Tactic.Simp.RegisterCommand
 
 /-- Unfolds ir-lean's semantics, for proofs about emitted code: `simp [llvm, foo.step]`. -/
 register_simp_attr llvm
