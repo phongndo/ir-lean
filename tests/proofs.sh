@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# shellcheck disable=SC2329 # `start` and `in_dir` call these functions.
 # Regenerates Lean from real compiler output, then checks the proofs against it. Anything that
 # depends on `sorry` fails, and so does a proof the regenerated code no longer satisfies.
 # usage: tests/proofs.sh path/to/llvm-lean [--generate DIR]

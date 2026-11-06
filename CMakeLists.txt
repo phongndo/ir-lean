@@ -57,3 +57,9 @@ add_test(
 )
 set_tests_properties(zlib zlib_slow PROPERTIES TIMEOUT 3600)
 set_tests_properties(zlib_slow PROPERTIES LABELS slow)
+# Formatters, linters and language servers. The lint test comes first, so the language servers can find the
+# generated modules it writes.
+add_test(NAME lint COMMAND ${CMAKE_SOURCE_DIR}/tests/lint.sh)
+add_test(NAME lsp COMMAND ${CMAKE_SOURCE_DIR}/tests/lsp.py)
+set_tests_properties(lint lsp PROPERTIES LABELS lint)
+set_tests_properties(lsp PROPERTIES DEPENDS lint TIMEOUT 1800)
