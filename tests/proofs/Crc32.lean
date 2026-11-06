@@ -194,12 +194,16 @@ theorem zext_entry (n : Nat) {x : BitVec 64} (hx : x.toNat < 4294967296) :
   simp only [entryV, BitVec.toNat_setWidth, BitVec.toNat_ofNat]
   omega
 
-/-- The two global tables are in memory, untouched, where the code expects them. -/
+/-- The two global tables are in memory, untouched, where the code expects them. Every real layout
+meets the size limits: LangRef says no object crosses the top of the address space, even one past its
+end. -/
 structure Tables (m : Mem) : Prop where
   crc : m.allocs g_crc_table.block = Crc.initial.allocs g_crc_table.block
   braid : m.allocs g_crc_braid_table.block = Crc.initial.allocs g_crc_braid_table.block
   crcAlign : (m.base g_crc_table.block).toNat % 4 = 0
   braidAlign : (m.base g_crc_braid_table.block).toNat % 4 = 0
+  crcFits : (m.base g_crc_table.block).toNat + 1024 < 2 ^ 64
+  braidFits : (m.base g_crc_braid_table.block).toNat + 8192 < 2 ^ 64
 
 theorem addr_align {m : Mem} {block k : Nat} (hb : block ≠ 0) (ha : (m.base block).toNat % 4 = 0)
     : (m.addr ⟨block, BitVec.ofNat 64 (4 * k)⟩).toNat % 4 = 0 := by
@@ -226,7 +230,8 @@ theorem table_load {P : Ptr} {init : Array Nat} {s off n : Nat} {f : Nat → Nat
     (hP : P.offset = BitVec.ofNat 64 off) (hb : P.block ≠ 0)
     (h : (init.toList.drop off).take 1024 = (List.range 256).flatMap fun e => bytes4 (f e))
     (hf : ∀ e, f e = stepsN n e) (hs : off + 1024 ≤ s) (hmax : s < 2 ^ 64) (h4 : off % 4 = 0)
-    (ha : (m.base P.block).toNat % 4 = 0) (hx : x.toNat < 256) :
+    (ha : (m.base P.block).toNat % 4 = 0) (hfit : (m.base P.block).toNat + s < 2 ^ 64)
+    (hx : x.toNat < 256) :
     Mem.loadInt 32 m
         (Mem.gep m (some P) (Val.mul (some x) (some 4#64) (nuw := true) (nsw := true))
           (inbounds := true) (nuw := true)) 4 =
@@ -242,25 +247,15 @@ theorem table_load {P : Ptr} {init : Array Nat} {s off n : Nat} {f : Nat → Nat
     simp only [BitVec.toNat_ofNat]; exact Nat.mod_eq_of_lt (by omega)
   have td : (BitVec.ofNat 64 (4 * x.toNat)).toNat = 4 * x.toNat := by
     simp only [BitVec.toNat_ofNat]; omega
-  have hno : (BitVec.ofNat 64 off).uaddOverflow (BitVec.ofNat 64 (4 * x.toNat)) = false := by
-    simp only [BitVec.uaddOverflow, toff, td]
-    simp only [decide_eq_false_iff_not, Nat.not_le, ge_iff_le]
-    omega
   have hsum : BitVec.ofNat 64 off + BitVec.ofNat 64 (4 * x.toNat) = BitVec.ofNat 64 (off + 4 * x.toNat) := by
     simp [BitVec.ofNat_add]
-  have hle : (off + 4 * x.toNat) % 18446744073709551616 ≤ s := by
-    rw [Nat.mod_eq_of_lt (by omega)]; omega
+  have hb' : (P.block == 0) = false := by simpa using hb
+  have haddr : (m.addr P).toNat + 4 * x.toNat < 2 ^ 64 := by
+    simp only [Mem.addr, hb', Bool.false_eq_true, ite_false, BitVec.toNat_add, hP, toff]
+    omega
   have hgep : Mem.gep m (some P) (some (BitVec.ofNat 64 (4 * x.toNat))) (inbounds := true) (nuw := true) =
       some ⟨P.block, BitVec.ofNat 64 (off + 4 * x.toNat)⟩ := by
-    simp only [Mem.gep, hP, hno, Bool.true_and, Bool.false_eq_true, ite_false]
-    by_cases h0 : BitVec.ofNat 64 (4 * x.toNat) = 0#64
-    · have hx0 : x.toNat = 0 := by
-        have := congrArg BitVec.toNat h0
-        rw [td] at this
-        simp at this
-        omega
-      simp [h0, hx0]
-    · simp [h0, hA, hsum, hle]
+    rw [Mem.gep_forward hA (by simp only [hP, toff]; omega) hmax haddr (by omega), hP, hsum]
   rw [mul4 hx, hgep, hload]
   rfl
 
@@ -288,7 +283,7 @@ theorem crc_load (T : Tables m) {x : BitVec 64} (hx : x.toNat < 256) :
     rw [List.drop_zero, crc_table_bytes]
     exact List.take_of_length_le (by rw [length_flatMap_range _ (fun e => length_bytes4 _)]; omega)
   exact table_load (s := 1024) (off := 0) T.crc rfl (by simp [g_crc_table]) hl (fun _ => rfl)
-    (by omega) (by omega) (by omega) T.crcAlign hx
+    (by omega) (by omega) (by omega) T.crcAlign T.crcFits hx
 
 /-- Reads table `k` of `crc_braid_table`, whose pointer the code writes as `P`. -/
 theorem braid_load (T : Tables m) {P : Ptr} {k : Nat} (hP : P = ⟨2, BitVec.ofNat 64 (1024 * k)⟩)
@@ -299,7 +294,7 @@ theorem braid_load (T : Tables m) {P : Ptr} {k : Nat} (hP : P = ⟨2, BitVec.ofN
       Outcome.ok (some (entryV (320 - 8 * k) x)) := by
   subst hP
   exact table_load (s := 8192) (off := 1024 * k) T.braid rfl (by simp) hS (fun _ => rfl)
-    (by omega) (by omega) (by omega) T.braidAlign hx
+    (by omega) (by omega) (by omega) T.braidAlign T.braidFits hx
 
 /-- A table read, as the code writes it. -/
 abbrev tableRead (m : Mem) (P : Ptr) (x : BitVec 64) : Outcome (Val 32) :=

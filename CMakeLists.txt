@@ -21,6 +21,7 @@ llvm_config(llvm-lean USE_SHARED core irreader support)
 # Tests need the Lean library: run `lake build` first.
 enable_testing()
 add_test(NAME opcheck COMMAND ${CMAKE_SOURCE_DIR}/tests/opcheck.py $<TARGET_FILE:llvm-lean>)
+add_test(NAME gepcheck COMMAND ${CMAKE_SOURCE_DIR}/tests/gepcheck.py $<TARGET_FILE:llvm-lean>)
 add_test(
     NAME differential
     COMMAND
@@ -33,7 +34,7 @@ add_test(
     COMMAND
         ${CMAKE_SOURCE_DIR}/tests/differential.py $<TARGET_FILE:llvm-lean>
         ${CMAKE_SOURCE_DIR}/tests/real/pointers.c ${CMAKE_SOURCE_DIR}/tests/real/vectors.ll
-        ${CMAKE_SOURCE_DIR}/tests/real/heap.ll --strict
+        ${CMAKE_SOURCE_DIR}/tests/real/heap.ll ${CMAKE_SOURCE_DIR}/tests/real/gep.ll --strict
 )
 add_test(
     NAME undefined

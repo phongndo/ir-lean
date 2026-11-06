@@ -291,6 +291,7 @@ public:
     if (C->getType()->isPointerTy()) {
       APInt Offset(64, 0);
       const Value *Base = C->stripAndAccumulateConstantOffsets(DL, Offset, /*AllowNonInbounds=*/true);
+      checkConstantGeps(C, Base);
       if (auto *G = dyn_cast<GlobalVariable>(Base)) {
         const std::string &Name = global(G);
         if (Offset.isZero())
@@ -388,6 +389,55 @@ private:
     reject(R != Rejected.end() ? R->second : "global @" + G->getName().str());
   }
 
+  // A constant pointer is printed as its base and a total offset, which leaves out the rules that a
+  // `getelementptr` constant's flags add. That's only right if those rules can't fail: every flagged step
+  // has to stay inside `Base`, which also keeps its address from wrapping in any layout LLVM allows. So
+  // this refuses anything else, and `inrange`, which says what later accesses may do.
+  void checkConstantGeps(const Constant *C, const Value *Base) const {
+    std::vector<const GEPOperator *> Geps;
+    const Value *V = C;
+    while (V != Base) {
+      if (auto *G = dyn_cast<GEPOperator>(V)) {
+        Geps.push_back(G);
+        V = G->getPointerOperand();
+      } else if (auto *A = dyn_cast<GlobalAlias>(V)) {
+        V = A->getAliasee();
+      } else if (auto *O = dyn_cast<Operator>(V)) {
+        V = O->getOperand(0);
+      } else {
+        reject("constant " + printed(*C));
+      }
+    }
+    const auto *G = dyn_cast<GlobalVariable>(Base);
+    uint64_t Size = G && Globals.count(G) ? Globals.at(G).Size : 0;
+    APInt At(64, 0);
+    for (auto It = Geps.rbegin(); It != Geps.rend(); ++It) {
+      const GEPOperator &Gep = **It;
+      GEPNoWrapFlags Flags = Gep.getNoWrapFlags();
+      if (Gep.getInRange())
+        reject("constant " + printed(*C));
+      bool Checked = Flags != GEPNoWrapFlags::none() && !Gep.hasAllZeroIndices();
+      auto Inside = [&] { return !At.isNegative() && At.ule(Size); };
+      if (Checked && !Inside())
+        reject("constant " + printed(*C) + " with flags that don't plainly hold");
+      for (auto I = gep_type_begin(Gep), E = gep_type_end(Gep); I != E; ++I) {
+        const auto *Index = dyn_cast<ConstantInt>(I.getOperand());
+        if (!Index || Index->getBitWidth() > 64)
+          reject("constant " + printed(*C));
+        APInt Step(64, 0);
+        bool Overflow = false;
+        if (StructType *S = I.getStructTypeOrNull())
+          Step = APInt(64, DL.getStructLayout(S)->getElementOffset(Index->getZExtValue()));
+        else
+          Step = Index->getValue().sextOrTrunc(64).smul_ov(APInt(64, I.getSequentialElementStride(DL)),
+                                                           Overflow);
+        At += Step;
+        if (Checked && (Overflow || !Inside() || (Flags.hasNoUnsignedWrap() && Step.isNegative())))
+          reject("constant " + printed(*C) + " with flags that don't plainly hold");
+      }
+    }
+  }
+
   // Appends a constant's bytes, little-endian. 256 stands for an uninitialized byte.
   void flatten(const Constant *C, std::vector<unsigned> &Out, std::vector<Reloc> &Relocs) const {
     if (!DL.isLittleEndian())
@@ -405,6 +455,7 @@ private:
     if (T->isPointerTy()) {
       APInt Offset(64, 0);
       const Value *Base = C->stripAndAccumulateConstantOffsets(DL, Offset, /*AllowNonInbounds=*/true);
+      checkConstantGeps(C, Base);
       unsigned Block = 0;
       if (auto *G = dyn_cast<GlobalVariable>(Base)) {
         global(G);
@@ -799,7 +850,8 @@ void FunctionEmitter::emitStore(const StoreInst &S, std::vector<Line> &Out) {
                   Fn + operand(S.getPointerOperand()) + " " + operand(S.getValueOperand()) + " " + Align);
 }
 
-// The byte offset is written out from the data layout, so `Mem.gep` only sees a number.
+// Each non-zero index is a step, whose offset is written out from the data layout, so `Mem.gep` only
+// sees a number. Zero indices do nothing, whatever the flags say.
 void FunctionEmitter::emitGep(const GetElementPtrInst &G, std::vector<Line> &Out) {
   const DataLayout &DL = Context.DL;
   if (G.getType()->isVectorTy() || DL.getIndexSizeInBits(0) != 64)
@@ -808,31 +860,28 @@ void FunctionEmitter::emitGep(const GetElementPtrInst &G, std::vector<Line> &Out
   bool NoUnsigned = G.hasNoUnsignedWrap();
   bool NoSigned = InBounds || G.hasNoUnsignedSignedWrap();
   std::string Flags = flag(NoUnsigned, "nuw") + flag(NoSigned, "nsw");
-  // Flags forbid overflow in each partial sum, so offsets add up in index order. Constants before
-  // the first variable index are added here, and overflow there makes the result poison.
-  APInt Constant(64, 0);
-  std::string Sum;
-  bool Poison = false;
+  std::vector<std::string> Offsets;
   auto AddConstant = [&](const APInt &Index, uint64_t Size) {
     APInt Scale(64, Size);
-    bool SignedMul, UnsignedMul, SignedAdd, UnsignedAdd;
+    bool SignedMul, UnsignedMul;
     APInt Offset = Index.smul_ov(Scale, SignedMul);
     (void)Index.umul_ov(Scale, UnsignedMul);
-    Poison |= (NoSigned && SignedMul) || (NoUnsigned && UnsignedMul);
-    if (!Sum.empty()) {
-      if (!Offset.isZero())
-        Sum = "(Val.add " + Sum + " (some " + bitVec(Offset) + ")" + Flags + ")";
-      return;
-    }
-    (void)Constant.sadd_ov(Offset, SignedAdd);
-    Constant = Constant.uadd_ov(Offset, UnsignedAdd);
-    Poison |= (NoSigned && SignedAdd) || (NoUnsigned && UnsignedAdd);
+    if ((NoSigned && SignedMul) || (NoUnsigned && UnsignedMul))
+      Offsets.push_back("(none : Val 64)");
+    else if (!Offset.isZero())
+      Offsets.push_back("(some " + bitVec(Offset) + ")");
+    // `inbounds` needs its base in bounds if any index isn't zero, even if the offset is.
+    else if (InBounds && !Index.isZero())
+      reject("instruction " + printed(G));
   };
   for (auto It = gep_type_begin(G), E = gep_type_end(G); It != E; ++It) {
     const Value *Index = It.getOperand();
     if (StructType *S = It.getStructTypeOrNull()) {
       unsigned Field = cast<ConstantInt>(Index)->getZExtValue();
-      AddConstant(APInt(64, DL.getStructLayout(S)->getElementOffset(Field)), 1);
+      uint64_t FieldOffset = DL.getStructLayout(S)->getElementOffset(Field);
+      if (InBounds && Field != 0 && FieldOffset == 0)
+        reject("instruction " + printed(G));
+      AddConstant(APInt(64, FieldOffset), 1);
       continue;
     }
     // A wider index has its own rules about truncating, and no real code needs one.
@@ -843,22 +892,26 @@ void FunctionEmitter::emitGep(const GetElementPtrInst &G, std::vector<Line> &Out
       AddConstant(K->getValue().sext(64), Stride);
       continue;
     }
+    if (Stride == 0 && InBounds)
+      reject("instruction " + printed(G));
     std::string I = operand(Index);
     if (Index->getType()->getIntegerBitWidth() < 64)
       I = "(Val.sext 64 " + I + ")";
     if (Stride != 1)
       I = "(Val.mul " + I + " (some " + std::to_string(Stride) + "#64)" + Flags + ")";
-    if (!Sum.empty())
-      Sum = "(Val.add " + Sum + " " + I + Flags + ")";
-    else if (Constant.isZero())
-      Sum = I;
-    else
-      Sum = "(Val.add " + I + " (some " + bitVec(Constant) + ")" + Flags + ")";
+    Offsets.push_back(I);
   }
-  std::string Offset = Poison ? "(none : Val 64)" : !Sum.empty() ? Sum : "(some " + bitVec(Constant) + ")";
-  addLet(G, Out,
-         "Mem.gep m " + operand(G.getPointerOperand()) + " " + Offset + flag(InBounds, "inbounds") +
-             flag(NoUnsigned, "nuw"));
+  std::string Base = "m " + operand(G.getPointerOperand()) + " ";
+  std::string GepFlags =
+      flag(InBounds, "inbounds") + flag(NoSigned && !InBounds, "nusw") + flag(NoUnsigned, "nuw");
+  if (Offsets.size() > 1) {
+    std::string List;
+    for (const std::string &Offset : Offsets)
+      List += (List.empty() ? "" : ", ") + Offset;
+    addLet(G, Out, "Mem.gepSteps " + Base + "[" + List + "]" + GepFlags);
+    return;
+  }
+  addLet(G, Out, "Mem.gep " + Base + (Offsets.empty() ? "(some 0#64)" : Offsets.front()) + GepFlags);
 }
 
 void FunctionEmitter::emitAlloca(const AllocaInst &A, std::vector<Line> &Out) {
