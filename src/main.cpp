@@ -34,6 +34,8 @@ options:
   --report          print one line per function instead of Lean
   --split DIR       write one Lean module per function under DIR/NAME, and DIR/NAME.lean
                     importing them in dependency order
+  --no-code         don't have Lean generate code, so the output checks far faster but can
+                    only be proved about, not run
 
 exit codes:
   0  every function was translated
@@ -56,7 +58,7 @@ std::string defaultNamespace(StringRef Input) {
 
 int main(int Argc, char **Argv) {
   std::string Input, Output, Namespace, SplitDir;
-  bool Report = false;
+  bool Report = false, NoCode = false;
   for (int I = 1; I < Argc; ++I) {
     StringRef A = Argv[I];
     auto Value = [&](const char *Flag) -> std::string {
@@ -74,6 +76,8 @@ int main(int Argc, char **Argv) {
       Report = true;
     } else if (A == "--split") {
       SplitDir = Value("--split");
+    } else if (A == "--no-code") {
+      NoCode = true;
     } else if (A == "-h" || A == "--help") {
       printUsage(outs());
       return ExitOk;
@@ -103,7 +107,7 @@ int main(int Argc, char **Argv) {
     return ExitError;
   }
 
-  llvm_lean::Emitted E = llvm_lean::emitModule(*M, Namespace, sys::path::filename(Input).str());
+  llvm_lean::Emitted E = llvm_lean::emitModule(*M, Namespace, sys::path::filename(Input).str(), NoCode);
 
   unsigned Translated = 0;
   for (const llvm_lean::FunctionReport &F : E.Functions)
