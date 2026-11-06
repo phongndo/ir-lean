@@ -61,7 +61,7 @@ namespace Mem
     let lanes := (List.range n).map fun i =>
       collect (read a (q.offset.toNat + i * (w / 8)) (w / 8))
     match lanes.findSome? fun l => match l with | .error e => some e | .ok _ => none with
-    | some e => Outcome.ub e
+    | some e => Outcome.stop e
     | none =>
       Outcome.ok <| Vector.ofFn fun i =>
         match lanes[i.val]? with
