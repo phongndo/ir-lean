@@ -171,11 +171,11 @@ this decidable by `bv_decide`. `w` always fits in `w` bits. -/
   | none => none
 
 /-- `freeze` keeps a value. Poison would become an arbitrary value, which the model doesn't choose:
-see `UB.freezePoison`. -/
+see `ModelStop.freezePoison`. -/
 @[llvm, inline] def freeze {τ : Type} (a : Option τ) : Outcome (Option τ) :=
   match a with
   | some x => Outcome.ok (some x)
-  | none => Outcome.ub .freezePoison
+  | none => Outcome.stop .freezePoison
 
 /-- The `range` attribute: values outside the half-open, possibly wrapping range become poison. -/
 @[llvm, inline] def range (lo hi : BitVec w) (a : Val w) : Val w :=

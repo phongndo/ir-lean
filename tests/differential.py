@@ -9,7 +9,8 @@ Where Lean says poison or UB, native code may do anything, so those inputs are s
 first, so inputs that would crash native code never reach it.
 
 usage: tests/differential.py path/to/llvm-lean file.c|file.ll [...] [--runs N] [--bound FUNCTION=MAX]
-                             [--split] [--only PREFIX] [--strict] [--slow PREFIX=N] [--expect-ub]
+                             [--split] [--only PREFIX] [--strict] [--slow PREFIX=N]
+                             [--expect-ub | --expect-stop]
 
 `--bound` keeps a function's inputs small, for functions that would otherwise run for too long or
 overflow the stack. `--split` builds one Lean module per function, which large inputs need. It builds
@@ -17,7 +18,8 @@ LEAN_JOBS at a time, and keeps them in LEAN_CACHE so another run doesn't repeat 
 tests just the functions whose names start with PREFIX. `--strict` fails on any skipped input, for
 code that shouldn't hit poison or UB, where a bug in the semantics would otherwise only skip it. `--slow`
 runs functions whose names start with PREFIX only N times. `--expect-ub` fails unless every function
-translates and every call stops on undefined behavior.
+translates and every call stops on undefined behavior, and `--expect-stop` does the same for the model
+stopping without an answer, which isn't undefined behavior.
 """
 
 import concurrent.futures
@@ -171,7 +173,8 @@ def run_lean(functions, cases, work):
         "def show' {w : Nat} : Outcome (Val w) → String",
         "  | some (.ok (some v)) => toString v.toNat",
         '  | some (.ok none) => "poison"',
-        '  | some (.error e) => "ub:" ++ reprStr e',
+        '  | some (.error (.undefined e)) => "ub:" ++ reprStr e',
+        '  | some (.error (.model e)) => "stop:" ++ reprStr e',
         '  | none => "diverged"',
         "def showMem {w : Nat} (x : Outcome (Val w × Mem)) : String :=",
         "  show' (andThen x fun r => Outcome.ok r.1)",
@@ -239,6 +242,10 @@ def run_native(functions, cases, keep, ll, work):
     return sh([exe], timeout=300).stdout.split()
 
 
+def has_no_result(x):
+    return x == "poison" or x == "diverged" or x.startswith(("ub:", "stop:"))
+
+
 def compare_ll(tool, ll, runs, rand, stats, bounds=None, split=False, only="", slow=None):
     bounds = bounds or {}
     with tempfile.TemporaryDirectory(prefix="diff-") as work:
@@ -261,12 +268,14 @@ def compare_ll(tool, ll, runs, rand, stats, bounds=None, split=False, only="", s
         for i in range(len(functions)):
             row = lean_out[pos : pos + len(cases[i])]
             pos += len(cases[i])
-            keep.append([x != "poison" and x != "diverged" and not x.startswith("ub:") for x in row])
+            keep.append([not has_no_result(x) for x in row])
             values.append(row)
             stats.skipped += sum(not k for k in keep[-1])
             for x in row:
-                if x == "poison" or x == "diverged" or x.startswith("ub:"):
-                    why = x.replace("ub:LLVMLean.UB.", "") + " in @" + functions[i][0]
+                if has_no_result(x):
+                    kind = x.replace("ub:LLVMLean.UB.", "undefined: ")
+                    kind = kind.replace("stop:LLVMLean.ModelStop.", "model stop: ")
+                    why = f"{kind} in @{functions[i][0]}"
                     stats.skip_reasons[why] = stats.skip_reasons.get(why, 0) + 1
         native = iter(run_native(functions, cases, keep, ll, work))
         for i, (name, *_) in enumerate(functions):
@@ -283,7 +292,18 @@ def compile_input(path, work):
     if path.endswith(".ll"):
         return path
     out = os.path.join(work, os.path.basename(path) + ".ll")
-    sh(["clang", "-O2", "-S", "-emit-llvm", "-fno-discard-value-names", path, "-o", out])
+    sh(
+        [
+            "clang",
+            "-O2",
+            "-S",
+            "-emit-llvm",
+            "-fno-discard-value-names",
+            path,
+            "-o",
+            out,
+        ]
+    )
     return out
 
 
@@ -303,20 +323,17 @@ def summarize(stats, strict=False):
     return 1 if stats.mismatches or not stats.compared or (strict and stats.skipped) else 0
 
 
-def all_stopped(stats):
-    """Whether every call hit undefined behavior: not a value, poison, divergence, or a stop that
-    only means the model has no answer."""
+def all_stopped(stats, kind):
+    """Whether every call stopped for this kind of reason, and not with a value, poison or divergence, or
+    for the other kind of reason."""
     print(f"{stats.functions} functions: {stats.skipped} calls stopped, {stats.compared} returned a value")
     print("because of: " + ", ".join(f"{k} {v}" for k, v in sorted(stats.skip_reasons.items())))
     for name, why in stats.unsupported.items():
         print(f"  left out @{name}: {why[:120]}")
-    defined = [
-        k
-        for k in stats.skip_reasons
-        if k.split()[0]
-        in ("poison", "diverged", "freezePoison", "readUninit", "pointerBytes", "unknownCallee")
-    ]
-    return bool(stats.skipped) and not (stats.compared or stats.unsupported or defined)
+    other = [k for k in stats.skip_reasons if not k.startswith(kind + ":")]
+    if other:
+        print(f"not {kind}: " + ", ".join(sorted(other)))
+    return bool(stats.skipped) and not (stats.compared or stats.unsupported or other)
 
 
 def main():
@@ -349,22 +366,24 @@ def main():
         prefix, count = args[i + 1].split("=")
         slow = (prefix, int(count))
         del args[i : i + 2]
-    expect_ub = "--expect-ub" in args
-    if expect_ub:
-        args.remove("--expect-ub")
+    expect = None
+    for flag, kind in (("--expect-ub", "undefined"), ("--expect-stop", "model stop")):
+        if flag in args:
+            args.remove(flag)
+            expect = kind
     tool, files = os.path.abspath(args[0]), args[1:]
     rand, stats = random.Random(11), Stats()
     work = tempfile.mkdtemp(prefix="diffinput-")
     untested = []
     try:
         for path in files:
-            before = stats.skipped if expect_ub else stats.compared
+            before = stats.skipped if expect else stats.compared
             compare_ll(tool, compile_input(path, work), runs, rand, stats, bounds, split, only, slow)
-            if (stats.skipped if expect_ub else stats.compared) == before:
+            if (stats.skipped if expect else stats.compared) == before:
                 untested.append(path)
     finally:
         shutil.rmtree(work, ignore_errors=True)
-    code = (0 if all_stopped(stats) else 1) if expect_ub else summarize(stats, strict)
+    code = (0 if all_stopped(stats, expect) else 1) if expect else summarize(stats, strict)
     if untested:
         print("nothing tested in: " + ", ".join(untested))
         code = 1

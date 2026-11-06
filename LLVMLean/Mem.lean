@@ -118,7 +118,7 @@ def reserve (m : Mem) (next : Nat) : Mem :=
 uninitialized read `undef`, and poison is stricter: nothing that depends on it comes out clean, and
 branching on it is undefined. So a result that isn't poison here doesn't depend on those bytes.
 zlib does this on purpose: `slide_hash` reads uninitialized entries of `prev` and never uses them. -/
-def collect : List Byte → Except UB (Option Nat)
+def collect : List Byte → Except ModelStop (Option Nat)
   | [] => .ok (some 0)
   | .ptr .. :: _ => .error .pointerBytes
   | .poison :: rest | .uninit :: rest =>
@@ -140,12 +140,12 @@ def collect : List Byte → Except UB (Option Nat)
   | .error e => Outcome.ub e
   | .ok (q, a) =>
     match collect (read a q.offset.toNat (w / 8)) with
-    | .error e => Outcome.ub e
+    | .error e => Outcome.stop e
     | .ok none => Outcome.ok none
     | .ok (some n) => Outcome.ok (some (BitVec.ofNat w n))
 
 /-- Reads back a pointer stored whole, or null from zeroed memory. -/
-def assemblePtr (bytes : List Byte) : Except UB PtrVal :=
+def assemblePtr (bytes : List Byte) : Except ModelStop PtrVal :=
   match bytes with
   | [] => .error .pointerBytes
   | .ptr p _ :: _ =>
@@ -166,7 +166,7 @@ def assemblePtr (bytes : List Byte) : Except UB PtrVal :=
   | .error e => Outcome.ub e
   | .ok (q, a) =>
     match assemblePtr (read a q.offset.toNat 8) with
-    | .error e => Outcome.ub e
+    | .error e => Outcome.stop e
     | .ok v => Outcome.ok v
 
 /-- Overwrites `n` bytes starting at `offset`. `f` gets each byte's position in the write. -/
@@ -327,8 +327,8 @@ def free (p : PtrVal) (m : Mem) : Outcome (Unit × Mem) :=
     | none => Outcome.ub .badFree
 
 /-- How many bytes from offset `o` come before a zero byte, looking at `fuel` bytes at most. -/
-def strlenFrom (a : Alloc) : (fuel o : Nat) → Except UB Nat
-  | 0, _ => .error .badAccess
+def strlenFrom (a : Alloc) : (fuel o : Nat) → Except Stop Nat
+  | 0, _ => .error (.undefined .badAccess)
   | fuel + 1, o =>
     match a.bytes o with
     | .val b =>
@@ -336,9 +336,9 @@ def strlenFrom (a : Alloc) : (fuel o : Nat) → Except UB Nat
       match strlenFrom a fuel (o + 1) with
       | .ok n => .ok (n + 1)
       | .error e => .error e
-    | .uninit => .error .readUninit
-    | .poison => .error .noundefPoison
-    | .ptr .. => .error .pointerBytes
+    | .uninit => .error (.model .readUninit)
+    | .poison => .error (.undefined .noundefPoison)
+    | .ptr .. => .error (.model .pointerBytes)
 
 /-- C's `strlen`: running off the end of the allocation is undefined. -/
 def strlen (p : PtrVal) (m : Mem) : Outcome (Val 64 × Mem) :=
@@ -350,7 +350,7 @@ def strlen (p : PtrVal) (m : Mem) : Outcome (Val 64 × Mem) :=
     | some a =>
       match strlenFrom a (a.size - q.offset.toNat) q.offset.toNat with
       | .ok n => Outcome.ok (some (BitVec.ofNat 64 n), m)
-      | .error e => Outcome.ub e
+      | .error e => some (.error e)
 
 end Mem
 

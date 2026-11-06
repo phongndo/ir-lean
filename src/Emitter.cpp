@@ -1318,7 +1318,7 @@ void FunctionEmitter::emitCall(const CallBase &C, std::vector<Line> &Out) {
         Call = "andThen (" + Call + ") fun r' => Outcome.ok (r', m)";
       Expr += "\n      if q' == " + Context.functionAddress(Target) + " then " + Call + " else";
     }
-    Expr += "\n      Outcome.ub .unknownCallee : Outcome (" + leanType(C.getType()) + " × Mem))";
+    Expr += "\n      Outcome.stop .unknownCallee : Outcome (" + leanType(C.getType()) + " × Mem))";
     Out.push_back({Line::Bind, Bound, Expr});
   }
   checkCallResult(C, Out);

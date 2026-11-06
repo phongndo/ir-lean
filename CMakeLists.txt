@@ -41,6 +41,23 @@ add_test(
         ${CMAKE_SOURCE_DIR}/tests/differential.py $<TARGET_FILE:llvm-lean>
         ${CMAKE_SOURCE_DIR}/tests/real/ub.ll --runs 3 --expect-ub
 )
+add_test(
+    NAME model_stops
+    COMMAND
+        ${CMAKE_SOURCE_DIR}/tests/differential.py $<TARGET_FILE:llvm-lean>
+        ${CMAKE_SOURCE_DIR}/tests/real/stops.ll --runs 3 --expect-stop
+)
+# `--expect-ub` has to say these aren't undefined. Comparing the output keeps any other failure from passing.
+add_test(
+    NAME model_stops_are_not_undefined
+    COMMAND
+        ${CMAKE_SOURCE_DIR}/tests/differential.py $<TARGET_FILE:llvm-lean>
+        ${CMAKE_SOURCE_DIR}/tests/real/stops.ll --runs 3 --expect-ub
+)
+set_tests_properties(
+    model_stops_are_not_undefined
+    PROPERTIES PASS_REGULAR_EXPRESSION "not undefined: .*model stop: freezePoison"
+)
 add_test(NAME emitter COMMAND ${CMAKE_SOURCE_DIR}/tests/emitter.sh $<TARGET_FILE:llvm-lean>)
 add_test(NAME fuzz COMMAND ${CMAKE_SOURCE_DIR}/tests/fuzz.py $<TARGET_FILE:llvm-lean>)
 add_test(NAME proofs COMMAND ${CMAKE_SOURCE_DIR}/tests/proofs.sh $<TARGET_FILE:llvm-lean>)

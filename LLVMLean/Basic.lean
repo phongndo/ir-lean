@@ -8,7 +8,7 @@ namespace LLVMLean
 /-- An LLVM integer of width `w`. `none` is poison. -/
 abbrev Val (w : Nat) := Option (BitVec w)
 
-/-- Why a run stopped with undefined behavior. -/
+/-- Why a run stopped with undefined behavior, as LLVM defines it. -/
 inductive UB where
   | branchOnPoison
   | switchOnPoison
@@ -26,9 +26,12 @@ inductive UB where
   | overlappingCopy
   /-- `free` of something `malloc` didn't return, or that's already freed. -/
   | badFree
-  -- The rest aren't undefined in LLVM, or LLVM's rules for them are unsettled. The model stops
-  -- instead of choosing an answer, so a proof of `.ok` still holds in LLVM, but a proof that one of
-  -- these happens says nothing about LLVM.
+  deriving Repr, DecidableEq, Inhabited
+
+/-- Why the model stopped instead of choosing an answer. These aren't undefined in LLVM, or LLVM's rules
+for them are unsettled, so a proof of `.ok` still holds in LLVM, but a proof that one of these happens
+says nothing about LLVM. -/
+inductive ModelStop where
   /-- `freeze` of poison picks an arbitrary value. -/
   | freezePoison
   /-- `strlen` of a string with an uninitialized byte before its end. -/
@@ -39,15 +42,22 @@ inductive UB where
   | unknownCallee
   deriving Repr, DecidableEq, Inhabited
 
+/-- Why a run ended without a result. -/
+inductive Stop where
+  | undefined (reason : UB)
+  | model (reason : ModelStop)
+  deriving Repr, DecidableEq, Inhabited
+
 /-- What running code does. The outer `none` means it never finishes. -/
-abbrev Outcome (α : Type) := Option (Except UB α)
+abbrev Outcome (α : Type) := Option (Except Stop α)
 
 namespace Outcome
 @[llvm, inline] def ok (x : α) : Outcome α := some (.ok x)
-@[llvm, inline] def ub (reason : UB) : Outcome α := some (.error reason)
+@[llvm, inline] def ub (reason : UB) : Outcome α := some (.error (.undefined reason))
+@[llvm, inline] def stop (reason : ModelStop) : Outcome α := some (.error (.model reason))
 end Outcome
 
-/-- Runs `k` on the result of `x`, stopping on UB or if `x` never finishes. -/
+/-- Runs `k` on the result of `x`, stopping if `x` stopped or never finishes. -/
 @[llvm, inline] def andThen (x : Outcome α) (k : α → Outcome β) : Outcome β :=
   match x with
   | none => none

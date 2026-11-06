@@ -220,7 +220,8 @@ def eval_in_lean(table, shapes, lean, work):
         "def show' {w : Nat} : Outcome (Val w) → String",
         "  | some (.ok (some v)) => toString v.toNat",
         '  | some (.ok none) => "poison"',
-        '  | some (.error _) => "ub"',
+        '  | some (.error (.undefined _)) => "ub"',
+        '  | some (.error (.model _)) => "stop"',
         '  | none => "diverged"',
     ]
     for s, n in shape_names.items():
@@ -250,7 +251,8 @@ def eval_in_lean(table, shapes, lean, work):
 
 def check_folder(table, shapes, results, work):
     """A value from Lean must equal the fold. Lean's poison or UB may fold to anything, since that
-    only refines. A fold to poison where Lean has a value would make Lean too defined."""
+    only refines, and the model stopping says nothing. A fold to poison where Lean has a value would
+    make Lean too defined."""
     src, decls, keys = [], set(), []
     for name, _, _, shape, ret, body, ds in table:
         decls.update(ds)
@@ -286,7 +288,7 @@ def check_folder(table, shapes, results, work):
         fold = found.get(f"{name}__{ci}")
         if fold is None:
             unfolded += 1
-        elif lean in ("poison", "ub"):
+        elif lean in ("poison", "ub", "stop"):
             refined += 1
         elif fold == "poison" or int(lean) != fold:
             bad.append((name, ci, lean, fold))
@@ -368,7 +370,7 @@ def llvm_version(*command):
 
 
 def check_alive(table, shapes, results, work):
-    jobs = []
+    jobs, stopped = [], []
     for name, _, w, shape, ret, body, ds in table:
         cases = shapes[shape]
         if (
@@ -380,8 +382,12 @@ def check_alive(table, shapes, results, work):
         res = results[name]
         if "diverged" in res:
             continue
+        # A table can't say "the model has no answer": `unreachable` would say undefined.
+        if "stop" in res:
+            stopped.append((name, "the model stops on an input this checks"))
+            continue
         jobs.append((name, shape, ret, body, ds, cases, res, work))
-    proved, failed, skipped = 0, [], []
+    proved, failed, skipped = 0, [], stopped
     with concurrent.futures.ThreadPoolExecutor(max_workers=os.cpu_count() or 4) as pool:
         for name, verdicts in pool.map(alive_case, jobs):
             kinds = [v[0] for v in verdicts if v]
