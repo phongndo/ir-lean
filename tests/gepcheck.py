@@ -22,7 +22,7 @@ import subprocess
 import sys
 import tempfile
 
-from opcheck import lean_env, sh
+from opcheck import NATIVE, lean_env, sh
 
 FLAGS = ["", "inbounds", "nusw", "nuw", "inbounds nuw", "nusw nuw"]
 GLOBAL = "@g = constant [8 x i8] zeroinitializer, align 1\n"
@@ -101,7 +101,7 @@ def model(tool, bodies, work):
     path = os.path.join(work, "Drive.lean")
     with open(path, "w") as f:
         f.write("\n".join(src) + "\n")
-    out = sh(["lean", "--run", path], env=env).stdout.split()
+    out = sh(["lean", *NATIVE, "--run", path], env=env).stdout.split()
     if len(out) != len(LAYOUTS) * len(bodies):
         sys.exit("Lean printed the wrong number of results")
     return [out[n :: len(bodies)] for n in range(len(bodies))]

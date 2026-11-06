@@ -27,6 +27,8 @@ import subprocess
 import sys
 import tempfile
 
+from differential import NATIVE
+
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 WRAP = ["", "nuw", "nsw", "nuw nsw"]
 PREDS = "eq ne ugt uge ult ule sgt sge slt sle".split()
@@ -238,7 +240,7 @@ def eval_in_lean(table, shapes, lean, work):
     path = os.path.join(work, "Drive.lean")
     with open(path, "w") as f:
         f.write("\n".join(src) + "\n")
-    out = sh(["lean", "--run", path], env=env).stdout.split()
+    out = sh(["lean", *NATIVE, "--run", path], env=env).stdout.split()
     results, pos = {}, 0
     for name, _, _, shape, _, _, _ in table:
         n = len(shapes[shape])
