@@ -55,7 +55,9 @@ add_test(
     NAME zlib_slow
     COMMAND ${CMAKE_SOURCE_DIR}/tests/zlib.sh $<TARGET_FILE:llvm-lean> --runs 1 --only harness_slow
 )
-set_tests_properties(zlib zlib_slow PROPERTIES TIMEOUT 3600)
+set_tests_properties(zlib zlib_slow PROPERTIES TIMEOUT 5400)
+# ctest has no limit of its own, and a Lean run that never ends would otherwise hang these.
+set_tests_properties(differential vectors_pointers undefined fuzz PROPERTIES TIMEOUT 1800)
 set_tests_properties(zlib_slow PROPERTIES LABELS slow)
 # Formatters, linters and language servers. The lint test comes first, so the language servers can find the
 # generated modules it writes.

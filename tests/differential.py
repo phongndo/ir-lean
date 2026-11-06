@@ -186,7 +186,7 @@ def run_lean(functions, cases, work):
     path = os.path.join(work, "Drive.lean")
     with open(path, "w") as f:
         f.write("\n".join(src) + "\n")
-    out = sh(["lean", "-M", LEAN_MAX_MB, "--run", path], env=env, timeout=1800).stdout.split()
+    out = sh(["lean", "-M", LEAN_MAX_MB, "--run", path], env=env).stdout.split()
     return out
 
 
