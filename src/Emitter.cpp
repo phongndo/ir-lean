@@ -320,11 +320,13 @@ public:
   std::string emitGlobals() const {
     std::string Out;
     std::vector<const Global *> Ordered;
+    Ordered.reserve(Globals.size());
     for (const auto &G : Globals)
       Ordered.push_back(&G.second);
     std::sort(Ordered.begin(), Ordered.end(),
               [](const Global *A, const Global *B) { return A->Block < B->Block; });
     std::vector<const FunctionAddress *> Addresses;
+    Addresses.reserve(FunctionAddresses.size());
     for (const auto &F : FunctionAddresses)
       Addresses.push_back(&F.second);
     std::sort(Addresses.begin(), Addresses.end(),
@@ -334,7 +336,7 @@ public:
     for (const FunctionAddress *F : Addresses)
       Out += "def " + F->Name + " : Ptr := ⟨" + std::to_string(F->Block) + ", 0#64⟩\n";
     if (!Ordered.empty() || !Addresses.empty())
-      Out += "\n";
+      Out += '\n';
     for (const Global *G : Ordered) {
       Out += "def " + G->Name + "_init : Array Nat := #[";
       for (size_t I = 0; I != G->Init.size(); ++I)
@@ -342,7 +344,7 @@ public:
       Out += "]\n";
     }
     if (!Ordered.empty())
-      Out += "\n";
+      Out += '\n';
     Out += "/-- Memory holding this module's globals. -/\n"
            "def initial (base : Nat → BitVec 64 := Mem.spacedOut) : Mem :=\n  Mem.empty base";
     for (const Global *G : Ordered)
@@ -504,8 +506,8 @@ std::string withValueChecks(AttributeSet Attrs, const std::string &Value) {
   }
   if (Attrs.hasAttribute(Attribute::NonNull))
     Out = "(Mem.nonnull m " + Out + ")";
-  if (Attrs.hasAttribute(Attribute::Alignment))
-    Out = "(Mem.aligned m " + std::to_string(Attrs.getAlignment()->value()) + " " + Out + ")";
+  if (MaybeAlign A = Attrs.getAlignment())
+    Out = "(Mem.aligned m " + std::to_string(A->value()) + " " + Out + ")";
   return Out;
 }
 
@@ -1422,17 +1424,17 @@ std::string FunctionEmitter::emitBlocks() {
       Out += "inductive G" + std::to_string(G) + " where\n";
       for (unsigned I = G * MaxBlocksPerGroup; I != Blocks.size() && I != (G + 1) * MaxBlocksPerGroup; ++I)
         Out += emitConstructor(Blocks[I]);
-      Out += "\n";
+      Out += '\n';
     }
     Out += "inductive Block where\n";
     for (unsigned G = 0; G != Groups; ++G)
       Out += "  | g" + std::to_string(G) + " (block : G" + std::to_string(G) + ")\n";
-    Out += "\n";
+    Out += '\n';
     for (unsigned G = 0; G != Groups; ++G) {
       Out += "def G" + std::to_string(G) + ".step : G" + std::to_string(G) + " → " + NextType + "\n";
       for (unsigned I = G * MaxBlocksPerGroup; I != Blocks.size() && I != (G + 1) * MaxBlocksPerGroup; ++I)
         Out += emitArm(Blocks[I]);
-      Out += "\n";
+      Out += '\n';
     }
     Out += "def step : Block → " + NextType + "\n";
     for (unsigned G = 0; G != Groups; ++G)
@@ -1627,7 +1629,7 @@ Emitted emitModule(Module &M, const std::string &Namespace, const std::string &S
 
   // Modules are files, and some filesystems ignore case.
   std::set<std::string> ModuleNames;
-  auto uniqueModuleName = [&](std::string Name) {
+  auto uniqueModuleName = [&](const std::string &Name) {
     std::string Unique = Name;
     for (unsigned I = 1;; ++I) {
       if (ModuleNames.insert(StringRef(Unique).lower()).second)

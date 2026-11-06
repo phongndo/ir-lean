@@ -33,23 +33,45 @@
                 llvmPackages.lld
                 llvmPackages.llvm
                 ninja
-                nixd
-                nixfmt
                 python3
                 # ruff and ty come from uv.lock, so `uv run` is what picks their versions.
                 uv
+
+                # Formatters, linters and language servers for everything else in the repo.
+                actionlint
+                bash-language-server
+                cmake-lint
+                deadnix
+                editorconfig-checker
+                gersemi
+                neocmakelsp
+                nixd
+                nixfmt
+                rumdl
+                shellcheck
+                shfmt
+                statix
+                taplo
+                yaml-language-server
+                yamlfmt
               ]
               ++ lib.optionals stdenv.hostPlatform.isLinux [
                 # Checks poison and UB behavior in tests/opcheck.py, which skips it if absent.
                 alive2
                 perf
               ];
-            buildInputs = [ llvmPackages.llvm ];
+            # zlib is here for clangd, which looks for the headers of tests/real/zlib_harness.c.
+            buildInputs = [
+              llvmPackages.llvm
+              pkgs.zlib
+            ];
             # tests/proofs.sh proves theorems about this exact source.
             ZLIB_SRC = pkgs.zlib.src;
             # uv uses this Python instead of downloading its own.
             UV_PYTHON = "${pkgs.python3}/bin/python3";
             UV_PYTHON_DOWNLOADS = "never";
+            # Python tools in this shell put their dependencies here, which isn't what uv's Python should see.
+            shellHook = "unset PYTHONPATH";
           };
         }
       );

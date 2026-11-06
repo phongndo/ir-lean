@@ -242,7 +242,7 @@ theorem while_body180_preheader_run (B : Readable m block o n d) (h : Inv a0 b0 
   split
   · rw [run]
     simp only [Zlib.adler32_z.step, llvm_val, ult_toNat, decide_eq_true_eq, BitVec.toNat_ofNat,
-      Nat.reducePow, Nat.reduceMod, jump, andThen, Outcome.ok]
+      Nat.reducePow, Nat.reduceMod, jump, Outcome.ok]
     split
     · omega
     · exact while_body180_run B (len.toNat / 4) i k x y len (by omega) (by omega) (by omega) hi hk h
@@ -359,7 +359,7 @@ theorem while_body33_run (B : Readable m block o n d) (r : Nat) :
     have hdec : (len + 18446744073709546064#64).toNat = len.toNat - 5552 :=
       toNat_dec 5552 rfl (by omega) (by omega)
     rw [run]
-    simp only [Zlib.adler32_z.step, jump, andThen, Outcome.ok]
+    simp only [Zlib.adler32_z.step, jump, Outcome.ok]
     refine do_body_run B _ _ 346 i 0 x y 347#32 rfl (by omega) (by omega) (by omega) h ?_
     intro x' y' hf
     have hf' := hf.reduce
@@ -580,7 +580,7 @@ theorem adler32_z_correct {adler len : BitVec 64} {m : Mem} {block o : Nat}
   simp only [adler32_z, noundef_some]
   rw [run]
   simp only [Zlib.adler32_z.step, hshr, llvm_val, beq_toNat, decide_eq_true_eq, BitVec.toNat_ofNat,
-    Nat.reducePow, Nat.reduceMod, jump, andThen, Outcome.ok]
+    Nat.reducePow, Nat.reduceMod, jump, Outcome.ok]
   split
   · rename_i h1
     subst ha hb
@@ -588,7 +588,7 @@ theorem adler32_z_correct {adler len : BitVec 64} {m : Mem} {block o : Nat}
     exact if_then_run B (by omega) ha' hb'
   · rw [run]
     simp only [Zlib.adler32_z.step, Mem.toVal, hnull, llvm_val, beq_toNat, decide_eq_true_eq,
-      BitVec.toNat_ofNat, Nat.reducePow, Nat.reduceMod, jump, andThen, Outcome.ok]
+      BitVec.toNat_ofNat, Nat.reducePow, Nat.reduceMod, jump, Outcome.ok]
     split
     · omega
     · exec B
