@@ -201,6 +201,13 @@ std::string zeroOf(Type *T) {
   reject("type " + printedType(T));
 }
 
+// Whether this definition is certainly the one a program uses. `weak`, `linkonce` and `common` definitions
+// can be replaced at link time, `_odr` ones by another translation of the same source that needn't behave
+// the same where that source is undefined, and `available_externally` ones by the real one elsewhere.
+bool hasExactLinkage(const GlobalValue &G) {
+  return G.hasExternalLinkage() || G.hasInternalLinkage() || G.hasPrivateLinkage();
+}
+
 // The module-wide things functions refer to: its globals and data layout.
 class ModuleContext {
 public:
@@ -216,6 +223,10 @@ public:
       }
       if (G.isThreadLocal()) {
         Rejected[&G] = "thread-local global @" + G.getName().str();
+        continue;
+      }
+      if (!hasExactLinkage(G) || G.isExternallyInitialized()) {
+        Rejected[&G] = "global @" + G.getName().str() + ", whose initial value may not be this one";
         continue;
       }
       Global Info;
@@ -546,6 +557,64 @@ void checkValueAttributes(AttributeSet Attrs, const Type *T, const char *Where) 
       continue;
     default:
       reject(std::string(Where) + " attribute " + A.getAsString());
+    }
+  }
+}
+
+const char *libraryFunction(const Function &F);
+
+// Attributes on a function or a call. Each one here has been reviewed, and anything else is refused, so a
+// new attribute can't pass unnoticed.
+void checkFunctionAttributes(AttributeSet Attrs, const std::string &Where, bool Library = false) {
+  for (Attribute A : Attrs) {
+    if (A.isStringAttribute()) {
+      // Settings for the backend, and which allocator a C library function belongs to.
+      static const std::set<std::string> Allowed = {
+          "alloc-family",     "frame-pointer", "min-legal-vector-width",      "no-builtins",
+          "no-trapping-math", "probe-stack",   "stack-protector-buffer-size", "target-cpu",
+          "target-features",  "tune-cpu",      "zero-call-used-regs"};
+      if (!Allowed.count(A.getKindAsString().str()))
+        reject(Where + " attribute " + A.getAsString());
+      continue;
+    }
+    // `Mem`'s versions of the C library don't call back into the program.
+    if (Library && A.getKindAsEnum() == Attribute::NoCallback)
+      continue;
+    switch (A.getKindAsEnum()) {
+    // These only change how the code is optimized or lowered.
+    case Attribute::AlwaysInline:
+    case Attribute::Cold:
+    case Attribute::Hot:
+    case Attribute::InlineHint:
+    case Attribute::MinSize:
+    case Attribute::NoInline:
+    case Attribute::NoMerge:
+    case Attribute::NoRedZone:
+    case Attribute::OptimizeForSize:
+    case Attribute::OptimizeNone:
+    case Attribute::StackProtect:
+    case Attribute::StackProtectReq:
+    case Attribute::StackProtectStrong:
+    case Attribute::UWTable:
+    // The model has no threads and no exceptions, so these always hold.
+    case Attribute::NoSync:
+    case Attribute::NoUnwind:
+    // Promises about the function's behavior, as for the value attributes above, listed in docs/trust.md.
+    case Attribute::Memory:
+    case Attribute::NoFree:
+    case Attribute::NoRecurse:
+    // What makes `malloc` and `free` the functions `Mem` defines. Calls to others are refused.
+    case Attribute::AllocKind:
+    case Attribute::AllocSize:
+    // A run of this function that never finishes is undefined in LLVM, as with `llvm.loop.mustprogress` on
+    // a loop, and in the model it's `none`. So a theorem that allows `none` assumes that doesn't happen,
+    // and a theorem that says `= Outcome.ok` isn't affected. Refusing them would refuse most of zlib, and
+    // telling a spinning loop from a callee that never returns isn't something `none` can do.
+    case Attribute::MustProgress:
+    case Attribute::WillReturn:
+      continue;
+    default:
+      reject(Where + " attribute " + A.getAsString());
     }
   }
 }
@@ -1331,6 +1400,22 @@ bool FunctionEmitter::emitIntrinsic(const IntrinsicInst &C, std::vector<Line> &O
 }
 
 void FunctionEmitter::emitCall(const CallBase &C, std::vector<Line> &Out) {
+  checkFunctionAttributes(C.getAttributes().getFnAttrs(), "call");
+  const Function *Direct = C.getCalledFunction();
+  // A function's own promises are checked, but a narrower one at a call isn't, so it's refused. What's known
+  // of the C library is the exception: `Mem.strlen` only reads through its argument, and they all return.
+  AttributeSet CallAttrs = C.getAttributes().getFnAttrs();
+  bool Library = Direct && libraryFunction(*Direct);
+  if (CallAttrs.hasAttribute(Attribute::Memory) &&
+      !(Library && Direct->getName() == "strlen" &&
+        isRefSet(C.getMemoryEffects().getModRef(IRMemLocation::ArgMem))))
+    reject("call attribute memory on " + printed(C));
+  for (Attribute::AttrKind Kind : {Attribute::WillReturn, Attribute::MustProgress})
+    if (CallAttrs.hasAttribute(Kind) && !Library)
+      reject("call attribute " + CallAttrs.getAttribute(Kind).getAsString() + " on " + printed(C));
+  for (Attribute::AttrKind Kind : {Attribute::NoFree, Attribute::NoRecurse})
+    if (CallAttrs.hasAttribute(Kind) && !(Library && Direct->getName() != "free"))
+      reject("call attribute " + CallAttrs.getAttribute(Kind).getAsString() + " on " + printed(C));
   checkValueAttributes(C.getAttributes().getRetAttrs(), C.getType(), "call return");
   if (const auto *Intr = dyn_cast<IntrinsicInst>(&C)) {
     if (!emitIntrinsic(*Intr, Out))
@@ -1445,6 +1530,11 @@ void FunctionEmitter::prepare() {
     reject("variadic function");
   if (F.hasPersonalityFn())
     reject("exception handling");
+  if (!hasExactLinkage(F))
+    reject("linkage: this may not be the definition that runs");
+  if (F.hasPrefixData() || F.hasPrologueData() || F.hasGC())
+    reject("function with prefix data, prologue data or a garbage collector");
+  checkFunctionAttributes(F.getAttributes().getFnAttrs(), "function");
   collectBlocks();
   nameValues();
   computeLiveness();
@@ -1650,17 +1740,57 @@ private:
   std::set<const Function *> OnStack;
 };
 
+// Whether a declaration of a C library function only promises what `Mem`'s version of it does.
+bool keepsItsPromises(const Function &F, bool ReadsArgument, bool WritesArgument, bool Allocates,
+                      bool Frees) {
+  if (!hasExactLinkage(F))
+    return false;
+  try {
+    checkFunctionAttributes(F.getAttributes().getFnAttrs(), "function", /*Library=*/true);
+  } catch (const Unsupported &) {
+    return false;
+  }
+  MemoryEffects Effects = F.getMemoryEffects();
+  if ((ReadsArgument && !isRefSet(Effects.getModRef(IRMemLocation::ArgMem))) ||
+      (WritesArgument && !isModSet(Effects.getModRef(IRMemLocation::ArgMem))) ||
+      (Allocates && !isModSet(Effects.getModRef(IRMemLocation::InaccessibleMem))) ||
+      // `Mem.malloc` can fail, which writes `errno`.
+      (F.getName() == "malloc" && !isModSet(Effects.getModRef(IRMemLocation::ErrnoMem))) ||
+      (Frees && F.hasFnAttribute(Attribute::NoFree)))
+    return false;
+  auto Only = [](AttributeSet Attrs, std::initializer_list<Attribute::AttrKind> Allowed) {
+    for (Attribute A : Attrs)
+      if (A.isStringAttribute() || llvm::find(Allowed, A.getKindAsEnum()) == Allowed.end())
+        return false;
+    return true;
+  };
+  AttributeList Attrs = F.getAttributes();
+  if (!Only(Attrs.getRetAttrs(), {Attribute::NoAlias, Attribute::NoUndef}))
+    return false;
+  AttributeSet Param = Attrs.getParamAttrs(0);
+  if (F.getName() == "malloc")
+    return Only(Param, {Attribute::NoUndef});
+  if (F.getName() == "free")
+    return Only(Param, {Attribute::NoUndef, Attribute::Captures, Attribute::AllocatedPointer});
+  return Only(Param, {Attribute::NoUndef, Attribute::Captures, Attribute::ReadOnly, Attribute::NoFree});
+}
+
 // The Lean for a C library function the model knows, if `F` is one with its standard signature.
 const char *libraryFunction(const Function &F) {
   LLVMContext &Context = F.getContext();
   Type *I64 = Type::getInt64Ty(Context);
   Type *Ptr = PointerType::getUnqual(Context);
   FunctionType *T = F.getFunctionType();
-  if (F.getName() == "malloc" && T == FunctionType::get(Ptr, {I64}, false))
+  if (!F.isDeclaration())
+    return nullptr;
+  if (F.getName() == "malloc" && T == FunctionType::get(Ptr, {I64}, false) &&
+      keepsItsPromises(F, false, false, true, false))
     return "Mem.malloc";
-  if (F.getName() == "free" && T == FunctionType::get(Type::getVoidTy(Context), {Ptr}, false))
+  if (F.getName() == "free" && T == FunctionType::get(Type::getVoidTy(Context), {Ptr}, false) &&
+      keepsItsPromises(F, false, true, true, true))
     return "Mem.free";
-  if (F.getName() == "strlen" && T == FunctionType::get(I64, {Ptr}, false))
+  if (F.getName() == "strlen" && T == FunctionType::get(I64, {Ptr}, false) &&
+      keepsItsPromises(F, true, false, false, false))
     return "Mem.strlen";
   return nullptr;
 }
