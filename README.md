@@ -23,6 +23,10 @@ So are [87 functions from LLVM itself](docs/llvm.md), at the flags upstream buil
 `llvm::decodeULEB128`, `llvm::APInt::tcAdd`, and `llvm::xxh3_64bits` for inputs of at most 16 bytes. A search found
 rewrites of `__clzsi2` and `__ctzsi2` that are faster than `clang -O3`'s output, and Lean proves they do the same.
 
+zlib's `updatewindow`, which copies `inflate`'s output into its sliding window, is proved [memory-safe](docs/memory.md)
+once the window is allocated: for every state meeting its invariant, with room behind the output it copies, it returns,
+changes nothing but the window and three fields, and leaves the invariant holding for the next call.
+
 These are theorems about the LLVM IR, in this project's model of it. They aren't about source programs or
 machine code, and they rest on an unverified emitter. [Trust](docs/trust.md) has the details, and the known gaps.
 
@@ -50,6 +54,7 @@ theorem popcount_correct (x : BitVec 32) :
 | --- | --- |
 | [Status](docs/status.md) | What's proved, what's tested, what's measured |
 | [Trust](docs/trust.md) | What a theorem means, what it rests on, and the known gaps |
+| [Memory safety](docs/memory.md) | What a memory-safety theorem claims, the model of memory, and what it leaves out |
 | [LLVM's own code](docs/llvm.md) | What's proved about llvm-project, how to reproduce it, and what it assumes |
 | [Design](docs/design.md) | What gets emitted, what the model covers, and why |
 | [Testing](docs/testing.md) | How to run the tests and linters, and what each one checks |

@@ -22,7 +22,8 @@ reach the IR.
 **Memory-safe** means no `badAccess`, `misaligned`, `poisonPointer` or similar stop in the model, for
 every input meeting the theorem's preconditions. It doesn't say the function terminates or returns the
 right answer. Those are separate theorems, and code marked `mustprogress` needs the first of them: see
-[Known gaps](#known-gaps-in-the-model).
+[Known gaps](#known-gaps-in-the-model). [Memory safety](memory.md) has the one proved so far, which says more: the
+function returns, and changes only the bytes it names.
 
 **A promise is part of what's checked.** When the optimizer's attributes say something about a function, the
 model checks it on each access, or stops, or the emitter refuses it. So a theorem saying `= Outcome.ok` also
@@ -60,8 +61,9 @@ in the model on a run LLVM calls undefined.
 | Linkage other than `external`, `internal` and `private` is refused, apart from `linkonce_odr` and `weak_odr` definitions. Those translate as this translation's copy, and calls to them are refused, directly, through a pointer or an alias, or from themselves: the linker may keep another copy, which the one-definition rule doesn't make behave the same where the source is undefined | Refused, so sound. A theorem about an `_odr` function is about this copy, and assumes nothing of the one-definition rule. Callers of C++ inline functions that aren't inlined stay out | Decide for [Phase 3](roadmap.md#phase-3-c-and-rust-demonstrations) whether a caller's theorem may assume its module's copy is the one kept |
 | The address in `captures`, `memory(none)` accesses, `noalias` results and `returned` stop the model, since LangRef defines them by what's observable or doesn't say what happens. See [below](#what-the-model-does-at-its-edges) | No answer. Fine for safety proofs, and a refinement can't count them as UB | Stays, unless LangRef settles them |
 | `inbounds` on a freed allocation is poison, since the model has forgotten its size, where LLVM only says any access is undefined | More UB. Fine for safety proofs | Keep it, unless a proof needs the pointer afterward |
+| A stack object is gone once its function returns, so a load through a pointer to it is undefined. LangRef calls it dead, and a load from a dead stack object poison | More UB. Fine for safety proofs, wrong for the source side of a refinement | Keep it, unless a refinement needs it |
 | `undef` constants are refused, and reading uninitialized memory gives poison, where LLVM gives `undef` | More UB. Fine for safety proofs, wrong for the source side of a refinement | Decide how to represent `undef` |
-| `Mem.base` is unconstrained: addresses can be zero, overlap, wrap, or ignore an allocation's alignment | Theorems are stronger than needed, so proofs carry hypotheses like `hnn`, `crcAlign`, `Readable.fits` and `Tables.crcFits` | State well-formed layouts once, as lemmas |
+| `Mem.base` is unconstrained: addresses can be zero, overlap, wrap, or ignore an allocation's alignment | Theorems are stronger than needed, so proofs carry hypotheses like `hnn`, `crcAlign`, `Readable.fits` and `Tables.crcFits` | State well-formed layouts once, as lemmas. `Mem.Object` does this for one object ([memory](memory.md)), and a whole layout is still to do |
 | Provenance is an allocation and the tags of promises it came through. `inttoptr` is refused, reading a stored pointer as an integer stops, and `ptrtoint` gives an address with no notion of exposure | Conservative, and it refuses real code | Document it. Extend only when a demonstration needs it |
 | Stack and `alloca` never fail, and recursion depth is unbounded | A "safe" function can still overflow a real stack | Document it as a native-level caveat |
 | Floating point, atomics, volatile, exceptions, variadics, most external calls, and anything but 64-bit little-endian memory are refused | Refused, so sound | Keep refusing until a phase needs one |

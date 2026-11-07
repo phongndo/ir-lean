@@ -39,6 +39,16 @@ theorem crc32_z_correct {crc len : BitVec 64} (B : Readable m ts block o len.toN
 
 These are theorems about modeled IR. [The trust model](trust.md) says what that does and doesn't give you.
 
+### Memory safety
+
+zlib's `updatewindow` is proved memory-safe in [`UpdateWindow.lean`](../tests/proofs/UpdateWindow.lean). For every
+stream meeting its invariant, with room behind `end`, it returns 0 having changed only the window's first `wsize` bytes
+and three fields, and the invariant holds again, so the same holds across any number of calls. It assumes the window is
+already allocated. Four more theorems there show four of the preconditions are needed, and
+[`MemoryModel.lean`](../tests/proofs/MemoryModel.lean) proves what the model does with invalid accesses.
+[Memory safety](memory.md) has the statement, its preconditions, and what it leaves out. These were checked on top of
+`6293d34`: 955 lines, about 2 seconds and 0.9 GB, and 223 lines for the model's.
+
 ### LLVM's own code
 
 87 functions from `llvm-project` at `llvmorg-23.1.3` are also proved, under the same rules, and each with its own injected bug
@@ -65,11 +75,13 @@ Evidence and not proof. A pass here means no disagreement was found on the input
   the layout as Alive2 confirms, with none unchecked or wrong.
 - **Random functions:** fuzzed integer functions at random optimization levels, against native code.
 - **Undefined behavior:** 46 functions LLVM calls undefined stop the model ([`ub.ll`](../tests/real/ub.ll)),
-  including each promise being broken. 18 that LLVM doesn't call undefined stop without being called so
+  including each promise being broken. 14 memory errors each stop it for their own reason
+  ([`memory_errors.ll`](../tests/real/memory_errors.ll)), and `memory_errors` fails if any reason changes. 18 that LLVM doesn't call undefined stop without being called so
   ([`stops.ll`](../tests/real/stops.ll)).
 - **Promises kept:** 25 functions that keep their promises match native code with no input skipped
   ([`promises.ll`](../tests/real/promises.ll)).
-- **Dependence on the code:** 13 bugs injected into the C each make a proof stop checking.
+- **Dependence on the code:** 16 bugs injected into the C each make a proof stop checking, three of them memory bugs in
+  `updatewindow`.
 - **Dependence on the rules:** as a one-off, 114 rules for GEPs and promises were each broken in turn. 108 were
   caught. Of the rest, 4 needed new tests, which now catch them, 1 only shows on layouts that can't exist and is
   checked directly in Lean, and 1 is implied by the others, with a proof.
@@ -106,6 +118,10 @@ What `inflate` will take, on clang's `-O2` output:
 Checking the translation takes 8 seconds and 1.5 GB, in its own module. Measured before the promise model, the
 median `inflate` block was 4 lines of Lean and the largest 49, and proving things about its blocks cost about 14 seconds once per proof file, to build the equations for its `step`, then almost nothing
 per block.
+
+`updatewindow` cost far more per instruction: about 365 lines of running blocks for its 83 instructions, or 4.4 each.
+It does little arithmetic, but every load, store and copy needs facts about what memory holds, and every store needs
+what it left alone. `inflate_fast` is mostly that kind of code, so the estimate below may be low for it.
 
 So the mechanics scale. At `crc32`'s 0.63 lines per instruction, the 4,191 instructions above come to
 about 2,600 lines of running blocks, and the earlier plan rounded that to about 3,000. That is an

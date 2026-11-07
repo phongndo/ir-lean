@@ -36,7 +36,7 @@ def popcount (x : Val 32) : Outcome (Val 32) :=
 ## What the model covers
 
 The model covers integers, pointers, structs, vectors of integers, memory, globals, function pointers,
-recursion, and `malloc`, `free` and `strlen`. It doesn't cover floating point, atomics, volatile,
+recursion, and `malloc`, `free` and `strlen`. [Memory safety](memory.md) says what of memory it covers, exactly. It doesn't cover floating point, atomics, volatile,
 exceptions, or calls to anything else outside the module, and the emitter leaves those functions out
 and says why.
 

@@ -13,9 +13,17 @@ defaultFacets = ["leanArts", "shared"]
 [[lean_lib]]
 name = "Generated"
 srcDir = "build/generated"
-roots = ["Real", "Zlib", "Crc"]
+roots = ["Real", "Zlib", "Crc", "Inflate"]
 
 [[lean_lib]]
 name = "Proofs"
 srcDir = "tests/proofs"
-roots = ["Adler32", "Crc32", "CrcSpec", "CrcTables", "Popcount"]
+roots = [
+  "Adler32",
+  "Crc32",
+  "CrcSpec",
+  "CrcTables",
+  "MemoryModel",
+  "Popcount",
+  "UpdateWindow",
+]
