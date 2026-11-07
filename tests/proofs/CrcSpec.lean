@@ -7,92 +7,12 @@ spec, and the braid. It's its own module so a change to a proof about a block do
 set_option linter.unusedSimpArgs false
 set_option linter.deprecated false
 set_option linter.unusedVariables false
-open IRLean Crc
+open IRLean IRLean.Table Crc
 
 namespace CrcProof
 
 
 /-! ### Reading the tables through memory -/
-
-theorem length_flatMap_range (g : Nat → List Nat) (hg : ∀ e, (g e).length = 4) (n : Nat) :
-    ((List.range n).flatMap g).length = 4 * n := by
-  induction n with
-  | zero => rfl
-  | succ n ih =>
-    rw [List.range_succ, List.flatMap_append, List.length_append, ih]
-    simp [hg]
-    omega
-
-theorem getElem?_flatMap_range (g : Nat → List Nat) (hg : ∀ e, (g e).length = 4) {n x j : Nat}
-    (hx : x < n) (hj : j < 4) : ((List.range n).flatMap g)[4 * x + j]? = (g x)[j]? := by
-  induction n with
-  | zero => omega
-  | succ n ih =>
-    rw [List.range_succ, List.flatMap_append]
-    by_cases h : x < n
-    · rw [List.getElem?_append_left (by rw [length_flatMap_range g hg]; omega), ih h]
-    · have e : x = n := by omega
-      subst e
-      rw [List.getElem?_append_right (by rw [length_flatMap_range g hg]; omega),
-        length_flatMap_range g hg]
-      simp
-
-theorem length_bytes4 (v : Nat) : (bytes4 v).length = 4 := rfl
-
-/-- A table's entry, in the bytes of its global. -/
-theorem lookup {init : Array Nat} {off n : Nat} {f : Nat → Nat}
-    (h : (init.toList.drop off).take (4 * n) = (List.range n).flatMap fun e => bytes4 (f e))
-    {x j : Nat} (hx : x < n) (hj : j < 4) : init[off + (4 * x + j)]? = (bytes4 (f x))[j]? := by
-  have h1 := getElem?_flatMap_range (fun e => bytes4 (f e)) (fun e => length_bytes4 _) hx hj
-  rw [← h, List.getElem?_take, if_pos (by omega), List.getElem?_drop] at h1
-  simpa using h1
-
-theorem load_entry {m : Mem} {block s off n x v : Nat} {init : Array Nat} {f : Nat → Nat}
-    (hA : m.allocs block = some { size := s, readonly := true, bytes := Mem.globalBytes init })
-    (h : (init.toList.drop off).take (4 * n) = (List.range n).flatMap fun e => bytes4 (f e))
-    (hx : x < n) (hv : f x = v) (hlt : v < 4294967296) (hs : off + 4 * n ≤ s) (hmax : s < 2 ^ 64)
-    (halign : (m.addr ⟨block, BitVec.ofNat 64 (off + 4 * x), []⟩).toNat % 4 = 0) :
-    Mem.loadInt 32 m (some ⟨block, BitVec.ofNat 64 (off + 4 * x), []⟩) 4 =
-      Outcome.ok (some (BitVec.ofNat 32 v)) := by
-  have l0 := lookup h hx (j := 0) (by omega)
-  have l1 := lookup h hx (j := 1) (by omega)
-  have l2 := lookup h hx (j := 2) (by omega)
-  have l3 := lookup h hx (j := 3) (by omega)
-  have hoff : (BitVec.ofNat 64 (off + 4 * x)).toNat = off + 4 * x := by
-    simp only [BitVec.toNat_ofNat]; exact Nat.mod_eq_of_lt (by omega)
-  have fits : ¬ off + 4 * x + 32 / 8 > s := by omega
-  have b0 : init[off + 4 * x + 0]? = some (v % 256) := by subst hv; simpa [bytes4] using l0
-  have b1 : init[off + 4 * x + 1]? = some (v / 256 % 256) := by subst hv; simpa [bytes4, Nat.add_assoc] using l1
-  have b2 : init[off + 4 * x + 2]? = some (v / 65536 % 256) := by subst hv; simpa [bytes4, Nat.add_assoc] using l2
-  have b3 : init[off + 4 * x + 3]? = some (v / 16777216 % 256) := by subst hv; simpa [bytes4, Nat.add_assoc] using l3
-  have g0 : ¬ (v % 256 > 255) := by omega
-  have g1 : ¬ (v / 256 % 256 > 255) := by omega
-  have g2 : ¬ (v / 65536 % 256 > 255) := by omega
-  have g3 : ¬ (v / 16777216 % 256 > 255) := by omega
-  have total : v % 256 + 256 * (v / 256 % 256 + 256 * (v / 65536 % 256 + 256 * (v / 16777216 % 256 + 256 * 0))) = v := by
-    omega
-  have t0 : (BitVec.ofNat 8 (v % 256)).toNat = v % 256 := by simp [BitVec.toNat_ofNat]
-  have t1 : (BitVec.ofNat 8 (v / 256 % 256)).toNat = v / 256 % 256 := by simp [BitVec.toNat_ofNat]
-  have t2 : (BitVec.ofNat 8 (v / 65536 % 256)).toNat = v / 65536 % 256 := by simp [BitVec.toNat_ofNat]
-  have t3 : (BitVec.ofNat 8 (v / 16777216 % 256)).toNat = v / 16777216 % 256 := by simp [BitVec.toNat_ofNat]
-  have hc : m.check ⟨block, BitVec.ofNat 64 (off + 4 * x), []⟩
-      { size := s, readonly := true, bytes := Mem.globalBytes init } false = none :=
-    Mem.check_constant rfl rfl
-  simp only [Mem.loadInt, Mem.access, hA, hoff, fits, if_false, halign, hc, Mem.read, Mem.visible]
-  have hw : ∀ o', m.unwritten ⟨block, BitVec.ofNat 64 (off + 4 * x), []⟩
-      { size := s, readonly := true, bytes := Mem.globalBytes init } o' = false :=
-    fun _ => Mem.unwritten_constant rfl
-  have e0 : Mem.globalBytes init (off + 4 * x + 0) = .val (BitVec.ofNat 8 (v % 256)) := by
-    simp only [Mem.globalBytes, b0, g0, ite_false]
-  have e1 : Mem.globalBytes init (off + 4 * x + 1) = .val (BitVec.ofNat 8 (v / 256 % 256)) := by
-    simp only [Mem.globalBytes, b1, g1, ite_false]
-  have e2 : Mem.globalBytes init (off + 4 * x + 2) = .val (BitVec.ofNat 8 (v / 65536 % 256)) := by
-    simp only [Mem.globalBytes, b2, g2, ite_false]
-  have e3 : Mem.globalBytes init (off + 4 * x + 3) = .val (BitVec.ofNat 8 (v / 16777216 % 256)) := by
-    simp only [Mem.globalBytes, b3, g3, ite_false]
-  have c : ((4 : Nat) != 1 && (0 : Nat) != 0) = false := rfl
-  simp only [List.range, List.range.loop, List.map, c, Bool.false_eq_true, ite_false, hoff, hc, hw, e0, e1, e2,
-    e3, Mem.collect, t0, t1, t2, t3, total]
 
 /-! ### What the code reads and computes -/
 
@@ -119,23 +39,6 @@ structure Tables (m : Mem) (ts : List Tag) : Prop where
   /-- The code looks at the buffer pointer's address, to find its alignment, which its tags have to allow. -/
   addressFree : ∀ x, x ∈ ts → x.noAddress = false
 
-theorem addr_align {m : Mem} {block k : Nat} (hb : block ≠ 0) (ha : (m.base block).toNat % 4 = 0)
-    : (m.addr ⟨block, BitVec.ofNat 64 (4 * k), []⟩).toNat % 4 = 0 := by
-  have h : (block == 0) = false := by simpa using hb
-  simp only [Mem.addr, h, Bool.false_eq_true, ite_false, BitVec.toNat_add, BitVec.toNat_ofNat]
-  omega
-
-theorem mul4 {x : BitVec 64} (hx : x.toNat < 256) :
-    Val.mul (some x) (some 4#64) (nuw := true) (nsw := true) = some (BitVec.ofNat 64 (4 * x.toNat)) := by
-  have h' : x < 256#64 := by simpa [BitVec.lt_def] using hx
-  have h1 : x.umulOverflow 4#64 = false := by bv_decide
-  have h2 : x.smulOverflow 4#64 = false := by bv_decide
-  have e : x * 4#64 = BitVec.ofNat 64 (4 * x.toNat) := by
-    apply BitVec.eq_of_toNat_eq
-    simp only [BitVec.toNat_mul, BitVec.toNat_ofNat]
-    omega
-  simp [Val.mul, h1, h2, e]
-
 variable {m : Mem} {ts : List Tag}
 
 /-- Reads an entry of a table of 256 at offset `off` of a read-only global. -/
@@ -152,26 +55,7 @@ theorem table_load {P : Ptr} {init : Array Nat} {s off n : Nat} {f : Nat → Nat
       Outcome.ok (some (entryV n x)) := by
   have hv : f x.toNat = (steps n x).toNat := by rw [hf, toNat_steps]
   have hlt := steps_lt n (c := x) (by omega)
-  have hal : (m.addr ⟨P.block, BitVec.ofNat 64 (off + 4 * x.toNat), []⟩).toNat % 4 = 0 := by
-    have e : off + 4 * x.toNat = 4 * (off / 4 + x.toNat) := by omega
-    rw [e]
-    exact addr_align hb ha
-  have hload := load_entry (n := 256) hA h hx hv hlt (by omega) hmax hal
-  have toff : (BitVec.ofNat 64 off).toNat = off := by
-    simp only [BitVec.toNat_ofNat]; exact Nat.mod_eq_of_lt (by omega)
-  have td : (BitVec.ofNat 64 (4 * x.toNat)).toNat = 4 * x.toNat := by
-    simp only [BitVec.toNat_ofNat]; omega
-  have hsum : BitVec.ofNat 64 off + BitVec.ofNat 64 (4 * x.toNat) = BitVec.ofNat 64 (off + 4 * x.toNat) := by
-    simp [BitVec.ofNat_add]
-  have hb' : (P.block == 0) = false := by simpa using hb
-  have haddr : (m.addr P).toNat + 4 * x.toNat < 2 ^ 64 := by
-    simp only [Mem.addr, hb', Bool.false_eq_true, ite_false, BitVec.toNat_add, hP, toff]
-    omega
-  have hgep : Mem.gep m (some P) (some (BitVec.ofNat 64 (4 * x.toNat))) (inbounds := true) (nuw := true) =
-      some ⟨P.block, BitVec.ofNat 64 (off + 4 * x.toNat), []⟩ := by
-    rw [Mem.gep_forward hA (by simp only [hP, toff]; omega) hmax haddr (by omega), hP, hsum]
-    cases P; simp_all
-  rw [mul4 hx, hgep, hload]
+  rw [Table.load hA hP hPt hb h hs hmax h4 ha hfit hx (by omega), hv]
   rfl
 
 theorem and255 (x : BitVec 64) : (x &&& 255#64).toNat < 256 := by

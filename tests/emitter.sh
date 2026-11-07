@@ -112,6 +112,26 @@ for attribute in noreturn naked returns_twice sanitize_address strictfp null_poi
   convergent nocf_check speculatable nocallback '"made-up"="1"'; do
   refuses "attribute" "define i32 @f(i32 %x) $attribute { ret i32 %x }"
 done
+refuses 'call attribute nobuiltin' 'declare ptr @malloc(i64)
+define ptr @f() {
+  %p = call ptr @malloc(i64 8) nobuiltin
+  ret ptr %p
+}'
+accepts 'define internal i32 @g(i32 %x) { ret i32 %x }
+define i32 @f(i32 %x) {
+  %y = call i32 @g(i32 %x) nobuiltin
+  ret i32 %y
+}'
+accepts 'declare void @gives_up() noreturn
+define i32 @f(i32 %x) {
+  call void @gives_up() noreturn
+  unreachable
+}'
+refuses 'call to external' 'declare void @returns()
+define i32 @f(i32 %x) {
+  call void @returns()
+  ret i32 %x
+}'
 refuses 'call attribute noreturn' 'declare void @llvm.donothing()
 define void @f() { call void @llvm.donothing() noreturn
   ret void }'
