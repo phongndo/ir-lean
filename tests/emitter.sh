@@ -44,6 +44,49 @@ accepts() {
   fi
 }
 
+# A function of N blocks that calls itself, which keeps it from nesting its blocks.
+recursive_blocks() {
+  local i phi="[ %r, %last ]"
+  printf 'define i32 @f(i32 %%x) {\nentry:\n  br label %%b0\n'
+  for ((i = 0; i < $1 - 4; i++)); do
+    printf 'b%d:\n  %%c%d = icmp eq i32 %%x, %d\n  br i1 %%c%d, label %%done, label %%b%d\n' "$i" "$i" "$i" "$i" "$((i + 1))"
+    phi+=", [ 1, %b$i ]"
+  done
+  printf 'b%d:\n  br label %%last\nlast:\n  %%r = call i32 @f(i32 0)\n  br label %%done\n' "$(($1 - 4))"
+  printf 'done:\n  %%p = phi i32 %s\n  ret i32 %%p\n}\n' "$phi"
+}
+
+# Grouping blocks mustn't lower what a recursive function can have.
+accepts "$(recursive_blocks 200)"
+refuses 'recursive function with more than 200 blocks' "$(recursive_blocks 201)"
+
+# A function of N blocks that doesn't call itself, so it nests them, which calls @$2 if that's given.
+nested_blocks() {
+  local i
+  [ -n "${2:-}" ] && printf 'define i32 @%s() {\n  ret i32 1\n}\n' "$2"
+  printf 'define i32 @f(i32 %%x) {\nentry:\n  br label %%b0\n'
+  for ((i = 0; i < $1 - 2; i++)); do
+    printf 'b%d:\n  %%c%d = icmp eq i32 %%x, %d\n  br i1 %%c%d, label %%done, label %%b%d\n' "$i" "$i" "$i" "$i" "$((i + 1))"
+  done
+  printf 'b%d:\n' "$(($1 - 2))"
+  [ -n "${2:-}" ] && printf '  %%r = call i32 @%s()\n' "$2"
+  printf '  br label %%done\ndone:\n  ret i32 0\n}\n'
+}
+
+# A callee can't share a name with the types that hold a function's nested blocks.
+nested_blocks 33 G0 >"$work/Nested.ll"
+if ! "$tool" "$work/Nested.ll" -o "$work/Nested.lean" --no-code || ! lean "$work/Nested.lean"; then
+  fail 'a function with nested blocks calling @G0 should check'
+fi
+
+# However large a function is, its nested blocks have to fit in the types that hold them.
+nested_blocks 3905 >"$work/Huge.ll"
+"$tool" "$work/Huge.ll" -o "$work/Huge.lean" --no-code
+groups=$(grep -c '^  | g[0-9]* (block : G[0-9]*)$' "$work/Huge.lean")
+if [ "$groups" -gt 244 ]; then
+  fail "a Lean type holds at most 244 constructors, and this has $groups"
+fi
+
 # Linkage: only a definition that's certainly the one a run uses can be proved about.
 for linkage in weak weak_odr linkonce linkonce_odr available_externally; do
   refuses linkage "define $linkage i32 @f(i32 %x) { ret i32 %x }"

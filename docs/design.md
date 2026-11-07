@@ -41,8 +41,8 @@ exceptions, or calls to anything else outside the module, and the emitter leaves
 and says why.
 
 For large modules, `--split DIR` writes one Lean module per function, which takes far less memory to check. All
-of zlib takes about 3 minutes one module at a time, and `inflate` about 4 GB. Lean that's only proved about, not
-run, can use `--no-code`, so Lean doesn't generate code for it: `crc32_z` checks in under a second instead of 9.
+of zlib takes about 2 minutes of CPU one module at a time, and `inflate` about 2.5 GB. Lean that's only proved about,
+not run, can use `--no-code`, so Lean doesn't generate code for it: `inflate` checks in 9 seconds instead of 10.
 
 ## Decisions
 
@@ -63,7 +63,9 @@ run, can use `--no-code`, so Lean doesn't generate code for it: `crc32_z` checks
   Each call gets a new number, since a pointer can outlive its call, so a theorem's final memory is `m.afterCall`.
 - **`tbaa` is out of the IR.** The model doesn't check it yet, so proof targets compile with
   `-fno-strict-aliasing`, and the emitter refuses it.
-- **Lean holds at most 244 constructors per type**, so functions over 200 blocks nest their blocks.
+- **Lean holds at most 244 constructors per type**, and checking a type gets slower faster than it grows,
+  so functions over 32 blocks nest their blocks in groups of 16. Recursive functions can't, which limits
+  them to 200.
 - **Choices the program can't see are oracles in `Mem`:** where each allocation lives, and whether each
   `malloc` fails. A theorem that holds for every `Mem` holds whatever those choices are.
 - **Function addresses are allocations that hold nothing.** A call through a pointer tries each function in the
