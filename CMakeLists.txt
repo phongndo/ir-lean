@@ -63,6 +63,7 @@ set_tests_properties(
 add_test(NAME emitter COMMAND ${CMAKE_SOURCE_DIR}/tests/emitter.sh $<TARGET_FILE:ir-lean>)
 add_test(NAME fuzz COMMAND ${CMAKE_SOURCE_DIR}/tests/fuzz.py $<TARGET_FILE:ir-lean>)
 add_test(NAME proofs COMMAND ${CMAKE_SOURCE_DIR}/tests/proofs.sh $<TARGET_FILE:ir-lean>)
+add_test(NAME llvm COMMAND ${CMAKE_SOURCE_DIR}/tests/llvm.py $<TARGET_FILE:ir-lean>)
 add_test(NAME names COMMAND ${CMAKE_SOURCE_DIR}/tests/names.sh)
 add_test(
     NAME zlib
@@ -77,7 +78,14 @@ add_test(
 )
 set_tests_properties(zlib zlib_slow PROPERTIES TIMEOUT 5400)
 # ctest has no limit of its own, and a Lean run that never ends would otherwise hang these.
-set_tests_properties(differential vectors_pointers undefined fuzz PROPERTIES TIMEOUT 1800)
+set_tests_properties(
+    differential
+    vectors_pointers
+    undefined
+    fuzz
+    llvm
+    PROPERTIES TIMEOUT 1800
+)
 set_tests_properties(zlib_slow PROPERTIES LABELS slow)
 # These compile the same modules, and the second finds them in the cache.
 set_tests_properties(zlib_slow PROPERTIES DEPENDS zlib)

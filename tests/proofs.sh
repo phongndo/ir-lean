@@ -33,7 +33,7 @@ cache=$root/build/proof-cache
 mkdir -p "$cache"
 library=$({
   command lean --version
-  cat "$0" "$root/.lake/build/lib/lean/IRLean.olean" "$root"/.lake/build/lib/lean/IRLean/*.olean
+  cat "$0" "$root/tests/check_axioms.lean" "$root/.lake/build/lib/lean/IRLean.olean" "$root"/.lake/build/lib/lean/IRLean/*.olean
 } | sha256sum | cut -d' ' -f1)
 
 # What's in the cache stays until enough newer entries push it out.
@@ -144,39 +144,7 @@ start() {
 # standard three are allowed, and so is what `bv_decide` adds for each call, an axiom that a Bool it
 # worked out natively is true. A name is easy to fake, so each of those gets worked out again here.
 check_axioms() {
-  in_dir "$work" lean --stdin <<LEAN
-import Lean
-import $1
-open Lean Meta
-
-def bvDecideResult? (env : Environment) : Name → Option Expr
-  | n@(.str (.str (.str _ "_native") "bv_decide") ax) =>
-    if ax.startsWith "ax_" then
-      match env.find? n with
-      | some (.axiomInfo info) =>
-        if info.type.isAppOfArity \`\`Eq 3 && info.type.appArg! == mkConst \`\`Bool.true then
-          some info.type.appFn!.appArg!
-        else none
-      | _ => none
-    else none
-  | _ => none
-
-run_meta do
-  let env ← getEnv
-  let some index := env.getModuleIdx? \`$1 | throwError "no module $1"
-  let mut axioms : NameSet := {}
-  for declaration in env.header.moduleData[index.toNat]!.constNames do
-    for axiom' in ← collectAxioms declaration do
-      axioms := axioms.insert axiom'
-  let mut count : Nat := 0
-  for axiom' in axioms do
-    if [\`\`propext, \`\`Classical.choice, \`\`Quot.sound].contains axiom' then continue
-    let some result := bvDecideResult? env axiom' | throwError "not an allowed axiom: {axiom'}"
-    match ← nativeEqTrue \`bv_decide result with
-    | .success _ => count := count + 1
-    | .notTrue => throwError "not what bv_decide would add: {axiom'}"
-  IO.println s!"at most the standard three, and {count} from bv_decide"
-LEAN
+  sed "s/MODULE/$1/g" "$root/tests/check_axioms.lean" | in_dir "$work" lean --stdin
 }
 
 check_proof() {

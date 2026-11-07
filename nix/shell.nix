@@ -64,6 +64,8 @@ pkgs.mkShell.override { inherit (llvmPackages) stdenv; } {
   ];
   # tests/proofs.sh proves theorems about this exact source.
   ZLIB_SRC = pkgs.zlib.src;
+  # tests/llvm.py proves theorems about this exact source: the monorepo at the tag this shell's clang was built from.
+  LLVM_PROJECT_SRC = llvmPackages.llvm.monorepoSrc;
   # uv uses this Python instead of downloading its own.
   UV_PYTHON = "${pkgs.python3}/bin/python3";
   UV_PYTHON_DOWNLOADS = "never";

@@ -1,0 +1,843 @@
+# What tests/llvm.py proves, from unmodified source in the monorepo at `tag`. See docs/llvm.md.
+
+support = ["Kit", "Bits", "Div", "Words"]
+
+[project]
+repository = "https://github.com/llvm/llvm-project"
+tag = "llvmorg-23.1.3"
+commit = "0d261d1ca552c95a8f007e061c787ac7132fbcbc"
+nix_hash = "sha256-+e5YvYEbCvvEQbLVIQP5hwPp4tEk6EB270bSEMKv0t4="
+
+# compiler-rt/lib/builtins/CMakeLists.txt's BUILTIN_CFLAGS and BUILTIN_DEFS, with CMake's -O3 -DNDEBUG for a Release build.
+[flags.compiler_rt]
+args = [
+  "-O3",
+  "-DNDEBUG",
+  "-std=c11",
+  "-fPIC",
+  "-fno-builtin",
+  "-fvisibility=hidden",
+  "-DVISIBILITY_HIDDEN",
+  "-fomit-frame-pointer",
+]
+include = ["compiler-rt/lib/builtins"]
+
+# libc/cmake/modules/LLVMLibCCompileOptionRules.cmake's flags for x86-64, as far as they change the IR, with the same
+# -fno-strict-aliasing as below for what reads memory, and any name for the namespace, which CMake picks from the version.
+[flags.libc]
+cxx = true
+args = [
+  "-O3",
+  "-DNDEBUG",
+  "-std=c++17",
+  "-DLIBC_NAMESPACE=__llvm_libc",
+  "-fpie",
+  "-ffreestanding",
+  "-fno-builtin",
+  "-fno-exceptions",
+  "-fno-rtti",
+  "-fno-lax-vector-conversions",
+  "-fno-unwind-tables",
+  "-fno-asynchronous-unwind-tables",
+  "-fno-omit-frame-pointer",
+  "-fno-strict-aliasing",
+]
+include = ["libc", "libc/include"]
+
+# llvm/CMakeLists.txt's flags for a Release build, as far as they change the IR, and -fno-strict-aliasing, which isn't one
+# of them: without it the IR has `tbaa`, which the emitter refuses.
+[flags.llvm]
+cxx = true
+llvm_config = true
+args = [
+  "-O3",
+  "-DNDEBUG",
+  "-std=c++17",
+  "-fno-exceptions",
+  "-fno-rtti",
+  "-fvisibility-inlines-hidden",
+  "-funwind-tables",
+  "-fno-strict-aliasing",
+]
+include = ["llvm/include"]
+local_include = ["tests/llvm/include"]
+
+[[target]]
+module = "CrtAshldi3"
+proof = "Ashldi3"
+source = "compiler-rt/lib/builtins/ashldi3.c"
+flags = "compiler_rt"
+functions."__ashldi3" = { theorem = "Llvm.ashldi3_correct" }
+mutants = [
+  { name = "low half shifts one too few", from = '(bits_in_word - b)', to = '(bits_in_word - b + 1)' },
+]
+
+[[target]]
+module = "CrtAshlti3"
+proof = "Ashlti3"
+source = "compiler-rt/lib/builtins/ashlti3.c"
+flags = "compiler_rt"
+functions."__ashlti3" = { theorem = "Llvm.ashlti3_correct" }
+mutants = [
+  { name = "low half shifts one too few", from = '(bits_in_dword - b)', to = '(bits_in_dword - b + 1)' },
+]
+
+[[target]]
+module = "CrtLshrdi3"
+proof = "Lshrdi3"
+source = "compiler-rt/lib/builtins/lshrdi3.c"
+flags = "compiler_rt"
+functions."__lshrdi3" = { theorem = "Llvm.lshrdi3_correct" }
+mutants = [
+  { name = "low half shifts one too few", from = '(bits_in_word - b)', to = '(bits_in_word - b + 1)' },
+]
+
+[[target]]
+module = "CrtLshrti3"
+proof = "Lshrti3"
+source = "compiler-rt/lib/builtins/lshrti3.c"
+flags = "compiler_rt"
+functions."__lshrti3" = { theorem = "Llvm.lshrti3_correct" }
+mutants = [
+  { name = "low half shifts one too few", from = '(bits_in_dword - b)', to = '(bits_in_dword - b + 1)' },
+]
+
+[[target]]
+module = "CrtAshrdi3"
+proof = "Ashrdi3"
+source = "compiler-rt/lib/builtins/ashrdi3.c"
+flags = "compiler_rt"
+functions."__ashrdi3" = { theorem = "Llvm.ashrdi3_correct" }
+mutants = [
+  { name = "low half shifts one too few", from = '(bits_in_word - b)', to = '(bits_in_word - b + 1)' },
+]
+
+[[target]]
+module = "CrtAshrti3"
+proof = "Ashrti3"
+source = "compiler-rt/lib/builtins/ashrti3.c"
+flags = "compiler_rt"
+functions."__ashrti3" = { theorem = "Llvm.ashrti3_correct" }
+mutants = [
+  { name = "low half shifts one too few", from = '(bits_in_dword - b)', to = '(bits_in_dword - b + 1)' },
+]
+
+[[target]]
+module = "CrtBswapsi2"
+proof = "Bswapsi2"
+source = "compiler-rt/lib/builtins/bswapsi2.c"
+flags = "compiler_rt"
+functions."__bswapsi2" = { theorem = "Llvm.bswapsi2_correct" }
+mutants = [
+  { name = "wrong byte", from = '(((u)&0x00ff0000) >> 8)', to = '(((u)&0x00ff0000) >> 9)' },
+]
+
+[[target]]
+module = "CrtBswapdi2"
+proof = "Bswapdi2"
+source = "compiler-rt/lib/builtins/bswapdi2.c"
+flags = "compiler_rt"
+functions."__bswapdi2" = { theorem = "Llvm.bswapdi2_correct" }
+mutants = [
+  { name = "wrong byte", from = '(((u)&0x000000000000ff00ULL) << 40)', to = '(((u)&0x000000000000ff00ULL) << 41)' },
+]
+
+[[target]]
+module = "CrtClzsi2"
+proof = "Clzsi2"
+source = "compiler-rt/lib/builtins/clzsi2.c"
+flags = "compiler_rt"
+functions."__clzsi2" = { theorem = "Llvm.clzsi2_correct" }
+mutants = [
+  { name = "wrong shift", from = 'si_int t = ((x & 0xFFFF0000) == 0) << 4;', to = 'si_int t = ((x & 0xFFFF0000) == 0) << 3;' },
+]
+
+[[target]]
+module = "CrtClzdi2"
+proof = "Clzdi2"
+source = "compiler-rt/lib/builtins/clzdi2.c"
+flags = "compiler_rt"
+functions."__clzdi2" = { theorem = "Llvm.clzdi2_correct" }
+mutants = [
+  { name = "wrong half count", from = '(f & ((si_int)(sizeof(si_int) * CHAR_BIT)))', to = '(f & ((si_int)(sizeof(si_int) * CHAR_BIT - 1)))' },
+]
+
+[[target]]
+module = "CrtClzti2"
+proof = "Clzti2"
+source = "compiler-rt/lib/builtins/clzti2.c"
+flags = "compiler_rt"
+functions."__clzti2" = { theorem = "Llvm.clzti2_correct" }
+mutants = [
+  { name = "wrong half count", from = '((si_int)f & ((si_int)(sizeof(di_int) * CHAR_BIT)))', to = '((si_int)f & ((si_int)(sizeof(di_int) * CHAR_BIT - 1)))' },
+]
+
+[[target]]
+module = "CrtCtzsi2"
+proof = "Ctzsi2"
+source = "compiler-rt/lib/builtins/ctzsi2.c"
+flags = "compiler_rt"
+functions."__ctzsi2" = { theorem = "Llvm.ctzsi2_correct" }
+mutants = [{ name = "wrong shift", from = """si_int t = ((x & 0x0000FFFF) == 0)
+             << 4;""", to = """si_int t = ((x & 0x0000FFFF) == 0)
+             << 3;""" }]
+
+[[target]]
+module = "CrtCtzdi2"
+proof = "Ctzdi2"
+source = "compiler-rt/lib/builtins/ctzdi2.c"
+flags = "compiler_rt"
+functions."__ctzdi2" = { theorem = "Llvm.ctzdi2_correct" }
+mutants = [
+  { name = "wrong half count", from = '(f & ((si_int)(sizeof(si_int) * CHAR_BIT)))', to = '(f & ((si_int)(sizeof(si_int) * CHAR_BIT - 1)))' },
+]
+
+[[target]]
+module = "CrtCtzti2"
+proof = "Ctzti2"
+source = "compiler-rt/lib/builtins/ctzti2.c"
+flags = "compiler_rt"
+functions."__ctzti2" = { theorem = "Llvm.ctzti2_correct" }
+mutants = [
+  { name = "wrong half count", from = '((si_int)f & ((si_int)(sizeof(di_int) * CHAR_BIT)))', to = '((si_int)f & ((si_int)(sizeof(di_int) * CHAR_BIT - 1)))' },
+]
+
+[[target]]
+module = "CrtFfssi2"
+proof = "Ffssi2"
+source = "compiler-rt/lib/builtins/ffssi2.c"
+flags = "compiler_rt"
+functions."__ffssi2" = { theorem = "Llvm.ffssi2_correct" }
+mutants = [
+  { name = "off by one", from = 'return ctzsi(a) + 1;', to = 'return ctzsi(a) + 2;' },
+]
+
+[[target]]
+module = "CrtFfsdi2"
+proof = "Ffsdi2"
+source = "compiler-rt/lib/builtins/ffsdi2.c"
+flags = "compiler_rt"
+functions."__ffsdi2" = { theorem = "Llvm.ffsdi2_correct" }
+mutants = [
+  { name = "off by one", from = 'return ctzsi(x.s.low) + 1;', to = 'return ctzsi(x.s.low) + 2;' },
+]
+
+[[target]]
+module = "CrtFfsti2"
+proof = "Ffsti2"
+source = "compiler-rt/lib/builtins/ffsti2.c"
+flags = "compiler_rt"
+functions."__ffsti2" = { theorem = "Llvm.ffsti2_correct" }
+mutants = [
+  { name = "off by one", from = 'return __builtin_ctzll(x.s.low) + 1;', to = 'return __builtin_ctzll(x.s.low) + 2;' },
+]
+
+[[target]]
+module = "CrtParitysi2"
+proof = "Paritysi2"
+source = "compiler-rt/lib/builtins/paritysi2.c"
+flags = "compiler_rt"
+functions."__paritysi2" = { theorem = "Llvm.paritysi2_correct" }
+mutants = [{ name = "wrong shift", from = 'x ^= x >> 8;', to = 'x ^= x >> 7;' }]
+
+[[target]]
+module = "CrtParitydi2"
+proof = "Paritydi2"
+source = "compiler-rt/lib/builtins/paritydi2.c"
+flags = "compiler_rt"
+functions."__paritydi2" = { theorem = "Llvm.paritydi2_correct" }
+mutants = [
+  { name = "wrong shift", from = 'x2 ^= x2 >> 8;', to = 'x2 ^= x2 >> 7;' },
+]
+
+[[target]]
+module = "CrtParityti2"
+proof = "Parityti2"
+source = "compiler-rt/lib/builtins/parityti2.c"
+flags = "compiler_rt"
+functions."__parityti2" = { theorem = "Llvm.parityti2_correct" }
+mutants = [
+  { name = "wrong shift", from = 'x3 ^= x3 >> 8;', to = 'x3 ^= x3 >> 7;' },
+]
+
+[[target]]
+module = "CrtPopcountsi2"
+proof = "Popcountsi2"
+source = "compiler-rt/lib/builtins/popcountsi2.c"
+flags = "compiler_rt"
+functions."__popcountsi2" = { theorem = "Llvm.popcountsi2_correct" }
+mutants = [
+  { name = "wrong mask", from = 'x = x - ((x >> 1) & 0x55555555);', to = 'x = x - ((x >> 1) & 0x55555554);' },
+]
+
+[[target]]
+module = "CrtPopcountdi2"
+proof = "Popcountdi2"
+source = "compiler-rt/lib/builtins/popcountdi2.c"
+flags = "compiler_rt"
+functions."__popcountdi2" = { theorem = "Llvm.popcountdi2_correct" }
+mutants = [
+  { name = "wrong mask", from = 'x2 = x2 - ((x2 >> 1) & 0x5555555555555555uLL);', to = 'x2 = x2 - ((x2 >> 1) & 0x5555555555555554uLL);' },
+]
+
+[[target]]
+module = "CrtPopcountti2"
+proof = "Popcountti2"
+source = "compiler-rt/lib/builtins/popcountti2.c"
+flags = "compiler_rt"
+functions."__popcountti2" = { theorem = "Llvm.popcountti2_correct" }
+mutants = [
+  { name = "wrong mask", from = 'x3 = (x3 + (x3 >> 4)) &', to = 'x3 = (x3 + (x3 >> 5)) &' },
+]
+
+[[target]]
+module = "CrtCmpdi2"
+proof = "Cmpdi2"
+source = "compiler-rt/lib/builtins/cmpdi2.c"
+flags = "compiler_rt"
+functions."__cmpdi2" = { theorem = "Llvm.cmpdi2_correct" }
+mutants = [{ name = "wrong high comparison", from = """if (x.s.high > y.s.high)
+    return 2;""", to = """if (x.s.high > y.s.high)
+    return 1;""" }]
+
+[[target]]
+module = "CrtCmpti2"
+proof = "Cmpti2"
+source = "compiler-rt/lib/builtins/cmpti2.c"
+flags = "compiler_rt"
+functions."__cmpti2" = { theorem = "Llvm.cmpti2_correct" }
+mutants = [{ name = "wrong high comparison", from = """if (x.s.high > y.s.high)
+    return 2;""", to = """if (x.s.high > y.s.high)
+    return 1;""" }]
+
+[[target]]
+module = "CrtUcmpdi2"
+proof = "Ucmpdi2"
+source = "compiler-rt/lib/builtins/ucmpdi2.c"
+flags = "compiler_rt"
+functions."__ucmpdi2" = { theorem = "Llvm.ucmpdi2_correct" }
+mutants = [{ name = "wrong high comparison", from = """if (x.s.high > y.s.high)
+    return 2;""", to = """if (x.s.high > y.s.high)
+    return 1;""" }]
+
+[[target]]
+module = "CrtUcmpti2"
+proof = "Ucmpti2"
+source = "compiler-rt/lib/builtins/ucmpti2.c"
+flags = "compiler_rt"
+functions."__ucmpti2" = { theorem = "Llvm.ucmpti2_correct" }
+mutants = [{ name = "wrong high comparison", from = """if (x.s.high > y.s.high)
+    return 2;""", to = """if (x.s.high > y.s.high)
+    return 1;""" }]
+
+[[target]]
+module = "CrtNegdi2"
+proof = "Negdi2"
+source = "compiler-rt/lib/builtins/negdi2.c"
+flags = "compiler_rt"
+functions."__negdi2" = { theorem = "Llvm.negdi2_correct" }
+mutants = [
+  { name = "forgets the increment", from = 'return -(du_int)a;', to = 'return ~(du_int)a;' },
+]
+
+[[target]]
+module = "CrtNegti2"
+proof = "Negti2"
+source = "compiler-rt/lib/builtins/negti2.c"
+flags = "compiler_rt"
+functions."__negti2" = { theorem = "Llvm.negti2_correct" }
+mutants = [
+  { name = "forgets the increment", from = 'return -(tu_int)a;', to = 'return ~(tu_int)a;' },
+]
+
+[[target]]
+module = "CrtAddvsi3"
+proof = "Addvsi3"
+source = "compiler-rt/lib/builtins/addvsi3.c"
+flags = "compiler_rt"
+functions."__addvsi3" = { theorem = "Llvm.addvsi3_correct" }
+mutants = [
+  { name = "aborts on zero", from = 'if (b >= 0) {', to = 'if (b > 0) {' },
+]
+
+[[target]]
+module = "CrtSubvsi3"
+proof = "Subvsi3"
+source = "compiler-rt/lib/builtins/subvsi3.c"
+flags = "compiler_rt"
+functions."__subvsi3" = { theorem = "Llvm.subvsi3_correct" }
+mutants = [
+  { name = "aborts on zero", from = 'if (b >= 0) {', to = 'if (b > 0) {' },
+]
+
+[[target]]
+module = "CrtNegvsi2"
+proof = "Negvsi2"
+source = "compiler-rt/lib/builtins/negvsi2.c"
+flags = "compiler_rt"
+functions."__negvsi2" = { theorem = "Llvm.negvsi2_correct" }
+mutants = [{ name = "misses an overflow", from = '''if (a == MIN)
+    compilerrt_abort();''', to = '''if (a == MIN + 1)
+    compilerrt_abort();''' }]
+
+[[target]]
+module = "CrtAbsvsi2"
+proof = "Absvsi2"
+source = "compiler-rt/lib/builtins/absvsi2.c"
+flags = "compiler_rt"
+functions."__absvsi2" = { theorem = "Llvm.absvsi2_correct" }
+mutants = [
+  { name = "misses an overflow", from = 'return (a ^ t) - t;', to = 'return (a ^ t) + t;' },
+]
+
+[[target]]
+module = "CrtAddvdi3"
+proof = "Addvdi3"
+source = "compiler-rt/lib/builtins/addvdi3.c"
+flags = "compiler_rt"
+functions."__addvdi3" = { theorem = "Llvm.addvdi3_correct" }
+mutants = [
+  { name = "aborts on zero", from = 'if (b >= 0) {', to = 'if (b > 0) {' },
+]
+
+[[target]]
+module = "CrtSubvdi3"
+proof = "Subvdi3"
+source = "compiler-rt/lib/builtins/subvdi3.c"
+flags = "compiler_rt"
+functions."__subvdi3" = { theorem = "Llvm.subvdi3_correct" }
+mutants = [
+  { name = "aborts on zero", from = 'if (b >= 0) {', to = 'if (b > 0) {' },
+]
+
+[[target]]
+module = "CrtNegvdi2"
+proof = "Negvdi2"
+source = "compiler-rt/lib/builtins/negvdi2.c"
+flags = "compiler_rt"
+functions."__negvdi2" = { theorem = "Llvm.negvdi2_correct" }
+mutants = [{ name = "misses an overflow", from = '''if (a == MIN)
+    compilerrt_abort();''', to = '''if (a == MIN + 1)
+    compilerrt_abort();''' }]
+
+[[target]]
+module = "CrtAbsvdi2"
+proof = "Absvdi2"
+source = "compiler-rt/lib/builtins/absvdi2.c"
+flags = "compiler_rt"
+functions."__absvdi2" = { theorem = "Llvm.absvdi2_correct" }
+mutants = [
+  { name = "misses an overflow", from = 'return (a ^ t) - t;', to = 'return (a ^ t) + t;' },
+]
+
+[[target]]
+module = "CrtAddvti3"
+proof = "Addvti3"
+source = "compiler-rt/lib/builtins/addvti3.c"
+flags = "compiler_rt"
+functions."__addvti3" = { theorem = "Llvm.addvti3_correct" }
+mutants = [
+  { name = "aborts on zero", from = 'if (b >= 0) {', to = 'if (b > 0) {' },
+]
+
+[[target]]
+module = "CrtSubvti3"
+proof = "Subvti3"
+source = "compiler-rt/lib/builtins/subvti3.c"
+flags = "compiler_rt"
+functions."__subvti3" = { theorem = "Llvm.subvti3_correct" }
+mutants = [
+  { name = "aborts on zero", from = 'if (b >= 0) {', to = 'if (b > 0) {' },
+]
+
+[[target]]
+module = "CrtNegvti2"
+proof = "Negvti2"
+source = "compiler-rt/lib/builtins/negvti2.c"
+flags = "compiler_rt"
+functions."__negvti2" = { theorem = "Llvm.negvti2_correct" }
+mutants = [{ name = "misses an overflow", from = '''if (a == MIN)
+    compilerrt_abort();''', to = '''if (a == MIN + 1)
+    compilerrt_abort();''' }]
+
+[[target]]
+module = "CrtAbsvti2"
+proof = "Absvti2"
+source = "compiler-rt/lib/builtins/absvti2.c"
+flags = "compiler_rt"
+functions."__absvti2" = { theorem = "Llvm.absvti2_correct" }
+mutants = [
+  { name = "misses an overflow", from = 'return (a ^ s) - s;', to = 'return (a ^ s) + s;' },
+]
+
+[[target]]
+module = "CrtUdivsi3"
+proof = "Udivsi3"
+source = "compiler-rt/lib/builtins/udivsi3.c"
+flags = "compiler_rt"
+functions."__udivsi3" = { theorem = "Llvm.Udivsi3.correct", loop = true }
+mutants = [
+  { name = "forgets the last quotient bit", file = "compiler-rt/lib/builtins/int_div_impl.inc", from = "  n = (n << 1) | carry;\n  return n;", to = "  n = (n << 1);\n  return n;" },
+  { name = "one step too few", file = "compiler-rt/lib/builtins/int_div_impl.inc", from = "for (; sr > 0; --sr) {", to = "for (; sr > 1; --sr) {" },
+]
+
+[[target]]
+module = "CrtUmodsi3"
+proof = "Umodsi3"
+source = "compiler-rt/lib/builtins/umodsi3.c"
+flags = "compiler_rt"
+functions."__umodsi3" = { theorem = "Llvm.Umodsi3.correct", loop = true }
+mutants = [
+  { name = "wrong result for 1", file = "compiler-rt/lib/builtins/int_div_impl.inc", from = "  if (sr == N - 1) // d == 1\n    return 0;", to = "  if (sr == N - 1) // d == 1\n    return 1;" },
+]
+
+[[target]]
+module = "CrtUdivdi3"
+proof = "Udivdi3"
+source = "compiler-rt/lib/builtins/udivdi3.c"
+flags = "compiler_rt"
+functions."__udivdi3" = { theorem = "Llvm.Udivdi3.correct", loop = true }
+mutants = [
+  { name = "forgets the last quotient bit", file = "compiler-rt/lib/builtins/int_div_impl.inc", from = "  n = (n << 1) | carry;\n  return n;", to = "  n = (n << 1);\n  return n;" },
+]
+
+[[target]]
+module = "CrtUmoddi3"
+proof = "Umoddi3"
+source = "compiler-rt/lib/builtins/umoddi3.c"
+flags = "compiler_rt"
+functions."__umoddi3" = { theorem = "Llvm.Umoddi3.correct", loop = true }
+mutants = [
+  { name = "wrong result for 1", file = "compiler-rt/lib/builtins/int_div_impl.inc", from = "  if (sr == N - 1) // d == 1\n    return 0;", to = "  if (sr == N - 1) // d == 1\n    return 1;" },
+]
+
+[[target]]
+module = "LlvmMathExtras"
+proof = "MathExtras"
+source = "tests/llvm/wrappers/MathExtras.cpp"
+wrapper = true
+flags = "llvm"
+[target.functions."llvm::Hi_32"]
+theorem = "Llvm.MathExtras.hi32_correct"
+mutants = [
+  { name = "wrong shift", file = "llvm/include/llvm/Support/MathExtras.h", from = "return static_cast<uint32_t>(Value >> 32);", to = "return static_cast<uint32_t>(Value >> 31);" },
+]
+[target.functions."llvm::Lo_32"]
+theorem = "Llvm.MathExtras.lo32_correct"
+mutants = [
+  { name = "wrong half", file = "llvm/include/llvm/Support/MathExtras.h", from = "constexpr uint32_t Lo_32(uint64_t Value) {\n  return static_cast<uint32_t>(Value);", to = "constexpr uint32_t Lo_32(uint64_t Value) {\n  return static_cast<uint32_t>(Value >> 1);" },
+]
+[target.functions."llvm::Make_64"]
+theorem = "Llvm.MathExtras.make64_correct"
+mutants = [
+  { name = "wrong shift", file = "llvm/include/llvm/Support/MathExtras.h", from = "return ((uint64_t)High << 32) | (uint64_t)Low;", to = "return ((uint64_t)High << 31) | (uint64_t)Low;" },
+]
+[target.functions."llvm::isMask_64"]
+theorem = "Llvm.MathExtras.ismask64_correct"
+mutants = [
+  { name = "takes zero", file = "llvm/include/llvm/Support/MathExtras.h", from = "constexpr bool isMask_64(uint64_t Value) {\n  return Value && ((Value + 1) & Value) == 0;", to = "constexpr bool isMask_64(uint64_t Value) {\n  return ((Value + 1) & Value) == 0;" },
+]
+[target.functions."llvm::isShiftedMask_64"]
+theorem = "Llvm.MathExtras.isshiftedmask64_correct"
+mutants = [
+  { name = "needs the lowest bit", file = "llvm/include/llvm/Support/MathExtras.h", from = "return Value && isMask_64((Value - 1) | Value);", to = "return Value && isMask_64(Value);" },
+]
+[target.functions."llvm::isPowerOf2_64"]
+theorem = "Llvm.MathExtras.ispowerof2_64_correct"
+mutants = [
+  { name = "takes zero", file = "llvm/include/llvm/ADT/bit.h", from = "return (Value != 0) && ((Value & (Value - 1)) == 0);", to = "return ((Value & (Value - 1)) == 0);" },
+]
+[target.functions."llvm::Log2_64"]
+theorem = "Llvm.MathExtras.log2_64_correct"
+mutants = [
+  { name = "off by one", file = "llvm/include/llvm/Support/MathExtras.h", from = "return 63 - llvm::countl_zero(Value);", to = "return 64 - llvm::countl_zero(Value);" },
+]
+[target.functions."llvm::Log2_64_Ceil"]
+theorem = "Llvm.MathExtras.log2_64_ceil_correct"
+mutants = [
+  { name = "off by one", file = "llvm/include/llvm/Support/MathExtras.h", from = "return 64 - llvm::countl_zero(Value - 1);", to = "return 64 - llvm::countl_zero(Value);" },
+]
+[target.functions."llvm::MinAlign"]
+theorem = "Llvm.MathExtras.minalign_correct"
+mutants = [
+  { name = "forgets the increment", file = "llvm/include/llvm/Support/MathExtras.h", from = "constexpr uint64_t MinAlign(uint64_t A, uint64_t B) {\n  return (A | B) & (1 + ~(A | B));", to = "constexpr uint64_t MinAlign(uint64_t A, uint64_t B) {\n  return (A | B) & (~(A | B));" },
+]
+[target.functions."llvm::NextPowerOf2"]
+theorem = "Llvm.MathExtras.nextpowerof2_correct"
+mutants = [
+  { name = "misses a shift", file = "llvm/include/llvm/Support/MathExtras.h", from = "A |= (A >> 32);\n", to = "\n" },
+]
+[target.functions."llvm::PowerOf2Ceil"]
+theorem = "Llvm.MathExtras.powerof2ceil_correct"
+mutants = [
+  { name = "allows the overflow", file = "llvm/include/llvm/Support/MathExtras.h", from = "if (!A || A > UINT64_MAX / 2)", to = "if (!A)" },
+]
+[target.functions."llvm::isUIntN"]
+theorem = "Llvm.MathExtras.isuintn_correct"
+mutants = [
+  { name = "wrong limit", file = "llvm/include/llvm/Support/MathExtras.h", from = "return N >= 64 || (x >> N) == 0;", to = "return N >= 63 || (x >> N) == 0;" },
+]
+[target.functions."llvm::maxUIntN"]
+theorem = "Llvm.MathExtras.maxuintn_correct"
+mutants = [
+  { name = "off by one", file = "llvm/include/llvm/Support/MathExtras.h", from = "return UINT64_MAX >> (64 - N);", to = "return UINT64_MAX >> (63 - N);" },
+]
+[target.functions."llvm::minIntN"]
+theorem = "Llvm.MathExtras.minintn_correct"
+mutants = [
+  { name = "off by one", file = "llvm/include/llvm/Support/MathExtras.h", from = "return UINT64_MAX << (N - 1);", to = "return UINT64_MAX << N;" },
+]
+[target.functions."llvm::maxIntN"]
+theorem = "Llvm.MathExtras.maxintn_correct"
+mutants = [
+  { name = "off by one", file = "llvm/include/llvm/Support/MathExtras.h", from = "return (UINT64_C(1) << (N - 1)) - 1;", to = "return (UINT64_C(1) << (N - 1));" },
+]
+[target.functions."llvm::isIntN"]
+theorem = "Llvm.MathExtras.isintn_correct"
+mutants = [
+  { name = "wrong limit", file = "llvm/include/llvm/Support/MathExtras.h", from = "return N >= 64 || (minIntN(N) <= x && x <= maxIntN(N));", to = "return N >= 64 || (minIntN(N) < x && x <= maxIntN(N));" },
+]
+[target.functions."llvm::SignExtend64"]
+theorem = "Llvm.MathExtras.signextend64_correct"
+mutants = [
+  { name = "shifts too little", file = "llvm/include/llvm/Support/MathExtras.h", from = "return int64_t(X << (64 - B)) >> (64 - B);", to = "return int64_t(X << (64 - B)) >> (63 - B);" },
+]
+[target.functions."llvm::AbsoluteDifference"]
+theorem = "Llvm.MathExtras.abs_diff_correct"
+mutants = [
+  { name = "wrong order", file = "llvm/include/llvm/Support/MathExtras.h", from = "return X > Y ? (X - Y) : (Y - X);", to = "return X > Y ? (Y - X) : (Y - X);" },
+]
+[target.functions."llvm::maskTrailingOnes<uint32_t>"]
+theorem = "Llvm.MathExtras.masktrailingones32_correct"
+mutants = [
+  { name = "off by one", file = "llvm/include/llvm/Support/MathExtras.h", from = "return T(-1) >> (Bits - N);", to = "return T(-1) >> (Bits - N - 1);" },
+]
+[target.functions."llvm::maskTrailingOnes<uint64_t>"]
+theorem = "Llvm.MathExtras.masktrailingones64_correct"
+mutants = [
+  { name = "off by one", file = "llvm/include/llvm/Support/MathExtras.h", from = "return T(-1) >> (Bits - N);", to = "return T(-1) >> (Bits - N - 1);" },
+]
+[target.functions."llvm::maskLeadingOnes<uint64_t>"]
+theorem = "Llvm.MathExtras.maskleadingones64_correct"
+mutants = [
+  { name = "forgets to invert", file = "llvm/include/llvm/Support/MathExtras.h", from = "return ~maskTrailingOnes<T>(CHAR_BIT * sizeof(T) - N);", to = "return maskTrailingOnes<T>(CHAR_BIT * sizeof(T) - N);" },
+]
+[target.functions."llvm::reverseBits<uint32_t>"]
+theorem = "Llvm.MathExtras.reversebits32_correct"
+mutants = [
+  { name = "wrong builtin", file = "llvm/include/llvm/Support/MathExtras.h", from = "return __builtin_bitreverse32(Val);", to = "return __builtin_bswap32(Val);" },
+]
+[target.functions."llvm::reverseBits<uint64_t>"]
+theorem = "Llvm.MathExtras.reversebits64_correct"
+mutants = [
+  { name = "wrong builtin", file = "llvm/include/llvm/Support/MathExtras.h", from = "return __builtin_bitreverse64(Val);", to = "return __builtin_bswap64(Val);" },
+]
+
+[[target]]
+module = "LlvmLEB128"
+proof = "LEB128"
+source = "tests/llvm/wrappers/LEB128.cpp"
+wrapper = true
+flags = "llvm"
+[target.functions."llvm::decodeULEB128"]
+theorem = "Llvm.LEB128.decodeuleb128_correct"
+hard = true
+loop = true
+memory = true
+mutants = [
+  { name = "wrong mask", file = "llvm/include/llvm/Support/LEB128.h", from = "uint64_t Slice = *p & 0x7f;\n    if (LLVM_UNLIKELY(Shift >= 63) &&\n        ((Shift == 63 && (Slice << Shift >> Shift) != Slice) ||", to = "uint64_t Slice = *p & 0x3f;\n    if (LLVM_UNLIKELY(Shift >= 63) &&\n        ((Shift == 63 && (Slice << Shift >> Shift) != Slice) ||" },
+  { name = "wrong shift step", file = "llvm/include/llvm/Support/LEB128.h", from = "    Shift += 7;\n  } while (*p++ >= 128);\n  if (n)\n    *n = (unsigned)(p - orig_p);\n  return Value;", to = "    Shift += 6;\n  } while (*p++ >= 128);\n  if (n)\n    *n = (unsigned)(p - orig_p);\n  return Value;" },
+  { name = "misses the overflow at 63", file = "llvm/include/llvm/Support/LEB128.h", from = "((Shift == 63 && (Slice << Shift >> Shift) != Slice) ||\n         (Shift > 63 && Slice != 0))) {\n      if (error)\n        *error = \"uleb128 too big for uint64\";", to = "((Shift > 63 && Slice != 0))) {\n      if (error)\n        *error = \"uleb128 too big for uint64\";" },
+]
+
+[[target]]
+module = "LlvmCRC"
+proof = "CRC"
+source = "llvm/lib/Support/CRC.cpp"
+flags = "llvm"
+[target.functions."llvm::crc32(uint32_t, ArrayRef<uint8_t>)"]
+theorem = "Llvm.CRC.crc32_correct"
+hard = true
+loop = true
+memory = true
+mutants = [
+  { name = "wrong table entry", from = "0x00000000, 0x77073096,", to = "0x00000000, 0x77073097," },
+  { name = "wrong shift", from = "CRC = CRCTable[TableIdx] ^ (CRC >> 8);", to = "CRC = CRCTable[TableIdx] ^ (CRC >> 7);" },
+  { name = "no final inversion", from = "return CRC ^ 0xFFFFFFFFU;", to = "return CRC;" },
+]
+
+[[target]]
+module = "LlvmAPInt"
+proof = "APInt"
+source = "llvm/lib/Support/APInt.cpp"
+flags = "llvm"
+[target.functions."llvm::APInt::tcIsZero"]
+theorem = "Llvm.APInt.tcIsZero_correct"
+loop = true
+memory = true
+mutants = [
+  { name = "checks one word too few", from = "bool APInt::tcIsZero(const WordType *src, unsigned parts) {\n  for (unsigned i = 0; i < parts; i++)", to = "bool APInt::tcIsZero(const WordType *src, unsigned parts) {\n  for (unsigned i = 1; i < parts; i++)" },
+]
+[target.functions."llvm::APInt::tcCompare"]
+theorem = "Llvm.APInt.tcCompare_correct"
+loop = true
+memory = true
+mutants = [
+  { name = "wrong sign", from = "return (lhs[parts] > rhs[parts]) ? 1 : -1;", to = "return (lhs[parts] < rhs[parts]) ? 1 : -1;" },
+]
+[target.functions."llvm::APInt::tcAdd"]
+theorem = "Llvm.APInt.tcAdd_correct"
+hard = true
+loop = true
+memory = true
+mutants = [
+  { name = "drops the carry", from = "dst[i] += rhs[i] + 1;\n      c = (dst[i] <= l);\n    } else {\n      dst[i] += rhs[i];\n      c = (dst[i] < l);\n    }\n  }\n\n  return c;\n}\n\n/// This function adds a single", to = "dst[i] += rhs[i];\n      c = (dst[i] <= l);\n    } else {\n      dst[i] += rhs[i];\n      c = (dst[i] < l);\n    }\n  }\n\n  return c;\n}\n\n/// This function adds a single" },
+  { name = "wrong carry out", from = "c = (dst[i] < l);\n    }\n  }\n\n  return c;\n}\n\n/// This function adds a single", to = "c = (dst[i] <= l);\n    }\n  }\n\n  return c;\n}\n\n/// This function adds a single" },
+]
+
+[[target]]
+module = "LibcGenAbs"
+proof = "LibcAbs"
+source = "libc/src/stdlib/abs.cpp"
+flags = "libc"
+functions."__llvm_libc::abs" = { theorem = "Llvm.abs_correct" }
+mutants = [
+  { name = "injected bug", file = "libc/src/__support/integer_operations.h", from = "return (n < 0) ? -n : n;", to = "return (n <= 0) ? n : -n;" },
+]
+
+[[target]]
+module = "LibcGenLabs"
+proof = "LibcLabs"
+source = "libc/src/stdlib/labs.cpp"
+flags = "libc"
+functions."__llvm_libc::labs" = { theorem = "Llvm.labs_correct" }
+mutants = [
+  { name = "injected bug", file = "libc/src/__support/integer_operations.h", from = "return (n < 0) ? -n : n;", to = "return (n <= 0) ? n : -n;" },
+]
+
+[[target]]
+module = "LibcGenLlabs"
+proof = "LibcLlabs"
+source = "libc/src/stdlib/llabs.cpp"
+flags = "libc"
+functions."__llvm_libc::llabs" = { theorem = "Llvm.llabs_correct" }
+mutants = [
+  { name = "injected bug", file = "libc/src/__support/integer_operations.h", from = "return (n < 0) ? -n : n;", to = "return (n <= 0) ? n : -n;" },
+]
+
+[[target]]
+module = "LibcGenIsdigit"
+proof = "LibcIsdigit"
+source = "libc/src/ctype/isdigit.cpp"
+flags = "libc"
+functions."__llvm_libc::isdigit" = { theorem = "Llvm.isdigit_correct" }
+mutants = [
+  { name = "injected bug", file = "libc/src/__support/ctype_utils.h", from = "case '0':\n", to = "case '/':\n" },
+]
+
+[[target]]
+module = "LibcGenIslower"
+proof = "LibcIslower"
+source = "libc/src/ctype/islower.cpp"
+flags = "libc"
+functions."__llvm_libc::islower" = { theorem = "Llvm.islower_correct" }
+mutants = [
+  { name = "injected bug", file = "libc/src/__support/ctype_utils.h", from = "LIBC_INLINE constexpr bool islower(char ch) {\n  switch (ch) {\n  case 'a':\n", to = "LIBC_INLINE constexpr bool islower(char ch) {\n  switch (ch) {\n  case 'A':\n" },
+]
+
+[[target]]
+module = "LibcGenIsupper"
+proof = "LibcIsupper"
+source = "libc/src/ctype/isupper.cpp"
+flags = "libc"
+functions."__llvm_libc::isupper" = { theorem = "Llvm.isupper_correct" }
+mutants = [
+  { name = "injected bug", file = "libc/src/__support/ctype_utils.h", from = "LIBC_INLINE constexpr bool isupper(char ch) {\n  switch (ch) {\n  case 'A':\n", to = "LIBC_INLINE constexpr bool isupper(char ch) {\n  switch (ch) {\n  case 'a':\n" },
+]
+
+[[target]]
+module = "LibcGenIsblank"
+proof = "LibcIsblank"
+source = "libc/src/ctype/isblank.cpp"
+flags = "libc"
+functions."__llvm_libc::isblank" = { theorem = "Llvm.isblank_correct" }
+mutants = [
+  { name = "injected bug", file = "libc/src/ctype/isblank.cpp", from = "return static_cast<int>(c == ' ' || c == '\\t');", to = "return static_cast<int>(c == ' ');" },
+]
+
+[[target]]
+module = "LibcGenIscntrl"
+proof = "LibcIscntrl"
+source = "libc/src/ctype/iscntrl.cpp"
+flags = "libc"
+functions."__llvm_libc::iscntrl" = { theorem = "Llvm.iscntrl_correct" }
+mutants = [
+  { name = "injected bug", file = "libc/src/ctype/iscntrl.cpp", from = "return static_cast<int>(ch < 0x20 || ch == 0x7f);", to = "return static_cast<int>(ch < 0x20);" },
+]
+
+[[target]]
+module = "LibcGenIsgraph"
+proof = "LibcIsgraph"
+source = "libc/src/ctype/isgraph.cpp"
+flags = "libc"
+functions."__llvm_libc::isgraph" = { theorem = "Llvm.isgraph_correct" }
+mutants = [
+  { name = "injected bug", file = "libc/src/__support/ctype_utils.h", from = "return 0x20 < ch && ch < 0x7f;", to = "return 0x20 <= ch && ch < 0x7f;" },
+]
+
+[[target]]
+module = "LibcGenIsascii"
+proof = "LibcIsascii"
+source = "libc/src/ctype/isascii.cpp"
+flags = "libc"
+functions."__llvm_libc::isascii" = { theorem = "Llvm.isascii_correct" }
+mutants = [
+  { name = "injected bug", file = "libc/src/ctype/isascii.cpp", from = "return static_cast<int>((c & (~0x7f)) == 0);", to = "return static_cast<int>((c & (~0xff)) == 0);" },
+]
+
+[[target]]
+module = "LibcGenToascii"
+proof = "LibcToascii"
+source = "libc/src/ctype/toascii.cpp"
+flags = "libc"
+functions."__llvm_libc::toascii" = { theorem = "Llvm.toascii_correct" }
+mutants = [
+  { name = "injected bug", file = "libc/src/ctype/toascii.cpp", from = "return (c & 0x7f);", to = "return (c & 0xff);" },
+]
+
+[[target]]
+module = "CrtUdivmoddi4"
+proof = "Udivmoddi4"
+source = "compiler-rt/lib/builtins/udivmoddi4.c"
+flags = "compiler_rt"
+# Upstream doesn't pass this. Without it, the store through `rem` has `tbaa`, which the emitter refuses.
+args = ["-fno-strict-aliasing"]
+[target.functions."__udivmoddi4"]
+theorem = "Llvm.Udivmoddi4.udivmoddi4_correct"
+hard = true
+loop = true
+memory = true
+mutants = [
+  { name = "last carry dropped", from = "q.all = (q.all << 1) | carry;", to = "q.all = (q.all << 1);" },
+  { name = "wrong power-of-2 remainder", from = "*rem = n.s.low & (d.s.low - 1);", to = "*rem = n.s.low & d.s.low;" },
+  { name = "wrong high-word remainder", from = "r.s.high = n.s.high % d.s.high;\n        r.s.low = 0;", to = "r.s.high = n.s.high % d.s.high;\n        r.s.low = 1;" },
+  { name = "wrong shift count", from = "sr = 1 + n_uword_bits + clzsi(d.s.low) - clzsi(n.s.high);", to = "sr = 2 + n_uword_bits + clzsi(d.s.low) - clzsi(n.s.high);" },
+  { name = "one step too few", from = "for (; sr > 0; --sr) {", to = "for (; sr > 1; --sr) {" },
+]
+
+[[target]]
+module = "LlvmXxhash"
+proof = "Xxhash"
+source = "llvm/lib/Support/xxhash.cpp"
+flags = "llvm"
+[target.functions."llvm::xxh3_64bits (up to 16 bytes)"]
+theorem = "Llvm.Xxhash.xxh3_64bits_correct"
+hard = true
+memory = true
+partial = "only inputs of at most 16 bytes"
+mutants = [
+  { name = "wrong secret byte", from = "0xb8, 0xfe, 0x6c, 0x39, 0x23, 0xa4, 0x4b, 0xbe, 0x7c, 0x01, 0x81, 0x2c, 0xf7, 0x21, 0xad, 0x1c,", to = "0xb8, 0xfe, 0x6c, 0x39, 0x23, 0xa4, 0x4b, 0xbe, 0x7d, 0x01, 0x81, 0x2c, 0xf7, 0x21, 0xad, 0x1c," },
+  { name = "reads the wrong end", from = "input_hi ^= endian::read64le(input + len - 8);", to = "input_hi ^= endian::read64le(input + len - 7);" },
+  { name = "wrong multiplier", from = "constexpr uint64_t PRIME_MX2 = 0x9FB21C651E98DF25;", to = "constexpr uint64_t PRIME_MX2 = 0x9FB21C651E98DF27;" },
+  { name = "wrong 1-3 byte mix", from = "((uint32_t)c3 << 0) | ((uint32_t)len << 8);", to = "((uint32_t)c3 << 1) | ((uint32_t)len << 8);" },
+]
