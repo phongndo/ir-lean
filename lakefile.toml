@@ -18,4 +18,4 @@ roots = ["Real", "Zlib", "Crc"]
 [[lean_lib]]
 name = "Proofs"
 srcDir = "tests/proofs"
-roots = ["Adler32", "Crc32", "Popcount"]
+roots = ["Adler32", "Crc32", "CrcSpec", "CrcTables", "Popcount"]
