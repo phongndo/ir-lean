@@ -723,8 +723,18 @@ def generate(run: Run, ll: Path) -> Path:
     return lean
 
 
+def link_library(run: Run) -> None:
+    """IRLean alone, for LEAN_PATH. The repo's other libraries are built next to it, and leanchecker checks
+    every module there whose name starts with one it's given: the repo's own `Real.popcount`, for `Real`."""
+    library = run.work / "library"
+    library.mkdir()
+    for entry in LIBRARY.iterdir():
+        if entry.name == "IRLean" or entry.name.startswith("IRLean."):
+            (library / entry.name).symlink_to(entry)
+
+
 def lean_env(run: Run) -> dict[str, str]:
-    return {**os.environ, "LEAN_PATH": f"{run.work / 'lean'}{os.pathsep}{LIBRARY}"}
+    return {**os.environ, "LEAN_PATH": f"{run.work / 'lean'}{os.pathsep}{run.work / 'library'}"}
 
 
 def lean_argv(run: Run, *args: str) -> list[str]:
@@ -1360,6 +1370,7 @@ def verify(raw: Any, base: Path, tool: Path = DEFAULT_TOOL, work: Path | None = 
         work.mkdir(parents=True, exist_ok=True)
         run.check_template = CHECK_TEMPLATE.read_text()
         preflight(run)
+        link_library(run)
         copy_inputs(run)
         replay = json.loads(json.dumps(request))
         replay["input"] = {
