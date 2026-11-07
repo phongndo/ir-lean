@@ -41,8 +41,8 @@ exceptions, or calls to anything else outside the module, and the emitter leaves
 and says why.
 
 For large modules, `--split DIR` writes one Lean module per function, which takes far less memory to check. All
-of zlib takes about 2 minutes of CPU one module at a time, and `inflate` about 2.5 GB. Lean that's only proved about,
-not run, can use `--no-code`, so Lean doesn't generate code for it: `inflate` checks in 9 seconds instead of 10.
+of zlib takes about a minute of CPU one module at a time, and `inflate` about 2.5 GB. Lean that's only proved about,
+not run, can use `--no-code`, so Lean doesn't generate code for it: `inflate` checks in 8 seconds instead of 10.
 
 ## Decisions
 

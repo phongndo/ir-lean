@@ -8,6 +8,7 @@ work=$(mktemp -d)
 trap 'rm -rf "$work"' EXIT
 cat >"$work/tokens.lean" <<'LEAN'
 import IRLean
+import Lean
 open Lean Parser
 #eval show CoreM Unit from do
   let toks := (getTokenTable (← getEnv)).values.filter fun s =>
