@@ -27,7 +27,8 @@ right answer. Those are separate theorems, and code marked `mustprogress` needs 
 **A promise is part of what's checked.** When the optimizer's attributes say something about a function, the
 model checks it on each access, or stops, or the emitter refuses it. So a theorem saying `= Outcome.ok` also
 says the function kept those promises on that run. The exceptions are `mustprogress` and `willreturn`, in the
-gaps below.
+gaps below, and `dereferenceable` on a result, `allocsize` and `allockind`, in
+[Open soundness issues](#open-soundness-issues).
 
 **Refinement is not safety.** "`tgt` refines `src`" says `tgt` only does what `src` allowed. If `src`
 hits undefined behavior on an input, any `tgt` refines it on that input, so a refinement certificate
@@ -83,6 +84,28 @@ side: the source must have no more UB than LLVM, and the target no less. So a si
 semantics can't serve both, which is why [Phase 4](roadmap.md#phase-4-certified-translation-validation-and-superoptimization) depends on
 separating these first.
 
+## Open soundness issues
+
+An audit on 2026-11-07 at `6293d34` found these, and reproduced each but the `tests/llvm.py` one. Each lets through a theorem that
+LLVM's semantics or our checks don't back. None changes a theorem proved so far, as far as the audit could check.
+The IR behind `tests/proofs.sh` and 50 of the 62 `tests/llvm.py` targets has none of these constructs, apart from
+calls to an abort that pass only constants. The other 12, the C++ ones, didn't compile on macOS, but none of
+their sources names anything `sel`. No proof uses `implemented_by`, `extern`, `run_meta` or a `debug` option, or
+defines anything in a generated module's namespace.
+
+| Issue | Effect | Fix |
+| --- | --- | --- |
+| `switch` binds its selector as `sel` (`emitTerminator` in `src/Emitter.cpp`), and `sel` isn't reserved, so a value named `%sel` used in a case is replaced by the selector. For `int pick(int sel, int op)` with `switch (op)`, clang's `-O2` IR proves `pick(5, 2) = 6`, where the C returns 15 | A false theorem, resting only on the standard axioms | Bind a name the emitter can't produce, and pin `pick` in `tests/emitter.sh` |
+| `tests/check_axioms.lean` accepts any axiom named like `bv_decide`'s if compiled code evaluates it to `true`. `@[implemented_by]` makes compiled code disagree with the logic, so a module proving `1 = 2` passes | A false theorem passes `tests/proofs.sh` and `tests/llvm.py` | Accept only the axioms `bv_decide` produces, and refuse `implemented_by` and `extern` in proofs |
+| `set_option debug.skipKernelTC true` with `addDecl` adds a theorem the kernel never checked. It compiles with warnings as errors, and passes the axiom check with no axioms. `leanchecker`, which ships with Lean 4.35, rejects it | The same | Run `leanchecker` on each proof's module, and add both of these to `must_reject` |
+| `dereferenceable(n)` on a function's or a call's result is accepted and never checked. A call to a function returning 100 bytes past a 4-byte `alloca` under `dereferenceable(8)` returns normally, where LangRef says it's undefined | Less UB, on a promise the model claims to check | Check it where the call returns, or refuse it there |
+| The emitter doesn't run LLVM's verifier. IR that `opt -passes=verify` rejects, such as `llvm.lifetime.start` on a constant global, is accepted, and the model then lets a store to that constant succeed | Theorems about IR LLVM doesn't accept. Clang's output is verified, but hand-written and generated IR isn't | Call `verifyModule` after parsing |
+| `tests/llvm.py` checks only that a theorem's statement mentions the generated module, and passes when the emitter left functions out | A proof can define its own function in that namespace and prove something about it. Found by reading, not tried | Check where each constant in the statement comes from, and fail when the target was left out |
+| `allocsize` and `allockind` are allowed on definitions and calls, and never checked | Less UB, on promises the model claims to check | Refuse them, apart from the C library's |
+| A call outside the module that doesn't return stops the model before its arguments and call-site attributes are checked, so a poison `noundef` argument stops where LLVM calls it undefined | A theorem that stops there says less than it seems. Every such call proved so far passes constants | Evaluate and check the arguments first |
+| A constant `alloca` size that overflows wraps: `alloca i32, i64 4611686018427387905` makes a 4-byte allocation, and storing to it succeeds | Less UB, beyond "never fails" above | Refuse sizes that overflow |
+| A definition another module could replace at load time, as with the `SemanticInterposition` module flag, is accepted, since the linkage check doesn't ask `isInterposable()` | A theorem about this body may not be about the one that runs | Refuse interposable definitions |
+
 ## Gaps in how we check
 
 - The promise rules rest on a reading of LangRef, their tests, an independent review and a one-off mutation
@@ -121,5 +144,6 @@ entries of `prev` that were never written, which a comment in its source says is
 - **Real input:** CI regenerates the Lean from the compiler's output, so nothing can be hand-edited.
 - **Break it on purpose:** injecting a bug into the source must make the proof fail.
 - **Clean axioms:** `tests/proofs.sh` checks every declaration in a proof's module, and allows only the standard
-  three and what `bv_decide` adds, which it recomputes.
+  three and what `bv_decide` adds, which it recomputes. That check and the kernel can both be bypassed today:
+  see [Open soundness issues](#open-soundness-issues).
 - **Checked spec:** a person reads the theorem statement, and the spec passes known test vectors.
