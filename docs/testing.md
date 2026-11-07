@@ -8,8 +8,8 @@ The dev shell works on Linux and on Apple silicon Macs. The proofs compile for x
 they check the same IR everywhere. On Macs, `lint` and `lsp` fail on C++ only: `clang-tidy` and `clangd` report
 errors there that don't appear on Linux, so use `-LE 'lint|slow'` to skip them.
 
-Run `lake build`, then `ctest --test-dir build`, which takes about a minute on 32 cores. Add `-LE slow` to skip
-`zlib_slow`.
+Run `lake build`, then `ctest --test-dir build`. Add `-LE slow` to skip `zlib_slow`. With that, on 32 cores, a first
+run takes about 45 s, and a run with nothing changed about 4 s.
 
 | Test | What it checks |
 | --- | --- |
@@ -32,9 +32,13 @@ Run `lake build`, then `ctest --test-dir build`, which takes about a minute on 3
 The dev shell sets `CTEST_PARALLEL_LEVEL`, how many tests run at once, and `LEAN_JOBS`, how many Lean processes
 each runs at once, from the machine's cores and memory. Compiled modules stay in `build/lean-cache`, so a run only
 recompiles what changed. `proofs` keeps its compiled modules and the checks that passed in `build/proof-cache`, and
-the other tests keep what Lean printed and what Alive2 proved in `build/result-cache`. These are named after
-everything they read, so a test only repeats what could come out differently, and only a pass is kept. CI doesn't
-keep those two directories, so it works everything out on every run. To do the same locally, delete them.
+the other tests keep what Lean printed and what Alive2, `clang-tidy` and the language servers passed in
+`build/result-cache`. These are named after everything they read, so a test only repeats what could come out
+differently, and only a pass is kept. CI doesn't keep those two directories, so it works everything out on every
+run. To do the same locally, delete them.
+
+`tests/bench.py` times what you wait for after each kind of change, from a cold build to an edit to the model, with
+real edits it undoes afterwards.
 
 ## Formatters, linters and language servers
 

@@ -44,7 +44,7 @@ LEAN_JOBS = int(os.environ.get("LEAN_JOBS", "4"))
 LEAN_CACHE = os.environ.get("LEAN_CACHE", os.path.join(ROOT, "build", "lean-cache"))
 # What Lean printed and what Alive2 proved, named after everything that went into it. CI doesn't keep this, so
 # there every run works it all out again. To do that here, delete the directory.
-RESULTS = os.environ.get("RESULT_CACHE", os.path.join(ROOT, "build", "result-cache"))
+RESULTS = os.path.join(ROOT, "build", "result-cache")
 # Enough for a few versions of everything.
 RESULTS_KEPT = 2000
 # The library, natively. `lake build` makes it. Interpreting it is about 10 times slower.

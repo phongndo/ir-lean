@@ -50,7 +50,23 @@ check() {
 }
 
 check 'C and C++ format' clang-format --dry-run --Werror "${cpp[@]}" "${c[@]}"
-check 'C++ lint' clang-tidy -p build --quiet "${cpp[@]}"
+# clang-tidy's analyzer takes seconds, so a pass is kept, named after everything it reads. CI doesn't keep
+# build/result-cache, so it runs every time there.
+tidy() {
+  local key
+  key=$({
+    command -v clang-tidy
+    printf '%s\n' "$1"
+    cat .clang-tidy build/compile_commands.json "${cpp[@]}"
+  } | sha256sum | cut -d' ' -f1)
+  [ -e "build/result-cache/tidy-$key" ] && return
+  clang-tidy -p build --quiet "$1" || return 1
+  mkdir -p build/result-cache
+  : >"build/result-cache/tidy-$key"
+}
+for f in "${cpp[@]}"; do
+  check "C++ lint, $f" tidy "$f"
+done
 # clang warns about the linker flags Nix passes, which this command has no use for.
 check 'C lint' clang -fsyntax-only -Wall -Wextra -Werror -Wno-unused-command-line-argument "${c[@]}"
 verify_ir() {

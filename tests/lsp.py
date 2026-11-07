@@ -13,6 +13,8 @@ usage: tests/lsp.py
 """
 
 import concurrent.futures
+import glob
+import hashlib
 import json
 import os
 import queue
@@ -22,27 +24,56 @@ import threading
 import time
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+# CI doesn't keep this, so every server runs there.
+RESULTS = os.path.join(ROOT, "build", "result-cache")
 # How long a server may take on one file. Lean checks the whole file, and clangd parses LLVM's headers.
 TIMEOUT = 600
 # How long a server may take to send diagnostics after it has answered.
 SETTLE = 30
 
+PYTHON_INPUTS = ["tests/*.py", "pyproject.toml", "uv.lock"]
+# Each server, the language it's told a file is in, the files it opens, and what it reads to answer.
 SERVERS = [
-    (["clangd"], "cpp", ["src/Emitter.cpp", "src/main.cpp", "src/Emitter.h"]),
-    (["clangd"], "c", ["tests/real/memory.c", "tests/real/zlib_harness.c"]),
+    (
+        ["clangd"],
+        "cpp",
+        ["src/Emitter.cpp", "src/main.cpp", "src/Emitter.h"],
+        ["src/*", "build/compile_commands.json", ".clang-tidy", ".clang-format"],
+    ),
+    (
+        ["clangd"],
+        "c",
+        ["tests/real/memory.c", "tests/real/zlib_harness.c"],
+        ["tests/real/*.c", "tests/real/compile_flags.txt", ".clang-tidy", ".clang-format"],
+    ),
     (
         ["lake", "serve"],
         "lean",
         ["IRLean/Mem.lean", "tests/proofs/Popcount.lean", "tests/proofs/Adler32.lean"],
+        [
+            "IRLean.lean",
+            "IRLean/*.lean",
+            "tests/proofs/*.lean",
+            "build/generated/*.lean",
+            "build/generated/*/*.lean",
+            "lakefile.toml",
+            "lake-manifest.json",
+            "lean-toolchain",
+        ],
     ),
-    (["uv", "run", "--quiet", "ty", "server"], "python", ["tests/differential.py", "tests/fuzz.py"]),
-    (["uv", "run", "--quiet", "ruff", "server"], "python", ["tests/lsp.py"]),
-    (["bash-language-server", "start"], "shellscript", ["tests/proofs.sh"]),
-    (["nixd"], "nix", ["flake.nix", "nix/shell.nix"]),
-    (["neocmakelsp", "stdio"], "cmake", ["CMakeLists.txt"]),
-    (["taplo", "lsp", "stdio"], "toml", ["pyproject.toml", "lakefile.toml"]),
-    (["yaml-language-server", "--stdio"], "yaml", [".github/workflows/ci.yml"]),
-    (["rumdl", "server", "--stdio"], "markdown", ["README.md"]),
+    (
+        ["uv", "run", "--quiet", "ty", "server"],
+        "python",
+        ["tests/differential.py", "tests/fuzz.py"],
+        PYTHON_INPUTS,
+    ),
+    (["uv", "run", "--quiet", "ruff", "server"], "python", ["tests/lsp.py"], PYTHON_INPUTS),
+    (["bash-language-server", "start"], "shellscript", ["tests/proofs.sh"], ["tests/*.sh"]),
+    (["nixd"], "nix", ["flake.nix", "nix/shell.nix"], ["*.nix", "nix/*.nix", "flake.lock"]),
+    (["neocmakelsp", "stdio"], "cmake", ["CMakeLists.txt"], ["CMakeLists.txt", ".gersemirc"]),
+    (["taplo", "lsp", "stdio"], "toml", ["pyproject.toml", "lakefile.toml"], ["*.toml"]),
+    (["yaml-language-server", "--stdio"], "yaml", [".github/workflows/ci.yml"], [".github/*/*.yml"]),
+    (["rumdl", "server", "--stdio"], "markdown", ["README.md"], ["*.md", "docs/*.md", ".rumdl.toml"]),
 ]
 
 
@@ -195,16 +226,39 @@ def check_server(command, language, paths):
         server.stop()
 
 
+def server_key(command, language, inputs):
+    """A hash of what the server's answer depends on: its version, through its place in the Nix store, this
+    script, and what it reads."""
+    key = hashlib.sha256(f"{os.environ.get('PATH')}\0{command}\0{language}\0".encode())
+    paths = [os.path.abspath(__file__)]
+    for pattern in inputs:
+        paths += sorted(glob.glob(pattern, root_dir=ROOT))
+    for path in paths:
+        with open(os.path.join(ROOT, path), "rb") as f:
+            key.update(f"{path} {os.fstat(f.fileno()).st_size}\n".encode() + f.read())
+    return key.hexdigest()
+
+
 def timed_check(server):
+    """Returns what's wrong with a server and how long it took to find out. A server that had nothing to say
+    about these inputs before doesn't run again."""
+    command, language, paths, inputs = server
     start = time.monotonic()
-    problems = check_server(*server)
+    passed = os.path.join(RESULTS, f"lsp-{server_key(command, language, inputs)}")
+    if os.path.exists(passed):
+        return [], time.monotonic() - start
+    problems = check_server(command, language, paths)
+    if not problems:
+        os.makedirs(RESULTS, exist_ok=True)
+        with open(passed, "w"):
+            pass
     return problems, time.monotonic() - start
 
 
 def main():
     failed = False
     with concurrent.futures.ThreadPoolExecutor(max_workers=len(SERVERS)) as pool:
-        for (command, language, paths), (problems, took) in zip(
+        for (command, language, paths, _), (problems, took) in zip(
             SERVERS, pool.map(timed_check, SERVERS), strict=True
         ):
             name = " ".join(c for c in command if c not in ("uv", "run", "--quiet"))

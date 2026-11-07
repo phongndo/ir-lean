@@ -29,7 +29,7 @@ tar -xf "$zlib_src" -C "$work/zlib" --strip-components=1
 
 # What's been compiled and what has passed, named after everything that went into it, so only what changed runs
 # again. CI doesn't keep build/, so it checks everything every time. To do that here, delete the directory.
-cache=${PROOF_CACHE:-$root/build/proof-cache}
+cache=$root/build/proof-cache
 mkdir -p "$cache"
 library=$({
   command lean --version
