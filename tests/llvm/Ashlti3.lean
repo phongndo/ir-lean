@@ -1,0 +1,16 @@
+import CrtAshlti3
+import Kit
+
+/-! `tests/llvm.py` generates the module this imports from unmodified compiler-rt, and checks this fails on an injected bug. -/
+
+namespace Llvm
+
+/-- `__ashlti3`: its source gives `0 <= b < 128` as a precondition. -/
+theorem ashlti3_correct (a : BitVec 128) (b : BitVec 32) (h : b < 128#32) :
+    CrtAshlti3._ashlti3 (some a) (some b) =
+      IRLean.Outcome.ok (some (a <<< b)) := by
+  simp only [IRLean.Outcome.ok]
+  llvm_exec CrtAshlti3._ashlti3
+  all_goals llvm_close
+
+end Llvm

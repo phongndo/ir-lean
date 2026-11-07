@@ -18,6 +18,10 @@ x86-64 Linux, are proved correct for every input, with no undefined behavior, po
 | [`Adler32.lean`](tests/proofs/Adler32.lean) | zlib's `adler32_z` | RFC 1950 |
 | [`Crc32.lean`](tests/proofs/Crc32.lean) | zlib's `crc32_z` | RFC 1952 |
 
+So are [86 functions from LLVM itself](docs/llvm.md), at the flags upstream builds them with as far as the emitter allows:
+46 from `compiler-rt`, 29 from LLVM Support and 11 from `llvm-libc`, including `__udivmoddi4`, `llvm::crc32`,
+`llvm::decodeULEB128`, `llvm::APInt::tcAdd`, and `llvm::xxh3_64bits` for inputs of at most 16 bytes.
+
 These are theorems about the LLVM IR, in this project's model of it. They aren't about source programs or
 machine code, and they rest on an unverified emitter. [Trust](docs/trust.md) has the details, and the known gaps.
 
@@ -45,6 +49,7 @@ theorem popcount_correct (x : BitVec 32) :
 | --- | --- |
 | [Status](docs/status.md) | What's proved, what's tested, what's measured |
 | [Trust](docs/trust.md) | What a theorem means, what it rests on, and the known gaps |
+| [LLVM's own code](docs/llvm.md) | What's proved about llvm-project, how to reproduce it, and what it assumes |
 | [Design](docs/design.md) | What gets emitted, what the model covers, and why |
 | [Testing](docs/testing.md) | How to run the tests and linters, and what each one checks |
 | [Roadmap](docs/roadmap.md) | Where this is going, in what order, and the [first pull requests](docs/roadmap.md#near-term-pull-requests) |

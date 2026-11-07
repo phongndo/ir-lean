@@ -39,6 +39,12 @@ theorem crc32_z_correct {crc len : BitVec 64} (B : Readable m ts block o len.toN
 
 These are theorems about modeled IR. [The trust model](trust.md) says what that does and doesn't give you.
 
+### LLVM's own code
+
+86 functions from `llvm-project` at `llvmorg-23.1.3` are also proved, under the same rules, and each with its own injected bug
+that stops its proof. [LLVM's own code](llvm.md) has them, how to reproduce them, and what they assume. Those results are
+from 2026-11-06, on top of `c389ecc`.
+
 ## Tested
 
 Evidence and not proof. A pass here means no disagreement was found on the inputs tried.

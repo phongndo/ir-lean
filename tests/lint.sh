@@ -11,6 +11,7 @@ cd "$root" || exit 1
 # Tracked files and new ones, but not ignored ones.
 files() { git ls-files --cached --others --exclude-standard "$@" | while read -r f; do [ -e "$f" ] && echo "$f"; done; }
 mapfile -t cpp < <(files 'src/*.cpp' 'src/*.h')
+mapfile -t wrappers < <(files 'tests/llvm/wrappers/*.cpp' 'tests/llvm/include/**/*.h')
 mapfile -t c < <(files 'tests/real/*.c')
 mapfile -t ll < <(files 'tests/real/*.ll')
 mapfile -t shell < <(files '*.sh')
@@ -20,7 +21,7 @@ mapfile -t markdown < <(files '*.md')
 mapfile -t nix < <(files '*.nix')
 
 if [ "${1:-}" = --fix ]; then
-  clang-format -i "${cpp[@]}" "${c[@]}"
+  clang-format -i "${cpp[@]}" "${wrappers[@]}" "${c[@]}"
   uv run --quiet ruff format
   shfmt -w -i 2 "${shell[@]}"
   nixfmt "${nix[@]}"
@@ -49,7 +50,7 @@ check() {
   ) >"$out/$checks.result" &
 }
 
-check 'C and C++ format' clang-format --dry-run --Werror "${cpp[@]}" "${c[@]}"
+check 'C and C++ format' clang-format --dry-run --Werror "${cpp[@]}" "${wrappers[@]}" "${c[@]}"
 # clang-tidy's analyzer takes seconds, so a pass is kept, named after everything it reads. CI doesn't keep
 # build/result-cache, so it runs every time there.
 tidy() {

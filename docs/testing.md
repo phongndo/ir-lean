@@ -9,7 +9,8 @@ they check the same IR everywhere. On Macs, `lint` and `lsp` fail on C++ only: `
 errors there that don't appear on Linux, so use `-LE 'lint|slow'` to skip them.
 
 Run `lake build`, then `ctest --test-dir build`. Add `-LE slow` to skip `zlib_slow`. With that, on 32 cores, a first
-run takes about 45 s, and a run with nothing changed about 4 s.
+run takes about a minute. A run with nothing changed takes about 4 s, apart from `llvm`, which checks everything every
+time, in about a minute.
 
 | Test | What it checks |
 | --- | --- |
@@ -23,6 +24,7 @@ run takes about 45 s, and a run with nothing changed about 4 s.
 | `emitter` | What the emitter refuses and accepts on purpose, the default namespace, and that `opcheck` can't pass quietly without Alive2 |
 | `fuzz` | The same comparison on random functions, optimized at random levels |
 | `proofs` | The proofs against freshly generated Lean, that breaking the C breaks the proof, and that a proof can only rest on the standard axioms and `bv_decide`'s |
+| `llvm` | [LLVM's own code](llvm.md): functions from `llvm-project` at the pinned tag, compiled as upstream does, against their proofs, with an injected bug for each that has to stop its proof. Prints the score. `--manifest` writes what each theorem says and rests on |
 | `names` | Every word Lean reserves is avoided in generated names |
 | `zlib` | All of zlib translates, and real calls into it match native code, failing if any input is skipped |
 | `zlib_slow` | The same for the calls that slide `deflate`'s window, the slowest of them |
@@ -46,7 +48,7 @@ real edits it undoes afterwards.
 | --- | --- | --- | --- |
 | C++ | `clang-format` | `clang-tidy` | `clangd` |
 | C test inputs | `clang-format` | `clang -Wall -Wextra` | `clangd` |
-| Lean | None exists | Lean's own linters, with `lake build --wfail` | `lake serve` |
+| Lean | None exists | Lean's own linters, with `lake build --wfail`, and warnings as errors in `tests/llvm.py` | `lake serve` |
 | Python | `ruff format` | `ruff check`, `ty check` | `ty server`, `ruff server` |
 | Shell | `shfmt` | `shellcheck` | `bash-language-server` |
 | Nix | `nixfmt` | `statix`, `deadnix` | `nixd` |
