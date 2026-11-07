@@ -301,7 +301,7 @@ functions, with the flags and versions recorded.
 | **Runtime and calls** | `operator new` and `delete`, `__cxa_*` through contracts | `__rust_alloc`, and panics through contracts |
 | **Unwinding** | `invoke` and `landingpad` refused, so exceptions are out of scope at first | The same for `panic=unwind` |
 | **Layout and ABI** | Itanium ABI and vtables come from the front end, and are read as bytes and addresses in the IR | `repr(Rust)` is unstable and niche-optimized, so a theorem holds for that compiled layout only |
-| **Linkage** | `linkonce_odr` is refused today. Decide whether the one-definition rule is an assumption of the theorem | Generics are monomorphized in, and `core` may or may not be inlined |
+| **Linkage** | `linkonce_odr` definitions translate as this translation's copy, and calls to them are refused, so no theorem assumes the one-definition rule. Decide whether a caller's theorem may assume it | Generics are monomorphized in, and `core` may or may not be inlined |
 | **Promises** | Fewer than Rust. TBAA is left out with `-fno-strict-aliasing` | `noalias` on arguments, refused today, and `dereferenceable` and `range` everywhere, so Phase 0's decisions matter most here |
 | **Gaps in the probes** | External `operator delete`, exceptions | `undef` in `phi`, external panics |
 | **Version skew** | Same compiler as the emitter | `rustc`'s LLVM differs, and the emitter upgrades its IR on reading. Pin it, or use a matching LLVM |

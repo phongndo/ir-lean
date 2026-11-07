@@ -223,6 +223,11 @@ bool hasExactLinkage(const GlobalValue &G) {
   return G.hasExternalLinkage() || G.hasInternalLinkage() || G.hasPrivateLinkage();
 }
 
+// A `linkonce_odr` or `weak_odr` definition, as C++ gives inline functions and templates. Its IR is still
+// this translation's copy of it, so a theorem about that copy means what any other does. What calls it is
+// another matter, since the copy a call runs may be another translation's: `emitCall` refuses those calls.
+bool hasODRLinkage(const GlobalValue &G) { return G.hasLinkOnceODRLinkage() || G.hasWeakODRLinkage(); }
+
 // The module-wide things functions refer to: its globals and data layout.
 class ModuleContext {
 public:
@@ -1547,6 +1552,10 @@ void FunctionEmitter::emitCall(const CallBase &C, std::vector<Line> &Out) {
   if (C.hasOperandBundles())
     reject("instruction " + printed(C));
   const Function *Callee = C.getCalledFunction();
+  // A call runs whichever copy the linker keeps, and only an exact definition is certainly this one. This
+  // module's copy of an `_odr` one can't stand in for it.
+  if (Callee && !Callee->isDeclaration() && !hasExactLinkage(*Callee))
+    reject("call to @" + Callee->getName().str() + ", whose definition may not be the one that runs");
   if (Callee && !Callees.count(Callee))
     reject(Callee->isDeclaration() ? "call to external @" + Callee->getName().str()
                                    : "call to @" + Callee->getName().str() + ", which isn't translated");
@@ -1566,6 +1575,10 @@ void FunctionEmitter::emitCall(const CallBase &C, std::vector<Line> &Out) {
     // Try each function of this type whose address is taken. Anything else stops the model.
     std::string Expr = "(indirect " + operand(C.getCalledOperand()) + " fun q' =>";
     for (const Function *Target : Context.candidates(C.getFunctionType())) {
+      // As for a direct call, this module's copy of an `_odr` function needn't be what the pointer holds.
+      if (!hasExactLinkage(*Target))
+        reject("indirect call that can reach @" + Target->getName().str() +
+               ", whose definition may not be the one that runs");
       if (!Callees.count(Target))
         reject("indirect call that can reach @" + Target->getName().str() + ", which isn't translated");
       std::string Call = Callees.lookup(Target) + Args;
@@ -1656,7 +1669,7 @@ void FunctionEmitter::prepare() {
     reject("variadic function");
   if (F.hasPersonalityFn())
     reject("exception handling");
-  if (!hasExactLinkage(F))
+  if (!hasExactLinkage(F) && !hasODRLinkage(F))
     reject("linkage: this may not be the definition that runs");
   if (F.hasPrefixData() || F.hasPrologueData() || F.hasGC())
     reject("function with prefix data, prologue data or a garbage collector");

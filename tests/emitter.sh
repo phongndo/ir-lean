@@ -87,13 +87,61 @@ if [ "$groups" -gt 244 ]; then
   fail "a Lean type holds at most 244 constructors, and this has $groups"
 fi
 
-# Linkage: only a definition that's certainly the one a run uses can be proved about.
-for linkage in weak weak_odr linkonce linkonce_odr available_externally; do
+# Linkage: a definition can be proved about if it's certainly the one a run uses, or if it's this translation's copy
+# of an `_odr` one. Only the first can be called, since a call runs whichever copy the linker keeps.
+for linkage in weak linkonce available_externally; do
   refuses linkage "define $linkage i32 @f(i32 %x) { ret i32 %x }"
 done
-refuses "isn't translated" 'define weak i32 @g() { ret i32 0 }
+for linkage in weak_odr linkonce_odr; do
+  accepts "define $linkage i32 @f(i32 %x) { ret i32 %x }"
+  refuses 'call to @g, whose definition may not be the one that runs' "define $linkage i32 @g() { ret i32 0 }
+define i32 @f() { %r = call i32 @g()
+  ret i32 %r }"
+done
+refuses 'call to @g, whose definition may not be the one that runs' 'define weak i32 @g() { ret i32 0 }
 define i32 @f() { %r = call i32 @g()
   ret i32 %r }'
+refuses 'indirect call that can reach @g, whose definition may not be the one that runs' 'define linkonce_odr i32 @g() { ret i32 0 }
+@h = global ptr @g
+define i32 @f() { %t = load ptr, ptr @h
+  %r = call i32 %t()
+  ret i32 %r }'
+refuses 'indirect call that can reach @g, whose definition may not be the one that runs' 'define linkonce_odr i32 @g() { ret i32 0 }
+@a = alias i32 (), ptr @g
+define i32 @f() { %r = call i32 @a()
+  ret i32 %r }'
+# Calling itself is calling whichever copy the linker keeps, too.
+refuses 'call to @f, whose definition may not be the one that runs' 'define linkonce_odr i32 @f(i32 %x) {
+entry:
+  %c = icmp eq i32 %x, 0
+  br i1 %c, label %done, label %again
+again:
+  %y = sub i32 %x, 1
+  %r = call i32 @f(i32 %y)
+  ret i32 %r
+done:
+  ret i32 0
+}'
+# What an `_odr` copy calls is another matter: an exact definition is the one that runs, whoever calls it.
+accepts 'define i32 @g(i32 %x) { ret i32 %x }
+define linkonce_odr i32 @f(i32 %x) { %r = call i32 @g(i32 %x)
+  ret i32 %r }'
+# Being `_odr` changes what can call a definition, and nothing about what it means.
+odr_body='i32 @f(ptr %p, i32 %x) {
+  %v = load i32, ptr %p, align 4
+  %s = add nsw i32 %v, %x
+  store i32 %s, ptr %p, align 4
+  ret i32 %s
+}'
+printf 'define %s\n' "$odr_body" >"$work/Exact.ll"
+printf 'define linkonce_odr %s\n' "$odr_body" >"$work/Odr.ll"
+if "$tool" "$work/Exact.ll" --namespace Same -o "$work/Exact.lean" &&
+  "$tool" "$work/Odr.ll" --namespace Same -o "$work/Odr.lean" &&
+  diff <(tail -n +2 "$work/Exact.lean") <(tail -n +2 "$work/Odr.lean") >/dev/null; then
+  printf 'ok    an _odr definition translates as the same definition with external linkage does\n'
+else
+  fail 'an _odr definition should translate as the same definition with external linkage does'
+fi
 for linkage in weak weak_odr linkonce linkonce_odr common; do
   refuses 'initial value' "@g = $linkage global i32 0
 define ptr @f() { ret ptr @g }"

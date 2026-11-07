@@ -805,6 +805,18 @@ mutants = [
   { name = "injected bug", file = "libc/src/ctype/toascii.cpp", from = "return (c & 0x7f);", to = "return (c & 0xff);" },
 ]
 
+# An inline function, so `linkonce_odr`, which clang keeps out of line rather than inlining it into the public `isalnum`.
+# The theorem is about this translation's copy, and the public `isalnum` is left out, since its call may run another's.
+[[target]]
+module = "LibcGenIsalnum"
+proof = "LibcIsalnum"
+source = "libc/src/ctype/isalnum.cpp"
+flags = "libc"
+functions."__llvm_libc::internal::isalnum" = { theorem = "Llvm.internal_isalnum_correct" }
+mutants = [
+  { name = "injected bug", file = "libc/src/__support/ctype_utils.h", from = "isalnum(char ch) {\n  switch (ch) {\n  case 'a':\n", to = "isalnum(char ch) {\n  switch (ch) {\n  case '!':\n" },
+]
+
 [[target]]
 module = "CrtUdivmoddi4"
 proof = "Udivmoddi4"

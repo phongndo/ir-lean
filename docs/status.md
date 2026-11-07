@@ -41,9 +41,10 @@ These are theorems about modeled IR. [The trust model](trust.md) says what that 
 
 ### LLVM's own code
 
-86 functions from `llvm-project` at `llvmorg-23.1.3` are also proved, under the same rules, and each with its own injected bug
+87 functions from `llvm-project` at `llvmorg-23.1.3` are also proved, under the same rules, and each with its own injected bug
 that stops its proof. [LLVM's own code](llvm.md) has them, how to reproduce them, what they assume, and two rewrites that
-measurably beat `clang -O3`, proved to do the same. Those results are from 2026-11-06, on top of `c389ecc`.
+measurably beat `clang -O3`, proved to do the same. Those results are from 2026-11-06, on top of `c389ecc`, apart from
+`internal::isalnum`, from 2026-11-07 on top of `6293d34`.
 
 ## Tested
 
@@ -113,8 +114,8 @@ estimate, and it isn't the hard part. Nothing is measured yet for the invariant,
 ### Probes for later phases
 
 Small one-off experiments, not in CI, to size the work. They are not progress on [Phase 3](roadmap.md#phase-3-c-and-rust-demonstrations).
-They predate the allow-lists and the promise model, which refuse more, such as `linkonce_odr` and `noalias` on
-arguments, so expect fewer to translate now.
+They predate the allow-lists and the promise model, which refuse more, such as calls to `linkonce_odr` functions and
+`noalias` on arguments, so expect fewer to translate now.
 
 | Input | Compiled with | Translated | What stopped the rest |
 | --- | --- | --- | --- |
