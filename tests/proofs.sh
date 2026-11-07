@@ -27,15 +27,17 @@ zlib_src=${ZLIB_SRC:-$(nix build --inputs-from "$root" --no-link --print-out-pat
 mkdir "$work/zlib"
 tar -xf "$zlib_src" -C "$work/zlib" --strip-components=1
 
-# Compiles the modules of a split translation, each after what it imports. A module whose text and imports
-# match the same module under `reuse` is copied from there, since compiling it would give the same result.
+# Compiles the modules of a split translation, each after what it imports, as many at a time as are ready. A
+# module whose text and imports match the same module under `reuse` is copied from there, since compiling it
+# would give the same result.
 # usage: compile_split DIR NAMESPACE [REUSE]
 compile_split() {
-  local dir=$1 ns=$2 reuse=${3:-} f name import ready same waiting
+  local dir=$1 ns=$2 reuse=${3:-} f name import ready same waiting compiling pid failed=0
   local -A copied=()
   local pending=("$dir/$ns"/*.lean)
   while [ "${#pending[@]}" -gt 0 ]; do
     waiting=()
+    compiling=()
     for f in "${pending[@]}"; do
       name=$(basename "$f" .lean)
       ready=1
@@ -50,9 +52,18 @@ compile_split() {
         cp "$reuse/$ns/$name.olean" "$dir/$ns/$name.olean"
         copied[$name]=1
       else
-        in_dir "$dir" lean -R "$dir" -o "${f%.lean}.olean" "$f"
+        in_dir "$dir" lean -R "$dir" -o "${f%.lean}.olean" "$f" &
+        compiling+=("$!")
+        if [ "${#compiling[@]}" -ge "$jobs" ]; then
+          wait "${compiling[0]}" || failed=1
+          compiling=("${compiling[@]:1}")
+        fi
       fi
     done
+    for pid in "${compiling[@]+"${compiling[@]}"}"; do
+      wait "$pid" || failed=1
+    done
+    [ "$failed" = 0 ] || return 1
     if [ "${#waiting[@]}" = "${#pending[@]}" ]; then
       printf 'FAIL  modules in %s import each other\n' "$dir/$ns"
       return 1
@@ -207,9 +218,15 @@ must_break() {
   printf 'ok    %s: the proof stops checking\n' "$1"
 }
 
-gen "$root/tests/real/bi_reverse.c" Real "$work"
-gen "$work/zlib/adler32.c" Zlib "$work"
-gen "$work/zlib/crc32.c" Crc "$work"
+gen "$root/tests/real/bi_reverse.c" Real "$work" &
+real=$!
+gen "$work/zlib/adler32.c" Zlib "$work" &
+adler=$!
+gen "$work/zlib/crc32.c" Crc "$work" &
+crc=$!
+wait "$real"
+wait "$adler"
+wait "$crc"
 
 if [ "${2:-}" = --generate ]; then
   for module in Real Zlib Crc; do
@@ -220,10 +237,7 @@ if [ "${2:-}" = --generate ]; then
   exit 0
 fi
 
-# Crc32 and the mutants of crc32.c need these two.
-check_proof "$root/tests/proofs/CrcTables.lean"
-check_proof "$root/tests/proofs/CrcSpec.lean"
-for proof in Adler32 Crc32 Popcount; do
+for proof in Adler32 Popcount; do
   start check_proof "$root/tests/proofs/$proof.lean"
 done
 
@@ -251,6 +265,11 @@ start breaks_adler 'reads past the end' 's/while (len >= 16) {/while (len >= 15)
 start breaks_adler 'wrong sum' 's/#define DO1(buf,i)  {adler += (buf)\[i\]; sum2 += adler;}/#define DO1(buf,i)  {adler += (buf)[i]; sum2 += adler + 1;}/'
 start breaks_adler 'skips a byte per block' 's/len -= NMAX;/len -= NMAX - 1;/'
 start breaks_adler 'single-byte path forgets the modulus' '/^    if (len == 1) {/,/^    }/ s/if (adler >= BASE)/if (adler > BASE)/'
+
+# Crc32 and the mutants of crc32.c need these two.
+check_proof "$root/tests/proofs/CrcTables.lean"
+check_proof "$root/tests/proofs/CrcSpec.lean"
+start check_proof "$root/tests/proofs/Crc32.lean"
 
 start breaks_crc 'wrong table entry' crc32.h 's/0x77073096/0x77073097/'
 start breaks_crc 'wrong braid table entry' crc32.h 's/0xaf449247/0xaf449246/'
