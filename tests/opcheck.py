@@ -17,7 +17,6 @@ Without `alive-tv` on PATH this fails. `--no-alive` is how to say that's fine, f
 it, and it means poison flags go unchecked.
 """
 
-import concurrent.futures
 import itertools
 import os
 import random
@@ -27,6 +26,7 @@ import subprocess
 import sys
 import tempfile
 
+import alive
 from differential import NATIVE
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -299,8 +299,8 @@ def check_folder(table, shapes, results, work):
     return agreed, refined, unfolded, bad
 
 
-def alive_case(tool_args):
-    name, shape, ret, body, ds, cases, res, work = tool_args
+def alive_functions(shape, ret, body, cases, res):
+    """The instruction as a function, and the table of what the model says it does."""
     params = ", ".join(f"i{a} noundef %a{i}" for i, a in enumerate(shape))
     bits = sum(shape) + 1
     idx = [f"  %x0 = zext i{shape[0]} %a0 to i{bits}", ""][0:1]
@@ -331,37 +331,20 @@ def alive_case(tool_args):
         + "\n}\n"
     )
     src = f"define i{ret} @F({params}) {{\n  {body}\n}}\n"
-    verdicts = []
-    for direction, (a, b) in (
-        ("instruction refines table", (src, table)),
-        ("table refines instruction", (table, src)),
+    return src, table
+
+
+def alive_verdict(direction, output):
+    """None if Alive2 proves it, or what's wrong."""
+    if output is None or ("1 correct transformations" in output and "0 incorrect" in output):
+        return None
+    if (
+        "ERROR:" in output
+        and "doesn't verify" not in output
+        and "incorrect" not in output.split("Summary")[0].lower().replace("0 incorrect", "")
     ):
-        with tempfile.TemporaryDirectory(dir=work) as d:
-            pa, pb = os.path.join(d, "a.ll"), os.path.join(d, "b.ll")
-            decl = "\n".join(ds) + "\n"
-            with open(pa, "w") as f:
-                f.write(decl + a)
-            with open(pb, "w") as f:
-                f.write(decl + b)
-            r = subprocess.run(
-                ["alive-tv", "--disable-undef-input", pa, pb],
-                text=True,
-                capture_output=True,
-                timeout=300,
-                check=False,
-            )
-            o = r.stdout + r.stderr
-            if "1 correct transformations" in o and "0 incorrect" in o:
-                verdicts.append(None)
-            elif (
-                "ERROR:" in o
-                and "doesn't verify" not in o
-                and "incorrect" not in o.split("Summary")[0].lower().replace("0 incorrect", "")
-            ):
-                verdicts.append(("skip", o[:400]))
-            else:
-                verdicts.append(("fail", direction, o[:800]))
-    return name, verdicts
+        return ("skip", output[:400])
+    return ("fail", direction, output[:800])
 
 
 def llvm_version(*command):
@@ -372,7 +355,7 @@ def llvm_version(*command):
 
 
 def check_alive(table, shapes, results, work):
-    jobs, stopped = [], []
+    jobs, stopped, declarations = [], [], set()
     for name, _, w, shape, ret, body, ds in table:
         cases = shapes[shape]
         if (
@@ -388,17 +371,23 @@ def check_alive(table, shapes, results, work):
         if "stop" in res:
             stopped.append((name, "the model stops on an input this checks"))
             continue
-        jobs.append((name, shape, ret, body, ds, cases, res, work))
+        jobs.append((name, *alive_functions(shape, ret, body, cases, res)))
+        declarations.update(ds)
     proved, failed, skipped = 0, [], stopped
-    with concurrent.futures.ThreadPoolExecutor(max_workers=os.cpu_count() or 4) as pool:
-        for name, verdicts in pool.map(alive_case, jobs):
-            kinds = [v[0] for v in verdicts if v]
-            if "fail" in kinds:
-                failed.append((name, next(v for v in verdicts if v and v[0] == "fail")))
-            elif "skip" in kinds:
-                skipped.append((name, next(v for v in verdicts if v)[1]))
-            else:
-                proved += 1
+    pairs = [pair for _, src, table in jobs for pair in ((src, table), (table, src))]
+    outputs = alive.refinements("\n".join(sorted(declarations)) + "\n", pairs, work)
+    for k, (name, *_) in enumerate(jobs):
+        verdicts = [
+            alive_verdict("instruction refines table", outputs[2 * k]),
+            alive_verdict("table refines instruction", outputs[2 * k + 1]),
+        ]
+        kinds = [v[0] for v in verdicts if v]
+        if "fail" in kinds:
+            failed.append((name, next(v for v in verdicts if v and v[0] == "fail")))
+        elif "skip" in kinds:
+            skipped.append((name, next(v for v in verdicts if v)[1]))
+        else:
+            proved += 1
     return proved, failed, skipped
 
 

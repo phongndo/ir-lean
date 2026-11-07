@@ -9,7 +9,8 @@ usage: tests/bench.py [--json FILE] [SCENARIO ...]
 
 With no scenarios it runs all of them, in the order below, and prints their total. Each edit is real, and
 different on every run, so nothing can come from a cache that shouldn't. Every edit is undone afterwards, even
-if the run fails. `cold` deletes .lake/build and build first. Run it in the dev shell, at a quiet moment.
+if the run fails. `cold` deletes .lake/build and build first. Run it in the dev shell, at a quiet moment:
+`others` is how many cores anything else on the machine kept busy meanwhile.
 
     cold     From nothing: build the library and the translator, then run the tests
     noop     Nothing changed: run the tests
@@ -126,9 +127,21 @@ SCENARIOS = {
 }
 
 
+def busy_seconds():
+    """CPU seconds the whole machine has spent so far, or 0 where /proc/stat doesn't exist."""
+    try:
+        with open("/proc/stat") as f:
+            user, nice, system, _, _, irq, softirq, steal = f.readline().split()[1:9]
+    except OSError:
+        return 0.0
+    return sum(map(int, (user, nice, system, irq, softirq, steal))) / os.sysconf("SC_CLK_TCK")
+
+
 def measure(scenario):
     wall = [0.0]
     before = resource.getrusage(resource.RUSAGE_CHILDREN)
+    busy = busy_seconds()
+    start = time.monotonic()
 
     def timed(*commands):
         start = time.monotonic()
@@ -138,7 +151,10 @@ def measure(scenario):
 
     scenario(timed)
     after = resource.getrusage(resource.RUSAGE_CHILDREN)
-    return wall[0], after.ru_utime - before.ru_utime, after.ru_stime - before.ru_stime
+    user, system = after.ru_utime - before.ru_utime, after.ru_stime - before.ru_stime
+    # What else the machine was doing, which makes a run's times mean less.
+    others = max(0.0, busy_seconds() - busy - user - system) / (time.monotonic() - start)
+    return wall[0], user, system, others
 
 
 def main():
@@ -157,12 +173,11 @@ def main():
         run(BUILD_TOOL)
         run(TESTS)
     results = {}
-    print(f"{'scenario':<10}{'wall s':>9}{'user s':>9}{'sys s':>9}{'load':>7}")
+    print(f"{'scenario':<10}{'wall s':>9}{'user s':>9}{'sys s':>9}{'others':>8}")
     for name in names:
-        load = os.getloadavg()[0]
-        wall, user, system = measure(SCENARIOS[name])
-        results[name] = {"wall": wall, "user": user, "system": system, "load": load}
-        print(f"{name:<10}{wall:>9.1f}{user:>9.1f}{system:>9.1f}{load:>7.1f}", flush=True)
+        wall, user, system, others = measure(SCENARIOS[name])
+        results[name] = {"wall": wall, "user": user, "system": system, "others": others}
+        print(f"{name:<10}{wall:>9.1f}{user:>9.1f}{system:>9.1f}{others:>8.1f}", flush=True)
     total = sum(r["wall"] for r in results.values())
     print(f"{'total':<10}{total:>9.1f}")
     if out:
