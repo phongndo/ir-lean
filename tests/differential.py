@@ -23,6 +23,7 @@ stopping without an answer, which isn't undefined behavior.
 """
 
 import concurrent.futures
+import contextlib
 import functools
 import glob
 import hashlib
@@ -165,11 +166,20 @@ def lean_output(work, command, env, prepare):
     with open(partial, "w") as f:
         f.write(output)
     os.replace(partial, cached)
-    with os.scandir(RESULTS) as entries:
-        files = sorted((e for e in entries if e.is_file()), key=lambda e: e.stat().st_mtime, reverse=True)
-    for entry in files[RESULTS_KEPT:]:
-        os.remove(entry.path)
+    prune_results()
     return output
+
+
+def prune_results():
+    """Drops the oldest results. Tests running at once share them, so any entry can go at any moment."""
+    files = []
+    with os.scandir(RESULTS) as entries:
+        for entry in entries:
+            with contextlib.suppress(FileNotFoundError):
+                files.append((entry.stat().st_mtime, entry.path))
+    for _, path in sorted(files, reverse=True)[RESULTS_KEPT:]:
+        with contextlib.suppress(FileNotFoundError):
+            os.remove(path)
 
 
 def build_modules(work, env):

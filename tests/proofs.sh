@@ -299,9 +299,12 @@ gen "$work/zlib/adler32.c" Zlib "$work" &
 adler=$!
 gen "$work/zlib/crc32.c" Crc "$work" &
 crc=$!
-wait "$real"
-wait "$adler"
-wait "$crc"
+# Each runs to the end, so that nothing is left using the directory the exit deletes.
+failed=0
+wait "$real" || failed=1
+wait "$adler" || failed=1
+wait "$crc" || failed=1
+[ "$failed" = 0 ] || exit 1
 
 for proof in Adler32 Popcount; do
   start check_proof "$root/tests/proofs/$proof.lean"
@@ -333,19 +336,20 @@ start breaks_adler 'skips a byte per block' 's/len -= NMAX;/len -= NMAX - 1;/'
 start breaks_adler 'single-byte path forgets the modulus' '/^    if (len == 1) {/,/^    }/ s/if (adler >= BASE)/if (adler > BASE)/'
 
 # Crc32 and the mutants of crc32.c need these two.
-check_proof "$root/tests/proofs/CrcTables.lean"
-check_proof "$root/tests/proofs/CrcSpec.lean"
-start check_proof "$root/tests/proofs/Crc32.lean"
+if check_proof "$root/tests/proofs/CrcTables.lean" && check_proof "$root/tests/proofs/CrcSpec.lean"; then
+  start check_proof "$root/tests/proofs/Crc32.lean"
 
-start breaks_crc 'wrong table entry' crc32.h 's/0x77073096/0x77073097/'
-start breaks_crc 'wrong braid table entry' crc32.h 's/0xaf449247/0xaf449246/'
-start breaks_crc 'reads past the end' crc32.c 's/while (len >= 8) {/while (len >= 7) {/'
-start breaks_crc 'no preconditioning' crc32.c 's/crc = (~crc) \& 0xffffffff;/crc = crc \& 0xffffffff;/'
-start breaks_crc 'no final inversion' crc32.c 's/return crc ^ 0xffffffff;/return crc;/'
-start breaks_crc 'skips a word' crc32.c '0,/words += N;/s//words += N + 1;/'
-start breaks_crc 'starts braid too soon' crc32.c 's/if (len >= N \* W + W - 1) {/if (len >= N * W - 2) {/'
+  start breaks_crc 'wrong table entry' crc32.h 's/0x77073096/0x77073097/'
+  start breaks_crc 'wrong braid table entry' crc32.h 's/0xaf449247/0xaf449246/'
+  start breaks_crc 'reads past the end' crc32.c 's/while (len >= 8) {/while (len >= 7) {/'
+  start breaks_crc 'no preconditioning' crc32.c 's/crc = (~crc) \& 0xffffffff;/crc = crc \& 0xffffffff;/'
+  start breaks_crc 'no final inversion' crc32.c 's/return crc ^ 0xffffffff;/return crc;/'
+  start breaks_crc 'skips a word' crc32.c '0,/words += N;/s//words += N + 1;/'
+  start breaks_crc 'starts braid too soon' crc32.c 's/if (len >= N \* W + W - 1) {/if (len >= N * W - 2) {/'
+else
+  failed=1
+fi
 
-failed=0
 for pid in "${pids[@]}"; do
   wait "$pid" || failed=1
 done
