@@ -87,8 +87,8 @@ set_tests_properties(
     PROPERTIES TIMEOUT 1800
 )
 set_tests_properties(zlib_slow PROPERTIES LABELS slow)
-# llvm runs LEAN_JOBS Lean processes of up to about 1.6 GB each, so it counts as 4 tests. On CI's runner, where 4 run at
-# once, that runs it alone, since alongside proofs and zlib it ran the runner out of memory.
+# llvm runs LEAN_JOBS Lean processes of up to about 1.6 GB each, so it counts as 4 tests. On CI's runner,
+# where 4 run at once, that runs it alone, since alongside proofs and zlib it ran the runner out of memory.
 set_tests_properties(llvm PROPERTIES PROCESSORS 4)
 # These compile the same modules, and the second finds them in the cache.
 set_tests_properties(zlib_slow PROPERTIES DEPENDS zlib)
