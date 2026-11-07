@@ -42,8 +42,8 @@ These are theorems about modeled IR. [The trust model](trust.md) says what that 
 ### LLVM's own code
 
 86 functions from `llvm-project` at `llvmorg-23.1.3` are also proved, under the same rules, and each with its own injected bug
-that stops its proof. [LLVM's own code](llvm.md) has them, how to reproduce them, and what they assume. Those results are
-from 2026-11-06, on top of `c389ecc`.
+that stops its proof. [LLVM's own code](llvm.md) has them, how to reproduce them, what they assume, and two rewrites that
+measurably beat `clang -O3`, proved to do the same. Those results are from 2026-11-06, on top of `c389ecc`.
 
 ## Tested
 

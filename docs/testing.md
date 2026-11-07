@@ -9,8 +9,8 @@ they check the same IR everywhere. On Macs, `lint` and `lsp` fail on C++ only: `
 errors there that don't appear on Linux, so use `-LE 'lint|slow'` to skip them.
 
 Run `lake build`, then `ctest --test-dir build`. Add `-LE slow` to skip `zlib_slow`. With that, on 32 cores, a first
-run takes about a minute. A run with nothing changed takes about 4 s, apart from `llvm`, which checks everything every
-time, in about a minute.
+run takes about a minute. A run with nothing changed takes about 4 s, apart from `llvm` and `superopt`, which check
+everything every time, in about a minute.
 
 | Test | What it checks |
 | --- | --- |
@@ -25,6 +25,7 @@ time, in about a minute.
 | `fuzz` | The same comparison on random functions, optimized at random levels |
 | `proofs` | The proofs against freshly generated Lean, that breaking the C breaks the proof, and that a proof can only rest on the standard axioms and `bv_decide`'s |
 | `llvm` | [LLVM's own code](llvm.md): functions from `llvm-project` at the pinned tag, compiled as upstream does, against their proofs, with an injected bug for each that has to stop its proof. Prints the score. `--manifest` writes what each theorem says and rests on |
+| `superopt` | What a search finds for real functions, against Alive2 and a Lean theorem that it does the same, and that a wrong rewrite fails both. `--bench` also measures it against `clang -O3`, which CI doesn't, since timings vary |
 | `names` | Every word Lean reserves is avoided in generated names |
 | `zlib` | All of zlib translates, and real calls into it match native code, failing if any input is skipped |
 | `zlib_slow` | The same for the calls that slide `deflate`'s window, the slowest of them |

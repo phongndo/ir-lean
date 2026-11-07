@@ -49,6 +49,7 @@ nix develop
 lake build
 cmake -S . -B build -G Ninja && ninja -C build
 tests/llvm.py build/ir-lean --manifest build/llvm-manifest.json
+tests/superopt.py build/ir-lean --bench
 ```
 
 The flake pins the monorepo, by its hash, and the shell's clang is built from the same tag. `tests/llvm.py` fails if they
@@ -98,7 +99,46 @@ reported as still passing. When `b` is negative those can't differ, so that was 
 Not everything went through. `__llvm_libc::isprint` is left out, since the Lean kernel runs out of memory on its emitted
 `step`, with the cause not found.
 
+## Beating `clang -O3`
+
+[`tests/superopt.py`](../tests/superopt.py) takes a real function as clang compiled it, runs it on test inputs, and searches
+expressions over LLVM's integer instructions, smallest first, for one that agrees. A candidate only counts if it passes
+Alive2, and [a Lean theorem](../tests/llvm/Rewrites.lean) saying it gives the same result as clang's output on every input:
+
+```lean
+theorem clzsi2_same (a : BitVec 32) : RwClzsi2._clzsi2 (some a) = CrtClzsi2._clzsi2 (some a)
+```
+
+Neither side is undefined or poison on any input, so each refines the other. A wrong rewrite stops the theorem, and Alive2
+rejects it, which the test checks. The search runs in CI, and has to find what's in [`rewrites`](../tests/llvm/rewrites).
+
+Measured on an AMD Ryzen 9 9950X with `tests/superopt.py --bench`, as 15 runs of a driver calling each version through a
+pointer on the same random inputs, which takes the median of 41 passes per run. The call and the loop are in both numbers.
+
+| Function | Found | Target | Instructions | Times faster, range over runs | Median | |
+| --- | --- | --- | --- | --- | --- | --- |
+| `__clzsi2` | `ctlz(a)` | x86-64 | 40 to 4 | 1.56 to 2.34 | 1.58 | Faster in every run |
+| `__clzsi2` | | x86-64-v3 | 40 to 2 | 1.56 to 2.32 | 1.57 | Faster in every run |
+| `__ctzsi2` | `cttz(a)` | x86-64 | 38 to 3 | 1.38 to 2.07 | 1.40 | Faster in every run |
+| `__ctzsi2` | | x86-64-v3 | 36 to 2 | 1.37 to 1.43 | 1.37 | Faster in every run |
+| `__popcountsi2` | `ctpop(a)` | x86-64 | 23 to 16 | 0.87 to 1.42 | 1.00 | Not clearly faster |
+| `__popcountsi2` | | x86-64-v3 | 23 to 2 | 0.87 to 1.50 | 1.44 | Not clearly faster |
+| `__paritysi2` | `ctpop(a) & 1` | x86-64 | 18 to 7 | 0.98 to 1.36 | 1.00 | Not clearly faster |
+| `__paritysi2` | | x86-64-v3 | 16 to 3 | 0.93 to 1.48 | 1.00 | Not clearly faster |
+
+So two proved rewrites measurably beat `clang -O3` here, and two proved ones don't. One run isn't enough to tell: a single
+run of `__popcountsi2` came out 1.42 times faster.
+
+Don't overread this:
+
+- **These aren't calls real programs make on x86-64.** They're `compiler-rt`'s fallbacks, for targets with no such
+  instruction, compiled here for one that has it, because that's what shows the search working. Clang has no pass that
+  recognizes them. On a target without `ctlz` the rewrite lowers to about the same thing.
+- **It's a search over a small grammar**, up to 3 instructions on one argument, and not a general superoptimizer.
+- **Timings are one machine's**, and aren't in CI. The theorem is what's checked there.
+
 ## What's next
 
 - `decodeULEB128` with its other arguments, `encodeULEB128`, and the rest of `xxh3_64bits`.
 - The rest of `APInt`'s word routines, then `KnownBits`, which is LLVM's own reasoning about values.
+- Rewrites of functions real programs call on x86-64, with benchmarks that aren't micro-benchmarks.
