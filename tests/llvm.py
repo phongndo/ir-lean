@@ -18,6 +18,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import threading
 import time
 import tomllib
 from concurrent.futures import Future, ThreadPoolExecutor
@@ -87,12 +88,15 @@ class Pipeline:
         self.src = Path(os.environ["LLVM_PROJECT_SRC"])
         self.proof_cflags = os.environ["PROOF_CFLAGS"].split()
         self.memory = os.environ.get("LEAN_MAX_MB", "4000")
+        # Targets and their mutants each run in a pool. This keeps it to LEAN_JOBS Lean processes in all.
+        self.slots = threading.BoundedSemaphore(int(os.environ.get("LEAN_JOBS", "4")))
 
     def lean_env(self, directory: Path) -> dict[str, str]:
         return {**os.environ, "LEAN_PATH": f"{directory}:{ROOT}/.lake/build/lib/lean"}
 
     def lean(self, directory: Path, *args: str, stdin: str | None = None) -> str:
-        return run(["lean", "-M", self.memory, *args], self.lean_env(directory), stdin)
+        with self.slots:
+            return run(["lean", "-M", self.memory, *args], self.lean_env(directory), stdin)
 
     def compile_lean(self, directory: Path, source: Path, root: Path) -> None:
         olean = directory / (source.stem + ".olean")
@@ -170,14 +174,15 @@ class Pipeline:
             return f"{mutant['name']}: the bug didn't change the IR"
         proof = PROOFS / f"{target['proof']}.lean"
         try:
-            result = subprocess.run(
-                ["lean", "-M", self.memory, str(proof)],
-                env=self.lean_env(scratch),
-                capture_output=True,
-                text=True,
-                timeout=TIMEOUT_SECONDS,
-                check=False,
-            )
+            with self.slots:
+                result = subprocess.run(
+                    ["lean", "-M", self.memory, str(proof)],
+                    env=self.lean_env(scratch),
+                    capture_output=True,
+                    text=True,
+                    timeout=TIMEOUT_SECONDS,
+                    check=False,
+                )
         except subprocess.TimeoutExpired:
             return f"{mutant['name']}: the proof neither passed nor failed in time"
         shutil.rmtree(scratch)
