@@ -99,6 +99,7 @@ add_test(NAME proofs COMMAND ${CMAKE_SOURCE_DIR}/tests/proofs.sh $<TARGET_FILE:i
 add_test(NAME llvm COMMAND ${CMAKE_SOURCE_DIR}/tests/llvm.py $<TARGET_FILE:ir-lean>)
 add_test(NAME superopt COMMAND ${CMAKE_SOURCE_DIR}/tests/superopt.py $<TARGET_FILE:ir-lean>)
 add_test(NAME names COMMAND ${CMAKE_SOURCE_DIR}/tests/names.sh)
+add_test(NAME verify COMMAND ${CMAKE_SOURCE_DIR}/tests/verify.py $<TARGET_FILE:ir-lean>)
 add_test(
     NAME zlib
     COMMAND
@@ -119,6 +120,7 @@ set_tests_properties(
     fuzz
     llvm
     superopt
+    verify
     PROPERTIES TIMEOUT 1800
 )
 set_tests_properties(zlib_slow PROPERTIES LABELS slow)

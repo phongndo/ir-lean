@@ -55,6 +55,7 @@ theorem popcount_correct (x : BitVec 32) :
 | [Status](docs/status.md) | What's proved, what's tested, what's measured |
 | [Trust](docs/trust.md) | What a theorem means, what it rests on, and the known gaps |
 | [Memory safety](docs/memory.md) | What a memory-safety theorem claims, the model of memory, and what it leaves out |
+| [Verify](docs/verify.md) | Checking a claim from a script or an agent, with a JSON answer: proved, counterexample, unsupported, timeout or error |
 | [LLVM's own code](docs/llvm.md) | What's proved about llvm-project, how to reproduce it, and what it assumes |
 | [Design](docs/design.md) | What gets emitted, what the model covers, and why |
 | [Testing](docs/testing.md) | How to run the tests and linters, and what each one checks |

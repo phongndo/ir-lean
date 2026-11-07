@@ -28,6 +28,7 @@ everything every time, in about a minute.
 | `llvm` | [LLVM's own code](llvm.md): functions from `llvm-project` at the pinned tag, compiled as upstream does, against their proofs, with an injected bug for each that has to stop its proof. Prints the score. `--manifest` writes what each theorem says and rests on |
 | `superopt` | What a search finds for real functions, against Alive2 and a Lean theorem that it does the same, and that a wrong rewrite fails both. `--bench` also measures it against `clang -O3`, which CI doesn't, since timings vary |
 | `names` | Every word Lean reserves is avoided in generated names |
+| `verify` | [`tools/verify.py`](verify.md) gives each status and reason when it should, refuses proofs that cheat, and no required check can be missing from a proved result |
 | `zlib` | All of zlib translates, and real calls into it match native code, failing if any input is skipped |
 | `zlib_slow` | The same for the calls that slide `deflate`'s window, the slowest of them |
 | `lint` | Every formatter and linter below, for every language |
