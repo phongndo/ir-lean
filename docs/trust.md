@@ -86,12 +86,12 @@ separating these first.
 
 ## Open soundness issues
 
-An audit on 2026-11-07 at `6293d34` found these, and reproduced each but the `tests/llvm.py` one. Each lets through a theorem that
-LLVM's semantics or our checks don't back. None changes a theorem proved so far, as far as the audit could check.
-The IR behind `tests/proofs.sh` and 50 of the 62 `tests/llvm.py` targets has none of these constructs, apart from
-calls to an abort that pass only constants. The other 12, the C++ ones, didn't compile on macOS, but none of
-their sources names anything `sel`. No proof uses `implemented_by`, `extern`, `run_meta` or a `debug` option, or
-defines anything in a generated module's namespace.
+An audit on 2026-11-07 at `6293d34` found these, and reproduced each but the `tests/llvm.py` one. The code
+behind each is unchanged at `7e273cf`. Each lets through a theorem that LLVM's semantics or our checks don't
+back. None changes a theorem proved so far, as far as the audit could check. In the IR behind `tests/proofs.sh`
+and every `tests/llvm.py` target at `7e273cf`, no function with a theorem has these constructs, apart from calls
+to an abort that pass only constants. No proof uses `implemented_by`, `extern`, `run_meta` or a `debug` option,
+or defines anything in a generated module's namespace.
 
 | Issue | Effect | Fix |
 | --- | --- | --- |
