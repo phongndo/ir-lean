@@ -87,10 +87,44 @@ theorem toNat_steps (n : Nat) (c : BitVec 64) : (steps n c).toNat = stepsN n c.t
   | zero => rfl
   | succ n ih => simp only [steps, stepsN_succ, ih, toNat_bit]
 
+/-- `stepsN`, with each step taken on the result of the ones before, so that every count up to `n` is on
+the way to `n`. The kernel remembers what it has reduced, so when it checks all the tables at once, each
+entry's steps are worked out once, and not again for each table. -/
+def stepsR (n c : Nat) : Nat :=
+  Nat.rec (motive := fun _ => Nat) c (fun _ ih => bitN ih) n
+
+theorem stepsN_bitN (n c : Nat) : stepsN n (bitN c) = bitN (stepsN n c) := by
+  induction n generalizing c with
+  | zero => rfl
+  | succ n ih => exact ih (bitN c)
+
+theorem stepsR_eq (n c : Nat) : stepsR n c = stepsN n c := by
+  induction n with
+  | zero => rfl
+  | succ n ih => exact (congrArg bitN ih).trans (stepsN_bitN n c).symm
+
+/-- `k` blocks of 1024 dropped from the front of a list, a block at a time, for the same reason: each
+braid table's offset is on the way to the next one's. -/
+def nestDrop (k : Nat) (l : List Nat) : List Nat :=
+  Nat.rec (motive := fun _ => List Nat) l (fun _ ih => ih.drop 1024) k
+
+theorem nestDrop_eq (k : Nat) (l : List Nat) : nestDrop k l = l.drop (1024 * k) := by
+  induction k with
+  | zero => rfl
+  | succ k ih => show (nestDrop k l).drop 1024 = _; rw [ih, List.drop_drop, Nat.mul_add_one]
+
+/-- Every byte of the two tables is what the bit steps give, in one check, so the kernel shares the
+work. Checking each table on its own took it about twice as long. -/
+theorem tables :
+    (∀ k, k < 8 → (nestDrop k g_crc_braid_table_init.toList).take 1024 =
+      (List.range 256).flatMap fun e => bytes4 (stepsR (320 - 8 * k) e)) ∧
+    g_crc_table_init.toList = (List.range 256).flatMap fun e => bytes4 (stepsR 8 e) := by
+  decide +kernel
+
 /-- Every byte of the two tables is what the bit steps give. -/
 theorem crc_table_bytes :
     g_crc_table_init.toList = (List.range 256).flatMap fun e => bytes4 (stepsN 8 e) := by
-  decide +kernel
+  simpa only [stepsR_eq] using tables.2
 
 /-- One of the braid tables, which take 8 steps less for each byte further along a word. -/
 noncomputable def braidSlice (k : Nat) : List Nat :=
@@ -99,12 +133,15 @@ noncomputable def braidSlice (k : Nat) : List Nat :=
 def braidExpected (k : Nat) : List Nat :=
   (List.range 256).flatMap fun e => bytes4 (stepsN (320 - 8 * k) e)
 
-theorem braid_slice0 : braidSlice 0 = braidExpected 0 := by decide +kernel
-theorem braid_slice1 : braidSlice 1 = braidExpected 1 := by decide +kernel
-theorem braid_slice2 : braidSlice 2 = braidExpected 2 := by decide +kernel
-theorem braid_slice3 : braidSlice 3 = braidExpected 3 := by decide +kernel
-theorem braid_slice4 : braidSlice 4 = braidExpected 4 := by decide +kernel
-theorem braid_slice5 : braidSlice 5 = braidExpected 5 := by decide +kernel
-theorem braid_slice6 : braidSlice 6 = braidExpected 6 := by decide +kernel
-theorem braid_slice7 : braidSlice 7 = braidExpected 7 := by decide +kernel
+theorem braid_slice (k : Nat) (hk : k < 8) : braidSlice k = braidExpected k := by
+  simpa only [braidSlice, braidExpected, nestDrop_eq, stepsR_eq] using tables.1 k hk
+
+theorem braid_slice0 : braidSlice 0 = braidExpected 0 := braid_slice 0 (by decide)
+theorem braid_slice1 : braidSlice 1 = braidExpected 1 := braid_slice 1 (by decide)
+theorem braid_slice2 : braidSlice 2 = braidExpected 2 := braid_slice 2 (by decide)
+theorem braid_slice3 : braidSlice 3 = braidExpected 3 := braid_slice 3 (by decide)
+theorem braid_slice4 : braidSlice 4 = braidExpected 4 := braid_slice 4 (by decide)
+theorem braid_slice5 : braidSlice 5 = braidExpected 5 := braid_slice 5 (by decide)
+theorem braid_slice6 : braidSlice 6 = braidExpected 6 := braid_slice 6 (by decide)
+theorem braid_slice7 : braidSlice 7 = braidExpected 7 := braid_slice 7 (by decide)
 end CrcProof

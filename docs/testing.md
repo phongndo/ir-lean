@@ -43,6 +43,11 @@ run. To do the same locally, delete them.
 `tests/bench.py` times what you wait for after each kind of change, from a cold build to an edit to the model, with
 real edits it undoes afterwards.
 
+`tests/proof_bench.py build/ir-lean` times checking each proof on its own, against the Lean the tests generate, and
+the peak memory each one takes. `--llvm CrtUdivmoddi4` adds a target's proof, and `--proof Crc32=FILE` checks another
+version of a proof on the same obligations, so two versions can be compared. [Status](status.md#what-checking-costs)
+has what it measured.
+
 ## Formatters, linters and language servers
 
 | Language | Formatter | Linter | Language server |

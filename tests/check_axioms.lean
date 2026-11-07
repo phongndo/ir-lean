@@ -1,4 +1,6 @@
-import Lean
+-- Only what this uses from Lean, which takes half as long to start as all of it.
+import Lean.Util.CollectAxioms
+import Lean.Meta.Native
 import MODULE
 open Lean Meta
 
