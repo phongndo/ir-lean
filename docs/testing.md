@@ -31,9 +31,10 @@ Run `lake build`, then `ctest --test-dir build`, which takes about a minute on 3
 
 The dev shell sets `CTEST_PARALLEL_LEVEL`, how many tests run at once, and `LEAN_JOBS`, how many Lean processes
 each runs at once, from the machine's cores and memory. Compiled modules stay in `build/lean-cache`, so a run only
-recompiles what changed. `proofs` keeps its compiled modules and the checks that passed in `build/proof-cache`,
-named after everything they read, so it only repeats what could come out differently. CI doesn't keep that
-directory, so it checks every proof on every run. To do the same locally, delete it.
+recompiles what changed. `proofs` keeps its compiled modules and the checks that passed in `build/proof-cache`, and
+the other tests keep what Lean printed and what Alive2 proved in `build/result-cache`. These are named after
+everything they read, so a test only repeats what could come out differently, and only a pass is kept. CI doesn't
+keep those two directories, so it works everything out on every run. To do the same locally, delete them.
 
 ## Formatters, linters and language servers
 

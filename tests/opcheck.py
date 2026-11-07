@@ -27,7 +27,7 @@ import sys
 import tempfile
 
 import alive
-from differential import NATIVE
+from differential import NATIVE, lean_output
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 WRAP = ["", "nuw", "nsw", "nuw nsw"]
@@ -213,7 +213,6 @@ def build_table(tool, work):
 
 def eval_in_lean(table, shapes, lean, work):
     env = lean_env(work)
-    sh(["lean", "-R", work, "-o", os.path.join(work, "Ops.olean"), lean], env=env)
     shape_names = {s: "shape_" + "_".join(map(str, s)) for s in shapes}
     src = [
         "import Ops",
@@ -240,7 +239,11 @@ def eval_in_lean(table, shapes, lean, work):
     path = os.path.join(work, "Drive.lean")
     with open(path, "w") as f:
         f.write("\n".join(src) + "\n")
-    out = sh(["lean", *NATIVE, "--run", path], env=env).stdout.split()
+
+    def compile_ops():
+        sh(["lean", "-R", work, "-o", os.path.join(work, "Ops.olean"), lean], env=env)
+
+    out = lean_output(work, ["lean", *NATIVE, "--run", path], env, compile_ops).split()
     results, pos = {}, 0
     for name, _, _, shape, _, _, _ in table:
         n = len(shapes[shape])

@@ -23,6 +23,7 @@ stopping without an answer, which isn't undefined behavior.
 """
 
 import concurrent.futures
+import functools
 import glob
 import hashlib
 import os
@@ -32,6 +33,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import threading
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 MAX_WIDTH = 64
@@ -40,6 +42,11 @@ LEAN_MAX_MB = os.environ.get("LEAN_MAX_MB", "6000")
 # Modules at a time. What limits this is memory: `inflate` alone peaks near 4 GB.
 LEAN_JOBS = int(os.environ.get("LEAN_JOBS", "4"))
 LEAN_CACHE = os.environ.get("LEAN_CACHE", os.path.join(ROOT, "build", "lean-cache"))
+# What Lean printed and what Alive2 proved, named after everything that went into it. CI doesn't keep this, so
+# there every run works it all out again. To do that here, delete the directory.
+RESULTS = os.environ.get("RESULT_CACHE", os.path.join(ROOT, "build", "result-cache"))
+# Enough for a few versions of everything.
+RESULTS_KEPT = 2000
 # The library, natively. `lake build` makes it. Interpreting it is about 10 times slower.
 LIBRARY = os.path.join(ROOT, ".lake", "build", "lib", "libir_x2dlean_IRLean")
 NATIVE = [
@@ -104,24 +111,27 @@ def inputs_for(widths, runs, rand):
     return picked
 
 
-def build_lean(tool, ll, work, split):
-    """Translates `ll` to the Lean module M and compiles it."""
-    env = lean_env(work)
+def emit_lean(tool, ll, work, split):
+    """Translates `ll` to the Lean module M."""
     lean = os.path.join(work, "M.lean")
     args = [tool, ll, "--namespace", "M"] + (["--split", work] if split else ["-o", lean])
     r = subprocess.run(args, text=True, capture_output=True, check=False)
     if r.returncode not in (0, 3):
         sys.exit(f"ir-lean failed:\n{r.stderr}")
+
+
+def compile_lean(work, split):
+    """Compiles what `emit_lean` wrote."""
+    env = lean_env(work)
     if split:
         build_modules(work, env)
+    lean = os.path.join(work, "M.lean")
     sh(["lean", "-M", LEAN_MAX_MB, "-R", work, "-o", os.path.join(work, "M.olean"), lean], env=env)
 
 
-def build_modules(work, env):
-    """Compiles what `--split` wrote, each module after what it imports. A module's cache entry is named
-    after its text, what it imports and the library, so a change to any of them misses the cache."""
-    with open(os.path.join(work, "M.lean")) as f:
-        modules = [line.split()[1].removeprefix("M.") for line in f if line.startswith("import ")]
+@functools.cache
+def library_digest():
+    """A hash of the Lean this runs on and the library."""
     library = hashlib.sha256(sh(["lean", "--version"]).stdout.encode())
     lib_dir = os.path.join(ROOT, ".lake", "build", "lib", "lean")
     for path in sorted(
@@ -130,13 +140,51 @@ def build_modules(work, env):
         if path.endswith(".olean"):
             with open(path, "rb") as f:
                 library.update(f.read())
+    return library.digest()
+
+
+def lean_output(work, command, env, prepare):
+    """What a command that runs Lean prints, and only runs it if this Lean, this library and the .lean files
+    in `work` haven't given an answer before. `prepare` compiles what it needs."""
+    key = hashlib.sha256(library_digest())
+    for path in sorted(glob.glob("**/*.lean", root_dir=work, recursive=True)):
+        with open(os.path.join(work, path), "rb") as f:
+            key.update(f"{path} {os.fstat(f.fileno()).st_size}\n".encode() + f.read())
+    cached = os.path.join(RESULTS, key.hexdigest())
+    try:
+        with open(cached) as f:
+            output = f.read()
+        os.utime(cached)
+        return output
+    except OSError:
+        pass
+    prepare()
+    output = sh(command, env=env).stdout
+    os.makedirs(RESULTS, exist_ok=True)
+    partial = f"{cached}.{os.getpid()}.{threading.get_ident()}"
+    with open(partial, "w") as f:
+        f.write(output)
+    os.replace(partial, cached)
+    with os.scandir(RESULTS) as entries:
+        files = sorted((e for e in entries if e.is_file()), key=lambda e: e.stat().st_mtime, reverse=True)
+    for entry in files[RESULTS_KEPT:]:
+        os.remove(entry.path)
+    return output
+
+
+def build_modules(work, env):
+    """Compiles what `--split` wrote, each module after what it imports. A module's cache entry is named
+    after its text, what it imports and the library, so a change to any of them misses the cache."""
+    with open(os.path.join(work, "M.lean")) as f:
+        modules = [line.split()[1].removeprefix("M.") for line in f if line.startswith("import ")]
+    library = library_digest()
     keys, waiting = {}, {}
     for module in modules:
         with open(os.path.join(work, "M", module + ".lean")) as f:
             text = f.read()
         imports = re.findall(r"^import M\.(\w+)$", text, flags=re.M)
         waiting[module] = set(imports)
-        key = hashlib.sha256(library.digest() + text.encode() + "".join(keys[i] for i in imports).encode())
+        key = hashlib.sha256(library + text.encode() + "".join(keys[i] for i in imports).encode())
         keys[module] = key.hexdigest()
 
     def build(module):
@@ -170,7 +218,7 @@ def build_modules(work, env):
                     needs.discard(finished)
 
 
-def run_lean(functions, cases, work):
+def run_lean(functions, cases, work, split):
     env = lean_env(work)
     src = [
         "import M",
@@ -197,8 +245,8 @@ def run_lean(functions, cases, work):
     path = os.path.join(work, "Drive.lean")
     with open(path, "w") as f:
         f.write("\n".join(src) + "\n")
-    out = sh(["lean", "-M", LEAN_MAX_MB, *NATIVE, "--run", path], env=env).stdout.split()
-    return out
+    command = ["lean", "-M", LEAN_MAX_MB, *NATIVE, "--run", path]
+    return lean_output(work, command, env, lambda: compile_lean(work, split)).split()
 
 
 def abi_attributes(ll):
@@ -261,7 +309,7 @@ def compare_ll(tool, ll, runs, rand, stats, bounds=None, split=False, only="", s
         stats.unsupported.update(reasons)
         if not functions:
             return
-        build_lean(tool, ll, work, split)
+        emit_lean(tool, ll, work, split)
         cases = [inputs_for(f[2], runs, rand) for f in functions]
         for i, (name, *_) in enumerate(functions):
             if name in bounds:
@@ -271,7 +319,7 @@ def compare_ll(tool, ll, runs, rand, stats, bounds=None, split=False, only="", s
         kept = [(f, c) for f, c in zip(functions, cases, strict=True) if c]
         functions, cases = [f for f, _ in kept], [c for _, c in kept]
         stats.functions += len(functions)
-        lean_out = run_lean(functions, cases, work)
+        lean_out = run_lean(functions, cases, work, split)
         keep, values, pos = [], [], 0
         for i in range(len(functions)):
             row = lean_out[pos : pos + len(cases[i])]

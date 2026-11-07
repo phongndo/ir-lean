@@ -21,6 +21,7 @@ import sys
 import tempfile
 
 import alive
+from differential import lean_output
 from opcheck import NATIVE, lean_env, sh
 
 FLAGS = ["", "inbounds", "nusw", "nuw", "inbounds nuw", "nusw nuw"]
@@ -81,7 +82,6 @@ def model(tool, bodies, work):
         f.write(source)
     sh([tool, ll, "-o", lean, "--namespace", "Cases"])
     env = lean_env(work)
-    sh(["lean", "-R", work, "-o", os.path.join(work, "Cases.olean"), lean], env=env)
     src = [
         "import Cases",
         "open IRLean",
@@ -100,7 +100,11 @@ def model(tool, bodies, work):
     path = os.path.join(work, "Drive.lean")
     with open(path, "w") as f:
         f.write("\n".join(src) + "\n")
-    out = sh(["lean", *NATIVE, "--run", path], env=env).stdout.split()
+
+    def compile_cases():
+        sh(["lean", "-R", work, "-o", os.path.join(work, "Cases.olean"), lean], env=env)
+
+    out = lean_output(work, ["lean", *NATIVE, "--run", path], env, compile_cases).split()
     if len(out) != len(LAYOUTS) * len(bodies):
         sys.exit("Lean printed the wrong number of results")
     return [out[n :: len(bodies)] for n in range(len(bodies))]
