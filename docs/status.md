@@ -18,7 +18,7 @@ promise from its attributes broken, for every input meeting its hypotheses.
 | --- | --- | --- | --- | --- | --- |
 | [`Popcount.lean`](../tests/proofs/Popcount.lean) | A small example | Counting bits | 66 | About 1 second | None |
 | [`Adler32.lean`](../tests/proofs/Adler32.lean) | zlib's `adler32_z` | RFC 1950 | 651 | About 4 seconds | `Readable` buffer, non-null address, reduced starting sums |
-| [`Crc32.lean`](../tests/proofs/Crc32.lean), with [`CrcSpec.lean`](../tests/proofs/CrcSpec.lean) and [`CrcTables.lean`](../tests/proofs/CrcTables.lean) | zlib's `crc32_z` | RFC 1952 | 1,266 | About 8 seconds | `Readable` buffer, non-null address, `Tables` in place and aligned, and a pointer whose address may be looked at |
+| [`Crc32.lean`](../tests/proofs/Crc32.lean), with [`CrcSpec.lean`](../tests/proofs/CrcSpec.lean) and [`CrcTables.lean`](../tests/proofs/CrcTables.lean) | zlib's `crc32_z` | RFC 1952 | 1,185 | About 5 seconds | `Readable` buffer, non-null address, `Tables` in place and aligned, and a pointer whose address may be looked at |
 
 `Readable` and `Tables` hold for every real layout, called from outside any function that promised something
 about memory: LangRef requires of every object that it's smaller than `2^63` and doesn't cross the top of the
@@ -109,6 +109,48 @@ per block.
 So the mechanics scale. At `crc32`'s 0.63 lines per instruction, the 4,191 instructions above come to
 about 2,600 lines of running blocks, and the earlier plan rounded that to about 3,000. That is an
 estimate, and it isn't the hard part. Nothing is measured yet for the invariant, which is.
+
+### What checking costs
+
+Measured on 2026-11-07 on an Apple M4 Max with 16 cores and 64 GB, on top of `6293d34`, with Lean 4.35.0 and clang
+23.1.3, while other work kept the load average between 4 and 10. [`tests/proof_bench.py`](../tests/proof_bench.py)
+checked each proof alone, 5 times, against the same generated code. Times are medians, and memory is the largest peak
+of any run, which on macOS counts about 650 MB of `.olean` files that Lean maps.
+
+| Proof | Before | After | Peak memory before | After |
+| --- | --- | --- | --- | --- |
+| `CrcTables` | 4.20 s | 1.89 s | 948 MB | 1,227 MB |
+| `CrcSpec` | 0.87 s | Unchanged | 808 MB | Unchanged |
+| `Crc32` | 2.19 s | Unchanged | 954 MB | Unchanged |
+| `Adler32` | 3.69 s | Unchanged | 978 MB | Unchanged |
+| `Udivmoddi4` | 7.56 s | Unchanged | 957 MB | Unchanged |
+
+Most of the time goes to `bv_decide`, about 20 ms a call on its own, and `Udivmoddi4` makes 210 calls, 119 of them to
+the SAT solver. Two things about Lean 4.35 decide how that adds up:
+
+- **A file checks in order.** Lean elaborates theorems in parallel, but `bv_decide` and `decide +kernel` add
+  declarations that wait until every earlier declaration in the file has been checked. So a file of such proofs runs
+  on about one core: `Udivmoddi4` takes 7.8 s with `-j1` and 7.4 s with 16 threads. Only separate modules check in
+  parallel.
+- **The kernel shares work only within one declaration.** `CrcTables` checked each of its nine tables in a theorem of
+  its own, working out the same CRC steps again for each. It now checks them in one theorem, with the steps counted so
+  that each table's are on the way to the next one's, so each entry is worked out once, at the cost of the memory the
+  kernel keeps meanwhile. The theorems `CrcSpec` uses say what they said before.
+
+The tests, with nothing in their caches, `LEAN_JOBS=4`, alternating old and new:
+
+| Test | Before | After |
+| --- | --- | --- |
+| `tests/proofs.sh`, 25 checks | 29.9, 30.3, 31.1, 32.9 and 42.1 s | 23.5 and 23.6 s |
+| `tests/llvm.py`, 86 functions and 99 mutants | 105.0, 105.9 and 143.1 s, using 326 to 328 s of CPU | 83.5, 84.5 and 84.5 s, using 250 s of CPU |
+
+The 143.1 s run had twice the system time of the others, from something else on the machine. For `tests/llvm.py`, a
+Mac needs `-D_LIBCPP_DISABLE_AVAILABILITY` in `PROOF_CFLAGS` to compile the C++ targets, so they were compiled against
+Apple's C++ headers and not Linux's, as CI does. Every hash, statement, axiom count and mutant in its manifest came out
+the same before and after. Most of the time it saves is in mutants of `MathExtras`, which proves 23 functions in one
+file: each mutant is now checked against the file only up to the end of its function's theorem. The rest is from the
+axiom check importing only the parts of Lean it uses, which takes 0.3 s instead of 0.6 s to start, and from compiling
+the four support modules together.
 
 ### Probes for later phases
 

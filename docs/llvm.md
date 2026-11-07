@@ -60,6 +60,9 @@ disagree. For each function it does the following, and a function only counts if
 3. Allows only the standard axioms and what `bv_decide` adds, as [the proofs](testing.md#tests) do.
 4. Injects at least one bug into the source, which has to change the IR and stop that function's own proof.
 
+In a file proving several functions, only errors in that function's theorem count, so a bug is checked against the file
+up to the end of that theorem. Lean reads a file in order, so what comes after can't change those errors.
+
 The manifest it writes has, for each function, the theorem statement as Lean prints it, and hashes of the source, IR, Lean
 and proof, along with the flags and tool versions.
 
