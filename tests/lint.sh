@@ -30,23 +30,43 @@ if [ "${1:-}" = --fix ]; then
   rumdl fmt --quiet "${markdown[@]}"
 fi
 
-failed=0
-out=$(mktemp)
-trap 'rm -f "$out"' EXIT
+# Every check runs at once, and each writes what it found to its own numbered file.
+out=$(mktemp -d)
+trap 'rm -rf "$out"' EXIT
+checks=0
 check() {
   local name=$1
   shift
-  if "$@" >"$out" 2>&1; then
-    printf 'ok    %s\n' "$name"
-  else
-    printf 'FAIL  %s: %s\n' "$name" "$*"
-    head -c 4000 "$out"
-    failed=1
-  fi
+  checks=$((checks + 1))
+  (
+    if "$@" >"$out/$checks.log" 2>&1; then
+      printf 'ok    %s\n' "$name"
+    else
+      printf 'FAIL  %s: %s\n' "$name" "$*"
+      head -c 4000 "$out/$checks.log"
+      : >"$out/failed"
+    fi
+  ) >"$out/$checks.result" &
 }
 
 check 'C and C++ format' clang-format --dry-run --Werror "${cpp[@]}" "${c[@]}"
-check 'C++ lint' clang-tidy -p build --quiet "${cpp[@]}"
+# clang-tidy's analyzer takes seconds, so a pass is kept, named after everything it reads. CI doesn't keep
+# build/result-cache, so it runs every time there.
+tidy() {
+  local key
+  key=$({
+    command -v clang-tidy
+    printf '%s\n' "$1"
+    cat .clang-tidy build/compile_commands.json "${cpp[@]}"
+  } | sha256sum | cut -d' ' -f1)
+  [ -e "build/result-cache/tidy-$key" ] && return
+  clang-tidy -p build --quiet "$1" || return 1
+  mkdir -p build/result-cache
+  : >"build/result-cache/tidy-$key"
+}
+for f in "${cpp[@]}"; do
+  check "C++ lint, $f" tidy "$f"
+done
 # clang warns about the linker flags Nix passes, which this command has no use for.
 check 'C lint' clang -fsyntax-only -Wall -Wextra -Werror -Wno-unused-command-line-argument "${c[@]}"
 verify_ir() {
@@ -56,9 +76,6 @@ verify_ir() {
   done
 }
 check 'LLVM IR is valid' verify_ir "${ll[@]}"
-
-check 'Lean generated modules' tests/proofs.sh build/ir-lean --generate build/generated
-check 'Lean lint' lake build --wfail IRLean Proofs
 
 check 'Python lockfile' uv lock --check
 check 'Python format' uv run --quiet ruff format --check
@@ -85,4 +102,13 @@ check 'Markdown format and lint' rumdl check "${markdown[@]}"
 
 check 'Whitespace, in every language' editorconfig-checker -disable-indent-size
 
-exit $failed
+# The Lean lint needs the modules this writes.
+check 'Lean generated modules' tests/proofs.sh build/ir-lean --generate build/generated
+wait "$!"
+check 'Lean lint' lake build --wfail IRLean Proofs
+
+wait
+for ((i = 1; i <= checks; i++)); do
+  cat "$out/$i.result"
+done
+[ ! -e "$out/failed" ]

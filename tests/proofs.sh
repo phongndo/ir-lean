@@ -27,51 +27,106 @@ zlib_src=${ZLIB_SRC:-$(nix build --inputs-from "$root" --no-link --print-out-pat
 mkdir "$work/zlib"
 tar -xf "$zlib_src" -C "$work/zlib" --strip-components=1
 
-# Compiles the modules of a split translation, each after what it imports. A module whose text and imports
-# match the same module under `reuse` is copied from there, since compiling it would give the same result.
-# usage: compile_split DIR NAMESPACE [REUSE]
+# What's been compiled and what has passed, named after everything that went into it, so only what changed runs
+# again. CI doesn't keep build/, so it checks everything every time. To do that here, delete the directory.
+cache=$root/build/proof-cache
+mkdir -p "$cache"
+library=$({
+  command lean --version
+  cat "$0" "$root/.lake/build/lib/lean/IRLean.olean" "$root"/.lake/build/lib/lean/IRLean/*.olean
+} | sha256sum | cut -d' ' -f1)
+
+# What's in the cache stays until enough newer entries push it out.
+known() {
+  [ -e "$cache/$1" ] && touch "$cache/$1"
+}
+
+# Stores what's on standard input under a name, all at once, so nothing can read half of it.
+remember() {
+  local partial
+  partial=$(mktemp "$cache/partial.XXXXXX")
+  cat >"$partial"
+  mv "$partial" "$cache/$1"
+}
+
+# The hash of the file $2 and of what it imports from directory $1.
+# usage: module_key DIR FILE
+module_key() {
+  local import
+  {
+    printf '%s\n' "$library"
+    cat "$2"
+    while IFS= read -r import; do
+      cat "$1/${import//.//}.key" 2>/dev/null || true
+    done < <(sed -n 's/^import //p' "$2")
+  } | sha256sum | cut -d' ' -f1
+}
+
+# Compiles FILE to OLEAN, looking for what it imports in DIR, unless that's been done before.
+# usage: compile DIR MODULE_ROOT OLEAN FILE
+compile() {
+  local key
+  key=$(module_key "$1" "$4")
+  if known "$key.olean"; then
+    cp "$cache/$key.olean" "$3"
+  else
+    in_dir "$1" lean -R "$2" -o "$3" "$4" || return 1
+    remember "$key.olean" <"$3"
+  fi
+  printf '%s\n' "$key" >"${3%.olean}.key"
+}
+
+# Compiles the modules of a split translation, each after what it imports, as many at a time as are ready.
+# usage: compile_split DIR NAMESPACE
 compile_split() {
-  local dir=$1 ns=$2 reuse=${3:-} f name import ready same waiting
-  local -A copied=()
+  local dir=$1 ns=$2 f import ready waiting compiling pid failed=0
   local pending=("$dir/$ns"/*.lean)
   while [ "${#pending[@]}" -gt 0 ]; do
     waiting=()
+    compiling=()
     for f in "${pending[@]}"; do
-      name=$(basename "$f" .lean)
       ready=1
-      same=1
       while IFS= read -r import; do
         [ -e "$dir/$ns/$import.olean" ] || ready=0
-        [ -n "${copied[$import]:-}" ] || same=0
       done < <(sed -n "s/^import $ns\.//p" "$f")
       if [ "$ready" = 0 ]; then
         waiting+=("$f")
-      elif [ -n "$reuse" ] && [ "$same" = 1 ] && cmp -s "$f" "$reuse/$ns/$name.lean"; then
-        cp "$reuse/$ns/$name.olean" "$dir/$ns/$name.olean"
-        copied[$name]=1
       else
-        in_dir "$dir" lean -R "$dir" -o "${f%.lean}.olean" "$f"
+        compile "$dir" "$dir" "${f%.lean}.olean" "$f" &
+        compiling+=("$!")
+        if [ "${#compiling[@]}" -ge "$jobs" ]; then
+          wait "${compiling[0]}" || failed=1
+          compiling=("${compiling[@]:1}")
+        fi
       fi
     done
+    for pid in "${compiling[@]+"${compiling[@]}"}"; do
+      wait "$pid" || failed=1
+    done
+    [ "$failed" = 0 ] || return 1
     if [ "${#waiting[@]}" = "${#pending[@]}" ]; then
       printf 'FAIL  modules in %s import each other\n' "$dir/$ns"
       return 1
     fi
     pending=("${waiting[@]+"${waiting[@]}"}")
   done
-  in_dir "$dir" lean -R "$dir" -o "$dir/$ns.olean" "$dir/$ns.lean"
+  compile "$dir" "$dir" "$dir/$ns.olean" "$dir/$ns.lean"
 }
 
 # Compiles a C file with stock clang and translates it to the Lean module `$2`, with a module per function, in
-# the directory `$3`. `$4` is an earlier translation to reuse what hasn't changed from.
+# the directory `$3`.
 # Proofs never run the code, so Lean doesn't have to generate any. PROOF_CFLAGS comes from the dev shell
 # and fixes the target, so a proof checks the same IR on every host. -fno-strict-aliasing leaves out `tbaa`,
 # which the emitter refuses.
-gen() {
+translate() {
   # shellcheck disable=SC2086 # PROOF_CFLAGS is several flags.
   clang $PROOF_CFLAGS -O2 -fno-strict-aliasing -S -emit-llvm -fno-discard-value-names -D_LARGEFILE64_SOURCE=1 -o "$3/$2.ll" "$1"
   "$tool" "$3/$2.ll" --split "$3" --namespace "$2" --no-code >/dev/null
-  compile_split "$3" "$2" "${4:-}"
+}
+
+gen() {
+  translate "$@"
+  compile_split "$3" "$2"
 }
 
 # Waits for a free slot, then runs a command in the background.
@@ -125,13 +180,19 @@ LEAN
 }
 
 check_proof() {
-  local name=${1##*/} module axioms
+  local name=${1##*/} module axioms key
   module=${name%.lean}
-  if ! in_dir "$work" lean -R "$(dirname "$1")" -o "$work/$module.olean" "$1" >"$work/$name.out" 2>&1; then
+  if ! compile "$work" "$(dirname "$1")" "$work/$module.olean" "$1" >"$work/$name.out" 2>&1; then
     printf 'FAIL  %s\n' "$name"
     head -c 4000 "$work/$name.out"
     return 1
-  elif ! axioms=$(check_axioms "$module" 2>&1); then
+  fi
+  key=$(<"$work/$module.key")
+  if known "$key.axioms"; then
+    axioms=$(<"$cache/$key.axioms")
+  elif axioms=$(check_axioms "$module" 2>&1); then
+    printf '%s' "$axioms" | remember "$key.axioms"
+  else
     printf 'FAIL  %s\n%s\n' "$name" "${axioms:0:4000}"
     return 1
   fi
@@ -141,13 +202,17 @@ check_proof() {
 # Each of these has to fail in the axiom check itself, and not for some other reason.
 # usage: must_reject NAME LEAN_SOURCE
 must_reject() {
-  local dir output
-  dir=$(mktemp -d -p "$work")
-  printf '%s\n' "$2" >"$dir/Bad${1//[^a-z]/}.lean"
-  output=$(check_proof "$dir/Bad${1//[^a-z]/}.lean" 2>&1 || true)
-  if ! grep -qE 'not an allowed axiom|not what bv_decide would add' <<<"$output"; then
-    printf 'FAIL  a proof with %s still passes\n%s\n' "$1" "$output"
-    return 1
+  local dir output key
+  key=$(printf '%s\n%s\n' "$library" "$2" | sha256sum | cut -d' ' -f1)
+  if ! known "$key.rejected"; then
+    dir=$(mktemp -d -p "$work")
+    printf '%s\n' "$2" >"$dir/Bad${1//[^a-z]/}.lean"
+    output=$(check_proof "$dir/Bad${1//[^a-z]/}.lean" 2>&1 || true)
+    if ! grep -qE 'not an allowed axiom|not what bv_decide would add' <<<"$output"; then
+      printf 'FAIL  a proof with %s still passes\n%s\n' "$1" "$output"
+      return 1
+    fi
+    remember "$key.rejected" </dev/null
   fi
   printf 'ok    a proof with %s fails\n' "$1"
 }
@@ -177,7 +242,7 @@ stops_checking() {
 # A proof has to depend on the code. Break the C, and the same proof must stop checking.
 # usage: must_break NAME MODULE DIR C_FILE FILE_TO_EDIT PROOF SED
 must_break() {
-  local broken module
+  local broken module key proofs=("$6")
   broken=$(mktemp -d -p "$work")
   cp -r "$3" "$broken/src"
   sed -i "$7" "$broken/src/$5"
@@ -185,33 +250,41 @@ must_break() {
     printf 'FAIL  %s changed nothing in the C\n' "$1"
     return 1
   fi
-  gen "$broken/src/$4" "$2" "$broken" "$work"
+  translate "$broken/src/$4" "$2" "$broken"
+  [ "$2" = Crc ] && proofs+=("$root/tests/proofs/CrcTables.lean" "$root/tests/proofs/CrcSpec.lean")
+  key=$({
+    printf '%s\n' "$library"
+    cat "$broken/$2.lean" "$broken/$2"/*.lean "${proofs[@]}"
+  } | sha256sum | cut -d' ' -f1)
+  if known "$key.broke"; then
+    printf 'ok    %s: the proof stops checking\n' "$1"
+    return 0
+  fi
+  compile_split "$broken" "$2"
   # These two only depend on the globals. If those changed, they may be what stops checking.
   if [ "$2" = Crc ]; then
-    if cmp -s "$broken/Crc/Globals.lean" "$work/Crc/Globals.lean"; then
-      cp "$work/CrcTables.olean" "$work/CrcSpec.olean" "$broken"
-    else
-      for module in CrcTables CrcSpec; do
-        if stops_checking "$broken" "$root/tests/proofs/$module.lean"; then
-          printf 'ok    %s: the proof stops checking\n' "$1"
-          return 0
-        fi
-        in_dir "$broken" lean -R "$root/tests/proofs" -o "$broken/$module.olean" "$root/tests/proofs/$module.lean" >/dev/null
-      done
-    fi
+    for module in CrcTables CrcSpec; do
+      if ! known "$(module_key "$broken" "$root/tests/proofs/$module.lean").olean" &&
+        stops_checking "$broken" "$root/tests/proofs/$module.lean"; then
+        remember "$key.broke" </dev/null
+        printf 'ok    %s: the proof stops checking\n' "$1"
+        return 0
+      fi
+      compile "$broken" "$root/tests/proofs" "$broken/$module.olean" "$root/tests/proofs/$module.lean" >/dev/null
+    done
   fi
   if ! stops_checking "$broken" "$6"; then
     printf 'FAIL  %s: the proof still checks\n' "$1"
     return 1
   fi
+  remember "$key.broke" </dev/null
   printf 'ok    %s: the proof stops checking\n' "$1"
 }
 
-gen "$root/tests/real/bi_reverse.c" Real "$work"
-gen "$work/zlib/adler32.c" Zlib "$work"
-gen "$work/zlib/crc32.c" Crc "$work"
-
 if [ "${2:-}" = --generate ]; then
+  translate "$root/tests/real/bi_reverse.c" Real "$work"
+  translate "$work/zlib/adler32.c" Zlib "$work"
+  translate "$work/zlib/crc32.c" Crc "$work"
   for module in Real Zlib Crc; do
     mkdir -p "$3/$module"
     cp "$work/$module.lean" "$3"
@@ -220,10 +293,20 @@ if [ "${2:-}" = --generate ]; then
   exit 0
 fi
 
-# Crc32 and the mutants of crc32.c need these two.
-check_proof "$root/tests/proofs/CrcTables.lean"
-check_proof "$root/tests/proofs/CrcSpec.lean"
-for proof in Adler32 Crc32 Popcount; do
+gen "$root/tests/real/bi_reverse.c" Real "$work" &
+real=$!
+gen "$work/zlib/adler32.c" Zlib "$work" &
+adler=$!
+gen "$work/zlib/crc32.c" Crc "$work" &
+crc=$!
+# Each runs to the end, so that nothing is left using the directory the exit deletes.
+failed=0
+wait "$real" || failed=1
+wait "$adler" || failed=1
+wait "$crc" || failed=1
+[ "$failed" = 0 ] || exit 1
+
+for proof in Adler32 Popcount; do
   start check_proof "$root/tests/proofs/$proof.lean"
 done
 
@@ -252,16 +335,24 @@ start breaks_adler 'wrong sum' 's/#define DO1(buf,i)  {adler += (buf)\[i\]; sum2
 start breaks_adler 'skips a byte per block' 's/len -= NMAX;/len -= NMAX - 1;/'
 start breaks_adler 'single-byte path forgets the modulus' '/^    if (len == 1) {/,/^    }/ s/if (adler >= BASE)/if (adler > BASE)/'
 
-start breaks_crc 'wrong table entry' crc32.h 's/0x77073096/0x77073097/'
-start breaks_crc 'wrong braid table entry' crc32.h 's/0xaf449247/0xaf449246/'
-start breaks_crc 'reads past the end' crc32.c 's/while (len >= 8) {/while (len >= 7) {/'
-start breaks_crc 'no preconditioning' crc32.c 's/crc = (~crc) \& 0xffffffff;/crc = crc \& 0xffffffff;/'
-start breaks_crc 'no final inversion' crc32.c 's/return crc ^ 0xffffffff;/return crc;/'
-start breaks_crc 'skips a word' crc32.c '0,/words += N;/s//words += N + 1;/'
-start breaks_crc 'starts braid too soon' crc32.c 's/if (len >= N \* W + W - 1) {/if (len >= N * W - 2) {/'
+# Crc32 and the mutants of crc32.c need these two.
+if check_proof "$root/tests/proofs/CrcTables.lean" && check_proof "$root/tests/proofs/CrcSpec.lean"; then
+  start check_proof "$root/tests/proofs/Crc32.lean"
 
-failed=0
+  start breaks_crc 'wrong table entry' crc32.h 's/0x77073096/0x77073097/'
+  start breaks_crc 'wrong braid table entry' crc32.h 's/0xaf449247/0xaf449246/'
+  start breaks_crc 'reads past the end' crc32.c 's/while (len >= 8) {/while (len >= 7) {/'
+  start breaks_crc 'no preconditioning' crc32.c 's/crc = (~crc) \& 0xffffffff;/crc = crc \& 0xffffffff;/'
+  start breaks_crc 'no final inversion' crc32.c 's/return crc ^ 0xffffffff;/return crc;/'
+  start breaks_crc 'skips a word' crc32.c '0,/words += N;/s//words += N + 1;/'
+  start breaks_crc 'starts braid too soon' crc32.c 's/if (len >= N \* W + W - 1) {/if (len >= N * W - 2) {/'
+else
+  failed=1
+fi
+
 for pid in "${pids[@]}"; do
   wait "$pid" || failed=1
 done
+# Enough for a few versions of everything.
+find "$cache" -type f -printf '%T@ %p\n' | sort -rn | tail -n +5001 | cut -d' ' -f2- | xargs -r rm -f
 exit $failed

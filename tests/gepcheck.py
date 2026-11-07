@@ -14,14 +14,14 @@ runs in the model on several layouts, and then:
 usage: tests/gepcheck.py path/to/ir-lean
 """
 
-import concurrent.futures
 import itertools
 import os
 import shutil
-import subprocess
 import sys
 import tempfile
 
+import alive
+from differential import lean_output
 from opcheck import NATIVE, lean_env, sh
 
 FLAGS = ["", "inbounds", "nusw", "nuw", "inbounds nuw", "nusw nuw"]
@@ -82,7 +82,6 @@ def model(tool, bodies, work):
         f.write(source)
     sh([tool, ll, "-o", lean, "--namespace", "Cases"])
     env = lean_env(work)
-    sh(["lean", "-R", work, "-o", os.path.join(work, "Cases.olean"), lean], env=env)
     src = [
         "import Cases",
         "open IRLean",
@@ -101,7 +100,11 @@ def model(tool, bodies, work):
     path = os.path.join(work, "Drive.lean")
     with open(path, "w") as f:
         f.write("\n".join(src) + "\n")
-    out = sh(["lean", *NATIVE, "--run", path], env=env).stdout.split()
+
+    def compile_cases():
+        sh(["lean", "-R", work, "-o", os.path.join(work, "Cases.olean"), lean], env=env)
+
+    out = lean_output(work, ["lean", *NATIVE, "--run", path], env, compile_cases).split()
     if len(out) != len(LAYOUTS) * len(bodies):
         sys.exit("Lean printed the wrong number of results")
     return [out[n :: len(bodies)] for n in range(len(bodies))]
@@ -116,37 +119,23 @@ def as_ir(answer):
     return f"%r = getelementptr i8, ptr {base}, i64 {signed}\n  ret ptr %r"
 
 
-def refines(source, target, work):
-    """Alive2's verdict: True, False, or None if it can't tell."""
-    with tempfile.TemporaryDirectory(dir=work) as d:
-        a, b = os.path.join(d, "a.ll"), os.path.join(d, "b.ll")
-        for path, body in ((a, source), (b, target)):
-            with open(path, "w") as f:
-                f.write(f"{GLOBAL}define ptr @f() {{\n  {body}\n}}\n")
-        r = subprocess.run(
-            ["alive-tv", "--disable-undef-input", a, b],
-            text=True,
-            capture_output=True,
-            timeout=300,
-            check=False,
-        )
-    out = r.stdout + r.stderr
-    if "1 correct transformations" in out and "0 incorrect" in out:
+def verdict(output):
+    """Alive2's verdict on one pair: True, False, or None if it can't tell."""
+    if output is None or ("1 correct transformations" in output and "0 incorrect" in output):
         return True
-    if "1 incorrect transformations" in out:
+    if "1 incorrect transformations" in output:
         return False
     return None
 
 
-def check(job):
+def function(body):
+    return f"define ptr @F() {{\n  {body}\n}}\n"
+
+
+def classify(job, forward, back):
     """Returns (case, kind, what's wrong or empty)."""
-    body, answers, work = job
-    instruction = f"{body}\n  ret ptr %p"
-    if "stopped" in answers:
-        return body, "wrong", f"the model stopped: {answers}"
+    body, answers, _ = job
     if len(set(answers)) == 1:
-        table = as_ir(answers[0])
-        forward, back = refines(instruction, table, work), refines(table, instruction, work)
         if forward is None or back is None:
             return body, "unchecked", f"answer {answers[0]}: alive2 couldn't tell"
         if forward and back:
@@ -156,11 +145,6 @@ def check(job):
             "wrong",
             f"answer {answers[0]}: instruction refines it {forward}, it refines instruction {back}",
         )
-    values = [a for a in answers if a != "poison"]
-    if len(values) == len(answers) or not values:
-        return body, "wrong", f"the answer changes with the layout in a way flags can't explain: {answers}"
-    table = as_ir(values[0])
-    forward, back = refines(instruction, table, work), refines(table, instruction, work)
     if forward is None or back is None:
         return body, "unchecked", f"answers {answers}: alive2 couldn't tell"
     if forward and not back:
@@ -172,6 +156,32 @@ def check(job):
     )
 
 
+def check_all(jobs, work):
+    """Returns (case, kind, what's wrong or empty) for each job, in order."""
+    results = [None] * len(jobs)
+    pairs, asked = [], []
+    for n, (body, answers, _) in enumerate(jobs):
+        if "stopped" in answers:
+            results[n] = (body, "wrong", f"the model stopped: {answers}")
+            continue
+        values = [a for a in answers if a != "poison"]
+        if len(set(answers)) != 1 and (len(values) == len(answers) or not values):
+            results[n] = (
+                body,
+                "wrong",
+                f"the answer changes with the layout in a way flags can't explain: {answers}",
+            )
+            continue
+        instruction = function(f"{body}\n  ret ptr %p")
+        table = function(as_ir(answers[0] if len(set(answers)) == 1 else values[0]))
+        pairs += [(instruction, table), (table, instruction)]
+        asked.append(n)
+    verdicts = [verdict(o) for o in alive.refinements(GLOBAL, pairs, work)]
+    for k, n in enumerate(asked):
+        results[n] = classify(jobs[n], verdicts[2 * k], verdicts[2 * k + 1])
+    return results
+
+
 def main():
     tool = os.path.abspath(sys.argv[1])
     if not shutil.which("alive-tv"):
@@ -181,8 +191,7 @@ def main():
         pairs = [c if isinstance(c, tuple) else (c, c) for c in cases()]
         answers = model(tool, [p[0] for p in pairs], work)
         jobs = [(p[1], a, work) for p, a in zip(pairs, answers, strict=True)]
-        with concurrent.futures.ThreadPoolExecutor(max_workers=os.cpu_count() or 4) as pool:
-            results = list(pool.map(check, jobs))
+        results = check_all(jobs, work)
         count = {k: sum(r[1] == k for r in results) for k in ("exact", "layout", "unchecked", "wrong")}
         print(
             f"{len(results)} cases: {count['exact']} proved exact, {count['layout']} depend on the layout as "
