@@ -88,6 +88,10 @@ class Pipeline:
         self.src = Path(os.environ["LLVM_PROJECT_SRC"])
         self.proof_cflags = os.environ["PROOF_CFLAGS"].split()
         self.memory = os.environ.get("LEAN_MAX_MB", "4000")
+        # Lean gives each thread a stack of about 1 GiB, all of it committed. bv_decide forks the Lean
+        # process to start its solver, and on a machine with less RAM and swap than that commit, such as
+        # CI's runner, the fork can fail with ENOMEM. 64 MB is plenty for these proofs.
+        self.limits = ["-M", self.memory, "-s", "65536"]
         # Targets and their mutants each run in a pool. This keeps it to LEAN_JOBS Lean processes in all.
         self.slots = threading.BoundedSemaphore(int(os.environ.get("LEAN_JOBS", "4")))
 
@@ -96,7 +100,7 @@ class Pipeline:
 
     def lean(self, directory: Path, *args: str, stdin: str | None = None) -> str:
         with self.slots:
-            return run(["lean", "-M", self.memory, *args], self.lean_env(directory), stdin)
+            return run(["lean", *self.limits, *args], self.lean_env(directory), stdin)
 
     def compile_lean(self, directory: Path, source: Path, root: Path) -> None:
         olean = directory / (source.stem + ".olean")
@@ -176,7 +180,7 @@ class Pipeline:
         try:
             with self.slots:
                 result = subprocess.run(
-                    ["lean", "-M", self.memory, str(proof)],
+                    ["lean", *self.limits, str(proof)],
                     env=self.lean_env(scratch),
                     capture_output=True,
                     text=True,
