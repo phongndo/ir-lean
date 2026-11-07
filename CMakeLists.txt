@@ -70,7 +70,7 @@ add_test(
         ${CMAKE_SOURCE_DIR}/tests/zlib.sh $<TARGET_FILE:ir-lean> --only harness_ --runs 10 --slow
         harness_slow=0
 )
-# About 20 minutes: these run far enough for `deflate` to slide its window. Skip with `ctest -LE slow`.
+# These run far enough for `deflate` to slide its window, which takes the longest. Skip with `ctest -LE slow`.
 add_test(
     NAME zlib_slow
     COMMAND ${CMAKE_SOURCE_DIR}/tests/zlib.sh $<TARGET_FILE:ir-lean> --runs 1 --only harness_slow

@@ -25,7 +25,7 @@ Run `lake build`, then `ctest --test-dir build`, which takes about 25 minutes. A
 | `proofs` | The proofs against freshly generated Lean, that breaking the C breaks the proof, and that a proof can only rest on the standard axioms and `bv_decide`'s |
 | `names` | Every word Lean reserves is avoided in generated names |
 | `zlib` | All of zlib translates, and real calls into it match native code, failing if any input is skipped |
-| `zlib_slow` | The same for the calls that slide `deflate`'s window, at minutes each |
+| `zlib_slow` | The same for the calls that slide `deflate`'s window, the slowest of them |
 | `lint` | Every formatter and linter below, for every language |
 | `lsp` | Every language server below starts, opens real files, and reports no errors in them |
 
