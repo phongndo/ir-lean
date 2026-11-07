@@ -19,6 +19,7 @@ everything every time, in about a minute.
 | `differential` | Emitted Lean against natively compiled code, on real C |
 | `vectors_pointers` | The same for vectors, function pointers, pointers in globals and the heap, GEPs LLVM defines, and promises kept, failing if any input is skipped |
 | `undefined` | Code LLVM calls undefined stops the model, since comparing with native code can't show that |
+| `memory_errors` | Memory errors through the emitter each stop the model for their own reason: out of bounds, after a free, through a dangling pointer or the wrong provenance, null, misaligned, an overlapping copy, a write to a constant, and frees of what `malloc` didn't return |
 | `model_stops` | Where LLVM doesn't say it's undefined, the model stops without an answer |
 | `model_stops_are_not_undefined` | `--expect-ub` says those aren't undefined |
 | `emitter` | What the emitter refuses and accepts on purpose, the default namespace, and that `opcheck` can't pass quietly without Alive2 |

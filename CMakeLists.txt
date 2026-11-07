@@ -60,6 +60,39 @@ set_tests_properties(
     model_stops_are_not_undefined
     PROPERTIES PASS_REGULAR_EXPRESSION "not undefined: .*model stop: freezePoison"
 )
+# Each memory error has to stop for its own reason, not just any undefined behavior, so this checks them all.
+add_test(
+    NAME memory_errors
+    COMMAND
+        ${CMAKE_SOURCE_DIR}/tests/differential.py $<TARGET_FILE:ir-lean>
+        ${CMAKE_SOURCE_DIR}/tests/real/memory_errors.ll --runs 3 --expect-ub
+)
+string(
+    JOIN ", "
+    memory_error_reasons
+    "undefined: badAccess in @dangling_stack 3"
+    "undefined: badAccess in @heap_past_end 3"
+    "undefined: badAccess in @load_before_start 3"
+    "undefined: badAccess in @load_null 3"
+    "undefined: badAccess in @load_past_end 3"
+    "undefined: badAccess in @store_past_end 3"
+    "undefined: badAccess in @use_after_free 3"
+    "undefined: badAccess in @wrong_provenance 3"
+    "undefined: badFree in @double_free 3"
+    "undefined: badFree in @free_interior 3"
+    "undefined: badFree in @free_stack 3"
+    "undefined: misaligned in @load_misaligned 3"
+    "undefined: overlappingCopy in @memcpy_overlapping 3"
+    "undefined: writeToConstant in @store_to_constant 3"
+)
+set_tests_properties(
+    memory_errors
+    PROPERTIES
+        PASS_REGULAR_EXPRESSION
+            "14 functions: 42 calls stopped, 0 returned a value\nbecause of: ${memory_error_reasons}\n"
+        FAIL_REGULAR_EXPRESSION "not undefined|left out|nothing tested"
+        TIMEOUT 1800
+)
 add_test(NAME emitter COMMAND ${CMAKE_SOURCE_DIR}/tests/emitter.sh $<TARGET_FILE:ir-lean>)
 add_test(NAME fuzz COMMAND ${CMAKE_SOURCE_DIR}/tests/fuzz.py $<TARGET_FILE:ir-lean>)
 add_test(NAME proofs COMMAND ${CMAKE_SOURCE_DIR}/tests/proofs.sh $<TARGET_FILE:ir-lean>)

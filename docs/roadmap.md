@@ -202,7 +202,8 @@ allocator returns. It says nothing about decompressing correctly, which could co
 3. The invariant across `inflate`'s modes, one mode at a time, starting with stored blocks.
 
 `inflate` also calls `updatewindow` and the proved `adler32` and `crc32`, so this phase writes its own
-contracts by hand. That's on purpose: Phase 2 generalizes from what they turned out to need.
+contracts by hand. That's on purpose: Phase 2 generalizes from what they turned out to need. `updatewindow`'s
+is [proved](memory.md) for calls after the window is allocated, through a `strm` that carries no promises.
 
 **Runtime memory model:** alongside the proof, make the semantics fast enough to run. Memory is currently
 a chain of closures, which is why inputs stop at about 800 bytes. Add an executable representation, prove

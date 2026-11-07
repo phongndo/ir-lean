@@ -37,7 +37,7 @@ from typing import Any
 ROOT = Path(__file__).resolve().parent.parent
 LIBRARY = ROOT / ".lake" / "build" / "lib" / "lean"
 # The zlib proofs, after what they import from each other.
-ZLIB_PROOFS = ["Popcount", "Adler32", "CrcTables", "CrcSpec", "Crc32"]
+ZLIB_PROOFS = ["Popcount", "Adler32", "CrcTables", "CrcSpec", "Crc32", "MemoryModel", "UpdateWindow"]
 MEMORY_MB = os.environ.get("LEAN_MAX_MB", "4000")
 
 

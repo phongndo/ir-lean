@@ -119,9 +119,21 @@ compile_split() {
 # and fixes the target, so a proof checks the same IR on every host. -fno-strict-aliasing leaves out `tbaa`,
 # which the emitter refuses.
 translate() {
+  local status=0 left
   # shellcheck disable=SC2086 # PROOF_CFLAGS is several flags.
   clang $PROOF_CFLAGS -O2 -fno-strict-aliasing -S -emit-llvm -fno-discard-value-names -D_LARGEFILE64_SOURCE=1 -o "$3/$2.ll" "$1"
-  "$tool" "$3/$2.ll" --split "$3" --namespace "$2" --no-code >/dev/null
+  left=$("$tool" "$3/$2.ll" --split "$3" --namespace "$2" --no-code 2>&1 >/dev/null) || status=$?
+  # Exit 3 means some functions were left out, which is fine only if they're exactly the ones expected.
+  if [ "$status" = 3 ] && [ "$(sed -n 's/^ir-lean: left out @\([^:]*\):.*/\1/p' <<<"$left" | tr '\n' ' ')" = "$(may_leave_out "$2")" ]; then
+    status=0
+  fi
+  [ "$status" = 0 ] || printf '%s\n' "$left" >&2
+  return "$status"
+}
+
+# The functions a module may leave out: in `Inflate`, the two that call `crc32` and `adler32`, from other files.
+may_leave_out() {
+  if [ "$1" = Inflate ]; then printf 'inflate inflateSetDictionary '; fi
 }
 
 gen() {
@@ -253,7 +265,8 @@ if [ "${2:-}" = --generate ]; then
   translate "$root/tests/real/bi_reverse.c" Real "$work"
   translate "$work/zlib/adler32.c" Zlib "$work"
   translate "$work/zlib/crc32.c" Crc "$work"
-  for module in Real Zlib Crc; do
+  translate "$work/zlib/inflate.c" Inflate "$work"
+  for module in Real Zlib Crc Inflate; do
     mkdir -p "$3/$module"
     cp "$work/$module.lean" "$3"
     cp "$work/$module"/*.lean "$3/$module"
@@ -267,14 +280,17 @@ gen "$work/zlib/adler32.c" Zlib "$work" &
 adler=$!
 gen "$work/zlib/crc32.c" Crc "$work" &
 crc=$!
+gen "$work/zlib/inflate.c" Inflate "$work" &
+inflate=$!
 # Each runs to the end, so that nothing is left using the directory the exit deletes.
 failed=0
 wait "$real" || failed=1
 wait "$adler" || failed=1
 wait "$crc" || failed=1
+wait "$inflate" || failed=1
 [ "$failed" = 0 ] || exit 1
 
-for proof in Adler32 Popcount; do
+for proof in Adler32 MemoryModel Popcount UpdateWindow; do
   start check_proof "$root/tests/proofs/$proof.lean"
 done
 
@@ -294,6 +310,7 @@ theorem wrong : 1 = 2 := by have := t._native.bv_decide.ax_1_1; contradiction'
 breaks_popcount() { must_break "popcount $1" Real "$root/tests/real" bi_reverse.c bi_reverse.c "$root/tests/proofs/Popcount.lean" "$2"; }
 breaks_adler() { must_break "adler32 $1" Zlib "$work/zlib" adler32.c adler32.c "$root/tests/proofs/Adler32.lean" "$2"; }
 breaks_crc() { must_break "crc32 $1" Crc "$work/zlib" crc32.c "$2" "$root/tests/proofs/Crc32.lean" "$3"; }
+breaks_window() { must_break "updatewindow $1" Inflate "$work/zlib" inflate.c inflate.c "$root/tests/proofs/UpdateWindow.lean" "$2"; }
 
 start breaks_popcount 'shifts by 2' 's/x >>= 1;/x >>= 2;/'
 
@@ -302,6 +319,11 @@ start breaks_adler 'reads past the end' 's/while (len >= 16) {/while (len >= 15)
 start breaks_adler 'wrong sum' 's/#define DO1(buf,i)  {adler += (buf)\[i\]; sum2 += adler;}/#define DO1(buf,i)  {adler += (buf)[i]; sum2 += adler + 1;}/'
 start breaks_adler 'skips a byte per block' 's/len -= NMAX;/len -= NMAX - 1;/'
 start breaks_adler 'single-byte path forgets the modulus' '/^    if (len == 1) {/,/^    }/ s/if (adler >= BASE)/if (adler > BASE)/'
+
+# Each of these is a memory bug: the first reads past the end of the output, and the others write past the window.
+start breaks_window 'copies past what the output has' 's/        if (dist > copy) dist = copy;//'
+start breaks_window 'thinks the window is twice its size' 's/state->wsize = 1U << state->wbits;/state->wsize = 2U << state->wbits;/'
+start breaks_window 'copies one byte too many' 's/zmemcpy(state->window + state->wnext, end - copy, dist);/zmemcpy(state->window + state->wnext, end - copy, dist + 1);/'
 
 # Crc32 and the mutants of crc32.c need these two.
 if check_proof "$root/tests/proofs/CrcTables.lean" && check_proof "$root/tests/proofs/CrcSpec.lean"; then
