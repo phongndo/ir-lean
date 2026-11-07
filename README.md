@@ -18,8 +18,8 @@ x86-64 Linux, are proved correct for every input, with no undefined behavior, po
 | [`Adler32.lean`](tests/proofs/Adler32.lean) | zlib's `adler32_z` | RFC 1950 |
 | [`Crc32.lean`](tests/proofs/Crc32.lean) | zlib's `crc32_z` | RFC 1952 |
 
-So are [86 functions from LLVM itself](docs/llvm.md), at the flags upstream builds them with as far as the emitter allows:
-46 from `compiler-rt`, 29 from LLVM Support and 11 from `llvm-libc`, including `__udivmoddi4`, `llvm::crc32`,
+So are [87 functions from LLVM itself](docs/llvm.md), at the flags upstream builds them with as far as the emitter allows:
+46 from `compiler-rt`, 29 from LLVM Support and 12 from `llvm-libc`, including `__udivmoddi4`, `llvm::crc32`,
 `llvm::decodeULEB128`, `llvm::APInt::tcAdd`, and `llvm::xxh3_64bits` for inputs of at most 16 bytes. A search found
 rewrites of `__clzsi2` and `__ctzsi2` that are faster than `clang -O3`'s output, and Lean proves they do the same.
 
