@@ -665,6 +665,8 @@ void checkFunctionAttributes(AttributeSet Attrs, const std::string &Where, bool 
     case Attribute::MinSize:
     case Attribute::NoInline:
     case Attribute::NoMerge:
+    // Only says the callee isn't to be treated as a library function. `emitCall` refuses it on one that is.
+    case Attribute::NoBuiltin:
     case Attribute::NoRedZone:
     case Attribute::OptimizeForSize:
     case Attribute::OptimizeNone:
@@ -1505,12 +1507,22 @@ bool FunctionEmitter::emitIntrinsic(const IntrinsicInst &C, std::vector<Line> &O
 }
 
 void FunctionEmitter::emitCall(const CallBase &C, std::vector<Line> &Out) {
-  checkFunctionAttributes(C.getAttributes().getFnAttrs(), "call");
   const Function *Direct = C.getCalledFunction();
+  // A call to something outside the module that never returns, such as an abort, stops the model. A
+  // theorem saying `= Outcome.ok` shows it isn't reached, and nothing here claims what it does.
+  if (Direct && Direct->isDeclaration() && !Direct->isIntrinsic() && !libraryFunction(*Direct) &&
+      C.doesNotReturn() && !C.getFunctionType()->isVarArg() && !C.hasOperandBundles() &&
+      C.getType()->isVoidTy()) {
+    Out.push_back({Line::Bind, "_", "(Outcome.stop .noReturnCall : Outcome Unit)"});
+    return;
+  }
+  checkFunctionAttributes(C.getAttributes().getFnAttrs(), "call");
   // A function's own promises are checked, but a narrower one at a call isn't, so it's refused. What's known
   // of the C library is the exception: `Mem.strlen` only reads through its argument, and they all return.
   AttributeSet CallAttrs = C.getAttributes().getFnAttrs();
   bool Library = Direct && libraryFunction(*Direct);
+  if (Library && CallAttrs.hasAttribute(Attribute::NoBuiltin))
+    reject("call attribute nobuiltin on " + printed(C));
   if (CallAttrs.hasAttribute(Attribute::Memory) &&
       !(Library && Direct->getName() == "strlen" &&
         isRefSet(C.getMemoryEffects().getModRef(IRMemLocation::ArgMem))))

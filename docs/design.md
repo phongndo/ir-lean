@@ -73,6 +73,10 @@ not run, can use `--no-code`, so Lean doesn't generate code for it: `inflate` ch
   `malloc` fails. A theorem that holds for every `Mem` holds whatever those choices are.
 - **Function addresses are allocations that hold nothing.** A call through a pointer tries each function in the
   module with that signature whose address is taken. Anything else stops the model.
+- **A call that doesn't return stops the model.** Calling something outside the module with `noreturn` is
+  `ModelStop.noReturnCall`, without saying what it does. A theorem saying `= Outcome.ok` shows it isn't reached.
+- **`nobuiltin` on a call is allowed unless the callee is the C library's**, since it only says not to treat a callee as
+  a library function, and `Mem` does that for `malloc`, `free` and `strlen`.
 - **Vectors are a `Val` per lane**, so one lane can be poison, and an operation on a vector is the scalar
   operation on each lane.
 

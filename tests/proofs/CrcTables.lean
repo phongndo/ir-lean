@@ -8,7 +8,7 @@ set_option linter.unusedSimpArgs false
 set_option linter.deprecated false
 set_option linter.unusedVariables false
 
-open IRLean Crc
+open IRLean IRLean.Table Crc
 
 namespace CrcProof
 
@@ -86,8 +86,6 @@ theorem toNat_steps (n : Nat) (c : BitVec 64) : (steps n c).toNat = stepsN n c.t
   induction n generalizing c with
   | zero => rfl
   | succ n ih => simp only [steps, stepsN_succ, ih, toNat_bit]
-
-def bytes4 (v : Nat) : List Nat := [v % 256, v / 256 % 256, v / 65536 % 256, v / 16777216 % 256]
 
 /-- Every byte of the two tables is what the bit steps give. -/
 theorem crc_table_bytes :

@@ -62,6 +62,9 @@ inductive ModelStop where
   /-- A `noalias` result that isn't new in this call. LLVM only rules out storage the caller can reach,
   and the model can't tell whether it can. -/
   | noaliasResult
+  /-- A call to a function outside the module that promises not to return, such as an abort. What it does isn't
+  modeled, only that the code after it doesn't run. -/
+  | noReturnCall
   deriving Repr, DecidableEq, Inhabited
 
 /-- Why a run ended without a result. -/

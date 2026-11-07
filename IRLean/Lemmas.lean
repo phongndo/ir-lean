@@ -92,9 +92,9 @@ abbrev bufPtr (t : List Tag) (block o i : Nat) : Ptr := ⟨block, BitVec.ofNat 6
 /-- `n` initialized bytes at offset `o` of allocation `block`, holding `data`, that a pointer tagged `t` may
 read. Every real allocation meets the size limits, which are LangRef's rules for an allocated object: it's
 smaller than `2 ^ 63`, and neither it nor the pointer just past its end crosses the top of the address
-space. `allowed`, `clean`, `tagsOld`, `callsOld` and `nullChecks` hold for any call from outside a function that promised
+space. `allowed`, `clean`, `tagsOld` and `callsOld` hold for any call from outside a function that promised
 something about memory, and say what's needed for a call from inside one. -/
-structure Readable (m : Mem) (t : List Tag) (block o n : Nat) (data : Nat → BitVec 8) : Prop where
+structure Reachable (m : Mem) (t : List Tag) (block o n : Nat) (data : Nat → BitVec 8) : Prop where
   alloc : ∃ a : Alloc, m.allocs block = some a ∧ o + n ≤ a.size ∧ a.size < 2 ^ 63 ∧
     ∀ i, i < n → a.bytes (o + i) = .val (data i)
   fits : (m.addr (bufPtr t block o 0)).toNat + n < 2 ^ 64
@@ -105,6 +105,11 @@ structure Readable (m : Mem) (t : List Tag) (block o n : Nat) (data : Nat → Bi
     m.unwritten ⟨block, off, t⟩ a (o + i) = false
   tagsOld : ∀ x, x ∈ t → x.call < m.nextCall
   callsOld : ∀ c, c ∈ m.calls → c.id < m.nextCall
+
+/-- The same, for a pointer that a function may also ask is null, as well as any call from outside a function
+that promised something about memory allows. -/
+structure Readable (m : Mem) (t : List Tag) (block o n : Nat) (data : Nat → BitVec 8) : Prop
+    extends Reachable m t block o n data where
   /-- Asking whether a pointer tagged `t` is null is allowed. -/
   nullChecks : ∀ x, x ∈ t → x.noAddress = false ∨ x.nullCheck = true
 
@@ -165,11 +170,11 @@ theorem Mem.gep_forward {m : Mem} {q : Ptr} {a : Alloc} {k : Nat} (ha : m.allocs
   · simp [h0]
   · simp [h0, hmoved, show q.offset.toNat ≤ a.size by omega]
 
-namespace Readable
+namespace Reachable
 
 variable {m : Mem} {t : List Tag} {block o n : Nat} {data : Nat → BitVec 8}
 
-theorem load (B : Readable m t block o n data) {i : Nat} (h : i < n) :
+theorem load (B : Reachable m t block o n data) {i : Nat} (h : i < n) :
     Mem.loadInt 8 m (some (bufPtr t block o i)) 1 = Outcome.ok (some (data i)) := by
   obtain ⟨a, ha, hsz, hmax, hd⟩ := B.alloc
   have hlt : o + i < 2 ^ 64 := by omega
@@ -183,7 +188,7 @@ theorem load (B : Readable m t block o n data) {i : Nat} (h : i < n) :
     Outcome.ok]
 
 /-- The address `i` bytes in, for `i` up to one past the end. -/
-theorem toNat_addr (B : Readable m t block o n data) {i : Nat} (h : i ≤ n) :
+theorem toNat_addr (B : Reachable m t block o n data) {i : Nat} (h : i ≤ n) :
     (m.addr (bufPtr t block o i)).toNat = (m.addr (bufPtr t block o 0)).toNat + i := by
   obtain ⟨a, _, hsz, hmax, _⟩ := B.alloc
   have hf := B.fits
@@ -196,7 +201,7 @@ theorem toNat_addr (B : Readable m t block o n data) {i : Nat} (h : i ≤ n) :
       at hf ⊢
     omega
 
-theorem gep (B : Readable m t block o n data) {i k : Nat} (h : i + k ≤ n) :
+theorem gep (B : Reachable m t block o n data) {i k : Nat} (h : i + k ≤ n) :
     Mem.gep m (some (bufPtr t block o i)) (some (BitVec.ofNat 64 k)) (inbounds := true) (nuw := true) =
       some (bufPtr t block o (i + k)) := by
   obtain ⟨a, ha, hsz, hmax, hd⟩ := B.alloc
@@ -218,21 +223,12 @@ theorem gep_plain (m : Mem) (t : List Tag) (block o i k : Nat) :
     rw [← Nat.add_assoc]; simp [BitVec.ofNat_add]
   simp [Mem.gep, bufPtr, hoff]
 
-/-- Asking whether a buffer's pointer is null breaks no promise. -/
-theorem observeNull (B : Readable m t block o n data) (i : Nat) (k : Outcome α) :
-    Mem.observeAddress (some (bufPtr t block o i)) true k = k := by
-  have h : t.any (fun x => x.noAddress && !(true && x.nullCheck)) = false := by
-    rw [List.any_eq_false]
-    intro x hx
-    rcases B.nullChecks x hx with h | h <;> simp [h]
-  simp only [Mem.observeAddress, h, Bool.false_eq_true, ite_false]
-
 /-- A buffer stays readable inside a call that may read through its arguments and only adds a tag that
 allows it. -/
-theorem enter (B : Readable m t block o n data) {e : Effects} (he : e.arg = .read ∨ e.arg = .readwrite)
+theorem enter (B : Reachable m t block o n data) {e : Effects} (he : e.arg = .read ∨ e.arg = .readwrite)
     {T : Tag} (hT : T.call = m.nextCall) (hn : T.readnone = false) (hw : T.writeonly = false)
-    (hi : T.initializes = false) (hc : T.noAddress = false ∨ T.nullCheck = true) :
-    Readable (m.inCall e) (T :: t) block o n data := by
+    (hi : T.initializes = false) :
+    Reachable (m.inCall e) (T :: t) block o n data := by
   have hold : ∀ c, c ∈ m.calls → (T.call == c.id) = false := fun c hc => by
     have := B.callsOld c hc
     simp only [beq_eq_false_iff_ne]; omega
@@ -243,8 +239,7 @@ theorem enter (B : Readable m t block o n data) {e : Effects} (he : e.arg = .rea
   have hacc : ∀ c, c ∈ m.calls → ∀ off a, Mem.callAccess c ⟨block, off, T :: t⟩ a = Mem.callAccess c ⟨block, off, t⟩ a := by
     intro c hc off a
     simp [Mem.callAccess, hold c hc]
-  refine ⟨B.alloc, ?_, fun a ha off => ?_, fun a ha i h off => ?_, fun x hx => ?_, fun c hc => ?_,
-    fun x hx => ?_⟩
+  refine ⟨B.alloc, ?_, fun a ha off => ?_, fun a ha i h off => ?_, fun x hx => ?_, fun c hc => ?_⟩
   · simpa [Mem.addr] using B.fits
   · have hb := Mem.check_eq_none.mp (B.allowed a ha off)
     rw [Mem.check_eq_none]
@@ -278,9 +273,47 @@ theorem enter (B : Readable m t block o n data) {e : Effects} (he : e.arg = .rea
     · simp
     · have := B.callsOld c hc
       simp only; omega
-  · rcases List.mem_cons.mp hx with rfl | hx
-    · exact hc
-    · exact B.nullChecks x hx
+
+end Reachable
+
+namespace Readable
+
+variable {m : Mem} {t : List Tag} {block o n : Nat} {data : Nat → BitVec 8}
+
+theorem load (B : Readable m t block o n data) {i : Nat} (h : i < n) :
+    Mem.loadInt 8 m (some (bufPtr t block o i)) 1 = Outcome.ok (some (data i)) := B.toReachable.load h
+
+theorem toNat_addr (B : Readable m t block o n data) {i : Nat} (h : i ≤ n) :
+    (m.addr (bufPtr t block o i)).toNat = (m.addr (bufPtr t block o 0)).toNat + i := B.toReachable.toNat_addr h
+
+theorem gep (B : Readable m t block o n data) {i k : Nat} (h : i + k ≤ n) :
+    Mem.gep m (some (bufPtr t block o i)) (some (BitVec.ofNat 64 k)) (inbounds := true) (nuw := true) =
+      some (bufPtr t block o (i + k)) := B.toReachable.gep h
+
+theorem gep_plain (m : Mem) (t : List Tag) (block o i k : Nat) :
+    Mem.gep m (some (bufPtr t block o i)) (some (BitVec.ofNat 64 k)) =
+      some (bufPtr t block o (i + k)) := Reachable.gep_plain m t block o i k
+
+/-- Asking whether a buffer's pointer is null breaks no promise. -/
+theorem observeNull (B : Readable m t block o n data) (i : Nat) (k : Outcome α) :
+    Mem.observeAddress (some (bufPtr t block o i)) true k = k := by
+  have h : t.any (fun x => x.noAddress && !(true && x.nullCheck)) = false := by
+    rw [List.any_eq_false]
+    intro x hx
+    rcases B.nullChecks x hx with h | h <;> simp [h]
+  simp only [Mem.observeAddress, h, Bool.false_eq_true, ite_false]
+
+/-- A buffer stays readable inside a call that may read through its arguments and only adds a tag that
+allows it. -/
+theorem enter (B : Readable m t block o n data) {e : Effects} (he : e.arg = .read ∨ e.arg = .readwrite)
+    {T : Tag} (hT : T.call = m.nextCall) (hn : T.readnone = false) (hw : T.writeonly = false)
+    (hi : T.initializes = false) (hc : T.noAddress = false ∨ T.nullCheck = true) :
+    Readable (m.inCall e) (T :: t) block o n data :=
+  { Reachable.enter B.toReachable he hT hn hw hi with
+    nullChecks := fun x hx => by
+      rcases List.mem_cons.mp hx with rfl | hx
+      · exact hc
+      · exact B.nullChecks x hx }
 
 /-- A global holding bytes is `Readable`, so its hypotheses can all hold at once. -/
 theorem ofGlobal (m : Mem) (block : Nat) (init : Array Nat) (hcalls : m.calls = [])
@@ -289,14 +322,152 @@ theorem ofGlobal (m : Mem) (block : Nat) (init : Array Nat) (hcalls : m.calls = 
     Readable (m.addGlobal block init.size false init) [] block 0 init.size
       (fun i => BitVec.ofNat 8 (init[i]?.getD 0)) := by
   have hc : (m.addGlobal block init.size false init).calls = [] := hcalls
-  refine ⟨⟨{ size := init.size, readonly := false, bytes := Mem.globalBytes init },
+  refine ⟨⟨⟨{ size := init.size, readonly := false, bytes := Mem.globalBytes init },
     by simp [Mem.addGlobal], by simp, hsize, fun i hi => ?_⟩, hfits, fun a _ off => ?_, fun a _ i _ off => ?_,
-    by simp, by simp [hc], by simp⟩
+    by simp, by simp [hc]⟩, by simp⟩
   · have h := hbytes i hi
     simp [Mem.globalBytes, hi, Nat.not_lt.mpr h]
   · simp [Mem.check, hc]
   · simp [Mem.unwritten, hc]
 
 end Readable
+
+namespace Table
+
+/-! A global table of 32-bit entries, whose bytes the code reads directly. -/
+
+def bytes4 (v : Nat) : List Nat := [v % 256, v / 256 % 256, v / 65536 % 256, v / 16777216 % 256]
+
+theorem length_flatMap_range (g : Nat → List Nat) (hg : ∀ e, (g e).length = 4) (n : Nat) :
+    ((List.range n).flatMap g).length = 4 * n := by
+  induction n with
+  | zero => rfl
+  | succ n ih =>
+    rw [List.range_succ, List.flatMap_append, List.length_append, ih]
+    simp [hg]
+    omega
+
+theorem getElem?_flatMap_range (g : Nat → List Nat) (hg : ∀ e, (g e).length = 4) {n x j : Nat}
+    (hx : x < n) (hj : j < 4) : ((List.range n).flatMap g)[4 * x + j]? = (g x)[j]? := by
+  induction n with
+  | zero => omega
+  | succ n ih =>
+    rw [List.range_succ, List.flatMap_append]
+    by_cases h : x < n
+    · rw [List.getElem?_append_left (by rw [length_flatMap_range g hg]; omega), ih h]
+    · have e : x = n := by omega
+      subst e
+      rw [List.getElem?_append_right (by rw [length_flatMap_range g hg]; omega),
+        length_flatMap_range g hg]
+      simp
+
+theorem length_bytes4 (v : Nat) : (bytes4 v).length = 4 := rfl
+
+/-- A table's entry, in the bytes of its global. -/
+theorem lookup {init : Array Nat} {off n : Nat} {f : Nat → Nat}
+    (h : (init.toList.drop off).take (4 * n) = (List.range n).flatMap fun e => bytes4 (f e))
+    {x j : Nat} (hx : x < n) (hj : j < 4) : init[off + (4 * x + j)]? = (bytes4 (f x))[j]? := by
+  have h1 := getElem?_flatMap_range (fun e => bytes4 (f e)) (fun e => length_bytes4 _) hx hj
+  rw [← h, List.getElem?_take, ite_eq_left (by omega), List.getElem?_drop] at h1
+  simpa using h1
+
+theorem load_entry {m : Mem} {block s off n x v : Nat} {init : Array Nat} {f : Nat → Nat}
+    (hA : m.allocs block = some { size := s, readonly := true, bytes := Mem.globalBytes init })
+    (h : (init.toList.drop off).take (4 * n) = (List.range n).flatMap fun e => bytes4 (f e))
+    (hx : x < n) (hv : f x = v) (hlt : v < 4294967296) (hs : off + 4 * n ≤ s) (hmax : s < 2 ^ 64)
+    (halign : (m.addr ⟨block, BitVec.ofNat 64 (off + 4 * x), []⟩).toNat % 4 = 0) :
+    Mem.loadInt 32 m (some ⟨block, BitVec.ofNat 64 (off + 4 * x), []⟩) 4 =
+      Outcome.ok (some (BitVec.ofNat 32 v)) := by
+  have l0 := lookup h hx (j := 0) (by omega)
+  have l1 := lookup h hx (j := 1) (by omega)
+  have l2 := lookup h hx (j := 2) (by omega)
+  have l3 := lookup h hx (j := 3) (by omega)
+  have hoff : (BitVec.ofNat 64 (off + 4 * x)).toNat = off + 4 * x := by
+    simp only [BitVec.toNat_ofNat]; exact Nat.mod_eq_of_lt (by omega)
+  have fits : ¬ off + 4 * x + 32 / 8 > s := by omega
+  have b0 : init[off + 4 * x + 0]? = some (v % 256) := by subst hv; simpa [bytes4] using l0
+  have b1 : init[off + 4 * x + 1]? = some (v / 256 % 256) := by subst hv; simpa [bytes4, Nat.add_assoc] using l1
+  have b2 : init[off + 4 * x + 2]? = some (v / 65536 % 256) := by subst hv; simpa [bytes4, Nat.add_assoc] using l2
+  have b3 : init[off + 4 * x + 3]? = some (v / 16777216 % 256) := by subst hv; simpa [bytes4, Nat.add_assoc] using l3
+  have g0 : ¬ (v % 256 > 255) := by omega
+  have g1 : ¬ (v / 256 % 256 > 255) := by omega
+  have g2 : ¬ (v / 65536 % 256 > 255) := by omega
+  have g3 : ¬ (v / 16777216 % 256 > 255) := by omega
+  have total : v % 256 + 256 * (v / 256 % 256 + 256 * (v / 65536 % 256 + 256 * (v / 16777216 % 256 + 256 * 0))) = v := by
+    omega
+  have t0 : (BitVec.ofNat 8 (v % 256)).toNat = v % 256 := by simp [BitVec.toNat_ofNat]
+  have t1 : (BitVec.ofNat 8 (v / 256 % 256)).toNat = v / 256 % 256 := by simp [BitVec.toNat_ofNat]
+  have t2 : (BitVec.ofNat 8 (v / 65536 % 256)).toNat = v / 65536 % 256 := by simp [BitVec.toNat_ofNat]
+  have t3 : (BitVec.ofNat 8 (v / 16777216 % 256)).toNat = v / 16777216 % 256 := by simp [BitVec.toNat_ofNat]
+  have hc : m.check ⟨block, BitVec.ofNat 64 (off + 4 * x), []⟩
+      { size := s, readonly := true, bytes := Mem.globalBytes init } false = none :=
+    Mem.check_constant rfl rfl
+  simp only [Mem.loadInt, Mem.access, hA, hoff, fits, ite_false, halign, Mem.read, Mem.visible]
+  have hw : ∀ o', m.unwritten ⟨block, BitVec.ofNat 64 (off + 4 * x), []⟩
+      { size := s, readonly := true, bytes := Mem.globalBytes init } o' = false :=
+    fun _ => Mem.unwritten_constant rfl
+  have e0 : Mem.globalBytes init (off + 4 * x + 0) = .val (BitVec.ofNat 8 (v % 256)) := by
+    simp only [Mem.globalBytes, b0, g0, ite_false]
+  have e1 : Mem.globalBytes init (off + 4 * x + 1) = .val (BitVec.ofNat 8 (v / 256 % 256)) := by
+    simp only [Mem.globalBytes, b1, g1, ite_false]
+  have e2 : Mem.globalBytes init (off + 4 * x + 2) = .val (BitVec.ofNat 8 (v / 65536 % 256)) := by
+    simp only [Mem.globalBytes, b2, g2, ite_false]
+  have e3 : Mem.globalBytes init (off + 4 * x + 3) = .val (BitVec.ofNat 8 (v / 16777216 % 256)) := by
+    simp only [Mem.globalBytes, b3, g3, ite_false]
+  have c : ((4 : Nat) != 1 && (0 : Nat) != 0) = false := rfl
+  simp only [List.range, List.range.loop, List.map, c, Bool.false_eq_true, ite_false, hoff, hc, hw, e0, e1, e2,
+    e3, Mem.collect, t0, t1, t2, t3, total]
+
+theorem addr_align {m : Mem} {block k : Nat} (hb : block ≠ 0) (ha : (m.base block).toNat % 4 = 0)
+    : (m.addr ⟨block, BitVec.ofNat 64 (4 * k), []⟩).toNat % 4 = 0 := by
+  have h : (block == 0) = false := by simpa using hb
+  simp only [Mem.addr, h, Bool.false_eq_true, ite_false, BitVec.toNat_add, BitVec.toNat_ofNat]
+  omega
+
+theorem mul4 {x : BitVec 64} (hx : x.toNat < 256) :
+    Val.mul (some x) (some 4#64) (nuw := true) (nsw := true) = some (BitVec.ofNat 64 (4 * x.toNat)) := by
+  have h' : x < 256#64 := by simpa [BitVec.lt_def] using hx
+  have h1 : x.umulOverflow 4#64 = false := by bv_decide
+  have h2 : x.smulOverflow 4#64 = false := by bv_decide
+  have e : x * 4#64 = BitVec.ofNat 64 (4 * x.toNat) := by
+    apply BitVec.eq_of_toNat_eq
+    simp only [BitVec.toNat_mul, BitVec.toNat_ofNat]
+    omega
+  simp [Val.mul, h1, h2, e]
+
+/-- Reads an entry of a table of 256 at offset `off` of a read-only global, as the optimizer leaves that. -/
+theorem load {m : Mem} {P : Ptr} {init : Array Nat} {s off : Nat} {f : Nat → Nat} {x : BitVec 64}
+    (hA : m.allocs P.block = some { size := s, readonly := true, bytes := Mem.globalBytes init })
+    (hP : P.offset = BitVec.ofNat 64 off) (hPt : P.tags = []) (hb : P.block ≠ 0)
+    (h : (init.toList.drop off).take 1024 = (List.range 256).flatMap fun e => bytes4 (f e))
+    (hs : off + 1024 ≤ s) (hmax : s < 2 ^ 64) (h4 : off % 4 = 0)
+    (ha : (m.base P.block).toNat % 4 = 0) (hfit : (m.base P.block).toNat + s < 2 ^ 64)
+    (hx : x.toNat < 256) (hlt : f x.toNat < 4294967296) :
+    Mem.loadInt 32 m
+        (Mem.gep m (some P) (Val.mul (some x) (some 4#64) (nuw := true) (nsw := true))
+          (inbounds := true) (nuw := true)) 4 =
+      Outcome.ok (some (BitVec.ofNat 32 (f x.toNat))) := by
+  have hal : (m.addr ⟨P.block, BitVec.ofNat 64 (off + 4 * x.toNat), []⟩).toNat % 4 = 0 := by
+    have e : off + 4 * x.toNat = 4 * (off / 4 + x.toNat) := by omega
+    rw [e]
+    exact addr_align hb ha
+  have hload := load_entry (n := 256) hA h hx rfl hlt (by omega) hmax hal
+  have toff : (BitVec.ofNat 64 off).toNat = off := by
+    simp only [BitVec.toNat_ofNat]; exact Nat.mod_eq_of_lt (by omega)
+  have td : (BitVec.ofNat 64 (4 * x.toNat)).toNat = 4 * x.toNat := by
+    simp only [BitVec.toNat_ofNat]; omega
+  have hsum : BitVec.ofNat 64 off + BitVec.ofNat 64 (4 * x.toNat) = BitVec.ofNat 64 (off + 4 * x.toNat) := by
+    simp [BitVec.ofNat_add]
+  have hb' : (P.block == 0) = false := by simpa using hb
+  have haddr : (m.addr P).toNat + 4 * x.toNat < 2 ^ 64 := by
+    simp only [Mem.addr, hb', Bool.false_eq_true, ite_false, BitVec.toNat_add, hP, toff]
+    omega
+  have hgep : Mem.gep m (some P) (some (BitVec.ofNat 64 (4 * x.toNat))) (inbounds := true) (nuw := true) =
+      some ⟨P.block, BitVec.ofNat 64 (off + 4 * x.toNat), []⟩ := by
+    rw [Mem.gep_forward hA (by simp only [hP, toff]; omega) hmax haddr (by omega), hP, hsum]
+    cases P; simp_all
+  rw [mul4 hx, hgep, hload]
+
+end Table
 
 end IRLean

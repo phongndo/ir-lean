@@ -104,7 +104,8 @@ separating these first.
 ## What the model does at its edges
 
 Some things stop the model instead of choosing an answer, and the `ModelStop` type lists them: `freeze` of
-poison, reading a stored pointer as an integer, and calling through a pointer to something outside the module.
+poison, reading a stored pointer as an integer, calling through a pointer to something outside the module, and
+calling something outside the module that promises not to return, such as an abort.
 So do promises LangRef defines by what's observable, or doesn't say what happens if broken: looking at an address
 `captures` left out, an access `memory(...)` lists as `none`, a `noalias` result that isn't new, a function
 returning something other than its `returned` argument, and `llvm.assume` with a `nonnull` bundle on poison. A
