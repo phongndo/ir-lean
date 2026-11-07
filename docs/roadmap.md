@@ -25,8 +25,9 @@ The three pillars this builds toward are systems correctness proofs, memory-safe
 refinement certificates. All three are statements about LLVM IR, and the
 [trust model](trust.md) says exactly what that does and doesn't give you.
 
-Some of this has moved faster than the order above: [LLVM's own code](llvm.md) proves real functions from `llvm-project`, without
-Phases 1 and 2 being done. It doesn't replace them: it has no contracts between functions.
+Some of this has moved faster than the order above: [LLVM's own code](llvm.md) proves real functions from `llvm-project`, and
+tries a small search for rewrites, without Phases 1 and 2 being done. It doesn't replace them. Its rewrites only cover pure
+functions of one argument, and it has no contracts between functions, or refinement certificates in the sense of Phase 4.
 
 ### Language priorities
 
