@@ -30,19 +30,23 @@ if [ "${1:-}" = --fix ]; then
   rumdl fmt --quiet "${markdown[@]}"
 fi
 
-failed=0
-out=$(mktemp)
-trap 'rm -f "$out"' EXIT
+# Every check runs at once, and each writes what it found to its own numbered file.
+out=$(mktemp -d)
+trap 'rm -rf "$out"' EXIT
+checks=0
 check() {
   local name=$1
   shift
-  if "$@" >"$out" 2>&1; then
-    printf 'ok    %s\n' "$name"
-  else
-    printf 'FAIL  %s: %s\n' "$name" "$*"
-    head -c 4000 "$out"
-    failed=1
-  fi
+  checks=$((checks + 1))
+  (
+    if "$@" >"$out/$checks.log" 2>&1; then
+      printf 'ok    %s\n' "$name"
+    else
+      printf 'FAIL  %s: %s\n' "$name" "$*"
+      head -c 4000 "$out/$checks.log"
+      : >"$out/failed"
+    fi
+  ) >"$out/$checks.result" &
 }
 
 check 'C and C++ format' clang-format --dry-run --Werror "${cpp[@]}" "${c[@]}"
@@ -56,9 +60,6 @@ verify_ir() {
   done
 }
 check 'LLVM IR is valid' verify_ir "${ll[@]}"
-
-check 'Lean generated modules' tests/proofs.sh build/ir-lean --generate build/generated
-check 'Lean lint' lake build --wfail IRLean Proofs
 
 check 'Python lockfile' uv lock --check
 check 'Python format' uv run --quiet ruff format --check
@@ -85,4 +86,13 @@ check 'Markdown format and lint' rumdl check "${markdown[@]}"
 
 check 'Whitespace, in every language' editorconfig-checker -disable-indent-size
 
-exit $failed
+# The Lean lint needs the modules this writes.
+check 'Lean generated modules' tests/proofs.sh build/ir-lean --generate build/generated
+wait "$!"
+check 'Lean lint' lake build --wfail IRLean Proofs
+
+wait
+for ((i = 1; i <= checks; i++)); do
+  cat "$out/$i.result"
+done
+[ ! -e "$out/failed" ]

@@ -12,6 +12,7 @@ first.
 usage: tests/lsp.py
 """
 
+import concurrent.futures
 import json
 import os
 import queue
@@ -194,17 +195,23 @@ def check_server(command, language, paths):
         server.stop()
 
 
+def timed_check(server):
+    start = time.monotonic()
+    problems = check_server(*server)
+    return problems, time.monotonic() - start
+
+
 def main():
     failed = False
-    for command, language, paths in SERVERS:
-        start = time.monotonic()
-        problems = check_server(command, language, paths)
-        name = " ".join(c for c in command if c not in ("uv", "run", "--quiet"))
-        took = time.monotonic() - start
-        print(f"{'FAIL' if problems else 'ok  '}  {name} ({language}, {len(paths)} files, {took:.0f} s)")
-        for problem in problems[:10]:
-            print(f"        {problem}")
-        failed = failed or bool(problems)
+    with concurrent.futures.ThreadPoolExecutor(max_workers=len(SERVERS)) as pool:
+        for (command, language, paths), (problems, took) in zip(
+            SERVERS, pool.map(timed_check, SERVERS), strict=True
+        ):
+            name = " ".join(c for c in command if c not in ("uv", "run", "--quiet"))
+            print(f"{'FAIL' if problems else 'ok  '}  {name} ({language}, {len(paths)} files, {took:.0f} s)")
+            for problem in problems[:10]:
+                print(f"        {problem}")
+            failed = failed or bool(problems)
     sys.exit(1 if failed else 0)
 
 
