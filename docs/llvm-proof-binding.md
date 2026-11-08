@@ -89,7 +89,7 @@ can't ride along.
 | `transform.passes`, `.mtriple` | The `opt -passes=` spec, and `-mtriple` or `null` | Rerunning `opt` |
 | `target.triple`, `.datalayout` | What both IR files say | Reading them |
 | `artifacts.ROLE.path`, `.sha256` | `input`, `src_ir`, `tgt_ir`, `src_lean`, `tgt_lean`, `certificate`: a plain file directly in the bundle, by name, and its hash | Hashing it |
-| `toolchain` | The version and SHA-256 of `lean`, `leanchecker` and `opt`, and the SHA-256 of every file in the Lean toolchain, `build/ir-lean`, every file of `IRLean`'s library, `tests/check_axioms.lean`, `tools/binding_check.lean` and `tools/binding.py` | Recomputing each, with paths from the toolchain's or the library's own directory, so a moved checkout hashes the same. A link has to lead inside what's hashed, or into the Nix store. `lean` and `leanchecker` are the ones in the toolchain `lean --print-prefix` names, and `opt` the one on PATH, and each runs by that absolute path, so what runs is what was hashed |
+| `toolchain` | The version and SHA-256 of `lean`, `leanchecker` and `opt`, and the SHA-256 of every file in the Lean toolchain, `build/ir-lean`, every file of `IRLean`'s library, `tests/check_axioms.lean`, `tools/binding_check.lean` and `tools/binding.py` | Recomputing each, with paths from the toolchain's or the library's own directory, so a moved checkout hashes the same. A link has to lead, as it's written and without resolving anything, to a file that's hashed itself, or into the Nix store. `lean` and `leanchecker` are the ones in the toolchain `lean --print-prefix` names, and `opt` the one on PATH, and each runs by that absolute path, so what runs is what was hashed |
 
 The source IR is `opt -S -passes=verify` of the input, and the target is `opt -S -passes=SPEC` of it. Both read it from
 stdin, so neither names a path.
@@ -205,7 +205,7 @@ Only `bound` is a success. Every verdict, whatever its status, carries `does_not
 | `undef_argument` | `unsupported` | An argument isn't `noundef` in the source, so a caller can pass `undef` |
 | `trusted_promise` | `unsupported` | The target IR has `mustprogress` or `willreturn` |
 | `time_limit`, `resource_limit` | `unknown` | A step ran out of time, or Lean or a cgroup ran out of memory, heartbeats or stack |
-| `toolchain_untrusted_link` | `error` | A link in the toolchain or `IRLean`'s library leads outside them, and not into the Nix store, so what it leads to isn't checked |
+| `toolchain_untrusted_link` | `error` | A link in the toolchain or `IRLean`'s library leads somewhere nothing hashes: outside them and not into the Nix store, or anywhere through a link. A root that's itself a link, and a link to a directory, are refused too |
 | `toolchain_missing`, `tool_failed`, `generated_module_failed`, `checker_error`, `invalid_request`, `internal_error` | `error` | Something here failed |
 
 ### The cache
@@ -339,8 +339,9 @@ and has to get the status and reason given:
 | | An entry for another manifest, or another toolchain, at the key | Replayed and `refused`, cache `stale_ignored` |
 | | A changed file, with a `bound` entry in the cache | `refused` before the cache is read |
 
-52 cases took 296 s, one process at a time. Two of them check the hash on small trees, without Lean: a library hashes
-the same in another place, and a link out of it is an error. `memory_limit` also comes back `unknown` without a systemd scope, from
+55 cases took 294 s, one process at a time. Five of them check the hash on small trees, without Lean: a library
+hashes the same in another place, and a link out of it, a library that's a link, a link to a directory, and a link out
+and back in are errors. `memory_limit` also comes back `unknown` without a systemd scope, from
 Lean's `-M` alone, which was checked by hand. It isn't in CI, or in [testing](testing.md), yet.
 
 No test reaches `function_not_found`, `function_not_generated`, `signature_mismatch`, `module_shadowed`, which the

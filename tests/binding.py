@@ -511,22 +511,35 @@ def hash_cases(failures: list[str]) -> int:
         (t / place / "IRLean").mkdir(parents=True)
         (t / place / "IRLean" / "Basic.olean").write_bytes(b"module")
         (t / place / "IRLean" / "Same.olean").symlink_to("Basic.olean")
-    ran = 2
+    ran = 1
     if binding.tree_hash(t / "a", t / "a" / "IRLean") != binding.tree_hash(t / "b", t / "b" / "IRLean"):
         failures.append("relocated_library: the same library hashes differently in another place")
     else:
         print("ok    relocated_library: the same hash")
     (t / "other").mkdir()
     (t / "other" / "Basic.olean").write_bytes(b"module")
+    (t / "c").mkdir()
+    (t / "c" / "IRLean").symlink_to(t / "other")
+    (t / "d" / "IRLean" / "Sub").mkdir(parents=True)
+    (t / "d" / "IRLean" / "Sub" / "Basic.olean").write_bytes(b"module")
+    (t / "d" / "IRLean" / "Dir").symlink_to("Sub")
+    (t / "e" / "IRLean").mkdir(parents=True)
+    (t / "e" / "IRLean" / "Basic.olean").write_bytes(b"module")
+    (t / "e" / "hop").symlink_to(t / "e" / "IRLean" / "Basic.olean")
+    (t / "e" / "IRLean" / "Hop.olean").symlink_to("../hop")
     (t / "a" / "IRLean" / "Out.olean").symlink_to(t / "other" / "Basic.olean")
-    try:
-        binding.tree_hash(t / "a", t / "a" / "IRLean")
-        failures.append("link_out: a link out of the library was hashed")
-    except binding.Verdict as v:
-        if (v.status, v.reason) != ("error", "toolchain_untrusted_link"):
-            failures.append(f"link_out: expected error toolchain_untrusted_link, got {v.status} {v.reason}")
-        else:
-            print(f"ok    link_out: {v.status} {v.reason}")
+    # Each leads where nothing is hashed or stamped: out, a root that's a link, a link to a directory, which
+    # would make `..` in another link mean something else, and a link out and back in.
+    for name, place in [("link_out", "a"), ("root_link", "c"), ("directory_link", "d"), ("hop_out", "e")]:
+        ran += 1
+        try:
+            binding.tree_hash(t / place, t / place / "IRLean")
+            failures.append(f"{name}: hashed")
+        except binding.Verdict as v:
+            if (v.status, v.reason) != ("error", "toolchain_untrusted_link"):
+                failures.append(f"{name}: expected error toolchain_untrusted_link, got {v.status} {v.reason}")
+            else:
+                print(f"ok    {name}: {v.status} {v.reason}")
     return ran
 
 
