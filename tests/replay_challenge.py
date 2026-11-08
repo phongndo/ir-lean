@@ -800,7 +800,10 @@ def alive_tier(report: Report) -> None:
                 )
             elif a.verdict != want:
                 report.add(name, "fail", f"Alive2 says {a.verdict}, and {want} was expected")
-            elif note and not (held := explained_by(note["because"], text, src, tgt, mode, want, claim)):
+            elif (
+                note
+                and (held := explained_by(note["because"], text, src, tgt, mode, want, claim)) is not True
+            ):
                 report.add(name, "fail", f"said to be {note['because']}, and that doesn't hold: {held}")
             else:
                 why = f", because of {note['because']}" if note else ""
