@@ -62,6 +62,9 @@ CHECK = ROOT / "tools" / "binding_check.lean"
 AXIOMS = ROOT / "tests" / "check_axioms.lean"
 PIN = ROOT / "tests" / "llvm" / "targets.toml"
 RUNS = ROOT / "build" / "binding" / "runs"
+SELF = Path(__file__).resolve()
+# The files a verdict depends on that aren't in a tree tree_hash() covers. Each has to be a file, not a link.
+STANDALONE = [TOOL, AXIOMS, CHECK, SELF]
 
 MANIFEST_SCHEMA = "ir-lean.binding.manifest/1"
 VERDICT_SCHEMA = "ir-lean.binding.verdict/1"
@@ -338,8 +341,19 @@ def which(program: str) -> Path:
     return Path(found).resolve()
 
 
+def plain_files(*paths: Path) -> None:
+    """That none of `paths` is a link. stamp() sees a link, not what it leads to, so a checker linked to a
+    writable file could be rewritten by a certificate's code after it was hashed, and nothing would see it."""
+    for path in paths:
+        if path.is_symlink():
+            raise Verdict(
+                "error", "toolchain_untrusted_link", f"{path} is a link, so what it leads to isn't checked"
+            )
+
+
 def toolchain(run: Runner) -> dict[str, str]:
     """Everything a verdict depends on that isn't in the bundle, by version and hash."""
+    plain_files(*STANDALONE)
     for path, what in [
         (TOOL, "build/ir-lean: build it with cmake and ninja"),
         (LIBRARY / "IRLean.olean", ".lake/build/lib/lean/IRLean.olean: run lake build"),
@@ -369,7 +383,7 @@ def toolchain(run: Runner) -> dict[str, str]:
         "irlean_library_sha256": library_hash(),
         "check_axioms_sha256": sha256_file(AXIOMS),
         "binding_check_sha256": sha256_file(CHECK),
-        "binding_py_sha256": sha256_file(Path(__file__).resolve()),
+        "binding_py_sha256": sha256_file(SELF),
     }
 
 
@@ -860,10 +874,7 @@ def replay(m: dict, data: dict[str, bytes], work: Path, nonce: str, run: Runner,
         Path(run.bins["lean"]).parent.parent,
         *irlean_entries(),
         Path(run.bins["opt"]),
-        TOOL,
-        AXIOMS,
-        CHECK,
-        Path(__file__).resolve(),
+        *STANDALONE,
     ]
     before = stamp(*trusted)
     checks("compile_generated")

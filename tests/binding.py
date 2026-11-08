@@ -554,6 +554,32 @@ def hash_cases(failures: list[str]) -> int:
                 failures.append(f"{name}: expected error toolchain_untrusted_link, got {v.status} {v.reason}")
             else:
                 print(f"ok    {name}: {v.status} {v.reason}")
+    # Sol's sixth-round attack: a tracked checker that's a link to a writable file. stamp() sees only the
+    # link, so a rewrite of what it leads to goes unseen, and the link has to be refused before any hashing.
+    ran += 2
+    (t / "g" / "tools").mkdir(parents=True)
+    (t / "g" / "checker.lean").write_text("the checker")
+    link = t / "g" / "tools" / "binding_check.lean"
+    link.symlink_to("../checker.lean")
+    seen = binding.stamp(link)
+    (t / "g" / "checker.lean").write_text("a checker that says ok")
+    if binding.stamp(link) != seen:
+        print("note  standalone_link: stamp() saw the rewrite here, which the attack doesn't rely on")
+    try:
+        binding.plain_files(link)
+        failures.append("standalone_link: a tracked checker that's a link was accepted")
+    except binding.Verdict as v:
+        if (v.status, v.reason) != ("error", "toolchain_untrusted_link"):
+            failures.append(
+                f"standalone_link: expected error toolchain_untrusted_link, got {v.status} {v.reason}"
+            )
+        else:
+            print(f"ok    standalone_link: {v.status} {v.reason}")
+    try:
+        binding.plain_files(t / "g" / "checker.lean", *binding.STANDALONE)
+        print("ok    standalone_plain: a plain file and this checkout's tracked files are accepted")
+    except binding.Verdict as v:
+        failures.append(f"standalone_plain: refused {v.status} {v.reason}: {v.detail}")
     return ran
 
 
