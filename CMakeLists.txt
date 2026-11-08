@@ -131,6 +131,10 @@ set_tests_properties(contracts PROPERTIES TIMEOUT 900)
 # process at a time, each capped at 2 GB and 300 s by the script itself.
 add_test(NAME refine COMMAND ${CMAKE_SOURCE_DIR}/tests/refine.sh)
 set_tests_properties(refine PROPERTIES TIMEOUT 900)
+# The rewrites proved for every width against the model, the same way: copies in a temporary directory,
+# one Lean process at a time, each capped at 2 GB and 300 s by the script itself.
+add_test(NAME generic_rewrites COMMAND ${CMAKE_SOURCE_DIR}/tests/generic_rewrites.sh)
+set_tests_properties(generic_rewrites PROPERTIES TIMEOUT 900)
 add_test(
     NAME zlib
     COMMAND
