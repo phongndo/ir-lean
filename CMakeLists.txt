@@ -97,6 +97,12 @@ add_test(NAME emitter COMMAND ${CMAKE_SOURCE_DIR}/tests/emitter.sh $<TARGET_FILE
 add_test(NAME fuzz COMMAND ${CMAKE_SOURCE_DIR}/tests/fuzz.py $<TARGET_FILE:ir-lean>)
 add_test(NAME proofs COMMAND ${CMAKE_SOURCE_DIR}/tests/proofs.sh $<TARGET_FILE:ir-lean>)
 add_test(NAME llvm COMMAND ${CMAKE_SOURCE_DIR}/tests/llvm.py $<TARGET_FILE:ir-lean>)
+# The pinned LLVM's passes, and what's claimed and planned about them: the checks on claims and on
+# docs/llvm-verification-tasks.md, in Python, and then the inventory derived again from LLVM's source, opt and
+# llc, byte for byte. Neither runs Lean.
+add_test(NAME llvm_scope COMMAND ${CMAKE_SOURCE_DIR}/tests/llvm_scope_test.py)
+add_test(NAME llvm_scope_check COMMAND ${CMAKE_SOURCE_DIR}/tests/llvm_scope.py check)
+set_tests_properties(llvm_scope llvm_scope_check PROPERTIES TIMEOUT 600)
 add_test(NAME superopt COMMAND ${CMAKE_SOURCE_DIR}/tests/superopt.py $<TARGET_FILE:ir-lean>)
 add_test(NAME names COMMAND ${CMAKE_SOURCE_DIR}/tests/names.sh)
 add_test(NAME verify COMMAND ${CMAKE_SOURCE_DIR}/tests/verify.py $<TARGET_FILE:ir-lean>)
