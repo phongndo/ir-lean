@@ -66,7 +66,13 @@ TIMEOUT = 120
 
 MACRO = re.compile(r"^[ \t]*([A-Z][A-Z0-9_]*(?:PASS|ANALYSIS)[A-Z0-9_]*)\(", re.M)
 STRING = re.compile(r'"((?:[^"\\]|\\.)*)"')
-INIT = re.compile(r"\bINITIALIZE_PASS(?:_BEGIN)?\(")
+# The legacy pass registry has two ways in, both in llvm/PassSupport.h: the INITIALIZE_PASS macros, and the
+# RegisterPass<T> template, as in `static RegisterPass<T> X("arg", "name", cfg, analysis)`.
+INIT = re.compile(r"\bINITIALIZE_PASS(?:_WITH_OPTIONS)?(?:_BEGIN)?\(")
+REGISTER_PASS = re.compile(r"\bRegisterPass<\s*([\w:]+)\s*>\s+\w+\s*\(")
+# A registry of codegen implementations an option picks by name, such as `-regalloc=greedy`: the option is
+# `cl::opt<..., RegisterPassParser<CLASS>> X("option", ...)`, and each entry `CLASS X("name", "desc", ctor)`.
+SELECTOR_OPTION = re.compile(r'RegisterPassParser<\s*(\w+)\s*>\s*>\s*\w+\s*\(\s*"([^"]+)"')
 DEFINE = re.compile(r'^[ \t]*#[ \t]*define[ \t]+(\w+)[ \t]+"((?:[^"\\]|\\.)*)"', re.M)
 CONST = re.compile(r'\b(?:const|constexpr)\b[^;=\n]*?\b(\w+)(?:\[\])?\s*=\s*"((?:[^"\\]|\\.)*)"\s*;')
 RUN_DEF = re.compile(r"\b([A-Za-z_]\w*)(?:<[^<>;{}]*>)?::run\s*\(")
@@ -183,10 +189,12 @@ def registry_entries(rel: str, text: str) -> list[tuple[str, dict[str, Any]]]:
 
 
 def legacy_entries(rel: str, text: str) -> list[tuple[str, dict[str, Any]]]:
-    """Every `INITIALIZE_PASS` and `_BEGIN` in a file, resolving a name given as a macro or constant."""
+    """Every legacy registration in a file, either way in, resolving a name given as a macro or constant."""
     out = []
     names = {**dict(CONST.findall(text)), **dict(DEFINE.findall(text))}
-    for m in INIT.finditer(text):
+    found = [(m, "INITIALIZE_PASS", 1, 4, None) for m in INIT.finditer(text)]
+    found += [(m, "RegisterPass", 0, 3, m.group(1)) for m in REGISTER_PASS.finditer(text)]
+    for m, macro, arg_at, analysis_at, cls in sorted(found, key=lambda f: f[0].start()):
         # `#define INITIALIZE_PASS(...)` itself, in PassSupport.h.
         start = text.rfind("\n", 0, m.start()) + 1
         if text[start : m.start()].lstrip().startswith("#"):
@@ -195,26 +203,63 @@ def legacy_entries(rel: str, text: str) -> list[tuple[str, dict[str, Any]]]:
             args, _ = call_args(text, m.end() - 1)
         except ValueError:
             continue
-        if len(args) < 5:
+        if len(args) <= arg_at + 1:
             continue
-        arg = literal(args[1])
+        arg = literal(args[arg_at])
         if arg is None:
-            arg = names.get(args[1].strip())
+            arg = names.get(args[arg_at].strip())
         if arg is None:
-            arg = f"?{args[1].strip()}@{rel}"  # Unresolved, and kept, so it still counts.
+            arg = f"?{args[arg_at].strip()}@{rel}"  # Unresolved, and kept, so it still counts.
+        analysis = len(args) > analysis_at and args[analysis_at].strip() == "true"
         out.append(
             (
                 arg,
                 {
                     "registry": "legacy",
-                    "macro": "INITIALIZE_PASS",
+                    "macro": macro,
                     "unit": "legacy",
-                    "kind": "analysis" if args[4].strip() == "true" else "transform",
-                    "class": args[0].strip(),
+                    "kind": "analysis" if analysis else "transform",
+                    "class": cls or args[0].strip(),
                     "site": f"{rel}:{line_of(text, m.start())}",
                 },
             )
         )
+    return out
+
+
+def selector_options(files: dict[str, str]) -> dict[str, str]:
+    """Each registry class an option picks entries from, and the option's name."""
+    return {cls: opt for text in files.values() for cls, opt in SELECTOR_OPTION.findall(text)}
+
+
+def selector_entries(rel: str, text: str, options: dict[str, str]) -> list[tuple[str, dict[str, Any]]]:
+    """Every entry in those registries a file makes, named as the option picks it, such as `regalloc=greedy`.
+
+    The option is part of the name, since entries in different registries share names such as `default`
+    and `greedy`, and so do passes."""
+    out = []
+    for cls, opt in options.items():
+        for m in re.finditer(rf"\b{cls}\s+\w+\s*\(", text):
+            try:
+                args, _ = call_args(text, m.end() - 1)
+            except ValueError:
+                continue
+            name = literal(args[0]) if args else None
+            if name is None:
+                continue  # The class's own constructor, or an entry named some other way.
+            out.append(
+                (
+                    f"{opt}={name}",
+                    {
+                        "registry": "selector",
+                        "macro": cls,
+                        "unit": "machine-function",
+                        "kind": "transform",
+                        # No class: `cls` is the registry's, and each entry's code is its own constructor.
+                        "site": f"{rel}:{line_of(text, m.start())}",
+                    },
+                )
+            )
     return out
 
 
@@ -256,9 +301,13 @@ def inventory_from_source(src: Path) -> tuple[dict[str, dict[str, Any]], dict[st
     registries += sorted(r for r in files if re.match(r"llvm/lib/Target/[^/]+/[^/]+PassRegistry\.def$", r))
     for rel in registries:
         regs += registry_entries(rel, files[rel])
+    options = selector_options({r: t for r, t in files.items() if r.endswith(".cpp")})
     for rel, text in files.items():
-        if rel.endswith(".cpp") and "INITIALIZE_PASS" in text and rel.startswith("llvm/lib/"):
+        if not (rel.endswith(".cpp") and rel.startswith("llvm/lib/")):
+            continue
+        if "INITIALIZE_PASS" in text or "RegisterPass<" in text:
             regs += legacy_entries(rel, text)
+        regs += selector_entries(rel, text, options)
 
     # Where each class's `run` is defined, and where each class is declared, for passes whose `run` is inline.
     runs: dict[str, set[str]] = defaultdict(set)
@@ -281,7 +330,7 @@ def inventory_from_source(src: Path) -> tuple[dict[str, dict[str, Any]], dict[st
         anchors: set[str] = set()
         unresolved = []
         for reg in item["registrations"]:
-            if reg["registry"] == "legacy":
+            if reg["registry"] in ("legacy", "selector"):
                 anchors.add(reg["site"].rsplit(":", 1)[0])
                 continue
             cls = reg.get("class", "")
@@ -430,6 +479,20 @@ def llc_pipelines() -> dict[str, dict[str, Any]]:
     return out
 
 
+def selector_values(help_text: str) -> dict[str, set[str]]:
+    """The values `llc --help-list-hidden` lists for each option that takes `<value>`."""
+    values: dict[str, set[str]] = defaultdict(set)
+    option = None
+    for line in help_text.splitlines():
+        if m := re.match(r"^\s+--?([\w.-]+)=<value>", line):
+            option = m.group(1)
+        elif (m := re.match(r"^\s+=(\S+)", line)) and option:
+            values[option].add(m.group(1))
+        elif not line.startswith("      "):
+            option = None
+    return values
+
+
 def tools_versions() -> dict[str, Any]:
     def first(r: subprocess.CompletedProcess[str], pat: str) -> str:
         m = re.search(pat, r.stdout)
@@ -462,6 +525,19 @@ def generate() -> dict[str, Any]:
     missed = sorted(listed - items.keys() - {"require", "invalidate"})
     if missed:
         raise SystemExit(f"opt -print-passes lists passes the registries didn't give: {missed[:20]}")
+    # The same for the registries an option picks from: llc lists their entries, and each has to be one the
+    # source gave. One the source gives that llc doesn't list is kept, and recorded, such as an entry only
+    # assertion builds register.
+    picked = selector_values(tool("llc", "--help-list-hidden").stdout)
+    from_source = {
+        n for n, i in items.items() if any(r["registry"] == "selector" for r in i["registrations"])
+    }
+    from_llc = {f"{o}={v}" for o in {n.split("=")[0] for n in from_source} for v in picked.get(o, ())}
+    if from_llc - from_source:
+        raise SystemExit(
+            f"llc lists selector entries the source didn't give: {sorted(from_llc - from_source)}"
+        )
+    versions["selector_entries_llc_doesnt_list"] = sorted(from_source - from_llc)
     opt = opt_pipelines()
     llc = llc_pipelines()
 
@@ -900,7 +976,7 @@ def main() -> int:
     for e in errors:
         print(f"error: {e}", file=sys.stderr)
     print(
-        f"verified done {summary['verified_done']}/{summary['registered_names']} registered pass names "
+        f"verified done {summary['verified_done']}/{summary['registered_names']} registered names "
         f"(claimed complete {summary['claimed_complete']}) at {summary['pin']} | "
         f"{len(errors)} manifest or task errors",
         file=sys.stderr,

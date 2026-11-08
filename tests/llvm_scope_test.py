@@ -373,6 +373,56 @@ class Reading(unittest.TestCase):
         self.assertEqual(got[0][1]["class"], "MachineCSELegacy")
         self.assertEqual(s.target_of(got[1][1]["site"]), "X86")
 
+    def test_register_pass(self) -> None:
+        # The other way into the legacy registry, as llvm/lib/Transforms/Utils/Debugify.cpp uses it here.
+        text = (
+            'static RegisterPass<DebugifyModulePass> DM("debugify",\n'
+            '                                          "Attach debug info to everything");\n'
+            "static RegisterPass<CheckDebugifyModulePass>\n"
+            '    CDM("check-debugify", "Check debug info from -debugify");\n'
+            'static RegisterPass<llvm::Probe> P(PassArg, "Probe", false, true);\n'
+            'INITIALIZE_PASS_WITH_OPTIONS(Opts, "with-options", "Options", false, false)\n'
+            "template <typename T> RegisterPass(StringRef PassArg, StringRef Name);\n"
+        )
+        got = s.legacy_entries("llvm/lib/Transforms/Utils/D.cpp", '#define PassArg "probe"\n' + text)
+        self.assertEqual([n for n, _ in got], ["debugify", "check-debugify", "probe", "with-options"])
+        self.assertEqual([e["macro"] for _, e in got], ["RegisterPass"] * 3 + ["INITIALIZE_PASS"])
+        self.assertEqual(got[1][1]["class"], "CheckDebugifyModulePass")
+        self.assertEqual([e["kind"] for _, e in got], ["transform", "transform", "analysis", "transform"])
+        self.assertEqual(got[1][1]["site"], "llvm/lib/Transforms/Utils/D.cpp:4")
+
+    def test_selector_entries(self) -> None:
+        # Registries an option picks from by name. Their names clash with passes and with each other.
+        options = s.selector_options(
+            {
+                "a.cpp": "static cl::opt<RegisterRegAlloc::FunctionPassCtor, false,\n"
+                "               RegisterPassParser<RegisterRegAlloc>>\n"
+                '    RegAlloc("regalloc", cl::Hidden, cl::init(&useDefault));\n',
+                "b.cpp": "cl::opt<Ctor, false, RegisterPassParser<MachineSchedRegistry>>\n"
+                'MachineSchedOpt("misched", cl::Hidden);\n',
+            }
+        )
+        self.assertEqual(options, {"RegisterRegAlloc": "regalloc", "MachineSchedRegistry": "misched"})
+        text = (
+            "  RegisterRegAlloc(const char *N, const char *D, FunctionPassCtor C)\n"
+            'static RegisterRegAlloc greedyRegAlloc("greedy", "greedy register allocator",\n'
+            "                                       createGreedyRegisterAllocator);\n"
+            "static MachineSchedRegistry\n"
+            '    DefaultSchedRegistry("default", "Use the target\'s default scheduler choice.",\n'
+            "                         useDefaultMachineSched);\n"
+        )
+        got = s.selector_entries("llvm/lib/CodeGen/X.cpp", text, options)
+        self.assertEqual(sorted(n for n, _ in got), ["misched=default", "regalloc=greedy"])
+        self.assertEqual({e["registry"] for _, e in got}, {"selector"})
+        help_text = (
+            "  --regalloc=<value>   - Register allocator to use\n"
+            "      =basic           -   basic register allocator\n"
+            "      =greedy          -   greedy register allocator\n"
+            "  --other              - Something else\n"
+            "      =stray           -   not an entry of regalloc\n"
+        )
+        self.assertEqual(dict(s.selector_values(help_text)), {"regalloc": {"basic", "greedy"}})
+
     def test_pipeline_leaves(self) -> None:
         text = (
             "verify,function<eager-inv>(sroa<modify-cfg>,early-cse<>),cgscc(devirt<4>(inline,function("
@@ -396,6 +446,11 @@ class Repo(unittest.TestCase):
         ids = [i["id"] for i in inv["items"]]
         self.assertEqual(len(ids), len(set(ids)))
         self.assertEqual(set(ids), set(standing))
+        # Each way the pinned source registers a pass is in the inventory.
+        macros = {r["macro"] for i in inv["items"] for r in i["registrations"]}
+        self.assertLessEqual(
+            {"INITIALIZE_PASS", "RegisterPass", "RegisterRegAlloc", "MachineSchedRegistry"}, macros
+        )
 
     def test_the_doc_states_the_measured_scope(self) -> None:
         inv = s.load(s.INVENTORY)

@@ -5,7 +5,7 @@ has machine-checked correctness proofs tied to its actual implementation, coveri
 through optimization pipelines. Assumptions are explicit and justified. Timeouts, unsupported cases, admitted proofs and
 proof-to-code gaps count as unfinished.
 
-**None of it is done.** The inventory lists all 1118 pass names the pinned source registers. That's registration
+**None of it is done.** The inventory lists all 1162 names the pinned source registers a pass or codegen implementation under. That's registration
 coverage: it says what exists, not what's proved, and it isn't the number of semantically distinct optimizations,
 since some names share code, some code has several names, and each pass holds many rewrites. Proof coverage is 0:
 no name is verified done, and none is even claimed complete. This page is the plan: what the denominator is, how a
@@ -57,20 +57,20 @@ under `claimed_complete`, and `verified_done` stays 0.
 Measured on z from the dev shell's LLVM, on top of `18421be`. The comment below is what the tests compare with the
 inventory, so this section can't drift from it.
 
-<!-- scope: {"registered_names": 1118, "verified_done": 0, "claimed_complete": 0, "names_with_several_implementations": ["kcfi", "mir-debugify", "print", "verify"], "classes_under_several_names": {"new:ModuleInlinerWrapperPass": ["inliner-ml-advisor-release", "inliner-wrapper", "inliner-wrapper-no-mandatory-first"], "new:NewPMDebugifyPass": ["debugify", "mir-debugify"], "new:OpenMPOptPass": ["openmp-opt", "openmp-opt-postlink"], "new:PGOCtxProfFlatteningPass": ["ctx-prof-flatten", "ctx-prof-flatten-prethinlink"], "new:PGOInstrumentationGen": ["ctx-instr-gen", "pgo-instr-gen"]}, "in_unbuilt_targets": 37, "by_category": {"analysis": 142, "emission": 24, "instrumentation": 36, "printer-verifier-debug": 127, "transform": 789}, "generic": 643, "unresolved_code": 7, "never_seen_in_a_pipeline": 487, "opt_pipelines": "20 of 30 phase and level pairs build", "llc": "48 registered targets x 4 levels, 15 with a probe failing", "target_dirs_not_built": ["ARC", "CSKY", "DirectX", "M68k", "Xtensa"]} -->
+<!-- scope: {"registered_names": 1162, "verified_done": 0, "claimed_complete": 0, "names_with_several_implementations": ["kcfi", "mir-debugify", "print", "verify"], "classes_under_several_names": {"new:ModuleInlinerWrapperPass": ["inliner-ml-advisor-release", "inliner-wrapper", "inliner-wrapper-no-mandatory-first"], "new:NewPMDebugifyPass": ["debugify", "mir-debugify"], "new:OpenMPOptPass": ["openmp-opt", "openmp-opt-postlink"], "new:PGOCtxProfFlatteningPass": ["ctx-prof-flatten", "ctx-prof-flatten-prethinlink"], "new:PGOInstrumentationGen": ["ctx-instr-gen", "pgo-instr-gen"]}, "in_unbuilt_targets": 37, "by_category": {"analysis": 142, "emission": 24, "instrumentation": 36, "printer-verifier-debug": 129, "transform": 831}, "generic": 663, "unresolved_code": 7, "never_seen_in_a_pipeline": 531, "opt_pipelines": "20 of 30 phase and level pairs build", "llc": "48 registered targets x 4 levels, 15 with a probe failing", "target_dirs_not_built": ["ARC", "CSKY", "DirectX", "M68k", "Xtensa"]} -->
 
 | | |
 | --- | --- |
 | **Pin** | LLVM 23.1.3, tag `llvmorg-23.1.3`, commit `0d261d1ca552c95a8f007e061c787ac7132fbcbc`, from nixpkgs `1d060086d60c` in `flake.lock` |
-| **Registered names** | 1118 distinct names, from 1520 registrations: 447 in `PassRegistry.def`, 134 in `MachinePassRegistry.def`, 214 in 12 targets' `*PassRegistry.def`, and 725 legacy `INITIALIZE_PASS`. Each name `opt -print-passes` or a pipeline lists is among them |
-| **Not the number of optimizations** | Names that are the same in two registries are one entry: 376 names have both a legacy and a new pass manager registration, which is the same pass. But 4 names cover code in more than one file, so they undercount: `verify` is both the IR verifier and the machine verifier, and `kcfi`, `mir-debugify` and `print` are similar. 5 classes run under more than one name, so they overcount, such as `openmp-opt` and `openmp-opt-postlink`. And one name such as `instcombine` holds hundreds of rewrites, which [INV-04](#inv-04-rewrite-level-inventory) is to count |
-| **By kind** | 789 transforms, 142 analyses, 127 printers, verifiers and debugging aids, 36 instrumentation passes, and 24 `asm-printer` passes that emit machine code. The grouping is a heuristic for reading. All of them count, and [INV-09](#inv-09-account-for-every-kind-of-pass) says what proving each kind means |
-| **Generic or target** | 643 generic, 475 in one target's directory: 438 in the 20 built backends and 37 in the 5 unbuilt ones |
-| **Code** | 903 source files anchor the passes, with 1781 `cl::opt` options among them. 7 passes have no code the inventory could find: `cfguard-longjmp`, `eh-cont-guard-targets`, `prolog-epilog-code`, `ra-basic`, `ra-pbqp`, `regalloc` and `x86-pad-short-functions`, all placeholders the new pass manager names without a class |
+| **Registered names** | 1162 distinct names, from 1566 registrations: 447 in `PassRegistry.def`, 134 in `MachinePassRegistry.def` and 214 in 12 targets' `*PassRegistry.def` for the new pass manager; 729 in the legacy registry, 725 through `INITIALIZE_PASS` and 4 through `RegisterPass<T>`, the only two ways into it in `llvm/PassSupport.h`; and 42 entries in the 7 registries an option picks a codegen implementation from, named as the option picks them, such as `regalloc=greedy`, `misched=ilpmax` or `pre-RA-sched=list-burr`. Each name `opt -print-passes`, a pipeline or `llc --help-list-hidden` lists is among them. `misched=shuffle` is registered only in assertion builds, so the pinned `llc` doesn't list it, and it counts |
+| **Not the number of optimizations** | Names that are the same in two registries are one entry: 378 names have both a legacy and a new pass manager registration, which is the same pass. But 4 names cover code in more than one file, so they undercount: `verify` is both the IR verifier and the machine verifier, and `kcfi`, `mir-debugify` and `print` are similar. 5 classes run under more than one name, so they overcount, such as `openmp-opt` and `openmp-opt-postlink`. And one name such as `instcombine` holds hundreds of rewrites, which [INV-04](#inv-04-rewrite-level-inventory) is to count |
+| **By kind** | 831 transforms, 142 analyses, 129 printers, verifiers and debugging aids, 36 instrumentation passes, and 24 `asm-printer` passes that emit machine code. The grouping is a heuristic for reading. All of them count, and [INV-09](#inv-09-account-for-every-kind-of-pass) says what proving each kind means |
+| **Generic or target** | 663 generic, 499 in one target's directory: 462 in the 20 built backends and 37 in the 5 unbuilt ones |
+| **Code** | 913 source files anchor the passes, with 1913 `cl::opt` options among them. 7 passes have no code the inventory could find: `cfguard-longjmp`, `eh-cont-guard-targets`, `prolog-epilog-code`, `ra-basic`, `ra-pbqp`, `regalloc` and `x86-pad-short-functions`, all placeholders the new pass manager names without a class |
 | **`opt` pipelines** | `default`, `thinlto-pre-link`, `thinlto`, `lto-pre-link` and `lto`, each at `O0` to `O3`: 20 that build. 102 distinct passes appear across them, 87 at `default<O2>` |
 | **`Os` and `Oz`** | Not pipelines at this pin. `parseOptLevel` in `llvm/lib/Passes/PassBuilder.cpp` refuses them, saying to use `O2` with the `optsize` or `minsize` attribute, and `opt -Os` asks for `default<Os>` and fails the same way. clang's `-Os` and `-Oz` reach the backend as level 2 (`mapToLevel` in `clang/lib/CodeGen/BackendUtil.cpp`) with `optsize` or `minsize` on each function (`clang/lib/CodeGen/CGCall.cpp`). So they're covered as the `O2` contexts on inputs with those attributes, which are part of what [INV-05](#inv-05-permitted-inputs-and-options) has to range over, not as contexts of their own |
 | **`llc` pipelines** | All 48 registered target names at `O0` to `O3`, on [two probe modules](../tests/llvm_scope/). 540 distinct passes appear. 15 runs fail on the loop probe: AMDGPU and R600 can't select its load without a CPU, and SPIR-V crashes in `SPIRV legalize pointer cast pass` at `O1` to `O3` |
-| **Never seen in a pipeline** | 487 passes run only when asked for by name, by an option, or on inputs and CPUs the probes don't cover. They stay in the denominator |
+| **Never seen in a pipeline** | 531 names run only when asked for by name, by an option, or on inputs and CPUs the probes don't cover. They stay in the denominator |
 | **Targets** | 20 backends built, with 48 target names. 5 more directories are in the source and not built in the dev shell's LLVM: ARC, CSKY, DirectX, M68k and Xtensa. Their 37 passes count like any other. There's no pipeline evidence for them, since `llc` here can't run them, so seeing where they run needs an LLVM built with them ([INV-06](#inv-06-codegen-pipeline-closure)) |
 
 ### What the scope assumes
@@ -146,10 +146,10 @@ when they land.
 ### INV-01: Pinned registration inventory
 
 - **Lane:** INV
-- **Scope:** Every pass the pinned source registers, its code with hashes, and the `opt` and `llc` pipelines it's seen in, derived again and compared on each check.
+- **Scope:** Every name the pinned source registers a pass or codegen implementation under, by each way it registers one, its code with hashes, and the `opt` and `llc` pipelines it's seen in, derived again and compared on each check.
 - **Depends on:** none
 - **Owns:** `tests/llvm_scope.py`, `tests/llvm_scope/inventory.json`, `tests/llvm_scope/probe-minimal.ll`, `tests/llvm_scope/probe-loop.ll`
-- **Acceptance:** `nix develop -c tests/llvm_scope.py check` derives a byte-identical inventory. It fails if a name `opt -print-passes` lists is missing, or if the source or tools aren't 23.1.3.
+- **Acceptance:** `nix develop -c tests/llvm_scope.py check` derives a byte-identical inventory. It fails if a name `opt -print-passes` lists, or an implementation `llc --help-list-hidden` lists for an option, is missing, or if the source or tools aren't 23.1.3.
 - **Trust gaps:** Code anchors are entry files only. Pipeline membership comes from two small probes. The commit is recorded by hand, since the source tarball has no git metadata.
 - **Status:** in review
 - **Evidence:** Generated twice on z with identical bytes, and checked. Not merged.
@@ -163,7 +163,7 @@ when they land.
 - **Acceptance:** `tests/llvm_scope_test.py` passes, including a positive control and a refusal for each rule.
 - **Trust gaps:** Evidence is checked by hash and kind, not by replaying it. Replaying it is BIND-03's.
 - **Status:** in review
-- **Evidence:** 30 tests pass on z, including a status and hashes left unverified without a verifier. Not merged.
+- **Evidence:** 32 tests pass on z, including a status and hashes left unverified without a verifier. Not merged.
 
 ### INV-03: This task list, checked
 
@@ -190,7 +190,7 @@ when they land.
 ### INV-05: Permitted inputs and options
 
 - **Lane:** INV
-- **Scope:** What "all permitted inputs" ranges over: IR that passes the verifier, data layouts and triples, CPUs and features, function attributes including `optsize` and `minsize`, pass parameters, and the 1781 `cl::opt` options in pass code.
+- **Scope:** What "all permitted inputs" ranges over: IR that passes the verifier, data layouts and triples, CPUs and features, function attributes including `optsize` and `minsize`, pass parameters, the 42 codegen implementations options pick by name, and the 1913 `cl::opt` options in pass code.
 - **Depends on:** INV-01
 - **Owns:** `tests/llvm_scope/inputs.json`
 - **Acceptance:** Each option and parameter is in scope, or out of it with a written reason. A pass is done only over the in-scope set.
@@ -212,7 +212,7 @@ when they land.
 ### INV-07: One denominator with the refinement scorer
 
 - **Lane:** INV
-- **Scope:** The scorer's draft counts 852 passes, 312 from `opt -print-passes` without analyses and 540 from `llc`, and 6 pipelines including `Os` and `Oz`, which this `opt` refuses. This inventory counts 1118 names. Agree on one.
+- **Scope:** The scorer's draft counts 852 passes, 312 from `opt -print-passes` without analyses and 540 from `llc`, and 6 pipelines including `Os` and `Oz`, which this `opt` refuses. This inventory counts 1162 names. Agree on one.
 - **Depends on:** INV-01, PASS-02
 - **Owns:** `tests/llvm_scope/reconcile.json`
 - **Acceptance:** Both tools read one inventory, or a test shows each difference with its reason.
@@ -234,7 +234,7 @@ when they land.
 ### INV-09: Account for every kind of pass
 
 - **Lane:** INV
-- **Scope:** All of them stay in the denominator: the 37 passes of the 5 unbuilt targets, the 127 printers, verifiers and debugging aids, the 36 instrumentation passes and the 24 that emit machine code. Say what a proof means for each kind: that a printer or verifier leaves the IR unchanged, that instrumentation refines the program apart from the runtime calls it adds, given a stated contract for them, and that emission agrees with the instructions' encoding.
+- **Scope:** All of them stay in the denominator: the 37 passes of the 5 unbuilt targets, the 129 printers, verifiers and debugging aids, the 36 instrumentation passes and the 24 that emit machine code. Say what a proof means for each kind: that a printer or verifier leaves the IR unchanged, that instrumentation refines the program apart from the runtime calls it adds, given a stated contract for them, and that emission agrees with the instructions' encoding.
 - **Depends on:** INV-01
 - **Owns:** `docs/llvm-verification-tasks.md`
 - **Acceptance:** Each kind has its statement written, and the summary counts each kind's progress apart. Nothing leaves the denominator.
@@ -588,7 +588,7 @@ when they land.
 ### CG-04: Each target's own passes
 
 - **Lane:** CG
-- **Scope:** The 475 passes in target directories: 438 in the 20 built backends, X86 50, AMDGPU 92, Hexagon 45, AArch64 43, RISC-V 33, WebAssembly 30, NVPTX 25, PowerPC 22, SPIR-V 21, ARM 20, BPF 12, Mips 9, SystemZ 9, LoongArch 8, AVR 4, Lanai 4, MSP430 3, Sparc 3, XCore 3 and VE 2, and 37 in the 5 unbuilt ones, DirectX 25, M68k 5, ARC 4, CSKY 2 and Xtensa 1, which need an LLVM built with them.
+- **Scope:** The 499 names in target directories: 462 in the 20 built backends, AMDGPU 110, X86 50, Hexagon 46, AArch64 43, RISC-V 36, WebAssembly 30, NVPTX 25, PowerPC 24, SPIR-V 21, ARM 20, BPF 12, Mips 9, SystemZ 9, LoongArch 8, AVR 4, Lanai 4, MSP430 3, Sparc 3, XCore 3 and VE 2, and 37 in the 5 unbuilt ones, DirectX 25, M68k 5, ARC 4, CSKY 2 and Xtensa 1, which need an LLVM built with them.
 - **Depends on:** CG-02, CG-03
 - **Owns:** `tests/passes-proofs/targets/`
 - **Acceptance:** Each target has every pass done, or a count of what isn't, with reasons.
@@ -610,13 +610,14 @@ when they land.
 ### NEG-01: Scope checks in CI
 
 - **Lane:** NEG
-- **Scope:** Register `tests/llvm_scope_test.py` and `tests/llvm_scope.py check` with CTest, so CI runs them, and list them in `docs/testing.md`. The CI lane owns those files, so this lane asks it rather than editing them.
+- **Scope:** Register `tests/llvm_scope_test.py` and `tests/llvm_scope.py check` with CTest, as `llvm_scope` and `llvm_scope_check`, so CI runs them, list them in `docs/testing.md`, and lint the probe modules' IR.
 - **Depends on:** INV-01, INV-02
-- **Owns:** `CMakeLists.txt`
+- **Owns:** `CMakeLists.txt`, `docs/testing.md`, `tests/lint.sh`
 - **Acceptance:** CI fails on a changed inventory, a bad claim or a bad task.
 - **Trust gaps:** None.
-- **Status:** not started
-- **Evidence:** None.
+- **Status:** in review
+- **Gate waiver:** Lands in the same pull request as INV-01 and INV-02, so CI runs their checks from the start.
+- **Evidence:** Both pass through `ctest` on z. Not merged.
 
 ### NEG-02: Known miscompilations
 
