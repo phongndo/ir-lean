@@ -16,6 +16,7 @@ usage: tests/binding.py [--keep] [--only NAME ...]
 
 import argparse
 import hashlib
+import importlib.util
 import json
 import os
 import shutil
@@ -495,6 +496,40 @@ def cache_cases(failures: list[str]) -> int:
     return ran
 
 
+def hash_cases(failures: list[str]) -> int:
+    """tree_hash, on small trees and no Lean: a library hashes the same wherever it is, and a link out of
+    what's hashed is an error, since a certificate's code could change what it leads to and nothing would see
+    it."""
+    # tools/ isn't a package, and tests/binding/ is named like the module, so it's loaded by path.
+    spec = importlib.util.spec_from_file_location("binding_tool", ROOT / "tools" / "binding.py")
+    assert spec is not None and spec.loader is not None
+    binding = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(binding)
+
+    t = WORK / "trees"
+    for place in ("a", "b"):
+        (t / place / "IRLean").mkdir(parents=True)
+        (t / place / "IRLean" / "Basic.olean").write_bytes(b"module")
+        (t / place / "IRLean" / "Same.olean").symlink_to("Basic.olean")
+    ran = 2
+    if binding.tree_hash(t / "a", t / "a" / "IRLean") != binding.tree_hash(t / "b", t / "b" / "IRLean"):
+        failures.append("relocated_library: the same library hashes differently in another place")
+    else:
+        print("ok    relocated_library: the same hash")
+    (t / "other").mkdir()
+    (t / "other" / "Basic.olean").write_bytes(b"module")
+    (t / "a" / "IRLean" / "Out.olean").symlink_to(t / "other" / "Basic.olean")
+    try:
+        binding.tree_hash(t / "a", t / "a" / "IRLean")
+        failures.append("link_out: a link out of the library was hashed")
+    except binding.Verdict as v:
+        if (v.status, v.reason) != ("error", "toolchain_untrusted_link"):
+            failures.append(f"link_out: expected error toolchain_untrusted_link, got {v.status} {v.reason}")
+        else:
+            print(f"ok    link_out: {v.status} {v.reason}")
+    return ran
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--keep", action="store_true", help="keep build/binding/tests")
@@ -518,6 +553,8 @@ def main() -> int:
             print(f"ok    {name}: {got[0]} {got[1]}")
         if "open_obligation" not in verdict or not verdict.get("does_not_establish"):
             failures.append(f"{name}: the verdict doesn't say what it leaves open")
+    if not args.only or "hashes" in args.only:
+        ran += hash_cases(failures)
     if not args.only or "time_limit" in args.only:
         # The certificate that ran out of time mustn't still be running.
         ran += 1

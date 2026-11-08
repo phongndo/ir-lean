@@ -175,14 +175,22 @@ def walk(*roots: Path) -> list[Path]:
     return sorted(out)
 
 
-def tree_hash(*roots: Path) -> str:
-    """Every file under `roots` by path and bytes, and every link by its target: everything Lean could read
-    there, its modules, their companion `.olean.server`, `.olean.private`, `.ir` and `.ir.sig` files, its
-    shared libraries and its executables."""
+def tree_hash(base: Path, *roots: Path) -> str:
+    """Every file under `roots` by its path from `base` and its bytes, and every link by its target:
+    everything Lean could read there, its modules, their companion `.olean.server`, `.olean.private`, `.ir`
+    and `.ir.sig` files, its shared libraries and its executables. A link has to lead inside `roots`, whose
+    files are hashed themselves, or into the Nix store, which is read-only. One leading anywhere else could
+    reach a file nothing hashes, so it's an error."""
+    inside = [r.resolve() for r in roots] + [Path("/nix/store")]
     digest = hashlib.sha256()
     for path in walk(*roots):
-        digest.update(str(path).encode() + b"\0")
+        digest.update(str(path.relative_to(base)).encode() + b"\0")
         if path.is_symlink():
+            target = path.resolve()
+            if not any(target == r or r in target.parents for r in inside):
+                raise Verdict(
+                    "error", "toolchain_untrusted_link", f"{path} leads to {target}, which isn't checked"
+                )
             digest.update(b"link " + os.readlink(path).encode())
         elif path.is_file():
             digest.update(path.read_bytes())
@@ -220,7 +228,7 @@ def irlean_entries() -> list[Path]:
 
 
 def library_hash() -> str:
-    return tree_hash(*irlean_entries())
+    return tree_hash(LIBRARY, *irlean_entries())
 
 
 class Runner:
@@ -348,7 +356,7 @@ def toolchain(run: Runner) -> dict[str, str]:
         "leanchecker_sha256": sha256_file(Path(run.bins["leanchecker"])),
         # Everything in the toolchain: Init, Std and Lean, which every certificate imports, with their
         # companion files, the shared libraries lean loads, and cadical, which bv_decide runs.
-        "lean_toolchain_sha256": tree_hash(prefix),
+        "lean_toolchain_sha256": tree_hash(prefix, prefix),
         "opt_version": next((x.strip() for x in opt_lines if "LLVM version" in x), ""),
         "opt_sha256": sha256_file(Path(run.bins["opt"])),
         "ir_lean_sha256": sha256_file(TOOL),
