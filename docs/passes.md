@@ -73,14 +73,13 @@ Every file is under `WORK`, `build/passes` by default.
 | --- | --- | --- |
 | `bundles/KEY/manifest.json`, and the six files it names | `ir-lean.binding.manifest/1` | One instance's evidence, as `tools/binding.py record` writes it. Unchanged from [binding](llvm-proof-binding.md#the-contract) |
 | `verdicts/KEY.json` | `ir-lean.binding.verdict/1` | The last verdict on `bundles/KEY`, as `tools/binding.py verify` printed it |
-| `binding-cache/` | `tools/binding.py`'s own | Its `bound` verdicts, used only after it rehashes the bundle and the toolchain |
 | `runs/RUNKEY.json` | `ir-lean.passes.run/1` | One `RUN` line's results, as the cache |
 | `score.json` | `ir-lean.passes.score/1` | The report |
 | `score.instances.json` | A list of `ir-lean.passes.instance/1` | Every instance, bound or not |
 
 An instance record has exactly these keys: `schema`, `pass`, `test` (relative to `LLVM_PROJECT_SRC`, or absolute),
 `spec`, `mtriple`, `options`, `function`, `status`, `reason`, `detail`, `bundle` (the manifest, relative to `WORK`,
-or `null`), `verdict` (relative to `WORK`, or `null`), `binding_cache` (`hit`, `miss`, `stale_ignored`, or `null`)
+or `null`), `verdict` (relative to `WORK`, or `null`), `binding_cache` (always `disabled`, or `null`)
 and `source` (`fresh` or `cache`).
 
 `RUNKEY` is the SHA-256 of the scorer's version, every hash and version `tools/binding.py` records as the toolchain,
@@ -101,10 +100,16 @@ of `candidate`, `refused`, `unsupported`, `failed` or `unknown`. Anything else, 
 research-scorer entry saying `certified`, or a file that isn't JSON, is `stale_ignored` and the run is done again.
 
 **The cache never holds `bound`.** A bound instance is stored as a `candidate`, and verified again on every run,
-from the bundle at the key the scorer works out itself, not at a path the entry names. `tools/binding.py` may then
-answer from its own cache, but only after it rehashes the bundle, the toolchain and the pin. A bundle that's
-missing or changed is `refused`. A run with an `error` isn't stored at all, since the error may not happen again.
-A stored `unknown` is reused only with the same limits, which are in the key.
+from the bundle at the key the scorer works out itself, not at a path the entry names. It's verified from scratch:
+`tools/binding.py verify` runs without `--cache`, since a hit there only rehashes the bundle and never compiles the
+certificate, and an entry with the right key can be written by anyone who can write `WORK`. So every bound instance
+costs a full replay on every run, about 8 s. A bundle that's missing or changed is `refused`. A run with an `error`
+isn't stored at all, since the error may not happen again. A stored `unknown` is reused only with the same limits,
+which are in the key.
+
+`WORK` is otherwise trusted the way any cache is, but only in one direction. A run's entry can only say an instance
+isn't bound, and the self-check's can only skip the mutants: someone who writes `WORK` can make the score lower or
+skip that sanity check, and can't make anything count as bound.
 
 The research scorer's results, in `build/passes/cache` on `research/prove-llvm-optimizations`, are never read. Their
 certificates were deleted, so none of the 3,679 instances it called `certified` can be replayed. `score.json`'s

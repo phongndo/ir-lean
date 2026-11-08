@@ -84,8 +84,8 @@ def bare_scorer(work: Path, salt: str = "s" * 64) -> Any:
         False,
     )
     s.runs, s.bundles, s.verdicts = work / "runs", work / "bundles", work / "verdicts"
-    s.binding_cache, s.scratch = work / "binding-cache", work / "work"
-    for d in (s.runs, s.bundles, s.verdicts, s.binding_cache, s.scratch):
+    s.scratch = work / "work"
+    for d in (s.runs, s.bundles, s.verdicts, s.scratch):
         d.mkdir(parents=True, exist_ok=True)
     s.salt, s.env = salt, {}
     s.stats = {"fresh": 0, "reused": 0, "rechecked": 0, "stale_ignored": 0}
@@ -241,7 +241,13 @@ def static(f: Failures) -> None:
         def answer(code: int, out: Any, limit: str | None = None, err: str = "") -> None:
             fake.update(code=code, out=out if isinstance(out, str) else json.dumps(out), limit=limit, err=err)
 
-        P.run = lambda *a, **k: P.Ran(fake["code"], fake["out"], fake["err"], fake["limit"])
+        commands: list[list[str]] = []
+
+        def fake_run(command: list[str], **_: Any) -> Any:
+            commands.append(command)
+            return P.Ran(fake["code"], fake["out"], fake["err"], fake["limit"])
+
+        P.run = fake_run
         try:
             verdict = {
                 "schema": B.VERDICT_SCHEMA,
@@ -257,6 +263,11 @@ def static(f: Failures) -> None:
             f.check(
                 s.verify(manifest, test, input_ll, "f")["status"] == "bound",
                 "a bound verdict with exit code 0, about this instance's manifest, is bound",
+            )
+            f.check(
+                commands[-1][2] == "verify" and "--cache" not in commands[-1],
+                "tools/binding.py verify runs without its cache, so a bound instance is replayed in full",
+                commands[-1],
             )
             cases: list[tuple[str, int, Any, str | None, str]] = [
                 ("a bound verdict with exit code 1", 1, verdict, None, "error"),
@@ -476,8 +487,8 @@ def live(f: Failures, keep: bool) -> None:
         code == 0
         and got["guarded"]["status"] == "bound"
         and got["guarded"]["source"] == "cache"
-        and got["guarded"]["binding_cache"] == "hit",
-        "a second run verifies the cached candidates again",
+        and got["guarded"]["binding_cache"] == "disabled",
+        "a second run verifies the cached candidates again, from scratch",
         (said[-800:], got.get("guarded")),
     )
     f.check(

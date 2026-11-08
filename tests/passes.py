@@ -25,9 +25,9 @@ be bound, or nothing is scored.
 
 Results are cached in WORK/runs, keyed on the test, the pass spec, the triple, the options, the claim kind,
 the limits, this file and every tool tools/binding.py hashes. The cache never holds `bound`: an instance that
-was bound is stored as a `candidate` with its bundle, and verified again every run, which tools/binding.py may
-answer from its own cache only after rehashing the bundle and the toolchain. Entries of another schema or key,
-and the research scorer's build/passes/cache, are never read.
+was bound is stored as a `candidate` with its bundle, and verified again from scratch every run, without
+tools/binding.py's own cache, whose entries anyone who can write WORK could make. Entries of another schema or
+key, and the research scorer's build/passes/cache, are never read.
 
 Memory is capped, since an uncapped run once filled RAM and the OOM killer took the agent that started it. On
 Linux the scorer re-runs itself in a systemd scope of its own, capped at --memory with no swap, and each
@@ -649,9 +649,8 @@ class Scorer:
         self.runs = work / "runs"
         self.bundles = work / "bundles"
         self.verdicts = work / "verdicts"
-        self.binding_cache = work / "binding-cache"
         self.scratch = work / "work"
-        for d in (self.runs, self.bundles, self.verdicts, self.binding_cache, self.scratch):
+        for d in (self.runs, self.bundles, self.verdicts, self.scratch):
             d.mkdir(parents=True, exist_ok=True)
         runner = B.Runner(timeout, lean_mb)
         # Everything tools/binding.py hashes, from here, so the key changes when anything it checks does.
@@ -762,8 +761,7 @@ class Scorer:
                 out["skipped"] = entry["skipped"]
             for n, v in entry["instances"].items():
                 if v["status"] == "candidate":
-                    # Never believed: the bundle at this key is verified again, from scratch or from
-                    # tools/binding.py's own cache after its hashes are checked.
+                    # Never believed: the bundle at this key is verified again, from scratch.
                     self.count("rechecked")
                     out["instances"][n] = self.verify(
                         self.bundles / self.instance_key(key, n) / "manifest.json", r, input_ll, n
@@ -1043,9 +1041,9 @@ class Scorer:
             sys.executable,
             str(BINDING_PY),
             "verify",
+            # No --cache: a cache hit only rehashes the bundle, and its entries can be written by anyone who
+            # can write WORK, so a bound instance is replayed in full, its certificate compiled and checked.
             str(manifest),
-            "--cache",
-            str(self.binding_cache),
             "--timeout",
             str(self.timeout),
             "--memory",
