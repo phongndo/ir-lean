@@ -298,12 +298,11 @@ Not claimed:
 | --- | --- |
 | `docs/llvm-semantic-contracts.md` | This page |
 | `IRLean/Contract/` | Contracts and their proofs. Not imported by `IRLean.lean` |
-| `tests/contracts.sh`, `tests/contracts/` | Their tests |
+| `tests/contracts.sh`, `tests/contracts/` | Their tests, run by `ctest` as `contracts` |
 
-It changes no existing file: not `IRLean.lean`, `lakefile.toml`, the model, the emitter, `tests/check_axioms.lean`, CI,
-`CMakeLists.txt`, `docs/testing.md`, `tests/lint.sh` or the scorer. Until the CI lane registers it, `tests/contracts.sh`
-runs only by hand: CI lints these files, but doesn't run it. `IRLean.lean` needn't import `IRLean.Contract`: the
-test compiles it by path.
+It changes no existing file but `CMakeLists.txt`, which registers `tests/contracts.sh` as the `contracts` test, and
+`docs/testing.md`, which lists it. Not `IRLean.lean`, `lakefile.toml`, the model, the emitter, `tests/check_axioms.lean`,
+CI, `tests/lint.sh` or the scorer. `IRLean.lean` needn't import `IRLean.Contract`: the test compiles it by path.
 
 ## Next
 

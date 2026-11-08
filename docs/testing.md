@@ -31,6 +31,7 @@ everything every time, in about a minute.
 | `verify` | [`tools/verify.py`](verify.md) gives each status and reason when it should, refuses proofs that cheat, and no required check can be missing from a proved result |
 | `verify_negative_static` | [What counts as a certificate](llvm-negative-verification.md): a stored proved result is certified, and broken, stale or mismatched ones aren't, nor answers from checkers that hang, crash or print nonsense. Python only |
 | `verify_negative` | Wrong LLVM rewrites, and right ones outside the model, are never certified through `tools/verify.py`, and four right ones are. Runs alone, one Lean process at a time, about 2 minutes |
+| `contracts` | [Semantic contracts](llvm-semantic-contracts.md): LangRef's integer poison rules, as Lean predicates the model meets at every width. They build with warnings as errors, LangRef's poison examples hold, seven semantics LangRef rules out each fail their contract, both modules rest on the standard axioms and `leanchecker` replays them, a false proof and a `sorry` are refused, and five edits to a copy of `IRLean/Int.lean` each stop the theorem they target with an error that isn't a resource limit. One Lean process at a time, each capped at 2 GB, about 12 s |
 | `zlib` | All of zlib translates, and real calls into it match native code, failing if any input is skipped |
 | `zlib_slow` | The same for the calls that slide `deflate`'s window, the slowest of them |
 | `lint` | Every formatter and linter below, for every language |
