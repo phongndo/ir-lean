@@ -111,6 +111,12 @@ add_test(
 )
 # Alone, so its Lean process has the memory to itself, and longer than every case's limits together.
 set_tests_properties(verify_negative PROPERTIES RUN_SERIAL TRUE TIMEOUT 900)
+# A certificate bound to its IR, the opt run and the toolchain, and refused when any of them doesn't
+# match: one instcombine rewrite, and the cases of mismatched evidence, one capped Lean process at a time.
+add_test(NAME binding COMMAND ${CMAKE_SOURCE_DIR}/tests/binding.py)
+# Alone, since each of its Lean processes takes up to 3.5 GB. It hashes the Lean toolchain on every check,
+# so it gets more time than it takes on a fast disk, about 5 minutes.
+set_tests_properties(binding PROPERTIES RUN_SERIAL TRUE TIMEOUT 1800)
 add_test(
     NAME zlib
     COMMAND

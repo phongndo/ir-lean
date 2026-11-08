@@ -343,7 +343,8 @@ and has to get the status and reason given:
 hashes the same in another place, and a link out of it, a library that's a link, a link to a directory, a link out and
 back in, a `..` through a link to somewhere else, and a checker that's a link to a writable file are errors, while
 plain files, and this checkout's own, are accepted. `memory_limit` also comes back `unknown` without a systemd scope, from
-Lean's `-M` alone, which was checked by hand. It isn't in CI, or in [testing](testing.md), yet.
+Lean's `-M` alone, which was checked by hand. `ctest` runs it as `binding`, alone, with a 30-minute limit, and CI runs
+it on every pull request. See [testing](testing.md).
 
 No test reaches `function_not_found`, `function_not_generated`, `signature_mismatch`, `module_shadowed`, which the
 directory listing stops first, or the `error` reasons.

@@ -31,6 +31,7 @@ everything every time, in about a minute.
 | `verify` | [`tools/verify.py`](verify.md) gives each status and reason when it should, refuses proofs that cheat, and no required check can be missing from a proved result |
 | `verify_negative_static` | [What counts as a certificate](llvm-negative-verification.md): a stored proved result is certified, and broken, stale or mismatched ones aren't, nor answers from checkers that hang, crash or print nonsense. Python only |
 | `verify_negative` | Wrong LLVM rewrites, and right ones outside the model, are never certified through `tools/verify.py`, and four right ones are. Runs alone, one Lean process at a time, about 2 minutes |
+| `binding` | [Binding a certificate to LLVM](llvm-proof-binding.md): one real `instcombine` rewrite is bound, and a certificate is refused, unsupported, unknown or an error, with the reason it should give, when its theorem's type, a file, the pass, the triple, the data layout, llvm-project, a tool or the cache doesn't match, when the model can't judge the function, and when a limit stops it. Never `bound` otherwise. Runs alone, one Lean process at a time, about 5 minutes |
 | `zlib` | All of zlib translates, and real calls into it match native code, failing if any input is skipped |
 | `zlib_slow` | The same for the calls that slide `deflate`'s window, the slowest of them |
 | `lint` | Every formatter and linter below, for every language |
