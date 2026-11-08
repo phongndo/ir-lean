@@ -117,6 +117,10 @@ add_test(NAME binding COMMAND ${CMAKE_SOURCE_DIR}/tests/binding.py)
 # Alone, since each of its Lean processes takes up to 3.5 GB. It hashes the Lean toolchain on every check,
 # so it gets more time than it takes on a fast disk, about 5 minutes.
 set_tests_properties(binding PROPERTIES RUN_SERIAL TRUE TIMEOUT 1800)
+# The semantic contracts against the model, compiled from copies in a temporary directory, one Lean
+# process at a time, each capped at 2 GB and 300 s by the script itself.
+add_test(NAME contracts COMMAND ${CMAKE_SOURCE_DIR}/tests/contracts.sh)
+set_tests_properties(contracts PROPERTIES TIMEOUT 900)
 add_test(
     NAME zlib
     COMMAND
