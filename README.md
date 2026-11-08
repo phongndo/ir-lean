@@ -23,6 +23,10 @@ So are [86 functions from LLVM itself](docs/llvm.md), at the flags upstream buil
 `llvm::decodeULEB128`, `llvm::APInt::tcAdd`, and `llvm::xxh3_64bits` for inputs of at most 16 bytes. A search found
 rewrites of `__clzsi2` and `__ctzsi2` that are faster than `clang -O3`'s output, and Lean proves they do the same.
 
+And [a rewrite of llama.cpp's q4_K matrix kernels](docs/llama.md) uses AVX-512 VNNI where `clang -O3` doesn't. Lean
+proves each of the 34 places it changes computes what clang's IR does, on every input. On two real models it reads a
+prompt 5.5% to 7.2% faster, with the same logits bit for bit.
+
 These are theorems about the LLVM IR, in this project's model of it. They aren't about source programs or
 machine code, and they rest on an unverified emitter. [Trust](docs/trust.md) has the details, and the known gaps.
 
@@ -51,6 +55,7 @@ theorem popcount_correct (x : BitVec 32) :
 | [Status](docs/status.md) | What's proved, what's tested, what's measured |
 | [Trust](docs/trust.md) | What a theorem means, what it rests on, and the known gaps |
 | [LLVM's own code](docs/llvm.md) | What's proved about llvm-project, how to reproduce it, and what it assumes |
+| [llama.cpp](docs/llama.md) | A proved rewrite that `clang -O3` misses, and what it does to real inference |
 | [Design](docs/design.md) | What gets emitted, what the model covers, and why |
 | [Testing](docs/testing.md) | How to run the tests and linters, and what each one checks |
 | [Roadmap](docs/roadmap.md) | Where this is going, in what order, and the [first pull requests](docs/roadmap.md#near-term-pull-requests) |

@@ -45,6 +45,13 @@ These are theorems about modeled IR. [The trust model](trust.md) says what that 
 that stops its proof. [LLVM's own code](llvm.md) has them, how to reproduce them, what they assume, and two rewrites that
 measurably beat `clang -O3`, proved to do the same. Those results are from 2026-11-06, on top of `c389ecc`.
 
+### llama.cpp
+
+A rewrite of the IR clang `-O3` gives llama.cpp's q4_K matrix kernels, at release `b12189`, so they use AVX-512 VNNI.
+Lean proves each of the 34 places it changes gives the same result as clang's IR on every input, from slices of the
+kernels that include how clang computed their operands. [llama.cpp](llama.md) has the details, what connects the slices
+to the kernels, which is a checked argument and not a theorem, and the measurements. Those results are from 2026-11-07.
+
 ## Tested
 
 Evidence and not proof. A pass here means no disagreement was found on the inputs tried.

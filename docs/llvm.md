@@ -141,4 +141,5 @@ Don't overread this:
 
 - `decodeULEB128` with its other arguments, `encodeULEB128`, and the rest of `xxh3_64bits`.
 - The rest of `APInt`'s word routines, then `KnownBits`, which is LLVM's own reasoning about values.
-- Rewrites of functions real programs call on x86-64, with benchmarks that aren't micro-benchmarks.
+- More rewrites of functions real programs call on x86-64. [llama.cpp](llama.md) has the first, measured on real
+  inference.

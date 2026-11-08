@@ -27,6 +27,7 @@ everything every time, in about a minute.
 | `llvm` | [LLVM's own code](llvm.md): functions from `llvm-project` at the pinned tag, compiled as upstream does, against their proofs, with an injected bug for each that has to stop its proof. Prints the score. `--manifest` writes what each theorem says and rests on |
 | `superopt` | What a search finds for real functions, against Alive2 and a Lean theorem that it does the same, and that a wrong rewrite fails both. `--bench` also measures it against `clang -O3`, which CI doesn't, since timings vary |
 | `x86` | x86's integer dot-product intrinsics and vector bitcasts against the processor, at every width, skipped without AVX-512 VNNI |
+| `llama` | [llama.cpp's q4_K kernels](llama.md): that `llc` reproduces clang's code, the rewrite, that every change is in a slice, a Lean theorem for each slice, a native comparison of each if the processor can run it, and four wrong versions each failing all of it. `tests/llama_bench.py` measures it on real inference, which CI doesn't |
 | `names` | Every word Lean reserves is avoided in generated names |
 | `zlib` | All of zlib translates, and real calls into it match native code, failing if any input is skipped |
 | `zlib_slow` | The same for the calls that slide `deflate`'s window, the slowest of them |
