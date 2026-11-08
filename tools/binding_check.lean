@@ -28,6 +28,9 @@ structure Config where
   tgtModule : Name
   certModule : Name
   theoremName : Name
+  /-- Where the generated modules and the certificate are, and IRLean's library, as real paths. -/
+  runDir : String
+  irleanDir : String
 
 def parseConfig (j : Json) : Except String Config := do
   return {
@@ -38,7 +41,9 @@ def parseConfig (j : Json) : Except String Config := do
     srcModule := (← j.getObjValAs? String "src_module").toName
     tgtModule := (← j.getObjValAs? String "tgt_module").toName
     certModule := (← j.getObjValAs? String "cert_module").toName
-    theoremName := (← j.getObjValAs? String "theorem").toName }
+    theoremName := (← j.getObjValAs? String "theorem").toName
+    runDir := ← j.getObjValAs? String "run_dir"
+    irleanDir := ← j.getObjValAs? String "irlean_dir" }
 
 def config : IO Config := do
   let some path ← IO.getEnv "IRLEAN_BINDING_CONFIG" | throw (IO.userError "IRLEAN_BINDING_CONFIG isn't set")
@@ -126,6 +131,18 @@ unsafe def check : MetaM Unit := do
     refuse cfg.nonce "certificate_imports_disallowed"
       s!"the certificate imports {m}, and may only import Lean, IRLean and the two generated modules"
     return
+  -- Each module has to be the file it should be: Lean's from the toolchain, IRLean's from its library, and the rest
+  -- from the run. A module of the same name anywhere earlier on the search path would be read instead.
+  let toolchainDir := (← IO.FS.realPath (← getLibDir (← findSysroot))).toString
+  for m in proof.header.moduleNames do
+    let path := (← IO.FS.realPath (← findOLean m)).toString
+    let dir :=
+      if [`Init, `Std, `Lean].contains m.getRoot then toolchainDir
+      else if m.getRoot == `IRLean then cfg.irleanDir
+      else cfg.runDir
+    unless path.startsWith (dir ++ "/") do
+      refuse cfg.nonce "module_shadowed" s!"{m} is read from {path}, not from {dir}"
+      return
   let some info := proof.find? cfg.theoremName |
     refuse cfg.nonce "theorem_not_found" s!"there's no {cfg.theoremName}"; return
   unless moduleIn proof cfg.theoremName == some cfg.certModule do

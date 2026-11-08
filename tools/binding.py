@@ -50,6 +50,7 @@ import shutil
 import signal
 import subprocess
 import sys
+import tempfile
 import tomllib
 from pathlib import Path
 from typing import Any, NoReturn
@@ -161,6 +162,27 @@ def canonical(obj: Any) -> bytes:
     return json.dumps(obj, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode()
 
 
+def tree_hash(root: Path) -> str:
+    """Every .olean under `root`, by path and bytes, so an added, removed or changed module changes it."""
+    digest = hashlib.sha256()
+    for path in sorted(root.rglob("*.olean")):
+        digest.update(str(path.relative_to(root)).encode() + b"\0" + path.read_bytes())
+    return digest.hexdigest()
+
+
+def snapshot(*dirs: Path) -> dict[str, str]:
+    """Every entry under `dirs`, without following links: a file by its hash, a link by its target."""
+    out = {}
+    for d in dirs:
+        for root, subdirs, files in os.walk(d):
+            for name in subdirs + files:
+                p = Path(root) / name
+                out[str(p)] = (
+                    f"link {os.readlink(p)}" if p.is_symlink() else "dir" if p.is_dir() else sha256_file(p)
+                )
+    return out
+
+
 def library_hash() -> str:
     """IRLean's .olean files, the same way tools/verify.py hashes them."""
     digest = hashlib.sha256()
@@ -180,6 +202,8 @@ class Runner:
             probe = ["systemd-run", "--user", "--scope", "--quiet", "--", "true"]
             self.capped = subprocess.run(probe, capture_output=True, check=False).returncode == 0
         self.env = {**os.environ, "ELAN_TOOLCHAIN": (ROOT / "lean-toolchain").read_text().strip()}
+        # The executables toolchain() hashed, by absolute path, so the ones that run are the ones hashed.
+        self.bins: dict[str, str] = {}
 
     def __call__(
         self,
@@ -203,34 +227,33 @@ class Runner:
                 "--",
                 *argv,
             ]
-        # Its own process group, so a timeout stops what it started too, such as bv_decide's solver.
-        p = subprocess.Popen(
-            command,
-            stdin=subprocess.PIPE,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            env={**self.env, **(env or {})},
-            cwd=cwd,
-            start_new_session=True,
-        )
-        try:
-            out, raw_err = p.communicate(stdin if stdin is not None else b"", timeout=self.timeout)
-        except subprocess.TimeoutExpired as e:
-            if self.capped:
-                subprocess.run(
-                    ["systemctl", "--user", "kill", "--signal=SIGKILL", f"{unit}.scope"],
-                    capture_output=True,
-                    check=False,
-                )
-            with contextlib.suppress(ProcessLookupError):
-                os.killpg(p.pid, signal.SIGKILL)
-            p.kill()
-            with contextlib.suppress(subprocess.TimeoutExpired):
-                p.communicate(timeout=10)
-            raise Verdict(
-                "unknown", "time_limit", f"{Path(argv[0]).name} took more than {self.timeout} s"
-            ) from e
-        r = subprocess.CompletedProcess(command, p.returncode, out, raw_err)
+        # Its own process group and files for its output, so it's done when it exits, not when everything it
+        # started closes the output. Whatever it left running is then killed: bv_decide's solver after a
+        # timeout, and anything a certificate's code started while it compiled.
+        with tempfile.TemporaryFile() as i, tempfile.TemporaryFile() as o, tempfile.TemporaryFile() as e:
+            i.write(stdin or b"")
+            i.seek(0)
+            p = subprocess.Popen(
+                command,
+                stdin=i,
+                stdout=o,
+                stderr=e,
+                env={**self.env, **(env or {})},
+                cwd=cwd,
+                start_new_session=True,
+            )
+            try:
+                p.wait(timeout=self.timeout)
+            except subprocess.TimeoutExpired as ex:
+                self.kill(p, unit)
+                raise Verdict(
+                    "unknown", "time_limit", f"{Path(argv[0]).name} took more than {self.timeout} s"
+                ) from ex
+            finally:
+                self.kill(p, unit)
+            o.seek(0)
+            e.seek(0)
+            r = subprocess.CompletedProcess(command, p.returncode, o.read(), e.read())
         err = r.stderr.decode(errors="replace")
         # Lean prints its errors on stdout. A limit anywhere means the step might pass with more.
         said = err + r.stdout.decode(errors="replace")
@@ -238,8 +261,21 @@ class Runner:
             raise Verdict("unknown", "resource_limit", f"{Path(argv[0]).name} hit a limit: {said[-400:]}")
         return r.returncode, err, r.stdout
 
+    def kill(self, p: subprocess.Popen, unit: str) -> None:
+        """Kills a process, its process group, and its scope."""
+        if self.capped:
+            subprocess.run(
+                ["systemctl", "--user", "kill", "--signal=SIGKILL", f"{unit}.scope"],
+                capture_output=True,
+                check=False,
+            )
+        with contextlib.suppress(ProcessLookupError, PermissionError):
+            os.killpg(p.pid, signal.SIGKILL)
+        p.kill()
+        p.wait()
+
     def lean(self, *args: str) -> list[str]:
-        return ["lean", "-j1", "-M", str(self.memory_mb), "-s", "65536", *args]
+        return [self.bins["lean"], "-j1", "-M", str(self.memory_mb), "-s", "65536", *args]
 
 
 def first_line(run: Runner, argv: list[str]) -> str:
@@ -264,15 +300,24 @@ def toolchain(run: Runner) -> dict[str, str]:
     ]:
         if not path.exists():
             raise Verdict("error", "toolchain_missing", f"missing {what}")
-    prefix = Path(first_line(run, ["lean", "--print-prefix"]))
-    lean_version = first_line(run, ["lean", "--version"])
-    opt_lines = run(["opt", "--version"])[2].decode().splitlines()
+    if not run.bins:
+        prefix = Path(first_line(run, ["lean", "--print-prefix"])).resolve()
+        run.bins = {
+            "lean": str(prefix / "bin" / "lean"),
+            "leanchecker": str(prefix / "bin" / "leanchecker"),
+            "opt": str(which("opt")),
+        }
+    prefix = Path(run.bins["lean"]).parent.parent
+    lean_version = first_line(run, [run.bins["lean"], "--version"])
+    opt_lines = run([run.bins["opt"], "--version"])[2].decode().splitlines()
     return {
         "lean_version": lean_version,
-        "lean_sha256": sha256_file(prefix / "bin" / "lean"),
-        "leanchecker_sha256": sha256_file(prefix / "bin" / "leanchecker"),
+        "lean_sha256": sha256_file(Path(run.bins["lean"])),
+        "leanchecker_sha256": sha256_file(Path(run.bins["leanchecker"])),
+        # Lean's own modules, Init, Std and Lean, which every certificate imports.
+        "lean_library_sha256": tree_hash(prefix / "lib" / "lean"),
         "opt_version": next((x.strip() for x in opt_lines if "LLVM version" in x), ""),
-        "opt_sha256": sha256_file(which("opt")),
+        "opt_sha256": sha256_file(Path(run.bins["opt"])),
         "ir_lean_sha256": sha256_file(TOOL),
         "irlean_library_sha256": library_hash(),
         "check_axioms_sha256": sha256_file(AXIOMS),
@@ -310,6 +355,24 @@ TRUSTED_PROMISES = re.compile(r"\b(mustprogress|willreturn)\b")
 DEFINE = re.compile(r'^define [^@]*@"?([^"(\s]+)"?\(.*?^}', re.M | re.S)
 
 
+def parameters(ll: str, function: str) -> list[str]:
+    """The parameters of `function`'s definition, as written, split at its top-level commas."""
+    m = re.search(rf'^define [^@]*@"?{re.escape(function)}"?\(', ll, re.M)
+    if m is None:
+        return []
+    out, cur, depth = [], "", 0
+    for c in ll[m.end() :]:
+        if c == ")" and depth == 0:
+            break
+        depth += (c in "(<[{") - (c in ")>]}")
+        if c == "," and depth == 0:
+            out.append(cur)
+            cur = ""
+        else:
+            cur += c
+    return [x.strip() for x in [*out, cur] if x.strip()]
+
+
 def changes_elsewhere(src: str, tgt: str, function: str) -> dict:
     """What the run changed that a claim about `function` doesn't cover: other functions, by name, and whether
     anything outside a function did, such as a global, a declaration or an attribute group."""
@@ -327,13 +390,13 @@ def changes_elsewhere(src: str, tgt: str, function: str) -> dict:
     return {"functions": others, "module_level": outside[0] != outside[1]}
 
 
-def opt_argv(passes: str, mtriple: str | None) -> list[str]:
+def opt_argv(opt: str, passes: str, mtriple: str | None) -> list[str]:
     """opt reads the input from stdin, so its output doesn't name a path."""
-    return ["opt", "-S", f"-passes={passes}", "-", "-o", "-"] + ([f"-mtriple={mtriple}"] if mtriple else [])
+    return [opt, "-S", f"-passes={passes}", "-", "-o", "-"] + ([f"-mtriple={mtriple}"] if mtriple else [])
 
 
 def run_opt(run: Runner, input_ll: bytes, passes: str, mtriple: str | None) -> bytes:
-    code, err, out = run(opt_argv(passes, mtriple), stdin=input_ll)
+    code, err, out = run(opt_argv(run.bins["opt"], passes, mtriple), stdin=input_ll)
     if code != 0:
         refused("transform_replay_mismatch", f"opt -passes={passes} failed on the input: {err[-400:]}")
     return out
@@ -371,6 +434,7 @@ def record(args: argparse.Namespace) -> int:
     if args.kind not in KINDS:
         sys.exit(f"--kind is one of {sorted(KINDS)}")
     out.mkdir(parents=True, exist_ok=True)
+    tools = toolchain(run)
     input_ll = args.input.read_bytes()
     (out / ARTIFACTS["input"]).write_bytes(input_ll)
     (out / ARTIFACTS["src_ir"]).write_bytes(run_opt(run, input_ll, "verify", args.mtriple))
@@ -405,7 +469,7 @@ def record(args: argparse.Namespace) -> int:
         "transform": {"passes": args.passes, "mtriple": args.mtriple},
         "target": target,
         "artifacts": {role: {"path": p, "sha256": sha256_file(out / p)} for role, p in ARTIFACTS.items()},
-        "toolchain": toolchain(run),
+        "toolchain": tools,
     }
     (out / "manifest.json").write_text(json.dumps(manifest, indent=2, sort_keys=True) + "\n")
     print(out / "manifest.json")
@@ -470,6 +534,7 @@ def validate(manifest: Any) -> dict:
         {
             "lean_version",
             "lean_sha256",
+            "lean_library_sha256",
             "leanchecker_sha256",
             "opt_version",
             "opt_sha256",
@@ -701,8 +766,24 @@ def replay(m: dict, data: dict[str, bytes], work: Path, nonce: str, run: Runner,
             raise Verdict(
                 "unsupported", "memory_unsupported", f"{claim['function']} uses memory or pointers in {side}"
             )
+    # IRLean's values are a value or poison, never undef, which a caller can still pass. An undef argument can
+    # be a different value at each use, so two functions equal in the model can differ in LLVM. noundef makes
+    # passing one undefined, which the model checks.
+    loose = [
+        x
+        for x in parameters(data["src_ir"].decode(errors="replace"), claim["function"])
+        if not re.search(r"\bnoundef\b", x)
+    ]
+    if loose:
+        raise Verdict(
+            "unsupported",
+            "undef_argument",
+            f"these arguments can be undef, which IRLean doesn't model: {loose}",
+        )
     checks(
-        "translation_replay", "ir-lean writes both recorded modules byte for byte, and the function is pure"
+        "translation_replay",
+        "ir-lean writes both recorded modules byte for byte, and the function is pure, with noundef "
+        "arguments",
     )
 
     # IRLean alone, as tools/verify.py links it: the repo's other libraries build next to it, and a
@@ -726,33 +807,31 @@ def replay(m: dict, data: dict[str, bytes], work: Path, nonce: str, run: Runner,
         )
         if code != 0:
             raise Verdict("error", "generated_module_failed", f"{side}: {(out.decode() + err)[-600:]}")
-    watched = {
-        p: sha256_file(p)
-        for p in [
-            lean_dir / ns / "Src.olean",
-            lean_dir / ns / "Tgt.olean",
-            lean_dir / ns / "Src.lean",
-            lean_dir / ns / "Tgt.lean",
-        ]
-    }
     before = toolchain(run)
     checks("compile_generated")
 
     cert = lean_dir / ns / "Cert.lean"
+    cert_olean = lean_dir / ns / "Cert.olean"
     cert.write_bytes(data["certificate"])
-    code, err, out = run(
-        run.lean("-R", str(lean_dir), "-o", str(lean_dir / ns / "Cert.olean"), str(cert)), env=env
-    )
+    # Everything Lean will find modules in, apart from the toolchain and IRLean, which toolchain() hashes. A
+    # file the certificate adds, such as a module named like one it imports, would change what checks read.
+    watched = snapshot(lean_dir, library)
+    code, err, out = run(run.lean("-R", str(lean_dir), "-o", str(cert_olean), str(cert)), env=env)
     if code != 0:
         refused("certificate_compile_failed", f"Lean rejects the certificate: {(out.decode() + err)[-800:]}")
     # The certificate's code ran while it compiled. What it could have changed is checked again.
-    changed = [str(p) for p, h in watched.items() if sha256_file(p) != h]
+    now = snapshot(lean_dir, library)
+    changed = sorted(
+        k for k in watched.keys() | now.keys() if watched.get(k) != now.get(k) and k != str(cert_olean)
+    )
+    if str(cert_olean) not in now:
+        changed.append(f"{cert_olean} is missing")
     after = toolchain(run)
     changed += [k for k in before if before[k] != after[k]]
     if changed:
         refused("artifacts_modified", f"these changed while the certificate compiled: {changed}")
-    # The checks below read Cert.olean, each in its own process, and have to read the same one.
-    watched[lean_dir / ns / "Cert.olean"] = sha256_file(lean_dir / ns / "Cert.olean")
+    # The checks below each read these in their own process, and have to read the same ones.
+    watched = now
     checks("compile_certificate", "and nothing it could reach changed")
 
     src, tgt = f"{ns}.Src.{claim['lean_function']}", f"{ns}.Tgt.{claim['lean_function']}"
@@ -767,6 +846,8 @@ def replay(m: dict, data: dict[str, bytes], work: Path, nonce: str, run: Runner,
         "tgt_module": f"{ns}.Tgt",
         "cert_module": f"{ns}.Cert",
         "theorem": claim["theorem"],
+        "run_dir": str(lean_dir.resolve()),
+        "irlean_dir": str(LIBRARY.resolve()),
     }
     (check_dir / "config.json").write_text(json.dumps(config))
     check_file = check_dir / "BindingCheck.lean"
@@ -805,11 +886,12 @@ def replay(m: dict, data: dict[str, bytes], work: Path, nonce: str, run: Runner,
         refused("axiom_policy_failed", (out.decode() + err)[-800:])
     checks("axioms", out.decode().strip()[-200:])
 
-    code, err, out = run(["leanchecker", f"{ns}.Src", f"{ns}.Tgt", f"{ns}.Cert"], env=env)
+    code, err, out = run([run.bins["leanchecker"], f"{ns}.Src", f"{ns}.Tgt", f"{ns}.Cert"], env=env)
     if code != 0:
         refused("kernel_replay_failed", (out.decode() + err)[-800:])
     checks("kernel_replay", "leanchecker replays the generated modules and the certificate")
-    changed = [str(p) for p, h in watched.items() if sha256_file(p) != h]
+    now = snapshot(lean_dir, library)
+    changed = sorted(k for k in watched.keys() | now.keys() if watched.get(k) != now.get(k))
     final = toolchain(run)
     changed += [k for k in before if before[k] != final[k]]
     if changed:

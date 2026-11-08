@@ -11,9 +11,17 @@ theorem Fx.cert : Fx.Src.f = Fx.Tgt.f ∧
     ∀ (x : IRLean.Val 8) (s : IRLean.ModelStop), Fx.Src.f x ≠ some (.error (.model s)) := by
   refine ⟨?_, ?_⟩
   · funext x
-    rw [Fx.Src.f, Fx.Tgt.f, run_ret Fx.Src.f.step (b := .bb1 x) (r := Val.add x (some 0#8)) rfl,
-      run_ret Fx.Tgt.f.step (b := .bb1 x) (r := x) rfl]
-    cases x <;> simp [Val.add]
+    cases x with
+    | none => rfl
+    | some x =>
+      simp only [Fx.Src.f, Fx.Tgt.f, noundef]
+      rw [run_ret Fx.Src.f.step (b := .bb1 (some x)) (r := Val.add (some x) (some 0#8)) rfl,
+        run_ret Fx.Tgt.f.step (b := .bb1 (some x)) (r := some x) rfl]
+      simp [Val.add]
   · intro x s
-    rw [Fx.Src.f, run_ret Fx.Src.f.step (b := .bb1 x) (r := Val.add x (some 0#8)) rfl]
-    simp [Outcome.ok]
+    cases x with
+    | none => simp [Fx.Src.f, noundef, Outcome.ub]
+    | some x =>
+      simp only [Fx.Src.f, noundef]
+      rw [run_ret Fx.Src.f.step (b := .bb1 (some x)) (r := Val.add (some x) (some 0#8)) rfl]
+      simp [Outcome.ok]

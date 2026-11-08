@@ -43,12 +43,29 @@ GOOD_LEMMA = GOOD.split("open IRLean\n", 1)[1].replace("theorem Fx.cert", "theor
 # The attack the adversarial lane found with tools/verify.py, on a real instcombine run: the two are equal in
 # the model, since both stop at a frozen poison, and Fx.stops shows the source does. Equality alone is all a
 # certificate can prove here, and it isn't the claim.
-FREEZE_EQUAL = HEADER + (
-    "theorem Fx.cert : Fx.Src.f = Fx.Tgt.f := by\n"
-    "  funext x\n"
-    "  cases x <;> simp [Fx.Src.f, Fx.Tgt.f, Fx.Src.f.step, Fx.Tgt.f.step, run, llvm]\n\n"
-    "theorem Fx.stops : Fx.Src.f none = some (.error (.model .freezePoison)) := by\n"
-    "  simp [Fx.Src.f, Fx.Src.f.step, run, llvm]\n"
+FREEZE_EQUAL = (
+    HEADER
+    + """theorem Fx.cert : Fx.Src.f = Fx.Tgt.f := by
+  funext x
+  cases x with
+  | none => rfl
+  | some x =>
+    simp only [Fx.Src.f, Fx.Tgt.f, noundef]
+    rw [run.eq_1 Fx.Src.f.step, run.eq_1 Fx.Tgt.f.step]
+    by_cases h : 8#8 ≤ x
+    · simp [Fx.Src.f.step, Fx.Tgt.f.step, llvm, h]
+    · have : 1#8 <<< x.toNat >>> x.toNat = 1#8 := by
+        have hx : x.toNat < 8 := by bv_omega
+        generalize x.toNat = n at hx ⊢
+        match n, hx with
+        | 0, _ | 1, _ | 2, _ | 3, _ | 4, _ | 5, _ | 6, _ | 7, _ => decide
+      simp [Fx.Src.f.step, Fx.Tgt.f.step, llvm, h, this]
+
+theorem Fx.stops : Fx.Src.f (some 8#8) = some (.error (.model .freezePoison)) := by
+  simp only [Fx.Src.f, noundef]
+  rw [run.eq_1 Fx.Src.f.step]
+  simp [Fx.Src.f.step, llvm]
+"""
 )
 
 # A certificate that takes longer than the limit tests/binding.py gives it.
@@ -74,6 +91,18 @@ REWRITES = GOOD + (
     "\nopen Lean in\n#eval show IO Unit from do\n"
     '  let dir := ((← IO.getEnv "LEAN_PATH").getD "").splitOn ":" |>.head!\n'
     '  IO.FS.writeFile (dir ++ "/Fx/Tgt.lean") "-- rewritten\\n"\n'
+)
+
+
+# A certificate whose code adds a module where Lean looks first, named like one every certificate imports.
+ADDS_MODULE = GOOD + (
+    "\nopen Lean in\n#eval show IO Unit from do\n"
+    '  let dir := ((← IO.getEnv "LEAN_PATH").getD "").splitOn ":" |>.head!\n'
+    '  IO.FS.writeFile (dir ++ "/IRLean.olean") ""\n'
+)
+# One whose code leaves a process running after it compiles.
+LEAVES_PROCESS = GOOD + (
+    '\n#eval show IO Unit from do\n  let _ ← IO.Process.spawn { cmd := "sleep", args := #["313.7"] }\n'
 )
 
 
@@ -231,6 +260,7 @@ CASES: list[tuple[str, Callable[[str], Path], list[str], tuple[str, str]]] = [
     ),
     ("kernel_skipped", lambda n: record(n, SKIPPED), [], ("refused", "kernel_replay_failed")),
     ("rewrites_generated", lambda n: record(n, REWRITES), [], ("refused", "artifacts_modified")),
+    ("adds_module", lambda n: record(n, ADDS_MODULE), [], ("refused", "artifacts_modified")),
     (
         "imports_lake",
         lambda n: record(n, GOOD.replace("import Fx.Tgt\n", "import Fx.Tgt\nimport Lake\n")),
@@ -262,6 +292,12 @@ CASES: list[tuple[str, Callable[[str], Path], list[str], tuple[str, str]]] = [
         lambda n: record(n, GOOD, input_ll="float.ll"),
         [],
         ("unsupported", "function_unsupported"),
+    ),
+    (
+        "maybe_undef",
+        lambda n: record(n, GOOD, input_ll="maybe_undef.ll"),
+        [],
+        ("unsupported", "undef_argument"),
     ),
     (
         "trusted_promise",
@@ -483,6 +519,34 @@ def main() -> int:
             failures.append(f"time_limit: left running: {left}")
         else:
             print("ok    time_limit_stopped: nothing left running")
+    if not args.only or "leaves_process" in args.only:
+        # Code that ran while the certificate compiled doesn't outlive it.
+        ran += 1
+        verdict = verify(record("leaves_process", LEAVES_PROCESS))
+        left = subprocess.run(
+            ["pgrep", "-f", "sleep 313.7"], capture_output=True, text=True, check=False
+        ).stdout
+        if verdict.get("status") != "bound" or left:
+            failures.append(
+                f"leaves_process: {verdict.get('status')} {verdict.get('reason')}, left: {left!r}"
+            )
+        else:
+            print("ok    leaves_process: bound, nothing left running")
+    if not args.only or "path_leanchecker" in args.only:
+        # A leanchecker earlier on PATH that passes everything isn't the one that runs.
+        ran += 1
+        fake = WORK / "fake-bin"
+        fake.mkdir(exist_ok=True)
+        (fake / "leanchecker").write_text("#!/bin/sh\nexit 0\n")
+        (fake / "leanchecker").chmod(0o755)
+        verdict = verify(
+            record("path_leanchecker", SKIPPED), env={"PATH": f"{fake}:{os.environ.get('PATH', '')}"}
+        )
+        got = (verdict.get("status"), verdict.get("reason"))
+        if got != ("refused", "kernel_replay_failed"):
+            failures.append(f"path_leanchecker: expected refused kernel_replay_failed, got {got}")
+        else:
+            print(f"ok    path_leanchecker: {got[0]} {got[1]}")
     if not args.only or "uncovered" in args.only:
         # A bound claim about f says what else the run changed, which it doesn't cover.
         ran += 1
