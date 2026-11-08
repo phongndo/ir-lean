@@ -196,7 +196,8 @@ when it lands.
 - The binder in a claim isn't named `r` or `_`, which the template binds.
 - `tools/verify.py` runs on the toolchain of the dev shell, with `IRLean` built from the same commit.
 - A result's `versions.ir_lean` names a commit only when the emitter, `IRLean` and `tools/` have no local changes.
-  The gate refuses a result without one, so a run in a dirty tree certifies nothing.
+  The gate refuses a stored result without one. A result the runner made in the same run is checked against the
+  tree as it is, so the live tier works while those files are being edited.
 
 ## What isn't covered
 
@@ -234,7 +235,9 @@ when it lands.
 
 ## Running it in CI
 
-Nothing here is wired into CI yet. This is the plan.
+`ctest` runs it as two tests: `verify_negative_static`, with every other test, and `verify_negative`, the live
+tier, with `RUN_SERIAL`, so `CTEST_PARALLEL_LEVEL` never runs it beside other Lean tests. CI's `test` job runs both,
+through `ctest -LE 'lint|slow'`. `tests/lint.sh` checks the cases' IR with `opt -passes=verify`.
 
 ### Limits
 
@@ -244,39 +247,14 @@ Nothing here is wired into CI yet. This is the plan.
 | Watchdog | The time limit plus 60 s, then the checker's process group is killed | `run_checker` |
 | Lean's memory per check | At most 4000 MB, through `lean -M` | `--case-memory-mb`, the case's `limits.memory_mb` |
 | Peak memory per case | 5512 MB, five quarters of Lean's plus 512. Over it, the case fails | `run_live` |
-| Free memory before each live case | 6000 MB, or the case doesn't run, and the run exits 3 | `--min-available-mb` |
+| Free memory before each live case | 6000 MB, and 4000 MB under `ctest`, or the case doesn't run, and the run exits 3 | `--min-available-mb` |
 | At once | One `tools/verify.py`, which runs one Lean process at a time | |
+| The whole live test | 900 s | `ctest`'s `TIMEOUT` |
 | Measured on Linux | The live tier in about 85 s, at most 2.4 GB at once. The static tier in about 3 s | |
 
-A case can lower its limits and never raise them past the runner's.
-
-### Steps
-
-1. **`CMakeLists.txt`**: two tests, the static tier with every other test, and the live tier on its own:
-
-   ```cmake
-   add_test(NAME verify_negative_static COMMAND ${CMAKE_SOURCE_DIR}/tests/verify_negative.py --tier static)
-   add_test(
-       NAME verify_negative
-       COMMAND ${CMAKE_SOURCE_DIR}/tests/verify_negative.py --tier live --tool $<TARGET_FILE:ir-lean>
-           --min-available-mb 4000
-   )
-   # One Lean process at a time, and nothing else at once, so its memory is all the job's.
-   set_tests_properties(verify_negative PROPERTIES RUN_SERIAL TRUE TIMEOUT 900)
-   ```
-
-   `RUN_SERIAL` keeps `CTEST_PARALLEL_LEVEL` from running it beside other Lean tests. `TIMEOUT 900` is more than the
-   sum of every case's limit and watchdog.
-2. **`.github/workflows/ci.yml`**: nothing, since the `test` job's `ctest -LE 'lint|slow'` runs both. Its
-   `ubuntu-latest` runner has 16 GB, and the `test` job's 60 minutes cover the 2 minutes this adds. Never
-   `continue-on-error`: exit 3, not run, has to fail the job. On failure, upload `build/verify-negative/*/report.json`
-   and the envelopes, which say why each case came out as it did.
-3. **`tests/lint.sh`**: add `tests/verification_negative/cases/*/*.ll` to the IR that `opt -passes=verify` checks.
-   The runner, the stubs and this doc already pass `ruff`, `ty`, `shfmt`, `shellcheck`, `rumdl` and
-   `editorconfig-checker`.
-4. **`docs/testing.md`**: a row for each test, and this doc in the README's table.
-5. **Don't cache `build/verify-negative/`** between runs. The gate would refuse a stale result anyway, and a fresh one
-   costs 2 minutes.
+A case can lower its limits and never raise them past the runner's. Exit 3, not run, fails the test, and the job:
+nothing here is `continue-on-error`. Don't cache `build/verify-negative/` between runs. The gate would refuse a
+stale result anyway.
 
 ### Later
 
@@ -286,6 +264,8 @@ A case can lower its limits and never raise them past the runner's.
   next to `tools/verify.py`. A certificate then has to carry what the gate reads: the pinned claim, the functions it
   names, the hash of every input, the toolchain's versions, and the checker's own hashes. The T2 cases move to live.
 - Each blocked case that moves becomes a directory under `cases/`, and leaves `blocked.json`.
+- CI could upload `build/verify-negative/*/report.json` and the envelopes when the test fails, which say why each
+  case came out as it did. That's a change to `.github/workflows/ci.yml`, which this doesn't make.
 
 ## Changing it
 

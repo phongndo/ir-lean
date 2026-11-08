@@ -10,7 +10,7 @@ A result counts as a certificate only if `gate` accepts it, which is this file's
 tools/verify.py printed: proved, by every check, for the claim and the files the case names, with the
 toolchain it would run now. Everything else is not certified, whatever the reason: a counterexample, an
 unsupported function, a timeout, a crash, a result for other files, or one that doesn't parse.
-docs/llvm-negative-verification.md has the cases, the reasons, what this trusts, and how CI should run it.
+docs/llvm-negative-verification.md has the cases, the reasons, what this trusts, and how CI runs it.
 
 usage: tests/verify_negative.py [--tier static|live|all] [--tool PATH] [--only ID ...] [--out DIR]
                                 [--case-timeout S] [--case-memory-mb MB] [--min-available-mb MB]
@@ -486,7 +486,10 @@ def _gate(envelope: Any, expected: dict[str, Any], v: Any, deny: Callable[[str],
     if versions.get("ir_lean_binary_sha256") != want["ir_lean_binary_sha256"]:
         deny("stale_tool")
     emitter = str(versions.get("ir_lean"))
-    if emitter.endswith("with local changes") or emitter == "unknown":
+    # A result made in this run is about the tree as it is, uncommitted changes and all. A stored one has to
+    # name a commit, or nothing says what checked it.
+    dirty = emitter.endswith("with local changes") and not expected.get("this_run")
+    if dirty or emitter == "unknown":
         deny("dirty_emitter")
     if emitter != want["ir_lean"]:
         deny("stale_emitter")
@@ -527,7 +530,9 @@ def current_versions(v: Any, tool: Path) -> dict[str, str]:
     }
 
 
-def expected_for(case: Case, files_dir: Path, versions: dict[str, str]) -> dict[str, Any]:
+def expected_for(
+    case: Case, files_dir: Path, versions: dict[str, str], this_run: bool = False
+) -> dict[str, Any]:
     request = case.request
     files = {"input": sha256_file(files_dir / (request["input"].get("ir") or request["input"]["c"]))}
     if "proof" in request:
@@ -544,6 +549,7 @@ def expected_for(case: Case, files_dir: Path, versions: dict[str, str]) -> dict[
         "files": files,
         "versions": versions,
         "checker_sha256": checker_hashes(),
+        "this_run": this_run,
     }
 
 
@@ -683,7 +689,7 @@ def run_live(case: Case, live: Live) -> Outcome:
         outcome.peak_rss_mb = max(outcome.peak_rss_mb, ran.peak_rss_mb)
     envelope = envelope_for(harness, checkers, probe)
     (directory / "envelope.json").write_text(json.dumps(envelope, indent=2, ensure_ascii=False) + "\n")
-    expected = expected_for(case, files, live.versions)
+    expected = expected_for(case, files, live.versions, this_run=True)
     outcome.denials = live_denials = gate(envelope, expected, live.v)
 
     stale = case.manifest.get("stale")
@@ -695,7 +701,7 @@ def run_live(case: Case, live: Live) -> Outcome:
         if text.count(stale["old"]) != 1:
             raise ManifestError(f"{case.id}: {stale['old']!r} isn't in {stale['file']} exactly once")
         edited.write_text(text.replace(stale["old"], stale["new"]))
-        outcome.denials = gate(envelope, expected_for(case, files, live.versions), live.v)
+        outcome.denials = gate(envelope, expected_for(case, files, live.versions, this_run=True), live.v)
         outcome.note = f"edited {stale['file']} after the run"
     judge(outcome, case.expect, result)
     budget = live.case_memory_mb * 5 // 4 + 512
@@ -856,6 +862,19 @@ def support_differs(name: str) -> Static:
     return Static(name, run, {"certified": False, "gate": ["stale_support"]}, "a support module changed")
 
 
+def dirty_this_run(name: str) -> Static:
+    """A result made in this run, in a tree with uncommitted changes, is about that tree, and certified."""
+
+    def run(ctx: StaticContext) -> tuple[Any, dict[str, Any]]:
+        envelope, expected = fixture_envelope(), fixture_expected(ctx.case)
+        dirty = envelope["result"]["versions"]["ir_lean"] + " with local changes"
+        envelope["result"]["versions"]["ir_lean"] = dirty
+        expected["versions"]["ir_lean"], expected["this_run"] = dirty, True
+        return envelope, expected
+
+    return Static(name, run, {"certified": True, "gate": []}, "uncommitted changes, checked in this run")
+
+
 def stub(name: str, script: str, timeout: float, denials: list[str], note: str) -> Static:
     def run(ctx: StaticContext) -> tuple[Any, dict[str, Any]]:
         harness = run_checker([str(STUBS / script)], timeout, ctx.out / "stubs" / name)
@@ -965,6 +984,7 @@ def static_cases() -> list[Static]:
             ["dirty_emitter", "stale_emitter"],
             "",
         ),
+        dirty_this_run("emitter_dirty_this_run"),
         m("lean_differs", mutate_result(version("lean", "Lean (version 4.0.0)")), ["stale_lean"], ""),
         m("checker_differs", stale_checker, ["stale_checker"], "tools/verify.py changed since the run"),
         m(
