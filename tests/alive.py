@@ -1,7 +1,10 @@
 """Asks Alive2 whether functions refine each other, sharing one `alive-tv` process between many of them, as
 starting it is most of what a small check costs. A function it can't say is right runs again on its own, so
 what a caller reads about a failure or a timeout doesn't depend on what else was in the file. What it has
-proved isn't asked again, for the same `alive-tv`."""
+proved isn't asked again, for the same `alive-tv`.
+
+`alive-tv` exits 0 whatever it found, including when its solver times out, so `verdict` reads its summary, and
+anything but a proof of every function or a counterexample is unknown."""
 
 import concurrent.futures
 import hashlib
@@ -17,26 +20,62 @@ from differential import RESULTS
 # doesn't hold up many others.
 CHUNK = 32
 CORRECT = "Transformation seems to be correct!"
+# How long one `alive-tv` process may take. Past this, what it would have said is unknown.
+TIMEOUT_SECONDS = 300
+SUMMARY = re.compile(
+    r"^\s*(\d+) (correct|incorrect|failed-to-prove) transformations$|^\s*(\d+) Alive2 errors$", re.M
+)
 PROVED = os.path.join(RESULTS, "alive-proved")
 # Entries in that file before it starts again, which is many versions of everything.
 PROVED_KEPT = 100000
 
 
 def run(source, target, work):
-    """What `alive-tv` says about two files of the same functions."""
+    """What `alive-tv` says about two files of the same functions. If it doesn't finish, that's said instead,
+    with no summary, so `verdict` reads it as unknown."""
     with tempfile.TemporaryDirectory(dir=work) as d:
         a, b = os.path.join(d, "a.ll"), os.path.join(d, "b.ll")
         for path, text in ((a, source), (b, target)):
             with open(path, "w") as f:
                 f.write(text)
-        r = subprocess.run(
-            ["alive-tv", "--disable-undef-input", a, b],
-            text=True,
-            capture_output=True,
-            timeout=300,
-            check=False,
-        )
+        try:
+            r = subprocess.run(
+                ["alive-tv", "--disable-undef-input", a, b],
+                text=True,
+                capture_output=True,
+                timeout=TIMEOUT_SECONDS,
+                check=False,
+            )
+        except subprocess.TimeoutExpired:
+            return f"ERROR: alive-tv didn't finish in {TIMEOUT_SECONDS} s\n"
     return r.stdout + r.stderr
+
+
+def summary(output):
+    """The counts at the end of what `alive-tv` printed, or None if they aren't all there."""
+    counts = {}
+    for m in SUMMARY.finditer(output):
+        if m.group(1) is not None:
+            counts[m.group(2)] = int(m.group(1))
+        else:
+            counts["errors"] = int(m.group(3))
+    return counts if len(counts) == 4 else None
+
+
+def verdict(output, functions=1):
+    """`correct` if `alive-tv` proved all of a file's `functions`, `incorrect` if it found one wrong, and
+    otherwise `unknown`: a timeout, a failure to prove, an error of its own, or output that isn't what it
+    prints. `None` is how `refinements` says it proved a pair."""
+    if output is None:
+        return "correct"
+    counts = summary(output)
+    if counts is None:
+        return "unknown"
+    if counts["incorrect"]:
+        return "incorrect"
+    if counts["correct"] == functions and not counts["failed-to-prove"] and not counts["errors"]:
+        return "correct"
+    return "unknown"
 
 
 def proved(output):
@@ -58,10 +97,7 @@ def check_chunk(job):
     declarations, pairs, work = job
     source = declarations + "".join(named(s, n) for n, (s, _) in enumerate(pairs))
     target = declarations + "".join(named(t, n) for n, (_, t) in enumerate(pairs))
-    try:
-        found = proved(run(source, target, work))
-    except subprocess.TimeoutExpired:
-        found = set()
+    found = proved(run(source, target, work))
     return [
         None if n in found else run(declarations + s, declarations + t, work)
         for n, (s, t) in enumerate(pairs)

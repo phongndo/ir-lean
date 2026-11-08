@@ -57,15 +57,22 @@ The flake pins the monorepo, by its hash, and the shell's clang is built from th
 disagree. For each function it does the following, and a function only counts if all of it passes:
 
 1. Compiles the source with upstream's flags, from [`targets.toml`](../tests/llvm/targets.toml), at `-O3`.
-2. Translates the IR to Lean, and checks the proof against that, with warnings as errors.
-3. Allows only the standard axioms and what `bv_decide` adds, as [the proofs](testing.md#tests) do.
-4. Injects at least one bug into the source, which has to change the IR and stop that function's own proof.
+2. Translates the IR to Lean, and checks the proof against that, with warnings as errors. The function has to be
+   translated: `targets.toml` names each by its symbol in the IR, or in `symbol` where its name is one for people.
+3. Checks that the theorem names that function, as ir-lean generated it, and nothing of the proof's own with a name like
+   the generated module's.
+4. Allows only the standard axioms and what `bv_decide` adds, as [the proofs](testing.md#tests) do, reading the proof and
+   its support modules as data, and refuses `implemented_by` and `extern`. Then `leanchecker` replays the proof and support
+   modules through the kernel.
+5. Injects at least one bug into the source, which has to change the IR and stop that function's own proof with an error
+   of its own. A proof that only runs out of time, memory, stack or recursion depth might check with more, so whether the
+   bug breaks it is unknown, and that fails.
 
 In a file proving several functions, only errors in that function's theorem count, so a bug is checked against the file
 up to the end of that theorem. Lean reads a file in order, so what comes after can't change those errors.
 
 The manifest it writes has, for each function, the theorem statement as Lean prints it, and hashes of the source, IR, Lean
-and proof, along with the flags and tool versions.
+and proof, along with the flags and tool versions, and the error that stopped the proof for each bug.
 
 ## What it assumes
 
@@ -88,7 +95,9 @@ programs or machine code, and the emitter and the model are trusted. On top of t
   [trust](trust.md#known-gaps-in-the-model).
 - **x86-64 Linux.** As with the zlib proofs, this is the one target checked.
 - **What happens at an abort isn't claimed.** A call to something outside the module that doesn't return stops the model
-  with `noReturnCall`. So `__addvsi3`'s theorem says it reaches that call exactly on overflow, not what the call does.
+  with `noReturnCall`, once its arguments are checked against what the call and the declaration say of them. So
+  `__addvsi3`'s theorem says it reaches that call exactly on overflow, not what the call does. A global passed there is
+  `nonnull`, aligned and as large as it's declared, as LLVM says any global is, so those are settled when it's translated.
 
 ## What the proofs turned up
 

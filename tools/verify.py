@@ -78,6 +78,8 @@ REASONS: dict[str, tuple[str, str]] = {
     "heartbeat_limit": ("timeout", "Lean ran out of heartbeats: `maxHeartbeats` in the proof"),
     "recursion_limit": ("timeout", "Lean hit `maxRecDepth`"),
     "stack_limit": ("timeout", "Lean ran out of stack"),
+    "solver_limit": ("timeout", "`bv_decide`'s SAT solver ran out of time: its `timeout` in the proof"),
+    "step_limit": ("timeout", "`simp` ran out of steps: its `maxSteps` in the proof"),
     "invalid_request": ("error", "The request is malformed. `detail` says how"),
     "input_not_found": ("error", "A file the request names doesn't exist"),
     "toolchain_missing": ("error", "ir-lean, Lean, the IRLean library, clang or leanchecker isn't there"),
@@ -180,6 +182,8 @@ LIMITS = [
     ("heartbeat_limit", re.compile(r"maximum number of heartbeats|\(deterministic\) timeout")),
     ("recursion_limit", re.compile(r"maximum recursion depth has been reached")),
     ("stack_limit", re.compile(r"deep recursion was detected|stack overflow", re.I)),
+    ("solver_limit", re.compile(r"SAT solver timed out")),
+    ("step_limit", re.compile(r"maximum number of steps exceeded")),
 ]
 BV_COUNTEREXAMPLE = re.compile(r"found a (potentially spurious )?counterexample", re.I)
 BV_ASSIGNMENT = re.compile(r"^\s*([^\s=]+) = (\S.*?)\s*$")
