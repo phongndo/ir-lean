@@ -528,9 +528,23 @@ def hash_cases(failures: list[str]) -> int:
     (t / "e" / "hop").symlink_to(t / "e" / "IRLean" / "Basic.olean")
     (t / "e" / "IRLean" / "Hop.olean").symlink_to("../hop")
     (t / "a" / "IRLean" / "Out.olean").symlink_to(t / "other" / "Basic.olean")
+    # Sol's: the link names a tracked file once `hop/..` is folded away, and hop leads somewhere else.
+    (t / "f" / "IRLean").mkdir(parents=True)
+    (t / "f" / "IRLean" / "Basic.olean").write_bytes(b"module")
+    (t / "f" / "outside" / "Deep").mkdir(parents=True)
+    (t / "f" / "outside" / "IRLean").mkdir()
+    (t / "f" / "outside" / "IRLean" / "Basic.olean").write_bytes(b"other")
+    (t / "f" / "hop").symlink_to(t / "f" / "outside" / "Deep")
+    (t / "f" / "IRLean" / "Hop.olean").symlink_to("../hop/../IRLean/Basic.olean")
     # Each leads where nothing is hashed or stamped: out, a root that's a link, a link to a directory, which
     # would make `..` in another link mean something else, and a link out and back in.
-    for name, place in [("link_out", "a"), ("root_link", "c"), ("directory_link", "d"), ("hop_out", "e")]:
+    for name, place in [
+        ("link_out", "a"),
+        ("root_link", "c"),
+        ("directory_link", "d"),
+        ("hop_out", "e"),
+        ("dotdot_through_link", "f"),
+    ]:
         ran += 1
         try:
             binding.tree_hash(t / place, t / place / "IRLean")

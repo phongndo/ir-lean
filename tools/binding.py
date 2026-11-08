@@ -180,27 +180,22 @@ def tree_hash(base: Path, *roots: Path) -> str:
     everything Lean could read there, its modules, their companion `.olean.server`, `.olean.private`, `.ir`
     and `.ir.sig` files, its shared libraries and its executables. A link has to lead inside `roots`, whose
     files are hashed themselves, or into the Nix store, which is read-only. One leading anywhere else could
-    reach a file nothing hashes, so it's an error. "Inside" is where the link itself says, without resolving
-    anything: a root that's a link, or a link through somewhere else that comes back, would be tracked only as
-    a link, and what it leads to could change unseen."""
+    reach a file nothing hashes, so it's an error. So a link has to be a bare file name, naming a sibling
+    that's hashed itself and isn't a directory, or an absolute path into the store that stays there. Nothing
+    is normalized: `..`, a root that's a link, and a link to a directory could each lead through something
+    only tracked as a link, and what it leads to could change unseen."""
     entries = walk(*roots)
     tracked = {str(p) for p in entries}
     digest = hashlib.sha256()
     for path in entries:
         digest.update(str(path.relative_to(base)).encode() + b"\0")
         if path.is_symlink():
-            if path in roots:
+            raw = os.readlink(path)
+            sibling = "/" not in raw and raw not in (".", "..") and str(path.parent / raw) in tracked
+            store = raw.startswith("/nix/store/") and Path(raw).resolve().is_relative_to("/nix/store")
+            if path in roots or path.is_dir() or not (sibling or store):
                 raise Verdict(
-                    "error",
-                    "toolchain_untrusted_link",
-                    f"{path} is a link, so what it leads to isn't checked",
-                )
-            target = os.path.normpath(os.path.join(path.parent, os.readlink(path)))
-            store = target.startswith("/nix/store/") and Path(target).resolve().is_relative_to("/nix/store")
-            # A link to a directory would make `..` in another link mean something else than it says.
-            if (target not in tracked or path.is_dir()) and not store:
-                raise Verdict(
-                    "error", "toolchain_untrusted_link", f"{path} leads to {target}, which isn't checked"
+                    "error", "toolchain_untrusted_link", f"{path} leads to {raw}, which isn't checked"
                 )
             digest.update(b"link " + os.readlink(path).encode())
         elif path.is_file():
