@@ -1,38 +1,148 @@
 # Lemma reuse
 
-Whether a proof that one `bv_decide` call can't finish can be cut into lemmas that a tool finds, checks and keeps, so
-that the original proof goes on from them and the next proof starts with some of them. This is a research note on a
-prototype, in [`prototypes/lemma-reuse`](../prototypes/lemma-reuse), which is outside the library, the build and CI.
-It changes nothing `ir-lean` claims: [status](status.md) and [trust](trust.md) still say what's true.
+Whether a hard optimization proof can be cut into lemmas that a tool states, checks and keeps, so that the original
+proof goes on from them and the next proof starts with some of them. This is a research note on a prototype, in
+[`prototypes/lemma-reuse`](../prototypes/lemma-reuse), which is outside the library, the build and CI. It changes
+nothing `ir-lean` claims: [status](status.md) and [trust](trust.md) still say what's true.
 
-Measured on 2026-11-07 on top of `28c2364`, on an Apple M4 Max with 16 cores and 64 GB, with Lean 4.35.0, clang
-23.1.3 and Alive2 built on the same LLVM, in the dev shell, while other work kept the load average between 4 and 7.
-[`check.sh`](../prototypes/lemma-reuse/check.sh) reproduces everything here but the longer limits, which have their
-commands [below](#reproducing). Its last run is in [`report.json`](../prototypes/lemma-reuse/report.json).
+It's tried on two proofs. The main one is this quarter's q4_K proof: that a VNNI rewrite of llama.cpp's q4_K matrix
+kernels computes what `clang -O3` does, at 34 places, which makes reading a prompt 5.5% to 7.2% faster. It's on the
+branch `feat/prove-llvm-optimization-1`, from commit `7636d7c`, which isn't merged, so the prototype runs against a
+checkout of it. The second is compiler-rt's population counts, where the rewrite is the one `tests/superopt.py`
+finds, and one `bv_decide` call can't finish the proof.
+
+Measured on 2026-11-07 on top of `28c2364`, and of `531650a` for the q4_K branch, on an Apple M4 Max with 16 cores
+and 64 GB, with Lean 4.35.0, clang 23.1.3 and Alive2 built on the same LLVM, in the dev shell, while other work kept
+the load average between 4 and 7. [`check-q4k.sh`](../prototypes/lemma-reuse/check-q4k.sh) and
+[`check.sh`](../prototypes/lemma-reuse/check.sh) reproduce everything here but the longer limits, which have their
+commands [below](#reproducing). Their last runs are in [`q4k/report.json`](../prototypes/lemma-reuse/q4k/report.json)
+and [`report.json`](../prototypes/lemma-reuse/report.json).
 
 ## What it found
 
-- **The proofs after `tests/superopt.py`'s need a person to cut them, or a tool.** The search found `ctpop` for
-  compiler-rt's `__popcountsi2`, and [`Rewrites.lean`](../tests/llvm/Rewrites.lean) proves it, by way of a
-  hand-written proof that clang's code counts set bits. With a truncation added, the same search finds `ctpop` for
-  `__popcountdi2` and `__popcountti2`. Proved directly, as one `bv_decide` call, neither finishes at the default
+- **The q4_K proof splits where the rewrite starts.** Each of its 34 theorems runs both slices of the kernel, then
+  proves in one go that every operand is what the rewrite needs and that eight `vpdpbusd` and a multiply give what
+  eight `pmaddubsw` and a `pmaddwd` do. The tool cuts each one where clang's code and the rewrite stop computing the
+  same thing: a core lemma about any operands that meet the facts, and a lemma for each fact about how clang's code
+  builds that operand. It saves both, and finishes each theorem with one `exact`.
+- **27 lemmas prove all 34 places.** Two core lemmas, one for the 256-bit kernels and one for the 512-bit, cover
+  18 and 16 places, and 25 facts cover the operands. 24 of the 34 places needed no new lemma, and took all 4 of
+  theirs from the store. Each place's theorem, continued that way, checks in 0.25 to 0.28 s, where `vnni_slice`
+  takes 0.34 to 0.72 s: 8.8 s for all 34, against 16.2 s. From an empty store, with each lemma's check, once, and the 12
+  facts that don't hold, the checks add up to 23.7 s.
+- **It's about the same code the branch proved.** Compiled on this Mac, the kernels' IR hashes the same as the
+  IR the branch's manifest records from a Ryzen, and so do all 68 slices.
+- **compiler-rt's population counts need cutting, not just reuse.** With a truncation added, `superopt.py`'s search
+  finds `ctpop` for `__popcountdi2` and `__popcountti2`. As one `bv_decide` call neither finishes at the default
   limit, and Alive2 can't say either way at its own. Given 600 s, the 64-bit one takes 40 s as one call, and 183 s in
-  Alive2. The 128-bit one got no answer in 30 minutes from either. Hand-written proofs of clang's code exist for both,
-  in `tests/llvm`, and this tool does what a person did there.
-- **Cut into lemmas, each lemma checks in under 0.4 s,** and the original proofs, continued with them, in 0.6 s and
-  0.9 s. From an empty store each goal takes 6 to 9 s from start to end, most of it checking axioms and replaying
-  everything through the kernel.
-- **Saved lemmas carry over.** The 128-bit proof takes 3 of its 7 lemmas from what the 64-bit proof saved, and
-  `popcountsi2_same`, which `Rewrites.lean` proves through a hand-written proof of `__popcountsi2`, takes 2 of its 5,
-  and needs no proof written for that function. The 128-bit proof's 3 only match because the store saved them more
-  generally than the 64-bit proof needed, with simulation saying how far and Lean checking it.
-- **The theorems rest on what every proof here rests on.** The standard three axioms and `bv_decide`'s, which
-  [`tests/check_axioms.lean`](../tests/check_axioms.lean) checks again, with every module replayed by `leanchecker`.
-  Nothing the tool finds by running code is trusted. It only decides what to ask Lean.
-- **It knows one kind of code.** It cuts code that adds up counts of set bits field by field, against a rewrite that
-  counts set bits. For anything else it says it can't cut the proof. See [the gaps](#gaps).
+  Alive2. The 128-bit one got no answer in 30 minutes from either. Cut at values that hold counts of set bits, each
+  lemma checks in under 0.4 s, and the proofs, continued with them, in 0.6 s and 0.9 s.
+- **Saved lemmas carry over there too.** The 128-bit proof takes 3 of its 7 lemmas from what the 64-bit one saved,
+  and `popcountsi2_same`, which `Rewrites.lean` already proves, takes 2 of its 5. Those 3 only match because the store
+  saved them more generally than the 64-bit proof needed.
+- **Every theorem rests on what the project's proofs rest on.** The standard three axioms and `bv_decide`'s, checked
+  again by each branch's `tests/check_axioms.lean`, with every module replayed by `leanchecker`. The store isn't
+  trusted: a lemma in it is checked again where it's used.
+- **Each knows one kind of code.** For q4_K, the core lemma's proof and the facts are the branch's own
+  `Vnni.lean`, which a person wrote. The tool decides where to cut, states and keeps the lemmas, and finds which ones
+  each place can share. See [the gaps](#gaps).
 
-## The goals
+## llama.cpp's q4_K kernels
+
+What clang leaves and what the rewrite computes are in the branch's `docs/llama.md`. In short, at each place clang
+computes `pmaddwd(p0 + p1 + ... + p7, c)` with `p_k = pmaddubsw(a_k, b_k)`, and the rewrite computes a chain of eight
+`vpdpbusd` on the same `a_k` and `b_k`, times the low half of each lane of `c`. They only agree because clang masks the
+weights `a_k` to 4 bits and repeats each scale in both halves of `c`'s lanes. The branch's `tests/llama.py` cuts each
+place out of both kernels, back to loads and arguments, and proves the two slices equal with `vnni_slice`, a tactic
+over the 527 lines of its `tests/llama/Vnni.lean`. Alive2 gives no verdict on them: it timed out after 10 minutes on
+the first slice of `gemv`, the branch's doc says.
+
+### How it splits a place
+
+[`q4k.py`](../prototypes/lemma-reuse/q4k.py) compiles the kernels from the branch's pinned llama.cpp, rewrites them
+and cuts out the 34 places with the branch's own scripts, and checks each slice against the branch's manifest. Then,
+for each place, it reads both slices' Lean, which is a list of `let`s:
+
+1. **The cut.** A `let` that both slices have, word for word, is how an operand is built. The ones that differ are the
+   rewrite. The shared values the differing ones read are the frontier: at `s00`, the eight weight vectors, the eight
+   activation vectors and the scales, 17 in all.
+2. **Facts.** For each frontier value, it tries each fact in a small vocabulary that fits its type, `Nibbles` for
+   bytes and `Pairs` for 16-bit lanes, both from `Vnni.lean`, as a lemma about how clang's code computes that value,
+   from only the arguments it reads, proved by `vnni_facts`. At every place, the weights are `Nibbles` and the scales
+   are `Pairs`. The activations aren't `Nibbles`, and those 12 attempts fail, and are recorded so they aren't tried
+   again.
+3. **The core.** What the rewrite and clang's code compute from the frontier, as a lemma about any values there, with
+   the facts that held as hypotheses, proved by what `vnni_slice` does after running both slices. Shortened from
+   how it's [saved](../prototypes/lemma-reuse/q4k/store/Lemma_core_01920f5ad1.lean):
+
+   ```lean
+   theorem core_01920f5ad1 (x0 : Vec 32 8) (x1 : Vec 32 8) ... (x16 : Vec 16 16)
+       (h0 : Nibbles x0) (h2 : Nibbles x2) ... (h14 : Nibbles x14) (h16 : Pairs x16) :
+       (Vec.map2 (fun a b => Val.mul a b) (X86.vpdpbusd (... (X86.vpdpbusd (Vector.replicate 8 (some 0#32)) x0 x1)
+         ...) x14 x15) ...) =
+       X86.pmaddwd 8 (Vec.map2 (fun a b => Val.add a b) (... (X86.pmaddubsw 16 x0 x1) ...)) x16
+   ```
+
+4. **The store.** Each lemma is named by a hash of its statement, with the frontier values and arguments renamed in
+   order, so the same lemma from any place has the same name. It's checked only if the store doesn't have it.
+5. **The original theorem, continued.** The statement is the one `tests/llama.py` writes. The proof runs both slices
+   as `vnni_slice` does, then applies the core lemma to the facts, as in
+   [`Splits04.lean`](../prototypes/lemma-reuse/q4k/proofs/Splits04.lean):
+
+   ```lean
+     unfold S04Tgt.s04_tgt S04Src.s04_src
+     rw [run, run]
+     simp only [S04Tgt.s04_tgt.step, S04Src.s04_src.step, ret, Outcome.ok]
+     refine congrArg (fun x => some (Except.ok x)) ?_
+     exact LemmaReuse.Store.core_25cc0c39f5 _ _ ... _ (LemmaReuse.Store.fact_1de73dfe1c v159 v161 v175 v177) ...
+   ```
+
+### What's saved, and when it's reused
+
+[`q4k/store`](../prototypes/lemma-reuse/q4k/store) has the 27 lemmas, and its `index.json` says what each states,
+which place saved it, which places used it, and the 12 facts that didn't hold.
+
+| Lemma | What it says | Saved by | Places using it |
+| --- | --- | --- | --- |
+| `core_01920f5ad1` | The 256-bit core: 8 `vpdpbusd` and a multiply are 8 `pmaddubsw` and a `pmaddwd` | `s00` | 18 |
+| `core_25cc0c39f5` | The 512-bit core | `s02` | 16 |
+| 25 `fact_…` | That a weight vector is `Nibbles`, or a scale vector `Pairs`, from how clang builds it | 10 places | 1 to 8 each |
+
+| Places | Lemmas each needs | From the store | New |
+| --- | --- | --- | --- |
+| `s00`, the first of `gemv` | 4 | 0 | 4 |
+| `s01`, the other of `gemv` | 4 | 2 | 2 |
+| `s02`, the first at 512 bits | 4 | 0 | 4 |
+| `s03`, `s06`, `s07`, `s18`, `s19`, `s22`, `s23` | 4 | 1 or 2 | 2 or 3 |
+| The other 24 | 4 | 4 | 0 |
+
+Each place uses its 4 lemmas 10 times: the core once, and each fact for every operand it covers. The facts differ
+between places only in which lanes clang's shuffles take, so the 8 weight vectors at a place need 2 of them.
+
+### Proof time
+
+Each module's own check. The originals and the continued proofs were checked one at a time, and the new lemmas a
+place needed in parallel with each other, so the totals are sums of those checks, not time elapsed:
+
+| | Each place | All 34 |
+| --- | --- | --- |
+| The theorem as `tests/llama.py` proves it, with `vnni_slice` | 0.34 to 0.72 s | 16.2 s |
+| The same theorem, continued from the store | 0.25 to 0.28 s | 8.8 s |
+| Checking the 27 lemmas, once | 0.29 to 0.56 s a lemma | 10.1 s |
+| Trying the 12 facts that don't hold, once | | 4.9 s |
+
+So from an empty store, the split's checks add up to more than proving each place outright, 23.7 s against 16.2 s,
+and once the store has its lemmas to about half. The q4_K proofs were never slow. What the split changes is their shape: 34
+proofs of everything become 27 lemmas, each checked once, and 34 one-line uses of them, and a new place of a shape
+the store knows needs nothing new.
+
+The place theorems rest on the standard three axioms and 4 to 6 from `bv_decide`, as the originals do in the branch's
+manifest, and the core lemmas on 1, all from `Vnni.lean`'s own lemmas. The branch's `tests/check_axioms.lean` checks
+each place's module and each lemma's, and `leanchecker` replays each.
+
+## compiler-rt's population counts
+
+### The goals
 
 Each says a rewrite returns what clang's code returns, on every input, as the theorems in `Rewrites.lean` do. Neither
 side is undefined or poison, so each refines the other. clang's code is compiler-rt's, compiled as
@@ -50,7 +160,7 @@ rewrite in [`tests/llvm/rewrites`](../tests/llvm/rewrites). The other two are in
 runs `superopt.py`'s own `search`, on the IR as `lemmas.py` simulates it, since `ctypes` has no 128-bit integers, and
 adds the truncation that the search's grammar can't express.
 
-## How it cuts a proof
+### How it cuts a proof
 
 Without a hand-written proof of clang's code to go through, the original proof is:
 
@@ -102,7 +212,7 @@ If the lemma for the first cut runs out of time, it's replaced by one for each c
 before. `--finest` does that anyway, and gives 3 lemmas, from 2- to 4- to 8-bit fields, which check and give the same
 theorem. No goal here needs it.
 
-## What's saved, and when it's reused
+### What's saved, and when it's reused
 
 The [store](../prototypes/lemma-reuse/store) is a directory of Lean modules, a lemma each, and `index.json`, which
 says what each lemma states, the bound it was proved for and the one its first goal needed, how long it took to
@@ -129,7 +239,7 @@ Counting `field_le` and `cpop_fieldSum` from `Count.lean`, which every goal uses
 uses come from a shared library, and 4 of the 7 the 32-bit one uses. Phase 2 of the [roadmap](roadmap.md) asks for
 60% of each proof's lemmas. This is close, and short of it.
 
-## Proof time
+### Proof time
 
 From an empty store, in the order of [`goals.toml`](../prototypes/lemma-reuse/goals.toml), leaving out Alive2 and
 the one-call attempt, which `check.sh` also runs:
@@ -165,8 +275,9 @@ Don't overread this:
 
 ## What it rests on
 
-A proved goal is a theorem about the two functions as this LLVM IR, in this project's model of it, and rests on
-everything [trust](trust.md) lists, the emitter among them. Beyond that:
+A proved theorem is about the two functions or slices as this LLVM IR, in this project's model of it, and rests on
+everything [trust](trust.md) lists, the emitter among them. For q4_K, that's the branch's model, with its x86
+intrinsics, and its emitter. Beyond that, for the population counts:
 
 - **`bv_decide`'s axioms**, one for each call, in every lemma and in the continued proof: 31, 43 and 21 of them.
   `tests/check_axioms.lean` reruns the toolchain's checker on each, as `tests/llvm.py` does, and allows nothing but
@@ -182,7 +293,30 @@ everything [trust](trust.md) lists, the emitter among them. Beyond that:
 
 Each entry in `report.json` lists these under `assumptions`, and the axioms under `audit`.
 
+For q4_K, the same holds of the store, the cut and the facts: the facts tried are only what to ask Lean, and the
+store is checked again where it's used. The compile on a Mac needs one change the branch doesn't make: the dev
+shell's libc++ assumes an Apple target, so `q4k.py` compiles with a copy of its configuration that turns off
+Apple's availability markup. The IR comes out byte for byte what the branch's manifest records, which is the check
+that this changed nothing that matters.
+
 ## Gaps
+
+For q4_K:
+
+- **The proof of the core is the branch's.** The core lemma is proved by `final` and `vnni_inv`, and the facts by
+  `vnni_facts`, all from `Vnni.lean`. The tool decides where to cut, and which facts each operand has, but doesn't
+  find the invariant that makes eight 16-bit sums one 32-bit sum. A new rewrite needs its own.
+- **The vocabulary is two facts,** chosen by an operand's type. A fact outside it, or about an operand the rewrite
+  changes, isn't found.
+- **Two cores, because two widths.** The 256-bit and 512-bit cores are the same argument on different numbers of
+  lanes. Lemmas for every width would need statements with the width as a variable.
+- **It needs the branch.** Until `feat/prove-llvm-optimization-1` merges, `q4k.py` runs against a checkout of it,
+  and the store here is checked against that checkout's `Vnni.lean`.
+- **No speedup the first time.** From an empty store the split checks 7.5 s more than the original proofs.
+- **Only the 34 places.** Q5 and the other quantizations, on `feat/prove-llvm-optimization`, use another model and
+  other proofs, and nothing here was tried on them.
+
+For the population counts:
 
 - **One kind of code.** It cuts code that adds up counts of set bits field by field, against a rewrite that counts
   set bits. `clz`, `ctz`, parity, anything with branches, loops or memory, and functions of more than one argument it
@@ -211,7 +345,19 @@ Each entry in `report.json` lists these under `assumptions`, and the axioms unde
 
 ## Reproducing
 
-From the repo, in `nix develop`:
+The q4_K proof needs a built checkout of its branch, and runs in that checkout's dev shell:
+
+```console
+git worktree add --detach ../q4k origin/feat/prove-llvm-optimization-1
+cd ../q4k
+nix develop -c bash -c 'lake build && cmake -S . -B build -G Ninja && ninja -C build'
+nix develop -c /path/to/ir-lean/prototypes/lemma-reuse/check-q4k.sh .
+```
+
+That proves the 34 places from an empty store, and again from what that saved, checking each lemma again, and
+compares what was saved with [`q4k/store`](../prototypes/lemma-reuse/q4k/store) and its proofs.
+
+The population counts, from this repo, in `nix develop`:
 
 ```console
 lake build
@@ -230,6 +376,9 @@ prototypes/lemma-reuse/lemmas.py prove popcountti2_same --store build/lemma-reus
 
 ## What would come next
 
+- **The next llama.cpp rewrite.** The q4_K store is two cores and the facts they need. A rewrite of another kernel
+  with the same shape, such as the other quantizations' `maddubs` and `madd`, would show how many of its lemmas are
+  already there.
 - **Another kind of code,** such as parity, which counts set bits modulo 2, to see how much of this carries over.
 - **Lemmas for every width,** for the steps that differ only in width, proved by induction from the `bv_decide`
   instances.

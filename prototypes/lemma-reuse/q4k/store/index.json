@@ -1,0 +1,514 @@
+{
+  "lemmas": {
+    "60cbe19736": {
+      "name": "LemmaReuse.Store.fact_60cbe19736",
+      "module": "Lemma_fact_60cbe19736",
+      "kind": "fact",
+      "statement": "theorem fact_60cbe19736 (p0 : (Vec 4 64)) (p1 : (Vec 4 64)) :\n    Nibbles (Vec.split 32 8 4 (Vec.shuffle 8 (Vec.map2 (fun a b => Val.and a b) (Vec.split 8 32 2 p0) #v[(some 252645135#32), (some 252645135#32), (some 252645135#32), (some 252645135#32), (some 252645135#32), (some 252645135#32), (some 252645135#32), (some 252645135#32)]) (Vec.map2 (fun a b => Val.and a b) (Vec.split 8 32 2 p1) #v[(some 252645135#32), (some 252645135#32), (some 252645135#32), (some 252645135#32), (some 252645135#32), (some 252645135#32), (some 252645135#32), (some 252645135#32)]) #[some 1, some 9, some 3, some 11, some 5, some 13, some 7, some 15]))",
+      "bound": null,
+      "needed": null,
+      "check_seconds": 0.56,
+      "mined_by": "s00",
+      "used_by": [
+        "s00"
+      ]
+    },
+    "4502eec962": {
+      "name": "LemmaReuse.Store.fact_4502eec962",
+      "module": "Lemma_fact_4502eec962",
+      "kind": "fact",
+      "statement": "theorem fact_4502eec962 (p0 : (Vec 4 64)) (p1 : (Vec 4 64)) :\n    Nibbles (Vec.split 32 8 4 (Vec.shuffle 8 (Vec.map2 (fun a b => Val.and a b) (Vec.split 8 32 2 p0) #v[(some 252645135#32), (some 252645135#32), (some 252645135#32), (some 252645135#32), (some 252645135#32), (some 252645135#32), (some 252645135#32), (some 252645135#32)]) (Vec.map2 (fun a b => Val.and a b) (Vec.split 8 32 2 p1) #v[(some 252645135#32), (some 252645135#32), (some 252645135#32), (some 252645135#32), (some 252645135#32), (some 252645135#32), (some 252645135#32), (some 252645135#32)]) #[some 0, some 8, some 2, some 10, some 4, some 12, some 6, some 14]))",
+      "bound": null,
+      "needed": null,
+      "check_seconds": 0.56,
+      "mined_by": "s00",
+      "used_by": [
+        "s00"
+      ]
+    },
+    "4ff0e38a51": {
+      "name": "LemmaReuse.Store.fact_4ff0e38a51",
+      "module": "Lemma_fact_4ff0e38a51",
+      "kind": "fact",
+      "statement": "theorem fact_4ff0e38a51 (p0 : Val 32) (p1 : Val 32) (p2 : Val 32) :\n    Pairs (Vec.map (fun a => Val.zext 16 a) (Vec.shuffle 16 (Vec.split 16 8 4 (Vec.insert (Vec.insert (Vec.insert (Vec.insert (HasPoison.poison : (Vec 4 32)) (Val.and p0 (some 1061109567#32)) (some 0#64)) (Val.or (Val.and p1 (some 252645135#32)) (Val.and (Val.lshr p0 (some 2#32)) (some 808464432#32)) (disjoint := true)) (some 1#64)) (Val.and p2 (some 1061109567#32)) (some 2#64)) (Val.or (Val.and (Val.lshr p1 (some 4#32)) (some 252645135#32)) (Val.and (Val.lshr p2 (some 2#32)) (some 808464432#32)) (disjoint := true)) (some 3#64))) (HasPoison.poison : (Vec 16 8)) #[some 0, some 0, some 4, some 4, some 1, some 1, some 5, some 5, some 2, some 2, some 6, some 6, some 3, some 3, some 7, some 7]))",
+      "bound": null,
+      "needed": null,
+      "check_seconds": 0.55,
+      "mined_by": "s00",
+      "used_by": [
+        "s00",
+        "s01"
+      ]
+    },
+    "01920f5ad1": {
+      "name": "LemmaReuse.Store.core_01920f5ad1",
+      "module": "Lemma_core_01920f5ad1",
+      "kind": "core",
+      "statement": "theorem core_01920f5ad1 (x0 : Vec 32 8) (x1 : Vec 32 8) (x2 : Vec 32 8) (x3 : Vec 32 8) (x4 : Vec 32 8) (x5 : Vec 32 8) (x6 : Vec 32 8) (x7 : Vec 32 8) (x8 : Vec 32 8) (x9 : Vec 32 8) (x10 : Vec 32 8) (x11 : Vec 32 8) (x12 : Vec 32 8) (x13 : Vec 32 8) (x14 : Vec 32 8) (x15 : Vec 32 8) (x16 : Vec 16 16)\n    (h0 : Nibbles x0) (h2 : Nibbles x2) (h4 : Nibbles x4) (h6 : Nibbles x6) (h8 : Nibbles x8) (h10 : Nibbles x10) (h12 : Nibbles x12) (h14 : Nibbles x14) (h16 : Pairs x16) :\n    (Vec.map2 (fun a b => Val.mul a b) (X86.vpdpbusd (X86.vpdpbusd (X86.vpdpbusd (X86.vpdpbusd (X86.vpdpbusd (X86.vpdpbusd (X86.vpdpbusd (X86.vpdpbusd (Vector.replicate 8 (some 0#32)) x0 x1) x2 x3) x4 x5) x6 x7) x8 x9) x10 x11) x12 x13) x14 x15) (Vec.map2 (fun a b => Val.ashr a b) (Vec.map2 (fun a b => Val.shl a b) (Vec.join 8 32 2 x16) #v[(some 16#32), (some 16#32), (some 16#32), (some 16#32), (some 16#32), (some 16#32), (some 16#32), (some 16#32)]) #v[(some 16#32), (some 16#32), (some 16#32), (some 16#32), (some 16#32), (some 16#32), (some 16#32), (some 16#32)])) =\n      (X86.pmaddwd 8 (Vec.map2 (fun a b => Val.add a b) (Vec.map2 (fun a b => Val.add a b) (Vec.map2 (fun a b => Val.add a b) (Vec.map2 (fun a b => Val.add a b) (Vec.map2 (fun a b => Val.add a b) (Vec.map2 (fun a b => Val.add a b) (Vec.map2 (fun a b => Val.add a b) (X86.pmaddubsw 16 x0 x1) (X86.pmaddubsw 16 x2 x3)) (X86.pmaddubsw 16 x4 x5)) (X86.pmaddubsw 16 x6 x7)) (X86.pmaddubsw 16 x8 x9)) (X86.pmaddubsw 16 x10 x11)) (X86.pmaddubsw 16 x12 x13)) (X86.pmaddubsw 16 x14 x15)) x16)",
+      "bound": null,
+      "needed": null,
+      "check_seconds": 0.31,
+      "mined_by": "s00",
+      "used_by": [
+        "s00",
+        "s01",
+        "s18",
+        "s19",
+        "s20",
+        "s21",
+        "s22",
+        "s23",
+        "s24",
+        "s25",
+        "s26",
+        "s27",
+        "s28",
+        "s29",
+        "s30",
+        "s31",
+        "s32",
+        "s33"
+      ]
+    },
+    "746b247f44": {
+      "name": "LemmaReuse.Store.fact_746b247f44",
+      "module": "Lemma_fact_746b247f44",
+      "kind": "fact",
+      "statement": "theorem fact_746b247f44 (p0 : (Vec 4 64)) (p1 : (Vec 4 64)) :\n    Nibbles (Vec.split 32 8 4 (Vec.shuffle 8 (Vec.map2 (fun a b => Val.and a b) (Vec.join 8 32 2 (Vec.map2 (fun a b => Val.lshr a b) (Vec.split 16 16 4 p0) #v[(some 4#16), (some 4#16), (some 4#16), (some 4#16), (some 4#16), (some 4#16), (some 4#16), (some 4#16), (some 4#16), (some 4#16), (some 4#16), (some 4#16), (some 4#16), (some 4#16), (some 4#16), (some 4#16)])) #v[(some 252645135#32), (some 252645135#32), (some 252645135#32), (some 252645135#32), (some 252645135#32), (some 252645135#32), (some 252645135#32), (some 252645135#32)]) (Vec.map2 (fun a b => Val.and a b) (Vec.join 8 32 2 (Vec.map2 (fun a b => Val.lshr a b) (Vec.split 16 16 4 p1) #v[(some 4#16), (some 4#16), (some 4#16), (some 4#16), (some 4#16), (some 4#16), (some 4#16), (some 4#16), (some 4#16), (some 4#16), (some 4#16), (some 4#16), (some 4#16), (some 4#16), (some 4#16), (some 4#16)])) #v[(some 252645135#32), (some 252645135#32), (some 252645135#32), (some 252645135#32), (some 252645135#32), (some 252645135#32), (some 252645135#32), (some 252645135#32)]) #[some 1, some 9, some 3, some 11, some 5, some 13, some 7, some 15]))",
+      "bound": null,
+      "needed": null,
+      "check_seconds": 0.3,
+      "mined_by": "s01",
+      "used_by": [
+        "s01"
+      ]
+    },
+    "a9fed6a78f": {
+      "name": "LemmaReuse.Store.fact_a9fed6a78f",
+      "module": "Lemma_fact_a9fed6a78f",
+      "kind": "fact",
+      "statement": "theorem fact_a9fed6a78f (p0 : (Vec 4 64)) (p1 : (Vec 4 64)) :\n    Nibbles (Vec.split 32 8 4 (Vec.shuffle 8 (Vec.map2 (fun a b => Val.and a b) (Vec.join 8 32 2 (Vec.map2 (fun a b => Val.lshr a b) (Vec.split 16 16 4 p0) #v[(some 4#16), (some 4#16), (some 4#16), (some 4#16), (some 4#16), (some 4#16), (some 4#16), (some 4#16), (some 4#16), (some 4#16), (some 4#16), (some 4#16), (some 4#16), (some 4#16), (some 4#16), (some 4#16)])) #v[(some 252645135#32), (some 252645135#32), (some 252645135#32), (some 252645135#32), (some 252645135#32), (some 252645135#32), (some 252645135#32), (some 252645135#32)]) (Vec.map2 (fun a b => Val.and a b) (Vec.join 8 32 2 (Vec.map2 (fun a b => Val.lshr a b) (Vec.split 16 16 4 p1) #v[(some 4#16), (some 4#16), (some 4#16), (some 4#16), (some 4#16), (some 4#16), (some 4#16), (some 4#16), (some 4#16), (some 4#16), (some 4#16), (some 4#16), (some 4#16), (some 4#16), (some 4#16), (some 4#16)])) #v[(some 252645135#32), (some 252645135#32), (some 252645135#32), (some 252645135#32), (some 252645135#32), (some 252645135#32), (some 252645135#32), (some 252645135#32)]) #[some 0, some 8, some 2, some 10, some 4, some 12, some 6, some 14]))",
+      "bound": null,
+      "needed": null,
+      "check_seconds": 0.3,
+      "mined_by": "s01",
+      "used_by": [
+        "s01"
+      ]
+    },
+    "1de73dfe1c": {
+      "name": "LemmaReuse.Store.fact_1de73dfe1c",
+      "module": "Lemma_fact_1de73dfe1c",
+      "kind": "fact",
+      "statement": "theorem fact_1de73dfe1c (p0 : (Vec 8 32)) (p1 : (Vec 8 32)) (p2 : (Vec 8 32)) (p3 : (Vec 8 32)) :\n    Nibbles (Vec.shuffle 64 (Vec.split 64 8 4 (Vec.map2 (fun a b => Val.and a b) (Vec.shuffle 16 (Vec.shuffle 16 p0 p1 #[some 0, some 1, some 2, some 3, some 8, some 9, some 10, some 11, none, none, none, none, none, none, none, none]) (Vec.shuffle 16 p2 p3 #[some 0, some 1, some 2, some 3, some 8, some 9, some 10, some 11, none, none, none, none, none, none, none, none]) #[some 0, some 1, some 2, some 3, some 4, some 5, some 6, some 7, some 16, some 17, some 18, some 19, some 20, some 21, some 22, some 23]) #v[(some 252645135#32), (some 252645135#32), (some 252645135#32), (some 252645135#32), (some 252645135#32), (some 252645135#32), (some 252645135#32), (some 252645135#32), (some 252645135#32), (some 252645135#32), (some 252645135#32), (some 252645135#32), (some 252645135#32), (some 252645135#32), (some 252645135#32), (some 252645135#32)])) (HasPoison.poison : (Vec 64 8)) #[some 0, some 1, some 2, some 3, some 8, some 9, some 10, some 11, some 0, some 1, some 2, some 3, some 8, some 9, some 10, some 11, some 16, some 17, some 18, some 19, some 24, some 25, some 26, some 27, some 16, some 17, some 18, some 19, some 24, some 25, some 26, some 27, some 32, some 33, some 34, some 35, some 40, some 41, some 42, some 43, some 32, some 33, some 34, some 35, some 40, some 41, some 42, some 43, some 48, some 49, some 50, some 51, some 56, some 57, some 58, some 59, some 48, some 49, some 50, some 51, some 56, some 57, some 58, some 59])",
+      "bound": null,
+      "needed": null,
+      "check_seconds": 0.42,
+      "mined_by": "s02",
+      "used_by": [
+        "s02",
+        "s04",
+        "s10",
+        "s12"
+      ]
+    },
+    "2de38c123b": {
+      "name": "LemmaReuse.Store.fact_2de38c123b",
+      "module": "Lemma_fact_2de38c123b",
+      "kind": "fact",
+      "statement": "theorem fact_2de38c123b (p0 : (Vec 8 32)) (p1 : (Vec 8 32)) (p2 : (Vec 8 32)) (p3 : (Vec 8 32)) :\n    Nibbles (Vec.shuffle 64 (Vec.split 64 8 4 (Vec.map2 (fun a b => Val.and a b) (Vec.shuffle 16 (Vec.shuffle 16 p0 p1 #[some 0, some 1, some 2, some 3, some 8, some 9, some 10, some 11, none, none, none, none, none, none, none, none]) (Vec.shuffle 16 p2 p3 #[some 0, some 1, some 2, some 3, some 8, some 9, some 10, some 11, none, none, none, none, none, none, none, none]) #[some 0, some 1, some 2, some 3, some 4, some 5, some 6, some 7, some 16, some 17, some 18, some 19, some 20, some 21, some 22, some 23]) #v[(some 252645135#32), (some 252645135#32), (some 252645135#32), (some 252645135#32), (some 252645135#32), (some 252645135#32), (some 252645135#32), (some 252645135#32), (some 252645135#32), (some 252645135#32), (some 252645135#32), (some 252645135#32), (some 252645135#32), (some 252645135#32), (some 252645135#32), (some 252645135#32)])) (HasPoison.poison : (Vec 64 8)) #[some 4, some 5, some 6, some 7, some 12, some 13, some 14, some 15, some 4, some 5, some 6, some 7, some 12, some 13, some 14, some 15, some 20, some 21, some 22, some 23, some 28, some 29, some 30, some 31, some 20, some 21, some 22, some 23, some 28, some 29, some 30, some 31, some 36, some 37, some 38, some 39, some 44, some 45, some 46, some 47, some 36, some 37, some 38, some 39, some 44, some 45, some 46, some 47, some 52, some 53, some 54, some 55, some 60, some 61, some 62, some 63, some 52, some 53, some 54, some 55, some 60, some 61, some 62, some 63])",
+      "bound": null,
+      "needed": null,
+      "check_seconds": 0.41,
+      "mined_by": "s02",
+      "used_by": [
+        "s02",
+        "s04",
+        "s10",
+        "s12"
+      ]
+    },
+    "2f9dda90a0": {
+      "name": "LemmaReuse.Store.fact_2f9dda90a0",
+      "module": "Lemma_fact_2f9dda90a0",
+      "kind": "fact",
+      "statement": "theorem fact_2f9dda90a0 (p0 : (Vec 2 32)) (p1 : Val 32) (p2 : Val 32) (p3 : Val 32) (p4 : (Vec 2 32)) (p5 : Val 32) (p6 : Val 32) (p7 : Val 32) :\n    Pairs (Vec.split 32 16 2 (Vec.shuffle 16 (Vec.join 16 32 2 (Vec.map (fun a => Val.zext 16 a) (Vec.shuffle 32 (Vec.split 32 8 4 (Vec.shuffle 8 (Vec.shuffle 8 (Vec.map2 (fun a b => Val.and a b) (Vec.shuffle 4 p0 (Vec.map2 (fun a b => Val.and a b) (Vec.map2 (fun a b => Val.lshr a b) (Vec.shuffle 2 (Vec.insert (HasPoison.poison : (Vec 2 32)) p1 (some 0#64)) (HasPoison.poison : (Vec 2 32)) #[some 0, some 0]) #v[(some 0#32), (some 4#32)]) #v[(some 252645135#32), (some 252645135#32)]) #[some 0, some 2, some 1, some 3]) (Vec.map2 (fun a b => Val.and a b) (Vec.insert #v[(some 1061109567#32), (some 808464432#32), (some 1061109567#32), (none : Val 32)] (Val.lshr p2 (some 2#32)) (some 3#64)) (Vec.insert #v[(some 4294967295#32), (none : Val 32), (some 4294967295#32), (some 808464432#32)] (Val.lshr p3 (some 2#32)) (some 1#64)))) (Vec.map2 (fun a b => Val.or a b (disjoint := true)) (Vec.shuffle 4 p0 (Vec.map2 (fun a b => Val.and a b) (Vec.map2 (fun a b => Val.lshr a b) (Vec.shuffle 2 (Vec.insert (HasPoison.poison : (Vec 2 32)) p1 (some 0#64)) (HasPoison.poison : (Vec 2 32)) #[some 0, some 0]) #v[(some 0#32), (some 4#32)]) #v[(some 252645135#32), (some 252645135#32)]) #[some 0, some 2, some 1, some 3]) (Vec.map2 (fun a b => Val.and a b) (Vec.insert #v[(some 1061109567#32), (some 808464432#32), (some 1061109567#32), (none : Val 32)] (Val.lshr p2 (some 2#32)) (some 3#64)) (Vec.insert #v[(some 4294967295#32), (none : Val 32), (some 4294967295#32), (some 808464432#32)] (Val.lshr p3 (some 2#32)) (some 1#64)))) #[some 0, some 5, some 2, some 7, none, none, none, none]) (Vec.shuffle 8 (Vec.map2 (fun a b => Val.and a b) (Vec.shuffle 4 p4 (Vec.map2 (fun a b => Val.and a b) (Vec.map2 (fun a b => Val.lshr a b) (Vec.shuffle 2 (Vec.insert (HasPoison.poison : (Vec 2 32)) p5 (some 0#64)) (HasPoison.poison : (Vec 2 32)) #[some 0, some 0]) #v[(some 0#32), (some 4#32)]) #v[(some 252645135#32), (some 252645135#32)]) #[some 0, some 2, some 1, some 3]) (Vec.map2 (fun a b => Val.and a b) (Vec.insert #v[(some 1061109567#32), (some 808464432#32), (some 1061109567#32), (none : Val 32)] (Val.lshr p6 (some 2#32)) (some 3#64)) (Vec.insert #v[(some 4294967295#32), (none : Val 32), (some 4294967295#32), (some 808464432#32)] (Val.lshr p7 (some 2#32)) (some 1#64)))) (Vec.map2 (fun a b => Val.or a b (disjoint := true)) (Vec.shuffle 4 p4 (Vec.map2 (fun a b => Val.and a b) (Vec.map2 (fun a b => Val.lshr a b) (Vec.shuffle 2 (Vec.insert (HasPoison.poison : (Vec 2 32)) p5 (some 0#64)) (HasPoison.poison : (Vec 2 32)) #[some 0, some 0]) #v[(some 0#32), (some 4#32)]) #v[(some 252645135#32), (some 252645135#32)]) #[some 0, some 2, some 1, some 3]) (Vec.map2 (fun a b => Val.and a b) (Vec.insert #v[(some 1061109567#32), (some 808464432#32), (some 1061109567#32), (none : Val 32)] (Val.lshr p6 (some 2#32)) (some 3#64)) (Vec.insert #v[(some 4294967295#32), (none : Val 32), (some 4294967295#32), (some 808464432#32)] (Val.lshr p7 (some 2#32)) (some 1#64)))) #[some 0, some 5, some 2, some 7, none, none, none, none]) #[some 0, some 1, some 2, some 3, some 8, some 9, some 10, some 11])) (HasPoison.poison : (Vec 32 8)) #[some 0, some 0, some 1, some 1, some 2, some 2, some 3, some 3, some 4, some 4, some 5, some 5, some 6, some 6, some 7, some 7, some 16, some 16, some 17, some 17, some 18, some 18, some 19, some 19, some 20, some 20, some 21, some 21, some 22, some 22, some 23, some 23]))) (HasPoison.poison : (Vec 16 32)) #[some 0, some 1, some 0, some 1, some 4, some 5, some 4, some 5, some 8, some 9, some 8, some 9, some 12, some 13, some 12, some 13]))",
+      "bound": null,
+      "needed": null,
+      "check_seconds": 0.44,
+      "mined_by": "s02",
+      "used_by": [
+        "s02",
+        "s04",
+        "s06",
+        "s08",
+        "s10",
+        "s12",
+        "s14",
+        "s16"
+      ]
+    },
+    "25cc0c39f5": {
+      "name": "LemmaReuse.Store.core_25cc0c39f5",
+      "module": "Lemma_core_25cc0c39f5",
+      "kind": "core",
+      "statement": "theorem core_25cc0c39f5 (x0 : Vec 64 8) (x1 : Vec 64 8) (x2 : Vec 64 8) (x3 : Vec 64 8) (x4 : Vec 64 8) (x5 : Vec 64 8) (x6 : Vec 64 8) (x7 : Vec 64 8) (x8 : Vec 64 8) (x9 : Vec 64 8) (x10 : Vec 64 8) (x11 : Vec 64 8) (x12 : Vec 64 8) (x13 : Vec 64 8) (x14 : Vec 64 8) (x15 : Vec 64 8) (x16 : Vec 32 16)\n    (h0 : Nibbles x0) (h2 : Nibbles x2) (h4 : Nibbles x4) (h6 : Nibbles x6) (h8 : Nibbles x8) (h10 : Nibbles x10) (h12 : Nibbles x12) (h14 : Nibbles x14) (h16 : Pairs x16) :\n    (Vec.map2 (fun a b => Val.mul a b) (X86.vpdpbusd (X86.vpdpbusd (X86.vpdpbusd (X86.vpdpbusd (X86.vpdpbusd (X86.vpdpbusd (X86.vpdpbusd (X86.vpdpbusd (Vector.replicate 16 (some 0#32)) x0 x1) x2 x3) x4 x5) x6 x7) x8 x9) x10 x11) x12 x13) x14 x15) (Vec.map2 (fun a b => Val.ashr a b) (Vec.map2 (fun a b => Val.shl a b) (Vec.join 16 32 2 x16) #v[(some 16#32), (some 16#32), (some 16#32), (some 16#32), (some 16#32), (some 16#32), (some 16#32), (some 16#32), (some 16#32), (some 16#32), (some 16#32), (some 16#32), (some 16#32), (some 16#32), (some 16#32), (some 16#32)]) #v[(some 16#32), (some 16#32), (some 16#32), (some 16#32), (some 16#32), (some 16#32), (some 16#32), (some 16#32), (some 16#32), (some 16#32), (some 16#32), (some 16#32), (some 16#32), (some 16#32), (some 16#32), (some 16#32)])) =\n      (X86.pmaddwd 16 (Vec.map2 (fun a b => Val.add a b) (Vec.map2 (fun a b => Val.add a b) (Vec.map2 (fun a b => Val.add a b) (Vec.map2 (fun a b => Val.add a b) (Vec.map2 (fun a b => Val.add a b) (Vec.map2 (fun a b => Val.add a b) (Vec.map2 (fun a b => Val.add a b) (X86.pmaddubsw 32 x0 x1) (X86.pmaddubsw 32 x2 x3)) (X86.pmaddubsw 32 x4 x5)) (X86.pmaddubsw 32 x6 x7)) (X86.pmaddubsw 32 x8 x9)) (X86.pmaddubsw 32 x10 x11)) (X86.pmaddubsw 32 x12 x13)) (X86.pmaddubsw 32 x14 x15)) x16)",
+      "bound": null,
+      "needed": null,
+      "check_seconds": 0.29,
+      "mined_by": "s02",
+      "used_by": [
+        "s02",
+        "s03",
+        "s04",
+        "s05",
+        "s06",
+        "s07",
+        "s08",
+        "s09",
+        "s10",
+        "s11",
+        "s12",
+        "s13",
+        "s14",
+        "s15",
+        "s16",
+        "s17"
+      ]
+    },
+    "72c7558303": {
+      "name": "LemmaReuse.Store.fact_72c7558303",
+      "module": "Lemma_fact_72c7558303",
+      "kind": "fact",
+      "statement": "theorem fact_72c7558303 (p0 : (Vec 8 32)) (p1 : (Vec 8 32)) (p2 : (Vec 8 32)) (p3 : (Vec 8 32)) :\n    Nibbles (Vec.shuffle 64 (Vec.split 64 8 4 (Vec.map2 (fun a b => Val.and a b) (Vec.shuffle 16 (Vec.shuffle 16 p0 p1 #[some 4, some 5, some 6, some 7, some 12, some 13, some 14, some 15, none, none, none, none, none, none, none, none]) (Vec.shuffle 16 p2 p3 #[some 4, some 5, some 6, some 7, some 12, some 13, some 14, some 15, none, none, none, none, none, none, none, none]) #[some 0, some 1, some 2, some 3, some 4, some 5, some 6, some 7, some 16, some 17, some 18, some 19, some 20, some 21, some 22, some 23]) #v[(some 252645135#32), (some 252645135#32), (some 252645135#32), (some 252645135#32), (some 252645135#32), (some 252645135#32), (some 252645135#32), (some 252645135#32), (some 252645135#32), (some 252645135#32), (some 252645135#32), (some 252645135#32), (some 252645135#32), (some 252645135#32), (some 252645135#32), (some 252645135#32)])) (HasPoison.poison : (Vec 64 8)) #[some 0, some 1, some 2, some 3, some 8, some 9, some 10, some 11, some 0, some 1, some 2, some 3, some 8, some 9, some 10, some 11, some 16, some 17, some 18, some 19, some 24, some 25, some 26, some 27, some 16, some 17, some 18, some 19, some 24, some 25, some 26, some 27, some 32, some 33, some 34, some 35, some 40, some 41, some 42, some 43, some 32, some 33, some 34, some 35, some 40, some 41, some 42, some 43, some 48, some 49, some 50, some 51, some 56, some 57, some 58, some 59, some 48, some 49, some 50, some 51, some 56, some 57, some 58, some 59])",
+      "bound": null,
+      "needed": null,
+      "check_seconds": 0.34,
+      "mined_by": "s03",
+      "used_by": [
+        "s03",
+        "s05",
+        "s11",
+        "s13"
+      ]
+    },
+    "98a683bf5c": {
+      "name": "LemmaReuse.Store.fact_98a683bf5c",
+      "module": "Lemma_fact_98a683bf5c",
+      "kind": "fact",
+      "statement": "theorem fact_98a683bf5c (p0 : (Vec 8 32)) (p1 : (Vec 8 32)) (p2 : (Vec 8 32)) (p3 : (Vec 8 32)) :\n    Nibbles (Vec.shuffle 64 (Vec.split 64 8 4 (Vec.map2 (fun a b => Val.and a b) (Vec.shuffle 16 (Vec.shuffle 16 p0 p1 #[some 4, some 5, some 6, some 7, some 12, some 13, some 14, some 15, none, none, none, none, none, none, none, none]) (Vec.shuffle 16 p2 p3 #[some 4, some 5, some 6, some 7, some 12, some 13, some 14, some 15, none, none, none, none, none, none, none, none]) #[some 0, some 1, some 2, some 3, some 4, some 5, some 6, some 7, some 16, some 17, some 18, some 19, some 20, some 21, some 22, some 23]) #v[(some 252645135#32), (some 252645135#32), (some 252645135#32), (some 252645135#32), (some 252645135#32), (some 252645135#32), (some 252645135#32), (some 252645135#32), (some 252645135#32), (some 252645135#32), (some 252645135#32), (some 252645135#32), (some 252645135#32), (some 252645135#32), (some 252645135#32), (some 252645135#32)])) (HasPoison.poison : (Vec 64 8)) #[some 4, some 5, some 6, some 7, some 12, some 13, some 14, some 15, some 4, some 5, some 6, some 7, some 12, some 13, some 14, some 15, some 20, some 21, some 22, some 23, some 28, some 29, some 30, some 31, some 20, some 21, some 22, some 23, some 28, some 29, some 30, some 31, some 36, some 37, some 38, some 39, some 44, some 45, some 46, some 47, some 36, some 37, some 38, some 39, some 44, some 45, some 46, some 47, some 52, some 53, some 54, some 55, some 60, some 61, some 62, some 63, some 52, some 53, some 54, some 55, some 60, some 61, some 62, some 63])",
+      "bound": null,
+      "needed": null,
+      "check_seconds": 0.34,
+      "mined_by": "s03",
+      "used_by": [
+        "s03",
+        "s05",
+        "s11",
+        "s13"
+      ]
+    },
+    "20341234a9": {
+      "name": "LemmaReuse.Store.fact_20341234a9",
+      "module": "Lemma_fact_20341234a9",
+      "kind": "fact",
+      "statement": "theorem fact_20341234a9 (p0 : (Vec 2 32)) (p1 : Val 32) (p2 : Val 32) (p3 : Val 32) (p4 : (Vec 2 32)) (p5 : Val 32) (p6 : Val 32) (p7 : Val 32) :\n    Pairs (Vec.split 32 16 2 (Vec.shuffle 16 (Vec.join 16 32 2 (Vec.map (fun a => Val.zext 16 a) (Vec.shuffle 32 (Vec.split 32 8 4 (Vec.shuffle 8 (Vec.shuffle 8 (Vec.map2 (fun a b => Val.and a b) (Vec.shuffle 4 p0 (Vec.map2 (fun a b => Val.and a b) (Vec.map2 (fun a b => Val.lshr a b) (Vec.shuffle 2 (Vec.insert (HasPoison.poison : (Vec 2 32)) p1 (some 0#64)) (HasPoison.poison : (Vec 2 32)) #[some 0, some 0]) #v[(some 0#32), (some 4#32)]) #v[(some 252645135#32), (some 252645135#32)]) #[some 0, some 2, some 1, some 3]) (Vec.map2 (fun a b => Val.and a b) (Vec.insert #v[(some 1061109567#32), (some 808464432#32), (some 1061109567#32), (none : Val 32)] (Val.lshr p2 (some 2#32)) (some 3#64)) (Vec.insert #v[(some 4294967295#32), (none : Val 32), (some 4294967295#32), (some 808464432#32)] (Val.lshr p3 (some 2#32)) (some 1#64)))) (Vec.map2 (fun a b => Val.or a b (disjoint := true)) (Vec.shuffle 4 p0 (Vec.map2 (fun a b => Val.and a b) (Vec.map2 (fun a b => Val.lshr a b) (Vec.shuffle 2 (Vec.insert (HasPoison.poison : (Vec 2 32)) p1 (some 0#64)) (HasPoison.poison : (Vec 2 32)) #[some 0, some 0]) #v[(some 0#32), (some 4#32)]) #v[(some 252645135#32), (some 252645135#32)]) #[some 0, some 2, some 1, some 3]) (Vec.map2 (fun a b => Val.and a b) (Vec.insert #v[(some 1061109567#32), (some 808464432#32), (some 1061109567#32), (none : Val 32)] (Val.lshr p2 (some 2#32)) (some 3#64)) (Vec.insert #v[(some 4294967295#32), (none : Val 32), (some 4294967295#32), (some 808464432#32)] (Val.lshr p3 (some 2#32)) (some 1#64)))) #[some 0, some 5, some 2, some 7, none, none, none, none]) (Vec.shuffle 8 (Vec.map2 (fun a b => Val.and a b) (Vec.shuffle 4 p4 (Vec.map2 (fun a b => Val.and a b) (Vec.map2 (fun a b => Val.lshr a b) (Vec.shuffle 2 (Vec.insert (HasPoison.poison : (Vec 2 32)) p5 (some 0#64)) (HasPoison.poison : (Vec 2 32)) #[some 0, some 0]) #v[(some 0#32), (some 4#32)]) #v[(some 252645135#32), (some 252645135#32)]) #[some 0, some 2, some 1, some 3]) (Vec.map2 (fun a b => Val.and a b) (Vec.insert #v[(some 1061109567#32), (some 808464432#32), (some 1061109567#32), (none : Val 32)] (Val.lshr p6 (some 2#32)) (some 3#64)) (Vec.insert #v[(some 4294967295#32), (none : Val 32), (some 4294967295#32), (some 808464432#32)] (Val.lshr p7 (some 2#32)) (some 1#64)))) (Vec.map2 (fun a b => Val.or a b (disjoint := true)) (Vec.shuffle 4 p4 (Vec.map2 (fun a b => Val.and a b) (Vec.map2 (fun a b => Val.lshr a b) (Vec.shuffle 2 (Vec.insert (HasPoison.poison : (Vec 2 32)) p5 (some 0#64)) (HasPoison.poison : (Vec 2 32)) #[some 0, some 0]) #v[(some 0#32), (some 4#32)]) #v[(some 252645135#32), (some 252645135#32)]) #[some 0, some 2, some 1, some 3]) (Vec.map2 (fun a b => Val.and a b) (Vec.insert #v[(some 1061109567#32), (some 808464432#32), (some 1061109567#32), (none : Val 32)] (Val.lshr p6 (some 2#32)) (some 3#64)) (Vec.insert #v[(some 4294967295#32), (none : Val 32), (some 4294967295#32), (some 808464432#32)] (Val.lshr p7 (some 2#32)) (some 1#64)))) #[some 0, some 5, some 2, some 7, none, none, none, none]) #[some 0, some 1, some 2, some 3, some 8, some 9, some 10, some 11])) (HasPoison.poison : (Vec 32 8)) #[some 0, some 0, some 1, some 1, some 2, some 2, some 3, some 3, some 4, some 4, some 5, some 5, some 6, some 6, some 7, some 7, some 16, some 16, some 17, some 17, some 18, some 18, some 19, some 19, some 20, some 20, some 21, some 21, some 22, some 22, some 23, some 23]))) (HasPoison.poison : (Vec 16 32)) #[some 2, some 3, some 2, some 3, some 6, some 7, some 6, some 7, some 10, some 11, some 10, some 11, some 14, some 15, some 14, some 15]))",
+      "bound": null,
+      "needed": null,
+      "check_seconds": 0.37,
+      "mined_by": "s03",
+      "used_by": [
+        "s03",
+        "s05",
+        "s07",
+        "s09",
+        "s11",
+        "s13",
+        "s15",
+        "s17"
+      ]
+    },
+    "3355f82c98": {
+      "name": "LemmaReuse.Store.fact_3355f82c98",
+      "module": "Lemma_fact_3355f82c98",
+      "kind": "fact",
+      "statement": "theorem fact_3355f82c98 (p0 : (Vec 8 32)) (p1 : (Vec 8 32)) (p2 : (Vec 8 32)) (p3 : (Vec 8 32)) :\n    Nibbles (Vec.shuffle 64 (Vec.split 64 8 2 (Vec.map2 (fun a b => Val.and a b) (Vec.map2 (fun a b => Val.lshr a b) (Vec.split 32 16 2 (Vec.shuffle 16 (Vec.shuffle 16 p0 p1 #[some 0, some 1, some 2, some 3, some 8, some 9, some 10, some 11, none, none, none, none, none, none, none, none]) (Vec.shuffle 16 p2 p3 #[some 0, some 1, some 2, some 3, some 8, some 9, some 10, some 11, none, none, none, none, none, none, none, none]) #[some 0, some 1, some 2, some 3, some 4, some 5, some 6, some 7, some 16, some 17, some 18, some 19, some 20, some 21, some 22, some 23])) #v[(some 4#16), (some 4#16), (some 4#16), (some 4#16), (some 4#16), (some 4#16), (some 4#16), (some 4#16), (some 4#16), (some 4#16), (some 4#16), (some 4#16), (some 4#16), (some 4#16), (some 4#16), (some 4#16), (some 4#16), (some 4#16), (some 4#16), (some 4#16), (some 4#16), (some 4#16), (some 4#16), (some 4#16), (some 4#16), (some 4#16), (some 4#16), (some 4#16), (some 4#16), (some 4#16), (some 4#16), (some 4#16)]) #v[(some 3855#16), (some 3855#16), (some 3855#16), (some 3855#16), (some 3855#16), (some 3855#16), (some 3855#16), (some 3855#16), (some 3855#16), (some 3855#16), (some 3855#16), (some 3855#16), (some 3855#16), (some 3855#16), (some 3855#16), (some 3855#16), (some 3855#16), (some 3855#16), (some 3855#16), (some 3855#16), (some 3855#16), (some 3855#16), (some 3855#16), (some 3855#16), (some 3855#16), (some 3855#16), (some 3855#16), (some 3855#16), (some 3855#16), (some 3855#16), (some 3855#16), (some 3855#16)])) (HasPoison.poison : (Vec 64 8)) #[some 0, some 1, some 2, some 3, some 8, some 9, some 10, some 11, some 0, some 1, some 2, some 3, some 8, some 9, some 10, some 11, some 16, some 17, some 18, some 19, some 24, some 25, some 26, some 27, some 16, some 17, some 18, some 19, some 24, some 25, some 26, some 27, some 32, some 33, some 34, some 35, some 40, some 41, some 42, some 43, some 32, some 33, some 34, some 35, some 40, some 41, some 42, some 43, some 48, some 49, some 50, some 51, some 56, some 57, some 58, some 59, some 48, some 49, some 50, some 51, some 56, some 57, some 58, some 59])",
+      "bound": null,
+      "needed": null,
+      "check_seconds": 0.37,
+      "mined_by": "s06",
+      "used_by": [
+        "s06",
+        "s08",
+        "s14",
+        "s16"
+      ]
+    },
+    "45defd144e": {
+      "name": "LemmaReuse.Store.fact_45defd144e",
+      "module": "Lemma_fact_45defd144e",
+      "kind": "fact",
+      "statement": "theorem fact_45defd144e (p0 : (Vec 8 32)) (p1 : (Vec 8 32)) (p2 : (Vec 8 32)) (p3 : (Vec 8 32)) :\n    Nibbles (Vec.shuffle 64 (Vec.split 64 8 2 (Vec.map2 (fun a b => Val.and a b) (Vec.map2 (fun a b => Val.lshr a b) (Vec.split 32 16 2 (Vec.shuffle 16 (Vec.shuffle 16 p0 p1 #[some 0, some 1, some 2, some 3, some 8, some 9, some 10, some 11, none, none, none, none, none, none, none, none]) (Vec.shuffle 16 p2 p3 #[some 0, some 1, some 2, some 3, some 8, some 9, some 10, some 11, none, none, none, none, none, none, none, none]) #[some 0, some 1, some 2, some 3, some 4, some 5, some 6, some 7, some 16, some 17, some 18, some 19, some 20, some 21, some 22, some 23])) #v[(some 4#16), (some 4#16), (some 4#16), (some 4#16), (some 4#16), (some 4#16), (some 4#16), (some 4#16), (some 4#16), (some 4#16), (some 4#16), (some 4#16), (some 4#16), (some 4#16), (some 4#16), (some 4#16), (some 4#16), (some 4#16), (some 4#16), (some 4#16), (some 4#16), (some 4#16), (some 4#16), (some 4#16), (some 4#16), (some 4#16), (some 4#16), (some 4#16), (some 4#16), (some 4#16), (some 4#16), (some 4#16)]) #v[(some 3855#16), (some 3855#16), (some 3855#16), (some 3855#16), (some 3855#16), (some 3855#16), (some 3855#16), (some 3855#16), (some 3855#16), (some 3855#16), (some 3855#16), (some 3855#16), (some 3855#16), (some 3855#16), (some 3855#16), (some 3855#16), (some 3855#16), (some 3855#16), (some 3855#16), (some 3855#16), (some 3855#16), (some 3855#16), (some 3855#16), (some 3855#16), (some 3855#16), (some 3855#16), (some 3855#16), (some 3855#16), (some 3855#16), (some 3855#16), (some 3855#16), (some 3855#16)])) (HasPoison.poison : (Vec 64 8)) #[some 4, some 5, some 6, some 7, some 12, some 13, some 14, some 15, some 4, some 5, some 6, some 7, some 12, some 13, some 14, some 15, some 20, some 21, some 22, some 23, some 28, some 29, some 30, some 31, some 20, some 21, some 22, some 23, some 28, some 29, some 30, some 31, some 36, some 37, some 38, some 39, some 44, some 45, some 46, some 47, some 36, some 37, some 38, some 39, some 44, some 45, some 46, some 47, some 52, some 53, some 54, some 55, some 60, some 61, some 62, some 63, some 52, some 53, some 54, some 55, some 60, some 61, some 62, some 63])",
+      "bound": null,
+      "needed": null,
+      "check_seconds": 0.37,
+      "mined_by": "s06",
+      "used_by": [
+        "s06",
+        "s08",
+        "s14",
+        "s16"
+      ]
+    },
+    "b67399b328": {
+      "name": "LemmaReuse.Store.fact_b67399b328",
+      "module": "Lemma_fact_b67399b328",
+      "kind": "fact",
+      "statement": "theorem fact_b67399b328 (p0 : (Vec 8 32)) (p1 : (Vec 8 32)) (p2 : (Vec 8 32)) (p3 : (Vec 8 32)) :\n    Nibbles (Vec.shuffle 64 (Vec.split 64 8 2 (Vec.map2 (fun a b => Val.and a b) (Vec.map2 (fun a b => Val.lshr a b) (Vec.split 32 16 2 (Vec.shuffle 16 (Vec.shuffle 16 p0 p1 #[some 4, some 5, some 6, some 7, some 12, some 13, some 14, some 15, none, none, none, none, none, none, none, none]) (Vec.shuffle 16 p2 p3 #[some 4, some 5, some 6, some 7, some 12, some 13, some 14, some 15, none, none, none, none, none, none, none, none]) #[some 0, some 1, some 2, some 3, some 4, some 5, some 6, some 7, some 16, some 17, some 18, some 19, some 20, some 21, some 22, some 23])) #v[(some 4#16), (some 4#16), (some 4#16), (some 4#16), (some 4#16), (some 4#16), (some 4#16), (some 4#16), (some 4#16), (some 4#16), (some 4#16), (some 4#16), (some 4#16), (some 4#16), (some 4#16), (some 4#16), (some 4#16), (some 4#16), (some 4#16), (some 4#16), (some 4#16), (some 4#16), (some 4#16), (some 4#16), (some 4#16), (some 4#16), (some 4#16), (some 4#16), (some 4#16), (some 4#16), (some 4#16), (some 4#16)]) #v[(some 3855#16), (some 3855#16), (some 3855#16), (some 3855#16), (some 3855#16), (some 3855#16), (some 3855#16), (some 3855#16), (some 3855#16), (some 3855#16), (some 3855#16), (some 3855#16), (some 3855#16), (some 3855#16), (some 3855#16), (some 3855#16), (some 3855#16), (some 3855#16), (some 3855#16), (some 3855#16), (some 3855#16), (some 3855#16), (some 3855#16), (some 3855#16), (some 3855#16), (some 3855#16), (some 3855#16), (some 3855#16), (some 3855#16), (some 3855#16), (some 3855#16), (some 3855#16)])) (HasPoison.poison : (Vec 64 8)) #[some 0, some 1, some 2, some 3, some 8, some 9, some 10, some 11, some 0, some 1, some 2, some 3, some 8, some 9, some 10, some 11, some 16, some 17, some 18, some 19, some 24, some 25, some 26, some 27, some 16, some 17, some 18, some 19, some 24, some 25, some 26, some 27, some 32, some 33, some 34, some 35, some 40, some 41, some 42, some 43, some 32, some 33, some 34, some 35, some 40, some 41, some 42, some 43, some 48, some 49, some 50, some 51, some 56, some 57, some 58, some 59, some 48, some 49, some 50, some 51, some 56, some 57, some 58, some 59])",
+      "bound": null,
+      "needed": null,
+      "check_seconds": 0.38,
+      "mined_by": "s07",
+      "used_by": [
+        "s07",
+        "s09",
+        "s15",
+        "s17"
+      ]
+    },
+    "d3a6f314cf": {
+      "name": "LemmaReuse.Store.fact_d3a6f314cf",
+      "module": "Lemma_fact_d3a6f314cf",
+      "kind": "fact",
+      "statement": "theorem fact_d3a6f314cf (p0 : (Vec 8 32)) (p1 : (Vec 8 32)) (p2 : (Vec 8 32)) (p3 : (Vec 8 32)) :\n    Nibbles (Vec.shuffle 64 (Vec.split 64 8 2 (Vec.map2 (fun a b => Val.and a b) (Vec.map2 (fun a b => Val.lshr a b) (Vec.split 32 16 2 (Vec.shuffle 16 (Vec.shuffle 16 p0 p1 #[some 4, some 5, some 6, some 7, some 12, some 13, some 14, some 15, none, none, none, none, none, none, none, none]) (Vec.shuffle 16 p2 p3 #[some 4, some 5, some 6, some 7, some 12, some 13, some 14, some 15, none, none, none, none, none, none, none, none]) #[some 0, some 1, some 2, some 3, some 4, some 5, some 6, some 7, some 16, some 17, some 18, some 19, some 20, some 21, some 22, some 23])) #v[(some 4#16), (some 4#16), (some 4#16), (some 4#16), (some 4#16), (some 4#16), (some 4#16), (some 4#16), (some 4#16), (some 4#16), (some 4#16), (some 4#16), (some 4#16), (some 4#16), (some 4#16), (some 4#16), (some 4#16), (some 4#16), (some 4#16), (some 4#16), (some 4#16), (some 4#16), (some 4#16), (some 4#16), (some 4#16), (some 4#16), (some 4#16), (some 4#16), (some 4#16), (some 4#16), (some 4#16), (some 4#16)]) #v[(some 3855#16), (some 3855#16), (some 3855#16), (some 3855#16), (some 3855#16), (some 3855#16), (some 3855#16), (some 3855#16), (some 3855#16), (some 3855#16), (some 3855#16), (some 3855#16), (some 3855#16), (some 3855#16), (some 3855#16), (some 3855#16), (some 3855#16), (some 3855#16), (some 3855#16), (some 3855#16), (some 3855#16), (some 3855#16), (some 3855#16), (some 3855#16), (some 3855#16), (some 3855#16), (some 3855#16), (some 3855#16), (some 3855#16), (some 3855#16), (some 3855#16), (some 3855#16)])) (HasPoison.poison : (Vec 64 8)) #[some 4, some 5, some 6, some 7, some 12, some 13, some 14, some 15, some 4, some 5, some 6, some 7, some 12, some 13, some 14, some 15, some 20, some 21, some 22, some 23, some 28, some 29, some 30, some 31, some 20, some 21, some 22, some 23, some 28, some 29, some 30, some 31, some 36, some 37, some 38, some 39, some 44, some 45, some 46, some 47, some 36, some 37, some 38, some 39, some 44, some 45, some 46, some 47, some 52, some 53, some 54, some 55, some 60, some 61, some 62, some 63, some 52, some 53, some 54, some 55, some 60, some 61, some 62, some 63])",
+      "bound": null,
+      "needed": null,
+      "check_seconds": 0.38,
+      "mined_by": "s07",
+      "used_by": [
+        "s07",
+        "s09",
+        "s15",
+        "s17"
+      ]
+    },
+    "fcc9b34b1f": {
+      "name": "LemmaReuse.Store.fact_fcc9b34b1f",
+      "module": "Lemma_fact_fcc9b34b1f",
+      "kind": "fact",
+      "statement": "theorem fact_fcc9b34b1f (p0 : (Vec 8 32)) (p1 : (Vec 8 32)) :\n    Nibbles (Vec.shuffle 32 (Vec.split 32 8 4 (Vec.map2 (fun a b => Val.and a b) (Vec.shuffle 8 p0 p1 #[some 0, some 1, some 2, some 3, some 8, some 9, some 10, some 11]) #v[(some 252645135#32), (some 252645135#32), (some 252645135#32), (some 252645135#32), (some 252645135#32), (some 252645135#32), (some 252645135#32), (some 252645135#32)])) (HasPoison.poison : (Vec 32 8)) #[some 0, some 1, some 2, some 3, some 8, some 9, some 10, some 11, some 0, some 1, some 2, some 3, some 8, some 9, some 10, some 11, some 16, some 17, some 18, some 19, some 24, some 25, some 26, some 27, some 16, some 17, some 18, some 19, some 24, some 25, some 26, some 27])",
+      "bound": null,
+      "needed": null,
+      "check_seconds": 0.39,
+      "mined_by": "s18",
+      "used_by": [
+        "s18",
+        "s20",
+        "s26",
+        "s28"
+      ]
+    },
+    "e5537fed30": {
+      "name": "LemmaReuse.Store.fact_e5537fed30",
+      "module": "Lemma_fact_e5537fed30",
+      "kind": "fact",
+      "statement": "theorem fact_e5537fed30 (p0 : (Vec 8 32)) (p1 : (Vec 8 32)) :\n    Nibbles (Vec.shuffle 32 (Vec.split 32 8 4 (Vec.map2 (fun a b => Val.and a b) (Vec.shuffle 8 p0 p1 #[some 0, some 1, some 2, some 3, some 8, some 9, some 10, some 11]) #v[(some 252645135#32), (some 252645135#32), (some 252645135#32), (some 252645135#32), (some 252645135#32), (some 252645135#32), (some 252645135#32), (some 252645135#32)])) (HasPoison.poison : (Vec 32 8)) #[some 4, some 5, some 6, some 7, some 12, some 13, some 14, some 15, some 4, some 5, some 6, some 7, some 12, some 13, some 14, some 15, some 20, some 21, some 22, some 23, some 28, some 29, some 30, some 31, some 20, some 21, some 22, some 23, some 28, some 29, some 30, some 31])",
+      "bound": null,
+      "needed": null,
+      "check_seconds": 0.39,
+      "mined_by": "s18",
+      "used_by": [
+        "s18",
+        "s20",
+        "s26",
+        "s28"
+      ]
+    },
+    "5e8d79da5d": {
+      "name": "LemmaReuse.Store.fact_5e8d79da5d",
+      "module": "Lemma_fact_5e8d79da5d",
+      "kind": "fact",
+      "statement": "theorem fact_5e8d79da5d (p0 : Val 32) (p1 : Val 32) (p2 : Val 32) :\n    Pairs (Vec.split 16 16 2 (Vec.shuffle 8 (Vec.join 8 32 2 (Vec.map (fun a => Val.zext 16 a) (Vec.shuffle 16 (Vec.split 16 8 4 (Vec.insert (Vec.insert (Vec.insert (Vec.insert (HasPoison.poison : (Vec 4 32)) (Val.and p0 (some 1061109567#32)) (some 0#64)) (Val.or (Val.and p1 (some 252645135#32)) (Val.and (Val.lshr p0 (some 2#32)) (some 808464432#32)) (disjoint := true)) (some 1#64)) (Val.and p2 (some 1061109567#32)) (some 2#64)) (Val.or (Val.and (Val.lshr p1 (some 4#32)) (some 252645135#32)) (Val.and (Val.lshr p2 (some 2#32)) (some 808464432#32)) (disjoint := true)) (some 3#64))) (HasPoison.poison : (Vec 16 8)) #[some 0, some 0, some 1, some 1, some 2, some 2, some 3, some 3, some 4, some 4, some 5, some 5, some 6, some 6, some 7, some 7]))) (HasPoison.poison : (Vec 8 32)) #[some 0, some 1, some 0, some 1, some 4, some 5, some 4, some 5]))",
+      "bound": null,
+      "needed": null,
+      "check_seconds": 0.39,
+      "mined_by": "s18",
+      "used_by": [
+        "s18",
+        "s20",
+        "s22",
+        "s24",
+        "s26",
+        "s28",
+        "s30",
+        "s32"
+      ]
+    },
+    "c01b84b1da": {
+      "name": "LemmaReuse.Store.fact_c01b84b1da",
+      "module": "Lemma_fact_c01b84b1da",
+      "kind": "fact",
+      "statement": "theorem fact_c01b84b1da (p0 : (Vec 8 32)) (p1 : (Vec 8 32)) :\n    Nibbles (Vec.shuffle 32 (Vec.split 32 8 4 (Vec.map2 (fun a b => Val.and a b) (Vec.shuffle 8 p0 p1 #[some 4, some 5, some 6, some 7, some 12, some 13, some 14, some 15]) #v[(some 252645135#32), (some 252645135#32), (some 252645135#32), (some 252645135#32), (some 252645135#32), (some 252645135#32), (some 252645135#32), (some 252645135#32)])) (HasPoison.poison : (Vec 32 8)) #[some 0, some 1, some 2, some 3, some 8, some 9, some 10, some 11, some 0, some 1, some 2, some 3, some 8, some 9, some 10, some 11, some 16, some 17, some 18, some 19, some 24, some 25, some 26, some 27, some 16, some 17, some 18, some 19, some 24, some 25, some 26, some 27])",
+      "bound": null,
+      "needed": null,
+      "check_seconds": 0.31,
+      "mined_by": "s19",
+      "used_by": [
+        "s19",
+        "s21",
+        "s27",
+        "s29"
+      ]
+    },
+    "0f634a210e": {
+      "name": "LemmaReuse.Store.fact_0f634a210e",
+      "module": "Lemma_fact_0f634a210e",
+      "kind": "fact",
+      "statement": "theorem fact_0f634a210e (p0 : (Vec 8 32)) (p1 : (Vec 8 32)) :\n    Nibbles (Vec.shuffle 32 (Vec.split 32 8 4 (Vec.map2 (fun a b => Val.and a b) (Vec.shuffle 8 p0 p1 #[some 4, some 5, some 6, some 7, some 12, some 13, some 14, some 15]) #v[(some 252645135#32), (some 252645135#32), (some 252645135#32), (some 252645135#32), (some 252645135#32), (some 252645135#32), (some 252645135#32), (some 252645135#32)])) (HasPoison.poison : (Vec 32 8)) #[some 4, some 5, some 6, some 7, some 12, some 13, some 14, some 15, some 4, some 5, some 6, some 7, some 12, some 13, some 14, some 15, some 20, some 21, some 22, some 23, some 28, some 29, some 30, some 31, some 20, some 21, some 22, some 23, some 28, some 29, some 30, some 31])",
+      "bound": null,
+      "needed": null,
+      "check_seconds": 0.31,
+      "mined_by": "s19",
+      "used_by": [
+        "s19",
+        "s21",
+        "s27",
+        "s29"
+      ]
+    },
+    "cfa7dec569": {
+      "name": "LemmaReuse.Store.fact_cfa7dec569",
+      "module": "Lemma_fact_cfa7dec569",
+      "kind": "fact",
+      "statement": "theorem fact_cfa7dec569 (p0 : Val 32) (p1 : Val 32) (p2 : Val 32) :\n    Pairs (Vec.split 16 16 2 (Vec.shuffle 8 (Vec.join 8 32 2 (Vec.map (fun a => Val.zext 16 a) (Vec.shuffle 16 (Vec.split 16 8 4 (Vec.insert (Vec.insert (Vec.insert (Vec.insert (HasPoison.poison : (Vec 4 32)) (Val.and p0 (some 1061109567#32)) (some 0#64)) (Val.or (Val.and p1 (some 252645135#32)) (Val.and (Val.lshr p0 (some 2#32)) (some 808464432#32)) (disjoint := true)) (some 1#64)) (Val.and p2 (some 1061109567#32)) (some 2#64)) (Val.or (Val.and (Val.lshr p1 (some 4#32)) (some 252645135#32)) (Val.and (Val.lshr p2 (some 2#32)) (some 808464432#32)) (disjoint := true)) (some 3#64))) (HasPoison.poison : (Vec 16 8)) #[some 0, some 0, some 1, some 1, some 2, some 2, some 3, some 3, some 4, some 4, some 5, some 5, some 6, some 6, some 7, some 7]))) (HasPoison.poison : (Vec 8 32)) #[some 2, some 3, some 2, some 3, some 6, some 7, some 6, some 7]))",
+      "bound": null,
+      "needed": null,
+      "check_seconds": 0.32,
+      "mined_by": "s19",
+      "used_by": [
+        "s19",
+        "s21",
+        "s23",
+        "s25",
+        "s27",
+        "s29",
+        "s31",
+        "s33"
+      ]
+    },
+    "198e6e01d7": {
+      "name": "LemmaReuse.Store.fact_198e6e01d7",
+      "module": "Lemma_fact_198e6e01d7",
+      "kind": "fact",
+      "statement": "theorem fact_198e6e01d7 (p0 : (Vec 8 32)) (p1 : (Vec 8 32)) :\n    Nibbles (Vec.shuffle 32 (Vec.split 32 8 2 (Vec.map2 (fun a b => Val.and a b) (Vec.map2 (fun a b => Val.lshr a b) (Vec.split 16 16 2 (Vec.shuffle 8 p0 p1 #[some 0, some 1, some 2, some 3, some 8, some 9, some 10, some 11])) #v[(some 4#16), (some 4#16), (some 4#16), (some 4#16), (some 4#16), (some 4#16), (some 4#16), (some 4#16), (some 4#16), (some 4#16), (some 4#16), (some 4#16), (some 4#16), (some 4#16), (some 4#16), (some 4#16)]) #v[(some 3855#16), (some 3855#16), (some 3855#16), (some 3855#16), (some 3855#16), (some 3855#16), (some 3855#16), (some 3855#16), (some 3855#16), (some 3855#16), (some 3855#16), (some 3855#16), (some 3855#16), (some 3855#16), (some 3855#16), (some 3855#16)])) (HasPoison.poison : (Vec 32 8)) #[some 0, some 1, some 2, some 3, some 8, some 9, some 10, some 11, some 0, some 1, some 2, some 3, some 8, some 9, some 10, some 11, some 16, some 17, some 18, some 19, some 24, some 25, some 26, some 27, some 16, some 17, some 18, some 19, some 24, some 25, some 26, some 27])",
+      "bound": null,
+      "needed": null,
+      "check_seconds": 0.31,
+      "mined_by": "s22",
+      "used_by": [
+        "s22",
+        "s24",
+        "s30",
+        "s32"
+      ]
+    },
+    "be126601dd": {
+      "name": "LemmaReuse.Store.fact_be126601dd",
+      "module": "Lemma_fact_be126601dd",
+      "kind": "fact",
+      "statement": "theorem fact_be126601dd (p0 : (Vec 8 32)) (p1 : (Vec 8 32)) :\n    Nibbles (Vec.shuffle 32 (Vec.split 32 8 2 (Vec.map2 (fun a b => Val.and a b) (Vec.map2 (fun a b => Val.lshr a b) (Vec.split 16 16 2 (Vec.shuffle 8 p0 p1 #[some 0, some 1, some 2, some 3, some 8, some 9, some 10, some 11])) #v[(some 4#16), (some 4#16), (some 4#16), (some 4#16), (some 4#16), (some 4#16), (some 4#16), (some 4#16), (some 4#16), (some 4#16), (some 4#16), (some 4#16), (some 4#16), (some 4#16), (some 4#16), (some 4#16)]) #v[(some 3855#16), (some 3855#16), (some 3855#16), (some 3855#16), (some 3855#16), (some 3855#16), (some 3855#16), (some 3855#16), (some 3855#16), (some 3855#16), (some 3855#16), (some 3855#16), (some 3855#16), (some 3855#16), (some 3855#16), (some 3855#16)])) (HasPoison.poison : (Vec 32 8)) #[some 4, some 5, some 6, some 7, some 12, some 13, some 14, some 15, some 4, some 5, some 6, some 7, some 12, some 13, some 14, some 15, some 20, some 21, some 22, some 23, some 28, some 29, some 30, some 31, some 20, some 21, some 22, some 23, some 28, some 29, some 30, some 31])",
+      "bound": null,
+      "needed": null,
+      "check_seconds": 0.31,
+      "mined_by": "s22",
+      "used_by": [
+        "s22",
+        "s24",
+        "s30",
+        "s32"
+      ]
+    },
+    "739babaa5b": {
+      "name": "LemmaReuse.Store.fact_739babaa5b",
+      "module": "Lemma_fact_739babaa5b",
+      "kind": "fact",
+      "statement": "theorem fact_739babaa5b (p0 : (Vec 8 32)) (p1 : (Vec 8 32)) :\n    Nibbles (Vec.shuffle 32 (Vec.split 32 8 2 (Vec.map2 (fun a b => Val.and a b) (Vec.map2 (fun a b => Val.lshr a b) (Vec.split 16 16 2 (Vec.shuffle 8 p0 p1 #[some 4, some 5, some 6, some 7, some 12, some 13, some 14, some 15])) #v[(some 4#16), (some 4#16), (some 4#16), (some 4#16), (some 4#16), (some 4#16), (some 4#16), (some 4#16), (some 4#16), (some 4#16), (some 4#16), (some 4#16), (some 4#16), (some 4#16), (some 4#16), (some 4#16)]) #v[(some 3855#16), (some 3855#16), (some 3855#16), (some 3855#16), (some 3855#16), (some 3855#16), (some 3855#16), (some 3855#16), (some 3855#16), (some 3855#16), (some 3855#16), (some 3855#16), (some 3855#16), (some 3855#16), (some 3855#16), (some 3855#16)])) (HasPoison.poison : (Vec 32 8)) #[some 0, some 1, some 2, some 3, some 8, some 9, some 10, some 11, some 0, some 1, some 2, some 3, some 8, some 9, some 10, some 11, some 16, some 17, some 18, some 19, some 24, some 25, some 26, some 27, some 16, some 17, some 18, some 19, some 24, some 25, some 26, some 27])",
+      "bound": null,
+      "needed": null,
+      "check_seconds": 0.31,
+      "mined_by": "s23",
+      "used_by": [
+        "s23",
+        "s25",
+        "s31",
+        "s33"
+      ]
+    },
+    "167b0d9f10": {
+      "name": "LemmaReuse.Store.fact_167b0d9f10",
+      "module": "Lemma_fact_167b0d9f10",
+      "kind": "fact",
+      "statement": "theorem fact_167b0d9f10 (p0 : (Vec 8 32)) (p1 : (Vec 8 32)) :\n    Nibbles (Vec.shuffle 32 (Vec.split 32 8 2 (Vec.map2 (fun a b => Val.and a b) (Vec.map2 (fun a b => Val.lshr a b) (Vec.split 16 16 2 (Vec.shuffle 8 p0 p1 #[some 4, some 5, some 6, some 7, some 12, some 13, some 14, some 15])) #v[(some 4#16), (some 4#16), (some 4#16), (some 4#16), (some 4#16), (some 4#16), (some 4#16), (some 4#16), (some 4#16), (some 4#16), (some 4#16), (some 4#16), (some 4#16), (some 4#16), (some 4#16), (some 4#16)]) #v[(some 3855#16), (some 3855#16), (some 3855#16), (some 3855#16), (some 3855#16), (some 3855#16), (some 3855#16), (some 3855#16), (some 3855#16), (some 3855#16), (some 3855#16), (some 3855#16), (some 3855#16), (some 3855#16), (some 3855#16), (some 3855#16)])) (HasPoison.poison : (Vec 32 8)) #[some 4, some 5, some 6, some 7, some 12, some 13, some 14, some 15, some 4, some 5, some 6, some 7, some 12, some 13, some 14, some 15, some 20, some 21, some 22, some 23, some 28, some 29, some 30, some 31, some 20, some 21, some 22, some 23, some 28, some 29, some 30, some 31])",
+      "bound": null,
+      "needed": null,
+      "check_seconds": 0.31,
+      "mined_by": "s23",
+      "used_by": [
+        "s23",
+        "s25",
+        "s31",
+        "s33"
+      ]
+    }
+  },
+  "unproved": {
+    "f1ca77e1ce": {
+      "statement": "theorem fact_f1ca77e1ce (p0 : (Vec 2 64)) (p1 : (Vec 2 64)) :\n    Nibbles (Vec.shuffle 32 (Vec.split 32 8 8 (Vec.shuffle 4 p0 p1 #[some 0, some 1, some 2, some 3])) (HasPoison.poison : (Vec 32 8)) #[some 4, some 5, some 6, some 7, some 4, some 5, some 6, some 7, some 4, some 5, some 6, some 7, some 4, some 5, some 6, some 7, some 4, some 5, some 6, some 7, some 4, some 5, some 6, some 7, some 4, some 5, some 6, some 7, some 4, some 5, some 6, some 7])",
+      "place": "s00"
+    },
+    "361b3215e9": {
+      "statement": "theorem fact_361b3215e9 (p0 : (Vec 2 64)) (p1 : (Vec 2 64)) :\n    Nibbles (Vec.shuffle 32 (Vec.split 32 8 8 (Vec.shuffle 4 p0 p1 #[some 0, some 1, some 2, some 3])) (HasPoison.poison : (Vec 32 8)) #[some 0, some 1, some 2, some 3, some 0, some 1, some 2, some 3, some 0, some 1, some 2, some 3, some 0, some 1, some 2, some 3, some 0, some 1, some 2, some 3, some 0, some 1, some 2, some 3, some 0, some 1, some 2, some 3, some 0, some 1, some 2, some 3])",
+      "place": "s00"
+    },
+    "bfc72ec5be": {
+      "statement": "theorem fact_bfc72ec5be (p0 : (Vec 2 64)) (p1 : (Vec 2 64)) :\n    Nibbles (Vec.shuffle 32 (Vec.split 32 8 8 (Vec.shuffle 4 p0 p1 #[some 0, some 1, some 2, some 3])) (HasPoison.poison : (Vec 32 8)) #[some 8, some 9, some 10, some 11, some 8, some 9, some 10, some 11, some 8, some 9, some 10, some 11, some 8, some 9, some 10, some 11, some 8, some 9, some 10, some 11, some 8, some 9, some 10, some 11, some 8, some 9, some 10, some 11, some 8, some 9, some 10, some 11])",
+      "place": "s00"
+    },
+    "9f7cbbd89b": {
+      "statement": "theorem fact_9f7cbbd89b (p0 : (Vec 2 64)) (p1 : (Vec 2 64)) :\n    Nibbles (Vec.shuffle 32 (Vec.split 32 8 8 (Vec.shuffle 4 p0 p1 #[some 0, some 1, some 2, some 3])) (HasPoison.poison : (Vec 32 8)) #[some 12, some 13, some 14, some 15, some 12, some 13, some 14, some 15, some 12, some 13, some 14, some 15, some 12, some 13, some 14, some 15, some 12, some 13, some 14, some 15, some 12, some 13, some 14, some 15, some 12, some 13, some 14, some 15, some 12, some 13, some 14, some 15])",
+      "place": "s00"
+    },
+    "af257497fc": {
+      "statement": "theorem fact_af257497fc (p0 : (Vec 8 32)) :\n    Nibbles (Vec.shuffle 64 (Vec.split 32 8 4 (Vec.shuffle 8 p0 (HasPoison.poison : (Vec 8 32)) #[some 0, some 1, some 2, some 3, some 0, some 1, some 2, some 3])) (HasPoison.poison : (Vec 32 8)) #[some 0, some 1, some 2, some 3, some 0, some 1, some 2, some 3, some 8, some 9, some 10, some 11, some 8, some 9, some 10, some 11, some 16, some 17, some 18, some 19, some 16, some 17, some 18, some 19, some 24, some 25, some 26, some 27, some 24, some 25, some 26, some 27, some 0, some 1, some 2, some 3, some 0, some 1, some 2, some 3, some 8, some 9, some 10, some 11, some 8, some 9, some 10, some 11, some 16, some 17, some 18, some 19, some 16, some 17, some 18, some 19, some 24, some 25, some 26, some 27, some 24, some 25, some 26, some 27])",
+      "place": "s02"
+    },
+    "1a43a75e3b": {
+      "statement": "theorem fact_1a43a75e3b (p0 : (Vec 8 32)) :\n    Nibbles (Vec.shuffle 64 (Vec.split 32 8 4 (Vec.shuffle 8 p0 (HasPoison.poison : (Vec 8 32)) #[some 0, some 1, some 2, some 3, some 0, some 1, some 2, some 3])) (HasPoison.poison : (Vec 32 8)) #[some 4, some 5, some 6, some 7, some 4, some 5, some 6, some 7, some 12, some 13, some 14, some 15, some 12, some 13, some 14, some 15, some 20, some 21, some 22, some 23, some 20, some 21, some 22, some 23, some 28, some 29, some 30, some 31, some 28, some 29, some 30, some 31, some 4, some 5, some 6, some 7, some 4, some 5, some 6, some 7, some 12, some 13, some 14, some 15, some 12, some 13, some 14, some 15, some 20, some 21, some 22, some 23, some 20, some 21, some 22, some 23, some 28, some 29, some 30, some 31, some 28, some 29, some 30, some 31])",
+      "place": "s02"
+    },
+    "1dd12bcccd": {
+      "statement": "theorem fact_1dd12bcccd (p0 : (Vec 8 32)) :\n    Nibbles (Vec.shuffle 64 (Vec.split 32 8 4 (Vec.shuffle 8 p0 (HasPoison.poison : (Vec 8 32)) #[some 4, some 5, some 6, some 7, some 4, some 5, some 6, some 7])) (HasPoison.poison : (Vec 32 8)) #[some 0, some 1, some 2, some 3, some 0, some 1, some 2, some 3, some 8, some 9, some 10, some 11, some 8, some 9, some 10, some 11, some 16, some 17, some 18, some 19, some 16, some 17, some 18, some 19, some 24, some 25, some 26, some 27, some 24, some 25, some 26, some 27, some 0, some 1, some 2, some 3, some 0, some 1, some 2, some 3, some 8, some 9, some 10, some 11, some 8, some 9, some 10, some 11, some 16, some 17, some 18, some 19, some 16, some 17, some 18, some 19, some 24, some 25, some 26, some 27, some 24, some 25, some 26, some 27])",
+      "place": "s04"
+    },
+    "2286adf427": {
+      "statement": "theorem fact_2286adf427 (p0 : (Vec 8 32)) :\n    Nibbles (Vec.shuffle 64 (Vec.split 32 8 4 (Vec.shuffle 8 p0 (HasPoison.poison : (Vec 8 32)) #[some 4, some 5, some 6, some 7, some 4, some 5, some 6, some 7])) (HasPoison.poison : (Vec 32 8)) #[some 4, some 5, some 6, some 7, some 4, some 5, some 6, some 7, some 12, some 13, some 14, some 15, some 12, some 13, some 14, some 15, some 20, some 21, some 22, some 23, some 20, some 21, some 22, some 23, some 28, some 29, some 30, some 31, some 28, some 29, some 30, some 31, some 4, some 5, some 6, some 7, some 4, some 5, some 6, some 7, some 12, some 13, some 14, some 15, some 12, some 13, some 14, some 15, some 20, some 21, some 22, some 23, some 20, some 21, some 22, some 23, some 28, some 29, some 30, some 31, some 28, some 29, some 30, some 31])",
+      "place": "s04"
+    },
+    "b2e32cc8c5": {
+      "statement": "theorem fact_b2e32cc8c5 (p0 : (Vec 8 32)) :\n    Nibbles (Vec.shuffle 32 (Vec.split 32 8 4 p0) (HasPoison.poison : (Vec 32 8)) #[some 0, some 1, some 2, some 3, some 0, some 1, some 2, some 3, some 8, some 9, some 10, some 11, some 8, some 9, some 10, some 11, some 0, some 1, some 2, some 3, some 0, some 1, some 2, some 3, some 8, some 9, some 10, some 11, some 8, some 9, some 10, some 11])",
+      "place": "s18"
+    },
+    "03e1a3497c": {
+      "statement": "theorem fact_03e1a3497c (p0 : (Vec 8 32)) :\n    Nibbles (Vec.shuffle 32 (Vec.split 32 8 4 p0) (HasPoison.poison : (Vec 32 8)) #[some 4, some 5, some 6, some 7, some 4, some 5, some 6, some 7, some 12, some 13, some 14, some 15, some 12, some 13, some 14, some 15, some 4, some 5, some 6, some 7, some 4, some 5, some 6, some 7, some 12, some 13, some 14, some 15, some 12, some 13, some 14, some 15])",
+      "place": "s18"
+    },
+    "78ec97972a": {
+      "statement": "theorem fact_78ec97972a (p0 : (Vec 8 32)) :\n    Nibbles (Vec.shuffle 32 (Vec.split 32 8 4 p0) (HasPoison.poison : (Vec 32 8)) #[some 16, some 17, some 18, some 19, some 16, some 17, some 18, some 19, some 24, some 25, some 26, some 27, some 24, some 25, some 26, some 27, some 16, some 17, some 18, some 19, some 16, some 17, some 18, some 19, some 24, some 25, some 26, some 27, some 24, some 25, some 26, some 27])",
+      "place": "s20"
+    },
+    "33402027bf": {
+      "statement": "theorem fact_33402027bf (p0 : (Vec 8 32)) :\n    Nibbles (Vec.shuffle 32 (Vec.split 32 8 4 p0) (HasPoison.poison : (Vec 32 8)) #[some 20, some 21, some 22, some 23, some 20, some 21, some 22, some 23, some 28, some 29, some 30, some 31, some 28, some 29, some 30, some 31, some 20, some 21, some 22, some 23, some 20, some 21, some 22, some 23, some 28, some 29, some 30, some 31, some 28, some 29, some 30, some 31])",
+      "place": "s20"
+    }
+  }
+}
