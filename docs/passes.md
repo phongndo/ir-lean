@@ -41,17 +41,25 @@ Each instance has exactly one. Only `bound` counts.
 
 | Status | Means | From |
 | --- | --- | --- |
-| `bound` | `tools/binding.py verify` said `bound`, in this run, with exit code 0, in a verdict of schema `ir-lean.binding.verdict/1` about this manifest and this claim kind | The verdict |
-| `refused` | `verify` said `refused`: the evidence doesn't bind. Never a counterexample | The verdict |
+| `bound` | `tools/binding.py verify` said `bound`, in this run, with exit code 0, in a verdict of schema `ir-lean.binding.verdict/1` about this manifest and this claim kind, and that manifest is about this instance | The verdict |
+| `refused` | `verify` said `refused`: the evidence doesn't bind. Or it said `bound` about a bundle that isn't this instance's (`instance_mismatch`). Never a counterexample | The verdict, and the manifest |
 | `unsupported` | The model or a bundle can't state the claim, or `verify` said so | Step 3, or the verdict |
 | `failed` | The automation found no proof (`proof_not_found`), or can't state one (`no_automation`). Never a counterexample: nothing here finds one | Lean |
 | `unknown` | A time or memory limit stopped a step (`time_limit`, `resource_limit`). More may help | Any step, or the verdict |
 | `error` | A tool failed, a verdict couldn't be read (`verdict_unreadable`), or a bug here | Any step |
 
 A verdict that isn't valid JSON, has another schema, has a status whose exit code isn't the process's, names
-another manifest, or is `bound` about another claim kind, is `error`, never `bound`. A test run is `skipped` when
-`opt` rejects the test or fails running the pass, and `unsupported` as a run when its options or configuration can't
-be represented.
+another manifest, or is `bound` about another claim kind, is `error`, never `bound`.
+
+A bound verdict counts for an instance only if it's about that instance. The scorer reads the manifest before
+`verify` does, and the verdict's `key`, `tools/binding.py`'s hash of the manifest it checked and the toolchain, has to
+be the hash of the manifest the scorer read and the toolchain it started with. That manifest's input has to hash as
+this test does, and its pass spec, triple, function and claim kind have to be this instance's. Otherwise it's
+`refused`, `instance_mismatch`, so a valid bundle copied to where another instance's would be counts for nothing.
+
+A test run is `skipped` when `opt` rejects the test or fails running the pass, `unknown` as a run (`opt_limit`) when
+a limit stopped `opt`, and `unsupported` as a run when its options or configuration can't be represented. A limit
+that stopped `tools/binding.py record` makes the instance `unknown`, with the reason it gave.
 
 The claim kind is `ir_instance_equivalence` by default. `--kind ir_instance_refinement` is accepted, and every
 instance is `unsupported`, `claim_kind_unavailable`, until `IRLean` has `IRLean.Refines`. After that it's `failed`,
@@ -126,7 +134,7 @@ An uncapped run of the research scorer once filled 30 GB and the OOM killer took
 | Each process it starts | `--lean-memory` plus 512 MB, with no swap | A cgroup each, in that scope, killed whole when the process exits |
 | Each Lean process | `-M` at `--lean-memory`, 3000 MB, `-j1`, and 2,000,000 heartbeats in the certificate | Lean |
 | Each process | `--timeout`, 300 s, on the wall clock | The scorer, which kills its process group and cgroup |
-| `tools/binding.py`'s processes | The same `--timeout` and `--lean-memory`, in scopes of their own | `tools/binding.py`, and the scorer kills those scopes if it kills `tools/binding.py` |
+| `tools/binding.py`'s processes | The same `--timeout` and `--lean-memory`, in scopes of their own | `tools/binding.py`. If it's killed or dies of a limit, the scorer kills each of its scopes holding a process with the token that one `tools/binding.py` was given, so never another process's scope |
 | Test runs at once | 1: `--jobs`, at most 2 | The scorer |
 
 So the most it holds at once is the scorer's cap plus `--jobs` times `--lean-memory` plus 512 MB. A process stopped
@@ -142,7 +150,7 @@ done 0 passes | L4 0 | L3 0 | L2 N2 | L1 N1 | bound B of A changed functions in 
 ```
 
 L1 is a pass with a bound instance. L2 is a pass with one and nothing in its runs `refused`, `unsupported`,
-`failed`, `unknown` or `error`. Both are translation validation, and neither is a step any proof here takes for
+`failed`, `unknown` or `error`, and no run unsupported or unknown as a whole. Both are translation validation, and neither is a step any proof here takes for
 granted. L3 and L4, a pass's rewrites proved for every input and its C++ proved to make only those, and done, are 0.
 `score.json` has the counts per pass, the commonest reasons, the cache's counts, every limit, the memory each tool
 peaked at, and the self-check.

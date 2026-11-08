@@ -272,10 +272,14 @@ class Cgroups:
 
 
 CGROUPS = Cgroups()
-# Process groups running now, so a signal to the scorer stops them too, and the tools/binding.py processes
-# whose scopes have to go with them.
-LIVE: dict[int, str] = {}
+# Process groups running now, so a signal to the scorer stops them too, with the token each tools/binding.py
+# process carries, whose scopes have to go with it.
+LIVE: dict[int, str | None] = {}
 LIVE_LOCK = threading.Lock()
+# Where the user's systemd manager makes the scopes tools/binding.py runs its processes in.
+USER_CGROUPS = Path(f"/sys/fs/cgroup/user.slice/user-{os.getuid()}.slice/user@{os.getuid()}.service")
+# Set, to a token of its own, in each tools/binding.py process, and inherited by what it starts in its scopes.
+OWNER_ENV = "IRLEAN_PASSES_OWNER"
 # Runs a command in the cgroup given first, if any, with no core dump, and first in line for the OOM killer.
 WRAP = (
     "ulimit -c 0; { echo 1000 > /proc/self/oom_score_adj; } 2>/dev/null; "
@@ -284,15 +288,28 @@ WRAP = (
 )
 
 
-def kill_binding_scopes(pid: int) -> None:
-    """tools/binding.py runs each process in a scope named for its own pid, which killing it leaves running.
-    Call this only while that pid is still alive, so the name can't be another process's."""
-    if shutil.which("systemctl"):
-        subprocess.run(
-            ["systemctl", "--user", "kill", "--signal=SIGKILL", f"ir-lean-binding-{pid}-*.scope"],
-            capture_output=True,
-            check=False,
-        )
+def kill_binding_scopes(pid: int, token: str, root: Path = USER_CGROUPS) -> list[Path]:
+    """tools/binding.py runs each process in a scope named for its own pid, which killing it, or its dying,
+    leaves running. Kills each such scope that holds a process carrying `token`, which only that one
+    tools/binding.py process was given, so a scope of another process with the same pid is never touched,
+    even after this one exits. The scopes it killed."""
+    killed = []
+    for scope in sorted(root.glob(f"**/ir-lean-binding-{pid}-*.scope")) if root.is_dir() else []:
+        try:
+            procs = (scope / "cgroup.procs").read_text().split()
+        except OSError:
+            continue
+        mine = False
+        for proc in procs:
+            with contextlib.suppress(OSError):
+                mine |= f"{OWNER_ENV}={token}".encode() in Path(f"/proc/{proc}/environ").read_bytes().split(
+                    b"\0"
+                )
+        if mine:
+            with contextlib.suppress(OSError):
+                (scope / "cgroup.kill").write_text("1")
+                killed.append(scope)
+    return killed
 
 
 def kill_group(pid: int) -> None:
@@ -323,6 +340,9 @@ def run(
     cg = CGROUPS.make()
     start = time.monotonic()
     timed_out = False
+    token = uuid.uuid4().hex if kind == "binding" else None
+    if token is not None:
+        env = {**(env or os.environ), OWNER_ENV: token}
     p = subprocess.Popen(
         ["/bin/sh", "-c", WRAP, "sh", str(cg or ""), *command],
         stdin=subprocess.PIPE,
@@ -333,21 +353,22 @@ def run(
         start_new_session=True,
     )
     with LIVE_LOCK:
-        LIVE[p.pid] = kind
+        LIVE[p.pid] = token
     try:
         try:
             out, err = p.communicate(stdin, timeout=timeout)
         except subprocess.TimeoutExpired:
             timed_out = True
-            if kind == "binding":
-                kill_binding_scopes(p.pid)
             kill_group(p.pid)
             out, err = p.communicate()
     finally:
         kill_group(p.pid)
+        why = CGROUPS.finish(cg, Path(command[0]).name, time.monotonic() - start) if cg else None
+        # tools/binding.py kills its own scopes when it exits normally, and can't when it's killed.
+        if token is not None and (timed_out or why or p.returncode is None or p.returncode < 0):
+            kill_binding_scopes(p.pid, token)
         with LIVE_LOCK:
             LIVE.pop(p.pid, None)
-        why = CGROUPS.finish(cg, Path(command[0]).name, time.monotonic() - start) if cg else None
     text_err = err.decode(errors="replace")
     if p.returncode == 125 and "passes.py: no cgroup" in text_err:
         raise RuntimeError(f"couldn't cap {command[0]}: {text_err[-300:]}")
@@ -368,10 +389,10 @@ def stop_everything(signum: int, _frame: Any) -> None:
     """A signal to the scorer stops everything it started, and nothing is reported."""
     with LIVE_LOCK:
         live = dict(LIVE)
-    for pid, kind in live.items():
-        if kind == "binding":
-            kill_binding_scopes(pid)
+    for pid, token in live.items():
         kill_group(pid)
+        if token is not None:
+            kill_binding_scopes(pid, token)
     CGROUPS.kill_all()
     os._exit(128 + signum)
 
@@ -663,14 +684,13 @@ class Scorer:
     def lean(self, *args: str) -> list[str]:
         return [self.bins["lean"], "-j1", "-M", str(self.lean_mb), "-s", "65536", *args]
 
-    def opt(self, input_ll: bytes, spec: str, mtriple: str | None) -> tuple[str | None, str]:
-        """What tools/binding.py's opt gives for this input, so the bundle's IR is the IR scored."""
+    def opt(self, input_ll: bytes, spec: str, mtriple: str | None) -> tuple[str | None, str, str | None]:
+        """What tools/binding.py's opt gives for this input, so the bundle's IR is the IR scored, what it
+        said, and why a limit stopped it, if one did."""
         r = run(
             B.opt_argv(self.bins["opt"], spec, mtriple), stdin=input_ll, timeout=OPT_TIMEOUT, env=self.env
         )
-        if r.limit:
-            return None, f"limit: {r.limit}"
-        return (r.out if r.code == 0 else None), r.err[-300:]
+        return (r.out if r.code == 0 and not r.limit else None), r.err[-300:], r.limit
 
     # The cache ------------------------------------------------------------------------------------------
 
@@ -746,7 +766,7 @@ class Scorer:
                     # tools/binding.py's own cache after its hashes are checked.
                     self.count("rechecked")
                     out["instances"][n] = self.verify(
-                        self.bundles / self.instance_key(key, n) / "manifest.json"
+                        self.bundles / self.instance_key(key, n) / "manifest.json", r, input_ll, n
                     )
                 else:
                     out["instances"][n] = v
@@ -761,16 +781,21 @@ class Scorer:
             return {"skipped": "opt_options_unrepresentable", "options": list(r.options), "instances": {}}
         if not B.PASS_SPEC.fullmatch(r.spec) or (r.mtriple is not None and not B.TRIPLE.fullmatch(r.mtriple)):
             return {"skipped": "config_unrepresentable", "instances": {}}
-        src, err = self.opt(input_ll, "verify", r.mtriple)
+        src, err, limit = self.opt(input_ll, "verify", r.mtriple)
         if src is None:
-            return {"skipped": f"opt rejects the test as input: {err[:200]}", "instances": {}}
-        tgt, err = self.opt(input_ll, r.spec, r.mtriple)
+            # A limit is unknown, as a run: whatever it would have changed is neither bound nor ruled out.
+            why = "opt_limit" if limit else f"opt rejects the test as input: {err[:200]}"
+            return {"skipped": why, "instances": {}}
+        tgt, err, limit = self.opt(input_ll, r.spec, r.mtriple)
         if tgt is None:
-            return {"skipped": f"opt fails running the pass: {err[:200]}", "instances": {}}
+            return {
+                "skipped": "opt_limit" if limit else f"opt fails running the pass: {err[:200]}",
+                "instances": {},
+            }
         d = self.scratch / f"{key[:16]}-{uuid.uuid4().hex[:8]}"
         d.mkdir(parents=True)
         try:
-            return {"instances": self.instances(src, tgt, f"P{key[:16]}", d, record=(r, key))}
+            return {"instances": self.instances(src, tgt, f"P{key[:16]}", d, record=(r, key, input_ll))}
         finally:
             if not self.keep:
                 shutil.rmtree(d, ignore_errors=True)
@@ -791,7 +816,7 @@ class Scorer:
         rows = [line.split("\t") for line in r.out.splitlines()]
         return {row[1]: row for row in rows if len(row) >= 3}, None
 
-    def instances(self, src: str, tgt: str, ns: str, d: Path, record: tuple[Run, str] | None) -> dict:
+    def instances(self, src: str, tgt: str, ns: str, d: Path, record: tuple[Run, str, bytes] | None) -> dict:
         """Each instance's result. With `record`, a proved one is recorded as a bundle and verified."""
         changed, added_removed = instances(src, tgt)
         out: dict[str, dict] = {}
@@ -889,7 +914,7 @@ class Scorer:
             elif record is None:
                 out[n] = result("candidate", "proved", "Lean accepts the certificate; not recorded")
             else:
-                out[n] = self.bind(record[0], record[1], n, cert, ns)
+                out[n] = self.bind(*record, n, cert, ns)
         return out
 
     def lean_env(self, lean_dir: Path) -> dict[str, str]:
@@ -924,7 +949,7 @@ class Scorer:
             return result("failed", "proof_not_found", m.group(3) if m else (r.out + r.err)[-300:])
         return None
 
-    def bind(self, r: Run, key: str, function: str, cert: str, ns: str) -> dict:
+    def bind(self, r: Run, key: str, input_ll: bytes, function: str, cert: str, ns: str) -> dict:
         """Records the instance's bundle with tools/binding.py, and verifies it."""
         bundle = self.bundles / self.instance_key(key, function)
         manifest = bundle / "manifest.json"
@@ -971,14 +996,49 @@ class Scorer:
                 )
             if rec.code != 0 or not manifest.exists():
                 shutil.rmtree(bundle, ignore_errors=True)
+                # tools/binding.py record reports a limit that stopped opt or ir-lean this way.
+                m = re.search(r"^record failed: (time_limit|resource_limit): (.*)", rec.err, re.M)
+                if m:
+                    return result("unknown", m.group(1), f"tools/binding.py record: {m.group(2)}")
                 return result("error", "record_failed", rec.err[-400:])
-        return self.verify(manifest)
+        return self.verify(manifest, r, input_ll, function)
 
-    def verify(self, manifest: Path) -> dict:
+    def mismatch(self, m: Any, verdict: dict, r: Run, input_ll: bytes, function: str) -> str | None:
+        """Why a bound verdict isn't about this instance, or None. Its `key` is tools/binding.py's hash of the
+        manifest it checked and the toolchain, so it has to be the hash of the manifest read here, which then
+        has to name this test's bytes, this pass spec and triple, this function and this claim kind."""
+        try:
+            key = B.sha256(
+                B.canonical({"verdict": B.VERDICT_SCHEMA, "manifest": m, "toolchain": self.toolchain})
+            )
+            got = {
+                "input_sha256": m["artifacts"]["input"]["sha256"],
+                "transform": m["transform"],
+                "function": m["claim"]["function"],
+                "kind": m["claim"]["kind"],
+            }
+        except (TypeError, KeyError):
+            return "the manifest read here isn't one tools/binding.py could bind"
+        if verdict.get("key") != key:
+            return "the verdict is about another manifest or toolchain than the one read here"
+        want = {
+            "input_sha256": hashlib.sha256(input_ll).hexdigest(),
+            "transform": {"passes": r.spec, "mtriple": r.mtriple},
+            "function": function,
+            "kind": self.kind,
+        }
+        return None if got == want else f"the bundle is about {got}, not {want}"
+
+    def verify(self, manifest: Path, r: Run, input_ll: bytes, function: str) -> dict:
         """The instance's status, from tools/binding.py verify in this run. Only `bound` with exit code 0, a
-        verdict of the right schema about this manifest and claim kind, is bound. Anything it doesn't
-        recognise is an error, never bound."""
+        verdict of the right schema about this manifest and claim kind, is bound, and only if the manifest it
+        checked is about this instance: this test's bytes, this pass spec and triple, this function. A bound
+        bundle about anything else is refused. Anything it doesn't recognise is an error, never bound."""
         rel = str(manifest.relative_to(self.work)) if manifest.is_relative_to(self.work) else str(manifest)
+        try:
+            claimed = json.loads(manifest.read_bytes())
+        except (OSError, ValueError):
+            claimed = None
         command = [
             sys.executable,
             str(BINDING_PY),
@@ -991,33 +1051,37 @@ class Scorer:
             "--memory",
             str(self.lean_mb),
         ]
-        r = run(command, timeout=self.timeout * VERIFY_STEPS, env=self.env, kind="binding")
-        if r.limit:
+        ran = run(command, timeout=self.timeout * VERIFY_STEPS, env=self.env, kind="binding")
+        if ran.limit:
             return result(
                 "unknown",
-                "time_limit" if r.limit.startswith("took") else "resource_limit",
-                f"tools/binding.py verify was stopped: {r.limit}",
+                "time_limit" if ran.limit.startswith("took") else "resource_limit",
+                f"tools/binding.py verify was stopped: {ran.limit}",
                 bundle=rel,
             )
         try:
-            verdict = json.loads(r.out)
+            verdict = json.loads(ran.out)
         except ValueError:
-            return result("error", "verdict_unreadable", (r.out + r.err)[-300:], bundle=rel)
+            return result("error", "verdict_unreadable", (ran.out + ran.err)[-300:], bundle=rel)
         status = verdict.get("status") if isinstance(verdict, dict) else None
         if (
             status not in B.EXIT
             or verdict.get("schema") != B.VERDICT_SCHEMA
-            or r.code != B.EXIT[status]
-            or verdict.get("exit_code") != r.code
+            or ran.code != B.EXIT[status]
+            or verdict.get("exit_code") != ran.code
             or verdict.get("manifest") != str(manifest)
         ):
             return result(
-                "error", "verdict_unreadable", f"exit {r.code}, verdict {str(verdict)[:300]}", bundle=rel
+                "error", "verdict_unreadable", f"exit {ran.code}, verdict {str(verdict)[:300]}", bundle=rel
             )
         if status == "bound" and (verdict.get("claim") or {}).get("kind") != self.kind:
             return result(
                 "error", "verdict_unreadable", "a bound verdict about another claim kind", bundle=rel
             )
+        if status == "bound":
+            why = self.mismatch(claimed, verdict, r, input_ll, function)
+            if why is not None:
+                return result("refused", "instance_mismatch", why, bundle=rel)
         verdict_path = self.verdicts / f"{manifest.parent.name}.json"
         verdict_path.write_text(json.dumps(verdict, indent=1, ensure_ascii=False))
         return result(
@@ -1165,6 +1229,8 @@ def tally(runs: list[tuple[Run, dict]], llvm: Path, work: Path) -> tuple[dict, l
             k = (
                 "unsupported_runs"
                 if found["skipped"] in ("opt_options_unrepresentable", "config_unrepresentable")
+                else "unknown_runs"
+                if found["skipped"] == "opt_limit"
                 else "skipped_runs"
             )
             c[k] = c.get(k, 0) + 1
@@ -1320,7 +1386,7 @@ def main() -> int:
                 print(f"  {i}/{len(jobs)} test runs, {time.time() - started:.0f} s", file=sys.stderr)
     counts, records = tally(done, llvm, work)
     per_pass = counts["per_pass"]
-    blocking = ("refused", "unsupported", "failed", "unknown", "error", "unsupported_runs")
+    blocking = ("refused", "unsupported", "failed", "unknown", "error", "unsupported_runs", "unknown_runs")
     l1 = sorted(p for p, c in per_pass.items() if c.get("bound", 0) > 0)
     l2 = sorted(p for p in l1 if all(per_pass[p].get(k, 0) == 0 for k in blocking))
     totals = {s: sum(c.get(s, 0) for c in per_pass.values()) for s in STATUSES}

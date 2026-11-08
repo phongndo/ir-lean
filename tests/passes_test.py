@@ -215,13 +215,33 @@ def static(f: Failures) -> None:
 
         manifest = s.bundles / "x" / "manifest.json"
         manifest.parent.mkdir()
+        s.toolchain = {"lean_version": "test"}
+        s.bins = {"opt": "opt"}
+        test = P.Run("instcombine", Path(tmp) / "t.ll", "instcombine", None, ())
+        input_ll = b"define i8 @f() {\n  ret i8 0\n}\n"
+
+        def bundle(function: str = "f", data: bytes = input_ll, passes: str = "instcombine") -> dict:
+            """The parts of a manifest the scorer reads, written where the scorer will read them."""
+            m = {
+                "claim": {"kind": "ir_instance_equivalence", "function": function},
+                "transform": {"passes": passes, "mtriple": None},
+                "artifacts": {"input": {"sha256": P.hashlib.sha256(data).hexdigest()}},
+            }
+            manifest.write_text(json.dumps(m))
+            return m
+
+        def key(m: dict) -> str:
+            return B.sha256(
+                B.canonical({"verdict": B.VERDICT_SCHEMA, "manifest": m, "toolchain": s.toolchain})
+            )
+
         fake: dict[str, Any] = {}
         real_run = P.run
 
-        def answer(code: int, out: Any, limit: str | None = None) -> None:
-            fake.update(code=code, out=out if isinstance(out, str) else json.dumps(out), limit=limit)
+        def answer(code: int, out: Any, limit: str | None = None, err: str = "") -> None:
+            fake.update(code=code, out=out if isinstance(out, str) else json.dumps(out), limit=limit, err=err)
 
-        P.run = lambda *a, **k: P.Ran(fake["code"], fake["out"], "", fake["limit"])
+        P.run = lambda *a, **k: P.Ran(fake["code"], fake["out"], fake["err"], fake["limit"])
         try:
             verdict = {
                 "schema": B.VERDICT_SCHEMA,
@@ -231,9 +251,13 @@ def static(f: Failures) -> None:
                 "manifest": str(manifest),
                 "claim": {"kind": "ir_instance_equivalence"},
                 "cache": "miss",
+                "key": key(bundle()),
             }
             answer(0, verdict)
-            f.check(s.verify(manifest)["status"] == "bound", "a bound verdict with exit code 0 is bound")
+            f.check(
+                s.verify(manifest, test, input_ll, "f")["status"] == "bound",
+                "a bound verdict with exit code 0, about this instance's manifest, is bound",
+            )
             cases: list[tuple[str, int, Any, str | None, str]] = [
                 ("a bound verdict with exit code 1", 1, verdict, None, "error"),
                 ("a verdict of another schema", 0, {**verdict, "schema": "other/1"}, None, "error"),
@@ -275,13 +299,86 @@ def static(f: Failures) -> None:
                     None,
                     "refused",
                 ),
+                (
+                    "a bound verdict whose key isn't the manifest read here",
+                    0,
+                    {**verdict, "key": "0" * 64},
+                    None,
+                    "refused",
+                ),
             ]
             for what, code, out, limit, want in cases:
                 answer(code, out, limit)
-                got = s.verify(manifest)
+                got = s.verify(manifest, test, input_ll, "f")
                 f.check(got["status"] == want, f"{what} is {want}", got)
+            for what, m in [
+                ("another function", bundle(function="g")),
+                ("another input", bundle(data=b"; another test\n")),
+                ("another pass spec", bundle(passes="sccp")),
+            ]:
+                answer(0, {**verdict, "key": key(m)})
+                got = s.verify(manifest, test, input_ll, "f")
+                f.check(
+                    (got["status"], got["reason"]) == ("refused", "instance_mismatch"),
+                    f"a valid bundle about {what}, at this instance's path, is refused",
+                    got,
+                )
+
+            answer(1, "", err="record failed: time_limit: opt took more than 5 s")
+            got = s.bind(test, "k" * 64, input_ll, "f", "-- certificate", "P")
+            f.check(
+                (got["status"], got["reason"]) == ("unknown", "time_limit"),
+                "a limit tools/binding.py record reports is unknown, not an error",
+                got,
+            )
+            answer(-9, "", limit="took more than 120 s")
+            found = s.fresh(test, input_ll, "k" * 64)
+            counts, _ = P.tally([(test, found)], Path(tmp), Path(tmp))
+            f.check(
+                found.get("skipped") == "opt_limit"
+                and counts["per_pass"]["instcombine"] == {"unknown_runs": 1},
+                "opt stopped by a limit makes the run unknown, which keeps the pass from L2",
+                (found, counts),
+            )
         finally:
             P.run = real_run
+
+    scopes(f)
+
+
+def scopes(f: Failures) -> None:
+    """Only a scope holding a process given this tools/binding.py process's token is killed, not one of
+    another process that had the same pid."""
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        procs = {
+            name: subprocess.Popen(["sleep", "60"], env={**P.os.environ, P.OWNER_ENV: token})
+            for name, token in (("mine", "tok"), ("other", "someone-else"))
+        }
+        try:
+            made = {}
+            for name, pid, proc in (
+                ("mine", 123, "mine"),
+                ("other", 123, "other"),
+                ("elsewhere", 124, "mine"),
+            ):
+                d = root / "app.slice" / f"ir-lean-binding-{pid}-{name}.scope"
+                d.mkdir(parents=True)
+                (d / "cgroup.procs").write_text(f"{procs[proc].pid}\n")
+                made[name] = d
+            killed = P.kill_binding_scopes(123, "tok", root)
+            f.check(
+                killed == [made["mine"]]
+                and (made["mine"] / "cgroup.kill").read_text() == "1"
+                and not (made["other"] / "cgroup.kill").exists()
+                and not (made["elsewhere"] / "cgroup.kill").exists(),
+                "only scopes named for that pid and holding its token are killed",
+                killed,
+            )
+        finally:
+            for p in procs.values():
+                p.kill()
+                p.wait()
 
 
 # ------------------------------------------------------------------------------------------------------------
@@ -418,6 +515,24 @@ def live(f: Failures, keep: bool) -> None:
         and got["round_trip"]["source"] == "fresh",
         "a cache entry saying bound is ignored, and the run done again",
         (s.get("cache"), got),
+    )
+
+    # The control's bundle is valid, and bound on its own, but about another test and function.
+    target = work / got["round_trip"]["bundle"]
+    control = next(
+        p.parent
+        for p in (work / "bundles").glob("*/manifest.json")
+        if json.loads(p.read_text())["claim"]["function"] == "f"
+    )
+    shutil.rmtree(target.parent)
+    shutil.copytree(control, target.parent)
+    code, s, records, said = score(work)
+    got = by_function(records)
+    f.check(
+        code == 0
+        and (got["round_trip"]["status"], got["round_trip"]["reason"]) == ("refused", "instance_mismatch"),
+        "a valid bundle for another instance, where this one's should be, is refused",
+        (said[-800:], got.get("round_trip")),
     )
 
     stopped(f, WORK / "limits", SLOW, ["--timeout", "5"], {"distributes"}, "time_limit", "a 5 s wall clock")
