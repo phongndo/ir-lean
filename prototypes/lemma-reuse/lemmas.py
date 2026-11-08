@@ -444,6 +444,8 @@ class Lemma:
     needed: int | None = None
     imports: tuple[str, ...] = ("Std.Tactic.BVDecide",)
     doc: str = ""
+    opens: str = ""
+    tool: str = "lemmas.py"
     key: str = field(init=False)
 
     def __post_init__(self) -> None:
@@ -467,7 +469,8 @@ class Lemma:
         doc = self.doc.format(bound=bound)
         return (
             "".join(f"import {m}\n" for m in self.imports)
-            + "\n/-! Saved by prototypes/lemma-reuse/lemmas.py. -/\n\nnamespace LemmaReuse.Store\n\n"
+            + (f"\nopen {self.opens}\n" if self.opens else "")
+            + f"\n/-! Saved by prototypes/lemma-reuse/{self.tool}. -/\n\nnamespace LemmaReuse.Store\n\n"
             + f"/-- {doc} -/\n{body} := by\n{self.proof}\n\nend LemmaReuse.Store\n"
         )
 
@@ -624,10 +627,12 @@ class Checked:
 class Lean:
     """Compiles modules into one directory, in parallel, skipping what compiled before from the same text."""
 
-    def __init__(self, build: Path) -> None:
+    def __init__(self, build: Path, repo: Path = ROOT) -> None:
+        """`repo` is the checkout whose `IRLean` the modules import."""
         self.build = build
+        self.repo = repo
         self.memory = os.environ.get("LEAN_MAX_MB") or "8000"
-        self.env = {**os.environ, "LEAN_PATH": f"{build}:{ROOT}/.lake/build/lib/lean"}
+        self.env = {**os.environ, "LEAN_PATH": f"{build}:{repo}/.lake/build/lib/lean"}
         self.jobs = int(os.environ.get("LEAN_JOBS", "4"))
 
     def compile(
@@ -636,6 +641,7 @@ class Lean:
         text: str,
         fresh: bool = False,
         extra: str = "",
+        strict: bool = True,
         timeout: int = PROCESS_SECONDS,
     ) -> Checked:
         source = self.build / f"{module}.lean"
@@ -651,7 +657,7 @@ class Lean:
             result = subprocess.run(
                 [
                     "lean",
-                    "-DwarningAsError=true",
+                    *(["-DwarningAsError=true"] if strict else []),
                     "-M",
                     self.memory,
                     "-s",
@@ -662,7 +668,7 @@ class Lean:
                     str(olean),
                     str(source),
                 ],
-                cwd=ROOT,
+                cwd=self.repo,
                 env=self.env,
                 capture_output=True,
                 text=True,
@@ -679,9 +685,16 @@ class Lean:
         first_error = next((line for line in output.splitlines() if ": error" in line), output[:300])
         return Checked(False, seconds, "timeout" if LIMIT.search(first_error) else "failed", output)
 
-    def map(self, jobs: list[tuple[str, str]], extra: str = "") -> list[Checked]:
-        with concurrent.futures.ThreadPoolExecutor(self.jobs) as pool:
-            return list(pool.map(lambda j: self.compile(j[0], j[1], extra=extra), jobs))
+    def map(
+        self,
+        jobs: list[tuple[str, str]],
+        extra: str = "",
+        fresh: bool = False,
+        strict: bool = True,
+        workers: int | None = None,
+    ) -> list[Checked]:
+        with concurrent.futures.ThreadPoolExecutor(workers or self.jobs) as pool:
+            return list(pool.map(lambda j: self.compile(j[0], j[1], fresh, extra, strict), jobs))
 
 
 # ------------------------------------------------------------------------------------------------------------
