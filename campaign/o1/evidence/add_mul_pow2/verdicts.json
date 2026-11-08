@@ -1,0 +1,398 @@
+[
+ {
+  "cache": "miss",
+  "checks": [
+   [
+    "manifest",
+    "pass"
+   ],
+   [
+    "artifacts",
+    "pass"
+   ],
+   [
+    "toolchain",
+    "pass"
+   ],
+   [
+    "llvm_pin",
+    "pass"
+   ],
+   [
+    "target",
+    "pass"
+   ],
+   [
+    "stopped",
+    "fail"
+   ]
+  ],
+  "cost": {
+   "command": [
+    "/nix/store/0jb1qn7qnpbz8774mq5k2c1p84gp0x76-python3-3.14.8/bin/python3",
+    "..."
+   ],
+   "label": "add_mul_pow2: o1 verify",
+   "limits": {
+    "max_tree_rss_mb": 16000.0,
+    "timeout_s": 2400
+   },
+   "outcome": "failed",
+   "peak_process_mb": 446.5,
+   "peak_tree_mb": 439.7,
+   "wall_s": 6.28
+  },
+  "detail": "the target IR has mustprogress or willreturn, which IRLean trusts instead of checking",
+  "label": "o1",
+  "memory_capped": false,
+  "namespace": "O1AddMulPow2O1",
+  "passes": "default<O1>",
+  "reason": "trusted_promise",
+  "status": "unsupported",
+  "step": null
+ },
+ {
+  "cache": "miss",
+  "checks": [
+   [
+    "manifest",
+    "pass"
+   ],
+   [
+    "artifacts",
+    "pass"
+   ],
+   [
+    "toolchain",
+    "pass"
+   ],
+   [
+    "llvm_pin",
+    "pass"
+   ],
+   [
+    "target",
+    "pass"
+   ],
+   [
+    "transform_replay",
+    "pass"
+   ],
+   [
+    "translation_replay",
+    "pass"
+   ],
+   [
+    "compile_generated",
+    "pass"
+   ],
+   [
+    "compile_certificate",
+    "pass"
+   ],
+   [
+    "claim_type",
+    "pass"
+   ],
+   [
+    "axioms",
+    "pass"
+   ],
+   [
+    "kernel_replay",
+    "pass"
+   ],
+   [
+    "unchanged",
+    "pass"
+   ]
+  ],
+  "cost": {
+   "command": [
+    "/nix/store/0jb1qn7qnpbz8774mq5k2c1p84gp0x76-python3-3.14.8/bin/python3",
+    "..."
+   ],
+   "label": "add_mul_pow2: s01 verify",
+   "limits": {
+    "max_tree_rss_mb": 16000.0,
+    "timeout_s": 2400
+   },
+   "outcome": "ok",
+   "peak_process_mb": 1482.8,
+   "peak_tree_mb": 1833.8,
+   "wall_s": 10.3
+  },
+  "detail": "every check passed",
+  "key": "e71ec69165e86ea116628ca06e3cc9fdc3135f8b8caa388de8592316801ab12b",
+  "label": "s01",
+  "memory_capped": false,
+  "namespace": "O1AddMulPow2S01",
+  "passes": "function(early-cse<>)",
+  "reason": "replayed",
+  "statement": "O1AddMulPow2S01.Src.f = O1AddMulPow2S01.Tgt.f ∧\n  ∀ (x : IRLean.Val 32) (s : IRLean.ModelStop),\n    O1AddMulPow2S01.Src.f x ≠ Option.some (Except.error (IRLean.Stop.model s))",
+  "status": "bound",
+  "step": 1,
+  "uncovered_changes": {
+   "functions": [],
+   "module_level": false
+  }
+ },
+ {
+  "cache": "miss",
+  "checks": [
+   [
+    "manifest",
+    "pass"
+   ],
+   [
+    "artifacts",
+    "pass"
+   ],
+   [
+    "toolchain",
+    "pass"
+   ],
+   [
+    "llvm_pin",
+    "pass"
+   ],
+   [
+    "target",
+    "pass"
+   ],
+   [
+    "transform_replay",
+    "pass"
+   ],
+   [
+    "translation_replay",
+    "pass"
+   ],
+   [
+    "compile_generated",
+    "pass"
+   ],
+   [
+    "compile_certificate",
+    "pass"
+   ],
+   [
+    "claim_type",
+    "pass"
+   ],
+   [
+    "axioms",
+    "pass"
+   ],
+   [
+    "kernel_replay",
+    "pass"
+   ],
+   [
+    "unchanged",
+    "pass"
+   ]
+  ],
+  "cost": {
+   "command": [
+    "/nix/store/0jb1qn7qnpbz8774mq5k2c1p84gp0x76-python3-3.14.8/bin/python3",
+    "..."
+   ],
+   "label": "add_mul_pow2: s02 verify",
+   "limits": {
+    "max_tree_rss_mb": 16000.0,
+    "timeout_s": 2400
+   },
+   "outcome": "ok",
+   "peak_process_mb": 1514.3,
+   "peak_tree_mb": 1830.0,
+   "wall_s": 10.61
+  },
+  "detail": "every check passed",
+  "key": "df6d744f3b775f8dc4cf21d48f773d8d09cc5e49bc667bb3a0af1f8e600995b4",
+  "label": "s02",
+  "memory_capped": false,
+  "namespace": "O1AddMulPow2S02",
+  "passes": "globalopt",
+  "reason": "replayed",
+  "statement": "O1AddMulPow2S02.Src.f = O1AddMulPow2S02.Tgt.f ∧\n  ∀ (x : IRLean.Val 32) (s : IRLean.ModelStop),\n    O1AddMulPow2S02.Src.f x ≠ Option.some (Except.error (IRLean.Stop.model s))",
+  "status": "bound",
+  "step": 2,
+  "uncovered_changes": {
+   "functions": [],
+   "module_level": false
+  }
+ },
+ {
+  "cache": "miss",
+  "checks": [
+   [
+    "manifest",
+    "pass"
+   ],
+   [
+    "artifacts",
+    "pass"
+   ],
+   [
+    "toolchain",
+    "pass"
+   ],
+   [
+    "llvm_pin",
+    "pass"
+   ],
+   [
+    "target",
+    "pass"
+   ],
+   [
+    "transform_replay",
+    "pass"
+   ],
+   [
+    "translation_replay",
+    "pass"
+   ],
+   [
+    "compile_generated",
+    "pass"
+   ],
+   [
+    "compile_certificate",
+    "pass"
+   ],
+   [
+    "claim_type",
+    "pass"
+   ],
+   [
+    "axioms",
+    "pass"
+   ],
+   [
+    "kernel_replay",
+    "pass"
+   ],
+   [
+    "unchanged",
+    "pass"
+   ]
+  ],
+  "cost": {
+   "command": [
+    "/nix/store/0jb1qn7qnpbz8774mq5k2c1p84gp0x76-python3-3.14.8/bin/python3",
+    "..."
+   ],
+   "label": "add_mul_pow2: s03 verify",
+   "limits": {
+    "max_tree_rss_mb": 16000.0,
+    "timeout_s": 2400
+   },
+   "outcome": "ok",
+   "peak_process_mb": 1491.0,
+   "peak_tree_mb": 1833.7,
+   "wall_s": 10.96
+  },
+  "detail": "every check passed",
+  "key": "1f3e5e317a63384a0717498f060b974ebd98e51eef364559eb88063db239ae0f",
+  "label": "s03",
+  "memory_capped": false,
+  "namespace": "O1AddMulPow2S03",
+  "passes": "function(instcombine<max-iterations=1;no-verify-fixpoint>)",
+  "reason": "replayed",
+  "statement": "O1AddMulPow2S03.Src.f = O1AddMulPow2S03.Tgt.f ∧\n  ∀ (x : IRLean.Val 32) (s : IRLean.ModelStop),\n    O1AddMulPow2S03.Src.f x ≠ Option.some (Except.error (IRLean.Stop.model s))",
+  "status": "bound",
+  "step": 3,
+  "uncovered_changes": {
+   "functions": [],
+   "module_level": false
+  }
+ },
+ {
+  "cache": "miss",
+  "checks": [
+   [
+    "manifest",
+    "pass"
+   ],
+   [
+    "artifacts",
+    "pass"
+   ],
+   [
+    "toolchain",
+    "pass"
+   ],
+   [
+    "llvm_pin",
+    "pass"
+   ],
+   [
+    "target",
+    "pass"
+   ],
+   [
+    "transform_replay",
+    "pass"
+   ],
+   [
+    "translation_replay",
+    "pass"
+   ],
+   [
+    "compile_generated",
+    "pass"
+   ],
+   [
+    "compile_certificate",
+    "pass"
+   ],
+   [
+    "claim_type",
+    "pass"
+   ],
+   [
+    "axioms",
+    "pass"
+   ],
+   [
+    "kernel_replay",
+    "pass"
+   ],
+   [
+    "unchanged",
+    "pass"
+   ]
+  ],
+  "cost": {
+   "command": [
+    "/nix/store/0jb1qn7qnpbz8774mq5k2c1p84gp0x76-python3-3.14.8/bin/python3",
+    "..."
+   ],
+   "label": "add_mul_pow2: s04 verify",
+   "limits": {
+    "max_tree_rss_mb": 16000.0,
+    "timeout_s": 2400
+   },
+   "outcome": "ok",
+   "peak_process_mb": 1523.0,
+   "peak_tree_mb": 1836.0,
+   "wall_s": 11.14
+  },
+  "detail": "every check passed",
+  "key": "1709e19385da30c30d848836d72e32e33610779d538cba1278c335e071f17d75",
+  "label": "s04",
+  "memory_capped": false,
+  "namespace": "O1AddMulPow2S04",
+  "passes": "function(sccp)",
+  "reason": "replayed",
+  "statement": "O1AddMulPow2S04.Src.f = O1AddMulPow2S04.Tgt.f ∧\n  ∀ (x : IRLean.Val 32) (s : IRLean.ModelStop),\n    O1AddMulPow2S04.Src.f x ≠ Option.some (Except.error (IRLean.Stop.model s))",
+  "status": "bound",
+  "step": 4,
+  "uncovered_changes": {
+   "functions": [],
+   "module_level": false
+  }
+ }
+]

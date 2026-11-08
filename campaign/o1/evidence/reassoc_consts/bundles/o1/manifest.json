@@ -1,0 +1,63 @@
+{
+  "artifacts": {
+    "certificate": {
+      "path": "Cert.lean",
+      "sha256": "9b0c80a590ef5820396016583e65f239f7f6abd830709acba5cf922f552c016e"
+    },
+    "input": {
+      "path": "input.ll",
+      "sha256": "9153f1c95a338de83821554d82702a74250d8c1b867d31cc61a2eecbcfc70e7b"
+    },
+    "src_ir": {
+      "path": "src.ll",
+      "sha256": "6350ad2688098e306b98c2d5e473b0f5e1da49bb3dbaf6ae9a90ebbff07444ea"
+    },
+    "src_lean": {
+      "path": "Src.lean",
+      "sha256": "cb3e531f3aca79a31a7a3343528c86a24f4b165f566dde4b557bf2fe39eb0d87"
+    },
+    "tgt_ir": {
+      "path": "tgt.ll",
+      "sha256": "43e576b9f19110b59b7012a48d5d49fffe3c8d37a7ded79ed96c762f034276f8"
+    },
+    "tgt_lean": {
+      "path": "Tgt.lean",
+      "sha256": "f3f2a4b3f18e6d555e336f4bd56bd51a62655ba7ddcd2651b3f85357ace6a864"
+    }
+  },
+  "claim": {
+    "function": "f",
+    "kind": "ir_instance_equivalence",
+    "lean_function": "f",
+    "namespace": "O1ReassocConstsO1",
+    "theorem": "O1ReassocConstsO1.cert"
+  },
+  "llvm": {
+    "commit": "0d261d1ca552c95a8f007e061c787ac7132fbcbc",
+    "nix_hash": "sha256-+e5YvYEbCvvEQbLVIQP5hwPp4tEk6EB270bSEMKv0t4=",
+    "repository": "https://github.com/llvm/llvm-project",
+    "tag": "llvmorg-23.1.3"
+  },
+  "schema": "ir-lean.binding.manifest/1",
+  "target": {
+    "datalayout": "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-i128:128-f80:128-n8:16:32:64-S128",
+    "triple": "x86_64-unknown-linux-gnu"
+  },
+  "toolchain": {
+    "binding_check_sha256": "f1370304937db82ec9b6be5d6d559ad468f949d0d7c8af638e3bf0ea3b280ffe",
+    "binding_py_sha256": "0e090d8a867aa1044904b9178254006a46477cc90cf9289def6d5624d360167d",
+    "check_axioms_sha256": "c731e1e303372e190387e74b4285a8221abbbb539599bae61ef116afa641747b",
+    "ir_lean_sha256": "4ae6f49d14eb014ca3f917d8bb49d2ae3d8e036595ffa4bdda9c6212d151fe3f",
+    "irlean_library_sha256": "9474c7c9acd1bf7519f8c5fea3f90d4160c0aa580ce6ce0d7464b9441f33c007",
+    "lean_sha256": "d1d9c26a539f54fe839d2aa7760bf1ac1dd76a30b26e2c9684bebf2900038fcf",
+    "lean_toolchain_sha256": "33fe9095ea557c7acd1af6585012eab247549ca5074e46998ca68f61e8194fe6",
+    "lean_version": "Lean (version 4.35.0, arm64-apple-darwin24.6.0, commit eb6cafb7290e8bd5f2937522d8d804f58f02bafc, Release)",
+    "leanchecker_sha256": "d70e645ea2b0e597d0ff4cf67aa0c268483fac0b5b2b991ca2d4cd7fb78ab73c",
+    "opt_sha256": "2c5c068575a2a02ed2cda704ed39f364bbc73a4b927905f1a11b74363bd3cb94",
+    "opt_version": "LLVM version 23.1.3"
+  },
+  "transform": {
+    "mtriple": "x86_64-unknown-linux-gnu",
+    "passes": "default<O1>"
+  }
+}

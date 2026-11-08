@@ -1,0 +1,398 @@
+[
+ {
+  "cache": "miss",
+  "checks": [
+   [
+    "manifest",
+    "pass"
+   ],
+   [
+    "artifacts",
+    "pass"
+   ],
+   [
+    "toolchain",
+    "pass"
+   ],
+   [
+    "llvm_pin",
+    "pass"
+   ],
+   [
+    "target",
+    "pass"
+   ],
+   [
+    "stopped",
+    "fail"
+   ]
+  ],
+  "cost": {
+   "command": [
+    "/nix/store/0jb1qn7qnpbz8774mq5k2c1p84gp0x76-python3-3.14.8/bin/python3",
+    "..."
+   ],
+   "label": "const_branch: o1 verify",
+   "limits": {
+    "max_tree_rss_mb": 5333.333333333333,
+    "timeout_s": 2400
+   },
+   "outcome": "failed",
+   "peak_process_mb": 445.1,
+   "peak_tree_mb": 442.3,
+   "wall_s": 8.93
+  },
+  "detail": "the target IR has mustprogress or willreturn, which IRLean trusts instead of checking",
+  "label": "o1",
+  "memory_capped": false,
+  "namespace": "O1ConstBranchO1",
+  "passes": "default<O1>",
+  "reason": "trusted_promise",
+  "status": "unsupported",
+  "step": null
+ },
+ {
+  "cache": "miss",
+  "checks": [
+   [
+    "manifest",
+    "pass"
+   ],
+   [
+    "artifacts",
+    "pass"
+   ],
+   [
+    "toolchain",
+    "pass"
+   ],
+   [
+    "llvm_pin",
+    "pass"
+   ],
+   [
+    "target",
+    "pass"
+   ],
+   [
+    "transform_replay",
+    "pass"
+   ],
+   [
+    "translation_replay",
+    "pass"
+   ],
+   [
+    "compile_generated",
+    "pass"
+   ],
+   [
+    "compile_certificate",
+    "pass"
+   ],
+   [
+    "claim_type",
+    "pass"
+   ],
+   [
+    "axioms",
+    "pass"
+   ],
+   [
+    "kernel_replay",
+    "pass"
+   ],
+   [
+    "unchanged",
+    "pass"
+   ]
+  ],
+  "cost": {
+   "command": [
+    "/nix/store/0jb1qn7qnpbz8774mq5k2c1p84gp0x76-python3-3.14.8/bin/python3",
+    "..."
+   ],
+   "label": "const_branch: s02 verify",
+   "limits": {
+    "max_tree_rss_mb": 5333.333333333333,
+    "timeout_s": 2400
+   },
+   "outcome": "ok",
+   "peak_process_mb": 1498.2,
+   "peak_tree_mb": 1832.3,
+   "wall_s": 14.47
+  },
+  "detail": "every check passed",
+  "key": "65397e1a735ba57c994aa877d012eaf86a33979d48526b34b15fa63b57ce197f",
+  "label": "s02",
+  "memory_capped": false,
+  "namespace": "O1ConstBranchS02",
+  "passes": "function(early-cse<>)",
+  "reason": "replayed",
+  "statement": "O1ConstBranchS02.Src.f = O1ConstBranchS02.Tgt.f ∧\n  ∀ (x : IRLean.Val 32) (s : IRLean.ModelStop),\n    O1ConstBranchS02.Src.f x ≠ Option.some (Except.error (IRLean.Stop.model s))",
+  "status": "bound",
+  "step": 2,
+  "uncovered_changes": {
+   "functions": [],
+   "module_level": false
+  }
+ },
+ {
+  "cache": "miss",
+  "checks": [
+   [
+    "manifest",
+    "pass"
+   ],
+   [
+    "artifacts",
+    "pass"
+   ],
+   [
+    "toolchain",
+    "pass"
+   ],
+   [
+    "llvm_pin",
+    "pass"
+   ],
+   [
+    "target",
+    "pass"
+   ],
+   [
+    "transform_replay",
+    "pass"
+   ],
+   [
+    "translation_replay",
+    "pass"
+   ],
+   [
+    "compile_generated",
+    "pass"
+   ],
+   [
+    "compile_certificate",
+    "pass"
+   ],
+   [
+    "claim_type",
+    "pass"
+   ],
+   [
+    "axioms",
+    "pass"
+   ],
+   [
+    "kernel_replay",
+    "pass"
+   ],
+   [
+    "unchanged",
+    "pass"
+   ]
+  ],
+  "cost": {
+   "command": [
+    "/nix/store/0jb1qn7qnpbz8774mq5k2c1p84gp0x76-python3-3.14.8/bin/python3",
+    "..."
+   ],
+   "label": "const_branch: s03 verify",
+   "limits": {
+    "max_tree_rss_mb": 5333.333333333333,
+    "timeout_s": 2400
+   },
+   "outcome": "ok",
+   "peak_process_mb": 1564.7,
+   "peak_tree_mb": 1931.5,
+   "wall_s": 14.64
+  },
+  "detail": "every check passed",
+  "key": "94852738c84fbd82f58da2169abd25109a6698686d27ae152b67ae322ed785b8",
+  "label": "s03",
+  "memory_capped": false,
+  "namespace": "O1ConstBranchS03",
+  "passes": "ipsccp",
+  "reason": "replayed",
+  "statement": "O1ConstBranchS03.Src.f = O1ConstBranchS03.Tgt.f ∧\n  ∀ (x : IRLean.Val 32) (s : IRLean.ModelStop),\n    O1ConstBranchS03.Src.f x ≠ Option.some (Except.error (IRLean.Stop.model s))",
+  "status": "bound",
+  "step": 3,
+  "uncovered_changes": {
+   "functions": [],
+   "module_level": false
+  }
+ },
+ {
+  "cache": "miss",
+  "checks": [
+   [
+    "manifest",
+    "pass"
+   ],
+   [
+    "artifacts",
+    "pass"
+   ],
+   [
+    "toolchain",
+    "pass"
+   ],
+   [
+    "llvm_pin",
+    "pass"
+   ],
+   [
+    "target",
+    "pass"
+   ],
+   [
+    "transform_replay",
+    "pass"
+   ],
+   [
+    "translation_replay",
+    "pass"
+   ],
+   [
+    "compile_generated",
+    "pass"
+   ],
+   [
+    "compile_certificate",
+    "pass"
+   ],
+   [
+    "claim_type",
+    "pass"
+   ],
+   [
+    "axioms",
+    "pass"
+   ],
+   [
+    "kernel_replay",
+    "pass"
+   ],
+   [
+    "unchanged",
+    "pass"
+   ]
+  ],
+  "cost": {
+   "command": [
+    "/nix/store/0jb1qn7qnpbz8774mq5k2c1p84gp0x76-python3-3.14.8/bin/python3",
+    "..."
+   ],
+   "label": "const_branch: s04 verify",
+   "limits": {
+    "max_tree_rss_mb": 5333.333333333333,
+    "timeout_s": 2400
+   },
+   "outcome": "ok",
+   "peak_process_mb": 1551.2,
+   "peak_tree_mb": 1831.0,
+   "wall_s": 14.5
+  },
+  "detail": "every check passed",
+  "key": "11ac5dcd2440b66bf95dd38e9343cb6a3085ec83e4ee37d6024a436cede34d3e",
+  "label": "s04",
+  "memory_capped": false,
+  "namespace": "O1ConstBranchS04",
+  "passes": "globalopt",
+  "reason": "replayed",
+  "statement": "O1ConstBranchS04.Src.f = O1ConstBranchS04.Tgt.f ∧\n  ∀ (x : IRLean.Val 32) (s : IRLean.ModelStop),\n    O1ConstBranchS04.Src.f x ≠ Option.some (Except.error (IRLean.Stop.model s))",
+  "status": "bound",
+  "step": 4,
+  "uncovered_changes": {
+   "functions": [],
+   "module_level": false
+  }
+ },
+ {
+  "cache": "miss",
+  "checks": [
+   [
+    "manifest",
+    "pass"
+   ],
+   [
+    "artifacts",
+    "pass"
+   ],
+   [
+    "toolchain",
+    "pass"
+   ],
+   [
+    "llvm_pin",
+    "pass"
+   ],
+   [
+    "target",
+    "pass"
+   ],
+   [
+    "transform_replay",
+    "pass"
+   ],
+   [
+    "translation_replay",
+    "pass"
+   ],
+   [
+    "compile_generated",
+    "pass"
+   ],
+   [
+    "compile_certificate",
+    "pass"
+   ],
+   [
+    "claim_type",
+    "pass"
+   ],
+   [
+    "axioms",
+    "pass"
+   ],
+   [
+    "kernel_replay",
+    "pass"
+   ],
+   [
+    "unchanged",
+    "pass"
+   ]
+  ],
+  "cost": {
+   "command": [
+    "/nix/store/0jb1qn7qnpbz8774mq5k2c1p84gp0x76-python3-3.14.8/bin/python3",
+    "..."
+   ],
+   "label": "const_branch: s05 verify",
+   "limits": {
+    "max_tree_rss_mb": 5333.333333333333,
+    "timeout_s": 2400
+   },
+   "outcome": "ok",
+   "peak_process_mb": 1552.0,
+   "peak_tree_mb": 1951.9,
+   "wall_s": 14.44
+  },
+  "detail": "every check passed",
+  "key": "7b59cfaf0e2c6d3218969e81bff12d32d9796438ab708527c9d320cfdf3c317a",
+  "label": "s05",
+  "memory_capped": false,
+  "namespace": "O1ConstBranchS05",
+  "passes": "function(instcombine<max-iterations=1;no-verify-fixpoint>)",
+  "reason": "replayed",
+  "statement": "O1ConstBranchS05.Src.f = O1ConstBranchS05.Tgt.f ∧\n  ∀ (x : IRLean.Val 32) (s : IRLean.ModelStop),\n    O1ConstBranchS05.Src.f x ≠ Option.some (Except.error (IRLean.Stop.model s))",
+  "status": "bound",
+  "step": 5,
+  "uncovered_changes": {
+   "functions": [],
+   "module_level": false
+  }
+ }
+]

@@ -1,0 +1,71 @@
+[
+ {
+  "cache": "miss",
+  "checks": [
+   [
+    "manifest",
+    "pass"
+   ],
+   [
+    "artifacts",
+    "pass"
+   ],
+   [
+    "toolchain",
+    "pass"
+   ],
+   [
+    "llvm_pin",
+    "pass"
+   ],
+   [
+    "target",
+    "pass"
+   ],
+   [
+    "transform_replay",
+    "pass"
+   ],
+   [
+    "translation_replay",
+    "pass"
+   ],
+   [
+    "compile_generated",
+    "pass"
+   ],
+   [
+    "stopped",
+    "fail"
+   ]
+  ],
+  "cost": {
+   "command": [
+    "/nix/store/0jb1qn7qnpbz8774mq5k2c1p84gp0x76-python3-3.14.8/bin/python3",
+    "..."
+   ],
+   "label": "loop_collatz: o1 verify",
+   "limits": {
+    "max_tree_rss_mb": 5333.333333333333,
+    "timeout_s": 2400
+   },
+   "outcome": "failed",
+   "peak_process_mb": 673.1,
+   "peak_tree_mb": 996.8,
+   "wall_s": 9.21
+  },
+  "detail": "Lean rejects the certificate: an/O1LoopCollatzO1/Cert.lean:15:14: error: None of the hypotheses are in the supported BitVec fragment after applying preprocessing.\nThere are three potential reasons for this:\n1. If you are using custom BitVec constructs simplify them to built-in ones.\n2. If your problem is using only built-in ones it might currently be out of reach.\n   Consider expressing it in terms of different operations that are better supported.\n3. The original goal was reduced to False and is thus invalid.\n/Users/dp/.t3/worktrees/ir-lean/campaign-mac-o1-20261108/build/binding/runs/6d2a207d697840d1-18d08066c1141d75/lean/O1LoopCollatzO1/Cert.lean:16:2: error: unsolved goals\ncase refine_2.some\ns : ModelStop\nval✝ : BitVec 32\n⊢ ¬run Src.f.step (Src.f.Block.h (some val✝) (some 0#32)) = some (Except.error (Stop.model s))\n",
+  "key": "6d2a207d697840d173fbb106d09f5698c7baaf4f2b0d1b831fa130c7fca3f43a",
+  "label": "o1",
+  "memory_capped": false,
+  "namespace": "O1LoopCollatzO1",
+  "passes": "default<O1>",
+  "reason": "certificate_compile_failed",
+  "status": "refused",
+  "step": null,
+  "uncovered_changes": {
+   "functions": [],
+   "module_level": true
+  }
+ }
+]

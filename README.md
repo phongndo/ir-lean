@@ -59,6 +59,7 @@ theorem popcount_correct (x : BitVec 32) :
 | [LLVM's own code](docs/llvm.md) | What's proved about llvm-project, how to reproduce it, and what it assumes |
 | [Design](docs/design.md) | What gets emitted, what the model covers, and why |
 | [Testing](docs/testing.md) | How to run the tests and linters, and what each one checks |
+| [O1 campaign](docs/o1-campaign.md) | LLVM's default `O1` pipeline, pinned and split into obligations, with the evidence so far and what it costs |
 | [Roadmap](docs/roadmap.md) | Where this is going, in what order, and the [first pull requests](docs/roadmap.md#near-term-pull-requests) |
 
 Each fact lives in one doc, and the others link to it. When a result changes, update its doc in the same pull

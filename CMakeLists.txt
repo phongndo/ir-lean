@@ -103,6 +103,9 @@ add_test(NAME llvm COMMAND ${CMAKE_SOURCE_DIR}/tests/llvm.py $<TARGET_FILE:ir-le
 add_test(NAME llvm_scope COMMAND ${CMAKE_SOURCE_DIR}/tests/llvm_scope_test.py)
 add_test(NAME llvm_scope_check COMMAND ${CMAKE_SOURCE_DIR}/tests/llvm_scope.py check)
 set_tests_properties(llvm_scope llvm_scope_check PROPERTIES TIMEOUT 600)
+# The O1 campaign's pin, pipeline, evidence and ledger agree, and only bound, linked evidence counts. Python
+# only: it runs no LLVM or Lean. docs/o1-campaign.md.
+add_test(NAME o1_campaign COMMAND ${CMAKE_SOURCE_DIR}/campaign/o1/test_o1.py)
 add_test(NAME superopt COMMAND ${CMAKE_SOURCE_DIR}/tests/superopt.py $<TARGET_FILE:ir-lean>)
 add_test(NAME names COMMAND ${CMAKE_SOURCE_DIR}/tests/names.sh)
 add_test(NAME verify COMMAND ${CMAKE_SOURCE_DIR}/tests/verify.py $<TARGET_FILE:ir-lean>)

@@ -1,0 +1,1691 @@
+{
+ "adaptors": [
+  {
+   "passes": 5,
+   "pos": "6",
+   "spec": "function<eager-inv>"
+  },
+  {
+   "passes": 3,
+   "pos": "11",
+   "spec": "function<eager-inv>"
+  },
+  {
+   "passes": 1,
+   "pos": "14",
+   "spec": "function"
+  },
+  {
+   "passes": 34,
+   "pos": "16",
+   "spec": "cgscc"
+  },
+  {
+   "passes": 34,
+   "pos": "16.1",
+   "spec": "devirt<4>"
+  },
+  {
+   "passes": 28,
+   "pos": "16.1.3",
+   "spec": "function<eager-inv;no-rerun>"
+  },
+  {
+   "passes": 6,
+   "pos": "16.1.3.8",
+   "spec": "loop-mssa"
+  },
+  {
+   "passes": 4,
+   "pos": "16.1.3.11",
+   "spec": "loop"
+  },
+  {
+   "passes": 1,
+   "pos": "16.1.5",
+   "spec": "function"
+  },
+  {
+   "passes": 30,
+   "pos": "24",
+   "spec": "function<eager-inv>"
+  },
+  {
+   "passes": 3,
+   "pos": "24.4",
+   "spec": "loop"
+  },
+  {
+   "passes": 1,
+   "pos": "24.20",
+   "spec": "loop-mssa"
+  },
+  {
+   "passes": 1,
+   "pos": "31",
+   "spec": "function"
+  }
+ ],
+ "distinct_passes": 73,
+ "leaves": [
+  {
+   "class": "MemProfRemoveInfo",
+   "context": [],
+   "family": "annotation-noop",
+   "inventory_id": "pass:memprof-remove-attributes",
+   "name": "memprof-remove-attributes",
+   "pos": "1",
+   "replay": [
+    "memprof-remove-attributes"
+   ],
+   "spec": "memprof-remove-attributes",
+   "unit": "module"
+  },
+  {
+   "class": "Annotation2MetadataPass",
+   "context": [],
+   "family": "annotation-noop",
+   "inventory_id": "pass:annotation2metadata",
+   "name": "annotation2metadata",
+   "pos": "2",
+   "replay": [
+    "annotation2metadata"
+   ],
+   "spec": "annotation2metadata",
+   "unit": "module"
+  },
+  {
+   "class": "ForceFunctionAttrsPass",
+   "context": [],
+   "family": "attribute-inference",
+   "inventory_id": "pass:forceattrs",
+   "name": "forceattrs",
+   "pos": "3",
+   "replay": [
+    "forceattrs"
+   ],
+   "spec": "forceattrs",
+   "unit": "module"
+  },
+  {
+   "class": "InferFunctionAttrsPass",
+   "context": [],
+   "family": "attribute-inference",
+   "inventory_id": "pass:inferattrs",
+   "name": "inferattrs",
+   "pos": "4",
+   "replay": [
+    "inferattrs"
+   ],
+   "spec": "inferattrs",
+   "unit": "module"
+  },
+  {
+   "class": "CoroEarlyPass",
+   "context": [],
+   "family": "coroutines",
+   "inventory_id": "pass:coro-early",
+   "name": "coro-early",
+   "pos": "5",
+   "replay": [
+    "coro-early"
+   ],
+   "spec": "coro-early",
+   "unit": "module"
+  },
+  {
+   "class": "EntryExitInstrumenterPass",
+   "context": [
+    "function<eager-inv>"
+   ],
+   "family": "annotation-noop",
+   "inventory_id": "pass:ee-instrument",
+   "name": "ee-instrument",
+   "pos": "6.1",
+   "replay": [
+    "function(ee-instrument<>)",
+    "function<eager-inv>(ee-instrument<>)"
+   ],
+   "spec": "ee-instrument<>",
+   "unit": "function"
+  },
+  {
+   "class": "LowerExpectIntrinsicPass",
+   "context": [
+    "function<eager-inv>"
+   ],
+   "family": "annotation-noop",
+   "inventory_id": "pass:lower-expect",
+   "name": "lower-expect",
+   "pos": "6.2",
+   "replay": [
+    "function(lower-expect)",
+    "function<eager-inv>(lower-expect)"
+   ],
+   "spec": "lower-expect",
+   "unit": "function"
+  },
+  {
+   "class": "SimplifyCFGPass",
+   "context": [
+    "function<eager-inv>"
+   ],
+   "family": "cfg",
+   "inventory_id": "pass:simplifycfg",
+   "name": "simplifycfg",
+   "pos": "6.3",
+   "replay": [
+    "function(simplifycfg<bonus-inst-threshold=1;no-forward-switch-cond;no-switch-range-to-icmp;no-switch-to-arithmetic;no-switch-to-lookup;keep-loops;no-hoist-common-insts;no-hoist-loads-stores-with-cond-faulting;no-sink-common-insts;speculate-blocks;simplify-cond-branch;no-speculate-unpredictables>)",
+    "function<eager-inv>(simplifycfg<bonus-inst-threshold=1;no-forward-switch-cond;no-switch-range-to-icmp;no-switch-to-arithmetic;no-switch-to-lookup;keep-loops;no-hoist-common-insts;no-hoist-loads-stores-with-cond-faulting;no-sink-common-insts;speculate-blocks;simplify-cond-branch;no-speculate-unpredictables>)"
+   ],
+   "spec": "simplifycfg<bonus-inst-threshold=1;no-forward-switch-cond;no-switch-range-to-icmp;no-switch-to-arithmetic;no-switch-to-lookup;keep-loops;no-hoist-common-insts;no-hoist-loads-stores-with-cond-faulting;no-sink-common-insts;speculate-blocks;simplify-cond-branch;no-speculate-unpredictables>",
+   "unit": "function"
+  },
+  {
+   "class": "SROAPass",
+   "context": [
+    "function<eager-inv>"
+   ],
+   "family": "memory-promotion",
+   "inventory_id": "pass:sroa",
+   "name": "sroa",
+   "pos": "6.4",
+   "replay": [
+    "function(sroa<modify-cfg>)",
+    "function<eager-inv>(sroa<modify-cfg>)"
+   ],
+   "spec": "sroa<modify-cfg>",
+   "unit": "function"
+  },
+  {
+   "class": "EarlyCSEPass",
+   "context": [
+    "function<eager-inv>"
+   ],
+   "family": "redundancy-constprop",
+   "inventory_id": "pass:early-cse",
+   "name": "early-cse",
+   "pos": "6.5",
+   "replay": [
+    "function(early-cse<>)",
+    "function<eager-inv>(early-cse<>)"
+   ],
+   "spec": "early-cse<>",
+   "unit": "function"
+  },
+  {
+   "class": "OpenMPOptPass",
+   "context": [],
+   "family": "inlining-ipo",
+   "inventory_id": "pass:openmp-opt",
+   "name": "openmp-opt",
+   "pos": "7",
+   "replay": [
+    "openmp-opt"
+   ],
+   "spec": "openmp-opt",
+   "unit": "module"
+  },
+  {
+   "class": "IPSCCPPass",
+   "context": [],
+   "family": "redundancy-constprop",
+   "inventory_id": "pass:ipsccp",
+   "name": "ipsccp",
+   "pos": "8",
+   "replay": [
+    "ipsccp"
+   ],
+   "spec": "ipsccp",
+   "unit": "module"
+  },
+  {
+   "class": "CalledValuePropagationPass",
+   "context": [],
+   "family": "redundancy-constprop",
+   "inventory_id": "pass:called-value-propagation",
+   "name": "called-value-propagation",
+   "pos": "9",
+   "replay": [
+    "called-value-propagation"
+   ],
+   "spec": "called-value-propagation",
+   "unit": "module"
+  },
+  {
+   "class": "GlobalOptPass",
+   "context": [],
+   "family": "inlining-ipo",
+   "inventory_id": "pass:globalopt",
+   "name": "globalopt",
+   "pos": "10",
+   "replay": [
+    "globalopt"
+   ],
+   "spec": "globalopt",
+   "unit": "module"
+  },
+  {
+   "class": "PromotePass",
+   "context": [
+    "function<eager-inv>"
+   ],
+   "family": "memory-promotion",
+   "inventory_id": "pass:mem2reg",
+   "name": "mem2reg",
+   "pos": "11.1",
+   "replay": [
+    "function(mem2reg)",
+    "function<eager-inv>(mem2reg)"
+   ],
+   "spec": "mem2reg",
+   "unit": "function"
+  },
+  {
+   "class": "InstCombinePass",
+   "context": [
+    "function<eager-inv>"
+   ],
+   "family": "peephole-int",
+   "inventory_id": "pass:instcombine",
+   "name": "instcombine",
+   "pos": "11.2",
+   "replay": [
+    "function(instcombine<max-iterations=1;no-verify-fixpoint>)",
+    "function<eager-inv>(instcombine<max-iterations=1;no-verify-fixpoint>)"
+   ],
+   "spec": "instcombine<max-iterations=1;no-verify-fixpoint>",
+   "unit": "function"
+  },
+  {
+   "class": "SimplifyCFGPass",
+   "context": [
+    "function<eager-inv>"
+   ],
+   "family": "cfg",
+   "inventory_id": "pass:simplifycfg",
+   "name": "simplifycfg",
+   "pos": "11.3",
+   "replay": [
+    "function(simplifycfg<bonus-inst-threshold=1;no-forward-switch-cond;switch-range-to-icmp;no-switch-to-arithmetic;no-switch-to-lookup;keep-loops;no-hoist-common-insts;no-hoist-loads-stores-with-cond-faulting;no-sink-common-insts;speculate-blocks;simplify-cond-branch;no-speculate-unpredictables>)",
+    "function<eager-inv>(simplifycfg<bonus-inst-threshold=1;no-forward-switch-cond;switch-range-to-icmp;no-switch-to-arithmetic;no-switch-to-lookup;keep-loops;no-hoist-common-insts;no-hoist-loads-stores-with-cond-faulting;no-sink-common-insts;speculate-blocks;simplify-cond-branch;no-speculate-unpredictables>)"
+   ],
+   "spec": "simplifycfg<bonus-inst-threshold=1;no-forward-switch-cond;switch-range-to-icmp;no-switch-to-arithmetic;no-switch-to-lookup;keep-loops;no-hoist-common-insts;no-hoist-loads-stores-with-cond-faulting;no-sink-common-insts;speculate-blocks;simplify-cond-branch;no-speculate-unpredictables>",
+   "unit": "function"
+  },
+  {
+   "class": "AlwaysInlinerPass",
+   "context": [],
+   "family": "inlining-ipo",
+   "inventory_id": "pass:always-inline",
+   "name": "always-inline",
+   "pos": "12",
+   "replay": [
+    "always-inline"
+   ],
+   "spec": "always-inline",
+   "unit": "module"
+  },
+  {
+   "class": "RequireAnalysisPass<",
+   "context": [],
+   "family": "analysis-management",
+   "inventory_id": "pass:globals-aa",
+   "name": "require<globals-aa>",
+   "pos": "13",
+   "replay": [
+    "require<globals-aa>"
+   ],
+   "spec": "require<globals-aa>",
+   "unit": "module"
+  },
+  {
+   "class": "InvalidateAnalysisPass<",
+   "context": [
+    "function"
+   ],
+   "family": "analysis-management",
+   "inventory_id": "pass:aa",
+   "name": "invalidate<aa>",
+   "pos": "14.1",
+   "replay": [
+    "function(invalidate<aa>)"
+   ],
+   "spec": "invalidate<aa>",
+   "unit": "function"
+  },
+  {
+   "class": "RequireAnalysisPass<",
+   "context": [],
+   "family": "analysis-management",
+   "inventory_id": "pass:profile-summary",
+   "name": "require<profile-summary>",
+   "pos": "15",
+   "replay": [
+    "require<profile-summary>"
+   ],
+   "spec": "require<profile-summary>",
+   "unit": "module"
+  },
+  {
+   "class": "InlinerPass",
+   "context": [
+    "cgscc",
+    "devirt<4>"
+   ],
+   "family": "inlining-ipo",
+   "inventory_id": "pass:inline",
+   "name": "inline",
+   "pos": "16.1.1",
+   "replay": [
+    "cgscc(inline)",
+    "cgscc(devirt<4>(inline))"
+   ],
+   "spec": "inline",
+   "unit": "cgscc"
+  },
+  {
+   "class": "PostOrderFunctionAttrsPass",
+   "context": [
+    "cgscc",
+    "devirt<4>"
+   ],
+   "family": "attribute-inference",
+   "inventory_id": "pass:function-attrs",
+   "name": "function-attrs",
+   "pos": "16.1.2",
+   "replay": [
+    "cgscc(function-attrs<skip-non-recursive-function-attrs>)",
+    "cgscc(devirt<4>(function-attrs<skip-non-recursive-function-attrs>))"
+   ],
+   "spec": "function-attrs<skip-non-recursive-function-attrs>",
+   "unit": "cgscc"
+  },
+  {
+   "class": "SROAPass",
+   "context": [
+    "cgscc",
+    "devirt<4>",
+    "function<eager-inv;no-rerun>"
+   ],
+   "family": "memory-promotion",
+   "inventory_id": "pass:sroa",
+   "name": "sroa",
+   "pos": "16.1.3.1",
+   "replay": [
+    "function(sroa<modify-cfg>)",
+    "cgscc(devirt<4>(function<eager-inv;no-rerun>(sroa<modify-cfg>)))"
+   ],
+   "spec": "sroa<modify-cfg>",
+   "unit": "function"
+  },
+  {
+   "class": "EarlyCSEPass",
+   "context": [
+    "cgscc",
+    "devirt<4>",
+    "function<eager-inv;no-rerun>"
+   ],
+   "family": "redundancy-constprop",
+   "inventory_id": "pass:early-cse",
+   "name": "early-cse",
+   "pos": "16.1.3.2",
+   "replay": [
+    "function(early-cse<memssa>)",
+    "cgscc(devirt<4>(function<eager-inv;no-rerun>(early-cse<memssa>)))"
+   ],
+   "spec": "early-cse<memssa>",
+   "unit": "function"
+  },
+  {
+   "class": "SimplifyCFGPass",
+   "context": [
+    "cgscc",
+    "devirt<4>",
+    "function<eager-inv;no-rerun>"
+   ],
+   "family": "cfg",
+   "inventory_id": "pass:simplifycfg",
+   "name": "simplifycfg",
+   "pos": "16.1.3.3",
+   "replay": [
+    "function(simplifycfg<bonus-inst-threshold=1;no-forward-switch-cond;switch-range-to-icmp;no-switch-to-arithmetic;no-switch-to-lookup;keep-loops;no-hoist-common-insts;no-hoist-loads-stores-with-cond-faulting;no-sink-common-insts;speculate-blocks;simplify-cond-branch;no-speculate-unpredictables>)",
+    "cgscc(devirt<4>(function<eager-inv;no-rerun>(simplifycfg<bonus-inst-threshold=1;no-forward-switch-cond;switch-range-to-icmp;no-switch-to-arithmetic;no-switch-to-lookup;keep-loops;no-hoist-common-insts;no-hoist-loads-stores-with-cond-faulting;no-sink-common-insts;speculate-blocks;simplify-cond-branch;no-speculate-unpredictables>)))"
+   ],
+   "spec": "simplifycfg<bonus-inst-threshold=1;no-forward-switch-cond;switch-range-to-icmp;no-switch-to-arithmetic;no-switch-to-lookup;keep-loops;no-hoist-common-insts;no-hoist-loads-stores-with-cond-faulting;no-sink-common-insts;speculate-blocks;simplify-cond-branch;no-speculate-unpredictables>",
+   "unit": "function"
+  },
+  {
+   "class": "InstCombinePass",
+   "context": [
+    "cgscc",
+    "devirt<4>",
+    "function<eager-inv;no-rerun>"
+   ],
+   "family": "peephole-int",
+   "inventory_id": "pass:instcombine",
+   "name": "instcombine",
+   "pos": "16.1.3.4",
+   "replay": [
+    "function(instcombine<max-iterations=1;no-verify-fixpoint>)",
+    "cgscc(devirt<4>(function<eager-inv;no-rerun>(instcombine<max-iterations=1;no-verify-fixpoint>)))"
+   ],
+   "spec": "instcombine<max-iterations=1;no-verify-fixpoint>",
+   "unit": "function"
+  },
+  {
+   "class": "LibCallsShrinkWrapPass",
+   "context": [
+    "cgscc",
+    "devirt<4>",
+    "function<eager-inv;no-rerun>"
+   ],
+   "family": "libcalls",
+   "inventory_id": "pass:libcalls-shrinkwrap",
+   "name": "libcalls-shrinkwrap",
+   "pos": "16.1.3.5",
+   "replay": [
+    "function(libcalls-shrinkwrap)",
+    "cgscc(devirt<4>(function<eager-inv;no-rerun>(libcalls-shrinkwrap)))"
+   ],
+   "spec": "libcalls-shrinkwrap",
+   "unit": "function"
+  },
+  {
+   "class": "SimplifyCFGPass",
+   "context": [
+    "cgscc",
+    "devirt<4>",
+    "function<eager-inv;no-rerun>"
+   ],
+   "family": "cfg",
+   "inventory_id": "pass:simplifycfg",
+   "name": "simplifycfg",
+   "pos": "16.1.3.6",
+   "replay": [
+    "function(simplifycfg<bonus-inst-threshold=1;no-forward-switch-cond;switch-range-to-icmp;no-switch-to-arithmetic;no-switch-to-lookup;keep-loops;no-hoist-common-insts;no-hoist-loads-stores-with-cond-faulting;no-sink-common-insts;speculate-blocks;simplify-cond-branch;no-speculate-unpredictables>)",
+    "cgscc(devirt<4>(function<eager-inv;no-rerun>(simplifycfg<bonus-inst-threshold=1;no-forward-switch-cond;switch-range-to-icmp;no-switch-to-arithmetic;no-switch-to-lookup;keep-loops;no-hoist-common-insts;no-hoist-loads-stores-with-cond-faulting;no-sink-common-insts;speculate-blocks;simplify-cond-branch;no-speculate-unpredictables>)))"
+   ],
+   "spec": "simplifycfg<bonus-inst-threshold=1;no-forward-switch-cond;switch-range-to-icmp;no-switch-to-arithmetic;no-switch-to-lookup;keep-loops;no-hoist-common-insts;no-hoist-loads-stores-with-cond-faulting;no-sink-common-insts;speculate-blocks;simplify-cond-branch;no-speculate-unpredictables>",
+   "unit": "function"
+  },
+  {
+   "class": "ReassociatePass",
+   "context": [
+    "cgscc",
+    "devirt<4>",
+    "function<eager-inv;no-rerun>"
+   ],
+   "family": "peephole-int",
+   "inventory_id": "pass:reassociate",
+   "name": "reassociate",
+   "pos": "16.1.3.7",
+   "replay": [
+    "function(reassociate)",
+    "cgscc(devirt<4>(function<eager-inv;no-rerun>(reassociate)))"
+   ],
+   "spec": "reassociate",
+   "unit": "function"
+  },
+  {
+   "class": "LoopInstSimplifyPass",
+   "context": [
+    "cgscc",
+    "devirt<4>",
+    "function<eager-inv;no-rerun>",
+    "loop-mssa"
+   ],
+   "family": "peephole-int",
+   "inventory_id": "pass:loop-instsimplify",
+   "name": "loop-instsimplify",
+   "pos": "16.1.3.8.1",
+   "replay": [
+    "function(loop-mssa(loop-instsimplify))",
+    "cgscc(devirt<4>(function<eager-inv;no-rerun>(loop-mssa(loop-instsimplify))))"
+   ],
+   "spec": "loop-instsimplify",
+   "unit": "loop"
+  },
+  {
+   "class": "LoopSimplifyCFGPass",
+   "context": [
+    "cgscc",
+    "devirt<4>",
+    "function<eager-inv;no-rerun>",
+    "loop-mssa"
+   ],
+   "family": "cfg",
+   "inventory_id": "pass:loop-simplifycfg",
+   "name": "loop-simplifycfg",
+   "pos": "16.1.3.8.2",
+   "replay": [
+    "function(loop-mssa(loop-simplifycfg))",
+    "cgscc(devirt<4>(function<eager-inv;no-rerun>(loop-mssa(loop-simplifycfg))))"
+   ],
+   "spec": "loop-simplifycfg",
+   "unit": "loop"
+  },
+  {
+   "class": "LICMPass",
+   "context": [
+    "cgscc",
+    "devirt<4>",
+    "function<eager-inv;no-rerun>",
+    "loop-mssa"
+   ],
+   "family": "loops",
+   "inventory_id": "pass:licm",
+   "name": "licm",
+   "pos": "16.1.3.8.3",
+   "replay": [
+    "function(loop-mssa(licm<no-allowspeculation>))",
+    "cgscc(devirt<4>(function<eager-inv;no-rerun>(loop-mssa(licm<no-allowspeculation>))))"
+   ],
+   "spec": "licm<no-allowspeculation>",
+   "unit": "loop"
+  },
+  {
+   "class": "LoopRotatePass",
+   "context": [
+    "cgscc",
+    "devirt<4>",
+    "function<eager-inv;no-rerun>",
+    "loop-mssa"
+   ],
+   "family": "loops",
+   "inventory_id": "pass:loop-rotate",
+   "name": "loop-rotate",
+   "pos": "16.1.3.8.4",
+   "replay": [
+    "function(loop-mssa(loop-rotate<header-duplication;no-prepare-for-lto;no-check-exit-count>))",
+    "cgscc(devirt<4>(function<eager-inv;no-rerun>(loop-mssa(loop-rotate<header-duplication;no-prepare-for-lto;no-check-exit-count>))))"
+   ],
+   "spec": "loop-rotate<header-duplication;no-prepare-for-lto;no-check-exit-count>",
+   "unit": "loop"
+  },
+  {
+   "class": "LICMPass",
+   "context": [
+    "cgscc",
+    "devirt<4>",
+    "function<eager-inv;no-rerun>",
+    "loop-mssa"
+   ],
+   "family": "loops",
+   "inventory_id": "pass:licm",
+   "name": "licm",
+   "pos": "16.1.3.8.5",
+   "replay": [
+    "function(loop-mssa(licm<allowspeculation>))",
+    "cgscc(devirt<4>(function<eager-inv;no-rerun>(loop-mssa(licm<allowspeculation>))))"
+   ],
+   "spec": "licm<allowspeculation>",
+   "unit": "loop"
+  },
+  {
+   "class": "SimpleLoopUnswitchPass",
+   "context": [
+    "cgscc",
+    "devirt<4>",
+    "function<eager-inv;no-rerun>",
+    "loop-mssa"
+   ],
+   "family": "loops",
+   "inventory_id": "pass:simple-loop-unswitch",
+   "name": "simple-loop-unswitch",
+   "pos": "16.1.3.8.6",
+   "replay": [
+    "function(loop-mssa(simple-loop-unswitch<no-nontrivial;trivial>))",
+    "cgscc(devirt<4>(function<eager-inv;no-rerun>(loop-mssa(simple-loop-unswitch<no-nontrivial;trivial>))))"
+   ],
+   "spec": "simple-loop-unswitch<no-nontrivial;trivial>",
+   "unit": "loop"
+  },
+  {
+   "class": "SimplifyCFGPass",
+   "context": [
+    "cgscc",
+    "devirt<4>",
+    "function<eager-inv;no-rerun>"
+   ],
+   "family": "cfg",
+   "inventory_id": "pass:simplifycfg",
+   "name": "simplifycfg",
+   "pos": "16.1.3.9",
+   "replay": [
+    "function(simplifycfg<bonus-inst-threshold=1;no-forward-switch-cond;switch-range-to-icmp;no-switch-to-arithmetic;no-switch-to-lookup;keep-loops;no-hoist-common-insts;no-hoist-loads-stores-with-cond-faulting;no-sink-common-insts;speculate-blocks;simplify-cond-branch;no-speculate-unpredictables>)",
+    "cgscc(devirt<4>(function<eager-inv;no-rerun>(simplifycfg<bonus-inst-threshold=1;no-forward-switch-cond;switch-range-to-icmp;no-switch-to-arithmetic;no-switch-to-lookup;keep-loops;no-hoist-common-insts;no-hoist-loads-stores-with-cond-faulting;no-sink-common-insts;speculate-blocks;simplify-cond-branch;no-speculate-unpredictables>)))"
+   ],
+   "spec": "simplifycfg<bonus-inst-threshold=1;no-forward-switch-cond;switch-range-to-icmp;no-switch-to-arithmetic;no-switch-to-lookup;keep-loops;no-hoist-common-insts;no-hoist-loads-stores-with-cond-faulting;no-sink-common-insts;speculate-blocks;simplify-cond-branch;no-speculate-unpredictables>",
+   "unit": "function"
+  },
+  {
+   "class": "InstCombinePass",
+   "context": [
+    "cgscc",
+    "devirt<4>",
+    "function<eager-inv;no-rerun>"
+   ],
+   "family": "peephole-int",
+   "inventory_id": "pass:instcombine",
+   "name": "instcombine",
+   "pos": "16.1.3.10",
+   "replay": [
+    "function(instcombine<max-iterations=1;no-verify-fixpoint>)",
+    "cgscc(devirt<4>(function<eager-inv;no-rerun>(instcombine<max-iterations=1;no-verify-fixpoint>)))"
+   ],
+   "spec": "instcombine<max-iterations=1;no-verify-fixpoint>",
+   "unit": "function"
+  },
+  {
+   "class": "LoopIdiomRecognizePass",
+   "context": [
+    "cgscc",
+    "devirt<4>",
+    "function<eager-inv;no-rerun>",
+    "loop"
+   ],
+   "family": "loops",
+   "inventory_id": "pass:loop-idiom",
+   "name": "loop-idiom",
+   "pos": "16.1.3.11.1",
+   "replay": [
+    "function(loop(loop-idiom))",
+    "cgscc(devirt<4>(function<eager-inv;no-rerun>(loop(loop-idiom))))"
+   ],
+   "spec": "loop-idiom",
+   "unit": "loop"
+  },
+  {
+   "class": "IndVarSimplifyPass",
+   "context": [
+    "cgscc",
+    "devirt<4>",
+    "function<eager-inv;no-rerun>",
+    "loop"
+   ],
+   "family": "loops",
+   "inventory_id": "pass:indvars",
+   "name": "indvars",
+   "pos": "16.1.3.11.2",
+   "replay": [
+    "function(loop(indvars))",
+    "cgscc(devirt<4>(function<eager-inv;no-rerun>(loop(indvars))))"
+   ],
+   "spec": "indvars",
+   "unit": "loop"
+  },
+  {
+   "class": "LoopDeletionPass",
+   "context": [
+    "cgscc",
+    "devirt<4>",
+    "function<eager-inv;no-rerun>",
+    "loop"
+   ],
+   "family": "loops",
+   "inventory_id": "pass:loop-deletion",
+   "name": "loop-deletion",
+   "pos": "16.1.3.11.3",
+   "replay": [
+    "function(loop(loop-deletion))",
+    "cgscc(devirt<4>(function<eager-inv;no-rerun>(loop(loop-deletion))))"
+   ],
+   "spec": "loop-deletion",
+   "unit": "loop"
+  },
+  {
+   "class": "LoopFullUnrollPass",
+   "context": [
+    "cgscc",
+    "devirt<4>",
+    "function<eager-inv;no-rerun>",
+    "loop"
+   ],
+   "family": "loops",
+   "inventory_id": "pass:loop-unroll-full",
+   "name": "loop-unroll-full",
+   "pos": "16.1.3.11.4",
+   "replay": [
+    "function(loop(loop-unroll-full))",
+    "cgscc(devirt<4>(function<eager-inv;no-rerun>(loop(loop-unroll-full))))"
+   ],
+   "spec": "loop-unroll-full",
+   "unit": "loop"
+  },
+  {
+   "class": "SROAPass",
+   "context": [
+    "cgscc",
+    "devirt<4>",
+    "function<eager-inv;no-rerun>"
+   ],
+   "family": "memory-promotion",
+   "inventory_id": "pass:sroa",
+   "name": "sroa",
+   "pos": "16.1.3.12",
+   "replay": [
+    "function(sroa<modify-cfg>)",
+    "cgscc(devirt<4>(function<eager-inv;no-rerun>(sroa<modify-cfg>)))"
+   ],
+   "spec": "sroa<modify-cfg>",
+   "unit": "function"
+  },
+  {
+   "class": "MemCpyOptPass",
+   "context": [
+    "cgscc",
+    "devirt<4>",
+    "function<eager-inv;no-rerun>"
+   ],
+   "family": "memory-promotion",
+   "inventory_id": "pass:memcpyopt",
+   "name": "memcpyopt",
+   "pos": "16.1.3.13",
+   "replay": [
+    "function(memcpyopt)",
+    "cgscc(devirt<4>(function<eager-inv;no-rerun>(memcpyopt)))"
+   ],
+   "spec": "memcpyopt",
+   "unit": "function"
+  },
+  {
+   "class": "SCCPPass",
+   "context": [
+    "cgscc",
+    "devirt<4>",
+    "function<eager-inv;no-rerun>"
+   ],
+   "family": "redundancy-constprop",
+   "inventory_id": "pass:sccp",
+   "name": "sccp",
+   "pos": "16.1.3.14",
+   "replay": [
+    "function(sccp)",
+    "cgscc(devirt<4>(function<eager-inv;no-rerun>(sccp)))"
+   ],
+   "spec": "sccp",
+   "unit": "function"
+  },
+  {
+   "class": "BDCEPass",
+   "context": [
+    "cgscc",
+    "devirt<4>",
+    "function<eager-inv;no-rerun>"
+   ],
+   "family": "peephole-int",
+   "inventory_id": "pass:bdce",
+   "name": "bdce",
+   "pos": "16.1.3.15",
+   "replay": [
+    "function(bdce)",
+    "cgscc(devirt<4>(function<eager-inv;no-rerun>(bdce)))"
+   ],
+   "spec": "bdce",
+   "unit": "function"
+  },
+  {
+   "class": "InstCombinePass",
+   "context": [
+    "cgscc",
+    "devirt<4>",
+    "function<eager-inv;no-rerun>"
+   ],
+   "family": "peephole-int",
+   "inventory_id": "pass:instcombine",
+   "name": "instcombine",
+   "pos": "16.1.3.16",
+   "replay": [
+    "function(instcombine<max-iterations=1;no-verify-fixpoint>)",
+    "cgscc(devirt<4>(function<eager-inv;no-rerun>(instcombine<max-iterations=1;no-verify-fixpoint>)))"
+   ],
+   "spec": "instcombine<max-iterations=1;no-verify-fixpoint>",
+   "unit": "function"
+  },
+  {
+   "class": "CoroElidePass",
+   "context": [
+    "cgscc",
+    "devirt<4>",
+    "function<eager-inv;no-rerun>"
+   ],
+   "family": "coroutines",
+   "inventory_id": "pass:coro-elide",
+   "name": "coro-elide",
+   "pos": "16.1.3.17",
+   "replay": [
+    "function(coro-elide)",
+    "cgscc(devirt<4>(function<eager-inv;no-rerun>(coro-elide)))"
+   ],
+   "spec": "coro-elide",
+   "unit": "function"
+  },
+  {
+   "class": "ADCEPass",
+   "context": [
+    "cgscc",
+    "devirt<4>",
+    "function<eager-inv;no-rerun>"
+   ],
+   "family": "dead-code",
+   "inventory_id": "pass:adce",
+   "name": "adce",
+   "pos": "16.1.3.18",
+   "replay": [
+    "function(adce)",
+    "cgscc(devirt<4>(function<eager-inv;no-rerun>(adce)))"
+   ],
+   "spec": "adce",
+   "unit": "function"
+  },
+  {
+   "class": "SimplifyCFGPass",
+   "context": [
+    "cgscc",
+    "devirt<4>",
+    "function<eager-inv;no-rerun>"
+   ],
+   "family": "cfg",
+   "inventory_id": "pass:simplifycfg",
+   "name": "simplifycfg",
+   "pos": "16.1.3.19",
+   "replay": [
+    "function(simplifycfg<bonus-inst-threshold=1;no-forward-switch-cond;switch-range-to-icmp;no-switch-to-arithmetic;no-switch-to-lookup;keep-loops;no-hoist-common-insts;no-hoist-loads-stores-with-cond-faulting;no-sink-common-insts;speculate-blocks;simplify-cond-branch;no-speculate-unpredictables>)",
+    "cgscc(devirt<4>(function<eager-inv;no-rerun>(simplifycfg<bonus-inst-threshold=1;no-forward-switch-cond;switch-range-to-icmp;no-switch-to-arithmetic;no-switch-to-lookup;keep-loops;no-hoist-common-insts;no-hoist-loads-stores-with-cond-faulting;no-sink-common-insts;speculate-blocks;simplify-cond-branch;no-speculate-unpredictables>)))"
+   ],
+   "spec": "simplifycfg<bonus-inst-threshold=1;no-forward-switch-cond;switch-range-to-icmp;no-switch-to-arithmetic;no-switch-to-lookup;keep-loops;no-hoist-common-insts;no-hoist-loads-stores-with-cond-faulting;no-sink-common-insts;speculate-blocks;simplify-cond-branch;no-speculate-unpredictables>",
+   "unit": "function"
+  },
+  {
+   "class": "InstCombinePass",
+   "context": [
+    "cgscc",
+    "devirt<4>",
+    "function<eager-inv;no-rerun>"
+   ],
+   "family": "peephole-int",
+   "inventory_id": "pass:instcombine",
+   "name": "instcombine",
+   "pos": "16.1.3.20",
+   "replay": [
+    "function(instcombine<max-iterations=1;no-verify-fixpoint>)",
+    "cgscc(devirt<4>(function<eager-inv;no-rerun>(instcombine<max-iterations=1;no-verify-fixpoint>)))"
+   ],
+   "spec": "instcombine<max-iterations=1;no-verify-fixpoint>",
+   "unit": "function"
+  },
+  {
+   "class": "PostOrderFunctionAttrsPass",
+   "context": [
+    "cgscc",
+    "devirt<4>"
+   ],
+   "family": "attribute-inference",
+   "inventory_id": "pass:function-attrs",
+   "name": "function-attrs",
+   "pos": "16.1.4",
+   "replay": [
+    "cgscc(function-attrs)",
+    "cgscc(devirt<4>(function-attrs))"
+   ],
+   "spec": "function-attrs",
+   "unit": "cgscc"
+  },
+  {
+   "class": "RequireAnalysisPass<",
+   "context": [
+    "cgscc",
+    "devirt<4>",
+    "function"
+   ],
+   "family": "analysis-management",
+   "inventory_id": "pass:should-not-run-function-passes",
+   "name": "require<should-not-run-function-passes>",
+   "pos": "16.1.5.1",
+   "replay": [
+    "function(require<should-not-run-function-passes>)",
+    "cgscc(devirt<4>(function(require<should-not-run-function-passes>)))"
+   ],
+   "spec": "require<should-not-run-function-passes>",
+   "unit": "function"
+  },
+  {
+   "class": "CoroSplitPass",
+   "context": [
+    "cgscc",
+    "devirt<4>"
+   ],
+   "family": "coroutines",
+   "inventory_id": "pass:coro-split",
+   "name": "coro-split",
+   "pos": "16.1.6",
+   "replay": [
+    "cgscc(coro-split)",
+    "cgscc(devirt<4>(coro-split))"
+   ],
+   "spec": "coro-split",
+   "unit": "cgscc"
+  },
+  {
+   "class": "CoroAnnotationElidePass",
+   "context": [
+    "cgscc",
+    "devirt<4>"
+   ],
+   "family": "coroutines",
+   "inventory_id": "pass:coro-annotation-elide",
+   "name": "coro-annotation-elide",
+   "pos": "16.1.7",
+   "replay": [
+    "cgscc(coro-annotation-elide)",
+    "cgscc(devirt<4>(coro-annotation-elide))"
+   ],
+   "spec": "coro-annotation-elide",
+   "unit": "cgscc"
+  },
+  {
+   "class": "DeadArgumentEliminationPass",
+   "context": [],
+   "family": "dead-code",
+   "inventory_id": "pass:deadargelim",
+   "name": "deadargelim",
+   "pos": "17",
+   "replay": [
+    "deadargelim"
+   ],
+   "spec": "deadargelim",
+   "unit": "module"
+  },
+  {
+   "class": "CoroCleanupPass",
+   "context": [],
+   "family": "coroutines",
+   "inventory_id": "pass:coro-cleanup",
+   "name": "coro-cleanup",
+   "pos": "18",
+   "replay": [
+    "coro-cleanup"
+   ],
+   "spec": "coro-cleanup",
+   "unit": "module"
+  },
+  {
+   "class": "GlobalOptPass",
+   "context": [],
+   "family": "inlining-ipo",
+   "inventory_id": "pass:globalopt",
+   "name": "globalopt",
+   "pos": "19",
+   "replay": [
+    "globalopt"
+   ],
+   "spec": "globalopt",
+   "unit": "module"
+  },
+  {
+   "class": "GlobalDCEPass",
+   "context": [],
+   "family": "dead-code",
+   "inventory_id": "pass:globaldce",
+   "name": "globaldce",
+   "pos": "20",
+   "replay": [
+    "globaldce"
+   ],
+   "spec": "globaldce",
+   "unit": "module"
+  },
+  {
+   "class": "EliminateAvailableExternallyPass",
+   "context": [],
+   "family": "dead-code",
+   "inventory_id": "pass:elim-avail-extern",
+   "name": "elim-avail-extern",
+   "pos": "21",
+   "replay": [
+    "elim-avail-extern"
+   ],
+   "spec": "elim-avail-extern",
+   "unit": "module"
+  },
+  {
+   "class": "ReversePostOrderFunctionAttrsPass",
+   "context": [],
+   "family": "attribute-inference",
+   "inventory_id": "pass:rpo-function-attrs",
+   "name": "rpo-function-attrs",
+   "pos": "22",
+   "replay": [
+    "rpo-function-attrs"
+   ],
+   "spec": "rpo-function-attrs",
+   "unit": "module"
+  },
+  {
+   "class": "RecomputeGlobalsAAPass",
+   "context": [],
+   "family": "analysis-management",
+   "inventory_id": "pass:recompute-globalsaa",
+   "name": "recompute-globalsaa",
+   "pos": "23",
+   "replay": [
+    "recompute-globalsaa"
+   ],
+   "spec": "recompute-globalsaa",
+   "unit": "module"
+  },
+  {
+   "class": "DropUnnecessaryAssumesPass",
+   "context": [
+    "function<eager-inv>"
+   ],
+   "family": "annotation-noop",
+   "inventory_id": "pass:drop-unnecessary-assumes",
+   "name": "drop-unnecessary-assumes",
+   "pos": "24.1",
+   "replay": [
+    "function(drop-unnecessary-assumes)",
+    "function<eager-inv>(drop-unnecessary-assumes)"
+   ],
+   "spec": "drop-unnecessary-assumes",
+   "unit": "function"
+  },
+  {
+   "class": "Float2IntPass",
+   "context": [
+    "function<eager-inv>"
+   ],
+   "family": "fp-narrowing",
+   "inventory_id": "pass:float2int",
+   "name": "float2int",
+   "pos": "24.2",
+   "replay": [
+    "function(float2int)",
+    "function<eager-inv>(float2int)"
+   ],
+   "spec": "float2int",
+   "unit": "function"
+  },
+  {
+   "class": "LowerConstantIntrinsicsPass",
+   "context": [
+    "function<eager-inv>"
+   ],
+   "family": "annotation-noop",
+   "inventory_id": "pass:lower-constant-intrinsics",
+   "name": "lower-constant-intrinsics",
+   "pos": "24.3",
+   "replay": [
+    "function(lower-constant-intrinsics)",
+    "function<eager-inv>(lower-constant-intrinsics)"
+   ],
+   "spec": "lower-constant-intrinsics",
+   "unit": "function"
+  },
+  {
+   "class": "LoopRotatePass",
+   "context": [
+    "function<eager-inv>",
+    "loop"
+   ],
+   "family": "loops",
+   "inventory_id": "pass:loop-rotate",
+   "name": "loop-rotate",
+   "pos": "24.4.1",
+   "replay": [
+    "function(loop(loop-rotate<header-duplication;no-prepare-for-lto;check-exit-count>))",
+    "function<eager-inv>(loop(loop-rotate<header-duplication;no-prepare-for-lto;check-exit-count>))"
+   ],
+   "spec": "loop-rotate<header-duplication;no-prepare-for-lto;check-exit-count>",
+   "unit": "loop"
+  },
+  {
+   "class": "LoopDeletionPass",
+   "context": [
+    "function<eager-inv>",
+    "loop"
+   ],
+   "family": "loops",
+   "inventory_id": "pass:loop-deletion",
+   "name": "loop-deletion",
+   "pos": "24.4.2",
+   "replay": [
+    "function(loop(loop-deletion))",
+    "function<eager-inv>(loop(loop-deletion))"
+   ],
+   "spec": "loop-deletion",
+   "unit": "loop"
+  },
+  {
+   "class": "LoopInterchangePass",
+   "context": [
+    "function<eager-inv>",
+    "loop"
+   ],
+   "family": "loops",
+   "inventory_id": "pass:loop-interchange",
+   "name": "loop-interchange",
+   "pos": "24.4.3",
+   "replay": [
+    "function(loop(loop-interchange))",
+    "function<eager-inv>(loop(loop-interchange))"
+   ],
+   "spec": "loop-interchange",
+   "unit": "loop"
+  },
+  {
+   "class": "LoopDistributePass",
+   "context": [
+    "function<eager-inv>"
+   ],
+   "family": "loops",
+   "inventory_id": "pass:loop-distribute",
+   "name": "loop-distribute",
+   "pos": "24.5",
+   "replay": [
+    "function(loop-distribute)",
+    "function<eager-inv>(loop-distribute)"
+   ],
+   "spec": "loop-distribute",
+   "unit": "function"
+  },
+  {
+   "class": "InjectTLIMappings",
+   "context": [
+    "function<eager-inv>"
+   ],
+   "family": "vectorization",
+   "inventory_id": "pass:inject-tli-mappings",
+   "name": "inject-tli-mappings",
+   "pos": "24.6",
+   "replay": [
+    "function(inject-tli-mappings)",
+    "function<eager-inv>(inject-tli-mappings)"
+   ],
+   "spec": "inject-tli-mappings",
+   "unit": "function"
+  },
+  {
+   "class": "LoopVectorizePass",
+   "context": [
+    "function<eager-inv>"
+   ],
+   "family": "vectorization",
+   "inventory_id": "pass:loop-vectorize",
+   "name": "loop-vectorize",
+   "pos": "24.7",
+   "replay": [
+    "function(loop-vectorize<no-interleave-forced-only;vectorize-forced-only;>)",
+    "function<eager-inv>(loop-vectorize<no-interleave-forced-only;vectorize-forced-only;>)"
+   ],
+   "spec": "loop-vectorize<no-interleave-forced-only;vectorize-forced-only;>",
+   "unit": "function"
+  },
+  {
+   "class": "DropUnnecessaryAssumesPass",
+   "context": [
+    "function<eager-inv>"
+   ],
+   "family": "annotation-noop",
+   "inventory_id": "pass:drop-unnecessary-assumes",
+   "name": "drop-unnecessary-assumes",
+   "pos": "24.8",
+   "replay": [
+    "function(drop-unnecessary-assumes)",
+    "function<eager-inv>(drop-unnecessary-assumes)"
+   ],
+   "spec": "drop-unnecessary-assumes",
+   "unit": "function"
+  },
+  {
+   "class": "InferAlignmentPass",
+   "context": [
+    "function<eager-inv>"
+   ],
+   "family": "memory-promotion",
+   "inventory_id": "pass:infer-alignment",
+   "name": "infer-alignment",
+   "pos": "24.9",
+   "replay": [
+    "function(infer-alignment)",
+    "function<eager-inv>(infer-alignment)"
+   ],
+   "spec": "infer-alignment",
+   "unit": "function"
+  },
+  {
+   "class": "LoopLoadEliminationPass",
+   "context": [
+    "function<eager-inv>"
+   ],
+   "family": "memory-promotion",
+   "inventory_id": "pass:loop-load-elim",
+   "name": "loop-load-elim",
+   "pos": "24.10",
+   "replay": [
+    "function(loop-load-elim)",
+    "function<eager-inv>(loop-load-elim)"
+   ],
+   "spec": "loop-load-elim",
+   "unit": "function"
+  },
+  {
+   "class": "InstCombinePass",
+   "context": [
+    "function<eager-inv>"
+   ],
+   "family": "peephole-int",
+   "inventory_id": "pass:instcombine",
+   "name": "instcombine",
+   "pos": "24.11",
+   "replay": [
+    "function(instcombine<max-iterations=1;no-verify-fixpoint>)",
+    "function<eager-inv>(instcombine<max-iterations=1;no-verify-fixpoint>)"
+   ],
+   "spec": "instcombine<max-iterations=1;no-verify-fixpoint>",
+   "unit": "function"
+  },
+  {
+   "class": "SimplifyCFGPass",
+   "context": [
+    "function<eager-inv>"
+   ],
+   "family": "cfg",
+   "inventory_id": "pass:simplifycfg",
+   "name": "simplifycfg",
+   "pos": "24.12",
+   "replay": [
+    "function(simplifycfg<bonus-inst-threshold=1;forward-switch-cond;switch-range-to-icmp;switch-to-arithmetic;switch-to-lookup;no-keep-loops;hoist-common-insts;no-hoist-loads-stores-with-cond-faulting;sink-common-insts;speculate-blocks;simplify-cond-branch;no-speculate-unpredictables>)",
+    "function<eager-inv>(simplifycfg<bonus-inst-threshold=1;forward-switch-cond;switch-range-to-icmp;switch-to-arithmetic;switch-to-lookup;no-keep-loops;hoist-common-insts;no-hoist-loads-stores-with-cond-faulting;sink-common-insts;speculate-blocks;simplify-cond-branch;no-speculate-unpredictables>)"
+   ],
+   "spec": "simplifycfg<bonus-inst-threshold=1;forward-switch-cond;switch-range-to-icmp;switch-to-arithmetic;switch-to-lookup;no-keep-loops;hoist-common-insts;no-hoist-loads-stores-with-cond-faulting;sink-common-insts;speculate-blocks;simplify-cond-branch;no-speculate-unpredictables>",
+   "unit": "function"
+  },
+  {
+   "class": "VectorCombinePass",
+   "context": [
+    "function<eager-inv>"
+   ],
+   "family": "peephole-int",
+   "inventory_id": "pass:vector-combine",
+   "name": "vector-combine",
+   "pos": "24.13",
+   "replay": [
+    "function(vector-combine)",
+    "function<eager-inv>(vector-combine)"
+   ],
+   "spec": "vector-combine",
+   "unit": "function"
+  },
+  {
+   "class": "InstCombinePass",
+   "context": [
+    "function<eager-inv>"
+   ],
+   "family": "peephole-int",
+   "inventory_id": "pass:instcombine",
+   "name": "instcombine",
+   "pos": "24.14",
+   "replay": [
+    "function(instcombine<max-iterations=1;no-verify-fixpoint>)",
+    "function<eager-inv>(instcombine<max-iterations=1;no-verify-fixpoint>)"
+   ],
+   "spec": "instcombine<max-iterations=1;no-verify-fixpoint>",
+   "unit": "function"
+  },
+  {
+   "class": "LoopUnrollPass",
+   "context": [
+    "function<eager-inv>"
+   ],
+   "family": "loops",
+   "inventory_id": "pass:loop-unroll",
+   "name": "loop-unroll",
+   "pos": "24.15",
+   "replay": [
+    "function(loop-unroll<O1>)",
+    "function<eager-inv>(loop-unroll<O1>)"
+   ],
+   "spec": "loop-unroll<O1>",
+   "unit": "function"
+  },
+  {
+   "class": "WarnMissedTransformationsPass",
+   "context": [
+    "function<eager-inv>"
+   ],
+   "family": "annotation-noop",
+   "inventory_id": "pass:transform-warning",
+   "name": "transform-warning",
+   "pos": "24.16",
+   "replay": [
+    "function(transform-warning)",
+    "function<eager-inv>(transform-warning)"
+   ],
+   "spec": "transform-warning",
+   "unit": "function"
+  },
+  {
+   "class": "SROAPass",
+   "context": [
+    "function<eager-inv>"
+   ],
+   "family": "memory-promotion",
+   "inventory_id": "pass:sroa",
+   "name": "sroa",
+   "pos": "24.17",
+   "replay": [
+    "function(sroa<preserve-cfg;aggregate-to-vector>)",
+    "function<eager-inv>(sroa<preserve-cfg;aggregate-to-vector>)"
+   ],
+   "spec": "sroa<preserve-cfg;aggregate-to-vector>",
+   "unit": "function"
+  },
+  {
+   "class": "InferAlignmentPass",
+   "context": [
+    "function<eager-inv>"
+   ],
+   "family": "memory-promotion",
+   "inventory_id": "pass:infer-alignment",
+   "name": "infer-alignment",
+   "pos": "24.18",
+   "replay": [
+    "function(infer-alignment)",
+    "function<eager-inv>(infer-alignment)"
+   ],
+   "spec": "infer-alignment",
+   "unit": "function"
+  },
+  {
+   "class": "InstCombinePass",
+   "context": [
+    "function<eager-inv>"
+   ],
+   "family": "peephole-int",
+   "inventory_id": "pass:instcombine",
+   "name": "instcombine",
+   "pos": "24.19",
+   "replay": [
+    "function(instcombine<max-iterations=1;no-verify-fixpoint>)",
+    "function<eager-inv>(instcombine<max-iterations=1;no-verify-fixpoint>)"
+   ],
+   "spec": "instcombine<max-iterations=1;no-verify-fixpoint>",
+   "unit": "function"
+  },
+  {
+   "class": "LICMPass",
+   "context": [
+    "function<eager-inv>",
+    "loop-mssa"
+   ],
+   "family": "loops",
+   "inventory_id": "pass:licm",
+   "name": "licm",
+   "pos": "24.20.1",
+   "replay": [
+    "function(loop-mssa(licm<allowspeculation>))",
+    "function<eager-inv>(loop-mssa(licm<allowspeculation>))"
+   ],
+   "spec": "licm<allowspeculation>",
+   "unit": "loop"
+  },
+  {
+   "class": "AlignmentFromAssumptionsPass",
+   "context": [
+    "function<eager-inv>"
+   ],
+   "family": "memory-promotion",
+   "inventory_id": "pass:alignment-from-assumptions",
+   "name": "alignment-from-assumptions",
+   "pos": "24.21",
+   "replay": [
+    "function(alignment-from-assumptions)",
+    "function<eager-inv>(alignment-from-assumptions)"
+   ],
+   "spec": "alignment-from-assumptions",
+   "unit": "function"
+  },
+  {
+   "class": "LoopSinkPass",
+   "context": [
+    "function<eager-inv>"
+   ],
+   "family": "loops",
+   "inventory_id": "pass:loop-sink",
+   "name": "loop-sink",
+   "pos": "24.22",
+   "replay": [
+    "function(loop-sink)",
+    "function<eager-inv>(loop-sink)"
+   ],
+   "spec": "loop-sink",
+   "unit": "function"
+  },
+  {
+   "class": "InstSimplifyPass",
+   "context": [
+    "function<eager-inv>"
+   ],
+   "family": "peephole-int",
+   "inventory_id": "pass:instsimplify",
+   "name": "instsimplify",
+   "pos": "24.23",
+   "replay": [
+    "function(instsimplify)",
+    "function<eager-inv>(instsimplify)"
+   ],
+   "spec": "instsimplify",
+   "unit": "function"
+  },
+  {
+   "class": "DivRemPairsPass",
+   "context": [
+    "function<eager-inv>"
+   ],
+   "family": "peephole-int",
+   "inventory_id": "pass:div-rem-pairs",
+   "name": "div-rem-pairs",
+   "pos": "24.24",
+   "replay": [
+    "function(div-rem-pairs)",
+    "function<eager-inv>(div-rem-pairs)"
+   ],
+   "spec": "div-rem-pairs",
+   "unit": "function"
+  },
+  {
+   "class": "MergeICmpsPass",
+   "context": [
+    "function<eager-inv>"
+   ],
+   "family": "libcalls",
+   "inventory_id": "pass:mergeicmps",
+   "name": "mergeicmps",
+   "pos": "24.25",
+   "replay": [
+    "function(mergeicmps)",
+    "function<eager-inv>(mergeicmps)"
+   ],
+   "spec": "mergeicmps",
+   "unit": "function"
+  },
+  {
+   "class": "ExpandMemCmpPass",
+   "context": [
+    "function<eager-inv>"
+   ],
+   "family": "libcalls",
+   "inventory_id": "pass:expand-memcmp",
+   "name": "expand-memcmp",
+   "pos": "24.26",
+   "replay": [
+    "function(expand-memcmp)",
+    "function<eager-inv>(expand-memcmp)"
+   ],
+   "spec": "expand-memcmp",
+   "unit": "function"
+  },
+  {
+   "class": "TailCallElimPass",
+   "context": [
+    "function<eager-inv>"
+   ],
+   "family": "cfg",
+   "inventory_id": "pass:tailcallelim",
+   "name": "tailcallelim",
+   "pos": "24.27",
+   "replay": [
+    "function(tailcallelim)",
+    "function<eager-inv>(tailcallelim)"
+   ],
+   "spec": "tailcallelim",
+   "unit": "function"
+  },
+  {
+   "class": "SimplifyCFGPass",
+   "context": [
+    "function<eager-inv>"
+   ],
+   "family": "cfg",
+   "inventory_id": "pass:simplifycfg",
+   "name": "simplifycfg",
+   "pos": "24.28",
+   "replay": [
+    "function(simplifycfg<bonus-inst-threshold=1;no-forward-switch-cond;switch-range-to-icmp;switch-to-arithmetic;no-switch-to-lookup;keep-loops;no-hoist-common-insts;hoist-loads-stores-with-cond-faulting;no-sink-common-insts;speculate-blocks;simplify-cond-branch;speculate-unpredictables>)",
+    "function<eager-inv>(simplifycfg<bonus-inst-threshold=1;no-forward-switch-cond;switch-range-to-icmp;switch-to-arithmetic;no-switch-to-lookup;keep-loops;no-hoist-common-insts;hoist-loads-stores-with-cond-faulting;no-sink-common-insts;speculate-blocks;simplify-cond-branch;speculate-unpredictables>)"
+   ],
+   "spec": "simplifycfg<bonus-inst-threshold=1;no-forward-switch-cond;switch-range-to-icmp;switch-to-arithmetic;no-switch-to-lookup;keep-loops;no-hoist-common-insts;hoist-loads-stores-with-cond-faulting;no-sink-common-insts;speculate-blocks;simplify-cond-branch;speculate-unpredictables>",
+   "unit": "function"
+  },
+  {
+   "class": "AllocTokenPass",
+   "context": [],
+   "family": "annotation-noop",
+   "inventory_id": "pass:alloc-token",
+   "name": "alloc-token",
+   "pos": "25",
+   "replay": [
+    "alloc-token"
+   ],
+   "spec": "alloc-token",
+   "unit": "module"
+  },
+  {
+   "class": "GlobalDCEPass",
+   "context": [],
+   "family": "dead-code",
+   "inventory_id": "pass:globaldce",
+   "name": "globaldce",
+   "pos": "26",
+   "replay": [
+    "globaldce"
+   ],
+   "spec": "globaldce",
+   "unit": "module"
+  },
+  {
+   "class": "ConstantMergePass",
+   "context": [],
+   "family": "dead-code",
+   "inventory_id": "pass:constmerge",
+   "name": "constmerge",
+   "pos": "27",
+   "replay": [
+    "constmerge"
+   ],
+   "spec": "constmerge",
+   "unit": "module"
+  },
+  {
+   "class": "CGProfilePass",
+   "context": [],
+   "family": "annotation-noop",
+   "inventory_id": "pass:cg-profile",
+   "name": "cg-profile",
+   "pos": "28",
+   "replay": [
+    "cg-profile"
+   ],
+   "spec": "cg-profile",
+   "unit": "module"
+  },
+  {
+   "class": "RelLookupTableConverterPass",
+   "context": [],
+   "family": "annotation-noop",
+   "inventory_id": "pass:rel-lookup-table-converter",
+   "name": "rel-lookup-table-converter",
+   "pos": "29",
+   "replay": [
+    "rel-lookup-table-converter"
+   ],
+   "spec": "rel-lookup-table-converter",
+   "unit": "module"
+  },
+  {
+   "class": "LowerCommentStringPass",
+   "context": [],
+   "family": "annotation-noop",
+   "inventory_id": "pass:lower-comment-string",
+   "name": "lower-comment-string",
+   "pos": "30",
+   "replay": [
+    "lower-comment-string"
+   ],
+   "spec": "lower-comment-string",
+   "unit": "module"
+  },
+  {
+   "class": "AnnotationRemarksPass",
+   "context": [
+    "function"
+   ],
+   "family": "annotation-noop",
+   "inventory_id": "pass:annotation-remarks",
+   "name": "annotation-remarks",
+   "pos": "31.1",
+   "replay": [
+    "function(annotation-remarks)"
+   ],
+   "spec": "annotation-remarks",
+   "unit": "function"
+  },
+  {
+   "class": "VerifierPass",
+   "context": [],
+   "family": "annotation-noop",
+   "inventory_id": "pass:verify",
+   "name": "verify",
+   "pos": "32",
+   "replay": [
+    "verify"
+   ],
+   "spec": "verify",
+   "unit": "module"
+  }
+ ],
+ "level": "O1",
+ "pipeline_sha256": "ba284b24e327559b8f65c15329143cbb942a283f7822b1a8b3ba15adc79bc1a7",
+ "positions": 100,
+ "positions_by_family": {
+  "analysis-management": 5,
+  "annotation-noop": 14,
+  "attribute-inference": 5,
+  "cfg": 10,
+  "coroutines": 5,
+  "dead-code": 6,
+  "fp-narrowing": 1,
+  "inlining-ipo": 5,
+  "libcalls": 3,
+  "loops": 15,
+  "memory-promotion": 10,
+  "peephole-int": 14,
+  "redundancy-constprop": 5,
+  "vectorization": 2
+ },
+ "schema": "ir-lean.o1.pipeline/1",
+ "spec": "default<O1>",
+ "unfamilied": []
+}

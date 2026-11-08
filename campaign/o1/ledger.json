@@ -1,0 +1,1828 @@
+{
+ "analyses_seen": {
+  "by_kind": {
+   "fact": [
+    "AAManager",
+    "AssumptionAnalysis",
+    "BasicAA",
+    "CallGraphAnalysis",
+    "DemandedBitsAnalysis",
+    "DominatorTreeAnalysis",
+    "GlobalsAA",
+    "LazyCallGraphAnalysis",
+    "LoopAccessAnalysis",
+    "LoopAnalysis",
+    "MemorySSAAnalysis",
+    "PostDominatorTreeAnalysis",
+    "ScalarEvolutionAnalysis",
+    "ScopedNoAliasAA",
+    "TargetLibraryAnalysis",
+    "TypeBasedAA",
+    "VerifierAnalysis"
+   ],
+   "heuristic": [
+    "InlineAdvisorAnalysis",
+    "OptimizationRemarkEmitterAnalysis",
+    "ProfileSummaryAnalysis",
+    "TargetIRAnalysis"
+   ],
+   "infrastructure": [
+    "FunctionAnalysisManagerCGSCCProxy",
+    "InnerAnalysisManagerProxy<CGSCCAnalysisManager, Module>",
+    "InnerAnalysisManagerProxy<FunctionAnalysisManager, Module>",
+    "InnerAnalysisManagerProxy<LoopAnalysisManager, Function>",
+    "LastRunTrackingAnalysis",
+    "OuterAnalysisManagerProxy<ModuleAnalysisManager, Function>",
+    "OuterAnalysisManagerProxy<ModuleAnalysisManager, LazyCallGraph::SCC, LazyCallGraph &>",
+    "ShouldNotRunFunctionPassesAnalysis"
+   ]
+  },
+  "note": "Those this corpus made opt run: a lower bound on what default<O1> reads"
+ },
+ "cases": {
+  "add_mul_pow2": {
+   "chain_to_output": "broken at step 5 of 5, function-attrs: trusted_promise",
+   "first_promise_step": {
+    "k": 5,
+    "pass": "function-attrs",
+    "pos": "16.1.4"
+   },
+   "input_sha256": "4de324a4952e9e51ce7742e6c176a7e7693b7abdf3ae7bd6dec97e6c6ea3da51",
+   "o1_sha256": "c82ead897f753393fdcf7faad36a535abf018c3bbbc85f8a9cbb1e4d8af7b757",
+   "replayed_consistently": true,
+   "steps_bound": 4,
+   "steps_changed": 5,
+   "whole_run": {
+    "reason": "trusted_promise",
+    "status": "unsupported"
+   }
+  },
+  "const_branch": {
+   "chain_to_output": "broken at step 1 of 6, simplifycfg: no_certificate_template",
+   "first_promise_step": {
+    "k": 6,
+    "pass": "function-attrs",
+    "pos": "16.1.4"
+   },
+   "input_sha256": "a18a5a5574ed0ad975c216e77fdaba38f14649e26e647112f40bdae868fd9eec",
+   "o1_sha256": "cc634ef9fb3ea712ff8d44fa5c0ad079540a8bc8d9826d2a8b6c33e93904f972",
+   "replayed_consistently": true,
+   "steps_bound": 4,
+   "steps_changed": 6,
+   "whole_run": {
+    "reason": "trusted_promise",
+    "status": "unsupported"
+   }
+  },
+  "cse_xor": {
+   "chain_to_output": "broken at step 6 of 6, function-attrs: trusted_promise",
+   "first_promise_step": {
+    "k": 6,
+    "pass": "function-attrs",
+    "pos": "16.1.4"
+   },
+   "input_sha256": "ad18833ea6f724c1d84232744cd53e94432478bec5672269324ee6e630983191",
+   "o1_sha256": "1d713207a00df8af2ef19bf9ee63d66183034f29496aa747292c105b3b2b5554",
+   "replayed_consistently": true,
+   "steps_bound": 5,
+   "steps_changed": 6,
+   "whole_run": {
+    "reason": "trusted_promise",
+    "status": "unsupported"
+   }
+  },
+  "dead_values": {
+   "chain_to_output": "broken at step 4 of 5, instcombine: certificate_compile_failed",
+   "first_promise_step": {
+    "k": 5,
+    "pass": "function-attrs",
+    "pos": "16.1.4"
+   },
+   "input_sha256": "30d9473168c88748354bdf00847eddcb0d5d0dc78038693dc8009f751bc578f2",
+   "o1_sha256": "c195e71dfbdc751744a3fa78d0cd51207c94596e114edca4ea433af1e75aff6b",
+   "replayed_consistently": true,
+   "steps_bound": 3,
+   "steps_changed": 5,
+   "whole_run": {
+    "reason": "trusted_promise",
+    "status": "unsupported"
+   }
+  },
+  "diamond_phi": {
+   "chain_to_output": "broken at step 1 of 5, simplifycfg: no_certificate_template",
+   "first_promise_step": {
+    "k": 5,
+    "pass": "function-attrs",
+    "pos": "16.1.4"
+   },
+   "input_sha256": "4f61d831a02708b45551aa8240a60cb61dedcaf0619f7147898d5e02e3661339",
+   "o1_sha256": "00b607869bbc3ae1312f01c60a9224eab6ae9d4dc2ade5e3b0abe3464fb6b44c",
+   "replayed_consistently": true,
+   "steps_bound": 1,
+   "steps_changed": 5,
+   "whole_run": {
+    "reason": "trusted_promise",
+    "status": "unsupported"
+   }
+  },
+  "loop_collatz": {
+   "chain_to_output": "broken at step 1 of 19, globalopt: no_certificate_template",
+   "first_promise_step": null,
+   "input_sha256": "ad11c23032c89a5528adf92af356e0b4bca995e58509d4268e9cd0cf755656eb",
+   "o1_sha256": "4545308e15e2b66e4bdd8221ad1b50f1c20bb2e2cacb6da6cbedf36879d99ad3",
+   "replayed_consistently": true,
+   "steps_bound": 0,
+   "steps_changed": 19,
+   "whole_run": {
+    "reason": "certificate_compile_failed",
+    "status": "refused"
+   }
+  },
+  "loop_invariant": {
+   "chain_to_output": "broken at step 1 of 22, globalopt: no_certificate_template",
+   "first_promise_step": null,
+   "input_sha256": "345a0ca139e7b5963975bb1a64429add9ccc74324dc872582ea4d63314cb6c1b",
+   "o1_sha256": "8afa07cab3c1aac7d714a3aa126b8fec6a364bfd88852e4bd0342afa82b14df1",
+   "replayed_consistently": true,
+   "steps_bound": 0,
+   "steps_changed": 22,
+   "whole_run": {
+    "reason": "certificate_compile_failed",
+    "status": "refused"
+   }
+  },
+  "reassoc_consts": {
+   "chain_to_output": "broken at step 3 of 3, function-attrs: trusted_promise",
+   "first_promise_step": {
+    "k": 3,
+    "pass": "function-attrs",
+    "pos": "16.1.4"
+   },
+   "input_sha256": "9153f1c95a338de83821554d82702a74250d8c1b867d31cc61a2eecbcfc70e7b",
+   "o1_sha256": "43e576b9f19110b59b7012a48d5d49fffe3c8d37a7ded79ed96c762f034276f8",
+   "replayed_consistently": true,
+   "steps_bound": 2,
+   "steps_changed": 3,
+   "whole_run": {
+    "reason": "trusted_promise",
+    "status": "unsupported"
+   }
+  },
+  "shift_mask": {
+   "chain_to_output": "broken at step 3 of 4, instcombine: certificate_compile_failed",
+   "first_promise_step": {
+    "k": 4,
+    "pass": "function-attrs",
+    "pos": "16.1.4"
+   },
+   "input_sha256": "845f0f1f802f4f982ec93437b6ca2fa235c58257bc7b46183e7b9b7642bdb9c6",
+   "o1_sha256": "cb161569ad6b31f5b4e61447691ebb1515464f319d9c44807938d1043bd45c40",
+   "replayed_consistently": true,
+   "steps_bound": 2,
+   "steps_changed": 4,
+   "whole_run": {
+    "reason": "trusted_promise",
+    "status": "unsupported"
+   }
+  },
+  "sub_add_cancel": {
+   "chain_to_output": "broken at step 4 of 4, function-attrs: trusted_promise",
+   "first_promise_step": {
+    "k": 4,
+    "pass": "function-attrs",
+    "pos": "16.1.4"
+   },
+   "input_sha256": "30b676ee64bb3ce83c64e3223620d3d6391a5200cac627f7da4a6a9a212155fb",
+   "o1_sha256": "fbdcaf8cd168c6390cedc1d559238caea023abfd33884c02a02248e3fee3daa9",
+   "replayed_consistently": true,
+   "steps_bound": 3,
+   "steps_changed": 4,
+   "whole_run": {
+    "reason": "trusted_promise",
+    "status": "unsupported"
+   }
+  }
+ },
+ "complete": false,
+ "corpus": {
+  "cases": 10,
+  "not_attempted_because": {
+   "no_certificate_template": 43,
+   "replay_mismatch_comments_only": 26,
+   "trusted_promise": 8
+  },
+  "positions_never_run": 0,
+  "positions_run": 100,
+  "positions_that_changed_ir": 21,
+  "steps": 79,
+  "verdict_reasons": {
+   "bound:replayed": 24,
+   "refused:certificate_compile_failed": 4
+  },
+  "verdicts": {
+   "bound": 24,
+   "bound_unlinked": 0,
+   "error": 0,
+   "not_attempted": 51,
+   "refused": 4,
+   "unknown": 0,
+   "unsupported": 0
+  },
+  "whole_run_verdicts": {
+   "refused:certificate_compile_failed": 2,
+   "unsupported:trusted_promise": 8
+  }
+ },
+ "denominators": {
+  "adaptors": 13,
+  "distinct_printed_passes": 73,
+  "families": 14,
+  "implicit_passes_seen": [
+   "inliner-wrapper",
+   "lcssa",
+   "loop-simplify"
+  ],
+  "obligations": {
+   "all-input": 76,
+   "analysis-soundness": 29,
+   "code-binding": 76,
+   "composition_adaptors": 13,
+   "composition_positions": 100
+  },
+  "passes": 76,
+  "positions": 100
+ },
+ "discharged": {
+  "all-input": 0,
+  "analysis-soundness": 0,
+  "code-binding": 0,
+  "composition": 0
+ },
+ "families": {
+  "analysis-management": {
+   "all_input_proved": 0,
+   "blocked_by": [
+    "PASS-01",
+    "PASS-05"
+   ],
+   "later_steps_its_promises_block": 0,
+   "passes": 5,
+   "positions": 5,
+   "steps_bound": 0,
+   "steps_changed": 0,
+   "title": "Analysis requirements and invalidation"
+  },
+  "annotation-noop": {
+   "all_input_proved": 0,
+   "blocked_by": [
+    "SEM-08",
+    "INV-09"
+   ],
+   "later_steps_its_promises_block": 0,
+   "passes": 13,
+   "positions": 14,
+   "steps_bound": 0,
+   "steps_changed": 0,
+   "title": "Annotations, metadata, intrinsic lowering and checks"
+  },
+  "attribute-inference": {
+   "all_input_proved": 0,
+   "blocked_by": [
+    "SEM-07",
+    "PASS-01",
+    "LOOP-03"
+   ],
+   "later_steps_its_promises_block": 8,
+   "passes": 4,
+   "positions": 5,
+   "steps_bound": 0,
+   "steps_changed": 10,
+   "title": "Attribute and promise inference"
+  },
+  "cfg": {
+   "all_input_proved": 0,
+   "blocked_by": [
+    "SEM-01",
+    "SEM-07",
+    "PASS-01",
+    "PASS-04"
+   ],
+   "later_steps_its_promises_block": 0,
+   "passes": 3,
+   "positions": 10,
+   "steps_bound": 0,
+   "steps_changed": 10,
+   "title": "Control flow simplification"
+  },
+  "coroutines": {
+   "all_input_proved": 0,
+   "blocked_by": [
+    "SEM-09"
+   ],
+   "later_steps_its_promises_block": 0,
+   "passes": 5,
+   "positions": 5,
+   "steps_bound": 0,
+   "steps_changed": 0,
+   "title": "Coroutines"
+  },
+  "dead-code": {
+   "all_input_proved": 0,
+   "blocked_by": [
+    "SEM-01",
+    "SEM-07",
+    "PASS-04",
+    "LOOP-03"
+   ],
+   "later_steps_its_promises_block": 0,
+   "passes": 5,
+   "positions": 6,
+   "steps_bound": 0,
+   "steps_changed": 0,
+   "title": "Dead code and dead global elimination"
+  },
+  "fp-narrowing": {
+   "all_input_proved": 0,
+   "blocked_by": [
+    "SEM-05"
+   ],
+   "later_steps_its_promises_block": 0,
+   "passes": 1,
+   "positions": 1,
+   "steps_bound": 0,
+   "steps_changed": 0,
+   "title": "Floating point to integer narrowing"
+  },
+  "inlining-ipo": {
+   "all_input_proved": 0,
+   "blocked_by": [
+    "SEM-06",
+    "SEM-07",
+    "LOOP-03",
+    "PASS-05"
+   ],
+   "later_steps_its_promises_block": 0,
+   "passes": 5,
+   "positions": 5,
+   "steps_bound": 8,
+   "steps_changed": 10,
+   "title": "Inlining and interprocedural transforms"
+  },
+  "libcalls": {
+   "all_input_proved": 0,
+   "blocked_by": [
+    "SEM-06",
+    "SEM-07",
+    "INV-05"
+   ],
+   "later_steps_its_promises_block": 0,
+   "passes": 3,
+   "positions": 3,
+   "steps_bound": 0,
+   "steps_changed": 0,
+   "title": "Library call semantics"
+  },
+  "loops": {
+   "all_input_proved": 0,
+   "blocked_by": [
+    "SEM-07",
+    "PASS-01",
+    "LOOP-01"
+   ],
+   "later_steps_its_promises_block": 0,
+   "passes": 13,
+   "positions": 15,
+   "steps_bound": 0,
+   "steps_changed": 18,
+   "title": "Loop canonicalization and loop transforms"
+  },
+  "memory-promotion": {
+   "all_input_proved": 0,
+   "blocked_by": [
+    "SEM-02",
+    "SEM-06",
+    "PASS-01",
+    "PASS-04"
+   ],
+   "later_steps_its_promises_block": 0,
+   "passes": 6,
+   "positions": 10,
+   "steps_bound": 0,
+   "steps_changed": 0,
+   "title": "Memory to SSA, and memory operation rewriting"
+  },
+  "peephole-int": {
+   "all_input_proved": 0,
+   "blocked_by": [
+    "INV-04",
+    "SEM-01",
+    "SEM-03",
+    "SEM-04",
+    "AUTO-01",
+    "AUTO-03",
+    "PASS-03"
+   ],
+   "later_steps_its_promises_block": 0,
+   "passes": 7,
+   "positions": 14,
+   "steps_bound": 6,
+   "steps_changed": 21,
+   "title": "Local integer and vector rewrites"
+  },
+  "redundancy-constprop": {
+   "all_input_proved": 0,
+   "blocked_by": [
+    "SEM-01",
+    "SEM-06",
+    "PASS-01",
+    "PASS-04"
+   ],
+   "later_steps_its_promises_block": 0,
+   "passes": 4,
+   "positions": 5,
+   "steps_bound": 10,
+   "steps_changed": 10,
+   "title": "Redundancy elimination and constant propagation"
+  },
+  "vectorization": {
+   "all_input_proved": 0,
+   "blocked_by": [
+    "SEM-05",
+    "SEM-06",
+    "LOOP-02"
+   ],
+   "later_steps_its_promises_block": 0,
+   "passes": 2,
+   "positions": 2,
+   "steps_bound": 0,
+   "steps_changed": 0,
+   "title": "Vectorization"
+  }
+ },
+ "lemmas": {
+  "checked": 0,
+  "instances_discharged_by_a_lemma": 0,
+  "note": "Every bound step is its own certificate. A lemma counts only once it's kernel-checked under stated assumptions and a checked instantiation links it to a captured step's exact IR"
+ },
+ "level": "O1",
+ "passes": {
+  "adce": {
+   "all-input": "open",
+   "blocked_by": [
+    "SEM-01",
+    "SEM-07",
+    "PASS-04",
+    "LOOP-03"
+   ],
+   "code-binding": "open",
+   "composition": "open",
+   "family": "dead-code",
+   "implicit": false,
+   "positions": [
+    "16.1.3.18"
+   ],
+   "steps_bound": 0,
+   "steps_changed": 0
+  },
+  "alignment-from-assumptions": {
+   "all-input": "open",
+   "blocked_by": [
+    "SEM-02",
+    "SEM-06",
+    "PASS-01",
+    "PASS-04"
+   ],
+   "code-binding": "open",
+   "composition": "open",
+   "family": "memory-promotion",
+   "implicit": false,
+   "positions": [
+    "24.21"
+   ],
+   "steps_bound": 0,
+   "steps_changed": 0
+  },
+  "alloc-token": {
+   "all-input": "open",
+   "blocked_by": [
+    "SEM-08",
+    "INV-09"
+   ],
+   "code-binding": "open",
+   "composition": "open",
+   "family": "annotation-noop",
+   "implicit": false,
+   "positions": [
+    "25"
+   ],
+   "steps_bound": 0,
+   "steps_changed": 0
+  },
+  "always-inline": {
+   "all-input": "open",
+   "blocked_by": [
+    "SEM-06",
+    "SEM-07",
+    "LOOP-03",
+    "PASS-05"
+   ],
+   "code-binding": "open",
+   "composition": "open",
+   "family": "inlining-ipo",
+   "implicit": false,
+   "positions": [
+    "12"
+   ],
+   "steps_bound": 0,
+   "steps_changed": 0
+  },
+  "annotation-remarks": {
+   "all-input": "open",
+   "blocked_by": [
+    "SEM-08",
+    "INV-09"
+   ],
+   "code-binding": "open",
+   "composition": "open",
+   "family": "annotation-noop",
+   "implicit": false,
+   "positions": [
+    "31.1"
+   ],
+   "steps_bound": 0,
+   "steps_changed": 0
+  },
+  "annotation2metadata": {
+   "all-input": "open",
+   "blocked_by": [
+    "SEM-08",
+    "INV-09"
+   ],
+   "code-binding": "open",
+   "composition": "open",
+   "family": "annotation-noop",
+   "implicit": false,
+   "positions": [
+    "2"
+   ],
+   "steps_bound": 0,
+   "steps_changed": 0
+  },
+  "bdce": {
+   "all-input": "open",
+   "blocked_by": [
+    "INV-04",
+    "SEM-01",
+    "SEM-03",
+    "SEM-04",
+    "AUTO-01",
+    "AUTO-03",
+    "PASS-03"
+   ],
+   "code-binding": "open",
+   "composition": "open",
+   "family": "peephole-int",
+   "implicit": false,
+   "positions": [
+    "16.1.3.15"
+   ],
+   "steps_bound": 0,
+   "steps_changed": 0
+  },
+  "called-value-propagation": {
+   "all-input": "open",
+   "blocked_by": [
+    "SEM-01",
+    "SEM-06",
+    "PASS-01",
+    "PASS-04"
+   ],
+   "code-binding": "open",
+   "composition": "open",
+   "family": "redundancy-constprop",
+   "implicit": false,
+   "positions": [
+    "9"
+   ],
+   "steps_bound": 0,
+   "steps_changed": 0
+  },
+  "cg-profile": {
+   "all-input": "open",
+   "blocked_by": [
+    "SEM-08",
+    "INV-09"
+   ],
+   "code-binding": "open",
+   "composition": "open",
+   "family": "annotation-noop",
+   "implicit": false,
+   "positions": [
+    "28"
+   ],
+   "steps_bound": 0,
+   "steps_changed": 0
+  },
+  "constmerge": {
+   "all-input": "open",
+   "blocked_by": [
+    "SEM-01",
+    "SEM-07",
+    "PASS-04",
+    "LOOP-03"
+   ],
+   "code-binding": "open",
+   "composition": "open",
+   "family": "dead-code",
+   "implicit": false,
+   "positions": [
+    "27"
+   ],
+   "steps_bound": 0,
+   "steps_changed": 0
+  },
+  "coro-annotation-elide": {
+   "all-input": "open",
+   "blocked_by": [
+    "SEM-09"
+   ],
+   "code-binding": "open",
+   "composition": "open",
+   "family": "coroutines",
+   "implicit": false,
+   "positions": [
+    "16.1.7"
+   ],
+   "steps_bound": 0,
+   "steps_changed": 0
+  },
+  "coro-cleanup": {
+   "all-input": "open",
+   "blocked_by": [
+    "SEM-09"
+   ],
+   "code-binding": "open",
+   "composition": "open",
+   "family": "coroutines",
+   "implicit": false,
+   "positions": [
+    "18"
+   ],
+   "steps_bound": 0,
+   "steps_changed": 0
+  },
+  "coro-early": {
+   "all-input": "open",
+   "blocked_by": [
+    "SEM-09"
+   ],
+   "code-binding": "open",
+   "composition": "open",
+   "family": "coroutines",
+   "implicit": false,
+   "positions": [
+    "5"
+   ],
+   "steps_bound": 0,
+   "steps_changed": 0
+  },
+  "coro-elide": {
+   "all-input": "open",
+   "blocked_by": [
+    "SEM-09"
+   ],
+   "code-binding": "open",
+   "composition": "open",
+   "family": "coroutines",
+   "implicit": false,
+   "positions": [
+    "16.1.3.17"
+   ],
+   "steps_bound": 0,
+   "steps_changed": 0
+  },
+  "coro-split": {
+   "all-input": "open",
+   "blocked_by": [
+    "SEM-09"
+   ],
+   "code-binding": "open",
+   "composition": "open",
+   "family": "coroutines",
+   "implicit": false,
+   "positions": [
+    "16.1.6"
+   ],
+   "steps_bound": 0,
+   "steps_changed": 0
+  },
+  "deadargelim": {
+   "all-input": "open",
+   "blocked_by": [
+    "SEM-01",
+    "SEM-07",
+    "PASS-04",
+    "LOOP-03"
+   ],
+   "code-binding": "open",
+   "composition": "open",
+   "family": "dead-code",
+   "implicit": false,
+   "positions": [
+    "17"
+   ],
+   "steps_bound": 0,
+   "steps_changed": 0
+  },
+  "div-rem-pairs": {
+   "all-input": "open",
+   "blocked_by": [
+    "INV-04",
+    "SEM-01",
+    "SEM-03",
+    "SEM-04",
+    "AUTO-01",
+    "AUTO-03",
+    "PASS-03"
+   ],
+   "code-binding": "open",
+   "composition": "open",
+   "family": "peephole-int",
+   "implicit": false,
+   "positions": [
+    "24.24"
+   ],
+   "steps_bound": 0,
+   "steps_changed": 0
+  },
+  "drop-unnecessary-assumes": {
+   "all-input": "open",
+   "blocked_by": [
+    "SEM-08",
+    "INV-09"
+   ],
+   "code-binding": "open",
+   "composition": "open",
+   "family": "annotation-noop",
+   "implicit": false,
+   "positions": [
+    "24.1",
+    "24.8"
+   ],
+   "steps_bound": 0,
+   "steps_changed": 0
+  },
+  "early-cse": {
+   "all-input": "open",
+   "blocked_by": [
+    "SEM-01",
+    "SEM-06",
+    "PASS-01",
+    "PASS-04"
+   ],
+   "code-binding": "open",
+   "composition": "open",
+   "family": "redundancy-constprop",
+   "implicit": false,
+   "positions": [
+    "6.5",
+    "16.1.3.2"
+   ],
+   "steps_bound": 5,
+   "steps_changed": 5
+  },
+  "ee-instrument": {
+   "all-input": "open",
+   "blocked_by": [
+    "SEM-08",
+    "INV-09"
+   ],
+   "code-binding": "open",
+   "composition": "open",
+   "family": "annotation-noop",
+   "implicit": false,
+   "positions": [
+    "6.1"
+   ],
+   "steps_bound": 0,
+   "steps_changed": 0
+  },
+  "elim-avail-extern": {
+   "all-input": "open",
+   "blocked_by": [
+    "SEM-01",
+    "SEM-07",
+    "PASS-04",
+    "LOOP-03"
+   ],
+   "code-binding": "open",
+   "composition": "open",
+   "family": "dead-code",
+   "implicit": false,
+   "positions": [
+    "21"
+   ],
+   "steps_bound": 0,
+   "steps_changed": 0
+  },
+  "expand-memcmp": {
+   "all-input": "open",
+   "blocked_by": [
+    "SEM-06",
+    "SEM-07",
+    "INV-05"
+   ],
+   "code-binding": "open",
+   "composition": "open",
+   "family": "libcalls",
+   "implicit": false,
+   "positions": [
+    "24.26"
+   ],
+   "steps_bound": 0,
+   "steps_changed": 0
+  },
+  "float2int": {
+   "all-input": "open",
+   "blocked_by": [
+    "SEM-05"
+   ],
+   "code-binding": "open",
+   "composition": "open",
+   "family": "fp-narrowing",
+   "implicit": false,
+   "positions": [
+    "24.2"
+   ],
+   "steps_bound": 0,
+   "steps_changed": 0
+  },
+  "forceattrs": {
+   "all-input": "open",
+   "blocked_by": [
+    "SEM-07",
+    "PASS-01",
+    "LOOP-03"
+   ],
+   "code-binding": "open",
+   "composition": "open",
+   "family": "attribute-inference",
+   "implicit": false,
+   "positions": [
+    "3"
+   ],
+   "steps_bound": 0,
+   "steps_changed": 0
+  },
+  "function-attrs": {
+   "all-input": "open",
+   "blocked_by": [
+    "SEM-07",
+    "PASS-01",
+    "LOOP-03"
+   ],
+   "code-binding": "open",
+   "composition": "open",
+   "family": "attribute-inference",
+   "implicit": false,
+   "positions": [
+    "16.1.2",
+    "16.1.4"
+   ],
+   "steps_bound": 0,
+   "steps_changed": 10
+  },
+  "globaldce": {
+   "all-input": "open",
+   "blocked_by": [
+    "SEM-01",
+    "SEM-07",
+    "PASS-04",
+    "LOOP-03"
+   ],
+   "code-binding": "open",
+   "composition": "open",
+   "family": "dead-code",
+   "implicit": false,
+   "positions": [
+    "20",
+    "26"
+   ],
+   "steps_bound": 0,
+   "steps_changed": 0
+  },
+  "globalopt": {
+   "all-input": "open",
+   "blocked_by": [
+    "SEM-06",
+    "SEM-07",
+    "LOOP-03",
+    "PASS-05"
+   ],
+   "code-binding": "open",
+   "composition": "open",
+   "family": "inlining-ipo",
+   "implicit": false,
+   "positions": [
+    "10",
+    "19"
+   ],
+   "steps_bound": 8,
+   "steps_changed": 10
+  },
+  "indvars": {
+   "all-input": "open",
+   "blocked_by": [
+    "SEM-07",
+    "PASS-01",
+    "LOOP-01"
+   ],
+   "code-binding": "open",
+   "composition": "open",
+   "family": "loops",
+   "implicit": false,
+   "positions": [
+    "16.1.3.11.2"
+   ],
+   "steps_bound": 0,
+   "steps_changed": 1
+  },
+  "infer-alignment": {
+   "all-input": "open",
+   "blocked_by": [
+    "SEM-02",
+    "SEM-06",
+    "PASS-01",
+    "PASS-04"
+   ],
+   "code-binding": "open",
+   "composition": "open",
+   "family": "memory-promotion",
+   "implicit": false,
+   "positions": [
+    "24.9",
+    "24.18"
+   ],
+   "steps_bound": 0,
+   "steps_changed": 0
+  },
+  "inferattrs": {
+   "all-input": "open",
+   "blocked_by": [
+    "SEM-07",
+    "PASS-01",
+    "LOOP-03"
+   ],
+   "code-binding": "open",
+   "composition": "open",
+   "family": "attribute-inference",
+   "implicit": false,
+   "positions": [
+    "4"
+   ],
+   "steps_bound": 0,
+   "steps_changed": 0
+  },
+  "inject-tli-mappings": {
+   "all-input": "open",
+   "blocked_by": [
+    "SEM-05",
+    "SEM-06",
+    "LOOP-02"
+   ],
+   "code-binding": "open",
+   "composition": "open",
+   "family": "vectorization",
+   "implicit": false,
+   "positions": [
+    "24.6"
+   ],
+   "steps_bound": 0,
+   "steps_changed": 0
+  },
+  "inline": {
+   "all-input": "open",
+   "blocked_by": [
+    "SEM-06",
+    "SEM-07",
+    "LOOP-03",
+    "PASS-05"
+   ],
+   "code-binding": "open",
+   "composition": "open",
+   "family": "inlining-ipo",
+   "implicit": false,
+   "positions": [
+    "16.1.1"
+   ],
+   "steps_bound": 0,
+   "steps_changed": 0
+  },
+  "inliner-wrapper": {
+   "all-input": "open",
+   "blocked_by": [
+    "SEM-06",
+    "SEM-07",
+    "LOOP-03",
+    "PASS-05"
+   ],
+   "code-binding": "open",
+   "composition": "open",
+   "family": "inlining-ipo",
+   "implicit": true,
+   "positions": [],
+   "steps_bound": 0,
+   "steps_changed": 0
+  },
+  "instcombine": {
+   "all-input": "open",
+   "blocked_by": [
+    "INV-04",
+    "SEM-01",
+    "SEM-03",
+    "SEM-04",
+    "AUTO-01",
+    "AUTO-03",
+    "PASS-03"
+   ],
+   "code-binding": "open",
+   "composition": "open",
+   "family": "peephole-int",
+   "implicit": false,
+   "positions": [
+    "11.2",
+    "16.1.3.4",
+    "16.1.3.10",
+    "16.1.3.16",
+    "16.1.3.20",
+    "24.11",
+    "24.14",
+    "24.19"
+   ],
+   "steps_bound": 4,
+   "steps_changed": 15
+  },
+  "instsimplify": {
+   "all-input": "open",
+   "blocked_by": [
+    "INV-04",
+    "SEM-01",
+    "SEM-03",
+    "SEM-04",
+    "AUTO-01",
+    "AUTO-03",
+    "PASS-03"
+   ],
+   "code-binding": "open",
+   "composition": "open",
+   "family": "peephole-int",
+   "implicit": false,
+   "positions": [
+    "24.23"
+   ],
+   "steps_bound": 0,
+   "steps_changed": 2
+  },
+  "invalidate<aa>": {
+   "all-input": "open",
+   "blocked_by": [
+    "PASS-01",
+    "PASS-05"
+   ],
+   "code-binding": "open",
+   "composition": "open",
+   "family": "analysis-management",
+   "implicit": false,
+   "positions": [
+    "14.1"
+   ],
+   "steps_bound": 0,
+   "steps_changed": 0
+  },
+  "ipsccp": {
+   "all-input": "open",
+   "blocked_by": [
+    "SEM-01",
+    "SEM-06",
+    "PASS-01",
+    "PASS-04"
+   ],
+   "code-binding": "open",
+   "composition": "open",
+   "family": "redundancy-constprop",
+   "implicit": false,
+   "positions": [
+    "8"
+   ],
+   "steps_bound": 3,
+   "steps_changed": 3
+  },
+  "lcssa": {
+   "all-input": "open",
+   "blocked_by": [
+    "SEM-07",
+    "PASS-01",
+    "LOOP-01"
+   ],
+   "code-binding": "open",
+   "composition": "open",
+   "family": "loops",
+   "implicit": true,
+   "positions": [],
+   "steps_bound": 0,
+   "steps_changed": 8
+  },
+  "libcalls-shrinkwrap": {
+   "all-input": "open",
+   "blocked_by": [
+    "SEM-06",
+    "SEM-07",
+    "INV-05"
+   ],
+   "code-binding": "open",
+   "composition": "open",
+   "family": "libcalls",
+   "implicit": false,
+   "positions": [
+    "16.1.3.5"
+   ],
+   "steps_bound": 0,
+   "steps_changed": 0
+  },
+  "licm": {
+   "all-input": "open",
+   "blocked_by": [
+    "SEM-07",
+    "PASS-01",
+    "LOOP-01"
+   ],
+   "code-binding": "open",
+   "composition": "open",
+   "family": "loops",
+   "implicit": false,
+   "positions": [
+    "16.1.3.8.3",
+    "16.1.3.8.5",
+    "24.20.1"
+   ],
+   "steps_bound": 0,
+   "steps_changed": 1
+  },
+  "loop-deletion": {
+   "all-input": "open",
+   "blocked_by": [
+    "SEM-07",
+    "PASS-01",
+    "LOOP-01"
+   ],
+   "code-binding": "open",
+   "composition": "open",
+   "family": "loops",
+   "implicit": false,
+   "positions": [
+    "16.1.3.11.3",
+    "24.4.2"
+   ],
+   "steps_bound": 0,
+   "steps_changed": 0
+  },
+  "loop-distribute": {
+   "all-input": "open",
+   "blocked_by": [
+    "SEM-07",
+    "PASS-01",
+    "LOOP-01"
+   ],
+   "code-binding": "open",
+   "composition": "open",
+   "family": "loops",
+   "implicit": false,
+   "positions": [
+    "24.5"
+   ],
+   "steps_bound": 0,
+   "steps_changed": 0
+  },
+  "loop-idiom": {
+   "all-input": "open",
+   "blocked_by": [
+    "SEM-07",
+    "PASS-01",
+    "LOOP-01"
+   ],
+   "code-binding": "open",
+   "composition": "open",
+   "family": "loops",
+   "implicit": false,
+   "positions": [
+    "16.1.3.11.1"
+   ],
+   "steps_bound": 0,
+   "steps_changed": 0
+  },
+  "loop-instsimplify": {
+   "all-input": "open",
+   "blocked_by": [
+    "INV-04",
+    "SEM-01",
+    "SEM-03",
+    "SEM-04",
+    "AUTO-01",
+    "AUTO-03",
+    "PASS-03"
+   ],
+   "code-binding": "open",
+   "composition": "open",
+   "family": "peephole-int",
+   "implicit": false,
+   "positions": [
+    "16.1.3.8.1"
+   ],
+   "steps_bound": 0,
+   "steps_changed": 0
+  },
+  "loop-interchange": {
+   "all-input": "open",
+   "blocked_by": [
+    "SEM-07",
+    "PASS-01",
+    "LOOP-01"
+   ],
+   "code-binding": "open",
+   "composition": "open",
+   "family": "loops",
+   "implicit": false,
+   "positions": [
+    "24.4.3"
+   ],
+   "steps_bound": 0,
+   "steps_changed": 0
+  },
+  "loop-load-elim": {
+   "all-input": "open",
+   "blocked_by": [
+    "SEM-02",
+    "SEM-06",
+    "PASS-01",
+    "PASS-04"
+   ],
+   "code-binding": "open",
+   "composition": "open",
+   "family": "memory-promotion",
+   "implicit": false,
+   "positions": [
+    "24.10"
+   ],
+   "steps_bound": 0,
+   "steps_changed": 0
+  },
+  "loop-rotate": {
+   "all-input": "open",
+   "blocked_by": [
+    "SEM-07",
+    "PASS-01",
+    "LOOP-01"
+   ],
+   "code-binding": "open",
+   "composition": "open",
+   "family": "loops",
+   "implicit": false,
+   "positions": [
+    "16.1.3.8.4",
+    "24.4.1"
+   ],
+   "steps_bound": 0,
+   "steps_changed": 2
+  },
+  "loop-simplify": {
+   "all-input": "open",
+   "blocked_by": [
+    "SEM-07",
+    "PASS-01",
+    "LOOP-01"
+   ],
+   "code-binding": "open",
+   "composition": "open",
+   "family": "loops",
+   "implicit": true,
+   "positions": [],
+   "steps_bound": 0,
+   "steps_changed": 4
+  },
+  "loop-simplifycfg": {
+   "all-input": "open",
+   "blocked_by": [
+    "SEM-01",
+    "SEM-07",
+    "PASS-01",
+    "PASS-04"
+   ],
+   "code-binding": "open",
+   "composition": "open",
+   "family": "cfg",
+   "implicit": false,
+   "positions": [
+    "16.1.3.8.2"
+   ],
+   "steps_bound": 0,
+   "steps_changed": 0
+  },
+  "loop-sink": {
+   "all-input": "open",
+   "blocked_by": [
+    "SEM-07",
+    "PASS-01",
+    "LOOP-01"
+   ],
+   "code-binding": "open",
+   "composition": "open",
+   "family": "loops",
+   "implicit": false,
+   "positions": [
+    "24.22"
+   ],
+   "steps_bound": 0,
+   "steps_changed": 0
+  },
+  "loop-unroll": {
+   "all-input": "open",
+   "blocked_by": [
+    "SEM-07",
+    "PASS-01",
+    "LOOP-01"
+   ],
+   "code-binding": "open",
+   "composition": "open",
+   "family": "loops",
+   "implicit": false,
+   "positions": [
+    "24.15"
+   ],
+   "steps_bound": 0,
+   "steps_changed": 2
+  },
+  "loop-unroll-full": {
+   "all-input": "open",
+   "blocked_by": [
+    "SEM-07",
+    "PASS-01",
+    "LOOP-01"
+   ],
+   "code-binding": "open",
+   "composition": "open",
+   "family": "loops",
+   "implicit": false,
+   "positions": [
+    "16.1.3.11.4"
+   ],
+   "steps_bound": 0,
+   "steps_changed": 0
+  },
+  "loop-vectorize": {
+   "all-input": "open",
+   "blocked_by": [
+    "SEM-05",
+    "SEM-06",
+    "LOOP-02"
+   ],
+   "code-binding": "open",
+   "composition": "open",
+   "family": "vectorization",
+   "implicit": false,
+   "positions": [
+    "24.7"
+   ],
+   "steps_bound": 0,
+   "steps_changed": 0
+  },
+  "lower-comment-string": {
+   "all-input": "open",
+   "blocked_by": [
+    "SEM-08",
+    "INV-09"
+   ],
+   "code-binding": "open",
+   "composition": "open",
+   "family": "annotation-noop",
+   "implicit": false,
+   "positions": [
+    "30"
+   ],
+   "steps_bound": 0,
+   "steps_changed": 0
+  },
+  "lower-constant-intrinsics": {
+   "all-input": "open",
+   "blocked_by": [
+    "SEM-08",
+    "INV-09"
+   ],
+   "code-binding": "open",
+   "composition": "open",
+   "family": "annotation-noop",
+   "implicit": false,
+   "positions": [
+    "24.3"
+   ],
+   "steps_bound": 0,
+   "steps_changed": 0
+  },
+  "lower-expect": {
+   "all-input": "open",
+   "blocked_by": [
+    "SEM-08",
+    "INV-09"
+   ],
+   "code-binding": "open",
+   "composition": "open",
+   "family": "annotation-noop",
+   "implicit": false,
+   "positions": [
+    "6.2"
+   ],
+   "steps_bound": 0,
+   "steps_changed": 0
+  },
+  "mem2reg": {
+   "all-input": "open",
+   "blocked_by": [
+    "SEM-02",
+    "SEM-06",
+    "PASS-01",
+    "PASS-04"
+   ],
+   "code-binding": "open",
+   "composition": "open",
+   "family": "memory-promotion",
+   "implicit": false,
+   "positions": [
+    "11.1"
+   ],
+   "steps_bound": 0,
+   "steps_changed": 0
+  },
+  "memcpyopt": {
+   "all-input": "open",
+   "blocked_by": [
+    "SEM-02",
+    "SEM-06",
+    "PASS-01",
+    "PASS-04"
+   ],
+   "code-binding": "open",
+   "composition": "open",
+   "family": "memory-promotion",
+   "implicit": false,
+   "positions": [
+    "16.1.3.13"
+   ],
+   "steps_bound": 0,
+   "steps_changed": 0
+  },
+  "memprof-remove-attributes": {
+   "all-input": "open",
+   "blocked_by": [
+    "SEM-08",
+    "INV-09"
+   ],
+   "code-binding": "open",
+   "composition": "open",
+   "family": "annotation-noop",
+   "implicit": false,
+   "positions": [
+    "1"
+   ],
+   "steps_bound": 0,
+   "steps_changed": 0
+  },
+  "mergeicmps": {
+   "all-input": "open",
+   "blocked_by": [
+    "SEM-06",
+    "SEM-07",
+    "INV-05"
+   ],
+   "code-binding": "open",
+   "composition": "open",
+   "family": "libcalls",
+   "implicit": false,
+   "positions": [
+    "24.25"
+   ],
+   "steps_bound": 0,
+   "steps_changed": 0
+  },
+  "openmp-opt": {
+   "all-input": "open",
+   "blocked_by": [
+    "SEM-06",
+    "SEM-07",
+    "LOOP-03",
+    "PASS-05"
+   ],
+   "code-binding": "open",
+   "composition": "open",
+   "family": "inlining-ipo",
+   "implicit": false,
+   "positions": [
+    "7"
+   ],
+   "steps_bound": 0,
+   "steps_changed": 0
+  },
+  "reassociate": {
+   "all-input": "open",
+   "blocked_by": [
+    "INV-04",
+    "SEM-01",
+    "SEM-03",
+    "SEM-04",
+    "AUTO-01",
+    "AUTO-03",
+    "PASS-03"
+   ],
+   "code-binding": "open",
+   "composition": "open",
+   "family": "peephole-int",
+   "implicit": false,
+   "positions": [
+    "16.1.3.7"
+   ],
+   "steps_bound": 2,
+   "steps_changed": 4
+  },
+  "recompute-globalsaa": {
+   "all-input": "open",
+   "blocked_by": [
+    "PASS-01",
+    "PASS-05"
+   ],
+   "code-binding": "open",
+   "composition": "open",
+   "family": "analysis-management",
+   "implicit": false,
+   "positions": [
+    "23"
+   ],
+   "steps_bound": 0,
+   "steps_changed": 0
+  },
+  "rel-lookup-table-converter": {
+   "all-input": "open",
+   "blocked_by": [
+    "SEM-08",
+    "INV-09"
+   ],
+   "code-binding": "open",
+   "composition": "open",
+   "family": "annotation-noop",
+   "implicit": false,
+   "positions": [
+    "29"
+   ],
+   "steps_bound": 0,
+   "steps_changed": 0
+  },
+  "require<globals-aa>": {
+   "all-input": "open",
+   "blocked_by": [
+    "PASS-01",
+    "PASS-05"
+   ],
+   "code-binding": "open",
+   "composition": "open",
+   "family": "analysis-management",
+   "implicit": false,
+   "positions": [
+    "13"
+   ],
+   "steps_bound": 0,
+   "steps_changed": 0
+  },
+  "require<profile-summary>": {
+   "all-input": "open",
+   "blocked_by": [
+    "PASS-01",
+    "PASS-05"
+   ],
+   "code-binding": "open",
+   "composition": "open",
+   "family": "analysis-management",
+   "implicit": false,
+   "positions": [
+    "15"
+   ],
+   "steps_bound": 0,
+   "steps_changed": 0
+  },
+  "require<should-not-run-function-passes>": {
+   "all-input": "open",
+   "blocked_by": [
+    "PASS-01",
+    "PASS-05"
+   ],
+   "code-binding": "open",
+   "composition": "open",
+   "family": "analysis-management",
+   "implicit": false,
+   "positions": [
+    "16.1.5.1"
+   ],
+   "steps_bound": 0,
+   "steps_changed": 0
+  },
+  "rpo-function-attrs": {
+   "all-input": "open",
+   "blocked_by": [
+    "SEM-07",
+    "PASS-01",
+    "LOOP-03"
+   ],
+   "code-binding": "open",
+   "composition": "open",
+   "family": "attribute-inference",
+   "implicit": false,
+   "positions": [
+    "22"
+   ],
+   "steps_bound": 0,
+   "steps_changed": 0
+  },
+  "sccp": {
+   "all-input": "open",
+   "blocked_by": [
+    "SEM-01",
+    "SEM-06",
+    "PASS-01",
+    "PASS-04"
+   ],
+   "code-binding": "open",
+   "composition": "open",
+   "family": "redundancy-constprop",
+   "implicit": false,
+   "positions": [
+    "16.1.3.14"
+   ],
+   "steps_bound": 2,
+   "steps_changed": 2
+  },
+  "simple-loop-unswitch": {
+   "all-input": "open",
+   "blocked_by": [
+    "SEM-07",
+    "PASS-01",
+    "LOOP-01"
+   ],
+   "code-binding": "open",
+   "composition": "open",
+   "family": "loops",
+   "implicit": false,
+   "positions": [
+    "16.1.3.8.6"
+   ],
+   "steps_bound": 0,
+   "steps_changed": 0
+  },
+  "simplifycfg": {
+   "all-input": "open",
+   "blocked_by": [
+    "SEM-01",
+    "SEM-07",
+    "PASS-01",
+    "PASS-04"
+   ],
+   "code-binding": "open",
+   "composition": "open",
+   "family": "cfg",
+   "implicit": false,
+   "positions": [
+    "6.3",
+    "11.3",
+    "16.1.3.3",
+    "16.1.3.6",
+    "16.1.3.9",
+    "16.1.3.19",
+    "24.12",
+    "24.28"
+   ],
+   "steps_bound": 0,
+   "steps_changed": 10
+  },
+  "sroa": {
+   "all-input": "open",
+   "blocked_by": [
+    "SEM-02",
+    "SEM-06",
+    "PASS-01",
+    "PASS-04"
+   ],
+   "code-binding": "open",
+   "composition": "open",
+   "family": "memory-promotion",
+   "implicit": false,
+   "positions": [
+    "6.4",
+    "16.1.3.1",
+    "16.1.3.12",
+    "24.17"
+   ],
+   "steps_bound": 0,
+   "steps_changed": 0
+  },
+  "tailcallelim": {
+   "all-input": "open",
+   "blocked_by": [
+    "SEM-01",
+    "SEM-07",
+    "PASS-01",
+    "PASS-04"
+   ],
+   "code-binding": "open",
+   "composition": "open",
+   "family": "cfg",
+   "implicit": false,
+   "positions": [
+    "24.27"
+   ],
+   "steps_bound": 0,
+   "steps_changed": 0
+  },
+  "transform-warning": {
+   "all-input": "open",
+   "blocked_by": [
+    "SEM-08",
+    "INV-09"
+   ],
+   "code-binding": "open",
+   "composition": "open",
+   "family": "annotation-noop",
+   "implicit": false,
+   "positions": [
+    "24.16"
+   ],
+   "steps_bound": 0,
+   "steps_changed": 0
+  },
+  "vector-combine": {
+   "all-input": "open",
+   "blocked_by": [
+    "INV-04",
+    "SEM-01",
+    "SEM-03",
+    "SEM-04",
+    "AUTO-01",
+    "AUTO-03",
+    "PASS-03"
+   ],
+   "code-binding": "open",
+   "composition": "open",
+   "family": "peephole-int",
+   "implicit": false,
+   "positions": [
+    "24.13"
+   ],
+   "steps_bound": 0,
+   "steps_changed": 0
+  },
+  "verify": {
+   "all-input": "open",
+   "blocked_by": [
+    "SEM-08",
+    "INV-09"
+   ],
+   "code-binding": "open",
+   "composition": "open",
+   "family": "annotation-noop",
+   "implicit": false,
+   "positions": [
+    "32"
+   ],
+   "steps_bound": 0,
+   "steps_changed": 0
+  }
+ },
+ "pipeline_sha256": "ba284b24e327559b8f65c15329143cbb942a283f7822b1a8b3ba15adc79bc1a7",
+ "priority": [
+  "attribute-inference",
+  "peephole-int",
+  "loops",
+  "cfg",
+  "inlining-ipo",
+  "redundancy-constprop",
+  "annotation-noop",
+  "memory-promotion",
+  "dead-code",
+  "analysis-management",
+  "coroutines",
+  "libcalls",
+  "vectorization",
+  "fp-narrowing"
+ ],
+ "schema": "ir-lean.o1.ledger/1",
+ "spec": "default<O1>",
+ "why_not_complete": [
+  "No pass in default<O1> has an all-input proof, a binding to its C++, or a composition proof.",
+  "Bound steps are translation validation of single runs on a finite corpus, and never count toward those.",
+  "No independent verifier for all-input, code-binding or composition claims exists (BIND-03)."
+ ]
+}

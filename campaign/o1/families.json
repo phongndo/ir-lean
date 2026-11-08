@@ -1,0 +1,104 @@
+{
+  "schema": "ir-lean.o1.families/1",
+  "note": "Each pass default<O1> runs, printed or implicit, is in exactly one family. A family groups passes whose rewrites share proof machinery, so one checked lemma can discharge instances in several passes. Blockers are task IDs in docs/llvm-verification-tasks.md.",
+  "families": {
+    "peephole-int": {
+      "title": "Local integer and vector rewrites",
+      "passes": ["instcombine", "instsimplify", "loop-instsimplify", "reassociate", "div-rem-pairs", "bdce", "vector-combine"],
+      "shared": "InstSimplify's folds are called by instcombine, early-cse, sccp, simplifycfg and loop-instsimplify, so a lemma for one fold covers its instances in all of them. InstCombine's combines are reused by vector-combine and reassociate's canonical forms",
+      "proof_shape": "Each rewrite as a theorem over BitVec of every width, with poison flags, then each instance as an instantiation of it",
+      "blocked_by": ["INV-04", "SEM-01", "SEM-03", "SEM-04", "AUTO-01", "AUTO-03", "PASS-03"]
+    },
+    "fp-narrowing": {
+      "title": "Floating point to integer narrowing",
+      "passes": ["float2int"],
+      "shared": "None in O1",
+      "proof_shape": "Floating point semantics, then the range argument float2int makes",
+      "blocked_by": ["SEM-05"]
+    },
+    "redundancy-constprop": {
+      "title": "Redundancy elimination and constant propagation",
+      "passes": ["early-cse", "sccp", "ipsccp", "called-value-propagation"],
+      "shared": "Replacing a value by an equal one where a dominating definition or a lattice fact says so. sccp and ipsccp share SCCPSolver",
+      "proof_shape": "A replacement lemma: equal values at a dominated use, from a sound analysis fact",
+      "blocked_by": ["SEM-01", "SEM-06", "PASS-01", "PASS-04"]
+    },
+    "dead-code": {
+      "title": "Dead code and dead global elimination",
+      "passes": ["adce", "globaldce", "deadargelim", "elim-avail-extern", "constmerge"],
+      "shared": "Removing what nothing observes: a value with no use and no effect, a global nothing references",
+      "proof_shape": "A deletion lemma for effect-free values, and module-level semantics for globals and arguments",
+      "blocked_by": ["SEM-01", "SEM-07", "PASS-04", "LOOP-03"]
+    },
+    "cfg": {
+      "title": "Control flow simplification",
+      "passes": ["simplifycfg", "loop-simplifycfg", "tailcallelim"],
+      "shared": "Block merging, branch folding, select formation and switch lowering, shared through Utils/Local.cpp and SimplifyCFG.cpp",
+      "proof_shape": "A simulation between the two block graphs, with select and phi lemmas",
+      "blocked_by": ["SEM-01", "SEM-07", "PASS-01", "PASS-04"]
+    },
+    "memory-promotion": {
+      "title": "Memory to SSA, and memory operation rewriting",
+      "passes": ["sroa", "mem2reg", "memcpyopt", "infer-alignment", "alignment-from-assumptions", "loop-load-elim"],
+      "shared": "PromoteMemToReg is used by sroa and mem2reg. Alignment facts come from the same known-bits code",
+      "proof_shape": "A relation between source and target memories, which allocas disappear from",
+      "blocked_by": ["SEM-02", "SEM-06", "PASS-01", "PASS-04"]
+    },
+    "libcalls": {
+      "title": "Library call semantics",
+      "passes": ["libcalls-shrinkwrap", "expand-memcmp", "mergeicmps"],
+      "shared": "Each depends on what a C library function means, from TargetLibraryInfo",
+      "proof_shape": "Contracts for the library functions, then the rewrite against them",
+      "blocked_by": ["SEM-06", "SEM-07", "INV-05"]
+    },
+    "loops": {
+      "title": "Loop canonicalization and loop transforms",
+      "passes": ["licm", "loop-rotate", "loop-deletion", "simple-loop-unswitch", "loop-idiom", "indvars", "loop-unroll-full", "loop-unroll", "loop-interchange", "loop-distribute", "loop-sink", "loop-simplify", "lcssa"],
+      "shared": "Every loop adaptor runs loop-simplify and lcssa first. ScalarEvolution and LoopInfo facts are shared by indvars, loop-deletion, unrolling and idiom recognition",
+      "proof_shape": "Loop simulation and invariants, with ScalarEvolution's facts proved sound",
+      "blocked_by": ["SEM-07", "PASS-01", "LOOP-01"]
+    },
+    "vectorization": {
+      "title": "Vectorization",
+      "passes": ["loop-vectorize", "inject-tli-mappings"],
+      "shared": "VPlan, and vector library mappings",
+      "proof_shape": "Vector semantics and the loop vectorizer's legality conditions",
+      "blocked_by": ["SEM-05", "SEM-06", "LOOP-02"]
+    },
+    "inlining-ipo": {
+      "title": "Inlining and interprocedural transforms",
+      "passes": ["inline", "always-inline", "inliner-wrapper", "globalopt", "openmp-opt"],
+      "shared": "InlineFunction in Utils, and module-level semantics of calls and globals",
+      "proof_shape": "Call semantics with a callee body, then substitution",
+      "blocked_by": ["SEM-06", "SEM-07", "LOOP-03", "PASS-05"]
+    },
+    "attribute-inference": {
+      "title": "Attribute and promise inference",
+      "passes": ["function-attrs", "rpo-function-attrs", "inferattrs", "forceattrs"],
+      "shared": "FunctionAttrs.cpp and BuildLibCalls.cpp: memory effects, nounwind, willreturn, mustprogress, noundef, returned",
+      "proof_shape": "Each attribute's meaning as UB or a fact, and the inference sound for it. Until then a target with willreturn or mustprogress can't be bound",
+      "blocked_by": ["SEM-07", "PASS-01", "LOOP-03"]
+    },
+    "annotation-noop": {
+      "title": "Annotations, metadata, intrinsic lowering and checks",
+      "passes": ["memprof-remove-attributes", "annotation2metadata", "lower-expect", "ee-instrument", "transform-warning", "cg-profile", "annotation-remarks", "lower-comment-string", "alloc-token", "rel-lookup-table-converter", "drop-unnecessary-assumes", "lower-constant-intrinsics", "verify"],
+      "shared": "Each leaves the model's semantics alone on inputs without its intrinsic, attribute or metadata, or lowers an intrinsic to what it means",
+      "proof_shape": "Identity on what the model sees, or the intrinsic's contract",
+      "blocked_by": ["SEM-08", "INV-09"]
+    },
+    "coroutines": {
+      "title": "Coroutines",
+      "passes": ["coro-early", "coro-elide", "coro-split", "coro-annotation-elide", "coro-cleanup"],
+      "shared": "The coroutine intrinsics' lowering",
+      "proof_shape": "Coroutine semantics, refused today",
+      "blocked_by": ["SEM-09"]
+    },
+    "analysis-management": {
+      "title": "Analysis requirements and invalidation",
+      "passes": ["require<globals-aa>", "invalidate<aa>", "require<profile-summary>", "require<should-not-run-function-passes>", "recompute-globalsaa"],
+      "shared": "The pass manager's analysis cache",
+      "proof_shape": "Cached analyses are still true when read: preservation and invalidation are right",
+      "blocked_by": ["PASS-01", "PASS-05"]
+    }
+  }
+}

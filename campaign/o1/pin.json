@@ -1,0 +1,60 @@
+{
+ "hosts": {
+  "arm64-darwin": {
+   "invocation": [
+    "opt",
+    "-S",
+    "-passes=default<O1>",
+    "-",
+    "-o",
+    "-",
+    "-mtriple=x86_64-unknown-linux-gnu"
+   ],
+   "lean": {
+    "toolchain": "leanprover/lean4:v4.35.0",
+    "version": "Lean (version 4.35.0, arm64-apple-darwin24.6.0, commit eb6cafb7290e8bd5f2937522d8d804f58f02bafc, Release)"
+   },
+   "llvm": {
+    "commit": "0d261d1ca552c95a8f007e061c787ac7132fbcbc",
+    "nix_hash": "sha256-+e5YvYEbCvvEQbLVIQP5hwPp4tEk6EB270bSEMKv0t4=",
+    "repository": "https://github.com/llvm/llvm-project",
+    "source": "/nix/store/kbrxzb0whhb430x13c8ni7wnnm0h42av-source",
+    "tag": "llvmorg-23.1.3",
+    "tag_checked": "gh api repos/llvm/llvm-project/git/ref/tags/llvmorg-23.1.3 and repos/llvm/llvm-project/commits/llvmorg-23.1.3, on 2026-11-08",
+    "tag_object": "856f0005e57023e63664c560a829c620360ea1f1"
+   },
+   "opt": {
+    "deriver": "/nix/store/cb18536jhifswngd7fm0aplf84j86lha-llvm-23.1.3.drv",
+    "nar_hash": "sha256-9Aio64yEm0UrDjL0+aRahk2YC8q6e1VoR1ULhOAORNU=",
+    "path": "/nix/store/5lca6gn9rqwb1apcffpr36fzrs627h2a-llvm-23.1.3/bin/opt",
+    "provenance": "substituted from cache.nixos.org, which signed it",
+    "sha256": "2c5c068575a2a02ed2cda704ed39f364bbc73a4b927905f1a11b74363bd3cb94",
+    "signatures": [
+     "cache.nixos.org-1:UWMMsuGTW+eg/zxGKgSoJcRk8NT6o1sKB79dvjt3ilGz6i1+FbVgj4yhvX4PBcd6bnn0LJELl4iCe8XIEFf6Bg=="
+    ],
+    "store_path": "/nix/store/5lca6gn9rqwb1apcffpr36fzrs627h2a-llvm-23.1.3",
+    "version": [
+     "LLVM (http://llvm.org/):",
+     "LLVM version 23.1.3",
+     "Optimized build.",
+     "Default target: arm64-apple-darwin25.6.0"
+    ]
+   },
+   "options": "opt gets -S, -passes=default<O1> and -mtriple, as tools/binding.py runs it, and nothing else, so every cl::opt has its default",
+   "pipeline": {
+    "inventory_match": true,
+    "sha256": "ba284b24e327559b8f65c15329143cbb942a283f7822b1a8b3ba15adc79bc1a7",
+    "text": "memprof-remove-attributes,annotation2metadata,forceattrs,inferattrs,coro-early,function<eager-inv>(ee-instrument<>,lower-expect,simplifycfg<bonus-inst-threshold=1;no-forward-switch-cond;no-switch-range-to-icmp;no-switch-to-arithmetic;no-switch-to-lookup;keep-loops;no-hoist-common-insts;no-hoist-loads-stores-with-cond-faulting;no-sink-common-insts;speculate-blocks;simplify-cond-branch;no-speculate-unpredictables>,sroa<modify-cfg>,early-cse<>),openmp-opt,ipsccp,called-value-propagation,globalopt,function<eager-inv>(mem2reg,instcombine<max-iterations=1;no-verify-fixpoint>,simplifycfg<bonus-inst-threshold=1;no-forward-switch-cond;switch-range-to-icmp;no-switch-to-arithmetic;no-switch-to-lookup;keep-loops;no-hoist-common-insts;no-hoist-loads-stores-with-cond-faulting;no-sink-common-insts;speculate-blocks;simplify-cond-branch;no-speculate-unpredictables>),always-inline,require<globals-aa>,function(invalidate<aa>),require<profile-summary>,cgscc(devirt<4>(inline,function-attrs<skip-non-recursive-function-attrs>,function<eager-inv;no-rerun>(sroa<modify-cfg>,early-cse<memssa>,simplifycfg<bonus-inst-threshold=1;no-forward-switch-cond;switch-range-to-icmp;no-switch-to-arithmetic;no-switch-to-lookup;keep-loops;no-hoist-common-insts;no-hoist-loads-stores-with-cond-faulting;no-sink-common-insts;speculate-blocks;simplify-cond-branch;no-speculate-unpredictables>,instcombine<max-iterations=1;no-verify-fixpoint>,libcalls-shrinkwrap,simplifycfg<bonus-inst-threshold=1;no-forward-switch-cond;switch-range-to-icmp;no-switch-to-arithmetic;no-switch-to-lookup;keep-loops;no-hoist-common-insts;no-hoist-loads-stores-with-cond-faulting;no-sink-common-insts;speculate-blocks;simplify-cond-branch;no-speculate-unpredictables>,reassociate,loop-mssa(loop-instsimplify,loop-simplifycfg,licm<no-allowspeculation>,loop-rotate<header-duplication;no-prepare-for-lto;no-check-exit-count>,licm<allowspeculation>,simple-loop-unswitch<no-nontrivial;trivial>),simplifycfg<bonus-inst-threshold=1;no-forward-switch-cond;switch-range-to-icmp;no-switch-to-arithmetic;no-switch-to-lookup;keep-loops;no-hoist-common-insts;no-hoist-loads-stores-with-cond-faulting;no-sink-common-insts;speculate-blocks;simplify-cond-branch;no-speculate-unpredictables>,instcombine<max-iterations=1;no-verify-fixpoint>,loop(loop-idiom,indvars,loop-deletion,loop-unroll-full),sroa<modify-cfg>,memcpyopt,sccp,bdce,instcombine<max-iterations=1;no-verify-fixpoint>,coro-elide,adce,simplifycfg<bonus-inst-threshold=1;no-forward-switch-cond;switch-range-to-icmp;no-switch-to-arithmetic;no-switch-to-lookup;keep-loops;no-hoist-common-insts;no-hoist-loads-stores-with-cond-faulting;no-sink-common-insts;speculate-blocks;simplify-cond-branch;no-speculate-unpredictables>,instcombine<max-iterations=1;no-verify-fixpoint>),function-attrs,function(require<should-not-run-function-passes>),coro-split,coro-annotation-elide)),deadargelim,coro-cleanup,globalopt,globaldce,elim-avail-extern,rpo-function-attrs,recompute-globalsaa,function<eager-inv>(drop-unnecessary-assumes,float2int,lower-constant-intrinsics,loop(loop-rotate<header-duplication;no-prepare-for-lto;check-exit-count>,loop-deletion,loop-interchange),loop-distribute,inject-tli-mappings,loop-vectorize<no-interleave-forced-only;vectorize-forced-only;>,drop-unnecessary-assumes,infer-alignment,loop-load-elim,instcombine<max-iterations=1;no-verify-fixpoint>,simplifycfg<bonus-inst-threshold=1;forward-switch-cond;switch-range-to-icmp;switch-to-arithmetic;switch-to-lookup;no-keep-loops;hoist-common-insts;no-hoist-loads-stores-with-cond-faulting;sink-common-insts;speculate-blocks;simplify-cond-branch;no-speculate-unpredictables>,vector-combine,instcombine<max-iterations=1;no-verify-fixpoint>,loop-unroll<O1>,transform-warning,sroa<preserve-cfg;aggregate-to-vector>,infer-alignment,instcombine<max-iterations=1;no-verify-fixpoint>,loop-mssa(licm<allowspeculation>),alignment-from-assumptions,loop-sink,instsimplify,div-rem-pairs,mergeicmps,expand-memcmp,tailcallelim,simplifycfg<bonus-inst-threshold=1;no-forward-switch-cond;switch-range-to-icmp;switch-to-arithmetic;no-switch-to-lookup;keep-loops;no-hoist-common-insts;hoist-loads-stores-with-cond-faulting;no-sink-common-insts;speculate-blocks;simplify-cond-branch;speculate-unpredictables>),alloc-token,globaldce,constmerge,cg-profile,rel-lookup-table-converter,lower-comment-string,function(annotation-remarks),verify"
+   },
+   "target": {
+    "cpu": null,
+    "datalayout": "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-i128:128-f80:128-n8:16:32:64-S128",
+    "features": null,
+    "triple": "x86_64-unknown-linux-gnu"
+   }
+  }
+ },
+ "level": "O1",
+ "schema": "ir-lean.o1.pin/1",
+ "spec": "default<O1>"
+}
