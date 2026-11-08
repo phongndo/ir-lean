@@ -89,7 +89,7 @@ can't ride along.
 | `transform.passes`, `.mtriple` | The `opt -passes=` spec, and `-mtriple` or `null` | Rerunning `opt` |
 | `target.triple`, `.datalayout` | What both IR files say | Reading them |
 | `artifacts.ROLE.path`, `.sha256` | `input`, `src_ir`, `tgt_ir`, `src_lean`, `tgt_lean`, `certificate`: a plain file directly in the bundle, by name, and its hash | Hashing it |
-| `toolchain` | The version and SHA-256 of `lean`, `leanchecker` and `opt`, and the SHA-256 of Lean's own `.olean` files, `build/ir-lean`, `IRLean`'s `.olean` files, `tests/check_axioms.lean`, `tools/binding_check.lean` and `tools/binding.py` | Recomputing each. `lean` and `leanchecker` are the ones in the toolchain `lean --print-prefix` names, and `opt` the one on PATH, and each runs by that absolute path, so what runs is what was hashed |
+| `toolchain` | The version and SHA-256 of `lean`, `leanchecker` and `opt`, and the SHA-256 of every file in the Lean toolchain, `build/ir-lean`, every file of `IRLean`'s library, `tests/check_axioms.lean`, `tools/binding_check.lean` and `tools/binding.py` | Recomputing each. `lean` and `leanchecker` are the ones in the toolchain `lean --print-prefix` names, and `opt` the one on PATH, and each runs by that absolute path, so what runs is what was hashed |
 
 The source IR is `opt -S -passes=verify` of the input, and the target is `opt -S -passes=SPEC` of it. Both read it from
 stdin, so neither names a path.
@@ -148,7 +148,9 @@ Each one that runs is listed in the verdict's `checks`. The first that fails dec
     `IRLean` on the path besides them. No `.olean` comes from the bundle. The certificate's code runs here, so every
     file and link where Lean finds modules is listed with its hash before and after, and only the certificate's
     `.olean` may be new. A module the certificate adds, named like one it imports, is refused, and so is any change
-    to the toolchain, its library, `IRLean` or these tools.
+    to the toolchain, `IRLean` or these tools. Those were hashed in step 4, and a second hash would take seconds, so
+    what `lstat` says of each entry, its inode, size and change time, is compared instead. A process without root
+    can't set a change time back.
 11. **`claim_type`**: [`tools/binding_check.lean`](../tools/binding_check.lean) builds the claim where only Lean,
     `IRLean` and the two generated modules are imported, and reads the certificate as data. Its theorem has to be
     declared in it, import nothing else, use only constants that are the same declarations, and have exactly that type,
@@ -158,8 +160,9 @@ Each one that runs is listed in the verdict's `checks`. The first that fails dec
 12. **`axioms`**: [`tests/check_axioms.lean`](../tests/check_axioms.lean), unchanged, with the theorem required to name
     both functions.
 13. **`kernel_replay`**: `leanchecker` on the two generated modules and the certificate.
-14. **`unchanged`**: every file and link in the run's Lean directory, and every tool, hash the same at the end as just
-    after the certificate compiled, so every check read the same files.
+14. **`unchanged`**: every file and link in the run's Lean directory hashes the same at the end as just after the
+    certificate compiled, and the toolchain, `IRLean` and these tools are as `lstat` saw them before it compiled, so
+    every check read the same files.
 
 ### The verdict, `ir-lean.binding.verdict/1`
 
@@ -236,7 +239,7 @@ Everything in [trust](trust.md), and these:
 | `-passes=` and `-mtriple` are all the configuration | They are all `opt` was given | A pass reading another option's default, or the environment |
 | Lean's kernel, elaborator and `leanchecker` | [Trust](trust.md) | A Lean bug |
 | SHA-256 | Standard | A collision |
-| The certificate's code, which runs while it compiles, doesn't reach past what's rehashed | Every tool, Lean's and IRLean's libraries, and the run's directory are hashed afterward, and again at the end, and what it left running is killed. It isn't sandboxed: `bwrap` isn't in the dev shell, and may not work on CI runners | A change to a file nothing hashes that a check reads, such as the Python interpreter, or, without systemd, a process that left its process group |
+| The certificate's code, which runs while it compiles, doesn't reach past what's rechecked | The run's directory is hashed again afterward and at the end, the toolchain, IRLean and every tool are compared by `lstat`, and what it left running is killed. It isn't sandboxed: `bwrap` isn't in the dev shell, and may not work on CI runners | A change to a file nothing checks that a check reads, such as the Python interpreter, a process running as root or one that sets the clock back, or, without systemd, a process that left its process group |
 
 ## Independent replay
 
@@ -310,14 +313,14 @@ and has to get the status and reason given:
 | | A theorem name the certificate doesn't declare | `refused`, `theorem_not_found` |
 | | A certificate that doesn't compile | `refused`, `certificate_compile_failed` |
 | | A certificate importing `Lake` | `refused`, `certificate_imports_disallowed` |
-| | A certificate whose code rewrites the generated target, or adds a module named `IRLean` where Lean looks first, while it compiles | `refused`, `artifacts_modified` |
+| | A certificate whose code rewrites the generated target, adds a module named `IRLean` where Lean looks first, or adds a companion `.ir` file to `IRLean`'s library, while it compiles | `refused`, `artifacts_modified` |
 | | A certificate whose code leaves a process running | `bound`, and the process is gone |
 | | A `leanchecker` earlier on PATH that passes anything, with a certificate the kernel never saw | `refused`, `kernel_replay_failed` |
 | | `ir_instance_refinement`, on this `IRLean` | `unsupported`, `claim_kind_unavailable` |
 | | `pass_implementation`, `rewrite_all_inputs` | `unsupported`, `claim_kind_unverifiable` |
 | What the model can't judge | A function reading memory | `unsupported`, `memory_unsupported` |
 | | A function ir-lean refuses, on floating point | `unsupported`, `function_unsupported` |
-| | An argument without `noundef` | `unsupported`, `undef_argument` |
+| | An argument without `noundef`, and one named `%noundef` without it | `unsupported`, `undef_argument` |
 | | A target marked `willreturn` | `unsupported`, `trusted_promise` |
 | Limits | A certificate that sleeps past `--timeout 20`, and nothing of it left running | `unknown`, `time_limit` |
 | | A certificate that allocates past `--memory 1500` | `unknown`, `resource_limit` |
@@ -335,7 +338,7 @@ and has to get the status and reason given:
 | | An entry for another manifest, or another toolchain, at the key | Replayed and `refused`, cache `stale_ignored` |
 | | A changed file, with a `bound` entry in the cache | `refused` before the cache is read |
 
-48 cases took 181 s, one process at a time. `memory_limit` also comes back `unknown` without a systemd scope, from
+50 cases took 280 s, one process at a time. `memory_limit` also comes back `unknown` without a systemd scope, from
 Lean's `-M` alone, which was checked by hand. It isn't in CI, or in [testing](testing.md), yet.
 
 No test reaches `function_not_found`, `function_not_generated`, `signature_mismatch`, `module_shadowed`, which the

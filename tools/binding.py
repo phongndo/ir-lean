@@ -162,12 +162,43 @@ def canonical(obj: Any) -> bytes:
     return json.dumps(obj, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode()
 
 
-def tree_hash(root: Path) -> str:
-    """Every .olean under `root`, by path and bytes, so an added, removed or changed module changes it."""
+def walk(*roots: Path) -> list[Path]:
+    """Every file, directory and link under `roots`, or `roots` themselves if they're files, without following
+    links, in a fixed order."""
+    out = []
+    for root in roots:
+        if not root.is_dir() or root.is_symlink():
+            out.append(root)
+            continue
+        for d, subdirs, files in os.walk(root):
+            out += [Path(d) / name for name in subdirs + files]
+    return sorted(out)
+
+
+def tree_hash(*roots: Path) -> str:
+    """Every file under `roots` by path and bytes, and every link by its target: everything Lean could read
+    there, its modules, their companion `.olean.server`, `.olean.private`, `.ir` and `.ir.sig` files, its
+    shared libraries and its executables."""
     digest = hashlib.sha256()
-    for path in sorted(root.rglob("*.olean")):
-        digest.update(str(path.relative_to(root)).encode() + b"\0" + path.read_bytes())
+    for path in walk(*roots):
+        digest.update(str(path).encode() + b"\0")
+        if path.is_symlink():
+            digest.update(b"link " + os.readlink(path).encode())
+        elif path.is_file():
+            digest.update(path.read_bytes())
+        digest.update(b"\0")
     return digest.hexdigest()
+
+
+def stamp(*roots: Path) -> dict[str, tuple[int, ...]]:
+    """What `lstat` says of every entry under `roots`. Any write, replacement, new file or removal changes it:
+    a write moves the change time, which a process without root can't set back. It's what checks that nothing
+    changed while a certificate's code could run, as hashing it all again each time would take seconds."""
+    out = {}
+    for path in walk(*roots):
+        st = path.lstat()
+        out[str(path)] = (st.st_mode, st.st_ino, st.st_size, st.st_ctime_ns, st.st_mtime_ns)
+    return out
 
 
 def snapshot(*dirs: Path) -> dict[str, str]:
@@ -183,12 +214,13 @@ def snapshot(*dirs: Path) -> dict[str, str]:
     return out
 
 
+def irlean_entries() -> list[Path]:
+    """IRLean's library: `IRLean.*` and `IRLean/` in .lake/build/lib/lean, every file there."""
+    return sorted(p for p in LIBRARY.iterdir() if p.name == "IRLean" or p.name.startswith("IRLean."))
+
+
 def library_hash() -> str:
-    """IRLean's .olean files, the same way tools/verify.py hashes them."""
-    digest = hashlib.sha256()
-    for path in sorted(LIBRARY.glob("IRLean*.olean")) + sorted((LIBRARY / "IRLean").glob("*.olean")):
-        digest.update(path.name.encode() + b"\0" + path.read_bytes())
-    return digest.hexdigest()
+    return tree_hash(*irlean_entries())
 
 
 class Runner:
@@ -314,8 +346,9 @@ def toolchain(run: Runner) -> dict[str, str]:
         "lean_version": lean_version,
         "lean_sha256": sha256_file(Path(run.bins["lean"])),
         "leanchecker_sha256": sha256_file(Path(run.bins["leanchecker"])),
-        # Lean's own modules, Init, Std and Lean, which every certificate imports.
-        "lean_library_sha256": tree_hash(prefix / "lib" / "lean"),
+        # Everything in the toolchain: Init, Std and Lean, which every certificate imports, with their
+        # companion files, the shared libraries lean loads, and cadical, which bv_decide runs.
+        "lean_toolchain_sha256": tree_hash(prefix),
         "opt_version": next((x.strip() for x in opt_lines if "LLVM version" in x), ""),
         "opt_sha256": sha256_file(Path(run.bins["opt"])),
         "ir_lean_sha256": sha256_file(TOOL),
@@ -534,7 +567,7 @@ def validate(manifest: Any) -> dict:
         {
             "lean_version",
             "lean_sha256",
-            "lean_library_sha256",
+            "lean_toolchain_sha256",
             "leanchecker_sha256",
             "opt_version",
             "opt_sha256",
@@ -772,7 +805,8 @@ def replay(m: dict, data: dict[str, bytes], work: Path, nonce: str, run: Runner,
     loose = [
         x
         for x in parameters(data["src_ir"].decode(errors="replace"), claim["function"])
-        if not re.search(r"\bnoundef\b", x)
+        # The attribute, not a parameter named %noundef or a string that says it.
+        if not re.search(r"\bnoundef\b", re.sub(r'%"[^"]*"|%[-\w.$]+|"[^"]*"', "", x))
     ]
     if loose:
         raise Verdict(
@@ -807,7 +841,17 @@ def replay(m: dict, data: dict[str, bytes], work: Path, nonce: str, run: Runner,
         )
         if code != 0:
             raise Verdict("error", "generated_module_failed", f"{side}: {(out.decode() + err)[-600:]}")
-    before = toolchain(run)
+    # Everything a check runs or reads outside the run's directory, toolchain() hashed already.
+    trusted = [
+        Path(run.bins["lean"]).parent.parent,
+        *irlean_entries(),
+        Path(run.bins["opt"]),
+        TOOL,
+        AXIOMS,
+        CHECK,
+        Path(__file__).resolve(),
+    ]
+    before = stamp(*trusted)
     checks("compile_generated")
 
     cert = lean_dir / ns / "Cert.lean"
@@ -826,8 +870,8 @@ def replay(m: dict, data: dict[str, bytes], work: Path, nonce: str, run: Runner,
     )
     if str(cert_olean) not in now:
         changed.append(f"{cert_olean} is missing")
-    after = toolchain(run)
-    changed += [k for k in before if before[k] != after[k]]
+    after = stamp(*trusted)
+    changed += sorted(k for k in before.keys() | after.keys() if before.get(k) != after.get(k))
     if changed:
         refused("artifacts_modified", f"these changed while the certificate compiled: {changed}")
     # The checks below each read these in their own process, and have to read the same ones.
@@ -892,8 +936,8 @@ def replay(m: dict, data: dict[str, bytes], work: Path, nonce: str, run: Runner,
     checks("kernel_replay", "leanchecker replays the generated modules and the certificate")
     now = snapshot(lean_dir, library)
     changed = sorted(k for k in watched.keys() | now.keys() if watched.get(k) != now.get(k))
-    final = toolchain(run)
-    changed += [k for k in before if before[k] != final[k]]
+    final = stamp(*trusted)
+    changed += sorted(k for k in before.keys() | final.keys() if before.get(k) != final.get(k))
     if changed:
         refused("artifacts_modified", f"these changed while they were being checked: {changed}")
     checks("unchanged", "every module and tool checked is the one compiled, start to finish")

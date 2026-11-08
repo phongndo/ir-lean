@@ -100,6 +100,12 @@ ADDS_MODULE = GOOD + (
     '  let dir := ((← IO.getEnv "LEAN_PATH").getD "").splitOn ":" |>.head!\n'
     '  IO.FS.writeFile (dir ++ "/IRLean.olean") ""\n'
 )
+# One whose code adds a companion file Lean reads with a module to IRLean's library, through the run's link.
+ADDS_COMPANION = GOOD + (
+    "\nopen Lean in\n#eval show IO Unit from do\n"
+    '  let dir := ((← IO.getEnv "LEAN_PATH").getD "").splitOn ":" |>.getLast!\n'
+    '  IO.FS.writeFile (dir ++ "/IRLean/Basic.ir") ""\n'
+)
 # One whose code leaves a process running after it compiles.
 LEAVES_PROCESS = GOOD + (
     '\n#eval show IO Unit from do\n  let _ ← IO.Process.spawn { cmd := "sleep", args := #["313.7"] }\n'
@@ -296,6 +302,12 @@ CASES: list[tuple[str, Callable[[str], Path], list[str], tuple[str, str]]] = [
     (
         "maybe_undef",
         lambda n: record(n, GOOD, input_ll="maybe_undef.ll"),
+        [],
+        ("unsupported", "undef_argument"),
+    ),
+    (
+        "named_noundef",
+        lambda n: record(n, GOOD, input_ll="named_noundef.ll"),
         [],
         ("unsupported", "undef_argument"),
     ),
@@ -519,6 +531,23 @@ def main() -> int:
             failures.append(f"time_limit: left running: {left}")
         else:
             print("ok    time_limit_stopped: nothing left running")
+    if not args.only or "adds_companion" in args.only:
+        # A file added to IRLean's library is caught, whatever its name. It's this checkout's own build, and
+        # the file is removed after.
+        ran += 1
+        added = ROOT / ".lake" / "build" / "lib" / "lean" / "IRLean" / "Basic.ir"
+        if added.exists():
+            failures.append(f"adds_companion: {added} is already there")
+        else:
+            try:
+                verdict = verify(record("adds_companion", ADDS_COMPANION))
+            finally:
+                added.unlink(missing_ok=True)
+            got = (verdict.get("status"), verdict.get("reason"))
+            if got != ("refused", "artifacts_modified"):
+                failures.append(f"adds_companion: expected refused artifacts_modified, got {got}")
+            else:
+                print(f"ok    adds_companion: {got[0]} {got[1]}")
     if not args.only or "leaves_process" in args.only:
         # Code that ran while the certificate compiled doesn't outlive it.
         ran += 1
