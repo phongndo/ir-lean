@@ -98,22 +98,29 @@ certified by a semantics for `freeze` the model doesn't have.
 
 A precondition can be unsatisfiable, and then the theorem is true and says nothing. So for a claim with
 hypotheses, the runner also asks `tools/verify.py` to refute `∀ x, hypotheses → tgt x ≠ tgt x` at the case's
-`precondition_witness`. Only a counterexample shows an input meets the precondition, and only then is the claim
-certified.
+`precondition_witness`. Only a counterexample, from a checker that exited as one does, without a signal or the
+watchdog, shows an input meets the precondition, and only then is the claim certified.
 
 ## The static cases
 
 These need only Python. They take the stored result of `control_mul2_to_shl1`,
 [`fixtures/control_result.json`](../tests/verification_negative/fixtures/control_result.json), which the gate has to
 certify, and break it one way at a time: half the JSON, another schema, each other status, a status that doesn't
-match its reason or exit code, a required check that failed, was skipped, is missing or appears twice, a
-counterexample, another function, no pin, a weaker pin, a claim that leaves out `src`, an undeclared hypothesis,
-every input hash, and every version. They also run the runner on checkers that hang, crash, get killed, print
-nonsense, print nothing, or print a proved result and exit 1. A last case fails if any reason the gate can give
+match its reason or exit code, an exit code of `false`, which Python calls equal to 0, a required check that failed,
+was skipped, is missing or appears twice, a counterexample, another function, no pin, a weaker pin, a claim that
+leaves out `src`, an undeclared hypothesis, every input hash, and every version. They also run the runner on
+checkers that hang, crash, get killed, print nonsense, print nothing, or print a proved result and exit 1.
+
+The precondition probe gets the same treatment, from the stored result and probe of
+`control_precondition_sufficient`, in
+[`fixtures/precondition_envelope.json`](../tests/verification_negative/fixtures/precondition_envelope.json): certified
+as it is, and not with the probe missing, exiting or crashing, timed out, without a failing witness, with another
+status or exit code, for another statement, or for other IR. A last case fails if any reason the gate can give
 isn't one some case expects.
 
-`tests/verify_negative.py --write-fixture` reruns the control and stores its result, with the run's paths taken out.
-The static control fails with `stale_input` or `stale_proof` if the control's files change and the fixture doesn't.
+`tests/verify_negative.py --write-fixture` reruns the two controls and stores their results, with the run's paths
+taken out. A static control fails with `stale_input` or `stale_proof` if its case's files change and its fixture
+doesn't.
 
 ## The gate
 

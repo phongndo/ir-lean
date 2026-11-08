@@ -148,7 +148,7 @@
     {
       "name": "claim",
       "result": "pass",
-      "seconds": 1.19
+      "seconds": 1.18
     },
     {
       "name": "theorem",
@@ -230,7 +230,7 @@
   },
   "versions": {
     "lean": "Lean (version 4.35.0, x86_64-unknown-linux-gnu, commit eb6cafb7290e8bd5f2937522d8d804f58f02bafc, Release)",
-    "ir_lean": "18421bebd466ff1bacc6b61ee9372efe9f157c37",
+    "ir_lean": "329a2e3eec21032b60b12126aac00ff45e70af21",
     "ir_lean_binary_sha256": "6c24deae0e93684b92808071b0f5c3b0cc6e6819fdb6db17183d8d1f3fbfec9e",
     "irlean_library_sha256": "2ca63df8d54e3cfbde4c474728b61ac6e2779004fb5288324920dcd119af45a0"
   },
@@ -338,7 +338,7 @@
           "LEAN_PATH": "<run>/cases/control_mul2_to_shl1/check/work/lean:<run>/cases/control_mul2_to_shl1/check/work/library"
         },
         "exit": 0,
-        "seconds": 0.21,
+        "seconds": 0.2,
         "timed_out": false
       },
       {
@@ -357,7 +357,7 @@
           "IRLEAN_VERIFY_CONFIG": "<run>/cases/control_mul2_to_shl1/check/work/check/check.json"
         },
         "exit": 0,
-        "seconds": 1.19,
+        "seconds": 1.18,
         "timed_out": false
       },
       {
@@ -377,5 +377,5 @@
       }
     ]
   },
-  "seconds": 2.04
+  "seconds": 2.02
 }

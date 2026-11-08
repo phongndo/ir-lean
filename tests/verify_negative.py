@@ -48,6 +48,9 @@ CASES = CORPUS / "cases"
 STUBS = CORPUS / "stubs"
 FIXTURE = CORPUS / "fixtures" / "control_result.json"
 FIXTURE_CASE = "control_mul2_to_shl1"
+# The result and the precondition probe of a control with a precondition, for the probe's static cases.
+PROBE_FIXTURE = CORPUS / "fixtures" / "precondition_envelope.json"
+PROBE_CASE = "control_precondition_sufficient"
 RUNS = ROOT / "build" / "verify-negative"
 RUNS_KEPT = 5
 VERIFY = ROOT / "tools" / "verify.py"
@@ -419,8 +422,13 @@ def _gate(envelope: Any, expected: dict[str, Any], v: Any, deny: Callable[[str],
         deny("schema_mismatch")
     if result.get("status") != "proved" or result.get("reason") != "kernel_checked":
         deny("not_proved")
-    if result.get("exit_code") != v.EXIT_CODES.get(result.get("status")) or harness.get("exit") != result.get(
-        "exit_code"
+    # Exactly ints: in Python, false == 0.
+    exit_code, process_exit = result.get("exit_code"), harness.get("exit")
+    if (
+        type(exit_code) is not int
+        or type(process_exit) is not int
+        or exit_code != v.EXIT_CODES.get(result.get("status"))
+        or process_exit != exit_code
     ):
         deny("exit_mismatch")
     # It raises KeyError, not AssertionError, for a result missing a check, so any exception counts.
@@ -501,19 +509,25 @@ def _gate(envelope: Any, expected: dict[str, Any], v: Any, deny: Callable[[str],
 
 def probe_witnessed(probe: Any, expected: dict[str, Any]) -> bool:
     """The probe is the runner's own: the statement it built from the case's preconditions, refuted at a
-    witness, for the same IR."""
+    witness, for the same IR, by a checker that exited as a counterexample does."""
     if not isinstance(probe, dict) or not isinstance(probe.get("result"), dict):
         return False
     result = probe["result"]
     pre = expected.get("precondition")
     files = (result.get("artifacts") or {}).get("files") or {}
+    found = result.get("counterexample")
+    counterexample = 2
     return (
         pre is not None
         and result.get("status") == "counterexample"
-        and result.get("reason") == "witness_falsifies"
+        and result.get("exit_code") == counterexample
+        and probe.get("exit") == counterexample
+        and probe.get("signal") is None
+        and probe.get("timed_out") is False
+        and isinstance(found, dict)
+        and found.get("result") == "fails"
         and (result.get("request") or {}).get("statement") == probe_statement(pre)
         and (files.get("input") or {}).get("sha256") == expected["files"].get("input")
-        and probe.get("timed_out") is False
     )
 
 
@@ -684,7 +698,12 @@ def run_live(case: Case, live: Live) -> Outcome:
             "limits": request["limits"],
         }
         ran, _ = check_request(live, probe_request, files, "probe", directory / "probe")
-        probe = {"result": parse_result(ran.stdout), "timed_out": ran.timed_out}
+        probe = {
+            "result": parse_result(ran.stdout),
+            "exit": ran.exit,
+            "signal": ran.signal,
+            "timed_out": ran.timed_out,
+        }
         outcome.seconds += ran.seconds
         outcome.peak_rss_mb = max(outcome.peak_rss_mb, ran.peak_rss_mb)
     envelope = envelope_for(harness, checkers, probe)
@@ -714,21 +733,22 @@ def run_live(case: Case, live: Live) -> Outcome:
 # Static cases: the gate on a stored result, and the runner on checkers that misbehave
 
 
-def fixture_envelope() -> dict[str, Any]:
-    result = json.loads(FIXTURE.read_text())
+def fixture_envelope(path: Path = FIXTURE) -> dict[str, Any]:
+    stored = json.loads(path.read_text())
+    result, probe = (stored["result"], stored["probe"]) if path == PROBE_FIXTURE else (stored, None)
     return {
         "schema": ENVELOPE_SCHEMA,
         "result": result,
         "harness": {"exit": 0, "signal": None, "timed_out": False, "seconds": 1.0, "peak_rss_mb": 1},
         "checker_sha256": checker_hashes(),
-        "probe": None,
+        "probe": probe,
     }
 
 
-def fixture_expected(case: Case) -> dict[str, Any]:
-    """What the stored control result has to match: the case's files as they are now, and the versions it
+def fixture_expected(case: Case, path: Path = FIXTURE) -> dict[str, Any]:
+    """What a stored control result has to match: the case's files as they are now, and the versions it
     recorded, since those are of the machine that made it."""
-    result = json.loads(FIXTURE.read_text())
+    result = fixture_envelope(path)["result"]
     return expected_for(case, case.directory, dict(result["versions"]))
 
 
@@ -843,6 +863,17 @@ class StaticContext:
     case: Case
 
 
+def probe_case(name: str, change: Callable[[dict[str, Any]], None], denials: list[str], note: str) -> Static:
+    """The stored control with a precondition, its probe changed. Without a change it's certified."""
+
+    def run(ctx: StaticContext) -> tuple[Any, dict[str, Any]]:
+        envelope = fixture_envelope(PROBE_FIXTURE)
+        change(envelope["probe"])
+        return envelope, fixture_expected(load_case(CASES / PROBE_CASE), PROBE_FIXTURE)
+
+    return Static(name, run, {"certified": not denials, "gate": denials}, note)
+
+
 def mutation(name: str, change: Mutation, denials: list[str], note: str) -> Static:
     def run(ctx: StaticContext) -> tuple[Any, dict[str, Any]]:
         return change(fixture_envelope()), fixture_expected(ctx.case)
@@ -922,6 +953,13 @@ def static_cases() -> list[Static]:
         m("exit_code_mismatch", mutate_result(lambda r: r.update(exit_code=1)), ["exit_mismatch"], ""),
         m("process_exit_mismatch", with_harness(exit=1), ["exit_mismatch"], "the process exited 1"),
         m(
+            "exit_code_bool",
+            mutate_result(lambda r: r.update(exit_code=False)),
+            ["exit_mismatch"],
+            "false for 0, which Python calls equal",
+        ),
+        m("process_exit_bool", with_harness(exit=False), ["exit_mismatch"], "the process's exit as false"),
+        m(
             "required_check_failed",
             mutate_result(set_check("kernel_replay", "fail")),
             ["check_not_passed", "contract_violation"],
@@ -987,6 +1025,47 @@ def static_cases() -> list[Static]:
         dirty_this_run("emitter_dirty_this_run"),
         m("lean_differs", mutate_result(version("lean", "Lean (version 4.0.0)")), ["stale_lean"], ""),
         m("checker_differs", stale_checker, ["stale_checker"], "tools/verify.py changed since the run"),
+        probe_case("probe_control", lambda p: None, [], "a precondition an input meets, certified"),
+        probe_case("probe_missing", lambda p: p.clear(), ["hypotheses_unwitnessed"], "no probe"),
+        probe_case("probe_exit_mismatch", lambda p: p.update(exit=0), ["hypotheses_unwitnessed"], ""),
+        probe_case("probe_crashed", lambda p: p.update(signal=11), ["hypotheses_unwitnessed"], ""),
+        probe_case("probe_timed_out", lambda p: p.update(timed_out=True), ["hypotheses_unwitnessed"], ""),
+        probe_case(
+            "probe_result_exit_mismatch",
+            lambda p: p["result"].update(exit_code=0),
+            ["hypotheses_unwitnessed"],
+            "",
+        ),
+        probe_case(
+            "probe_status_not_counterexample",
+            lambda p: p["result"].update(status="error"),
+            ["hypotheses_unwitnessed"],
+            "",
+        ),
+        probe_case(
+            "probe_without_counterexample",
+            lambda p: p["result"].update(counterexample=None),
+            ["hypotheses_unwitnessed"],
+            "",
+        ),
+        probe_case(
+            "probe_witness_holds",
+            lambda p: p["result"]["counterexample"].update(result="holds"),
+            ["hypotheses_unwitnessed"],
+            "",
+        ),
+        probe_case(
+            "probe_other_statement",
+            lambda p: p["result"]["request"].update(statement="True"),
+            ["hypotheses_unwitnessed"],
+            "",
+        ),
+        probe_case(
+            "probe_other_input",
+            lambda p: p["result"]["artifacts"]["files"]["input"].update(sha256="0" * 64),
+            ["hypotheses_unwitnessed"],
+            "",
+        ),
         m(
             "watchdog_fired",
             with_harness(timed_out=True),
@@ -1028,18 +1107,24 @@ def run_static(item: Static, ctx: StaticContext) -> Outcome:
 
 
 def write_fixture(live: Live) -> int:
-    """Runs the control case and stores its result, with machine paths taken out, for the static tier."""
-    case = load_case(CASES / FIXTURE_CASE)
-    outcome = run_live(case, live)
-    if not outcome.certified:
-        print(outcome.line())
-        return 1
-    envelope = json.loads((live.out / "cases" / case.id / "envelope.json").read_text())
-    text = json.dumps(envelope["result"], indent=2, ensure_ascii=False) + "\n"
-    text = text.replace(str(live.out), "<run>").replace(str(ROOT), "<repo>")
-    FIXTURE.parent.mkdir(parents=True, exist_ok=True)
-    FIXTURE.write_text(text)
-    print(f"wrote {FIXTURE.relative_to(ROOT)}")
+    """Runs the two controls the static tier reads and stores their results, with machine paths taken out."""
+    for name, path in ((FIXTURE_CASE, FIXTURE), (PROBE_CASE, PROBE_FIXTURE)):
+        case = load_case(CASES / name)
+        outcome = run_live(case, live)
+        if not outcome.certified:
+            print(outcome.line())
+            return 1
+        envelope = json.loads((live.out / "cases" / case.id / "envelope.json").read_text())
+        stored = (
+            {"result": envelope["result"], "probe": envelope["probe"]}
+            if path == PROBE_FIXTURE
+            else envelope["result"]
+        )
+        text = json.dumps(stored, indent=2, ensure_ascii=False) + "\n"
+        text = text.replace(str(live.out), "<run>").replace(str(ROOT), "<repo>")
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(text)
+        print(f"wrote {path.relative_to(ROOT)}")
     return 0
 
 
