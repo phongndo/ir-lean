@@ -119,19 +119,19 @@ other direction: without flags, the model makes no poison of its own, which a re
 ### Tests
 
 [`tests/contracts.sh`](../tests/contracts.sh), in the dev shell. It runs one Lean process at a time, each capped at 2,000
-MB with `lean -M` and 300 s with `timeout`, and writes nothing outside a temporary directory except what `lake build`
-keeps for `IRLean.Contract.Poison` and the three modules it imports. It takes about 10 s.
+MB with `lean -M` and 300 s with `timeout`, and writes only to a temporary directory: it compiles copies of the contracts
+and the three model modules they import there, without Lake. It takes about 12 s.
 
 | Check | Shows |
 | --- | --- |
-| `lake build --wfail IRLean.Contract.Poison` | The contracts check, with warnings as errors |
+| `IRLean.Contract.Poison` builds | The contracts check, with warnings as errors |
 | [`tests/contracts/ContractPoison.lean`](../tests/contracts/ContractPoison.lean) | 18 vectors: LangRef's own Poison Values examples, `sdiv` of `-2147483648` by `-1`, `exact` on `7 / 2`, `select` and `freeze`. And 7 semantics LangRef rules out, each proved to fail its contract: `and` with zero absorbing poison, `add` always acting as if it had `nuw`, `add nsw` saturating, `sdiv` never undefined on a poison dividend, `udiv` always undefined on one, `udiv` giving poison for a poison divisor, and `exact` trapping |
 | Axioms, read as data | Both modules rest on the standard three, through the repo's [`tests/check_axioms.lean`](../tests/check_axioms.lean), unchanged. `leanchecker` replays both through the kernel |
 | [`must_fail/LaxSdivProof.lean`](../tests/contracts/must_fail/LaxSdivProof.lean) | A proof that the lax `sdiv` meets `PoisonUB` fails, with an error that isn't a resource limit |
 | [`must_fail/SorriedContract.lean`](../tests/contracts/must_fail/SorriedContract.lean) | A `sorry` compiles, and the axiom check refuses it |
-| Five model mutants | Each edits a copy of the real `IRLean/Int.lean`, and has to stop the named theorem with an error of its own: a poison dividend never undefined stops `sdiv_poisonUB`, a poison divisor giving poison stops `udiv_poisonUB`, `add`'s flags giving 0 stops `add_onlyPoisons`, `add` ignoring whether it has `nuw` stops `add_noPoison`, and `and` with zero absorbing poison stops `and_strict` |
+| Five model mutants | Each edits a copy of the real `IRLean/Int.lean`, and has to stop the named theorem with an error of its own, which a resource limit in it isn't: a poison dividend never undefined stops `sdiv_poisonUB`, a poison divisor giving poison stops `udiv_poisonUB`, `add`'s flags giving 0 stops `add_onlyPoisons`, `add` ignoring whether it has `nuw` stops `add_noPoison`, and `and` with zero absorbing poison stops `and_strict` |
 
-Run on 2026-11-08 at the base commit plus this slice: all 11 checks passed, in 11.5 s. A copy of the script naming the
+Run on 2026-11-08 at the base commit plus this slice: all 11 checks passed, in 12.2 s. A copy of the script naming the
 wrong theorem for a mutant failed, as it should, and so did a run where the tests didn't compile, which reported each
 check that depends on them instead of passing it.
 
@@ -302,8 +302,8 @@ Not claimed:
 
 It changes no existing file: not `IRLean.lean`, `lakefile.toml`, the model, the emitter, `tests/check_axioms.lean`, CI,
 `CMakeLists.txt`, `docs/testing.md`, `tests/lint.sh` or the scorer. Until the CI lane registers it, `tests/contracts.sh`
-runs only by hand: CI lints these files, but doesn't run it. `IRLean.lean` needn't import `IRLean.Contract`: `lake build
-IRLean.Contract.Poison` builds it by name.
+runs only by hand: CI lints these files, but doesn't run it. `IRLean.lean` needn't import `IRLean.Contract`: the
+test compiles it by path.
 
 ## Next
 

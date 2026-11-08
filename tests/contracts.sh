@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Checks the semantic contracts in IRLean/Contract against the model, and that their tests can fail.
-# Bounded: one Lean process at a time, each with a memory cap and a time limit, and nothing outside a temporary
-# directory except what `lake build` keeps for IRLean.Contract.Poison and the modules it imports.
+# Bounded: one Lean process at a time, each with a memory cap and a time limit, writing only to a temporary directory.
+# The contracts and the model modules they import are compiled there from copies, so Lake and .lake aren't used.
 # usage: tests/contracts.sh   (in the dev shell, after nothing more than a checkout)
 set -euo pipefail
 root=$(cd "$(dirname "$0")/.." && pwd)
@@ -10,7 +10,7 @@ work=$(mktemp -d)
 trap 'rm -rf "$work"' EXIT
 mb=${LEAN_MAX_MB:-2000}
 secs=${CONTRACTS_TIMEOUT:-300}
-export LEAN_PATH="$work:$root/.lake/build/lib/lean"
+export LEAN_PATH="$work"
 lean_bin=$(command -v lean)
 lean() { timeout "$secs" "$lean_bin" -M "$mb" "$@"; }
 failed=0
@@ -23,8 +23,28 @@ fail() {
 limit='maximum number of heartbeats|\(deterministic\) timeout|maximum recursion depth|deep recursion|stack overflow|'
 limit+='excessive memory|out of memory|maximum number of steps'
 
+# Copies the model's modules the contracts import into DIR, with Int.lean from INT, and compiles them there. Lean finds
+# every IRLean module in the first directory on its path that has one, so DIR has its own.
+# usage: build_model DIR INT [LEAN_OPTION...]
+build_model() {
+  local dir=$1 int=$2 module out
+  shift 2
+  mkdir -p "$dir/IRLean/Contract"
+  cp IRLean/Attr.lean IRLean/Basic.lean "$dir/IRLean/"
+  cp "$int" "$dir/IRLean/Int.lean"
+  cp IRLean/Contract/Poison.lean "$dir/IRLean/Contract/Poison.lean"
+  for module in Attr Basic Int; do
+    if ! out=$(LEAN_PATH="$dir" lean "$@" -R "$dir" -o "$dir/IRLean/$module.olean" "$dir/IRLean/$module.lean" 2>&1); then
+      printf '%s\n' "$out"
+      return 1
+    fi
+  done
+}
+
 # The contracts themselves, with warnings as errors.
-if out=$(timeout "$secs" lake build --wfail IRLean.Contract.Poison 2>&1); then
+if out=$(build_model "$work" IRLean/Int.lean -DwarningAsError=true 2>&1) &&
+  out=$(lean -DwarningAsError=true -R "$work" -o "$work/IRLean/Contract/Poison.olean" \
+    "$work/IRLean/Contract/Poison.lean" 2>&1); then
   printf 'ok    IRLean.Contract.Poison builds\n'
 else
   fail 'IRLean.Contract.Poison builds' "$out"
@@ -83,32 +103,27 @@ fi
 # has to stop on it with an error of its own. This ties the contracts to the definitions emitted code uses.
 # usage: model_mutant NAME SED_EXPRESSION THEOREM
 model_mutant() {
-  local dir status=0 out errors module
+  local dir status=0 out errors
   dir=$(mktemp -d -p "$work")
-  mkdir -p "$dir/IRLean/Contract"
-  cp IRLean/Attr.lean IRLean/Basic.lean "$dir/IRLean/"
-  sed "$2" IRLean/Int.lean >"$dir/IRLean/Int.lean"
-  if cmp -s IRLean/Int.lean "$dir/IRLean/Int.lean"; then
+  sed "$2" IRLean/Int.lean >"$dir/Int.lean"
+  if cmp -s IRLean/Int.lean "$dir/Int.lean"; then
     fail "model mutant $1 doesn't change IRLean/Int.lean"
     return
   fi
-  cp IRLean/Contract/Poison.lean "$dir/IRLean/Contract/Poison.lean"
-  # Lean finds every IRLean module in the first directory on the path that has one, so the copy has its own.
-  for module in Attr Basic Int; do
-    if ! out=$(LEAN_PATH="$dir" lean -R "$dir" -o "$dir/IRLean/$module.olean" "$dir/IRLean/$module.lean" 2>&1); then
-      fail "model mutant $1 doesn't compile, so it can't show anything" "$out"
-      return
-    fi
-  done
+  if ! out=$(build_model "$dir" "$dir/Int.lean" 2>&1); then
+    fail "model mutant $1 doesn't compile, so it can't show anything" "$out"
+    return
+  fi
   out=$(LEAN_PATH="$dir" lean -R "$dir" "$dir/IRLean/Contract/Poison.lean" 2>&1) || status=$?
-  errors=$(grep -E "Contract/Poison.lean:[0-9]+:[0-9]+: error" <<<"$out" || true)
+  # Only errors that aren't resource limits count, so a theorem that only ran out of something isn't stopped.
+  errors=$(grep -E "Contract/Poison.lean:[0-9]+:[0-9]+: error" <<<"$out" | grep -vE "$limit" || true)
   if [ "$status" = 0 ]; then
     fail "model mutant $1 still meets every contract"
-  elif [ -z "$errors" ] || ! grep -qvE "$limit" <<<"$errors"; then
+  elif [ -z "$errors" ]; then
     fail "model mutant $1 stops the contracts only at a resource limit, or never says why" "$out"
   elif ! hit=$(theorems_with_errors "$dir/IRLean/Contract/Poison.lean" <<<"$errors" | grep -xF "$3"); then
-    fail "model mutant $1 doesn't stop $3, only $(theorems_with_errors "$dir/IRLean/Contract/Poison.lean" <<<"$errors" |
-      tr '\n' ' ')"
+    fail "model mutant $1 doesn't stop $3 with an error of its own, only $(theorems_with_errors \
+      "$dir/IRLean/Contract/Poison.lean" <<<"$errors" | tr '\n' ' ')" "$out"
   else
     printf 'ok    model mutant %s stops %s: %s\n' "$1" "$hit" "$(head -1 <<<"$errors" | sed "s|$dir/||" | cut -c1-120)"
   fi
