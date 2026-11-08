@@ -110,7 +110,7 @@ every outcome the source has, the target has too: a value, poison, undefined beh
 implies `IRLean.Refines`, where a model stop in the source allows nothing, through `Refines.of_eq` and
 `Refines.self_iff` ([refinement](refinement.md)).
 
-It also holds only where the model has no less undefined behavior than LLVM in the source, and no more in the target.
+It also holds only where the model has no more undefined behavior than LLVM in the source, and no less in the target.
 So three kinds of function are `unsupported`, before any proof is read:
 
 - one that uses memory or pointers, where the model has more undefined behavior than LLVM
