@@ -1,6 +1,6 @@
 [
  {
-  "cache": "miss",
+  "cache": "disabled",
   "checks": [
    [
     "manifest",
@@ -38,9 +38,9 @@
     "timeout_s": 2400
    },
    "outcome": "failed",
-   "peak_process_mb": 447.2,
-   "peak_tree_mb": 440.0,
-   "wall_s": 7.87
+   "peak_process_mb": 445.4,
+   "peak_tree_mb": 442.6,
+   "wall_s": 7.7
   },
   "detail": "the target IR has mustprogress or willreturn, which IRLean trusts instead of checking",
   "label": "o1",
@@ -48,11 +48,12 @@
   "namespace": "O1ShiftMaskO1",
   "passes": "default<O1>",
   "reason": "trusted_promise",
+  "sources": "e2f0d05b5ba701ebeb5f31a5033dd683d4d9e2414a0d007811a9ee6d7200211b",
   "status": "unsupported",
   "step": null
  },
  {
-  "cache": "miss",
+  "cache": "disabled",
   "checks": [
    [
     "manifest",
@@ -118,9 +119,9 @@
     "timeout_s": 2400
    },
    "outcome": "ok",
-   "peak_process_mb": 1487.5,
-   "peak_tree_mb": 1832.7,
-   "wall_s": 12.95
+   "peak_process_mb": 1486.9,
+   "peak_tree_mb": 1943.9,
+   "wall_s": 11.95
   },
   "detail": "every check passed",
   "key": "7bf906afeb8dd5d524c87cb28bab7591d088e4a9232adfd52ed71b1e6f75b1b7",
@@ -129,6 +130,7 @@
   "namespace": "O1ShiftMaskS01",
   "passes": "ipsccp",
   "reason": "replayed",
+  "sources": "e2f0d05b5ba701ebeb5f31a5033dd683d4d9e2414a0d007811a9ee6d7200211b",
   "statement": "O1ShiftMaskS01.Src.f = O1ShiftMaskS01.Tgt.f ∧\n  ∀ (x : IRLean.Val 32) (s : IRLean.ModelStop),\n    O1ShiftMaskS01.Src.f x ≠ Option.some (Except.error (IRLean.Stop.model s))",
   "status": "bound",
   "step": 1,
@@ -138,7 +140,7 @@
   }
  },
  {
-  "cache": "miss",
+  "cache": "disabled",
   "checks": [
    [
     "manifest",
@@ -204,9 +206,9 @@
     "timeout_s": 2400
    },
    "outcome": "ok",
-   "peak_process_mb": 1622.8,
-   "peak_tree_mb": 1964.3,
-   "wall_s": 12.89
+   "peak_process_mb": 1486.9,
+   "peak_tree_mb": 1942.6,
+   "wall_s": 13.01
   },
   "detail": "every check passed",
   "key": "ff17a9ec073081fb8c345b71b2b3ca03825a8b5aed56933aa37697f1e6d6e41a",
@@ -215,6 +217,7 @@
   "namespace": "O1ShiftMaskS02",
   "passes": "globalopt",
   "reason": "replayed",
+  "sources": "e2f0d05b5ba701ebeb5f31a5033dd683d4d9e2414a0d007811a9ee6d7200211b",
   "statement": "O1ShiftMaskS02.Src.f = O1ShiftMaskS02.Tgt.f ∧\n  ∀ (x : IRLean.Val 32) (s : IRLean.ModelStop),\n    O1ShiftMaskS02.Src.f x ≠ Option.some (Except.error (IRLean.Stop.model s))",
   "status": "bound",
   "step": 2,
@@ -224,7 +227,7 @@
   }
  },
  {
-  "cache": "miss",
+  "cache": "disabled",
   "checks": [
    [
     "manifest",
@@ -274,17 +277,18 @@
     "timeout_s": 2400
    },
    "outcome": "failed",
-   "peak_process_mb": 669.3,
-   "peak_tree_mb": 612.6,
-   "wall_s": 8.2
+   "peak_process_mb": 669.2,
+   "peak_tree_mb": 842.0,
+   "wall_s": 9.02
   },
-  "detail": "Lean rejects the certificate: /Users/dp/.t3/worktrees/ir-lean/campaign-mac-o1-20261108/build/binding/runs/5749edb17bcec0df-3a60ae7f8a8d8330/lean/O1ShiftMaskS03/Cert.lean:15:14: error: None of the hypotheses are in the supported BitVec fragment after applying preprocessing.\nThere are three potential reasons for this:\n1. If you are using custom BitVec constructs simplify them to built-in ones.\n2. If your problem is using only built-in ones it might currently be out of reach.\n   Consider expressing it in terms of different operations that are better supported.\n3. The original goal was reduced to False and is thus invalid.\n",
+  "detail": "Lean rejects the certificate: /Users/dp/.t3/worktrees/ir-lean/campaign-mac-o1-20261108/build/binding/runs/5749edb17bcec0df-9bd412720d7f6e77/lean/O1ShiftMaskS03/Cert.lean:15:14: error: None of the hypotheses are in the supported BitVec fragment after applying preprocessing.\nThere are three potential reasons for this:\n1. If you are using custom BitVec constructs simplify them to built-in ones.\n2. If your problem is using only built-in ones it might currently be out of reach.\n   Consider expressing it in terms of different operations that are better supported.\n3. The original goal was reduced to False and is thus invalid.\n",
   "key": "5749edb17bcec0dfc3e498cb19b3d9c16084874a8b42bc134423c81b9442512f",
   "label": "s03",
   "memory_capped": false,
   "namespace": "O1ShiftMaskS03",
   "passes": "function(instcombine<max-iterations=1;no-verify-fixpoint>)",
   "reason": "certificate_compile_failed",
+  "sources": "e2f0d05b5ba701ebeb5f31a5033dd683d4d9e2414a0d007811a9ee6d7200211b",
   "status": "refused",
   "step": 3,
   "uncovered_changes": {

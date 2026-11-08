@@ -1,6 +1,6 @@
 [
  {
-  "cache": "miss",
+  "cache": "disabled",
   "checks": [
    [
     "manifest",
@@ -38,9 +38,9 @@
     "timeout_s": 2400
    },
    "outcome": "failed",
-   "peak_process_mb": 445.3,
-   "peak_tree_mb": 442.5,
-   "wall_s": 7.52
+   "peak_process_mb": 446.9,
+   "peak_tree_mb": 444.2,
+   "wall_s": 7.06
   },
   "detail": "the target IR has mustprogress or willreturn, which IRLean trusts instead of checking",
   "label": "o1",
@@ -48,11 +48,12 @@
   "namespace": "O1DiamondPhiO1",
   "passes": "default<O1>",
   "reason": "trusted_promise",
+  "sources": "e2f0d05b5ba701ebeb5f31a5033dd683d4d9e2414a0d007811a9ee6d7200211b",
   "status": "unsupported",
   "step": null
  },
  {
-  "cache": "miss",
+  "cache": "disabled",
   "checks": [
    [
     "manifest",
@@ -118,9 +119,9 @@
     "timeout_s": 2400
    },
    "outcome": "ok",
-   "peak_process_mb": 1559.3,
-   "peak_tree_mb": 1919.6,
-   "wall_s": 12.79
+   "peak_process_mb": 1546.2,
+   "peak_tree_mb": 1898.6,
+   "wall_s": 12.8
   },
   "detail": "every check passed",
   "key": "6a454fe86991b8e8ed0f3c4f19c3471ca2c17755fcba5e71527ff85a3670ab16",
@@ -129,6 +130,7 @@
   "namespace": "O1DiamondPhiS02",
   "passes": "globalopt",
   "reason": "replayed",
+  "sources": "e2f0d05b5ba701ebeb5f31a5033dd683d4d9e2414a0d007811a9ee6d7200211b",
   "statement": "O1DiamondPhiS02.Src.f = O1DiamondPhiS02.Tgt.f ∧\n  ∀ (x : IRLean.Val 32) (c : IRLean.Val 1) (s : IRLean.ModelStop),\n    O1DiamondPhiS02.Src.f x c ≠ Option.some (Except.error (IRLean.Stop.model s))",
   "status": "bound",
   "step": 2,
@@ -138,7 +140,7 @@
   }
  },
  {
-  "cache": "miss",
+  "cache": "disabled",
   "checks": [
    [
     "manifest",
@@ -189,16 +191,17 @@
    },
    "outcome": "failed",
    "peak_process_mb": 669.1,
-   "peak_tree_mb": 1111.5,
-   "wall_s": 8.9
+   "peak_tree_mb": 1042.4,
+   "wall_s": 8.44
   },
-  "detail": "Lean rejects the certificate: /Users/dp/.t3/worktrees/ir-lean/campaign-mac-o1-20261108/build/binding/runs/27f18cc42c265a43-13dbe0ba869fe550/lean/O1DiamondPhiS03/Cert.lean:15:14: error: None of the hypotheses are in the supported BitVec fragment after applying preprocessing.\nThere are three potential reasons for this:\n1. If you are using custom BitVec constructs simplify them to built-in ones.\n2. If your problem is using only built-in ones it might currently be out of reach.\n   Consider expressing it in terms of different operations that are better supported.\n3. The original goal was reduced to False and is thus invalid.\n",
+  "detail": "Lean rejects the certificate: /Users/dp/.t3/worktrees/ir-lean/campaign-mac-o1-20261108/build/binding/runs/27f18cc42c265a43-c4f9330a97ed9398/lean/O1DiamondPhiS03/Cert.lean:15:14: error: None of the hypotheses are in the supported BitVec fragment after applying preprocessing.\nThere are three potential reasons for this:\n1. If you are using custom BitVec constructs simplify them to built-in ones.\n2. If your problem is using only built-in ones it might currently be out of reach.\n   Consider expressing it in terms of different operations that are better supported.\n3. The original goal was reduced to False and is thus invalid.\n",
   "key": "27f18cc42c265a43b90d0eb70b01b62be81de784560cd6091088db30db1c2ca2",
   "label": "s03",
   "memory_capped": false,
   "namespace": "O1DiamondPhiS03",
   "passes": "function(instcombine<max-iterations=1;no-verify-fixpoint>)",
   "reason": "certificate_compile_failed",
+  "sources": "e2f0d05b5ba701ebeb5f31a5033dd683d4d9e2414a0d007811a9ee6d7200211b",
   "status": "refused",
   "step": 3,
   "uncovered_changes": {
@@ -207,7 +210,7 @@
   }
  },
  {
-  "cache": "miss",
+  "cache": "disabled",
   "checks": [
    [
     "manifest",
@@ -258,16 +261,17 @@
    },
    "outcome": "failed",
    "peak_process_mb": 669.1,
-   "peak_tree_mb": 1115.8,
-   "wall_s": 8.4
+   "peak_tree_mb": 1111.4,
+   "wall_s": 8.03
   },
-  "detail": "Lean rejects the certificate: /Users/dp/.t3/worktrees/ir-lean/campaign-mac-o1-20261108/build/binding/runs/0b2555ad7ef5018d-3ea6ba925eeb1a80/lean/O1DiamondPhiS04/Cert.lean:15:14: error: None of the hypotheses are in the supported BitVec fragment after applying preprocessing.\nThere are three potential reasons for this:\n1. If you are using custom BitVec constructs simplify them to built-in ones.\n2. If your problem is using only built-in ones it might currently be out of reach.\n   Consider expressing it in terms of different operations that are better supported.\n3. The original goal was reduced to False and is thus invalid.\n",
+  "detail": "Lean rejects the certificate: /Users/dp/.t3/worktrees/ir-lean/campaign-mac-o1-20261108/build/binding/runs/0b2555ad7ef5018d-fada17667d84c2f7/lean/O1DiamondPhiS04/Cert.lean:15:14: error: None of the hypotheses are in the supported BitVec fragment after applying preprocessing.\nThere are three potential reasons for this:\n1. If you are using custom BitVec constructs simplify them to built-in ones.\n2. If your problem is using only built-in ones it might currently be out of reach.\n   Consider expressing it in terms of different operations that are better supported.\n3. The original goal was reduced to False and is thus invalid.\n",
   "key": "0b2555ad7ef5018d6342bd6437585e866bc8045d50bf87dd922c00545c26578c",
   "label": "s04",
   "memory_capped": false,
   "namespace": "O1DiamondPhiS04",
   "passes": "function(reassociate)",
   "reason": "certificate_compile_failed",
+  "sources": "e2f0d05b5ba701ebeb5f31a5033dd683d4d9e2414a0d007811a9ee6d7200211b",
   "status": "refused",
   "step": 4,
   "uncovered_changes": {

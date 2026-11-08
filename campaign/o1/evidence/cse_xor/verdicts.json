@@ -1,6 +1,6 @@
 [
  {
-  "cache": "miss",
+  "cache": "disabled",
   "checks": [
    [
     "manifest",
@@ -38,9 +38,9 @@
     "timeout_s": 2400
    },
    "outcome": "failed",
-   "peak_process_mb": 445.8,
-   "peak_tree_mb": 443.0,
-   "wall_s": 8.57
+   "peak_process_mb": 446.8,
+   "peak_tree_mb": 439.6,
+   "wall_s": 7.56
   },
   "detail": "the target IR has mustprogress or willreturn, which IRLean trusts instead of checking",
   "label": "o1",
@@ -48,11 +48,12 @@
   "namespace": "O1CseXorO1",
   "passes": "default<O1>",
   "reason": "trusted_promise",
+  "sources": "e2f0d05b5ba701ebeb5f31a5033dd683d4d9e2414a0d007811a9ee6d7200211b",
   "status": "unsupported",
   "step": null
  },
  {
-  "cache": "miss",
+  "cache": "disabled",
   "checks": [
    [
     "manifest",
@@ -118,9 +119,9 @@
     "timeout_s": 2400
    },
    "outcome": "ok",
-   "peak_process_mb": 1672.1,
-   "peak_tree_mb": 1980.0,
-   "wall_s": 14.45
+   "peak_process_mb": 1487.2,
+   "peak_tree_mb": 1942.1,
+   "wall_s": 13.58
   },
   "detail": "every check passed",
   "key": "1cb88983ea1e8dd11c793898b23ab13213f4c071da832db4ae505f8c31fb7e19",
@@ -129,6 +130,7 @@
   "namespace": "O1CseXorS01",
   "passes": "function(early-cse<>)",
   "reason": "replayed",
+  "sources": "e2f0d05b5ba701ebeb5f31a5033dd683d4d9e2414a0d007811a9ee6d7200211b",
   "statement": "O1CseXorS01.Src.f = O1CseXorS01.Tgt.f ∧\n  ∀ (x y : IRLean.Val 32) (s : IRLean.ModelStop),\n    O1CseXorS01.Src.f x y ≠ Option.some (Except.error (IRLean.Stop.model s))",
   "status": "bound",
   "step": 1,
@@ -138,7 +140,7 @@
   }
  },
  {
-  "cache": "miss",
+  "cache": "disabled",
   "checks": [
    [
     "manifest",
@@ -204,9 +206,9 @@
     "timeout_s": 2400
    },
    "outcome": "ok",
-   "peak_process_mb": 1550.4,
-   "peak_tree_mb": 1832.4,
-   "wall_s": 12.08
+   "peak_process_mb": 1487.0,
+   "peak_tree_mb": 1942.3,
+   "wall_s": 13.55
   },
   "detail": "every check passed",
   "key": "24cce4994a518dce64ae4d39c6fd09f85256eeff68a36cb1a06e2effd082f3aa",
@@ -215,6 +217,7 @@
   "namespace": "O1CseXorS02",
   "passes": "globalopt",
   "reason": "replayed",
+  "sources": "e2f0d05b5ba701ebeb5f31a5033dd683d4d9e2414a0d007811a9ee6d7200211b",
   "statement": "O1CseXorS02.Src.f = O1CseXorS02.Tgt.f ∧\n  ∀ (x y : IRLean.Val 32) (s : IRLean.ModelStop),\n    O1CseXorS02.Src.f x y ≠ Option.some (Except.error (IRLean.Stop.model s))",
   "status": "bound",
   "step": 2,
@@ -224,7 +227,7 @@
   }
  },
  {
-  "cache": "miss",
+  "cache": "disabled",
   "checks": [
    [
     "manifest",
@@ -290,9 +293,9 @@
     "timeout_s": 2400
    },
    "outcome": "ok",
-   "peak_process_mb": 1555.3,
-   "peak_tree_mb": 1833.0,
-   "wall_s": 14.45
+   "peak_process_mb": 1487.7,
+   "peak_tree_mb": 1913.6,
+   "wall_s": 12.28
   },
   "detail": "every check passed",
   "key": "287c461b8e7ba46deb408b5d1b220c0abbd876f5e4776d5eb7988d8476f28439",
@@ -301,6 +304,7 @@
   "namespace": "O1CseXorS03",
   "passes": "function(instcombine<max-iterations=1;no-verify-fixpoint>)",
   "reason": "replayed",
+  "sources": "e2f0d05b5ba701ebeb5f31a5033dd683d4d9e2414a0d007811a9ee6d7200211b",
   "statement": "O1CseXorS03.Src.f = O1CseXorS03.Tgt.f ∧\n  ∀ (x y : IRLean.Val 32) (s : IRLean.ModelStop),\n    O1CseXorS03.Src.f x y ≠ Option.some (Except.error (IRLean.Stop.model s))",
   "status": "bound",
   "step": 3,
@@ -310,7 +314,7 @@
   }
  },
  {
-  "cache": "miss",
+  "cache": "disabled",
   "checks": [
    [
     "manifest",
@@ -376,9 +380,9 @@
     "timeout_s": 2400
    },
    "outcome": "ok",
-   "peak_process_mb": 1487.1,
-   "peak_tree_mb": 1902.5,
-   "wall_s": 14.75
+   "peak_process_mb": 1675.5,
+   "peak_tree_mb": 1877.7,
+   "wall_s": 14.0
   },
   "detail": "every check passed",
   "key": "919e8f8e2c8de437b8bbfa75eb2d955e0db33275423623ed7a4eef5506e090e8",
@@ -387,6 +391,7 @@
   "namespace": "O1CseXorS04",
   "passes": "function(reassociate)",
   "reason": "replayed",
+  "sources": "e2f0d05b5ba701ebeb5f31a5033dd683d4d9e2414a0d007811a9ee6d7200211b",
   "statement": "O1CseXorS04.Src.f = O1CseXorS04.Tgt.f ∧\n  ∀ (x y : IRLean.Val 32) (s : IRLean.ModelStop),\n    O1CseXorS04.Src.f x y ≠ Option.some (Except.error (IRLean.Stop.model s))",
   "status": "bound",
   "step": 4,
@@ -396,7 +401,7 @@
   }
  },
  {
-  "cache": "miss",
+  "cache": "disabled",
   "checks": [
    [
     "manifest",
@@ -462,9 +467,9 @@
     "timeout_s": 2400
    },
    "outcome": "ok",
-   "peak_process_mb": 1591.2,
-   "peak_tree_mb": 1870.4,
-   "wall_s": 12.34
+   "peak_process_mb": 1663.3,
+   "peak_tree_mb": 1864.6,
+   "wall_s": 14.04
   },
   "detail": "every check passed",
   "key": "b7b05182962a1feb8eaa7d23b931701949e9647e5604de06b560b478d5b7e407",
@@ -473,6 +478,7 @@
   "namespace": "O1CseXorS05",
   "passes": "function(sccp)",
   "reason": "replayed",
+  "sources": "e2f0d05b5ba701ebeb5f31a5033dd683d4d9e2414a0d007811a9ee6d7200211b",
   "statement": "O1CseXorS05.Src.f = O1CseXorS05.Tgt.f ∧\n  ∀ (x y : IRLean.Val 32) (s : IRLean.ModelStop),\n    O1CseXorS05.Src.f x y ≠ Option.some (Except.error (IRLean.Stop.model s))",
   "status": "bound",
   "step": 5,

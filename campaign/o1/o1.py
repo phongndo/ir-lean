@@ -843,7 +843,6 @@ def bind_job(job: dict, cfg: dict, cap_mb: float) -> dict:
     with tempfile.TemporaryFile() as o:
         argv = [sys.executable, str(BINDING), "verify", str(bundle / "manifest.json")]
         argv += ["--memory", str(budget["lean_memory_mb"]), "--timeout", str(budget["step_timeout_s"])]
-        argv += ["--cache", str(WORK / "binding-cache")]
         rec = measure.run(
             argv,
             label=f"{job['case']}: {job['label']} verify",
@@ -939,6 +938,7 @@ def cmd_bind(args: argparse.Namespace) -> int:
             continue
         jobs += bind_jobs(capture["case"], capture)
     print(f"{len(jobs)} bundles, {workers} at a time, each capped at {cap:.0f} MiB of RSS", file=sys.stderr)
+    sources = sources_fingerprint()
     results: dict[str, list[dict]] = {}
     lines = []
     with (
@@ -957,7 +957,12 @@ def cmd_bind(args: argparse.Namespace) -> int:
                 lines.append(json.dumps(m, sort_keys=True))
                 r["cost"] = summarize(m)
             print(f"{j['case']} {j['label']}: {r['status']} {r.get('reason', '')}", file=sys.stderr)
+    # A source that changed while they ran makes every verdict of this run stale.
+    if sources_fingerprint() != sources:
+        sources = "changed while bind ran"
     for case, rs in results.items():
+        for r in rs:
+            r["sources"] = sources
         write_json(EVIDENCE / case / "verdicts.json", sorted(rs, key=lambda r: r["label"]))
     MEASUREMENTS.mkdir(parents=True, exist_ok=True)
     with (MEASUREMENTS / f"{host_key()}.jsonl").open("a") as f:
@@ -1004,11 +1009,53 @@ def linked(case: dict, v: dict) -> bool:
     return (art["input"]["sha256"], art["tgt_ir"]["sha256"]) == want
 
 
+# The tracked files a verdict rests on: the checker, the model, the emitter, and the pins of Lean, LLVM and
+# the toolchain. A verdict made with any of them different is stale, whatever it says.
+SOURCES = [
+    "tools/binding.py",
+    "tools/binding_check.lean",
+    "tests/check_axioms.lean",
+    "IRLean.lean",
+    "lean-toolchain",
+    "lakefile.toml",
+    "lake-manifest.json",
+    "src/Emitter.cpp",
+    "src/Emitter.h",
+    "src/main.cpp",
+    "tests/llvm/targets.toml",
+    "flake.lock",
+    "nix/shell.nix",
+]
+
+
+def sources_fingerprint() -> str:
+    files = sorted({*SOURCES, *(str(p.relative_to(ROOT)) for p in (ROOT / "IRLean").rglob("*.lean"))})
+    digest = hashlib.sha256()
+    for f in files:
+        p = ROOT / f
+        digest.update(f"{f}\0{sha256_file(p) if p.exists() else 'missing'}\n".encode())
+    return digest.hexdigest()
+
+
+def standing(case: dict, v: dict, sources: str) -> str:
+    """What a verdict counts as. Only `bound` is evidence: one tools/binding.py gave in a full replay, under
+    these sources, about the captured IR."""
+    status = v["status"] if v["status"] in STATUSES else "error"
+    if status != "bound":
+        return status
+    if v.get("sources") != sources:
+        return "bound_stale"
+    if v.get("checks", [])[-1:] != [["unchanged", "pass"]]:
+        return "bound_unreplayed"
+    return "bound" if linked(case, v) else "bound_unlinked"
+
+
 def derive_ledger(
-    pipeline: dict, families: dict, captures: list[dict], verdicts: dict[str, list[dict]]
+    pipeline: dict, families: dict, captures: list[dict], verdicts: dict[str, list[dict]], sources: str
 ) -> dict:
     """The obligations default<O1> leaves, the evidence for each, and what blocks it. Only `bound` counts as
-    evidence, and only as translation validation."""
+    evidence, and only as translation validation. `sources` is the fingerprint verdicts have to be made
+    under to count."""
     leaves = pipeline["leaves"]
     fam = family_of(families)
     names = sorted({x["name"] for x in leaves} | {p for c in captures for p in c.get("implicit_passes", [])})
@@ -1026,7 +1073,8 @@ def derive_ledger(
             "composition": "open",
             "blocked_by": families["families"][f]["blocked_by"] if f else ["no family"],
         }
-    counts = dict.fromkeys((*STATUSES, "bound_unlinked", "not_attempted"), 0)
+    extra = ("bound_stale", "bound_unreplayed", "bound_unlinked", "not_attempted")
+    counts = dict.fromkeys((*STATUSES, *extra), 0)
     whole_counts: dict[str, int] = {}
     reasons: dict[str, int] = {}
     blockers: dict[str, int] = {}
@@ -1040,9 +1088,8 @@ def derive_ledger(
         vs = {v["step"]: v for v in verdicts.get(name, []) if v["step"] is not None}
         whole = next((v for v in verdicts.get(name, []) if v["label"] == "o1"), None)
         if whole is not None:
-            key = f"{whole['status']}:{whole.get('reason')}"
-            if whole["status"] == "bound" and not linked(c, whole):
-                key = "bound_unlinked"
+            key = standing(c, whole, sources)
+            key = f"{key}:{whole.get('reason')}" if key in STATUSES else key
             whole_counts[key] = whole_counts.get(key, 0) + 1
         positions_run |= set(c.get("positions_run", []))
         positions_changed |= {s["pos"] for s in c.get("steps", []) if s["pos"]}
@@ -1060,10 +1107,7 @@ def derive_ledger(
                     key = b.split(":")[0]
                     blockers[key] = blockers.get(key, 0) + 1
             else:
-                # A status tools/binding.py doesn't give is an error here, never evidence.
-                status = v["status"] if v["status"] in STATUSES else "error"
-                if status == "bound" and not linked(c, v):
-                    status = "bound_unlinked"
+                status = standing(c, v, sources)
                 counts[status] += 1
                 key = f"{status}:{v.get('reason')}"
                 reasons[key] = reasons.get(key, 0) + 1
@@ -1078,9 +1122,7 @@ def derive_ledger(
             later = sum(1 for s in steps if s["k"] >= first_promise["k"])
             key = first_promise["family"] or first_promise["name"]
             gate[key] = gate.get(key, 0) + later
-        unbound = [
-            s for s in steps if (vs.get(s["k"]) or {}).get("status") != "bound" or not linked(c, vs[s["k"]])
-        ]
+        unbound = [s for s in steps if s["k"] not in vs or standing(c, vs[s["k"]], sources) != "bound"]
         if not steps:
             chain = "no step changed the module"
         elif not unbound:
@@ -1134,6 +1176,7 @@ def derive_ledger(
         "level": LEVEL,
         "spec": pipeline["spec"],
         "pipeline_sha256": pipeline["pipeline_sha256"],
+        "evidence_sources": sources,
         "complete": False,
         "why_not_complete": [
             "No pass in default<O1> has an all-input proof, a binding to its C++, or a composition proof.",
@@ -1196,7 +1239,7 @@ def gather() -> tuple[list[dict], dict[str, list[dict]]]:
 
 def cmd_ledger(args: argparse.Namespace) -> int:
     captures, verdicts = gather()
-    data = derive_ledger(read_json(PIPELINE), read_json(FAMILIES), captures, verdicts)
+    data = derive_ledger(read_json(PIPELINE), read_json(FAMILIES), captures, verdicts, sources_fingerprint())
     write_json(LEDGER, data)
     c = data["corpus"]
     print(f"{LEDGER}: {c['steps']} steps on {c['cases']} cases, verdicts {c['verdicts']}; complete: false")
@@ -1274,7 +1317,9 @@ def check_consistency() -> list[str]:
             if v["status"] == "bound" and not manifest.exists():
                 problems.append(f"{case} {v['label']} is bound with no bundle to replay")
     ledger = read_json(LEDGER)
-    if ledger != derive_ledger(pipeline, families, captures, verdicts):
+    # Against the sources the ledger names, so another lane's change to the model doesn't break this check.
+    # `cmd_check` says when they aren't the current ones, and `ledger` then counts nothing but stale.
+    if ledger != derive_ledger(pipeline, families, captures, verdicts, ledger.get("evidence_sources", "")):
         problems.append("ledger.json isn't what `ledger` derives from the evidence")
     if ledger.get("complete") is not False:
         problems.append("ledger.json says O1 is complete")
@@ -1290,6 +1335,8 @@ def cmd_check(args: argparse.Namespace) -> int:
         print(p, file=sys.stderr)
     if not problems:
         print("campaign/o1 is consistent; O1 is not complete")
+    if read_json(LEDGER).get("evidence_sources") != sources_fingerprint():
+        print("the evidence was verified under other sources: run `bind`, then `ledger`", file=sys.stderr)
     return 1 if problems else 0
 
 

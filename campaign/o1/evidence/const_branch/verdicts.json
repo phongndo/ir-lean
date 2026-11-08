@@ -1,6 +1,6 @@
 [
  {
-  "cache": "miss",
+  "cache": "disabled",
   "checks": [
    [
     "manifest",
@@ -39,8 +39,8 @@
    },
    "outcome": "failed",
    "peak_process_mb": 445.1,
-   "peak_tree_mb": 442.3,
-   "wall_s": 8.93
+   "peak_tree_mb": 437.9,
+   "wall_s": 6.66
   },
   "detail": "the target IR has mustprogress or willreturn, which IRLean trusts instead of checking",
   "label": "o1",
@@ -48,11 +48,12 @@
   "namespace": "O1ConstBranchO1",
   "passes": "default<O1>",
   "reason": "trusted_promise",
+  "sources": "e2f0d05b5ba701ebeb5f31a5033dd683d4d9e2414a0d007811a9ee6d7200211b",
   "status": "unsupported",
   "step": null
  },
  {
-  "cache": "miss",
+  "cache": "disabled",
   "checks": [
    [
     "manifest",
@@ -118,9 +119,9 @@
     "timeout_s": 2400
    },
    "outcome": "ok",
-   "peak_process_mb": 1498.2,
-   "peak_tree_mb": 1832.3,
-   "wall_s": 14.47
+   "peak_process_mb": 1512.1,
+   "peak_tree_mb": 1943.1,
+   "wall_s": 13.08
   },
   "detail": "every check passed",
   "key": "65397e1a735ba57c994aa877d012eaf86a33979d48526b34b15fa63b57ce197f",
@@ -129,6 +130,7 @@
   "namespace": "O1ConstBranchS02",
   "passes": "function(early-cse<>)",
   "reason": "replayed",
+  "sources": "e2f0d05b5ba701ebeb5f31a5033dd683d4d9e2414a0d007811a9ee6d7200211b",
   "statement": "O1ConstBranchS02.Src.f = O1ConstBranchS02.Tgt.f ∧\n  ∀ (x : IRLean.Val 32) (s : IRLean.ModelStop),\n    O1ConstBranchS02.Src.f x ≠ Option.some (Except.error (IRLean.Stop.model s))",
   "status": "bound",
   "step": 2,
@@ -138,7 +140,7 @@
   }
  },
  {
-  "cache": "miss",
+  "cache": "disabled",
   "checks": [
    [
     "manifest",
@@ -204,9 +206,9 @@
     "timeout_s": 2400
    },
    "outcome": "ok",
-   "peak_process_mb": 1564.7,
-   "peak_tree_mb": 1931.5,
-   "wall_s": 14.64
+   "peak_process_mb": 1499.9,
+   "peak_tree_mb": 1834.3,
+   "wall_s": 11.57
   },
   "detail": "every check passed",
   "key": "94852738c84fbd82f58da2169abd25109a6698686d27ae152b67ae322ed785b8",
@@ -215,6 +217,7 @@
   "namespace": "O1ConstBranchS03",
   "passes": "ipsccp",
   "reason": "replayed",
+  "sources": "e2f0d05b5ba701ebeb5f31a5033dd683d4d9e2414a0d007811a9ee6d7200211b",
   "statement": "O1ConstBranchS03.Src.f = O1ConstBranchS03.Tgt.f ∧\n  ∀ (x : IRLean.Val 32) (s : IRLean.ModelStop),\n    O1ConstBranchS03.Src.f x ≠ Option.some (Except.error (IRLean.Stop.model s))",
   "status": "bound",
   "step": 3,
@@ -224,7 +227,7 @@
   }
  },
  {
-  "cache": "miss",
+  "cache": "disabled",
   "checks": [
    [
     "manifest",
@@ -290,9 +293,9 @@
     "timeout_s": 2400
    },
    "outcome": "ok",
-   "peak_process_mb": 1551.2,
-   "peak_tree_mb": 1831.0,
-   "wall_s": 14.5
+   "peak_process_mb": 1643.9,
+   "peak_tree_mb": 1962.5,
+   "wall_s": 13.16
   },
   "detail": "every check passed",
   "key": "11ac5dcd2440b66bf95dd38e9343cb6a3085ec83e4ee37d6024a436cede34d3e",
@@ -301,6 +304,7 @@
   "namespace": "O1ConstBranchS04",
   "passes": "globalopt",
   "reason": "replayed",
+  "sources": "e2f0d05b5ba701ebeb5f31a5033dd683d4d9e2414a0d007811a9ee6d7200211b",
   "statement": "O1ConstBranchS04.Src.f = O1ConstBranchS04.Tgt.f ∧\n  ∀ (x : IRLean.Val 32) (s : IRLean.ModelStop),\n    O1ConstBranchS04.Src.f x ≠ Option.some (Except.error (IRLean.Stop.model s))",
   "status": "bound",
   "step": 4,
@@ -310,7 +314,7 @@
   }
  },
  {
-  "cache": "miss",
+  "cache": "disabled",
   "checks": [
    [
     "manifest",
@@ -376,9 +380,9 @@
     "timeout_s": 2400
    },
    "outcome": "ok",
-   "peak_process_mb": 1552.0,
-   "peak_tree_mb": 1951.9,
-   "wall_s": 14.44
+   "peak_process_mb": 1644.2,
+   "peak_tree_mb": 1930.2,
+   "wall_s": 12.95
   },
   "detail": "every check passed",
   "key": "7b59cfaf0e2c6d3218969e81bff12d32d9796438ab708527c9d320cfdf3c317a",
@@ -387,6 +391,7 @@
   "namespace": "O1ConstBranchS05",
   "passes": "function(instcombine<max-iterations=1;no-verify-fixpoint>)",
   "reason": "replayed",
+  "sources": "e2f0d05b5ba701ebeb5f31a5033dd683d4d9e2414a0d007811a9ee6d7200211b",
   "statement": "O1ConstBranchS05.Src.f = O1ConstBranchS05.Tgt.f ∧\n  ∀ (x : IRLean.Val 32) (s : IRLean.ModelStop),\n    O1ConstBranchS05.Src.f x ≠ Option.some (Except.error (IRLean.Stop.model s))",
   "status": "bound",
   "step": 5,

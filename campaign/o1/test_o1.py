@@ -8,8 +8,10 @@ usage: campaign/o1/test_o1.py
 
 import copy
 import json
+import subprocess
 import sys
 import tempfile
+import time
 import unittest
 from pathlib import Path
 from unittest import mock
@@ -39,6 +41,25 @@ Running pass: PrintModulePass on [module]
 """
 
 
+def bound(label: str, step: int | None) -> dict:
+    """A verdict as tools/binding.py gives one for a full replay, made under sources `S`."""
+    checks = [["manifest", "pass"], ["kernel_replay", "pass"], ["unchanged", "pass"]]
+    return {
+        "label": label,
+        "step": step,
+        "status": "bound",
+        "reason": "replayed",
+        "checks": checks,
+        "sources": "S",
+    }
+
+
+def alive(pid: int) -> bool:
+    """Running, not a zombie waiting to be reaped."""
+    r = subprocess.run(["ps", "-o", "stat=", "-p", str(pid)], capture_output=True, text=True, check=False)
+    return r.returncode == 0 and bool(r.stdout.strip()) and not r.stdout.strip().startswith("Z")
+
+
 def leaf(pos: str, name: str, cls: str, unit: str = "function") -> dict:
     return {"pos": pos, "name": name, "spec": name, "class": cls, "unit": unit, "family": "f", "replay": []}
 
@@ -61,6 +82,25 @@ class Units(unittest.TestCase):
             [sys.executable, "-c", "import time; time.sleep(30)"], label="t", timeout=1, cap_mb=None
         )
         self.assertEqual(r["outcome"], "time_limit")
+
+    def test_a_limit_kills_descendants_in_sessions_of_their_own(self) -> None:
+        # As tools/binding.py runs each step: a child in a new session, which the root waits for.
+        child = "import time; x = bytearray({mb} << 20); time.sleep(60)"
+        root = (
+            "import subprocess, sys; p = subprocess.Popen([sys.executable, '-c', {child!r}], "
+            "start_new_session=True); open(sys.argv[1], 'w').write(str(p.pid)); p.wait()"
+        )
+        for mb, cap, timeout, outcome in ((400, 100, 60, "resource_limit"), (1, None, 2, "time_limit")):
+            with tempfile.TemporaryDirectory() as d:
+                pidfile = Path(d) / "pid"
+                argv = [sys.executable, "-c", root.format(child=child.format(mb=mb)), str(pidfile)]
+                r = measure.run(argv, label="session", timeout=timeout, cap_mb=cap, interval=0.05)
+                self.assertEqual(r["outcome"], outcome)
+                pid = int(pidfile.read_text())
+                deadline = time.monotonic() + 5
+                while time.monotonic() < deadline and alive(pid):
+                    time.sleep(0.05)
+                self.assertFalse(alive(pid), f"{outcome} left pid {pid} running")
 
     def test_a_child_peak_is_counted(self) -> None:
         child = "import subprocess, sys; subprocess.run([sys.executable, '-c', 'x = bytearray(200 << 20)'])"
@@ -157,13 +197,13 @@ class Ledger(unittest.TestCase):
         self.bundle("s01", "b1", "a1")
         self.bundle("s02", "b2", "not-a2")
         verdicts = [
-            {"label": "s01", "step": 1, "status": "bound", "reason": "replayed"},
-            {"label": "s02", "step": 2, "status": "bound", "reason": "replayed"},
+            bound("s01", 1),
+            bound("s02", 2),
             {"label": "s03", "step": 3, "status": "unknown", "reason": "time_limit"},
             {"label": "s04", "step": 4, "status": "unsupported", "reason": "trusted_promise"},
             {"label": "s05", "step": 5, "status": "proved", "reason": "made_up"},
         ]
-        ledger = o1.derive_ledger(self.pipeline, self.families, [self.capture], {"c": verdicts})
+        ledger = o1.derive_ledger(self.pipeline, self.families, [self.capture], {"c": verdicts}, "S")
         counts = ledger["corpus"]["verdicts"]
         self.assertEqual(counts["bound"], 1)
         self.assertEqual(counts["bound_unlinked"], 1)
@@ -178,19 +218,29 @@ class Ledger(unittest.TestCase):
 
     def test_a_whole_run_bound_to_other_ir_is_not_evidence(self) -> None:
         self.bundle("o1", "in", "something-else")
-        verdicts = [{"label": "o1", "step": None, "status": "bound", "reason": "replayed"}]
-        ledger = o1.derive_ledger(self.pipeline, self.families, [self.capture], {"c": verdicts})
+        verdicts = [bound("o1", None)]
+        ledger = o1.derive_ledger(self.pipeline, self.families, [self.capture], {"c": verdicts}, "S")
         self.assertEqual(ledger["corpus"]["whole_run_verdicts"], {"bound_unlinked": 1})
 
     def test_every_step_bound_is_still_not_complete(self) -> None:
         verdicts = []
         for k in range(1, 6):
             self.bundle(f"s{k:02d}", f"b{k}", f"a{k}")
-            verdicts.append({"label": f"s{k:02d}", "step": k, "status": "bound", "reason": "replayed"})
-        ledger = o1.derive_ledger(self.pipeline, self.families, [self.capture], {"c": verdicts})
+            verdicts.append(bound(f"s{k:02d}", k))
+        ledger = o1.derive_ledger(self.pipeline, self.families, [self.capture], {"c": verdicts}, "S")
         self.assertTrue(ledger["cases"]["c"]["chain_to_output"].startswith("every step bound"))
         self.assertIs(ledger["complete"], False)
         self.assertEqual(ledger["passes"]["instcombine"]["all-input"], "open")
+
+    def test_stale_and_cached_verdicts_are_not_evidence(self) -> None:
+        self.bundle("s01", "b1", "a1")
+        self.bundle("s02", "b2", "a2")
+        cached = bound("s02", 2) | {"checks": [["manifest", "pass"], ["cache", "pass"]]}
+        verdicts = [bound("s01", 1) | {"sources": "before the model changed"}, cached]
+        ledger = o1.derive_ledger(self.pipeline, self.families, [self.capture], {"c": verdicts}, "S")
+        counts = ledger["corpus"]["verdicts"]
+        self.assertEqual((counts["bound"], counts["bound_stale"], counts["bound_unreplayed"]), (0, 1, 1))
+        self.assertEqual(ledger["evidence_sources"], "S")
 
 
 class Committed(unittest.TestCase):

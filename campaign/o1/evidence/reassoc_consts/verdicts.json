@@ -1,6 +1,6 @@
 [
  {
-  "cache": "miss",
+  "cache": "disabled",
   "checks": [
    [
     "manifest",
@@ -38,9 +38,9 @@
     "timeout_s": 2400
    },
    "outcome": "failed",
-   "peak_process_mb": 445.5,
-   "peak_tree_mb": 442.7,
-   "wall_s": 7.58
+   "peak_process_mb": 446.6,
+   "peak_tree_mb": 443.8,
+   "wall_s": 6.61
   },
   "detail": "the target IR has mustprogress or willreturn, which IRLean trusts instead of checking",
   "label": "o1",
@@ -48,11 +48,12 @@
   "namespace": "O1ReassocConstsO1",
   "passes": "default<O1>",
   "reason": "trusted_promise",
+  "sources": "e2f0d05b5ba701ebeb5f31a5033dd683d4d9e2414a0d007811a9ee6d7200211b",
   "status": "unsupported",
   "step": null
  },
  {
-  "cache": "miss",
+  "cache": "disabled",
   "checks": [
    [
     "manifest",
@@ -118,9 +119,9 @@
     "timeout_s": 2400
    },
    "outcome": "ok",
-   "peak_process_mb": 1549.3,
-   "peak_tree_mb": 1832.7,
-   "wall_s": 12.14
+   "peak_process_mb": 1486.9,
+   "peak_tree_mb": 1918.9,
+   "wall_s": 11.88
   },
   "detail": "every check passed",
   "key": "a88dbcb2f71c5186e9a5e23e3f032fe5fbf869fd6c5d33b5a547389603fee0ec",
@@ -129,6 +130,7 @@
   "namespace": "O1ReassocConstsS01",
   "passes": "globalopt",
   "reason": "replayed",
+  "sources": "e2f0d05b5ba701ebeb5f31a5033dd683d4d9e2414a0d007811a9ee6d7200211b",
   "statement": "O1ReassocConstsS01.Src.f = O1ReassocConstsS01.Tgt.f ∧\n  ∀ (x y : IRLean.Val 32) (s : IRLean.ModelStop),\n    O1ReassocConstsS01.Src.f x y ≠ Option.some (Except.error (IRLean.Stop.model s))",
   "status": "bound",
   "step": 1,
@@ -138,7 +140,7 @@
   }
  },
  {
-  "cache": "miss",
+  "cache": "disabled",
   "checks": [
    [
     "manifest",
@@ -204,9 +206,9 @@
     "timeout_s": 2400
    },
    "outcome": "ok",
-   "peak_process_mb": 1542.8,
-   "peak_tree_mb": 1847.0,
-   "wall_s": 13.23
+   "peak_process_mb": 1495.2,
+   "peak_tree_mb": 1952.4,
+   "wall_s": 12.11
   },
   "detail": "every check passed",
   "key": "83b251cd3128065174f0156f5a359027d5c719232f957c4bff2713d55da7192c",
@@ -215,6 +217,7 @@
   "namespace": "O1ReassocConstsS02",
   "passes": "function(reassociate)",
   "reason": "replayed",
+  "sources": "e2f0d05b5ba701ebeb5f31a5033dd683d4d9e2414a0d007811a9ee6d7200211b",
   "statement": "O1ReassocConstsS02.Src.f = O1ReassocConstsS02.Tgt.f ∧\n  ∀ (x y : IRLean.Val 32) (s : IRLean.ModelStop),\n    O1ReassocConstsS02.Src.f x y ≠ Option.some (Except.error (IRLean.Stop.model s))",
   "status": "bound",
   "step": 2,

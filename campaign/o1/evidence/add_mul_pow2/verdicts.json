@@ -1,6 +1,6 @@
 [
  {
-  "cache": "miss",
+  "cache": "disabled",
   "checks": [
    [
     "manifest",
@@ -34,13 +34,13 @@
    ],
    "label": "add_mul_pow2: o1 verify",
    "limits": {
-    "max_tree_rss_mb": 16000.0,
+    "max_tree_rss_mb": 5333.333333333333,
     "timeout_s": 2400
    },
    "outcome": "failed",
-   "peak_process_mb": 446.5,
-   "peak_tree_mb": 439.7,
-   "wall_s": 6.28
+   "peak_process_mb": 447.1,
+   "peak_tree_mb": 444.3,
+   "wall_s": 8.2
   },
   "detail": "the target IR has mustprogress or willreturn, which IRLean trusts instead of checking",
   "label": "o1",
@@ -48,11 +48,12 @@
   "namespace": "O1AddMulPow2O1",
   "passes": "default<O1>",
   "reason": "trusted_promise",
+  "sources": "e2f0d05b5ba701ebeb5f31a5033dd683d4d9e2414a0d007811a9ee6d7200211b",
   "status": "unsupported",
   "step": null
  },
  {
-  "cache": "miss",
+  "cache": "disabled",
   "checks": [
    [
     "manifest",
@@ -114,13 +115,13 @@
    ],
    "label": "add_mul_pow2: s01 verify",
    "limits": {
-    "max_tree_rss_mb": 16000.0,
+    "max_tree_rss_mb": 5333.333333333333,
     "timeout_s": 2400
    },
    "outcome": "ok",
-   "peak_process_mb": 1482.8,
-   "peak_tree_mb": 1833.8,
-   "wall_s": 10.3
+   "peak_process_mb": 1639.5,
+   "peak_tree_mb": 1835.6,
+   "wall_s": 16.8
   },
   "detail": "every check passed",
   "key": "e71ec69165e86ea116628ca06e3cc9fdc3135f8b8caa388de8592316801ab12b",
@@ -129,6 +130,7 @@
   "namespace": "O1AddMulPow2S01",
   "passes": "function(early-cse<>)",
   "reason": "replayed",
+  "sources": "e2f0d05b5ba701ebeb5f31a5033dd683d4d9e2414a0d007811a9ee6d7200211b",
   "statement": "O1AddMulPow2S01.Src.f = O1AddMulPow2S01.Tgt.f ∧\n  ∀ (x : IRLean.Val 32) (s : IRLean.ModelStop),\n    O1AddMulPow2S01.Src.f x ≠ Option.some (Except.error (IRLean.Stop.model s))",
   "status": "bound",
   "step": 1,
@@ -138,7 +140,7 @@
   }
  },
  {
-  "cache": "miss",
+  "cache": "disabled",
   "checks": [
    [
     "manifest",
@@ -200,13 +202,13 @@
    ],
    "label": "add_mul_pow2: s02 verify",
    "limits": {
-    "max_tree_rss_mb": 16000.0,
+    "max_tree_rss_mb": 5333.333333333333,
     "timeout_s": 2400
    },
    "outcome": "ok",
-   "peak_process_mb": 1514.3,
-   "peak_tree_mb": 1830.0,
-   "wall_s": 10.61
+   "peak_process_mb": 1636.9,
+   "peak_tree_mb": 1835.4,
+   "wall_s": 16.78
   },
   "detail": "every check passed",
   "key": "df6d744f3b775f8dc4cf21d48f773d8d09cc5e49bc667bb3a0af1f8e600995b4",
@@ -215,6 +217,7 @@
   "namespace": "O1AddMulPow2S02",
   "passes": "globalopt",
   "reason": "replayed",
+  "sources": "e2f0d05b5ba701ebeb5f31a5033dd683d4d9e2414a0d007811a9ee6d7200211b",
   "statement": "O1AddMulPow2S02.Src.f = O1AddMulPow2S02.Tgt.f ∧\n  ∀ (x : IRLean.Val 32) (s : IRLean.ModelStop),\n    O1AddMulPow2S02.Src.f x ≠ Option.some (Except.error (IRLean.Stop.model s))",
   "status": "bound",
   "step": 2,
@@ -224,7 +227,7 @@
   }
  },
  {
-  "cache": "miss",
+  "cache": "disabled",
   "checks": [
    [
     "manifest",
@@ -286,13 +289,13 @@
    ],
    "label": "add_mul_pow2: s03 verify",
    "limits": {
-    "max_tree_rss_mb": 16000.0,
+    "max_tree_rss_mb": 5333.333333333333,
     "timeout_s": 2400
    },
    "outcome": "ok",
-   "peak_process_mb": 1491.0,
-   "peak_tree_mb": 1833.7,
-   "wall_s": 10.96
+   "peak_process_mb": 1641.6,
+   "peak_tree_mb": 1834.3,
+   "wall_s": 16.79
   },
   "detail": "every check passed",
   "key": "1f3e5e317a63384a0717498f060b974ebd98e51eef364559eb88063db239ae0f",
@@ -301,6 +304,7 @@
   "namespace": "O1AddMulPow2S03",
   "passes": "function(instcombine<max-iterations=1;no-verify-fixpoint>)",
   "reason": "replayed",
+  "sources": "e2f0d05b5ba701ebeb5f31a5033dd683d4d9e2414a0d007811a9ee6d7200211b",
   "statement": "O1AddMulPow2S03.Src.f = O1AddMulPow2S03.Tgt.f ∧\n  ∀ (x : IRLean.Val 32) (s : IRLean.ModelStop),\n    O1AddMulPow2S03.Src.f x ≠ Option.some (Except.error (IRLean.Stop.model s))",
   "status": "bound",
   "step": 3,
@@ -310,7 +314,7 @@
   }
  },
  {
-  "cache": "miss",
+  "cache": "disabled",
   "checks": [
    [
     "manifest",
@@ -372,13 +376,13 @@
    ],
    "label": "add_mul_pow2: s04 verify",
    "limits": {
-    "max_tree_rss_mb": 16000.0,
+    "max_tree_rss_mb": 5333.333333333333,
     "timeout_s": 2400
    },
    "outcome": "ok",
-   "peak_process_mb": 1523.0,
-   "peak_tree_mb": 1836.0,
-   "wall_s": 11.14
+   "peak_process_mb": 1495.4,
+   "peak_tree_mb": 1950.7,
+   "wall_s": 13.31
   },
   "detail": "every check passed",
   "key": "1709e19385da30c30d848836d72e32e33610779d538cba1278c335e071f17d75",
@@ -387,6 +391,7 @@
   "namespace": "O1AddMulPow2S04",
   "passes": "function(sccp)",
   "reason": "replayed",
+  "sources": "e2f0d05b5ba701ebeb5f31a5033dd683d4d9e2414a0d007811a9ee6d7200211b",
   "statement": "O1AddMulPow2S04.Src.f = O1AddMulPow2S04.Tgt.f ∧\n  ∀ (x : IRLean.Val 32) (s : IRLean.ModelStop),\n    O1AddMulPow2S04.Src.f x ≠ Option.some (Except.error (IRLean.Stop.model s))",
   "status": "bound",
   "step": 4,

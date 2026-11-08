@@ -221,7 +221,9 @@
   },
   "verdicts": {
    "bound": 24,
+   "bound_stale": 0,
    "bound_unlinked": 0,
+   "bound_unreplayed": 0,
    "error": 0,
    "not_attempted": 51,
    "refused": 4,
@@ -258,6 +260,7 @@
   "code-binding": 0,
   "composition": 0
  },
+ "evidence_sources": "e2f0d05b5ba701ebeb5f31a5033dd683d4d9e2414a0d007811a9ee6d7200211b",
  "families": {
   "analysis-management": {
    "all_input_proved": 0,

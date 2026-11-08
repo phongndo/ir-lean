@@ -1,6 +1,6 @@
 [
  {
-  "cache": "miss",
+  "cache": "disabled",
   "checks": [
    [
     "manifest",
@@ -38,9 +38,9 @@
     "timeout_s": 2400
    },
    "outcome": "failed",
-   "peak_process_mb": 446.8,
-   "peak_tree_mb": 439.8,
-   "wall_s": 6.43
+   "peak_process_mb": 445.3,
+   "peak_tree_mb": 438.2,
+   "wall_s": 6.52
   },
   "detail": "the target IR has mustprogress or willreturn, which IRLean trusts instead of checking",
   "label": "o1",
@@ -48,11 +48,12 @@
   "namespace": "O1SubAddCancelO1",
   "passes": "default<O1>",
   "reason": "trusted_promise",
+  "sources": "e2f0d05b5ba701ebeb5f31a5033dd683d4d9e2414a0d007811a9ee6d7200211b",
   "status": "unsupported",
   "step": null
  },
  {
-  "cache": "miss",
+  "cache": "disabled",
   "checks": [
    [
     "manifest",
@@ -118,9 +119,9 @@
     "timeout_s": 2400
    },
    "outcome": "ok",
-   "peak_process_mb": 1487.3,
-   "peak_tree_mb": 1943.0,
-   "wall_s": 14.65
+   "peak_process_mb": 1496.5,
+   "peak_tree_mb": 1871.5,
+   "wall_s": 12.68
   },
   "detail": "every check passed",
   "key": "20729497f816fc31112209e5b1167fecd063ac303b1f98f0cc25a06af052dced",
@@ -129,6 +130,7 @@
   "namespace": "O1SubAddCancelS01",
   "passes": "function(early-cse<>)",
   "reason": "replayed",
+  "sources": "e2f0d05b5ba701ebeb5f31a5033dd683d4d9e2414a0d007811a9ee6d7200211b",
   "statement": "O1SubAddCancelS01.Src.f = O1SubAddCancelS01.Tgt.f ∧\n  ∀ (x y : IRLean.Val 8) (s : IRLean.ModelStop),\n    O1SubAddCancelS01.Src.f x y ≠ Option.some (Except.error (IRLean.Stop.model s))",
   "status": "bound",
   "step": 1,
@@ -138,7 +140,7 @@
   }
  },
  {
-  "cache": "miss",
+  "cache": "disabled",
   "checks": [
    [
     "manifest",
@@ -204,9 +206,9 @@
     "timeout_s": 2400
    },
    "outcome": "ok",
-   "peak_process_mb": 1519.4,
-   "peak_tree_mb": 1834.2,
-   "wall_s": 14.25
+   "peak_process_mb": 1543.8,
+   "peak_tree_mb": 1942.6,
+   "wall_s": 11.89
   },
   "detail": "every check passed",
   "key": "af52280d5192daebaf22d1a19623e98e6f63117616649a7cfb3216e274f9189b",
@@ -215,6 +217,7 @@
   "namespace": "O1SubAddCancelS02",
   "passes": "globalopt",
   "reason": "replayed",
+  "sources": "e2f0d05b5ba701ebeb5f31a5033dd683d4d9e2414a0d007811a9ee6d7200211b",
   "statement": "O1SubAddCancelS02.Src.f = O1SubAddCancelS02.Tgt.f ∧\n  ∀ (x y : IRLean.Val 8) (s : IRLean.ModelStop),\n    O1SubAddCancelS02.Src.f x y ≠ Option.some (Except.error (IRLean.Stop.model s))",
   "status": "bound",
   "step": 2,
@@ -224,7 +227,7 @@
   }
  },
  {
-  "cache": "miss",
+  "cache": "disabled",
   "checks": [
    [
     "manifest",
@@ -290,9 +293,9 @@
     "timeout_s": 2400
    },
    "outcome": "ok",
-   "peak_process_mb": 1494.0,
-   "peak_tree_mb": 1855.5,
-   "wall_s": 11.78
+   "peak_process_mb": 1487.0,
+   "peak_tree_mb": 1840.2,
+   "wall_s": 11.5
   },
   "detail": "every check passed",
   "key": "9bf1487cea9a6d7428bdaff8957c8f2e3b4f664af1baac11db5b70c5f607a495",
@@ -301,6 +304,7 @@
   "namespace": "O1SubAddCancelS03",
   "passes": "function(instcombine<max-iterations=1;no-verify-fixpoint>)",
   "reason": "replayed",
+  "sources": "e2f0d05b5ba701ebeb5f31a5033dd683d4d9e2414a0d007811a9ee6d7200211b",
   "statement": "O1SubAddCancelS03.Src.f = O1SubAddCancelS03.Tgt.f ∧\n  ∀ (x y : IRLean.Val 8) (s : IRLean.ModelStop),\n    O1SubAddCancelS03.Src.f x y ≠ Option.some (Except.error (IRLean.Stop.model s))",
   "status": "bound",
   "step": 3,

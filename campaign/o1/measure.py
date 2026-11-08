@@ -11,8 +11,9 @@ Two peaks are kept, because neither is enough alone:
   descendants, read every `--interval` seconds, so a shorter spike can be missed. It's what several
   workers cost together.
 
-A cap is enforced by sampling too: when the tree's RSS passes `--max-tree-rss-mb`, the whole process
-group is killed and the record says `resource_limit`. macOS has no cgroups and doesn't enforce
+A cap is enforced by sampling too: when the tree's RSS passes `--max-tree-rss-mb`, the process and
+every descendant, with the process groups and sessions they started, are killed, and the record says
+`resource_limit`. A timeout does the same. macOS has no cgroups and doesn't enforce
 RLIMIT_AS, so this is the cap there; it can overshoot by what the tree allocates in one interval. Lean's
 own `-M` is the cap to use per Lean process. A timeout or a cap is never a success.
 
@@ -166,6 +167,26 @@ def _tree(root: int) -> list[tuple[int, int, str]]:
     return [(pid, rss, comm) for pid, _, pgid, rss, comm in rows if pid in keep or pgid == root]
 
 
+def kill_tree(root: int) -> None:
+    """Kills `root`'s descendants, each with its process group, then `root`'s own group. A descendant can be
+    in a session of its own, as every step tools/binding.py runs is, so killing `root`'s group isn't enough.
+    They're found by parent, which only works while `root` is alive, so this runs before it's reaped."""
+    mine = os.getpgid(0)
+    for _ in range(3):
+        pids = [pid for pid, _, _ in _tree(root) if pid != root]
+        for pid in pids:
+            with contextlib.suppress(ProcessLookupError, PermissionError):
+                group = os.getpgid(pid)
+                if group not in (mine, root):
+                    os.killpg(group, signal.SIGKILL)
+            with contextlib.suppress(ProcessLookupError, PermissionError):
+                os.kill(pid, signal.SIGKILL)
+        if not pids:
+            break
+    with contextlib.suppress(ProcessLookupError, PermissionError):
+        os.killpg(root, signal.SIGKILL)
+
+
 class Sampler(threading.Thread):
     def __init__(self, root: int, interval: float, cap_mb: float | None, on_cap) -> None:
         super().__init__(daemon=True)
@@ -204,7 +225,8 @@ def run(
     stdout: Any = None,
     stderr: Any = None,
 ) -> dict[str, Any]:
-    """Runs `argv` in its own process group and returns its measurement record. Kills the group on a limit."""
+    """Runs `argv` in its own process group and returns its measurement record. Kills it and everything it
+    started on a limit."""
     started, wall = now(), time.monotonic()
     before = memory()
     p = subprocess.Popen(argv, cwd=cwd, stdin=stdin, stdout=stdout, stderr=stderr, start_new_session=True)
@@ -213,8 +235,7 @@ def run(
     def kill(reason: str) -> None:
         if not stopped:
             stopped.append(reason)
-        with contextlib.suppress(ProcessLookupError, PermissionError):
-            os.killpg(p.pid, signal.SIGKILL)
+        kill_tree(p.pid)
 
     sampler = Sampler(p.pid, interval, cap_mb, lambda: kill("resource_limit"))
     sampler.start()

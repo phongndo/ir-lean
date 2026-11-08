@@ -1,6 +1,6 @@
 [
  {
-  "cache": "miss",
+  "cache": "disabled",
   "checks": [
    [
     "manifest",
@@ -38,9 +38,9 @@
     "timeout_s": 2400
    },
    "outcome": "failed",
-   "peak_process_mb": 446.9,
-   "peak_tree_mb": 444.1,
-   "wall_s": 7.0
+   "peak_process_mb": 444.3,
+   "peak_tree_mb": 437.2,
+   "wall_s": 8.04
   },
   "detail": "the target IR has mustprogress or willreturn, which IRLean trusts instead of checking",
   "label": "o1",
@@ -48,11 +48,12 @@
   "namespace": "O1DeadValuesO1",
   "passes": "default<O1>",
   "reason": "trusted_promise",
+  "sources": "e2f0d05b5ba701ebeb5f31a5033dd683d4d9e2414a0d007811a9ee6d7200211b",
   "status": "unsupported",
   "step": null
  },
  {
-  "cache": "miss",
+  "cache": "disabled",
   "checks": [
    [
     "manifest",
@@ -118,9 +119,9 @@
     "timeout_s": 2400
    },
    "outcome": "ok",
-   "peak_process_mb": 1561.9,
-   "peak_tree_mb": 1833.3,
-   "wall_s": 13.49
+   "peak_process_mb": 1533.1,
+   "peak_tree_mb": 1847.1,
+   "wall_s": 11.39
   },
   "detail": "every check passed",
   "key": "645f0e0da4e7786058b854d7307fb98866911411b6780396dc2c6d7e60742fb3",
@@ -129,6 +130,7 @@
   "namespace": "O1DeadValuesS01",
   "passes": "function(early-cse<>)",
   "reason": "replayed",
+  "sources": "e2f0d05b5ba701ebeb5f31a5033dd683d4d9e2414a0d007811a9ee6d7200211b",
   "statement": "O1DeadValuesS01.Src.f = O1DeadValuesS01.Tgt.f ∧\n  ∀ (x y : IRLean.Val 16) (s : IRLean.ModelStop),\n    O1DeadValuesS01.Src.f x y ≠ Option.some (Except.error (IRLean.Stop.model s))",
   "status": "bound",
   "step": 1,
@@ -138,7 +140,7 @@
   }
  },
  {
-  "cache": "miss",
+  "cache": "disabled",
   "checks": [
    [
     "manifest",
@@ -204,9 +206,9 @@
     "timeout_s": 2400
    },
    "outcome": "ok",
-   "peak_process_mb": 1487.6,
-   "peak_tree_mb": 1885.6,
-   "wall_s": 12.61
+   "peak_process_mb": 1487.2,
+   "peak_tree_mb": 1834.0,
+   "wall_s": 13.57
   },
   "detail": "every check passed",
   "key": "e5a6075fc3560c90e16cd585138ae1c3674f2d7bad5feb3653bbae04789a60f0",
@@ -215,6 +217,7 @@
   "namespace": "O1DeadValuesS02",
   "passes": "ipsccp",
   "reason": "replayed",
+  "sources": "e2f0d05b5ba701ebeb5f31a5033dd683d4d9e2414a0d007811a9ee6d7200211b",
   "statement": "O1DeadValuesS02.Src.f = O1DeadValuesS02.Tgt.f ∧\n  ∀ (x y : IRLean.Val 16) (s : IRLean.ModelStop),\n    O1DeadValuesS02.Src.f x y ≠ Option.some (Except.error (IRLean.Stop.model s))",
   "status": "bound",
   "step": 2,
@@ -224,7 +227,7 @@
   }
  },
  {
-  "cache": "miss",
+  "cache": "disabled",
   "checks": [
    [
     "manifest",
@@ -290,9 +293,9 @@
     "timeout_s": 2400
    },
    "outcome": "ok",
-   "peak_process_mb": 1513.9,
-   "peak_tree_mb": 1858.8,
-   "wall_s": 12.35
+   "peak_process_mb": 1490.8,
+   "peak_tree_mb": 1888.9,
+   "wall_s": 13.32
   },
   "detail": "every check passed",
   "key": "1324383a2fa752ea662ea48d9e3d8611e3176ceb09464e27fc00a662c72e7867",
@@ -301,6 +304,7 @@
   "namespace": "O1DeadValuesS03",
   "passes": "globalopt",
   "reason": "replayed",
+  "sources": "e2f0d05b5ba701ebeb5f31a5033dd683d4d9e2414a0d007811a9ee6d7200211b",
   "statement": "O1DeadValuesS03.Src.f = O1DeadValuesS03.Tgt.f ∧\n  ∀ (x y : IRLean.Val 16) (s : IRLean.ModelStop),\n    O1DeadValuesS03.Src.f x y ≠ Option.some (Except.error (IRLean.Stop.model s))",
   "status": "bound",
   "step": 3,
@@ -310,7 +314,7 @@
   }
  },
  {
-  "cache": "miss",
+  "cache": "disabled",
   "checks": [
    [
     "manifest",
@@ -360,17 +364,18 @@
     "timeout_s": 2400
    },
    "outcome": "failed",
-   "peak_process_mb": 669.5,
-   "peak_tree_mb": 583.2,
-   "wall_s": 8.17
+   "peak_process_mb": 669.1,
+   "peak_tree_mb": 1044.5,
+   "wall_s": 7.63
   },
-  "detail": "Lean rejects the certificate: /Users/dp/.t3/worktrees/ir-lean/campaign-mac-o1-20261108/build/binding/runs/a12ccd1cf6e10868-f9fb6701c054577e/lean/O1DeadValuesS04/Cert.lean:15:14: error: None of the hypotheses are in the supported BitVec fragment after applying preprocessing.\nThere are three potential reasons for this:\n1. If you are using custom BitVec constructs simplify them to built-in ones.\n2. If your problem is using only built-in ones it might currently be out of reach.\n   Consider expressing it in terms of different operations that are better supported.\n3. The original goal was reduced to False and is thus invalid.\n",
+  "detail": "Lean rejects the certificate: /Users/dp/.t3/worktrees/ir-lean/campaign-mac-o1-20261108/build/binding/runs/a12ccd1cf6e10868-44210b2f63153a7d/lean/O1DeadValuesS04/Cert.lean:15:14: error: None of the hypotheses are in the supported BitVec fragment after applying preprocessing.\nThere are three potential reasons for this:\n1. If you are using custom BitVec constructs simplify them to built-in ones.\n2. If your problem is using only built-in ones it might currently be out of reach.\n   Consider expressing it in terms of different operations that are better supported.\n3. The original goal was reduced to False and is thus invalid.\n",
   "key": "a12ccd1cf6e10868bf9a88872889c68a07e3037f621e75a25749ed1f61683636",
   "label": "s04",
   "memory_capped": false,
   "namespace": "O1DeadValuesS04",
   "passes": "function(instcombine<max-iterations=1;no-verify-fixpoint>)",
   "reason": "certificate_compile_failed",
+  "sources": "e2f0d05b5ba701ebeb5f31a5033dd683d4d9e2414a0d007811a9ee6d7200211b",
   "status": "refused",
   "step": 4,
   "uncovered_changes": {

@@ -12,7 +12,7 @@ inputs, each bound to the exact IR before and after it. That evidence is finite.
 input, so it never counts toward any of those three kinds of proof, and `complete` stays false in
 [`ledger.json`](../campaign/o1/ledger.json) whatever it holds.
 
-<!-- o1-summary: {"level": "O1", "positions": 100, "passes": 76, "families": 14, "adaptors": 13, "cases": 10, "steps": 79, "verdicts": {"bound": 24, "bound_unlinked": 0, "error": 0, "not_attempted": 51, "refused": 4, "unknown": 0, "unsupported": 0}, "whole_run": {"refused:certificate_compile_failed": 2, "unsupported:trusted_promise": 8}, "discharged": 0, "complete": false} -->
+<!-- o1-summary: {"level": "O1", "positions": 100, "passes": 76, "families": 14, "adaptors": 13, "cases": 10, "steps": 79, "verdicts": {"bound": 24, "bound_stale": 0, "bound_unlinked": 0, "bound_unreplayed": 0, "error": 0, "not_attempted": 51, "refused": 4, "unknown": 0, "unsupported": 0}, "whole_run": {"refused:certificate_compile_failed": 2, "unsupported:trusted_promise": 8}, "discharged": 0, "complete": false} -->
 
 ## The pin
 
@@ -125,9 +125,17 @@ the captured IR, by SHA-256, so a step bound to anything else is `bound_unlinked
 complete only if every step is bound and linked.
 
 **What never counts.** Anything but `bound` counts as no evidence: `refused`, `unsupported`, `unknown` from a time or
-memory limit, `error`, or a status the tool doesn't give. Neither does an unlinked bundle, a step that wasn't
-attempted, or a cached verdict. `tools/binding.py`'s own cache refuses entries for another manifest or toolchain, and
-`bind` replays through it. A bound step is translation validation of one run, and only in IRLean's semantics, under
+memory limit, `error`, or a status the tool doesn't give. Neither does an unlinked bundle, or a step that wasn't
+attempted. Nor does a cached verdict: `bind` doesn't use `tools/binding.py`'s cache, so every verdict is a full replay,
+and a bound one has to end with its `unchanged` check, or it's `bound_unreplayed`.
+
+**Stale evidence.** Each verdict records a fingerprint of the tracked files it rests on: `tools/binding.py`,
+`tools/binding_check.lean`, `tests/check_axioms.lean`, IRLean's sources, the emitter, and the Lean, LLVM and Nix pins.
+A bound verdict made under other sources is `bound_stale`, and counts as no evidence. `check` compares the ledger with
+the sources it names, so a change to the model in another lane doesn't break it. It also says when those sources
+aren't the current ones, and then `bind` and `ledger` bring the evidence up to date, or count it stale.
+
+A bound step is translation validation of one run, and only in IRLean's semantics, under
 everything [binding](llvm-proof-binding.md#what-a-bound-verdict-rests-on) trusts. No `sorry`, axiom or weakened
 claim is involved: the claim type is built by the checker, and `axioms` allows the standard three and nothing else.
 
@@ -195,9 +203,9 @@ Measured on y: an M4 Max with 16 cores and 64 GB, under normal memory pressure, 
 | `capture` of all 10 inputs, with every replay | 1 | 10 s | 34 MiB, for one `opt` | |
 | One `tools/binding.py verify` that binds | 1 | 10.3 to 11.1 s | 1523 MiB | 1836 MiB |
 | One `verify` that stops at `trusted_promise`, before Lean | 1 | 6.3 s | 447 MiB | 440 MiB |
-| `bind` of 33 bundles | 3 | 154 s | 1672 MiB | 5532 MiB |
+| `bind` of all 38 bundles, each replayed in full | 3 | 173 s | 1676 MiB | 5671 MiB |
 
-Verifying with 3 at once took 13.0 s each at the median, against 10.8 s alone.
+Verifying with 3 at once took 12.8 s each at the median, against 10.8 s alone.
 
 Most of a verify's memory is three processes:
 
@@ -238,8 +246,9 @@ campaign/o1/measure.py run --heavy --label lowmem --max-tree-rss-mb 6000 --out F
 macOS has no cgroups and doesn't enforce `RLIMIT_AS`, so `systemd-run` scopes, which `tools/binding.py` uses on Linux,
 aren't there.
 
-- **Memory:** Lean's `-M` caps each Lean process. `measure.py` also kills the whole process group when the sampled
-  tree passes `--max-tree-rss-mb`, which can overshoot by what's allocated in one 0.25 s interval.
+- **Memory:** Lean's `-M` caps each Lean process. When the sampled tree passes `--max-tree-rss-mb`, `measure.py`
+  also kills the process and every descendant. That includes those in sessions of their own, as `tools/binding.py`
+  starts each step, and a timeout does the same. The cap can overshoot by what's allocated in one 0.25 s interval.
 - **Starting:** A job doesn't start unless memory pressure is normal and at least `min_available_mb` is free, as
   `vm_stat` counts it. `config.json` sets 24000 MB, with 16000 MB as the whole campaign's cap and 3 workers.
 - **Heavy jobs:** These take an `flock(2)` lock at `~/Library/Caches/ir-lean/heavy-job.lock`, or
