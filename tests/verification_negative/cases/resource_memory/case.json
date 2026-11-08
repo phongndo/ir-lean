@@ -1,0 +1,39 @@
+{
+  "schema": "ir-lean.verification-negative.case/1",
+  "category": "resource",
+  "summary": "The control's proof, with 300 MB for Lean",
+  "llvm_verdict": "valid",
+  "why": "A right rewrite whose check runs out of memory is unknown, never proved.",
+  "claim": {
+    "binders": "(x : IRLean.Val 8)",
+    "hypotheses": [],
+    "src": "Opt.src x",
+    "tgt": "Opt.tgt x"
+  },
+  "names": [
+    "Opt.src",
+    "Opt.tgt"
+  ],
+  "request": {
+    "input": {
+      "ir": "Opt.ll"
+    },
+    "namespace": "Opt",
+    "function": "tgt",
+    "proof": "Proof.lean",
+    "theorem": "tgt_refines_src",
+    "limits": {
+      "timeout_seconds": 120,
+      "memory_mb": 300
+    }
+  },
+  "expect": {
+    "certified": false,
+    "verify": [
+      "timeout/memory_limit"
+    ],
+    "gate": [
+      "not_proved"
+    ]
+  }
+}

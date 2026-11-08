@@ -29,6 +29,8 @@ everything every time, in about a minute.
 | `superopt` | What a search finds for real functions, against Alive2 and a Lean theorem that names both and says they do the same, and that a wrong rewrite fails both, with an error in Lean and a counterexample from Alive2. An Alive2 timeout is never a pass. `--bench` also measures it against `clang -O3`, which CI doesn't, since timings vary |
 | `names` | Every word Lean reserves is avoided in generated names |
 | `verify` | [`tools/verify.py`](verify.md) gives each status and reason when it should, refuses proofs that cheat, and no required check can be missing from a proved result |
+| `verify_negative_static` | [What counts as a certificate](llvm-negative-verification.md): a stored proved result is certified, and broken, stale or mismatched ones aren't, nor answers from checkers that hang, crash or print nonsense. Python only |
+| `verify_negative` | Wrong LLVM rewrites, and right ones outside the model, are never certified through `tools/verify.py`, and four right ones are. Runs alone, one Lean process at a time, about 2 minutes |
 | `zlib` | All of zlib translates, and real calls into it match native code, failing if any input is skipped |
 | `zlib_slow` | The same for the calls that slide `deflate`'s window, the slowest of them |
 | `lint` | Every formatter and linter below, for every language |

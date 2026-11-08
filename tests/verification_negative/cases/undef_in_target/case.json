@@ -1,0 +1,42 @@
+{
+  "schema": "ir-lean.verification-negative.case/1",
+  "category": "unsupported",
+  "summary": "sub X, X -> undef, which the emitter refuses",
+  "llvm_verdict": "invalid",
+  "why": "src is always 0, and undef allows any value. The model has no undef, so this is unsupported.",
+  "claim": {
+    "binders": "(x : IRLean.Val 8)",
+    "hypotheses": [],
+    "src": "Opt.src x",
+    "tgt": "Opt.tgt x"
+  },
+  "names": [
+    "Opt.src",
+    "Opt.tgt"
+  ],
+  "request": {
+    "input": {
+      "ir": "Opt.ll"
+    },
+    "namespace": "Opt",
+    "function": "tgt",
+    "witnesses": [
+      {
+        "x": "none"
+      }
+    ],
+    "limits": {
+      "timeout_seconds": 120,
+      "memory_mb": 4000
+    }
+  },
+  "expect": {
+    "certified": false,
+    "verify": [
+      "unsupported/function_unsupported"
+    ],
+    "gate": [
+      "not_proved"
+    ]
+  }
+}

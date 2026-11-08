@@ -1,0 +1,37 @@
+{
+  "schema": "ir-lean.verification-negative.case/1",
+  "category": "control",
+  "summary": "freeze X -> X for a noundef X",
+  "llvm_verdict": "valid",
+  "why": "A poison noundef argument is undefined behavior on entry to src, which allows anything.",
+  "claim": {
+    "binders": "(x : IRLean.Val 8)",
+    "hypotheses": [],
+    "src": "Opt.src x",
+    "tgt": "Opt.tgt x"
+  },
+  "names": [
+    "Opt.src",
+    "Opt.tgt"
+  ],
+  "request": {
+    "input": {
+      "ir": "Opt.ll"
+    },
+    "namespace": "Opt",
+    "function": "tgt",
+    "proof": "Proof.lean",
+    "theorem": "tgt_refines_src",
+    "limits": {
+      "timeout_seconds": 120,
+      "memory_mb": 4000
+    }
+  },
+  "expect": {
+    "certified": true,
+    "verify": [
+      "proved/kernel_checked"
+    ],
+    "gate": []
+  }
+}

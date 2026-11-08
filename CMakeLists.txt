@@ -100,6 +100,17 @@ add_test(NAME llvm COMMAND ${CMAKE_SOURCE_DIR}/tests/llvm.py $<TARGET_FILE:ir-le
 add_test(NAME superopt COMMAND ${CMAKE_SOURCE_DIR}/tests/superopt.py $<TARGET_FILE:ir-lean>)
 add_test(NAME names COMMAND ${CMAKE_SOURCE_DIR}/tests/names.sh)
 add_test(NAME verify COMMAND ${CMAKE_SOURCE_DIR}/tests/verify.py $<TARGET_FILE:ir-lean>)
+# What counts as a certificate: the gate on stored and broken results, in Python, and then a corpus of
+# wrong and right rewrites through tools/verify.py, one Lean process at a time.
+add_test(NAME verify_negative_static COMMAND ${CMAKE_SOURCE_DIR}/tests/verify_negative.py --tier static)
+add_test(
+    NAME verify_negative
+    COMMAND
+        ${CMAKE_SOURCE_DIR}/tests/verify_negative.py --tier live --tool $<TARGET_FILE:ir-lean>
+        --min-available-mb 4000
+)
+# Alone, so its Lean process has the memory to itself, and longer than every case's limits together.
+set_tests_properties(verify_negative PROPERTIES RUN_SERIAL TRUE TIMEOUT 900)
 add_test(
     NAME zlib
     COMMAND
