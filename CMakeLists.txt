@@ -127,6 +127,10 @@ set_tests_properties(binding PROPERTIES RUN_SERIAL TRUE TIMEOUT 1800)
 # process at a time, each capped at 2 GB and 300 s by the script itself.
 add_test(NAME contracts COMMAND ${CMAKE_SOURCE_DIR}/tests/contracts.sh)
 set_tests_properties(contracts PROPERTIES TIMEOUT 900)
+# The refinement contract against its cases, the same way: copies in a temporary directory, one Lean
+# process at a time, each capped at 2 GB and 300 s by the script itself.
+add_test(NAME refine COMMAND ${CMAKE_SOURCE_DIR}/tests/refine.sh)
+set_tests_properties(refine PROPERTIES TIMEOUT 900)
 add_test(
     NAME zlib
     COMMAND
