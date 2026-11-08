@@ -13,7 +13,7 @@ files() { git ls-files --cached --others --exclude-standard "$@" | while read -r
 mapfile -t cpp < <(files 'src/*.cpp' 'src/*.h')
 mapfile -t wrappers < <(files 'tests/llvm/wrappers/*.cpp' 'tests/llvm/include/**/*.h')
 mapfile -t c < <(files 'tests/real/*.c')
-mapfile -t ll < <(files 'tests/real/*.ll' 'tests/llvm/rewrites/*.ll' 'tests/verification_negative/cases/*/*.ll')
+mapfile -t ll < <(files 'tests/real/*.ll' 'tests/llvm/rewrites/*.ll' 'tests/verification_negative/cases/*/*.ll' 'tests/llvm_scope/*.ll')
 mapfile -t shell < <(files '*.sh')
 mapfile -t toml < <(files '*.toml')
 mapfile -t yaml < <(files '*.yml' '*.yaml')
