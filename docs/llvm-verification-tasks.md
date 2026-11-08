@@ -473,7 +473,7 @@ when they land.
 - **Trust gaps:** One pass at a time, outside its pipeline, on inputs chosen by LLVM's authors.
 - **Status:** in progress
 - **Gate waiver:** Drafted before SEM-01 was frozen. Its results are re-run when it is.
-- **Evidence:** A draft is uncommitted on `research/prove-llvm-optimizations`. Nothing landed.
+- **Evidence:** [`tests/passes.py`](passes.md) counts an instance only when `tools/binding.py` binds its bundle in the same run, checked by `tests/passes_test.py` on two small tests. It proves equivalence, not refinement, hasn't been run on the corpus, and writes no `translation-validation` claims yet. The research draft stays uncommitted on `research/prove-llvm-optimizations`.
 
 ### PASS-03: Peephole rewrites for all inputs
 
