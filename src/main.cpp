@@ -3,8 +3,10 @@
 #include "Emitter.h"
 
 #include "llvm/ADT/SmallString.h"
+#include "llvm/IR/DebugInfo.h"
 #include "llvm/IR/LLVMContext.h"
 #include "llvm/IR/Module.h"
+#include "llvm/IR/Verifier.h"
 #include "llvm/IRReader/IRReader.h"
 #include "llvm/Support/FileSystem.h"
 #include "llvm/Support/Path.h"
@@ -105,6 +107,18 @@ int main(int Argc, char **Argv) {
   if (!M) {
     Diagnostic.print("ir-lean", errs());
     return ExitError;
+  }
+  // The parser accepts IR that LLVM's verifier rejects, such as `llvm.lifetime.start` on a global, and the
+  // model gives such IR a meaning LLVM doesn't. Broken debug info is only dropped, as `opt` does, since
+  // nothing here reads it.
+  bool BrokenDebugInfo = false;
+  if (verifyModule(*M, &errs(), &BrokenDebugInfo)) {
+    errs() << "ir-lean: " << Input << " doesn't pass LLVM's verifier\n";
+    return ExitError;
+  }
+  if (BrokenDebugInfo) {
+    errs() << "ir-lean: warning: ignoring invalid debug info in " << Input << "\n";
+    StripDebugInfo(*M);
   }
 
   ir_lean::Emitted E = ir_lean::emitModule(*M, Namespace, sys::path::filename(Input).str(), NoCode);

@@ -121,11 +121,7 @@ def as_ir(answer):
 
 def verdict(output):
     """Alive2's verdict on one pair: True, False, or None if it can't tell."""
-    if output is None or ("1 correct transformations" in output and "0 incorrect" in output):
-        return True
-    if "1 incorrect transformations" in output:
-        return False
-    return None
+    return {"correct": True, "incorrect": False}.get(alive.verdict(output))
 
 
 def function(body):

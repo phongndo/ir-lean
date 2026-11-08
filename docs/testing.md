@@ -22,11 +22,11 @@ everything every time, in about a minute.
 | `memory_errors` | Memory errors through the emitter each stop the model for their own reason: out of bounds, after a free, through a dangling pointer or the wrong provenance, null, misaligned, an overlapping copy, a write to a constant, and frees of what `malloc` didn't return |
 | `model_stops` | Where LLVM doesn't say it's undefined, the model stops without an answer |
 | `model_stops_are_not_undefined` | `--expect-ub` says those aren't undefined |
-| `emitter` | What the emitter refuses and accepts on purpose, the default namespace, and that `opcheck` can't pass quietly without Alive2 |
+| `emitter` | What the emitter refuses and accepts on purpose, IR that fails LLVM's verifier, a value named like a name emitted code binds, checks only seen by running, the default namespace, and that `opcheck` can't pass quietly without Alive2 |
 | `fuzz` | The same comparison on random functions, optimized at random levels |
-| `proofs` | The proofs against freshly generated Lean, that breaking the C breaks the proof, and that a proof can only rest on the standard axioms and `bv_decide`'s |
-| `llvm` | [LLVM's own code](llvm.md): functions from `llvm-project` at the pinned tag, compiled as upstream does, against their proofs, with an injected bug for each that has to stop its proof. Prints the score. `--manifest` writes what each theorem says and rests on |
-| `superopt` | What a search finds for real functions, against Alive2 and a Lean theorem that it does the same, and that a wrong rewrite fails both. `--bench` also measures it against `clang -O3`, which CI doesn't, since timings vary |
+| `proofs` | The proofs against freshly generated Lean, that each theorem names its generated function, that breaking the C stops the proof with an error that isn't running out of time or memory, that a proof can only rest on the standard axioms and `bv_decide`'s, with no `implemented_by` or `extern`, and that `leanchecker` replays it |
+| `llvm` | [LLVM's own code](llvm.md): functions from `llvm-project` at the pinned tag, compiled as upstream does, against their proofs, checked as `proofs` checks them, with an injected bug for each that has to stop its proof with an error of its own. Prints the score. `--manifest` writes what each theorem says and rests on, and what stopped each bug's proof |
+| `superopt` | What a search finds for real functions, against Alive2 and a Lean theorem that names both and says they do the same, and that a wrong rewrite fails both, with an error in Lean and a counterexample from Alive2. An Alive2 timeout is never a pass. `--bench` also measures it against `clang -O3`, which CI doesn't, since timings vary |
 | `names` | Every word Lean reserves is avoided in generated names |
 | `verify` | [`tools/verify.py`](verify.md) gives each status and reason when it should, refuses proofs that cheat, and no required check can be missing from a proved result |
 | `zlib` | All of zlib translates, and real calls into it match native code, failing if any input is skipped |

@@ -158,7 +158,8 @@ done
 # Function attributes: anything that isn't on the reviewed list.
 for attribute in noreturn naked returns_twice sanitize_address strictfp null_pointer_is_valid \
   convergent nocf_check speculatable nocallback '"made-up"="1"'; do
-  refuses "attribute" "define i32 @f(i32 %x) $attribute { ret i32 %x }"
+  # The verifier rejects a naked function that reads its arguments.
+  refuses "attribute" "define i32 @f(i32 %x) $attribute { ret i32 0 }"
 done
 refuses 'call attribute nobuiltin' 'declare ptr @malloc(i64)
 define ptr @f() {
@@ -281,6 +282,139 @@ refuses 'metadata !alias.scope' 'define i32 @f(ptr %p) { %v = load i32, ptr %p, 
 refuses 'instruction' 'declare void @llvm.assume(i1)
 define void @f(ptr %p) { call void @llvm.assume(i1 true) [ "align"(ptr %p, i64 8) ]
   ret void }'
+
+# `allocsize` and `allockind` make a function `malloc` or `free` to the optimizer. The model only knows the C library's.
+refuses 'function attribute allocsize' 'define ptr @f(i64 %n) allocsize(0) { ret ptr null }'
+refuses 'function attribute allockind' 'define ptr @f(i64 %n) allockind("alloc") { ret ptr null }'
+refuses 'call attribute allocsize' 'define ptr @g(i64 %n) { ret ptr null }
+define ptr @f() { %p = call ptr @g(i64 4) allocsize(0)
+  ret ptr %p }'
+accepts 'declare noalias noundef ptr @malloc(i64 noundef) nounwind allockind("alloc,uninitialized") allocsize(0) memory(inaccessiblemem: readwrite, errnomem: write)
+define ptr @f() { %r = call noalias ptr @malloc(i64 1) allocsize(0)
+  ret ptr %r }'
+# An allocation whose size in bytes doesn't fit in 64 bits would wrap to a small one.
+refuses 'alloca of more bytes than 64 bits can count' 'define i32 @f() { %a = alloca i32, i64 4611686018427387905
+  store i32 1, ptr %a
+  ret i32 0 }'
+refuses 'alloca of more bytes than 64 bits can count' 'define i32 @f() { %a = alloca i8, i128 18446744073709551617
+  store i8 1, ptr %a
+  ret i32 0 }'
+refuses 'alloca with a count wider than 64 bits' 'define i32 @f(i128 %n) { %a = alloca i8, i128 %n
+  store i8 1, ptr %a
+  ret i32 0 }'
+# Another module can replace a definition when it's loaded, unless it's local to this one.
+refuses linkage 'define i32 @f(i32 %x) { ret i32 %x }
+!llvm.module.flags = !{!0}
+!0 = !{i32 1, !"SemanticInterposition", i32 1}'
+accepts 'define dso_local i32 @f(i32 %x) { ret i32 %x }
+!llvm.module.flags = !{!0}
+!0 = !{i32 1, !"SemanticInterposition", i32 1}'
+
+# What LLVM's verifier rejects isn't translated, since the model would give it a meaning LLVM doesn't.
+printf '%s\n' '@g = constant i32 0
+declare void @llvm.lifetime.start.p0(ptr)
+define void @f() { call void @llvm.lifetime.start.p0(ptr @g)
+  store i32 1, ptr @g
+  ret void }' >"$work/Invalid.ll"
+output=$("$tool" "$work/Invalid.ll" --report 2>&1)
+status=$?
+if [ "$status" -eq 1 ] && [[ $output == *"doesn't pass LLVM's verifier"* ]]; then
+  printf 'ok    IR that fails the verifier is refused\n'
+else
+  fail "IR that fails the verifier: exit $status, $output"
+fi
+
+# Emitted code binds names of its own, which no value's name can be. A `switch` once bound its selector as `sel`,
+# so here a parameter named `%sel` read in a case was replaced by the selector: pick 5 2 gave 6.
+cat >"$work/Pick.ll" <<'IR'
+define i32 @pick(i32 noundef %sel, i32 noundef %op) {
+entry:
+  switch i32 %op, label %return [
+    i32 0, label %zero
+    i32 2, label %two
+  ]
+zero:
+  %add = add i32 %sel, 1
+  br label %return
+two:
+  %mul = mul i32 %sel, 3
+  br label %return
+return:
+  %r = phi i32 [ %add, %zero ], [ %mul, %two ], [ %sel, %entry ]
+  ret i32 %r
+}
+IR
+cat >"$work/PickProof.lean" <<'LEAN'
+import Pick
+open IRLean Pick
+
+theorem pick_two (s : BitVec 32) : pick (some s) (some 2#32) = Outcome.ok (some (s * 3#32)) := by
+  simp only [pick, noundef]
+  rw [run_jump _ (by rfl), run_jump _ (by rfl), run_ret _ (by rfl)]
+  simp [Val.mul]
+LEAN
+if "$tool" "$work/Pick.ll" -o "$work/Pick.lean" --namespace Pick --no-code && lean -R "$work" -o "$work/Pick.olean" "$work/Pick.lean" &&
+  lean "$work/PickProof.lean"; then
+  printf 'ok    a value named like a binder the emitter uses keeps its own value\n'
+else
+  fail 'a value named %sel read inside a switch'
+fi
+
+# Checks that are only seen by running: a `dereferenceable` result where the call returns, the arguments of a call
+# that never returns before it stops, and an `alloca` whose size in bytes doesn't fit.
+cat >"$work/Runs.ll" <<'IR'
+define dereferenceable(8) ptr @past() {
+  %a = alloca i32
+  %p = getelementptr i8, ptr %a, i64 100
+  ret ptr %p
+}
+define i32 @deref() {
+  %p = call dereferenceable(8) ptr @past()
+  ret i32 0
+}
+declare void @gives_up(i32 noundef) noreturn
+define void @poison_to_abort() {
+  call void @gives_up(i32 poison) noreturn
+  unreachable
+}
+define void @abort() {
+  call void @gives_up(i32 1) noreturn
+  unreachable
+}
+declare void @dies(i32 noundef range(i32 0, 10)) noreturn
+define void @narrower() {
+  call void @dies(i32 range(i32 0, 100) 50) noreturn
+  unreachable
+}
+define i32 @array(i64 %n) {
+  %a = alloca i32, i64 %n
+  store i32 1, ptr %a
+  ret i32 0
+}
+IR
+cat >"$work/RunsCheck.lean" <<'LEAN'
+import Runs
+open IRLean Runs
+
+def show' : Outcome α → String
+  | none => "none"
+  | some (.error (.undefined e)) => s!"ub {repr e}"
+  | some (.error (.model e)) => s!"stop {repr e}"
+  | some (.ok _) => "ok"
+
+#guard show' (deref initial) == "ub IRLean.UB.badAccess"
+#guard show' poison_to_abort == "ub IRLean.UB.noundefPoison"
+#guard show' abort == "stop IRLean.ModelStop.noReturnCall"
+#guard show' narrower == "ub IRLean.UB.noundefPoison"
+#guard show' (array (some 4611686018427387905#64) initial) == "ub IRLean.UB.poisonPointer"
+#guard show' (array (some 4#64) initial) == "ok"
+LEAN
+if "$tool" "$work/Runs.ll" -o "$work/Runs.lean" --namespace Runs && lean -R "$work" -o "$work/Runs.olean" "$work/Runs.lean" &&
+  lean "$work/RunsCheck.lean"; then
+  printf 'ok    dereferenceable results, the arguments of calls that never return, and huge allocas are checked\n'
+else
+  fail 'dereferenceable results, the arguments of calls that never return, or huge allocas'
+fi
 
 # `mustprogress` is on the list on purpose, and this is what that means: a run LLVM calls undefined is
 # `none` here, not a stop. If the model ever starts to treat it as undefined, this has to change with it.

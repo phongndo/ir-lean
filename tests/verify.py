@@ -104,6 +104,13 @@ PROOFS = {
     "  simp [inc, inc.step, run, llvm, spec]\n",
     "sleep": HEADER + "#eval IO.sleep 600000\n\n" + INC_OK,
     "heartbeats": HEADER + "set_option maxHeartbeats 1 in\n" + INC_OK,
+    "sat": HEADER
+    + "theorem slow (x y : BitVec 64) : x * y = y * x := by\n  bv_decide (config := { timeout := 1 })\n\n"
+    + INC_OK,
+    "steps": HEADER
+    + "theorem many (a b c : Nat) : a + b + c + 0 + 0 + 0 = c + b + a := by\n"
+    + "  simp (config := { maxSteps := 3 }) [Nat.add_comm, Nat.add_left_comm]\n\n"
+    + INC_OK,
     "stack": HEADER + "def deep : Nat → Nat\n  | 0 => 0\n  | n + 1 => deep n + 1\n\n#eval deep 100000000\n",
     # True, about the target, and saying nothing about what it does.
     "trivial": HEADER + "theorem inc_self : inc = inc := rfl\n",
@@ -379,6 +386,8 @@ def cases() -> list[Case]:
             files_for("ok"),
         ),
         Case("timeout_stack", "timeout", "stack_limit", proof("stack", "inc_ok"), files_for("stack")),
+        Case("timeout_sat", "timeout", "solver_limit", proof("sat", "inc_ok"), files_for("sat")),
+        Case("timeout_steps", "timeout", "step_limit", proof("steps", "inc_ok"), files_for("steps")),
         Case(
             "timeout_witness_never_ends",
             "timeout",

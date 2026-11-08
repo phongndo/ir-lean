@@ -89,6 +89,8 @@ answer in JSON, as `error`.
 | `heartbeat_limit` | `timeout` | Lean ran out of heartbeats, `maxHeartbeats` in the proof |
 | `recursion_limit` | `timeout` | Lean hit `maxRecDepth` |
 | `stack_limit` | `timeout` | Lean ran out of stack |
+| `solver_limit` | `timeout` | `bv_decide`'s SAT solver ran out of time, its `timeout` in the proof |
+| `step_limit` | `timeout` | `simp` ran out of steps, its `maxSteps` in the proof |
 | `invalid_request` | `error` | The request is malformed, including any field it doesn't know |
 | `input_not_found` | `error` | A file the request names doesn't exist |
 | `toolchain_missing` | `error` | ir-lean, Lean, the `IRLean` library, clang, `opt` or `leanchecker` isn't there |
@@ -222,11 +224,10 @@ Everything in [trust](trust.md), and also:
   `timeout`, since what fails after a limit often fails because of it. Lean's later errors are still in
   `diagnostics`.
 
-`tests/proofs.sh` and `tests/llvm.py` don't run `leanchecker`. They check axioms with `tests/check_axioms.lean`,
-which imports the module it checks, and so runs its code, and reruns any Bool an axiom named like `bv_decide`'s
-says is `true`. A skipped kernel check, a fake `bv_decide` axiom or an initializer could pass them. This tool is
-where those checks are, today. [Open soundness issues](trust.md#open-soundness-issues) lists these, with the
-emitter's.
+`tests/proofs.sh` and `tests/llvm.py` check axioms with `tests/check_axioms.lean`, which reads a proof and its imports
+as data, with the same policy as this tool, and they run `leanchecker`. They also check that each theorem names its
+function, from the generated module. What they don't do is hash the files a proof's code could change while Lean
+compiles it: they compile proofs from the repo, which a person reviews, and this tool is for proofs from anywhere else.
 
 ## Reproducing a run
 
