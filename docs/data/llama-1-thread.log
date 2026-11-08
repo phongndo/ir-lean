@@ -1,0 +1,56 @@
+ok   built both libraries; they differ only in ggml_gemm_q4_K_8x8_q8_K, ggml_gemv_q4_K_8x8_q8_K
+     qwen2.5-1.5b-instruct-q4_k_m.gguf: sha256 6a1a2eb6d15622bf3c96857206351ba97e1af16c30d7a74ee38970e434e9407e
+     Llama-3.2-3B-Instruct-Q4_K_M.gguf: sha256 6c1a2b41161032677be168d354123594c0e6e67d2b9227c84f296ad037c728ff
+1,base,qwen2.5-1.5b-instruct-q4_k_m.gguf,pp512,172.946165,12.22,62398181268.0,12189.07,4.63
+1,rw,qwen2.5-1.5b-instruct-q4_k_m.gguf,pp512,182.237562,11.602,59395816844.0,11589.51,4.07
+1,base,qwen2.5-1.5b-instruct-q4_k_m.gguf,tg128,25.449162,15.483,83352014616.0,15469.54,3.39
+1,rw,qwen2.5-1.5b-instruct-q4_k_m.gguf,tg128,24.830638,15.861,85446235590.0,15848.15,3.00
+1,base,Llama-3.2-3B-Instruct-Q4_K_M.gguf,pp512,82.516684,25.462,130523665240.0,25448.56,2.56
+1,rw,Llama-3.2-3B-Instruct-Q4_K_M.gguf,pp512,87.607823,24.027,123391062975.0,24013.38,2.10
+1,base,Llama-3.2-3B-Instruct-Q4_K_M.gguf,tg128,11.467564,34.196,184599853702.0,34181.14,1.78
+1,rw,Llama-3.2-3B-Instruct-Q4_K_M.gguf,tg128,13.211533,29.768,160493227053.0,29753.63,1.43
+2,rw,qwen2.5-1.5b-instruct-q4_k_m.gguf,pp512,182.195098,11.612,59477393496.0,11600.5,1.37
+2,base,qwen2.5-1.5b-instruct-q4_k_m.gguf,pp512,172.362699,12.252,62703749919.0,12239.55,1.31
+2,rw,qwen2.5-1.5b-instruct-q4_k_m.gguf,tg128,24.890077,15.829,85238290113.0,15816.25,1.27
+2,base,qwen2.5-1.5b-instruct-q4_k_m.gguf,tg128,24.779827,15.898,85578607914.0,15885.68,1.19
+2,rw,Llama-3.2-3B-Instruct-Q4_K_M.gguf,pp512,87.431038,24.071,123631789715.0,24056.82,1.15
+2,base,Llama-3.2-3B-Instruct-Q4_K_M.gguf,pp512,82.180453,25.564,131236270331.0,25550.29,1.10
+2,rw,Llama-3.2-3B-Instruct-Q4_K_M.gguf,tg128,13.145635,29.921,161257279003.0,29906.9,1.12
+2,base,Llama-3.2-3B-Instruct-Q4_K_M.gguf,tg128,11.476943,34.167,184441863012.0,34152.41,1.07
+3,base,qwen2.5-1.5b-instruct-q4_k_m.gguf,pp512,171.869218,12.28,62848033649.0,12268.31,1.31
+3,rw,qwen2.5-1.5b-instruct-q4_k_m.gguf,pp512,181.928686,11.629,59567066250.0,11616.82,1.24
+3,base,qwen2.5-1.5b-instruct-q4_k_m.gguf,tg128,24.600141,16.012,86189030424.0,15999.89,1.20
+3,rw,qwen2.5-1.5b-instruct-q4_k_m.gguf,tg128,24.745544,15.917,85733727083.0,15903.96,1.22
+3,base,Llama-3.2-3B-Instruct-Q4_K_M.gguf,pp512,82.409554,25.504,130871019151.0,25489.36,1.22
+3,rw,Llama-3.2-3B-Instruct-Q4_K_M.gguf,pp512,88.273649,23.847,122409289159.0,23832.68,1.15
+3,base,Llama-3.2-3B-Instruct-Q4_K_M.gguf,tg128,11.457659,34.227,184787815879.0,34212.52,1.10
+3,rw,Llama-3.2-3B-Instruct-Q4_K_M.gguf,tg128,12.210054,32.159,173539868106.0,32144.51,1.06
+4,rw,qwen2.5-1.5b-instruct-q4_k_m.gguf,pp512,182.621647,11.584,59335395602.0,11572.48,1.09
+4,base,qwen2.5-1.5b-instruct-q4_k_m.gguf,pp512,172.292779,12.255,62744077609.0,12243.17,1.08
+4,rw,qwen2.5-1.5b-instruct-q4_k_m.gguf,tg128,24.492146,16.079,86610834355.0,16066.3,1.06
+4,base,qwen2.5-1.5b-instruct-q4_k_m.gguf,tg128,24.459003,16.096,86657806752.0,16083.24,1.05
+4,rw,Llama-3.2-3B-Instruct-Q4_K_M.gguf,pp512,87.534645,24.034,123410401936.0,24020.65,1.04
+4,base,Llama-3.2-3B-Instruct-Q4_K_M.gguf,pp512,82.220194,25.553,131129280367.0,25538.84,1.02
+4,rw,Llama-3.2-3B-Instruct-Q4_K_M.gguf,tg128,12.214711,32.144,173474161203.0,32131.3,1.01
+4,base,Llama-3.2-3B-Instruct-Q4_K_M.gguf,tg128,11.413771,34.358,185497818768.0,34345.45,1.01
+5,base,qwen2.5-1.5b-instruct-q4_k_m.gguf,pp512,171.98559,12.276,62813147565.0,12264.56,1.12
+5,rw,qwen2.5-1.5b-instruct-q4_k_m.gguf,pp512,182.413847,11.605,59435008384.0,11593.8,1.09
+5,base,qwen2.5-1.5b-instruct-q4_k_m.gguf,tg128,24.462443,16.106,86725423797.0,16093.87,1.08
+5,rw,qwen2.5-1.5b-instruct-q4_k_m.gguf,tg128,24.513155,16.073,86551580395.0,16060.95,1.06
+5,base,Llama-3.2-3B-Instruct-Q4_K_M.gguf,pp512,82.443528,25.488,130814015357.0,25475.19,1.11
+5,rw,Llama-3.2-3B-Instruct-Q4_K_M.gguf,pp512,88.269538,23.848,122428085681.0,23835.74,1.07
+5,base,Llama-3.2-3B-Instruct-Q4_K_M.gguf,tg128,11.475858,34.171,184474187419.0,34158.16,1.12
+5,rw,Llama-3.2-3B-Instruct-Q4_K_M.gguf,tg128,13.04617,30.148,162499189010.0,30134.09,1.13
+6,rw,qwen2.5-1.5b-instruct-q4_k_m.gguf,pp512,182.260866,11.607,59457821548.0,11594.95,1.14
+6,base,qwen2.5-1.5b-instruct-q4_k_m.gguf,pp512,172.309856,12.254,62723617214.0,12242.12,1.12
+6,rw,qwen2.5-1.5b-instruct-q4_k_m.gguf,tg128,24.455037,16.114,86788853845.0,16101.99,1.09
+6,base,qwen2.5-1.5b-instruct-q4_k_m.gguf,tg128,24.457997,16.098,86672309848.0,16086.86,1.07
+6,rw,Llama-3.2-3B-Instruct-Q4_K_M.gguf,pp512,88.071847,23.909,122790895612.0,23896.99,1.06
+6,base,Llama-3.2-3B-Instruct-Q4_K_M.gguf,pp512,82.380068,25.515,130972909801.0,25501.72,1.04
+6,rw,Llama-3.2-3B-Instruct-Q4_K_M.gguf,tg128,12.161321,32.289,174258025958.0,32275.8,1.10
+6,base,Llama-3.2-3B-Instruct-Q4_K_M.gguf,tg128,11.480585,34.167,184399696571.0,34153.42,1.24
+model, workload: median base, median rewritten, speedups (median, least, most), rounds faster
+qwen2.5-1.5b-instruct-q4_k_m.gguf, pp512: 172.30 tokens/s, 182.25 tokens/s, 1.058 (1.054, 1.061), 6/6
+qwen2.5-1.5b-instruct-q4_k_m.gguf, tg128: 24.53 tokens/s, 24.63 tokens/s, 1.002 (0.976, 1.006), 4/6
+Llama-3.2-3B-Instruct-Q4_K_M.gguf, pp512: 82.39 tokens/s, 87.84 tokens/s, 1.067 (1.062, 1.071), 6/6
+Llama-3.2-3B-Instruct-Q4_K_M.gguf, tg128: 11.47 tokens/s, 12.63 tokens/s, 1.104 (1.059, 1.152), 6/6
