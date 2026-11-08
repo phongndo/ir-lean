@@ -34,13 +34,13 @@
    ],
    "label": "reassoc_consts: o1 verify",
    "limits": {
-    "max_tree_rss_mb": 5333.333333333333,
+    "max_tree_rss_mb": 16000.0,
     "timeout_s": 2400
    },
    "outcome": "failed",
-   "peak_process_mb": 446.6,
-   "peak_tree_mb": 443.8,
-   "wall_s": 6.61
+   "peak_process_mb": 446.7,
+   "peak_tree_mb": 443.9,
+   "wall_s": 5.77
   },
   "detail": "the target IR has mustprogress or willreturn, which IRLean trusts instead of checking",
   "label": "o1",
@@ -115,13 +115,13 @@
    ],
    "label": "reassoc_consts: s01 verify",
    "limits": {
-    "max_tree_rss_mb": 5333.333333333333,
+    "max_tree_rss_mb": 16000.0,
     "timeout_s": 2400
    },
    "outcome": "ok",
-   "peak_process_mb": 1486.9,
-   "peak_tree_mb": 1918.9,
-   "wall_s": 11.88
+   "peak_process_mb": 1495.0,
+   "peak_tree_mb": 1951.7,
+   "wall_s": 10.06
   },
   "detail": "every check passed",
   "key": "a88dbcb2f71c5186e9a5e23e3f032fe5fbf869fd6c5d33b5a547389603fee0ec",
@@ -202,13 +202,13 @@
    ],
    "label": "reassoc_consts: s02 verify",
    "limits": {
-    "max_tree_rss_mb": 5333.333333333333,
+    "max_tree_rss_mb": 16000.0,
     "timeout_s": 2400
    },
    "outcome": "ok",
-   "peak_process_mb": 1495.2,
-   "peak_tree_mb": 1952.4,
-   "wall_s": 12.11
+   "peak_process_mb": 1494.8,
+   "peak_tree_mb": 1952.2,
+   "wall_s": 10.17
   },
   "detail": "every check passed",
   "key": "83b251cd3128065174f0156f5a359027d5c719232f957c4bff2713d55da7192c",

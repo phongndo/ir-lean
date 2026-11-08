@@ -945,6 +945,17 @@ def cmd_bind(args: argparse.Namespace) -> int:
         measure.heavy_lock("o1 bind", 3600),
         concurrent.futures.ThreadPoolExecutor(max_workers=workers) as pool,
     ):
+        # The library and ir-lean, built from the sources the fingerprint names, so a verdict labeled with
+        # them is about them. Both builds are incremental, and do nothing when they're up to date.
+        for label, argv in (
+            ("lake build", ["lake", "build"]),
+            ("ninja", ["ninja", "-C", str(ROOT / "build")]),
+        ):
+            m = measure.run(argv, label=f"o1 bind: {label}", timeout=3600, cap_mb=budget["total_tree_mb"])
+            m["workers"] = 1
+            lines.append(json.dumps(m, sort_keys=True))
+            if m["outcome"] != "ok":
+                sys.exit(f"{label} failed, so nothing was bound: {m['outcome']}")
         futures = {pool.submit(bind_job, j, cfg, cap): j for j in jobs}
         for f in concurrent.futures.as_completed(futures):
             j = futures[f]
@@ -1269,11 +1280,13 @@ def summary(ledger: dict) -> dict:
         "whole_run": c["whole_run_verdicts"],
         "discharged": sum(ledger["discharged"].values()),
         "complete": ledger["complete"],
+        "evidence_sources": ledger["evidence_sources"],
     }
 
 
-def check_consistency() -> list[str]:
-    """What's wrong with the committed files, without running LLVM or Lean."""
+def check_consistency(allow_stale: bool = False) -> list[str]:
+    """What's wrong with the committed files, without running LLVM or Lean. Evidence verified under sources
+    other than these is stale, and a problem unless `allow_stale`."""
     problems = []
     cfg = read_json(CONFIG)
     families = read_json(FAMILIES)
@@ -1323,6 +1336,11 @@ def check_consistency() -> list[str]:
         problems.append("ledger.json isn't what `ledger` derives from the evidence")
     if ledger.get("complete") is not False:
         problems.append("ledger.json says O1 is complete")
+    if not allow_stale and ledger.get("evidence_sources") != sources_fingerprint():
+        problems.append(
+            "ledger.json counts evidence verified under other sources, which is stale here: "
+            "run `bind`, then `ledger`"
+        )
     stated = SUMMARY.search(DOC.read_text()) if DOC.exists() else None
     if stated is None or json.loads(stated.group(1)) != summary(ledger):
         problems.append(f"{DOC.name}'s o1-summary isn't the ledger's: {json.dumps(summary(ledger))}")
@@ -1330,13 +1348,14 @@ def check_consistency() -> list[str]:
 
 
 def cmd_check(args: argparse.Namespace) -> int:
-    problems = check_consistency()
+    problems = check_consistency(args.allow_stale)
     for p in problems:
         print(p, file=sys.stderr)
     if not problems:
         print("campaign/o1 is consistent; O1 is not complete")
-    if read_json(LEDGER).get("evidence_sources") != sources_fingerprint():
-        print("the evidence was verified under other sources: run `bind`, then `ledger`", file=sys.stderr)
+    recorded = read_json(LEDGER).get("evidence_sources")
+    if args.allow_stale and recorded != sources_fingerprint():
+        print(f"stale: ledger.json's counts hold only for sources {recorded}", file=sys.stderr)
     return 1 if problems else 0
 
 
@@ -1352,7 +1371,12 @@ def main() -> int:
     b.add_argument("--case", action="append")
     b.add_argument("--workers", type=int)
     sub.add_parser("ledger")
-    sub.add_parser("check")
+    k = sub.add_parser("check")
+    k.add_argument(
+        "--allow-stale",
+        action="store_true",
+        help="check the files agree, but don't fail when the evidence was verified under other sources",
+    )
     args = ap.parse_args()
     with contextlib.suppress(KeyboardInterrupt):
         return {

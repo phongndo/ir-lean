@@ -245,7 +245,21 @@ class Ledger(unittest.TestCase):
 
 class Committed(unittest.TestCase):
     def test_the_committed_files_agree(self) -> None:
-        self.assertEqual(o1.check_consistency(), [])
+        # Not whether they're current: another lane's change to the model makes them stale, and only the
+        # machine the bundles were recorded on can bind them again. The test below checks staleness is caught.
+        self.assertEqual(o1.check_consistency(allow_stale=True), [])
+
+    def test_stale_evidence_fails_the_check_and_counts_as_stale(self) -> None:
+        with mock.patch.object(o1, "sources_fingerprint", return_value="the model changed"):
+            problems = o1.check_consistency()
+            self.assertTrue(any("stale" in p for p in problems), problems)
+            captures, verdicts = o1.gather()
+            pipeline, families = o1.read_json(o1.PIPELINE), o1.read_json(o1.FAMILIES)
+            fresh = o1.derive_ledger(pipeline, families, captures, verdicts, o1.sources_fingerprint())
+        self.assertEqual(fresh["corpus"]["verdicts"]["bound"], 0)
+        self.assertEqual(
+            fresh["corpus"]["verdicts"]["bound_stale"], o1.read_json(o1.LEDGER)["corpus"]["verdicts"]["bound"]
+        )
 
     def test_every_report_names_the_level(self) -> None:
         for path in (o1.PIN, o1.PIPELINE, o1.LEDGER, *sorted(o1.EVIDENCE.glob("*/capture.json"))):

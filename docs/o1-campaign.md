@@ -12,7 +12,7 @@ inputs, each bound to the exact IR before and after it. That evidence is finite.
 input, so it never counts toward any of those three kinds of proof, and `complete` stays false in
 [`ledger.json`](../campaign/o1/ledger.json) whatever it holds.
 
-<!-- o1-summary: {"level": "O1", "positions": 100, "passes": 76, "families": 14, "adaptors": 13, "cases": 10, "steps": 79, "verdicts": {"bound": 24, "bound_stale": 0, "bound_unlinked": 0, "bound_unreplayed": 0, "error": 0, "not_attempted": 51, "refused": 4, "unknown": 0, "unsupported": 0}, "whole_run": {"refused:certificate_compile_failed": 2, "unsupported:trusted_promise": 8}, "discharged": 0, "complete": false} -->
+<!-- o1-summary: {"level": "O1", "positions": 100, "passes": 76, "families": 14, "adaptors": 13, "cases": 10, "steps": 79, "verdicts": {"bound": 24, "bound_stale": 0, "bound_unlinked": 0, "bound_unreplayed": 0, "error": 0, "not_attempted": 51, "refused": 4, "unknown": 0, "unsupported": 0}, "whole_run": {"refused:certificate_compile_failed": 2, "unsupported:trusted_promise": 8}, "discharged": 0, "complete": false, "evidence_sources": "e2f0d05b5ba701ebeb5f31a5033dd683d4d9e2414a0d007811a9ee6d7200211b"} -->
 
 ## The pin
 
@@ -102,7 +102,7 @@ campaign/o1/o1.py pin --check         # this machine's opt, source and pipeline 
 campaign/o1/o1.py capture             # every input in campaign/o1/corpus/
 campaign/o1/o1.py bind --workers 3    # under the machine's heavy-job lock
 campaign/o1/o1.py ledger
-campaign/o1/o1.py check               # also campaign/o1/test_o1.py, which ctest runs as o1_campaign
+campaign/o1/o1.py check               # fails on stale evidence; campaign/o1/test_o1.py is ctest's o1_campaign
 ```
 
 **Capture.** For each input, the pinned invocation runs twice, and the output has to be the same both times. A third
@@ -131,9 +131,15 @@ and a bound one has to end with its `unchanged` check, or it's `bound_unreplayed
 
 **Stale evidence.** Each verdict records a fingerprint of the tracked files it rests on: `tools/binding.py`,
 `tools/binding_check.lean`, `tests/check_axioms.lean`, IRLean's sources, the emitter, and the Lean, LLVM and Nix pins.
-A bound verdict made under other sources is `bound_stale`, and counts as no evidence. `check` compares the ledger with
-the sources it names, so a change to the model in another lane doesn't break it. It also says when those sources
-aren't the current ones, and then `bind` and `ledger` bring the evidence up to date, or count it stale.
+A bound verdict made under other sources is `bound_stale`, and counts as no evidence. The ledger names the sources its
+counts hold for, as `evidence_sources`, and `check` fails when they aren't the current ones. Then `bind` and `ledger`
+bring the evidence up to date, or count it stale. Before any verify, `bind` runs `lake build` and `ninja` under the
+lock, so the library and `ir-lean` it checks with are built from the sources its verdicts are labeled with.
+
+ctest runs `check` with `--allow-stale`, which still checks that the files agree with each other and prints the
+sources the counts hold for. Only the machine that recorded the bundles can bind them again. Without that flag,
+another lane's change to the model, the emitter or the checker would fail every pull request until this campaign
+re-binds.
 
 A bound step is translation validation of one run, and only in IRLean's semantics, under
 everything [binding](llvm-proof-binding.md#what-a-bound-verdict-rests-on) trusts. No `sorry`, axiom or weakened
