@@ -27,7 +27,8 @@ It fails closed. Anything it doesn't recognise, can't check or can't finish is n
   refused      1  the evidence doesn't match what it claims to be: a hash, the toolchain, a replay, or the
                   theorem's type
   unsupported  3  the claim kind can't be checked by any tool here (all inputs, the C++, or a pipeline),
-                  or the emitter refuses the function
+                  or the model can't judge the function: the emitter refuses it, it uses memory, or the
+                  target makes a promise IRLean trusts
   unknown      4  a time or memory limit stopped a step. More may help
   error        5  a tool failed in a way that says nothing about the evidence
 
@@ -39,12 +40,14 @@ usage: tools/binding.py record --input FILE.ll --passes SPEC [--mtriple T] --fun
 """
 
 import argparse
+import contextlib
 import hashlib
 import json
 import os
 import re
 import secrets
 import shutil
+import signal
 import subprocess
 import sys
 import tomllib
@@ -75,8 +78,9 @@ LIMIT = re.compile(
 # are the obligations a per-instance certificate leaves open, and are refused as `unsupported` whatever the
 # evidence.
 KINDS = {
-    "ir_instance_equivalence": "Src.f = Tgt.f: on every input, poison included, the two functions as ir-lean "
-    "generated them have the same outcome in IRLean's semantics",
+    "ir_instance_equivalence": "Src.f = Tgt.f, and Src.f never stops the model: on every input, poison "
+    "included, the two functions as ir-lean generated them have the same outcome in IRLean's semantics, "
+    "and it's one the model knows LLVM gives",
     "ir_instance_refinement": "IRLean.Refines Src.f Tgt.f: on every input, the target only does what the "
     "source allows, in IRLean's semantics. Needs an IRLean with IRLean.Refines",
     "rewrite_all_inputs": "The pass's rewrite is correct on every input module it applies to (L3)",
@@ -186,6 +190,7 @@ class Runner:
     ) -> tuple[int, str, bytes]:
         """(exit code, stderr, stdout). Raises `unknown` if a limit stopped it."""
         command = argv
+        unit = f"ir-lean-binding-{os.getpid()}-{secrets.token_hex(4)}"
         if self.capped:
             properties = [f"MemoryMax={self.memory_mb + 512}M", "MemorySwapMax=0"]
             command = [
@@ -193,24 +198,39 @@ class Runner:
                 "--user",
                 "--scope",
                 "--quiet",
+                f"--unit={unit}",
                 *(f"--property={p}" for p in properties),
                 "--",
                 *argv,
             ]
+        # Its own process group, so a timeout stops what it started too, such as bv_decide's solver.
+        p = subprocess.Popen(
+            command,
+            stdin=subprocess.PIPE,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            env={**self.env, **(env or {})},
+            cwd=cwd,
+            start_new_session=True,
+        )
         try:
-            r = subprocess.run(
-                command,
-                input=stdin if stdin is not None else b"",
-                capture_output=True,
-                env={**self.env, **(env or {})},
-                cwd=cwd,
-                timeout=self.timeout,
-                check=False,
-            )
+            out, raw_err = p.communicate(stdin if stdin is not None else b"", timeout=self.timeout)
         except subprocess.TimeoutExpired as e:
+            if self.capped:
+                subprocess.run(
+                    ["systemctl", "--user", "kill", "--signal=SIGKILL", f"{unit}.scope"],
+                    capture_output=True,
+                    check=False,
+                )
+            with contextlib.suppress(ProcessLookupError):
+                os.killpg(p.pid, signal.SIGKILL)
+            p.kill()
+            with contextlib.suppress(subprocess.TimeoutExpired):
+                p.communicate(timeout=10)
             raise Verdict(
                 "unknown", "time_limit", f"{Path(argv[0]).name} took more than {self.timeout} s"
             ) from e
+        r = subprocess.CompletedProcess(command, p.returncode, out, raw_err)
         err = r.stderr.decode(errors="replace")
         # Lean prints its errors on stdout. A limit anywhere means the step might pass with more.
         said = err + r.stdout.decode(errors="replace")
@@ -284,6 +304,29 @@ def ir_target(ll: str) -> dict[str, str | None]:
     return {"triple": triple.group(1) if triple else None, "datalayout": layout.group(1) if layout else None}
 
 
+# Promises IRLean trusts instead of checking (docs/trust.md): a run the model says never ends is undefined in
+# LLVM under one. A target with one could be undefined where the source spins, and the model can't see it.
+TRUSTED_PROMISES = re.compile(r"\b(mustprogress|willreturn)\b")
+DEFINE = re.compile(r'^define [^@]*@"?([^"(\s]+)"?\(.*?^}', re.M | re.S)
+
+
+def changes_elsewhere(src: str, tgt: str, function: str) -> dict:
+    """What the run changed that a claim about `function` doesn't cover: other functions, by name, and whether
+    anything outside a function did, such as a global, a declaration or an attribute group."""
+    a = {m.group(1): m.group(0) for m in DEFINE.finditer(src)}
+    b = {m.group(1): m.group(0) for m in DEFINE.finditer(tgt)}
+    outside = [
+        [
+            x
+            for x in DEFINE.sub("", ll).splitlines()
+            if x.strip() and not x.startswith(("; ModuleID", "source_"))
+        ]
+        for ll in (src, tgt)
+    ]
+    others = sorted(n for n in a.keys() | b.keys() if n != function and a.get(n) != b.get(n))
+    return {"functions": others, "module_level": outside[0] != outside[1]}
+
+
 def opt_argv(passes: str, mtriple: str | None) -> list[str]:
     """opt reads the input from stdin, so its output doesn't name a path."""
     return ["opt", "-S", f"-passes={passes}", "-", "-o", "-"] + ([f"-mtriple={mtriple}"] if mtriple else [])
@@ -296,8 +339,9 @@ def run_opt(run: Runner, input_ll: bytes, passes: str, mtriple: str | None) -> b
     return out
 
 
-def translate(run: Runner, ll: Path, function: str, namespace: str, out: Path) -> str:
-    """Runs ir-lean on `ll`, writes the module to `out`, and returns the Lean name it gave `function`."""
+def translate(run: Runner, ll: Path, function: str, namespace: str, out: Path) -> list[str]:
+    """Runs ir-lean on `ll`, writes the module to `out`, and returns its report on `function`: `ok`, the LLVM
+    name, the Lean name, ..., and `pure` or `memory` last. Or `unsupported`, the name and why."""
     code, err, report = run([str(TOOL), str(ll), "--report"])
     if code not in (0, 3):
         raise Verdict("error", "tool_failed", f"ir-lean --report failed on {ll.name}: {err[-300:]}")
@@ -305,17 +349,13 @@ def translate(run: Runner, ll: Path, function: str, namespace: str, out: Path) -
     row = next((r for r in rows if len(r) >= 3 and r[1] == function), None)
     if row is None:
         refused("function_not_found", f"{ll.name} has no function {function}")
-    if row[0] != "ok":
-        raise Verdict(
-            "unsupported", "function_unsupported", f"ir-lean leaves {function} out of {ll.name}: {row}"
-        )
     out.parent.mkdir(parents=True, exist_ok=True)
     code, err, _ = run(
         [str(TOOL), str(ll), "--no-code", "--namespace", namespace, "-o", str(out)], cwd=ll.parent
     )
     if code not in (0, 3) or not out.exists():
         raise Verdict("error", "tool_failed", f"ir-lean failed on {ll.name}: {err[-300:]}")
-    return row[2]
+    return row
 
 
 # ------------------------------------------------------------------------------------------------------------
@@ -340,9 +380,11 @@ def record(args: argparse.Namespace) -> int:
         work = out / ".record" / side
         work.mkdir(parents=True)
         shutil.copy(out / ARTIFACTS[ir], work / ARTIFACTS[ir])
-        name = translate(
+        row = translate(
             run, work / ARTIFACTS[ir], args.function, f"{args.namespace}.{side}", work / "out.lean"
         )
+        # A function ir-lean leaves out has no Lean name. verify says it's unsupported.
+        name = row[2] if row[0] == "ok" else args.function
         if lean_name not in (None, name):
             sys.exit(f"ir-lean named {args.function} {lean_name} in the source and {name} in the target")
         lean_name = name
@@ -558,6 +600,17 @@ def _verify(
         )
     checks("target", f"{m['target']['triple']} / {m['target']['datalayout']}")
 
+    tgt_text = data["tgt_ir"].decode(errors="replace")
+    if TRUSTED_PROMISES.search(tgt_text):
+        raise Verdict(
+            "unsupported",
+            "trusted_promise",
+            "the target IR has mustprogress or willreturn, which IRLean trusts instead of checking",
+        )
+    verdict["uncovered_changes"] = changes_elsewhere(
+        data["src_ir"].decode(errors="replace"), tgt_text, claim["function"]
+    )
+
     # Everything below is replay. The key covers the manifest and the live toolchain, which now agree, so a
     # cached verdict is reused only for exactly this evidence and these tools.
     key = sha256(canonical({"verdict": VERDICT_SCHEMA, "manifest": m, "toolchain": live}))
@@ -630,15 +683,27 @@ def replay(m: dict, data: dict[str, bytes], work: Path, nonce: str, run: Runner,
         d.mkdir(parents=True)
         (d / ARTIFACTS[ir]).write_bytes(data[ir])
         out = lean_dir / ns / f"{side}.lean"
-        name = translate(run, d / ARTIFACTS[ir], claim["function"], f"{ns}.{side}", out)
-        if name != claim["lean_function"]:
-            refused(
-                "translation_replay_mismatch",
-                f"ir-lean names {claim['function']} {name}, not {claim['lean_function']}",
-            )
+        row = translate(run, d / ARTIFACTS[ir], claim["function"], f"{ns}.{side}", out)
         if out.read_bytes() != data[lean]:
             refused("translation_replay_mismatch", f"ir-lean doesn't write the recorded {ARTIFACTS[lean]}")
-    checks("translation_replay", "ir-lean writes both recorded modules byte for byte")
+        if row[0] != "ok":
+            raise Verdict(
+                "unsupported", "function_unsupported", f"ir-lean leaves {claim['function']} out: {row[2:]}"
+            )
+        if row[2] != claim["lean_function"]:
+            refused(
+                "translation_replay_mismatch",
+                f"ir-lean names {claim['function']} {row[2]}, not {claim['lean_function']}",
+            )
+        # The model has more undefined behavior than LLVM for memory (docs/trust.md), and a source that's
+        # undefined where LLVM's isn't would let any target through.
+        if row[-1] != "pure":
+            raise Verdict(
+                "unsupported", "memory_unsupported", f"{claim['function']} uses memory or pointers in {side}"
+            )
+    checks(
+        "translation_replay", "ir-lean writes both recorded modules byte for byte, and the function is pure"
+    )
 
     # IRLean alone, as tools/verify.py links it: the repo's other libraries build next to it, and a
     # certificate mustn't find them.

@@ -31,17 +31,30 @@ TOOL = [sys.executable, str(ROOT / "tools" / "binding.py")]
 
 HEADER = "import Fx.Src\nimport Fx.Tgt\nopen IRLean\n\n"
 GOOD = (HERE / "AddZero.lean").read_text()
-# The good proof's tactic block, for certificates that state something else and still have to compile.
-PROOF = GOOD.split(":= by", 1)[1]
+# The claim tools/binding_check.lean builds for add_zero.ll, as a certificate states it.
+CLAIM = (
+    "Fx.Src.f = Fx.Tgt.f ∧\n"
+    "    ∀ (x : IRLean.Val 8) (s : IRLean.ModelStop), Fx.Src.f x ≠ some (.error (.model s))"
+)
+assert CLAIM in GOOD
+# The good certificate's theorem as `Fx.good`, for certificates that state something else and still compile.
+GOOD_LEMMA = GOOD.split("open IRLean\n", 1)[1].replace("theorem Fx.cert", "theorem Fx.good")
 
+# The attack the adversarial lane found with tools/verify.py, on a real instcombine run: the two are equal in
+# the model, since both stop at a frozen poison, and Fx.stops shows the source does. Equality alone is all a
+# certificate can prove here, and it isn't the claim.
+FREEZE_EQUAL = HEADER + (
+    "theorem Fx.cert : Fx.Src.f = Fx.Tgt.f := by\n"
+    "  funext x\n"
+    "  cases x <;> simp [Fx.Src.f, Fx.Tgt.f, Fx.Src.f.step, Fx.Tgt.f.step, run, llvm]\n\n"
+    "theorem Fx.stops : Fx.Src.f none = some (.error (.model .freezePoison)) := by\n"
+    "  simp [Fx.Src.f, Fx.Src.f.step, run, llvm]\n"
+)
 
-# A weaker claim than the good one: it leaves out poison.
-NO_POISON = """
-  intro x
-  rw [Fx.Src.f, Fx.Tgt.f, run_ret Fx.Src.f.step (b := .bb1 (some x)) (r := Val.add (some x) (some 0#8)) rfl,
-    run_ret Fx.Tgt.f.step (b := .bb1 (some x)) (r := some x) rfl]
-  simp [Val.add]
-"""
+# A certificate that takes longer than the limit tests/binding.py gives it.
+SLOW = GOOD + "\nexample : True := by\n  sleep 120000\n  trivial\n"
+# One whose code takes more memory than the limit tests/binding.py gives it.
+GREEDY = GOOD + "\n#eval (Array.replicate 400000000 (7 : UInt64)).size\n"
 
 
 # A false theorem the kernel never saw, as tests/proofs.sh and tests/verify.py make one. Its type is the right
@@ -51,7 +64,7 @@ SKIPPED = (
     "set_option debug.skipKernelTC true in\n"
     "run_cmd liftCoreM <| addDecl <| .thmDecl {\n"
     "  name := `oops, levelParams := [], type := mkConst ``False, value := mkConst ``True.intro }\n\n"
-    "theorem Fx.cert : Fx.Src.f = Fx.Tgt.f := oops.elim\n"
+    f"theorem Fx.cert : {CLAIM} := oops.elim\n"
 )
 
 
@@ -68,8 +81,10 @@ def sha(data: bytes) -> str:
     return hashlib.sha256(data).hexdigest()
 
 
-def record(name: str, certificate: str, kind: str = "ir_instance_equivalence") -> Path:
-    """A fresh bundle for add_zero.ll with this certificate, as `record` writes it."""
+def record(
+    name: str, certificate: str, kind: str = "ir_instance_equivalence", input_ll: str = "add_zero.ll"
+) -> Path:
+    """A fresh bundle for an input in tests/binding with this certificate, as `record` writes it."""
     out = WORK / name
     shutil.rmtree(out, ignore_errors=True)
     cert = WORK / f"{name}.lean"
@@ -79,7 +94,7 @@ def record(name: str, certificate: str, kind: str = "ir_instance_equivalence") -
             *TOOL,
             "record",
             "--input",
-            str(HERE / "add_zero.ll"),
+            str(HERE / input_ll),
             "--passes",
             "instcombine",
             "--mtriple",
@@ -152,8 +167,10 @@ def good(name: str) -> Path:
     return out / "manifest.json"
 
 
-def wrong_type(statement: str, prelude: str = "", proof: str = PROOF) -> Callable[[str], Path]:
-    return lambda name: record(name, f"{HEADER}{prelude}theorem Fx.cert : {statement} := by{proof}")
+def wrong_type(statement: str, proof: str, prelude: str = "") -> Callable[[str], Path]:
+    return lambda name: record(
+        name, f"{HEADER}{GOOD_LEMMA}\n{prelude}theorem Fx.cert : {statement} :=\n  {proof}\n"
+    )
 
 
 # Each case: a name, how to make its bundle, extra verify arguments, and the (status, reason) it has to give.
@@ -162,14 +179,29 @@ CASES: list[tuple[str, Callable[[str], Path], list[str], tuple[str, str]]] = [
     # Wrong theorem types. Each compiles, so only the type check can stop it.
     (
         "swapped",
-        wrong_type("Fx.Tgt.f = Fx.Src.f", proof="\n  symm" + PROOF),
+        wrong_type(
+            CLAIM.replace("Fx.Src.f = Fx.Tgt.f", "Fx.Tgt.f = Fx.Src.f"), "⟨Fx.good.1.symm, Fx.good.2⟩"
+        ),
         [],
         ("refused", "claim_type_mismatch"),
     ),
-    ("trivial", wrong_type("Fx.Src.f = Fx.Src.f", proof=" rfl"), [], ("refused", "claim_type_mismatch")),
+    # Equality alone, the claim this tool asked for before the freeze attack.
+    ("equality_only", wrong_type("Fx.Src.f = Fx.Tgt.f", "Fx.good.1"), [], ("refused", "claim_type_mismatch")),
+    (
+        "stops_on_target",
+        wrong_type(
+            CLAIM.replace("Fx.Src.f x ≠", "Fx.Tgt.f x ≠"),
+            "by refine ⟨Fx.good.1, ?_⟩; rw [← Fx.good.1]; exact Fx.good.2",
+        ),
+        [],
+        ("refused", "claim_type_mismatch"),
+    ),
+    ("trivial", wrong_type("Fx.Src.f = Fx.Src.f", "rfl"), [], ("refused", "claim_type_mismatch")),
     (
         "no_poison",
-        wrong_type("∀ x : BitVec 8, Fx.Src.f (some x) = Fx.Tgt.f (some x)", proof=NO_POISON),
+        wrong_type(
+            "∀ x : BitVec 8, Fx.Src.f (some x) = Fx.Tgt.f (some x)", "fun x => congrFun Fx.good.1 (some x)"
+        ),
         [],
         ("refused", "claim_type_mismatch"),
     ),
@@ -177,11 +209,25 @@ CASES: list[tuple[str, Callable[[str], Path], list[str], tuple[str, str]]] = [
         "own_definition",
         wrong_type(
             "same Fx.Src.f Fx.Tgt.f",
+            "trivial",
             prelude="def same (a b : Val 8 → Outcome (Val 8)) : Prop := True\n\n",
-            proof=" trivial",
         ),
         [],
         ("refused", "foreign_constant"),
+    ),
+    (
+        "freeze_equality",
+        lambda n: record(n, FREEZE_EQUAL, input_ll="freeze.ll"),
+        [],
+        ("refused", "claim_type_mismatch"),
+    ),
+    (
+        "not_a_theorem",
+        lambda n: edit_manifest(
+            record(n, GOOD + "\ndef Fx.notThm : Nat := 1\n"), lambda m: m["claim"].update(theorem="Fx.notThm")
+        ),
+        [],
+        ("refused", "not_a_theorem"),
     ),
     ("kernel_skipped", lambda n: record(n, SKIPPED), [], ("refused", "kernel_replay_failed")),
     ("rewrites_generated", lambda n: record(n, REWRITES), [], ("refused", "artifacts_modified")),
@@ -203,7 +249,29 @@ CASES: list[tuple[str, Callable[[str], Path], list[str], tuple[str, str]]] = [
         [],
         ("refused", "theorem_not_found"),
     ),
-    ("sorry", wrong_type("Fx.Src.f = Fx.Tgt.f", proof=" sorry"), [], ("refused", "axiom_policy_failed")),
+    ("sorry", wrong_type(CLAIM, "sorry"), [], ("refused", "axiom_policy_failed")),
+    # What the model can't judge.
+    (
+        "memory",
+        lambda n: record(n, GOOD, input_ll="memory.ll"),
+        [],
+        ("unsupported", "memory_unsupported"),
+    ),
+    (
+        "emitter_refuses",
+        lambda n: record(n, GOOD, input_ll="float.ll"),
+        [],
+        ("unsupported", "function_unsupported"),
+    ),
+    (
+        "trusted_promise",
+        lambda n: record(n, GOOD, input_ll="willreturn.ll"),
+        [],
+        ("unsupported", "trusted_promise"),
+    ),
+    # Limits make a verdict unknown, never bound or refused.
+    ("time_limit", lambda n: record(n, SLOW), ["--timeout", "20"], ("unknown", "time_limit")),
+    ("memory_limit", lambda n: record(n, GREEDY), ["--memory", "1500"], ("unknown", "resource_limit")),
     (
         "refinement_unavailable",
         lambda n: record(n, GOOD, kind="ir_instance_refinement"),
@@ -402,6 +470,28 @@ def main() -> int:
             print(f"ok    {name}: {got[0]} {got[1]}")
         if "open_obligation" not in verdict or not verdict.get("does_not_establish"):
             failures.append(f"{name}: the verdict doesn't say what it leaves open")
+    if not args.only or "time_limit" in args.only:
+        # The certificate that ran out of time mustn't still be running.
+        ran += 1
+        left = subprocess.run(
+            ["pgrep", "-f", "binding/tests/.*Cert.lean|runs/.*/Fx/Cert.lean"],
+            capture_output=True,
+            text=True,
+            check=False,
+        ).stdout
+        if left:
+            failures.append(f"time_limit: left running: {left}")
+        else:
+            print("ok    time_limit_stopped: nothing left running")
+    if not args.only or "uncovered" in args.only:
+        # A bound claim about f says what else the run changed, which it doesn't cover.
+        ran += 1
+        verdict = verify(record("uncovered", GOOD, input_ll="two.ll"))
+        got = (verdict.get("status"), verdict.get("uncovered_changes"))
+        if got != ("bound", {"functions": ["g"], "module_level": False}):
+            failures.append(f"uncovered: expected bound with g uncovered, got {got}: {verdict.get('detail')}")
+        else:
+            print(f"ok    uncovered: {got[0]}, uncovered {got[1]}")
     if not args.only or "other_source" in args.only:
         # The same version of opt, with LLVM_PROJECT_SRC some other tree: not the pinned source.
         ran += 1

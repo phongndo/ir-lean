@@ -68,6 +68,21 @@ def pp (e : Expr) (explicit := false) : MetaM String := do
 def allowedModule (cfg : Config) (m : Name) : Bool :=
   [`Init, `Std, `Lean, `IRLean].contains m.getRoot || [cfg.srcModule, cfg.tgtModule, cfg.certModule].contains m
 
+/-- `∀ args, ∀ s : IRLean.ModelStop, f args ≠ some (.error (.model s))`: `f` never stops the model. A model stop is
+where IRLean doesn't know what LLVM does, such as freezing poison, so two functions that both stop there are equal in
+the model and can still differ in LLVM. `.error` when `f` doesn't return an `IRLean.Outcome`. -/
+def neverStops (f : Name) : MetaM (Except String Expr) := do
+  let ty := (← getConstInfo f).type
+  forallTelescope ty fun xs body => do
+    unless body.isAppOfArity ``IRLean.Outcome 1 do
+      return .error s!"{f} doesn't return an IRLean.Outcome"
+    let ρ := body.appArg!
+    let stop := mkConst ``IRLean.Stop
+    withLocalDeclD `s (mkConst ``IRLean.ModelStop) fun s => do
+      let err := mkApp3 (mkConst ``Except.error [0, 0]) stop ρ (mkApp (mkConst ``IRLean.Stop.model) s)
+      let some' := mkApp2 (mkConst ``Option.some [0]) (mkApp2 (mkConst ``Except [0, 0]) stop ρ) err
+      return .ok (← mkForallFVars (xs.push s) (← mkAppM ``Ne #[mkAppN (mkConst f) xs, some']))
+
 /-- The claim, built here. `.error (reason, detail)` when there's none to build. -/
 def expected (cfg : Config) : MetaM (Except (String × String) Expr) := do
   let env ← getEnv
@@ -83,7 +98,11 @@ def expected (cfg : Config) : MetaM (Except (String × String) Expr) := do
   unless s.type == t.type do
     return .error ("signature_mismatch", s!"{cfg.src} and {cfg.tgt} have different types, so no claim relates them")
   match cfg.kind with
-  | "ir_instance_equivalence" => return .ok (← mkEq (mkConst cfg.src) (mkConst cfg.tgt))
+  | "ir_instance_equivalence" =>
+    -- Equal in the model is evidence only where the model knows what LLVM does: so the source never stops it.
+    match ← neverStops cfg.src with
+    | .error e => return .error ("signature_mismatch", e)
+    | .ok never => return .ok (← mkAppM ``And #[← mkEq (mkConst cfg.src) (mkConst cfg.tgt), never])
   | "ir_instance_refinement" =>
     unless env.contains `IRLean.Refines do
       return .error ("claim_kind_unavailable", "this IRLean has no IRLean.Refines")
