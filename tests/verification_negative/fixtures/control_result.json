@@ -1,0 +1,381 @@
+{
+  "schema": "ir-lean.verify/1",
+  "status": "proved",
+  "reason": "kernel_checked",
+  "detail": "tgt_refines_src is a kernel-checked theorem",
+  "meaning": "The claim is a kernel-checked theorem about the generated function. Read `claim.statement` and `assumptions` for what that does and doesn't say",
+  "exit_code": 0,
+  "limit": null,
+  "request": {
+    "schema": "ir-lean.verify.request/1",
+    "input": {
+      "ir": "<run>/cases/control_mul2_to_shl1/files/Opt.ll"
+    },
+    "function": "tgt",
+    "namespace": "Opt",
+    "proof": "<run>/cases/control_mul2_to_shl1/files/Proof.lean",
+    "theorem": "tgt_refines_src",
+    "statement": "∀ (x : IRLean.Val 8), (∃ r ∈ [IRLean.UB.branchOnPoison, IRLean.UB.switchOnPoison, IRLean.UB.assumeFailed, IRLean.UB.unreachable, IRLean.UB.divByZero, IRLean.UB.divByPoison, IRLean.UB.divOverflow, IRLean.UB.noundefPoison, IRLean.UB.badAccess, IRLean.UB.misaligned, IRLean.UB.poisonPointer, IRLean.UB.writeToConstant, IRLean.UB.overlappingCopy, IRLean.UB.badFree, IRLean.UB.forbiddenWrite, IRLean.UB.forbiddenAccess, IRLean.UB.expiredProvenance, IRLean.UB.forbiddenFree], Opt.src x = IRLean.Outcome.ub r) ∨ (Opt.src x = Option.none ∧ Opt.tgt x = Option.none) ∨ (Opt.src x = IRLean.Outcome.ok Option.none ∧ IRLean.andThen (Opt.tgt x) (fun _ => IRLean.Outcome.ok ()) = IRLean.Outcome.ok ()) ∨ (Opt.src x ≠ IRLean.Outcome.ok Option.none ∧ IRLean.andThen (Opt.src x) (fun _ => IRLean.Outcome.ok ()) = IRLean.Outcome.ok () ∧ Opt.tgt x = Opt.src x)",
+    "support": [],
+    "lean_root": "<run>/cases/control_mul2_to_shl1/files",
+    "witnesses": [],
+    "limits": {
+      "timeout_seconds": 120,
+      "memory_mb": 4000
+    }
+  },
+  "target": {
+    "function": "tgt",
+    "lean_constant": "Opt.tgt",
+    "lean_name": "tgt",
+    "signature": "(i8)->i8",
+    "blocks": 1,
+    "instructions": 2,
+    "uses_memory": false,
+    "triple": null,
+    "datalayout": null,
+    "trusted_promises": []
+  },
+  "claim": {
+    "theorem": "tgt_refines_src",
+    "resolved": "tgt_refines_src",
+    "statement": "∀ (x : IRLean.Val 8),\n  (∃ r,\n      r ∈\n          [IRLean.UB.branchOnPoison, IRLean.UB.switchOnPoison, IRLean.UB.assumeFailed, IRLean.UB.unreachable,\n            IRLean.UB.divByZero, IRLean.UB.divByPoison, IRLean.UB.divOverflow, IRLean.UB.noundefPoison,\n            IRLean.UB.badAccess, IRLean.UB.misaligned, IRLean.UB.poisonPointer, IRLean.UB.writeToConstant,\n            IRLean.UB.overlappingCopy, IRLean.UB.badFree, IRLean.UB.forbiddenWrite, IRLean.UB.forbiddenAccess,\n            IRLean.UB.expiredProvenance, IRLean.UB.forbiddenFree] ∧\n        Opt.src x = IRLean.Outcome.ub r) ∨\n    Opt.src x = Option.none ∧ Opt.tgt x = Option.none ∨\n      Opt.src x = IRLean.Outcome.ok Option.none ∧\n          (IRLean.andThen (Opt.tgt x) fun x => IRLean.Outcome.ok ()) = IRLean.Outcome.ok () ∨\n        Opt.src x ≠ IRLean.Outcome.ok Option.none ∧\n          (IRLean.andThen (Opt.src x) fun x => IRLean.Outcome.ok ()) = IRLean.Outcome.ok () ∧ Opt.tgt x = Opt.src x",
+    "pinned": "∀ (x : IRLean.Val 8), (∃ r ∈ [IRLean.UB.branchOnPoison, IRLean.UB.switchOnPoison, IRLean.UB.assumeFailed, IRLean.UB.unreachable, IRLean.UB.divByZero, IRLean.UB.divByPoison, IRLean.UB.divOverflow, IRLean.UB.noundefPoison, IRLean.UB.badAccess, IRLean.UB.misaligned, IRLean.UB.poisonPointer, IRLean.UB.writeToConstant, IRLean.UB.overlappingCopy, IRLean.UB.badFree, IRLean.UB.forbiddenWrite, IRLean.UB.forbiddenAccess, IRLean.UB.expiredProvenance, IRLean.UB.forbiddenFree], Opt.src x = IRLean.Outcome.ub r) ∨ (Opt.src x = Option.none ∧ Opt.tgt x = Option.none) ∨ (Opt.src x = IRLean.Outcome.ok Option.none ∧ IRLean.andThen (Opt.tgt x) (fun _ => IRLean.Outcome.ok ()) = IRLean.Outcome.ok ()) ∨ (Opt.src x ≠ IRLean.Outcome.ok Option.none ∧ IRLean.andThen (Opt.src x) (fun _ => IRLean.Outcome.ok ()) = IRLean.Outcome.ok () ∧ Opt.tgt x = Opt.src x)",
+    "pin_match": "syntactic",
+    "binders": [
+      {
+        "binder": "explicit",
+        "hypothesis": false,
+        "name": "x",
+        "type": "IRLean.Val 8"
+      }
+    ],
+    "conclusion": "(∃ r,\n    r ∈\n        [IRLean.UB.branchOnPoison, IRLean.UB.switchOnPoison, IRLean.UB.assumeFailed, IRLean.UB.unreachable,\n          IRLean.UB.divByZero, IRLean.UB.divByPoison, IRLean.UB.divOverflow, IRLean.UB.noundefPoison,\n          IRLean.UB.badAccess, IRLean.UB.misaligned, IRLean.UB.poisonPointer, IRLean.UB.writeToConstant,\n          IRLean.UB.overlappingCopy, IRLean.UB.badFree, IRLean.UB.forbiddenWrite, IRLean.UB.forbiddenAccess,\n          IRLean.UB.expiredProvenance, IRLean.UB.forbiddenFree] ∧\n      Opt.src x = IRLean.Outcome.ub r) ∨\n  Opt.src x = Option.none ∧ Opt.tgt x = Option.none ∨\n    Opt.src x = IRLean.Outcome.ok Option.none ∧\n        (IRLean.andThen (Opt.tgt x) fun x => IRLean.Outcome.ok ()) = IRLean.Outcome.ok () ∨\n      Opt.src x ≠ IRLean.Outcome.ok Option.none ∧\n        (IRLean.andThen (Opt.src x) fun x => IRLean.Outcome.ok ()) = IRLean.Outcome.ok () ∧ Opt.tgt x = Opt.src x",
+    "shape": "other",
+    "generated_constants": [
+      "Opt.src",
+      "Opt.tgt"
+    ],
+    "mentions_target": true,
+    "axioms": [
+      "propext",
+      "Classical.choice",
+      "Quot.sound"
+    ]
+  },
+  "counterexample": null,
+  "witnesses": [],
+  "assumptions": [
+    {
+      "id": "scope.modeled_ir",
+      "text": "The claim is about the function as this LLVM IR, in IRLean's semantics. Not the source program, not machine code, and only as faithful as the model",
+      "see": "docs/trust.md#what-a-theorem-covers"
+    },
+    {
+      "id": "trusted.pipeline",
+      "text": "Trusted, unverified: LLVM's IR parser, the emitter, IRLean's semantics, and the Lean kernel",
+      "see": "docs/trust.md#trust-boundaries"
+    },
+    {
+      "id": "statement.shape",
+      "text": "The conclusion isn't `target ... = Outcome.ok _`, so it may allow undefined behavior, a model stop or a run that never ends. Read it",
+      "see": "docs/trust.md#what-the-model-does-at-its-edges"
+    },
+    {
+      "id": "process.no_sandbox",
+      "text": "Lean runs the proof's own code while compiling it, unsandboxed. The checks after read the proof as data, and the files they rely on are hashed before that code runs, but files elsewhere could change",
+      "see": "docs/verify.md#what-proved-rests-on"
+    }
+  ],
+  "scope": {
+    "functions_in_module": 2,
+    "left_out": {}
+  },
+  "checks": [
+    {
+      "name": "request",
+      "result": "pass"
+    },
+    {
+      "name": "toolchain",
+      "result": "pass"
+    },
+    {
+      "name": "inputs",
+      "result": "pass",
+      "detail": {
+        "input": "83279d4266aa0830065389a4538b90033f2da7486c32fdbeedfe8d1e77a08b78",
+        "proof": "77afe51b13b595e6163a468c21c4b8a06ae28948056b284b9891988afc4eb84e"
+      }
+    },
+    {
+      "name": "compile_c",
+      "result": "skip"
+    },
+    {
+      "name": "ir_valid",
+      "result": "pass",
+      "seconds": 0.01
+    },
+    {
+      "name": "translate",
+      "result": "pass",
+      "detail": {
+        "left_out_elsewhere": 0
+      },
+      "seconds": 0.0
+    },
+    {
+      "name": "generate",
+      "result": "pass",
+      "detail": {
+        "code": true
+      },
+      "seconds": 0.0
+    },
+    {
+      "name": "compile_generated",
+      "result": "pass"
+    },
+    {
+      "name": "compile_support",
+      "result": "skip"
+    },
+    {
+      "name": "compile_proof",
+      "result": "pass"
+    },
+    {
+      "name": "claim",
+      "result": "pass",
+      "seconds": 1.19
+    },
+    {
+      "name": "theorem",
+      "result": "pass",
+      "detail": "tgt_refines_src"
+    },
+    {
+      "name": "mentions_target",
+      "result": "pass",
+      "detail": {
+        "target": "Opt.tgt",
+        "generated_constants": [
+          "Opt.src",
+          "Opt.tgt"
+        ]
+      }
+    },
+    {
+      "name": "statement",
+      "result": "pass",
+      "detail": {
+        "match": "syntactic"
+      }
+    },
+    {
+      "name": "axioms",
+      "result": "pass",
+      "detail": {
+        "bv_decide_rechecked": 0,
+        "theorem": [
+          "propext",
+          "Classical.choice",
+          "Quot.sound"
+        ]
+      }
+    },
+    {
+      "name": "kernel_replay",
+      "result": "pass",
+      "detail": {
+        "modules": [
+          "Opt",
+          "Proof"
+        ]
+      },
+      "seconds": 0.4
+    },
+    {
+      "name": "artifacts_unchanged",
+      "result": "pass"
+    },
+    {
+      "name": "witnesses",
+      "result": "skip"
+    }
+  ],
+  "diagnostics": [],
+  "artifacts": {
+    "proof_module": "Proof",
+    "support_modules": [],
+    "files": {
+      "input": {
+        "original": "<run>/cases/control_mul2_to_shl1/files/Opt.ll",
+        "copy": "<run>/cases/control_mul2_to_shl1/check/work/inputs/Opt.ll",
+        "sha256": "83279d4266aa0830065389a4538b90033f2da7486c32fdbeedfe8d1e77a08b78"
+      },
+      "proof": {
+        "original": "<run>/cases/control_mul2_to_shl1/files/Proof.lean",
+        "copy": "<run>/cases/control_mul2_to_shl1/check/work/lean/Proof.lean",
+        "sha256": "77afe51b13b595e6163a468c21c4b8a06ae28948056b284b9891988afc4eb84e"
+      }
+    },
+    "generated": {
+      "path": "<run>/cases/control_mul2_to_shl1/check/work/lean/Opt.lean",
+      "sha256": "70dbd5df4c960eb3e39022bbe23876416674253eb0794cbb0df51cf34fbf2faf",
+      "code": true,
+      "olean_sha256": "ce7457fac69f679d1ab6046a8fc610ce593602f1826a2912d492cd0f073b37d5"
+    }
+  },
+  "versions": {
+    "lean": "Lean (version 4.35.0, x86_64-unknown-linux-gnu, commit eb6cafb7290e8bd5f2937522d8d804f58f02bafc, Release)",
+    "ir_lean": "18421bebd466ff1bacc6b61ee9372efe9f157c37",
+    "ir_lean_binary_sha256": "6c24deae0e93684b92808071b0f5c3b0cc6e6819fdb6db17183d8d1f3fbfec9e",
+    "irlean_library_sha256": "2ca63df8d54e3cfbde4c474728b61ac6e2779004fb5288324920dcd119af45a0"
+  },
+  "reproduce": {
+    "request": "<run>/cases/control_mul2_to_shl1/check/work/request.json",
+    "command": [
+      "<repo>/tools/verify.py",
+      "check",
+      "<run>/cases/control_mul2_to_shl1/check/work/request.json"
+    ],
+    "commands": [
+      {
+        "step": "versions",
+        "argv": [
+          "lean",
+          "--version"
+        ],
+        "cwd": "<repo>",
+        "env": {},
+        "exit": 0,
+        "seconds": 0.02,
+        "timed_out": false
+      },
+      {
+        "step": "ir_valid",
+        "argv": [
+          "opt",
+          "-passes=verify",
+          "-disable-output",
+          "<run>/cases/control_mul2_to_shl1/check/work/inputs/Opt.ll"
+        ],
+        "cwd": "<repo>",
+        "env": {},
+        "exit": 0,
+        "seconds": 0.01,
+        "timed_out": false
+      },
+      {
+        "step": "translate",
+        "argv": [
+          "<repo>/build/ir-lean",
+          "<run>/cases/control_mul2_to_shl1/check/work/inputs/Opt.ll",
+          "--report"
+        ],
+        "cwd": "<repo>",
+        "env": {},
+        "exit": 0,
+        "seconds": 0.0,
+        "timed_out": false
+      },
+      {
+        "step": "generate",
+        "argv": [
+          "<repo>/build/ir-lean",
+          "<run>/cases/control_mul2_to_shl1/check/work/inputs/Opt.ll",
+          "--namespace",
+          "Opt",
+          "-o",
+          "<run>/cases/control_mul2_to_shl1/check/work/lean/Opt.lean"
+        ],
+        "cwd": "<repo>",
+        "env": {},
+        "exit": 0,
+        "seconds": 0.0,
+        "timed_out": false
+      },
+      {
+        "step": "compile_generated",
+        "argv": [
+          "lean",
+          "-M",
+          "4000",
+          "-s",
+          "65536",
+          "-R",
+          "<run>/cases/control_mul2_to_shl1/check/work/lean",
+          "-o",
+          "<run>/cases/control_mul2_to_shl1/check/work/lean/Opt.olean",
+          "<run>/cases/control_mul2_to_shl1/check/work/lean/Opt.lean"
+        ],
+        "cwd": "<repo>",
+        "env": {
+          "LEAN_PATH": "<run>/cases/control_mul2_to_shl1/check/work/lean:<run>/cases/control_mul2_to_shl1/check/work/library"
+        },
+        "exit": 0,
+        "seconds": 0.18,
+        "timed_out": false
+      },
+      {
+        "step": "compile_proof",
+        "argv": [
+          "lean",
+          "-M",
+          "4000",
+          "-s",
+          "65536",
+          "-R",
+          "<run>/cases/control_mul2_to_shl1/check/work/lean",
+          "-o",
+          "<run>/cases/control_mul2_to_shl1/check/work/lean/Proof.olean",
+          "<run>/cases/control_mul2_to_shl1/check/work/lean/Proof.lean"
+        ],
+        "cwd": "<repo>",
+        "env": {
+          "LEAN_PATH": "<run>/cases/control_mul2_to_shl1/check/work/lean:<run>/cases/control_mul2_to_shl1/check/work/library"
+        },
+        "exit": 0,
+        "seconds": 0.21,
+        "timed_out": false
+      },
+      {
+        "step": "claim:check",
+        "argv": [
+          "lean",
+          "-M",
+          "4000",
+          "-s",
+          "65536",
+          "<run>/cases/control_mul2_to_shl1/check/work/check/Check.lean"
+        ],
+        "cwd": "<repo>",
+        "env": {
+          "LEAN_PATH": "<run>/cases/control_mul2_to_shl1/check/work/lean:<run>/cases/control_mul2_to_shl1/check/work/library",
+          "IRLEAN_VERIFY_CONFIG": "<run>/cases/control_mul2_to_shl1/check/work/check/check.json"
+        },
+        "exit": 0,
+        "seconds": 1.19,
+        "timed_out": false
+      },
+      {
+        "step": "kernel_replay",
+        "argv": [
+          "leanchecker",
+          "Opt",
+          "Proof"
+        ],
+        "cwd": "<repo>",
+        "env": {
+          "LEAN_PATH": "<run>/cases/control_mul2_to_shl1/check/work/lean:<run>/cases/control_mul2_to_shl1/check/work/library"
+        },
+        "exit": 0,
+        "seconds": 0.4,
+        "timed_out": false
+      }
+    ]
+  },
+  "seconds": 2.04
+}

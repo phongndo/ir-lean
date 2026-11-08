@@ -1,0 +1,44 @@
+{
+  "schema": "ir-lean.verification-negative.case/1",
+  "category": "stale",
+  "summary": "The control, certified, and then its IR changed to the wrong rewrite",
+  "llvm_verdict": "valid",
+  "why": "A result is about the files it hashed. After the IR changes it says nothing about the new IR.",
+  "claim": {
+    "binders": "(x : IRLean.Val 8)",
+    "hypotheses": [],
+    "src": "Opt.src x",
+    "tgt": "Opt.tgt x"
+  },
+  "names": [
+    "Opt.src",
+    "Opt.tgt"
+  ],
+  "request": {
+    "input": {
+      "ir": "Opt.ll"
+    },
+    "namespace": "Opt",
+    "function": "tgt",
+    "proof": "Proof.lean",
+    "theorem": "tgt_refines_src",
+    "limits": {
+      "timeout_seconds": 120,
+      "memory_mb": 4000
+    }
+  },
+  "stale": {
+    "file": "Opt.ll",
+    "old": "shl i8 %x, 1",
+    "new": "shl i8 %x, 2"
+  },
+  "expect": {
+    "certified": false,
+    "verify": [
+      "proved/kernel_checked"
+    ],
+    "gate": [
+      "stale_input"
+    ]
+  }
+}
