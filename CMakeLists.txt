@@ -127,6 +127,10 @@ set_tests_properties(binding PROPERTIES RUN_SERIAL TRUE TIMEOUT 1800)
 # process at a time, each capped at 2 GB and 300 s by the script itself.
 add_test(NAME contracts COMMAND ${CMAKE_SOURCE_DIR}/tests/contracts.sh)
 set_tests_properties(contracts PROPERTIES TIMEOUT 900)
+# A model of LLVM's simplifyAddInst against the pinned C++ and opt, compiled in a temporary directory, one
+# Lean process at a time, each capped at 2 GB and 300 s by the script itself.
+add_test(NAME cpp_correspondence COMMAND ${CMAKE_SOURCE_DIR}/tests/cpp_correspondence.py)
+set_tests_properties(cpp_correspondence PROPERTIES TIMEOUT 900)
 add_test(
     NAME zlib
     COMMAND
