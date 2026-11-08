@@ -111,6 +111,10 @@ add_test(
 )
 # Alone, so its Lean process has the memory to itself, and longer than every case's limits together.
 set_tests_properties(verify_negative PROPERTIES RUN_SERIAL TRUE TIMEOUT 900)
+# The semantic contracts against the model, compiled from copies in a temporary directory, one Lean
+# process at a time, each capped at 2 GB and 300 s by the script itself.
+add_test(NAME contracts COMMAND ${CMAKE_SOURCE_DIR}/tests/contracts.sh)
+set_tests_properties(contracts PROPERTIES TIMEOUT 900)
 add_test(
     NAME zlib
     COMMAND
