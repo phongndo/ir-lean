@@ -7,10 +7,8 @@ nothing but the files in the repo, so they run without LLVM.
 usage: tests/llvm_scope_test.py
 """
 
-import copy
 import hashlib
-import json
-import re
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -278,9 +276,23 @@ class Tasks(unittest.TestCase):
         self.assertEqual(errors, [])
 
     def test_complete_needs_evidence_in_the_repo(self) -> None:
-        for evidence in ("Trust me.", "`no/such/file.py`"):
+        for evidence in (
+            "Trust me.",
+            "`no/such/file.py`",
+            "`deadbee`",
+            "`/etc/hosts`",
+            "`../README.md`",
+            "`tests`",
+        ):
             errors = self.check(task("INV-01", status="complete", evidence=evidence))
             self.assertTrue(any("complete needs evidence" in e for e in errors), errors)
+
+    def test_a_commit_in_the_repo_is_evidence(self) -> None:
+        head = subprocess.run(
+            ["git", "-C", str(s.ROOT), "rev-parse", "HEAD"], capture_output=True, text=True, check=True
+        )
+        errors = self.check(task("INV-01", status="complete", evidence=f"`{head.stdout.strip()[:12]}`"))
+        self.assertEqual(errors, [])
 
     def test_complete_needs_its_dependencies_complete(self) -> None:
         errors = self.check(
@@ -389,43 +401,21 @@ class Repo(unittest.TestCase):
         inv = s.load(s.INVENTORY)
         summary = s.summarize(inv, s.evaluate(inv, s.load(s.COVERAGE))[1])
         doc = s.TASKS.read_text()
+        self.assertEqual(s.check_scope(doc, summary), [])
         for number, what in ((summary["registered_names"], "names"), (summary["verified_done"], "done")):
             self.assertRegex(doc, rf"\b{number}\b", what)
-        stated = re.search(r"<!-- scope: (.*?) -->", doc)
-        self.assertIsNotNone(stated, "the doc has no scope line")
-        assert stated is not None
-        self.assertEqual(json.loads(stated.group(1)), scope_line(summary))
+        line = s.scope_line(summary)
+        for wrong in (doc.replace(line, ""), doc.replace(line, "<!-- scope: {} -->"), doc + line):
+            self.assertTrue(s.check_scope(wrong, summary))
 
     def test_every_lane_the_plan_needs_has_a_task(self) -> None:
         lanes = {t.split("-")[0] for t in s.parse_tasks(s.TASKS.read_text())}
         self.assertEqual(lanes, set(s.LANES))
 
 
-def scope_line(summary: dict[str, Any]) -> dict[str, Any]:
-    """The numbers docs/llvm-verification-tasks.md states, so the doc can't drift from the inventory."""
-    keys = (
-        "registered_names",
-        "verified_done",
-        "claimed_complete",
-        "names_with_several_implementations",
-        "classes_under_several_names",
-        "in_unbuilt_targets",
-        "by_category",
-        "generic",
-        "unresolved_code",
-        "never_seen_in_a_pipeline",
-        "opt_pipelines",
-        "llc",
-        "target_dirs_not_built",
-    )
-    return copy.deepcopy({k: summary[k] for k in keys})
-
-
 if __name__ == "__main__":
     if "--scope-line" in sys.argv:
         inv = s.load(s.INVENTORY)
-        print(
-            f"<!-- scope: {json.dumps(scope_line(s.summarize(inv, s.evaluate(inv, s.load(s.COVERAGE))[1])))} -->"  # noqa: E501
-        )
+        print(s.scope_line(s.summarize(inv, s.evaluate(inv, s.load(s.COVERAGE))[1])))
         sys.exit(0)
     unittest.main()

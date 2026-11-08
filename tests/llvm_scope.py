@@ -673,6 +673,58 @@ def parse_tasks(text: str) -> dict[str, dict[str, str]]:
     return tasks
 
 
+def repo_file(root: Path, path: str) -> bool:
+    p = (root / path).resolve()
+    return p.is_relative_to(root.resolve()) and p.is_file()
+
+
+def repo_commit(root: Path, sha: str) -> bool:
+    if not re.fullmatch(r"[0-9a-f]{7,40}", sha):
+        return False
+    r = subprocess.run(
+        ["git", "-C", str(root), "cat-file", "-e", f"{sha}^{{commit}}"], capture_output=True, check=False
+    )
+    return r.returncode == 0
+
+
+SCOPE = re.compile(r"<!-- scope: (.*?) -->")
+SCOPE_KEYS = (
+    "registered_names",
+    "verified_done",
+    "claimed_complete",
+    "names_with_several_implementations",
+    "classes_under_several_names",
+    "in_unbuilt_targets",
+    "by_category",
+    "generic",
+    "unresolved_code",
+    "never_seen_in_a_pipeline",
+    "opt_pipelines",
+    "llc",
+    "target_dirs_not_built",
+)
+
+
+def scope_line(summary: dict[str, Any]) -> str:
+    """The numbers the task list states, as the comment it carries, so it can't drift from the inventory."""
+    return f"<!-- scope: {json.dumps({k: summary[k] for k in SCOPE_KEYS})} -->"
+
+
+def check_scope(text: str, summary: dict[str, Any]) -> list[str]:
+    stated = SCOPE.findall(text)
+    if len(stated) != 1:
+        return [f"the task list needs exactly one scope comment, and has {len(stated)}"]
+    try:
+        same = json.loads(stated[0]) == json.loads(SCOPE.findall(scope_line(summary))[0])
+    except json.JSONDecodeError:
+        same = False
+    return (
+        []
+        if same
+        else [f"the task list's scope comment isn't the inventory's; it should be {scope_line(summary)}"]
+    )
+
+
 def check_tasks(text: str, root: Path = ROOT) -> list[str]:
     """Each task is whole, its dependencies exist and don't loop, and only evidence makes one complete."""
     errors = []
@@ -698,8 +750,7 @@ def check_tasks(text: str, root: Path = ROOT) -> list[str]:
                 errors.append(f"{tid}: depends on {d}, which isn't a task")
         if status == "complete":
             cited = re.findall(r"`([^`]+)`", t.get("Evidence", ""))
-            real = [c for c in cited if (root / c).exists() or re.fullmatch(r"[0-9a-f]{7,40}", c)]
-            if not real:
+            if not any(repo_file(root, c) or repo_commit(root, c) for c in cited):
                 errors.append(f"{tid}: complete needs evidence naming a file in the repo or a commit")
     statuses = {tid: t.get("Status", "").split(":")[0].split(" (")[0].strip() for tid, t in tasks.items()}
     for tid, t in tasks.items():
@@ -839,6 +890,7 @@ def main() -> int:
                 "Moving the pin means running `generate` and reviewing the diff in the same commit."
             )
     summary = summarize(inv, standing)
+    errors += check_scope(TASKS.read_text(), summary)
     if args.cmd == "summary":
         if args.json:
             args.json.write_text(

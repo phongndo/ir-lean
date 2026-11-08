@@ -163,7 +163,7 @@ when they land.
 - **Acceptance:** `tests/llvm_scope_test.py` passes, including a positive control and a refusal for each rule.
 - **Trust gaps:** Evidence is checked by hash and kind, not by replaying it. Replaying it is BIND-03's.
 - **Status:** in review
-- **Evidence:** 29 tests pass on z, including a status and hashes left unverified without a verifier. Not merged.
+- **Evidence:** 30 tests pass on z, including a status and hashes left unverified without a verifier. Not merged.
 
 ### INV-03: This task list, checked
 
