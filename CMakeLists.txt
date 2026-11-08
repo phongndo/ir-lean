@@ -117,6 +117,14 @@ add_test(
 )
 # Alone, so its Lean process has the memory to itself, and longer than every case's limits together.
 set_tests_properties(verify_negative PROPERTIES RUN_SERIAL TRUE TIMEOUT 900)
+# Replay certificates challenged from outside: manifests and processes tools/binding.py has to refuse or
+# call unknown, in Python; every rewrite those tests use against Alive2, one capped process at a time; and
+# IRLean on poison and flag rewrites, with tools/binding.py on real opt runs, alone, as it runs Lean.
+add_test(NAME replay_challenge_static COMMAND ${CMAKE_SOURCE_DIR}/tests/replay_challenge.py --tier static)
+add_test(NAME replay_challenge_alive COMMAND ${CMAKE_SOURCE_DIR}/tests/replay_challenge.py --tier alive)
+add_test(NAME replay_challenge COMMAND ${CMAKE_SOURCE_DIR}/tests/replay_challenge.py --tier live)
+set_tests_properties(replay_challenge_static replay_challenge_alive PROPERTIES TIMEOUT 600)
+set_tests_properties(replay_challenge PROPERTIES RUN_SERIAL TRUE TIMEOUT 1800)
 # A certificate bound to its IR, the opt run and the toolchain, and refused when any of them doesn't
 # match: one instcombine rewrite, and the cases of mismatched evidence, one capped Lean process at a time.
 add_test(NAME binding COMMAND ${CMAKE_SOURCE_DIR}/tests/binding.py)
