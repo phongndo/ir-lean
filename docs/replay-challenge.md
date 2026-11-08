@@ -33,7 +33,12 @@ tests/replay_challenge.py --only live/binding/spoofed_limit alive/pair
 | 2 | Usage |
 | 3 | A case couldn't run: a tool is missing, a limit stopped it, Alive2 didn't decide, or less than 4000 MB was free. Never a pass |
 
-Each run writes `build/replay-challenge/report.json`. `--keep` keeps the bundles and generated Lean.
+Each run writes `build/replay-challenge/report-TIER.json`, and removes only its own tier's work, since `ctest`
+runs the static and Alive2 tiers at once. `--keep` keeps the bundles and generated Lean.
+
+A case with a known finding passes on the contract's answer, or on the finding's status and reason together with
+its evidence in the verdict, such as the error a crash raised or the step a certificate failed at. The same status
+and reason for another cause fails.
 
 ## What's checked
 
@@ -102,8 +107,8 @@ precondition is stated as `llvm.assume` at the start of `src`. Alive2 agrees wit
 
 | Case | Alive2 says | Why | Checked by |
 | --- | --- | --- | --- |
-| `wrong_loop_deleted` | Correct, and the rewrite is wrong | Alive2 unrolls a loop a bounded number of times and drops longer runs, so it never sees `src` run forever. Its "correct" isn't evidence for code with a loop | Alive2's `src` unrolled twice ends in `#sink` |
-| `precondition_vacuous` | Correct | `x < 0` never holds, so `src` is undefined on every input. Vacuous, as the case says | Nothing more: the gate refuses it as unwitnessed |
+| `wrong_loop_deleted` | Correct, and the rewrite is wrong | Alive2 unrolls a loop a bounded number of times and drops longer runs, so it never sees `src` run forever. Its "correct" isn't evidence for code with a loop | Unrolled twice, Alive2 still says correct, and its `src` ends in `#sink` |
+| `precondition_vacuous` | Correct | `x < 0` never holds, so `src` is undefined on every input. Vacuous, as the case says | No value of `x` meets the hypotheses, tried on all 256 |
 
 A case `tests/verify_negative.py` certifies that Alive2 finds wrong fails, whatever `corpus.json` says.
 
@@ -111,10 +116,12 @@ A case `tests/verify_negative.py` certifies that Alive2 finds wrong fails, whate
 
 ir-lean translates `pairs.ll`, and Lean evaluates each pair on all 257 inputs, poison included, in its
 interpreter. A pair fails at an input where the target isn't allowed by the source, as `tests/verify_negative.py`'s
-claim says: undefined behavior allows anything, poison any result, a value only itself, a run that never ends only
-another, and a model stop nothing. Each pair's failing set has to be exactly the one `pairs.json` gives, equality
-has to be what it says, the source can't stop the model, and Alive2's counterexample has to be in the set. One Lean
-process, capped at 2000 MB, compiles the module and another evaluates it.
+claim says: undefined behavior allows anything, a poison result any returned result, a value only itself, a run
+that never ends only another, and a model stop nothing. So a poison result doesn't allow undefined behavior, a run
+that never ends, or a model stop. Each pair's failing set has to be exactly the one `pairs.json` gives, equality
+has to be what it says, the source can't stop the model, Alive2 has to give the verdict `pairs.json` does, and its
+counterexample has to be in the set. If Alive2 doesn't decide, the case doesn't run. One Lean process, capped at
+2000 MB, compiles the module and another evaluates it.
 
 So three independent answers agree on every input of every pair: the hand derivation, IRLean's model, and Alive2,
 where Alive2 gives one counterexample and the other two give the whole set. 6 of the 9 right pairs are

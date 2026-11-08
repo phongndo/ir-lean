@@ -15,7 +15,7 @@ Three tiers, each independent of the others:
           tests/binding.py doesn't reach, with Alive2 asked about every bound bundle.
 
 Run it in `nix develop`. live needs build/ir-lean and `lake build`. Everything is written under
-build/replay-challenge, with report.json.
+build/replay-challenge, with report-TIER.json.
 
 usage: tests/replay_challenge.py [--tier static|alive|live|all] [--only NAME ...] [--keep]
 
@@ -111,6 +111,10 @@ FINDINGS = {
     "F4": "A manifest with a key twice is read with the last, and other readers may take the first: a field "
     "rides along that nothing checks",
 }
+
+# A finding's status, reason and id, and what the verdict has to say for it to be that finding: text that has
+# to appear in it, as JSON.
+Known = tuple[str, str, str, tuple[str, ...]]
 
 
 class Report:
@@ -402,9 +406,11 @@ def judge(
     v: dict[str, Any] | str,
     code: int,
     contract: tuple[str, str],
-    known: tuple[str, str, str] | None = None,
+    known: Known | None = None,
 ) -> bool:
-    """Records whether a verdict is the contract's, or a known finding's. True if it was either."""
+    """Records whether a verdict is the contract's, or a known finding's. True if it was either. A known
+    finding counts only with its evidence in the verdict, so another failure with the same status and reason
+    isn't taken for it."""
     if isinstance(v, str):
         report.add(name, "fail", v)
         return False
@@ -421,7 +427,7 @@ def judge(
             name, "known" if findings else "ok", f"{got[0]}/{got[1]}{fixed} {' '.join(findings)}".strip()
         )
         return True
-    if known and got == known[:2]:
+    if known and got == known[:2] and all(e in json.dumps(v) for e in known[3]):
         also = "".join(f", {f}" for f in findings)
         report.add(name, "known", f"{got[0]}/{got[1]}, not {contract[0]}/{contract[1]}: {known[2]}{also}")
         return True
@@ -497,7 +503,7 @@ def edited(change: Callable[[dict[str, Any]], None]) -> bytes:
 
 REFUSED_MANIFEST = ("refused", "manifest_invalid")
 # Each: a name, the manifest's bytes, the contract's verdict, and a known finding's.
-MANIFESTS: list[tuple[str, bytes, tuple[str, str], tuple[str, str, str] | None]] = [
+MANIFESTS: list[tuple[str, bytes, tuple[str, str], Known | None]] = [
     ("template", edited(lambda m: None), ("refused", "artifact_hash_mismatch"), None),
     ("not_utf8", b'{"schema": "\xff"}', REFUSED_MANIFEST, None),
     ("top_level_array", b"[]", REFUSED_MANIFEST, None),
@@ -513,20 +519,25 @@ MANIFESTS: list[tuple[str, bytes, tuple[str, str], tuple[str, str, str] | None]]
         "kind_a_list",
         edited(lambda m: m["claim"].update(kind=["ir_instance_equivalence"])),
         REFUSED_MANIFEST,
-        ("error", "internal_error", "F2"),
+        ("error", "internal_error", "F2", ("TypeError", "unhashable")),
     ),
     (
         "kind_an_object",
         edited(lambda m: m["claim"].update(kind={"ir_instance_equivalence": True})),
         REFUSED_MANIFEST,
-        ("error", "internal_error", "F2"),
+        ("error", "internal_error", "F2", ("TypeError", "unhashable")),
     ),
-    ("nested_too_deep", b"[" * 100000 + b"]" * 100000, REFUSED_MANIFEST, ("error", "internal_error", "F2")),
+    (
+        "nested_too_deep",
+        b"[" * 100000 + b"]" * 100000,
+        REFUSED_MANIFEST,
+        ("error", "internal_error", "F2", ("RecursionError",)),
+    ),
     (
         "path_parent",
         edited(lambda m: m["artifacts"]["input"].update(path="..")),
         REFUSED_MANIFEST,
-        ("refused", "artifact_hash_mismatch", "F2"),
+        ("refused", "artifact_hash_mismatch", "F2", (".. isn't a plain file",)),
     ),
     # The first `kind` is an L4 claim, and the last the one checked. Python's reader takes the last.
     (
@@ -536,7 +547,7 @@ MANIFESTS: list[tuple[str, bytes, tuple[str, str], tuple[str, str, str] | None]]
             b'"kind": "pass_implementation", "kind": "ir_instance_equivalence"',
         ),
         REFUSED_MANIFEST,
-        ("refused", "artifact_hash_mismatch", "F4"),
+        ("refused", "artifact_hash_mismatch", "F4", ('"kind": "ir_instance_equivalence"',)),
     ),
 ]
 
@@ -692,6 +703,33 @@ def with_assumptions(ir: str, src: str, hypotheses: list[str]) -> str | None:
     return ir[: head.end()] + "\n".join(lines) + "\n" + ir[head.end() :] + "\ndeclare void @llvm.assume(i1)\n"
 
 
+def satisfiable(hypotheses: list[str]) -> bool | None:
+    """Whether some value meets every hypothesis, each `x < N#W` of one variable, found by trying them all.
+    None if one isn't of that form."""
+    bounds = [HYPOTHESIS.fullmatch(h.strip()) for h in hypotheses]
+    if not bounds or None in bounds or len({(m.group(1), m.group(3)) for m in bounds if m}) != 1:
+        return None
+    width = int(bounds[0].group(3)) if bounds[0] else 0
+    return any(all(x < int(m.group(2)) for m in bounds if m) for x in range(2**width))
+
+
+def explained_by(
+    because: str, text: str, src: str, tgt: str, mode: str, want: str, claim: dict[str, Any]
+) -> bool | str:
+    """True if the reason corpus.json gives for what Alive2 says holds, and otherwise what doesn't. A loop
+    Alive2 cuts: unrolled twice, it still decides the same, and its src ends in #sink. A vacuous precondition:
+    no value meets it."""
+    if because == "bounded_loops":
+        probe = alive(text, src, text, tgt, mode == "undef", "--src-unroll=2", "--tgt-unroll=2")
+        if probe.verdict != want:
+            return f"unrolled twice, Alive2 says {probe.verdict}"
+        return True if "#sink" in probe.out else "Alive2 cut no loop"
+    if because == "vacuous_precondition":
+        met = satisfiable(claim.get("hypotheses") or [])
+        return True if met is False else f"a value meets {claim.get('hypotheses')}" if met else "can't tell"
+    return f"no check for {because}"
+
+
 def function_of(term: str | None, default: str) -> str:
     """The function a claim's side names: `src` in `Opt.src (some x)`."""
     m = re.match(r"\w+\.(\w+)\b", term or "")
@@ -762,12 +800,8 @@ def alive_tier(report: Report) -> None:
                 )
             elif a.verdict != want:
                 report.add(name, "fail", f"Alive2 says {a.verdict}, and {want} was expected")
-            elif (
-                note.get("because") == "bounded_loops"
-                and "#sink"
-                not in alive(text, src, text, tgt, mode == "undef", "--src-unroll=2", "--tgt-unroll=2").out
-            ):
-                report.add(name, "fail", "said to be a loop Alive2 cuts, and it didn't cut one")
+            elif note and not (held := explained_by(note["because"], text, src, tgt, mode, want, claim)):
+                report.add(name, "fail", f"said to be {note['because']}, and that doesn't hold: {held}")
             else:
                 why = f", because of {note['because']}" if note else ""
                 report.add(
@@ -788,7 +822,8 @@ model stop nothing. -/
 def allows : Outcome (Val v) → Outcome (Val v) → Bool
   | some (.error (.undefined _)), _ => true
   | some (.error (.model _)), _ => false
-  | some (.ok none), _ => true
+  | some (.ok none), some (.ok _) => true
+  | some (.ok none), _ => false
   | some (.ok (some a)), some (.ok (some b)) => a == b
   | some (.ok (some _)), _ => false
   | none, none => true
@@ -886,12 +921,21 @@ def model_pairs(report: Report) -> None:
         if row["stops"]:
             problems.append(f"the source stops the model at {row['stops']}")
         a = pair_alive(p, undef=False)
-        if a is not None and a.verdict == "incorrect" and a.example not in got:
+        expected = {"valid": "correct", "invalid": "incorrect"}[p["llvm"]["no_undef"]]
+        if a.verdict not in (expected, "unknown"):
+            problems.append(f"Alive2 says {a.verdict}")
+        if a.verdict == "incorrect" and a.example not in got:
             problems.append(f"Alive2's counterexample {a.example} isn't one in the model")
         if problems:
             report.add(name, "fail", "; ".join(problems))
+        elif a.verdict == "unknown":
+            report.add(
+                name, "notrun", f"the model agrees with pairs.json, and Alive2 didn't decide: {a.out[-300:]}"
+            )
         else:
-            agrees = " and Alive2's counterexample" if a is not None and a.verdict == "incorrect" else ""
+            agrees = (
+                " and Alive2's counterexample" if a.verdict == "incorrect" else ", and Alive2 finds it right"
+            )
             report.add(
                 name, "ok", f"fails on {len(got)} inputs, as pairs.json{agrees} says, equal {row['equal']}"
             )
@@ -982,7 +1026,7 @@ def binding_cases(report: Report) -> None:
             good = record("good", mul_nsw, "instcombine", GOOD)
         return good
 
-    cases: list[tuple[str, Callable[[], Path | str], tuple[str, str], tuple[str, str, str] | None]] = [
+    cases: list[tuple[str, Callable[[], Path | str], tuple[str, str], Known | None]] = [
         ("bound", recorded_good, ("bound", "replayed"), None),
         (
             "add_zero_bound",
@@ -1021,7 +1065,7 @@ def binding_cases(report: Report) -> None:
                 namespace="IRLean",
             ),
             REFUSED_MANIFEST,
-            ("error", "generated_module_failed", "F2"),
+            ("error", "generated_module_failed", "F2", ("of module IRLean does not exist",)),
         ),
         (
             "string_noundef",
@@ -1045,7 +1089,12 @@ def binding_cases(report: Report) -> None:
             "spoofed_limit",
             lambda: record("spoofed_limit", mul_nsw, "instcombine", SPOOF),
             ("refused", "certificate_compile_failed"),
-            ("unknown", "resource_limit", "F1"),
+            (
+                "unknown",
+                "resource_limit",
+                "F1",
+                ('"compile_generated"', "Cert.lean:", "maximum number of heartbeats"),
+            ),
         ),
     ]
     for name, make, contract, known in cases:
@@ -1106,16 +1155,21 @@ def main() -> int:
         if args.tier in ("live", "all"):
             live_tier(report, args.min_available_mb)
     finally:
-        if not args.keep:
-            for d in ("static", "alive", "model", "live"):
-                shutil.rmtree(WORK / d, ignore_errors=True)
+        # ctest runs the static and alive tiers at once, so each removes only its own.
+        owned = {"static": ["static"], "alive": [], "live": ["model", "live"]}
+        for tier, dirs in owned.items():
+            if not args.keep and args.tier in (tier, "all"):
+                for d in dirs:
+                    shutil.rmtree(WORK / d, ignore_errors=True)
     if not report.rows:
         print("no case matched", file=sys.stderr)
         return 2
     seen = sorted({f for f in FINDINGS for r in report.rows if r["outcome"] == "known" and f in r["detail"]})
     for f in seen:
         print(f"known {f}: {FINDINGS[f]}")
-    (WORK / "report.json").write_text(json.dumps({"tier": args.tier, "cases": report.rows}, indent=1) + "\n")
+    (WORK / f"report-{args.tier}.json").write_text(
+        json.dumps({"tier": args.tier, "cases": report.rows}, indent=1) + "\n"
+    )
     counts = {o: sum(r["outcome"] == o for r in report.rows) for o in ("ok", "known", "fail", "notrun")}
     print(f"{counts['ok']} ok, {counts['known']} known, {counts['fail']} failed, {counts['notrun']} not run")
     return report.code()
