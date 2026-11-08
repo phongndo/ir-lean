@@ -1,0 +1,37 @@
+{
+  "schema": "ir-lean.verification-negative.case/1",
+  "category": "control",
+  "summary": "mul X, 2 -> shl X, 1, proved a refinement on every input, poison included",
+  "llvm_verdict": "valid",
+  "why": "X * 2 and X << 1 are the same bits for every X, and both are poison exactly when X is.",
+  "claim": {
+    "binders": "(x : IRLean.Val 8)",
+    "hypotheses": [],
+    "src": "Opt.src x",
+    "tgt": "Opt.tgt x"
+  },
+  "names": [
+    "Opt.src",
+    "Opt.tgt"
+  ],
+  "request": {
+    "input": {
+      "ir": "Opt.ll"
+    },
+    "namespace": "Opt",
+    "function": "tgt",
+    "proof": "Proof.lean",
+    "theorem": "tgt_refines_src",
+    "limits": {
+      "timeout_seconds": 120,
+      "memory_mb": 4000
+    }
+  },
+  "expect": {
+    "certified": true,
+    "verify": [
+      "proved/kernel_checked"
+    ],
+    "gate": []
+  }
+}

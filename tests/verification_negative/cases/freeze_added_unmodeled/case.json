@@ -1,0 +1,45 @@
+{
+  "schema": "ir-lean.verification-negative.case/1",
+  "category": "freeze",
+  "summary": "X -> freeze X: right in LLVM, refuted in the model",
+  "llvm_verdict": "valid",
+  "why": "A frozen poison is one of the values poison allows, so LLVM accepts this. The model's tgt stops at a frozen poison instead of choosing a value, so the model refutes it at X = poison. That counterexample isn't LLVM's, and the rewrite stays uncertified rather than certified by inventing a semantics for freeze.",
+  "model_limitation": "ModelStop.freezePoison: the model doesn't choose a value for a frozen poison",
+  "claim": {
+    "binders": "(x : IRLean.Val 8)",
+    "hypotheses": [],
+    "src": "Opt.src x",
+    "tgt": "Opt.tgt x"
+  },
+  "names": [
+    "Opt.src",
+    "Opt.tgt"
+  ],
+  "request": {
+    "input": {
+      "ir": "Opt.ll"
+    },
+    "namespace": "Opt",
+    "function": "tgt",
+    "proof": "Proof.lean",
+    "theorem": "tgt_refines_src",
+    "witnesses": [
+      {
+        "x": "none"
+      }
+    ],
+    "limits": {
+      "timeout_seconds": 120,
+      "memory_mb": 4000
+    }
+  },
+  "expect": {
+    "certified": false,
+    "verify": [
+      "counterexample/witness_falsifies"
+    ],
+    "gate": [
+      "not_proved"
+    ]
+  }
+}

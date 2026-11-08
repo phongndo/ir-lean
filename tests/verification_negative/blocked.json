@@ -1,0 +1,78 @@
+{
+  "schema": "ir-lean.verification-negative.blocked/1",
+  "cases": [
+    {
+      "id": "refines_certificates",
+      "blocked_on": [
+        "T1: the semantics and refinement contract (what Refines means, for which types)"
+      ],
+      "negative": "Restate wrong_mul2_to_shl2, poison_add_nsw_introduced, freeze_added_unmodeled, control_drop_nsw and the precondition cases as IRLean.Refines claims, and check the same verdicts.",
+      "needs": "A Refines definition on main, its rules for model stops and runs that never finish, and the axioms its tactic adds to tests/check_axioms.lean's policy."
+    },
+    {
+      "id": "certificate_for_another_pass",
+      "blocked_on": [
+        "T2: the proof-to-code binding contract (what ties a certificate to a pass, an opt run and an LLVM revision)"
+      ],
+      "negative": "A certificate made for one pass, or one set of pass parameters, presented for another must not count for it.",
+      "needs": "A certificate format that records the pass, its parameters, the opt binary and the LLVM revision."
+    },
+    {
+      "id": "source_not_the_pass_input",
+      "blocked_on": [
+        "T2: the proof-to-code binding contract (what ties a certificate to a pass, an opt run and an LLVM revision)"
+      ],
+      "negative": "A certificate whose src isn't the IR the pass was given (edited, or from another opt run) must not count, though its theorem is true.",
+      "needs": "Hashes of the IR before and after the pass in the certificate, and of the test file it came from."
+    },
+    {
+      "id": "stale_llvm_revision",
+      "blocked_on": [
+        "T2: the proof-to-code binding contract (what ties a certificate to a pass, an opt run and an LLVM revision)"
+      ],
+      "negative": "A certificate from another LLVM revision than the pinned one must not count.",
+      "needs": "The pinned revision, from the inventory, in the certificate and in what checks it."
+    },
+    {
+      "id": "pipeline_with_a_gap",
+      "blocked_on": [
+        "T1: the semantics and refinement contract (what Refines means, for which types)",
+        "T2: the proof-to-code binding contract (what ties a certificate to a pass, an opt run and an LLVM revision)"
+      ],
+      "negative": "A pipeline with one step uncertified, unsupported or timed out must not be certified, though every other step is.",
+      "needs": "Transitivity of Refines, and a manifest of which certificates make up a pipeline run."
+    },
+    {
+      "id": "memory_refinement",
+      "blocked_on": [
+        "T1: the semantics and refinement contract (what Refines means, for which types)"
+      ],
+      "negative": "Wrong memory rewrites, such as a store deleted while a later load reads it, must not certify.",
+      "needs": "A refinement relation for memory and pointers. Refine.lean in the peer prototype deliberately has none."
+    },
+    {
+      "id": "vector_lane_poison",
+      "blocked_on": [
+        "T1: the semantics and refinement contract (what Refines means, for which types)"
+      ],
+      "negative": "A rewrite that makes one lane poison where src had a value must not certify.",
+      "needs": "The lane-wise Refines instance on main."
+    },
+    {
+      "id": "inventory_denominator",
+      "blocked_on": [
+        "The inventory tooling owned by the inventory worker"
+      ],
+      "negative": "A pass in the pinned inventory with no certificates, or only uncertified ones, must count as unfinished, and dropping it from the inventory must fail.",
+      "needs": "The locked inventory and its format."
+    },
+    {
+      "id": "codegen_passes",
+      "blocked_on": [
+        "A model of machine IR, which no lane has yet"
+      ],
+      "negative": "Wrong backend rewrites must not certify.",
+      "needs": "Any semantics for what llc's passes operate on."
+    }
+  ]
+}

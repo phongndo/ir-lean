@@ -1,0 +1,44 @@
+{
+  "schema": "ir-lean.verification-negative.case/1",
+  "category": "freeze",
+  "summary": "One freeze used twice -> two freezes, refuted at X = poison",
+  "llvm_verdict": "invalid",
+  "why": "src's a - a is 0. tgt's two freezes of a poison X can differ, so tgt can return anything. The model's src stops at the freeze, which allows nothing, so the refinement fails there.",
+  "claim": {
+    "binders": "(x : IRLean.Val 8)",
+    "hypotheses": [],
+    "src": "Opt.src x",
+    "tgt": "Opt.tgt x"
+  },
+  "names": [
+    "Opt.src",
+    "Opt.tgt"
+  ],
+  "request": {
+    "input": {
+      "ir": "Opt.ll"
+    },
+    "namespace": "Opt",
+    "function": "tgt",
+    "proof": "Proof.lean",
+    "theorem": "tgt_refines_src",
+    "witnesses": [
+      {
+        "x": "none"
+      }
+    ],
+    "limits": {
+      "timeout_seconds": 120,
+      "memory_mb": 4000
+    }
+  },
+  "expect": {
+    "certified": false,
+    "verify": [
+      "counterexample/witness_falsifies"
+    ],
+    "gate": [
+      "not_proved"
+    ]
+  }
+}

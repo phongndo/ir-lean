@@ -1,0 +1,42 @@
+{
+  "schema": "ir-lean.verification-negative.case/1",
+  "category": "control",
+  "summary": "(X << 1) >> 1 -> X under X < 128, with a witness that the precondition can hold",
+  "llvm_verdict": "valid",
+  "why": "Below 128 the top bit is clear, so shifting it out and back changes nothing.",
+  "claim": {
+    "binders": "(x : BitVec 8)",
+    "hypotheses": [
+      "x < 128#8"
+    ],
+    "src": "Opt.src (some x)",
+    "tgt": "Opt.tgt (some x)"
+  },
+  "names": [
+    "Opt.src",
+    "Opt.tgt"
+  ],
+  "precondition_witness": {
+    "x": "5#8"
+  },
+  "request": {
+    "input": {
+      "ir": "Opt.ll"
+    },
+    "namespace": "Opt",
+    "function": "tgt",
+    "proof": "Proof.lean",
+    "theorem": "tgt_refines_src",
+    "limits": {
+      "timeout_seconds": 120,
+      "memory_mb": 4000
+    }
+  },
+  "expect": {
+    "certified": true,
+    "verify": [
+      "proved/kernel_checked"
+    ],
+    "gate": []
+  }
+}

@@ -1,0 +1,772 @@
+{
+  "result": {
+    "schema": "ir-lean.verify/1",
+    "status": "proved",
+    "reason": "kernel_checked",
+    "detail": "tgt_refines_src is a kernel-checked theorem",
+    "meaning": "The claim is a kernel-checked theorem about the generated function. Read `claim.statement` and `assumptions` for what that does and doesn't say",
+    "exit_code": 0,
+    "limit": null,
+    "request": {
+      "schema": "ir-lean.verify.request/1",
+      "input": {
+        "ir": "<run>/cases/control_precondition_sufficient/files/Opt.ll"
+      },
+      "function": "tgt",
+      "namespace": "Opt",
+      "proof": "<run>/cases/control_precondition_sufficient/files/Proof.lean",
+      "theorem": "tgt_refines_src",
+      "statement": "∀ (x : BitVec 8), x < 128#8 → (∃ r ∈ [IRLean.UB.branchOnPoison, IRLean.UB.switchOnPoison, IRLean.UB.assumeFailed, IRLean.UB.unreachable, IRLean.UB.divByZero, IRLean.UB.divByPoison, IRLean.UB.divOverflow, IRLean.UB.noundefPoison, IRLean.UB.badAccess, IRLean.UB.misaligned, IRLean.UB.poisonPointer, IRLean.UB.writeToConstant, IRLean.UB.overlappingCopy, IRLean.UB.badFree, IRLean.UB.forbiddenWrite, IRLean.UB.forbiddenAccess, IRLean.UB.expiredProvenance, IRLean.UB.forbiddenFree], Opt.src (some x) = IRLean.Outcome.ub r) ∨ (Opt.src (some x) = Option.none ∧ Opt.tgt (some x) = Option.none) ∨ (Opt.src (some x) = IRLean.Outcome.ok Option.none ∧ IRLean.andThen (Opt.tgt (some x)) (fun _ => IRLean.Outcome.ok ()) = IRLean.Outcome.ok ()) ∨ (Opt.src (some x) ≠ IRLean.Outcome.ok Option.none ∧ IRLean.andThen (Opt.src (some x)) (fun _ => IRLean.Outcome.ok ()) = IRLean.Outcome.ok () ∧ Opt.tgt (some x) = Opt.src (some x))",
+      "support": [],
+      "lean_root": "<run>/cases/control_precondition_sufficient/files",
+      "witnesses": [],
+      "limits": {
+        "timeout_seconds": 120,
+        "memory_mb": 4000
+      }
+    },
+    "target": {
+      "function": "tgt",
+      "lean_constant": "Opt.tgt",
+      "lean_name": "tgt",
+      "signature": "(i8)->i8",
+      "blocks": 1,
+      "instructions": 1,
+      "uses_memory": false,
+      "triple": null,
+      "datalayout": null,
+      "trusted_promises": []
+    },
+    "claim": {
+      "theorem": "tgt_refines_src",
+      "resolved": "tgt_refines_src",
+      "statement": "∀ (x : BitVec 8),\n  x < 128#8 →\n    (∃ r,\n        r ∈\n            [IRLean.UB.branchOnPoison, IRLean.UB.switchOnPoison, IRLean.UB.assumeFailed, IRLean.UB.unreachable,\n              IRLean.UB.divByZero, IRLean.UB.divByPoison, IRLean.UB.divOverflow, IRLean.UB.noundefPoison,\n              IRLean.UB.badAccess, IRLean.UB.misaligned, IRLean.UB.poisonPointer, IRLean.UB.writeToConstant,\n              IRLean.UB.overlappingCopy, IRLean.UB.badFree, IRLean.UB.forbiddenWrite, IRLean.UB.forbiddenAccess,\n              IRLean.UB.expiredProvenance, IRLean.UB.forbiddenFree] ∧\n          Opt.src (Option.some x) = IRLean.Outcome.ub r) ∨\n      Opt.src (Option.some x) = Option.none ∧ Opt.tgt (Option.some x) = Option.none ∨\n        Opt.src (Option.some x) = IRLean.Outcome.ok Option.none ∧\n            (IRLean.andThen (Opt.tgt (Option.some x)) fun x => IRLean.Outcome.ok ()) = IRLean.Outcome.ok () ∨\n          Opt.src (Option.some x) ≠ IRLean.Outcome.ok Option.none ∧\n            (IRLean.andThen (Opt.src (Option.some x)) fun x => IRLean.Outcome.ok ()) = IRLean.Outcome.ok () ∧\n              Opt.tgt (Option.some x) = Opt.src (Option.some x)",
+      "pinned": "∀ (x : BitVec 8), x < 128#8 → (∃ r ∈ [IRLean.UB.branchOnPoison, IRLean.UB.switchOnPoison, IRLean.UB.assumeFailed, IRLean.UB.unreachable, IRLean.UB.divByZero, IRLean.UB.divByPoison, IRLean.UB.divOverflow, IRLean.UB.noundefPoison, IRLean.UB.badAccess, IRLean.UB.misaligned, IRLean.UB.poisonPointer, IRLean.UB.writeToConstant, IRLean.UB.overlappingCopy, IRLean.UB.badFree, IRLean.UB.forbiddenWrite, IRLean.UB.forbiddenAccess, IRLean.UB.expiredProvenance, IRLean.UB.forbiddenFree], Opt.src (some x) = IRLean.Outcome.ub r) ∨ (Opt.src (some x) = Option.none ∧ Opt.tgt (some x) = Option.none) ∨ (Opt.src (some x) = IRLean.Outcome.ok Option.none ∧ IRLean.andThen (Opt.tgt (some x)) (fun _ => IRLean.Outcome.ok ()) = IRLean.Outcome.ok ()) ∨ (Opt.src (some x) ≠ IRLean.Outcome.ok Option.none ∧ IRLean.andThen (Opt.src (some x)) (fun _ => IRLean.Outcome.ok ()) = IRLean.Outcome.ok () ∧ Opt.tgt (some x) = Opt.src (some x))",
+      "pin_match": "syntactic",
+      "binders": [
+        {
+          "binder": "explicit",
+          "hypothesis": false,
+          "name": "x",
+          "type": "BitVec 8"
+        },
+        {
+          "binder": "explicit",
+          "hypothesis": true,
+          "name": "h",
+          "type": "x < 128#8"
+        }
+      ],
+      "conclusion": "(∃ r,\n    r ∈\n        [IRLean.UB.branchOnPoison, IRLean.UB.switchOnPoison, IRLean.UB.assumeFailed, IRLean.UB.unreachable,\n          IRLean.UB.divByZero, IRLean.UB.divByPoison, IRLean.UB.divOverflow, IRLean.UB.noundefPoison,\n          IRLean.UB.badAccess, IRLean.UB.misaligned, IRLean.UB.poisonPointer, IRLean.UB.writeToConstant,\n          IRLean.UB.overlappingCopy, IRLean.UB.badFree, IRLean.UB.forbiddenWrite, IRLean.UB.forbiddenAccess,\n          IRLean.UB.expiredProvenance, IRLean.UB.forbiddenFree] ∧\n      Opt.src (Option.some x) = IRLean.Outcome.ub r) ∨\n  Opt.src (Option.some x) = Option.none ∧ Opt.tgt (Option.some x) = Option.none ∨\n    Opt.src (Option.some x) = IRLean.Outcome.ok Option.none ∧\n        (IRLean.andThen (Opt.tgt (Option.some x)) fun x => IRLean.Outcome.ok ()) = IRLean.Outcome.ok () ∨\n      Opt.src (Option.some x) ≠ IRLean.Outcome.ok Option.none ∧\n        (IRLean.andThen (Opt.src (Option.some x)) fun x => IRLean.Outcome.ok ()) = IRLean.Outcome.ok () ∧\n          Opt.tgt (Option.some x) = Opt.src (Option.some x)",
+      "shape": "other",
+      "generated_constants": [
+        "Opt.src",
+        "Opt.tgt"
+      ],
+      "mentions_target": true,
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound",
+        "tgt_refines_src._native.bv_decide.ax_1_11"
+      ]
+    },
+    "counterexample": null,
+    "witnesses": [],
+    "assumptions": [
+      {
+        "id": "scope.modeled_ir",
+        "text": "The claim is about the function as this LLVM IR, in IRLean's semantics. Not the source program, not machine code, and only as faithful as the model",
+        "see": "docs/trust.md#what-a-theorem-covers"
+      },
+      {
+        "id": "trusted.pipeline",
+        "text": "Trusted, unverified: LLVM's IR parser, the emitter, IRLean's semantics, and the Lean kernel",
+        "see": "docs/trust.md#trust-boundaries"
+      },
+      {
+        "id": "trusted.bv_decide",
+        "text": "1 axiom(s) from bv_decide, each rechecked by running the toolchain's bv_decide checker on the formula and certificate the proof recorded, which trusts Lean's compiled code for that checker",
+        "see": "docs/trust.md#trust-boundaries"
+      },
+      {
+        "id": "statement.hypotheses",
+        "text": "Only for inputs meeting: h : x < 128#8",
+        "see": "docs/verify.md#reading-a-result"
+      },
+      {
+        "id": "statement.shape",
+        "text": "The conclusion isn't `target ... = Outcome.ok _`, so it may allow undefined behavior, a model stop or a run that never ends. Read it",
+        "see": "docs/trust.md#what-the-model-does-at-its-edges"
+      },
+      {
+        "id": "process.no_sandbox",
+        "text": "Lean runs the proof's own code while compiling it, unsandboxed. The checks after read the proof as data, and the files they rely on are hashed before that code runs, but files elsewhere could change",
+        "see": "docs/verify.md#what-proved-rests-on"
+      }
+    ],
+    "scope": {
+      "functions_in_module": 2,
+      "left_out": {}
+    },
+    "checks": [
+      {
+        "name": "request",
+        "result": "pass"
+      },
+      {
+        "name": "toolchain",
+        "result": "pass"
+      },
+      {
+        "name": "inputs",
+        "result": "pass",
+        "detail": {
+          "input": "78951066269481b390d130d5ab3dc680e0ee7a6bc8ece684e9aaa68d2f614b3e",
+          "proof": "b339e039fa0d6eb34e7ad84b011de73ff690c8630dc628bb6622593020476636"
+        }
+      },
+      {
+        "name": "compile_c",
+        "result": "skip"
+      },
+      {
+        "name": "ir_valid",
+        "result": "pass",
+        "seconds": 0.01
+      },
+      {
+        "name": "translate",
+        "result": "pass",
+        "detail": {
+          "left_out_elsewhere": 0
+        },
+        "seconds": 0.0
+      },
+      {
+        "name": "generate",
+        "result": "pass",
+        "detail": {
+          "code": true
+        },
+        "seconds": 0.01
+      },
+      {
+        "name": "compile_generated",
+        "result": "pass"
+      },
+      {
+        "name": "compile_support",
+        "result": "skip"
+      },
+      {
+        "name": "compile_proof",
+        "result": "pass"
+      },
+      {
+        "name": "claim",
+        "result": "pass",
+        "seconds": 1.72
+      },
+      {
+        "name": "theorem",
+        "result": "pass",
+        "detail": "tgt_refines_src"
+      },
+      {
+        "name": "mentions_target",
+        "result": "pass",
+        "detail": {
+          "target": "Opt.tgt",
+          "generated_constants": [
+            "Opt.src",
+            "Opt.tgt"
+          ]
+        }
+      },
+      {
+        "name": "statement",
+        "result": "pass",
+        "detail": {
+          "match": "syntactic"
+        }
+      },
+      {
+        "name": "axioms",
+        "result": "pass",
+        "detail": {
+          "bv_decide_rechecked": 1,
+          "theorem": [
+            "propext",
+            "Classical.choice",
+            "Quot.sound",
+            "tgt_refines_src._native.bv_decide.ax_1_11"
+          ]
+        }
+      },
+      {
+        "name": "kernel_replay",
+        "result": "pass",
+        "detail": {
+          "modules": [
+            "Opt",
+            "Proof"
+          ]
+        },
+        "seconds": 0.41
+      },
+      {
+        "name": "artifacts_unchanged",
+        "result": "pass"
+      },
+      {
+        "name": "witnesses",
+        "result": "skip"
+      }
+    ],
+    "diagnostics": [],
+    "artifacts": {
+      "proof_module": "Proof",
+      "support_modules": [],
+      "files": {
+        "input": {
+          "original": "<run>/cases/control_precondition_sufficient/files/Opt.ll",
+          "copy": "<run>/cases/control_precondition_sufficient/check/work/inputs/Opt.ll",
+          "sha256": "78951066269481b390d130d5ab3dc680e0ee7a6bc8ece684e9aaa68d2f614b3e"
+        },
+        "proof": {
+          "original": "<run>/cases/control_precondition_sufficient/files/Proof.lean",
+          "copy": "<run>/cases/control_precondition_sufficient/check/work/lean/Proof.lean",
+          "sha256": "b339e039fa0d6eb34e7ad84b011de73ff690c8630dc628bb6622593020476636"
+        }
+      },
+      "generated": {
+        "path": "<run>/cases/control_precondition_sufficient/check/work/lean/Opt.lean",
+        "sha256": "0758e5e58bfe4bc56b1bda5b06753c246d5722117518962ef15f7903e878fda1",
+        "code": true,
+        "olean_sha256": "3291cd8a0dd42043038947ed9acc86fd44bdab7a9bab64aec8c853e422526ea3"
+      }
+    },
+    "versions": {
+      "lean": "Lean (version 4.35.0, x86_64-unknown-linux-gnu, commit eb6cafb7290e8bd5f2937522d8d804f58f02bafc, Release)",
+      "ir_lean": "329a2e3eec21032b60b12126aac00ff45e70af21",
+      "ir_lean_binary_sha256": "6c24deae0e93684b92808071b0f5c3b0cc6e6819fdb6db17183d8d1f3fbfec9e",
+      "irlean_library_sha256": "2ca63df8d54e3cfbde4c474728b61ac6e2779004fb5288324920dcd119af45a0"
+    },
+    "reproduce": {
+      "request": "<run>/cases/control_precondition_sufficient/check/work/request.json",
+      "command": [
+        "<repo>/tools/verify.py",
+        "check",
+        "<run>/cases/control_precondition_sufficient/check/work/request.json"
+      ],
+      "commands": [
+        {
+          "step": "versions",
+          "argv": [
+            "lean",
+            "--version"
+          ],
+          "cwd": "<repo>",
+          "env": {},
+          "exit": 0,
+          "seconds": 0.02,
+          "timed_out": false
+        },
+        {
+          "step": "ir_valid",
+          "argv": [
+            "opt",
+            "-passes=verify",
+            "-disable-output",
+            "<run>/cases/control_precondition_sufficient/check/work/inputs/Opt.ll"
+          ],
+          "cwd": "<repo>",
+          "env": {},
+          "exit": 0,
+          "seconds": 0.01,
+          "timed_out": false
+        },
+        {
+          "step": "translate",
+          "argv": [
+            "<repo>/build/ir-lean",
+            "<run>/cases/control_precondition_sufficient/check/work/inputs/Opt.ll",
+            "--report"
+          ],
+          "cwd": "<repo>",
+          "env": {},
+          "exit": 0,
+          "seconds": 0.0,
+          "timed_out": false
+        },
+        {
+          "step": "generate",
+          "argv": [
+            "<repo>/build/ir-lean",
+            "<run>/cases/control_precondition_sufficient/check/work/inputs/Opt.ll",
+            "--namespace",
+            "Opt",
+            "-o",
+            "<run>/cases/control_precondition_sufficient/check/work/lean/Opt.lean"
+          ],
+          "cwd": "<repo>",
+          "env": {},
+          "exit": 0,
+          "seconds": 0.01,
+          "timed_out": false
+        },
+        {
+          "step": "compile_generated",
+          "argv": [
+            "lean",
+            "-M",
+            "4000",
+            "-s",
+            "65536",
+            "-R",
+            "<run>/cases/control_precondition_sufficient/check/work/lean",
+            "-o",
+            "<run>/cases/control_precondition_sufficient/check/work/lean/Opt.olean",
+            "<run>/cases/control_precondition_sufficient/check/work/lean/Opt.lean"
+          ],
+          "cwd": "<repo>",
+          "env": {
+            "LEAN_PATH": "<run>/cases/control_precondition_sufficient/check/work/lean:<run>/cases/control_precondition_sufficient/check/work/library"
+          },
+          "exit": 0,
+          "seconds": 0.19,
+          "timed_out": false
+        },
+        {
+          "step": "compile_proof",
+          "argv": [
+            "lean",
+            "-M",
+            "4000",
+            "-s",
+            "65536",
+            "-R",
+            "<run>/cases/control_precondition_sufficient/check/work/lean",
+            "-o",
+            "<run>/cases/control_precondition_sufficient/check/work/lean/Proof.olean",
+            "<run>/cases/control_precondition_sufficient/check/work/lean/Proof.lean"
+          ],
+          "cwd": "<repo>",
+          "env": {
+            "LEAN_PATH": "<run>/cases/control_precondition_sufficient/check/work/lean:<run>/cases/control_precondition_sufficient/check/work/library"
+          },
+          "exit": 0,
+          "seconds": 0.19,
+          "timed_out": false
+        },
+        {
+          "step": "claim:check",
+          "argv": [
+            "lean",
+            "-M",
+            "4000",
+            "-s",
+            "65536",
+            "<run>/cases/control_precondition_sufficient/check/work/check/Check.lean"
+          ],
+          "cwd": "<repo>",
+          "env": {
+            "LEAN_PATH": "<run>/cases/control_precondition_sufficient/check/work/lean:<run>/cases/control_precondition_sufficient/check/work/library",
+            "IRLEAN_VERIFY_CONFIG": "<run>/cases/control_precondition_sufficient/check/work/check/check.json"
+          },
+          "exit": 0,
+          "seconds": 1.72,
+          "timed_out": false
+        },
+        {
+          "step": "kernel_replay",
+          "argv": [
+            "leanchecker",
+            "Opt",
+            "Proof"
+          ],
+          "cwd": "<repo>",
+          "env": {
+            "LEAN_PATH": "<run>/cases/control_precondition_sufficient/check/work/lean:<run>/cases/control_precondition_sufficient/check/work/library"
+          },
+          "exit": 0,
+          "seconds": 0.41,
+          "timed_out": false
+        }
+      ]
+    },
+    "seconds": 2.56
+  },
+  "probe": {
+    "result": {
+      "schema": "ir-lean.verify/1",
+      "status": "counterexample",
+      "reason": "witness_falsifies",
+      "detail": "the statement is false at {'x': '5#8'}",
+      "meaning": "On the inputs in `counterexample`, the model's compiled code says the claim is false",
+      "exit_code": 2,
+      "limit": null,
+      "request": {
+        "schema": "ir-lean.verify.request/1",
+        "input": {
+          "ir": "<run>/cases/control_precondition_sufficient/files/Opt.ll"
+        },
+        "function": "tgt",
+        "namespace": "Opt",
+        "statement": "∀ (x : BitVec 8), x < 128#8 → Opt.tgt (some x) ≠ Opt.tgt (some x)",
+        "support": [],
+        "witnesses": [
+          {
+            "x": "5#8"
+          }
+        ],
+        "limits": {
+          "timeout_seconds": 120,
+          "memory_mb": 4000
+        }
+      },
+      "target": {
+        "function": "tgt",
+        "lean_constant": "Opt.tgt",
+        "lean_name": "tgt",
+        "signature": "(i8)->i8",
+        "blocks": 1,
+        "instructions": 1,
+        "uses_memory": false,
+        "triple": null,
+        "datalayout": null,
+        "trusted_promises": []
+      },
+      "claim": {
+        "theorem": null,
+        "resolved": null,
+        "statement": "∀ (x : BitVec 8), x < 128#8 → Opt.tgt (Option.some x) ≠ Opt.tgt (Option.some x)",
+        "pinned": "∀ (x : BitVec 8), x < 128#8 → Opt.tgt (some x) ≠ Opt.tgt (some x)",
+        "pin_match": null,
+        "binders": [
+          {
+            "binder": "explicit",
+            "hypothesis": false,
+            "name": "x",
+            "type": "BitVec 8"
+          },
+          {
+            "binder": "explicit",
+            "hypothesis": true,
+            "name": "a",
+            "type": "x < 128#8"
+          }
+        ],
+        "conclusion": "Opt.tgt (Option.some x) ≠ Opt.tgt (Option.some x)",
+        "shape": "other",
+        "generated_constants": [
+          "Opt.tgt"
+        ],
+        "mentions_target": true
+      },
+      "counterexample": {
+        "source": "request",
+        "assignment": {
+          "x": "5#8"
+        },
+        "against": "statement",
+        "result": "fails",
+        "instance": "5#8 < 128#8 → Opt.tgt (Option.some 5#8) ≠ Opt.tgt (Option.some 5#8)",
+        "evidence": "compiled_evaluation",
+        "trust": "Lean's compiler and runtime, as for native_decide. Not checked by the kernel"
+      },
+      "witnesses": [
+        {
+          "source": "request",
+          "assignment": {
+            "x": "5#8"
+          },
+          "against": "statement",
+          "result": "fails",
+          "instance": "5#8 < 128#8 → Opt.tgt (Option.some 5#8) ≠ Opt.tgt (Option.some 5#8)"
+        }
+      ],
+      "assumptions": [
+        {
+          "id": "scope.modeled_ir",
+          "text": "The claim is about the function as this LLVM IR, in IRLean's semantics. Not the source program, not machine code, and only as faithful as the model",
+          "see": "docs/trust.md#what-a-theorem-covers"
+        },
+        {
+          "id": "trusted.pipeline",
+          "text": "Trusted, unverified: LLVM's IR parser, the emitter, IRLean's semantics, and the Lean kernel",
+          "see": "docs/trust.md#trust-boundaries"
+        },
+        {
+          "id": "statement.hypotheses",
+          "text": "Only for inputs meeting: a : x < 128#8",
+          "see": "docs/verify.md#reading-a-result"
+        },
+        {
+          "id": "statement.shape",
+          "text": "The conclusion isn't `target ... = Outcome.ok _`, so it may allow undefined behavior, a model stop or a run that never ends. Read it",
+          "see": "docs/trust.md#what-the-model-does-at-its-edges"
+        },
+        {
+          "id": "evidence.compiled",
+          "text": "The counterexample was found by running Lean's compiled code for the model, the trust of native_decide, not by the kernel",
+          "see": "docs/verify.md#counterexamples"
+        }
+      ],
+      "scope": {
+        "functions_in_module": 2,
+        "left_out": {}
+      },
+      "checks": [
+        {
+          "name": "request",
+          "result": "pass"
+        },
+        {
+          "name": "toolchain",
+          "result": "pass"
+        },
+        {
+          "name": "inputs",
+          "result": "pass",
+          "detail": {
+            "input": "78951066269481b390d130d5ab3dc680e0ee7a6bc8ece684e9aaa68d2f614b3e"
+          }
+        },
+        {
+          "name": "compile_c",
+          "result": "skip"
+        },
+        {
+          "name": "ir_valid",
+          "result": "pass",
+          "seconds": 0.01
+        },
+        {
+          "name": "translate",
+          "result": "pass",
+          "detail": {
+            "left_out_elsewhere": 0
+          },
+          "seconds": 0.0
+        },
+        {
+          "name": "generate",
+          "result": "pass",
+          "detail": {
+            "code": true
+          },
+          "seconds": 0.0
+        },
+        {
+          "name": "compile_generated",
+          "result": "pass"
+        },
+        {
+          "name": "compile_support",
+          "result": "skip"
+        },
+        {
+          "name": "compile_proof",
+          "result": "skip"
+        },
+        {
+          "name": "claim",
+          "result": "pass",
+          "seconds": 0.74
+        },
+        {
+          "name": "theorem",
+          "result": "skip"
+        },
+        {
+          "name": "mentions_target",
+          "result": "pass",
+          "detail": {
+            "target": "Opt.tgt",
+            "generated_constants": [
+              "Opt.tgt"
+            ]
+          }
+        },
+        {
+          "name": "statement",
+          "result": "pass",
+          "detail": "elaborated"
+        },
+        {
+          "name": "axioms",
+          "result": "skip"
+        },
+        {
+          "name": "kernel_replay",
+          "result": "skip"
+        },
+        {
+          "name": "artifacts_unchanged",
+          "result": "pass"
+        },
+        {
+          "name": "witnesses",
+          "result": "fail",
+          "detail": "a witness makes the statement false",
+          "seconds": 0.76
+        }
+      ],
+      "diagnostics": [],
+      "artifacts": {
+        "files": {
+          "input": {
+            "original": "<run>/cases/control_precondition_sufficient/files/Opt.ll",
+            "copy": "<run>/cases/control_precondition_sufficient/probe/work/inputs/Opt.ll",
+            "sha256": "78951066269481b390d130d5ab3dc680e0ee7a6bc8ece684e9aaa68d2f614b3e"
+          }
+        },
+        "generated": {
+          "path": "<run>/cases/control_precondition_sufficient/probe/work/lean/Opt.lean",
+          "sha256": "0758e5e58bfe4bc56b1bda5b06753c246d5722117518962ef15f7903e878fda1",
+          "code": true,
+          "olean_sha256": "3291cd8a0dd42043038947ed9acc86fd44bdab7a9bab64aec8c853e422526ea3"
+        }
+      },
+      "versions": {
+        "lean": "Lean (version 4.35.0, x86_64-unknown-linux-gnu, commit eb6cafb7290e8bd5f2937522d8d804f58f02bafc, Release)",
+        "ir_lean": "329a2e3eec21032b60b12126aac00ff45e70af21",
+        "ir_lean_binary_sha256": "6c24deae0e93684b92808071b0f5c3b0cc6e6819fdb6db17183d8d1f3fbfec9e",
+        "irlean_library_sha256": "2ca63df8d54e3cfbde4c474728b61ac6e2779004fb5288324920dcd119af45a0"
+      },
+      "reproduce": {
+        "request": "<run>/cases/control_precondition_sufficient/probe/work/request.json",
+        "command": [
+          "<repo>/tools/verify.py",
+          "check",
+          "<run>/cases/control_precondition_sufficient/probe/work/request.json"
+        ],
+        "commands": [
+          {
+            "step": "versions",
+            "argv": [
+              "lean",
+              "--version"
+            ],
+            "cwd": "<repo>",
+            "env": {},
+            "exit": 0,
+            "seconds": 0.02,
+            "timed_out": false
+          },
+          {
+            "step": "ir_valid",
+            "argv": [
+              "opt",
+              "-passes=verify",
+              "-disable-output",
+              "<run>/cases/control_precondition_sufficient/probe/work/inputs/Opt.ll"
+            ],
+            "cwd": "<repo>",
+            "env": {},
+            "exit": 0,
+            "seconds": 0.01,
+            "timed_out": false
+          },
+          {
+            "step": "translate",
+            "argv": [
+              "<repo>/build/ir-lean",
+              "<run>/cases/control_precondition_sufficient/probe/work/inputs/Opt.ll",
+              "--report"
+            ],
+            "cwd": "<repo>",
+            "env": {},
+            "exit": 0,
+            "seconds": 0.0,
+            "timed_out": false
+          },
+          {
+            "step": "generate",
+            "argv": [
+              "<repo>/build/ir-lean",
+              "<run>/cases/control_precondition_sufficient/probe/work/inputs/Opt.ll",
+              "--namespace",
+              "Opt",
+              "-o",
+              "<run>/cases/control_precondition_sufficient/probe/work/lean/Opt.lean"
+            ],
+            "cwd": "<repo>",
+            "env": {},
+            "exit": 0,
+            "seconds": 0.0,
+            "timed_out": false
+          },
+          {
+            "step": "compile_generated",
+            "argv": [
+              "lean",
+              "-M",
+              "4000",
+              "-s",
+              "65536",
+              "-R",
+              "<run>/cases/control_precondition_sufficient/probe/work/lean",
+              "-o",
+              "<run>/cases/control_precondition_sufficient/probe/work/lean/Opt.olean",
+              "<run>/cases/control_precondition_sufficient/probe/work/lean/Opt.lean"
+            ],
+            "cwd": "<repo>",
+            "env": {
+              "LEAN_PATH": "<run>/cases/control_precondition_sufficient/probe/work/lean:<run>/cases/control_precondition_sufficient/probe/work/library"
+            },
+            "exit": 0,
+            "seconds": 0.19,
+            "timed_out": false
+          },
+          {
+            "step": "claim:check",
+            "argv": [
+              "lean",
+              "-M",
+              "4000",
+              "-s",
+              "65536",
+              "<run>/cases/control_precondition_sufficient/probe/work/check/Check.lean"
+            ],
+            "cwd": "<repo>",
+            "env": {
+              "LEAN_PATH": "<run>/cases/control_precondition_sufficient/probe/work/lean:<run>/cases/control_precondition_sufficient/probe/work/library",
+              "IRLEAN_VERIFY_CONFIG": "<run>/cases/control_precondition_sufficient/probe/work/check/check.json"
+            },
+            "exit": 0,
+            "seconds": 0.74,
+            "timed_out": false
+          },
+          {
+            "step": "claim:witness",
+            "argv": [
+              "lean",
+              "-M",
+              "4000",
+              "-s",
+              "65536",
+              "--load-dynlib=<repo>/.lake/build/lib/libir_x2dlean_IRLean.so",
+              "-Dinterpreter.prefer_native=true",
+              "<run>/cases/control_precondition_sufficient/probe/work/check/Witness.lean"
+            ],
+            "cwd": "<repo>",
+            "env": {
+              "LEAN_PATH": "<run>/cases/control_precondition_sufficient/probe/work/lean:<run>/cases/control_precondition_sufficient/probe/work/library",
+              "IRLEAN_VERIFY_CONFIG": "<run>/cases/control_precondition_sufficient/probe/work/check/witness.json"
+            },
+            "exit": 0,
+            "seconds": 0.76,
+            "timed_out": false
+          }
+        ]
+      },
+      "seconds": 1.75
+    },
+    "exit": 2,
+    "signal": null,
+    "timed_out": false
+  }
+}

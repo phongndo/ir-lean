@@ -1,0 +1,39 @@
+{
+  "schema": "ir-lean.verification-negative.case/1",
+  "category": "artifact_mismatch",
+  "summary": "A proof about tgt_good handed in for tgt_bad",
+  "llvm_verdict": "invalid",
+  "why": "The theorem never names tgt_bad, which multiplies by 4.",
+  "claim": {
+    "binders": "(x : IRLean.Val 8)",
+    "hypotheses": [],
+    "src": "Opt.src x",
+    "tgt": "Opt.tgt_bad x"
+  },
+  "names": [
+    "Opt.src",
+    "Opt.tgt_bad"
+  ],
+  "request": {
+    "input": {
+      "ir": "Opt.ll"
+    },
+    "namespace": "Opt",
+    "function": "tgt_bad",
+    "proof": "Proof.lean",
+    "theorem": "tgt_refines_src",
+    "limits": {
+      "timeout_seconds": 120,
+      "memory_mb": 4000
+    }
+  },
+  "expect": {
+    "certified": false,
+    "verify": [
+      "error/statement_not_about_target"
+    ],
+    "gate": [
+      "not_proved"
+    ]
+  }
+}
