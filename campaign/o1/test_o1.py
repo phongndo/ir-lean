@@ -246,8 +246,12 @@ class Ledger(unittest.TestCase):
 class Committed(unittest.TestCase):
     def test_the_committed_files_agree(self) -> None:
         # Not whether they're current: another lane's change to the model makes them stale, and only the
-        # machine the bundles were recorded on can bind them again. The test below checks staleness is caught.
+        # machine the bundles were recorded on can bind them again. So what counts under these sources is
+        # printed instead, with the stale evidence as stale. The test below checks staleness is caught.
         self.assertEqual(o1.check_consistency(allow_stale=True), [])
+        current = o1.current_summary()
+        if current["evidence_sources"] != o1.read_json(o1.LEDGER)["evidence_sources"]:
+            print(f"\nO1 evidence is stale here. Under these sources: {current['verdicts']}", file=sys.stderr)
 
     def test_stale_evidence_fails_the_check_and_counts_as_stale(self) -> None:
         with mock.patch.object(o1, "sources_fingerprint", return_value="the model changed"):
@@ -256,10 +260,13 @@ class Committed(unittest.TestCase):
             captures, verdicts = o1.gather()
             pipeline, families = o1.read_json(o1.PIPELINE), o1.read_json(o1.FAMILIES)
             fresh = o1.derive_ledger(pipeline, families, captures, verdicts, o1.sources_fingerprint())
-        self.assertEqual(fresh["corpus"]["verdicts"]["bound"], 0)
-        self.assertEqual(
-            fresh["corpus"]["verdicts"]["bound_stale"], o1.read_json(o1.LEDGER)["corpus"]["verdicts"]["bound"]
+        # Every bound step verdict, whatever sources it was made under, is stale under these.
+        bound = sum(
+            1 for vs in verdicts.values() for v in vs if v["status"] == "bound" and v["step"] is not None
         )
+        self.assertGreater(bound, 0)
+        self.assertEqual(fresh["corpus"]["verdicts"]["bound"], 0)
+        self.assertEqual(fresh["corpus"]["verdicts"]["bound_stale"], bound)
 
     def test_every_report_names_the_level(self) -> None:
         for path in (o1.PIN, o1.PIPELINE, o1.LEDGER, *sorted(o1.EVIDENCE.glob("*/capture.json"))):

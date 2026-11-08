@@ -136,10 +136,11 @@ counts hold for, as `evidence_sources`, and `check` fails when they aren't the c
 bring the evidence up to date, or count it stale. Before any verify, `bind` runs `lake build` and `ninja` under the
 lock, so the library and `ir-lean` it checks with are built from the sources its verdicts are labeled with.
 
-ctest runs `check` with `--allow-stale`, which still checks that the files agree with each other and prints the
-sources the counts hold for. Only the machine that recorded the bundles can bind them again. Without that flag,
-another lane's change to the model, the emitter or the checker would fail every pull request until this campaign
-re-binds.
+ctest runs `check` with `--allow-stale`. It still checks that the files agree with each other, and when the evidence
+is stale it prints the counts under the current sources, with that evidence as `bound_stale`. Only the machine that
+recorded the bundles can bind them again. Without that flag, another lane's change to the model, the emitter or the
+checker would fail every pull request until this campaign re-binds. A pull request that changes the campaign's
+evidence or reports is opened only after the strict `check` passes, and says so.
 
 A bound step is translation validation of one run, and only in IRLean's semantics, under
 everything [binding](llvm-proof-binding.md#what-a-bound-verdict-rests-on) trusts. No `sorry`, axiom or weakened

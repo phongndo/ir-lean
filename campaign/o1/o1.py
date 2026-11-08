@@ -1284,6 +1284,13 @@ def summary(ledger: dict) -> dict:
     }
 
 
+def current_summary() -> dict:
+    """The ledger's numbers under the sources here, whatever the committed ledger says."""
+    captures, verdicts = gather()
+    pipeline, families = read_json(PIPELINE), read_json(FAMILIES)
+    return summary(derive_ledger(pipeline, families, captures, verdicts, sources_fingerprint()))
+
+
 def check_consistency(allow_stale: bool = False) -> list[str]:
     """What's wrong with the committed files, without running LLVM or Lean. Evidence verified under sources
     other than these is stale, and a problem unless `allow_stale`."""
@@ -1356,6 +1363,7 @@ def cmd_check(args: argparse.Namespace) -> int:
     recorded = read_json(LEDGER).get("evidence_sources")
     if args.allow_stale and recorded != sources_fingerprint():
         print(f"stale: ledger.json's counts hold only for sources {recorded}", file=sys.stderr)
+        print(f"under these sources: {current_summary()['verdicts']}", file=sys.stderr)
     return 1 if problems else 0
 
 
