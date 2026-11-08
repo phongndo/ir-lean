@@ -63,6 +63,7 @@ set_tests_properties(
 add_test(NAME emitter COMMAND ${CMAKE_SOURCE_DIR}/tests/emitter.sh $<TARGET_FILE:ir-lean>)
 add_test(NAME fuzz COMMAND ${CMAKE_SOURCE_DIR}/tests/fuzz.py $<TARGET_FILE:ir-lean>)
 add_test(NAME proofs COMMAND ${CMAKE_SOURCE_DIR}/tests/proofs.sh $<TARGET_FILE:ir-lean>)
+add_test(NAME llama_bitspread COMMAND ${CMAKE_SOURCE_DIR}/tests/llama-bitspread.sh $<TARGET_FILE:ir-lean>)
 add_test(NAME llvm COMMAND ${CMAKE_SOURCE_DIR}/tests/llvm.py $<TARGET_FILE:ir-lean>)
 add_test(NAME superopt COMMAND ${CMAKE_SOURCE_DIR}/tests/superopt.py $<TARGET_FILE:ir-lean>)
 add_test(NAME names COMMAND ${CMAKE_SOURCE_DIR}/tests/names.sh)
@@ -86,6 +87,7 @@ set_tests_properties(
     fuzz
     llvm
     superopt
+    llama_bitspread
     PROPERTIES TIMEOUT 1800
 )
 set_tests_properties(zlib_slow PROPERTIES LABELS slow)
