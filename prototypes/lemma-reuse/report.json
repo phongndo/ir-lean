@@ -1,0 +1,362 @@
+[
+  {
+    "goal": "popcountdi2_same",
+    "gaps": [],
+    "notes": [],
+    "timings": {
+      "generate": 0.6,
+      "lemmas": 0.6
+    },
+    "assumptions": [
+      "scope: a theorem about the two functions as this LLVM IR, in this project's model of it, as docs/trust.md says",
+      "emitter: ir-lean's translation of each function is trusted, as for every proof in this repo",
+      "bv_decide: each lemma's and the goal's bv_decide axioms are checked by tests/check_axioms.lean, which reruns the toolchain's LRAT checker on them, as tests/llvm.py does",
+      "kernel: the goal, each lemma and Count.lean are replayed by leanchecker, so neither the store nor its index is trusted, only Lean's kernel and the toolchain",
+      "search: cut points, how fields add up, and how general a lemma is come from running the code on test inputs, and are only what to ask Lean. A wrong guess costs a failed lemma, never a wrong theorem",
+      "flags: llvm_exec discharges nuw, nsw and the return's range with bv_decide on the whole input, before any cut"
+    ],
+    "statement": "∀ (a : BitVec 64), RwPopcountdi2._popcountdi2 (some a) = CrtPopcountdi2._popcountdi2 (some a)",
+    "alive": {
+      "smt_timeout_ms": 10000,
+      "verdict": "unknown",
+      "seconds": 10.0
+    },
+    "baseline": {
+      "solver_seconds": 10,
+      "status": "timeout",
+      "seconds": 11.5
+    },
+    "cuts": {
+      "layers": [
+        "%sub (2-bit fields)",
+        "%add (4-bit fields)",
+        "%and6 (8-bit fields)"
+      ],
+      "steps": [
+        "%and6 -> %conv",
+        "%conv -> %add10",
+        "%add10 -> %add12",
+        "%add12 -> %and13"
+      ]
+    },
+    "lemmas": [
+      {
+        "lemma": "LemmaReuse.Store.layer_d9d842756f",
+        "kind": "layer",
+        "source": "mined",
+        "status": "proved",
+        "check_seconds": 0.3
+      },
+      {
+        "lemma": "LemmaReuse.Store.split_66a2d682f9",
+        "kind": "split",
+        "source": "mined",
+        "status": "proved",
+        "check_seconds": 0.3
+      },
+      {
+        "lemma": "LemmaReuse.Store.step_6934d83747",
+        "kind": "step",
+        "source": "mined",
+        "status": "proved",
+        "check_seconds": 0.32,
+        "bound": 127,
+        "needed": 8
+      },
+      {
+        "lemma": "LemmaReuse.Store.step_baa1347fcb",
+        "kind": "step",
+        "source": "mined",
+        "status": "proved",
+        "check_seconds": 0.32,
+        "bound": 127,
+        "needed": 16
+      },
+      {
+        "lemma": "LemmaReuse.Store.step_81f8a11ca6",
+        "kind": "step",
+        "source": "mined",
+        "status": "proved",
+        "check_seconds": 0.32,
+        "bound": 127,
+        "needed": 32
+      },
+      {
+        "lemma": "LemmaReuse.Store.step_344daa4124",
+        "kind": "step",
+        "source": "mined",
+        "status": "proved",
+        "check_seconds": 0.32,
+        "bound": 127,
+        "needed": 64
+      }
+    ],
+    "reuse": {
+      "lemmas": 6,
+      "from_store": 0,
+      "mined": 6,
+      "mined_check_seconds": 1.88
+    },
+    "proof": {
+      "status": "proved",
+      "seconds": 0.6
+    },
+    "audit": {
+      "axioms": "at most the standard three, and 31 from bv_decide",
+      "replayed": [
+        "Goal_popcountdi2_same",
+        "Lemma_layer_d9d842756f",
+        "Lemma_split_66a2d682f9",
+        "Lemma_step_6934d83747",
+        "Lemma_step_baa1347fcb",
+        "Lemma_step_81f8a11ca6",
+        "Lemma_step_344daa4124",
+        "Count",
+        "Bits",
+        "Kit"
+      ],
+      "seconds": 5.5
+    },
+    "seconds": 28.9
+  },
+  {
+    "goal": "popcountti2_same",
+    "gaps": [],
+    "notes": [],
+    "timings": {
+      "generate": 0.6,
+      "lemmas": 0.7
+    },
+    "assumptions": [
+      "scope: a theorem about the two functions as this LLVM IR, in this project's model of it, as docs/trust.md says",
+      "emitter: ir-lean's translation of each function is trusted, as for every proof in this repo",
+      "bv_decide: each lemma's and the goal's bv_decide axioms are checked by tests/check_axioms.lean, which reruns the toolchain's LRAT checker on them, as tests/llvm.py does",
+      "kernel: the goal, each lemma and Count.lean are replayed by leanchecker, so neither the store nor its index is trusted, only Lean's kernel and the toolchain",
+      "search: cut points, how fields add up, and how general a lemma is come from running the code on test inputs, and are only what to ask Lean. A wrong guess costs a failed lemma, never a wrong theorem",
+      "flags: llvm_exec discharges nuw, nsw and the return's range with bv_decide on the whole input, before any cut"
+    ],
+    "statement": "∀ (a : BitVec 128), RwPopcountti2._popcountti2 (some a) = CrtPopcountti2._popcountti2 (some a)",
+    "alive": {
+      "smt_timeout_ms": 10000,
+      "verdict": "unknown",
+      "seconds": 10.0
+    },
+    "baseline": {
+      "solver_seconds": 10,
+      "status": "timeout",
+      "seconds": 11.6
+    },
+    "cuts": {
+      "layers": [
+        "%sub (2-bit fields)",
+        "%add (4-bit fields)",
+        "%and6 (8-bit fields)"
+      ],
+      "steps": [
+        "%and6 -> %conv",
+        "%conv -> %conv11",
+        "%conv11 -> %add13",
+        "%add13 -> %add15",
+        "%add15 -> %and16"
+      ]
+    },
+    "lemmas": [
+      {
+        "lemma": "LemmaReuse.Store.layer_0ff6fe9e15",
+        "kind": "layer",
+        "source": "mined",
+        "status": "proved",
+        "check_seconds": 0.38
+      },
+      {
+        "lemma": "LemmaReuse.Store.split_b78ac5f9a3",
+        "kind": "split",
+        "source": "mined",
+        "status": "proved",
+        "check_seconds": 0.25
+      },
+      {
+        "lemma": "LemmaReuse.Store.step_3d395ad3fc",
+        "kind": "step",
+        "source": "mined",
+        "status": "proved",
+        "check_seconds": 0.29,
+        "bound": 127,
+        "needed": 8
+      },
+      {
+        "lemma": "LemmaReuse.Store.step_6934d83747",
+        "kind": "step",
+        "source": "store, under weaker hypotheses",
+        "status": "proved",
+        "check_seconds": 0.0,
+        "bound": 127,
+        "needed": 16
+      },
+      {
+        "lemma": "LemmaReuse.Store.step_baa1347fcb",
+        "kind": "step",
+        "source": "store, under weaker hypotheses",
+        "status": "proved",
+        "check_seconds": 0.0,
+        "bound": 127,
+        "needed": 32
+      },
+      {
+        "lemma": "LemmaReuse.Store.step_81f8a11ca6",
+        "kind": "step",
+        "source": "store, under weaker hypotheses",
+        "status": "proved",
+        "check_seconds": 0.0,
+        "bound": 127,
+        "needed": 64
+      },
+      {
+        "lemma": "LemmaReuse.Store.step_b4f1aa7047",
+        "kind": "step",
+        "source": "mined",
+        "status": "proved",
+        "check_seconds": 0.26,
+        "bound": 255,
+        "needed": 128
+      }
+    ],
+    "reuse": {
+      "lemmas": 7,
+      "from_store": 3,
+      "mined": 4,
+      "mined_check_seconds": 1.18
+    },
+    "proof": {
+      "status": "proved",
+      "seconds": 0.9
+    },
+    "audit": {
+      "axioms": "at most the standard three, and 43 from bv_decide",
+      "replayed": [
+        "Goal_popcountti2_same",
+        "Lemma_layer_0ff6fe9e15",
+        "Lemma_split_b78ac5f9a3",
+        "Lemma_step_3d395ad3fc",
+        "Lemma_step_6934d83747",
+        "Lemma_step_baa1347fcb",
+        "Lemma_step_81f8a11ca6",
+        "Lemma_step_b4f1aa7047",
+        "Count",
+        "Bits",
+        "Kit"
+      ],
+      "seconds": 6.5
+    },
+    "seconds": 30.4
+  },
+  {
+    "goal": "popcountsi2_same",
+    "gaps": [],
+    "notes": [],
+    "timings": {
+      "generate": 0.6,
+      "lemmas": 0.5
+    },
+    "assumptions": [
+      "scope: a theorem about the two functions as this LLVM IR, in this project's model of it, as docs/trust.md says",
+      "emitter: ir-lean's translation of each function is trusted, as for every proof in this repo",
+      "bv_decide: each lemma's and the goal's bv_decide axioms are checked by tests/check_axioms.lean, which reruns the toolchain's LRAT checker on them, as tests/llvm.py does",
+      "kernel: the goal, each lemma and Count.lean are replayed by leanchecker, so neither the store nor its index is trusted, only Lean's kernel and the toolchain",
+      "search: cut points, how fields add up, and how general a lemma is come from running the code on test inputs, and are only what to ask Lean. A wrong guess costs a failed lemma, never a wrong theorem",
+      "flags: llvm_exec discharges nuw, nsw and the return's range with bv_decide on the whole input, before any cut"
+    ],
+    "statement": "∀ (a : BitVec 32), RwPopcountsi2._popcountsi2 (some a) = CrtPopcountsi2._popcountsi2 (some a)",
+    "alive": {
+      "smt_timeout_ms": 10000,
+      "verdict": "correct",
+      "seconds": 0.8
+    },
+    "baseline": {
+      "solver_seconds": 10,
+      "status": "proved",
+      "seconds": 0.7
+    },
+    "cuts": {
+      "layers": [
+        "%sub (2-bit fields)",
+        "%add (4-bit fields)",
+        "%and6 (8-bit fields)"
+      ],
+      "steps": [
+        "%and6 -> %add8",
+        "%add8 -> %add10",
+        "%add10 -> %and11"
+      ]
+    },
+    "lemmas": [
+      {
+        "lemma": "LemmaReuse.Store.layer_15cdd830e1",
+        "kind": "layer",
+        "source": "mined",
+        "status": "proved",
+        "check_seconds": 0.26
+      },
+      {
+        "lemma": "LemmaReuse.Store.split_91f21dc64e",
+        "kind": "split",
+        "source": "mined",
+        "status": "proved",
+        "check_seconds": 0.24
+      },
+      {
+        "lemma": "LemmaReuse.Store.step_baa1347fcb",
+        "kind": "step",
+        "source": "store, under weaker hypotheses",
+        "status": "proved",
+        "check_seconds": 0.0,
+        "bound": 127,
+        "needed": 8
+      },
+      {
+        "lemma": "LemmaReuse.Store.step_81f8a11ca6",
+        "kind": "step",
+        "source": "store, under weaker hypotheses",
+        "status": "proved",
+        "check_seconds": 0.0,
+        "bound": 127,
+        "needed": 16
+      },
+      {
+        "lemma": "LemmaReuse.Store.step_b7ebfec089",
+        "kind": "step",
+        "source": "mined",
+        "status": "proved",
+        "check_seconds": 0.26,
+        "bound": 63,
+        "needed": 32
+      }
+    ],
+    "reuse": {
+      "lemmas": 5,
+      "from_store": 2,
+      "mined": 3,
+      "mined_check_seconds": 0.76
+    },
+    "proof": {
+      "status": "proved",
+      "seconds": 0.5
+    },
+    "audit": {
+      "axioms": "at most the standard three, and 21 from bv_decide",
+      "replayed": [
+        "Goal_popcountsi2_same",
+        "Lemma_layer_15cdd830e1",
+        "Lemma_split_91f21dc64e",
+        "Lemma_step_baa1347fcb",
+        "Lemma_step_81f8a11ca6",
+        "Lemma_step_b7ebfec089",
+        "Count",
+        "Bits",
+        "Kit"
+      ],
+      "seconds": 4.6
+    },
+    "seconds": 7.6
+  }
+]

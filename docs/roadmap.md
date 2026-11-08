@@ -362,6 +362,9 @@ claim one the certificate didn't check, apart from `mustprogress` and `willretur
 2. **Loops and memory,** with real function pairs from `opt` passes. Prove the bridge between safety and refinement: `Safe src → Refines src tgt → Safe tgt`, so a safety proof carries to optimized code.
 3. **Real search.** Candidates from LLVM itself, Souper, Minotaur or an LLM, all untrusted, represented through [Lean to IR](design.md#ir-and-lean-both-ways). Benchmark against what `opt -O2` already produces.
 
+[Lemma reuse](lemma-reuse.md) is a prototype for stage 1: it cuts two rewrite proofs that neither Alive2 nor one
+`bv_decide` call finishes at their default limits into lemmas, and saves them for the next proof.
+
 **Demo:** a candidate from an untrusted source, certified, on a block of real zlib, with its safety theorem
 carried across.
 
