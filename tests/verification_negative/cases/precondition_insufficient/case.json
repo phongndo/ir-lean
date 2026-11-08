@@ -1,0 +1,49 @@
+{
+  "schema": "ir-lean.verification-negative.case/1",
+  "category": "precondition",
+  "summary": "(X << 1) >> 1 -> X under X < 200, which isn't enough",
+  "llvm_verdict": "invalid",
+  "why": "At X = 150, which meets the precondition, src clears the top bit and returns 22.",
+  "claim": {
+    "binders": "(x : BitVec 8)",
+    "hypotheses": [
+      "x < 200#8"
+    ],
+    "src": "Opt.src (some x)",
+    "tgt": "Opt.tgt (some x)"
+  },
+  "names": [
+    "Opt.src",
+    "Opt.tgt"
+  ],
+  "precondition_witness": {
+    "x": "150#8"
+  },
+  "request": {
+    "input": {
+      "ir": "Opt.ll"
+    },
+    "namespace": "Opt",
+    "function": "tgt",
+    "proof": "Proof.lean",
+    "theorem": "tgt_refines_src",
+    "witnesses": [
+      {
+        "x": "150#8"
+      }
+    ],
+    "limits": {
+      "timeout_seconds": 120,
+      "memory_mb": 4000
+    }
+  },
+  "expect": {
+    "certified": false,
+    "verify": [
+      "counterexample/witness_falsifies"
+    ],
+    "gate": [
+      "not_proved"
+    ]
+  }
+}

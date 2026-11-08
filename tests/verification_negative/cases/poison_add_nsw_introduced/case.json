@@ -1,0 +1,44 @@
+{
+  "schema": "ir-lean.verification-negative.case/1",
+  "category": "poison",
+  "summary": "add X, 1 -> add nsw X, 1, which makes a defined result poison",
+  "llvm_verdict": "invalid",
+  "why": "At X = 127, src returns -128 and tgt returns poison, which isn't allowed where src has a value.",
+  "claim": {
+    "binders": "(x : IRLean.Val 8)",
+    "hypotheses": [],
+    "src": "Opt.src x",
+    "tgt": "Opt.tgt x"
+  },
+  "names": [
+    "Opt.src",
+    "Opt.tgt"
+  ],
+  "request": {
+    "input": {
+      "ir": "Opt.ll"
+    },
+    "namespace": "Opt",
+    "function": "tgt",
+    "proof": "Proof.lean",
+    "theorem": "tgt_refines_src",
+    "witnesses": [
+      {
+        "x": "some 127#8"
+      }
+    ],
+    "limits": {
+      "timeout_seconds": 120,
+      "memory_mb": 4000
+    }
+  },
+  "expect": {
+    "certified": false,
+    "verify": [
+      "counterexample/witness_falsifies"
+    ],
+    "gate": [
+      "not_proved"
+    ]
+  }
+}
