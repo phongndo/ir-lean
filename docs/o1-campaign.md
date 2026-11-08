@@ -136,8 +136,9 @@ counts hold for, as `evidence_sources`, and `check` fails when they aren't the c
 bring the evidence up to date, or count it stale. Before any verify, `bind` runs `lake build` and `ninja` under the
 lock, so the library and `ir-lean` it checks with are built from the sources its verdicts are labeled with.
 
-ctest runs `check` with `--allow-stale`. It still checks that the files agree with each other, and when the evidence
-is stale it prints the counts under the current sources, with that evidence as `bound_stale`. Only the machine that
+ctest runs `check` with `--allow-stale`. It still checks that the files agree with each other. On every run it reports
+the counts under the current sources, with any stale evidence as `bound_stale`, and on GitHub Actions it writes them
+to the job summary, where a passing test's output would otherwise be hidden. Only the machine that
 recorded the bundles can bind them again. Without that flag, another lane's change to the model, the emitter or the
 checker would fail every pull request until this campaign re-binds. A pull request that changes the campaign's
 evidence or reports is opened only after the strict `check` passes, and says so.

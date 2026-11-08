@@ -8,6 +8,7 @@ usage: campaign/o1/test_o1.py
 
 import copy
 import json
+import os
 import subprocess
 import sys
 import tempfile
@@ -250,8 +251,21 @@ class Committed(unittest.TestCase):
         # printed instead, with the stale evidence as stale. The test below checks staleness is caught.
         self.assertEqual(o1.check_consistency(allow_stale=True), [])
         current = o1.current_summary()
-        if current["evidence_sources"] != o1.read_json(o1.LEDGER)["evidence_sources"]:
-            print(f"\nO1 evidence is stale here. Under these sources: {current['verdicts']}", file=sys.stderr)
+        recorded = o1.read_json(o1.LEDGER)["evidence_sources"]
+        state = (
+            "current" if current["evidence_sources"] == recorded else "STALE: verified under other sources"
+        )
+        report = (
+            f"### O1 campaign evidence ({current['level']}, default<O1>): {state}\n\n"
+            f"Counts under this tree's sources, `{current['evidence_sources'][:16]}`: "
+            f"`{json.dumps(current['verdicts'], sort_keys=True)}`. Whole runs: "
+            f"`{json.dumps(current['whole_run'], sort_keys=True)}`. Complete: `{current['complete']}`.\n"
+        )
+        print("\n" + report, file=sys.stderr)
+        # On GitHub Actions, where a passing test's output isn't shown, the job summary gets it.
+        if summary := os.environ.get("GITHUB_STEP_SUMMARY"):
+            with open(summary, "a") as f:
+                f.write(report)
 
     def test_stale_evidence_fails_the_check_and_counts_as_stale(self) -> None:
         with mock.patch.object(o1, "sources_fingerprint", return_value="the model changed"):
