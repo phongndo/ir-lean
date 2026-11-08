@@ -43,9 +43,9 @@ theorem sub_zero (a : Val w) (nuw nsw : Bool) : Val.sub a (some 0#w) nuw nsw = a
   | none => rfl
   | some x => simp [Val.sub, BitVec.usubOverflow, BitVec.ssubOverflow, BitVec.toInt_lt, BitVec.le_toInt]
 
-/-- `mul x, 1` is `x` without `nsw`, or above one bit. In `i1` the constant `1` is `-1` as a signed value, and
+/-- `mul x, 1` is `x` without `nsw`, or at any width but one. In `i1` the constant `1` is `-1` as a signed value, and
 `mul nsw i1 1, 1` is poison: `-1 * -1` doesn't fit. -/
-theorem mul_one (a : Val w) (nuw nsw : Bool) (h : nsw = false ∨ 1 < w) : Val.mul a (some 1#w) nuw nsw = a := by
+theorem mul_one (a : Val w) (nuw nsw : Bool) (h : nsw = false ∨ w ≠ 1) : Val.mul a (some 1#w) nuw nsw = a := by
   cases a with
   | none => rfl
   | some x =>
@@ -56,25 +56,29 @@ theorem mul_one (a : Val w) (nuw nsw : Bool) (h : nsw = false ∨ 1 < w) : Val.m
         _ < 2 ^ w := by rw [Nat.mul_one]; exact x.isLt
     rcases h with h | h
     · subst h; simp [Val.mul, hu]
-    · have hs : x.smulOverflow 1#w = false := by
-        have := BitVec.toInt_lt (x := x)
-        have := BitVec.le_toInt x
-        simp only [BitVec.smulOverflow, BitVec.toInt_one h, Int.mul_one, Bool.or_eq_false_iff,
-          decide_eq_false_iff_not]
-        omega
-      simp [Val.mul, hu, hs]
+    · by_cases h1 : 1 < w
+      · have hs : x.smulOverflow 1#w = false := by
+          have := BitVec.toInt_lt (x := x)
+          have := BitVec.le_toInt x
+          simp only [BitVec.smulOverflow, BitVec.toInt_one h1, Int.mul_one, Bool.or_eq_false_iff,
+            decide_eq_false_iff_not]
+          omega
+        simp [Val.mul, hu, hs]
+      · -- At width zero every value is `0`, and nothing overflows.
+        obtain rfl : w = 0 := by omega
+        clear hu; revert x; cases nuw <;> cases nsw <;> decide
 
 /-- `mul x, 1` refines `x` with any flags at any width: where `nsw` makes `i1` poison, anything is allowed. -/
 theorem mul_one_refines (a : Val w) (nuw nsw : Bool) : Refines (Val.mul a (some 1#w) nuw nsw) a := by
-  by_cases h : nsw = false ∨ 1 < w
+  by_cases h : nsw = false ∨ w ≠ 1
   · rw [mul_one a nuw nsw h]; exact Refines.refl a
   · cases a with
     | none => exact Refine.val_none _
     | some x =>
       refine refines_of_eq_or_none ?_
-      obtain ⟨rfl, hw⟩ : nsw = true ∧ w ≤ 1 := by simpa using h
-      -- At one bit or none, `x * 1` is `x`, so a result that isn't poison is `x`.
-      rcases (by omega : w = 0 ∨ w = 1) with rfl | rfl <;> revert x <;> cases nuw <;> decide
+      obtain ⟨rfl, rfl⟩ : nsw = true ∧ w = 1 := by simpa using h
+      -- At one bit, `x * 1` is `x`, so a result that isn't poison is `x`.
+      revert x; cases nuw <;> decide
 
 /-! ### Operands that cancel: `x - x`, `x * 0` -/
 
@@ -206,8 +210,11 @@ theorem udiv_one (a : Val w) (exact : Bool) (hw : 0 < w) : Val.udiv a (some 1#w)
   | none => simp [Val.udiv, h1]
   | some x => simp [Val.udiv, h1, BitVec.umod_one, BitVec.udiv_one]
 
-/-- `urem x, 1` refines `0` at any width but zero. Poison `x` makes it poison, so it isn't an equality. -/
-theorem urem_one_refines (a : Val w) (hw : 0 < w) : Refines (Val.urem a (some 1#w)) (Outcome.ok (some 0#w)) := by
+/-- `urem x, 1` refines `0`. Poison `x` makes it poison, so it isn't an equality. At width zero, `1` is `0`, and the
+source is undefined. -/
+theorem urem_one_refines (a : Val w) : Refines (Val.urem a (some 1#w)) (Outcome.ok (some 0#w)) := by
+  rcases Nat.eq_zero_or_pos w with rfl | hw
+  · exact Refine.outcome_ub _ _
   have h1 : (1#w == 0#w) = false := by
     simp [← BitVec.toNat_inj, BitVec.toNat_one hw]
   cases a with
@@ -236,13 +243,14 @@ theorem sdiv_one (a : Val w) (exact : Bool) (hw : 1 < w) : Val.sdiv a (some 1#w)
   | none => simp [Val.sdiv, Val.divOverflows, h1, hm]
   | some x => simp [Val.sdiv, Val.divOverflows, h1, ho, BitVec.srem_one, BitVec.sdiv_one]
 
-/-- `sdiv x, 1` refines `x` at every width but zero, `i1` included: there, it's undefined wherever it isn't `x`. -/
-theorem sdiv_one_refines (a : Val w) (exact : Bool) (hw : 0 < w) :
-    Refines (Val.sdiv a (some 1#w) exact) (Outcome.ok a) := by
+/-- `sdiv x, 1` refines `x` at every width. In `i1` it's undefined wherever it isn't `x`, and at width zero, where `1`
+is `0`, everywhere. -/
+theorem sdiv_one_refines (a : Val w) (exact : Bool) : Refines (Val.sdiv a (some 1#w) exact) (Outcome.ok a) := by
   by_cases h : 1 < w
   · rw [sdiv_one a exact h]; exact (Refine.outcome_ok_ok _ _).2 (Refines.refl a)
-  · obtain rfl : w = 1 := by omega
-    -- In `i1`, dividing by `1`, which is `-1`, is undefined for poison and `-1`, and gives `0` for `0`.
+  rcases (by omega : w = 0 ∨ w = 1) with rfl | rfl
+  · exact Refine.outcome_ub _ _
+  · -- In `i1`, dividing by `1`, which is `-1`, is undefined for poison and `-1`, and gives `0` for `0`.
     rcases a with _ | x
     · exact Refine.outcome_ub _ _
     · rcases (by decide : ∀ x : BitVec 1, x = 0#1 ∨ x = 1#1) x with rfl | rfl
@@ -250,11 +258,12 @@ theorem sdiv_one_refines (a : Val w) (exact : Bool) (hw : 0 < w) :
         exact (Refine.outcome_ok_ok _ _).2 (Refines.refl (α := Val 1) _)
       · exact Refine.outcome_ub _ _
 
-/-- `srem x, 1` refines `0` at every width but zero. Above one bit it's `0` for a value, and poison for poison; in `i1`
-it's also undefined for the minimum and for poison. -/
-theorem srem_one_refines (a : Val w) (hw : 0 < w) : Refines (Val.srem a (some 1#w)) (Outcome.ok (some 0#w)) := by
+/-- `srem x, 1` refines `0` at every width. Above one bit it's `0` for a value, and poison for poison. In `i1` it's
+undefined for the minimum and for poison, and at width zero, where `1` is `0`, everywhere. -/
+theorem srem_one_refines (a : Val w) : Refines (Val.srem a (some 1#w)) (Outcome.ok (some 0#w)) := by
   by_cases h : 1 < w
-  · have h1 : (1#w == 0#w) = false := by
+  · have hw : 0 < w := by omega
+    have h1 : (1#w == 0#w) = false := by
       simp [← BitVec.toNat_inj, BitVec.toNat_one hw]
     have hm : (1#w == BitVec.allOnes w) = false := by
       simp only [beq_eq_false_iff_ne, ne_eq, ← BitVec.toNat_inj, BitVec.toNat_one hw, BitVec.toNat_allOnes]
@@ -272,8 +281,9 @@ theorem srem_one_refines (a : Val w) (hw : 0 < w) : Refines (Val.srem a (some 1#
         exact .inr (by simpa using hm)
       simp only [Val.srem, Val.divOverflows, h1, ho, Bool.false_eq_true, ite_false, BitVec.srem_one]
       exact (Refine.outcome_ok_ok _ _).2 (Refines.refl (α := Val w) _)
-  · obtain rfl : w = 1 := by omega
-    rcases a with _ | x
+  rcases (by omega : w = 0 ∨ w = 1) with rfl | rfl
+  · exact Refine.outcome_ub _ _
+  · rcases a with _ | x
     · exact Refine.outcome_ub _ _
     · rcases (by decide : ∀ x : BitVec 1, x = 0#1 ∨ x = 1#1) x with rfl | rfl
       · rw [show Val.srem (some 0#1) (some 1#1) = Outcome.ok (some 0#1) by rfl]

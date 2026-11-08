@@ -39,7 +39,7 @@ written. `InstructionSimplify.cpp` is in `llvm/lib/Analysis`, the others in `llv
 | --- | --- | --- | --- | --- |
 | `add x, 0` to `x` | `add_zero` | Equality, any flags | | `InstructionSimplify.cpp:607` |
 | `sub x, 0` to `x` | `sub_zero` | Equality, any flags | | `InstructionSimplify.cpp:761` |
-| `mul x, 1` to `x` | `mul_one` | Equality, any flags | No `nsw`, or `1 < w`. In `i1`, `1` is `-1`, and `mul nsw i1 1, 1` is poison | `InstructionSimplify.cpp:913` |
+| `mul x, 1` to `x` | `mul_one` | Equality, any flags | No `nsw`, or `w ≠ 1`. In `i1`, `1` is `-1`, and `mul nsw i1 1, 1` is poison | `InstructionSimplify.cpp:913` |
 | | `mul_one_refines` | Refinement, any flags | | |
 | `sub x, x` to `0` | `sub_self_refines` | Refinement, any flags | | `InstructionSimplify.cpp:765` |
 | `mul x, 0` to `0` | `mul_zero_refines` | Refinement, any flags | | `InstructionSimplify.cpp:909` |
@@ -49,8 +49,8 @@ written. `InstructionSimplify.cpp` is in `llvm/lib/Analysis`, the others in `llv
 | `or disjoint x, y` to `add nuw nsw x, y` | `or_disjoint_refines_add` | Refinement. The other direction is wrong: `add nuw nsw 1, 1` is `2` | | `InstCombineAddSub.cpp:2426` calls them equivalent, and `m_AddLike` matches both |
 | `udiv x, 1` to `x` | `udiv_one` | Equality, any `exact` | `0 < w`, since `1` is `0` at width zero | `InstructionSimplify.cpp:1094` |
 | `sdiv x, 1` to `x` | `sdiv_one` | Equality, any `exact` | `1 < w`. In `i1`, `1` is `-1`, and dividing `-1` or poison by it is undefined | `InstructionSimplify.cpp:1094` |
-| | `sdiv_one_refines` | Refinement, any `exact`, `i1` included | `0 < w` | |
-| `urem x, 1`, `srem x, 1` to `0` | `urem_one_refines`, `srem_one_refines` | Refinement | `0 < w` | `InstructionSimplify.cpp:1095` |
+| | `sdiv_one_refines` | Refinement, any `exact`, at every width: where the equality fails, the source is undefined | | |
+| `urem x, 1`, `srem x, 1` to `0` | `urem_one_refines`, `srem_one_refines` | Refinement, at every width | | `InstructionSimplify.cpp:1095` |
 
 ### Bitwise
 

@@ -23,9 +23,11 @@ example : Val.ashr (some 0#0) (some 0#0) = none := by decide
 /-- `udiv_one` needs `0 < w`: at width zero, `1` is `0`. -/
 example : Val.udiv (some 0#0) (some 1#0) = Outcome.ub .divByZero := rfl
 
-/-- `sdiv_one` needs `1 < w`: in `i1`, `1` is `-1`, and dividing `-1`, or poison, by it is undefined. -/
+/-- `sdiv_one` needs `1 < w`: in `i1`, `1` is `-1`, and dividing `-1`, or poison, by it is undefined. At width zero,
+`1` is `0`. -/
 example : Val.sdiv (some 1#1) (some 1#1) = Outcome.ub .divOverflow := rfl
 example : Val.sdiv (none : Val 1) (some 1#1) = Outcome.ub .divOverflow := rfl
+example : Val.sdiv (some 0#0) (some 1#0) = Outcome.ub .divByZero := rfl
 
 /-- `mul_one` with `nsw` needs `w ≠ 1`: `mul nsw i1 1, 1` is poison, since `-1 * -1` doesn't fit. -/
 example : Val.mul (some 1#1) (some 1#1) false true = none := by decide
@@ -34,6 +36,10 @@ example : Val.mul (some 1#1) (some 1#1) false true = none := by decide
 poison. `instcombine` turns `add i1` into `xor` before trying this. -/
 example : ¬ Refines (Val.add (some 0#1) (some 0#1)) (Val.shl (some 0#1) (some 1#1)) :=
   not_refines 0#1 (by decide) (by decide)
+
+/-- `mul_twoPow` needs the constant to be `2 ^ k`: `mul 1, 3` is `3`, and `shl 1, 1` is `2`. -/
+example : ¬ Refines (Val.mul (some 1#8) (some 3#8)) (Val.shl (some 1#8) (some 1#8)) :=
+  not_refines 3#8 (by decide) (by decide)
 
 /-- `mul_twoPow` needs `k < w`: `twoPow 8 8` is `0`, so `mul x, 0` is `0`, and `shl x, 8` is poison. -/
 example : ¬ Refines (Val.mul (some 1#8) (some (BitVec.twoPow 8 8))) (Val.shl (some 1#8) (some 8#8)) :=
@@ -88,7 +94,11 @@ example : Val.xor (Val.or (some 1#8) (some 1#8) true) (some 255#8) ≠
     Val.and (Val.xor (some 1#8) (some 255#8)) (Val.xor (some 1#8) (some 255#8)) := by decide
 example : Val.xor (Val.xor (some 0#8) none) none ≠ some 0#8 := by decide
 example : Val.and (some 0#8) (Val.or (some 0#8) none) ≠ some 0#8 := by decide
+example : Val.mul (some 2#8) (some 128#8) false true ≠ Val.shl (some 2#8) (some 7#8) false false := by decide
 example : Val.lshr (Val.shl (some 128#8) (some 1#8) true false) (some 1#8) ≠ some 128#8 := by decide
+example : Val.ashr (Val.shl (some 64#8) (some 1#8) false true) (some 1#8) ≠ some 64#8 := by decide
+example : Val.shl (Val.lshr (some 1#8) (some 1#8) true) (some 1#8) ≠ some 1#8 := by decide
+example : Val.shl (Val.ashr (some 1#8) (some 1#8) true) (some 1#8) ≠ some 1#8 := by decide
 example : Val.urem (none : Val 8) (some 1#8) ≠ Outcome.ok (some 0#8) := by simp [Val.urem, Outcome.ok]
 example : Val.srem (none : Val 8) (some 1#8) ≠ Outcome.ok (some 0#8) := by
   simp [Val.srem, Val.divOverflows, Outcome.ok]
