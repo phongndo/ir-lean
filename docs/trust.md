@@ -42,6 +42,7 @@ alone shows nothing about whether either program is safe.
 | LLVM's IR parser | Trusted | Reads IR differently from the tool that wrote it, or upgrades older IR | Native-code comparison | Pin versions, and record them |
 | Emitter, about 2,100 lines of C++ | Trusted, unverified | Prints Lean that means something else | Differential tests, `tests/emitter.sh`, 13 C-level mutations, and one-off mutation of the GEP and promise rules | Full semantic and emitter mutation, then a check inside Lean ([in design](design.md#ir-and-lean-both-ways)) |
 | `IRLean`, about 1,650 lines | Trusted, incomplete | Doesn't match LLVM | Constant folder, Alive2 for integer operations and GEPs, native code | [Phase 0](roadmap.md#phase-0-semantic-fidelity-and-trust-infrastructure) |
+| x86 intrinsics in `IRLean/X86.lean` | Trusted, written from Intel's pseudo-code | Doesn't match the processor, or LLVM's reading of the intrinsic | `tests/real/x86.ll` against the processor, saturation and wrapping included. Alive2 doesn't know VPDPBUSD | An independent check of VPDPBUSD |
 | Lean kernel | Trusted | A kernel bug | Lean's own process | Nothing planned |
 | `bv_decide` | Trusted | Proofs using it also trust Lean's compiled code through the axiom it adds for each call | `tests/proofs.sh`, which allows only these and the standard three, recomputes each, and counts them per proof | Nothing planned |
 | Spec and theorem statement | Read by a person | The theorem proves the wrong thing | Review, and known test vectors | Publish statements separately from proofs |

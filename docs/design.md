@@ -35,8 +35,8 @@ def popcount (x : Val 32) : Outcome (Val 32) :=
 
 ## What the model covers
 
-The model covers integers, pointers, structs, vectors of integers, memory, globals, function pointers,
-recursion, and `malloc`, `free` and `strlen`. It doesn't cover floating point, atomics, volatile,
+The model covers integers, pointers, structs, vectors of integers and the bitcasts between them, x86's integer
+dot-product intrinsics, memory, globals, function pointers, recursion, and `malloc`, `free` and `strlen`. It doesn't cover floating point, atomics, volatile,
 exceptions, or calls to anything else outside the module, and the emitter leaves those functions out
 and says why.
 
@@ -79,6 +79,12 @@ not run, can use `--no-code`, so Lean doesn't generate code for it: `inflate` ch
   a library function, and `Mem` does that for `malloc`, `free` and `strlen`.
 - **Vectors are a `Val` per lane**, so one lane can be poison, and an operation on a vector is the scalar
   operation on each lane.
+- **`bitcast` between integer vectors** splits or joins lanes, the first lowest, as x86 lays them out. A result
+  lane is poison if any lane it takes bits from is. Other bitcasts are refused.
+- **x86's integer dot products are modeled, and nothing else of x86's.** PMADDUBSW, PMADDWD and VPDPBUSD, as
+  `llvm.x86.*` intrinsics at 128, 256 and 512 bits, follow Intel's pseudo-code in [`X86.lean`](../IRLean/X86.lean).
+  LangRef says nothing about poison in target intrinsics, so a result lane is poison when a lane it's computed from
+  is, as for every other vector operation. [`x86.ll`](../tests/real/x86.ll) runs each against the processor.
 
 ## IR and Lean, both ways
 

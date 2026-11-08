@@ -43,6 +43,25 @@ namespace Vec
     | some (some j) => if j < n then lane a j else lane b (j - n)
     | _ => none
 
+/-- `bitcast` to `k` times as many lanes, each `1 / k` as wide. Lanes are laid end to end, the first lowest,
+as x86 does: lane `i` is the bits of lane `i / k` from `v * (i % k)` up. It's poison if that lane is. -/
+@[llvm] def split (m v k : Nat) (a : Vec n w) : Vec m v :=
+  Vector.ofFn fun i =>
+    match a.lane (i / k) with
+    | some x => some (x.extractLsb' (v * (i.val % k)) v)
+    | none => none
+
+/-- `bitcast` to `1 / k` as many lanes, each `k` times as wide: lane `i` joins lanes `k * i` to
+`k * i + k - 1`, the first lowest. It's poison if any of them is. -/
+@[llvm] def join (m v k : Nat) (a : Vec n w) : Vec m v :=
+  Vector.ofFn fun i =>
+    (List.range k).foldr
+      (fun j acc =>
+        match a.lane (k * i + j), acc with
+        | some x, some y => some ((y <<< w) ||| x.setWidth v)
+        | _, _ => none)
+      (some 0#v)
+
 /-- `llvm.vector.reduce.*`: combines the lanes, starting from the first. -/
 @[llvm] def reduce (f : Val w → Val w → Val w) (a : Vec n w) : Val w :=
   match a.toList with

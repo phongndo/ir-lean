@@ -21,6 +21,7 @@
 #include "llvm/IR/InstrTypes.h"
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/IntrinsicInst.h"
+#include "llvm/IR/IntrinsicsX86.h"
 #include "llvm/IR/LLVMContext.h"
 #include "llvm/IR/Operator.h"
 #include "llvm/Support/raw_ostream.h"
@@ -1271,6 +1272,24 @@ void FunctionEmitter::emitInstruction(const Instruction &I, std::vector<Line> &O
     Cast("Val.trunc", flag(T.hasNoUnsignedWrap(), "nuw") + flag(T.hasNoSignedWrap(), "nsw"));
     return;
   }
+  // Between vectors of integers only. One lane width divides the other, so it's a split or a join.
+  case Instruction::BitCast: {
+    auto *From = dyn_cast<FixedVectorType>(I.getOperand(0)->getType());
+    auto *To = dyn_cast<FixedVectorType>(I.getType());
+    if (!From || !To || !From->getElementType()->isIntegerTy() || !To->getElementType()->isIntegerTy())
+      reject("instruction " + printed(I));
+    unsigned W = From->getScalarSizeInBits(), V = To->getScalarSizeInBits();
+    std::string M = std::to_string(To->getNumElements()), VS = std::to_string(V);
+    if (W == V)
+      addLet(I, Out, Op(0));
+    else if (W % V == 0)
+      addLet(I, Out, "Vec.split " + M + " " + VS + " " + std::to_string(W / V) + " " + Op(0));
+    else if (V % W == 0)
+      addLet(I, Out, "Vec.join " + M + " " + VS + " " + std::to_string(V / W) + " " + Op(0));
+    else
+      reject("instruction " + printed(I));
+    return;
+  }
   case Instruction::ExtractElement:
     addLet(I, Out, "Vec.extract " + Op(0) + " " + Op(1));
     return;
@@ -1397,6 +1416,7 @@ bool FunctionEmitter::emitIntrinsic(const IntrinsicInst &C, std::vector<Line> &O
     addLet(C, Out, std::string(Fn) + " " + Op(0) + " " + Op(1) + " " + Op(2));
     return true;
   };
+  auto Lanes = [&] { return std::to_string(cast<FixedVectorType>(C.getType())->getNumElements()); };
   switch (C.getIntrinsicID()) {
   case Intrinsic::assume:
     for (unsigned B = 0, E = C.getNumOperandBundles(); B != E; ++B) {
@@ -1495,6 +1515,22 @@ bool FunctionEmitter::emitIntrinsic(const IntrinsicInst &C, std::vector<Line> &O
     return Binary("Val.umulWithOverflow");
   case Intrinsic::smul_with_overflow:
     return Binary("Val.smulWithOverflow");
+  // x86's integer dot products, in IRLean/X86.lean. The first two need the number of lanes they produce.
+  case Intrinsic::x86_ssse3_pmadd_ub_sw_128:
+  case Intrinsic::x86_avx2_pmadd_ub_sw:
+  case Intrinsic::x86_avx512_pmaddubs_w_512:
+    addLet(C, Out, "X86.pmaddubsw " + Lanes() + " " + Op(0) + " " + Op(1));
+    return true;
+  case Intrinsic::x86_sse2_pmadd_wd:
+  case Intrinsic::x86_avx2_pmadd_wd:
+  case Intrinsic::x86_avx512_pmaddw_d_512:
+    addLet(C, Out, "X86.pmaddwd " + Lanes() + " " + Op(0) + " " + Op(1));
+    return true;
+  case Intrinsic::x86_avx512_vpdpbusd_128:
+  case Intrinsic::x86_avx512_vpdpbusd_256:
+  case Intrinsic::x86_avx512_vpdpbusd_512:
+    addLet(C, Out, "X86.vpdpbusd " + Op(0) + " " + Op(1) + " " + Op(2));
+    return true;
   case Intrinsic::ucmp:
   case Intrinsic::scmp:
     addLet(C, Out,

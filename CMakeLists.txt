@@ -37,6 +37,15 @@ add_test(
         ${CMAKE_SOURCE_DIR}/tests/real/heap.ll ${CMAKE_SOURCE_DIR}/tests/real/gep.ll
         ${CMAKE_SOURCE_DIR}/tests/real/promises.ll --strict
 )
+# x86's dot-product intrinsics against the processor, which needs AVX-512 VNNI. Without it, this skips.
+add_test(
+    NAME x86
+    COMMAND
+        sh -c "grep -q avx512_vnni /proc/cpuinfo || exit 77; exec \"$@\"" sh
+        ${CMAKE_SOURCE_DIR}/tests/differential.py $<TARGET_FILE:ir-lean> ${CMAKE_SOURCE_DIR}/tests/real/x86.ll
+        --strict --runs 400
+)
+set_tests_properties(x86 PROPERTIES SKIP_RETURN_CODE 77)
 add_test(
     NAME undefined
     COMMAND
@@ -86,6 +95,7 @@ set_tests_properties(
     fuzz
     llvm
     superopt
+    x86
     PROPERTIES TIMEOUT 1800
 )
 set_tests_properties(zlib_slow PROPERTIES LABELS slow)
