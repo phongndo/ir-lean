@@ -51,6 +51,7 @@ theorem popcount_correct (x : BitVec 32) :
 | [Status](docs/status.md) | What's proved, what's tested, what's measured |
 | [Trust](docs/trust.md) | What a theorem means, what it rests on, and the known gaps |
 | [LLVM's own code](docs/llvm.md) | What's proved about llvm-project, how to reproduce it, and what it assumes |
+| [llama.cpp rewrite](docs/llama.md) | A proved Q5 bit-unpacking rewrite, real CPU generation measurements, and the reproducer |
 | [Design](docs/design.md) | What gets emitted, what the model covers, and why |
 | [Testing](docs/testing.md) | How to run the tests and linters, and what each one checks |
 | [Roadmap](docs/roadmap.md) | Where this is going, in what order, and the [first pull requests](docs/roadmap.md#near-term-pull-requests) |

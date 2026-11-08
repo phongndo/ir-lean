@@ -1,0 +1,36 @@
+{
+  "recorded": "2026-11-07",
+  "source_commit": "80d2c0c2c56e4a1bbf74be98f64b99927bf230bc",
+  "source_url": "https://github.com/ggml-org/llama.cpp",
+  "model": "Qwen/Qwen2.5-0.5B-Instruct-GGUF/qwen2.5-0.5b-instruct-q4_k_m.gguf",
+  "model_revision": "9217f5db79a29953eb74d5343926648285ec7e67",
+  "model_sha256": "74a4da8c9fdbcd15bd1f6d01d621410d31c6fc00986f5eb687824e7b93d7a9db",
+  "cpu": "AMD Ryzen 9 9950X / Zen 5",
+  "primary_affinity": "CPU 8, one physical core, one inference thread",
+  "compiler": "Clang/LLVM 23.1.5; Nix Clang 23.1.3 wrapper and resource headers from repository flake",
+  "llvm_archive": "https://github.com/llvm/llvm-project/releases/download/llvmorg-23.1.5/LLVM-23.1.5-Linux-X64.tar.zst",
+  "llvm_archive_sha256": "c3107384835f788768f614db610e87fba7077f125ca950eb02a78bab0a308065",
+  "optimization": "-O3 -DNDEBUG -gline-tables-only -march=native (effective znver5)",
+  "backend": "CPU only; native ISA, repacking and llamafile enabled; OpenMP unavailable/disabled; no GPU or BLAS",
+  "proof": "Exact integer slice; every Val 32 including poison; defined input returns 32 defined bytes, each 0 for a set bit and 240 for an unset bit.",
+  "proof_axioms": "Standard three and 32 recomputed bv_decide axioms",
+  "alive2": "Bidirectional, --disable-undef-input; full-undef attempt timed out and is not counted as validation",
+  "native_reference_inputs": 1000066,
+  "hashes": {
+    "tests/real/llama_q5_bitspread.ll": "d182476786f1590486787140e2fd6309949b138750dccfc4d6e6a516295b73ca",
+    "tests/proofs/LlamaBitspread.lean": "4f2b719071a300fd3fd5fb4097eb64e98ed3ff12d78aae6e5ebb58c57c9816fc",
+    "IRLean/Vec.lean": "bc30c445ac02452dd6ebf66c8546daedf1390ea059b74c42e8894e468acc12fa",
+    "src/Emitter.cpp": "ca5c66733fc73c341ce8f94dc034d988f3c1ee2e8eaef96828a521c75454e854",
+    "build/llama-search/ir-preserved/quants.ll": "99c3ab2fbdf9b54e4750c800d71d3294d5c23a175ed7308ce98912d065d9fb83",
+    "build/llama-search/candidates/quants-preserved-bitspread.ll": "7b9d1c539b90e79b03c4c45eaadf4f5eeb6c6cbcc1d337b4da4578b4383f2fd1",
+    "build/llama-search/baseline/bin/libggml-cpu.so.0": "4af45ecc6efdea3f75022cf1f421301f1fa7e4fcd07486b090b3bf5354538849",
+    "build/llama-search/variants/q5-bitspread/libggml-cpu.so.0": "b37d049f2d846c32d8d687cab6bafdce5850d221e96217eb0c8f0a3ca06e15f3",
+    "build/llama-search/generation.txt": "d2e213a08f4e5c07cff2bb5064e095eb139f1be9ae66ba68e5a51b2735948462"
+  },
+  "notes": [
+    "All original timing pairs retained, including large outliers; host was not isolated.",
+    "Session medians and pooled ratios describe this workload and target, not other thread counts or machines.",
+    "Only Q5 bitspread is in the measured target. Nibble and Q8 guard are separate exploratory variants.",
+    "Original measured target relowered unchanged repack as a control; packaged target reuses the original repack object. All allocated target ELF sections except build-id and full disassembly agree."
+  ]
+}

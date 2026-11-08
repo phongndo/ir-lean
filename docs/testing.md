@@ -24,6 +24,10 @@ everything every time, in about a minute.
 | `emitter` | What the emitter refuses and accepts on purpose, the default namespace, and that `opcheck` can't pass quietly without Alive2 |
 | `fuzz` | The same comparison on random functions, optimized at random levels |
 | `proofs` | The proofs against freshly generated Lean, that breaking the C breaks the proof, and that a proof can only rest on the standard axioms and `bv_decide`'s |
+| `llama_bitspread` | The exact q5_0 integer slice against its replacement, including poison inputs and the defined byte value for every bit; regenerates Lean, audits axioms, and rejects a wrong-bit replacement without downloading a model |
+| `llama_rewrite` | The q5_0 matcher against the committed IR fixture, including outside users, malformed masks, incomplete chains, and repeated application |
+| `llama_capture` | Complete raw-logit captures are accepted; changed bits, tokens, positions, prompts, truncation, and inconsistent metadata are rejected |
+| `llama_evidence` | Committed timing rows agree with raw logs and generated output hashes; paired estimates and the pooled bootstrap reproduce without a model download |
 | `llvm` | [LLVM's own code](llvm.md): functions from `llvm-project` at the pinned tag, compiled as upstream does, against their proofs, with an injected bug for each that has to stop its proof. Prints the score. `--manifest` writes what each theorem says and rests on |
 | `superopt` | What a search finds for real functions, against Alive2 and a Lean theorem that it does the same, and that a wrong rewrite fails both. `--bench` also measures it against `clang -O3`, which CI doesn't, since timings vary |
 | `names` | Every word Lean reserves is avoided in generated names |

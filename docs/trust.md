@@ -33,6 +33,21 @@ gaps below.
 hits undefined behavior on an input, any `tgt` refines it on that input, so a refinement certificate
 alone shows nothing about whether either program is safe.
 
+**A local rewrite certificate covers its slice.** The q5_0
+[bit-spreading proof](../tests/proofs/LlamaBitspread.lean) checks the exact pure integer helper in
+[`llama_q5_bitspread.ll`](../tests/real/llama_q5_bitspread.ll). It proves that both helpers return the same
+successful result for all integer inputs, including poison, and states every defined output byte for
+defined inputs. Extracting that helper from a larger module and substituting its result remain trusted
+steps. The certificate does not model the surrounding loads, floating-point arithmetic, whole inference,
+or native lowering.
+
+Integer `bitcast` supports scalars and fixed integer vectors of equal total size, when one lane width
+divides the other. It uses little-endian bit order; even pure big-endian functions are refused. Splitting
+a poison lane poisons all its pieces. Joining poisons only the destination lane containing a poison
+piece, so joining then splitting can spread poison. Floating-point, pointer, scalable-vector and
+nondividing-width casts remain refused. These rules are part of the trusted semantic model, tested by
+the native vector comparisons and the explicit lane-order and poison cases in `tests/emitter.sh`.
+
 ## Trust boundaries
 
 | Layer | Status today | What could go wrong | What checks it | How to shrink it |

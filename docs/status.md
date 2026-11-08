@@ -45,6 +45,13 @@ These are theorems about modeled IR. [The trust model](trust.md) says what that 
 that stops its proof. [LLVM's own code](llvm.md) has them, how to reproduce them, what they assume, and two rewrites that
 measurably beat `clang -O3`, proved to do the same. Those results are from 2026-11-06, on top of `c389ecc`.
 
+### llama.cpp
+
+A local integer rewrite from llama.cpp also has a [checked equivalence certificate and real inference
+measurements](llama.md), recorded on 2026-11-07. Its scope is the exact Q5 bit-unpacking slice, including
+poison handling and defined output bytes. The surrounding floating-point inference program is checked
+empirically, rather than proved. The report gives the target, thread count, variance and reproducer.
+
 ## Tested
 
 Evidence and not proof. A pass here means no disagreement was found on the inputs tried.
