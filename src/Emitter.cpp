@@ -1271,6 +1271,31 @@ void FunctionEmitter::emitInstruction(const Instruction &I, std::vector<Line> &O
     Cast("Val.trunc", flag(T.hasNoUnsignedWrap(), "nuw") + flag(T.hasNoSignedWrap(), "nsw"));
     return;
   }
+  case Instruction::BitCast: {
+    Type *Src = I.getOperand(0)->getType();
+    Type *Dst = I.getType();
+    auto IntegerShape = [](Type *T) {
+      return T->isIntegerTy() || (isa<FixedVectorType>(T) && T->getScalarType()->isIntegerTy());
+    };
+    if (!IntegerShape(Src) || !IntegerShape(Dst))
+      reject("integer bitcast shape " + printed(I));
+    unsigned SrcWidth = Src->getScalarSizeInBits();
+    unsigned DstWidth = Dst->getScalarSizeInBits();
+    unsigned SrcLanes = Src->isVectorTy() ? cast<FixedVectorType>(Src)->getNumElements() : 1;
+    unsigned DstLanes = IsVector ? cast<FixedVectorType>(Dst)->getNumElements() : 1;
+    if (uint64_t(SrcWidth) * SrcLanes != uint64_t(DstWidth) * DstLanes)
+      reject("integer bitcast size " + printed(I));
+    if (SrcWidth % DstWidth != 0 && DstWidth % SrcWidth != 0)
+      reject("integer bitcast with nondividing lane widths " + printed(I));
+    // Pure functions need this check too: lane zero occupies the low bits only on little-endian targets.
+    if (!Context.DL.isLittleEndian())
+      reject("big-endian integer bitcast " + printed(I));
+    std::string Input = Src->isVectorTy() ? Op(0) : "#v[" + Op(0) + "]";
+    std::string Expr =
+        "Vec.bitcast " + std::to_string(DstLanes) + " " + std::to_string(DstWidth) + " " + Input;
+    addLet(I, Out, IsVector ? Expr : "Vec.lane (" + Expr + ") 0");
+    return;
+  }
   case Instruction::ExtractElement:
     addLet(I, Out, "Vec.extract " + Op(0) + " " + Op(1));
     return;

@@ -21,6 +21,23 @@ namespace Vec
 @[llvm] def lane (a : Vec n w) (i : Nat) : Val w :=
   if h : i < n then a[i] else none
 
+/-- Joins consecutive lanes, placing the first lane in the low bits. Poison affects only the
+destination lane containing it. `count * w ≤ v` is checked by the emitter's bitcast shape rule. -/
+@[llvm] def joinLanes (v : Nat) (a : Vec n w) (start : Nat) : Nat → Val v
+  | 0 => some 0#v
+  | count + 1 =>
+    Val.map₂ (fun lo hi => lo ||| (hi <<< (count * w)))
+      (joinLanes v a start count) (Val.map₁ (fun x => x.setWidth v) (lane a (start + count)))
+
+/-- Little-endian integer `bitcast`. The emitter requires equal total size and lane widths where
+one divides the other. Splitting copies a lane's poison to all its pieces; joining poisons only
+the destination lane containing a poison piece. A scalar is represented as a one-lane vector. -/
+@[llvm] def bitcast (m v : Nat) (a : Vec n w) : Vec m v :=
+  Vector.ofFn fun i =>
+    if w ≤ v then joinLanes v a (i.val * (v / w)) (v / w)
+    else Val.map₁ (fun x => (x >>> ((i.val % (w / v)) * v)).setWidth v)
+      (lane a (i.val / (w / v)))
+
 /-- `select` with a condition for each lane. -/
 @[llvm] def select (c : Vec n 1) (t e : Vec n w) : Vec n w :=
   Vector.ofFn fun i => IRLean.select c[i] t[i] e[i]
