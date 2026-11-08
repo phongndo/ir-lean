@@ -155,6 +155,26 @@ granted. L3 and L4, a pass's rewrites proved for every input and its C++ proved 
 `score.json` has the counts per pass, the commonest reasons, the cache's counts, every limit, the memory each tool
 peaked at, and the self-check.
 
+## Measured
+
+One bounded run, on 2026-11-08, on x86-64 Linux in the dev shell, with one job, `--memory 8000` and the default
+limits, on four tests from the pinned llvm-project whose functions have `noundef` arguments:
+
+```console
+nix develop -c bash -c 'T=$LLVM_PROJECT_SRC/llvm/test/Transforms; tests/passes.py --only instcombine gvn simplifycfg \
+  --memory 8000 --files $T/InstCombine/iX-ext-split.ll $T/InstCombine/debuginfo-invert.ll $T/GVN/pr113997.ll \
+  $T/SimplifyCFG/sink-and-convert-switch.ll'
+```
+
+| Status | Instances |
+| --- | --- |
+| `bound` | 2: what `instcombine` makes of `@i128_ext_split` in `iX-ext-split.ll`, at `i128`, and of `@test` in `debuginfo-invert.ll` |
+| `unsupported` | 9: 5 use memory, 2 have an argument that isn't `noundef`, and 2 have a target with `mustprogress` or `willreturn` somewhere in it |
+| `refused`, `failed`, `unknown`, `error` | 0 |
+
+It took 228 s, the self-check included, and the scorer's scope peaked at 2.9 GB of its 8 GB cap. Nothing else has
+been run with this version: not the 12,662 single-pass runs in the pinned tests.
+
 ## Assumptions
 
 Everything [binding](llvm-proof-binding.md#what-a-bound-verdict-rests-on) rests on, and these:

@@ -311,15 +311,19 @@ def static(f: Failures) -> None:
                 answer(code, out, limit)
                 got = s.verify(manifest, test, input_ll, "f")
                 f.check(got["status"] == want, f"{what} is {want}", got)
-            for what, m in [
-                ("another function", bundle(function="g")),
-                ("another input", bundle(data=b"; another test\n")),
-                ("another pass spec", bundle(passes="sccp")),
-            ]:
-                answer(0, {**verdict, "key": key(m)})
+            others: list[tuple[str, Callable[[], dict]]] = [
+                ("another function", lambda: bundle(function="g")),
+                ("another input", lambda: bundle(data=b"; another test\n")),
+                ("another pass spec", lambda: bundle(passes="sccp")),
+            ]
+            for what, write in others:
+                # The manifest on disk is this case's, and the verdict's key matches it, so only the field
+                # that differs can refuse it.
+                answer(0, {**verdict, "key": key(write())})
                 got = s.verify(manifest, test, input_ll, "f")
                 f.check(
-                    (got["status"], got["reason"]) == ("refused", "instance_mismatch"),
+                    (got["status"], got["reason"]) == ("refused", "instance_mismatch")
+                    and got["detail"].startswith("the bundle is about"),
                     f"a valid bundle about {what}, at this instance's path, is refused",
                     got,
                 )
