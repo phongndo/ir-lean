@@ -34,6 +34,7 @@ import shutil
 import subprocess
 import sys
 from collections import Counter, defaultdict
+from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from typing import Any
@@ -235,6 +236,8 @@ def category(name: str, kinds: set[str]) -> str:
     """A rough grouping for the summary only. Every category is in the denominator."""
     if kinds == {"analysis"}:
         return "analysis"
+    if name.endswith("asm-printer"):
+        return "emission"
     if re.search(r"^print|print$|-print|printer|^dot-|-dot|^view-|^aa-eval|verif|debugify|^no-op|^\?", name):
         return "printer-verifier-debug"
     if re.search(
@@ -539,8 +542,21 @@ def required(item: dict[str, Any]) -> list[str]:
     return [*dims, "code-binding", "composition"]
 
 
-def evaluate(inv: dict[str, Any], cov: dict[str, Any], root: Path = ROOT) -> tuple[list[str], dict[str, Any]]:
-    """Errors in the manifest, and each pass's standing. Anything not proved complete is unfinished."""
+# A verifier re-checks the evidence of a complete claim on its own: it replays the proof or the binding
+# check, and decides whether it covers every context the pass runs in, given the claim, the pass, the
+# contexts the inventory saw it in, and the repo. It returns None to accept, or why not. A status and a hash
+# are written by whoever makes the claim, so without a verifier a complete claim stays unverified, and the
+# pass isn't done. None exists yet: that's BIND-03 in docs/llvm-verification-tasks.md.
+Verifier = Callable[[dict[str, Any], dict[str, Any], set[str], Path], "str | None"]
+VERIFIERS: dict[str, Verifier] = {}
+
+
+def evaluate(
+    inv: dict[str, Any], cov: dict[str, Any], root: Path = ROOT, verifiers: dict[str, Verifier] | None = None
+) -> tuple[list[str], dict[str, Any]]:
+    """Errors in the manifest, and each pass's standing. Anything not verified complete is unfinished."""
+    verifiers = VERIFIERS if verifiers is None else verifiers
+    verified: set[tuple[str, str]] = set()
     errors: list[str] = []
     items = {i["id"]: i for i in inv["items"]}
     contexts = contexts_of(inv)
@@ -551,6 +567,7 @@ def evaluate(inv: dict[str, Any], cov: dict[str, Any], root: Path = ROOT) -> tup
     claims: dict[tuple[str, str], dict[str, Any]] = {}
     for n, c in enumerate(cov.get("claims", [])):
         where = f"claim {n} ({c.get('item')}, {c.get('dimension')})"
+        before = len(errors)
         if set(c) - CLAIM_KEYS or not {"item", "dimension", "contexts", "status", "evidence"} <= set(c):
             errors.append(f"{where}: keys must be among {sorted(CLAIM_KEYS)}, with item to evidence required")
             continue
@@ -584,8 +601,8 @@ def evaluate(inv: dict[str, Any], cov: dict[str, Any], root: Path = ROOT) -> tup
         for e in evidence:
             if e.get("kind") not in EVIDENCE:
                 errors.append(f"{where}: evidence kind {e.get('kind')!r} must be one of {EVIDENCE}")
-            path = root / str(e.get("path", ""))
-            if not e.get("path") or not path.is_file():
+            path = (root / str(e.get("path", ""))).resolve()
+            if not e.get("path") or not path.is_relative_to(root.resolve()) or not path.is_file():
                 errors.append(f"{where}: evidence {e.get('path')!r} isn't a file in the repo")
             elif hashlib.sha256(path.read_bytes()).hexdigest() != e.get("sha256"):
                 errors.append(f"{where}: evidence {e.get('path')} changed since the claim was made")
@@ -606,6 +623,13 @@ def evaluate(inv: dict[str, Any], cov: dict[str, Any], root: Path = ROOT) -> tup
             )
         if dim == "code-binding" and item["unresolved_classes"]:
             errors.append(f"{where}: the inventory couldn't find code for {item['unresolved_classes']}")
+        verify = verifiers.get(NEEDS.get(dim, ""))
+        if len(errors) == before and verify is not None:
+            refusal = verify(c, item, contexts.get(c["item"], set()), root)
+            if refusal:
+                errors.append(f"{where}: the verifier refused it: {refusal}")
+            else:
+                verified.add((c["item"], dim))
 
     standing: dict[str, Any] = {}
     for iid, item in items.items():
@@ -616,6 +640,8 @@ def evaluate(inv: dict[str, Any], cov: dict[str, Any], root: Path = ROOT) -> tup
                 dims[d] = "missing"
             elif c["status"] == "complete" and c.get("contexts") != "all":
                 dims[d] = "partial"
+            elif c["status"] == "complete" and (iid, d) not in verified:
+                dims[d] = "unverified"
             else:
                 dims[d] = c["status"]
         tv = claims.get((iid, "translation-validation"))
@@ -725,10 +751,30 @@ def summarize(inv: dict[str, Any], standing: dict[str, Any]) -> dict[str, Any]:
     for s in standing.values():
         for d, v in s["dimensions"].items():
             dims[d][v] += 1
+    built = set(inv["tools"]["targets_built"])
+    classes: dict[str, set[str]] = defaultdict(set)
+    for i in items:
+        for r in i["registrations"]:
+            if r.get("class") and r["kind"] != "dummy":
+                classes[f"{'legacy' if r['registry'] == 'legacy' else 'new'}:{r['class']}"].add(i["name"])
     return {
         "pin": f"LLVM {inv['pin']['version']} ({inv['pin']['tag']}, {inv['pin']['commit']})",
-        "passes": len(items),
-        "done": sum(s["done"] for s in standing.values()),
+        # Registration coverage: every name the pinned source registers is listed. It counts names, not
+        # semantically distinct optimizations: see the two lists below, and the rewrites inside each pass.
+        "registered_names": len(items),
+        # Proof coverage: every required dimension complete in every context, and accepted by a verifier.
+        "verified_done": sum(s["done"] for s in standing.values()),
+        # Complete by the manifest's own say, verified or not. Never a substitute for verified_done.
+        "claimed_complete": sum(
+            all(v in ("complete", "unverified") for v in s["dimensions"].values()) for s in standing.values()
+        ),
+        # One name over code in more than one source file: the count is too small by these.
+        "names_with_several_implementations": sorted(
+            i["name"] for i in items if sum(a.endswith(".cpp") for a in i["anchors"]) > 1
+        ),
+        # One class under more than one name: the count is too large by these.
+        "classes_under_several_names": {k: sorted(v) for k, v in sorted(classes.items()) if len(v) > 1},
+        "in_unbuilt_targets": sum(bool(i["targets"]) and not set(i["targets"]) & built for i in items),
         "by_category": dict(sorted(Counter(i["category"] for i in items).items())),
         "by_kind": dict(sorted(Counter("+".join(i["kinds"]) for i in items).items())),
         "generic": sum(not i["targets"] for i in items),
@@ -802,7 +848,8 @@ def main() -> int:
     for e in errors:
         print(f"error: {e}", file=sys.stderr)
     print(
-        f"done {summary['done']}/{summary['passes']} passes at {summary['pin']} | "
+        f"verified done {summary['verified_done']}/{summary['registered_names']} registered pass names "
+        f"(claimed complete {summary['claimed_complete']}) at {summary['pin']} | "
         f"{len(errors)} manifest or task errors",
         file=sys.stderr,
     )

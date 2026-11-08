@@ -20,6 +20,11 @@ from typing import Any
 import llvm_scope as s
 
 ANCHOR = "llvm/lib/Transforms/Scalar/Foo.cpp"
+# Stands in for the independent verifiers BIND-03 is to write, which don't exist yet.
+ACCEPT: dict[str, s.Verifier] = {kind: lambda *_: None for kind in s.NEEDS.values()}
+
+
+SOURCE = {"cl_opts_in_anchor_files": 0, "target_dirs": []}
 
 
 def inventory() -> dict[str, Any]:
@@ -61,7 +66,8 @@ def inventory() -> dict[str, Any]:
 class Claims(unittest.TestCase):
     def setUp(self) -> None:
         self.dir = tempfile.TemporaryDirectory()
-        self.root = Path(self.dir.name)
+        self.root = Path(self.dir.name) / "repo"
+        self.root.mkdir()
         self.inv = inventory()
 
     def tearDown(self) -> None:
@@ -88,8 +94,11 @@ class Claims(unittest.TestCase):
         c.update(extra)
         return c
 
-    def run_claims(self, *claims: dict[str, Any]) -> tuple[list[str], dict[str, Any]]:
-        return s.evaluate(self.inv, {"schema": 1, "pin": s.PIN["tag"], "claims": list(claims)}, self.root)
+    def run_claims(
+        self, *claims: dict[str, Any], verifiers: dict[str, s.Verifier] = ACCEPT
+    ) -> tuple[list[str], dict[str, Any]]:
+        cov = {"schema": 1, "pin": s.PIN["tag"], "claims": list(claims)}
+        return s.evaluate(self.inv, cov, self.root, verifiers)
 
     def full(self) -> list[dict[str, Any]]:
         return [self.claim("all-input"), self.claim("code-binding"), self.claim("composition")]
@@ -105,6 +114,37 @@ class Claims(unittest.TestCase):
         errors, standing = self.run_claims(*self.full())
         self.assertEqual(errors, [])
         self.assertTrue(standing["pass:foo"]["done"])
+
+    def test_a_status_and_hashes_alone_are_unverified(self) -> None:
+        # Whoever writes the manifest writes the status and the hashes, so without a verifier nothing is done.
+        errors, standing = self.run_claims(*self.full(), verifiers={})
+        self.assertEqual(errors, [])
+        self.assertFalse(standing["pass:foo"]["done"])
+        self.assertEqual(set(standing["pass:foo"]["dimensions"].values()), {"unverified"})
+        summary = s.summarize(self.inv | {"tools": {"targets_built": []}, "source": SOURCE}, standing)
+        self.assertEqual((summary["verified_done"], summary["claimed_complete"]), (0, 1))
+
+    def test_a_verifier_decides_with_the_contexts_it_runs_in(self) -> None:
+        seen = []
+
+        def refuse(claim: dict[str, Any], item: dict[str, Any], contexts: set[str], root: Path) -> str:
+            seen.append(contexts)
+            return "the proof doesn't cover llc:x86-64:O2"
+
+        errors, standing = self.run_claims(*self.full(), verifiers={**ACCEPT, "composition-proof": refuse})
+        self.assertTrue(any("verifier refused" in e for e in errors), errors)
+        self.assertFalse(standing["pass:foo"]["done"])
+        self.assertEqual(seen, [{"opt:default<O2>", "llc:x86-64:O2"}])
+
+    def test_evidence_outside_the_repo_is_refused(self) -> None:
+        outside = self.root.parent / "outside.lean"
+        outside.write_text("theorem t : True := trivial\n")
+        digest = hashlib.sha256(outside.read_bytes()).hexdigest()
+        for path in ("../outside.lean", str(outside)):
+            c = self.claim("all-input")
+            c["evidence"] = [{"kind": "lean-proof", "path": path, "sha256": digest}]
+            errors, _ = self.run_claims(c)
+            self.assertTrue(any("isn't a file in the repo" in e for e in errors), (path, errors))
 
     def test_each_missing_dimension_leaves_it_unfinished(self) -> None:
         for n in range(3):
@@ -349,7 +389,7 @@ class Repo(unittest.TestCase):
         inv = s.load(s.INVENTORY)
         summary = s.summarize(inv, s.evaluate(inv, s.load(s.COVERAGE))[1])
         doc = s.TASKS.read_text()
-        for number, what in ((summary["passes"], "passes"), (summary["done"], "done")):
+        for number, what in ((summary["registered_names"], "names"), (summary["verified_done"], "done")):
             self.assertRegex(doc, rf"\b{number}\b", what)
         stated = re.search(r"<!-- scope: (.*?) -->", doc)
         self.assertIsNotNone(stated, "the doc has no scope line")
@@ -364,8 +404,12 @@ class Repo(unittest.TestCase):
 def scope_line(summary: dict[str, Any]) -> dict[str, Any]:
     """The numbers docs/llvm-verification-tasks.md states, so the doc can't drift from the inventory."""
     keys = (
-        "passes",
-        "done",
+        "registered_names",
+        "verified_done",
+        "claimed_complete",
+        "names_with_several_implementations",
+        "classes_under_several_names",
+        "in_unbuilt_targets",
         "by_category",
         "generic",
         "unresolved_code",

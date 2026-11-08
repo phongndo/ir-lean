@@ -5,8 +5,11 @@ has machine-checked correctness proofs tied to its actual implementation, coveri
 through optimization pipelines. Assumptions are explicit and justified. Timeouts, unsupported cases, admitted proofs and
 proof-to-code gaps count as unfinished.
 
-**None of it is done: 0 of 1118 passes.** This page is the plan: what the denominator is, how a pass gets counted, and
-the tasks between here and there, with what each depends on and owns. It sits beside the [roadmap](roadmap.md), whose
+**None of it is done.** The inventory lists all 1118 pass names the pinned source registers. That's registration
+coverage: it says what exists, not what's proved, and it isn't the number of semantically distinct optimizations,
+since some names share code, some code has several names, and each pass holds many rewrites. Proof coverage is 0:
+no name is verified done, and none is even claimed complete. This page is the plan: what the denominator is, how a
+pass gets counted, and the tasks between here and there, with what each depends on and owns. It sits beside the [roadmap](roadmap.md), whose
 Phase 4 is where certified optimization starts, and doesn't replace its order. For what any theorem means, see
 [trust](trust.md).
 
@@ -39,37 +42,46 @@ runs in:
 | `code-binding` | The pass's C++, at the hashes the inventory pins, is proved to make only those rewrites | Yes. A binding with other hashes is stale and refused |
 | `composition` | The pass is correct inside every pipeline it runs in, with the analyses it reads, preserves and invalidates | Yes |
 
-The checker refuses a complete claim with no evidence, with evidence whose hash changed, with gaps listed, or with only
-finite evidence for an all-input dimension. A claim covering some contexts is partial. `partial`, `admitted`, `timeout`,
-`unsupported` and `failed` are all unfinished, and so is a missing claim.
+The checker refuses a complete claim with no evidence, with evidence outside the repo or whose hash changed, with gaps
+listed, or with only finite evidence for an all-input dimension. A claim covering some contexts is partial. `partial`,
+`admitted`, `timeout`, `unsupported` and `failed` are all unfinished, and so is a missing claim.
+
+Even a claim that passes all of that is only **unverified**. Its status and hashes are written by whoever makes the
+claim, so they can't make a pass done by themselves. A dimension is complete only when an independent verifier for its
+evidence kind replays the evidence and decides it covers every context the pass runs in. No verifier exists yet:
+[BIND-03](#bind-03-an-independent-verifier) is to write them. Until then the summary counts claims as complete only
+under `claimed_complete`, and `verified_done` stays 0.
 
 ## The measured scope
 
-Measured at `18421be`, from the dev shell's LLVM. The comment below is what the tests compare with the inventory, so this
-section can't drift from it.
+Measured on z from the dev shell's LLVM, on top of `18421be`. The comment below is what the tests compare with the
+inventory, so this section can't drift from it.
 
-<!-- scope: {"passes": 1118, "done": 0, "by_category": {"analysis": 142, "instrumentation": 36, "printer-verifier-debug": 151, "transform": 789}, "generic": 643, "unresolved_code": 7, "never_seen_in_a_pipeline": 487, "opt_pipelines": "20 of 30 phase and level pairs build", "llc": "48 registered targets x 4 levels, 15 with a probe failing", "target_dirs_not_built": ["ARC", "CSKY", "DirectX", "M68k", "Xtensa"]} -->
+<!-- scope: {"registered_names": 1118, "verified_done": 0, "claimed_complete": 0, "names_with_several_implementations": ["kcfi", "mir-debugify", "print", "verify"], "classes_under_several_names": {"new:ModuleInlinerWrapperPass": ["inliner-ml-advisor-release", "inliner-wrapper", "inliner-wrapper-no-mandatory-first"], "new:NewPMDebugifyPass": ["debugify", "mir-debugify"], "new:OpenMPOptPass": ["openmp-opt", "openmp-opt-postlink"], "new:PGOCtxProfFlatteningPass": ["ctx-prof-flatten", "ctx-prof-flatten-prethinlink"], "new:PGOInstrumentationGen": ["ctx-instr-gen", "pgo-instr-gen"]}, "in_unbuilt_targets": 37, "by_category": {"analysis": 142, "emission": 24, "instrumentation": 36, "printer-verifier-debug": 127, "transform": 789}, "generic": 643, "unresolved_code": 7, "never_seen_in_a_pipeline": 487, "opt_pipelines": "20 of 30 phase and level pairs build", "llc": "48 registered targets x 4 levels, 15 with a probe failing", "target_dirs_not_built": ["ARC", "CSKY", "DirectX", "M68k", "Xtensa"]} -->
 
 | | |
 | --- | --- |
 | **Pin** | LLVM 23.1.3, tag `llvmorg-23.1.3`, commit `0d261d1ca552c95a8f007e061c787ac7132fbcbc`, from nixpkgs `1d060086d60c` in `flake.lock` |
-| **Passes** | 1118 distinct names, from 1520 registrations: 447 in `PassRegistry.def`, 134 in `MachinePassRegistry.def`, 214 in 12 targets' `*PassRegistry.def`, and 725 legacy `INITIALIZE_PASS`. Each name `opt -print-passes` or a pipeline lists is among them |
-| **By kind** | 789 transforms, 142 analyses, 151 printers, verifiers and debugging aids, 36 instrumentation passes. The grouping is a heuristic for reading. All of them count |
+| **Registered names** | 1118 distinct names, from 1520 registrations: 447 in `PassRegistry.def`, 134 in `MachinePassRegistry.def`, 214 in 12 targets' `*PassRegistry.def`, and 725 legacy `INITIALIZE_PASS`. Each name `opt -print-passes` or a pipeline lists is among them |
+| **Not the number of optimizations** | Names that are the same in two registries are one entry: 376 names have both a legacy and a new pass manager registration, which is the same pass. But 4 names cover code in more than one file, so they undercount: `verify` is both the IR verifier and the machine verifier, and `kcfi`, `mir-debugify` and `print` are similar. 5 classes run under more than one name, so they overcount, such as `openmp-opt` and `openmp-opt-postlink`. And one name such as `instcombine` holds hundreds of rewrites, which [INV-04](#inv-04-rewrite-level-inventory) is to count |
+| **By kind** | 789 transforms, 142 analyses, 127 printers, verifiers and debugging aids, 36 instrumentation passes, and 24 `asm-printer` passes that emit machine code. The grouping is a heuristic for reading. All of them count, and [INV-09](#inv-09-account-for-every-kind-of-pass) says what proving each kind means |
 | **Generic or target** | 643 generic, 475 in one target's directory: 438 in the 20 built backends and 37 in the 5 unbuilt ones |
 | **Code** | 903 source files anchor the passes, with 1781 `cl::opt` options among them. 7 passes have no code the inventory could find: `cfguard-longjmp`, `eh-cont-guard-targets`, `prolog-epilog-code`, `ra-basic`, `ra-pbqp`, `regalloc` and `x86-pad-short-functions`, all placeholders the new pass manager names without a class |
-| **`opt` pipelines** | `default`, `thinlto-pre-link`, `thinlto`, `lto-pre-link` and `lto`, each at `O0` to `O3`: 20 that build. `Os` and `Oz` don't: this `opt` says they're `O2` with the `optsize` or `minsize` attribute. 102 distinct passes appear across them, 87 at `default<O2>` |
+| **`opt` pipelines** | `default`, `thinlto-pre-link`, `thinlto`, `lto-pre-link` and `lto`, each at `O0` to `O3`: 20 that build. 102 distinct passes appear across them, 87 at `default<O2>` |
+| **`Os` and `Oz`** | Not pipelines at this pin. `parseOptLevel` in `llvm/lib/Passes/PassBuilder.cpp` refuses them, saying to use `O2` with the `optsize` or `minsize` attribute, and `opt -Os` asks for `default<Os>` and fails the same way. clang's `-Os` and `-Oz` reach the backend as level 2 (`mapToLevel` in `clang/lib/CodeGen/BackendUtil.cpp`) with `optsize` or `minsize` on each function (`clang/lib/CodeGen/CGCall.cpp`). So they're covered as the `O2` contexts on inputs with those attributes, which are part of what [INV-05](#inv-05-permitted-inputs-and-options) has to range over, not as contexts of their own |
 | **`llc` pipelines** | All 48 registered target names at `O0` to `O3`, on [two probe modules](../tests/llvm_scope/). 540 distinct passes appear. 15 runs fail on the loop probe: AMDGPU and R600 can't select its load without a CPU, and SPIR-V crashes in `SPIRV legalize pointer cast pass` at `O1` to `O3` |
 | **Never seen in a pipeline** | 487 passes run only when asked for by name, by an option, or on inputs and CPUs the probes don't cover. They stay in the denominator |
-| **Targets** | 20 backends built, with 48 target names. 5 more directories are in the source and not built: ARC, CSKY, DirectX, M68k and Xtensa. Their 37 passes are counted until [INV-09](#inv-09-scope-decisions-signed-off) says otherwise |
+| **Targets** | 20 backends built, with 48 target names. 5 more directories are in the source and not built in the dev shell's LLVM: ARC, CSKY, DirectX, M68k and Xtensa. Their 37 passes count like any other. There's no pipeline evidence for them, since `llc` here can't run them, so seeing where they run needs an LLVM built with them ([INV-06](#inv-06-codegen-pipeline-closure)) |
 
 ### What the scope assumes
 
 | Assumption | Why | What would break it |
 | --- | --- | --- |
-| A pass is a registered name | It's how LLVM itself names something that can run, and it doesn't depend on which inputs a run happened to see | One name covering unrelated code in two registries, which would make the count too small. [INV-04](#inv-04-rewrite-level-inventory) counts the rewrites inside passes |
+| The unit is a registered name | It's how LLVM itself names something that can run, and it doesn't depend on which inputs a run happened to see | Nothing breaks, but it's a count of names: the 4 names over several implementations and 5 classes under several names above are listed by the summary, so they can't hide. [INV-04](#inv-04-rewrite-level-inventory) counts the rewrites inside passes |
 | A pass's code is the files defining its `run` or registering it | It's the entry point, found mechanically | Most passes call far more. InstCombine's entry file is one of its many. [BIND-02](#bind-02-implementation-closure) replaces this with the whole call graph |
 | Pipeline membership is a lower bound | `llc` and `opt` only list what one input, CPU and set of options built | Nothing: membership is never used to leave a pass out |
-| Optimization levels are `O0` to `O3`, with `Os` and `Oz` as attributes | That's what the pinned `opt` accepts | A later LLVM bringing them back, which `check` would catch |
+| Optimization levels are `O0` to `O3`, with `Os` and `Oz` as attributes | That's what the pinned source does, as cited above | A later LLVM bringing them back, which `check` would catch, since the `opt` pipelines are recorded |
+| Every supported configuration is covered only when a verifier says so | The contexts in the inventory are a lower bound, so `"contexts": "all"` in a claim is the claimant's word | Nothing, while no verifier exists. A verifier has to check "all" against INV-05's inputs and INV-06's configurations |
 
 ## Lanes, and what runs in parallel
 
@@ -77,7 +89,7 @@ Each lane owns its files. Two tasks being worked on at once can't own the same f
 
 | Lane | Covers | Files it owns | Can start now |
 | --- | --- | --- | --- |
-| INV | Inventory and plan | `tests/llvm_scope*`, `docs/llvm-verification-tasks.md` | INV-01 to INV-03 are in review. INV-04 to INV-06 once INV-01 lands |
+| INV | Inventory and plan | `tests/llvm_scope*`, `docs/llvm-verification-tasks.md` | INV-01 to INV-03 are in review. INV-04 to INV-06 and INV-09 once INV-01 lands |
 | SEM | Semantics contracts: poison, `undef`, `freeze`, integers, floating point, memory, UB | `IRLean/*.lean` apart from the refinement tactic, `docs/trust.md`, `tests/opcheck.py`, `tests/gepcheck.py` | SEM-01 is drafted in another tree. SEM-04 has no prerequisites |
 | BIND | Binding proofs to LLVM's C++, and an independent verifier | `tools/`, new binding checks, `src/Emitter.*` for C++ support | BIND-01 has no prerequisites. BIND-02 once INV-01 lands |
 | NEG | Negative tests, CI and honest reporting | `CMakeLists.txt`, `.github/`, `tests/lint.sh`, mutation scripts | NEG-03 has no prerequisites. NEG-01 once INV-01 and INV-02 land |
@@ -151,7 +163,7 @@ when they land.
 - **Acceptance:** `tests/llvm_scope_test.py` passes, including a positive control and a refusal for each rule.
 - **Trust gaps:** Evidence is checked by hash and kind, not by replaying it. Replaying it is BIND-03's.
 - **Status:** in review
-- **Evidence:** 26 tests pass on z. Not merged.
+- **Evidence:** 29 tests pass on z, including a status and hashes left unverified without a verifier. Not merged.
 
 ### INV-03: This task list, checked
 
@@ -219,15 +231,15 @@ when they land.
 - **Status:** not started
 - **Evidence:** None.
 
-### INV-09: Scope decisions, signed off
+### INV-09: Account for every kind of pass
 
 - **Lane:** INV
-- **Scope:** Decisions only a person can make: whether the 5 unbuilt targets, the 151 printers and verifiers, the 36 instrumentation passes and the machine-code layer below the optimizer are in the end condition.
+- **Scope:** All of them stay in the denominator: the 37 passes of the 5 unbuilt targets, the 127 printers, verifiers and debugging aids, the 36 instrumentation passes and the 24 that emit machine code. Say what a proof means for each kind: that a printer or verifier leaves the IR unchanged, that instrumentation refines the program apart from the runtime calls it adds, given a stated contract for them, and that emission agrees with the instructions' encoding.
 - **Depends on:** INV-01
 - **Owns:** `docs/llvm-verification-tasks.md`
-- **Acceptance:** Each is in or out, with a reason and the name of who decided. Until then all of them count.
-- **Trust gaps:** Leaving something out shrinks the denominator, so each cut has to be visible.
-- **Status:** blocked: needs the project owner's decision
+- **Acceptance:** Each kind has its statement written, and the summary counts each kind's progress apart. Nothing leaves the denominator.
+- **Trust gaps:** Instrumentation's runtime contracts and emission's encodings are specifications someone has to write and review.
+- **Status:** not started
 - **Evidence:** None.
 
 ### SEM-01: The refinement contract
@@ -365,7 +377,7 @@ when they land.
 ### BIND-03: An independent verifier
 
 - **Lane:** BIND
-- **Scope:** A checker that shares no code with any scorer, which replays each claim's evidence: the theorem names the generated function for the pinned anchors, rests only on allowed axioms, and `leanchecker` replays it.
+- **Scope:** A checker that shares no code with any scorer, which replays each claim's evidence: the theorem names the generated function for the pinned anchors, rests only on allowed axioms, `leanchecker` replays it, and it covers every context. It plugs in as `VERIFIERS` in `tests/llvm_scope.py`, which is empty until then, so no claim is verified.
 - **Depends on:** BIND-01, INV-02
 - **Owns:** `tools/verify_claims.py`
 - **Acceptance:** It accepts every claim the scorer accepts, and refuses a set of forged claims: wrong statement, stale anchors, extra axioms, `sorry`, and a kernel check skipped.
@@ -576,7 +588,7 @@ when they land.
 ### CG-04: Each target's own passes
 
 - **Lane:** CG
-- **Scope:** The 438 passes in the directories of the 20 built backends, each target's own: X86 50, AMDGPU 92, Hexagon 45, AArch64 43, RISC-V 33, WebAssembly 30, NVPTX 25, PowerPC 22, SPIR-V 21, ARM 20, BPF 12, Mips 9, SystemZ 9, LoongArch 8, AVR 4, Lanai 4, MSP430 3, Sparc 3, XCore 3 and VE 2. The 37 in unbuilt targets wait on INV-09.
+- **Scope:** The 475 passes in target directories: 438 in the 20 built backends, X86 50, AMDGPU 92, Hexagon 45, AArch64 43, RISC-V 33, WebAssembly 30, NVPTX 25, PowerPC 22, SPIR-V 21, ARM 20, BPF 12, Mips 9, SystemZ 9, LoongArch 8, AVR 4, Lanai 4, MSP430 3, Sparc 3, XCore 3 and VE 2, and 37 in the 5 unbuilt ones, DirectX 25, M68k 5, ARC 4, CSKY 2 and Xtensa 1, which need an LLVM built with them.
 - **Depends on:** CG-02, CG-03
 - **Owns:** `tests/passes-proofs/targets/`
 - **Acceptance:** Each target has every pass done, or a count of what isn't, with reasons.
@@ -587,10 +599,10 @@ when they land.
 ### CG-05: Below the optimizer
 
 - **Lane:** CG
-- **Scope:** Instruction encoding, assembly and object emission, if INV-09 puts them in scope. Without them, a proof stops at machine IR.
+- **Scope:** The 24 `asm-printer` passes, and the instruction encoding, assembly and object emission they drive. Without them, a proof stops at machine IR.
 - **Depends on:** CG-01, INV-09
 - **Owns:** `tests/passes-proofs/mc/`
-- **Acceptance:** Decided by INV-09 first.
+- **Acceptance:** Each emission pass is proved to emit what its machine instructions mean, per target, or is listed as unfinished with its reason.
 - **Trust gaps:** The assembler, linker and loader.
 - **Status:** not started
 - **Evidence:** None.
@@ -598,7 +610,7 @@ when they land.
 ### NEG-01: Scope checks in CI
 
 - **Lane:** NEG
-- **Scope:** Register `tests/llvm_scope_test.py` and `tests/llvm_scope.py check` with CTest, so CI runs them.
+- **Scope:** Register `tests/llvm_scope_test.py` and `tests/llvm_scope.py check` with CTest, so CI runs them, and list them in `docs/testing.md`. The CI lane owns those files, so this lane asks it rather than editing them.
 - **Depends on:** INV-01, INV-02
 - **Owns:** `CMakeLists.txt`
 - **Acceptance:** CI fails on a changed inventory, a bad claim or a bad task.
