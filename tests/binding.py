@@ -1,0 +1,425 @@
+#!/usr/bin/env python3
+"""Checks that tools/binding.py binds a certificate to what it's about, and refuses evidence that doesn't
+match.
+
+One real rewrite, `instcombine` folding `add i8 %x, 0` in tests/binding/add_zero.ll, with a certificate that
+the functions ir-lean generates before and after are equal. Its bundle has to come back `bound`. Then each
+case breaks one thing, as someone handing over wrong evidence would, and the verdict has to be the status and
+reason given, never `bound`: a theorem of another type, a changed file, a changed configuration, a manifest
+from another toolchain, a cache entry that isn't for this evidence, and claims nothing here can check.
+
+It runs one process at a time, each capped by tools/binding.py, in build/binding/tests, and needs
+`nix develop`, build/ir-lean and `lake build`.
+
+usage: tests/binding.py [--keep] [--only NAME ...]
+"""
+
+import argparse
+import hashlib
+import json
+import os
+import shutil
+import subprocess
+import sys
+from collections.abc import Callable
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parent.parent
+HERE = ROOT / "tests" / "binding"
+WORK = ROOT / "build" / "binding" / "tests"
+TOOL = [sys.executable, str(ROOT / "tools" / "binding.py")]
+
+HEADER = "import Fx.Src\nimport Fx.Tgt\nopen IRLean\n\n"
+GOOD = (HERE / "AddZero.lean").read_text()
+# The good proof's tactic block, for certificates that state something else and still have to compile.
+PROOF = GOOD.split(":= by", 1)[1]
+
+
+# A weaker claim than the good one: it leaves out poison.
+NO_POISON = """
+  intro x
+  rw [Fx.Src.f, Fx.Tgt.f, run_ret Fx.Src.f.step (b := .bb1 (some x)) (r := Val.add (some x) (some 0#8)) rfl,
+    run_ret Fx.Tgt.f.step (b := .bb1 (some x)) (r := some x) rfl]
+  simp [Val.add]
+"""
+
+
+# A false theorem the kernel never saw, as tests/proofs.sh and tests/verify.py make one. Its type is the right
+# claim, and it rests on no axiom, so only leanchecker's replay can stop it.
+SKIPPED = (
+    "import Fx.Src\nimport Fx.Tgt\nimport Lean\nopen IRLean Lean Elab Command\n\n"
+    "set_option debug.skipKernelTC true in\n"
+    "run_cmd liftCoreM <| addDecl <| .thmDecl {\n"
+    "  name := `oops, levelParams := [], type := mkConst ``False, value := mkConst ``True.intro }\n\n"
+    "theorem Fx.cert : Fx.Src.f = Fx.Tgt.f := oops.elim\n"
+)
+
+
+# A certificate whose code, run while it compiles, rewrites the generated target it's checked against, found
+# through LEAN_PATH. Its theorem is about the module as it was compiled, so only rehashing catches it.
+REWRITES = GOOD + (
+    "\nopen Lean in\n#eval show IO Unit from do\n"
+    '  let dir := ((← IO.getEnv "LEAN_PATH").getD "").splitOn ":" |>.head!\n'
+    '  IO.FS.writeFile (dir ++ "/Fx/Tgt.lean") "-- rewritten\\n"\n'
+)
+
+
+def sha(data: bytes) -> str:
+    return hashlib.sha256(data).hexdigest()
+
+
+def record(name: str, certificate: str, kind: str = "ir_instance_equivalence") -> Path:
+    """A fresh bundle for add_zero.ll with this certificate, as `record` writes it."""
+    out = WORK / name
+    shutil.rmtree(out, ignore_errors=True)
+    cert = WORK / f"{name}.lean"
+    cert.write_text(certificate)
+    r = subprocess.run(
+        [
+            *TOOL,
+            "record",
+            "--input",
+            str(HERE / "add_zero.ll"),
+            "--passes",
+            "instcombine",
+            "--mtriple",
+            "x86_64-unknown-linux-gnu",
+            "--function",
+            "f",
+            "--certificate",
+            str(cert),
+            "--theorem",
+            "Fx.cert",
+            "--namespace",
+            "Fx",
+            "--kind",
+            kind,
+            "--out",
+            str(out),
+        ],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if r.returncode != 0:
+        sys.exit(f"record {name} failed: {r.stdout}{r.stderr}")
+    return out / "manifest.json"
+
+
+def verify(manifest: Path, *extra: str, env: dict[str, str] | None = None) -> dict:
+    r = subprocess.run(
+        [*TOOL, "verify", str(manifest), *extra],
+        capture_output=True,
+        text=True,
+        check=False,
+        env={**os.environ, **(env or {})},
+    )
+    try:
+        verdict = json.loads(r.stdout)
+    except ValueError:
+        sys.exit(f"verify gave no JSON for {manifest}: {r.stdout[-2000:]}{r.stderr[-2000:]}")
+    if verdict.get("exit_code") != r.returncode:
+        sys.exit(f"exit code {r.returncode} isn't the verdict's {verdict.get('exit_code')}")
+    return verdict
+
+
+def edit_manifest(manifest: Path, change: Callable[[dict], None]) -> Path:
+    m = json.loads(manifest.read_text())
+    change(m)
+    manifest.write_text(json.dumps(m, indent=2, sort_keys=True))
+    return manifest
+
+
+def replace_artifact(manifest: Path, role: str, text: str, rehash: bool) -> Path:
+    """Overwrites an artifact. With `rehash`, the manifest is updated to match, so only a replay can tell."""
+    m = json.loads(manifest.read_text())
+    path = manifest.parent / m["artifacts"][role]["path"]
+    path.write_text(text)
+    if rehash:
+        m["artifacts"][role]["sha256"] = sha(path.read_bytes())
+        manifest.write_text(json.dumps(m, indent=2, sort_keys=True))
+    return manifest
+
+
+def good(name: str) -> Path:
+    """A copy of the good bundle, recorded once."""
+    src = WORK / "good"
+    if not (src / "manifest.json").exists():
+        record("good", GOOD)
+    out = WORK / name
+    shutil.rmtree(out, ignore_errors=True)
+    shutil.copytree(src, out)
+    return out / "manifest.json"
+
+
+def wrong_type(statement: str, prelude: str = "", proof: str = PROOF) -> Callable[[str], Path]:
+    return lambda name: record(name, f"{HEADER}{prelude}theorem Fx.cert : {statement} := by{proof}")
+
+
+# Each case: a name, how to make its bundle, extra verify arguments, and the (status, reason) it has to give.
+CASES: list[tuple[str, Callable[[str], Path], list[str], tuple[str, str]]] = [
+    ("bound", good, [], ("bound", "replayed")),
+    # Wrong theorem types. Each compiles, so only the type check can stop it.
+    (
+        "swapped",
+        wrong_type("Fx.Tgt.f = Fx.Src.f", proof="\n  symm" + PROOF),
+        [],
+        ("refused", "claim_type_mismatch"),
+    ),
+    ("trivial", wrong_type("Fx.Src.f = Fx.Src.f", proof=" rfl"), [], ("refused", "claim_type_mismatch")),
+    (
+        "no_poison",
+        wrong_type("∀ x : BitVec 8, Fx.Src.f (some x) = Fx.Tgt.f (some x)", proof=NO_POISON),
+        [],
+        ("refused", "claim_type_mismatch"),
+    ),
+    (
+        "own_definition",
+        wrong_type(
+            "same Fx.Src.f Fx.Tgt.f",
+            prelude="def same (a b : Val 8 → Outcome (Val 8)) : Prop := True\n\n",
+            proof=" trivial",
+        ),
+        [],
+        ("refused", "foreign_constant"),
+    ),
+    ("kernel_skipped", lambda n: record(n, SKIPPED), [], ("refused", "kernel_replay_failed")),
+    ("rewrites_generated", lambda n: record(n, REWRITES), [], ("refused", "artifacts_modified")),
+    (
+        "imports_lake",
+        lambda n: record(n, GOOD.replace("import Fx.Tgt\n", "import Fx.Tgt\nimport Lake\n")),
+        [],
+        ("refused", "certificate_imports_disallowed"),
+    ),
+    (
+        "does_not_compile",
+        lambda n: record(n, GOOD + "\ntheorem broken : 1 = 2 := rfl\n"),
+        [],
+        ("refused", "certificate_compile_failed"),
+    ),
+    (
+        "other_theorem",
+        lambda n: edit_manifest(good(n), lambda m: m["claim"].update(theorem="Fx.other")),
+        [],
+        ("refused", "theorem_not_found"),
+    ),
+    ("sorry", wrong_type("Fx.Src.f = Fx.Tgt.f", proof=" sorry"), [], ("refused", "axiom_policy_failed")),
+    (
+        "refinement_unavailable",
+        lambda n: record(n, GOOD, kind="ir_instance_refinement"),
+        [],
+        ("unsupported", "claim_kind_unavailable"),
+    ),
+    # Claims no tool here can check, whatever the evidence.
+    (
+        "pass_implementation",
+        lambda n: edit_manifest(good(n), lambda m: m["claim"].update(kind="pass_implementation")),
+        [],
+        ("unsupported", "claim_kind_unverifiable"),
+    ),
+    (
+        "rewrite_all_inputs",
+        lambda n: edit_manifest(good(n), lambda m: m["claim"].update(kind="rewrite_all_inputs")),
+        [],
+        ("unsupported", "claim_kind_unverifiable"),
+    ),
+    # Changed artifacts.
+    (
+        "tgt_ir_edited",
+        lambda n: replace_artifact(good(n), "tgt_ir", "define i8 @f(i8 %x) {\n  ret i8 0\n}\n", False),
+        [],
+        ("refused", "artifact_hash_mismatch"),
+    ),
+    (
+        "tgt_ir_swapped",
+        lambda n: replace_artifact(good(n), "tgt_ir", (WORK / "good" / "src.ll").read_text(), True),
+        [],
+        ("refused", "transform_replay_mismatch"),
+    ),
+    (
+        "tgt_lean_edited",
+        lambda n: replace_artifact(
+            good(n),
+            "tgt_lean",
+            (WORK / "good" / "Tgt.lean").read_text().replace("ret x", "ret (some 0#8)"),
+            True,
+        ),
+        [],
+        ("refused", "translation_replay_mismatch"),
+    ),
+    (
+        "certificate_edited",
+        lambda n: replace_artifact(good(n), "certificate", GOOD + "\n-- edited\n", False),
+        [],
+        ("refused", "artifact_hash_mismatch"),
+    ),
+    (
+        "extra_field",
+        lambda n: edit_manifest(good(n), lambda m: m["claim"].update(note="trust me")),
+        [],
+        ("refused", "manifest_invalid"),
+    ),
+    (
+        "path_outside",
+        lambda n: edit_manifest(good(n), lambda m: m["artifacts"]["input"].update(path="../good/input.ll")),
+        [],
+        ("refused", "manifest_invalid"),
+    ),
+    # Changed configuration.
+    (
+        "other_passes",
+        lambda n: edit_manifest(good(n), lambda m: m["transform"].update(passes="verify")),
+        [],
+        ("refused", "transform_replay_mismatch"),
+    ),
+    (
+        "other_mtriple",
+        lambda n: edit_manifest(
+            good(n), lambda m: m["transform"].update(mtriple="aarch64-unknown-linux-gnu")
+        ),
+        [],
+        ("refused", "config_mismatch"),
+    ),
+    (
+        "other_datalayout",
+        lambda n: edit_manifest(good(n), lambda m: m["target"].update(datalayout="E-p:32:32")),
+        [],
+        ("refused", "config_mismatch"),
+    ),
+    (
+        "other_llvm",
+        lambda n: edit_manifest(good(n), lambda m: m["llvm"].update(commit="0" * 40)),
+        [],
+        ("refused", "llvm_pin_mismatch"),
+    ),
+    (
+        "stale_emitter",
+        lambda n: edit_manifest(good(n), lambda m: m["toolchain"].update(ir_lean_sha256="0" * 64)),
+        [],
+        ("refused", "toolchain_mismatch"),
+    ),
+    (
+        "stale_checker",
+        lambda n: edit_manifest(good(n), lambda m: m["toolchain"].update(binding_check_sha256="0" * 64)),
+        [],
+        ("refused", "toolchain_mismatch"),
+    ),
+]
+
+
+def cache_cases(failures: list[str]) -> int:
+    """A cache entry counts only for exactly the evidence and toolchain it was written for."""
+    cache = WORK / "cache"
+    shutil.rmtree(cache, ignore_errors=True)
+    ran = 0
+
+    def expect(name: str, verdict: dict, status: str, reason: str | None, cached: str) -> None:
+        nonlocal ran
+        ran += 1
+        got = (verdict.get("status"), verdict.get("reason"), verdict.get("cache"))
+        if got[0] != status or (reason is not None and got[1] != reason) or got[2] != cached:
+            failures.append(
+                f"{name}: expected {status} {reason} cache {cached}, got {got}: {verdict.get('detail')}"
+            )
+        else:
+            print(f"ok    {name}: {got[0]} {got[1]} cache {got[2]}")
+
+    manifest = good("cache_good")
+    expect("cache_first", verify(manifest, "--cache", str(cache)), "bound", "replayed", "miss")
+    expect("cache_second", verify(manifest, "--cache", str(cache)), "bound", "replayed", "hit")
+    # The certificate changes and the manifest is updated to match: a new key, so the bound entry isn't
+    # reused.
+    bad = replace_artifact(
+        good("cache_changed"), "certificate", f"{HEADER}theorem Fx.cert : Fx.Src.f = Fx.Src.f := rfl\n", True
+    )
+    expect(
+        "cache_changed_certificate",
+        verify(bad, "--cache", str(cache)),
+        "refused",
+        "claim_type_mismatch",
+        "miss",
+    )
+    # An entry at the bad bundle's key that was written for other evidence, or by another toolchain, is stale.
+    key = verify(bad)["key"]
+    entry = json.loads((cache / f"{verify(manifest)['key']}.json").read_text())
+    (cache / f"{key}.json").write_text(json.dumps(entry))
+    expect(
+        "cache_other_manifest",
+        verify(bad, "--cache", str(cache)),
+        "refused",
+        "claim_type_mismatch",
+        "stale_ignored",
+    )
+    m = json.loads(bad.read_text())
+    entry.update(
+        key=key,
+        manifest_sha256=sha(
+            json.dumps(m, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode()
+        ),
+    )
+    entry["toolchain"] = {**entry["toolchain"], "ir_lean_sha256": "0" * 64}
+    (cache / f"{key}.json").write_text(json.dumps(entry))
+    expect(
+        "cache_other_toolchain",
+        verify(bad, "--cache", str(cache)),
+        "refused",
+        "claim_type_mismatch",
+        "stale_ignored",
+    )
+    # Checks before the cache still run on a hit: a changed file is refused even with a bound entry for its
+    # key.
+    edited = replace_artifact(good("cache_edited"), "certificate", GOOD + "\n-- edited\n", False)
+    expect(
+        "cache_edited_file",
+        verify(edited, "--cache", str(cache)),
+        "refused",
+        "artifact_hash_mismatch",
+        "miss",
+    )
+    return ran
+
+
+def main() -> int:
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--keep", action="store_true", help="keep build/binding/tests")
+    ap.add_argument("--only", nargs="*")
+    args = ap.parse_args()
+    shutil.rmtree(WORK, ignore_errors=True)
+    WORK.mkdir(parents=True)
+    failures: list[str] = []
+    ran = 0
+    for name, make, extra, (status, reason) in CASES:
+        if args.only and name not in args.only:
+            continue
+        ran += 1
+        verdict = verify(make(name), *extra)
+        got = (verdict.get("status"), verdict.get("reason"))
+        if got != (status, reason):
+            failures.append(f"{name}: expected {status} {reason}, got {got}: {verdict.get('detail')}")
+        elif status != "bound" and verdict.get("exit_code") == 0:
+            failures.append(f"{name}: {status} with exit code 0")
+        else:
+            print(f"ok    {name}: {got[0]} {got[1]}")
+        if "open_obligation" not in verdict or not verdict.get("does_not_establish"):
+            failures.append(f"{name}: the verdict doesn't say what it leaves open")
+    if not args.only or "other_source" in args.only:
+        # The same version of opt, with LLVM_PROJECT_SRC some other tree: not the pinned source.
+        ran += 1
+        verdict = verify(good("other_source"), env={"LLVM_PROJECT_SRC": str(HERE)})
+        got = (verdict.get("status"), verdict.get("reason"))
+        if got != ("refused", "llvm_pin_mismatch"):
+            failures.append(f"other_source: expected refused llvm_pin_mismatch, got {got}")
+        else:
+            print(f"ok    other_source: {got[0]} {got[1]}")
+    if not args.only or "cache" in args.only:
+        ran += cache_cases(failures)
+    if not args.keep:
+        shutil.rmtree(WORK, ignore_errors=True)
+    for f in failures:
+        print(f"FAIL  {f}")
+    print(f"{ran - len(failures)}/{ran} binding cases behave")
+    return 1 if failures else 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
