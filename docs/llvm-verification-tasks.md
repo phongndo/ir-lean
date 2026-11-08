@@ -1,0 +1,673 @@
+# Proving every optimization in LLVM: tasks
+
+The end condition: every optimization in a pinned LLVM revision, across all optimization levels and supported targets,
+has machine-checked correctness proofs tied to its actual implementation, covering all permitted inputs and composition
+through optimization pipelines. Assumptions are explicit and justified. Timeouts, unsupported cases, admitted proofs and
+proof-to-code gaps count as unfinished.
+
+**None of it is done: 0 of 1118 passes.** This page is the plan: what the denominator is, how a pass gets counted, and
+the tasks between here and there, with what each depends on and owns. It sits beside the [roadmap](roadmap.md), whose
+Phase 4 is where certified optimization starts, and doesn't replace its order. For what any theorem means, see
+[trust](trust.md).
+
+## How it's measured
+
+[`tests/llvm_scope.py`](../tests/llvm_scope.py) derives the inventory from the pinned source and tools, and checks the
+claims against it and this page against itself:
+
+```console
+nix develop -c tests/llvm_scope.py check     # derive the inventory again, and fail on any difference
+tests/llvm_scope.py summary                  # the numbers below, from the files in the repo
+tests/llvm_scope_test.py                     # refusals of claims and tasks that overstate what was shown
+```
+
+| File | What it holds |
+| --- | --- |
+| [`tests/llvm_scope/inventory.json`](../tests/llvm_scope/inventory.json) | One line per pass: its registrations, kind, targets, the source files that implement it with their hashes, and its `cl::opt` count. Also the exact pipelines `opt` prints for each phase and level, and what `llc` runs for each registered target and level |
+| [`tests/llvm_scope/coverage.json`](../tests/llvm_scope/coverage.json) | Claims about passes, in the shape of [`coverage.schema.json`](../tests/llvm_scope/coverage.schema.json). It has none, because nothing in the repo proves an optimization correct yet |
+| This page | The tasks. `check` parses them |
+
+### Translation validation isn't proof for all inputs
+
+A pass has four things to show, and is done only when the last three are complete with evidence, in every context it
+runs in:
+
+| Dimension | Says | Counts toward done |
+| --- | --- | --- |
+| `translation-validation` | For finitely many inputs, such as LLVM's own regression tests, what the pass produced refines what it was given | **Never.** A thousand certified outputs say nothing about the next input. It's recorded, as progress and as a source of counterexamples |
+| `all-input`, or `analysis-soundness` for an analysis | Every rewrite the pass can make is proved for every permitted input, or every fact the analysis reports is proved true | Yes |
+| `code-binding` | The pass's C++, at the hashes the inventory pins, is proved to make only those rewrites | Yes. A binding with other hashes is stale and refused |
+| `composition` | The pass is correct inside every pipeline it runs in, with the analyses it reads, preserves and invalidates | Yes |
+
+The checker refuses a complete claim with no evidence, with evidence whose hash changed, with gaps listed, or with only
+finite evidence for an all-input dimension. A claim covering some contexts is partial. `partial`, `admitted`, `timeout`,
+`unsupported` and `failed` are all unfinished, and so is a missing claim.
+
+## The measured scope
+
+Measured at `18421be`, from the dev shell's LLVM. The comment below is what the tests compare with the inventory, so this
+section can't drift from it.
+
+<!-- scope: {"passes": 1118, "done": 0, "by_category": {"analysis": 142, "instrumentation": 36, "printer-verifier-debug": 151, "transform": 789}, "generic": 643, "unresolved_code": 7, "never_seen_in_a_pipeline": 487, "opt_pipelines": "20 of 30 phase and level pairs build", "llc": "48 registered targets x 4 levels, 15 with a probe failing", "target_dirs_not_built": ["ARC", "CSKY", "DirectX", "M68k", "Xtensa"]} -->
+
+| | |
+| --- | --- |
+| **Pin** | LLVM 23.1.3, tag `llvmorg-23.1.3`, commit `0d261d1ca552c95a8f007e061c787ac7132fbcbc`, from nixpkgs `1d060086d60c` in `flake.lock` |
+| **Passes** | 1118 distinct names, from 1520 registrations: 447 in `PassRegistry.def`, 134 in `MachinePassRegistry.def`, 214 in 12 targets' `*PassRegistry.def`, and 725 legacy `INITIALIZE_PASS`. Each name `opt -print-passes` or a pipeline lists is among them |
+| **By kind** | 789 transforms, 142 analyses, 151 printers, verifiers and debugging aids, 36 instrumentation passes. The grouping is a heuristic for reading. All of them count |
+| **Generic or target** | 643 generic, 475 in one target's directory: 438 in the 20 built backends and 37 in the 5 unbuilt ones |
+| **Code** | 903 source files anchor the passes, with 1781 `cl::opt` options among them. 7 passes have no code the inventory could find: `cfguard-longjmp`, `eh-cont-guard-targets`, `prolog-epilog-code`, `ra-basic`, `ra-pbqp`, `regalloc` and `x86-pad-short-functions`, all placeholders the new pass manager names without a class |
+| **`opt` pipelines** | `default`, `thinlto-pre-link`, `thinlto`, `lto-pre-link` and `lto`, each at `O0` to `O3`: 20 that build. `Os` and `Oz` don't: this `opt` says they're `O2` with the `optsize` or `minsize` attribute. 102 distinct passes appear across them, 87 at `default<O2>` |
+| **`llc` pipelines** | All 48 registered target names at `O0` to `O3`, on [two probe modules](../tests/llvm_scope/). 540 distinct passes appear. 15 runs fail on the loop probe: AMDGPU and R600 can't select its load without a CPU, and SPIR-V crashes in `SPIRV legalize pointer cast pass` at `O1` to `O3` |
+| **Never seen in a pipeline** | 487 passes run only when asked for by name, by an option, or on inputs and CPUs the probes don't cover. They stay in the denominator |
+| **Targets** | 20 backends built, with 48 target names. 5 more directories are in the source and not built: ARC, CSKY, DirectX, M68k and Xtensa. Their 37 passes are counted until [INV-09](#inv-09-scope-decisions-signed-off) says otherwise |
+
+### What the scope assumes
+
+| Assumption | Why | What would break it |
+| --- | --- | --- |
+| A pass is a registered name | It's how LLVM itself names something that can run, and it doesn't depend on which inputs a run happened to see | One name covering unrelated code in two registries, which would make the count too small. [INV-04](#inv-04-rewrite-level-inventory) counts the rewrites inside passes |
+| A pass's code is the files defining its `run` or registering it | It's the entry point, found mechanically | Most passes call far more. InstCombine's entry file is one of its many. [BIND-02](#bind-02-implementation-closure) replaces this with the whole call graph |
+| Pipeline membership is a lower bound | `llc` and `opt` only list what one input, CPU and set of options built | Nothing: membership is never used to leave a pass out |
+| Optimization levels are `O0` to `O3`, with `Os` and `Oz` as attributes | That's what the pinned `opt` accepts | A later LLVM bringing them back, which `check` would catch |
+
+## Lanes, and what runs in parallel
+
+Each lane owns its files. Two tasks being worked on at once can't own the same file, and `check` refuses that.
+
+| Lane | Covers | Files it owns | Can start now |
+| --- | --- | --- | --- |
+| INV | Inventory and plan | `tests/llvm_scope*`, `docs/llvm-verification-tasks.md` | INV-01 to INV-03 are in review. INV-04 to INV-06 once INV-01 lands |
+| SEM | Semantics contracts: poison, `undef`, `freeze`, integers, floating point, memory, UB | `IRLean/*.lean` apart from the refinement tactic, `docs/trust.md`, `tests/opcheck.py`, `tests/gepcheck.py` | SEM-01 is drafted in another tree. SEM-04 has no prerequisites |
+| BIND | Binding proofs to LLVM's C++, and an independent verifier | `tools/`, new binding checks, `src/Emitter.*` for C++ support | BIND-01 has no prerequisites. BIND-02 once INV-01 lands |
+| NEG | Negative tests, CI and honest reporting | `CMakeLists.txt`, `.github/`, `tests/lint.sh`, mutation scripts | NEG-03 has no prerequisites. NEG-01 once INV-01 and INV-02 land |
+| AUTO | Proof automation and lemma reuse | `IRLean/RefineTactic.lean`, lemma stores | AUTO-01 is drafted in another tree. The rest wait on SEM-01 |
+| PASS | Analyses, scalar passes, composition | Per-pass proof directories | PASS-02 is drafted in another tree. The rest wait on SEM and BIND |
+| LOOP | Loops, vectorization, IPO and LTO | Per-pass proof directories | Waits on PASS-01 and SEM |
+| CG | Codegen, legalization, machine passes, per target | Per-target proof directories | Waits on CG-01 |
+
+The refinement scorer on `research/prove-llvm-optimizations` (`IRLean/Refine.lean`, `IRLean/RefineTactic.lean`,
+`tests/passes.py`, `tests/passes/`, `docs/passes.md`) isn't on `main`. It's SEM-01, AUTO-01 and PASS-02 below, and this
+lane doesn't touch its files.
+
+```mermaid
+flowchart LR
+  INV01[INV-01 inventory] --> INV04[INV-04 rewrites]
+  INV01 --> INV05[INV-05 inputs and options]
+  INV01 --> INV06[INV-06 codegen closure]
+  INV01 --> BIND02[BIND-02 code closure]
+  INV02[INV-02 coverage rules] --> NEG01[NEG-01 CI]
+  INV01 --> NEG01
+  SEM01[SEM-01 refinement contract] --> SEM02[SEM-02 undef]
+  SEM01 --> SEM03[SEM-03 poison, freeze]
+  SEM01 --> SEM05[SEM-05 floating point]
+  SEM02 --> SEM06[SEM-06 memory]
+  SEM01 --> SEM07[SEM-07 promises]
+  BIND01[BIND-01 what binding means] --> BIND03[BIND-03 verifier]
+  INV02 --> BIND03
+  BIND01 --> BIND04[BIND-04 IR data structures]
+  SEM06 --> BIND04
+  SEM01 --> PASS01[PASS-01 analyses]
+  SEM06 --> PASS01
+  INV04 --> PASS03[PASS-03 peepholes]
+  SEM03 --> PASS03
+  PASS01 --> PASS05[PASS-05 composition]
+  PASS01 --> LOOP01[LOOP-01 loops]
+  LOOP01 --> LOOP02[LOOP-02 vectorization]
+  PASS05 --> LOOP03[LOOP-03 IPO and LTO]
+  INV06 --> CG01[CG-01 machine semantics]
+  CG01 --> CG02[CG-02 selection, legalization]
+  CG01 --> CG03[CG-03 machine passes]
+  CG02 --> CG04[CG-04 each target]
+  CG03 --> CG04
+  BIND03 --> BIND06[BIND-06 first bound pass]
+  BIND04 --> BIND06
+  PASS03 --> BIND06
+```
+
+## Tasks
+
+A task is complete only with evidence naming a file in the repo or a commit, and only once everything it depends on is.
+One worked on before its prerequisites are complete needs a gate waiver saying why, and its results get checked again
+when they land.
+
+### INV-01: Pinned registration inventory
+
+- **Lane:** INV
+- **Scope:** Every pass the pinned source registers, its code with hashes, and the `opt` and `llc` pipelines it's seen in, derived again and compared on each check.
+- **Depends on:** none
+- **Owns:** `tests/llvm_scope.py`, `tests/llvm_scope/inventory.json`, `tests/llvm_scope/probe-minimal.ll`, `tests/llvm_scope/probe-loop.ll`
+- **Acceptance:** `nix develop -c tests/llvm_scope.py check` derives a byte-identical inventory. It fails if a name `opt -print-passes` lists is missing, or if the source or tools aren't 23.1.3.
+- **Trust gaps:** Code anchors are entry files only. Pipeline membership comes from two small probes. The commit is recorded by hand, since the source tarball has no git metadata.
+- **Status:** in review
+- **Evidence:** Generated twice on z with identical bytes, and checked. Not merged.
+
+### INV-02: Coverage manifest and its rules
+
+- **Lane:** INV
+- **Scope:** The format of claims about passes, and the rules that keep finite evidence, stale bindings, timeouts and admissions from counting.
+- **Depends on:** none
+- **Owns:** `tests/llvm_scope/coverage.json`, `tests/llvm_scope/coverage.schema.json`, `tests/llvm_scope_test.py`
+- **Acceptance:** `tests/llvm_scope_test.py` passes, including a positive control and a refusal for each rule.
+- **Trust gaps:** Evidence is checked by hash and kind, not by replaying it. Replaying it is BIND-03's.
+- **Status:** in review
+- **Evidence:** 26 tests pass on z. Not merged.
+
+### INV-03: This task list, checked
+
+- **Lane:** INV
+- **Scope:** Stable task IDs, with lanes, dependencies, ownership, acceptance, trust gaps, status and evidence, parsed by `tests/llvm_scope.py`.
+- **Depends on:** none
+- **Owns:** `docs/llvm-verification-tasks.md`
+- **Acceptance:** `check` finds no loops, no unknown dependencies, no missing fields, no file owned twice by active tasks, no completed task without evidence, and no started one with open prerequisites and no waiver.
+- **Trust gaps:** A person still has to read whether a task's acceptance check is the right one.
+- **Status:** in review
+- **Evidence:** `check --offline` passes on z. Not merged.
+
+### INV-04: Rewrite-level inventory
+
+- **Lane:** INV
+- **Scope:** The units inside passes: InstCombine's and InstSimplify's rewrites, DAGCombiner and GlobalISel combiner rules, and TableGen selection and legalization patterns for each built target.
+- **Depends on:** INV-01
+- **Owns:** `tests/llvm_scope/rewrites/`
+- **Acceptance:** Each unit has a stable ID and a source location, generated from the pinned source, and a test fails if one appears or disappears without the inventory changing.
+- **Trust gaps:** Rewrites written as C++ control flow rather than patterns have no natural boundary. The split has to be stated, and reviewed.
+- **Status:** not started
+- **Evidence:** None.
+
+### INV-05: Permitted inputs and options
+
+- **Lane:** INV
+- **Scope:** What "all permitted inputs" ranges over: IR that passes the verifier, data layouts and triples, CPUs and features, function attributes including `optsize` and `minsize`, pass parameters, and the 1781 `cl::opt` options in pass code.
+- **Depends on:** INV-01
+- **Owns:** `tests/llvm_scope/inputs.json`
+- **Acceptance:** Each option and parameter is in scope, or out of it with a written reason. A pass is done only over the in-scope set.
+- **Trust gaps:** Leaving out a debugging option is a scope cut. Each one is listed, not implied.
+- **Status:** not started
+- **Evidence:** None.
+
+### INV-06: Codegen pipeline closure
+
+- **Lane:** INV
+- **Scope:** Which machine passes run for each target across CPUs, features, selectors (SelectionDAG, GlobalISel, FastISel) and the new codegen pass manager, beyond the two probes. Includes the AMDGPU and R600 probe failures and the SPIR-V crash.
+- **Depends on:** INV-01
+- **Owns:** `tests/llvm_scope/codegen/`
+- **Acceptance:** Every registered machine pass for a built target is seen in some pipeline or listed as reachable only by option. The SPIR-V crash is reduced and reported, or explained.
+- **Trust gaps:** A CPU list is finite, and a pass added only for some feature can still be missed.
+- **Status:** not started
+- **Evidence:** None.
+
+### INV-07: One denominator with the refinement scorer
+
+- **Lane:** INV
+- **Scope:** The scorer's draft counts 852 passes, 312 from `opt -print-passes` without analyses and 540 from `llc`, and 6 pipelines including `Os` and `Oz`, which this `opt` refuses. This inventory counts 1118 names. Agree on one.
+- **Depends on:** INV-01, PASS-02
+- **Owns:** `tests/llvm_scope/reconcile.json`
+- **Acceptance:** Both tools read one inventory, or a test shows each difference with its reason.
+- **Trust gaps:** None beyond INV-01's.
+- **Status:** not started
+- **Evidence:** None.
+
+### INV-08: Moving the pin
+
+- **Lane:** INV
+- **Scope:** How the pin moves: regenerate, review the inventory diff, and re-check every claim whose anchors changed.
+- **Depends on:** INV-01, INV-02
+- **Owns:** `docs/llvm-verification-tasks.md`
+- **Acceptance:** A trial move to another LLVM release produces an inventory diff and a list of the claims it makes stale.
+- **Trust gaps:** None.
+- **Status:** not started
+- **Evidence:** None.
+
+### INV-09: Scope decisions, signed off
+
+- **Lane:** INV
+- **Scope:** Decisions only a person can make: whether the 5 unbuilt targets, the 151 printers and verifiers, the 36 instrumentation passes and the machine-code layer below the optimizer are in the end condition.
+- **Depends on:** INV-01
+- **Owns:** `docs/llvm-verification-tasks.md`
+- **Acceptance:** Each is in or out, with a reason and the name of who decided. Until then all of them count.
+- **Trust gaps:** Leaving something out shrinks the denominator, so each cut has to be visible.
+- **Status:** blocked: needs the project owner's decision
+- **Evidence:** None.
+
+### SEM-01: The refinement contract
+
+- **Lane:** SEM
+- **Scope:** One Lean statement of what it means for a target to refine a source: undefined behavior, model stops, divergence, poison by lane, and how `freeze` and `undef` will fit. Every other lane writes proofs against it, so it's frozen before they scale.
+- **Depends on:** none
+- **Owns:** `IRLean/Refine.lean`, `IRLean.lean`, `lakefile.toml`, `tests/check_axioms.lean`
+- **Acceptance:** The statement is reviewed by someone other than its author. Known-wrong rewrites (wrong constant, added `nuw`, `freeze` making a value of poison, added UB, swapped lanes, a loop that never ends) fail to certify, and a right one certifies.
+- **Trust gaps:** Memory and pointers have no instance yet, and the model's extra UB on the source side can hide a wrong target there.
+- **Status:** in progress
+- **Evidence:** A draft is uncommitted on `research/prove-llvm-optimizations`. Nothing landed.
+
+### SEM-02: Undef
+
+- **Lane:** SEM
+- **Scope:** Represent `undef`, which is refused today, with reads of uninitialized memory giving poison. The source side of a refinement needs it.
+- **Depends on:** SEM-01
+- **Owns:** `IRLean/Basic.lean`
+- **Acceptance:** `undef` constants translate. Each use is a fresh choice, as LangRef says. Alive2 agrees, run without `--disable-undef-input`.
+- **Trust gaps:** Alive2 runs with undef inputs off today.
+- **Status:** not started
+- **Evidence:** None.
+
+### SEM-03: Poison and freeze
+
+- **Lane:** SEM
+- **Scope:** `freeze` of poison is a model stop today. Refinement needs it to choose any value, and the same one at every use.
+- **Depends on:** SEM-01
+- **Owns:** `IRLean/Vec.lean`
+- **Acceptance:** `freeze` agrees with Alive2 on every integer and vector width the opcheck covers, and a rewrite that duplicates a `freeze` fails to certify.
+- **Trust gaps:** None beyond SEM-01's.
+- **Status:** not started
+- **Evidence:** None.
+
+### SEM-04: Integer and vector operations for every width
+
+- **Lane:** SEM
+- **Scope:** Each integer and vector operation in LangRef is modeled, refused, or listed, with its poison flags, for every width.
+- **Depends on:** none
+- **Owns:** `IRLean/Int.lean`, `tests/opcheck.py`
+- **Acceptance:** A table of the pinned LangRef's integer and vector operations, each classified. The modeled ones are checked against Alive2 and the constant folder.
+- **Trust gaps:** `opcheck` checks finitely many widths and values. That's evidence about the model, not a proof that it's LangRef.
+- **Status:** not started (existing partial evidence: `tests/opcheck.py`)
+- **Evidence:** None for this task.
+
+### SEM-05: Floating point
+
+- **Lane:** SEM
+- **Scope:** Refused today. IEEE formats, NaN payloads as a choice, denormal modes, fast-math flags as poison, constrained intrinsics and rounding modes.
+- **Depends on:** SEM-01
+- **Owns:** `IRLean/Float.lean`
+- **Acceptance:** Each floating-point instruction and intrinsic is modeled or refused, checked against Alive2 and native code.
+- **Trust gaps:** LangRef leaves NaN payloads open, so the model has to keep that choice.
+- **Status:** not started
+- **Evidence:** None.
+
+### SEM-06: Memory for refinement
+
+- **Lane:** SEM
+- **Scope:** A relation between source and target memories, since a target may allocate differently. Also provenance and exposure for `ptrtoint` and `inttoptr`, bytes that are poison or `undef`, lifetimes, and dead stack objects, which are more UB than LLVM today and so wrong for a source.
+- **Depends on:** SEM-01, SEM-02
+- **Owns:** `IRLean/Mem.lean`, `IRLean/Safety.lean`
+- **Acceptance:** `Refines` has an instance for functions with memory, and the known gaps in [trust](trust.md#known-gaps-in-the-model) each have a side: no more UB than LLVM on the source, no less on the target.
+- **Trust gaps:** `tbaa` and scoped `noalias` are refused, and stay refused until modeled.
+- **Status:** not started
+- **Evidence:** None.
+
+### SEM-07: Promises as UB
+
+- **Lane:** SEM
+- **Scope:** `mustprogress` and `willreturn` are trusted today rather than checked. Make breaking them UB, as LangRef does, and classify every attribute and metadata kind as checked, poison, UB or refused.
+- **Depends on:** SEM-01
+- **Owns:** `IRLean/Attr.lean`
+- **Acceptance:** A pass that deletes a loop under `mustprogress` certifies, and one that adds the promise doesn't.
+- **Trust gaps:** Promises on arguments that Rust emits are refused today.
+- **Status:** not started
+- **Evidence:** None.
+
+### SEM-08: Every instruction, intrinsic, attribute and metadata kind classified
+
+- **Lane:** SEM
+- **Scope:** The roadmap's 0B exit criterion, at this pin: everything the pinned IR can contain is modeled, refused or assumed.
+- **Depends on:** INV-01
+- **Owns:** `tests/llvm_scope/ir-features.json`
+- **Acceptance:** Generated from the pinned `Intrinsics*.td`, `Attributes.td` and `FixedMetadataKinds.def`, and a test fails when one is unclassified.
+- **Trust gaps:** None beyond INV-01's.
+- **Status:** not started
+- **Evidence:** None.
+
+### SEM-09: Concurrency, exceptions and the rest
+
+- **Lane:** SEM
+- **Scope:** Atomics and memory orderings, `volatile`, `invoke` and `landingpad`, coroutines, GC statepoints, inline assembly. Refused today.
+- **Depends on:** SEM-06
+- **Owns:** `IRLean/Concurrency.lean`
+- **Acceptance:** Each is modeled, or every pass that only acts on it is marked unfinished for that reason.
+- **Trust gaps:** A concurrent memory model is a research problem.
+- **Status:** not started
+- **Evidence:** None.
+
+### SEM-10: An independent check of the semantics
+
+- **Lane:** SEM
+- **Scope:** Each rule compared with Alive2 where Alive2 can say it, and with Vellvm and LangRef where it can't, with a negative test for each known gap.
+- **Depends on:** SEM-01
+- **Owns:** `tests/semcheck.py`
+- **Acceptance:** Each rule has its independent check, or is listed without one.
+- **Trust gaps:** Alive2 and the model could agree and both be wrong.
+- **Status:** not started
+- **Evidence:** None.
+
+### BIND-01: What binding to the implementation means
+
+- **Lane:** BIND
+- **Scope:** Choose how a proof is tied to LLVM's C++. The candidates: compile the pass at the pin and prove its IR, through `ir-lean`, makes only proved rewrites; or a certifying pass with a verified checker, as Crellvm does, which is per run and so only translation validation; or a Lean reimplementation proved equivalent to the C++.
+- **Depends on:** none
+- **Owns:** `docs/binding.md`
+- **Acceptance:** A reviewed note choosing one, stating what a `code-binding` claim's evidence is, and why the others don't meet the end condition.
+- **Trust gaps:** Every route trusts the C++ compiler that built the pass, unless it reasons about the binary.
+- **Status:** not started
+- **Evidence:** None.
+
+### BIND-02: Implementation closure
+
+- **Lane:** BIND
+- **Scope:** For each pass, every function and file its compiled code can reach, from the call graph of the pinned build, replacing the inventory's entry files.
+- **Depends on:** INV-01
+- **Owns:** `tests/llvm_scope/closure/`
+- **Acceptance:** Each pass's anchors are its closure, hashed, and a test fails when any of them changes.
+- **Trust gaps:** Indirect calls through virtual functions need a stated bound.
+- **Status:** not started
+- **Evidence:** None.
+
+### BIND-03: An independent verifier
+
+- **Lane:** BIND
+- **Scope:** A checker that shares no code with any scorer, which replays each claim's evidence: the theorem names the generated function for the pinned anchors, rests only on allowed axioms, and `leanchecker` replays it.
+- **Depends on:** BIND-01, INV-02
+- **Owns:** `tools/verify_claims.py`
+- **Acceptance:** It accepts every claim the scorer accepts, and refuses a set of forged claims: wrong statement, stale anchors, extra axioms, `sorry`, and a kernel check skipped.
+- **Trust gaps:** It trusts Lean's kernel and the theorem statement's reader.
+- **Status:** not started
+- **Evidence:** None.
+
+### BIND-04: LLVM's IR in memory, in Lean
+
+- **Lane:** BIND
+- **Scope:** What `Value`, `User`, use lists, `BasicBlock`, `Instruction` and `APInt` mean in memory, as an abstraction from the C++ heap to IR syntax, so that a theorem about a compiled pass is a theorem about an IR transformation.
+- **Depends on:** BIND-01, SEM-06
+- **Owns:** `IRLean/LLVMHeap.lean`
+- **Acceptance:** The abstraction is proved preserved by the IR-building API calls a small pass makes.
+- **Trust gaps:** The C++ object layout comes from the compiled pass's IR, for one target.
+- **Status:** not started
+- **Evidence:** None.
+
+### BIND-05: Translating LLVM's own C++
+
+- **Lane:** BIND
+- **Scope:** What the emitter needs to translate LLVM's pass code as upstream compiles it: virtual calls, templates, `DenseMap` and the rest of ADT. The roadmap's C++ phase is the start of it.
+- **Depends on:** BIND-01, SEM-06
+- **Owns:** `src/Emitter.cpp`, `src/Emitter.h`
+- **Acceptance:** One whole pass, with its closure from BIND-02, translates without refusals.
+- **Trust gaps:** The emitter itself is unverified.
+- **Status:** not started
+- **Evidence:** None.
+
+### BIND-06: The first pass bound end to end
+
+- **Lane:** BIND
+- **Scope:** A small pass with complete all-input, code-binding and composition claims, accepted by BIND-03.
+- **Depends on:** BIND-03, BIND-04, BIND-05, PASS-03, PASS-05
+- **Owns:** `tests/llvm_scope/coverage.json`
+- **Acceptance:** `tests/llvm_scope.py summary` counts it done, and BIND-03 agrees.
+- **Trust gaps:** Whatever BIND-01 says the route trusts.
+- **Status:** not started
+- **Evidence:** None.
+
+### AUTO-01: The refinement tactic
+
+- **Lane:** AUTO
+- **Scope:** An untrusted tactic proving `Refines` for straight-line and branching integer code.
+- **Depends on:** SEM-01
+- **Owns:** `IRLean/RefineTactic.lean`
+- **Acceptance:** It proves the right control and fails, with an error that isn't a resource limit, on each wrong one.
+- **Trust gaps:** None, since it's untrusted and its output is checked.
+- **Status:** in progress
+- **Gate waiver:** Drafted with SEM-01, in the same tree. It's re-checked when SEM-01 is frozen.
+- **Evidence:** A draft is uncommitted on `research/prove-llvm-optimizations`. Nothing landed.
+
+### AUTO-02: Reusing lemmas across rewrites
+
+- **Lane:** AUTO
+- **Scope:** Extend the [lemma store](lemma-reuse.md) to refinement proofs, so a rewrite shape proved once is reused.
+- **Depends on:** AUTO-01
+- **Owns:** `prototypes/lemma-reuse/`
+- **Acceptance:** Over InstSimplify's rewrites, most proofs reuse a stored lemma, measured.
+- **Trust gaps:** None.
+- **Status:** not started
+- **Evidence:** None.
+
+### AUTO-03: From instances to every width
+
+- **Lane:** AUTO
+- **Scope:** Prove rewrites for all bit widths at once, rather than with `bv_decide` per width, so an all-input claim covers every width the verifier allows.
+- **Depends on:** AUTO-01, SEM-04
+- **Owns:** `IRLean/Generic.lean`
+- **Acceptance:** The rewrites INV-04 lists for InstSimplify are proved for every width, or listed with the widths they're proved for.
+- **Trust gaps:** None.
+- **Status:** not started
+- **Evidence:** None.
+
+### PASS-01: Analyses are sound
+
+- **Lane:** PASS
+- **Scope:** State and prove what the analyses transforms rely on: dominator trees, loop info, scalar evolution, known bits and value tracking, lazy value info, alias analysis and MemorySSA.
+- **Depends on:** SEM-01, SEM-06, BIND-01
+- **Owns:** `tests/passes-proofs/analyses/`
+- **Acceptance:** Each of the 142 analyses has an `analysis-soundness` claim, complete or with its gap.
+- **Trust gaps:** Target hooks feed many analyses, so each target's answers are part of the input.
+- **Status:** not started
+- **Evidence:** None.
+
+### PASS-02: Translation validation on LLVM's tests
+
+- **Lane:** PASS
+- **Scope:** Each pass run on its own regression tests, and each changed function certified. Finite, so it's never all-input evidence, only progress and counterexamples.
+- **Depends on:** SEM-01
+- **Owns:** `tests/passes.py`, `tests/passes/`, `docs/passes.md`
+- **Acceptance:** Results go into `translation-validation` claims, never another dimension, with timeouts and unsupported cases counted as such.
+- **Trust gaps:** One pass at a time, outside its pipeline, on inputs chosen by LLVM's authors.
+- **Status:** in progress
+- **Gate waiver:** Drafted before SEM-01 was frozen. Its results are re-run when it is.
+- **Evidence:** A draft is uncommitted on `research/prove-llvm-optimizations`. Nothing landed.
+
+### PASS-03: Peephole rewrites for all inputs
+
+- **Lane:** PASS
+- **Scope:** InstSimplify, InstCombine, AggressiveInstCombine and Reassociate, one rewrite at a time from INV-04.
+- **Depends on:** INV-04, SEM-03, SEM-04, AUTO-03
+- **Owns:** `tests/passes-proofs/peephole/`
+- **Acceptance:** Each rewrite has an all-input proof, or is listed as unfinished with its reason.
+- **Trust gaps:** Rewrites that read analyses rest on PASS-01.
+- **Status:** not started
+- **Evidence:** None.
+
+### PASS-04: Scalar and CFG transforms
+
+- **Lane:** PASS
+- **Scope:** SimplifyCFG, SROA, mem2reg, EarlyCSE, GVN, NewGVN, DSE, MemCpyOpt, SCCP, ADCE, BDCE, JumpThreading, CorrelatedValuePropagation and the rest of the scalar transforms.
+- **Depends on:** PASS-01, SEM-06, SEM-07
+- **Owns:** `tests/passes-proofs/scalar/`
+- **Acceptance:** An all-input claim for each, complete or with its gap.
+- **Trust gaps:** Most need memory refinement.
+- **Status:** not started
+- **Evidence:** None.
+
+### PASS-05: Composition through pipelines
+
+- **Lane:** PASS
+- **Scope:** Refinement composes, and the pass manager is right: analyses cached, preserved and invalidated correctly, adaptors, repetition such as `devirt<4>`, and each of the 20 pipelines that build.
+- **Depends on:** SEM-01, PASS-01
+- **Owns:** `tests/passes-proofs/pipelines/`
+- **Acceptance:** A theorem for each pipeline in the inventory, given its passes' claims.
+- **Trust gaps:** A pass that reads a stale analysis without the pass manager knowing would break this, and needs its own check.
+- **Status:** not started
+- **Evidence:** None.
+
+### PASS-06: Size levels and other attribute-driven choices
+
+- **Lane:** PASS
+- **Scope:** `Os` and `Oz` are `O2` with `optsize` and `minsize`, and target hooks change decisions too. Both are inputs, so the proofs cover every setting.
+- **Depends on:** INV-05, PASS-05
+- **Owns:** `tests/passes-proofs/attributes/`
+- **Acceptance:** Each pass's claims say they hold for every attribute setting and target hook answer, or list the ones they don't.
+- **Trust gaps:** None beyond INV-05's.
+- **Status:** not started
+- **Evidence:** None.
+
+### LOOP-01: Loop passes
+
+- **Lane:** LOOP
+- **Scope:** loop-simplify, LCSSA, rotation, LICM, IndVarSimplify, unrolling, deletion, loop strength reduction and loop idioms.
+- **Depends on:** PASS-01, SEM-07
+- **Owns:** `tests/passes-proofs/loops/`
+- **Acceptance:** An all-input claim for each, complete or with its gap.
+- **Trust gaps:** Deleting a loop rests on SEM-07's `mustprogress`.
+- **Status:** not started
+- **Evidence:** None.
+
+### LOOP-02: Vectorization
+
+- **Lane:** LOOP
+- **Scope:** LoopVectorize and VPlan, SLP, the load-store vectorizer, runtime alias checks, interleaving, masked intrinsics and reductions.
+- **Depends on:** LOOP-01, SEM-05, SEM-06
+- **Owns:** `tests/passes-proofs/vectorize/`
+- **Acceptance:** An all-input claim for each, complete or with its gap.
+- **Trust gaps:** Floating-point reductions rest on SEM-05's fast-math semantics.
+- **Status:** not started
+- **Evidence:** None.
+
+### LOOP-03: Interprocedural passes and LTO
+
+- **Lane:** LOOP
+- **Scope:** The inliner, attribute inference, GlobalOpt, IPSCCP, argument promotion, dead argument elimination, function merging, devirtualization, and ThinLTO's summaries and imports. Module and linking semantics come first.
+- **Depends on:** PASS-05, SEM-07
+- **Owns:** `tests/passes-proofs/ipo/`
+- **Acceptance:** An all-input claim for each, complete or with its gap. Inferred attributes are proved true.
+- **Trust gaps:** Whole-program passes assume what the linker gives them, which has to be stated.
+- **Status:** not started
+- **Evidence:** None.
+
+### CG-01: Machine-level semantics
+
+- **Lane:** CG
+- **Scope:** Machine IR in Lean: virtual and physical registers, frames, calling conventions, and each built target's instructions, from an authoritative spec where one exists, such as Sail for AArch64 and RISC-V.
+- **Depends on:** SEM-01, INV-06
+- **Owns:** `IRLean/Machine/`
+- **Acceptance:** For each of the 20 built backends, its machine instructions are modeled or refused, checked against hardware or the spec.
+- **Trust gaps:** Some targets have no formal ISA spec, so their semantics rest on manuals.
+- **Status:** not started
+- **Evidence:** None.
+
+### CG-02: Selection and legalization
+
+- **Lane:** CG
+- **Scope:** SelectionDAG, GlobalISel's translator, legalizer, register bank selection and instruction selection, and FastISel, through the TableGen patterns INV-04 lists for each target.
+- **Depends on:** CG-01, INV-04
+- **Owns:** `tests/passes-proofs/isel/`
+- **Acceptance:** Each pattern is proved, or listed as unfinished, per target.
+- **Trust gaps:** TableGen itself is trusted unless its output is what's proved.
+- **Status:** not started
+- **Evidence:** None.
+
+### CG-03: Target-independent machine passes
+
+- **Lane:** CG
+- **Scope:** Machine CSE, sinking, LICM, peephole, branch folding, tail duplication, if-conversion, the machine combiner, scheduling, register allocation, prologue and epilogue insertion, stack coloring and the rest.
+- **Depends on:** CG-01
+- **Owns:** `tests/passes-proofs/machine/`
+- **Acceptance:** An all-input claim for each, complete or with its gap.
+- **Trust gaps:** Register allocators are heuristic, so their proof is of the result's validity, not of the choice.
+- **Status:** not started
+- **Evidence:** None.
+
+### CG-04: Each target's own passes
+
+- **Lane:** CG
+- **Scope:** The 438 passes in the directories of the 20 built backends, each target's own: X86 50, AMDGPU 92, Hexagon 45, AArch64 43, RISC-V 33, WebAssembly 30, NVPTX 25, PowerPC 22, SPIR-V 21, ARM 20, BPF 12, Mips 9, SystemZ 9, LoongArch 8, AVR 4, Lanai 4, MSP430 3, Sparc 3, XCore 3 and VE 2. The 37 in unbuilt targets wait on INV-09.
+- **Depends on:** CG-02, CG-03
+- **Owns:** `tests/passes-proofs/targets/`
+- **Acceptance:** Each target has every pass done, or a count of what isn't, with reasons.
+- **Trust gaps:** Per target, as CG-01 says.
+- **Status:** not started
+- **Evidence:** None.
+
+### CG-05: Below the optimizer
+
+- **Lane:** CG
+- **Scope:** Instruction encoding, assembly and object emission, if INV-09 puts them in scope. Without them, a proof stops at machine IR.
+- **Depends on:** CG-01, INV-09
+- **Owns:** `tests/passes-proofs/mc/`
+- **Acceptance:** Decided by INV-09 first.
+- **Trust gaps:** The assembler, linker and loader.
+- **Status:** not started
+- **Evidence:** None.
+
+### NEG-01: Scope checks in CI
+
+- **Lane:** NEG
+- **Scope:** Register `tests/llvm_scope_test.py` and `tests/llvm_scope.py check` with CTest, so CI runs them.
+- **Depends on:** INV-01, INV-02
+- **Owns:** `CMakeLists.txt`
+- **Acceptance:** CI fails on a changed inventory, a bad claim or a bad task.
+- **Trust gaps:** None.
+- **Status:** not started
+- **Evidence:** None.
+
+### NEG-02: Known miscompilations
+
+- **Lane:** NEG
+- **Scope:** Fixed LLVM miscompilation bugs, put back into the pinned pass. Each has to fail to certify, in translation validation and in the all-input proof.
+- **Depends on:** PASS-02
+- **Owns:** `tests/miscompiles/`
+- **Acceptance:** At least one reverted fix per lane that has proofs, each refused with an error that isn't a resource limit.
+- **Trust gaps:** Old bugs say nothing certain about new ones.
+- **Status:** not started
+- **Evidence:** None.
+
+### NEG-03: Mutating the semantics and emitter
+
+- **Lane:** NEG
+- **Scope:** The roadmap's slice 12: change each `Val`, `Mem` and emitter case, and require some test to fail.
+- **Depends on:** none
+- **Owns:** `tests/mutate.py`
+- **Acceptance:** A kill rate is reported, and each survivor has a reason.
+- **Trust gaps:** Mutants only cover the changes someone wrote.
+- **Status:** not started
+- **Evidence:** None.
+
+### NEG-04: Honest coverage in CI
+
+- **Lane:** NEG
+- **Scope:** CI prints the summary, keeps it with the run, and fails if the done count rises without evidence the checker accepts, or the denominator shrinks without an inventory diff.
+- **Depends on:** NEG-01, INV-02
+- **Owns:** `.github/workflows/ci.yml`
+- **Acceptance:** A forged claim and a dropped pass each fail CI, shown by a test.
+- **Trust gaps:** None.
+- **Status:** not started
+- **Evidence:** None.
+
+### NEG-05: The same bytes on two machines
+
+- **Lane:** NEG
+- **Scope:** The inventory, generated Lean and proofs identical on y (aarch64-darwin) and z (x86_64-linux).
+- **Depends on:** INV-01
+- **Owns:** `tests/reproduce.sh`
+- **Acceptance:** Matching hashes from both, in CI or recorded with the commands that made them.
+- **Trust gaps:** None.
+- **Status:** not started
+- **Evidence:** None.
+
+### NEG-06: Bounded proof runs
+
+- **Lane:** NEG
+- **Scope:** Proof and scorer runs capped in memory and time, as the scorer's draft does with systemd scopes, with any limit counted as unknown and never as a pass.
+- **Depends on:** none
+- **Owns:** `tests/bounded.py`
+- **Acceptance:** A run that would exhaust memory stops itself, records its timeouts, and leaves the machine responsive.
+- **Trust gaps:** None.
+- **Status:** not started
+- **Evidence:** None.
+
+### NEG-07: A hermetic pin
+
+- **Lane:** NEG
+- **Scope:** LLVM pinned to a version rather than `llvmPackages_latest`, and Lean from a pinned source, as the roadmap's 0B asks.
+- **Depends on:** INV-01
+- **Owns:** `nix/shell.nix`, `flake.lock`
+- **Acceptance:** A flake update can't move LLVM without `check` failing until the inventory is regenerated.
+- **Trust gaps:** None.
+- **Status:** not started
+- **Evidence:** None.
