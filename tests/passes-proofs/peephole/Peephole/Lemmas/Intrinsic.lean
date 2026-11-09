@@ -468,13 +468,13 @@ theorem smin_smax_right_refines (a b : Val w) : Refines (Val.smin (Val.smax a b)
   cases a <;> cases b <;> smm
 
 /-- `umax(x, y)` is `x` if `x ≥ y`. `IS.simplifyBinaryIntrinsic.L7052`. -/
-theorem umax_of_ule {x y : BitVec w} (h : y.ule x) : Val.umax (some x) (some y) = some x := by
+theorem umax_some_of_ule {x y : BitVec w} (h : y.ule x) : Val.umax (some x) (some y) = some x := by
   umm
-theorem umin_of_ule {x y : BitVec w} (h : x.ule y) : Val.umin (some x) (some y) = some x := by
+theorem umin_some_of_ule {x y : BitVec w} (h : x.ule y) : Val.umin (some x) (some y) = some x := by
   umm
-theorem smax_of_sle {x y : BitVec w} (h : y.sle x) : Val.smax (some x) (some y) = some x := by
+theorem smax_some_of_sle {x y : BitVec w} (h : y.sle x) : Val.smax (some x) (some y) = some x := by
   smm
-theorem smin_of_sle {x y : BitVec w} (h : x.sle y) : Val.smin (some x) (some y) = some x := by
+theorem smin_some_of_sle {x y : BitVec w} (h : x.sle y) : Val.smin (some x) (some y) = some x := by
   smm
 
 /-! ### Saturating arithmetic -/
@@ -866,35 +866,35 @@ theorem LemmaStore.Counter.Peephole.Lemmas.smin_smin_of_sle.sat :
   ⟨0, none, 0#0, 0#0, rfl⟩
 
 /-- In `i1`, `umax(0, 1)` is 1. -/
-theorem LemmaStore.Counter.Peephole.Lemmas.umax_of_ule.drop_h :
+theorem LemmaStore.Counter.Peephole.Lemmas.umax_some_of_ule.drop_h :
     ¬ ∀ {w : Nat} {x y : BitVec w}, IRLean.Val.umax (some x) (some y) = some x :=
   fun h => absurd (@h 1 0#1 1#1) (by decide)
 
-theorem LemmaStore.Counter.Peephole.Lemmas.umax_of_ule.sat : ∃ (w : Nat) (x y : BitVec w), y.ule x = true :=
+theorem LemmaStore.Counter.Peephole.Lemmas.umax_some_of_ule.sat : ∃ (w : Nat) (x y : BitVec w), y.ule x = true :=
   ⟨0, 0#0, 0#0, rfl⟩
 
 /-- In `i1`, `umin(1, 0)` is 0. -/
-theorem LemmaStore.Counter.Peephole.Lemmas.umin_of_ule.drop_h :
+theorem LemmaStore.Counter.Peephole.Lemmas.umin_some_of_ule.drop_h :
     ¬ ∀ {w : Nat} {x y : BitVec w}, IRLean.Val.umin (some x) (some y) = some x :=
   fun h => absurd (@h 1 1#1 0#1) (by decide)
 
-theorem LemmaStore.Counter.Peephole.Lemmas.umin_of_ule.sat : ∃ (w : Nat) (x y : BitVec w), x.ule y = true :=
+theorem LemmaStore.Counter.Peephole.Lemmas.umin_some_of_ule.sat : ∃ (w : Nat) (x y : BitVec w), x.ule y = true :=
   ⟨0, 0#0, 0#0, rfl⟩
 
 /-- In `i1`, `smax(-1, 0)` is 0. -/
-theorem LemmaStore.Counter.Peephole.Lemmas.smax_of_sle.drop_h :
+theorem LemmaStore.Counter.Peephole.Lemmas.smax_some_of_sle.drop_h :
     ¬ ∀ {w : Nat} {x y : BitVec w}, IRLean.Val.smax (some x) (some y) = some x :=
   fun h => absurd (@h 1 1#1 0#1) (by decide)
 
-theorem LemmaStore.Counter.Peephole.Lemmas.smax_of_sle.sat : ∃ (w : Nat) (x y : BitVec w), y.sle x = true :=
+theorem LemmaStore.Counter.Peephole.Lemmas.smax_some_of_sle.sat : ∃ (w : Nat) (x y : BitVec w), y.sle x = true :=
   ⟨0, 0#0, 0#0, rfl⟩
 
 /-- In `i1`, `smin(0, -1)` is -1. -/
-theorem LemmaStore.Counter.Peephole.Lemmas.smin_of_sle.drop_h :
+theorem LemmaStore.Counter.Peephole.Lemmas.smin_some_of_sle.drop_h :
     ¬ ∀ {w : Nat} {x y : BitVec w}, IRLean.Val.smin (some x) (some y) = some x :=
   fun h => absurd (@h 1 0#1 1#1) (by decide)
 
-theorem LemmaStore.Counter.Peephole.Lemmas.smin_of_sle.sat : ∃ (w : Nat) (x y : BitVec w), x.sle y = true :=
+theorem LemmaStore.Counter.Peephole.Lemmas.smin_some_of_sle.sat : ∃ (w : Nat) (x y : BitVec w), x.sle y = true :=
   ⟨0, 0#0, 0#0, rfl⟩
 
 /-- In `i2`, `fshl(1, 0, 1)` is 2. -/

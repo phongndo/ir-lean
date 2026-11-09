@@ -612,7 +612,7 @@ end Select
 
 /-- The steps of `simplifySelectWithICmpCond` under `Pred == ICMP_EQ`, once `ne` is made `eq` and the arms swapped for
 it, on the compare's operands `CmpLHS` and `CmpRHS` and the arms `TrueVal` and `FalseVal`. -/
-def simplifySelectWithICmpCond.eqSteps {u : Nat} (cl cr : Term u) (tv fv : Term w) (n : Nat) : List (Step w) :=
+def Select.icmpCondEqSteps {u : Nat} (cl cr : Term u) (tv fv : Term w) (n : Nat) : List (Step w) :=
   [ -- if (Pred == ICmpInst::ICMP_EQ && match(CmpRHS, m_Zero())) {
     --   if (match(CmpLHS, m_And(m_Value(X), m_APInt(Y))))
     --     if (Value *V = simplifySelectBitTest(TrueVal, FalseVal, X, Y, /*TrueWhenUnset=*/true)) return V;
@@ -649,14 +649,14 @@ def simplifySelectWithICmpCond.eqSteps {u : Nat} (cl cr : Term u) (tv fv : Term 
 
 /-- `simplifySelectWithICmpCond(CondVal, TrueVal, FalseVal, Q, MaxRecurse)`, as far as it reaches the helpers here. A
 condition that isn't an `icmp` answers `nullptr` at once. -/
-def simplifySelectWithICmpCond.steps (c : Term 1) (t e : Term w) (n : Nat) : List (Step w) :=
+def Select.icmpCondSteps (c : Term 1) (t e : Term w) (n : Nat) : List (Step w) :=
   match c with
   | .icmp _ p _ cl cr =>
     -- if (Value *V = simplifyCmpSelOfMaxMin(...)) return V;
     (if Select.isMinMax t || Select.isMinMax e then .delegate "simplifyCmpSelOfMaxMin" else .next) ::
     -- Canonicalize ne to eq predicate. The min/max limit test after it answers for no `eq`.
-    if p = .eq then simplifySelectWithICmpCond.eqSteps cl cr t e n
-    else if p = .ne then simplifySelectWithICmpCond.eqSteps cl cr e t n
+    if p = .eq then Select.icmpCondEqSteps cl cr t e n
+    else if p = .ne then Select.icmpCondEqSteps cl cr e t n
     else [ .delegate "matchDecomposedSelectPattern" ]
   | _ => []
 
@@ -664,7 +664,7 @@ def simplifySelectWithICmpCond.steps (c : Term 1) (t e : Term w) (n : Nat) : Lis
 def Select.selectEntry.steps (c : Term 1) (t e : Term w) (n : Nat) : List (Step w) :=
   (if Select.selectEarlier c t e then .delegate "simplifySelectInst: a step before simplifySelectWithICmpCond"
     else .next) ::
-  simplifySelectWithICmpCond.steps c t e n ++
+  Select.icmpCondSteps c t e n ++
   [ .delegate "simplifySelectInst: a step after simplifySelectWithICmpCond" ]
 
 /-- What InstSimplify does with a `select`, as far as it reaches the helpers here: `simplifyInstructionWithOperands`
@@ -763,15 +763,15 @@ end Select
 open Select in
 /-- What `simplifySelectWithICmpCond`'s steps under `eq` return refines a `select` on `CmpLHS == CmpRHS`, with or
 without `samesign`, at every width, in every run its operands are consistent with. -/
-theorem simplifySelectWithICmpCond.eqSteps_sound (ρ : Env) {u : Nat} (cl cr : Term u) (tv fv : Term w) (n : Nat)
+theorem Select.icmpCondEqSteps_sound (ρ : Env) {u : Nat} (cl cr : Term u) (tv fv : Term w) (n : Nat)
     (s : Bool) (ccl : cl.Consistent ρ) (ctv : tv.Consistent ρ) (cfv : fv.Consistent ρ) :
-    ∀ site r, Step.fire site r ∈ simplifySelectWithICmpCond.eqSteps cl cr tv fv n →
+    ∀ site r, Step.fire site r ∈ Select.icmpCondEqSteps cl cr tv fv n →
       Refines (Outcome.ok (IRLean.select (Val.icmpEq (cl.denote ρ) (cr.denote ρ) s) (tv.denote ρ) (fv.denote ρ)))
         (r.eval ρ) := by
   intro site r hmem
   have hold : Val.icmpEq (cl.denote ρ) (cr.denote ρ) s = some 1#1 → cl.denote ρ = cr.denote ρ :=
     fun h => (icmpEq_eq_one h).1
-  simp only [simplifySelectWithICmpCond.eqSteps, List.mem_cons, List.not_mem_nil, or_false] at hmem
+  simp only [Select.icmpCondEqSteps, List.mem_cons, List.not_mem_nil, or_false] at hmem
   rcases hmem with h | h | h | h | h | h
   · -- The bit test.
     split at h
@@ -840,7 +840,7 @@ theorem Select.selectOnInst_sound (o : Oracle) (ρ : Env) (t : Term w) (ct : t.C
       or_false] at hmem
     rcases hmem with hm | hm | hm
     · split at hm <;> simp only [reduceCtorEq] at hm
-    · unfold simplifySelectWithICmpCond.steps at hm
+    · unfold Select.icmpCondSteps at hm
       split at hm
       · next id' p s cl cr =>
         obtain ⟨ccl, -, hd⟩ := cc
@@ -852,13 +852,13 @@ theorem Select.selectOnInst_sound (o : Oracle) (ρ : Env) (t : Term w) (ct : t.C
         · split at hm
           · next hp =>
             subst hp
-            exact simplifySelectWithICmpCond.eqSteps_sound ρ cl cr a b 3 s ccl ca cb site r hm
+            exact Select.icmpCondEqSteps_sound ρ cl cr a b 3 s ccl ca cb site r hm
           · split at hm
             · next hp =>
               subst hp
               rw [show Pred.eval .ne (cl.denote ρ) (cr.denote ρ) s = Val.icmpNe (cl.denote ρ) (cr.denote ρ) s from rfl,
                 select_ne]
-              exact simplifySelectWithICmpCond.eqSteps_sound ρ cl cr b a 3 s ccl cb ca site r hm
+              exact Select.icmpCondEqSteps_sound ρ cl cr b a 3 s ccl cb ca site r hm
             · simp only [List.mem_cons, List.not_mem_nil, or_false, reduceCtorEq] at hm
       · simp only [List.not_mem_nil] at hm
     · simp only [reduceCtorEq] at hm

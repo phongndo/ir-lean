@@ -119,10 +119,10 @@ private theorem minMax_of_pred {f : BinIntr} (hf : isMinMax f = true) {x y : Bit
     simp only [nonStrictPred, Pred.eval, Val.icmpUle, Val.icmpUge, Val.icmpSle, Val.icmpSge, Val.icmp,
       Bool.false_and, Bool.false_eq_true, ite_false, Option.some.injEq] at h <;>
     simp only [BinIntr.eval]
-  · exact Lemmas.umin_of_ule (by cases hc : x.ule y <;> simp_all)
-  · exact Lemmas.umax_of_ule (by cases hc : y.ule x <;> simp_all)
-  · exact Lemmas.smin_of_sle (by cases hc : x.sle y <;> simp_all)
-  · exact Lemmas.smax_of_sle (by cases hc : y.sle x <;> simp_all)
+  · exact Lemmas.umin_some_of_ule (by cases hc : x.ule y <;> simp_all)
+  · exact Lemmas.umax_some_of_ule (by cases hc : y.ule x <;> simp_all)
+  · exact Lemmas.smin_some_of_sle (by cases hc : x.sle y <;> simp_all)
+  · exact Lemmas.smax_some_of_sle (by cases hc : y.sle x <;> simp_all)
 
 /-! ### Matchers -/
 
