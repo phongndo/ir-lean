@@ -109,6 +109,11 @@ rests on crashed, ran out of something or failed, and that nothing it needs is m
 | `bench/instcombine/stage1.py` | Proved, for a pair `tools/verify.py` proves and the negative-verification gate passes, certified, for a bundle `tools/binding.py` binds, and refuted, for a witness `tools/verify.py` decides false |
 | `tests/cpp_correspondence.py` | Proved, for the model, and caught, for each broken model |
 
+One tool decides a verdict without asking it, on purpose: [`tools/verify_claims.py`](verify-claims.md), BIND-03's
+verifier, which has to share no code with the scorer it checks. Its verdicts, `replayed` and `verified`, aren't the
+scorer's words, and [`tests/verify_claims_test.py`](../tests/verify_claims_test.py) checks how it reaches each, and
+that a limit is `unknown` there too.
+
 `tools/binding.py` names `tools/irlean`'s files by hash in a bundle's toolchain, as it does itself, since they decide its
 verdict too: that's `ir-lean.binding.manifest/2`. The shell tests, such as `tests/proofs.sh`, decide in shell, and
 reading Alive2's own output is `tests/alive.py`'s; each has its own tests. `tests/verdict_test.py` checks `decide` over
