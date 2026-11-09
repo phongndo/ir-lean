@@ -1,0 +1,943 @@
+{
+  "schema": "ir-lean.cpp-correspondence.anchors/1",
+  "llvm": {
+    "repository": "https://github.com/llvm/llvm-project",
+    "tag": "llvmorg-23.1.3",
+    "commit": "0d261d1ca552c95a8f007e061c787ac7132fbcbc",
+    "nix_hash": "sha256-+e5YvYEbCvvEQbLVIQP5hwPp4tEk6EB270bSEMKv0t4="
+  },
+  "files": {
+    "llvm/include/llvm/Analysis/SimplifyQuery.h": "7fb7684238fe1f3c8a87ec4dc76c0fc9f11b00a82bb171bc3676106a81f9a427",
+    "llvm/include/llvm/Analysis/ValueTracking.h": "f10e77f9801db08cd66f881f3bb76e84dd1feac02e7192105eba627474bb5939",
+    "llvm/include/llvm/IR/PatternMatch.h": "721ef72b2b06361c633c12d0c10e150f01977f40d6401d36a0e28c5e0e11021b",
+    "llvm/lib/Analysis/InstructionSimplify.cpp": "e848f432b70397effed64a67bcf7066e92fc34b5df7dda999759239533384705",
+    "llvm/lib/Analysis/ValueTracking.cpp": "30f10ffa118a63a512ae33633c92c946c0ff94c1dc23da2fca7feb3520d6ce19",
+    "llvm/lib/Transforms/InstCombine/InstCombineAddSub.cpp": "2176890f95aae95b64a0e47cc7023a25b01a270d999d338190cd7172cff780d1",
+    "llvm/lib/Transforms/Scalar/InstSimplifyPass.cpp": "663a0511b5668b5201174c717e7f702d2136f5bb5328e835e0795afb1ce362ca"
+  },
+  "covered": [
+    {
+      "function": "simplifyAddInst",
+      "file": "llvm/lib/Analysis/InstructionSimplify.cpp",
+      "range": [
+        594,
+        659
+      ]
+    },
+    {
+      "function": "foldOrCommuteConstant",
+      "file": "llvm/lib/Analysis/InstructionSimplify.cpp",
+      "range": [
+        566,
+        590
+      ]
+    },
+    {
+      "function": "isKnownNegation",
+      "file": "llvm/lib/Analysis/ValueTracking.cpp",
+      "range": [
+        8820,
+        8849
+      ]
+    }
+  ],
+  "anchors": [
+    {
+      "id": "add.entry",
+      "file": "llvm/lib/Analysis/InstructionSimplify.cpp",
+      "ranges": [
+        [
+          594,
+          595
+        ]
+      ],
+      "text": [
+        "static Value *simplifyAddInst(Value *Op0, Value *Op1, bool IsNSW, bool IsNUW,",
+        "                              const SimplifyQuery &Q, unsigned MaxRecurse) {"
+      ]
+    },
+    {
+      "id": "add.fold",
+      "file": "llvm/lib/Analysis/InstructionSimplify.cpp",
+      "ranges": [
+        [
+          596,
+          598
+        ]
+      ],
+      "text": [
+        "  if (Constant *C = foldOrCommuteConstant(Instruction::Add, Op0, Op1, Q))",
+        "    return C;",
+        ""
+      ]
+    },
+    {
+      "id": "add.poison",
+      "file": "llvm/lib/Analysis/InstructionSimplify.cpp",
+      "ranges": [
+        [
+          599,
+          602
+        ]
+      ],
+      "text": [
+        "  // X + poison -> poison",
+        "  if (isa<PoisonValue>(Op1))",
+        "    return Op1;",
+        ""
+      ]
+    },
+    {
+      "id": "add.undef",
+      "file": "llvm/lib/Analysis/InstructionSimplify.cpp",
+      "ranges": [
+        [
+          603,
+          606
+        ]
+      ],
+      "text": [
+        "  // X + undef -> undef",
+        "  if (Q.isUndefValue(Op1))",
+        "    return Op1;",
+        ""
+      ]
+    },
+    {
+      "id": "add.zero",
+      "file": "llvm/lib/Analysis/InstructionSimplify.cpp",
+      "ranges": [
+        [
+          607,
+          610
+        ]
+      ],
+      "text": [
+        "  // X + 0 -> X",
+        "  if (match(Op1, m_Zero()))",
+        "    return Op0;",
+        ""
+      ]
+    },
+    {
+      "id": "add.negation",
+      "file": "llvm/lib/Analysis/InstructionSimplify.cpp",
+      "ranges": [
+        [
+          611,
+          614
+        ]
+      ],
+      "text": [
+        "  // If two operands are negative, return 0.",
+        "  if (isKnownNegation(Op0, Op1))",
+        "    return Constant::getNullValue(Op0->getType());",
+        ""
+      ]
+    },
+    {
+      "id": "add.subCancel",
+      "file": "llvm/lib/Analysis/InstructionSimplify.cpp",
+      "ranges": [
+        [
+          615,
+          622
+        ]
+      ],
+      "text": [
+        "  // X + (Y - X) -> Y",
+        "  // (Y - X) + X -> Y",
+        "  // Eg: X + -X -> 0",
+        "  Value *Y = nullptr;",
+        "  if (match(Op1, m_Sub(m_Value(Y), m_Specific(Op0))) ||",
+        "      match(Op0, m_Sub(m_Value(Y), m_Specific(Op1))))",
+        "    return Y;",
+        ""
+      ]
+    },
+    {
+      "id": "add.not",
+      "file": "llvm/lib/Analysis/InstructionSimplify.cpp",
+      "ranges": [
+        [
+          623,
+          627
+        ]
+      ],
+      "text": [
+        "  // X + ~X -> -1   since   ~X = -X-1",
+        "  Type *Ty = Op0->getType();",
+        "  if (match(Op0, m_Not(m_Specific(Op1))) || match(Op1, m_Not(m_Specific(Op0))))",
+        "    return Constant::getAllOnesValue(Ty);",
+        ""
+      ]
+    },
+    {
+      "id": "add.signMask",
+      "file": "llvm/lib/Analysis/InstructionSimplify.cpp",
+      "ranges": [
+        [
+          628,
+          634
+        ]
+      ],
+      "text": [
+        "  // add nsw/nuw (xor Y, signmask), signmask --> Y",
+        "  // The no-wrapping add guarantees that the top bit will be set by the add.",
+        "  // Therefore, the xor must be clearing the already set sign bit of Y.",
+        "  if ((IsNSW || IsNUW) && match(Op1, m_SignMask()) &&",
+        "      match(Op0, m_Xor(m_Value(Y), m_SignMask())))",
+        "    return Y;",
+        ""
+      ]
+    },
+    {
+      "id": "add.nuwAllOnes",
+      "file": "llvm/lib/Analysis/InstructionSimplify.cpp",
+      "ranges": [
+        [
+          635,
+          638
+        ]
+      ],
+      "text": [
+        "  // add nuw %x, -1  ->  -1, because %x can only be 0.",
+        "  if (IsNUW && match(Op1, m_AllOnes()))",
+        "    return Op1; // Which is -1.",
+        ""
+      ]
+    },
+    {
+      "id": "add.i1",
+      "file": "llvm/lib/Analysis/InstructionSimplify.cpp",
+      "ranges": [
+        [
+          639,
+          643
+        ]
+      ],
+      "text": [
+        "  /// i1 add -> xor.",
+        "  if (MaxRecurse && Op0->getType()->isIntOrIntVectorTy(1))",
+        "    if (Value *V = simplifyXorInst(Op0, Op1, Q, MaxRecurse - 1))",
+        "      return V;",
+        ""
+      ]
+    },
+    {
+      "id": "add.assoc",
+      "file": "llvm/lib/Analysis/InstructionSimplify.cpp",
+      "ranges": [
+        [
+          644,
+          648
+        ]
+      ],
+      "text": [
+        "  // Try some generic simplifications for associative operations.",
+        "  if (Value *V =",
+        "          simplifyAssociativeBinOp(Instruction::Add, Op0, Op1, Q, MaxRecurse))",
+        "    return V;",
+        ""
+      ]
+    },
+    {
+      "id": "add.null",
+      "file": "llvm/lib/Analysis/InstructionSimplify.cpp",
+      "ranges": [
+        [
+          649,
+          659
+        ]
+      ],
+      "text": [
+        "  // Threading Add over selects and phi nodes is pointless, so don't bother.",
+        "  // Threading over the select in \"A + select(cond, B, C)\" means evaluating",
+        "  // \"A+B\" and \"A+C\" and seeing if they are equal; but they are equal if and",
+        "  // only if B and C are equal.  If B and C are equal then (since we assume",
+        "  // that operands have already been simplified) \"select(cond, B, C)\" should",
+        "  // have been simplified to the common value of B and C already.  Analysing",
+        "  // \"A+B\" and \"A+C\" thus gains nothing, but costs compile time.  Similarly",
+        "  // for threading over phi nodes.",
+        "",
+        "  return nullptr;",
+        "}"
+      ]
+    },
+    {
+      "id": "fold.both",
+      "file": "llvm/lib/Analysis/InstructionSimplify.cpp",
+      "ranges": [
+        [
+          566,
+          583
+        ]
+      ],
+      "text": [
+        "static Constant *foldOrCommuteConstant(Instruction::BinaryOps Opcode,",
+        "                                       Value *&Op0, Value *&Op1,",
+        "                                       const SimplifyQuery &Q) {",
+        "  if (auto *CLHS = dyn_cast<Constant>(Op0)) {",
+        "    if (auto *CRHS = dyn_cast<Constant>(Op1)) {",
+        "      switch (Opcode) {",
+        "      default:",
+        "        break;",
+        "      case Instruction::FAdd:",
+        "      case Instruction::FSub:",
+        "      case Instruction::FMul:",
+        "      case Instruction::FDiv:",
+        "      case Instruction::FRem:",
+        "        if (Q.CxtI != nullptr)",
+        "          return ConstantFoldFPInstOperands(Opcode, CLHS, CRHS, Q.DL, Q.CxtI);",
+        "      }",
+        "      return ConstantFoldBinaryOpOperands(Opcode, CLHS, CRHS, Q.DL);",
+        "    }"
+      ]
+    },
+    {
+      "id": "fold.swap",
+      "file": "llvm/lib/Analysis/InstructionSimplify.cpp",
+      "ranges": [
+        [
+          584,
+          590
+        ]
+      ],
+      "text": [
+        "",
+        "    // Canonicalize the constant to the RHS if this is a commutative operation.",
+        "    if (Instruction::isCommutative(Opcode))",
+        "      std::swap(Op0, Op1);",
+        "  }",
+        "  return nullptr;",
+        "}"
+      ]
+    },
+    {
+      "id": "assoc.limit",
+      "file": "llvm/lib/Analysis/InstructionSimplify.cpp",
+      "ranges": [
+        [
+          250,
+          258
+        ]
+      ],
+      "text": [
+        "static Value *simplifyAssociativeBinOp(Instruction::BinaryOps Opcode,",
+        "                                       Value *LHS, Value *RHS,",
+        "                                       const SimplifyQuery &Q,",
+        "                                       unsigned MaxRecurse) {",
+        "  assert(Instruction::isAssociative(Opcode) && \"Not an associative operation!\");",
+        "",
+        "  // Recursion is always used, so bail out at once if we already hit the limit.",
+        "  if (!MaxRecurse--)",
+        "    return nullptr;"
+      ]
+    },
+    {
+      "id": "assoc.guards",
+      "file": "llvm/lib/Analysis/InstructionSimplify.cpp",
+      "ranges": [
+        [
+          260,
+          261
+        ],
+        [
+          264,
+          264
+        ],
+        [
+          284,
+          284
+        ],
+        [
+          304,
+          305
+        ],
+        [
+          308,
+          308
+        ],
+        [
+          328,
+          328
+        ],
+        [
+          347,
+          348
+        ]
+      ],
+      "text": [
+        "  BinaryOperator *Op0 = dyn_cast<BinaryOperator>(LHS);",
+        "  BinaryOperator *Op1 = dyn_cast<BinaryOperator>(RHS);",
+        "  if (Op0 && Op0->getOpcode() == Opcode) {",
+        "  if (Op1 && Op1->getOpcode() == Opcode) {",
+        "  if (!Instruction::isCommutative(Opcode))",
+        "    return nullptr;",
+        "  if (Op0 && Op0->getOpcode() == Opcode) {",
+        "  if (Op1 && Op1->getOpcode() == Opcode) {",
+        "  return nullptr;",
+        "}"
+      ]
+    },
+    {
+      "id": "RecursionLimit",
+      "file": "llvm/lib/Analysis/InstructionSimplify.cpp",
+      "ranges": [
+        [
+          57,
+          57
+        ]
+      ],
+      "text": [
+        "enum { RecursionLimit = 3 };"
+      ]
+    },
+    {
+      "id": "dispatch",
+      "file": "llvm/lib/Analysis/InstructionSimplify.cpp",
+      "ranges": [
+        [
+          7703,
+          7706
+        ],
+        [
+          7825,
+          7827
+        ]
+      ],
+      "text": [
+        "  case Instruction::Add:",
+        "    return simplifyAddInst(",
+        "        NewOps[0], NewOps[1], Q.IIQ.hasNoSignedWrap(cast<BinaryOperator>(I)),",
+        "        Q.IIQ.hasNoUnsignedWrap(cast<BinaryOperator>(I)), Q, MaxRecurse);",
+        "Value *llvm::simplifyInstruction(Instruction *I, const SimplifyQuery &SQ) {",
+        "  SmallVector<Value *, 8> Ops(I->operands());",
+        "  Value *Result = ::simplifyInstructionWithOperands(I, Ops, SQ, RecursionLimit);"
+      ]
+    },
+    {
+      "id": "isUndefValue",
+      "file": "llvm/lib/Analysis/InstructionSimplify.cpp",
+      "ranges": [
+        [
+          7938,
+          7943
+        ]
+      ],
+      "text": [
+        "bool SimplifyQuery::isUndefValue(Value *V) const {",
+        "  if (!CanUseUndef)",
+        "    return false;",
+        "",
+        "  return match(V, m_Undef());",
+        "}"
+      ]
+    },
+    {
+      "id": "isKnownNegation",
+      "file": "llvm/lib/Analysis/ValueTracking.cpp",
+      "ranges": [
+        [
+          8820,
+          8823
+        ],
+        [
+          8838,
+          8841
+        ]
+      ],
+      "text": [
+        "bool llvm::isKnownNegation(const Value *X, const Value *Y, bool NeedNSW,",
+        "                           bool AllowPoison) {",
+        "  assert(X && Y && \"Invalid operand\");",
+        "",
+        "",
+        "  // X = -Y or Y = -X",
+        "  if (IsNegationOf(X, Y) || IsNegationOf(Y, X))",
+        "    return true;"
+      ]
+    },
+    {
+      "id": "isKnownNegation.negationOf",
+      "file": "llvm/lib/Analysis/ValueTracking.cpp",
+      "ranges": [
+        [
+          8824,
+          8837
+        ]
+      ],
+      "text": [
+        "  auto IsNegationOf = [&](const Value *X, const Value *Y) {",
+        "    if (!match(X, m_Neg(m_Specific(Y))))",
+        "      return false;",
+        "",
+        "    auto *BO = cast<BinaryOperator>(X);",
+        "    if (NeedNSW && !BO->hasNoSignedWrap())",
+        "      return false;",
+        "",
+        "    auto *Zero = cast<Constant>(BO->getOperand(0));",
+        "    if (!AllowPoison && !Zero->isNullValue())",
+        "      return false;",
+        "",
+        "    return true;",
+        "  };"
+      ]
+    },
+    {
+      "id": "isKnownNegation.subSwapped",
+      "file": "llvm/lib/Analysis/ValueTracking.cpp",
+      "ranges": [
+        [
+          8842,
+          8849
+        ]
+      ],
+      "text": [
+        "",
+        "  // X = sub (A, B), Y = sub (B, A) || X = sub nsw (A, B), Y = sub nsw (B, A)",
+        "  Value *A, *B;",
+        "  return (!NeedNSW && (match(X, m_Sub(m_Value(A), m_Value(B))) &&",
+        "                        match(Y, m_Sub(m_Specific(B), m_Specific(A))))) ||",
+        "         (NeedNSW && (match(X, m_NSWSub(m_Value(A), m_Value(B))) &&",
+        "                       match(Y, m_NSWSub(m_Specific(B), m_Specific(A)))));",
+        "}"
+      ]
+    },
+    {
+      "id": "isKnownNegation.defaults",
+      "file": "llvm/include/llvm/Analysis/ValueTracking.h",
+      "ranges": [
+        [
+          181,
+          182
+        ]
+      ],
+      "text": [
+        "LLVM_ABI bool isKnownNegation(const Value *X, const Value *Y,",
+        "                              bool NeedNSW = false, bool AllowPoison = true);"
+      ]
+    },
+    {
+      "id": "m_Undef",
+      "file": "llvm/include/llvm/IR/PatternMatch.h",
+      "ranges": [
+        [
+          150,
+          168
+        ]
+      ],
+      "text": [
+        "struct undef_match {",
+        "private:",
+        "  LLVM_ABI static bool checkAggregate(const ConstantAggregate *CA);",
+        "",
+        "public:",
+        "  static bool check(const Value *V) {",
+        "    if (isa<UndefValue>(V))",
+        "      return true;",
+        "    if (const auto *CA = dyn_cast<ConstantAggregate>(V))",
+        "      return checkAggregate(CA);",
+        "    return false;",
+        "  }",
+        "  template <typename ITy> bool match(ITy *V) const { return check(V); }",
+        "};",
+        "",
+        "/// Match an arbitrary undef constant. This matches poison as well.",
+        "/// If this is an aggregate and contains a non-aggregate element that is",
+        "/// neither undef nor poison, the aggregate is not matched.",
+        "inline auto m_Undef() { return undef_match(); }"
+      ]
+    },
+    {
+      "id": "cstval_pred_ty",
+      "file": "llvm/include/llvm/IR/PatternMatch.h",
+      "ranges": [
+        [
+          335,
+          335
+        ],
+        [
+          367,
+          385
+        ],
+        [
+          389,
+          389
+        ]
+      ],
+      "text": [
+        "struct cstval_pred_ty : public Predicate {",
+        "public:",
+        "  const Constant **Res = nullptr;",
+        "  template <typename ITy> bool match_impl(ITy *V) const {",
+        "    if (const auto *CV = dyn_cast<ConstantVal>(V))",
+        "      return this->isValue(CV->getValue());",
+        "    if (isa<VectorType>(V->getType()))",
+        "      return matchVector(V);",
+        "    return false;",
+        "  }",
+        "",
+        "  template <typename ITy> bool match(ITy *V) const {",
+        "    if (this->match_impl(V)) {",
+        "      if (Res)",
+        "        *Res = cast<Constant>(V);",
+        "      return true;",
+        "    }",
+        "    return false;",
+        "  }",
+        "};",
+        "using cst_pred_ty = cstval_pred_ty<Predicate, ConstantInt, AllowPoison>;"
+      ]
+    },
+    {
+      "id": "m_AllOnes",
+      "file": "llvm/include/llvm/IR/PatternMatch.h",
+      "ranges": [
+        [
+          504,
+          511
+        ]
+      ],
+      "text": [
+        "struct is_all_ones {",
+        "  bool isValue(const APInt &C) const { return C.isAllOnes(); }",
+        "};",
+        "/// Match an integer or vector with all bits set.",
+        "/// For vectors, this includes constants with undefined elements.",
+        "inline cst_pred_ty<is_all_ones> m_AllOnes() {",
+        "  return cst_pred_ty<is_all_ones>();",
+        "}"
+      ]
+    },
+    {
+      "id": "m_ZeroInt",
+      "file": "llvm/include/llvm/IR/PatternMatch.h",
+      "ranges": [
+        [
+          581,
+          588
+        ]
+      ],
+      "text": [
+        "struct is_zero_int {",
+        "  bool isValue(const APInt &C) const { return C.isZero(); }",
+        "};",
+        "/// Match an integer 0 or a vector with all elements equal to 0.",
+        "/// For vectors, this includes constants with undefined elements.",
+        "inline cst_pred_ty<is_zero_int> m_ZeroInt() {",
+        "  return cst_pred_ty<is_zero_int>();",
+        "}"
+      ]
+    },
+    {
+      "id": "m_Zero",
+      "file": "llvm/include/llvm/IR/PatternMatch.h",
+      "ranges": [
+        [
+          599,
+          608
+        ]
+      ],
+      "text": [
+        "struct is_zero {",
+        "  template <typename ITy> bool match(ITy *V) const {",
+        "    auto *C = dyn_cast<Constant>(V);",
+        "    // FIXME: this should be able to do something for scalable vectors",
+        "    return C && (C->isNullValue() || cst_pred_ty<is_zero_int>().match(C));",
+        "  }",
+        "};",
+        "/// Match any null constant or a vector with all elements equal to 0.",
+        "/// For vectors, this includes constants with undefined elements.",
+        "inline is_zero m_Zero() { return is_zero(); }"
+      ]
+    },
+    {
+      "id": "m_SignMask",
+      "file": "llvm/include/llvm/IR/PatternMatch.h",
+      "ranges": [
+        [
+          657,
+          664
+        ]
+      ],
+      "text": [
+        "struct is_sign_mask {",
+        "  bool isValue(const APInt &C) const { return C.isSignMask(); }",
+        "};",
+        "/// Match an integer or vector with only the sign bit(s) set.",
+        "/// For vectors, this includes constants with undefined elements.",
+        "inline cst_pred_ty<is_sign_mask> m_SignMask() {",
+        "  return cst_pred_ty<is_sign_mask>();",
+        "}"
+      ]
+    },
+    {
+      "id": "m_Specific",
+      "file": "llvm/include/llvm/IR/PatternMatch.h",
+      "ranges": [
+        [
+          953,
+          962
+        ]
+      ],
+      "text": [
+        "struct specificval_ty {",
+        "  const Value *Val;",
+        "",
+        "  specificval_ty(const Value *V) : Val(V) {}",
+        "",
+        "  template <typename ITy> bool match(ITy *V) const { return V == Val; }",
+        "};",
+        "",
+        "/// Match if we have a specific specified value.",
+        "inline specificval_ty m_Specific(const Value *V) { return V; }"
+      ]
+    },
+    {
+      "id": "BinaryOp_match",
+      "file": "llvm/include/llvm/IR/PatternMatch.h",
+      "ranges": [
+        [
+          1147,
+          1170
+        ]
+      ],
+      "text": [
+        "template <typename LHS_t, typename RHS_t, unsigned Opcode,",
+        "          bool Commutable = false>",
+        "struct BinaryOp_match {",
+        "  LHS_t L;",
+        "  RHS_t R;",
+        "",
+        "  // The evaluation order is always stable, regardless of Commutability.",
+        "  // The LHS is always matched first.",
+        "  BinaryOp_match(const LHS_t &LHS, const RHS_t &RHS) : L(LHS), R(RHS) {}",
+        "",
+        "  template <typename OpTy> inline bool match(unsigned Opc, OpTy *V) const {",
+        "    if (V->getValueID() == Value::InstructionVal + Opc) {",
+        "      auto *I = cast<BinaryOperator>(V);",
+        "      return (L.match(I->getOperand(0)) && R.match(I->getOperand(1))) ||",
+        "             (Commutable && L.match(I->getOperand(1)) &&",
+        "              R.match(I->getOperand(0)));",
+        "    }",
+        "    return false;",
+        "  }",
+        "",
+        "  template <typename OpTy> bool match(OpTy *V) const {",
+        "    return match(Opcode, V);",
+        "  }",
+        "};"
+      ]
+    },
+    {
+      "id": "m_Sub",
+      "file": "llvm/include/llvm/IR/PatternMatch.h",
+      "ranges": [
+        [
+          1184,
+          1188
+        ]
+      ],
+      "text": [
+        "template <typename LHS, typename RHS>",
+        "inline BinaryOp_match<LHS, RHS, Instruction::Sub> m_Sub(const LHS &L,",
+        "                                                        const RHS &R) {",
+        "  return BinaryOp_match<LHS, RHS, Instruction::Sub>(L, R);",
+        "}"
+      ]
+    },
+    {
+      "id": "m_Xor",
+      "file": "llvm/include/llvm/IR/PatternMatch.h",
+      "ranges": [
+        [
+          1298,
+          1302
+        ]
+      ],
+      "text": [
+        "template <typename LHS, typename RHS>",
+        "inline BinaryOp_match<LHS, RHS, Instruction::Xor> m_Xor(const LHS &L,",
+        "                                                        const RHS &R) {",
+        "  return BinaryOp_match<LHS, RHS, Instruction::Xor>(L, R);",
+        "}"
+      ]
+    },
+    {
+      "id": "m_Not",
+      "file": "llvm/include/llvm/IR/PatternMatch.h",
+      "ranges": [
+        [
+          2642,
+          2646
+        ]
+      ],
+      "text": [
+        "template <typename ValTy>",
+        "inline BinaryOp_match<cst_pred_ty<is_all_ones>, ValTy, Instruction::Xor, true>",
+        "m_Not(const ValTy &V) {",
+        "  return m_c_Xor(m_AllOnes(), V);",
+        "}"
+      ]
+    },
+    {
+      "id": "m_c_Xor",
+      "file": "llvm/include/llvm/IR/PatternMatch.h",
+      "ranges": [
+        [
+          3003,
+          3008
+        ]
+      ],
+      "text": [
+        "/// Matches an Xor with LHS and RHS in either order.",
+        "template <typename LHS, typename RHS>",
+        "inline BinaryOp_match<LHS, RHS, Instruction::Xor, true> m_c_Xor(const LHS &L,",
+        "                                                                const RHS &R) {",
+        "  return BinaryOp_match<LHS, RHS, Instruction::Xor, true>(L, R);",
+        "}"
+      ]
+    },
+    {
+      "id": "m_Neg",
+      "file": "llvm/include/llvm/IR/PatternMatch.h",
+      "ranges": [
+        [
+          3010,
+          3015
+        ]
+      ],
+      "text": [
+        "/// Matches a 'Neg' as 'sub 0, V'.",
+        "template <typename ValTy>",
+        "inline BinaryOp_match<cst_pred_ty<is_zero_int>, ValTy, Instruction::Sub>",
+        "m_Neg(const ValTy &V) {",
+        "  return m_Sub(m_ZeroInt(), V);",
+        "}"
+      ]
+    },
+    {
+      "id": "CanUseUndef",
+      "file": "llvm/include/llvm/Analysis/SimplifyQuery.h",
+      "ranges": [
+        [
+          85,
+          88
+        ],
+        [
+          94,
+          100
+        ],
+        [
+          109,
+          113
+        ]
+      ],
+      "text": [
+        "  /// Controls whether simplifications are allowed to constrain the range of",
+        "  /// possible values for uses of undef. If it is false, simplifications are not",
+        "  /// allowed to assume a particular value for a use of undef for example.",
+        "  bool CanUseUndef = true;",
+        "  SimplifyQuery(const DataLayout &DL, const TargetLibraryInfo *TLI,",
+        "                const DominatorTree *DT = nullptr,",
+        "                AssumptionCache *AC = nullptr,",
+        "                const Instruction *CXTI = nullptr, bool UseInstrInfo = true,",
+        "                bool CanUseUndef = true, const DomConditionCache *DC = nullptr)",
+        "      : DL(DL), TLI(TLI), DT(DT), AC(AC), CxtI(CXTI), DC(DC), IIQ(UseInstrInfo),",
+        "        CanUseUndef(CanUseUndef) {}",
+        "  SimplifyQuery getWithInstruction(const Instruction *I) const {",
+        "    SimplifyQuery Copy(*this);",
+        "    Copy.CxtI = I;",
+        "    return Copy;",
+        "  }"
+      ]
+    },
+    {
+      "id": "IIQ.flags",
+      "file": "llvm/include/llvm/Analysis/SimplifyQuery.h",
+      "ranges": [
+        [
+          26,
+          29
+        ],
+        [
+          37,
+          47
+        ]
+      ],
+      "text": [
+        "struct InstrInfoQuery {",
+        "  InstrInfoQuery(bool UMD) : UseInstrInfo(UMD) {}",
+        "  InstrInfoQuery() = default;",
+        "  bool UseInstrInfo = true;",
+        "  template <class InstT> bool hasNoUnsignedWrap(const InstT *Op) const {",
+        "    if (UseInstrInfo)",
+        "      return Op->hasNoUnsignedWrap();",
+        "    return false;",
+        "  }",
+        "",
+        "  template <class InstT> bool hasNoSignedWrap(const InstT *Op) const {",
+        "    if (UseInstrInfo)",
+        "      return Op->hasNoSignedWrap();",
+        "    return false;",
+        "  }"
+      ]
+    },
+    {
+      "id": "instsimplify.query",
+      "file": "llvm/lib/Transforms/Scalar/InstSimplifyPass.cpp",
+      "ranges": [
+        [
+          123,
+          130
+        ]
+      ],
+      "text": [
+        "PreservedAnalyses InstSimplifyPass::run(Function &F,",
+        "                                        FunctionAnalysisManager &AM) {",
+        "  auto &DT = AM.getResult<DominatorTreeAnalysis>(F);",
+        "  auto &TLI = AM.getResult<TargetLibraryAnalysis>(F);",
+        "  auto &AC = AM.getResult<AssumptionAnalysis>(F);",
+        "  const DataLayout &DL = F.getDataLayout();",
+        "  const SimplifyQuery SQ(DL, &TLI, &DT, &AC);",
+        "  bool Changed = runImpl(F, SQ);"
+      ]
+    },
+    {
+      "id": "instsimplify.loop",
+      "file": "llvm/lib/Transforms/Scalar/InstSimplifyPass.cpp",
+      "ranges": [
+        [
+          51,
+          56
+        ]
+      ],
+      "text": [
+        "        } else if (!I.use_empty()) {",
+        "          if (Value *V = simplifyInstruction(&I, SQ)) {",
+        "            // Mark all uses for resimplification next time round the loop.",
+        "            for (User *U : I.users())",
+        "              Next->insert(cast<Instruction>(U));",
+        "            I.replaceAllUsesWith(V);"
+      ]
+    },
+    {
+      "id": "instcombine.visitAdd",
+      "file": "llvm/lib/Transforms/InstCombine/InstCombineAddSub.cpp",
+      "ranges": [
+        [
+          1594,
+          1598
+        ]
+      ],
+      "text": [
+        "Instruction *InstCombinerImpl::visitAdd(BinaryOperator &I) {",
+        "  if (Value *V = simplifyAddInst(I.getOperand(0), I.getOperand(1),",
+        "                                 I.hasNoSignedWrap(), I.hasNoUnsignedWrap(),",
+        "                                 SQ.getWithInstruction(&I)))",
+        "    return replaceInstUsesWith(I, V);"
+      ]
+    }
+  ]
+}
