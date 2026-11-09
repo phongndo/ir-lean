@@ -358,6 +358,8 @@ open Logic
 
 /-! ### The instructions the folds replace -/
 
+namespace Logic
+
 /-- The `and` a fold replaces. -/
 def andSrc (op0 op1 : Term w) : Repl w := .bin .and {} (.old op0) (.old op1)
 
@@ -389,7 +391,11 @@ theorem xorSrc_comm (ρ : Env) (op0 op1 : Term w) : (xorSrc op0 op1).eval ρ = (
 def logicSrc (opc : BinOp) (disjoint : Bool) (op0 op1 : Term w) : Repl w :=
   .bin opc { disjoint := disjoint } (.old op0) (.old op1)
 
+end Logic
+
 /-! ## `simplifyLogicOfAddSub` -/
+
+namespace Logic
 
 /-- `m_Add(m_Value(X), m_Constant(C1))` on `A` and `m_Sub(m_Constant(C2), m_Specific(X))` on `S`: `X`, `C1` and
 `C2`. -/
@@ -417,6 +423,8 @@ def addSubPairs (op0 op1 : Term w) : Option (Term w × Term w × Term w) :=
   | some p => some p
   | none => addSubPair op1 op0
 
+end Logic
+
 /-- `simplifyLogicOfAddSub(Op0, Op1, Opcode)`, step by step: the `add` and `sub` either way round, then whether
 `~C1 == C2`, by address, as LLVM uniques constants. -/
 def simplifyLogicOfAddSub.steps (op0 op1 : Term w) (opc : BinOp) : List (Step w) :=
@@ -433,6 +441,8 @@ def simplifyLogicOfAddSub.steps (op0 op1 : Term w) (opc : BinOp) : List (Step w)
         else .next
       | none => .next
     | none => .next ]
+
+namespace Logic
 
 theorem addSubPair_denote {ρ : Env} {a s x c1 c2 : Term w} (h : addSubPair a s = some (x, c1, c2))
     (ca : a.Consistent ρ) (cs : s.Consistent ρ) (us : s.hasUndef = false) :
@@ -464,6 +474,8 @@ theorem notConst_denote {ρ : Env} {c d e : Term w} (h : notConst c = some d) (h
   · next k => exact .inr ⟨k, rfl, by rw [← Term.denote_of_ident hid]; rfl⟩
   · exact .inl ⟨rfl, by rw [← Term.denote_of_ident hid]; rfl⟩
   · cases e <;> simp_all [Term.ident, Term.hasUndef]
+
+end Logic
 
 /-- `IS.simplifyLogicOfAddSub.L2011`: `(X + C) op (~C - X)`, either way round, to 0 for `and` and -1 for `or` and
 `xor`. `C` may be poison, which makes both poison. -/
@@ -532,6 +544,8 @@ theorem simplifyLogicOfAddSub.sound (ρ : Env) (opc : BinOp) (d : Bool) (op0 op1
 
 /-! ## `simplifyAndOrWithICmpEq` -/
 
+namespace Logic
+
 /-- `ConstantExpr::getBinOpAbsorber(Opcode, Ty)`: 0 for `and`, -1 for `or`. -/
 def absorber (isAnd : Bool) : BitVec w := if isAnd then 0#w else BitVec.allOnes w
 
@@ -540,6 +554,8 @@ def identity (isAnd : Bool) : BitVec w := if isAnd then BitVec.allOnes w else 0#
 
 /-- The `and` or `or` `simplifyAndOrWithICmpEq` is called on. -/
 def andOrSrc (isAnd d : Bool) (op0 op1 : Term w) : Repl w := if isAnd then andSrc op0 op1 else orSrc op0 op1 d
+
+end Logic
 
 /-- The lambda `Simplify` in `simplifyAndOrWithICmpEq`, on what `simplifyWithOpReplaced` answered, `Res`, step by
 step. `isEq` is whether the predicate is `eq`. -/
@@ -584,6 +600,8 @@ def simplifyAndOrWithICmpEq.steps (x : Option Ext) (isAnd : Bool) (op0 op1 : Ter
     -- disable undef-based folds here.
     simplifyAndOrWithICmpEq.replacedStep x isAnd false op0 op1 n,
     simplifyAndOrWithICmpEq.replacedStep x isAnd true op0 op1 n ]
+
+namespace Logic
 
 theorem icmpEq_true {v : Nat} {a b : Val v} {s : Bool} {c : BitVec 1} (h : Val.icmpEq a b s = some c)
     (hc : c = BitVec.allOnes 1) : ∃ x, a = some x ∧ b = some x := by
@@ -667,6 +685,8 @@ theorem icmpEq?_spec {ρ : Env} {op0 : Term w} {isEq : Bool} {p : (v : Nat) × T
       exact trunc_nuw_false he
     · cases h
   | _ => simp [icmpEq?] at h
+
+end Logic
 
 /-- `IS.simplifyAndOrWithICmpEq.Simplify.L1965`: `and (icmp eq a, b), x` to false where `x` is false when `a == b`,
 and `or (icmp ne a, b), x` to true where `x` is true when `a == b`. `hres` says `x` refines `Res` wherever the `icmp`

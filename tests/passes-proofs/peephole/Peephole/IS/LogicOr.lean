@@ -541,7 +541,7 @@ end Logic
 
 /-! ### `simplifyOrLogic`'s rewrites, one theorem each -/
 
-theorem allOnes_one : BitVec.allOnes 1 = 1#1 := by decide
+theorem Logic.allOnes_one : BitVec.allOnes 1 = 1#1 := by decide
 
 /-- `IS.simplifyOrLogic.L2261`: `X | ~X` to -1. -/
 theorem simplifyOrLogic.L2261 (ρ : Env) (X Y : Term w) (d : Bool) (cY : Y.Consistent ρ)

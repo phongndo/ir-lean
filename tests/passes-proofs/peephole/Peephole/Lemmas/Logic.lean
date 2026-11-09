@@ -495,7 +495,7 @@ theorem and_xor_xor_not_refines (a : Val w) (c : BitVec w) :
 
 /-! ### `(x + k) op (~k - x)`: the second is `not` of the first -/
 
-theorem add_sub_not_cases (x : Val w) (k : BitVec w) (f1 f2 f3 f4 : Bool) :
+theorem Logic.add_sub_not_cases (x : Val w) (k : BitVec w) (f1 f2 f3 f4 : Bool) :
     Val.add x (some k) f1 f2 = none ∨ Val.sub (some (~~~k)) x f3 f4 = none ∨
       ∃ t, Val.add x (some k) f1 f2 = some t ∧ Val.sub (some (~~~k)) x f3 f4 = some (~~~t) := by
   cases x with
@@ -510,7 +510,7 @@ theorem add_sub_not_cases (x : Val w) (k : BitVec w) (f1 f2 f3 f4 : Bool) :
 /-- `and (add x, k), (sub ~k, x)` refines 0. `IS.simplifyLogicOfAddSub.L2011`. -/
 theorem and_add_sub_not_refines (x : Val w) (k : BitVec w) (f1 f2 f3 f4 : Bool) :
     Refines (Val.and (Val.add x (some k) f1 f2) (Val.sub (some (~~~k)) x f3 f4)) (some 0#w) := by
-  rcases add_sub_not_cases x k f1 f2 f3 f4 with h | h | ⟨t, h1, h2⟩
+  rcases Logic.add_sub_not_cases x k f1 f2 f3 f4 with h | h | ⟨t, h1, h2⟩
   · rw [h, and_none_left]; exact refines_none _
   · rw [h, and_none_right]; exact refines_none _
   · rw [h1, h2]; vfinish
@@ -518,7 +518,7 @@ theorem and_add_sub_not_refines (x : Val w) (k : BitVec w) (f1 f2 f3 f4 : Bool) 
 /-- `or (add x, k), (sub ~k, x)` refines -1. `IS.simplifyLogicOfAddSub.L2011`. -/
 theorem or_add_sub_not_refines (x : Val w) (k : BitVec w) (f1 f2 f3 f4 d : Bool) :
     Refines (Val.or (Val.add x (some k) f1 f2) (Val.sub (some (~~~k)) x f3 f4) d) (some (BitVec.allOnes w)) := by
-  rcases add_sub_not_cases x k f1 f2 f3 f4 with h | h | ⟨t, h1, h2⟩
+  rcases Logic.add_sub_not_cases x k f1 f2 f3 f4 with h | h | ⟨t, h1, h2⟩
   · rw [h, or_none_left]; exact refines_none _
   · rw [h, or_none_right]; exact refines_none _
   · rw [h1, h2]; vfinish
@@ -526,7 +526,7 @@ theorem or_add_sub_not_refines (x : Val w) (k : BitVec w) (f1 f2 f3 f4 d : Bool)
 /-- `xor (add x, k), (sub ~k, x)` refines -1. `IS.simplifyLogicOfAddSub.L2011`. -/
 theorem xor_add_sub_not_refines (x : Val w) (k : BitVec w) (f1 f2 f3 f4 : Bool) :
     Refines (Val.xor (Val.add x (some k) f1 f2) (Val.sub (some (~~~k)) x f3 f4)) (some (BitVec.allOnes w)) := by
-  rcases add_sub_not_cases x k f1 f2 f3 f4 with h | h | ⟨t, h1, h2⟩
+  rcases Logic.add_sub_not_cases x k f1 f2 f3 f4 with h | h | ⟨t, h1, h2⟩
   · rw [h, xor_none_left]; exact refines_none _
   · rw [h, xor_none_right]; exact refines_none _
   · rw [h1, h2]; vfinish
@@ -809,3 +809,257 @@ theorem xor_sub_nuw_lowMask_refines (x : Val w) (c : BitVec w) (nsw : Bool) (hc 
     ← BitVec.xor_assoc, BitVec.xor_self, BitVec.zero_xor]
 
 end Peephole.Lemmas
+
+/-! ### Counterexamples
+
+For each hypothesis of a lemma above, the lemma without it is false: `drop_<hypothesis>` gives one input where it
+fails. For each lemma with hypotheses, `sat` gives one input where they all hold. They're in the form
+`store/LemmaStore/Counter/Generic.lean` has, for the store to admit with the lemmas. -/
+
+namespace LemmaStore.Counter
+
+open IRLean Peephole.Lemmas
+
+/-- `and (sub 0, 3), 3` in `i2` is `1`: 3 isn't a power of two. -/
+theorem Peephole.Lemmas.and_neg_self_refines.drop_h :
+    ¬ ∀ {w : Nat} (a : Val w) (nuw nsw : Bool), Refines (Val.and (Val.sub (some 0#w) a nuw nsw) a) a :=
+  fun h => _root_.Peephole.Lemmas.Logic.not_refines 1#2 (by decide) (by decide) (@h 2 (some 3#2) false false)
+
+theorem Peephole.Lemmas.and_neg_self_refines.sat :
+    ∃ (w : Nat) (a : Val w) (_ _ : Bool), ∀ x, a = some x → x.toNat.isPowerOfTwo ∨ x = 0#w :=
+  ⟨1, none, false, false, fun _ h => by cases h⟩
+
+/-- `and (add 3, -1), 3` in `i2` is `2`. -/
+theorem Peephole.Lemmas.and_add_allOnes_self_refines.drop_h :
+    ¬ ∀ {w : Nat} (a : Val w) (nuw nsw : Bool),
+      Refines (Val.and (Val.add a (some (BitVec.allOnes w)) nuw nsw) a) (some 0#w) :=
+  fun h => _root_.Peephole.Lemmas.Logic.not_refines 2#2 (by decide) (by decide) (@h 2 (some 3#2) false false)
+
+theorem Peephole.Lemmas.and_add_allOnes_self_refines.sat :
+    ∃ (w : Nat) (a : Val w) (_ _ : Bool), ∀ x, a = some x → x.toNat.isPowerOfTwo ∨ x = 0#w :=
+  ⟨1, none, false, false, fun _ h => by cases h⟩
+
+/-- `and (shl 3, 0), (add (shl 3, 0), -1)` in `i4` is `2`: 3 isn't a power of two. -/
+theorem Peephole.Lemmas.and_shl_shl_add_allOnes_refines.drop_h :
+    ¬ ∀ {w : Nat} (a : Val w) (n m : BitVec w) (f1 f2 f3 f4 f5 f6 : Bool), m.toNat ≤ n.toNat →
+      Refines (Val.and (Val.shl a (some n) f1 f2)
+        (Val.add (Val.shl a (some m) f3 f4) (some (BitVec.allOnes w)) f5 f6)) (some 0#w) :=
+  fun h => _root_.Peephole.Lemmas.Logic.not_refines 2#4 (by decide) (by decide)
+    (@h 4 (some 3#4) 0#4 0#4 false false false false false false (by decide))
+
+/-- `and (shl 1, 0), (add (shl 1, 1), -1)` in `i4` is `1`: the second shift is the larger. -/
+theorem Peephole.Lemmas.and_shl_shl_add_allOnes_refines.drop_hmn :
+    ¬ ∀ {w : Nat} (a : Val w) (n m : BitVec w) (f1 f2 f3 f4 f5 f6 : Bool),
+      (∀ x, a = some x → x.toNat.isPowerOfTwo ∨ x = 0#w) →
+      Refines (Val.and (Val.shl a (some n) f1 f2)
+        (Val.add (Val.shl a (some m) f3 f4) (some (BitVec.allOnes w)) f5 f6)) (some 0#w) :=
+  fun h => _root_.Peephole.Lemmas.Logic.not_refines 1#4 (by decide) (by decide)
+    (@h 4 (some 1#4) 0#4 1#4 false false false false false false
+      (fun x hx => by cases hx; exact .inl (by decide)))
+
+theorem Peephole.Lemmas.and_shl_shl_add_allOnes_refines.sat :
+    ∃ (w : Nat) (a : Val w) (n m : BitVec w) (_ _ _ _ _ _ : Bool),
+      (∀ x, a = some x → x.toNat.isPowerOfTwo ∨ x = 0#w) ∧ m.toNat ≤ n.toNat :=
+  ⟨1, none, 0#1, 0#1, false, false, false, false, false, false, ⟨(fun _ h => by cases h), Nat.le_refl _⟩⟩
+
+/-- `and (shl 1, 0), 0` in `i2` is `0`, not `1`. -/
+theorem Peephole.Lemmas.and_shl_mask.drop_h :
+    ¬ ∀ {w : Nat} (a : Val w) (s m : BitVec w) (nuw nsw : Bool),
+      Val.and (Val.shl a (some s) nuw nsw) (some m) = Val.shl a (some s) nuw nsw :=
+  fun h => absurd (@h 2 (some 1#2) 0#2 0#2 false false) (by decide)
+
+theorem Peephole.Lemmas.and_shl_mask.sat :
+    ∃ (w : Nat) (_ : Val w) (s m : BitVec w) (_ _ : Bool), ~~~m >>> s.toNat = 0#w :=
+  ⟨1, none, 0#1, 1#1, false, false, by decide⟩
+
+/-- `and (lshr 1, 0), 0` in `i2` is `0`, not `1`. -/
+theorem Peephole.Lemmas.and_lshr_mask.drop_h :
+    ¬ ∀ {w : Nat} (a : Val w) (s m : BitVec w) (exact : Bool),
+      Val.and (Val.lshr a (some s) exact) (some m) = Val.lshr a (some s) exact :=
+  fun h => absurd (@h 2 (some 1#2) 0#2 0#2 false) (by decide)
+
+theorem Peephole.Lemmas.and_lshr_mask.sat :
+    ∃ (w : Nat) (_ : Val w) (s m : BitVec w) (_ : Bool), ~~~m <<< s.toNat = 0#w :=
+  ⟨1, none, 0#1, 1#1, false, by decide⟩
+
+/-- `and (add 0, -1), 1` in `i2` is `1`: 0 isn't a power of two. -/
+theorem Peephole.Lemmas.and_add_allOnes_twoPow_refines.drop_ha :
+    ¬ ∀ {w : Nat} (a : Val w) (c : BitVec w) (nuw nsw : Bool), c.toNat.isPowerOfTwo →
+      Refines (Val.and (Val.add a (some (BitVec.allOnes w)) nuw nsw) (some c)) (some 0#w) :=
+  fun h => _root_.Peephole.Lemmas.Logic.not_refines 1#2 (by decide) (by decide)
+    (@h 2 (some 0#2) 1#2 false false (by decide))
+
+/-- `and (add 2, -1), 3` in `i2` is `1`: 3 isn't a power of two. -/
+theorem Peephole.Lemmas.and_add_allOnes_twoPow_refines.drop_hc :
+    ¬ ∀ {w : Nat} (a : Val w) (c : BitVec w) (nuw nsw : Bool),
+      (∀ x, a = some x → x.toNat.isPowerOfTwo ∧ x.toNat < 2 * c.toNat) →
+      Refines (Val.and (Val.add a (some (BitVec.allOnes w)) nuw nsw) (some c)) (some 0#w) :=
+  fun h => _root_.Peephole.Lemmas.Logic.not_refines 1#2 (by decide) (by decide)
+    (@h 2 (some 2#2) 3#2 false false (fun x hx => by cases hx; exact ⟨by decide, by decide⟩))
+
+theorem Peephole.Lemmas.and_add_allOnes_twoPow_refines.sat :
+    ∃ (w : Nat) (a : Val w) (c : BitVec w) (_ _ : Bool),
+      (∀ x, a = some x → x.toNat.isPowerOfTwo ∧ x.toNat < 2 * c.toNat) ∧ c.toNat.isPowerOfTwo :=
+  ⟨1, none, 1#1, false, false, ⟨(fun _ h => by cases h), by decide⟩⟩
+
+/-- `and (or (shl 0, 0), 1), 0` in `i2` is `0`, not `1`: the mask drops a bit of `y`. -/
+theorem Peephole.Lemmas.and_or_shl_mask_refines_right.drop_hy :
+    ¬ ∀ {w : Nat} (x y : Val w) (s m : BitVec w) (nuw nsw d : Bool),
+      (∀ u, x = some u → (u <<< s.toNat) &&& m = 0#w) →
+      Refines (Val.and (Val.or (Val.shl x (some s) nuw nsw) y d) (some m)) y :=
+  fun h => _root_.Peephole.Lemmas.Logic.not_refines 0#2 (by decide) (by decide)
+    (@h 2 (some 0#2) (some 1#2) 0#2 0#2 false false false (fun u hu => by cases hu; decide))
+
+/-- `and (or (shl 1, 0), 0), 3` in `i2` is `1`, not `0`: the mask keeps a bit of `x << s`. -/
+theorem Peephole.Lemmas.and_or_shl_mask_refines_right.drop_hx :
+    ¬ ∀ {w : Nat} (x y : Val w) (s m : BitVec w) (nuw nsw d : Bool),
+      (∀ v, y = some v → v &&& m = v) →
+      Refines (Val.and (Val.or (Val.shl x (some s) nuw nsw) y d) (some m)) y :=
+  fun h => _root_.Peephole.Lemmas.Logic.not_refines 1#2 (by decide) (by decide)
+    (@h 2 (some 1#2) (some 0#2) 0#2 3#2 false false false (fun v hv => by cases hv; decide))
+
+theorem Peephole.Lemmas.and_or_shl_mask_refines_right.sat :
+    ∃ (w : Nat) (x y : Val w) (s m : BitVec w) (_ _ _ : Bool),
+      (∀ v, y = some v → v &&& m = v) ∧ (∀ u, x = some u → (u <<< s.toNat) &&& m = 0#w) :=
+  ⟨1, none, none, 0#1, 0#1, false, false, false, ⟨(fun _ h => by cases h), (fun _ h => by cases h)⟩⟩
+
+/-- `and (or (shl 0, 0), 1), 1` in `i2` is `1`, not `0`: the mask keeps a bit of `y`. -/
+theorem Peephole.Lemmas.and_or_shl_mask_refines_left.drop_hy :
+    ¬ ∀ {w : Nat} (x y : Val w) (s m : BitVec w) (nuw nsw d : Bool),
+      (∀ u, x = some u → (u <<< s.toNat) &&& m = u <<< s.toNat) →
+      Refines (Val.and (Val.or (Val.shl x (some s) nuw nsw) y d) (some m)) (Val.shl x (some s) nuw nsw) :=
+  fun h => _root_.Peephole.Lemmas.Logic.not_refines 1#2 (by decide) (by decide)
+    (@h 2 (some 0#2) (some 1#2) 0#2 1#2 false false false (fun u hu => by cases hu; decide))
+
+/-- `and (or (shl 1, 0), 0), 0` in `i2` is `0`, not `1`: the mask drops a bit of `x << s`. -/
+theorem Peephole.Lemmas.and_or_shl_mask_refines_left.drop_hx :
+    ¬ ∀ {w : Nat} (x y : Val w) (s m : BitVec w) (nuw nsw d : Bool),
+      (∀ v, y = some v → v &&& m = 0#w) →
+      Refines (Val.and (Val.or (Val.shl x (some s) nuw nsw) y d) (some m)) (Val.shl x (some s) nuw nsw) :=
+  fun h => _root_.Peephole.Lemmas.Logic.not_refines 0#2 (by decide) (by decide)
+    (@h 2 (some 1#2) (some 0#2) 0#2 0#2 false false false (fun v hv => by cases hv; decide))
+
+theorem Peephole.Lemmas.and_or_shl_mask_refines_left.sat :
+    ∃ (w : Nat) (x y : Val w) (s m : BitVec w) (_ _ _ : Bool),
+      (∀ v, y = some v → v &&& m = 0#w) ∧ (∀ u, x = some u → (u <<< s.toNat) &&& m = u <<< s.toNat) :=
+  ⟨1, none, none, 0#1, 0#1, false, false, false, ⟨(fun _ h => by cases h), (fun _ h => by cases h)⟩⟩
+
+/-- `and true, false` is false. -/
+theorem Peephole.Lemmas.and_refines_left_of_implies.drop_h :
+    ¬ ∀ (a b : Val 1), Refines (Val.and a b) a :=
+  fun h => _root_.Peephole.Lemmas.Logic.not_refines 0#1 (by decide) (by decide) (h (some 1#1) (some 0#1))
+
+theorem Peephole.Lemmas.and_refines_left_of_implies.sat :
+    ∃ (a b : Val 1), a = some 1#1 → b = none ∨ b = some 1#1 := ⟨none, none, fun h => by cases h⟩
+
+/-- `and true, true` is true. -/
+theorem Peephole.Lemmas.and_refines_false_of_implies.drop_h :
+    ¬ ∀ (a b : Val 1), Refines (Val.and a b) (some 0#1) :=
+  fun h => _root_.Peephole.Lemmas.Logic.not_refines 1#1 (by decide) (by decide) (h (some 1#1) (some 1#1))
+
+theorem Peephole.Lemmas.and_refines_false_of_implies.sat :
+    ∃ (a b : Val 1), a = some 1#1 → b = none ∨ b = some 0#1 := ⟨none, none, fun h => by cases h⟩
+
+/-- `and false, true` is false. -/
+theorem Peephole.Lemmas.and_refines_right_of_false.drop_h :
+    ¬ ∀ (a b : Val 1), Refines (Val.and a b) b :=
+  fun h => _root_.Peephole.Lemmas.Logic.not_refines 0#1 (by decide) (by decide) (h (some 0#1) (some 1#1))
+
+theorem Peephole.Lemmas.and_refines_right_of_false.sat :
+    ∃ (a b : Val 1), a = some 0#1 → b = none ∨ b = some 0#1 := ⟨none, none, fun h => by cases h⟩
+
+/-- `or false, true` is true. -/
+theorem Peephole.Lemmas.or_refines_left_of_implies.drop_h :
+    ¬ ∀ (a b : Val 1) (d : Bool), Refines (Val.or a b d) a :=
+  fun h => _root_.Peephole.Lemmas.Logic.not_refines 1#1 (by decide) (by decide) (h (some 0#1) (some 1#1) false)
+
+theorem Peephole.Lemmas.or_refines_left_of_implies.sat :
+    ∃ (a b : Val 1) (_ : Bool), a = some 0#1 → b = none ∨ b = some 0#1 := ⟨none, none, false, fun h => by cases h⟩
+
+/-- `or false, false` is false. -/
+theorem Peephole.Lemmas.or_refines_true_of_implies.drop_h :
+    ¬ ∀ (a b : Val 1) (d : Bool), Refines (Val.or a b d) (some 1#1) :=
+  fun h => _root_.Peephole.Lemmas.Logic.not_refines 0#1 (by decide) (by decide) (h (some 0#1) (some 0#1) false)
+
+theorem Peephole.Lemmas.or_refines_true_of_implies.sat :
+    ∃ (a b : Val 1) (_ : Bool), a = some 0#1 → b = none ∨ b = some 1#1 := ⟨none, none, false, fun h => by cases h⟩
+
+/-- `or true, false` is true. -/
+theorem Peephole.Lemmas.or_refines_right_of_true.drop_h :
+    ¬ ∀ (a b : Val 1) (d : Bool), Refines (Val.or a b d) b :=
+  fun h => _root_.Peephole.Lemmas.Logic.not_refines 1#1 (by decide) (by decide) (h (some 1#1) (some 0#1) false)
+
+theorem Peephole.Lemmas.or_refines_right_of_true.sat :
+    ∃ (a b : Val 1) (_ : Bool), a = some 1#1 → b = none ∨ b = some 1#1 := ⟨none, none, false, fun h => by cases h⟩
+
+/-- With `a` and `b` true and `x` true, which isn't `and (not a), b`, the `or` is true and `not a` false. -/
+theorem Peephole.Lemmas.or_logicalAnd_not_logicalOr_refines.drop_hx :
+    ¬ ∀ (a b x y : Val 1) (d : Bool), IsLogicalOr y a b →
+      Refines (Val.or x (Val.xor y (some 1#1)) d) (Val.xor a (some 1#1)) :=
+  fun h => _root_.Peephole.Lemmas.Logic.not_refines 1#1 (by decide) (by decide)
+    (h (some 1#1) (some 1#1) (some 1#1) (some 1#1) false (.inl ⟨false, .inl (by decide)⟩))
+
+/-- With `a` true and `b` false, and `y` false, which isn't `or a, b`, the `or` is true and `not a` false. -/
+theorem Peephole.Lemmas.or_logicalAnd_not_logicalOr_refines.drop_hy :
+    ¬ ∀ (a b x y : Val 1) (d : Bool), IsLogicalAnd x (Val.xor a (some 1#1)) b →
+      Refines (Val.or x (Val.xor y (some 1#1)) d) (Val.xor a (some 1#1)) :=
+  fun h => _root_.Peephole.Lemmas.Logic.not_refines 1#1 (by decide) (by decide)
+    (h (some 1#1) (some 0#1) (some 0#1) (some 0#1) false (.inl (by decide)))
+
+theorem Peephole.Lemmas.or_logicalAnd_not_logicalOr_refines.sat :
+    ∃ (a b x y : Val 1) (_ : Bool), IsLogicalAnd x (Val.xor a (some 1#1)) b ∧ IsLogicalOr y a b :=
+  ⟨none, none, none, none, false, ⟨.inl rfl, .inl ⟨false, .inl rfl⟩⟩⟩
+
+/-- In `i3`, `or (shl -1, (sub 4, 2)), (lshr -1, 2)` is `5`: 4 is more than the width. -/
+theorem Peephole.Lemmas.or_shl_lshr_allOnes_sub_left_refines.drop_hc :
+    ¬ ∀ {w : Nat} (y : Val w) (c : BitVec w) (f1 f2 f3 f4 e d : Bool),
+      Refines (Val.or (Val.shl (some (BitVec.allOnes w)) (Val.sub (some c) y f3 f4) f1 f2)
+        (Val.lshr (some (BitVec.allOnes w)) y e) d) (some (BitVec.allOnes w)) :=
+  fun h => _root_.Peephole.Lemmas.Logic.not_refines 5#3 (by decide) (by decide)
+    (@h 3 (some 2#3) 4#3 false false false false false false)
+
+theorem Peephole.Lemmas.or_shl_lshr_allOnes_sub_left_refines.sat :
+    ∃ (w : Nat) (_ : Val w) (c : BitVec w) (_ _ _ _ _ _ : Bool), c.toNat ≤ w :=
+  ⟨1, none, 0#1, false, false, false, false, false, false, by decide⟩
+
+/-- In `i3`, `or (shl -1, 2), (lshr -1, (sub 4, 2))` is `5`: 4 is more than the width. -/
+theorem Peephole.Lemmas.or_shl_lshr_allOnes_sub_right_refines.drop_hc :
+    ¬ ∀ {w : Nat} (x : Val w) (c : BitVec w) (f1 f2 f3 f4 e d : Bool),
+      Refines (Val.or (Val.shl (some (BitVec.allOnes w)) x f1 f2)
+        (Val.lshr (some (BitVec.allOnes w)) (Val.sub (some c) x f3 f4) e) d) (some (BitVec.allOnes w)) :=
+  fun h => _root_.Peephole.Lemmas.Logic.not_refines 5#3 (by decide) (by decide)
+    (@h 3 (some 2#3) 4#3 false false false false false false)
+
+theorem Peephole.Lemmas.or_shl_lshr_allOnes_sub_right_refines.sat :
+    ∃ (w : Nat) (_ : Val w) (c : BitVec w) (_ _ _ _ _ _ : Bool), c.toNat ≤ w :=
+  ⟨1, none, 0#1, false, false, false, false, false, false, by decide⟩
+
+/-- In `i2`, with `c = 2`, not a mask of low bits, `or (and (add 1, 1), 1), (and 1, 2)` is `0`, not `2`. -/
+theorem Peephole.Lemmas.or_and_add_and_lowMask_refines.drop_hc :
+    ¬ ∀ {w : Nat} (b n : Val w) (c : BitVec w) (f1 f2 d : Bool), (∀ v, n = some v → v &&& c = 0#w) →
+      Refines (Val.or (Val.and (Val.add b n f1 f2) (some (~~~c))) (Val.and b (some c)) d) (Val.add b n f1 f2) :=
+  fun h => _root_.Peephole.Lemmas.Logic.not_refines 0#2 (by decide) (by decide)
+    (@h 2 (some 1#2) (some 1#2) 2#2 false false false (fun v hv => by cases hv; decide))
+
+/-- In `i2`, with `n = 1` inside the mask `c = 1`, `or (and (add 0, 1), 2), (and 0, 1)` is `0`, not `1`. -/
+theorem Peephole.Lemmas.or_and_add_and_lowMask_refines.drop_hn :
+    ¬ ∀ {w : Nat} (b n : Val w) (c : BitVec w) (f1 f2 d : Bool), c &&& (c + 1#w) = 0#w →
+      Refines (Val.or (Val.and (Val.add b n f1 f2) (some (~~~c))) (Val.and b (some c)) d) (Val.add b n f1 f2) :=
+  fun h => _root_.Peephole.Lemmas.Logic.not_refines 0#2 (by decide) (by decide)
+    (@h 2 (some 0#2) (some 1#2) 1#2 false false false (by decide))
+
+theorem Peephole.Lemmas.or_and_add_and_lowMask_refines.sat :
+    ∃ (w : Nat) (_ n : Val w) (c : BitVec w) (_ _ _ : Bool),
+      c &&& (c + 1#w) = 0#w ∧ ∀ v, n = some v → v &&& c = 0#w :=
+  ⟨1, none, none, 0#1, false, false, false, ⟨by decide, fun _ h => by cases h⟩⟩
+
+/-- In `i2`, `xor (sub nuw 2, 1), 2` is `3`, not `1`: 2 isn't a mask of low bits. -/
+theorem Peephole.Lemmas.xor_sub_nuw_lowMask_refines.drop_hc :
+    ¬ ∀ {w : Nat} (x : Val w) (c : BitVec w) (nsw : Bool), Refines (Val.xor (Val.sub (some c) x true nsw) (some c)) x :=
+  fun h => _root_.Peephole.Lemmas.Logic.not_refines 3#2 (by decide) (by decide) (@h 2 (some 1#2) 2#2 false)
+
+theorem Peephole.Lemmas.xor_sub_nuw_lowMask_refines.sat :
+    ∃ (w : Nat) (_ : Val w) (c : BitVec w) (_ : Bool), c &&& (c + 1#w) = 0#w :=
+  ⟨1, none, 0#1, false, by decide⟩
+
+end LemmaStore.Counter
