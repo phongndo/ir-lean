@@ -141,14 +141,14 @@ Where it stands:
 
 | Pass | G0 | G1 | G2 | G3 | G4 |
 | --- | --- | --- | --- | --- | --- |
-| `instcombine` | 41.0%: 12,797 of 31,240 pairs translate | 0.11%: 34 of 31,240 pairs certified | Not measured | Not measured | Not done |
+| `instcombine` | 40.2%: 12,547 of 31,240 pairs translate | 0.11%: 34 of 31,240 pairs certified | Not measured | Not measured | Not done |
 | `instsimplify` | Not measured | Not measured | Not measured | Not measured | Not done |
 | `aggressive-instcombine` | Not measured | Not measured | Not measured | Not measured | Not done |
 | `reassociate` | Not measured | Not measured | Not measured | Not measured | Not done |
 
-InstCombine's G0 and G1 are from S1's run on 2026-11-09, on `main` at `dbfd710`, after F3
-([stage 1](stage1.md#chunk-1s-gates-for-instcombine)). Its G0 was recorded as 38.4% before, counting only the 12,002
-pairs without memory. G0 and G1 across chunk 1's other three passes come next.
+InstCombine's G0 and G1 are from S1's run on 2026-11-09, with `main` at `62d2463`
+([stage 1](stage1.md#chunk-1s-gates-for-instcombine)). Its G0 was recorded as 38.4% before, counting only the pairs
+without memory. G0 and G1 across chunk 1's other three passes come next.
 
 What exists and doesn't count yet:
 

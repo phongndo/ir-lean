@@ -856,5 +856,289 @@
     "bench/instcombine/stage1.py": "21477077d5a6105633dc8ae3c6f0dde1ad74e6bc933c762609afcfbddaf281b3"
    }
   }
+ },
+ "instcombine_gates": {
+  "schema": "ir-lean.stage1.summary/1",
+  "tests": {
+   "count": 1845,
+   "status": {
+    "ok": 1844,
+    "opt_failed": 1
+   },
+   "specs": {
+    "instcombine": 1838,
+    "instcombine<no-verify-fixpoint>": 4,
+    "instcombine<max-iterations=1>": 2
+   }
+  },
+  "functions": {
+   "defined": 38704,
+   "changed_by_the_test_run": 31240
+  },
+  "sample": null,
+  "gates": {
+   "pairs": 31240,
+   "translated": 12547,
+   "G0": 0.4016,
+   "bindable": 75,
+   "certified": 34,
+   "G1": 0.0011
+  },
+  "emitter_refusals": {
+   "functions": 18611,
+   "by_first_reason": {
+    "floating point": 9035,
+    "calls outside the module": 2937,
+    "target intrinsics": 1815,
+    "scalable vectors": 976,
+    "pointers: address spaces, inttoptr, external globals": 883,
+    "undef": 690,
+    "other intrinsics": 570,
+    "data layouts": 491,
+    "division or remainder on vectors": 288,
+    "other instructions": 251,
+    "other attributes": 154,
+    "vector casts and pointer vectors": 148,
+    "metadata": 93,
+    "atomics": 70,
+    "constant expressions": 66,
+    "exceptions": 41,
+    "emitter gave no report, crashed": 34,
+    "attributes on vectors": 31,
+    "other": 28,
+    "other types": 10
+   },
+   "commonest_reasons": {
+    "type float": 4074,
+    "call to external @F": 2140,
+    "type double": 1862,
+    "type <N x float>": 1245,
+    "type half": 824,
+    "undef": 690,
+    "call to external @F, which touches memory: F4": 581,
+    "type ptr addrspace(N)": 440,
+    "type <N x double>": 435,
+    "external global @F": 391,
+    "type <vscale x N x i32>": 288,
+    "data layout e-p:N:N:N-i1:N:N-i8:N:N-i16:N:N-i32:N:N-i64:N:N-f32:N:N-f64:N:N-v64:": 257,
+    "type <vscale x N x i1>": 182,
+    "type <N x ptr>": 145,
+    "intrinsic llvm.x86.avx512.pternlog.d.N": 141,
+    "intrinsic llvm.x86.avx512.pternlog.q.N": 132,
+    "call to external functions in a function with a stack frame or promises about me": 126,
+    "type <N x half>": 112,
+    "type <vscale x N x float>": 109,
+    "function attribute vscale_range(N,N)": 105,
+    "function attribute nocallback": 84,
+    "type <vscale x N x i8>": 81,
+    "type <vscale x N x i64>": 73,
+    "variadic call": 62,
+    "function attribute \"amdgpu-ieee\"=\"true\"": 58,
+    "function attribute denormal_fpenv(dynamic)": 56,
+    "intrinsic llvm.amdgcn.mbcnt.lo": 53,
+    "type <vscale x N x i16>": 49,
+    "type fp128": 48,
+    "type <vscale x N x half>": 47,
+    "function attribute denormal_fpenv(preservesign)": 43,
+    "exception handling": 41,
+    "instruction store i1 %v, ptr %v, align N": 38,
+    "function attribute strictfp": 37,
+    "intrinsic llvm.x86.ssse3.pshuf.b.N": 36,
+    "intrinsic llvm.x86.avx2.pshuf.b": 36,
+    "intrinsic llvm.x86.avx512.pshuf.b.N": 36,
+    "emitter gave no report": 34,
+    "data layout p:N:N": 28,
+    "intrinsic llvm.ctlz.v2i32 of vectors": 28
+   },
+   "features_in_the_source": {
+    "floating point": 9576,
+    "vectors": 7384,
+    "scalable vectors": 906,
+    "undef": 1222,
+    "calls to a declared function": 5262,
+    "target intrinsics": 4656,
+    "pointers": 3919,
+    "memory instructions": 2914
+   }
+  },
+  "pairs": {
+   "status": {
+    "unsupported:emitter": 18611,
+    "candidate:": 11753,
+    "unsupported:memory": 794,
+    "skipped:unchanged_alone": 77,
+    "error:extract_failed": 5
+   },
+   "candidates": 11753,
+   "candidates_with_undef_arguments": 11678,
+   "candidates_with_a_promise_in_the_target": 2547,
+   "candidates_with_a_promise_on_the_function": 0,
+   "candidates_with_vectors": 2444,
+   "certificate_eligible": 75
+  },
+  "prove": {
+   "proved:kernel_checked": 34,
+   "failed:proof_not_found": 28,
+   "unknown:heartbeat_limit": 10,
+   "unsupported:emitter_combined": 2,
+   "error:generated_module_failed": 1
+  },
+  "certify": {
+   "bound:replayed": 34
+  },
+  "refute": {},
+  "alive": {},
+  "verdicts": {
+   "lean": {
+    "unsupported": 19407,
+    "error": 11684,
+    "certified": 34,
+    "no_verdict": 28,
+    "unknown": 10
+   },
+   "alive": {
+    "not_run": 31163
+   }
+  },
+  "matrix": {
+   "certified": {
+    "correct": 0,
+    "incorrect": 0,
+    "src_always_ub": 0,
+    "timeout": 0,
+    "incomplete": 0,
+    "unsupported": 0,
+    "not_run": 34
+   },
+   "proved": {
+    "correct": 0,
+    "incorrect": 0,
+    "src_always_ub": 0,
+    "timeout": 0,
+    "incomplete": 0,
+    "unsupported": 0,
+    "not_run": 0
+   },
+   "refuted": {
+    "correct": 0,
+    "incorrect": 0,
+    "src_always_ub": 0,
+    "timeout": 0,
+    "incomplete": 0,
+    "unsupported": 0,
+    "not_run": 0
+   },
+   "no_verdict": {
+    "correct": 0,
+    "incorrect": 0,
+    "src_always_ub": 0,
+    "timeout": 0,
+    "incomplete": 0,
+    "unsupported": 0,
+    "not_run": 28
+   },
+   "unknown": {
+    "correct": 0,
+    "incorrect": 0,
+    "src_always_ub": 0,
+    "timeout": 0,
+    "incomplete": 0,
+    "unsupported": 0,
+    "not_run": 10
+   },
+   "unsupported": {
+    "correct": 0,
+    "incorrect": 0,
+    "src_always_ub": 0,
+    "timeout": 0,
+    "incomplete": 0,
+    "unsupported": 0,
+    "not_run": 19407
+   },
+   "error": {
+    "correct": 0,
+    "incorrect": 0,
+    "src_always_ub": 0,
+    "timeout": 0,
+    "incomplete": 0,
+    "unsupported": 0,
+    "not_run": 11684
+   }
+  },
+  "soundness": null,
+  "compared": 0,
+  "disagreements": {},
+  "to_investigate": [],
+  "cost": {
+   "prove": {
+    "n": 73,
+    "total_s": 1201.1,
+    "median_s": 4.24,
+    "p90_s": 84.78,
+    "max_s": 95.47
+   },
+   "certify": {
+    "n": 34,
+    "total_s": 290.9,
+    "median_s": 8.1,
+    "p90_s": 10.6,
+    "max_s": 10.7
+   },
+   "alive": {
+    "n": 0
+   },
+   "refute": {
+    "n": 0
+   },
+   "stages": []
+  },
+  "toolchain": {
+   "repo_commit": "d497e06a752504cf628cf72520edea54d042a2e1",
+   "repo_dirty": false,
+   "llvm_project": {
+    "repository": "https://github.com/llvm/llvm-project",
+    "tag": "llvmorg-23.1.3",
+    "commit": "0d261d1ca552c95a8f007e061c787ac7132fbcbc",
+    "nix_hash": "sha256-+e5YvYEbCvvEQbLVIQP5hwPp4tEk6EB270bSEMKv0t4="
+   },
+   "opt": {
+    "version": "23.1.3",
+    "sha256": "f5725da4074e87581e7c0e07c3a61d8870896d0e7dc03d911eec1f0f6411f208"
+   },
+   "llvm_extract_sha256": "c778f91bd2d225cd5782edca48fa99b97952b8240e8a306d142dc6d84ae323e2",
+   "llvm_link_sha256": "75d831cf37145fab0bbb313560da684a1d994748967875a1164013614d3e36b5",
+   "alive_tv": {
+    "path": "/nix/store/ym2n4vwjbnaavjrihrn5bjpjz8fjvbz9-alive2-21.0-unstable-2026-07-23/bin/alive-tv",
+    "sha256": "8e2cccb7b68a149778fdf0993cc4af000e295ae26277711bd5db98864fe6533e",
+    "flags": [
+     "--disable-undef-input",
+     "--fail-src-ub"
+    ]
+   },
+   "llubi_sha256": "04943c49aa115a8c2dc9f10ac6cd0e7f3e12b754e14839361b73298a1f381046",
+   "lean": {
+    "version": "Lean (version 4.35.0, x86_64-unknown-linux-gnu, commit eb6cafb7290e8bd5f2937522d8d804f58f02bafc, Release)",
+    "sha256": "a884390f045303caa22583ae6e18f0fb03d8aa5d175b8f3426a244c3334e6e3b"
+   },
+   "ir_lean_binary_sha256": "0b34a1c414c8a2a26a6760ed9225a8ca5473db6e4f4fa1c51bdbc35564e37049",
+   "irlean_library_sha256": "5779b1fc92ea77a32f6c3025550350afc7b4cfa0971b27929be165fcf77a7fad",
+   "checkers_sha256": {
+    "tools/verify.py": "642261ba01ce5df2a0e37e58eec29b4d058df82b65cb7a2c93a5e10acae21235",
+    "tools/verify_check.lean": "230ae18f83286ced0fc846536580e4c76f4239b7cf1ed7d65c4a4e391bd34697",
+    "tests/check_axioms.lean": "c731e1e303372e190387e74b4285a8221abbbb539599bae61ef116afa641747b",
+    "tools/irlean/__init__.py": "2546f9117c1873c6abf2de00f3b1b19016066a11be1f382b21b4469385ed4588",
+    "tools/irlean/hashing.py": "e53fe4843bd92a4f9451df2484e926876a48e4a37b2420d15e7e2502446239cb",
+    "tools/irlean/lean.py": "3fd6e7004ee3722b83294f1c522428aae636f2212590f2fd9d550d5eb48c8cc4",
+    "tools/irlean/model.py": "43a6a0566ed53d558384c3a2604dbe3fce2ae399b4ad309b3f73d0691ca12249",
+    "tools/irlean/pins.py": "758c49457554dd731891ae117eabefb1b9c201fea57034643ff8af628f6557c2",
+    "tools/irlean/proc.py": "d7f19fa53522f7b226a1ca393c6ba5f74829b5b3266f7b0ae490772a14b4e90c",
+    "tools/irlean/schemas.py": "1211642a3556c1c0d8a8609f9d94bd58093eee21201294ba4e0f169495d1a10d",
+    "tools/irlean/verdict.py": "bcdd5692f5b28451bf0f7e08598a859b0f4db80f319f15623685764759aa1ba0",
+    "tools/binding.py": "ef5663bd091f1a0e17001bd267de754c6d94bec2cf73b3dd968f17ecab9ef6a0",
+    "tests/verify_negative.py": "96fddda03b24e00ee7d76589b59a42bcd9964629a2bc360680223765847b36b2",
+    "tests/alive.py": "d0743dfeb6683a487c01b5dc08457c7f5c163274771033d95dee7551e537bf44",
+    "bench/instcombine/stage1.py": "e87bb1dd5924f12fedf6a495b61b52dede51cc2763e21b5a700e0547b6c0ef2f"
+   }
+  }
  }
 }
