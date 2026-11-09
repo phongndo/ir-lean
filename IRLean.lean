@@ -5,3 +5,4 @@ import IRLean.Mem
 import IRLean.Vec
 import IRLean.Lemmas
 import IRLean.Safety
+import IRLean.Refine
