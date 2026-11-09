@@ -26,17 +26,18 @@ import concurrent.futures
 import contextlib
 import functools
 import glob
-import hashlib
 import os
 import random
 import re
 import shutil
-import subprocess
 import sys
 import tempfile
 import threading
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.append(os.path.join(ROOT, "tools"))
+from irlean import hashing, proc  # noqa: E402
+
 MAX_WIDTH = 64
 # A runaway check fails with Lean's own error instead of taking the machine's memory.
 LEAN_MAX_MB = os.environ.get("LEAN_MAX_MB", "6000")
@@ -64,10 +65,13 @@ class Stats:
         self.skip_reasons = {}
 
 
-def sh(args, **kw):
-    r = subprocess.run(args, text=True, capture_output=True, check=False, **kw)
-    if r.returncode != 0:
-        sys.exit(f"{args[0]} failed:\n{(r.stdout + r.stderr)[:3000]}")
+def sh(args, timeout=None, **kw):
+    """Runs `args`, and exits with what it printed if it fails. Raises TimeoutExpired past `timeout`."""
+    r = proc.run(args, timeout=timeout, **kw)
+    if r.limit is not None and timeout is not None:
+        raise proc.TimeoutExpired(args, timeout)
+    if r.exit != 0:
+        sys.exit(f"{args[0]} failed:\n{r.output[:3000]}")
     return r
 
 
@@ -80,7 +84,7 @@ def lean_env(work):
 def report(tool, ll, only=""):
     """Returns ([(llvm name, lean name, parameter widths, result width, uses memory)], unsupported
     reasons)."""
-    out = sh([tool, ll, "--report"]).stdout.splitlines()
+    out = sh([tool, ll, "--report"]).out.splitlines()
     runnable, reasons = [], {}
     for line in out:
         fields = line.split("\t")
@@ -116,9 +120,9 @@ def emit_lean(tool, ll, work, split):
     """Translates `ll` to the Lean module M."""
     lean = os.path.join(work, "M.lean")
     args = [tool, ll, "--namespace", "M"] + (["--split", work] if split else ["-o", lean])
-    r = subprocess.run(args, text=True, capture_output=True, check=False)
-    if r.returncode not in (0, 3):
-        sys.exit(f"ir-lean failed:\n{r.stderr}")
+    r = proc.run(args)
+    if r.exit not in (0, 3):
+        sys.exit(f"ir-lean failed:\n{r.err}")
 
 
 def compile_lean(work, split):
@@ -133,7 +137,7 @@ def compile_lean(work, split):
 @functools.cache
 def library_digest():
     """A hash of the Lean this runs on and the library."""
-    library = hashlib.sha256(sh(["lean", "--version"]).stdout.encode())
+    library = hashing.new(sh(["lean", "--version"]).stdout)
     lib_dir = os.path.join(ROOT, ".lake", "build", "lib", "lean")
     for path in sorted(
         glob.glob(os.path.join(lib_dir, "IRLean*")) + glob.glob(os.path.join(lib_dir, "IRLean", "*"))
@@ -147,7 +151,7 @@ def library_digest():
 def lean_output(work, command, env, prepare):
     """What a command that runs Lean prints, and only runs it if this Lean, this library and the .lean files
     in `work` haven't given an answer before. `prepare` compiles what it needs."""
-    key = hashlib.sha256(library_digest())
+    key = hashing.new(library_digest())
     for path in sorted(glob.glob("**/*.lean", root_dir=work, recursive=True)):
         with open(os.path.join(work, path), "rb") as f:
             key.update(f"{path} {os.fstat(f.fileno()).st_size}\n".encode() + f.read())
@@ -160,7 +164,7 @@ def lean_output(work, command, env, prepare):
     except OSError:
         pass
     prepare()
-    output = sh(command, env=env).stdout
+    output = sh(command, env=env).out
     os.makedirs(RESULTS, exist_ok=True)
     partial = f"{cached}.{os.getpid()}.{threading.get_ident()}"
     with open(partial, "w") as f:
@@ -194,8 +198,7 @@ def build_modules(work, env):
             text = f.read()
         imports = re.findall(r"^import M\.(\w+)$", text, flags=re.M)
         waiting[module] = set(imports)
-        key = hashlib.sha256(library + text.encode() + "".join(keys[i] for i in imports).encode())
-        keys[module] = key.hexdigest()
+        keys[module] = hashing.sha256(library + text.encode() + "".join(keys[i] for i in imports).encode())
 
     def build(module):
         target = os.path.join(work, "M", module + ".olean")
@@ -309,7 +312,7 @@ def run_native(functions, cases, keep, ll, work):
         f.write(text)
     exe = os.path.join(work, "native")
     sh(["clang", "-O1", "-Wno-override-module", visible, driver, "-o", exe])
-    return sh([exe], timeout=300).stdout.split()
+    return sh([exe], timeout=300).out.split()
 
 
 def has_no_result(x):

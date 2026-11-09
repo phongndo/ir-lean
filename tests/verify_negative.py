@@ -24,18 +24,14 @@ toolchain or enough memory.
 """
 
 import argparse
-import contextlib
 import copy
-import hashlib
 import importlib.util
 import json
 import os
 import re
 import shutil
 import signal
-import subprocess
 import sys
-import threading
 import time
 from collections.abc import Callable
 from dataclasses import dataclass, field
@@ -43,8 +39,8 @@ from pathlib import Path
 from typing import Any
 
 ROOT = Path(__file__).resolve().parent.parent
-sys.path.insert(0, str(ROOT / "tools"))
-from irlean import proc  # noqa: E402
+sys.path.append(str(ROOT / "tools"))
+from irlean import hashing, model, proc, schemas  # noqa: E402
 from irlean import verdict as core  # noqa: E402
 
 CORPUS = ROOT / "tests" / "verification_negative"
@@ -67,10 +63,10 @@ CHECKER_FILES = [
     *sorted(str(p.relative_to(ROOT)) for p in (ROOT / "tools" / "irlean").glob("*.py")),
 ]
 
-CASE_SCHEMA = "ir-lean.verification-negative.case/1"
-ENVELOPE_SCHEMA = "ir-lean.verification-negative.envelope/1"
-REPORT_SCHEMA = "ir-lean.verification-negative.report/1"
-RESULT_SCHEMA = "ir-lean.verify/1"
+CASE_SCHEMA = schemas.NEGATIVE_CASE
+ENVELOPE_SCHEMA = schemas.NEGATIVE_ENVELOPE
+REPORT_SCHEMA = schemas.NEGATIVE_REPORT
+RESULT_SCHEMA = schemas.VERIFY
 CASE_FIELDS = {
     "schema",
     "category",
@@ -108,13 +104,9 @@ PIN_MATCHES = {"syntactic", "reducible_defeq"}
 #
 # It names only Lean, IRLean and the generated module, so a statement can pin it: a `match` would make an
 # auxiliary definition in the proof module, which tools/verify.py never lets a pinned statement name. It's
-# decidable, so a witness can be decided by running it. The reasons are listed rather than the model stops,
-# so a reason added to IRLean.UB later makes the claim stricter, never weaker.
-UB_REASONS = (
-    "branchOnPoison switchOnPoison assumeFailed unreachable divByZero divByPoison divOverflow "
-    "noundefPoison badAccess misaligned poisonPointer writeToConstant overlappingCopy badFree "
-    "forbiddenWrite forbiddenAccess expiredProvenance forbiddenFree"
-).split()
+# decidable, so a witness can be decided by running it. The reasons are IRLean.UB's, read from the model by
+# irlean.model, so the claim follows the model when a reason is added, as SEM-07 added two.
+UB_REASONS = model.ub_reasons()
 RETURNS = "IRLean.andThen ({0}) (fun _ => IRLean.Outcome.ok ()) = IRLean.Outcome.ok ()"
 REFINES = " ∨ ".join(
     [
@@ -169,8 +161,7 @@ class ManifestError(Exception):
     pass
 
 
-def sha256_file(path: Path) -> str:
-    return hashlib.sha256(path.read_bytes()).hexdigest()
+sha256_file = hashing.sha256_file
 
 
 def checker_hashes() -> dict[str, str]:
@@ -301,45 +292,20 @@ class Harness:
 
 
 def run_checker(argv: list[str], timeout: float, logs: Path) -> Harness:
-    """Runs one checker in its own process group, with a watchdog that kills the whole group, and measures the
+    """Runs one checker in its own session, killing everything it started at the time limit, and measures the
     peak memory of the largest process in it that was waited for."""
     logs.mkdir(parents=True, exist_ok=True)
     out_path, err_path = logs / "stdout.txt", logs / "stderr.txt"
-    started = time.monotonic()
-    with out_path.open("w") as out, err_path.open("w") as err:
-        process = subprocess.Popen(
-            argv, stdout=out, stderr=err, stdin=subprocess.DEVNULL, cwd=ROOT, start_new_session=True
-        )
-        fired = threading.Event()
-
-        def kill() -> None:
-            fired.set()
-            kill_group(process.pid)
-
-        watchdog = threading.Timer(timeout, kill)
-        watchdog.start()
-        try:
-            _, status, usage = os.wait4(process.pid, 0)
-        finally:
-            watchdog.cancel()
-            # Whatever the checker left behind goes with it.
-            kill_group(process.pid)
-        process.returncode = os.waitstatus_to_exitcode(status)
-    code = process.returncode
+    r = proc.run(argv, timeout=timeout, stdout=out_path, stderr=err_path, cwd=ROOT)
     return Harness(
-        exit=code if code >= 0 else None,
-        signal=-code if code < 0 else None,
-        timed_out=fired.is_set(),
-        seconds=round(time.monotonic() - started, 2),
-        peak_rss_mb=int(proc.maxrss_mib(usage.ru_maxrss)),
+        exit=r.exit if r.exit >= 0 else None,
+        signal=-r.exit if r.exit < 0 else None,
+        timed_out=r.limit is not None,
+        seconds=round(r.seconds, 2),
+        peak_rss_mb=int(r.peak_process_mb),
         stdout=out_path.read_text(errors="replace"),
         stderr=err_path.read_text(errors="replace"),
     )
-
-
-def kill_group(pid: int) -> None:
-    with contextlib.suppress(ProcessLookupError, PermissionError):
-        os.killpg(pid, signal.SIGKILL)
 
 
 def parse_result(stdout: str) -> Any:
@@ -575,12 +541,12 @@ def probe_witnessed(probe: Any, expected: dict[str, Any]) -> bool:
 
 
 def current_versions(v: Any, tool: Path) -> dict[str, str]:
-    lean = subprocess.run(["lean", "--version"], capture_output=True, text=True, check=False)
+    lean = proc.run(["lean", "--version"])
     return {
         "irlean_library_sha256": v.library_hash(),
         "ir_lean_binary_sha256": sha256_file(tool) if tool.is_file() else "missing",
         "ir_lean": v.emitter_commit(),
-        "lean": ((lean.stdout + lean.stderr).strip().splitlines() or ["unknown"])[0],
+        "lean": (lean.output.strip().splitlines() or ["unknown"])[0],
     }
 
 

@@ -24,12 +24,10 @@ usage: tests/binding.py [--keep] [--only NAME ...] [--shard I/N]
 
 import argparse
 import base64
-import hashlib
 import importlib.util
 import json
 import os
 import shutil
-import subprocess
 import sys
 from collections.abc import Callable
 from pathlib import Path
@@ -37,6 +35,9 @@ from typing import Any
 from zlib import crc32
 
 ROOT = Path(__file__).resolve().parent.parent
+sys.path.append(str(ROOT / "tools"))
+from irlean import hashing, proc  # noqa: E402
+
 HERE = ROOT / "tests" / "binding"
 WORK = ROOT / "build" / "binding" / "tests"
 TOOL = [sys.executable, str(ROOT / "tools" / "binding.py")]
@@ -139,8 +140,15 @@ def forged_store(t: Path, path: Path) -> dict[str, str]:
     return {"NIX_USER_CONF_FILES": str(conf), "NIX_REMOTE": f"file://{cache}"}
 
 
-def sha(data: bytes) -> str:
-    return hashlib.sha256(data).hexdigest()
+sha = hashing.sha256
+
+
+def nix_hash(argv: list[str]) -> str:
+    """What `nix hash path` prints, or exits if it fails."""
+    r = proc.run(argv)
+    if r.exit != 0:
+        sys.exit(f"{' '.join(argv)} failed: {r.err[-2000:]}")
+    return r.out
 
 
 def record(
@@ -155,7 +163,7 @@ def record(
     shutil.rmtree(out, ignore_errors=True)
     cert = WORK / f"{name}.lean"
     cert.write_text(certificate)
-    r = subprocess.run(
+    r = proc.run(
         [
             *TOOL,
             "record",
@@ -177,30 +185,21 @@ def record(
             kind,
             "--out",
             str(out),
-        ],
-        capture_output=True,
-        text=True,
-        check=False,
+        ]
     )
-    if r.returncode != 0:
-        sys.exit(f"record {name} failed: {r.stdout}{r.stderr}")
+    if r.exit != 0:
+        sys.exit(f"record {name} failed: {r.out}{r.err}")
     return out / "manifest.json"
 
 
 def verify(manifest: Path, *extra: str, env: dict[str, str] | None = None) -> dict:
-    r = subprocess.run(
-        [*TOOL, "verify", str(manifest), *extra],
-        capture_output=True,
-        text=True,
-        check=False,
-        env={**os.environ, **(env or {})},
-    )
+    r = proc.run([*TOOL, "verify", str(manifest), *extra], env={**os.environ, **(env or {})})
     try:
-        verdict = json.loads(r.stdout)
+        verdict = json.loads(r.out)
     except ValueError:
-        sys.exit(f"verify gave no JSON for {manifest}: {r.stdout[-2000:]}{r.stderr[-2000:]}")
-    if verdict.get("exit_code") != r.returncode:
-        sys.exit(f"exit code {r.returncode} isn't the verdict's {verdict.get('exit_code')}")
+        sys.exit(f"verify gave no JSON for {manifest}: {r.out[-2000:]}{r.err[-2000:]}")
+    if verdict.get("exit_code") != r.exit:
+        sys.exit(f"exit code {r.exit} isn't the verdict's {verdict.get('exit_code')}")
     return verdict
 
 
@@ -737,9 +736,7 @@ def recorded_hashes(binding: Any, t: Path, failures: list[str]) -> int:
     source = Path(os.environ["LLVM_PROJECT_SRC"])
     recorded = binding.recorded_nar_hash(run, source)
     nested = binding.recorded_nar_hash(run, source / "llvm")
-    hashed = subprocess.run(
-        ["nix", "hash", "path", str(source)], capture_output=True, text=True, check=True
-    ).stdout.strip()
+    hashed = nix_hash(["nix", "hash", "path", str(source)]).strip()
     if nested is not None or recorded not in (None, hashed):
         failures.append(
             f"recorded_hash: {recorded} recorded, {hashed} hashed, {nested} for a directory in it"
@@ -752,19 +749,17 @@ def recorded_hashes(binding: Any, t: Path, failures: list[str]) -> int:
     zlib = Path(os.environ["ZLIB_SRC"])
     forged = forged_store(t, zlib)
     query = ["nix-store", "--query", "--hash", str(zlib)]
-    fooled = subprocess.run(query, capture_output=True, text=True, env={**os.environ, **forged}, check=False)
+    fooled = proc.run(query, env={**os.environ, **forged})
     misled = binding.Runner(120, 1000)
     misled.env.update(forged)
     got = binding.recorded_nar_hash(misled, zlib)
-    hashed = subprocess.run(
-        ["nix", "hash", "path", str(zlib)], capture_output=True, text=True, check=True
-    ).stdout.strip()
+    hashed = nix_hash(["nix", "hash", "path", str(zlib)]).strip()
     if got not in (None, hashed):
         failures.append(
             f"forged_store: read {got} for {zlib}, from the user's store, which hashes to {hashed}"
         )
     else:
-        alone = fooled.stdout.strip() == f"sha256:{nix32}"
+        alone = fooled.out.strip() == f"sha256:{nix32}"
         how = "fools nix-store alone" if alone else "doesn't fool nix-store here"
         print(f"ok    forged_store: a binary cache the user's configuration names, which {how}, isn't read")
     return ran
@@ -808,12 +803,7 @@ def main() -> int:
     if runs("time_limit"):
         # The certificate that ran out of time mustn't still be running.
         ran += 1
-        left = subprocess.run(
-            ["pgrep", "-f", "binding/tests/.*Cert.lean|runs/.*/Fx/Cert.lean"],
-            capture_output=True,
-            text=True,
-            check=False,
-        ).stdout
+        left = proc.run(["pgrep", "-f", "binding/tests/.*Cert.lean|runs/.*/Fx/Cert.lean"]).out
         if left:
             failures.append(f"time_limit: left running: {left}")
         else:
@@ -839,9 +829,7 @@ def main() -> int:
         # Code that ran while the certificate compiled doesn't outlive it.
         ran += 1
         verdict = verify(record("leaves_process", LEAVES_PROCESS))
-        left = subprocess.run(
-            ["pgrep", "-f", "sleep 313.7"], capture_output=True, text=True, check=False
-        ).stdout
+        left = proc.run(["pgrep", "-f", "sleep 313.7"]).out
         if verdict.get("status") != "bound" or left:
             failures.append(
                 f"leaves_process: {verdict.get('status')} {verdict.get('reason')}, left: {left!r}"

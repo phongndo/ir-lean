@@ -1,14 +1,15 @@
 # Proving every optimization in LLVM: tasks
 
-**Parked on 2026-11-08.** Proving every optimization in a pinned LLVM is no longer an end goal. The
-[roadmap](roadmap.md) says what is, proved superoptimization with proof tests as a second product, and
-[why it changed](roadmap.md#the-goal-changed-on-2026-11-08). This page stays as a reference: the inventory of the
-pinned LLVM's passes, the rules for what counts as done, and the tasks, with their statuses kept true and checked by
-`tests/llvm_scope.py`. Some tasks are tools the roadmap uses, and [what the roadmap keeps](#what-the-roadmap-keeps)
-lists them. The rest wait with the program, which comes back as a goal only by a change the roadmap writes down with
-its reason.
+**The main program, since 2026-11-09.** Proving every optimization in a pinned LLVM was parked on 2026-11-08, and the
+maintainer made it the main program again on 2026-11-09, organized as nine [chunks](chunks.md) of passes, each taken
+through five gates, with a platform track under them all
+([roadmap](roadmap.md#six-decisions-of-2026-11-09-after-69)). Proved superoptimization and proof tests ride on the
+same platform. This page is the program's plan: the inventory of the pinned LLVM's passes, the rules for what counts
+as done, and the tasks, with their statuses kept true and checked by `tests/llvm_scope.py`.
+[`tests/llvm_scope/chunks.json`](../tests/llvm_scope/chunks.json) puts each pass in one chunk, and the `chunks` test
+checks it against this page's inventory.
 
-The end condition, as it was set: every optimization in a pinned LLVM revision, across all optimization levels and
+The end condition: every optimization in a pinned LLVM revision, across all optimization levels and
 supported targets, has machine-checked correctness proofs tied to its actual implementation, covering all permitted
 inputs and composition through optimization pipelines. Assumptions are explicit and justified. Timeouts, unsupported
 cases, admitted proofs and proof-to-code gaps count as unfinished.
@@ -16,14 +17,16 @@ cases, admitted proofs and proof-to-code gaps count as unfinished.
 **None of it is done.** The inventory lists all 1162 names the pinned source registers a pass or codegen implementation under. That's registration
 coverage: it says what exists, not what's proved, and it isn't the number of semantically distinct optimizations,
 since some names share code, some code has several names, and each pass holds many rewrites. Proof coverage is 0:
-no name is verified done, and none is even claimed complete. This page is the plan the program had: what the
-denominator is, how a pass gets counted, and the tasks between here and there, with what each depends on and owns. For
+no name is verified done, and none is even claimed complete. This page is the program's plan: what the denominator
+is, how a pass gets counted, and the tasks between here and there, with what each depends on and owns. For
 what any theorem means, see [trust](trust.md).
 
 ## What the roadmap keeps
 
-These tasks are tools for the roadmap's goal, or its fidelity work, and go on under it. Everything else here waits with
-the program, including binding proofs to LLVM's C++, BIND-02 to BIND-05, which the roadmap parks by name.
+*Since 2026-11-09 every task here is the main program's, and [chunks](chunks.md) says which chunk and gate each one
+serves. From 2026-11-08 to then, the roadmap kept only the tasks below, as tools for superoptimization or its fidelity
+work, and the rest waited with the parked program, binding proofs to LLVM's C++, BIND-02 to BIND-05, among them. The
+table is that record, and what it says each task does is still true.*
 
 | Task | Status | In the roadmap |
 | --- | --- | --- |
@@ -33,7 +36,8 @@ the program, including binding proofs to LLVM's C++, BIND-02 to BIND-05, which t
 | SEM-03 | Complete | Milestone F3, `freeze` in the model, with `undef` kept out, as the maintainer [decided](roadmap.md#three-decisions-of-2026-11-09) on 2026-11-09. Done in [#72](https://github.com/phongndo/ir-lean/pull/72) |
 | SEM-02 | Blocked | Kept out of the model by the same decision: `undef` constants stay refused, and uninitialized memory reads as poison |
 | SEM-06 | Not started | Milestone F4, after F3. Superoptimizer v2's memory candidates and the safety bridge need it |
-| SEM-04, SEM-08, SEM-10 | Not started | [Phase 0](roadmap.md#phase-0-semantic-fidelity-and-trust-infrastructure)'s fidelity work |
+| SEM-08 | Complete | [Phase 0](roadmap.md#phase-0-semantic-fidelity-and-trust-infrastructure)'s classification of everything the pinned IR can contain, [IR features](ir-features.md) |
+| SEM-04, SEM-10 | Not started | [Phase 0](roadmap.md#phase-0-semantic-fidelity-and-trust-infrastructure)'s fidelity work |
 | AUTO-01 | In progress | A tactic the engine can try for `Refines` |
 | AUTO-02 | Not started | The [lemma store](roadmap.md#phase-6-the-engine-and-the-lemma-store) |
 | AUTO-03 | In progress | Rewrites at every width, the lemma store's seed |
@@ -118,14 +122,14 @@ Each lane owns its files. Two tasks being worked on at once can't own the same f
 
 | Lane | Covers | Files it owns | Now |
 | --- | --- | --- | --- |
-| INV | Inventory and plan | `tests/llvm_scope*`, `docs/llvm-verification-tasks.md` | INV-01 to INV-03 are complete ([#43](https://github.com/phongndo/ir-lean/pull/43)). The rest wait with the program |
+| INV | Inventory and plan | `tests/llvm_scope*`, `docs/llvm-verification-tasks.md` | INV-01 to INV-03 are complete ([#43](https://github.com/phongndo/ir-lean/pull/43)). INV-04 is chunk 1's work now, for its G2. INV-09 is chunk 9's |
 | SEM | Semantics contracts: poison, `undef`, `freeze`, integers, floating point, memory, UB | `IRLean/*.lean` apart from the refinement tactic, `docs/trust.md`, `tests/opcheck.py`, `tests/gepcheck.py` | SEM-01 is complete ([#46](https://github.com/phongndo/ir-lean/pull/46)): [refinement](refinement.md). So are SEM-07: [promises to progress](trust.md#promises-to-progress), and SEM-03, F3: [`freeze`](refinement.md#runs-that-make-choices). SEM-02 is blocked: `undef` stays out of the model, as decided on 2026-11-09. SEM-06 follows SEM-03. SEM-04 has no prerequisites |
-| BIND | Binding proofs to LLVM's C++, and an independent verifier | `tools/`, new binding checks, `src/Emitter.*` for C++ support | BIND-01 is complete: [binding a proof to LLVM's C++](binding-approach.md). So is BIND-03: [verifying claims](verify-claims.md). Certificate binding, from [#45](https://github.com/phongndo/ir-lean/pull/45), stays as a tool |
+| BIND | Binding proofs to LLVM's C++, and an independent verifier | `tools/`, new binding checks, `src/Emitter.*` for C++ support | BIND-01 is complete: [binding a proof to LLVM's C++](binding-approach.md). So is BIND-03: [verifying claims](verify-claims.md). Gate B1 and BIND-02, toward gate B2, are the platform track's binding work now. Certificate binding, from [#45](https://github.com/phongndo/ir-lean/pull/45), stays as a tool |
 | NEG | Negative tests, CI and honest reporting | `CMakeLists.txt`, `.github/`, `tests/lint.sh`, mutation scripts | NEG-01 is complete (#43). NEG-03 has no prerequisites |
 | AUTO | Proof automation and lemma reuse | `IRLean/RefineTactic.lean`, lemma stores | AUTO-01 is drafted in another tree. AUTO-03 is in progress: [rewrites at every width](generic-rewrites.md). AUTO-02 is the roadmap's lemma store |
-| PASS | Analyses, scalar passes, composition | Per-pass proof directories | PASS-02 is in progress: [`tests/passes.py`](passes.md). The rest wait with the program |
-| LOOP | Loops, vectorization, IPO and LTO | Per-pass proof directories | Waits with the program, and on PASS-01 and SEM |
-| CG | Codegen, legalization, machine passes, per target | Per-target proof directories | Waits with the program, and on CG-01 |
+| PASS | Analyses, scalar passes, composition | Per-pass proof directories | PASS-02 is in progress: [`tests/passes.py`](passes.md). The rest are the chunks' work: PASS-03 is chunk 1's G2, PASS-01 chunks 2 to 4's analyses, PASS-04 chunks 2 and 3, and PASS-05 chunk 7 and every chunk's G4 |
+| LOOP | Loops, vectorization, IPO and LTO | Per-pass proof directories | Chunks 4, 6 and 5. Waits on PASS-01 and SEM |
+| CG | Codegen, legalization, machine passes, per target | Per-target proof directories | Chunk 8. Waits on CG-01 |
 
 The refinement scorer on `research/prove-llvm-optimizations` was drafted with its relation and tactic. The relation,
 `IRLean/Refine.lean`, is SEM-01, and is on `main` with [its own page](refinement.md). The scorer is rebuilt on `main`
@@ -354,11 +358,11 @@ when they land.
 - **Lane:** SEM
 - **Scope:** The roadmap's 0B exit criterion, at this pin: everything the pinned IR can contain is modeled, refused or assumed.
 - **Depends on:** INV-01
-- **Owns:** `tests/llvm_scope/ir-features.json`
+- **Owns:** `tests/llvm_scope/ir-features.json`, `tests/ir_features.py`, `tests/ir_features_test.py`, `tests/ir_features/probes.ll`, `src/Probe.cpp`
 - **Acceptance:** Generated from the pinned `Intrinsics*.td`, `Attributes.td` and `FixedMetadataKinds.def`, and a test fails when one is unclassified.
-- **Trust gaps:** None beyond INV-01's.
-- **Status:** not started
-- **Evidence:** None.
+- **Trust gaps:** A probe shows what the emitter does with one use of an item, not every use, and 133 items have no probe, each listed with why, all refused but `immarg` and the `metadata` type. An assumed item's reason is a reading of LangRef by a person. See [IR features](ir-features.md#what-it-doesnt-show).
+- **Status:** complete
+- **Evidence:** `tests/llvm_scope/ir-features.json`, 17,033 items from the pinned `Intrinsics*.td`, `Attributes.td`, `FixedMetadataKinds.def`, `Instruction.def`, `Type.h`, `GlobalValue.h`, `CallingConv.h`, `Value.def` and the bundle tags, generated by `tests/ir_features.py`, which CI runs as `ir_features`: it fails on an unclassified item, on a file that differs from what the pin gives, and on any item whose probe the emitter treats otherwise than its class says. `tests/ir_features_test.py`, as `ir_features_rules`, checks the rules. [IR features](ir-features.md).
 
 ### SEM-09: Concurrency, exceptions and the rest
 

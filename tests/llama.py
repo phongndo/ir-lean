@@ -35,20 +35,19 @@ in one, and the three wrong rewrites alone in the other.
 
 import argparse
 import concurrent.futures
-import hashlib
 import json
 import os
 import random
 import re
 import shutil
-import subprocess
 import sys
 import tempfile
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.append(str(ROOT / "tools"))
-from irlean import proc  # noqa: E402
+from irlean import hashing, proc  # noqa: E402
+from irlean import lean as leanlib  # noqa: E402
 from irlean import verdict as core  # noqa: E402
 
 HERE = ROOT / "tests" / "llama"
@@ -88,12 +87,8 @@ LIMITS = ["-M", os.environ.get("LEAN_MAX_MB", "6000"), "-s", "65536"]
 SKIP = 77
 # Lean's errors for running out of time, memory or stack, in a tactic or the kernel. A proof that stops at one
 # of these might check with more, so it says nothing about whether what it's about is wrong.
-LIMIT = re.compile(
-    r"maximum number of heartbeats|\(deterministic\) timeout|maximum recursion depth|deep recursion|"
-    r"stack overflow|excessive memory|out of memory|SAT solver timed out|maximum number of steps",
-    re.IGNORECASE,
-)
-LEAN_ERROR = re.compile(r"^.*?:\d+:\d+: error")
+LIMIT = leanlib.LIMIT
+LEAN_ERROR = leanlib.ERROR
 
 
 def only_limits(output: str) -> bool:
@@ -109,16 +104,13 @@ def found(m: re.Match[str] | None, what: str) -> re.Match[str]:
     return m
 
 
-def sha256(path: Path) -> str:
-    return hashlib.sha256(path.read_bytes()).hexdigest()
+sha256 = hashing.sha256_file
 
 
-def run(
-    args: list, env: dict | None = None, cwd: Path | None = None, check: bool = True
-) -> subprocess.CompletedProcess:
-    r = subprocess.run([str(a) for a in args], env=env, cwd=cwd, capture_output=True, text=True, check=False)
-    if check and r.returncode != 0:
-        raise RuntimeError(f"{' '.join(map(str, args))}\n{r.stdout[-4000:]}{r.stderr[-4000:]}")
+def run(args: list, env: dict | None = None, cwd: Path | None = None, check: bool = True) -> proc.Ran:
+    r = proc.run([str(a) for a in args], env=env, cwd=cwd)
+    if check and r.exit != 0:
+        raise RuntimeError(f"{' '.join(map(str, args))}\n{r.out[-4000:]}{r.err[-4000:]}")
     return r
 
 
@@ -137,7 +129,7 @@ def disassembly(obj: Path, function: str | None = None) -> str:
     args = ["objdump", "-d", "--no-show-raw-insn", "--no-addresses"]
     if function:
         args.append(f"--disassemble={function}")
-    text = run([*args, obj]).stdout
+    text = run([*args, obj]).out
     text = "\n".join(text.splitlines()[6:])
     text = re.sub(r"\b[0-9a-f]+ <([^>+]+)(\+0x[0-9a-f]+)?>", r"<\1\2>", text)
     text = re.sub(r"-?0x[0-9a-f]+\(%rip\)", "D(%rip)", text)
@@ -148,7 +140,7 @@ def changed_functions(a: Path, b: Path) -> list[str]:
     names = sorted(
         {
             line.split()[2]
-            for line in run(["nm", "--defined-only", a]).stdout.splitlines()
+            for line in run(["nm", "--defined-only", a]).out.splitlines()
             if len(line.split()) == 3 and line.split()[1] in "Tt"
         }
     )
@@ -346,9 +338,9 @@ def checker_controls(ll: Path, rw: Path, report: Path, work: Path) -> list[str]:
         d.mkdir(parents=True, exist_ok=True)
         (d / "rw.ll").write_text("\n".join(text))
         r = run([sys.executable, HERE / "slices.py", ll, d / "rw.ll", report, d / "slices"], check=False)
-        why = next((line for line in r.stderr.splitlines() if "aren't in any slice" in line), "it passed")
-        print(f"{'ok  ' if r.returncode != 0 else 'FAIL'} slices.py refuses {name}: {why}", flush=True)
-        if r.returncode == 0:
+        why = next((line for line in r.err.splitlines() if "aren't in any slice" in line), "it passed")
+        print(f"{'ok  ' if r.exit != 0 else 'FAIL'} slices.py refuses {name}: {why}", flush=True)
+        if r.exit == 0:
             missed.append(name)
     return missed
 
@@ -370,12 +362,12 @@ def can_run() -> bool:
 def native(slices: Path, work: Path, *runs: str) -> tuple[bool | None, str]:
     """Whether the slice pairs differ natively, or None if the check couldn't tell, and what it printed."""
     r = run([sys.executable, HERE / "native_check.py", slices, work, *runs], check=False)
-    said = (r.stdout + r.stderr).strip()
+    said = r.output.strip()
     # It exits 3 when a pair differs. A check that didn't build or crashed says nothing.
-    step = core.Step("native_check", r.returncode, None, said)
+    step = core.Step("native_check", r.exit, r.limit, said)
     if core.decide(core.Verdict.CAUGHT, core.Evidence(step=step, found_exit=3, finding=said)).granted:
         return True, said
-    return (False if r.returncode == 0 else None), said
+    return (False if r.exit == 0 else None), said
 
 
 def main() -> int:
@@ -421,8 +413,8 @@ def main() -> int:
         "defines": DEFINES,
         "flags": FLAGS,
         "functions": FUNCTIONS,
-        "clang": run(["clang++", "--version"]).stdout.splitlines()[0],
-        "lean": run(["lean", "--version"]).stdout.strip(),
+        "clang": run(["clang++", "--version"]).out.splitlines()[0],
+        "lean": run(["lean", "--version"]).out.strip(),
     }
     try:
         ll, clang_obj = compile_kernels(src, work)
@@ -454,10 +446,10 @@ def main() -> int:
         slices = work / "slices"
         cover = run([sys.executable, HERE / "slices.py", ll, rw, report, slices], check=False)
         print(
-            ("ok   " if cover.returncode == 0 else "FAIL ") + cover.stderr.strip().replace("\n", "\n     "),
+            ("ok   " if cover.exit == 0 else "FAIL ") + cover.err.strip().replace("\n", "\n     "),
             flush=True,
         )
-        if cover.returncode != 0:
+        if cover.exit != 0:
             failures.append("slices")
         failures += [f"slices.py accepts {c}" for c in checker_controls(ll, rw, report, work / "controls")]
         manifest["slices_sha256"] = {p.name: sha256(p) for p in sorted(slices.glob("*.ll"))}
@@ -505,8 +497,8 @@ def main() -> int:
                 m_rw, m_report = d / "rw.ll", d / "report.json"
                 rewrite(base, m_rw, m_report, None if mutant == "mask" else mutant)
                 s = run([sys.executable, HERE / "slices.py", base, m_rw, m_report, d / "slices"], check=False)
-                if s.returncode != 0:
-                    print(f"FAIL mutant {mutant}: couldn't slice: {s.stderr[-1000:]}", flush=True)
+                if s.exit != 0:
+                    print(f"FAIL mutant {mutant}: couldn't slice: {s.err[-1000:]}", flush=True)
                     failures.append(f"mutant {mutant}")
                     continue
                 r = prove(tool, d / "slices", d / "lean", refute=mutant)

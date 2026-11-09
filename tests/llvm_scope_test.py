@@ -7,8 +7,6 @@ nothing but the files in the repo, so they run without LLVM.
 usage: tests/llvm_scope_test.py
 """
 
-import hashlib
-import subprocess
 import sys
 import tempfile
 import unittest
@@ -16,6 +14,9 @@ from pathlib import Path
 from typing import Any
 
 import llvm_scope as s
+
+sys.path.append(str(Path(__file__).resolve().parent.parent / "tools"))
+from irlean import hashing, proc
 
 ANCHOR = "llvm/lib/Transforms/Scalar/Foo.cpp"
 # Stands in for the independent verifiers BIND-03 is to write, which don't exist yet.
@@ -74,7 +75,7 @@ class Claims(unittest.TestCase):
     def evidence(self, kind: str, name: str = "proof.lean") -> dict[str, str]:
         path = self.root / name
         path.write_text(f"-- {kind}\n")
-        return {"kind": kind, "path": name, "sha256": hashlib.sha256(path.read_bytes()).hexdigest()}
+        return {"kind": kind, "path": name, "sha256": hashing.sha256_file(path)}
 
     def claim(
         self, dim: str, status: str = "complete", kind: str | None = None, **extra: Any
@@ -137,7 +138,7 @@ class Claims(unittest.TestCase):
     def test_evidence_outside_the_repo_is_refused(self) -> None:
         outside = self.root.parent / "outside.lean"
         outside.write_text("theorem t : True := trivial\n")
-        digest = hashlib.sha256(outside.read_bytes()).hexdigest()
+        digest = hashing.sha256_file(outside)
         for path in ("../outside.lean", str(outside)):
             c = self.claim("all-input")
             c["evidence"] = [{"kind": "lean-proof", "path": path, "sha256": digest}]
@@ -288,10 +289,9 @@ class Tasks(unittest.TestCase):
             self.assertTrue(any("complete needs evidence" in e for e in errors), errors)
 
     def test_a_commit_in_the_repo_is_evidence(self) -> None:
-        head = subprocess.run(
-            ["git", "-C", str(s.ROOT), "rev-parse", "HEAD"], capture_output=True, text=True, check=True
-        )
-        errors = self.check(task("INV-01", status="complete", evidence=f"`{head.stdout.strip()[:12]}`"))
+        head = proc.run(["git", "-C", str(s.ROOT), "rev-parse", "HEAD"])
+        self.assertEqual(head.exit, 0, head.err)
+        errors = self.check(task("INV-01", status="complete", evidence=f"`{head.out.strip()[:12]}`"))
         self.assertEqual(errors, [])
 
     def test_complete_needs_its_dependencies_complete(self) -> None:

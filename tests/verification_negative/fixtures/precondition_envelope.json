@@ -16,7 +16,7 @@
       "namespace": "Opt",
       "proof": "<run>/cases/control_precondition_sufficient/files/Proof.lean",
       "theorem": "tgt_refines_src",
-      "statement": "∀ (x : BitVec 8), x < 128#8 → (∃ r ∈ [IRLean.UB.branchOnPoison, IRLean.UB.switchOnPoison, IRLean.UB.assumeFailed, IRLean.UB.unreachable, IRLean.UB.divByZero, IRLean.UB.divByPoison, IRLean.UB.divOverflow, IRLean.UB.noundefPoison, IRLean.UB.badAccess, IRLean.UB.misaligned, IRLean.UB.poisonPointer, IRLean.UB.writeToConstant, IRLean.UB.overlappingCopy, IRLean.UB.badFree, IRLean.UB.forbiddenWrite, IRLean.UB.forbiddenAccess, IRLean.UB.expiredProvenance, IRLean.UB.forbiddenFree], Opt.src (some x) = IRLean.Outcome.ub r) ∨ (Opt.src (some x) = Option.none ∧ Opt.tgt (some x) = Option.none) ∨ (Opt.src (some x) = IRLean.Outcome.ok Option.none ∧ IRLean.andThen (Opt.tgt (some x)) (fun _ => IRLean.Outcome.ok ()) = IRLean.Outcome.ok ()) ∨ (Opt.src (some x) ≠ IRLean.Outcome.ok Option.none ∧ IRLean.andThen (Opt.src (some x)) (fun _ => IRLean.Outcome.ok ()) = IRLean.Outcome.ok () ∧ Opt.tgt (some x) = Opt.src (some x))",
+      "statement": "∀ (x : BitVec 8), x < 128#8 → (∃ r ∈ [IRLean.UB.branchOnPoison, IRLean.UB.switchOnPoison, IRLean.UB.assumeFailed, IRLean.UB.unreachable, IRLean.UB.divByZero, IRLean.UB.divByPoison, IRLean.UB.divOverflow, IRLean.UB.noundefPoison, IRLean.UB.badAccess, IRLean.UB.misaligned, IRLean.UB.poisonPointer, IRLean.UB.writeToConstant, IRLean.UB.overlappingCopy, IRLean.UB.badFree, IRLean.UB.forbiddenWrite, IRLean.UB.forbiddenAccess, IRLean.UB.expiredProvenance, IRLean.UB.forbiddenFree, IRLean.UB.noProgress, IRLean.UB.noReturn], Opt.src (some x) = IRLean.Outcome.ub r) ∨ (Opt.src (some x) = Option.none ∧ Opt.tgt (some x) = Option.none) ∨ (Opt.src (some x) = IRLean.Outcome.ok Option.none ∧ IRLean.andThen (Opt.tgt (some x)) (fun _ => IRLean.Outcome.ok ()) = IRLean.Outcome.ok ()) ∨ (Opt.src (some x) ≠ IRLean.Outcome.ok Option.none ∧ IRLean.andThen (Opt.src (some x)) (fun _ => IRLean.Outcome.ok ()) = IRLean.Outcome.ok () ∧ Opt.tgt (some x) = Opt.src (some x))",
       "support": [],
       "lean_root": "<run>/cases/control_precondition_sufficient/files",
       "witnesses": [],
@@ -35,13 +35,13 @@
       "uses_memory": false,
       "triple": null,
       "datalayout": null,
-      "trusted_promises": []
+      "promises": []
     },
     "claim": {
       "theorem": "tgt_refines_src",
       "resolved": "tgt_refines_src",
-      "statement": "∀ (x : BitVec 8),\n  x < 128#8 →\n    (∃ r,\n        r ∈\n            [IRLean.UB.branchOnPoison, IRLean.UB.switchOnPoison, IRLean.UB.assumeFailed, IRLean.UB.unreachable,\n              IRLean.UB.divByZero, IRLean.UB.divByPoison, IRLean.UB.divOverflow, IRLean.UB.noundefPoison,\n              IRLean.UB.badAccess, IRLean.UB.misaligned, IRLean.UB.poisonPointer, IRLean.UB.writeToConstant,\n              IRLean.UB.overlappingCopy, IRLean.UB.badFree, IRLean.UB.forbiddenWrite, IRLean.UB.forbiddenAccess,\n              IRLean.UB.expiredProvenance, IRLean.UB.forbiddenFree] ∧\n          Opt.src (Option.some x) = IRLean.Outcome.ub r) ∨\n      Opt.src (Option.some x) = Option.none ∧ Opt.tgt (Option.some x) = Option.none ∨\n        Opt.src (Option.some x) = IRLean.Outcome.ok Option.none ∧\n            (IRLean.andThen (Opt.tgt (Option.some x)) fun x => IRLean.Outcome.ok ()) = IRLean.Outcome.ok () ∨\n          Opt.src (Option.some x) ≠ IRLean.Outcome.ok Option.none ∧\n            (IRLean.andThen (Opt.src (Option.some x)) fun x => IRLean.Outcome.ok ()) = IRLean.Outcome.ok () ∧\n              Opt.tgt (Option.some x) = Opt.src (Option.some x)",
-      "pinned": "∀ (x : BitVec 8), x < 128#8 → (∃ r ∈ [IRLean.UB.branchOnPoison, IRLean.UB.switchOnPoison, IRLean.UB.assumeFailed, IRLean.UB.unreachable, IRLean.UB.divByZero, IRLean.UB.divByPoison, IRLean.UB.divOverflow, IRLean.UB.noundefPoison, IRLean.UB.badAccess, IRLean.UB.misaligned, IRLean.UB.poisonPointer, IRLean.UB.writeToConstant, IRLean.UB.overlappingCopy, IRLean.UB.badFree, IRLean.UB.forbiddenWrite, IRLean.UB.forbiddenAccess, IRLean.UB.expiredProvenance, IRLean.UB.forbiddenFree], Opt.src (some x) = IRLean.Outcome.ub r) ∨ (Opt.src (some x) = Option.none ∧ Opt.tgt (some x) = Option.none) ∨ (Opt.src (some x) = IRLean.Outcome.ok Option.none ∧ IRLean.andThen (Opt.tgt (some x)) (fun _ => IRLean.Outcome.ok ()) = IRLean.Outcome.ok ()) ∨ (Opt.src (some x) ≠ IRLean.Outcome.ok Option.none ∧ IRLean.andThen (Opt.src (some x)) (fun _ => IRLean.Outcome.ok ()) = IRLean.Outcome.ok () ∧ Opt.tgt (some x) = Opt.src (some x))",
+      "statement": "∀ (x : BitVec 8),\n  x < 128#8 →\n    (∃ r,\n        r ∈\n            [IRLean.UB.branchOnPoison, IRLean.UB.switchOnPoison, IRLean.UB.assumeFailed, IRLean.UB.unreachable,\n              IRLean.UB.divByZero, IRLean.UB.divByPoison, IRLean.UB.divOverflow, IRLean.UB.noundefPoison,\n              IRLean.UB.badAccess, IRLean.UB.misaligned, IRLean.UB.poisonPointer, IRLean.UB.writeToConstant,\n              IRLean.UB.overlappingCopy, IRLean.UB.badFree, IRLean.UB.forbiddenWrite, IRLean.UB.forbiddenAccess,\n              IRLean.UB.expiredProvenance, IRLean.UB.forbiddenFree, IRLean.UB.noProgress, IRLean.UB.noReturn] ∧\n          Opt.src (Option.some x) = IRLean.Outcome.ub r) ∨\n      Opt.src (Option.some x) = Option.none ∧ Opt.tgt (Option.some x) = Option.none ∨\n        Opt.src (Option.some x) = IRLean.Outcome.ok Option.none ∧\n            (IRLean.andThen (Opt.tgt (Option.some x)) fun x => IRLean.Outcome.ok ()) = IRLean.Outcome.ok () ∨\n          Opt.src (Option.some x) ≠ IRLean.Outcome.ok Option.none ∧\n            (IRLean.andThen (Opt.src (Option.some x)) fun x => IRLean.Outcome.ok ()) = IRLean.Outcome.ok () ∧\n              Opt.tgt (Option.some x) = Opt.src (Option.some x)",
+      "pinned": "∀ (x : BitVec 8), x < 128#8 → (∃ r ∈ [IRLean.UB.branchOnPoison, IRLean.UB.switchOnPoison, IRLean.UB.assumeFailed, IRLean.UB.unreachable, IRLean.UB.divByZero, IRLean.UB.divByPoison, IRLean.UB.divOverflow, IRLean.UB.noundefPoison, IRLean.UB.badAccess, IRLean.UB.misaligned, IRLean.UB.poisonPointer, IRLean.UB.writeToConstant, IRLean.UB.overlappingCopy, IRLean.UB.badFree, IRLean.UB.forbiddenWrite, IRLean.UB.forbiddenAccess, IRLean.UB.expiredProvenance, IRLean.UB.forbiddenFree, IRLean.UB.noProgress, IRLean.UB.noReturn], Opt.src (some x) = IRLean.Outcome.ub r) ∨ (Opt.src (some x) = Option.none ∧ Opt.tgt (some x) = Option.none) ∨ (Opt.src (some x) = IRLean.Outcome.ok Option.none ∧ IRLean.andThen (Opt.tgt (some x)) (fun _ => IRLean.Outcome.ok ()) = IRLean.Outcome.ok ()) ∨ (Opt.src (some x) ≠ IRLean.Outcome.ok Option.none ∧ IRLean.andThen (Opt.src (some x)) (fun _ => IRLean.Outcome.ok ()) = IRLean.Outcome.ok () ∧ Opt.tgt (some x) = Opt.src (some x))",
       "pin_match": "syntactic",
       "binders": [
         {
@@ -57,7 +57,7 @@
           "type": "x < 128#8"
         }
       ],
-      "conclusion": "(∃ r,\n    r ∈\n        [IRLean.UB.branchOnPoison, IRLean.UB.switchOnPoison, IRLean.UB.assumeFailed, IRLean.UB.unreachable,\n          IRLean.UB.divByZero, IRLean.UB.divByPoison, IRLean.UB.divOverflow, IRLean.UB.noundefPoison,\n          IRLean.UB.badAccess, IRLean.UB.misaligned, IRLean.UB.poisonPointer, IRLean.UB.writeToConstant,\n          IRLean.UB.overlappingCopy, IRLean.UB.badFree, IRLean.UB.forbiddenWrite, IRLean.UB.forbiddenAccess,\n          IRLean.UB.expiredProvenance, IRLean.UB.forbiddenFree] ∧\n      Opt.src (Option.some x) = IRLean.Outcome.ub r) ∨\n  Opt.src (Option.some x) = Option.none ∧ Opt.tgt (Option.some x) = Option.none ∨\n    Opt.src (Option.some x) = IRLean.Outcome.ok Option.none ∧\n        (IRLean.andThen (Opt.tgt (Option.some x)) fun x => IRLean.Outcome.ok ()) = IRLean.Outcome.ok () ∨\n      Opt.src (Option.some x) ≠ IRLean.Outcome.ok Option.none ∧\n        (IRLean.andThen (Opt.src (Option.some x)) fun x => IRLean.Outcome.ok ()) = IRLean.Outcome.ok () ∧\n          Opt.tgt (Option.some x) = Opt.src (Option.some x)",
+      "conclusion": "(∃ r,\n    r ∈\n        [IRLean.UB.branchOnPoison, IRLean.UB.switchOnPoison, IRLean.UB.assumeFailed, IRLean.UB.unreachable,\n          IRLean.UB.divByZero, IRLean.UB.divByPoison, IRLean.UB.divOverflow, IRLean.UB.noundefPoison,\n          IRLean.UB.badAccess, IRLean.UB.misaligned, IRLean.UB.poisonPointer, IRLean.UB.writeToConstant,\n          IRLean.UB.overlappingCopy, IRLean.UB.badFree, IRLean.UB.forbiddenWrite, IRLean.UB.forbiddenAccess,\n          IRLean.UB.expiredProvenance, IRLean.UB.forbiddenFree, IRLean.UB.noProgress, IRLean.UB.noReturn] ∧\n      Opt.src (Option.some x) = IRLean.Outcome.ub r) ∨\n  Opt.src (Option.some x) = Option.none ∧ Opt.tgt (Option.some x) = Option.none ∨\n    Opt.src (Option.some x) = IRLean.Outcome.ok Option.none ∧\n        (IRLean.andThen (Opt.tgt (Option.some x)) fun x => IRLean.Outcome.ok ()) = IRLean.Outcome.ok () ∨\n      Opt.src (Option.some x) ≠ IRLean.Outcome.ok Option.none ∧\n        (IRLean.andThen (Opt.src (Option.some x)) fun x => IRLean.Outcome.ok ()) = IRLean.Outcome.ok () ∧\n          Opt.tgt (Option.some x) = Opt.src (Option.some x)",
       "shape": "other",
       "generated_constants": [
         "Opt.src",
@@ -123,7 +123,7 @@
         "result": "pass",
         "detail": {
           "input": "78951066269481b390d130d5ab3dc680e0ee7a6bc8ece684e9aaa68d2f614b3e",
-          "proof": "b339e039fa0d6eb34e7ad84b011de73ff690c8630dc628bb6622593020476636"
+          "proof": "6e16a3fd041e61cc8703211937a8ca4e73f874f3ba0179153f55afb576313d02"
         }
       },
       {
@@ -149,7 +149,7 @@
         "detail": {
           "code": true
         },
-        "seconds": 0.01
+        "seconds": 0.0
       },
       {
         "name": "compile_generated",
@@ -166,7 +166,7 @@
       {
         "name": "claim",
         "result": "pass",
-        "seconds": 1.72
+        "seconds": 1.74
       },
       {
         "name": "theorem",
@@ -213,7 +213,7 @@
             "Proof"
           ]
         },
-        "seconds": 0.41
+        "seconds": 0.42
       },
       {
         "name": "artifacts_unchanged",
@@ -237,7 +237,7 @@
         "proof": {
           "original": "<run>/cases/control_precondition_sufficient/files/Proof.lean",
           "copy": "<run>/cases/control_precondition_sufficient/check/work/lean/Proof.lean",
-          "sha256": "b339e039fa0d6eb34e7ad84b011de73ff690c8630dc628bb6622593020476636"
+          "sha256": "6e16a3fd041e61cc8703211937a8ca4e73f874f3ba0179153f55afb576313d02"
         }
       },
       "generated": {
@@ -249,9 +249,9 @@
     },
     "versions": {
       "lean": "Lean (version 4.35.0, x86_64-unknown-linux-gnu, commit eb6cafb7290e8bd5f2937522d8d804f58f02bafc, Release)",
-      "ir_lean": "329a2e3eec21032b60b12126aac00ff45e70af21",
-      "ir_lean_binary_sha256": "6c24deae0e93684b92808071b0f5c3b0cc6e6819fdb6db17183d8d1f3fbfec9e",
-      "irlean_library_sha256": "2ca63df8d54e3cfbde4c474728b61ac6e2779004fb5288324920dcd119af45a0"
+      "ir_lean": "73d2199e857d4ce27ae1f1be8bbcc4beced85b60",
+      "ir_lean_binary_sha256": "5d6349105fc265c595654f2690e2a8759ce22a049023ad663713e8470328f6b2",
+      "irlean_library_sha256": "87ffa1043271821792302ba59e3d84e5b099d99f13d08c1f2243d1d58d992d35"
     },
     "reproduce": {
       "request": "<run>/cases/control_precondition_sufficient/check/work/request.json",
@@ -313,7 +313,7 @@
           "cwd": "<repo>",
           "env": {},
           "exit": 0,
-          "seconds": 0.01,
+          "seconds": 0.0,
           "timed_out": false
         },
         {
@@ -357,7 +357,7 @@
             "LEAN_PATH": "<run>/cases/control_precondition_sufficient/check/work/lean:<run>/cases/control_precondition_sufficient/check/work/library"
           },
           "exit": 0,
-          "seconds": 0.19,
+          "seconds": 0.22,
           "timed_out": false
         },
         {
@@ -376,7 +376,7 @@
             "IRLEAN_VERIFY_CONFIG": "<run>/cases/control_precondition_sufficient/check/work/check/check.json"
           },
           "exit": 0,
-          "seconds": 1.72,
+          "seconds": 1.74,
           "timed_out": false
         },
         {
@@ -391,12 +391,12 @@
             "LEAN_PATH": "<run>/cases/control_precondition_sufficient/check/work/lean:<run>/cases/control_precondition_sufficient/check/work/library"
           },
           "exit": 0,
-          "seconds": 0.41,
+          "seconds": 0.42,
           "timed_out": false
         }
       ]
     },
-    "seconds": 2.56
+    "seconds": 2.62
   },
   "probe": {
     "result": {
@@ -436,7 +436,7 @@
         "uses_memory": false,
         "triple": null,
         "datalayout": null,
-        "trusted_promises": []
+        "promises": []
       },
       "claim": {
         "theorem": null,
@@ -574,7 +574,7 @@
         {
           "name": "claim",
           "result": "pass",
-          "seconds": 0.74
+          "seconds": 0.76
         },
         {
           "name": "theorem",
@@ -611,7 +611,7 @@
           "name": "witnesses",
           "result": "fail",
           "detail": "a witness makes the statement false",
-          "seconds": 0.76
+          "seconds": 0.77
         }
       ],
       "diagnostics": [],
@@ -632,9 +632,9 @@
       },
       "versions": {
         "lean": "Lean (version 4.35.0, x86_64-unknown-linux-gnu, commit eb6cafb7290e8bd5f2937522d8d804f58f02bafc, Release)",
-        "ir_lean": "329a2e3eec21032b60b12126aac00ff45e70af21",
-        "ir_lean_binary_sha256": "6c24deae0e93684b92808071b0f5c3b0cc6e6819fdb6db17183d8d1f3fbfec9e",
-        "irlean_library_sha256": "2ca63df8d54e3cfbde4c474728b61ac6e2779004fb5288324920dcd119af45a0"
+        "ir_lean": "73d2199e857d4ce27ae1f1be8bbcc4beced85b60",
+        "ir_lean_binary_sha256": "5d6349105fc265c595654f2690e2a8759ce22a049023ad663713e8470328f6b2",
+        "irlean_library_sha256": "87ffa1043271821792302ba59e3d84e5b099d99f13d08c1f2243d1d58d992d35"
       },
       "reproduce": {
         "request": "<run>/cases/control_precondition_sufficient/probe/work/request.json",
@@ -718,7 +718,7 @@
               "LEAN_PATH": "<run>/cases/control_precondition_sufficient/probe/work/lean:<run>/cases/control_precondition_sufficient/probe/work/library"
             },
             "exit": 0,
-            "seconds": 0.19,
+            "seconds": 0.17,
             "timed_out": false
           },
           {
@@ -737,7 +737,7 @@
               "IRLEAN_VERIFY_CONFIG": "<run>/cases/control_precondition_sufficient/probe/work/check/check.json"
             },
             "exit": 0,
-            "seconds": 0.74,
+            "seconds": 0.76,
             "timed_out": false
           },
           {
@@ -758,12 +758,12 @@
               "IRLEAN_VERIFY_CONFIG": "<run>/cases/control_precondition_sufficient/probe/work/check/witness.json"
             },
             "exit": 0,
-            "seconds": 0.76,
+            "seconds": 0.77,
             "timed_out": false
           }
         ]
       },
-      "seconds": 1.75
+      "seconds": 1.76
     },
     "exit": 2,
     "signal": null,

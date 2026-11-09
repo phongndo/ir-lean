@@ -3,38 +3,55 @@
 What we want to be true of `ir-lean`, in what order, and how we'd know we were wrong. For what's true
 today, see [status](status.md). For what any theorem means, see [trust](trust.md).
 
-Nothing here is a promise of dates. Effort figures are estimates that hold only if the gates before them
-pass, and they get redone at each gate. Every threshold is a proposal, to adjust as we learn, but any change
-gets written down here with its reason, so that a gate can't quietly move.
+Nothing here is a date or a duration. Progress and order are gates and dependencies, as decided on
+[2026-11-09](#six-decisions-of-2026-11-09-after-69). Effort figures, in lines of proof, are estimates that hold only if
+the gates before them pass, and they get redone at each gate. Every threshold is a proposal, to adjust as we learn, but
+any change gets written down here with its reason, so that a gate can't quietly move.
 
 ## The goal
 
-**Proved superoptimization.** Find code that's faster than what the compiler produced, and prove in Lean that it
-refines the original: on every input, the new code does only what the original allows. Start with LLVM IR. Bring MLIR
-in later by lowering it to LLVM IR, as [multi-IR](multi-ir.md#recommendation) recommends. GIMPLE comes after that, as a
-spike behind a gate. The long-term aim is a large effect across LLVM IR, MLIR and GIMPLE.
+**Prove LLVM's optimizations.** Since 2026-11-09 this is the main program
+([decision 1](#six-decisions-of-2026-11-09-after-69)): every pass a pinned LLVM registers, 1,162 names at LLVM 23.1.3,
+proved for every input, bound to the C++ that implements it, and correct in every pipeline it runs in, as the
+[task list](llvm-verification-tasks.md) defines done. The passes are in nine [chunks](chunks.md), and each chunk goes
+through from expressing its own regression tests to being counted done. A [platform track](#the-platform-track) runs under
+all of them, and the chunks pull from it. The headline is the passes counted done, of the 1,162, with each chunk's
+percentage at each gate. It's 0 today: a pass counts only when BIND-03, the independent verifier, accepts it, and since
+2026-11-09 it exists and refuses every claim whose coverage nothing can decide yet ([verifying claims](verify-claims.md)).
 
-Four things serve that goal:
+**Proved superoptimization and proof tests ride on the same platform.** Superoptimization finds code that's faster than
+what the compiler produced, and proves in Lean that it refines the original: on every input, the new code does only
+what the original allows. It starts with LLVM IR, brings MLIR in later by lowering it to LLVM IR, as
+[multi-IR](multi-ir.md#recommendation) recommends, and GIMPLE after that, as a spike behind a gate. Neither it nor proof
+tests is parked or dropped. They use the semantics, the lemma store and the engine the chunks use, and they get better
+from the lemmas the chunks produce. Superoptimizer v2 and proof-test tiers 2 and 3 wait until chunk 1's G2 is producing
+lemmas.
 
-1. **A discovery engine and a lemma store.** The search finds candidates and their proofs. Every completed proof
-   leaves checked, reusable lemmas in a store, which makes the next search and the next proof cheaper, and makes
-   `ir-lean` better. That loop is [the flywheel](#the-flywheel).
-2. **Proof tests, the second product.** The same engine and store, asked whether code meets its spec rather than
-   whether a candidate refines the original. See [one engine, two products](#one-engine-two-products).
+Four things serve both:
+
+1. **A discovery engine and a lemma store.** The search finds candidates and their proofs. Every completed proof, a
+   chunk's or the search's, leaves checked, reusable lemmas in a store, which makes the next search and the next proof
+   cheaper, and makes `ir-lean` better. That loop is [the flywheel](#the-flywheel).
+2. **Proof tests.** The same engine and store, asked whether code meets its spec rather than whether a candidate
+   refines the original. See [one engine, two products](#one-engine-two-products).
 3. **Guarantees.** Memory safety, and whole systems through contracts and frame reasoning. One theorem ties them to
    superoptimization, `Safe src → Refines src tgt → Safe tgt`, so optimized code inherits the source's safety proof.
    See [guarantees](#guarantees).
 4. **Speed,** of the tool and of the dev cycle, as a goal in itself. See [Phase 8](#phase-8-speed).
 
 Under all of it is **fidelity**: the LLVM IR to Lean translation and its semantics are faithful, and where they aren't,
-the gap is written down, tested or refused. A proof that a candidate refines the original is only as good as what the
-model says the original allows, so [Phase 0](#phase-0-semantic-fidelity-and-trust-infrastructure) stays on the critical
-path.
+the gap is written down, tested or refused. A proof about a pass's rewrites, or that a candidate refines the original,
+is only as good as what the model says the source allows, so
+[Phase 0](#phase-0-semantic-fidelity-and-trust-infrastructure) stays on the critical path.
 
 All of these are statements about LLVM IR, and the [trust model](trust.md) says exactly what that does and doesn't
 give you. Search tools and AI propose. Only a certificate the Lean kernel has checked counts.
 
 ### The goal changed on 2026-11-08
+
+*Superseded in part on 2026-11-09, by [decision 1](#six-decisions-of-2026-11-09-after-69) after #69: proving LLVM's
+optimizations is the main program again, and superoptimization rides on the same platform. What follows is the record
+of 2026-11-08.*
 
 Before 2026-11-08, this page put the foundation first. Its headline was zlib `inflate` proved memory-safe, as
 [Phase 1](#phase-1-zlib-inflate-memory-safety), marked **Now**. Certified optimization was Phase 4, which wouldn't
@@ -106,9 +123,14 @@ measures.
 Why: a parked goal still needs a number, so that bringing it back is a decision made on evidence. S1 is built to read
 InstCombine's tests through the emitter and certify them, so the number comes from work already in a wave.
 
+*Superseded later on 2026-11-09, by [decision 1](#six-decisions-of-2026-11-09-after-69) after #69: proving LLVM's
+optimizations is the main program, and S1's metric is chunk 1's G1.*
+
 **3. Python is the glue.** Python runs tools, reads their output and orchestrates processes. Anything that shows memory
 or speed problems moves to C++, as the emitter is. Wave 3 starts with Python consolidation, as the foundation the rest
-of it builds on, and the waves are reordered, in [wave 3](#wave-3-set-on-2026-11-09) and [wave 4](#wave-4).
+of it builds on, and the waves are reordered, in [wave 3](#wave-3-set-on-2026-11-09) and [wave 4](#wave-4). Later that
+day, chunks and gates replaced the waves, and Python consolidation became the platform track's foundation
+([decision 2](#six-decisions-of-2026-11-09-after-69)).
 
 Why:
 
@@ -117,6 +139,91 @@ Why:
 - **Python has already shown both problems.** `tools/binding.py` read whole files to hash about 2.8 GiB of toolchain,
   at about 455 MiB a verify, as [wave 0](#wave-0-the-maintainer-now) records, and [Phase 8](#phase-8-speed) puts speed
   among the goals.
+
+### Six decisions of 2026-11-09, after #69
+
+Later on 2026-11-09, after [#69](https://github.com/phongndo/ir-lean/pull/69) recorded the three above, the maintainer
+decided six more things. Where they replace something on this page, the old text stays, marked as superseded.
+
+**1. Proving LLVM's optimizations is the main program.** This supersedes #69's
+[decision 2](#three-decisions-of-2026-11-09), that the goal stays parked.
+
+- Superoptimization isn't parked or dropped. It rides on the same platform, the semantics, the lemma store and the
+  engine, and gets better from what the chunks produce.
+- The headline measure is the passes counted done, of the 1,162, with a percentage for each chunk at each gate. A pass
+  counts as done when BIND-03, the independent verifier, accepts it.
+- S1's metric, the share of InstCombine's own test transformations certified, becomes chunk 1's G1.
+
+Why:
+
+- **The headline moves off 0% sooner.** Until now nothing counted until the whole stack existed. A chunk pushes a few
+  passes through every gate.
+- **The riskiest piece gets tested early, on a small chunk.** That's binding proofs to the C++, which
+  [#74](https://github.com/phongndo/ir-lean/pull/74) chose a route for, with
+  [gates and stop rules](binding-approach.md#gates).
+- **Lemmas compound.** The peepholes go first because they build the library the next chunks use.
+- **Chunks run in parallel,** at different gates.
+
+**2. Chunks and gates replace waves.** [Waves 0 to 3](#waves-0-to-3-until-2026-11-09) stay as history. Wave 4's items,
+E2, F4 and S4, move into the [platform track](#the-platform-track).
+
+| Gate | Meaning |
+| --- | --- |
+| G0 Coverage | The model can express the chunk's own regression tests |
+| G1 Instances | Its test transformations are certified |
+| G2 All inputs | Every rewrite is proved for every input, and stored as lemmas |
+| G3 Bound | Tied to its C++, by BIND's rule |
+| G4 Composed | Correct in its pipelines. Then it counts as done |
+
+| # | Chunk | Passes | Needs from the platform |
+| --- | --- | --- | --- |
+| 1 | Peepholes | InstSimplify, InstCombine, AggressiveInstCombine, Reassociate | INV-04, `freeze` (done), every-width proofs, floating point and external calls for coverage. Its smallest pass is the first try at BIND-06 |
+| 2 | Scalar, no memory | SCCP, CorrelatedValuePropagation, ADCE and BDCE, SimplifyCFG, JumpThreading, DivRemPairs, ConstraintElimination | Sound dominators, known bits and lazy value info (PASS-01) |
+| 3 | Memory | SROA, mem2reg, EarlyCSE, GVN and NewGVN, DSE, MemCpyOpt | Memory in `Refines` (SEM-06), sound alias analysis and MemorySSA |
+| 4 | Loops | loop-simplify, LCSSA, rotate, LICM, IndVarSimplify, unroll, deletion, LSR | Sound scalar evolution. SEM-07 (done) |
+| 5 | Interprocedural | Inliner, function-attrs, GlobalOpt, IPSCCP, ArgPromotion, DeadArgElim, devirtualization, ThinLTO | Composition, open modules |
+| 6 | Vectorization | LoopVectorize and VPlan, SLP, the load-store vectorizer | Floating point, memory, chunk 4 |
+| 7 | Pipelines | Composition across `O0` to `O3` and the LTO pipelines | Chunks 1 to 5 for `O1`'s passes, then `O2` and `O3` |
+| 8 | Codegen | Selection, legalization, machine passes, then one target at a time: X86, AArch64 and RISC-V first, then AMDGPU and the rest | A machine-level semantics for each target |
+| 9 | The rest | The 129 printers, verifiers and debug aids, and the 36 instrumentation passes | A ruling on what "proved" means for each kind (INV-09) |
+
+Every one of the 1,162 registered passes belongs to exactly one chunk, analyses included. A test checks the assignment
+against INV-01's inventory, and fails when a pass is unassigned or assigned twice. [Chunks](chunks.md) has each chunk's
+passes, the platform work each gate needs, how each gate's percentage is measured, and the test.
+
+**3. The platform track.** Chunks pull from it.
+
+- **Python foundation:** finishing. Tests are moving onto the library, and the ratchet lint is next.
+- **Semantics coverage.** Now: floating point (SEM-05), the long tail (SEM-08 and the remaining refusals), and external
+  calls and globals. Next: F4, memory in `Refines` (SEM-06). Then E2 and the safety bridge, S4, after F4.
+- **Lemma engine:** the store (E1, done), mining at scale (E3, now chunk 1's G2), and the tactics (AUTO-01 to 03).
+- **Binding:** BIND-01 is done ([#74](https://github.com/phongndo/ir-lean/pull/74)). BIND-03, gate B1, and BIND-02
+  toward gate B2 are the work now. B3 to B5 follow #74's gates and stop rules.
+- **Honesty and speed:** the NEG tasks, and CI (C1).
+
+**4. Several semantics lanes at once.** Each runs on its own module, and they merge one at a time. This replaces the
+[limit](#limits) of one pull request at a time that changes semantics.
+
+Why:
+
+- **Coverage is the largest gap.** G0 for InstCombine was 38.4% on stage-1's run before F3: 12,002 of 31,240 changed
+  test pairs translate.
+- **The refusals split cleanly by feature.**
+- **Merging one at a time keeps the old rule's safety.** Each lane is re-checked against the others before it merges.
+- **The lane cap becomes each machine's heavy-job pool,** from [#75](https://github.com/phongndo/ir-lean/pull/75). z has
+  32 cores and 30 GB, and y is a Mac with 64 GB.
+
+**5. Deferred and folded in.**
+
+- Superoptimizer v2, S3, and proof-test tiers 2 and 3, T2, wait until chunk 1's G2 is producing lemmas. Both prove from
+  stored lemmas.
+- Lemma mining at scale, E3, becomes chunk 1's G2 burn-down.
+- F4 is next in the semantics stream, and starts when the first coverage lane lands.
+
+**6. No calendar estimates in the plan.** Progress and order are gates and dependencies. A search of the docs on
+2026-11-09 found no estimate in weeks, months or years left in the plan to remove. A run time that was measured is a
+fact, and stays. No reason was given beyond the rule itself, which is the one the [milestones](#milestones) already
+followed: each is reached when its checks pass in CI, not on a date.
 
 ### The flywheel
 
@@ -186,12 +293,18 @@ this sits beside Hypothesis, QuickCheck, Kani, CBMC, Dafny and Verus.
   the whole-system track's first target. Its milestones haven't started.
 - **Whole systems.** Contracts and frame reasoning, so a caller's proof doesn't look inside its callees.
   [Phase 2](#phase-2-reusable-contracts-and-frame-reasoning).
-- **The bridge.** `Safe src → Refines src tgt → Safe tgt`, in [Phase 4](#phase-4-certified-translation-validation-and-superoptimization).
-  It needed SEM-07 first, so a target can't claim a promise no certificate checked, and SEM-07 landed in [#62](https://github.com/phongndo/ir-lean/pull/62). It
-  also needs `Refines` for functions with memory, which [doesn't exist yet](refinement.md). That's SEM-06, F4, in
-  [wave 4](#wave-4), after F3.
+- **The bridge.** `Safe src → Refines src tgt → Safe tgt`, in
+  [Phase 4](#phase-4-certified-translation-validation-and-superoptimization). It needed SEM-07 first, so a target can't
+  claim a promise no certificate checked, and SEM-07 landed in [#62](https://github.com/phongndo/ir-lean/pull/62). It
+  also needs `Refines` for functions with memory, which [doesn't exist yet](refinement.md). That's SEM-06, F4, next in
+  the [platform track](#the-platform-track)'s semantics stream, now that F3 has landed.
 
 ### What's parked, and what stays
+
+*Superseded on 2026-11-09, by [decision 1](#six-decisions-of-2026-11-09-after-69) after #69: nothing here is parked.
+Proving every optimization is the main program, in [chunks](chunks.md), and the task list is its plan again, not only a
+reference. The tools in the table below are still kept, and they're the platform's now. What follows is the record from
+2026-11-08 to then.*
 
 **Parked as an end goal:** proving every optimization in a pinned LLVM. That covers the count of 1,162 registered pass
 names, the `O1` obligation ledger from #52, and binding proofs to LLVM's C++, BIND-02 to BIND-05 in the task list. The
@@ -234,19 +347,137 @@ spend no effort on them until these work.
 - Report a proof test's tier-1 pass as a proof, or a timeout or an unsupported case as a pass.
 - Call an LLVM pass correct because its runs were certified. That's translation validation, which
   [never counts for all inputs](llvm-verification-tasks.md#translation-validation-isnt-proof-for-all-inputs).
+- Count a pass as done before an independent verifier, BIND-03, has accepted its claims. A claim's own status and
+  hashes are its author's word.
 
 ## Now, next, later
 
-| Horizon | Work | Why it's here |
+| Horizon | Platform track | Chunks |
 | --- | --- | --- |
-| **Now** | [Wave 3](#wave-3-set-on-2026-11-09)'s first items, set on 2026-11-09: Python consolidation, `freeze` in the model (F3), done in [#72](https://github.com/phongndo/ir-lean/pull/72), and the stage-1 benchmark finishing. Of [wave 2](#wave-2-revised-on-2026-11-08), lemma store v1, SEM-07 and tier-1 proof tests are done, speed's round 2 has landed, and S1 carries into wave 3 | Python consolidation is the foundation the rest of wave 3 builds on. F3 is what memory refinement waits on |
-| **Next** | The rest of wave 3, on that foundation: lemma mining at scale, superoptimizer v2, and proof-test tiers 2 and 3. Then [wave 4](#wave-4): the executable memory model, memory refinement (F4) and the safety bridge. `inflate_table`'s statement is light work, taken up when a lane frees | Each needs something wave 2 or the first part of wave 3 builds |
-| **Later** | MLIR, `inflate`, contracts, C++ and Rust, the unit-test milestone, and adoption | Each needs a milestone from wave 3 or 4, or [isn't in a wave yet](#not-in-a-wave-yet) |
+| **Now** | Semantics lanes for floating point (SEM-05), the long tail (SEM-08 and the remaining refusals), and external calls and globals, whose design is in [#81](https://github.com/phongndo/ir-lean/pull/81), open. The binding verifier, BIND-03, with gate B1, and BIND-02 toward gate B2 | Chunk 1: S1 finishing, then G0 and G1 across its four passes. INV-04, in [#79](https://github.com/phongndo/ir-lean/pull/79), open, and the G2 burn-down |
+| **Next** | F4, memory in `Refines` (SEM-06), when the first coverage lane lands. Binding gates B3 to B5, by [#74's gates and stop rules](binding-approach.md#gates). The tactics, AUTO-01 to 03 | Chunk 1 through G2 and G3, to its first pass done, BIND-06. The other chunks start at G0 as what they need from the platform lands. Superoptimizer v2 and proof-test tiers 2 and 3, once chunk 1's G2 is producing lemmas |
+| **Later** | E2, the executable memory model, and the safety bridge, S4, after F4 | Chunks 2 to 9 through their gates. MLIR, `inflate`, contracts, C++ and Rust, the unit-test milestone, and adoption, which wait on milestones or [aren't in the plan's order yet](#not-in-the-plans-order-yet) |
+
+**Done on 2026-11-09:** F3, `freeze` in the model ([#72](https://github.com/phongndo/ir-lean/pull/72)), BIND-01
+([#74](https://github.com/phongndo/ir-lean/pull/74)), and the shared Python library, `tools/irlean`, with `tools/` and
+`tests/` on it, and the ratchet lint that keeps them there ([#70](https://github.com/phongndo/ir-lean/pull/70),
+[#71](https://github.com/phongndo/ir-lean/pull/71), [#73](https://github.com/phongndo/ir-lean/pull/73),
+[#75](https://github.com/phongndo/ir-lean/pull/75), [#76](https://github.com/phongndo/ir-lean/pull/76),
+[#77](https://github.com/phongndo/ir-lean/pull/77) and [#78](https://github.com/phongndo/ir-lean/pull/78)).
 
 ## Next steps
 
-Items in one wave run in parallel. An item in a later wave starts when its own [hard dependencies](#dependencies) have
-landed, not when the whole wave before it has.
+Since 2026-11-09 the order is the platform track and the chunks
+([decision 2](#six-decisions-of-2026-11-09-after-69)). Chunks run in parallel, each at its own gate, and an item starts
+when its own [hard dependencies](#dependencies) have landed. The [waves](#waves-0-to-3-until-2026-11-09) before that
+are history.
+
+```mermaid
+flowchart LR
+  subgraph P[Platform track]
+    PY[Python foundation]
+    COV[Coverage lanes: floating point, the long tail, calls and globals]
+    F4[F4, memory in Refines]
+    E2[E2, executable memory]
+    S4[S4, safety bridge]
+    LEM[Lemma engine: store, mining, tactics]
+    BV[BIND-03 and gate B1]
+    BC[BIND-02 and gate B2]
+    B35[Gates B3 to B5]
+  end
+  subgraph N[What chunks need from the task list]
+    INV04[INV-04 rewrites]
+    A01[PASS-01 analyses]
+    COMP[PASS-05 composition, open modules]
+    CG01[CG-01 machine semantics]
+    INV09[INV-09 ruling]
+  end
+  subgraph C[Chunks]
+    C1[1 Peepholes]
+    C2[2 Scalar, no memory]
+    C3[3 Memory]
+    C4[4 Loops]
+    C5[5 Interprocedural]
+    C6[6 Vectorization]
+    C7[7 Pipelines]
+    C8[8 Codegen]
+    C9[9 The rest]
+  end
+  SO2[Superoptimizer v2]
+  PT3[Proof tests, tiers 2 and 3]
+  COV --> F4
+  F4 --> E2
+  F4 --> S4
+  BV --> B35
+  BC --> B35
+  COV --> C1
+  INV04 --> C1
+  LEM --> C1
+  B35 --> C1
+  A01 --> C2
+  A01 --> C3
+  F4 --> C3
+  A01 --> C4
+  COMP --> C5
+  C4 --> C6
+  F4 --> C6
+  COV --> C6
+  C1 --> C7
+  C2 --> C7
+  C3 --> C7
+  C4 --> C7
+  C5 --> C7
+  CG01 --> C8
+  INV09 --> C9
+  C1 -->|G2 producing lemmas| SO2
+  C1 -->|G2 producing lemmas| PT3
+```
+
+Every arrow is a hard dependency, of the gate it's needed for: F4 holds up chunk 3 from G1 on, PASS-01 holds up a
+chunk's G2, and the binding gates hold up G3. A chunk can reach G0 and G1 before the rest of what it needs lands.
+
+### The platform track
+
+Chunks pull from it ([decision 3](#six-decisions-of-2026-11-09-after-69)).
+
+- **Python foundation.** Done: the shared library, `tools/irlean`, with `tools/` and `tests/` on it, in #70, #71,
+  #73, #75, #76 and #77, and the ratchet lint, in #78, which bans running processes and hashing outside the library
+  ([Python](python.md)).
+- **Semantics coverage.** Done: SEM-07, in [#62](https://github.com/phongndo/ir-lean/pull/62), and F3, in #72. Now:
+  floating point, SEM-05, the long tail, SEM-08 and the remaining refusals, and external calls and globals, as several
+  lanes at once, each on its own module, merged one at a time ([limits](#limits)). Next: F4, memory in `Refines`,
+  SEM-06, which starts when the first coverage lane lands. Then E2, the executable memory model, and the safety bridge,
+  S4, after F4.
+- **Lemma engine.** Done: the store, E1, in [#60](https://github.com/phongndo/ir-lean/pull/60). Mining at scale, E3, is
+  chunk 1's G2 burn-down. The tactics are AUTO-01 to 03: AUTO-01 and AUTO-03 are in progress, and AUTO-02 hasn't
+  started ([task list](llvm-verification-tasks.md#auto-01-the-refinement-tactic)).
+- **Binding.** Done: BIND-01 and gate B0, in #74 ([binding a proof to LLVM's C++](binding-approach.md)). Now: BIND-03,
+  the independent verifier, with gate B1, and BIND-02, each pass's closure, toward gate B2. Then gates B3 to B5, by
+  [#74's gates and stop rules](binding-approach.md#gates). B5 is BIND-06, the first pass done end to end.
+- **Honesty and speed.** The NEG tasks, NEG-02 to NEG-07, which keep wrong and unknown results from counting, and C1,
+  pull request CI in at most 10 minutes ([Phase 8](#phase-8-speed)).
+
+### The chunks, at their gates
+
+[Chunks](chunks.md) has each chunk's passes, how each gate is measured, and the numbers.
+
+| # | Chunk | Where it is | What it waits on next |
+| --- | --- | --- | --- |
+| 1 | Peepholes | S1 finishing. G0 measured once for InstCombine, 38.4%. Nothing else measured | S1's G1 for InstCombine. INV-04 for G2. The binding gates for G3 |
+| 2 | Scalar, no memory | Nothing measured | PASS-01's dominators, known bits and lazy value info |
+| 3 | Memory | Nothing measured | F4, and sound alias analysis and MemorySSA |
+| 4 | Loops | Nothing measured | Sound scalar evolution |
+| 5 | Interprocedural | Nothing measured | Composition and open modules |
+| 6 | Vectorization | Nothing measured | Floating point, F4 and chunk 4 |
+| 7 | Pipelines | Nothing measured | Chunks 1 to 5 for `O1`'s passes. At the pin, `O1` also runs three of chunk 6's passes and six of chunk 9's ([chunks](chunks.md#7-pipelines)) |
+| 8 | Codegen | Nothing measured | CG-01, for X86, AArch64 and RISC-V first |
+| 9 | The rest | Nothing measured | INV-09's ruling on what "proved" means for each kind |
+
+### Waves 0 to 3, until 2026-11-09
+
+*Replaced on 2026-11-09 by the platform track and the chunks, [decision 2](#six-decisions-of-2026-11-09-after-69). This
+is the record of the waves as they stood. Items in one wave ran in parallel, and an item in a later wave started when
+its own hard dependencies had landed.*
 
 ```mermaid
 flowchart LR
@@ -297,7 +528,7 @@ flowchart LR
 Solid arrows are hard dependencies and dashed ones soft. F4 holds up only superoptimizer v2's memory candidates, not
 the rest of it.
 
-### Wave 0: the maintainer, now
+#### Wave 0: the maintainer, now
 
 - Merge [#48](https://github.com/phongndo/ir-lean/pull/48), which was green. Done.
 - Close [#52](https://github.com/phongndo/ir-lean/pull/52), done, and replace it with a slim pull request of its
@@ -311,7 +542,7 @@ the rest of it.
   - `tests/llvm_scope.py check` fails on macOS, because 12 of `llc`'s target pipelines depend on the host.
 - Delete merged branches.
 
-### Wave 1, all in parallel
+#### Wave 1, all in parallel
 
 - This roadmap. Done in [#55](https://github.com/phongndo/ir-lean/pull/55).
 - Split CI into parallel jobs. Done in [#53](https://github.com/phongndo/ir-lean/pull/53). [Phase 8](#phase-8-speed) has the
@@ -327,7 +558,7 @@ the rest of it.
   [the Phase 4 gate](prior-art.md#the-gate).
 - The slim pull request of #52's capture and measurement tools. Done in #54.
 
-### Wave 2, revised on 2026-11-08
+#### Wave 2, revised on 2026-11-08
 
 It waited on #48 and the CI split, which landed in #48 and #53. Five lanes:
 
@@ -346,7 +577,7 @@ It waited on #48 and the CI split, which landed in #48 and #53. Five lanes:
   [#65](https://github.com/phongndo/ir-lean/pull/65) landed, and #65's last pull request run, with the other three
   merged in, took 8.0 minutes.
 
-The statement of `inflate_table`'s theorem, G1, slice 13, isn't a lane. It's light work, taken up when one of these
+The statement of `inflate_table`'s theorem, Z1, slice 13, isn't a lane. It's light work, taken up when one of these
 frees.
 
 S1 hadn't finished when wave 3 was set, on 2026-11-09, and finishes there.
@@ -359,9 +590,9 @@ v1, SEM-07, the executable memory model, tier-1 proof tests, and `inflate_table`
 | Stage-1 benchmark, S1 | In no wave | Wave 2 | [The gate's answer](prior-art.md#the-gate) made it actionable, and narrower: neither covers stage 1, so it goes ahead, as the four things nobody has shipped, and without an LLM proof pipeline or width-generic procedure of our own |
 | Speed, round 2, C1 | In no wave, after #53's split | Wave 2 | C1 is open: CI takes 13 to 16 minutes against its 10, and [Phase 8](#phase-8-speed) puts getting back under 10 before adding tests, which every lane in this wave does |
 | Executable memory model, E2 | Wave 2 | Wave 3 | Two [limits](#limits). Only one pull request at a time changes semantics in `IRLean/*.lean`, and in wave 2 SEM-07 holds it. And the five lanes above fill the cap of about 4 or 5 |
-| `inflate_table`'s statement, G1 | Wave 2 | Light work, when a lane frees | The five lanes fill the cap. It's a statement for review, with no proof |
+| `inflate_table`'s statement, Z1 | Wave 2 | Light work, when a lane frees | The five lanes fill the cap. It's a statement for review, with no proof |
 
-### Wave 3, set on 2026-11-09
+#### Wave 3, set on 2026-11-09
 
 Python consolidation is the foundation, [decision 3](#three-decisions-of-2026-11-09).
 
@@ -393,10 +624,24 @@ Python consolidation is the foundation, [decision 3](#three-decisions-of-2026-11
 | Superoptimizer v2, S3, and proof-test tiers 2 and 3, T2 | Wave 3 | Wave 3, then | They build on Python consolidation |
 | The executable memory model, E2 | Wave 3 | [Wave 4](#wave-4) | The maintainer's order puts it with the rest of the memory work, F4 and S4 |
 | The safety bridge, S4 | Wave 3 | Wave 4 | It needs F4, which needs F3, so it can't land in wave 3 |
-| The unit-test milestone, T3, slice 28 | Wave 3 | [In no wave](#not-in-a-wave-yet) | Not in the maintainer's order. It waits on T2 |
+| The unit-test milestone, T3, slice 28 | Wave 3 | [In no wave](#not-in-the-plans-order-yet) | Not in the maintainer's order. It waits on T2 |
 | The `inflate_table` proof, slice 14 | Wave 3 | In no wave | Not in the maintainer's order, and it waits on 0A's slices 6 and 7, which aren't in a wave either |
 
-### Wave 4
+**What changed later on 2026-11-09,** after #69, when chunks and gates replaced the waves:
+
+| Item | Was | Now | Why |
+| --- | --- | --- | --- |
+| Python consolidation | Wave 3, first | The platform track's Python foundation, finishing | [Decision 3](#six-decisions-of-2026-11-09-after-69) |
+| S1, the stage-1 benchmark | Wave 3, first, finishing | Chunk 1, finishing. Its metric is chunk 1's G1 for InstCombine | Decision 1 |
+| Lemma mining at scale, E3 | Wave 3, then | Chunk 1's G2 burn-down | Decision 5 |
+| Superoptimizer v2, S3, and proof-test tiers 2 and 3, T2 | Wave 3, then | Deferred until chunk 1's G2 is producing lemmas | Decision 5: both prove from stored lemmas |
+| F4, memory refinement | Wave 4 | The platform's semantics stream, next: it starts when the first coverage lane lands | Decision 5 |
+| The executable memory model, E2, and the safety bridge, S4 | Wave 4 | The platform's semantics stream, after F4 | Decisions 2 and 3 |
+
+#### Wave 4
+
+*Moved into the platform track on 2026-11-09, [decision 2](#six-decisions-of-2026-11-09-after-69): E2 and S4 after F4,
+and F4 next in the semantics stream.*
 
 - The executable memory model, E2, slice 15, [Phase 6](#phase-6-the-engine-and-the-lemma-store). Moved from wave 2 to
   wave 3 on 2026-11-08, [above](#wave-2-revised-on-2026-11-08), and to wave 4 on 2026-11-09.
@@ -415,9 +660,25 @@ Python consolidation is the foundation, [decision 3](#three-decisions-of-2026-11
 | The prior-art study | Superoptimizer v2's design | The field is moving: [Trivet](https://arxiv.org/abs/2609.19583) already does LLM-assisted refinement proofs in Lean on integer code. This is the reading the old Phase 4 asked for before stage 1. Met: #56 landed |
 | SEM-07 | The safety bridge | While `mustprogress` and `willreturn` are trusted, a target can claim a promise the certificate didn't check, and the bridge would carry safety to it. Met: SEM-07 landed in [#62](https://github.com/phongndo/ir-lean/pull/62) |
 | `inflate_table`'s statement, reviewed | Its proof | A proof of the wrong statement is wasted, and the statement is where a memory-safety claim is most likely to be wrong |
-| Python consolidation | Lemma mining at scale, superoptimizer v2, and proof-test tiers 2 and 3 | They're built on its shared library, by [decision 3](#three-decisions-of-2026-11-09), so they don't add Python it would then have to move |
+| Python consolidation | Lemma mining at scale, now chunk 1's G2, superoptimizer v2, and proof-test tiers 2 and 3 | They're built on its shared library, by [decision 3](#three-decisions-of-2026-11-09), so they don't add Python it would then have to move |
 | F3, `freeze` in the model | F4, memory refinement | Decided on 2026-11-09. F3 changes what a run's outcome is, since `freeze` makes it a choice, and F4's relation between memories is stated over that outcome, so it's built once, on F3's. Met: F3 landed in [#72](https://github.com/phongndo/ir-lean/pull/72) |
-| F4 | The safety bridge, and superoptimizer v2's memory candidates | The bridge is a statement about `Refines` with memory, and so is every certificate for a memory candidate |
+| F4 | The safety bridge, E2, and superoptimizer v2's memory candidates | The bridge is a statement about `Refines` with memory, and so is every certificate for a memory candidate. E2 follows F4 by [decision 3](#six-decisions-of-2026-11-09-after-69) |
+| The first coverage lane landing | F4 | [Decision 5](#six-decisions-of-2026-11-09-after-69) |
+| Chunk 1's G2 producing lemmas | Superoptimizer v2, and proof-test tiers 2 and 3 | Decision 5: both prove from stored lemmas |
+| A pair's G0, its two sides translating | Its G1 | A certificate is about the translated pair |
+| INV-04's units for a pass | That pass's G2 | G2's percentage is over them, so without them there's nothing to count |
+| A pass's G2 and G3, and the G2 of the analyses it reads | Its G4 | Done is all-input, code-binding and composition, by the [task list's rule](llvm-verification-tasks.md#translation-validation-isnt-proof-for-all-inputs), and composition is with the analyses a pass reads |
+| BIND-03 | Any pass's G4 | A pass counts as done only when the independent verifier accepts it |
+| BIND-02's closure, and the binding gates up to B4 | A chunk's G3 | G3's percentage is over the closure's functions, and binding code that changes IR is B4 |
+| Floating point, SEM-05, and external calls and globals | Most of chunk 1's G0 | Coverage is chunk 1's gap ([decision 4](#six-decisions-of-2026-11-09-after-69)) |
+| PASS-01: sound dominators, known bits and lazy value info | Chunk 2's G2 | Its rewrites rest on those facts |
+| F4, and sound alias analysis and MemorySSA | Chunk 3's G1, and its G2 | Without memory in `Refines`, no claim about a function with memory can be stated |
+| Sound scalar evolution | Chunk 4's G2 | Loop rewrites rest on its facts. SEM-07, the other need, landed in #62 |
+| Composition and open modules | Chunk 5's G2 | A call out of a module is refused today |
+| Floating point, F4, and chunk 4 | Chunk 6 | Vectorized code reads memory, reduces floats, and is loop code first |
+| Chunks 1 to 5's G4 for `O1`'s passes | Chunk 7's G4 for `O1`, then `O2` and `O3` | A pipeline composes its passes' claims. At the pin, `O1` also runs three of chunk 6's passes and six of chunk 9's ([chunks](chunks.md#7-pipelines)) |
+| CG-01 for a target | Chunk 8's G0 for that target | Machine passes need a machine-level semantics |
+| INV-09's ruling for a kind | Chunk 9's G0 for that kind | What "proved" means for a printer or an instrumentation pass is written first |
 
 **Soft:** better in this order. Going the other way needs a reason, written in the pull request.
 
@@ -425,32 +686,43 @@ Python consolidation is the foundation, [decision 3](#three-decisions-of-2026-11
 | --- | --- | --- |
 | The CI split | Wave 2's pull requests | They all add tests, and before the split CI took 37 to 38 minutes of its 60-minute limit. Met: #53 landed |
 | Lemma store v1 | Superoptimizer v2, and proof-test tier 3 | Both prove from stored lemmas. Without the store, each would build its own |
+| Chunk 1 | The other chunks' G2 | Lemmas compound: the peepholes build the library the next chunks use ([decision 1](#six-decisions-of-2026-11-09-after-69)) |
+| The pass with the smallest closure | The rest of chunk 1's G3 | [#74](https://github.com/phongndo/ir-lean/pull/74) picks BIND-06's pass by the size of its closure, so the riskiest piece is tried on the least code |
 
-### Not in a wave yet
+### Not in the plan's order yet
 
-These are on the critical path, or are needed by something that is, and no wave holds them yet. Where they go is the
-maintainer's call.
+Called "Not in a wave yet" until 2026-11-09. These are needed by something on the critical path, and neither the
+platform track nor a chunk holds them yet. Where they go is the maintainer's call.
 
-- **The `inflate_table` proof, slice 14,** moved out of wave 3 on 2026-11-09. Its statement, G1, stays light work for
+- **The `inflate_table` proof, slice 14,** moved out of wave 3 on 2026-11-09. Its statement, Z1, stays light work for
   when a lane frees.
 - **The rest of 0A, slices 6 and 7.** Phase 1 needs 0A, so the `inflate_table` proof waits on them, as it did before.
   They land first, or the proof's pull request waives the gate with its reason.
 - **The unit-test milestone, T3, slice 28,** moved out of wave 3 on 2026-11-09. It waits on T2.
-- **The rest of Phase 0:** slices 8, 10, 12 and 16 [below](#near-term-pull-requests).
-- **Phases 2, 3 and 5,** which wait on milestones in later waves.
+- **The rest of Phase 0:** slices 8, 10, 12 and 16 [below](#near-term-pull-requests). Slice 12, semantic mutation, is
+  NEG-03, in the platform track's honesty work.
+- **Phases 2, 3 and 5,** which wait on milestones not reached yet.
 
-Two items left this list on 2026-11-09. The `undef` decision was made, [decision 1](#three-decisions-of-2026-11-09), and
-SEM-06, memory refinement, is F4 in [wave 4](#wave-4).
+Two items left this list earlier on 2026-11-09. The `undef` decision was made,
+[decision 1](#three-decisions-of-2026-11-09), and SEM-06, memory refinement, is F4, now next in the platform track.
 
 ### Limits
 
-- **One pull request at a time that changes semantics in `IRLean/*.lean`.** Every proof and certificate rests on those
-  files, so two semantic changes at once can't each be reviewed against what's on `main`, and each one makes every
-  proof check again. In wave 2 that was SEM-07, which is one reason the executable memory model moved to wave 3. In
-  wave 3 it was F3, done in [#72](https://github.com/phongndo/ir-lean/pull/72).
-- **About 4 or 5 active lanes.** Runners are limited. Every lane registers its tests in `CMakeLists.txt`, where they
-  conflict. And Lean takes 1.5 to 3.5 GB a process: one binding verify peaked at 1.5 GiB in #52's pilot, and
-  `CMakeLists.txt` runs the `binding` test alone because each of its Lean processes takes up to 3.5 GB.
+- **Several semantics lanes at once, merged one at a time.** Since 2026-11-09, by
+  [decision 4](#six-decisions-of-2026-11-09-after-69). Each lane changes its own module of the model, and before it
+  merges it's checked again against `main` with every lane merged before it, so each change is still reviewed against
+  what's on `main`. Every proof and certificate rests on those files, which is why they merge one at a time.
+  *Until 2026-11-09 the limit was one pull request at a time that changes semantics in `IRLean/*.lean`:* two semantic
+  changes at once couldn't each be reviewed against what's on `main`, and each one makes every proof check again. In
+  wave 2 that was SEM-07, which is one reason the executable memory model moved to wave 3. In wave 3 it was F3, done in
+  [#72](https://github.com/phongndo/ir-lean/pull/72).
+- **As many lanes as each machine's heavy-job pool admits.** Since 2026-11-09 the cap is the pool
+  [#75](https://github.com/phongndo/ir-lean/pull/75) made: `tools/measure.py run --heavy` takes a slot only while
+  available memory allows ([corpus](corpus.md#measuring-a-heavy-job)). z has 32 cores and 30 GB, and y is a Mac with 64
+  GB. Lean takes 1.5 to 3.5 GB a process: one binding verify peaked at 1.5 GiB in #52's pilot, and `CMakeLists.txt`
+  runs the `binding` test alone because each of its Lean processes takes up to 3.5 GB. Every lane still registers its
+  tests in `CMakeLists.txt`, where they conflict. *Until 2026-11-09 the cap was about 4 or 5 active lanes, because
+  runners are limited.*
 
 ### Near-term pull requests
 
@@ -495,46 +767,53 @@ GEP flags ([#15](https://github.com/phongndo/ir-lean/pull/15)), attribute and li
 
 ### Milestones
 
-Each is reached when its checks pass in CI, not on a date.
+Each is reached when its checks pass in CI, not on a date. The main program's milestones are the chunks' gates, in
+[chunks](chunks.md), and its first pass done is BIND-06, binding gate B5. The column "In the plan" says where each
+milestone below sits since 2026-11-09.
 
-| | Milestone | Phase | Depends on | Status |
-| --- | --- | --- | --- | --- |
-| F1 | Phase 0A done: axioms allow-listed, GEP gaps closed, pinned target and manifest | 0 | | In progress: axioms, GEPs and allow-lists are done |
-| F2 | `mustprogress` and `willreturn` checked as UB, SEM-07 | 0 | | Done in [#62](https://github.com/phongndo/ir-lean/pull/62). Recursion under a promise stops the model, as [trust](trust.md#promises-to-progress) says |
-| F3 | `freeze` in the model, with `undef` kept out, SEM-03. Until 2026-11-09, `undef` and `freeze` in the model, SEM-02 and SEM-03 ([why](#three-decisions-of-2026-11-09)) | 0 | | Done in [#72](https://github.com/phongndo/ir-lean/pull/72): `freeze` of poison is a value each run chooses, and `Refines` quantifies over each side's choices ([refinement](refinement.md#runs-that-make-choices)). Ten rewrites' verdicts are proved on what ir-lean emits, with Alive2 agreeing, and four real `instcombine` runs on `freeze` are bound |
-| F4 | `Refines` for functions with memory, SEM-06 | 0 | F3 | Wave 4. Not started |
-| F5 | Phase 0B done: full inventory, semantic mutation, two-machine determinism | 0 | F1 | In progress: promises, model stops and Alive2 are done |
-| S1 | Stage 1: proved wins on integer code, and no known-wrong rewrite certified | 4 | | In part: 2 proved wins over `clang -O3` ([#30](https://github.com/phongndo/ir-lean/pull/30)). The comparison with Alive2 isn't done |
-| S2 | A proved win on real code, on `main` | 4 | | The q4_K rewrite landed in [#57](https://github.com/phongndo/ir-lean/pull/57) (`b59d862`), and the Q5 rewrite in [#58](https://github.com/phongndo/ir-lean/pull/58) |
-| S3 | Superoptimizer v2 | 4 | The study. Python consolidation. E1, soft. F4, for memory | Not started |
-| S4 | The safety bridge proved | 4 | F2, F4 | Not started |
-| S5 | A proved win on LLVM IR exported from MLIR | 4 | S3 | Not started |
-| S6 | A proved rewrite accepted upstream | 4 | S2 or S3 | Not started |
-| E1 | Lemma store v1 | 6 | #48 | Done in [#60](https://github.com/phongndo/ir-lean/pull/60): 163 lemmas in `lake build` and CI, each meeting rules 1 to 3, and 16 all four ([lemma store](lemma-store.md)) |
-| E2 | Executable memory model | 6 | | Not started |
-| E3 | The store makes proofs cheaper, measured | 6 | E1. Python consolidation | Wave 3, after Python consolidation. Not started |
-| T1 | Tier-1 proof tests | 7 | | Done in [#66](https://github.com/phongndo/ir-lean/pull/66): every injected bug it can run refuted, at a median of 9.1 ms to a counterexample the kernel checked, and `prooftest_t1` checks T1's set in CI ([proof tests](proof-tests.md#t1-measured)) |
-| T2 | Tiers 2 and 3 | 7 | T1. Python consolidation. E1, soft, for tier 3 | Not started |
-| T3 | One real project's unit-test file replaced | 7 | T2 | Not started |
-| C1 | Pull request CI in at most 10 minutes | 8 | | In progress: on 2026-11-09, #65's last pull request run, with #61, #63 and #64 merged in, took 8.0 minutes, against 11.7 to 16.6 in three runs before #65 that day ([testing](testing.md#ci)). Reached when the median of 20 consecutive pull requests is at most 10 |
-| C2 | One candidate or proof checked locally in seconds | 8 | | Not measured as such |
-| G1 | `inflate_table`'s statement reviewed | 1 | | Not started |
-| G2 | `inflate_table` proved: entries stay inside `codes`, links stay in the table | 1 | G1, F1 | Not started |
-| G3 | `inflate_fast` proved safe, given such tables | 1 | G2 | Not started |
-| G4 | The invariant holds across `inflate`'s stored-block path | 1 | G3 | Not started |
-| G5 | `inflate` proved memory-safe | 1 | G4 | Not started |
-| G6 | Contracts reused by three callers, and the cost comparison published | 2 | G5, F5 | Not started |
-| B1 | C++ demonstration | 3 | G6 | Not started |
-| B2 | Rust demonstration | 3 | B1 | Not started |
-| A1 | First outside user, or an accepted bug or rewrite found with this tool | 5 | S2 or T3 | Not started |
+`inflate`'s milestones were G1 to G6, and the C++ and Rust demonstrations B1 and B2, until 2026-11-09. They're Z1 to Z6
+and D1 and D2 now, so they don't read as the gates G0 to G4 or [#74](https://github.com/phongndo/ir-lean/pull/74)'s
+binding gates B0 to B5. The record of 2026-11-08 [above](#the-goal-changed-on-2026-11-08) keeps the old names.
+
+| | Milestone | Phase | Depends on | In the plan | Status |
+| --- | --- | --- | --- | --- | --- |
+| F1 | Phase 0A done: axioms allow-listed, GEP gaps closed, pinned target and manifest | 0 | | Platform, semantics. Slices 6 and 7 [aren't in the plan's order yet](#not-in-the-plans-order-yet) | In progress: axioms, GEPs and allow-lists are done |
+| F2 | `mustprogress` and `willreturn` checked as UB, SEM-07 | 0 | | Platform, semantics. Chunk 4 needed it | Done in [#62](https://github.com/phongndo/ir-lean/pull/62). Recursion under a promise stops the model, as [trust](trust.md#promises-to-progress) says |
+| F3 | `freeze` in the model, with `undef` kept out, SEM-03. Until 2026-11-09, `undef` and `freeze` in the model, SEM-02 and SEM-03 ([why](#three-decisions-of-2026-11-09)) | 0 | | Platform, semantics. Chunk 1 needed it | Done in [#72](https://github.com/phongndo/ir-lean/pull/72): `freeze` of poison is a value each run chooses, and `Refines` quantifies over each side's choices ([refinement](refinement.md#runs-that-make-choices)). Ten rewrites' verdicts are proved on what ir-lean emits, with Alive2 agreeing, and four real `instcombine` runs on `freeze` are bound |
+| F4 | `Refines` for functions with memory, SEM-06 | 0 | F3. The first coverage lane landing | Platform, semantics, next. Chunk 3 needs it from G1, and chunk 6 too | Not started |
+| F5 | Phase 0B done: full inventory, semantic mutation, two-machine determinism | 0 | F1 | Platform, semantics, and honesty: NEG-03 and NEG-05 | In progress: promises, model stops and Alive2 are done |
+| S1 | Stage 1: proved wins on integer code, and no known-wrong rewrite certified | 4 | | Chunk 1. Its metric is chunk 1's G1 for InstCombine | In part: 2 proved wins over `clang -O3` ([#30](https://github.com/phongndo/ir-lean/pull/30)). G0 for InstCombine measured once, at 38.4% ([chunks](chunks.md#1-peepholes)). The comparison with Alive2 isn't done |
+| S2 | A proved win on real code, on `main` | 4 | | Superoptimization, on the platform | The q4_K rewrite landed in [#57](https://github.com/phongndo/ir-lean/pull/57) (`b59d862`), and the Q5 rewrite in [#58](https://github.com/phongndo/ir-lean/pull/58) |
+| S3 | Superoptimizer v2 | 4 | The study. Python consolidation. Chunk 1's G2 producing lemmas. E1, soft. F4, for memory | Deferred until chunk 1's G2 is producing lemmas | Not started |
+| S4 | The safety bridge proved | 4 | F2, F4 | Platform, semantics, after F4 | Not started |
+| S5 | A proved win on LLVM IR exported from MLIR | 4 | S3 | After S3 | Not started |
+| S6 | A proved rewrite accepted upstream | 4 | S2 or S3 | Superoptimization, on the platform | Not started |
+| E1 | Lemma store v1 | 6 | #48 | Platform, lemma engine | Done in [#60](https://github.com/phongndo/ir-lean/pull/60): 163 lemmas in `lake build` and CI, each meeting rules 1 to 3, and 16 all four ([lemma store](lemma-store.md)) |
+| E2 | Executable memory model | 6 | F4 | Platform, semantics, after F4 | Not started |
+| E3 | The store makes proofs cheaper, measured | 6 | E1. Python consolidation | Chunk 1's G2 burn-down | Not started |
+| T1 | Tier-1 proof tests | 7 | | Proof tests, on the platform | Done in [#66](https://github.com/phongndo/ir-lean/pull/66): every injected bug it can run refuted, at a median of 9.1 ms to a counterexample the kernel checked, and `prooftest_t1` checks T1's set in CI ([proof tests](proof-tests.md#t1-measured)) |
+| T2 | Tiers 2 and 3 | 7 | T1. Python consolidation. Chunk 1's G2 producing lemmas. E1, soft, for tier 3 | Deferred until chunk 1's G2 is producing lemmas | Not started |
+| T3 | One real project's unit-test file replaced | 7 | T2 | Not in the plan's order yet | Not started |
+| C1 | Pull request CI in at most 10 minutes | 8 | | Platform, honesty and speed | In progress: on 2026-11-09, #65's last pull request run, with #61, #63 and #64 merged in, took 8.0 minutes, against 11.7 to 16.6 in three runs before #65 that day ([testing](testing.md#ci)). Reached when the median of 20 consecutive pull requests is at most 10 |
+| C2 | One candidate or proof checked locally in seconds | 8 | | Platform, honesty and speed | Not measured as such |
+| Z1 | `inflate_table`'s statement reviewed | 1 | | Light work, when a lane frees | Not started |
+| Z2 | `inflate_table` proved: entries stay inside `codes`, links stay in the table | 1 | Z1, F1 | Not in the plan's order yet | Not started |
+| Z3 | `inflate_fast` proved safe, given such tables | 1 | Z2 | Not in the plan's order yet | Not started |
+| Z4 | The invariant holds across `inflate`'s stored-block path | 1 | Z3 | Not in the plan's order yet | Not started |
+| Z5 | `inflate` proved memory-safe | 1 | Z4 | Not in the plan's order yet | Not started |
+| Z6 | Contracts reused by three callers, and the cost comparison published | 2 | Z5, F5 | Not in the plan's order yet | Not started |
+| D1 | C++ demonstration | 3 | Z6 | Not in the plan's order yet | Not started |
+| D2 | Rust demonstration | 3 | D1 | Not in the plan's order yet | Not started |
+| A1 | First outside user, or an accepted bug or rewrite found with this tool | 5 | S2 or T3 | Not in the plan's order yet | Not started |
 
 ## Phases
 
 Each phase lists what it needs first, what it must show, and when to stop.
 
 The phases keep the numbers they had before 2026-11-08, so links to them still hold. The numbers are names, not an
-order: the order is the [critical path and the waves](#next-steps). They're listed here in priority order. Phases 6 to
-8 are new.
+order: the order is the [platform track and the chunks](#next-steps), since 2026-11-09, and before that it was the
+waves. They're listed here in the priority order of 2026-11-08, and the main program's work is in the chunks, not a
+phase. Phases 6 to 8 were new on 2026-11-08.
 
 ### Phase 0: semantic fidelity and trust infrastructure
 
@@ -543,7 +822,8 @@ listed as an assumption of each theorem it affects.
 
 **Prerequisites:** none. This is where to start.
 
-**On the critical path** to the goal, because a certificate is only as good as what the model says the source allows:
+**On the critical path** to the goal, because a proof or a certificate is only as good as what the model says the
+source allows:
 
 - **`mustprogress` and `willreturn`,** SEM-07 in the task list. Done in [#62](https://github.com/phongndo/ir-lean/pull/62): breaking either, or
   `llvm.loop.mustprogress`, is undefined, as [trust](trust.md#promises-to-progress) says. Trusting them blocked
@@ -567,7 +847,9 @@ listed as an assumption of each theorem it affects.
 
 - **Inventory:** `ir-lean --report` lists, for an input, every opcode, intrinsic, attribute, metadata
   kind and linkage it saw, and how each was handled. A table in the repo classifies each as modeled,
-  refused or assumed.
+  refused or assumed. The table is done, as SEM-08 on 2026-11-09: [IR features](ir-features.md) classifies all
+  17,033 items the pinned IR can contain, and a test fails if one is unclassified or the emitter disagrees with its
+  class. `--report` listing what one input contains is still to do.
 - **Promises:** done for what zlib's IR contains, including [`mustprogress` and `willreturn`](trust.md#promises-to-progress)
   since SEM-07. What Rust emits everywhere, starting with `noalias` on arguments, is refused until
   [Phase 3](#phase-3-c-and-rust-demonstrations) needs it. An independent check of these rules, as Alive2 is for GEPs,
@@ -607,7 +889,9 @@ showing every assumption that theorem rests on.
 
 ### Phase 4: certified translation validation and superoptimization
 
-**This is the goal.** Until 2026-11-08 it was a contingent, later phase. [Why it changed](#the-goal-changed-on-2026-11-08).
+**The goal from 2026-11-08 to 2026-11-09.** Until 2026-11-08 it was a contingent, later phase
+([why it changed](#the-goal-changed-on-2026-11-08)). Since 2026-11-09 it rides on the platform the chunks use, and
+superoptimizer v2 waits until chunk 1's G2 is producing lemmas ([why](#six-decisions-of-2026-11-09-after-69)).
 
 **Goal:** a search finds replacements for real code that run faster than the compiler's, and for each, Lean checks a
 theorem that it refines the original. The search, and any AI in it, is untrusted. Only the certificate counts.
@@ -716,13 +1000,14 @@ makes each proof cheaper than the last.
 
 **Work:**
 
-- **Lemma store v1,** wave 2: in the build and CI, the bar enforced by a check, and seeded from #48. Versioned by Lean
-  and `ir-lean` commit, so a lemma that stops checking is reported and not silently dropped.
-- **Lemma mining at scale,** wave 3, slice 33: cut lemmas from many proofs into the store, until E3's measure can
+- **Lemma store v1,** wave 2, done in #60: in the build and CI, the bar enforced by a check, and seeded from #48.
+  Versioned by Lean and `ir-lean` commit, so a lemma that stops checking is reported and not silently dropped.
+- **Lemma mining at scale,** slice 33, which is chunk 1's G2 burn-down since 2026-11-09: cut lemmas from many proofs
+  into the store, until E3's measure can
   run, with targets for peak memory on big proofs, which [Phase 8](#phase-8-speed) records.
-- **Executable memory model,** wave 4, slice 15: an executable representation of memory, proved to agree with `Mem`,
-  for the differential tests, the search's refuting step, and tier-1 proof tests on code with memory. `inflate`'s
-  window is 32 KiB, so inputs under that never exercise its full distance range.
+- **Executable memory model,** slice 15, in the platform track after F4: an executable representation of memory, proved
+  to agree with `Mem`, for the differential tests, the search's refuting step, and tier-1 proof tests on code with
+  memory. `inflate`'s window is 32 KiB, so inputs under that never exercise its full distance range.
 
 **Exit criteria:**
 
@@ -767,10 +1052,12 @@ fuzzing, the Alive2 checks `opcheck` and `gepcheck`, and the negative corpus.
 
 **Work:**
 
-- **Tier 1,** wave 2: generate random and edge-case inputs for a property, and run it through `tools/verify.py`.
-- **Tiers 2 and 3,** wave 3: a bounded proof, then a full one from the lemma store, each tried only when the tier below
-  found no counterexample.
-- **The milestone,** in no wave since 2026-11-09: pick a real project and one of its unit-test files, and replace it.
+- **Tier 1,** wave 2, done in #66: generate random and edge-case inputs for a property, and run it through
+  `tools/verify.py`.
+- **Tiers 2 and 3,** deferred since 2026-11-09 until chunk 1's G2 is producing lemmas: a bounded proof, then a full one
+  from the lemma store, each tried only when the tier below found no counterexample.
+- **The milestone,** not in the plan's order since 2026-11-09: pick a real project and one of its unit-test files, and
+  replace it.
 
 **Exit criteria:**
 
@@ -809,12 +1096,12 @@ before #53 split it:
 The latest two took 37.3 and 38.4 minutes, against the job's 60-minute limit in `.github/workflows/ci.yml`.
 
 **Targets:** pull request CI in at most 10 minutes, and checking one candidate or one proof locally in seconds. Peak
-memory on big proofs gets targets too, set in wave 3 with lemma mining at scale, slice 33. For scale, Lean takes 1.5 to
-3.5 GB a process today ([limits](#limits)).
+memory on big proofs gets targets too, set with lemma mining at scale, slice 33, which is chunk 1's G2 burn-down. For
+scale, Lean takes 1.5 to 3.5 GB a process today ([limits](#limits)).
 
 **Python is the glue,** since [2026-11-09](#three-decisions-of-2026-11-09). Python runs tools, reads their output and
 orchestrates processes. Anything in it that shows memory or speed problems moves to C++. Python consolidation, slice
-31, is wave 3's foundation: one shared library for `tools/` and `tests/*.py`.
+31, is the platform track's foundation, and finishing: one shared library for `tools/` and `tests/*.py`.
 
 **Work:** [#53](https://github.com/phongndo/ir-lean/pull/53) split CI into parallel jobs, which took it to 13 to 16
 minutes. On 2026-11-09, [#61](https://github.com/phongndo/ir-lean/pull/61) made setup survive the downloads that had
@@ -884,7 +1171,7 @@ makes the proof harder, and it has to assume the allocator returns. It says noth
 **The order,** so each step tests the riskiest thing left:
 
 1. `inflate_table`: every entry it writes stays inside `codes`, and links stay in the table it built. Its statement is
-   light work, taken up when a lane frees, and its proof isn't in a wave yet.
+   light work, taken up when a lane frees, and its proof isn't in the plan's order yet.
 2. `inflate_fast`, assuming tables with that property. This is where a memory bug would most likely be.
 3. The invariant across `inflate`'s modes, one mode at a time, starting with stored blocks.
 
@@ -925,7 +1212,7 @@ after step 1.
 
 **Goal:** the proof of a caller doesn't look inside its callees, and the next function is cheaper.
 
-**Prerequisites:** G5 and 0B. Extract from `inflate`'s real contracts. Don't design this in the abstract.
+**Prerequisites:** Z5 and 0B. Extract from `inflate`'s real contracts. Don't design this in the abstract.
 
 **Work:**
 
@@ -1056,8 +1343,9 @@ that produced it. Current values live in [status](status.md).
 | --- | --- | --- |
 | Proved wins over `clang -O3`, on real code and on the rest | Yes, 2, neither a call real programs make on x86-64. The real-code results are on branches | The goal |
 | Speedup on a real workload, from proved rewrites | On branches only | Whether the goal matters to anyone |
-| Share of InstCombine's own test transformations `ir-lean` certifies | Not yet. S1 measures it | The parked goal's progress, since [2026-11-09](#three-decisions-of-2026-11-09) |
-| Peak memory of the biggest proofs | Partly, as check time and peak memory below | Targets set in wave 3, with lemma mining at scale |
+| Passes counted done, of the 1,162, and each chunk's percentage at each gate | 0 done. One gate measured for one pass: G0 for InstCombine, 38.4% ([chunks](chunks.md)) | The headline, since [2026-11-09](#six-decisions-of-2026-11-09-after-69) |
+| Share of InstCombine's own test transformations `ir-lean` certifies | Not yet. S1 measures it | Chunk 1's G1 for InstCombine. Until later on 2026-11-09, the parked goal's progress ([decision 2](#three-decisions-of-2026-11-09)) |
+| Peak memory of the biggest proofs | Partly, as check time and peak memory below | Targets set with lemma mining at scale, chunk 1's G2 |
 | Candidates refuted, proved, or left unknown, per search | No | Whether the engine's tiers pay |
 | Lemmas meeting each rule of the bar, and reuses per lemma | Yes, by `tools/store/store.py check`, in CI | Whether the flywheel turns |
 | Proof-test bugs caught against the unit tests', and time | No | Whether proof tests beat what they replace |
@@ -1088,6 +1376,10 @@ These apply across phases. The ones specific to a phase are with that phase.
   ahead of any proof in progress.
 - The proofs break on each LLVM update faster than they can be maintained. Then pinning is the honest answer,
   and the project should say so.
+- Binding stops at one of [#74's gates](binding-approach.md#when-to-stop). Then, under the task list's rule, no pass
+  can be done, and the headline needs the end condition rewritten, as
+  [its fallback](binding-approach.md#the-fallback-and-what-it-does-to-done) says. That's the maintainer's call, written
+  here with its reason.
 - Someone else ships the same thing. Contribute to theirs instead.
 - Frama-C or VST gives the same confidence for less work on the same question, or Kani or Verus does for proof
   tests. This project isn't needed for that job.

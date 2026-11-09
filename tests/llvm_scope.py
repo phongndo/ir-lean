@@ -26,12 +26,10 @@ usage:
 from __future__ import annotations
 
 import argparse
-import hashlib
 import json
 import os
 import re
 import shutil
-import subprocess
 import sys
 from collections import Counter, defaultdict
 from collections.abc import Callable
@@ -40,6 +38,9 @@ from pathlib import Path
 from typing import Any
 
 ROOT = Path(__file__).resolve().parent.parent
+sys.path.append(str(ROOT / "tools"))
+from irlean import hashing, proc  # noqa: E402
+
 HERE = ROOT / "tests" / "llvm_scope"
 INVENTORY = HERE / "inventory.json"
 COVERAGE = HERE / "coverage.json"
@@ -273,10 +274,6 @@ def read_tree(src: Path) -> dict[str, str]:
     return files
 
 
-def sha(text: str) -> str:
-    return hashlib.sha256(text.encode()).hexdigest()
-
-
 def category(name: str, kinds: set[str]) -> str:
     """A rough grouping for the summary only. Every category is in the denominator."""
     if kinds == {"analysis"}:
@@ -346,7 +343,7 @@ def inventory_from_source(src: Path) -> tuple[dict[str, dict[str, Any]], dict[st
         if not anchors and not unresolved:
             unresolved = sorted({r.get("class") or "(none)" for r in item["registrations"]})
         item["registrations"].sort(key=lambda r: r["site"])
-        item["anchors"] = {a: sha(files[a]) for a in sorted(anchors)}
+        item["anchors"] = {a: hashing.sha256_text(files[a]) for a in sorted(anchors)}
         item["unresolved_classes"] = sorted(set(unresolved))
         item["cl_opts"] = sum(len(CL_OPT.findall(files[a])) for a in anchors)
         kinds = {r["kind"] for r in item["registrations"]}
@@ -359,7 +356,7 @@ def inventory_from_source(src: Path) -> tuple[dict[str, dict[str, Any]], dict[st
     source = {
         "cl_opts_in_anchor_files": sum(len(CL_OPT.findall(files[a])) for a in anchor_files),
         "llvm_version": llvm_version(src),
-        "registries": {r: sha(files[r]) for r in registries},
+        "registries": {r: hashing.sha256_text(files[r]) for r in registries},
         "target_dirs": sorted(p.name for p in targets_dir.iterdir() if p.is_dir()),
         "registrations": len(regs),
     }
@@ -375,8 +372,13 @@ def llvm_version(src: Path) -> str:
 # --- Reading the tools --------------------------------------------------------------------------------------
 
 
-def tool(*args: str) -> subprocess.CompletedProcess[str]:
-    return subprocess.run(args, capture_output=True, text=True, timeout=TIMEOUT, check=False)
+def tool(*args: str) -> proc.Ran:
+    """Runs an LLVM tool. Raises TimeoutExpired if it runs for TIMEOUT seconds, as an answer cut short isn't
+    one to record."""
+    r = proc.run(args, timeout=TIMEOUT)
+    if r.limit is not None:
+        raise proc.TimeoutExpired(list(args), TIMEOUT)
+    return r
 
 
 def pipeline_leaves(text: str) -> tuple[list[str], list[str], list[str]]:
@@ -415,20 +417,11 @@ def opt_pipelines() -> dict[str, dict[str, Any]]:
     for phase in OPT_PHASES:
         for level in LEVELS:
             spec = f"{phase}<{level}>"
-            r = subprocess.run(
-                ["opt", "-disable-output", f"-passes={spec}", "-print-pipeline-passes"],
-                input="",
-                capture_output=True,
-                text=True,
-                timeout=TIMEOUT,
-                check=False,
-            )
-            if r.returncode != 0:
-                out[spec] = {
-                    "error": r.stderr.strip().splitlines()[-1] if r.stderr.strip() else f"exit {r.returncode}"
-                }
+            r = tool("opt", "-disable-output", f"-passes={spec}", "-print-pipeline-passes")
+            if r.exit != 0:
+                out[spec] = {"error": r.err.strip().splitlines()[-1] if r.err.strip() else f"exit {r.exit}"}
                 continue
-            out[spec] = {"pipeline": r.stdout.strip()}
+            out[spec] = {"pipeline": r.out.strip()}
     return out
 
 
@@ -441,7 +434,7 @@ def opt_names(p: dict[str, Any]) -> list[str]:
 
 
 def llc_archs() -> list[str]:
-    text = tool("llc", "--version").stdout
+    text = tool("llc", "--version").out
     section = text.split("Registered Targets:", 1)[1]
     return sorted(m.group(1) for m in re.finditer(r"^\s+(\S+)\s+-", section, re.M))
 
@@ -466,14 +459,14 @@ def llc_passes(arch: str, level: str) -> dict[str, Any]:
             os.devnull,
             str(HERE / probe),
         )
-        args = [line for line in r.stderr.splitlines() if line.startswith("Pass Arguments:")]
-        if r.returncode != 0:
-            lines = [x for x in r.stderr.strip().splitlines() if not x.startswith("Pass Arguments:")]
+        args = [line for line in r.err.splitlines() if line.startswith("Pass Arguments:")]
+        if r.exit != 0:
+            lines = [x for x in r.err.strip().splitlines() if not x.startswith("Pass Arguments:")]
             said = [x for x in lines if "LLVM ERROR" in x or "error:" in x or "Assertion" in x]
             crash = [
                 f"crash in {m.group(1)}" for x in lines if (m := re.search(r"Running pass '([^']+)'", x))
             ]
-            first = re.sub(r"0x[0-9a-f]+", "0x?", (said or crash[-1:] or [f"exit {r.returncode}"])[0])
+            first = re.sub(r"0x[0-9a-f]+", "0x?", (said or crash[-1:] or [f"exit {r.exit}"])[0])
             errors.append(f"{probe}: {first[:160]}")
         for line in args:
             names |= {w[1:] for w in line.split()[2:] if w.startswith("-")}
@@ -507,14 +500,14 @@ def selector_values(help_text: str) -> dict[str, set[str]]:
 
 
 def tools_versions() -> dict[str, Any]:
-    def first(r: subprocess.CompletedProcess[str], pat: str) -> str:
-        m = re.search(pat, r.stdout)
+    def first(r: proc.Ran, pat: str) -> str:
+        m = re.search(pat, r.out)
         return m.group(1) if m else "?"
 
     return {
         "opt": first(tool("opt", "--version"), r"LLVM version (\S+)"),
         "llc": first(tool("llc", "--version"), r"LLVM version (\S+)"),
-        "targets_built": tool("llvm-config", "--targets-built").stdout.split(),
+        "targets_built": tool("llvm-config", "--targets-built").out.split(),
     }
 
 
@@ -532,16 +525,14 @@ def generate() -> dict[str, Any]:
         )
     # Every pass opt can run by name has to be one the registries gave, or the reading of them missed
     # something.
-    listed = {
-        re.sub(r"<.*", "", n) for n in re.findall(r"^  (\S+)", tool("opt", "-print-passes").stdout, re.M)
-    }
+    listed = {re.sub(r"<.*", "", n) for n in re.findall(r"^  (\S+)", tool("opt", "-print-passes").out, re.M)}
     missed = sorted(listed - items.keys() - {"require", "invalidate"})
     if missed:
         raise SystemExit(f"opt -print-passes lists passes the registries didn't give: {missed[:20]}")
     # The same for the registries an option picks from: llc lists their entries, and each has to be one the
     # source gave. One the source gives that llc doesn't list is kept, and recorded, such as an entry only
     # assertion builds register.
-    picked = selector_values(tool("llc", "--help-list-hidden").stdout)
+    picked = selector_values(tool("llc", "--help-list-hidden").out)
     from_source = {
         n for n, i in items.items() if any(r["registry"] == "selector" for r in i["registrations"])
     }
@@ -579,7 +570,7 @@ def generate() -> dict[str, Any]:
         "pin": PIN,
         "source": source,
         "tools": versions,
-        "probes": {p: sha((HERE / p).read_text()) for p in PROBES},
+        "probes": {p: hashing.sha256_text((HERE / p).read_text()) for p in PROBES},
         "pipelines": {"opt": opt, "llc": llc},
         "items": [items[k] for k in sorted(items)],
     }
@@ -700,7 +691,7 @@ def evaluate(
             path = (root / str(e.get("path", ""))).resolve()
             if not e.get("path") or not path.is_relative_to(root.resolve()) or not path.is_file():
                 errors.append(f"{where}: evidence {e.get('path')!r} isn't a file in the repo")
-            elif hashlib.sha256(path.read_bytes()).hexdigest() != e.get("sha256"):
+            elif hashing.sha256_file(path) != e.get("sha256"):
                 errors.append(f"{where}: evidence {e.get('path')} changed since the claim was made")
         if status != "complete":
             continue
@@ -777,10 +768,7 @@ def repo_file(root: Path, path: str) -> bool:
 def repo_commit(root: Path, sha: str) -> bool:
     if not re.fullmatch(r"[0-9a-f]{7,40}", sha):
         return False
-    r = subprocess.run(
-        ["git", "-C", str(root), "cat-file", "-e", f"{sha}^{{commit}}"], capture_output=True, check=False
-    )
-    return r.returncode == 0
+    return proc.run(["git", "-C", str(root), "cat-file", "-e", f"{sha}^{{commit}}"]).exit == 0
 
 
 SCOPE = re.compile(r"<!-- scope: (.*?) -->")

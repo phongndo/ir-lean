@@ -10,14 +10,12 @@ Check/bench save new run directories and never overwrite earlier inference runs.
 """
 
 import argparse
-import hashlib
 import json
 import os
 import re
 import shlex
 import shutil
 import struct
-import subprocess
 import sys
 import time
 import urllib.request
@@ -27,6 +25,9 @@ import measure
 
 HERE = Path(__file__).resolve().parent
 PROJECT = HERE.parents[1]
+sys.path.append(str(PROJECT / "tools"))
+from irlean import hashing, proc  # noqa: E402
+
 REVISION = "80d2c0c2c56e4a1bbf74be98f64b99927bf230bc"
 SOURCE_URL = "https://github.com/ggml-org/llama.cpp.git"
 MODEL_REVISION = "9217f5db79a29953eb74d5343926648285ec7e67"
@@ -60,11 +61,6 @@ OFF = (
     "LLAMA_BUILD_MTMD",
     "LLAMA_OPENSSL",
 )
-
-
-def file_hash(path):
-    with path.open("rb") as handle:
-        return hashlib.file_digest(handle, "sha256").hexdigest()
 
 
 def write_json(path, value):
@@ -101,7 +97,7 @@ def allocated_sections(path):
             "flags": flags,
             "alignment": alignment,
             "size": size,
-            "sha256": hashlib.sha256(content).hexdigest(),
+            "sha256": hashing.sha256(content),
         }
     if not result:
         raise ValueError(f"no allocated sections: {path}")
@@ -133,8 +129,8 @@ class Reproduction:
                 "model": str(self.model),
                 "llvm_bin": str(self.llvm) if self.llvm else None,
                 "prompt": str(self.prompt),
-                "driver_sha256": file_hash(Path(__file__)),
-                "prompt_sha256": file_hash(self.prompt),
+                "driver_sha256": hashing.sha256_file(Path(__file__)),
+                "prompt_sha256": hashing.sha256_file(self.prompt),
             },
         )
 
@@ -147,39 +143,32 @@ class Reproduction:
         write_json(prefix.with_suffix(".command.json"), record)
         print(f"running {label}", flush=True)
         started = time.monotonic()
-        raw = subprocess.run(
-            command,
-            cwd=cwd,
-            env=self.environment | (env or {}),
-            capture_output=True,
-            timeout=timeout,
-            check=False,
-        )
+        raw = proc.run(command, cwd=cwd, env=self.environment | (env or {}), timeout=timeout)
+        if raw.limit is not None and timeout is not None:
+            raise proc.TimeoutExpired(command, timeout)
         prefix.with_suffix(".stdout").write_bytes(raw.stdout)
         prefix.with_suffix(".stderr").write_bytes(raw.stderr)
         if stdout_path is not None:
             stdout_path.write_bytes(raw.stdout)
         if stderr_path is not None:
             stderr_path.write_bytes(raw.stderr)
-        record.update({"returncode": raw.returncode, "elapsed_seconds": time.monotonic() - started})
+        record.update({"returncode": raw.exit, "elapsed_seconds": time.monotonic() - started})
         write_json(prefix.with_suffix(".command.json"), record)
-        if raw.returncode:
-            raise RuntimeError(f"{label} failed with exit {raw.returncode}; see {prefix}.stderr")
-        return subprocess.CompletedProcess(
-            command, raw.returncode, raw.stdout.decode(errors="replace"), raw.stderr.decode(errors="replace")
-        )
+        if raw.exit:
+            raise RuntimeError(f"{label} failed with exit {raw.exit}; see {prefix}.stderr")
+        return raw
 
     def verify_source(self):
-        revision = self.run(["git", "-C", self.source, "rev-parse", "HEAD"], "source-revision").stdout.strip()
+        revision = self.run(["git", "-C", self.source, "rev-parse", "HEAD"], "source-revision").out.strip()
         dirty = self.run(
             ["git", "-C", self.source, "status", "--porcelain", "--untracked-files=no"], "source-clean"
-        ).stdout
+        ).out
         if revision != REVISION or dirty:
             raise ValueError(f"source must be clean at pinned revision {REVISION}")
         return revision
 
     def verify_model(self):
-        actual = file_hash(self.model)
+        actual = hashing.sha256_file(self.model)
         if actual != MODEL_SHA256:
             raise ValueError(f"model SHA256 mismatch: {actual}")
         return actual
@@ -200,7 +189,7 @@ class Reproduction:
             print(f"downloading pinned model to {self.model}", flush=True)
             with urllib.request.urlopen(MODEL_URL, timeout=120) as response, temporary.open("xb") as output:
                 shutil.copyfileobj(response, output)
-            if file_hash(temporary) != MODEL_SHA256:
+            if hashing.sha256_file(temporary) != MODEL_SHA256:
                 raise ValueError(f"downloaded model SHA256 mismatch; retained {temporary}")
             temporary.rename(self.model)
         write_json(
@@ -220,10 +209,10 @@ class Reproduction:
         versions = {}
         for name in ("clang", "clang++", "llc", "opt", "llvm-objdump"):
             tool = self.llvm / name
-            version = self.run([tool, "--version"], "version-" + name.replace("+", "p")).stdout
+            version = self.run([tool, "--version"], "version-" + name.replace("+", "p")).out
             if "23.1.5" not in version:
                 raise ValueError(f"expected LLVM 23.1.5: {tool}")
-            versions[name] = {"path": str(tool), "sha256": file_hash(tool), "version": version}
+            versions[name] = {"path": str(tool), "sha256": hashing.sha256_file(tool), "version": version}
         write_json(self.work / "llvm-tools.json", versions)
 
     def llvm_tool(self, name):
@@ -255,11 +244,11 @@ class Reproduction:
             receipts.append(
                 {
                     "wrapper": str(wrapper),
-                    "wrapper_sha256": file_hash(wrapper),
+                    "wrapper_sha256": hashing.sha256_file(wrapper),
                     "old_compiler": matches[0],
                     "new_compiler": replacement,
                     "output": str(output),
-                    "output_sha256": file_hash(output),
+                    "output_sha256": hashing.sha256_file(output),
                 }
             )
         write_json(directory / "receipt.json", receipts)
@@ -348,7 +337,7 @@ class Reproduction:
         if any("OPENMP" in flag or "fopenmp" in flag for flag in command):
             raise ValueError("quants compile command enables OpenMP")
         trace = self.run([*command, "-###"], "effective-compiler", cwd=entry["directory"])
-        lines = [shlex.split(line) for line in trace.stderr.splitlines() if '"-cc1"' in line]
+        lines = [shlex.split(line) for line in trace.err.splitlines() if '"-cc1"' in line]
         if len(lines) != 1:
             raise ValueError("could not inspect the actual compiler invocation")
         cc1 = lines[0]
@@ -369,11 +358,11 @@ class Reproduction:
             self.work / "build-verification.json",
             {
                 "source_revision": REVISION,
-                "cache_sha256": file_hash(cache_path),
-                "compile_database_sha256": file_hash(database_path),
+                "cache_sha256": hashing.sha256_file(cache_path),
+                "compile_database_sha256": hashing.sha256_file(database_path),
                 "quants_command": entry,
                 "cc1": cc1,
-                "baseline_library_sha256": file_hash(self.baseline / "bin/libggml-cpu.so.0"),
+                "baseline_library_sha256": hashing.sha256_file(self.baseline / "bin/libggml-cpu.so.0"),
                 "reused": self.args.reuse_build,
             },
         )
@@ -381,7 +370,7 @@ class Reproduction:
 
     def relink(self, obj, output):
         output.mkdir(parents=True, exist_ok=True)
-        recipes = self.run(["ninja", "-C", self.baseline, "-t", "commands", "ggml-cpu"], "link-recipe").stdout
+        recipes = self.run(["ninja", "-C", self.baseline, "-t", "commands", "ggml-cpu"], "link-recipe").out
         lines = [
             line for line in recipes.splitlines() if " -shared " in line and " -o bin/libggml-cpu.so." in line
         ]
@@ -407,7 +396,7 @@ class Reproduction:
             {
                 "command": command,
                 "cwd": str(self.baseline),
-                "library_sha256": file_hash(output / "libggml-cpu.so.0"),
+                "library_sha256": hashing.sha256_file(output / "libggml-cpu.so.0"),
             },
         )
 
@@ -461,7 +450,7 @@ class Reproduction:
             result = self.run(
                 [self.llvm_tool("llvm-objdump"), "-dr", "--no-show-raw-insn", obj], "disassemble-" + name
             )
-            normalized = "\n".join(result.stdout.splitlines()[2:]) + "\n"
+            normalized = "\n".join(result.out.splitlines()[2:]) + "\n"
             (self.ir / (name + ".asm")).write_text(normalized)
             disassemblies.append(normalized)
         ordinary_sections = allocated_sections(original_object)
@@ -475,8 +464,8 @@ class Reproduction:
                 "allocated_sections_equal": True,
                 "sections": ordinary_sections,
                 "ordinary_object": str(original_object),
-                "ordinary_sha256": file_hash(original_object),
-                "control_sha256": file_hash(self.ir / "control.o"),
+                "ordinary_sha256": hashing.sha256_file(original_object),
+                "control_sha256": hashing.sha256_file(self.ir / "control.o"),
             },
         )
         self.relink(self.ir / "control.o", self.control)
@@ -484,13 +473,13 @@ class Reproduction:
         write_json(
             self.work / "rewrite.json",
             {
-                "source_ir_sha256": file_hash(source),
-                "target_ir_sha256": file_hash(target),
-                "helper_sha256": file_hash(helper),
-                "witness_sha256": file_hash(target.with_suffix(".ll.witness.json")),
-                "control_library_sha256": file_hash(self.control / "libggml-cpu.so.0"),
-                "target_library_sha256": file_hash(self.variant / "libggml-cpu.so.0"),
-                "baseline_library_sha256": file_hash(self.baseline / "bin/libggml-cpu.so.0"),
+                "source_ir_sha256": hashing.sha256_file(source),
+                "target_ir_sha256": hashing.sha256_file(target),
+                "helper_sha256": hashing.sha256_file(helper),
+                "witness_sha256": hashing.sha256_file(target.with_suffix(".ll.witness.json")),
+                "control_library_sha256": hashing.sha256_file(self.control / "libggml-cpu.so.0"),
+                "target_library_sha256": hashing.sha256_file(self.variant / "libggml-cpu.so.0"),
+                "baseline_library_sha256": hashing.sha256_file(self.baseline / "bin/libggml-cpu.so.0"),
                 "replaced_objects": ["ggml-cpu/arch/x86/quants.c.o"],
             },
         )
@@ -507,7 +496,7 @@ class Reproduction:
             "baseline_library_sha256": self.baseline / "bin/libggml-cpu.so.0",
         }
         for key, path in expected.items():
-            if file_hash(path) != receipt[key]:
+            if hashing.sha256_file(path) != receipt[key]:
                 raise ValueError(f"rewrite artifact changed: {path}")
         if (self.ir / "q5_bitspread.ll").read_bytes() != (
             PROJECT / "tests/real/llama_q5_bitspread.ll"
@@ -544,10 +533,7 @@ class Reproduction:
             "alive-equivalence",
             timeout=300,
         )
-        if (
-            "These functions seem to be equivalent!" not in alive.stdout
-            or "ERROR:" in alive.stdout + alive.stderr
-        ):
+        if "These functions seem to be equivalent!" not in alive.out or "ERROR:" in alive.output:
             raise ValueError("Alive2 did not establish bidirectional equivalence")
         helper_obj = self.ir / "native-helper.o"
         self.run(
@@ -590,7 +576,7 @@ class Reproduction:
             ],
             "capture-build",
         )
-        binary = Path(json.loads(built.stdout)["binary"])
+        binary = Path(json.loads(built.out)["binary"])
         output = self.new_run("correctness")
         config = argparse.Namespace(**vars(self.args))
         config.model, config.prompt = self.model, self.prompt
@@ -607,7 +593,7 @@ class Reproduction:
                 "LD_LIBRARY_PATH": str(library_dir) + ":" + str(self.baseline / "bin"),
                 "LLAMA_EXACT_OUTPUT_PREFIX": str(output / name),
             }
-            mapping = self.run(["ldd", binary], "loader-" + name, env=environment).stdout
+            mapping = self.run(["ldd", binary], "loader-" + name, env=environment).out
             (output / (name + "-ldd.txt")).write_text(mapping)
             loaded = re.search(r"^\s*libggml-cpu\.so\.0 => (\S+) \(", mapping, re.MULTILINE)
             if loaded is None or Path(loaded[1]).resolve() != (library_dir / "libggml-cpu.so.0").resolve():
@@ -628,7 +614,7 @@ class Reproduction:
                     [sys.executable, HERE / "compare.py", output / "baseline-a", output / name],
                     "compare-" + name,
                 )
-                comparisons[name] = json.loads(compared.stdout)
+                comparisons[name] = json.loads(compared.out)
                 write_json(output / (name + "-comparison.json"), comparisons[name])
         write_json(
             output / "result.json",
@@ -638,7 +624,7 @@ class Reproduction:
             self.work / "check.json",
             {
                 "result": str(output / "result.json"),
-                "result_sha256": file_hash(output / "result.json"),
+                "result_sha256": hashing.sha256_file(output / "result.json"),
                 "settings": self.inference_settings(),
                 "baseline_library_sha256": rewrite["baseline_library_sha256"],
                 "target_library_sha256": rewrite["target_library_sha256"],
@@ -652,7 +638,7 @@ class Reproduction:
             "threads": self.args.threads,
             "first_cpu": self.args.first_cpu,
             "tokens": self.args.tokens,
-            "prompt_sha256": file_hash(self.prompt),
+            "prompt_sha256": hashing.sha256_file(self.prompt),
             "model_sha256": MODEL_SHA256,
             "sampling_seed": 1234,
             "stock_command": measure.completion_command(config, self.baseline / "bin/llama-completion"),
@@ -668,7 +654,7 @@ class Reproduction:
             checked["target_library_sha256"] != rewrite["target_library_sha256"]
             or checked["baseline_library_sha256"] != rewrite["baseline_library_sha256"]
             or checked["settings"] != self.inference_settings()
-            or file_hash(Path(checked["result"])) != checked["result_sha256"]
+            or hashing.sha256_file(Path(checked["result"])) != checked["result_sha256"]
         ):
             raise ValueError("correctness evidence does not match this rewrite")
         output = self.new_run("measurements")
@@ -735,7 +721,7 @@ def main():
         for phase in phases:
             print(f"phase: {phase}", flush=True)
             getattr(reproduction, phase)()
-    except (OSError, ValueError, RuntimeError, KeyError, subprocess.TimeoutExpired) as error:
+    except (OSError, ValueError, RuntimeError, KeyError, proc.TimeoutExpired) as error:
         print(f"reproduce: {error}", file=sys.stderr)
         return 1
     return 0
