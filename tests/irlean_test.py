@@ -75,6 +75,16 @@ class Run(unittest.TestCase):
         r = proc.run([PY, "-c", "import sys; print(repr(sys.stdin.read()))"])
         self.assertEqual(r.out.strip(), "''")
 
+    def test_stdin_can_be_this_process_own(self) -> None:
+        # As tools/measure.py runs a command: reading what was piped to it.
+        inner = "import sys; print(sys.stdin.read())"
+        code = (
+            "import sys; sys.path.insert(0, sys.argv[1]); from irlean import proc; "
+            f"print(proc.run([sys.executable, '-c', {inner!r}], stdin=proc.INHERIT).out)"
+        )
+        r = proc.run([PY, "-c", code, str(ROOT / "tools")], stdin="payload")
+        self.assertEqual(r.out.strip(), "payload")
+
     def test_output_to_a_file(self) -> None:
         with tempfile.TemporaryDirectory() as d:
             log = Path(d) / "log"
@@ -156,8 +166,18 @@ class Run(unittest.TestCase):
     @unittest.skipUnless(proc.scopes_work(), "no systemd user scopes here")
     def test_a_scope_caps_memory_and_holds_every_descendant(self) -> None:
         scope = proc.Scope("ir-lean-irlean-test", 100)
-        r = proc.run([PY, "-c", "x = bytearray(400 << 20); x[::4096] = b'1' * len(x[::4096])"], scope=scope)
-        self.assertNotEqual(r.exit, 0)
+        hog = "x = bytearray(400 << 20); x[::4096] = b'1' * len(x[::4096])"
+        r = proc.run([PY, "-c", hog], scope=scope)
+        self.assertEqual((r.limit, r.ok), ("resource_limit", False))
+        # A parent that ignores the child the cap killed, and SIGTERM, still doesn't succeed: the whole scope
+        # goes at once.
+        parent = (
+            "import signal, subprocess, sys; signal.signal(signal.SIGTERM, signal.SIG_IGN); "
+            f"subprocess.run([sys.executable, '-c', {hog!r}]); print('carried on')"
+        )
+        r = proc.run([PY, "-c", parent], scope=scope)
+        self.assertEqual((r.limit, r.ok), ("resource_limit", False), r.out)
+        self.assertNotIn("carried on", r.out)
         with tempfile.TemporaryDirectory() as d:
             pidfile = Path(d) / "pid"
             argv = [
@@ -235,6 +255,10 @@ class Measure(unittest.TestCase):
                 [*argv, "--", PY, "-c", "raise SystemExit(5)"], capture_output=True, check=False
             )
             self.assertEqual(r.returncode, 5)
+            # It reads what's piped to measure.py, as it would alone.
+            read = [PY, "-c", "import sys; assert sys.stdin.read() == 'payload'"]
+            r = subprocess.run([*argv, "--", *read], input=b"payload", capture_output=True, check=False)
+            self.assertEqual(r.returncode, 0, r.stderr)
 
     def test_the_lock_is_in_the_platform_cache_directory(self) -> None:
         home = Path.home()

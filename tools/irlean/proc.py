@@ -16,9 +16,12 @@ A memory cap is kept one of three ways:
   `interval` seconds. Past the cap, the tree is killed and the result says `resource_limit`. It can overshoot
   by what the tree allocates in one interval. This is the cap on macOS, which has no cgroups and doesn't
   enforce RLIMIT_AS.
-- `scope`, a systemd scope of the user's, capped with no swap, where `systemd-run --user --scope` works. Past
-  the cap the kernel's OOM killer kills a process in it, and the whole scope is killed when the command ends.
-- `address_mb`, RLIMIT_AS, set by `/bin/sh` before it runs the command. Lean can't run under it.
+- `scope`, a systemd scope of the user's, capped with no swap, where `systemd-run --user --scope` works with
+  `OOMPolicy=kill`. Past the cap the kernel kills every process in the scope at once, with SIGKILL, so a
+  parent can't carry on as if a child it lost was fine, and the result says `resource_limit`. The whole scope
+  is killed when the command ends too.
+- `address_mb`, RLIMIT_AS, set by `/bin/sh` before it runs the command. Past it an allocation fails, rather
+  than anything being killed, so what happens then is up to the program. Lean can't run under it.
 
 Lean's own `-M`, which `irlean.lean` passes, is the cap to use per Lean process. A timeout or a cap is never a
 success: `Ran.limit` says which stopped it, and `Ran.ok` is false.
@@ -57,7 +60,7 @@ from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from functools import cache
 from pathlib import Path
-from typing import IO, Any
+from typing import IO, Any, ClassVar
 
 from .schemas import MEASUREMENT
 
@@ -66,6 +69,8 @@ BUSY = 75
 # What `stdout` and `stderr` take to capture a stream, and `stderr` to send it to wherever stdout goes.
 CAPTURE = "capture"
 STDOUT = "stdout"
+# What `stdin` takes to give the command this process's own.
+INHERIT = "inherit"
 
 type Stream = str | Path | IO[Any] | int | None
 
@@ -232,17 +237,22 @@ def kill_tree(root: int) -> None:
 
 @cache
 def scopes_work() -> bool:
-    """Whether `systemd-run --user --scope` works here, which is what a `Scope` needs."""
+    """Whether `systemd-run --user --scope` works here, with the properties a `Scope` sets, which is what one
+    needs."""
     if not sys.platform.startswith("linux") or shutil.which("systemd-run") is None:
         return False
-    probe = ["systemd-run", "--user", "--scope", "--quiet", "--", "true"]
+    probe = ["systemd-run", "--user", "--scope", "--quiet", *Scope.PROPERTIES, "--", "true"]
     return subprocess.run(probe, capture_output=True, check=False).returncode == 0
 
 
 @dataclass(frozen=True)
 class Scope:
     """A systemd scope of the user's for one command: its unit is `{prefix}-{pid}-{random}.scope`, capped at
-    `memory_mb` with no swap. Used where `scopes_work()`, and skipped elsewhere."""
+    `memory_mb` with no swap. Running out kills everything in it at once, so no process in it can outlive the
+    cap and report success. Used where `scopes_work()`, and skipped elsewhere."""
+
+    # What every scope gets besides its cap, which the probe in scopes_work() asks for too.
+    PROPERTIES: ClassVar[tuple[str, ...]] = ("--property=MemorySwapMax=0", "--property=OOMPolicy=kill")
 
     prefix: str
     memory_mb: int
@@ -252,13 +262,14 @@ class Scope:
         return f"{self.prefix}-{os.getpid()}-{secrets.token_hex(4)}"
 
     def wrap(self, unit: str, argv: list[str]) -> list[str]:
-        properties = [f"MemoryMax={self.memory_mb}M", "MemorySwapMax=0", *self.properties]
+        properties = [f"MemoryMax={self.memory_mb}M", *self.properties]
         return [
             "systemd-run",
             "--user",
             "--scope",
             "--quiet",
             f"--unit={unit}",
+            *self.PROPERTIES,
             *(f"--property={p}" for p in properties),
             "--",
             *argv,
@@ -412,9 +423,9 @@ def run(
     `stdout` and `stderr` are each CAPTURE, read back into `Ran` as bytes; a path, written there; an open
     file; None, inherited; or, for `stderr`, STDOUT. Captured output goes through temporary files, not pipes,
     so the command is done when it exits, not when everything it started closes its output. `stdin` is bytes
-    or text to give it, an open file, or None for nothing. `sample` measures the tree's RSS without a cap.
-    `env` replaces the environment if given. `Ran.unit` names the scope, if `scope` was asked for and systemd
-    could make one."""
+    or text to give it, an open file, INHERIT for this process's own, or None for nothing. `sample` measures
+    the tree's RSS without a cap. `env` replaces the environment if given. `Ran.unit` names the scope, if
+    `scope` was asked for and systemd could make one."""
     argv = [os.fspath(a) for a in argv]
     command = argv
     if address_mb is not None:
@@ -427,18 +438,18 @@ def run(
     started = time.monotonic()
     stopped: list[str] = []
     with contextlib.ExitStack() as stack:
-        if isinstance(stdin, str):
-            stdin = stdin.encode()
-        if isinstance(stdin, bytes):
+        given: Any = subprocess.DEVNULL if stdin is None else stdin
+        if stdin == INHERIT:
+            given = None
+        elif isinstance(stdin, str | bytes):
             given = stack.enter_context(tempfile.TemporaryFile())
-            given.write(stdin)
+            given.write(stdin.encode() if isinstance(stdin, str) else stdin)
             given.seek(0)
-            stdin = given
         out, out_file = _open(stdout, "wb", stack)
         err, err_file = _open(stderr, "wb", stack)
         p = subprocess.Popen(
             command,
-            stdin=subprocess.DEVNULL if stdin is None else stdin,
+            stdin=given,
             stdout=out,
             stderr=err,
             env=None if env is None else dict(env),
@@ -495,6 +506,9 @@ def run(
             else:
                 f.seek(0)
                 captured.append(f.read())
+    if not stopped and unit is not None and code == -signal.SIGKILL:
+        # Nothing here killed it, so the scope did: it ran out of memory, and everything in it was killed.
+        stopped.append("resource_limit")
     ran = Ran(
         argv=argv,
         exit=code,
@@ -554,11 +568,12 @@ def measure(
     cap_mb: float | None,
     interval: float = 0.25,
     cwd: str | None = None,
-    stdin: IO[Any] | None = None,
+    stdin: Any = INHERIT,
     stdout: Stream = None,
     stderr: Stream = None,
 ) -> dict[str, Any]:
-    """Runs `argv`, sampling its tree, and returns the measurement record tools/measure.py writes."""
+    """Runs `argv`, sampling its tree, and returns the measurement record tools/measure.py writes. The command
+    reads this process's stdin unless `stdin` says otherwise, as it would run alone."""
     started = now()
     before = memory()
     r = run(

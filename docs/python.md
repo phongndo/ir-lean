@@ -57,7 +57,7 @@ record, `ir-lean.measurement/1`, as before. The `irlean` test checks the library
 
 ### What changed in how a command runs
 
-`proc.run` keeps what each of the runners it replaces did, and does three things some of them didn't:
+`proc.run` keeps what each of the runners it replaces did, and does four things some of them didn't:
 
 - It waits for a command without reaping it, then stops the timer and the sampler and kills its group, and only then
   reaps it. A runner that reaped first could, in principle, kill a process that had since been given the same pid.
@@ -65,3 +65,6 @@ record, `ir-lean.measurement/1`, as before. The `irlean` test checks the library
   exits, not when everything it started closes its output.
 - Output comes back as bytes, decoded with replacement where text is asked for, rather than failing on bytes that
   aren't UTF-8.
+- A systemd scope gets `OOMPolicy=kill`, so past its cap the kernel kills everything in it at once, and the result says
+  `resource_limit`. Without it, the OOM killer killed one process, and a parent that ignored the child it lost could
+  exit 0, which a test on 2026-11-09 reproduced. `tools/binding.py`'s scopes didn't have it.
