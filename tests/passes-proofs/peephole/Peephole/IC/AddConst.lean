@@ -334,7 +334,7 @@ theorem isConstant_cases {t : Term w} (h : t.isConstant = true) (hu : t.hasUndef
 /-! ### The rewrites, one theorem each -/
 
 /-- `IC.AddSub.foldAddWithConstant.L874`: `add (sub C1, X), C2` to `sub (C1 + C2), X`. -/
-theorem foldAddWithConstant.L874 (ρ : Env) (op0 op1 c1 x : Term w) (f : Flags) (nsw nuw : Bool)
+theorem AddSub.foldAddWithConstant.L874 (ρ : Env) (op0 op1 c1 x : Term w) (f : Flags) (nsw nuw : Bool)
     (c0 : op0.Consistent ρ) (h : binop? .sub op0 = some (f, c1, x)) :
     Refines ((IS.addSrc op0 op1 nsw nuw).eval ρ) ((Repl.bin .sub {} (constAdd c1 op1) (.old x)).eval ρ) := by
   refine refines_of_eval (IS.addSrc_eval ρ op0 op1 nsw nuw) (by rw [eval_bin, constAdd_eval]; rfl) ?_
@@ -342,7 +342,7 @@ theorem foldAddWithConstant.L874 (ρ : Env) (op0 op1 c1 x : Term w) (f : Flags) 
   exact Lemmas.add_sub_left_refines _ _ _ _ _ _ _
 
 /-- `IC.AddSub.foldAddWithConstant.L881`: `add (sub X, Y), -1` to `add (not Y), X`. -/
-theorem foldAddWithConstant.L881 (ρ : Env) (op0 op1 x y : Term w) (f : Flags) (nsw nuw : Bool)
+theorem AddSub.foldAddWithConstant.L881 (ρ : Env) (op0 op1 x y : Term w) (f : Flags) (nsw nuw : Bool)
     (c0 : op0.Consistent ρ) (h : binop? .sub op0 = some (f, x, y)) (hk : allOnes op1 = true) :
     Refines ((IS.addSrc op0 op1 nsw nuw).eval ρ) ((Repl.bin .add {} (notOf y) (.old x)).eval ρ) := by
   refine refines_of_eval (IS.addSrc_eval ρ op0 op1 nsw nuw) (by rw [eval_bin, notOf_eval]; rfl) ?_
@@ -350,7 +350,7 @@ theorem foldAddWithConstant.L881 (ρ : Env) (op0 op1 x y : Term w) (f : Flags) (
   exact Lemmas.add_sub_allOnes_refines _ _ _ _ _ _
 
 /-- `IC.AddSub.foldAddWithConstant.L886`: `zext(bool) + C` to `select bool, C + 1, C`. -/
-theorem foldAddWithConstant.L886 (ρ : Env) (op0 op1 : Term w) (x : Term 1) (nsw nuw : Bool)
+theorem AddSub.foldAddWithConstant.L886 (ρ : Env) (op0 op1 : Term w) (x : Term 1) (nsw nuw : Bool)
     (c0 : op0.Consistent ρ) (h : zextBool? op0 = some x) :
     Refines ((IS.addSrc op0 op1 nsw nuw).eval ρ)
       ((Repl.select (.old x) (constAdd op1 (.const 1#w)) (.old op1)).eval ρ) := by
@@ -361,7 +361,7 @@ theorem foldAddWithConstant.L886 (ρ : Env) (op0 op1 : Term w) (x : Term 1) (nsw
   exact Lemmas.add_zext_bool_refines _ _ _ _ _
 
 /-- `IC.AddSub.foldAddWithConstant.L891`: `sext(bool) + C` to `select bool, C - 1, C`. -/
-theorem foldAddWithConstant.L891 (ρ : Env) (op0 op1 : Term w) (x : Term 1) (nsw nuw : Bool)
+theorem AddSub.foldAddWithConstant.L891 (ρ : Env) (op0 op1 : Term w) (x : Term 1) (nsw nuw : Bool)
     (c0 : op0.Consistent ρ) (h : sextBool? op0 = some x) :
     Refines ((IS.addSrc op0 op1 nsw nuw).eval ρ)
       ((Repl.select (.old x) (constSub op1 (.const 1#w)) (.old op1)).eval ρ) := by
@@ -388,7 +388,7 @@ theorem not?_denote {ρ : Env} {t x : Term w} (h : not? t = some x) (hc : t.Cons
 /-- `IC.AddSub.foldAddWithConstant.L902`: `~X + C` to `(C - 1) - X`, `nsw` if the `add` has it and `C - 1` doesn't
 overflow. At `i1` this is wrong with `nsw`, so the theorem assumes the `add` isn't an `i1` or has no `nsw`, which
 `visitAdd.sound` shows: `simplifyAddInst` answers for every `i1` `add` first. -/
-theorem foldAddWithConstant.L902 (ρ : Env) (op0 op1 x : Term w) (nsw nuw : Bool) (c0 : op0.Consistent ρ)
+theorem AddSub.foldAddWithConstant.L902 (ρ : Env) (op0 op1 x : Term w) (nsw nuw : Bool) (c0 : op0.Consistent ρ)
     (u1 : op1.hasUndef = false) (hc : op1.isConstant = true) (hw : w ≠ 1 ∨ nsw = false) (h : not? op0 = some x) :
     Refines ((IS.addSrc op0 op1 nsw nuw).eval ρ)
       ((Repl.bin .sub { nsw := nsw && willNotOverflowSignedSubOne op1 } (constSub op1 (.const 1#w)) (.old x)).eval ρ) := by
@@ -401,7 +401,7 @@ theorem foldAddWithConstant.L902 (ρ : Env) (op0 op1 x : Term w) (nsw nuw : Bool
     exact Refine.val_none _
 
 /-- `IC.AddSub.foldAddWithConstant.L911`: `(X s>> (N - 1)) + 1` to `zext (X > -1)`. -/
-theorem foldAddWithConstant.L911 (ρ : Env) (op0 op1 x s : Term w) (f : Flags) (nsw nuw : Bool)
+theorem AddSub.foldAddWithConstant.L911 (ρ : Env) (op0 op1 x s : Term w) (f : Flags) (nsw nuw : Bool)
     (c0 : op0.Consistent ρ) (u0 : op0.hasUndef = false) (h : binop? .ashr op0 = some (f, x, s))
     (hs : cst (· == BitVec.ofNat w (w - 1)) s = true) (h1 : one op1 = true) :
     Refines ((IS.addSrc op0 op1 nsw nuw).eval ρ) ((Repl.zext false (isNotNegOf x)).eval ρ) := by
@@ -412,7 +412,7 @@ theorem foldAddWithConstant.L911 (ρ : Env) (op0 op1 x s : Term w) (f : Flags) (
   exact Lemmas.add_ashr_sign_one_refines _ _ _ _
 
 /-- `IC.AddSub.foldAddWithConstant.L924`: `(X | C1) + C` to `X + (C1 + C)` for a disjoint `or`. -/
-theorem foldAddWithConstant.L924 (ρ : Env) (op0 op1 x c01 : Term w) (f : Flags) (k : BitVec w) (nsw nuw : Bool)
+theorem AddSub.foldAddWithConstant.L924 (ρ : Env) (op0 op1 x c01 : Term w) (f : Flags) (k : BitVec w) (nsw nuw : Bool)
     (c0 : op0.Consistent ρ) (u0 : op0.hasUndef = false) (h : binop? .or op0 = some (f, x, c01))
     (hd : f.disjoint = true) (hc : c01.isConstant = true) (hk : apint op1 = some k) :
     Refines ((IS.addSrc op0 op1 nsw nuw).eval ρ)
@@ -432,7 +432,7 @@ theorem foldAddWithConstant.L924 (ρ : Env) (op0 op1 x c01 : Term w) (f : Flags)
     exact Refine.val_none _
 
 /-- `IC.AddSub.foldAddWithConstant.L930`: `(X | C2) + C` to `(X | C2) ^ C2` where `C2 == -C`. -/
-theorem foldAddWithConstant.L930 (ρ : Env) (op0 op1 x c2t : Term w) (f : Flags) (k c2 : BitVec w) (nsw nuw : Bool)
+theorem AddSub.foldAddWithConstant.L930 (ρ : Env) (op0 op1 x c2t : Term w) (f : Flags) (k c2 : BitVec w) (nsw nuw : Bool)
     (c0 : op0.Consistent ρ) (h : binop? .or op0 = some (f, x, c2t)) (h2 : apint c2t = some c2) (he : c2 = -k)
     (hk : apint op1 = some k) :
     Refines ((IS.addSrc op0 op1 nsw nuw).eval ρ) ((Repl.bin .xor {} (.old op0) (.const c2)).eval ρ) := by
@@ -446,7 +446,7 @@ theorem foldAddWithConstant.L930 (ρ : Env) (op0 op1 x c2t : Term w) (f : Flags)
   exact Lemmas.add_or_neg_refines _ k _ _ _
 
 /-- `IC.AddSub.foldAddWithConstant.L936`: `X + signmask` to `X | signmask`, disjoint, with `nsw` or `nuw`. -/
-theorem foldAddWithConstant.L936 (ρ : Env) (op0 op1 : Term w) (nsw nuw : Bool)
+theorem AddSub.foldAddWithConstant.L936 (ρ : Env) (op0 op1 : Term w) (nsw nuw : Bool)
     (hk : apint op1 = some (BitVec.intMin w)) (hf : (nsw || nuw) = true) :
     Refines ((IS.addSrc op0 op1 nsw nuw).eval ρ)
       ((Repl.bin .or { disjoint := true } (.old op0) (.old op1)).eval ρ) := by
@@ -455,7 +455,7 @@ theorem foldAddWithConstant.L936 (ρ : Env) (op0 op1 : Term w) (nsw nuw : Bool)
   exact Lemmas.add_signMask_disjoint_refines _ _ _ (by rw [Bool.or_comm]; exact hf)
 
 /-- `IC.AddSub.foldAddWithConstant.L940`: `X + signmask` to `X ^ signmask`. -/
-theorem foldAddWithConstant.L940 (ρ : Env) (op0 op1 : Term w) (nsw nuw : Bool)
+theorem AddSub.foldAddWithConstant.L940 (ρ : Env) (op0 op1 : Term w) (nsw nuw : Bool)
     (hk : apint op1 = some (BitVec.intMin w)) :
     Refines ((IS.addSrc op0 op1 nsw nuw).eval ρ) ((Repl.bin .xor {} (.old op0) (.old op1)).eval ρ) := by
   obtain rfl := const_of_apint hk
@@ -463,7 +463,7 @@ theorem foldAddWithConstant.L940 (ρ : Env) (op0 op1 : Term w) (nsw nuw : Bool)
   exact Lemmas.add_signMask_xor_refines _ _ _
 
 /-- `IC.AddSub.foldAddWithConstant.L952`: `(X ^ signmask) + C` to `X + (signmask ^ C)`. -/
-theorem foldAddWithConstant.L952 (ρ : Env) (op0 op1 x : Term w) (k : BitVec w) (nsw nuw : Bool)
+theorem AddSub.foldAddWithConstant.L952 (ρ : Env) (op0 op1 x : Term w) (k : BitVec w) (nsw nuw : Bool)
     (c0 : op0.Consistent ρ) (h : xorConst? op0 = some (x, BitVec.intMin w)) (hk : apint op1 = some k) :
     Refines ((IS.addSrc op0 op1 nsw nuw).eval ρ)
       ((Repl.bin .add {} (.old x) (.const (BitVec.intMin w ^^^ k))).eval ρ) := by
@@ -476,7 +476,7 @@ theorem foldAddWithConstant.L952 (ρ : Env) (op0 op1 x : Term w) (k : BitVec w) 
 
 /-- `IC.AddSub.foldAddWithConstant.L959`: `(X ^ C2) + C` to `(C2 + C) - X`, where `computeKnownBits` knows every
 bit of `X` outside `C2` is zero. -/
-theorem foldAddWithConstant.L959 (ρ : Env) (o : Oracle) (ho : o.Sound ρ) (op0 op1 x : Term w) (k c2 : BitVec w)
+theorem AddSub.foldAddWithConstant.L959 (ρ : Env) (o : Oracle) (ho : o.Sound ρ) (op0 op1 x : Term w) (k c2 : BitVec w)
     (nsw nuw : Bool) (c0 : op0.Consistent ρ) (h : xorConst? op0 = some (x, c2))
     (hz : (c2 ||| o.knownZero x) = BitVec.allOnes w) (hk : apint op1 = some k) :
     Refines ((IS.addSrc op0 op1 nsw nuw).eval ρ) ((Repl.bin .sub {} (.const (c2 + k)) (.old x)).eval ρ) := by
@@ -502,7 +502,7 @@ theorem foldAddWithConstant.L959 (ρ : Env) (o : Oracle) (ho : o.Sound ρ) (op0 
     exact Lemmas.add_xor_mask_refines hm k nuw nsw
 
 /-- `IC.AddSub.foldAddWithConstant.L989`: `sext(bool) + 1` to `zext (not bool)`. -/
-theorem foldAddWithConstant.L989 (ρ : Env) (op0 op1 : Term w) (x : Term 1) (nsw nuw : Bool)
+theorem AddSub.foldAddWithConstant.L989 (ρ : Env) (op0 op1 : Term w) (x : Term 1) (nsw nuw : Bool)
     (c0 : op0.Consistent ρ) (h : sextBool? op0 = some x) (hk : apint op1 = some 1#w) :
     Refines ((IS.addSrc op0 op1 nsw nuw).eval ρ) ((Repl.zext false (notOf x)).eval ρ) := by
   obtain rfl := const_of_apint hk
@@ -513,7 +513,7 @@ theorem foldAddWithConstant.L989 (ρ : Env) (op0 op1 : Term w) (x : Term 1) (nsw
   exact Lemmas.add_sext_bool_one_refines _ _ _
 
 /-- `IC.AddSub.foldAddWithConstant.L997`: `ashr (shl X, N - 1), N - 1` plus 1 to `~X & 1`. -/
-theorem foldAddWithConstant.L997 (ρ : Env) (op0 op1 x : Term w) (c2 c3 : BitVec w) (nsw nuw : Bool)
+theorem AddSub.foldAddWithConstant.L997 (ρ : Env) (op0 op1 x : Term w) (c2 c3 : BitVec w) (nsw nuw : Bool)
     (c0 : op0.Consistent ρ) (h : ashrShl? op0 = some (x, c2, c3)) (he : c2 = c3) (hn : c2.toNat = w - 1)
     (hk : apint op1 = some 1#w) :
     Refines ((IS.addSrc op0 op1 nsw nuw).eval ρ) ((Repl.bin .and {} (notOf x) (.const 1#w)).eval ρ) := by
@@ -536,7 +536,7 @@ theorem foldAddWithConstant.L997 (ρ : Env) (op0 op1 x : Term w) (c2 c3 : BitVec
   exact Lemmas.add_ashr_shl_sign_one_refines _ _ _ _ _ _
 
 /-- `IC.AddSub.foldAddWithConstant.L1003`: `umax(X, -C) + C` to `usub.sat(X, -C)`. -/
-theorem foldAddWithConstant.L1003 (ρ : Env) (op0 op1 x d : Term w) (id : Nat) (k : BitVec w) (nsw nuw : Bool)
+theorem AddSub.foldAddWithConstant.L1003 (ρ : Env) (op0 op1 x d : Term w) (id : Nat) (k : BitVec w) (nsw nuw : Bool)
     (c0 : op0.Consistent ρ) (u0 : op0.hasUndef = false) (h0 : op0 = .bi id .umax x d)
     (hd : cst (· == -k) d = true) (hk : apint op1 = some k) :
     Refines ((IS.addSrc op0 op1 nsw nuw).eval ρ) ((usubSatOf x (-k)).eval ρ) := by
@@ -550,7 +550,7 @@ theorem foldAddWithConstant.L1003 (ρ : Env) (op0 op1 x d : Term w) (id : Nat) (
 
 /-- `IC.AddSub.foldAddWithConstant.L1020`: `zext (X + -C) + C` to `zext X`, where `X u>= C` by `isKnownNonZero` for
 `C = 1` and by the least value `computeKnownBits` allows otherwise. -/
-theorem foldAddWithConstant.L1020 (ρ : Env) (o : Oracle) (ho : o.Sound ρ) (op0 op1 : Term w) {v : Nat}
+theorem AddSub.foldAddWithConstant.L1020 (ρ : Env) (o : Oracle) (ho : o.Sound ρ) (op0 op1 : Term w) {v : Nat}
     (x : Term v) (ic k : BitVec v) (k' : BitVec w) (nsw nuw : Bool) (c0 : op0.Consistent ρ)
     (h : zextBinConst? .add op0 = some ⟨v, x, ic⟩) (hk : apint op1 = some k')
     (hfit : k'.toNat < 2 ^ v) (hkv : k = k'.setWidth v) (hic : ic = -k)
@@ -591,7 +591,7 @@ theorem foldAddWithConstant.L1020 (ρ : Env) (o : Oracle) (ho : o.Sound ρ) (op0
     exact Lemmas.add_zext_add_neg_refines hle _ _ _ _ _
 
 /-- `IC.AddSub.foldAddWithConstant.L947`: `add (zext (xor X, signmask)), sext(signmask)` to `sext X`. -/
-theorem foldAddWithConstant.L947 (ρ : Env) (op0 op1 : Term w) {v : Nat} (x : Term v) (c2 : BitVec v) (k : BitVec w)
+theorem AddSub.foldAddWithConstant.L947 (ρ : Env) (op0 op1 : Term w) {v : Nat} (x : Term v) (c2 : BitVec v) (k : BitVec w)
     (nsw nuw : Bool) (c0 : op0.Consistent ρ) (h : zextBinConst? .xor op0 = some ⟨v, x, c2⟩)
     (hm : c2 = BitVec.intMin v) (hs : c2.signExtend w = k) (hk : apint op1 = some k) :
     Refines ((IS.addSrc op0 op1 nsw nuw).eval ρ) ((Repl.sext (w := w) (.old x)).eval ρ) := by
@@ -630,7 +630,7 @@ theorem sextShAmt_spec {k c2 : BitVec w} (he : c2 = -k) (hs : sextShAmt k c2 ≠
 
 /-- `IC.AddSub.foldAddWithConstant.L976`: `(X ^ C2) + -C2` to `ashr (shl X, S), S`, where one of `C` and `C2` is
 `2^j`, `S = w - 1 - j`, and `computeKnownBits` knows every bit of `X` above `j` is zero. -/
-theorem foldAddWithConstant.L976 (ρ : Env) (o : Oracle) (ho : o.Sound ρ) (op0 op1 x : Term w) (k c2 : BitVec w)
+theorem AddSub.foldAddWithConstant.L976 (ρ : Env) (o : Oracle) (ho : o.Sound ρ) (op0 op1 x : Term w) (k c2 : BitVec w)
     (nsw nuw : Bool) (c0 : op0.Consistent ρ) (u0 : op0.hasUndef = false) (h : xorConst? op0 = some (x, c2))
     (he : c2 = -k) (hs : sextShAmt k c2 ≠ 0)
     (hz : (o.knownZero x &&& highBits w (sextShAmt k c2)) = highBits w (sextShAmt k c2)) (hk : apint op1 = some k) :
@@ -683,7 +683,7 @@ theorem foldAddWithConstant.apSteps_sound (ρ : Env) (c : Ctx) (o : Oracle) (ho 
         simp only [Step.fire.injEq] at h
         obtain ⟨-, rfl⟩ := h
         simp only [Bool.and_eq_true] at hc
-        exact foldAddWithConstant.L924 ρ op0 op1 x c01 f k nsw nuw c0 u0 hb hc.1 hc.2 hk
+        exact AddSub.foldAddWithConstant.L924 ρ op0 op1 x c01 f k nsw nuw c0 u0 hb hc.1 hc.2 hk
       · cases h
     · cases h
   · -- L930
@@ -695,7 +695,7 @@ theorem foldAddWithConstant.apSteps_sound (ρ : Env) (c : Ctx) (o : Oracle) (ho 
         · next he =>
           simp only [Step.fire.injEq] at h
           obtain ⟨-, rfl⟩ := h
-          exact foldAddWithConstant.L930 ρ op0 op1 x c2t f k c2 nsw nuw c0 hb h2 he hk
+          exact AddSub.foldAddWithConstant.L930 ρ op0 op1 x c2t f k c2 nsw nuw c0 hb h2 he hk
         · cases h
       · cases h
     · cases h
@@ -706,7 +706,7 @@ theorem foldAddWithConstant.apSteps_sound (ρ : Env) (c : Ctx) (o : Oracle) (ho 
       obtain ⟨-, rfl⟩ := h
       simp only [Bool.and_eq_true, decide_eq_true_eq] at hc
       obtain ⟨rfl, hf⟩ := hc
-      exact foldAddWithConstant.L936 ρ op0 op1 nsw nuw hk hf
+      exact AddSub.foldAddWithConstant.L936 ρ op0 op1 nsw nuw hk hf
     · cases h
   · -- L940
     split at h
@@ -714,7 +714,7 @@ theorem foldAddWithConstant.apSteps_sound (ρ : Env) (c : Ctx) (o : Oracle) (ho 
       simp only [Step.fire.injEq] at h
       obtain ⟨-, rfl⟩ := h
       subst hc
-      exact foldAddWithConstant.L940 ρ op0 op1 nsw nuw hk
+      exact AddSub.foldAddWithConstant.L940 ρ op0 op1 nsw nuw hk
     · cases h
   · -- L947
     split at h
@@ -724,7 +724,7 @@ theorem foldAddWithConstant.apSteps_sound (ρ : Env) (c : Ctx) (o : Oracle) (ho 
         simp only [Step.fire.injEq] at h
         obtain ⟨-, rfl⟩ := h
         simp only [Bool.and_eq_true, decide_eq_true_eq] at hc
-        exact foldAddWithConstant.L947 ρ op0 op1 x c2 k nsw nuw c0 hz hc.1 hc.2 hk
+        exact AddSub.foldAddWithConstant.L947 ρ op0 op1 x c2 k nsw nuw c0 hz hc.1 hc.2 hk
       · cases h
     · cases h
   · -- L952
@@ -735,7 +735,7 @@ theorem foldAddWithConstant.apSteps_sound (ρ : Env) (c : Ctx) (o : Oracle) (ho 
         simp only [Step.fire.injEq] at h
         obtain ⟨-, rfl⟩ := h
         subst hc
-        exact foldAddWithConstant.L952 ρ op0 op1 x k nsw nuw c0 hx hk
+        exact AddSub.foldAddWithConstant.L952 ρ op0 op1 x k nsw nuw c0 hx hk
       · cases h
     · cases h
   · -- L959
@@ -745,7 +745,7 @@ theorem foldAddWithConstant.apSteps_sound (ρ : Env) (c : Ctx) (o : Oracle) (ho 
       · next hc =>
         simp only [Step.fire.injEq] at h
         obtain ⟨-, rfl⟩ := h
-        exact foldAddWithConstant.L959 ρ o ho op0 op1 x k c2 nsw nuw c0 hx hc hk
+        exact AddSub.foldAddWithConstant.L959 ρ o ho op0 op1 x k c2 nsw nuw c0 hx hc hk
       · cases h
     · cases h
   · -- L976
@@ -757,7 +757,7 @@ theorem foldAddWithConstant.apSteps_sound (ρ : Env) (c : Ctx) (o : Oracle) (ho 
         obtain ⟨-, rfl⟩ := h
         simp only [Bool.and_eq_true, decide_eq_true_eq, bne_iff_ne, ne_eq] at hc
         obtain ⟨⟨⟨-, he⟩, hs⟩, hz⟩ := hc
-        exact foldAddWithConstant.L976 ρ o ho op0 op1 x k c2 nsw nuw c0 u0 hx he hs hz hk
+        exact AddSub.foldAddWithConstant.L976 ρ o ho op0 op1 x k c2 nsw nuw c0 u0 hx he hs hz hk
       · cases h
     · cases h
   · -- L989
@@ -769,7 +769,7 @@ theorem foldAddWithConstant.apSteps_sound (ρ : Env) (c : Ctx) (o : Oracle) (ho 
       · next x hx =>
         simp only [Step.fire.injEq] at h
         obtain ⟨-, rfl⟩ := h
-        exact foldAddWithConstant.L989 ρ op0 op1 x nsw nuw c0 hx hk
+        exact AddSub.foldAddWithConstant.L989 ρ op0 op1 x nsw nuw c0 hx hk
       · cases h
     · cases h
   · -- L997
@@ -784,7 +784,7 @@ theorem foldAddWithConstant.apSteps_sound (ρ : Env) (c : Ctx) (o : Oracle) (ho 
           simp only [Step.fire.injEq] at h
           obtain ⟨-, rfl⟩ := h
           simp only [Bool.and_eq_true, decide_eq_true_eq] at he
-          exact foldAddWithConstant.L997 ρ op0 op1 x c2 c3 nsw nuw c0 hx he.1 he.2 hk
+          exact AddSub.foldAddWithConstant.L997 ρ op0 op1 x c2 c3 nsw nuw c0 hx he.1 he.2 hk
         · cases h
       · cases h
     · cases h
@@ -796,7 +796,7 @@ theorem foldAddWithConstant.apSteps_sound (ρ : Env) (c : Ctx) (o : Oracle) (ho 
         simp only [Step.fire.injEq] at h
         obtain ⟨-, rfl⟩ := h
         simp only [Bool.and_eq_true] at hc
-        exact foldAddWithConstant.L1003 ρ _ op1 x d id k nsw nuw c0 u0 rfl hc.2 hk
+        exact AddSub.foldAddWithConstant.L1003 ρ _ op1 x d id k nsw nuw c0 u0 rfl hc.2 hk
       · cases h
     · cases h
   · -- L1020
@@ -808,7 +808,7 @@ theorem foldAddWithConstant.apSteps_sound (ρ : Env) (c : Ctx) (o : Oracle) (ho 
         obtain ⟨-, rfl⟩ := h
         simp only [Bool.and_eq_true, decide_eq_true_eq] at hc
         obtain ⟨⟨hfit, hic⟩, hx⟩ := hc
-        exact foldAddWithConstant.L1020 ρ o ho op0 op1 x ic (k.setWidth v) k nsw nuw c0 hz hk hfit rfl hic hx
+        exact AddSub.foldAddWithConstant.L1020 ρ o ho op0 op1 x ic (k.setWidth v) k nsw nuw c0 hz hk hfit rfl hic hx
       · cases h
     · cases h
 
@@ -836,7 +836,7 @@ theorem foldAddWithConstant.sound (ρ : Env) (c : Ctx) (o : Oracle) (ho : o.Soun
           split at h
           · simp only [Step.fire.injEq] at h
             obtain ⟨-, rfl⟩ := h
-            exact foldAddWithConstant.L874 ρ op0 op1 c1' x f nsw nuw c0 hb
+            exact AddSub.foldAddWithConstant.L874 ρ op0 op1 c1' x f nsw nuw c0 hb
           · cases h
         · cases h
       · -- L881
@@ -846,7 +846,7 @@ theorem foldAddWithConstant.sound (ρ : Env) (c : Ctx) (o : Oracle) (ho : o.Soun
           · next ha =>
             simp only [Step.fire.injEq] at h
             obtain ⟨-, rfl⟩ := h
-            exact foldAddWithConstant.L881 ρ op0 op1 x y f nsw nuw c0 (binop1?_eq hb) ha
+            exact AddSub.foldAddWithConstant.L881 ρ op0 op1 x y f nsw nuw c0 (binop1?_eq hb) ha
           · cases h
         · cases h
       · -- L886
@@ -854,21 +854,21 @@ theorem foldAddWithConstant.sound (ρ : Env) (c : Ctx) (o : Oracle) (ho : o.Soun
         · next x hx =>
           simp only [Step.fire.injEq] at h
           obtain ⟨-, rfl⟩ := h
-          exact foldAddWithConstant.L886 ρ op0 op1 x nsw nuw c0 hx
+          exact AddSub.foldAddWithConstant.L886 ρ op0 op1 x nsw nuw c0 hx
         · cases h
       · -- L891
         split at h
         · next x hx =>
           simp only [Step.fire.injEq] at h
           obtain ⟨-, rfl⟩ := h
-          exact foldAddWithConstant.L891 ρ op0 op1 x nsw nuw c0 hx
+          exact AddSub.foldAddWithConstant.L891 ρ op0 op1 x nsw nuw c0 hx
         · cases h
       · -- L902
         split at h
         · next x hx =>
           simp only [Step.fire.injEq] at h
           obtain ⟨-, rfl⟩ := h
-          exact foldAddWithConstant.L902 ρ op0 op1 x nsw nuw c0 u1 hc hw hx
+          exact AddSub.foldAddWithConstant.L902 ρ op0 op1 x nsw nuw c0 u1 hc hw hx
         · cases h
       · -- L911
         split at h
@@ -878,7 +878,7 @@ theorem foldAddWithConstant.sound (ρ : Env) (c : Ctx) (o : Oracle) (ho : o.Soun
             simp only [Step.fire.injEq] at h
             obtain ⟨-, rfl⟩ := h
             simp only [Bool.and_eq_true] at hs
-            exact foldAddWithConstant.L911 ρ op0 op1 x sh f nsw nuw c0 u0 (binop1?_eq hb) hs.1 hs.2
+            exact AddSub.foldAddWithConstant.L911 ρ op0 op1 x sh f nsw nuw c0 u0 (binop1?_eq hb) hs.1 hs.2
           · cases h
         · cases h
     · split at hmem

@@ -1,0 +1,327 @@
+{
+  "schema": "ir-lean.peephole.comparison/1",
+  "family": "ic-add",
+  "registry": "tests/passes-proofs/peephole/folds/ic-add.json",
+  "sources": "c498b851b1158a60ca36c6f6e18c694e750b2b0b975a063d00fd33a2388a2a4f",
+  "opt": "23.1.3",
+  "date": "2026-11-09",
+  "status": "ok",
+  "cases": {
+    "cases": 22376,
+    "harvested": 2800,
+    "generated": 19576,
+    "compared": 4319,
+    "matched": 3675,
+    "agreed_no_fold": 644,
+    "fired_new_ir": 0,
+    "mismatched": 0,
+    "delegated": 10684,
+    "analysis": 0,
+    "unexplained": 0,
+    "operand_changed": 7373
+  },
+  "delegated_to": {
+    "ConstantFoldBinaryOpOperands": 1160,
+    "SimplifyAssociativeOrCommutative": 1708,
+    "factorizeMathWithShlOps": 10,
+    "foldUsingDistributiveLaws": 692,
+    "simplifyAssociativeBinOp": 1138,
+    "simplifyXorInst": 772,
+    "visitAdd": 5204
+  },
+  "regression_tests": {
+    "read": 1673,
+    "unread": 0
+  },
+  "sites": {
+    "IC.AddSub.foldAddWithConstant.L1003": {
+      "fired": 1,
+      "matched": 1,
+      "mismatched": 0,
+      "analysis": 0,
+      "fired_without_undef": 1,
+      "matched_without_undef": 1,
+      "files": [
+        "saturating-add-sub.ll"
+      ],
+      "registered": true
+    },
+    "IC.AddSub.foldAddWithConstant.L874": {
+      "fired": 74,
+      "matched": 74,
+      "mismatched": 0,
+      "analysis": 0,
+      "fired_without_undef": 74,
+      "matched_without_undef": 74,
+      "files": [
+        "addsub-constant-folding.ll"
+      ],
+      "registered": true
+    },
+    "IC.AddSub.foldAddWithConstant.L881": {
+      "fired": 9,
+      "matched": 9,
+      "mismatched": 0,
+      "analysis": 0,
+      "fired_without_undef": 9,
+      "matched_without_undef": 9,
+      "files": [
+        "sub-not.ll"
+      ],
+      "registered": true
+    },
+    "IC.AddSub.foldAddWithConstant.L886": {
+      "fired": 8,
+      "matched": 8,
+      "mismatched": 0,
+      "analysis": 0,
+      "fired_without_undef": 8,
+      "matched_without_undef": 8,
+      "files": [
+        "icmp-div-constant.ll",
+        "zext-bool-add-sub.ll"
+      ],
+      "registered": true
+    },
+    "IC.AddSub.foldAddWithConstant.L891": {
+      "fired": 4,
+      "matched": 4,
+      "mismatched": 0,
+      "analysis": 0,
+      "fired_without_undef": 4,
+      "matched_without_undef": 4,
+      "files": [
+        "add.ll",
+        "preserve-profile.ll"
+      ],
+      "registered": true
+    },
+    "IC.AddSub.foldAddWithConstant.L902": {
+      "fired": 84,
+      "matched": 84,
+      "mismatched": 0,
+      "analysis": 0,
+      "fired_without_undef": 84,
+      "matched_without_undef": 84,
+      "files": [
+        "add.ll",
+        "fold-inc-of-add-of-not-x-and-y-to-sub-x-from-y.ll",
+        "pr14365.ll"
+      ],
+      "registered": true
+    },
+    "IC.AddSub.foldAddWithConstant.L911": {
+      "fired": 1,
+      "matched": 1,
+      "mismatched": 0,
+      "analysis": 0,
+      "fired_without_undef": 1,
+      "matched_without_undef": 1,
+      "files": [
+        "add.ll"
+      ],
+      "registered": true
+    },
+    "IC.AddSub.foldAddWithConstant.L924": {
+      "fired": 10,
+      "matched": 10,
+      "mismatched": 0,
+      "analysis": 0,
+      "fired_without_undef": 10,
+      "matched_without_undef": 10,
+      "files": [
+        "add.ll"
+      ],
+      "registered": true
+    },
+    "IC.AddSub.foldAddWithConstant.L930": {
+      "fired": 2,
+      "matched": 2,
+      "mismatched": 0,
+      "analysis": 0,
+      "fired_without_undef": 2,
+      "matched_without_undef": 2,
+      "files": [
+        "add.ll"
+      ],
+      "registered": true
+    },
+    "IC.AddSub.foldAddWithConstant.L936": {
+      "fired": 148,
+      "matched": 148,
+      "mismatched": 0,
+      "analysis": 0,
+      "fired_without_undef": 148,
+      "matched_without_undef": 148,
+      "files": [
+        "add.ll",
+        "icmp-add.ll"
+      ],
+      "registered": true
+    },
+    "IC.AddSub.foldAddWithConstant.L940": {
+      "fired": 64,
+      "matched": 64,
+      "mismatched": 0,
+      "analysis": 0,
+      "fired_without_undef": 64,
+      "matched_without_undef": 64,
+      "files": [
+        "add.ll",
+        "apint-add.ll",
+        "fold-inc-of-add-of-not-x-and-y-to-sub-x-from-y.ll",
+        "saturating-add-sub.ll",
+        "shift-add.ll"
+      ],
+      "registered": true
+    },
+    "IC.AddSub.foldAddWithConstant.L947": {
+      "fired": 2,
+      "matched": 2,
+      "mismatched": 0,
+      "analysis": 0,
+      "fired_without_undef": 2,
+      "matched_without_undef": 2,
+      "files": [
+        "apint-add.ll"
+      ],
+      "registered": true
+    },
+    "IC.AddSub.foldAddWithConstant.L952": {
+      "fired": 58,
+      "matched": 58,
+      "mismatched": 0,
+      "analysis": 0,
+      "fired_without_undef": 58,
+      "matched_without_undef": 58,
+      "files": [
+        "add.ll"
+      ],
+      "registered": true
+    },
+    "IS.simplifyAddInst.L601": {
+      "fired": 626,
+      "matched": 626,
+      "mismatched": 0,
+      "analysis": 0,
+      "fired_without_undef": 626,
+      "matched_without_undef": 626,
+      "files": [
+        "canonicalize-const-to-bop.ll"
+      ],
+      "registered": false
+    },
+    "IS.simplifyAddInst.L605": {
+      "fired": 626,
+      "matched": 626,
+      "mismatched": 0,
+      "analysis": 0,
+      "fired_without_undef": 0,
+      "matched_without_undef": 0,
+      "files": [
+        "select-imm-canon.ll"
+      ],
+      "registered": false
+    },
+    "IS.simplifyAddInst.L609": {
+      "fired": 638,
+      "matched": 638,
+      "mismatched": 0,
+      "analysis": 0,
+      "fired_without_undef": 638,
+      "matched_without_undef": 638,
+      "files": [
+        "2012-10-25-vector-of-pointers.ll",
+        "add.ll",
+        "annotations.ll",
+        "builtin-dynamic-object-size.ll",
+        "crash.ll",
+        "gep-canonicalize-index-constfold.ll",
+        "intrinsic-select.ll",
+        "misc-2002.ll",
+        "pr44242.ll",
+        "sdiv-2.ll",
+        "store.ll",
+        "unsigned_saturated_sub.ll"
+      ],
+      "registered": false
+    },
+    "IS.simplifyAddInst.L613": {
+      "fired": 416,
+      "matched": 416,
+      "mismatched": 0,
+      "analysis": 0,
+      "fired_without_undef": 416,
+      "matched_without_undef": 416,
+      "files": [],
+      "registered": false
+    },
+    "IS.simplifyAddInst.L621": {
+      "fired": 258,
+      "matched": 258,
+      "mismatched": 0,
+      "analysis": 0,
+      "fired_without_undef": 258,
+      "matched_without_undef": 258,
+      "files": [
+        "apint-sub.ll"
+      ],
+      "registered": false
+    },
+    "IS.simplifyAddInst.L626": {
+      "fired": 290,
+      "matched": 290,
+      "mismatched": 0,
+      "analysis": 0,
+      "fired_without_undef": 290,
+      "matched_without_undef": 290,
+      "files": [
+        "add.ll"
+      ],
+      "registered": false
+    },
+    "IS.simplifyAddInst.L633": {
+      "fired": 50,
+      "matched": 50,
+      "mismatched": 0,
+      "analysis": 0,
+      "fired_without_undef": 50,
+      "matched_without_undef": 50,
+      "files": [
+        "add.ll"
+      ],
+      "registered": false
+    },
+    "IS.simplifyAddInst.L637": {
+      "fired": 306,
+      "matched": 306,
+      "mismatched": 0,
+      "analysis": 0,
+      "fired_without_undef": 306,
+      "matched_without_undef": 306,
+      "files": [
+        "minmax-fold.ll",
+        "set-lowbits-mask-canonicalize.ll"
+      ],
+      "registered": false
+    }
+  },
+  "not_exercised": [
+    "IC.AddSub.foldAddWithConstant.L1020",
+    "IC.AddSub.foldAddWithConstant.L959",
+    "IC.AddSub.foldAddWithConstant.L976",
+    "IC.AddSub.foldAddWithConstant.L989",
+    "IC.AddSub.foldAddWithConstant.L997"
+  ],
+  "folds_run": {
+    "Peephole.IC.foldAddWithConstant": "h1.1",
+    "Peephole.IC.visitAdd": "h1.1",
+    "Peephole.IS.simplifyAddInst": "h1.1"
+  },
+  "folds_not_run": [],
+  "untagged": [],
+  "mismatches": [],
+  "unexplained": [],
+  "seconds": 4.9,
+  "folds_unwatchable": []
+}

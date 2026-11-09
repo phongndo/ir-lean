@@ -2,9 +2,17 @@
   "schema": "ir-lean.peephole.folds/1",
   "family": "ic-add",
   "pass": "instcombine",
-  "modules": ["Peephole.IC.Add"],
+  "modules": [
+    "Peephole.IC.Add"
+  ],
   "entries": [
-    {"fold": "Peephole.IC.visitAdd.onInst", "opcodes": ["add"], "opt": "instcombine"}
+    {
+      "fold": "Peephole.IC.visitAdd.onInst",
+      "opcodes": [
+        "add"
+      ],
+      "opt": "instcombine"
+    }
   ],
   "folds": {
     "Peephole.IC.visitAdd": {
@@ -13,10 +21,117 @@
     },
     "Peephole.IC.foldAddWithConstant": {
       "sound": "Peephole.IC.foldAddWithConstant.sound",
-      "sites": []
+      "sites": [
+        "IC.AddSub.foldAddWithConstant.L874",
+        "IC.AddSub.foldAddWithConstant.L881",
+        "IC.AddSub.foldAddWithConstant.L886",
+        "IC.AddSub.foldAddWithConstant.L891",
+        "IC.AddSub.foldAddWithConstant.L902",
+        "IC.AddSub.foldAddWithConstant.L911",
+        "IC.AddSub.foldAddWithConstant.L924",
+        "IC.AddSub.foldAddWithConstant.L930",
+        "IC.AddSub.foldAddWithConstant.L936",
+        "IC.AddSub.foldAddWithConstant.L940",
+        "IC.AddSub.foldAddWithConstant.L947",
+        "IC.AddSub.foldAddWithConstant.L952",
+        "IC.AddSub.foldAddWithConstant.L959",
+        "IC.AddSub.foldAddWithConstant.L976",
+        "IC.AddSub.foldAddWithConstant.L989",
+        "IC.AddSub.foldAddWithConstant.L997",
+        "IC.AddSub.foldAddWithConstant.L1003",
+        "IC.AddSub.foldAddWithConstant.L1020"
+      ]
     }
   },
-  "lemmas": [],
-  "rests_on": {},
-  "unproved": {}
+  "lemmas": [
+    "Peephole.Lemmas.sub_eq_xor_of_and_eq",
+    "Peephole.Lemmas.le_of_and_eq",
+    "Peephole.Lemmas.xor_comm",
+    "Peephole.Lemmas.bv1_cases",
+    "Peephole.Lemmas.toInt_not_eq",
+    "Peephole.Lemmas.sshiftRight_width_sub_one",
+    "Peephole.Lemmas.getLsbD_neg_twoPow",
+    "Peephole.Lemmas.getLsbD_twoPow_of_lt",
+    "Peephole.Lemmas.add_eq_or",
+    "Peephole.Lemmas.sshiftRight_shiftLeft_getLsbD",
+    "Peephole.Lemmas.xor_add_sext",
+    "Peephole.Lemmas.add_sub_left_refines",
+    "Peephole.Lemmas.add_sub_allOnes_refines",
+    "Peephole.Lemmas.add_zext_bool_refines",
+    "Peephole.Lemmas.signExtend_one",
+    "Peephole.Lemmas.signExtend_zero",
+    "Peephole.Lemmas.add_sext_bool_refines",
+    "Peephole.Lemmas.add_not_refines",
+    "Peephole.Lemmas.add_ashr_sign_one",
+    "Peephole.Lemmas.add_ashr_sign_one_refines",
+    "Peephole.Lemmas.add_or_disjoint_refines",
+    "Peephole.Lemmas.add_or_neg_refines",
+    "Peephole.Lemmas.add_signMask_disjoint_refines",
+    "Peephole.Lemmas.add_signMask_xor_refines",
+    "Peephole.Lemmas.add_xor_signMask_const_refines",
+    "Peephole.Lemmas.add_xor_mask_refines",
+    "Peephole.Lemmas.add_sext_bool_one_refines",
+    "Peephole.Lemmas.add_ashr_shl_sign_one_refines",
+    "Peephole.Lemmas.add_umax_refines",
+    "Peephole.Lemmas.add_zext_add_neg_refines",
+    "Peephole.Lemmas.zext_xor_intMin_add",
+    "Peephole.Lemmas.add_zext_xor_intMin_refines",
+    "Peephole.Lemmas.add_xor_sext_refines",
+    "Peephole.Lemmas.not_refines_of"
+  ],
+  "rests_on": {
+    "IC.AddSub.foldAddWithConstant.L902": [
+      "w ≠ 1 ∨ nsw = false: the add isn't an i1 or has no nsw. With nsw at i1 the rewrite is wrong: add nsw (xor %p, true), true is true for %p = true, and sub nsw false, %p is poison. Peephole.IC.visitAdd.sound discharges it, since simplifyAddInst, which visitAdd calls first, answers for every i1 add"
+    ]
+  },
+  "delegates": {
+    "simplifyXorInst": "simplifyAddInst's step for an i1 add, through Peephole.IS.simplifyAddInst",
+    "ConstantFoldBinaryOpOperands": "simplifyAddInst on two constants, through Peephole.IS.simplifyAddInst",
+    "simplifyAssociativeBinOp": "simplifyAddInst on an add operand, through Peephole.IS.simplifyAddInst",
+    "SimplifyAssociativeOrCommutative": "where it may change the add: the operands out of complexity order, a symmetric pair, or an add operand, which it reassociates when InstSimplify, not modelled here, simplifies part of it",
+    "foldBinopWithPhiOperands": "two add operands, which may be recurrences, or two phis",
+    "foldUsingDistributiveLaws": "a mul or shl-by-constant operand with the other not a constant, or a select operand",
+    "foldBoxMultiply": "an even width with a shl operand and a mul one",
+    "factorizeMathWithShlOps": "two shls by one amount, one with one use",
+    "foldBinOpIntoSelectOrPhi": "a select or phi operand 0, with a constant operand 1",
+    "foldBinOpSelectBinOp": "a select operand 0, with a constant operand 1",
+    "visitAdd": "the rest of visitAdd, from foldNoWrapAdd on, unless both operands are different arguments or constants wider than i1, where none of its steps fires"
+  },
+  "unproved": {
+    "IC.AddSub.visitAdd.L1640": "not modelled yet (an i1 add to xor): the model follows visitAdd through foldAddWithConstant and delegates the rest, from foldNoWrapAdd on, as one step, so no step of it fires this site",
+    "IC.AddSub.visitAdd.L1647": "not modelled yet (X + X to X << 1): the model follows visitAdd through foldAddWithConstant and delegates the rest, from foldNoWrapAdd on, as one step, so no step of it fires this site",
+    "IC.AddSub.visitAdd.L1654": "not modelled yet (-A + -B to -(A + B)): the model follows visitAdd through foldAddWithConstant and delegates the rest, from foldNoWrapAdd on, as one step, so no step of it fires this site",
+    "IC.AddSub.visitAdd.L1661": "not modelled yet (-A + B to B - A): the model follows visitAdd through foldAddWithConstant and delegates the rest, from foldNoWrapAdd on, as one step, so no step of it fires this site",
+    "IC.AddSub.visitAdd.L1669": "not modelled yet (A + -B to A - B): the model follows visitAdd through foldAddWithConstant and delegates the rest, from foldNoWrapAdd on, as one step, so no step of it fires this site",
+    "IC.AddSub.visitAdd.L1682": "not modelled yet ((A + 1) + ~B to A - B): the model follows visitAdd through foldAddWithConstant and delegates the rest, from foldNoWrapAdd on, as one step, so no step of it fires this site",
+    "IC.AddSub.visitAdd.L1697": "not modelled yet ((A + C) + ~B to (A - B) + (C - 1)): the model follows visitAdd through foldAddWithConstant and delegates the rest, from foldNoWrapAdd on, as one step, so no step of it fires this site",
+    "IC.AddSub.visitAdd.L1703": "not modelled yet ((A + RHS) + RHS to A + (RHS << 1)): the model follows visitAdd through foldAddWithConstant and delegates the rest, from foldNoWrapAdd on, as one step, so no step of it fires this site",
+    "IC.AddSub.visitAdd.L1707": "not modelled yet (LHS + (A + LHS) to A + (LHS << 1)): the model follows visitAdd through foldAddWithConstant and delegates the rest, from foldNoWrapAdd on, as one step, so no step of it fires this site",
+    "IC.AddSub.visitAdd.L1716": "not modelled yet ((A + C1) + (C2 - B) to (A - B) + (C1 + C2)): the model follows visitAdd through foldAddWithConstant and delegates the rest, from foldNoWrapAdd on, as one step, so no step of it fires this site",
+    "IC.AddSub.visitAdd.L1724": "not modelled yet ((C1 - A) + B to (B - A) + C1): the model follows visitAdd through foldAddWithConstant and delegates the rest, from foldNoWrapAdd on, as one step, so no step of it fires this site",
+    "IC.AddSub.visitAdd.L1736": "not modelled yet ((A & 2^C1) + A to A & (2^C1 - 1)): the model follows visitAdd through foldAddWithConstant and delegates the rest, from foldNoWrapAdd on, as one step, so no step of it fires this site; it also needs ComputeNumSignBits, which the Oracle doesn't have",
+    "IC.AddSub.visitAdd.L1744": "not modelled yet (zext (B - A) + zext A to zext B): the model follows visitAdd through foldAddWithConstant and delegates the rest, from foldNoWrapAdd on, as one step, so no step of it fires this site",
+    "IC.AddSub.visitAdd.L1749": "not modelled yet (zext A + sext A to 0 for an i1 A): the model follows visitAdd through foldAddWithConstant and delegates the rest, from foldNoWrapAdd on, as one step, so no step of it fires this site",
+    "IC.AddSub.visitAdd.L1764": "not modelled yet (sext (A < B) + zext (A > B) to ucmp or scmp): the model follows visitAdd through foldAddWithConstant and delegates the rest, from foldNoWrapAdd on, as one step, so no step of it fires this site",
+    "IC.AddSub.visitAdd.L1776": "not modelled yet (A + B to or disjoint A, B): the model follows visitAdd through foldAddWithConstant and delegates the rest, from foldNoWrapAdd on, as one step, so no step of it fires this site",
+    "IC.AddSub.visitAdd.L1778": "not modelled yet (A + B to or A, B, ignoring undef): the model follows visitAdd through foldAddWithConstant and delegates the rest, from foldNoWrapAdd on, as one step, so no step of it fires this site",
+    "IC.AddSub.visitAdd.L1790": "not modelled yet ((A ^ B) + (A & B) to A | B): the model follows visitAdd through foldAddWithConstant and delegates the rest, from foldNoWrapAdd on, as one step, so no step of it fires this site",
+    "IC.AddSub.visitAdd.L1799": "not modelled yet ((A | B) + (A & B) to A + B, operands replaced in place): the model follows visitAdd through foldAddWithConstant and delegates the rest, from foldNoWrapAdd on, as one step, so no step of it fires this site",
+    "IC.AddSub.visitAdd.L1811": "not modelled yet (A + (A | -A) to (A - 1) & A): the model follows visitAdd through foldAddWithConstant and delegates the rest, from foldNoWrapAdd on, as one step, so no step of it fires this site",
+    "IC.AddSub.visitAdd.L1822": "not modelled yet (((A & -A) - 1) to ((A - 1) & ~A)): the model follows visitAdd through foldAddWithConstant and delegates the rest, from foldNoWrapAdd on, as one step, so no step of it fires this site",
+    "IC.AddSub.visitAdd.L1836": "not modelled yet (~(A * C1) + A to (A * (1 - C1)) - 1): the model follows visitAdd through foldAddWithConstant and delegates the rest, from foldNoWrapAdd on, as one step, so no step of it fires this site",
+    "IC.AddSub.visitAdd.L1845": "not modelled yet ((A * -2^C) + B to B - (A << C)): the model follows visitAdd through foldAddWithConstant and delegates the rest, from foldNoWrapAdd on, as one step, so no step of it fires this site",
+    "IC.AddSub.visitAdd.L1856": "not modelled yet (the signum idiom ending in add): the model follows visitAdd through foldAddWithConstant and delegates the rest, from foldNoWrapAdd on, as one step, so no step of it fires this site",
+    "IC.AddSub.visitAdd.L1873": "not modelled yet (X + ext (X == C) to a select): the model follows visitAdd through foldAddWithConstant and delegates the rest, from foldNoWrapAdd on, as one step, so no step of it fires this site",
+    "IC.AddSub.visitAdd.L1883": "not modelled yet ((A + 1) + sext (A != 0) to umax(A, 1)): the model follows visitAdd through foldAddWithConstant and delegates the rest, from foldNoWrapAdd on, as one step, so no step of it fires this site",
+    "IC.AddSub.visitAdd.L1911": "not modelled yet (ceiling division by a power of two): the model follows visitAdd through foldAddWithConstant and delegates the rest, from foldNoWrapAdd on, as one step, so no step of it fires this site; it also needs willNotOverflowUnsignedAdd, which the Oracle doesn't have",
+    "IC.AddSub.visitAdd.L1929": "not modelled yet (~X + ~Y to -2 - (X + Y)): the model follows visitAdd through foldAddWithConstant and delegates the rest, from foldNoWrapAdd on, as one step, so no step of it fires this site",
+    "IC.AddSub.visitAdd.L1942": "not modelled yet (Changed = true, after inferring nsw): the model follows visitAdd through foldAddWithConstant and delegates the rest, from foldNoWrapAdd on, as one step, so no step of it fires this site; it also needs willNotOverflowSignedAdd, which the Oracle doesn't have; an in-place change, which the method models as the instruction I becomes, fired where visitAdd ends with return Changed ? &I : nullptr",
+    "IC.AddSub.visitAdd.L1943": "not modelled yet (I.setHasNoSignedWrap(true), in place): the model follows visitAdd through foldAddWithConstant and delegates the rest, from foldNoWrapAdd on, as one step, so no step of it fires this site; it also needs willNotOverflowSignedAdd, which the Oracle doesn't have; an in-place change, which the method models as the instruction I becomes, fired where visitAdd ends with return Changed ? &I : nullptr",
+    "IC.AddSub.visitAdd.L1947": "not modelled yet (Changed = true, after inferring nuw): the model follows visitAdd through foldAddWithConstant and delegates the rest, from foldNoWrapAdd on, as one step, so no step of it fires this site; it also needs willNotOverflowUnsignedAdd, which the Oracle doesn't have; an in-place change, which the method models as the instruction I becomes, fired where visitAdd ends with return Changed ? &I : nullptr",
+    "IC.AddSub.visitAdd.L1948": "not modelled yet (I.setHasNoUnsignedWrap(true), in place): the model follows visitAdd through foldAddWithConstant and delegates the rest, from foldNoWrapAdd on, as one step, so no step of it fires this site; it also needs willNotOverflowUnsignedAdd, which the Oracle doesn't have; an in-place change, which the method models as the instruction I becomes, fired where visitAdd ends with return Changed ? &I : nullptr",
+    "IC.AddSub.visitAdd.L1965": "not modelled yet (usub.sat(A, B) + B to umax(A, B)): the model follows visitAdd through foldAddWithConstant and delegates the rest, from foldNoWrapAdd on, as one step, so no step of it fires this site",
+    "IC.AddSub.visitAdd.L1973": "not modelled yet (ctpop(A) + ctpop(B) to ctpop(A | B)): the model follows visitAdd through foldAddWithConstant and delegates the rest, from foldNoWrapAdd on, as one step, so no step of it fires this site; it also needs haveNoCommonBitsSet, which the Oracle doesn't have",
+    "IC.AddSub.visitAdd.L1996": "not modelled yet (the log2_ceil idiom): the model follows visitAdd through foldAddWithConstant and delegates the rest, from foldNoWrapAdd on, as one step, so no step of it fires this site"
+  }
 }
