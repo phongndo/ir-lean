@@ -381,9 +381,10 @@ and a proof, and Hypothesis backends share a property. The answer says which tie
   statement and the generated module's hash, and replay them first, as Hypothesis's database does: "a cache that you
   never need to invalidate". Export each as a `--witness`, as a Lean lemma `¬ stmt` proved by `decide +kernel` where it
   reduces, and as a native test where no poison or UB is involved, as Kani's concrete playback does.
-- **Say why a proof failed.** If tier 1 or 2 refutes, the code is wrong. If tier 2 holds and tier 3 fails, a lemma or
-  invariant is too weak. That's Why3's split between "non-conformity" and "subcontract weakness"
-  ([arXiv 2108.02967](https://arxiv.org/abs/2108.02967)).
+- **Say why a proof failed, as far as the evidence goes.** If tier 1 or 2 refutes, the claim is false. If tier 2 holds
+  and tier 3 fails, the answer stays `bounded`, with the possible causes listed: a lemma or invariant too weak, a failure
+  beyond the bound, or proof search that ran out. Why3 likewise splits a failed proof into "non-conformity",
+  "subcontract weakness" and inconclusive ([arXiv 2108.02967](https://arxiv.org/abs/2108.02967)).
 - **Don't use Plausible as tier 1 as it is.** "If no counter-examples are found, `plausible` behaves like `admit`"
   (`Plausible/Tactic.lean`, line 84), which leaves `sorryAx`. Its `BitVec` generator draws a number up to the current
   size, which never exceeds `maxSize`, 100 by default (`Plausible/Arbitrary.lean`, lines 89–92, and `Testable.lean`,
@@ -396,8 +397,9 @@ and a proof, and Hypothesis backends share a property. The answer says which tie
 
 **A first credible demonstration: compiler-rt's integer builtins against their own unit tests.** `ir-lean` already
 proves 46 compiler-rt functions ([LLVM's own code](llvm.md#whats-proved)), and upstream tests them in
-`compiler-rt/test/builtins/Unit` with hand-picked vectors, tables and `rand()` loops. At llvm-project's `main` on 2026-11-08,
-`popcountsi2_test.c` tries 6 edge values and 10,000 `rand()` values. *Inferred:* glibc's `RAND_MAX` is 2^31 − 1, so the random part never sets bit 31.
+`compiler-rt/test/builtins/Unit` with hand-picked vectors, tables and `rand()` loops. At llvm-project's `main` on
+2026-11-08, `popcountsi2_test.c` tries 6 edge values and 10,000 `rand()` values. *Inferred:* glibc's `RAND_MAX` is
+2^31 − 1, so the random part never sets bit 31.
 
 1. Make mutants of each builtin at the C and IR levels, compiled with the proofs' flags, with Mull or by extending
    `tests/llvm.py`'s injected bugs.
@@ -415,8 +417,11 @@ tests.
 
 **Limits the evidence predicts.** Expect specs to hold many of the bugs that remain: all 7 mismatches AuthV2's shadow
 testing found were in its spec, and "no issues were found with tools or proofs". So test specs too, against
-known-answer vectors as Aeneas does with KATs, and by mutating the statement and requiring tier 1 to refute the
-weakened one, as IronSpec and mCoq do. Keep testing the boundary: the emitter, the C library model and the backend, as [trust](trust.md) lists them.
+known-answer vectors as Aeneas does with KATs, and by mutation. IronSpec strengthens a spec and flags a mutant the
+unchanged proof still passes, since it shows behavior the spec leaves open ([OSDI 2024](https://www.usenix.org/conference/osdi24/presentation/goldweber),
+§4.3). mCoq mutates the code and flags a mutant every proof still accepts
+([ASE 2019](https://doi.org/10.1109/ASE.2019.00057)), as `tests/llvm.py` already requires each injected bug to stop its
+proof. Keep testing the boundary: the emitter, the C library model and the backend, as [trust](trust.md) lists them.
 And keep testing the verifier: IronFleet's build reported success after a prover crash, and Dafny after Ctrl-C
 (Fonseca et al., below).
 
@@ -426,8 +431,9 @@ Things this study turned up that matter outside the gate:
 
 - **`bv_decide`'s axioms changed shape.** Since Lean 4.29 each call adds its own axiom, named `…._native.bv_decide.ax_N`
   ([lean4#12217](https://github.com/leanprover/lean4/pull/12217)), and 4.35 removed `Lean.ofReduceBool` and
-  `Lean.trustCompiler` (#14953). *Inferred* from the code: `leanchecker`'s replay doesn't rerun the LRAT check. `tests/check_axioms.lean`
-  does, which is what makes the lemma store's "checked again where it's used" true. [Trust](trust.md) could say so.
+  `Lean.trustCompiler` (#14953). *Inferred* from the code: `leanchecker`'s replay doesn't rerun the LRAT check.
+  `tests/check_axioms.lean` does, which is what makes the lemma store's "checked again where it's used" true.
+  [Trust](trust.md) could say so.
 - **Peers allow only the standard axioms.** Trivet (§3.1) and Aqueduct (Appendix A) refuse `bv_decide`'s. Decide whether
   a published certificate may rest on them, or must be re-proved without them.
 - **`lake check` won't take these proofs.** Lean 4.35's `lake check` "fails if anything uses an axiom other than the
