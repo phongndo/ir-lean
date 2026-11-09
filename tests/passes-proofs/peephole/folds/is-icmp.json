@@ -94,9 +94,7 @@
   "delegates": {
     "Peephole.IS.simplifyICmpInst": {
       "ConstantFoldCompareInstOperands": "two constants: the constant folder, IS.simplifyICmpInst.L3869",
-      "simplifyICmpWithBinOp": "modelled by the icmp-b family; delegated here where an operand is a binary operator, which every statement of it that can answer needs, and the step falls through elsewhere",
-      "simplifyICmpWithMinMax": "modelled by the icmp-b family; delegated here where an operand is a min or max intrinsic or a select, and the step falls through elsewhere",
-      "simplifyICmpWithIntrinsicOnLHS": "modelled by the icmp-b family; delegated here, for each of its two calls, where its left operand is uadd.sat or usub.sat, and the step falls through elsewhere",
+      "simplifyICmpInst, from simplifyICmpWithBinOp and simplifyICmpWithMinMax": "their recursive calls, with MaxRecurse - 1, are a parameter of the icmp-b family's models; this model passes ICmpB.ICmpSimp.delegating, so each delegates. simplifyICmpWithBinOp delegates its answers in any case, and falls through where they decline",
       "simplifyICmpWithDominatingAssume": "assumptions (needs calls): not modelled; delegated unconditionally, so the steps after it (L4148, threadCmpOverSelect, threadCmpOverPHI) aren't reached by a run",
       "threadCmpOverSelect": "where an operand is a select: not modelled",
       "threadCmpOverPHI": "where an operand is a Term.var, which may be a phi: not modelled"
@@ -105,8 +103,9 @@
   "model": {
     "Peephole.IS.ICmp.Ext": "analyses the core Oracle lacks: isImpliedByDomCondition (domCond), getRange (getRange) and computeConstantRange (constRange), with Ext.Sound. The entry point simplifyICmpInst.onInst runs with Ext.none, which knows nothing; simplifyICmpInst.onInstWith takes any Ext, and simplifyICmpInst.sound holds for every sound one",
     "Peephole.IS.ICmp.CR": "ConstantRange as ConstantRange.cpp computes it (makeAllowedICmpRegion, makeExactICmpRegion, contains, inverse, icmp and the min and max of a range), with what each says about values proved; the steps that read a range only fire at a positive width, since LLVM has no i0 and at width 0 the full and the empty range are the same pair",
+    "Peephole.IS.simplifyICmpInst": "forwards to the icmp-b family's simplifyICmpWithBinOp, simplifyICmpWithMinMax and simplifyICmpWithIntrinsicOnLHS (twice, the second with the operands and predicate swapped), in the C++'s order, as it does to simplifyICmpOfBools, simplifyICmpWithZero, simplifyICmpWithConstant and simplifyICmpUsingMonotonicValues; each forward's theorem is the callee's sound. CmpPredicate's samesign flag reaches only simplifyICmpWithBinOp's recursive calls, which are delegated, so the model passes it false there, with the same answer. simplifyICmpWithBinOp.sound assumes the zext in 0 - zext X widens, so simplifyICmpInst.sound, onInstWith_sound and onInst_sound assume every cast in the operands is well typed (Peephole.IS.ICmpB.WellTyped: zext and sext widen, trunc narrows), as LLVM's verifier requires and Term doesn't say",
     "Peephole.IS.simplifyICmpInst.body": "simplifyICmpInst's own recursive calls (on the operands of two zexts or two sexts, on a zext or sext against a constant that's an extension, and on sext X against 0) are forwards to the model one MaxRecurse down; simplifyICmpInst.sound covers them by induction. Those on two extensions, or on one and an extended constant, are only taken where the cast widens (v < w), as LLVM's verifier requires and Term doesn't. body3 is body at RecursionLimit written out without recursion (body_three: they're equal by rfl), which the entry point runs, so the comparison with opt can name each case's site",
-    "Peephole.IS.simplifyUnsignedRangeCheck": "the source is ICmp.andOrSrc, the and (IsAnd) or the or of ZeroICmp and UnsignedICmp with any flags; sound_swap has them the other way round, as simplifyAndOfICmps' and simplifyOrOfICmps' second call needs"
+    "Peephole.IS.simplifyUnsignedRangeCheck": "the source is ICmp.andOrSrc, the and (IsAnd) or the or of ZeroICmp and UnsignedICmp with any flags; sound_swap has them the other way round. The icmp-b family's simplifyAndOfICmps and simplifyOrOfICmps forward to it, both ways round, and use sound and sound_swap for those steps"
   },
   "lemmas": [
     "Peephole.Lemmas.setWidth_ule_signExtend",

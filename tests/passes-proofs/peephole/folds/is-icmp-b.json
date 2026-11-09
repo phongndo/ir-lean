@@ -16,13 +16,6 @@
   ],
   "entries": [
     {
-      "fold": "Peephole.IS.ICmpB.icmpOnInst",
-      "opcodes": [
-        "icmp"
-      ],
-      "opt": "instsimplify"
-    },
-    {
       "fold": "Peephole.IS.ICmpB.selectOnInst",
       "opcodes": [
         "select"
@@ -182,10 +175,11 @@
     }
   },
   "delegates": {
-    "Peephole.IS.ICmpB.icmpOnInst": {
-      "ConstantFoldCompareInstOperands": "two constants: the constant folder",
-      "simplifyICmpInst: a step before simplifyICmpWithBinOp": "the steps the icmp family models, where one could answer: an undef or poison operand, X == X, i1 operands, a ConstantInt on the right, a cast against a constant or a cast, or isKnownNonEqual",
-      "simplifyICmpInst: a step after simplifyICmpWithIntrinsicOnLHS": "the rest of simplifyICmpInst: simplifyICmpUsingMonotonicValues, the dominating conditions, threadCmpOverSelect and threadCmpOverPHI"
+    "Peephole.IS.simplifyICmpWithBinOp": {
+      "simplifyICmpInst": "its recursive calls with MaxRecurse - 1, for icmp (X + Y), X and the like, delegated where they don't decline: they pass Pred on with its samesign flag, which says something about the original operands and not about the new ones, so a sound answer to them isn't one to this compare. The icmp family's simplifyICmpInst, the caller, passes ICmpSimp.delegating, so each delegates"
+    },
+    "Peephole.IS.simplifyICmpWithMinMax": {
+      "simplifyICmpInst": "its recursive call on A EqP B, with MaxRecurse - 1, a parameter whose soundness its theorem assumes (ICmpSimp.Sound); the icmp family's simplifyICmpInst, the caller, passes ICmpSimp.delegating, so each such call delegates"
     },
     "Peephole.IS.ICmpB.selectOnInst": {
       "simplifySelectInst: a step before simplifySelectWithICmpCond": "a constant condition, the i1 logic folds, select ?, X, X, and a poison or undef arm",
@@ -194,9 +188,6 @@
     "Peephole.IS.ICmpB.andOnInst and orOnInst": {
       "simplifyAndInst/simplifyOrInst: a step before simplifyAndOrOfCmps": "any pair of operands simplifyAndOrOfCmps can't answer for, a constant operand, X op X, and simplifyAndOrWithICmpEq on an equality compare",
       "simplifyAndInst/simplifyOrInst: a step after simplifyAndOrOfCmps": "the rest of simplifyAndInst and simplifyOrInst"
-    },
-    "Peephole.IS.simplifyAndOfICmps and simplifyOrOfICmps": {
-      "simplifyUnsignedRangeCheck": "the icmp family's fold, a parameter here: delegated where its first compare is icmp eq/ne Y, 0, and declining elsewhere, as its first statement does"
     },
     "Peephole.IS.simplifyAndOrOfCmps": {
       "ConstantFoldCastOperand": "the cast of a constant V that isn't an i1 the model can fold"
