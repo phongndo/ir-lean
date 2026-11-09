@@ -191,7 +191,7 @@
   },
   "data layout": {
    "class": "modeled",
-   "says": "A data layout the model reads the facts it uses from: 64-bit pointers and indices, and little-endian"
+   "says": "A data layout that says what Mem assumes, read from it: 64-bit pointers in address space 0, all of them address, null all zeros, and little-endian"
   },
   "floating point": {
    "class": "refused",
@@ -235,13 +235,18 @@
   },
   "layout": {
    "class": "refused",
+   "lane": "memory",
+   "says": "Pointers Mem doesn't have yet: in another address space, in a vector, or, in a function with memory, narrower than 64 bits, with fewer address bits, or with a null that isn't all zeros"
+  },
+  "big-endian": {
+   "class": "refused",
    "lane": "long tail",
-   "says": "A data layout, an address space or a vector of pointers the model doesn't have yet"
+   "says": "A bitcast between integers and vectors in a big-endian module, whose lane order the model doesn't have"
   },
   "exceptions": {
    "class": "refused",
    "lane": "long tail",
-   "says": "Exception handling: invoke, landingpad, resume and the funclet instructions"
+   "says": "Exception handling: invoke, landingpad, resume and the funclet instructions. Refused on review: a landing pad's value is a pointer to the exception and a selector the personality function, outside the module, chooses, so it waits on memory and on calls. docs/ir-features.md"
   },
   "aggregate gap": {
    "class": "refused",
@@ -352,10 +357,10 @@
   }
  },
  "totals": {
-  "items": 17042,
+  "items": 17044,
   "modeled": 280,
   "assumed": 260,
-  "refused": 16502,
+  "refused": 16504,
   "by_kind": {
    "instruction": {
     "modeled": 40,
@@ -403,14 +408,14 @@
    "form": {
     "modeled": 10,
     "assumed": 3,
-    "refused": 36
+    "refused": 38
    }
   },
   "refused_by_lane": {
    "external calls and globals": 65,
    "floating point": 139,
-   "long tail": 1816,
-   "memory": 115
+   "long tail": 1811,
+   "memory": 122
   }
  },
  "items": [
@@ -465,7 +470,7 @@
   {"kind": "instruction", "name": "PtrToAddr", "class": "modeled", "reason": "memory"},
   {"kind": "instruction", "name": "IntToPtr", "class": "refused", "lane": "memory", "reason": "memory model"},
   {"kind": "instruction", "name": "BitCast", "class": "modeled", "reason": "integer"},
-  {"kind": "instruction", "name": "AddrSpaceCast", "class": "refused", "lane": "long tail", "reason": "layout"},
+  {"kind": "instruction", "name": "AddrSpaceCast", "class": "refused", "lane": "memory", "reason": "layout"},
   {"kind": "instruction", "name": "CleanupPad", "class": "refused", "lane": "long tail", "reason": "exceptions"},
   {"kind": "instruction", "name": "CatchPad", "class": "refused", "lane": "long tail", "reason": "exceptions"},
   {"kind": "instruction", "name": "ICmp", "class": "modeled", "reason": "integer"},
@@ -17420,11 +17425,12 @@
   {"kind": "form", "name": "array-value", "class": "refused", "lane": "long tail", "reason": "aggregate gap"},
   {"kind": "form", "name": "freeze-of-a-struct", "class": "refused", "lane": "long tail", "reason": "aggregate gap"},
   {"kind": "form", "name": "insertvalue-nested", "class": "refused", "lane": "long tail", "reason": "aggregate gap"},
-  {"kind": "form", "name": "big-endian-bitcast", "class": "refused", "lane": "long tail", "reason": "layout"},
-  {"kind": "form", "name": "data-layout-32-bit-pointers-with-memory", "class": "refused", "lane": "long tail", "reason": "layout"},
-  {"kind": "form", "name": "getelementptr-of-vectors", "class": "refused", "lane": "long tail", "reason": "layout"},
-  {"kind": "form", "name": "pointer-in-address-space", "class": "refused", "lane": "long tail", "reason": "layout"},
-  {"kind": "form", "name": "vector-of-pointers", "class": "refused", "lane": "long tail", "reason": "layout"},
+  {"kind": "form", "name": "data-layout-32-bit-addresses-with-memory", "class": "refused", "lane": "memory", "reason": "layout"},
+  {"kind": "form", "name": "data-layout-32-bit-pointers-with-memory", "class": "refused", "lane": "memory", "reason": "layout"},
+  {"kind": "form", "name": "data-layout-null-all-ones-with-memory", "class": "refused", "lane": "memory", "reason": "layout"},
+  {"kind": "form", "name": "getelementptr-of-vectors", "class": "refused", "lane": "memory", "reason": "layout"},
+  {"kind": "form", "name": "pointer-in-address-space", "class": "refused", "lane": "memory", "reason": "layout"},
+  {"kind": "form", "name": "vector-of-pointers", "class": "refused", "lane": "memory", "reason": "layout"},
   {"kind": "form", "name": "freeze-of-a-pointer", "class": "refused", "lane": "memory", "reason": "memory model"},
   {"kind": "form", "name": "load-of-i1", "class": "refused", "lane": "memory", "reason": "memory model"},
   {"kind": "form", "name": "store-of-i1", "class": "refused", "lane": "memory", "reason": "memory model"},
@@ -17439,6 +17445,7 @@
   {"kind": "form", "name": "variadic-call", "class": "refused", "lane": "external calls and globals", "reason": "external"},
   {"kind": "form", "name": "variadic-function", "class": "refused", "reason": "variadic"},
   {"kind": "form", "name": "personality-function", "class": "refused", "lane": "long tail", "reason": "exceptions"},
+  {"kind": "form", "name": "big-endian-bitcast", "class": "refused", "lane": "long tail", "reason": "big-endian"},
   {"kind": "form", "name": "inline-asm-call", "class": "refused", "reason": "asm"},
   {"kind": "form", "name": "function-with-gc", "class": "refused", "reason": "gc"},
   {"kind": "form", "name": "prefix-or-prologue-data", "class": "refused", "reason": "machine"},
