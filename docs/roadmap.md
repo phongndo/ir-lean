@@ -89,7 +89,8 @@ flowchart LR
   L --> P
 ```
 
-Targets come from real IR: code real programs spend time in, and the `O1` runs #52 captured. The search proposes
+Targets come from real IR: code real programs spend time in, and the [corpus](corpus.md) of `opt`'s rewrites that
+[#54](https://github.com/phongndo/ir-lean/pull/54) captures. The search proposes
 candidates, which are untrusted. Most die cheaply, on concrete inputs or in Alive2. A survivor goes to Lean, which
 starts from the lemmas in the store. A completed proof gives a certificate, [bound](llvm-proof-binding.md) to its IR
 and toolchain, and is cut into lemmas, as [lemma reuse](lemma-reuse.md) prototypes. The ones that meet the bar below go
@@ -164,7 +165,7 @@ reason.
 | Gates that refuse wrong, unknown or stale results | [#44](https://github.com/phongndo/ir-lean/pull/44), [#50](https://github.com/phongndo/ir-lean/pull/50), [negative verification](llvm-negative-verification.md), [replay challenge](replay-challenge.md) | A candidate or a proof test can't pass on a wrong rewrite, a timeout or a stale result |
 | Alive2 cross-checks | `tests/opcheck.py`, `tests/gepcheck.py`, #50 | A second opinion on the semantics, and a cheap refuter |
 | Rewrite lemmas at every width | #48, [generic rewrites](generic-rewrites.md) | The lemma store's first seed |
-| `O1` run capture | #52, closed, to come back as a slim pull request | A corpus of real IR for the search |
+| `O1` run capture | #52, slimmed down in [#54](https://github.com/phongndo/ir-lean/pull/54), [corpus](corpus.md) | A corpus of real IR for the search, and of rewrites to cut lemmas from |
 
 ### Which IRs, and which languages
 
@@ -194,7 +195,7 @@ spend no effort on them until these work.
 
 | Horizon | Work | Why it's here |
 | --- | --- | --- |
-| **Now** | [Waves 0 and 1](#next-steps): land and clean up what's open, split CI, which [#53](https://github.com/phongndo/ir-lean/pull/53) did, bring the llama.cpp results to `main`, study prior art, and slim #52's tools | The best results aren't on `main`, CI was too slow to take more tests, and superoptimizer v2 shouldn't be designed without the prior art |
+| **Now** | [Waves 0 and 1](#next-steps): land and clean up what's open, split CI, which [#53](https://github.com/phongndo/ir-lean/pull/53) did, bring the llama.cpp results to `main`, study prior art, and slim #52's tools, which #54 did | The best results aren't on `main`, CI was too slow to take more tests, and superoptimizer v2 shouldn't be designed without the prior art |
 | **Next** | Wave 2: lemma store v1, SEM-07, the executable memory model, tier-1 proof tests, and `inflate_table`'s statement | Each starts a track, and each is the step the next one in that track waits on |
 | **Later** | Wave 3: superoptimizer v2, the safety bridge, proof-test tiers 2 and 3 with the unit-test milestone, and the `inflate_table` proof. Then MLIR, contracts, C++ and Rust, and adoption | Each needs something wave 2 builds |
 
@@ -243,7 +244,7 @@ SEM-06 holds up only superoptimizer v2's memory candidates, not the rest of it.
 
 - Merge [#48](https://github.com/phongndo/ir-lean/pull/48), which was green. Done.
 - Close [#52](https://github.com/phongndo/ir-lean/pull/52), done, and replace it with a slim pull request of its
-  capture and measurement tools, in wave 1.
+  capture and measurement tools, in wave 1. Done in [#54](https://github.com/phongndo/ir-lean/pull/54).
 - File the 4 bugs #52 found in other lanes' code, as issues:
   - `tools/binding.py` reads whole files to hash about 2.8 GiB of toolchain on every verify, which costs about 455 MiB.
   - `tools/binding.py`'s `willreturn` check covers the whole module, so an intrinsic's declaration blocks a step whose
@@ -265,7 +266,7 @@ SEM-06 holds up only superoptimizer v2's memory candidates, not the rest of it.
   - `feat/prove-llvm-optimization`: a Q5 rewrite, measured on real inference. Its `docs/llama.md` gives a median
     inference speedup of 1.049 times on one thread, with a 95% interval of 1.029 to 1.057.
 - A prior-art study for superoptimization and proof tests. It gates superoptimizer v2's design.
-- The slim pull request of #52's capture and measurement tools.
+- The slim pull request of #52's capture and measurement tools. Done in #54.
 
 ### Wave 2: after #48 and the CI split land
 
@@ -344,7 +345,7 @@ GEP flags ([#15](https://github.com/phongndo/ir-lean/pull/15)), attribute and li
 | 18 | The q4_K rewrite, from `feat/prove-llvm-optimization-1` | 4 | 1 | On `main`, its proofs checked in CI, and its benchmark reproducible from the repo |
 | 19 | The Q5 rewrite, from `feat/prove-llvm-optimization` | 4 | 1 | The same |
 | 20 | Prior-art study for superoptimization and proof tests | 4, 7 | 1 | A note in `docs/` covering at least the work in [prior art](#prior-art), which superoptimizer v2's design cites |
-| 21 | #52's capture and measurement tools, without its ledger | 4 | 1 | Captured `O1` runs are a corpus the search can read, and their costs are recorded |
+| 21 | #52's capture and measurement tools, without its ledger | 4 | 1 | Done in #54: `tools/corpus/capture.py` and `tools/measure.py`. Reading the corpus is superoptimizer v2's |
 | 22 | Lemma store v1 | 6 | 2 | E1 below |
 | 23 | Promises as UB, SEM-07 | 0 | 2 | A pass that deletes a loop under `mustprogress` certifies, and one that adds the promise doesn't |
 | 15 | Executable memory representation, proved to agree with `Mem` | 6 | 2 | E2 below |
@@ -509,7 +510,7 @@ can't claim one the certificate didn't check, apart from `mustprogress` and `wil
 2. **Real code.** Proved rewrites of code real programs spend time in, on `main`, starting with the two llama.cpp
    branches.
 3. **Superoptimizer v2.** More arguments, `select`, memory, and real targets: functions chosen because real programs
-   spend time in them, from the `O1` corpus and the projects stage 2 used. Designed after the prior-art study, and
+   spend time in them, from the [corpus](corpus.md) and the projects stage 2 used. Designed after the prior-art study, and
    proving from the lemma store. Its memory candidates need SEM-06.
 4. **Loops, memory, and safety carried across.** Needs SEM-07 and SEM-06. Prove the bridge
    `Safe src → Refines src tgt → Safe tgt`, so a safety proof carries to optimized code.
