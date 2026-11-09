@@ -10,7 +10,8 @@
   conditions closed. A statement nothing proves finds nothing, and one that doesn't elaborate is an error.
 - `store.py add` refuses each lemma in tests/store/must_refuse for the reason it's there, and accepts
   tests/store/Admissible.lean, so the refusals aren't the checker refusing everything.
-- `grind +suggestions` proves two goals from stored lemmas it isn't told the names of.
+- `grind +suggestions` proves two goals from stored lemmas it isn't told the names of, and plain `grind`
+  proves neither.
 - The reuse example in tests/store/reuse: both proofs of each theorem check, the one from the store rests on
   the standard axioms only and the one without it on `bv_decide`'s, and leanchecker replays both.
 
@@ -224,6 +225,13 @@ def check_suggestions() -> None:
         f"grind +suggestions proves both goals from the store, in {secs:.1f} s",
         out,
     )
+    # Without the suggestions grind proves neither, so it's the store that proves them.
+    with tempfile.TemporaryDirectory() as tmp:
+        plain = Path(tmp) / "Plain.lean"
+        plain.write_text((FIXTURES / "Suggest.lean").read_text().replace("grind +suggestions", "grind"))
+        code, out, _ = lean([str(plain)])
+    errors = len(re.findall(r": error", out))
+    report(code != 0 and errors == 2, f"plain grind proves neither goal: {errors} errors", out)
 
 
 def axioms(module: str, work: Path) -> str:

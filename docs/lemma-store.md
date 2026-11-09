@@ -148,7 +148,8 @@ unification at reducible transparency. The third is Lean's own: importing `Lemma
 with `@[library_suggestions]`, which puts the store's matches first and Lean's default selector's after them, so
 `grind +suggestions`, `simp? +suggestions` and `try?` see the store.
 [`tests/store/Suggest.lean`](../tests/store/Suggest.lean) proves `add i32 %x, 0` to `%x` and
-`lshr i256 (shl nuw %x, %s), %s` to `%x` with `grind +suggestions` and no other hint.
+`lshr i256 (shl nuw %x, %s), %s` to `%x` with `grind +suggestions` and no other hint, where plain `grind` proves
+neither.
 
 A match only says what to try. A proof that uses it is checked by the kernel like any other, and the lemma with it.
 
