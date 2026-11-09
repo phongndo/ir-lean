@@ -1,0 +1,261 @@
+{
+  "schema": "ir-lean.peephole.folds/1",
+  "family": "is-intrinsic",
+  "pass": "instsimplify",
+  "modules": [
+    "Peephole.Lemmas.Intrinsic",
+    "Peephole.IS.IntrinsicBase",
+    "Peephole.IS.IntrinsicUnary",
+    "Peephole.IS.IntrinsicMinMax",
+    "Peephole.IS.IntrinsicBinary",
+    "Peephole.IS.IntrinsicCall"
+  ],
+  "entries": [
+    {
+      "fold": "Peephole.IS.simplifyCall.onInst",
+      "opcodes": [
+        "ctpop",
+        "bitreverse",
+        "bswap",
+        "ctlz",
+        "cttz",
+        "abs",
+        "umin",
+        "umax",
+        "smin",
+        "smax",
+        "uadd.sat",
+        "usub.sat",
+        "sadd.sat",
+        "ssub.sat",
+        "fshl",
+        "fshr"
+      ],
+      "opt": "instsimplify"
+    }
+  ],
+  "folds": {
+    "Peephole.IS.simplifyCall": {
+      "sound": "Peephole.IS.simplifyCall.sound",
+      "sites": []
+    },
+    "Peephole.IS.simplifyIntrinsic": {
+      "sound": "Peephole.IS.simplifyIntrinsic.sound",
+      "sites": [
+        "IS.simplifyIntrinsic.L7387",
+        "IS.simplifyIntrinsic.L7396",
+        "IS.simplifyIntrinsic.L7401",
+        "IS.simplifyIntrinsic.L7405"
+      ]
+    },
+    "Peephole.IS.simplifyUnaryIntrinsic": {
+      "sound": "Peephole.IS.simplifyUnaryIntrinsic.sound",
+      "sites": [
+        "IS.simplifyUnaryIntrinsic.L6604",
+        "IS.simplifyUnaryIntrinsic.L6609",
+        "IS.simplifyUnaryIntrinsic.L6614",
+        "IS.simplifyUnaryIntrinsic.L6620"
+      ]
+    },
+    "Peephole.IS.simplifyBinaryIntrinsic": {
+      "sound": "Peephole.IS.simplifyBinaryIntrinsic.sound",
+      "sites": [
+        "IS.simplifyBinaryIntrinsic.L6928",
+        "IS.simplifyBinaryIntrinsic.L6934",
+        "IS.simplifyBinaryIntrinsic.L6940",
+        "IS.simplifyBinaryIntrinsic.L6942",
+        "IS.simplifyBinaryIntrinsic.L7004",
+        "IS.simplifyBinaryIntrinsic.L7020",
+        "IS.simplifyBinaryIntrinsic.L7027",
+        "IS.simplifyBinaryIntrinsic.L7040",
+        "IS.simplifyBinaryIntrinsic.L7052",
+        "IS.simplifyBinaryIntrinsic.L7054",
+        "IS.simplifyBinaryIntrinsic.L7111",
+        "IS.simplifyBinaryIntrinsic.L7123",
+        "IS.simplifyBinaryIntrinsic.L7126",
+        "IS.simplifyBinaryIntrinsic.L7131",
+        "IS.simplifyBinaryIntrinsic.L7136",
+        "IS.simplifyBinaryIntrinsic.L7139"
+      ]
+    },
+    "Peephole.IS.foldMinMaxSharedOp": {
+      "sound": "Peephole.IS.foldMinMaxSharedOp.sound",
+      "sites": [
+        "IS.foldMinMaxSharedOp.L6698",
+        "IS.foldMinMaxSharedOp.L6701"
+      ]
+    }
+  },
+  "covers": {
+    "IS.foldMinMaxSharedOp.L6698": [
+      "int",
+      "calls"
+    ],
+    "IS.foldMinMaxSharedOp.L6701": [
+      "int",
+      "calls"
+    ]
+  },
+  "delegates": {
+    "ConstantFoldCall": {
+      "folds": [
+        "Peephole.IS.simplifyCall"
+      ],
+      "why": "tryConstantFoldCall on a call whose operands are all constants: the constant folder, which isn't modelled"
+    },
+    "simplifyICmpInst": {
+      "folds": [
+        "Peephole.IS.simplifyBinaryIntrinsic"
+      ],
+      "why": "isICmpTrue's recursive call, where the Recur doesn't say what it answers; onInst runs with Recur.unknown, so every such call delegates in the comparison with opt"
+    }
+  },
+  "lemmas": [
+    "Peephole.Lemmas.cttz_shl_one_refines",
+    "Peephole.Lemmas.ctlz_lshr_negative_refines",
+    "Peephole.Lemmas.ctlz_ashr_negative_refines",
+    "Peephole.Lemmas.ctpop_of_isPowerOfTwo",
+    "Peephole.Lemmas.ctpop_of_and_eq_zero",
+    "Peephole.Lemmas.abs_abs_refines",
+    "Peephole.Lemmas.bswap_bswap",
+    "Peephole.Lemmas.bitreverse_bitreverse",
+    "Peephole.Lemmas.umax_self",
+    "Peephole.Lemmas.umin_self",
+    "Peephole.Lemmas.smax_self",
+    "Peephole.Lemmas.smin_self",
+    "Peephole.Lemmas.umax_comm",
+    "Peephole.Lemmas.umin_comm",
+    "Peephole.Lemmas.smax_comm",
+    "Peephole.Lemmas.smin_comm",
+    "Peephole.Lemmas.umax_allOnes_refines",
+    "Peephole.Lemmas.umin_zero_refines",
+    "Peephole.Lemmas.smax_intMax_refines",
+    "Peephole.Lemmas.smin_intMin_refines",
+    "Peephole.Lemmas.umax_zero",
+    "Peephole.Lemmas.umin_allOnes",
+    "Peephole.Lemmas.smax_intMin",
+    "Peephole.Lemmas.smin_intMax",
+    "Peephole.Lemmas.umax_umax_of_ule",
+    "Peephole.Lemmas.umin_umin_of_ule",
+    "Peephole.Lemmas.smax_smax_of_sle",
+    "Peephole.Lemmas.smin_smin_of_sle",
+    "Peephole.Lemmas.umax_umax_left",
+    "Peephole.Lemmas.umax_umax_right",
+    "Peephole.Lemmas.umin_umin_left",
+    "Peephole.Lemmas.umin_umin_right",
+    "Peephole.Lemmas.smax_smax_left",
+    "Peephole.Lemmas.smax_smax_right",
+    "Peephole.Lemmas.smin_smin_left",
+    "Peephole.Lemmas.smin_smin_right",
+    "Peephole.Lemmas.umax_umin_left_refines",
+    "Peephole.Lemmas.umax_umin_right_refines",
+    "Peephole.Lemmas.umin_umax_left_refines",
+    "Peephole.Lemmas.umin_umax_right_refines",
+    "Peephole.Lemmas.smax_smin_left_refines",
+    "Peephole.Lemmas.smax_smin_right_refines",
+    "Peephole.Lemmas.smin_smax_left_refines",
+    "Peephole.Lemmas.smin_smax_right_refines",
+    "Peephole.Lemmas.umax_of_ule",
+    "Peephole.Lemmas.umin_of_ule",
+    "Peephole.Lemmas.smax_of_sle",
+    "Peephole.Lemmas.smin_of_sle",
+    "Peephole.Lemmas.uaddSat_allOnes_left_refines",
+    "Peephole.Lemmas.uaddSat_allOnes_right_refines",
+    "Peephole.Lemmas.uaddSat_zero",
+    "Peephole.Lemmas.zero_uaddSat",
+    "Peephole.Lemmas.saddSat_zero",
+    "Peephole.Lemmas.zero_saddSat",
+    "Peephole.Lemmas.zero_usubSat_refines",
+    "Peephole.Lemmas.usubSat_allOnes_refines",
+    "Peephole.Lemmas.usubSat_self_refines",
+    "Peephole.Lemmas.ssubSat_self_refines",
+    "Peephole.Lemmas.usubSat_zero",
+    "Peephole.Lemmas.ssubSat_zero",
+    "Peephole.Lemmas.fshl_of_toNat_mod_eq_zero",
+    "Peephole.Lemmas.fshr_of_toNat_mod_eq_zero",
+    "Peephole.Lemmas.fshl_zero_zero_refines",
+    "Peephole.Lemmas.fshr_zero_zero_refines",
+    "Peephole.Lemmas.fshl_allOnes_allOnes_refines",
+    "Peephole.Lemmas.fshr_allOnes_allOnes_refines",
+    "Peephole.Lemmas.fshl_lshr_shl_refines",
+    "Peephole.Lemmas.fshr_lshr_shl_refines"
+  ],
+  "rests_on": {
+    "IS.simplifyUnaryIntrinsic.L6604": [
+      "w % 8 = 0, which Peephole.IS.Intrinsic.Valid says of a bswap call: LLVM's verifier requires an even number of bytes of bswap, and IRLean's bswap reverses bytes only at a width of whole bytes"
+    ],
+    "IS.simplifyBinaryIntrinsic.L7052": [
+      "Peephole.IS.Intrinsic.Recur.Sound: every value the recursive simplifyICmpInst answers, for operands consistent with the run and with no undef, refines the comparison"
+    ],
+    "IS.simplifyBinaryIntrinsic.L7054": [
+      "Peephole.IS.Intrinsic.Recur.Sound: every value the recursive simplifyICmpInst answers, for operands consistent with the run and with no undef, refines the comparison"
+    ]
+  },
+  "unproved": {
+    "IS.simplifyBinaryIntrinsic.L6901": "vector-only: get.active.lane.mask, which returns a vector of i1; Term holds no vector, so no call it holds reaches this case",
+    "IS.simplifyBinaryIntrinsic.L6919": "vector-only: get.active.lane.mask of a scalable vector, with vscale_range; Term holds no vector, so no call it holds reaches this case",
+    "IS.simplifyBinaryIntrinsic.L6947": "pdep: Term holds no call to it",
+    "IS.simplifyBinaryIntrinsic.L6949": "pdep: Term holds no call to it",
+    "IS.simplifyBinaryIntrinsic.L6951": "pdep: Term holds no call to it",
+    "IS.simplifyBinaryIntrinsic.L6956": "pext: Term holds no call to it",
+    "IS.simplifyBinaryIntrinsic.L6958": "pext: Term holds no call to it",
+    "IS.simplifyBinaryIntrinsic.L6960": "pext: Term holds no call to it",
+    "IS.simplifyBinaryIntrinsic.L6967": "ptrmask, of a pointer: needs memory; Term holds no pointer",
+    "IS.simplifyBinaryIntrinsic.L6975": "ptrmask, of a pointer and its ptrtoint: needs memory; Term holds no pointer",
+    "IS.simplifyBinaryIntrinsic.L6981": "ptrmask, of a pointer: needs memory; Term holds no pointer",
+    "IS.simplifyBinaryIntrinsic.L6994": "ptrmask, of a pointer, with its known bits: needs memory; Term holds no pointer",
+    "IS.simplifyBinaryIntrinsic.L7012": "undef-only: `max(x, undef)` to the saturation point. Q.isUndefValue also holds of poison, but L7329 takes a poison operand first, and a call whose operands are all constants goes to the constant folder before that, so only undef reaches this step, and the model has no undef. Peephole.IS.simplifyBinaryIntrinsic.L7012 proves the poison reading, which nothing reaches",
+    "IS.simplifyBinaryIntrinsic.L7063": "scmp and ucmp: Term holds no call to them, whose result is an integer of its own width, not their operands'",
+    "IS.simplifyBinaryIntrinsic.L7068": "scmp and ucmp: Term holds no call to them, whose result is an integer of its own width, not their operands'",
+    "IS.simplifyBinaryIntrinsic.L7073": "scmp and ucmp: Term holds no call to them, whose result is an integer of its own width, not their operands'",
+    "IS.simplifyBinaryIntrinsic.L7083": "usub.with.overflow and ssub.with.overflow return a struct of the value and an i1, which Term can't hold",
+    "IS.simplifyBinaryIntrinsic.L7090": "uadd.with.overflow and sadd.with.overflow return a struct of the value and an i1, which Term can't hold",
+    "IS.simplifyBinaryIntrinsic.L7101": "umul.with.overflow and smul.with.overflow return a struct of the value and an i1, which Term can't hold",
+    "IS.simplifyBinaryIntrinsic.L7105": "umul.with.overflow and smul.with.overflow return a struct of the value and an i1, which Term can't hold",
+    "IS.simplifyBinaryIntrinsic.L7119": "undef-only: `uadd.sat` and `sadd.sat` of `undef` to -1. Q.isUndefValue also holds of poison, but L7329 takes a poison operand first, and a call whose operands are all constants goes to the constant folder before that, so only undef reaches this step, and the model has no undef. Peephole.IS.simplifyBinaryIntrinsic.L7119 proves the poison reading, which nothing reaches",
+    "IS.simplifyBinaryIntrinsic.L7150": "floating point: powi(x, 0); Term holds no floating-point value, so no call it holds reaches this case",
+    "IS.simplifyBinaryIntrinsic.L7153": "floating point: powi(x, 1); Term holds no floating-point value, so no call it holds reaches this case",
+    "IS.simplifyBinaryIntrinsic.L7161": "floating point: copysign(x, x); Term holds no floating-point value, so no call it holds reaches this case",
+    "IS.simplifyBinaryIntrinsic.L7166": "floating point: copysign of x and its negation; Term holds no floating-point value, so no call it holds reaches this case",
+    "IS.simplifyBinaryIntrinsic.L7172": "floating point: is.fpclass testing every class; Term holds no floating-point value, so no call it holds reaches this case",
+    "IS.simplifyBinaryIntrinsic.L7174": "floating point: is.fpclass testing none; Term holds no floating-point value, so no call it holds reaches this case",
+    "IS.simplifyBinaryIntrinsic.L7176": "floating point: is.fpclass of undef; Term holds no floating-point value, so no call it holds reaches this case",
+    "IS.simplifyBinaryIntrinsic.L7194": "floating point: minnum, maxnum, minimum, maximum, minimumnum and maximumnum of x and x; Term holds no floating-point value, so no call it holds reaches this case",
+    "IS.simplifyBinaryIntrinsic.L7250": "floating point: minnum and the others with a constant; Term holds no floating-point value, so no call it holds reaches this case",
+    "IS.simplifyBinaryIntrinsic.L7252": "floating point: minnum and the others with a constant; Term holds no floating-point value, so no call it holds reaches this case",
+    "IS.simplifyBinaryIntrinsic.L7271": "vector-only: vector.extract of vector.insert; Term holds no vector, so no call it holds reaches this case",
+    "IS.simplifyCall.L7604": "a call through an undef or null callee, to poison: needs memory and calls; every call Term holds is to an intrinsic's declaration, so the model's step falls through",
+    "IS.simplifyIdentityInterleave.L7318": "vector-only: interleave of deinterleave; for every call Term holds, getInterleaveIntrinsicFactor is 0, and the model's step falls through; Term holds no vector, so no call it holds reaches this case",
+    "IS.simplifyIntrinsic.L7329": "integer instance proved: the inventory tags it fp and calls, since it applies to every intrinsic that propagates poison, floating-point ones and ones the model doesn't have among them. Peephole.IS.simplifyIntrinsic.L7329 proves it for every call Term holds, and simplifyIntrinsic.sound uses it",
+    "IS.simplifyIntrinsic.L7340": "vscale: Term holds no call to it, which has no operands and reads the function's vscale_range",
+    "IS.simplifyIntrinsic.L7366": "masked.load and masked.gather: vectors and memory; Term holds neither",
+    "IS.simplifyIntrinsic.L7375": "undef-only: `fshl(undef, undef, z)` to `undef`. Q.isUndefValue also holds of poison, but L7329 takes a poison operand first, and a call whose operands are all constants goes to the constant folder before that, so only undef reaches this step, and the model has no undef. Peephole.IS.simplifyIntrinsic.L7375 proves the poison reading, which nothing reaches",
+    "IS.simplifyIntrinsic.L7379": "undef-only: `fshl(x, y, undef)` to `x`, `fshr` to `y`. Q.isUndefValue also holds of poison, but L7329 takes a poison operand first, and a call whose operands are all constants goes to the constant folder before that, so only undef reaches this step, and the model has no undef. Peephole.IS.simplifyIntrinsic.L7379 proves the poison reading, which nothing reaches",
+    "IS.simplifyIntrinsic.L7429": "smul.fix and smul.fix.sat: Term holds no fixed-point multiply",
+    "IS.simplifyIntrinsic.L7433": "smul.fix and smul.fix.sat: Term holds no fixed-point multiply",
+    "IS.simplifyIntrinsic.L7440": "smul.fix and smul.fix.sat: Term holds no fixed-point multiply",
+    "IS.simplifyIntrinsic.L7457": "vector-only: vector.insert of vector.extract; Term holds no vector, so no call it holds reaches this case",
+    "IS.simplifyIntrinsic.L7467": "vector-only: vector.splice.right of vector.splice.left; Term holds no vector, so no call it holds reaches this case",
+    "IS.simplifyIntrinsic.L7474": "vector-only: vector.splice with an undef offset; Term holds no vector, so no call it holds reaches this case",
+    "IS.simplifyIntrinsic.L7486": "vector-only: vector.splice past its length; Term holds no vector, so no call it holds reaches this case",
+    "IS.simplifyIntrinsic.L7490": "vector-only: vector.splice by 0; Term holds no vector, so no call it holds reaches this case",
+    "IS.simplifyIntrinsic.L7514": "vector-only: vp.reverse of vp.reverse; Term holds no vector, so no call it holds reaches this case",
+    "IS.simplifyIntrinsic.L7518": "vector-only: vp.reverse of a splat; Term holds no vector, so no call it holds reaches this case",
+    "IS.simplifyIntrinsic.L7541": "experimental.gc.relocate, of pointers: needs memory; no call Term holds is one, and the model's simplifyCall forwards past this case",
+    "IS.simplifyIntrinsic.L7550": "experimental.gc.relocate, of pointers: needs memory; no call Term holds is one, and the model's simplifyCall forwards past this case",
+    "IS.simplifyUnaryIntrinsic.L6574": "floating point: isIdempotent holds only of fabs, the rounding intrinsics, canonicalize and arithmetic_fence, none of which Term holds; the model's step falls through",
+    "IS.simplifyUnaryIntrinsic.L6585": "floating point: removesFPFraction holds only of the rounding intrinsics; the model's step falls through",
+    "IS.simplifyUnaryIntrinsic.L6593": "floating point: fabs, with computeKnownFPClass; Term holds no floating-point value, so no call it holds reaches this case",
+    "IS.simplifyUnaryIntrinsic.L6597": "floating point: fabs, with computeKnownFPClass and the no-signed-zeros flag; Term holds no floating-point value, so no call it holds reaches this case",
+    "IS.simplifyUnaryIntrinsic.L6627": "floating point: exp(log(x)) with reassociation; Term holds no floating-point value, so no call it holds reaches this case",
+    "IS.simplifyUnaryIntrinsic.L6633": "floating point: exp2(log2(x)) with reassociation; Term holds no floating-point value, so no call it holds reaches this case",
+    "IS.simplifyUnaryIntrinsic.L6639": "floating point: exp10(log10(x)) with reassociation; Term holds no floating-point value, so no call it holds reaches this case",
+    "IS.simplifyUnaryIntrinsic.L6645": "floating point: log(exp(x)) with reassociation; Term holds no floating-point value, so no call it holds reaches this case",
+    "IS.simplifyUnaryIntrinsic.L6653": "floating point: log2(exp2(x)) and log2(pow(2.0, x)) with reassociation; Term holds no floating-point value, so no call it holds reaches this case",
+    "IS.simplifyUnaryIntrinsic.L6662": "floating point: log10(exp10(x)) and log10(pow(10.0, x)) with reassociation; Term holds no floating-point value, so no call it holds reaches this case",
+    "IS.simplifyUnaryIntrinsic.L6667": "vector-only: vector.reverse of vector.reverse; Term holds no vector, so no call it holds reaches this case",
+    "IS.simplifyUnaryIntrinsic.L6670": "vector-only: vector.reverse of a splat; Term holds no vector, so no call it holds reaches this case",
+    "IS.simplifyUnaryIntrinsic.L6673": "structured.gep, of pointers: needs memory; Term holds no call to it",
+    "IS.tryConstantFoldCall.L7588": "the constant folder: ConstantFoldCall on a call whose operands are all constants, which the model delegates to"
+  }
+}
