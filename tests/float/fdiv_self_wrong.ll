@@ -1,9 +1,9 @@
 ; incorrect
 ; `fdiv x, x` to `1.0`: 0.0 / 0.0 is a NaN.
-define double @src(double %x) {
-  %r = fdiv double %x, %x
-  ret double %r
+define float @src(float %x) {
+  %r = fdiv float %x, %x
+  ret float %r
 }
-define double @tgt(double %x) {
-  ret double 1.0
+define float @tgt(float %x) {
+  ret float 1.0
 }

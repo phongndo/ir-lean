@@ -551,7 +551,7 @@ def check_native(table, results, work):
         for argv in (
             ["clang", "-O0", "-w", "-c", "-o", os.path.join(d, "main.c.o"), os.path.join(d, "main.c")],
             ["clang", "-O0", "-w", "-c", "-o", os.path.join(d, "ops.ll.o"), os.path.join(d, "ops.ll")],
-            ["clang", "-o", os.path.join(d, "run"), os.path.join(d, "main.c.o"), os.path.join(d, "ops.ll.o")],
+            ["clang", "-o", os.path.join(d, "run"), os.path.join(d, "main.c.o"), os.path.join(d, "ops.ll.o"), "-lm"],
         ):
             r = proc.run(argv)
             if r.exit != 0:

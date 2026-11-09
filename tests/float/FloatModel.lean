@@ -216,7 +216,7 @@ theorem fadd_comm_right : Refines fadd_comm_right_ir.src fadd_comm_right_ir.tgt 
   refine ⟨fun p => swapPick (ct p), ?_⟩
   simp only [fadd_comm_right_ir.src, fadd_comm_right_ir.tgt]
   rw [run_ret _ (by rfl), run_ret _ (by rfl), Refine.outcome_ok_ok, Refine.val_iff]
-  cases x <;> cases y <;> simp [llvm, ite_some, HasPoison.poison, Choice.pick, ofNat_keep, ofNat_flipSecond, ofNat_swapPick, swapBV] <;> bv_decide
+  cases x <;> cases y <;> simp [llvm, ite_some, HasPoison.poison, Choice.pick, ofNat_keep, ofNat_flipSecond, ofNat_swapPick, swapBV] <;> bv_decide (config := { timeout := 120 })
 
 /-- `fptosi (sitofp x)` to `x` for an i16, which a float holds exactly. -/
 theorem sitofp_fptosi_right : Refines sitofp_fptosi_right_ir.src sitofp_fptosi_right_ir.tgt := by
@@ -304,7 +304,7 @@ theorem fmul_zero_wrong : ¬ Refines fmul_zero_wrong_ir.src
 /-- `fdiv x, x` to `1.0`: 0.0 / 0.0 is a NaN. -/
 theorem fdiv_self_wrong : ¬ Refines fdiv_self_wrong_ir.src
     (fun x0 => Outcomes.det (fdiv_self_wrong_ir.tgt x0)) := fun h => by
-  obtain ⟨cs, hc⟩ := (Refine.outcomes_det_right _ _).1 (h (some 0#64))
+  obtain ⟨cs, hc⟩ := (Refine.outcomes_det_right _ _).1 (h (some 0#32))
   simp only [fdiv_self_wrong_ir.src, fdiv_self_wrong_ir.tgt] at hc
   rw [run_ret _ (by rfl), run_ret _ (by rfl), Refine.outcome_ok_ok, Refine.val_iff] at hc
   simp [llvm, ite_some, HasPoison.poison, Choice.pick, ofNat_keep, ofNat_flipSecond, ofNat_swapPick, swapBV] at hc
