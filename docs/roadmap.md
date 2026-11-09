@@ -354,15 +354,16 @@ spend no effort on them until these work.
 
 | Horizon | Platform track | Chunks |
 | --- | --- | --- |
-| **Now** | Python consolidation finishing: the ratchet lint, in [#78](https://github.com/phongndo/ir-lean/pull/78), open. Semantics lanes for floating point (SEM-05), the long tail (SEM-08 and the remaining refusals), and external calls and globals. The binding verifier, BIND-03, with gate B1, and BIND-02 toward gate B2 | Chunk 1: S1 finishing, then G0 and G1 across its four passes. INV-04, and the G2 burn-down |
+| **Now** | Semantics lanes for floating point (SEM-05), the long tail (SEM-08 and the remaining refusals), and external calls and globals, whose design is in [#81](https://github.com/phongndo/ir-lean/pull/81), open. The binding verifier, BIND-03, with gate B1, and BIND-02 toward gate B2 | Chunk 1: S1 finishing, then G0 and G1 across its four passes. INV-04, in [#79](https://github.com/phongndo/ir-lean/pull/79), open, and the G2 burn-down |
 | **Next** | F4, memory in `Refines` (SEM-06), when the first coverage lane lands. Binding gates B3 to B5, by [#74's gates and stop rules](binding-approach.md#gates). The tactics, AUTO-01 to 03 | Chunk 1 through G2 and G3, to its first pass done, BIND-06. The other chunks start at G0 as what they need from the platform lands. Superoptimizer v2 and proof-test tiers 2 and 3, once chunk 1's G2 is producing lemmas |
 | **Later** | E2, the executable memory model, and the safety bridge, S4, after F4 | Chunks 2 to 9 through their gates. MLIR, `inflate`, contracts, C++ and Rust, the unit-test milestone, and adoption, which wait on milestones or [aren't in the plan's order yet](#not-in-the-plans-order-yet) |
 
 **Done on 2026-11-09:** F3, `freeze` in the model ([#72](https://github.com/phongndo/ir-lean/pull/72)), BIND-01
 ([#74](https://github.com/phongndo/ir-lean/pull/74)), and the shared Python library, `tools/irlean`, with `tools/` and
-`tests/` on it ([#70](https://github.com/phongndo/ir-lean/pull/70), [#71](https://github.com/phongndo/ir-lean/pull/71),
-[#73](https://github.com/phongndo/ir-lean/pull/73), [#75](https://github.com/phongndo/ir-lean/pull/75),
-[#76](https://github.com/phongndo/ir-lean/pull/76) and [#77](https://github.com/phongndo/ir-lean/pull/77)).
+`tests/` on it, and the ratchet lint that keeps them there ([#70](https://github.com/phongndo/ir-lean/pull/70),
+[#71](https://github.com/phongndo/ir-lean/pull/71), [#73](https://github.com/phongndo/ir-lean/pull/73),
+[#75](https://github.com/phongndo/ir-lean/pull/75), [#76](https://github.com/phongndo/ir-lean/pull/76),
+[#77](https://github.com/phongndo/ir-lean/pull/77) and [#78](https://github.com/phongndo/ir-lean/pull/78)).
 
 ## Next steps
 
@@ -440,7 +441,8 @@ chunk's G2, and the binding gates hold up G3. A chunk can reach G0 and G1 before
 Chunks pull from it ([decision 3](#six-decisions-of-2026-11-09-after-69)).
 
 - **Python foundation.** Done: the shared library, `tools/irlean`, with `tools/` and `tests/` on it, in #70, #71,
-  #73, #75, #76 and #77 ([Python](python.md)). Now: the ratchet lint, in #78.
+  #73, #75, #76 and #77, and the ratchet lint, in #78, which bans running processes and hashing outside the library
+  ([Python](python.md)).
 - **Semantics coverage.** Done: SEM-07, in [#62](https://github.com/phongndo/ir-lean/pull/62), and F3, in #72. Now:
   floating point, SEM-05, the long tail, SEM-08 and the remaining refusals, and external calls and globals, as several
   lanes at once, each on its own module, merged one at a time ([limits](#limits)). Next: F4, memory in `Refines`,
