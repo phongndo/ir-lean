@@ -123,6 +123,10 @@ add_test(
         $<TARGET_FILE:ir-lean-probe>
 )
 set_tests_properties(ir_features PROPERTIES TIMEOUT 900)
+# Gate B1, LLVM's IR in memory: IRLean/LLVMHeap.lean and an example heap checked in Lean, and the layout probe
+# against the pinned libLLVM, with the numbers Lean prints. About 5 s. docs/llvm-heap.md.
+add_test(NAME llvm_heap COMMAND ${CMAKE_SOURCE_DIR}/tests/llvm_heap.sh)
+set_tests_properties(llvm_heap PROPERTIES TIMEOUT 900)
 # Which of the nine chunks of docs/chunks.md each of the inventory's passes is in, and the counts that page
 # gives: every pass in exactly one, against tests/llvm_scope/inventory.json. Under a second, and no Lean or
 # LLVM.

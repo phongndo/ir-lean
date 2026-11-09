@@ -36,6 +36,7 @@ from irlean import proc
 
 POISON = -1
 UB = "ub"
+UNDEF = "undef"
 
 
 def ty(shape):
@@ -168,6 +169,7 @@ def operations():
                 [f"declare {pair} @{n}(i{w}, i{w})"],
             )
         )
+    ops += x86_operations()
     ops.append(
         (
             "bswap_v2i16",
@@ -180,6 +182,91 @@ def operations():
     return ops
 
 
+# x86's pure bit functions, IRLean/X86Bits.lean, by their names in `Intrinsic::`, every one of which Alive2
+# knows. The shapes follow from the names.
+X86 = (
+    "x86_avx2_pshuf_b x86_avx2_psll_d x86_avx2_psll_q x86_avx2_psll_w x86_avx2_pslli_d x86_avx2_pslli_q "
+    "x86_avx2_pslli_w x86_avx2_psllv_d x86_avx2_psllv_d_256 x86_avx2_psllv_q x86_avx2_psllv_q_256 "
+    "x86_avx2_psra_d x86_avx2_psra_w x86_avx2_psrai_d x86_avx2_psrai_w x86_avx2_psrav_d "
+    "x86_avx2_psrav_d_256 x86_avx2_psrl_d x86_avx2_psrl_q x86_avx2_psrl_w x86_avx2_psrli_d "
+    "x86_avx2_psrli_q x86_avx2_psrli_w x86_avx2_psrlv_d x86_avx2_psrlv_d_256 x86_avx2_psrlv_q "
+    "x86_avx2_psrlv_q_256 x86_avx512_pshuf_b_512 x86_avx512_psll_d_512 x86_avx512_psll_q_512 "
+    "x86_avx512_psll_w_512 x86_avx512_pslli_d_512 x86_avx512_pslli_q_512 x86_avx512_pslli_w_512 "
+    "x86_avx512_psllv_d_512 x86_avx512_psllv_q_512 x86_avx512_psllv_w_128 x86_avx512_psllv_w_256 "
+    "x86_avx512_psllv_w_512 x86_avx512_psra_d_512 x86_avx512_psra_q_128 x86_avx512_psra_q_256 "
+    "x86_avx512_psra_q_512 x86_avx512_psra_w_512 x86_avx512_psrai_d_512 x86_avx512_psrai_q_128 "
+    "x86_avx512_psrai_q_256 x86_avx512_psrai_q_512 x86_avx512_psrai_w_512 x86_avx512_psrav_d_512 "
+    "x86_avx512_psrav_q_128 x86_avx512_psrav_q_256 x86_avx512_psrav_q_512 x86_avx512_psrav_w_128 "
+    "x86_avx512_psrav_w_256 x86_avx512_psrav_w_512 x86_avx512_psrl_d_512 x86_avx512_psrl_q_512 "
+    "x86_avx512_psrl_w_512 x86_avx512_psrli_d_512 x86_avx512_psrli_q_512 x86_avx512_psrli_w_512 "
+    "x86_avx512_psrlv_d_512 x86_avx512_psrlv_q_512 x86_avx512_psrlv_w_128 x86_avx512_psrlv_w_256 "
+    "x86_avx512_psrlv_w_512 x86_avx512_pternlog_d_128 x86_avx512_pternlog_d_256 x86_avx512_pternlog_d_512 "
+    "x86_avx512_pternlog_q_128 x86_avx512_pternlog_q_256 x86_avx512_pternlog_q_512 x86_sse2_psll_d "
+    "x86_sse2_psll_q x86_sse2_psll_w x86_sse2_pslli_d x86_sse2_pslli_q x86_sse2_pslli_w x86_sse2_psra_d "
+    "x86_sse2_psra_w x86_sse2_psrai_d x86_sse2_psrai_w x86_sse2_psrl_d x86_sse2_psrl_q x86_sse2_psrl_w "
+    "x86_sse2_psrli_d x86_sse2_psrli_q x86_sse2_psrli_w x86_ssse3_pshuf_b_128"
+).split()
+# Truth tables for VPTERNLOG: three-way XOR, majority, the first operand alone, nothing, everything, and two
+# others.
+TERNLOG = [0x96, 0xE8, 0xF0, 0x00, 0xFF, 0xCA, 0x1E]
+
+
+def x86_shapes(enum):
+    """(result and first argument's shape, second argument's shape) of an x86 intrinsic in X86."""
+    parts = enum.split("_")
+    isa = parts[1]
+    if parts[2] == "pternlog":
+        w = {"d": 32, "q": 64}[parts[3]]
+        return (int(parts[4]) // w, w), None
+    if parts[2] == "pshuf":
+        bits = {"ssse3": 128, "avx2": 256, "avx512": 512}[isa]
+        return (bits // 8, 8), (bits // 8, 8)
+    op, w = parts[2], {"w": 16, "d": 32, "q": 64}[parts[3]]
+    suffix = int(parts[4]) if len(parts) > 4 else None
+    if isa == "sse2":
+        bits = 128
+    elif isa == "avx2":
+        bits = suffix or (128 if op.endswith("v") else 256)
+    else:
+        assert suffix is not None, enum
+        bits = suffix
+    a = (bits // w, w)
+    if op.endswith("i"):
+        return a, (0, 32)
+    if op.endswith("v"):
+        return a, a
+    return a, (128 // w, w)
+
+
+def x86_operations():
+    ops = []
+    for enum in X86:
+        name = "llvm." + enum.replace("_", ".")
+        a, b = x86_shapes(enum)
+        if "pternlog" in enum:
+            for imm in TERNLOG:
+                ops.append(
+                    (
+                        f"x86_{enum}_{imm}",
+                        a,
+                        [a, a, a],
+                        f"%r = call {ty(a)} @{name}({ty(a)} %a0, {ty(a)} %a1, {ty(a)} %a2, i32 {imm})",
+                        [f"declare {ty(a)} @{name}({ty(a)}, {ty(a)}, {ty(a)}, i32)"],
+                    )
+                )
+            continue
+        ops.append(
+            (
+                f"x86_{enum}",
+                a,
+                [a, b],
+                f"%r = call {ty(a)} @{name}({ty(a)} %a0, {ty(b)} %a1)",
+                [f"declare {ty(a)} @{name}({ty(a)}, {ty(b)})"],
+            )
+        )
+    return ops
+
+
 def declarations(ops):
     return "\n".join(sorted({d for op in ops for d in op[4]})) + "\n"
 
@@ -189,10 +276,38 @@ def extremes(w):
     return sorted({0, 1, m, 1 << (w - 1), (1 << (w - 1)) - 1})
 
 
+def shift_count(rand, lane_width):
+    """A shift count near where a shift's rules change: below, at and past the lane width, and anything."""
+    return rand.choice(
+        [0, 1, 3, lane_width - 1, lane_width, lane_width + 1, rand.getrandbits(32), rand.randrange(64)]
+    )
+
+
 def cases(name, args, rand):
     """Each case is a list of lanes for each argument, a scalar being one lane."""
     shapes = [(max(n, 1), w) for n, w in args]
     out = []
+    if name.startswith("x86_") and "pternlog" not in name and "pshuf" not in name:
+        lane = args[0][1]
+        for k in range(20):
+            first = [rand.getrandbits(lane) for _ in range(shapes[0][0])]
+            n, w = shapes[1]
+            if n == 1 and w == 32:
+                count = [shift_count(rand, lane)]
+            elif args[1] == args[0]:
+                count = [shift_count(rand, lane) & ((1 << w) - 1) for _ in range(n)]
+            else:
+                # The count is the low 64 bits, read from the first lanes, lowest first.
+                c, per = shift_count(rand, lane), 64 // w
+                count = [(c >> (w * j)) & ((1 << w) - 1) for j in range(per)] + [
+                    rand.getrandbits(w) for _ in range(n - per)
+                ]
+            case = [first, count]
+            if k >= 16:
+                i = k % 2
+                case[i][rand.randrange(len(case[i]))] = POISON
+            out.append(case)
+        return out
     for _ in range(8):
         out.append([[rand.getrandbits(w) for _ in range(n)] for n, w in shapes])
     for _ in range(6):
@@ -399,6 +514,9 @@ def folded(text):
 def lane_value(x, w):
     if x in (POISON, "poison"):
         return POISON
+    # A lane LLVM folds to `undef` may be anything.
+    if x == "undef":
+        return UNDEF
     if x in ("true", "false"):
         return int(x == "true")
     return int(x) & ((1 << w) - 1)
@@ -409,7 +527,8 @@ def check_folder(ops, all_cases, results, work):
     path = os.path.join(work, "fold.ll")
     with open(path, "w") as f:
         f.write(declarations(ops) + "\n" + "\n".join(functions))
-    found = folded(sh(["opt", "-passes=instcombine", "-S", path]).out)
+    # x86's own folds only run for an x86 target.
+    found = folded(sh(["opt", "-mtriple=x86_64-unknown-linux-gnu", "-passes=instcombine", "-S", path]).out)
     agreed = refined = unfolded = 0
     wrong = []
     for (name, *_), cs, rs in zip(ops, all_cases, results, strict=True):
@@ -419,7 +538,7 @@ def check_folder(ops, all_cases, results, work):
                 unfolded += 1
                 continue
             for lane, (m, f) in enumerate(zip(model, fold, strict=True)):
-                if m == POISON:
+                if m == POISON or f == UNDEF:
                     refined += 1
                 elif m == f:
                     agreed += 1
