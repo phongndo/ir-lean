@@ -71,8 +71,8 @@ These gates moved, or went:
 | When certified optimization starts | Phase 4 waited for contracts reused by three callers, after `inflate` | It's the goal. Each stage waits only on the fidelity work it needs, as [hard dependencies](#dependencies) | The old order put the foundation first, so certificates would rest on checked semantics. Integer code uses neither contracts nor `inflate`, and what loops and memory need, SEM-07, SEM-06 and the `undef` decision, stays a hard dependency |
 | Phase 4's memory stage | Needed Phase 2's frame reasoning | Needs SEM-06. The frame lemmas it needs go in the lemma store, and Phase 2 generalizes from them later | Superoptimizer v2 rewrites one function at a time, so it needs lemmas about what that function's writes leave alone, not contracts across calls. If that proves wrong, this gate comes back |
 | Reading Trivet and Lean-MLIR | Before stage 1 | Before superoptimizer v2's design, as a prior-art study in wave 1 | Stage 1 started with [#30](https://github.com/phongndo/ir-lean/pull/30), and no doc records reading Trivet. Doing it before the next design is the honest version |
-| `inflate` | The headline, **Now** | Whole-system work: its first statement in wave 2, and its first proof in wave 3 | Superoptimization doesn't need it. It still matters, because its safety proof is what the bridge would carry to optimized code |
-| Runtime memory model | Part of Phase 1 | [Phase 6](#phase-6-the-engine-and-the-lemma-store), in wave 2 | Every track that runs memory code needs it, not only `inflate` |
+| `inflate` | The headline, **Now** | Whole-system work: its first statement in wave 2, and its first proof in wave 3. Revised: the statement is light work, taken up when a lane frees ([wave 2](#wave-2-revised-on-2026-11-08)) | Superoptimization doesn't need it. It still matters, because its safety proof is what the bridge would carry to optimized code |
+| Runtime memory model | Part of Phase 1 | [Phase 6](#phase-6-the-engine-and-the-lemma-store), in wave 2. Revised: wave 3 ([wave 2](#wave-2-revised-on-2026-11-08)) | Every track that runs memory code needs it, not only `inflate` |
 | Milestones | M0 to M11 | Named by phase: F, S, E, T, C, G, B and A | The old M1 to M4, for `inflate`, are G2 to G5 |
 
 ### The flywheel
@@ -294,7 +294,7 @@ v1, SEM-07, the executable memory model, tier-1 proof tests, and `inflate_table`
 
 | Item | Was | Now | Why |
 | --- | --- | --- | --- |
-| Stage-1 benchmark, S1 | In no wave. Stage 1 waited on reading Trivet and Lean-MLIR | Wave 2 | [The gate's answer](prior-art.md#the-gate) made it actionable, and narrower: neither covers stage 1, so it goes ahead, as the four things nobody has shipped, and without an LLM proof pipeline or width-generic procedure of our own |
+| Stage-1 benchmark, S1 | In no wave | Wave 2 | [The gate's answer](prior-art.md#the-gate) made it actionable, and narrower: neither covers stage 1, so it goes ahead, as the four things nobody has shipped, and without an LLM proof pipeline or width-generic procedure of our own |
 | Speed, round 2, C1 | In no wave, after #53's split | Wave 2 | C1 is open: CI takes 13 to 16 minutes against its 10, and [Phase 8](#phase-8-speed) puts getting back under 10 before adding tests, which every lane in this wave does |
 | Executable memory model, E2 | Wave 2 | Wave 3 | Two [limits](#limits). Only one pull request at a time changes semantics in `IRLean/*.lean`, and in wave 2 SEM-07 holds it. And the five lanes above fill the cap of about 4 or 5 |
 | `inflate_table`'s statement, G1 | Wave 2 | Light work, when a lane frees | The five lanes fill the cap. It's a statement for review, with no proof |
@@ -573,11 +573,11 @@ lines of the branch's `Vnni.lean`.
 **Hold or pivot:**
 
 - If the prior-art study finds that Trivet, Lean-MLIR or others cover superoptimizer v2's design, contribute to them
-  or share a semantics, and put our effort where memory and whole real functions differ. **Answered on 2026-11-08,
-  [no](prior-art.md#the-gate):** neither Trivet nor Lean-MLIR covers integer stage 1, though between them they cover its
-  core. So stage 1 goes ahead, narrowed as above, and `ir-lean` builds no LLM proof pipeline or width-generic decision
-  procedure for peepholes of its own. VeIR is the likeliest partner for a shared semantics. Past stage 1, the effort
-  goes to memory, whole functions, the safety bridge, and search with Lean certificates.
+  or share a semantics, and put our effort where memory and whole real functions differ. The study answered the
+  narrower question for stage 1 on 2026-11-08, [no](prior-art.md#the-gate): neither Trivet nor Lean-MLIR covers
+  integer stage 1, though between them they cover its core. So stage 1 goes ahead, narrowed as above, and `ir-lean`
+  builds no LLM proof pipeline or width-generic decision procedure for peepholes of its own. VeIR is the likeliest
+  partner for a shared semantics. The condition still applies to superoptimizer v2's design.
 - If proved wins stay on code no real program runs, such as compiler-rt's fallbacks, change how targets are chosen
   before making the search bigger.
 - If proving costs far more than finding, and the lemma store doesn't bring it down by E3, stop growing the search and
@@ -757,7 +757,7 @@ allocator returns. It says nothing about decompressing correctly, which could co
 **The order,** so each step tests the riskiest thing left:
 
 1. `inflate_table`: every entry it writes stays inside `codes`, and links stay in the table it built. Its statement is
-   in wave 2, and its proof in wave 3.
+   light work, taken up when a wave-2 lane frees, and its proof is in wave 3.
 2. `inflate_fast`, assuming tables with that property. This is where a memory bug would most likely be.
 3. The invariant across `inflate`'s modes, one mode at a time, starting with stored blocks.
 
