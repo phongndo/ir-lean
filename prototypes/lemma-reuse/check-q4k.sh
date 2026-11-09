@@ -3,14 +3,11 @@
 #
 # Proves the 34 places of llama.cpp's q4_K kernels from an empty store, in order, so later places can reuse what
 # earlier ones saved, and then again from the store that leaves, checking each saved lemma afresh. Fails if a place
-# isn't proved, if a slice differs from the branch's manifest, or if what's saved differs from q4k/store and
+# isn't proved, if a slice differs from docs/data/llama-manifest.json, or if what's saved differs from q4k/store and
 # q4k/proofs.
 #
-# The q4_K proof is on feat/prove-llvm-optimization-1, which isn't merged. Run this in a built checkout of it, in
-# its dev shell:
-#   git worktree add --detach ../q4k origin/feat/prove-llvm-optimization-1
-#   cd ../q4k && nix develop -c bash -c 'lake build && cmake -S . -B build -G Ninja && ninja -C build'
-#   nix develop -c /path/to/prototypes/lemma-reuse/check-q4k.sh . [--write]
+# It needs llama.cpp's source, which only `nix develop .#llama` has. From the repo, after building it:
+#   nix develop .#llama -c prototypes/lemma-reuse/check-q4k.sh . [--write]
 # `--write` replaces q4k/store, q4k/proofs and q4k/report.json with what this run saved, instead of comparing.
 set -euo pipefail
 repo=$(realpath "$1")
@@ -31,7 +28,7 @@ if ! diff -r "$work/proofs" "$work/proofs-again"; then
   exit 1
 fi
 if ! grep -q '"slices_matching_manifest": "68 of 68"' "$work/empty.json"; then
-  echo "FAIL  the slices aren't the ones the branch's manifest records"
+  echo "FAIL  the slices aren't the ones docs/data/llama-manifest.json records"
   exit 1
 fi
 

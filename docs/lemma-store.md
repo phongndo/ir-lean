@@ -253,9 +253,9 @@ have constants written as numbers. Its seed lemmas in `Count.lean`, and the ever
 counterexamples. They aren't in the store, because neither file is in a library `lake build` builds.
 
 Its q4_K half runs against the q4_K proof, which
-[#57](https://github.com/phongndo/ir-lean/pull/57) brings to `main` and which hadn't merged on 2026-11-08, so it isn't
-migrated. Its two core lemmas each rest on one of `bv_decide`'s axioms and are stated at 256 and 512 bits, as
-[lemma reuse](lemma-reuse.md#proof-time) records, so rules 1 and 2 would refuse them.
+[#57](https://github.com/phongndo/ir-lean/pull/57) brought to `main` on 2026-11-08. Its two core lemmas each rest on
+one of `bv_decide`'s axioms and are stated at 256 and 512 bits, as [lemma reuse](lemma-reuse.md#proof-time) records,
+so rules 1 and 2 would refuse them. Checking them here, and retiring the prototype, is the next pull request.
 
 ## What it rests on
 
@@ -296,8 +296,8 @@ migrated. Its two core lemmas each rest on one of `bv_decide`'s axioms and are s
   One written for a width variable `w` passes even if it's only true at some.
 - **Triviality is judged with a budget.** A lemma `grind` would close with more heartbeats is admitted.
 - **Subsumption only tries applying one lemma.** A lemma derivable in two steps is admitted.
-- **The prototype's q4_K store isn't migrated,** until #57 merges. Nor are `Count.lean`'s and
-  `tests/llvm/Bits.lean`'s counting lemmas, which no library `lake build` builds.
+- **The prototype isn't retired yet,** and its q4_K lemmas aren't checked against the bar. Nor are `Count.lean`'s
+  and `tests/llvm/Bits.lean`'s counting lemmas in the store, since no library `lake build` builds them.
 - **No lemma store for memory yet.** Every stored lemma is about values and runs without `Mem`, since `Refines` has no
   instance for it until SEM-06.
 

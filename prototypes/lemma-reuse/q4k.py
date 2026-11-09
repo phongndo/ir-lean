@@ -2,11 +2,11 @@
 """Splits each theorem that proves llama.cpp's q4_K kernels rewritten with VNNI into lemmas the 34 places
 share, saves them, and continues each theorem with them.
 
-A prototype, for research only, like lemmas.py next to it, and docs/lemma-reuse.md says what it found. The
-q4_K proof is on the branch feat/prove-llvm-optimization-1, which isn't merged, so this runs against a
-checkout of it, built, in its dev shell. From that checkout's pinned llama.cpp, it compiles the kernels,
-rewrites them and cuts out the 34 places as tests/llama.py does, and checks every slice against the branch's
-committed manifest. Then for each place, in order:
+A prototype, for research only, like lemmas.py next to it, and docs/lemma-reuse.md says what it found.
+From the pinned llama.cpp in `nix develop .#llama`, it compiles the kernels, rewrites them and cuts out the 34
+places as tests/llama.py does, and checks every slice against the committed manifest,
+docs/data/llama-manifest.json.
+Then for each place, in order:
 
 1. It checks the theorem as tests/llama.py writes it, with `vnni_slice`, for comparison.
 2. It reads both slices' Lean. What both compute in the same words is how the operands are built from loads
@@ -20,12 +20,13 @@ committed manifest. Then for each place, in order:
    hypotheses.
 5. It continues the place's theorem: it runs both slices as `vnni_slice` does, then applies the core lemma to
    the facts.
-6. It checks the theorem's axioms with the branch's tests/check_axioms.lean, and replays it and its lemmas
-   through leanchecker.
+6. It checks the axioms of the theorem and its lemmas with tests/check_axioms.lean, reading each as data, and
+   replays each through leanchecker.
 
-usage: prototypes/lemma-reuse/q4k.py --repo CHECKOUT [PLACE ...] [--store DIR] [--fresh] [--report FILE]
+usage: prototypes/lemma-reuse/q4k.py [PLACE ...] [--repo DIR] [--store DIR] [--fresh] [--report FILE]
 
-Run it in the checkout's dev shell, after `lake build` and building build/ir-lean there.
+Run it in `nix develop .#llama`, after `lake build` and building build/ir-lean. `--repo` is this repo by
+default.
 """
 
 import argparse
@@ -220,7 +221,7 @@ def original(name: str, sig: str, args: str) -> tuple[str, str]:
 
 
 # ------------------------------------------------------------------------------------------------------------
-# The branch's pipeline, up to the generated Lean.
+# tests/llama.py's pipeline, up to the generated Lean.
 
 
 def run(args: list, env: dict | None = None, cwd: Path | None = None) -> str:
@@ -231,7 +232,7 @@ def run(args: list, env: dict | None = None, cwd: Path | None = None) -> str:
 
 
 def cross_flags(work: Path) -> list[str]:
-    """What clang needs to compile for x86-64 Linux here, as the branch did on a Ryzen. On a Mac, the dev
+    """What clang needs to compile for x86-64 Linux here, as tests/llama.py does on a Ryzen. On a Mac, the dev
     shell's libc++ turns on Apple's availability markup, which has no meaning for Linux, so a copy of its
     configuration turns it off."""
     if platform.system() == "Linux" and platform.machine() == "x86_64":
@@ -260,9 +261,9 @@ def cross_flags(work: Path) -> list[str]:
 
 
 def prepare(repo: Path, work: Path, lean: Lean) -> tuple[list[dict], dict[str, Any]]:
-    """The 34 slice pairs, as the branch makes them, translated and compiled. Returns the slices' index, and
-    how they compare with the branch's manifest."""
-    # The branch's tests/llama.py, which this checkout doesn't have.
+    """The 34 slice pairs, as tests/llama.py makes them, translated and compiled. Returns the slices' index,
+    and how they compare with its manifest."""
+    # tests/llama.py isn't a package, so it's loaded by path.
     spec = importlib.util.spec_from_file_location("llama", repo / "tests" / "llama.py")
     assert spec is not None and spec.loader is not None
     llama = importlib.util.module_from_spec(spec)
@@ -425,15 +426,14 @@ def prove_place(
 
 
 def audit(repo: Path, lean: Lean, modules: list[str]) -> dict[str, Any]:
-    """Each module's axioms, with the branch's own check, and a replay of each through the kernel."""
-    check = (repo / "tests" / "check_axioms.lean").read_text()
+    """Each module's axioms, reading it and what it imports as data, and a replay of each through the
+    kernel."""
 
     def one(module: str) -> tuple[str, str]:
         r = subprocess.run(
-            ["lean", "--stdin"],
-            input=check.replace("MODULE", module),
+            ["lean", repo / "tests" / "check_axioms.lean"],
             cwd=repo,
-            env=lean.env,
+            env={**lean.env, "IRLEAN_CHECK_MODULE": module},
             capture_output=True,
             text=True,
             check=False,
@@ -458,7 +458,10 @@ def main() -> int:
     )
     parser.add_argument("places", nargs="*", help="places such as s00, in this order. All 34 by default")
     parser.add_argument(
-        "--repo", type=Path, required=True, help="a built checkout of the q4_K proof's branch"
+        "--repo",
+        type=Path,
+        default=HERE.parent.parent,
+        help="a built checkout of this repo, by default this one",
     )
     parser.add_argument("--store", type=Path, default=STORE)
     parser.add_argument("--proofs", type=Path, default=PROOFS)
