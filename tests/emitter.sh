@@ -104,7 +104,7 @@ if "$tool" "$work/FClass.ll" -o "$work/FClass.lean" --namespace FClass &&
 else
   fail 'nofpclass on a vector'
 fi
-refuses 'type' 'define <vscale x 4 x i8> @f(<vscale x 2 x i16> %x) { %r = bitcast <vscale x 2 x i16> %x to <vscale x 4 x i8>
+refuses 'integer bitcast shape' 'define <vscale x 4 x i8> @f(<vscale x 2 x i16> %x) { %r = bitcast <vscale x 2 x i16> %x to <vscale x 4 x i8>
   ret <vscale x 4 x i8> %r }'
 refuses 'integer bitcast shape' 'define ptr @f(ptr %x) { %r = bitcast ptr %x to ptr
   ret ptr %r }'

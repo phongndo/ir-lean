@@ -11,3 +11,4 @@ import IRLean.Lemmas
 import IRLean.Safety
 import IRLean.Refine
 import IRLean.World
+import IRLean.Scalable

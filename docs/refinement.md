@@ -34,6 +34,7 @@ code without memory:
 | `Exit α`, how a run that calls outside the module ends | `src` returned `x` with trace `t`: `tgt` returned some `y` that `x` allows, with trace `t`. `src` ended in a call that never came back, or unwound, or was cut off: `tgt` ended the same way, with the same trace. See [calls](calls.md) |
 | `Talks α`, a run of a function that calls outside the module | For every way `tgt` chooses, some way `src` chooses gives a run that allows `tgt`'s, watched for any number of calls with effects. The number comes after the source's choice, so one run of `src` has to agree with every prefix of `tgt`'s trace. See [calls](calls.md#refinement) |
 | `α → β`, a function | For every input, the same input to both, the results are related. A `Val` input is a value or poison. For a function that calls outside the module, the `World` and the trace before it are inputs too, so both sides face the same world |
+| `(vs : VScale) → β vs`, a function in a module with scalable vectors | For every `vscale`, the same on both sides, by `IRLean.Scalable`'s instance. It's a parameter, not a choice: see [scalable vectors](scalable-vectors.md) |
 
 There's no instance for `Mem`, `Ptr` or `PtrVal`. The emitter gives every function that mentions a pointer or touches
 memory a `Mem` argument and a `Mem` in its result, so such a function has no `Refines` claim at all, rather than one

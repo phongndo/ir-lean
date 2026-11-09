@@ -299,6 +299,19 @@ REASONS: dict[str, Reason] = {
     "intrinsic operand": Reason(
         "assumed", None, "Only an operand of an intrinsic, whose own class covers it"
     ),
+    "scalable vector": Reason(
+        "modeled",
+        None,
+        "A scalable vector of integers, a Vec (vscale * N) M, with vscale a parameter every function in the "
+        "module takes, in IRLean/Scalable.lean. Checked against the fixed-width forms and LLVM's constant "
+        "folder by tests/scalablecheck.py, and decided in docs/scalable-vectors.md",
+    ),
+    "vscale range": Reason(
+        "modeled",
+        None,
+        "A run with vscale outside the function's vscale_range is undefined, checked at its entry, "
+        "IRLean/Scalable.lean",
+    ),
     "data layout": Reason(
         "modeled",
         None,
@@ -468,6 +481,10 @@ INTRINSIC_RULES = [
         "llvm.vector.reduce.xor",
     ),
     R("assume", "llvm.assume"),
+    R(
+        "scalable vector",
+        "llvm.vscale llvm.stepvector llvm.vector.reverse llvm.vector.insert llvm.vector.extract",
+    ),
     R("identity", "llvm.expect"),
     R("no effect", "llvm.donothing"),
     R("memory", "llvm.memcpy llvm.memset llvm.lifetime.start llvm.lifetime.end"),
@@ -526,13 +543,13 @@ INTRINSIC_RULES = [
     ),
     R(
         "scalable",
-        "llvm.vscale llvm.stepvector llvm.get.active.lane.mask llvm.experimental.get.vector.length "
+        "llvm.get.active.lane.mask llvm.experimental.get.vector.length "
         "llvm.experimental.cttz.elts llvm.loop.dependence.raw.mask llvm.loop.dependence.war.mask",
         "llvm.vp. llvm.experimental.vp.",
     ),
     R(
         "vector gap",
-        "llvm.vector.extract llvm.vector.insert llvm.vector.reverse llvm.vector.splice.left "
+        "llvm.vector.splice.left "
         "llvm.vector.splice.right llvm.vector.partial.reduce.add llvm.experimental.vector.compress "
         "llvm.experimental.vector.match llvm.experimental.vector.extract.last.active llvm.masked.sdiv "
         "llvm.masked.srem llvm.masked.udiv llvm.masked.urem llvm.matrix.multiply llvm.matrix.transpose "
@@ -627,7 +644,8 @@ ATTRIBUTE_RULES = [
     R("memory model", "noalias", at="parameter, call parameter"),
     R("float", "nofpclass", at=VALUE),
     R("floating point", "denormal_fpenv strictfp noimplicitfloat"),
-    R("scalable", "vscale_range"),
+    R("vscale range", "vscale_range", at="function"),
+    R("scalable", "vscale_range", at="call"),
     R(
         "memory model",
         "byval byref inalloca preallocated sret elementtype writable dead_on_unwind dead_on_return "
@@ -756,7 +774,7 @@ TYPE_RULES = [
     R("memory", "Pointer"),
     R("float", "Half BFloat Float Double FP128"),
     R("floating point", "X86_FP80 PPC_FP128"),
-    R("scalable", "ScalableVector"),
+    R("scalable vector", "ScalableVector"),
     R("vector gap", "Array"),
     R("memory model", "Byte"),
     R("token", "Token"),
@@ -833,7 +851,8 @@ BUNDLE_RULES = [
 FORM_RULES = [
     R("vector", "udiv-of-vectors sdiv-of-vectors urem-of-vectors srem-of-vectors"),
     R("vector gap", "freeze-of-a-vector integer-bitcast-nondividing vector-constant-expression"),
-    R("scalable", "getelementptr-over-a-scalable-type"),
+    R("scalable", "getelementptr-over-a-scalable-type scalable-vector-in-a-recursive-function"),
+    R("memory model", "load-of-a-scalable-vector"),
     R("aggregate gap", "array-value insertvalue-nested freeze-of-a-struct"),
     R(
         "layout",
@@ -1605,9 +1624,9 @@ def run_probes(
 # Why a modeled item's probe may be refused at some shapes: the emitter's reason, and the refused item it's
 # about.
 PARTIAL = [
-    (r"^type <vscale x", ("type", "", "ScalableVector")),
-    (r"^type (<\d+ x )?x86_fp80>?$", ("type", "", "X86_FP80")),
-    (r"^type (<\d+ x )?ppc_fp128>?$", ("type", "", "PPC_FP128")),
+    (r"^type (<(vscale x )?\d+ x )?x86_fp80>?$", ("type", "", "X86_FP80")),
+    (r"^type (<(vscale x )?\d+ x )?ppc_fp128>?$", ("type", "", "PPC_FP128")),
+    (r"^type <vscale x \d+ x ptr", ("form", "", "vector-of-pointers")),
     (r"^type <\d+ x ptr", ("form", "", "vector-of-pointers")),
     (r"^type ptr addrspace", ("form", "", "pointer-in-address-space")),
 ]
