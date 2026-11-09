@@ -160,6 +160,18 @@ private:
   std::set<std::string> Used;
 };
 
+// The name every function in a module with scalable vectors takes `vscale` as, IRLean/Scalable.lean's
+// `VScale`. Primed, so no value's name can be the same.
+const char *const VScaleName = "vs'";
+
+// How many lanes a vector of type `T` has, as Lean: a number, or for a scalable vector, a multiple of
+// `vscale`.
+std::string lanesOf(const VectorType *T) {
+  if (const auto *S = dyn_cast<ScalableVectorType>(T))
+    return "(" + std::string(VScaleName) + ".val * " + std::to_string(S->getMinNumElements()) + ")";
+  return std::to_string(cast<FixedVectorType>(T)->getNumElements());
+}
+
 std::string leanType(Type *T) {
   if (auto *I = dyn_cast<IntegerType>(T))
     return "Val " + std::to_string(I->getBitWidth());
@@ -170,11 +182,10 @@ std::string leanType(Type *T) {
   }
   if (T->isVoidTy())
     return "Unit";
-  if (auto *V = dyn_cast<FixedVectorType>(T)) {
+  if (auto *V = dyn_cast<VectorType>(T)) {
     if (!V->getElementType()->isIntegerTy())
       reject("type " + printedType(T));
-    return "(Vec " + std::to_string(V->getNumElements()) + " " +
-           std::to_string(V->getElementType()->getIntegerBitWidth()) + ")";
+    return "(Vec " + lanesOf(V) + " " + std::to_string(V->getElementType()->getIntegerBitWidth()) + ")";
   }
   if (auto *S = dyn_cast<StructType>(T)) {
     if (S->isOpaque() || S->getNumElements() == 0)
@@ -210,10 +221,9 @@ std::string zeroOf(Type *T) {
     return "(some 0#" + std::to_string(I->getBitWidth()) + ")";
   if (T->isPointerTy())
     return "(some Ptr.null)";
-  if (auto *V = dyn_cast<FixedVectorType>(T)) {
+  if (auto *V = dyn_cast<VectorType>(T)) {
     leanType(T);
-    return "(Vector.replicate " + std::to_string(V->getNumElements()) + " " + zeroOf(V->getElementType()) +
-           ")";
+    return "(Vector.replicate " + lanesOf(V) + " " + zeroOf(V->getElementType()) + ")";
   }
   if (auto *S = dyn_cast<StructType>(T)) {
     std::string Out = "(";
@@ -238,10 +248,40 @@ bool hasExactLinkage(const GlobalValue &G) {
 // another matter, since the copy a call runs may be another translation's: `emitCall` refuses those calls.
 bool hasODRLinkage(const GlobalValue &G) { return G.hasLinkOnceODRLinkage() || G.hasWeakODRLinkage(); }
 
+bool mentionsScalable(Type *T) {
+  if (isa<ScalableVectorType>(T))
+    return true;
+  return any_of(T->subtypes(), [](Type *S) { return mentionsScalable(S); });
+}
+
+// Whether anything in a definition depends on `vscale`: a scalable type, `llvm.vscale`, or `vscale_range`. If
+// anything in the module does, every function in it takes `vscale`, so each can pass it to what it calls.
+bool dependsOnVScale(const Function &F) {
+  if (F.isDeclaration())
+    return false;
+  if (F.hasFnAttribute(Attribute::VScaleRange) || mentionsScalable(F.getFunctionType()))
+    return true;
+  for (const BasicBlock &BB : F)
+    for (const Instruction &I : BB) {
+      if (mentionsScalable(I.getType()) ||
+          any_of(I.operands(), [](const Use &U) { return mentionsScalable(U->getType()); }))
+        return true;
+      if (const auto *G = dyn_cast<GetElementPtrInst>(&I); G && mentionsScalable(G->getSourceElementType()))
+        return true;
+      if (const auto *A = dyn_cast<AllocaInst>(&I); A && mentionsScalable(A->getAllocatedType()))
+        return true;
+      if (const auto *C = dyn_cast<IntrinsicInst>(&I); C && C->getIntrinsicID() == Intrinsic::vscale)
+        return true;
+    }
+  return false;
+}
+
 // The module-wide things functions refer to: its globals and data layout.
 class ModuleContext {
 public:
-  ModuleContext(Module &M, bool NoCode) : DL(M.getDataLayout()), Def(NoCode ? "noncomputable def " : "def ") {
+  ModuleContext(Module &M, bool NoCode)
+      : DL(M.getDataLayout()), Def(NoCode ? "noncomputable def " : "def "),
+        Scalable(any_of(M, [](const Function &F) { return dependsOnVScale(F); })) {
     NameTable GlobalNames;
     unsigned Block = 1;
     // Every global gets its allocation before any initializer is read, since initializers can point
@@ -302,12 +342,23 @@ public:
   const DataLayout &DL;
   // What starts a definition in the output.
   const std::string Def;
+  // Whether every function takes `vscale`, IRLean/Scalable.lean's `VScale`, first.
+  const bool Scalable;
 
   std::string constant(const Constant *C) const {
     if (isa<PoisonValue>(C))
       return poisonOf(C->getType());
     if (isa<UndefValue>(C))
       reject("undef");
+    // A splat that isn't written lane by lane: of a scalable vector, or a vector-typed `ConstantInt`.
+    if (auto *V = dyn_cast<VectorType>(C->getType());
+        V && (isa<ScalableVectorType>(V) || isa<ConstantInt>(C)) && !isa<ConstantAggregateZero>(C)) {
+      const Constant *Splat = C->getSplatValue();
+      if (!Splat)
+        reject("constant " + printed(*C));
+      leanType(V);
+      return "(Vector.replicate " + lanesOf(V) + " " + constant(Splat) + ")";
+    }
     if (auto *I = dyn_cast<ConstantInt>(C))
       return "(some " + bitVec(I->getValue()) + ")";
     if (isa<ConstantPointerNull>(C)) {
@@ -762,6 +813,9 @@ void checkFunctionAttributes(AttributeSet Attrs, const std::string &Where, bool 
     // Returning from a definition that promises not to is undefined, which `emitTerminator` gives it.
     if ((GivesUp || Definition) && A.getKindAsEnum() == Attribute::NoReturn)
       continue;
+    // Checked at the definition's entry, by `emitFunction`.
+    if (Definition && A.getKindAsEnum() == Attribute::VScaleRange)
+      continue;
     // A run of the function itself is the same with `speculatable` or without. What it changes is its
     // callers, which `emitCall` refuses, and `prepare` refuses it on a function with memory, whose effects it
     // would rule out unchecked.
@@ -1017,6 +1071,9 @@ private:
   std::string valueType() const { return UsesMemory ? RetType + " × Mem" : RetType; }
   // What a run returns: for a function that calls outside the module, how it ends.
   std::string resultType() const { return Talks ? "Exit (" + valueType() + ")" : valueType(); }
+  // `vscale`, after the name of something that takes it: the blocks' type, `step`, `promise`, and the
+  // module's functions. Empty in a module without scalable vectors.
+  std::string vs() const { return Context.Scalable ? std::string(" ") + VScaleName : ""; }
   // The block's next chooser, as `IRLean.Choice` numbers them: a `freeze`, or a call to a function that
   // chooses.
   std::string nextChooser() { return std::to_string(NextChooser++); }
@@ -1347,6 +1404,9 @@ void FunctionEmitter::checkMetadata(const Instruction &I) {
 static void checkMemoryType(Type *T, const Instruction &I) {
   if (T->isPointerTy())
     return;
+  // Memory counts bytes, and a scalable vector's are a multiple of `vscale`, which `Mem` doesn't take.
+  if (isa<ScalableVectorType>(T))
+    reject("instruction " + printed(I));
   if (T->isIntOrIntVectorTy() && T->getScalarSizeInBits() % 8 == 0)
     return;
   reject("instruction " + printed(I));
@@ -1700,6 +1760,17 @@ void FunctionEmitter::emitInstruction(const Instruction &I, std::vector<Line> &O
     return;
   case Instruction::ShuffleVector: {
     const auto &V = cast<ShuffleVectorInst>(I);
+    // Of a scalable vector, LLVM allows only an all-zero mask, lane 0 everywhere, and a poison one.
+    if (auto *S = dyn_cast<ScalableVectorType>(V.getType())) {
+      ArrayRef<int> M = V.getShuffleMask();
+      if (all_of(M, [](int L) { return L == 0; }))
+        addLet(I, Out, "Vec.splat0 " + lanesOf(S) + " " + Op(0));
+      else if (all_of(M, [](int L) { return L < 0; }))
+        addLet(I, Out, poisonOf(S));
+      else
+        reject("instruction " + printed(I));
+      return;
+    }
     auto *Result = dyn_cast<FixedVectorType>(V.getType());
     if (!Result)
       reject("instruction " + printed(I));
@@ -1915,6 +1986,35 @@ bool FunctionEmitter::emitIntrinsic(const IntrinsicInst &C, std::vector<Line> &O
   // makes progress. The model has no observable effects, and would call that loop undefined under a promise.
   case Intrinsic::sideeffect:
     reject("intrinsic llvm.sideeffect, which LangRef makes observable progress, and the model has none");
+  case Intrinsic::vscale:
+    addLet(C, Out, "VScale.value " + std::to_string(C.getType()->getIntegerBitWidth()) + vs());
+    return true;
+  case Intrinsic::stepvector:
+    addLet(C, Out,
+           "Vec.stepvector " + lanesOf(cast<VectorType>(C.getType())) + " " +
+               std::to_string(C.getType()->getScalarSizeInBits()));
+    return true;
+  // The index is a constant, times `vscale` when the part inserted or extracted is scalable.
+  case Intrinsic::vector_insert:
+  case Intrinsic::vector_extract: {
+    bool Insert = C.getIntrinsicID() == Intrinsic::vector_insert;
+    auto *Part = cast<VectorType>(Insert ? C.getArgOperand(1)->getType() : C.getType());
+    const auto *Index = dyn_cast<ConstantInt>(C.getArgOperand(Insert ? 2 : 1));
+    if (!Index || !Part->getElementType()->isIntegerTy())
+      reject("intrinsic " + C.getCalledFunction()->getName().str());
+    std::string Start = std::to_string(Index->getZExtValue());
+    if (isa<ScalableVectorType>(Part))
+      Start = "(" + std::string(VScaleName) + ".val * " + Start + ")";
+    addLet(C, Out,
+           Insert ? "Vec.insertSub " + Start + " " + Op(0) + " " + Op(1)
+                  : "Vec.extractSub " + lanesOf(Part) + " " + Start + " " + Op(0));
+    return true;
+  }
+  case Intrinsic::vector_reverse:
+    if (!C.getType()->getScalarType()->isIntegerTy())
+      reject("intrinsic " + C.getCalledFunction()->getName().str());
+    addLet(C, Out, "Vec.reverse " + Op(0));
+    return true;
   case Intrinsic::expect:
     addLet(C, Out, Op(0));
     return true;
@@ -2146,7 +2246,8 @@ void FunctionEmitter::emitCall(const CallBase &C, std::vector<Line> &Out) {
   };
   if (Callee) {
     bool Memory = MemoryFunctions.count(Callee), Talking = TalkingFunctions.count(Callee);
-    std::string Expr = Callees.lookup(Callee) + Args + (Memory ? " m" : "") + (Talking ? " w' t'" : "");
+    std::string Expr = Callees.lookup(Callee) + (Callee->isDeclaration() ? "" : vs()) + Args +
+                       (Memory ? " m" : "") + (Talking ? " w' t'" : "");
     if (ChoosingFunctions.count(Callee))
       Expr += Chooser();
     if (Talking)
@@ -2182,7 +2283,7 @@ void FunctionEmitter::emitCall(const CallBase &C, std::vector<Line> &Out) {
       if (TalkingFunctions.count(Target))
         reject("indirect call that can reach @" + Target->getName().str() +
                ", which calls outside the module");
-      std::string Call = Callees.lookup(Target) + Args;
+      std::string Call = Callees.lookup(Target) + vs() + Args;
       if (MemoryFunctions.count(Target))
         Call += " m";
       if (ChoosingFunctions.count(Target))
@@ -2414,6 +2515,10 @@ void FunctionEmitter::prepare() {
   nameValues();
   computeLiveness();
   findPromises();
+  // Only `step` and the flat blocks take `vscale` so far.
+  if (Context.Scalable && (Recursive || Blocks.size() > MaxFlatBlocks))
+    reject("scalable vectors or vscale in a recursive function or one with more than " +
+           std::to_string(MaxFlatBlocks) + " blocks");
   if (Recursive && Blocks.size() > MaxRecursiveBlocks)
     reject("recursive function with more than " + std::to_string(MaxRecursiveBlocks) + " blocks");
   RetType = leanType(F.getReturnType());
@@ -2452,14 +2557,18 @@ void FunctionEmitter::prepare() {
 }
 
 std::string FunctionEmitter::emitBlocks() {
-  std::string NextType = "Outcome (Next Block (" + resultType() + "))";
+  // With `vscale`, the blocks' type and `step` take it, since a block's arguments and the result can be
+  // scalable.
+  std::string Param = Context.Scalable ? " (" + std::string(VScaleName) + " : VScale)" : "";
+  std::string BlockType = Context.Scalable ? "(Block" + vs() + ")" : "Block";
+  std::string NextType = "Outcome (Next " + BlockType + " (" + resultType() + "))";
   std::string Out = "namespace " + LeanName + "\n\n";
   if (Recursive || Blocks.size() <= MaxFlatBlocks) {
-    Out += "inductive Block where\n";
+    Out += "inductive Block" + Param + " where\n";
     for (const BasicBlock *BB : Blocks)
       Out += emitConstructor(BB);
     if (!Recursive) {
-      Out += "\n" + Context.Def + "step : Block → " + NextType + "\n";
+      Out += "\n" + Context.Def + "step" + Param + " : " + BlockType + " → " + NextType + "\n";
       for (const BasicBlock *BB : Blocks)
         Out += emitArm(BB);
     }
@@ -2488,8 +2597,8 @@ std::string FunctionEmitter::emitBlocks() {
   }
   // The blocks under a promise, when they aren't all of them. The entry block is never in a loop.
   if (!Recursive && !F.willReturn() && !Promised.empty() && Promised.size() != Blocks.size()) {
-    Out += "\n/-- The blocks of loops marked `llvm.loop.mustprogress`. -/\n" + Context.Def +
-           "promise : Block → Bool\n";
+    Out += "\n/-- The blocks of loops marked `llvm.loop.mustprogress`. -/\n" + Context.Def + "promise" +
+           Param + " : " + BlockType + " → Bool\n";
     for (const BasicBlock *BB : Blocks)
       if (Promised.count(BB))
         Out += "  | " + constructorPath(BB, BlockNames.lookup(BB) + " ..") + " => true\n";
@@ -2508,6 +2617,8 @@ std::string FunctionEmitter::emitLoop() {
 
 std::string FunctionEmitter::signature(const std::string &Name) {
   std::string Out = Context.Def + Name;
+  if (Context.Scalable)
+    Out += " (" + std::string(VScaleName) + " : VScale)";
   for (const Argument &A : F.args())
     Out += " (" + Names.at(&A) + " : " + leanType(A.getType()) + ")";
   if (UsesMemory)
@@ -2521,13 +2632,15 @@ std::string FunctionEmitter::signature(const std::string &Name) {
 
 // A run from the entry block, judged by the function's promises.
 std::string FunctionEmitter::promisedRun(const std::string &Entry) {
-  std::string Run = "run " + LeanName + ".step " + Entry;
+  std::string Run = "run (" + LeanName + ".step" + vs() + ") " + Entry;
   if (F.willReturn())
     return "promised (" + Run + ") fun _ => Outcome.ub .noReturn";
   if (Promised.empty())
     return Run;
-  std::string Which = Promised.size() == Blocks.size() ? "(fun _ => true)" : LeanName + ".promise";
-  return "promised (" + Run + ") fun _ => runPromised " + Which + " " + LeanName + ".step " + Entry;
+  std::string Which =
+      Promised.size() == Blocks.size() ? "(fun _ => true)" : "(" + LeanName + ".promise" + vs() + ")";
+  return "promised (" + Run + ") fun _ => runPromised " + Which + " (" + LeanName + ".step" + vs() + ") " +
+         Entry;
 }
 
 // Under a promise, a call to a function that promises to progress, and not to return, that never returns is a
@@ -2560,6 +2673,10 @@ std::string FunctionEmitter::emitPromisedCycleWrapper() {
 std::string FunctionEmitter::emitFunction() {
   std::string Out = signature(PromisedCycle ? LeanName + ".raw" : LeanName);
   AttributeList Attrs = F.getAttributes();
+  // A run with `vscale` outside the function's `vscale_range` is undefined, IRLean/Scalable.lean says why.
+  if (Attribute R = F.getFnAttribute(Attribute::VScaleRange); R.isValid())
+    Out += "  VScale.range " + std::to_string(R.getVScaleRangeMin()) + " " +
+           std::to_string(R.getVScaleRangeMax().value_or(0)) + vs() + " <|\n";
   for (const Argument &A : F.args()) {
     AttributeSet Param = Attrs.getParamAttrs(A.getArgNo());
     checkValueAttributes(Param, A.getType(), Position::Parameter);

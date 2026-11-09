@@ -55,7 +55,7 @@ refuses 'nondividing lane widths' 'define <3 x i8> @f(<2 x i12> %x) { %r = bitca
   ret <3 x i8> %r }'
 refuses 'type' 'define <2 x i32> @f(<2 x float> %x) { %r = bitcast <2 x float> %x to <2 x i32>
   ret <2 x i32> %r }'
-refuses 'type' 'define <vscale x 4 x i8> @f(<vscale x 2 x i16> %x) { %r = bitcast <vscale x 2 x i16> %x to <vscale x 4 x i8>
+refuses 'integer bitcast shape' 'define <vscale x 4 x i8> @f(<vscale x 2 x i16> %x) { %r = bitcast <vscale x 2 x i16> %x to <vscale x 4 x i8>
   ret <vscale x 4 x i8> %r }'
 refuses 'integer bitcast shape' 'define ptr @f(ptr %x) { %r = bitcast ptr %x to ptr
   ret ptr %r }'
