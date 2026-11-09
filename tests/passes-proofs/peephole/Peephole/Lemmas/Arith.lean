@@ -967,3 +967,212 @@ theorem srem_sub_swap_refines (a b : Val w) (f1 f2 f3 f4 : Bool) :
       exact srem_refines_of fun _ _ => by rw [e, srem_neg_self]
 
 end Peephole.Lemmas
+
+/-! ## Counterexamples
+
+For each hypothesis of a lemma above, the lemma without it is false: `drop_<hypothesis>` gives one input where it
+fails. For each lemma with hypotheses, `sat` gives one input where they all hold. They're in the form
+`store/LemmaStore/Counter/Generic.lean` uses, for the store to check. -/
+
+namespace LemmaStore.Counter
+
+open IRLean
+
+/-- A value that's the value `x` only allows `x`. -/
+private theorem arith_not_refines_val {w : Nat} {a b : Val w} (x : BitVec w) (ha : a = some x) (hb : b ≠ some x) :
+    ¬ Refines a b := by
+  subst ha; exact fun r => hb ((Refine.val_some x b).1 r)
+
+/-- A run that returns the value `x` only allows `x`. -/
+private theorem arith_not_refines_ok {w : Nat} {o : Outcome (Val w)} {b : Val w} (x : BitVec w)
+    (ho : o = Outcome.ok (some x)) (hb : b ≠ some x) : ¬ Refines o (Outcome.ok b) := by
+  subst ho; exact fun r => hb ((Refine.val_some x b).1 ((Refine.outcome_ok_ok _ _).1 r))
+
+/-- `0 - 1` is `-1`, which is neither `0` nor `1`. -/
+theorem Peephole.Lemmas.sub_zero_left_nsw_refines.drop_h :
+    ¬ ∀ {w : Nat} {y : BitVec w} (nuw : Bool), Refines (Val.sub (some 0#w) (some y) nuw true) (some 0#w) :=
+  fun h => arith_not_refines_val 3#2 rfl (by decide) (@h 2 1#2 false)
+
+theorem Peephole.Lemmas.sub_zero_left_nsw_refines.sat :
+    ∃ (w : Nat) (y : BitVec w) (_ : Bool), y &&& BitVec.intMax w = 0#w :=
+  ⟨1, 0#1, false, by decide⟩
+
+theorem Peephole.Lemmas.sub_zero_left_refines_self.drop_h :
+    ¬ ∀ {w : Nat} {y : BitVec w} (nuw nsw : Bool), Refines (Val.sub (some 0#w) (some y) nuw nsw) (some y) :=
+  fun h => arith_not_refines_val 3#2 rfl (by decide) (@h 2 1#2 false false)
+
+theorem Peephole.Lemmas.sub_zero_left_refines_self.sat :
+    ∃ (w : Nat) (y : BitVec w) (_ _ : Bool), y &&& BitVec.intMax w = 0#w :=
+  ⟨1, 0#1, false, false, by decide⟩
+
+/-- `2` isn't a low-bit mask: `2 - (3 ^ 2)` is `1`, not `3`. -/
+theorem Peephole.Lemmas.sub_mask_xor_nuw_refines.drop_hc :
+    ¬ ∀ {w : Nat} (a : Val w) {c : BitVec w} (nsw : Bool), Refines (Val.sub (some c) (Val.xor a (some c)) true nsw) a :=
+  fun h => arith_not_refines_val 1#2 rfl (by decide) (@h 2 (some 3#2) 2#2 false)
+
+theorem Peephole.Lemmas.sub_mask_xor_nuw_refines.sat :
+    ∃ (w : Nat) (_ : Val w) (c : BitVec w) (_ : Bool), (c + 1#w) &&& c = 0#w :=
+  ⟨1, none, 0#1, false, by decide⟩
+
+/-- `1 * 1` is `1`, not `0`: the quotient has to be the dividend's. -/
+theorem Peephole.Lemmas.mul_udiv_exact_refines.drop_h :
+    ¬ ∀ {w : Nat} {a b q : Val w} (nuw nsw : Bool), Refines (Val.mul q b nuw nsw) a :=
+  fun h => arith_not_refines_val 1#2 rfl (by decide) (@h 2 (some 0#2) (some 1#2) (some 1#2) false false)
+
+theorem Peephole.Lemmas.mul_udiv_exact_refines.sat :
+    ∃ (w : Nat) (a b q : Val w) (_ _ : Bool), Val.udiv a b true = Outcome.ok q :=
+  ⟨1, none, some 1#1, none, false, false, rfl⟩
+
+theorem Peephole.Lemmas.mul_sdiv_exact_refines.drop_h :
+    ¬ ∀ {w : Nat} {a b q : Val w} (nuw nsw : Bool), Refines (Val.mul q b nuw nsw) a :=
+  fun h => arith_not_refines_val 1#2 rfl (by decide) (@h 2 (some 0#2) (some 1#2) (some 1#2) false false)
+
+theorem Peephole.Lemmas.mul_sdiv_exact_refines.sat :
+    ∃ (w : Nat) (a b q : Val w) (_ _ : Bool), Val.sdiv a b true = Outcome.ok q :=
+  ⟨2, none, some 1#2, none, false, false, rfl⟩
+
+/-- `3 * 2` wraps to `2` in `i2`, and `2 / 2` is `1`, not `3`. -/
+theorem Peephole.Lemmas.udiv_mul_udiv_refines.drop_h :
+    ¬ ∀ {w : Nat} {_ : Val w} {b x : Val w} {_ : Bool} (nuw nsw e' : Bool),
+      Refines (Val.udiv (Val.mul x b nuw nsw) b e') (Outcome.ok x) :=
+  fun h => arith_not_refines_ok 1#2 rfl (by decide)
+    (@h 2 none (some 2#2) (some 3#2) false false false false)
+
+theorem Peephole.Lemmas.udiv_mul_udiv_refines.sat :
+    ∃ (w : Nat) (a b x : Val w) (e : Bool) (_ _ _ : Bool), Val.udiv a b e = Outcome.ok x :=
+  ⟨1, none, some 1#1, none, false, false, false, false, rfl⟩
+
+/-- `3 * 3` wraps to `1` in `i2`, and `1 % 3` is `1`. -/
+theorem Peephole.Lemmas.urem_mul_udiv_refines.drop_h :
+    ¬ ∀ {w : Nat} {_ : Val w} {b x : Val w} {_ : Bool} (nuw nsw : Bool),
+      Refines (Val.urem (Val.mul x b nuw nsw) b) (Outcome.ok (some 0#w)) :=
+  fun h => arith_not_refines_ok 1#2 rfl (by decide) (@h 2 none (some 3#2) (some 3#2) false false false)
+
+theorem Peephole.Lemmas.urem_mul_udiv_refines.sat :
+    ∃ (w : Nat) (a b x : Val w) (e : Bool) (_ _ : Bool), Val.udiv a b e = Outcome.ok x :=
+  ⟨1, none, some 1#1, none, false, false, false, rfl⟩
+
+/-- `3 * 3` wraps to `1` in `i3`, and `1 sdiv 3` is `0`, not `3`. -/
+theorem Peephole.Lemmas.sdiv_mul_sdiv_refines.drop_h :
+    ¬ ∀ {w : Nat} {_ : Val w} {b x : Val w} {_ : Bool} (nuw nsw e' : Bool),
+      Refines (Val.sdiv (Val.mul x b nuw nsw) b e') (Outcome.ok x) :=
+  fun h => arith_not_refines_ok 0#3 rfl (by decide)
+    (@h 3 none (some 3#3) (some 3#3) false false false false)
+
+theorem Peephole.Lemmas.sdiv_mul_sdiv_refines.sat :
+    ∃ (w : Nat) (a b x : Val w) (e : Bool) (_ _ _ : Bool), Val.sdiv a b e = Outcome.ok x :=
+  ⟨2, none, some 1#2, none, false, false, false, false, rfl⟩
+
+theorem Peephole.Lemmas.srem_mul_sdiv_refines.drop_h :
+    ¬ ∀ {w : Nat} {_ : Val w} {b x : Val w} {_ : Bool} (nuw nsw : Bool),
+      Refines (Val.srem (Val.mul x b nuw nsw) b) (Outcome.ok (some 0#w)) :=
+  fun h => arith_not_refines_ok 1#3 rfl (by decide) (@h 3 none (some 3#3) (some 3#3) false false false)
+
+theorem Peephole.Lemmas.srem_mul_sdiv_refines.sat :
+    ∃ (w : Nat) (a b x : Val w) (e : Bool) (_ _ : Bool), Val.sdiv a b e = Outcome.ok x :=
+  ⟨2, none, some 1#2, none, false, false, false, rfl⟩
+
+/-- `1 / 1` is `1`. -/
+theorem Peephole.Lemmas.udiv_of_lt_refines.drop_h :
+    ¬ ∀ {w : Nat} {x y : BitVec w} (exact : Bool),
+      Refines (Val.udiv (some x) (some y) exact) (Outcome.ok (some 0#w)) :=
+  fun h => arith_not_refines_ok 1#2 rfl (by decide) (@h 2 1#2 1#2 false)
+
+theorem Peephole.Lemmas.udiv_of_lt_refines.sat : ∃ (w : Nat) (x y : BitVec w) (_ : Bool), x < y :=
+  ⟨1, 0#1, 1#1, false, by decide⟩
+
+/-- `1 % 1` is `0`. -/
+theorem Peephole.Lemmas.urem_of_lt_refines.drop_h :
+    ¬ ∀ {w : Nat} {x y : BitVec w}, Refines (Val.urem (some x) (some y)) (Outcome.ok (some x)) :=
+  fun h => arith_not_refines_ok 0#2 rfl (by decide) (@h 2 1#2 1#2)
+
+theorem Peephole.Lemmas.urem_of_lt_refines.sat : ∃ (w : Nat) (x y : BitVec w), x < y :=
+  ⟨1, 0#1, 1#1, by decide⟩
+
+theorem Peephole.Lemmas.sdiv_of_natAbs_lt_refines.drop_h :
+    ¬ ∀ {w : Nat} {x y : BitVec w} (exact : Bool),
+      Refines (Val.sdiv (some x) (some y) exact) (Outcome.ok (some 0#w)) :=
+  fun h => arith_not_refines_ok 1#2 rfl (by decide) (@h 2 1#2 1#2 false)
+
+theorem Peephole.Lemmas.sdiv_of_natAbs_lt_refines.sat :
+    ∃ (w : Nat) (x y : BitVec w) (_ : Bool), x.toInt.natAbs < y.toInt.natAbs :=
+  ⟨2, 0#2, 1#2, false, by decide⟩
+
+theorem Peephole.Lemmas.srem_of_natAbs_lt_refines.drop_h :
+    ¬ ∀ {w : Nat} {x y : BitVec w}, Refines (Val.srem (some x) (some y)) (Outcome.ok (some x)) :=
+  fun h => arith_not_refines_ok 0#2 rfl (by decide) (@h 2 1#2 1#2)
+
+theorem Peephole.Lemmas.srem_of_natAbs_lt_refines.sat :
+    ∃ (w : Nat) (x y : BitVec w), x.toInt.natAbs < y.toInt.natAbs :=
+  ⟨2, 0#2, 1#2, by decide⟩
+
+/-- `0 /exact 2` is `0`: no low bit of the dividend is set. -/
+theorem Peephole.Lemmas.udiv_exact_of_low_bit_refines.drop_hx :
+    ¬ ∀ {w : Nat} {x y : BitVec w} {k : Nat}, k < y.ctz.toNat →
+      Refines (Val.udiv (some x) (some y) true) (Outcome.ok none) :=
+  fun h => arith_not_refines_ok 0#2 rfl (by decide) (@h 2 0#2 2#2 0 (by decide))
+
+/-- `2 /exact 2` is `1`: the dividend's set bit isn't below the divisor's lowest. -/
+theorem Peephole.Lemmas.udiv_exact_of_low_bit_refines.drop_hk :
+    ¬ ∀ {w : Nat} {x y : BitVec w} {k : Nat}, x.getLsbD k = true →
+      Refines (Val.udiv (some x) (some y) true) (Outcome.ok none) :=
+  fun h => arith_not_refines_ok 1#2 rfl (by decide) (@h 2 2#2 2#2 1 (by decide))
+
+theorem Peephole.Lemmas.udiv_exact_of_low_bit_refines.sat :
+    ∃ (w : Nat) (x y : BitVec w) (k : Nat), x.getLsbD k = true ∧ k < y.ctz.toNat :=
+  ⟨2, 1#2, 2#2, 0, by decide, by decide⟩
+
+theorem Peephole.Lemmas.sdiv_exact_of_low_bit_refines.drop_hx :
+    ¬ ∀ {w : Nat} {x y : BitVec w} {k : Nat}, k < y.ctz.toNat →
+      Refines (Val.sdiv (some x) (some y) true) (Outcome.ok none) :=
+  fun h => arith_not_refines_ok 0#3 rfl (by decide) (@h 3 0#3 2#3 0 (by decide))
+
+theorem Peephole.Lemmas.sdiv_exact_of_low_bit_refines.drop_hk :
+    ¬ ∀ {w : Nat} {x y : BitVec w} {k : Nat}, x.getLsbD k = true →
+      Refines (Val.sdiv (some x) (some y) true) (Outcome.ok none) :=
+  fun h => arith_not_refines_ok 1#3 rfl (by decide) (@h 3 2#3 2#3 1 (by decide))
+
+theorem Peephole.Lemmas.sdiv_exact_of_low_bit_refines.sat :
+    ∃ (w : Nat) (x y : BitVec w) (k : Nat), x.getLsbD k = true ∧ k < y.ctz.toNat :=
+  ⟨3, 1#3, 2#3, 0, by decide, by decide⟩
+
+/-- `-2 * 2` is `-4` in `i3`, without signed overflow, and `4 /exact 2` is `2`, not `-2`. -/
+theorem Peephole.Lemmas.udiv_exact_mul_nsw_refines.drop_hc :
+    ¬ ∀ {w : Nat} (a : Val w) {c : BitVec w} (nuw : Bool),
+      Refines (Val.udiv (Val.mul a (some c) nuw true) (some c) true) (Outcome.ok a) :=
+  fun h => arith_not_refines_ok 2#3 rfl (by decide) (@h 3 (some 6#3) 2#3 false)
+
+theorem Peephole.Lemmas.udiv_exact_mul_nsw_refines.sat :
+    ∃ (w : Nat) (_ : Val w) (c : BitVec w) (_ : Bool), ¬ c.toNat.isPowerOfTwo :=
+  ⟨2, none, 3#2, false, by decide⟩
+
+/-- `3 * 2` is `6` in `i3`, without unsigned overflow, and `6 sdiv exact 2`, which is `-2 sdiv 2`, is `-1`. -/
+theorem Peephole.Lemmas.sdiv_exact_mul_nuw_refines.drop_hc :
+    ¬ ∀ {w : Nat} (a : Val w) {c : BitVec w} (nsw : Bool),
+      Refines (Val.sdiv (Val.mul a (some c) true nsw) (some c) true) (Outcome.ok a) :=
+  fun h => arith_not_refines_ok 7#3 rfl (by decide) (@h 3 (some 3#3) 2#3 false)
+
+theorem Peephole.Lemmas.sdiv_exact_mul_nuw_refines.sat :
+    ∃ (w : Nat) (_ : Val w) (c : BitVec w) (_ : Bool), ¬ c.toNat.isPowerOfTwo :=
+  ⟨2, none, 3#2, false, by decide⟩
+
+/-- `(1 * 1) % 2` is `1`. -/
+theorem Peephole.Lemmas.urem_mul_nuw_of_umod_refines.drop_h :
+    ¬ ∀ {w : Nat} (a : Val w) {c1 c0 : BitVec w} (nsw : Bool),
+      Refines (Val.urem (Val.mul a (some c1) true nsw) (some c0)) (Outcome.ok (some 0#w)) :=
+  fun h => arith_not_refines_ok 1#2 rfl (by decide) (@h 2 (some 1#2) 1#2 2#2 false)
+
+theorem Peephole.Lemmas.urem_mul_nuw_of_umod_refines.sat :
+    ∃ (w : Nat) (_ : Val w) (c1 c0 : BitVec w) (_ : Bool), c1 % c0 = 0#w :=
+  ⟨1, none, 0#1, 1#1, false, by decide⟩
+
+theorem Peephole.Lemmas.srem_mul_nsw_of_srem_refines.drop_h :
+    ¬ ∀ {w : Nat} (a : Val w) {c1 c0 : BitVec w} (nuw : Bool),
+      Refines (Val.srem (Val.mul a (some c1) nuw true) (some c0)) (Outcome.ok (some 0#w)) :=
+  fun h => arith_not_refines_ok 1#3 rfl (by decide) (@h 3 (some 1#3) 1#3 2#3 false)
+
+theorem Peephole.Lemmas.srem_mul_nsw_of_srem_refines.sat :
+    ∃ (w : Nat) (_ : Val w) (c1 c0 : BitVec w) (_ : Bool), c1.srem c0 = 0#w :=
+  ⟨1, none, 0#1, 1#1, false, by decide⟩
+
+end LemmaStore.Counter
