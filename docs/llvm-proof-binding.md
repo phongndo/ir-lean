@@ -245,10 +245,16 @@ Nothing is kept between runs. As of 2026-11-08, this is how, and why each shortc
     through the daemon, but each one added is hashed the same way.
   - When the store is root's, as it is with a daemon, on NixOS, macOS and CI, Nix makes every file in a path
     root's and read-only, so only root can change it afterward. A certificate's code runs as the user.
+  - The record comes from the daemon, through `unix:///nix/var/nix/daemon-socket/socket`, which has to be a socket
+    root owns in a directory only root can write, with the user's Nix configuration left out
+    (`NIX_USER_CONF_FILES=/dev/null`). The user's configuration, which a certificate's code can write, could
+    otherwise name another store, such as a binary cache whose made-up record says any path has the pinned hash.
+    Plain `nix-store --query --hash` believes such a record.
 
   Anything else is hashed with `nix hash path`, as before: a store a single-user install made, which the user owns
-  along with Nix's record of it, a directory inside a store path, which the record doesn't describe, and anything
-  outside the store. Like the rest of this page, it doesn't hold against a process running as root.
+  along with Nix's record of it, a directory inside a store path, which the record doesn't describe, anything
+  outside the store, and a daemon socket that isn't a socket root owns in a directory only root can write. On
+  macOS with Determinate Nix the socket's path is a link, so the files are hashed there. Like the rest of this page, it doesn't hold against a process running as root.
 - **Nothing is cached between runs.** The Lean toolchain is in `~/.elan`, which the user, and so a certificate's code,
   can write. A cache of its hash keyed by what `lstat` says, as `stamp()` compares within a run, would have to be
   somewhere that code could write too, and an entry it forged would let a changed toolchain through.
@@ -256,7 +262,9 @@ Nothing is kept between runs. As of 2026-11-08, this is how, and why each shortc
 `tests/binding.py` checks each of these: a tree's hash changes when a file's bytes change, or a file is added,
 removed, renamed or moved, or a link leads to another file, and the two pairs above hash differently; Nix's base-32
 reads back the pin's hash; a path this user owns isn't looked up; the recorded hash equals `nix hash path`'s, every
-run; and `LLVM_PROJECT_SRC` set to another root-owned store path, zlib's source, is refused as `llvm_pin_mismatch`.
+run; a binary cache the user's Nix configuration names, whose record says zlib's source has the pinned hash, isn't
+read; and `LLVM_PROJECT_SRC` set to zlib's source, a root-owned store path, is refused as `llvm_pin_mismatch`, with and
+without that cache.
 
 ### Limits
 
@@ -370,7 +378,7 @@ each case breaks one thing and has to get the status and reason given:
 | | An extra field, a path outside the bundle | `refused`, `manifest_invalid` |
 | Changed configuration | Another pass spec | `refused`, `transform_replay_mismatch` |
 | | Another `-mtriple`, another data layout | `refused`, `config_mismatch` |
-| | Another llvm-project commit, another source tree, and another path in the Nix store | `refused`, `llvm_pin_mismatch` |
+| | Another llvm-project commit, another source tree, and another path in the Nix store, with or without a binary cache the user's Nix configuration names saying it's the pinned one | `refused`, `llvm_pin_mismatch` |
 | | Another ir-lean or checker | `refused`, `toolchain_mismatch` |
 | Stale cache | A second run of the good bundle | `bound`, cache `hit` |
 | | A certificate changed with its hash updated | Replayed and `refused`, cache `miss` |

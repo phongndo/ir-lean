@@ -118,6 +118,25 @@ LEAVES_PROCESS = GOOD + (
 )
 
 
+# The pinned llvm-project's NAR hash, as `nix-store --query --hash` prints it, in Nix's base-32.
+PINNED_NIX32 = "1pnjmz111lj6xxv41s14s7ifj0w7z41j3mdj872gn2hvh6ymivpr"
+
+
+def forged_store(t: Path, path: Path) -> dict[str, str]:
+    """The environment of a user whose Nix configuration names a binary cache of its own, with a record that
+    says `path` has the pinned llvm-project's NAR hash, as a certificate's code could leave for later runs."""
+    cache = t / "forged-cache"
+    (cache / "nar").mkdir(parents=True, exist_ok=True)
+    (cache / "nix-cache-info").write_text("StoreDir: /nix/store\nWantMassQuery: 0\nPriority: 50\n")
+    (cache / f"{path.name.split('-', 1)[0]}.narinfo").write_text(
+        f"StorePath: {path}\nURL: nar/x.nar\nCompression: none\nNarHash: sha256:{PINNED_NIX32}\n"
+        "NarSize: 1\nReferences: \n"
+    )
+    conf = t / "forged-nix.conf"
+    conf.write_text(f"store = file://{cache}\n")
+    return {"NIX_USER_CONF_FILES": str(conf), "NIX_REMOTE": f"file://{cache}"}
+
+
 def sha(data: bytes) -> str:
     return hashlib.sha256(data).hexdigest()
 
@@ -648,7 +667,7 @@ def recorded_hashes(binding: Any, t: Path, failures: list[str]) -> int:
     there, which `nix hash path` works out again."""
     ran = 1
     # `nix-store --query --hash` and `nix hash path` for the pinned llvm-project.
-    nix32 = "1pnjmz111lj6xxv41s14s7ifj0w7z41j3mdj872gn2hvh6ymivpr"
+    nix32 = PINNED_NIX32
     pinned = "sha256-+e5YvYEbCvvEQbLVIQP5hwPp4tEk6EB270bSEMKv0t4="
     bad = []
     for text in (nix32[1:], nix32[:-1] + "e", "z" + nix32[1:]):
@@ -691,6 +710,26 @@ def recorded_hashes(binding: Any, t: Path, failures: list[str]) -> int:
     else:
         how = "not used, as the store isn't root's" if recorded is None else "the hash of what's there"
         print(f"ok    recorded_hash: {how}, and a directory inside a store path isn't looked up")
+    # A store the user's configuration names, a binary cache whose record says zlib's source is llvm-project.
+    ran += 1
+    zlib = Path(os.environ["ZLIB_SRC"])
+    forged = forged_store(t, zlib)
+    query = ["nix-store", "--query", "--hash", str(zlib)]
+    fooled = subprocess.run(query, capture_output=True, text=True, env={**os.environ, **forged}, check=False)
+    misled = binding.Runner(120, 1000)
+    misled.env.update(forged)
+    got = binding.recorded_nar_hash(misled, zlib)
+    hashed = subprocess.run(
+        ["nix", "hash", "path", str(zlib)], capture_output=True, text=True, check=True
+    ).stdout.strip()
+    if got not in (None, hashed):
+        failures.append(
+            f"forged_store: read {got} for {zlib}, from the user's store, which hashes to {hashed}"
+        )
+    else:
+        alone = fooled.stdout.strip() == f"sha256:{nix32}"
+        how = "fools nix-store alone" if alone else "doesn't fool nix-store here"
+        print(f"ok    forged_store: a binary cache the user's configuration names, which {how}, isn't read")
     return ran
 
 
@@ -804,6 +843,17 @@ def main() -> int:
             failures.append(f"other_store_source: expected refused llvm_pin_mismatch, got {got}")
         else:
             print(f"ok    other_store_source: {got[0]} {got[1]}")
+    if not args.only or "forged_store_source" in args.only:
+        # The same, with the user's Nix configuration naming a binary cache that says it's the pinned source.
+        ran += 1
+        zlib = os.environ["ZLIB_SRC"]
+        forged = forged_store(WORK / "forged", Path(zlib))
+        verdict = verify(good("forged_store_source"), env={"LLVM_PROJECT_SRC": zlib, **forged})
+        got = (verdict.get("status"), verdict.get("reason"))
+        if got != ("refused", "llvm_pin_mismatch"):
+            failures.append(f"forged_store_source: expected refused llvm_pin_mismatch, got {got}")
+        else:
+            print(f"ok    forged_store_source: {got[0]} {got[1]}")
     if not args.only or "cache" in args.only:
         ran += cache_cases(failures)
     if not args.keep:

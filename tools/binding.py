@@ -78,6 +78,9 @@ DEFAULT_MEMORY_MB = 3000
 HASH_THREADS = min(8, os.cpu_count() or 1)
 # The directory a store path is directly in, which is the only place llvm_source_hash() asks Nix about.
 NIX_STORE = Path("/nix/store")
+# The Nix daemon's socket, root's in a store root owns, which llvm_source_hash() asks, not whatever store the
+# user's Nix configuration names: a certificate's code can rewrite that, to name a binary cache of its own.
+NIX_DAEMON_SOCKET = Path("/nix/var/nix/daemon-socket/socket")
 # Lean's errors for running out of something, as tests/llvm.py and tests/proofs.sh list them.
 LIMIT = re.compile(
     r"maximum number of heartbeats|\(deterministic\) timeout|maximum recursion depth|deep recursion|"
@@ -443,15 +446,25 @@ def recorded_nar_hash(run: Runner, path: Path) -> str | None:
     what's there if no one could change it since. That holds when `path` is a path directly in /nix/store,
     owned by root, and this process isn't root: Nix makes everything in a path root's and read-only when the
     store is root's, as it is with a daemon, and nothing without root can change it then. A store a user
-    owns, which a single-user install makes, gets None, as does anything else."""
+    owns, which a single-user install makes, gets None, as does anything else.
+
+    The record is read from the daemon, through its socket, which has to be root's in a directory root owns,
+    with the user's Nix configuration left out. Otherwise the user's configuration, which a certificate's code
+    can write, could name another store, such as a binary cache whose made-up record says anything."""
     if path.parent != NIX_STORE or os.geteuid() == 0:
         return None
     try:
-        if path.lstat().st_uid != 0:
+        socket, directory = NIX_DAEMON_SOCKET.lstat(), NIX_DAEMON_SOCKET.parent.lstat()
+        if path.lstat().st_uid != 0 or not stat.S_ISSOCK(socket.st_mode):
+            return None
+        if socket.st_uid != 0 or directory.st_uid != 0 or directory.st_mode & 0o022:
             return None
     except OSError:
         return None
-    code, _, out = run(["nix-store", "--query", "--hash", str(path)])
+    code, _, out = run(
+        ["nix-store", "--store", f"unix://{NIX_DAEMON_SOCKET}", "--query", "--hash", str(path)],
+        env={"NIX_USER_CONF_FILES": os.devnull},
+    )
     if code != 0:
         return None
     algorithm, _, digest = out.decode().strip().partition(":")
