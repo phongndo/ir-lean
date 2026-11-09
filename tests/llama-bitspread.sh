@@ -15,9 +15,15 @@ opt -passes=verify -disable-output "$fixture"
 "$tool" "$fixture" --namespace LlamaBitspreadIR --no-code -o "$work/LlamaBitspreadIR.lean"
 lean -DwarningAsError=true -R "$work" -o "$work/LlamaBitspreadIR.olean" "$work/LlamaBitspreadIR.lean"
 lean -DwarningAsError=true -R "$root/tests/proofs" -o "$work/LlamaBitspread.olean" "$proof"
-sed 's/MODULE/LlamaBitspread/g' "$root/tests/check_axioms.lean" >"$work/Audit.lean"
-lean -DwarningAsError=true "$work/Audit.lean"
-printf 'ok    exact q5_0 slice: same successful result, with defined bytes for every defined input\n'
+# The axioms, reading the proof and what it imports as data, as tests/proofs.sh does, and that `same` is about
+# both helpers as ir-lean generated them. Then the kernel replays it, since Lean code can add a declaration it
+# never checked.
+axioms=$(IRLEAN_CHECK_MODULE=LlamaBitspread IRLEAN_CHECK_GENERATED=LlamaBitspreadIR \
+  IRLEAN_CHECK_THEOREMS=$'same LlamaBitspreadIR.src\nsame LlamaBitspreadIR.tgt' \
+  lean "$root/tests/check_axioms.lean")
+leanchecker LlamaBitspread
+printf 'ok    exact q5_0 slice: same successful result, with defined bytes for every defined input (axioms: %s)\n' \
+  "$axioms"
 
 # A valid but wrong replacement: output lane zero reads input bit one instead of bit zero.
 # Keep the source unchanged, and check the same proof against newly generated mutant Lean.
