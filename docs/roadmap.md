@@ -195,7 +195,7 @@ spend no effort on them until these work.
 
 | Horizon | Work | Why it's here |
 | --- | --- | --- |
-| **Now** | [Wave 2](#wave-2-revised-on-2026-11-08), as revised on 2026-11-08: lemma store v1, the stage-1 benchmark and soundness corpus, SEM-07, tier-1 proof tests, and speed, round 2. What's left of wave 1: the two llama.cpp pull requests, [#57](https://github.com/phongndo/ir-lean/pull/57) and [#58](https://github.com/phongndo/ir-lean/pull/58) | Each starts a track, and each is the step the next one in that track waits on |
+| **Now** | [Wave 2](#wave-2-revised-on-2026-11-08), as revised on 2026-11-08: lemma store v1, the stage-1 benchmark and soundness corpus, SEM-07, tier-1 proof tests, and speed, round 2. Wave 1 is done: [#57](https://github.com/phongndo/ir-lean/pull/57) and [#58](https://github.com/phongndo/ir-lean/pull/58) brought the llama.cpp results to `main` | Each starts a track, and each is the step the next one in that track waits on |
 | **Next** | Wave 3: superoptimizer v2, the safety bridge, the executable memory model, proof-test tiers 2 and 3 with the unit-test milestone, and the `inflate_table` proof. `inflate_table`'s statement is light work, taken up when a lane frees | Each needs something wave 2 builds, or waits for a lane |
 | **Later** | MLIR, contracts, C++ and Rust, and adoption | Each needs a milestone from wave 3 |
 
@@ -262,12 +262,12 @@ SEM-06 holds up only superoptimizer v2's memory candidates, not the rest of it.
 - This roadmap. Done in [#55](https://github.com/phongndo/ir-lean/pull/55).
 - Split CI into parallel jobs. Done in [#53](https://github.com/phongndo/ir-lean/pull/53). [Phase 8](#phase-8-speed) has the
   target, which it doesn't reach yet.
-- Bring the two llama.cpp branches to `main` as pull requests. Open as [#57](https://github.com/phongndo/ir-lean/pull/57)
-  and [#58](https://github.com/phongndo/ir-lean/pull/58):
-  - `feat/prove-llvm-optimization-1`: the q4_K VNNI rewrite, proved at all 34 places, reads prompts 5.5% to 7.2%
-    faster.
-  - `feat/prove-llvm-optimization`: a Q5 rewrite, measured on real inference. Its `docs/llama.md` gives a median
-    inference speedup of 1.049 times on one thread, with a 95% interval of 1.029 to 1.057.
+- Bring the two llama.cpp branches to `main` as pull requests. Done:
+  - `feat/prove-llvm-optimization-1`, in [#57](https://github.com/phongndo/ir-lean/pull/57) (`b59d862`): the q4_K
+    VNNI rewrite, proved at all 34 places, reads prompts 5.5% to 7.2% faster.
+  - `feat/prove-llvm-optimization`, in [#58](https://github.com/phongndo/ir-lean/pull/58): a Q5 rewrite, measured on
+    real inference. [Its page](llama-q5.md) gives a median inference speedup of 1.049 times on one thread, with a 95%
+    interval of 1.029 to 1.057.
 - A prior-art study for superoptimization and proof tests. It gates superoptimizer v2's design. Done in
   [#56](https://github.com/phongndo/ir-lean/pull/56), as [prior art](prior-art.md), which also answers
   [the Phase 4 gate](prior-art.md#the-gate).
@@ -364,8 +364,8 @@ GEP flags ([#15](https://github.com/phongndo/ir-lean/pull/15)), attribute and li
 | # | Slice | Phase | Wave | Done when |
 | --- | --- | --- | --- | --- |
 | 17 | Split CI into parallel jobs | 8 | 1 | Done in #53. C1 below is still open |
-| 18 | The q4_K rewrite, from `feat/prove-llvm-optimization-1` | 4 | 1 | On `main`, its proofs checked in CI, and its benchmark reproducible from the repo |
-| 19 | The Q5 rewrite, from `feat/prove-llvm-optimization` | 4 | 1 | The same |
+| 18 | The q4_K rewrite, from `feat/prove-llvm-optimization-1` | 4 | 1 | Done in #57: on `main`, its proofs checked in CI, and its benchmark reproducible from the repo |
+| 19 | The Q5 rewrite, from `feat/prove-llvm-optimization` | 4 | 1 | Done in #58, the same way |
 | 20 | Prior-art study for superoptimization and proof tests | 4, 7 | 1 | A note in `docs/` covering at least the work in [prior art](#prior-art), which superoptimizer v2's design cites |
 | 21 | #52's capture and measurement tools, without its ledger | 4 | 1 | Done in #54: `tools/corpus/capture.py` and `tools/measure.py`. Reading the corpus is superoptimizer v2's |
 | 22 | Lemma store v1 | 6 | 2 | E1 below |
@@ -399,7 +399,7 @@ Each is reached when its checks pass in CI, not on a date.
 | F4 | `Refines` for functions with memory, SEM-06 | 0 | F3 | Not started |
 | F5 | Phase 0B done: full inventory, semantic mutation, two-machine determinism | 0 | F1 | In progress: promises, model stops and Alive2 are done |
 | S1 | Stage 1: proved wins on integer code, and no known-wrong rewrite certified | 4 | | In part: 2 proved wins over `clang -O3` ([#30](https://github.com/phongndo/ir-lean/pull/30)). The comparison with Alive2 isn't done |
-| S2 | A proved win on real code, on `main` | 4 | | On two branches, with no pull request |
+| S2 | A proved win on real code, on `main` | 4 | | The q4_K rewrite landed in [#57](https://github.com/phongndo/ir-lean/pull/57) (`b59d862`), and the Q5 rewrite in [#58](https://github.com/phongndo/ir-lean/pull/58) |
 | S3 | Superoptimizer v2 | 4 | The study. E1, soft. F4, for memory | Not started |
 | S4 | The safety bridge proved | 4 | F2, F4 | Not started |
 | S5 | A proved win on LLVM IR exported from MLIR | 4 | S3 | Not started |
@@ -522,9 +522,9 @@ can't claim one the certificate didn't check, apart from `mustprogress` and `wil
 - **Superoptimizer v1:** [`tests/superopt.py`](../tests/superopt.py) searches expressions of up to 3 integer
   instructions on 1 argument. It has 2 proved wins over `clang -O3`, `__clzsi2` and `__ctzsi2`, both compiler-rt
   fallback routines that real programs on x86-64 don't call ([LLVM's own code](llvm.md#beating-clang--o3)).
-- **The best result on real code isn't on `main`.** The q4_K VNNI rewrite of llama.cpp, proved at all 34 places, reads
-  prompts 5.5% to 7.2% faster ([lemma reuse](lemma-reuse.md)), on `feat/prove-llvm-optimization-1`. A Q5 rewrite,
-  measured on real inference, is on `feat/prove-llvm-optimization`. Neither has a pull request.
+- **The best results on real code are on `main`.** The q4_K VNNI rewrite of llama.cpp, proved at all 34 places, reads
+  prompts 5.5% to 7.2% faster ([llama.cpp](llama.md)), and landed in #57. A Q5 rewrite, measured on real inference
+  ([llama.cpp's Q5](llama-q5.md)), landed in #58.
 - **The tools on `main`** are in [what stays](#whats-parked-and-what-stays).
 
 **Stages,** each with its own prerequisites:
@@ -534,7 +534,7 @@ can't claim one the certificate didn't check, apart from `mustprogress` and `wil
    shipped: InstCombine's tests read through the emitter, certified with `bv_decide` at fixed widths, compared with
    Alive2 over at least 500 pairs with each disagreement explained, and a corpus of known miscompilations.
 2. **Real code.** Proved rewrites of code real programs spend time in, on `main`, starting with the two llama.cpp
-   branches.
+   rewrites, #57 and #58.
 3. **Superoptimizer v2.** More arguments, `select`, memory, and real targets: functions chosen because real programs
    spend time in them, from the [corpus](corpus.md) and the projects stage 2 used. Designed after the prior-art study, and
    proving from the lemma store. Its memory candidates need SEM-06.

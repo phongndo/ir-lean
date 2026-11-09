@@ -56,6 +56,44 @@ define i32 @int_as_bytes(i8 %a, i8 %b, i8 %c, i8 %d) {
   ret i32 %r
 }
 
+; Integer bitcasts split and join lanes in little-endian order, including sub-byte lanes.
+define i32 @bitcast_split(i32 %a, i32 %b, i32 %which) {
+  %v0 = insertelement <2 x i32> poison, i32 %a, i64 0
+  %v = insertelement <2 x i32> %v0, i32 %b, i64 1
+  %bytes = bitcast <2 x i32> %v to <8 x i8>
+  %k = and i32 %which, 7
+  %byte = extractelement <8 x i8> %bytes, i32 %k
+  %r = zext i8 %byte to i32
+  ret i32 %r
+}
+
+define i32 @bitcast_join(i8 %a, i8 %b, i8 %c, i8 %d, i32 %which) {
+  %v0 = insertelement <4 x i8> poison, i8 %a, i64 0
+  %v1 = insertelement <4 x i8> %v0, i8 %b, i64 1
+  %v2 = insertelement <4 x i8> %v1, i8 %c, i64 2
+  %v = insertelement <4 x i8> %v2, i8 %d, i64 3
+  %words = bitcast <4 x i8> %v to <2 x i16>
+  %k = and i32 %which, 1
+  %word = extractelement <2 x i16> %words, i32 %k
+  %r = zext i16 %word to i32
+  ret i32 %r
+}
+
+define i32 @bitcast_scalar_bits(i32 %a, i32 %which) {
+  %bits = bitcast i32 %a to <32 x i1>
+  %k = and i32 %which, 31
+  %bit = extractelement <32 x i1> %bits, i32 %k
+  %r = zext i1 %bit to i32
+  ret i32 %r
+}
+
+define i32 @bitcast_bits_scalar(i32 %a) {
+  %bits = bitcast i32 %a to <32 x i1>
+  %flip = xor <32 x i1> %bits, <i1 1, i1 0, i1 1, i1 0, i1 1, i1 0, i1 1, i1 0, i1 1, i1 0, i1 1, i1 0, i1 1, i1 0, i1 1, i1 0, i1 1, i1 0, i1 1, i1 0, i1 1, i1 0, i1 1, i1 0, i1 1, i1 0, i1 1, i1 0, i1 1, i1 0, i1 1, i1 0>
+  %r = bitcast <32 x i1> %flip to i32
+  ret i32 %r
+}
+
 ; Shuffles that take lanes from both operands, and a shorter and a longer result.
 define i32 @shuffle_mixed(i32 %a, i32 %b, i32 %c, i32 %d) {
   %x0 = insertelement <2 x i32> poison, i32 %a, i64 0

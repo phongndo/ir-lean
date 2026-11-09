@@ -12,6 +12,9 @@ Run `lake build`, then `ctest --test-dir build`. Add `-LE slow` to skip `zlib_sl
 run takes about a minute. A run with nothing changed takes about 4 s, apart from `llvm` and `superopt`, which check
 everything every time, in about a minute.
 
+`llama` needs llama.cpp's source, which only `nix develop .#llama` has, so it skips in the default shell. Run it with
+`nix develop .#llama -c ctest --test-dir build -L llama`, which takes under 3 minutes with 6 Lean jobs.
+
 | Test | What it checks |
 | --- | --- |
 | `opcheck` | Each integer operation against LLVM's constant folder, and against Alive2 for exact poison and UB behavior. Fails without `alive-tv`, or if it can't check a variant. `--no-alive` is the opt-out. Prints Alive2's LLVM version and this code's |
@@ -30,6 +33,13 @@ everything every time, in about a minute.
 | `llvm_scope_check` | The inventory of every name the pinned LLVM registers a pass or codegen implementation under, derived again from its source, `opt` and `llc`, and compared byte for byte, so the denominator can't move quietly. About 5 s, and no Lean |
 | `corpus` | [The corpus](corpus.md)'s capture reads `opt`'s pipelines and traces right, and a corpus refuses a toolchain other than its own. `tools/measure.py` gives MiB on macOS and Linux, stops the whole process tree at a cap or timeout, and keeps its heavy-job lock exclusive, in the platform's cache directory. With the pinned `opt` on `PATH`, one seed is captured and each of its steps replays alone byte for byte. About 2 s, and no Lean |
 | `superopt` | What a search finds for real functions, against Alive2 and a Lean theorem that names both and says they do the same, and that a wrong rewrite fails both, with an error in Lean and a counterexample from Alive2. An Alive2 timeout is never a pass. `--bench` also measures it against `clang -O3`, which CI doesn't, since timings vary |
+| `x86` | x86's integer dot-product intrinsics and vector bitcasts against the processor, at every width, skipped without AVX-512 VNNI |
+| `x86check` | The same intrinsics but VPDPBUSD, which nothing but the processor knows, and bitcasts between integers and vectors, on any processor: against Alive2, both ways, and LLVM's constant folder, poison included, with a wrong result for each that Alive2 has to refuse. About 2 s |
+| `llama` | [llama.cpp's q4_K kernels](llama.md): that `llc` reproduces clang's code, the rewrite, that every change is in a slice and every other line is where it was, a Lean theorem for each slice, a native comparison of each if the processor can run it, and four wrong versions each refuted, by Lean proving a rewritten slice differs from clang's on an input, by every theorem stopping with an error of its own, or by the native comparison. A theorem that only runs out of time or memory is unknown, and refutes nothing. It needs llama.cpp's source, so it runs in `nix develop .#llama`, and skips elsewhere. CI runs it in a job of its own. `tests/llama_bench.py` measures it on real inference, which CI doesn't |
+| `llama_bitspread` | The exact q5_0 integer slice against its replacement, including poison inputs and the defined byte value for every bit; regenerates Lean, audits axioms, and rejects a wrong-bit replacement without downloading a model |
+| `llama_rewrite` | The q5_0 matcher against the committed IR fixture: it rewrites exactly the three sites into the committed helper, keeps every other line and outside users, and refuses a wrong shuffle lane, complement mask, flag, input width, layout, metadata or name, and a site count or function set other than the expected one |
+| `llama_capture` | Complete raw-logit captures are accepted; changed bits, tokens, positions, prompts, truncation, and inconsistent metadata are rejected |
+| `llama_evidence` | Committed timing rows agree with raw logs and generated output hashes; paired estimates and the pooled bootstrap reproduce without a model download |
 | `names` | Every word Lean reserves is avoided in generated names |
 | `undef_freeze` | [An experimental `undef` and `freeze` semantics](undef-freeze.md), not the model's: it builds with warnings as errors, LangRef's examples get LangRef's verdicts, four shortcuts each certify a wrong rewrite it rejects, both modules rest on the standard axioms and `leanchecker` replays them, two false proofs and a `sorry` are refused, five edits to a copy of it each stop the theorem they target, and Alive2 gives the same verdict on 31 rewrites. One process at a time, each Lean process capped at 2 GB, about 17 s of CPU |
 | `verify` | [`tools/verify.py`](verify.md) gives each status and reason when it should, refuses proofs that cheat, and no required check can be missing from a proved result |
@@ -78,6 +88,7 @@ with 4 cores and 16 GB, and the jobs run at once:
 | Tests and proofs (`binding`) | `binding` |
 | Tests and proofs (`llvm`) | `llvm` |
 | Tests and proofs (`semantics`) | `verify_negative`, `replay_challenge`, `contracts`, `refine`, `undef_freeze`, `generic_rewrites` and `cpp_correspondence` |
+| Tests and proofs (`llama`) | `llama`, in `nix develop .#llama`, the only job that needs llama.cpp's source |
 | Tests and proofs (`rest`) | Every other test, apart from `zlib_slow` |
 | Slow zlib tests | `zlib_slow`, on pushes to `main` |
 

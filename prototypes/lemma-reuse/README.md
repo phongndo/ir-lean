@@ -6,14 +6,14 @@ found, what it rests on and what it can't do yet.
 
 It takes a theorem that a rewrite returns what clang's code returns, cuts it into lemmas, checks each in a module of
 its own, keeps the ones that check, and continues the original proof with them. The next proof looks in the store
-first. `q4k.py` does this for the 34 theorems of the q4_K proof, on the branch `feat/prove-llvm-optimization-1`,
-cutting each where clang's code and the rewrite stop computing the same thing. `lemmas.py` does it for compiler-rt's
+first. `q4k.py` does this for the 34 theorems of [the q4_K proof](../../docs/llama.md), cutting each where clang's
+code and the rewrite stop computing the same thing. `lemmas.py` does it for compiler-rt's
 population counts, which one `bv_decide` call can't finish, cutting clang's code where simulation says a value holds
 counts of set bits.
 
 | File | What it is |
 | --- | --- |
-| `q4k.py` | The q4_K split. It runs against a built checkout of the q4_K branch, in that checkout's dev shell |
+| `q4k.py` | The q4_K split. It runs in `nix develop .#llama`, which has llama.cpp's source |
 | `q4k/store/` | The 27 lemmas the 34 q4_K places share, and `index.json`, with the 12 facts that didn't hold |
 | `q4k/proofs/` | Each q4_K theorem, as `tests/llama.py` states it, continued with lemmas from the store |
 | `q4k/report.json` | What `check-q4k.sh` measured from an empty store: the provenance of the slices, times and axioms |

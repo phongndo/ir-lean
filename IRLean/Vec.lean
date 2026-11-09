@@ -43,6 +43,33 @@ namespace Vec
     | some (some j) => if j < n then lane a j else lane b (j - n)
     | _ => none
 
+/-! `bitcast` between vectors of integers. LangRef 23.1.3, "'`bitcast .. to`' Instruction", Semantics: "The
+conversion is done as if the `value` had been stored to memory and read back as type `ty2`", and "`bitcast <2 x i8>
+<value> to i16` puts element zero of the vector in the least significant bits of the i16 for little-endian". So lanes
+are laid end to end, the first lowest, and the emitter refuses a big-endian module. For poison, its Poison Values
+examples store a poison `i32` and read it back as `i16` and as `i64`, and both are poison, so a lane of the result is
+poison exactly when a lane it shares bits with is. `tests/x86check.py` checks both against Alive2 and LLVM's constant
+folder, poison included. -/
+
+/-- `bitcast` to `k` times as many lanes, each `1 / k` as wide: lane `i` is the bits of lane `i / k` from
+`v * (i % k)` up. It's poison if that lane is. -/
+@[llvm] def split (m v k : Nat) (a : Vec n w) : Vec m v :=
+  Vector.ofFn fun i =>
+    match a.lane (i / k) with
+    | some x => some (x.extractLsb' (v * (i.val % k)) v)
+    | none => none
+
+/-- `bitcast` to `1 / k` as many lanes, each `k` times as wide: lane `i` joins lanes `k * i` to
+`k * i + k - 1`, the first lowest. It's poison if any of them is. -/
+@[llvm] def join (m v k : Nat) (a : Vec n w) : Vec m v :=
+  Vector.ofFn fun i =>
+    (List.range k).foldr
+      (fun j acc =>
+        match a.lane (k * i + j), acc with
+        | some x, some y => some ((y <<< w) ||| x.setWidth v)
+        | _, _ => none)
+      (some 0#v)
+
 /-- `llvm.vector.reduce.*`: combines the lanes, starting from the first. -/
 @[llvm] def reduce (f : Val w → Val w → Val w) (a : Vec n w) : Val w :=
   match a.toList with

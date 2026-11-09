@@ -34,6 +34,22 @@ gaps below.
 hits undefined behavior on an input, any `tgt` refines it on that input, so a refinement certificate
 alone shows nothing about whether either program is safe.
 
+**A local rewrite certificate covers its slice.** So do [the q4_K theorems](llama.md#what-it-assumes). The q5_0
+[bit-spreading proof](../tests/proofs/LlamaBitspread.lean) checks the exact pure integer helper in
+[`llama_q5_bitspread.ll`](../tests/real/llama_q5_bitspread.ll). It proves that both helpers return the same
+successful result for all integer inputs, including poison, and states every defined output byte for
+defined inputs. Extracting that helper from a larger module and substituting its result remain trusted
+steps. The certificate does not model the surrounding loads, floating-point arithmetic, whole inference,
+or native lowering.
+
+Integer `bitcast` supports scalars and fixed integer vectors of equal total size, when one lane width
+divides the other. It uses little-endian bit order; even pure big-endian functions are refused. Splitting
+a poison lane poisons all its pieces. Joining poisons only the destination lane containing a poison
+piece, so joining then splitting can spread poison. Floating-point, pointer, scalable-vector and
+nondividing-width casts remain refused. These rules are part of the trusted semantic model, tested by
+the native vector comparisons, the explicit lane-order and poison cases in `tests/emitter.sh`, and
+`tests/x86check.py`, against Alive2 in both directions and LLVM's constant folder, poison included.
+
 ## Trust boundaries
 
 | Layer | Status today | What could go wrong | What checks it | How to shrink it |
@@ -41,8 +57,9 @@ alone shows nothing about whether either program is safe.
 | Front end (clang, later `rustc`) | Outside every theorem | Source meaning isn't what the IR says | Nothing, and we claim nothing | Stays outside |
 | LLVM optimizer | Not trusted for what it did, since the proof covers its output, or for promises it left behind, which the model checks or the emitter refuses. Trusted for `mustprogress` and `willreturn` | One of those being false | Tests of each promise, native code, and a one-off mutation run | An independent check of the promise rules, as Alive2 is for GEPs |
 | LLVM's IR parser | Trusted | Reads IR differently from the tool that wrote it, or upgrades older IR | Native-code comparison | Pin versions, and record them |
-| Emitter, about 2,100 lines of C++ | Trusted, unverified | Prints Lean that means something else | Differential tests, `tests/emitter.sh`, 13 C-level mutations, and one-off mutation of the GEP and promise rules | Full semantic and emitter mutation, then a check inside Lean ([in design](design.md#ir-and-lean-both-ways)) |
-| `IRLean`, about 1,650 lines | Trusted, incomplete | Doesn't match LLVM | Constant folder, Alive2 for integer operations and GEPs, native code | [Phase 0](roadmap.md#phase-0-semantic-fidelity-and-trust-infrastructure) |
+| Emitter, about 2,300 lines of C++ | Trusted, unverified | Prints Lean that means something else | Differential tests, `tests/emitter.sh`, 13 C-level mutations, and one-off mutation of the GEP and promise rules | Full semantic and emitter mutation, then a check inside Lean ([in design](design.md#ir-and-lean-both-ways)) |
+| `IRLean`, about 2,800 lines | Trusted, incomplete | Doesn't match LLVM | Constant folder, Alive2 for integer operations and GEPs, native code | [Phase 0](roadmap.md#phase-0-semantic-fidelity-and-trust-infrastructure) |
+| x86 intrinsics in `IRLean/X86.lean` | Trusted, written from Intel's pseudo-code | Doesn't match the processor, or LLVM's reading of the intrinsic | `tests/real/x86.ll` against the processor, saturation and wrapping included, which needs AVX-512 VNNI. `tests/x86check.py` against Alive2 and LLVM's constant folder, poison included, for PMADDUBSW and PMADDWD. Neither knows VPDPBUSD | An independent check of VPDPBUSD |
 | Lean kernel | Trusted | A kernel bug | Lean's own process | Nothing planned |
 | `bv_decide` | Trusted | Proofs using it also trust Lean's compiled code through the axiom it adds for each call | [`tests/check_axioms.lean`](../tests/check_axioms.lean), which reads a proof and its imports as data, allows only these and the standard three, reruns each in a file with none of the proof's code, refuses `implemented_by` and `extern`, and counts them per proof. `leanchecker` then replays the proof through the kernel | Nothing planned |
 | Spec and theorem statement | Read by a person | The theorem proves the wrong thing | Review, and known test vectors | Publish statements separately from proofs |
@@ -67,7 +84,8 @@ in the model on a run LLVM calls undefined.
 | Provenance is an allocation and the tags of promises it came through. `inttoptr` is refused, reading a stored pointer as an integer stops, and `ptrtoint` gives an address with no notion of exposure | Conservative, and it refuses real code | Document it. Extend only when a demonstration needs it |
 | Stack and `alloca` never fail, and recursion depth is unbounded | A "safe" function can still overflow a real stack | Document it as a native-level caveat |
 | An `alloca` whose size in bytes doesn't fit in 64 bits would wrap to a smaller one. A constant one is refused, and a computed one is poison, which `alloca` takes as undefined. LangRef doesn't say what such an `alloca` does | More UB, for a computed size. Fine for safety proofs | Keep it, unless a refinement needs it |
-| Floating point, atomics, volatile, exceptions, variadics, most external calls, and anything but 64-bit little-endian memory are refused | Refused, so sound | Keep refusing until a phase needs one |
+| Floating point, atomics, volatile, exceptions, variadics, most external calls, and anything but 64-bit little-endian memory are refused, and so is a `bitcast` between integers or vectors in a big-endian module, even where nothing touches memory | Refused, so sound | Keep refusing until a phase needs one |
+| LangRef doesn't say what poison does to a target intrinsic. The model makes a result lane poison when a lane it's computed from is, as LLVM's constant folds of PMADDWD and PMADDUBSW do, and Alive2 | Unsettled. [The llama.cpp rewrite](llama.md) is proved equal to clang's IR under this choice. If poison spread to the whole result instead, [an argument, not checked](llama.md#what-it-assumes) says it would still refine it | Ask upstream, or prove refinement under both |
 
 ### Closed
 
@@ -106,7 +124,8 @@ the same table has.
 ## Gaps in how we check
 
 - The promise rules rest on a reading of LangRef, their tests, an independent review and a one-off mutation
-  run. Integer operations and GEPs have Alive2 behind them, and these don't yet.
+  run. Integer operations, GEPs, `bitcast` between vectors, PMADDUBSW and PMADDWD have Alive2 behind them, and these
+  don't yet. Nor does VPDPBUSD, which only the processor checks, and only where it has AVX-512 VNNI.
 - Alive2 runs with `--disable-undef-input`, so it doesn't exercise `undef`. It's built from a pinned commit on
   the shell's LLVM, 23.1.3, which has to move when LLVM does.
 - For a literal index, `tests/gepcheck.py` gives Alive2 the same value through a variable, because Alive2
