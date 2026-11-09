@@ -124,7 +124,7 @@ Each lane owns its files. Two tasks being worked on at once can't own the same f
 | --- | --- | --- | --- |
 | INV | Inventory and plan | `tests/llvm_scope*`, `docs/llvm-verification-tasks.md` | INV-01 to INV-03 are complete ([#43](https://github.com/phongndo/ir-lean/pull/43)). INV-04 is chunk 1's work now, for its G2. INV-09 is chunk 9's |
 | SEM | Semantics contracts: poison, `undef`, `freeze`, integers, floating point, memory, UB | `IRLean/*.lean` apart from the refinement tactic, `docs/trust.md`, `tests/opcheck.py`, `tests/gepcheck.py` | SEM-01 is complete ([#46](https://github.com/phongndo/ir-lean/pull/46)): [refinement](refinement.md). So are SEM-07: [promises to progress](trust.md#promises-to-progress), and SEM-03, F3: [`freeze`](refinement.md#runs-that-make-choices). SEM-02 is blocked: `undef` stays out of the model, as decided on 2026-11-09. SEM-06 follows SEM-03. SEM-04 has no prerequisites |
-| BIND | Binding proofs to LLVM's C++, and an independent verifier | `tools/`, new binding checks, `src/Emitter.*` for C++ support | BIND-01 is complete: [binding a proof to LLVM's C++](binding-approach.md). So is BIND-03: [verifying claims](verify-claims.md). Gate B1 and BIND-02, toward gate B2, are the platform track's binding work now. Certificate binding, from [#45](https://github.com/phongndo/ir-lean/pull/45), stays as a tool |
+| BIND | Binding proofs to LLVM's C++, and an independent verifier | `tools/`, new binding checks, `src/Emitter.*` for C++ support | BIND-01 is complete: [binding a proof to LLVM's C++](binding-approach.md). So is BIND-03: [verifying claims](verify-claims.md). Gate B1, BIND-04 for reading IR, passed: [LLVM's IR in memory](llvm-heap.md). BIND-02, toward gate B2, is the platform track's binding work now. Certificate binding, from [#45](https://github.com/phongndo/ir-lean/pull/45), stays as a tool |
 | NEG | Negative tests, CI and honest reporting | `CMakeLists.txt`, `.github/`, `tests/lint.sh`, mutation scripts | NEG-01 is complete (#43). NEG-03 has no prerequisites |
 | AUTO | Proof automation and lemma reuse | `IRLean/RefineTactic.lean`, lemma stores | AUTO-01 is drafted in another tree. AUTO-03 is in progress: [rewrites at every width](generic-rewrites.md). AUTO-02 is the roadmap's lemma store |
 | PASS | Analyses, scalar passes, composition | Per-pass proof directories | PASS-02 is in progress: [`tests/passes.py`](passes.md). The rest are the chunks' work: PASS-03 is chunk 1's G2, PASS-01 chunks 2 to 4's analyses, PASS-04 chunks 2 and 3, and PASS-05 chunk 7 and every chunk's G4 |
@@ -424,11 +424,12 @@ when they land.
 - **Lane:** BIND
 - **Scope:** What `Value`, `User`, use lists, `BasicBlock`, `Instruction` and `APInt` mean in memory, as an abstraction from the C++ heap to IR syntax, so that a theorem about a compiled pass is a theorem about an IR transformation.
 - **Depends on:** BIND-01, SEM-06
-- **Owns:** `IRLean/LLVMHeap.lean`
+- **Owns:** `IRLean/LLVMHeap.lean`, `tests/llvm_heap/`, `tests/llvm_heap.sh`, `docs/llvm-heap.md`
 - **Acceptance:** The abstraction is proved preserved by the IR-building API calls a small pass makes.
-- **Trust gaps:** The C++ object layout comes from the compiled pass's IR, for one target. Some of what the code relies on is only asserted in the C++: in a release build, `ConstantInt::get(i1, 7)` keeps the word 7, breaking APInt's invariant that the bits above the width are 0 ([binding approach](binding-approach.md#what-this-means-for-the-other-tasks)).
-- **Status:** not started
-- **Evidence:** None.
+- **Trust gaps:** The C++ object layout comes from the compiled pass's IR, for one target, and a probe checks it on the pinned `libLLVM`. What each constructor does to memory is a specification the probe checks finitely, not a translation of its C++. Some of what the code relies on is only asserted in the C++: in a release build, `ConstantInt::get(i1, 7)` keeps the word 7, breaking APInt's invariant that the bits above the width are 0 ([binding approach](binding-approach.md#what-this-means-for-the-other-tasks)), so clean words are a hypothesis of `ConstantInt::get`. Use lists aren't in the view yet, so `BinaryOperator::Create` takes where its writes to them land as a hypothesis.
+- **Status:** in progress: gate B1, reading IR, passed on 2026-11-09. Writing IR, use lists, `BasicBlock` and `Instruction`'s other fields are gate B4's
+- **Gate waiver:** B1 reads `Value`, `Use`, `ConstantInt`, `APInt` and `Type`, which hold no pointer made from an integer, so it needs nothing of SEM-06's provenance rules. The rest of BIND-04 waits for SEM-06, and B1's view is checked again when SEM-06 changes `IRLean/Mem.lean`.
+- **Evidence:** [`IRLean/LLVMHeap.lean`](llvm-heap.md) proves its view of the IR kept by `ConstantInt::get`, `PoisonValue::get` and `BinaryOperator::Create`, with an example heap meeting it, and `tests/llvm_heap.sh`, in CI as `llvm_heap`, checks it with warnings as errors, on the standard axioms, with `leanchecker`, and runs the layout probe, 316 facts on the pinned `libLLVM`.
 
 ### BIND-05: Translating LLVM's own C++
 
