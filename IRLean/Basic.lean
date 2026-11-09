@@ -43,7 +43,7 @@ inductive UB where
   /-- A call to a function outside the module whose run is undefined, or that breaks a promise its declaration or the
   call makes: returning under `noreturn`, unwinding under `nounwind`, or, for a call without effects, never coming back
   under `willreturn`. Also a call that unwinds through a function marked `nounwind`. See `IRLean.World`. -/
-  | outside
+  | outsideCall
   deriving Repr, DecidableEq, Inhabited
 
 /-- Why the model stopped instead of choosing an answer. These aren't undefined in LLVM, or LLVM's rules

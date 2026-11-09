@@ -247,7 +247,7 @@ For `declare i8 @f(i8) memory(none)`, without effects:
 
 The callee does, and nothing checks it: its body isn't in the module. The model makes a broken promise undefined, as
 LangRef does, by the answers it allows: a `noreturn` callee that returns, a `nounwind` one that unwinds, and a pure
-`willreturn` one that never comes back are all `UB.outside`. That's SEM-07's rule for the module's own promises, applied
+`willreturn` one that never comes back are all `UB.outsideCall`. That's SEM-07's rule for the module's own promises, applied
 to promises about code the module can't see. So a theorem covers every callee that keeps the promises its declaration
 and the call make, and a run where one doesn't is undefined in the model and in LLVM alike. A target that adds a
 promise, such as `willreturn` on a call, is undefined in a world where the callee breaks it, and the source isn't, so it
@@ -349,11 +349,11 @@ most of the census's calls into calls inside the module, and the one-definition-
 Each is a pull request, merged when green, with this page updated to say what's built.
 
 1. **Calls that access no memory.** `IRLean/World.lean`: `Event`, `Trace`, `Answer`, `World`, `Exit`, its `Refine`
-   instance, the call helpers and their laws, and `UB.outside` in `IRLean.Basic`. The emitter threads the world and
+   instance, the call helpers and their laws, and `UB.outsideCall` in `IRLean.Basic`. The emitter threads the world and
    the trace through functions that call outside the module, and translates pure calls, in any function. Tests in
    `tests/calls`, as `tests/freeze` does for F3. **Built** on 2026-11-09: `tests/calls` has ten rewrites, four right
    and six wrong, each with its theorem, and Alive2 gives seven the same verdict and three the one this page says it
-   gives by design. One reason, `UB.outside`, covers every broken promise and unwinding through `nounwind`, since the
+   gives by design. One reason, `UB.outsideCall`, covers every broken promise and unwinding through `nounwind`, since the
    negative-verification statements list every reason.
 2. **Calls with effects, and calls that only read,** in functions without memory, and calls touching only
    `inaccessiblemem` in any function. The emitter refuses calls that touch memory by name. Most of the coverage gain is

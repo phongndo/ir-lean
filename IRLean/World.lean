@@ -16,7 +16,7 @@ both as it does over arguments: source and target face the same world.
 - A run ends as an `Exit`: it returned, with its trace, or a call it made never came back, or unwound. Two runs refine
   only with equal traces.
 
-A promise a callee breaks is undefined behavior, `UB.outside`, as LangRef says: a `noreturn` callee that returns, a
+A promise a callee breaks is undefined behavior, `UB.outsideCall`, as LangRef says: a `noreturn` callee that returns, a
 `nounwind` one that unwinds, and one without effects that never comes back under `willreturn`. So is unwinding through
 a function or call marked `nounwind`. -/
 
@@ -102,10 +102,10 @@ comes back never finishes, which `willreturn` makes undefined. One that unwinds 
 the trace so the run says which call it was. -/
 @[llvm] def quiet (a : Answer) (t : Trace) (e : Event) (p : Promises) : Outcome (Exit Lanes) :=
   match a with
-  | .ret v => if p.noreturn then Outcome.ub .outside else Outcome.ok (.done v t)
-  | .undefined => Outcome.ub .outside
-  | .stays => if p.willreturn then Outcome.ub .outside else none
-  | .unwinds => if p.nounwind then Outcome.ub .outside else Outcome.ok (.unwound (e :: t))
+  | .ret v => if p.noreturn then Outcome.ub .outsideCall else Outcome.ok (.done v t)
+  | .undefined => Outcome.ub .outsideCall
+  | .stays => if p.willreturn then Outcome.ub .outsideCall else none
+  | .unwinds => if p.nounwind then Outcome.ub .outsideCall else Outcome.ok (.unwound (e :: t))
 
 /-- A call that accesses no memory, at the run's choice `i` among the callee's answers. -/
 @[llvm] def callPure (w : World) (t : Trace) (e : Event) (i : Nat) (p : Promises) : Outcome (Exit Lanes) :=
@@ -122,7 +122,7 @@ ends the run through `stop`, as the call did. Unwinding through a function marke
   andThen x fun r => match r with
     | .done a t => k a t
     | .halted t => stop (.halted t)
-    | .unwound t => if nounwind then Outcome.ub .outside else stop (.unwound t)
+    | .unwound t => if nounwind then Outcome.ub .outsideCall else stop (.unwound t)
 
 /-- A run that makes no calls outside the module, as one that does: it returns the trace it was given. A refinement
 relating it to one that does lifts it with this. -/
