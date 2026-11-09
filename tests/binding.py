@@ -15,6 +15,7 @@ usage: tests/binding.py [--keep] [--only NAME ...]
 """
 
 import argparse
+import base64
 import hashlib
 import importlib.util
 import json
@@ -24,6 +25,7 @@ import subprocess
 import sys
 from collections.abc import Callable
 from pathlib import Path
+from typing import Any
 
 ROOT = Path(__file__).resolve().parent.parent
 HERE = ROOT / "tests" / "binding"
@@ -114,6 +116,25 @@ ADDS_COMPANION = GOOD + (
 LEAVES_PROCESS = GOOD + (
     '\n#eval show IO Unit from do\n  let _ ← IO.Process.spawn { cmd := "sleep", args := #["313.7"] }\n'
 )
+
+
+# The pinned llvm-project's NAR hash, as `nix-store --query --hash` prints it, in Nix's base-32.
+PINNED_NIX32 = "1pnjmz111lj6xxv41s14s7ifj0w7z41j3mdj872gn2hvh6ymivpr"
+
+
+def forged_store(t: Path, path: Path) -> dict[str, str]:
+    """The environment of a user whose Nix configuration names a binary cache of its own, with a record that
+    says `path` has the pinned llvm-project's NAR hash, as a certificate's code could leave for later runs."""
+    cache = t / "forged-cache"
+    (cache / "nar").mkdir(parents=True, exist_ok=True)
+    (cache / "nix-cache-info").write_text("StoreDir: /nix/store\nWantMassQuery: 0\nPriority: 50\n")
+    (cache / f"{path.name.split('-', 1)[0]}.narinfo").write_text(
+        f"StorePath: {path}\nURL: nar/x.nar\nCompression: none\nNarHash: sha256:{PINNED_NIX32}\n"
+        "NarSize: 1\nReferences: \n"
+    )
+    conf = t / "forged-nix.conf"
+    conf.write_text(f"store = file://{cache}\n")
+    return {"NIX_USER_CONF_FILES": str(conf), "NIX_REMOTE": f"file://{cache}"}
 
 
 def sha(data: bytes) -> str:
@@ -591,6 +612,124 @@ def hash_cases(failures: list[str]) -> int:
         print("ok    standalone_plain: a plain file and this checkout's tracked files are accepted")
     except binding.Verdict as v:
         failures.append(f"standalone_plain: refused {v.status} {v.reason}: {v.detail}")
+    return ran + tree_changes(binding, t / "changes", failures) + recorded_hashes(binding, t, failures)
+
+
+def tree_changes(binding: Any, t: Path, failures: list[str]) -> int:
+    """Every change to a tree changes its hash, including the two that hashed the same when a tree was hashed
+    as one stream of paths and bytes: a file holding what two files would, and a directory where an empty
+    file was."""
+
+    def tree(name: str, entries: dict[str, str | None]) -> str:
+        """A tree of files by path and content, or a directory for None, and its hash."""
+        root = t / name / "IRLean"
+        root.mkdir(parents=True)
+        for path, content in entries.items():
+            if content is None:
+                (root / path).mkdir(parents=True)
+            else:
+                (root / path).parent.mkdir(parents=True, exist_ok=True)
+                (root / path).write_bytes(content.encode())
+        return binding.tree_hash(t / name, root)
+
+    base = tree("base", {"a": "1", "b": "2", "d": None})
+    changed = {
+        "content": tree("content", {"a": "1", "b": "3", "d": None}),
+        "added": tree("added", {"a": "1", "b": "2", "c": "", "d": None}),
+        "removed": tree("removed", {"a": "1", "d": None}),
+        "renamed": tree("renamed", {"a": "1", "c": "2", "d": None}),
+        "moved": tree("moved", {"a": "1", "d/b": "2"}),
+        "one_file_for_two": tree("one_file_for_two", {"a": "1\0IRLean/b\0" + "2", "d": None}),
+        "file_for_directory": tree("file_for_directory", {"a": "1", "b": "2", "d": ""}),
+    }
+    linked = t / "linked" / "IRLean"
+    linked.mkdir(parents=True)
+    for path, content in (("a", "1"), ("b", "2"), ("c", "2")):
+        (linked / path).write_text(content)
+    (linked / "d").symlink_to("b")
+    other = t / "other_link" / "IRLean"
+    shutil.copytree(linked, other, symlinks=True)
+    (other / "d").unlink()
+    (other / "d").symlink_to("c")
+    changed["link_target"] = binding.tree_hash(t / "other_link", other)
+    if binding.tree_hash(t / "linked", linked) == changed["link_target"]:
+        failures.append("tree_link_target: a link to another file hashes the same")
+    same = [name for name, h in changed.items() if h == base]
+    if same or len(set(changed.values())) != len(changed):
+        failures.append(f"tree_changes: these hash as the unchanged tree or as each other: {same or changed}")
+    else:
+        print(f"ok    tree_changes: {len(changed)} changes each change the hash: {', '.join(changed)}")
+    return 1
+
+
+def recorded_hashes(binding: Any, t: Path, failures: list[str]) -> int:
+    """Nix's recorded NAR hash is read right, used only for a store path root owns, and is the hash of what's
+    there, which `nix hash path` works out again."""
+    ran = 1
+    # `nix-store --query --hash` and `nix hash path` for the pinned llvm-project.
+    nix32 = PINNED_NIX32
+    pinned = "sha256-+e5YvYEbCvvEQbLVIQP5hwPp4tEk6EB270bSEMKv0t4="
+    bad = []
+    for text in (nix32[1:], nix32[:-1] + "e", "z" + nix32[1:]):
+        try:
+            binding.nix32_decode(text, 32)
+            bad.append(text)
+        except ValueError:
+            pass
+    decoded = "sha256-" + base64.b64encode(binding.nix32_decode(nix32, 32)).decode()
+    if decoded != pinned or bad:
+        failures.append(f"nix32: decoded {decoded}, and accepted {bad}")
+    else:
+        print("ok    nix32: the pin's hash reads back, and a short, misspelled or overlong one is an error")
+    run = binding.Runner(120, 1000)
+    # A store this user owns, as a single-user install makes: its record could have been rewritten.
+    ran += 1
+    owned = t / "store"
+    (owned / "x-source").mkdir(parents=True)
+    store = binding.NIX_STORE
+    binding.NIX_STORE = owned
+    try:
+        got = binding.recorded_nar_hash(run, owned / "x-source")
+    finally:
+        binding.NIX_STORE = store
+    if got is not None:
+        failures.append(f"user_owned_store: used the record {got} of a path this user owns")
+    else:
+        print("ok    user_owned_store: a path this user owns is hashed, not looked up")
+    ran += 1
+    source = Path(os.environ["LLVM_PROJECT_SRC"])
+    recorded = binding.recorded_nar_hash(run, source)
+    nested = binding.recorded_nar_hash(run, source / "llvm")
+    hashed = subprocess.run(
+        ["nix", "hash", "path", str(source)], capture_output=True, text=True, check=True
+    ).stdout.strip()
+    if nested is not None or recorded not in (None, hashed):
+        failures.append(
+            f"recorded_hash: {recorded} recorded, {hashed} hashed, {nested} for a directory in it"
+        )
+    else:
+        how = "not used, as the store isn't root's" if recorded is None else "the hash of what's there"
+        print(f"ok    recorded_hash: {how}, and a directory inside a store path isn't looked up")
+    # A store the user's configuration names, a binary cache whose record says zlib's source is llvm-project.
+    ran += 1
+    zlib = Path(os.environ["ZLIB_SRC"])
+    forged = forged_store(t, zlib)
+    query = ["nix-store", "--query", "--hash", str(zlib)]
+    fooled = subprocess.run(query, capture_output=True, text=True, env={**os.environ, **forged}, check=False)
+    misled = binding.Runner(120, 1000)
+    misled.env.update(forged)
+    got = binding.recorded_nar_hash(misled, zlib)
+    hashed = subprocess.run(
+        ["nix", "hash", "path", str(zlib)], capture_output=True, text=True, check=True
+    ).stdout.strip()
+    if got not in (None, hashed):
+        failures.append(
+            f"forged_store: read {got} for {zlib}, from the user's store, which hashes to {hashed}"
+        )
+    else:
+        alone = fooled.stdout.strip() == f"sha256:{nix32}"
+        how = "fools nix-store alone" if alone else "doesn't fool nix-store here"
+        print(f"ok    forged_store: a binary cache the user's configuration names, which {how}, isn't read")
     return ran
 
 
@@ -695,6 +834,26 @@ def main() -> int:
             failures.append(f"other_source: expected refused llvm_pin_mismatch, got {got}")
         else:
             print(f"ok    other_source: {got[0]} {got[1]}")
+    if not args.only or "other_store_source" in args.only:
+        # Another store path, which tools/binding.py looks up rather than hashes when root owns the store.
+        ran += 1
+        verdict = verify(good("other_store_source"), env={"LLVM_PROJECT_SRC": os.environ["ZLIB_SRC"]})
+        got = (verdict.get("status"), verdict.get("reason"))
+        if got != ("refused", "llvm_pin_mismatch"):
+            failures.append(f"other_store_source: expected refused llvm_pin_mismatch, got {got}")
+        else:
+            print(f"ok    other_store_source: {got[0]} {got[1]}")
+    if not args.only or "forged_store_source" in args.only:
+        # The same, with the user's Nix configuration naming a binary cache that says it's the pinned source.
+        ran += 1
+        zlib = os.environ["ZLIB_SRC"]
+        forged = forged_store(WORK / "forged", Path(zlib))
+        verdict = verify(good("forged_store_source"), env={"LLVM_PROJECT_SRC": zlib, **forged})
+        got = (verdict.get("status"), verdict.get("reason"))
+        if got != ("refused", "llvm_pin_mismatch"):
+            failures.append(f"forged_store_source: expected refused llvm_pin_mismatch, got {got}")
+        else:
+            print(f"ok    forged_store_source: {got[0]} {got[1]}")
     if not args.only or "cache" in args.only:
         ran += cache_cases(failures)
     if not args.keep:
