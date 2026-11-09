@@ -646,8 +646,8 @@ private:
     if (auto *V = dyn_cast<FixedVectorType>(T); V && (isa<ConstantInt>(C) || isa<ConstantFP>(C))) {
       leanType(V);
       Type *E = V->getElementType();
-      // A vector's lanes are packed by their size in bits, so a lane that isn't a whole number of bytes, such as
-      // an `i1`, isn't laid out this way.
+      // A vector's lanes are packed by their size in bits, so a lane that isn't a whole number of bytes, such
+      // as an `i1`, isn't laid out this way.
       if (E->getPrimitiveSizeInBits() != 8 * DL.getTypeAllocSize(E))
         reject("initializer " + printed(*C));
       APInt Lane = isa<ConstantInt>(C) ? cast<ConstantInt>(C)->getValue()
