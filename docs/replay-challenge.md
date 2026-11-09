@@ -99,9 +99,9 @@ All 34 Alive2 answers are the hand derivation's, and each counterexample Alive2 
 says the pair fails on. `and_zero_xor_self` is right without `undef` and wrong with it, which Alive2 shows with an
 `undef` x. That's why `tools/binding.py` refuses an argument that isn't `noundef`.
 
-The 23 cases in [`tests/verification_negative`](../tests/verification_negative/cases/) are asked the same way. A
+The 24 cases in [`tests/verification_negative`](../tests/verification_negative/cases/) are asked the same way. A
 precondition is stated as `llvm.assume` at the start of `src`. Alive2 agrees with each case's `llvm_verdict` in
-42 of its 46 answers. The other four are two cases, each asked both ways, that
+42 of its 48 answers. Four more are two cases, each asked both ways, that
 [`corpus.json`](../tests/replay_challenge/corpus.json) explains, each with a check that the explanation holds:
 
 | Case | Alive2 says | Why | Checked by |
@@ -109,7 +109,15 @@ precondition is stated as `llvm.assume` at the start of `src`. Alive2 agrees wit
 | `wrong_loop_deleted` | Correct, and the rewrite is wrong | Alive2 unrolls a loop a bounded number of times and drops longer runs, so it never sees `src` run forever. Its "correct" isn't evidence for code with a loop | Unrolled twice, Alive2 still says correct, and its `src` ends in `#sink` |
 | `precondition_vacuous` | Correct | `x < 0` never holds, so `src` is undefined on every input. Vacuous, as the case says | No value of `x` meets the hypotheses, tried on all 256 |
 
-A case `tests/verify_negative.py` certifies that Alive2 finds wrong fails, whatever `corpus.json` says.
+The last two are `wrong_promise_added`, which comes back known, A1, as a limit of Alive2's own. The case's verdict stays
+LLVM's, so the case is ok again once Alive2 gives it:
+
+| Id | Case | Alive2 says | Why | Checked by |
+| --- | --- | --- | --- | --- |
+| A1 | `wrong_promise_added` | Correct, "syntactically equal", and adding the promise is wrong | Alive2 doesn't model `mustprogress`, which [AliveToolkit/alive2#726](https://github.com/AliveToolkit/alive2/issues/726) has reported since 2021-05-25. Its source at the pinned commit, `a68009c`, never mentions it, though it models `willreturn`, so it reads `tgt` as `src`. Bounded unrolling would hide the run that never finishes anyway, as for `wrong_loop_deleted` | `tgt` is `src` once `mustprogress` comes off it, and Alive2 calls them syntactically equal |
+
+A case `tests/verify_negative.py` certifies that Alive2 finds wrong fails, whatever `corpus.json` or a known limit
+says.
 
 ### Live: IRLean on the pairs
 
@@ -178,6 +186,8 @@ Found on the way, in the tools rather than `tools/binding.py`:
   is therefore put in two files of its own, with one function `f` each, and counts only if the summary is exactly one
   transformation.
 - **Alive2's "correct" doesn't cover a loop.** See `wrong_loop_deleted` above.
+- **Alive2 doesn't model `mustprogress`.** See A1 above. It checks `willreturn`: a target that adds it around a call
+  that may not return comes back incorrect.
 - **The binding doc swapped a direction.** [Binding](llvm-proof-binding.md#claim-kinds) said equivalence implies
   refinement only where "the model has no less undefined behavior than LLVM in the source, and no more in the
   target". Soundness needs the reverse: no more in the source, so a source the model calls undefined is undefined

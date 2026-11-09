@@ -713,6 +713,32 @@ def explained_by(
     return f"no check for {because}"
 
 
+# Where Alive2 answers otherwise than LLVM does, because of a limit of its own: reported upstream, so a case
+# that hits one comes back KNOWN, and passes. Each case's verdict stays LLVM's, and once Alive2 gives it, ok.
+ALIVE2_LIMITS = {
+    "A1": "Alive2 doesn't model mustprogress (AliveToolkit/alive2#726, open since 2021-05-25): its source at "
+    "the pinned commit never mentions it, so a target that differs from its source only by adding the "
+    "promise reads as the source, syntactically equal, though LLVM makes it undefined where the source never "
+    "finishes",
+}
+# The corpus cases that hit one, with the limit and what Alive2 says there.
+ALIVE2_KNOWN = {"wrong_promise_added": ("A1", "correct")}
+
+
+def limit_holds(limit: str, text: str, src: str, tgt: str, out: str) -> bool | str:
+    """True if a known Alive2 limit is what Alive2's answer shows, and otherwise what doesn't hold. A1: the
+    target is the source once `mustprogress` comes off it, and Alive2 called them syntactically equal."""
+    if limit == "A1":
+        a, b = function_text(text, src), function_text(text, tgt)
+        if a is None or b is None:
+            return "a function isn't there"
+        rest = re.sub(rf'@"?{re.escape(tgt)}"?\(', f"@{src}(", b.replace(" mustprogress", ""), count=1)
+        if "mustprogress" in a or rest != a:
+            return "the target differs from the source by more than mustprogress"
+        return True if "(syntactically equal)" in out else "Alive2 didn't call them syntactically equal"
+    return f"no check for {limit}"
+
+
 def function_of(term: str | None, default: str) -> str:
     """The function a claim's side names: `src` in `Opt.src (some x)`."""
     m = re.match(r"\w+\.(\w+)\b", term or "")
@@ -781,6 +807,16 @@ def alive_tier(report: Report) -> None:
                     "fail",
                     f"nothing says what Alive2 should say to llvm_verdict {case['llvm_verdict']}",
                 )
+            elif a.verdict != want and (limit := ALIVE2_KNOWN.get(d.name)) and a.verdict == limit[1]:
+                held = limit_holds(limit[0], text, src, tgt, a.out)
+                if held is True:
+                    report.add(
+                        name,
+                        "known",
+                        f"Alive2 says {a.verdict}, not {want}: {limit[0]}, {ALIVE2_LIMITS[limit[0]]}",
+                    )
+                else:
+                    report.add(name, "fail", f"said to be {limit[0]}, and that doesn't hold: {held}")
             elif a.verdict != want:
                 report.add(name, "fail", f"Alive2 says {a.verdict}, and {want} was expected")
             elif (
