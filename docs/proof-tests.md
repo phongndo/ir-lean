@@ -233,7 +233,8 @@ IR says, are outside this, as [trust](trust.md#what-a-theorem-covers) says.
 - **Setup costs about 2 s** a property: verify's setup, about 1.2 s, and starting the harness, which imports `Lean`,
   about 0.9 s. The search itself takes milliseconds. Keeping one harness for many properties of one module would cut
   most of that, for [C2](roadmap.md#phase-8-speed).
-- **Integer binders only,** of literal widths. A width-generic statement, `∀ w`, isn't tier 1's.
+- **Integer binders only,** of literal widths. A width-generic statement, `∀ w`, isn't tier 1's, and neither is an
+  `IRLean.Choice`, which a function with a `freeze` takes since F3.
 
 ## T1, measured
 
@@ -277,7 +278,8 @@ the other 5, which are `∃` specs it can't decide, and it contradicted none.
 tier 1, 78 after 10,000 inputs and one exhaustively, and 8 came back unknown, for the reasons below. None came back
 `counterexample`.
 
-**The negative corpus** came out as `tools/verify.py` is expected to answer it, which `--check-t1` checks:
+**The negative corpus** came out as `tools/verify.py` is expected to answer it, which `--check-t1` checks. This is
+before F3, which changed its `freeze` cases, [below](#the-negative-corpus-since-f3):
 
 | Cases | Tier 1 |
 | --- | --- |
@@ -289,6 +291,30 @@ tier 1, 78 after 10,000 inputs and one exhaustively, and 8 came back unknown, fo
 | `freeze_duplicated_equality_pin`, wrong in LLVM, but pinning an equality that holds in the model | `passed_tier1/exhaustive` |
 | `precondition_vacuous` | `vacuous` |
 | The 4 controls, and the 7 cases about certificates and limits, whose claims are right | `passed_tier1/exhaustive` |
+
+### The negative corpus since F3
+
+On 2026-11-09, F3 made `freeze` of poison a value each run chooses, through `IRLean.Choice`
+([refinement](refinement.md#runs-that-make-choices)). A claim about a function with a `freeze` quantifies over its
+choices: the target's as a binder, and the source's as `∃`. Tier 1 generates no `Choice`, and can't decide an `∃` over
+one, so it answers those claims `unknown`, and `--check-t1` counts a case it can't run as unknown, as it does for
+`tests/proofs.sh`. Measured on 2026-11-09 with `tools/prooftest/bench.py --sets negative --check-t1 --workers 2`, in
+30 s, the cases that changed:
+
+| Cases | Tier 1 |
+| --- | --- |
+| `freeze_removed`, wrong, whose source makes choices | `unknown/undecidable` |
+| `freeze_duplicated`, wrong, whose target's choice is a binder | `unknown/binder_unsupported` |
+| `freeze_duplicated_equality_pin`, wrong, pinning an equality for one way of choosing, which is false | `counterexample`, at poison |
+| `control_freeze_added`, until F3 `freeze_added_unmodeled`, right, whose target's choice is a binder | `unknown/binder_unsupported` |
+| `control_freeze_noundef_removed`, right, whose source makes choices | `unknown/undecidable` |
+
+The rest answered as above. 5 were refuted, each confirmed by the kernel: `wrong_mul2_to_shl2`,
+`poison_add_nsw_introduced`, `precondition_insufficient`, `proof_for_other_target` and
+`freeze_duplicated_equality_pin`. The two wrong `freeze` rewrites tier 1 can't run are refuted by kernel-checked
+theorems in [`tests/freeze/FreezeModel.lean`](../tests/freeze/FreezeModel.lean). Generating a `Choice` would let tier
+1 run a claim where only the target makes choices, such as `control_freeze_added`. One with `∃` over the source's
+choices would stay undecidable at an input.
 
 ### Time to a counterexample
 

@@ -170,12 +170,12 @@ this decidable by `bv_decide`. `w` always fits in `w` bits. -/
     else some (x.setWidth v)
   | none => none
 
-/-- `freeze` keeps a value. Poison would become an arbitrary value, which the model doesn't choose:
-see `ModelStop.freezePoison`. -/
-@[llvm] def freeze {τ : Type} (a : Option τ) : Outcome (Option τ) :=
+/-- `freeze` keeps a value, and makes poison the value `pick` names, modulo `2 ^ w`: LangRef's "arbitrary, but fixed,
+value". Emitted code takes `pick` from the run's `Choice`, which says how each `freeze` chooses. -/
+@[llvm] def freeze (pick : Nat) (a : Val w) : Val w :=
   match a with
-  | some x => Outcome.ok (some x)
-  | none => Outcome.stop .freezePoison
+  | some x => some x
+  | none => some (BitVec.ofNat w pick)
 
 /-- The `range` attribute: values outside the half-open, possibly wrapping range become poison. -/
 @[llvm] def range (lo hi : BitVec w) (a : Val w) : Val w :=

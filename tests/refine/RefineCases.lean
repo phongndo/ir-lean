@@ -83,26 +83,38 @@ theorem addedNuw : ¬ Refines addPlain addNuw := fun h => by
 theorem valueToPoison : ¬ Refines (Outcome.ok (some 0#8 : Val 8)) (Outcome.ok none) := fun h =>
   nomatch (Refine.val_some _ _).1 ((Refine.outcome_ok_ok _ _).1 h)
 
-/-- `freeze` of poison is a model stop, and a model stop in the source allows nothing: `freeze %x` to `%x` would make
-poison of the value `freeze` chose. -/
-def frozen (x : Val 8) : Outcome (Val 8) := Val.freeze x
+/-- `freeze %x`, a function that makes choices: its `freeze` is its block's first chooser. -/
+def frozen (x : Val 8) : Outcomes (Val 8) := fun c => Outcome.ok (Val.freeze (c.pick 1) x)
 
-theorem freezeToPoison : ¬ Refines frozen addZeroTgt := fun h =>
-  Refine.outcome_stop .freezePoison _ (h none)
+/-- `%x`, as a function that makes no choices, lifted to compare with one that does. -/
+def plain (x : Val 8) : Outcomes (Val 8) := Outcomes.det (addZeroTgt x)
 
-/-- Duplicating a `freeze`: one frozen value subtracted from itself is 0, and two `freeze`s of poison may differ. The
-two are equal in the model, since both stop at poison, and still don't refine, since the source stops. -/
-def freezeOnce (x : Val 8) : Outcome (Val 8) :=
-  andThen (Val.freeze x) fun f => Outcome.ok (Val.sub f f)
-def freezeTwice (x : Val 8) : Outcome (Val 8) :=
-  andThen (Val.freeze x) fun f => andThen (Val.freeze x) fun g => Outcome.ok (Val.sub f g)
+/-- Removing a `freeze`: `freeze %x` to `%x`. Wrong at poison, where the source is the value its `freeze` chose, every
+way it can choose, and the target is poison. -/
+theorem freezeRemoved : ¬ Refines frozen plain := fun h => by
+  obtain ⟨cs, hcs⟩ := h none default
+  simp only [frozen, plain, Outcomes.det, addZeroTgt, Val.freeze, Refine.outcome_ok_ok, Refine.val_iff] at hcs
+  simp at hcs
 
-theorem freezeDuplicated_eq : freezeOnce = freezeTwice := by
-  funext x
-  cases x <;> rfl
+/-- Duplicating a `freeze`: one frozen value subtracted from itself is 0, and two `freeze`s of poison may choose apart.
+At poison the target chooses 0 and 1, and every way the source chooses gives 0. -/
+def freezeOnce (x : Val 8) : Outcomes (Val 8) := fun c =>
+  let f := Val.freeze (c.pick 1) x
+  Outcome.ok (Val.sub f f)
+def freezeTwice (x : Val 8) : Outcomes (Val 8) := fun c =>
+  let f := Val.freeze (c.pick 1) x
+  let g := Val.freeze (c.pick 2) x
+  Outcome.ok (Val.sub f g)
 
-theorem freezeDuplicated : ¬ Refines freezeOnce freezeTwice := fun h =>
-  Refine.outcome_stop .freezePoison _ (h none)
+theorem freezeDuplicated : ¬ Refines freezeOnce freezeTwice := fun h => by
+  obtain ⟨cs, hcs⟩ := h none fun p => if p = [2] then 1 else 0
+  simp only [freezeOnce, freezeTwice, Refine.outcome_ok_ok, Refine.val_iff] at hcs
+  simp [Choice.pick, Val.freeze, Val.sub] at hcs
+
+/-- Unlike a model that stops at `freeze` of poison, which made these two equal, the model tells them apart. -/
+theorem freezeDuplicated_ne : freezeOnce ≠ freezeTwice := fun h => by
+  have := congrFun (congrFun h none) fun p => if p = [2] then 1 else 0
+  simp [freezeOnce, freezeTwice, Choice.pick, Val.freeze, Val.sub, Outcome.ok] at this
 
 /-- Added undefined behavior: `%x` to a `udiv %x, %x` whose result is unused, undefined at 0. -/
 def divSelf (x : Val 8) : Outcome (Val 8) := andThen (Val.udiv x x) fun _ => Outcome.ok x
@@ -245,16 +257,74 @@ theorem promiseDropped : Refines countPromised countFree := by
     · rw [countPromised_even n hn, countFree_even n hn]; exact (Refine.outcome_ok_ok _ _).2 (Refine.refl_val _)
     · rw [countPromised_odd n (by omega)]; exact Refine.outcome_ub _ _
 
-/-! ### What the model can't certify
+/-! ### `freeze`, which the model certifies since F3
 
-Each of these is right in LLVM, and provably not a refinement in the model. That's a limit of the model, not a
-counterexample: `¬ Refines` never says a rewrite is wrong in LLVM. -/
+Each of these is right in LLVM. Until `freeze` of poison chose a value, the model stopped there, and couldn't certify
+`freezeInserted`. -/
 
-/-- Inserting `freeze`: `%x` to `freeze %x`. Right in LLVM, since a frozen poison is some value, which poison allows.
-The model stops at `freeze` of poison, and a target that stops refines nothing. -/
-theorem freezeInserted : ¬ Refines addZeroTgt frozen := fun h => by
-  obtain ⟨_, hb, _⟩ := h none
-  simp [frozen, Val.freeze, Outcome.stop] at hb
+/-- Inserting `freeze`: `%x` to `freeze %x`. A frozen poison is some value, which poison allows. -/
+theorem freezeInserted : Refines plain frozen := fun x => by
+  refine (Refine.outcomes_det_left _ _).2 fun ct => ?_
+  cases x <;> simp [frozen, addZeroTgt, Val.freeze, Refine.outcome_ok_ok, Refine.val_none, Refine.val_some]
+
+/-- `freeze (freeze %x)` to `freeze %x`: the outer `freeze` keeps the value the inner one gave. Each side chooses the
+same. -/
+def frozenTwice (x : Val 8) : Outcomes (Val 8) := fun c =>
+  let f := Val.freeze (c.pick 1) x
+  Outcome.ok (Val.freeze (c.pick 2) f)
+
+theorem freezeOfFreeze : Refines frozenTwice frozen := fun x =>
+  Refine.outcomes_of_same fun c => by
+    cases x <;> simp [frozenTwice, frozen, Val.freeze, Refine.outcome_ok_ok, Refine.val_some]
+
+/-- `freeze %x` to `%x` when `%x` is `noundef`: poison there is undefined, so `freeze` only ever sees a value. -/
+def frozenNoundef (x : Val 8) : Outcomes (Val 8) := fun c => noundef x <| Outcome.ok (Val.freeze (c.pick 1) x)
+def plainNoundef (x : Val 8) : Outcomes (Val 8) := Outcomes.det (noundef x <| Outcome.ok x)
+
+theorem freezeNoundefRemoved : Refines frozenNoundef plainNoundef := fun x => by
+  refine (Refine.outcomes_det_right _ _).2 ⟨default, ?_⟩
+  cases x with
+  | none => exact Refine.outcome_ub _ _
+  | some x => simp [frozenNoundef, noundef, Val.freeze, Refine.outcome_ok_ok, Refine.val_some]
+
+/-- `freeze %y` to `%y` when `%y` can't be poison: here `%y = add %f, 1` of a frozen `%f`. -/
+def frozenSum (x : Val 8) : Outcomes (Val 8) := fun c =>
+  let f := Val.freeze (c.pick 1) x
+  let y := Val.add f (some 1#8)
+  Outcome.ok (Val.freeze (c.pick 2) y)
+def plainSum (x : Val 8) : Outcomes (Val 8) := fun c =>
+  let f := Val.freeze (c.pick 1) x
+  Outcome.ok (Val.add f (some 1#8))
+
+theorem freezeOfValueRemoved : Refines frozenSum plainSum := fun x =>
+  Refine.outcomes_of_same fun c => by
+    cases x <;> simp [frozenSum, plainSum, Val.freeze, Val.add, Refine.outcome_ok_ok, Refine.val_some]
+
+/-- `freeze poison` to any constant `k`: the source can choose `k`. -/
+def frozenPoison (_ : Val 8) : Outcomes (Val 8) := fun c => Outcome.ok (Val.freeze (c.pick 1) none)
+def constant (k : BitVec 8) (_ : Val 8) : Outcomes (Val 8) := Outcomes.det (Outcome.ok (some k))
+
+theorem freezePoisonToConstant (k : BitVec 8) : Refines frozenPoison (constant k) := fun _ => by
+  refine (Refine.outcomes_det_right _ _).2 ⟨fun _ => k.toNat, ?_⟩
+  simp [frozenPoison, Choice.pick, Val.freeze, Refine.outcome_ok_ok, Refine.val_some]
+
+/-- Duplicating a `freeze` of something that can't be poison changes nothing, so it refines. -/
+def frozenSumTwice (x : Val 8) : Outcomes (Val 8) := fun c =>
+  let f := Val.freeze (c.pick 1) x
+  let y := Val.add f (some 1#8)
+  let a := Val.freeze (c.pick 2) y
+  let b := Val.freeze (c.pick 3) y
+  Outcome.ok (Val.sub a b)
+def frozenSumOnce (x : Val 8) : Outcomes (Val 8) := fun c =>
+  let f := Val.freeze (c.pick 1) x
+  let y := Val.add f (some 1#8)
+  let a := Val.freeze (c.pick 2) y
+  Outcome.ok (Val.sub a a)
+
+theorem freezeDuplicatedOfValue : Refines frozenSumOnce frozenSumTwice := fun x =>
+  Refine.outcomes_of_same fun c => by
+    cases x <;> simp [frozenSumOnce, frozenSumTwice, Val.freeze, Val.add, Val.sub, Refine.outcome_ok_ok,
+      Refine.val_some]
 
 /-! ### What the model certifies and LLVM doesn't
 
@@ -284,8 +354,9 @@ theorem chain : Refines addZeroNuw addZeroTgt := Refines.trans dropNuwZero addZe
 theorem addZeroSrc_self : Refines addZeroSrc addZeroSrc :=
   (Refines.self_iff _).2 fun x s => by cases x <;> simp [addZeroSrc, Outcome.ok, Outcome.stop]
 
-theorem frozen_not_self : ¬ Refines frozen frozen := fun h =>
-  (Refines.self_iff _).1 h none .freezePoison rfl
+/-- A function that makes choices refines itself where no way of choosing stops the model. -/
+theorem frozen_self : Refines frozen frozen := fun _ =>
+  Refine.outcomes_le_self fun c s => by simp [frozen, Outcome.ok, Outcome.stop]
 
 /-- The shape of `tools/binding.py`'s `ir_instance_equivalence` claim implies refinement. -/
 theorem of_equivalence {src tgt : Val 8 → Outcome (Val 8)} (h : src = tgt)

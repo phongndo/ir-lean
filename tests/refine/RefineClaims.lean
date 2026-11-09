@@ -20,7 +20,7 @@ run_meta do
 -- has to be the same `Expr` as the statement a certificate elaborates.
 run_meta do
   for (thm, src, tgt) in [(``addZero, ``addZeroSrc, ``addZeroTgt), (``dropNuw, ``addNuw, ``addPlain),
-      (``poisonLane, ``keepLane0, ``identity)] do
+      (``poisonLane, ``keepLane0, ``identity), (``freezeOfFreeze, ``frozenTwice, ``frozen)] do
     let want ← mkAppM ``Refines #[mkConst src, mkConst tgt]
     let got := (← getConstInfo thm).type
     unless got == want do

@@ -159,8 +159,6 @@ def catalog : Array Lean.Name := #[
   ``IRLean.Contract.select_true,
   ``IRLean.Contract.select_false,
   ``IRLean.Contract.freeze_some,
-  ``IRLean.Contract.freeze_none_stops,
-  ``IRLean.Contract.freeze_none_not_ub,
   ``IRLean.Refine.val_none,
   ``IRLean.Refine.val_some,
   ``IRLean.Refine.val_iff,
@@ -180,6 +178,9 @@ def catalog : Array Lean.Name := #[
   ``IRLean.Refine.val_map₂_mono,
   ``IRLean.Refines.trans,
   ``IRLean.Refines.refl,
-  ``IRLean.Refines.self_iff]
+  ``IRLean.Refines.self_iff,
+  ``IRLean.Contract.freeze_none,
+  ``IRLean.Contract.freeze_ne_none,
+  ``IRLean.Contract.freeze_none_any]
 
 end LemmaStore

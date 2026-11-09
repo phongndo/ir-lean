@@ -239,7 +239,7 @@ spend no effort on them until these work.
 
 | Horizon | Work | Why it's here |
 | --- | --- | --- |
-| **Now** | [Wave 3](#wave-3-set-on-2026-11-09)'s first items, set on 2026-11-09: Python consolidation, `freeze` in the model (F3), and the stage-1 benchmark finishing. Of [wave 2](#wave-2-revised-on-2026-11-08), lemma store v1, SEM-07 and tier-1 proof tests are done, speed's round 2 has landed, and S1 carries into wave 3 | Python consolidation is the foundation the rest of wave 3 builds on. F3 is what memory refinement waits on |
+| **Now** | [Wave 3](#wave-3-set-on-2026-11-09)'s first items, set on 2026-11-09: Python consolidation, `freeze` in the model (F3), done in [#72](https://github.com/phongndo/ir-lean/pull/72), and the stage-1 benchmark finishing. Of [wave 2](#wave-2-revised-on-2026-11-08), lemma store v1, SEM-07 and tier-1 proof tests are done, speed's round 2 has landed, and S1 carries into wave 3 | Python consolidation is the foundation the rest of wave 3 builds on. F3 is what memory refinement waits on |
 | **Next** | The rest of wave 3, on that foundation: lemma mining at scale, superoptimizer v2, and proof-test tiers 2 and 3. Then [wave 4](#wave-4): the executable memory model, memory refinement (F4) and the safety bridge. `inflate_table`'s statement is light work, taken up when a lane frees | Each needs something wave 2 or the first part of wave 3 builds |
 | **Later** | MLIR, `inflate`, contracts, C++ and Rust, the unit-test milestone, and adoption | Each needs a milestone from wave 3 or 4, or [isn't in a wave yet](#not-in-a-wave-yet) |
 
@@ -370,7 +370,7 @@ Python consolidation is the foundation, [decision 3](#three-decisions-of-2026-11
 - Python consolidation, slice 31, [Phase 8](#phase-8-speed): one shared library for `tools/` and `tests/*.py`, with
   anything that shows memory or speed problems moved to C++.
 - `freeze` in the model, with `undef` kept out, F3, slice 32, [Phase 0](#phase-0-semantic-fidelity-and-trust-infrastructure).
-  It's the one lane that changes semantics in `IRLean/*.lean` this wave.
+  It's the one lane that changes semantics in `IRLean/*.lean` this wave. Done in [#72](https://github.com/phongndo/ir-lean/pull/72).
 - The stage-1 benchmark finishing, S1, slice 29, [Phase 4](#phase-4-certified-translation-validation-and-superoptimization),
   from wave 2.
 
@@ -416,7 +416,7 @@ Python consolidation is the foundation, [decision 3](#three-decisions-of-2026-11
 | SEM-07 | The safety bridge | While `mustprogress` and `willreturn` are trusted, a target can claim a promise the certificate didn't check, and the bridge would carry safety to it. Met: SEM-07 landed in [#62](https://github.com/phongndo/ir-lean/pull/62) |
 | `inflate_table`'s statement, reviewed | Its proof | A proof of the wrong statement is wasted, and the statement is where a memory-safety claim is most likely to be wrong |
 | Python consolidation | Lemma mining at scale, superoptimizer v2, and proof-test tiers 2 and 3 | They're built on its shared library, by [decision 3](#three-decisions-of-2026-11-09), so they don't add Python it would then have to move |
-| F3, `freeze` in the model | F4, memory refinement | Decided on 2026-11-09. F3 changes what a run's outcome is, since `freeze` makes it a choice, and F4's relation between memories is stated over that outcome, so it's built once, on F3's |
+| F3, `freeze` in the model | F4, memory refinement | Decided on 2026-11-09. F3 changes what a run's outcome is, since `freeze` makes it a choice, and F4's relation between memories is stated over that outcome, so it's built once, on F3's. Met: F3 landed in [#72](https://github.com/phongndo/ir-lean/pull/72) |
 | F4 | The safety bridge, and superoptimizer v2's memory candidates | The bridge is a statement about `Refines` with memory, and so is every certificate for a memory candidate |
 
 **Soft:** better in this order. Going the other way needs a reason, written in the pull request.
@@ -447,7 +447,7 @@ SEM-06, memory refinement, is F4 in [wave 4](#wave-4).
 - **One pull request at a time that changes semantics in `IRLean/*.lean`.** Every proof and certificate rests on those
   files, so two semantic changes at once can't each be reviewed against what's on `main`, and each one makes every
   proof check again. In wave 2 that was SEM-07, which is one reason the executable memory model moved to wave 3. In
-  wave 3 it's F3.
+  wave 3 it was F3, done in [#72](https://github.com/phongndo/ir-lean/pull/72).
 - **About 4 or 5 active lanes.** Runners are limited. Every lane registers its tests in `CMakeLists.txt`, where they
   conflict. And Lean takes 1.5 to 3.5 GB a process: one binding verify peaked at 1.5 GiB in #52's pilot, and
   `CMakeLists.txt` runs the `binding` test alone because each of its Lean processes takes up to 3.5 GB.
@@ -477,7 +477,7 @@ GEP flags ([#15](https://github.com/phongndo/ir-lean/pull/15)), attribute and li
 | 30 | Speed, round 2 | 8 | 2 | C1 below |
 | 13 | Statement of `inflate_table`'s theorem, for review, with no proof | 1 | When a lane frees | Someone other than the author has reviewed it |
 | 31 | Python consolidation | 8 | 3, first | `tools/` and `tests/*.py` share one library, and what showed memory or speed problems is in C++ |
-| 32 | `freeze` in the model, with `undef` kept out | 0 | 3, first | F3 below |
+| 32 | `freeze` in the model, with `undef` kept out | 0 | 3, first | F3 below. Done in [#72](https://github.com/phongndo/ir-lean/pull/72) |
 | 33 | Lemma mining at scale | 6 | 3, then | E3 below, and targets for peak memory on big proofs, set in [Phase 8](#phase-8-speed) |
 | 25 | Superoptimizer v2 | 4 | 3, then | S3 below |
 | 27 | Proof-test tiers 2 and 3 | 7 | 3, then | T2 below |
@@ -501,7 +501,7 @@ Each is reached when its checks pass in CI, not on a date.
 | --- | --- | --- | --- | --- |
 | F1 | Phase 0A done: axioms allow-listed, GEP gaps closed, pinned target and manifest | 0 | | In progress: axioms, GEPs and allow-lists are done |
 | F2 | `mustprogress` and `willreturn` checked as UB, SEM-07 | 0 | | Done in [#62](https://github.com/phongndo/ir-lean/pull/62). Recursion under a promise stops the model, as [trust](trust.md#promises-to-progress) says |
-| F3 | `freeze` in the model, with `undef` kept out, SEM-03. Until 2026-11-09, `undef` and `freeze` in the model, SEM-02 and SEM-03 ([why](#three-decisions-of-2026-11-09)) | 0 | | Wave 3. A [prototype](undef-freeze.md) outside the model |
+| F3 | `freeze` in the model, with `undef` kept out, SEM-03. Until 2026-11-09, `undef` and `freeze` in the model, SEM-02 and SEM-03 ([why](#three-decisions-of-2026-11-09)) | 0 | | Done in [#72](https://github.com/phongndo/ir-lean/pull/72): `freeze` of poison is a value each run chooses, and `Refines` quantifies over each side's choices ([refinement](refinement.md#runs-that-make-choices)). Ten rewrites' verdicts are proved on what ir-lean emits, with Alive2 agreeing, and four real `instcombine` runs on `freeze` are bound |
 | F4 | `Refines` for functions with memory, SEM-06 | 0 | F3 | Wave 4. Not started |
 | F5 | Phase 0B done: full inventory, semantic mutation, two-machine determinism | 0 | F1 | In progress: promises, model stops and Alive2 are done |
 | S1 | Stage 1: proved wins on integer code, and no known-wrong rewrite certified | 4 | | In part: 2 proved wins over `clang -O3` ([#30](https://github.com/phongndo/ir-lean/pull/30)). The comparison with Alive2 isn't done |
@@ -550,8 +550,8 @@ listed as an assumption of each theorem it affects.
   certifying any loop deletion, and anything after `function-attrs` in a pipeline, since #52's pilot found it adds both
   to every loop-free function.
 - **`freeze` in the model, F3.** Decided on [2026-11-09](#three-decisions-of-2026-11-09): `undef` stays out, and
-  `freeze` goes in as #49's [prototype](undef-freeze.md) defines it. Memory refinement, F4, waits on it. In
-  [wave 3](#wave-3-set-on-2026-11-09).
+  `freeze` goes in as #49's [prototype](undef-freeze.md) defines it. Done in [#72](https://github.com/phongndo/ir-lean/pull/72): `freeze` of poison is a value each
+  run chooses, as [refinement](refinement.md#runs-that-make-choices) says. Memory refinement, F4, waited on it.
 
 **0A, which blocks safety proofs:**
 
@@ -613,7 +613,7 @@ showing every assumption that theorem rests on.
 theorem that it refines the original. The search, and any AI in it, is untrusted. Only the certificate counts.
 
 **Prerequisites,** per stage below. Integer code needs only what's on `main`. Loops needed SEM-07, which has landed.
-Memory needs SEM-06, F4, which waits on F3, `freeze` in the model.
+Memory needs SEM-06, F4, which waited on F3, `freeze` in the model, done in [#72](https://github.com/phongndo/ir-lean/pull/72).
 
 **What's being certified:** [`IRLean.Refines`](refinement.md) ([#46](https://github.com/phongndo/ir-lean/pull/46)).
 `Refines src tgt` says `tgt` only does what `src` allows: where the source is undefined, anything; where the model

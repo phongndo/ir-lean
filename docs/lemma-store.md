@@ -15,7 +15,11 @@ shell, while other work ran on the same machine.
   which no second proof uses yet. 53 hypotheses each have a counterexample showing they're needed. None of #48's 38
   rewrites is used by two proofs yet: the 16 are 9 of refinement's laws, 5 of the contracts and 2 facts about
   `BitVec w`. Since SEM-07, [#62](https://github.com/phongndo/ir-lean/pull/62), whose `RefineCases` added two proofs
-  using `Refine.outcome_none`, it's 17 and 146, with 10 of refinement's laws.
+  using `Refine.outcome_none`, it's 17 and 146, with 10 of refinement's laws. Since F3, on 2026-11-09, `freeze` of
+  poison is a value, so `IRLean.Contract.freeze_none_stops` and `freeze_none_not_ub` left the store, and
+  `freeze_none`, `freeze_ne_none` and `freeze_none_any` joined it as candidates: 164 lemmas, 17 meeting all four and
+  147 candidates. `Refine.outcome_stop` is a candidate again, since `RefineCases` no longer stops the model at a
+  `freeze`, and `Refine.outcome_le_self_iff` meets all four.
 - **Seeding refused 6 of 169.** Two of #48's lemmas, `shl_lshr_eq_iff` and `shl_sshr_eq_iff`, hold without their
   bound on the shift, so their hypothesis is one nothing needs. `grind` alone closes two more and `Refines.of_eq`, and
   `add_of_and_eq_zero`'s conclusion isn't in the normalizer's form. [Below](#what-seeding-refused).

@@ -504,6 +504,124 @@ else
   fail 'dereferenceable results, the arguments of calls that never return, or huge allocas'
 fi
 
+# Choices: `freeze` of poison is a value the run's `IRLean.Choice` names, and each `freeze` a run executes reads its own
+# place in it, in a loop, in a function called twice, through a pointer, at each depth of a recursion, and of memory
+# never written. Running the emitted code under chosen choices shows each place is its own, so a change to how the
+# emitter numbers them shows. Only integers are frozen: LangRef freezes a vector's lanes one by one, and a pointer to
+# one with no provenance, and neither is modeled.
+refuses 'instruction %r = freeze ptr %p' 'define ptr @f(ptr %p) { %r = freeze ptr %p
+  ret ptr %r }'
+refuses 'instruction %r = freeze <2 x i8> %v' 'define <2 x i8> @f(<2 x i8> %v) { %r = freeze <2 x i8> %v
+  ret <2 x i8> %r }'
+cat >"$work/Choices.ll" <<'IR'
+; Two runs of one `freeze` in a loop choose apart: the result is how the first differs from the second.
+define i8 @loop(i8 %x) {
+entry:
+  br label %body
+body:
+  %i = phi i8 [ 0, %entry ], [ 1, %body ]
+  %prev = phi i8 [ 0, %entry ], [ %f, %body ]
+  %f = freeze i8 poison
+  %done = icmp eq i8 %i, 1
+  br i1 %done, label %exit, label %body
+exit:
+  %d = sub i8 %prev, %f
+  ret i8 %d
+}
+
+; A function called twice chooses apart each time.
+define i8 @pick() {
+  %f = freeze i8 poison
+  ret i8 %f
+}
+define i8 @twice() {
+  %a = call i8 @pick()
+  %b = call i8 @pick()
+  %d = sub i8 %a, %b
+  ret i8 %d
+}
+
+; Through a pointer.
+@target = global ptr @pick
+define i8 @indirect() {
+  %p = load ptr, ptr @target
+  %a = call i8 %p()
+  ret i8 %a
+}
+
+; A recursive function chooses at each depth.
+define i8 @down(i8 %n) {
+entry:
+  %f = freeze i8 poison
+  %z = icmp eq i8 %n, 0
+  br i1 %z, label %done, label %more
+more:
+  %m = sub i8 %n, 1
+  %r = call i8 @down(i8 %m)
+  %s = add i8 %r, %f
+  ret i8 %s
+done:
+  ret i8 %f
+}
+
+; Memory: a byte never written is poison, and `freeze` chooses a value for it.
+define i8 @uninit() {
+  %a = alloca i8
+  %v = load i8, ptr %a
+  %f = freeze i8 %v
+  ret i8 %f
+}
+
+; A function that makes no choices is left as it was.
+define i8 @plain(i8 %x) {
+  ret i8 %x
+}
+IR
+cat >"$work/ChoicesCheck.lean" <<'LEAN'
+import Choices
+open IRLean Choices
+
+def show' : Outcome (Val 8) → String
+  | some (.ok (some x)) => s!"{x.toNat}"
+  | some (.ok none) => "poison"
+  | none => "none"
+  | some (.error (.undefined e)) => s!"ub {repr e}"
+  | some (.error (.model e)) => s!"stop {repr e}"
+
+def showMem (o : Outcome (Val 8 × Mem)) : String := show' (andThen o fun r => Outcome.ok r.1)
+
+/-- `n` at every place. -/
+def same (n : Nat) : Choice := fun _ => n
+/-- `n` at the place `p`, and 0 everywhere else. -/
+def only (p : List Nat) (n : Nat) : Choice := fun q => if q = p then n else 0
+
+-- The loop's body runs twice, as blocks `c.sub 0` and `(c.sub 0).sub 0`: its `freeze` reads `[0, 1]` the first time
+-- and `[0, 0, 1]` the second, so the two can differ.
+#guard show' (loop_1 none (same 7)) == "0"
+#guard show' (loop_1 none (only [0, 1] 3)) == "3"
+#guard show' (loop_1 none (only [0, 0, 1] 3)) == "253"
+-- Each call of `pick` gets its own place, `[1]` and `[2]`, under which its `freeze` reads `[1]`.
+#guard show' (twice (same 7)) == "0"
+#guard show' (twice (only [1, 1] 5)) == "5"
+#guard show' (twice (only [2, 1] 5)) == "251"
+-- Through a pointer too.
+#guard showMem (indirect_1 initial (only [1, 1] 9)) == "9"
+-- Each depth of a recursion chooses for itself: depth 0 reads `[1]`, and depth 1, called from the next block, `[0, 1, 1]`.
+#guard show' (down (some 1#8) (only [0, 1, 1] 4)) == "4"
+#guard show' (down (some 1#8) (only [1] 4)) == "4"
+#guard show' (down (some 1#8) (same 2)) == "4"
+-- A byte never written is poison, and `freeze` makes it the value chosen.
+#guard showMem (uninit initial (only [1] 200)) == "200"
+-- A function that makes no choices keeps its type.
+example : plain = fun x => run plain.step (.bb1 x) := rfl
+LEAN
+if "$tool" "$work/Choices.ll" -o "$work/Choices.lean" --namespace Choices &&
+  lean -R "$work" -o "$work/Choices.olean" "$work/Choices.lean" && lean "$work/ChoicesCheck.lean"; then
+  printf 'ok    each freeze a run executes chooses for itself, in loops, calls, recursion and memory\n'
+else
+  fail 'what a freeze chooses, by where it runs'
+fi
+
 # Promises to progress and to return, as the model checks them (IRLean/Promise.lean): a run that never finishes under
 # one is undefined, unless it's waiting on a call LangRef allows never to return, and where LangRef doesn't settle it
 # the model stops. Each is proved here of what ir-lean emits, so a change to the emitter or the model shows.

@@ -110,7 +110,7 @@ LangRef is prose.
 | `*_noPoison`, 33 of them | `NoPoison` without flags: everything `*_strict` covers but the shifts and `range`, which LangRef lets give poison on values. Division gives a value wherever it isn't undefined |
 | `*_onlyPoisons`, 13 of them | Dropping any subset of flags keeps any value: `add`, `sub`, `mul`, `shl` (`nuw`, `nsw`), `lshr`, `ashr` (`exact`), `or` (`disjoint`), `icmp` (`samesign`), `zext` (`nneg`), `trunc` (`nuw`, `nsw`), `abs`, `ctlz`, `cttz` (their poison arguments) |
 | `select_poison`, `select_true`, `select_false` | LangRef's `select`: poison condition gives poison, and only the chosen arm matters |
-| `freeze_some`, `freeze_none_stops`, `freeze_none_not_ub` | `freeze` of a value is that value. Of poison, the model stops, and that isn't undefined |
+| `freeze_some`, `freeze_none`, `freeze_ne_none`, `freeze_none_any` | `freeze` of a value is that value. Of poison, it's the value the run chose, every value of the type is one some choice gives, and it's never poison. Until F3, on 2026-11-09, `freeze_none_stops` and `freeze_none_not_ub` said the model stopped there, and that wasn't undefined |
 
 `OnlyPoisons` is what lets a pass drop a flag, which InstCombine does constantly, and with `Strict` it's the integer case
 of the lemma a refinement proof needs to replace one operation with another inside a larger function. `NoPoison` is the
@@ -125,7 +125,7 @@ and the three model modules they import there, without Lake. It takes about 12 s
 | Check | Shows |
 | --- | --- |
 | `IRLean.Contract.Poison` builds | The contracts check, with warnings as errors |
-| [`tests/contracts/ContractPoison.lean`](../tests/contracts/ContractPoison.lean) | 18 vectors: LangRef's own Poison Values examples, `sdiv` of `-2147483648` by `-1`, `exact` on `7 / 2`, `select` and `freeze`. And 7 semantics LangRef rules out, each proved to fail its contract: `and` with zero absorbing poison, `add` always acting as if it had `nuw`, `add nsw` saturating, `sdiv` never undefined on a poison dividend, `udiv` always undefined on one, `udiv` giving poison for a poison divisor, and `exact` trapping |
+| [`tests/contracts/ContractPoison.lean`](../tests/contracts/ContractPoison.lean) | 21 vectors: LangRef's own Poison Values examples, `sdiv` of `-2147483648` by `-1`, `exact` on `7 / 2`, `select` and `freeze`. And 7 semantics LangRef rules out, each proved to fail its contract: `and` with zero absorbing poison, `add` always acting as if it had `nuw`, `add nsw` saturating, `sdiv` never undefined on a poison dividend, `udiv` always undefined on one, `udiv` giving poison for a poison divisor, and `exact` trapping |
 | Axioms, read as data | Both modules rest on the standard three, through the repo's [`tests/check_axioms.lean`](../tests/check_axioms.lean), unchanged. `leanchecker` replays both through the kernel |
 | [`must_fail/LaxSdivProof.lean`](../tests/contracts/must_fail/LaxSdivProof.lean) | A proof that the lax `sdiv` meets `PoisonUB` fails, with an error that isn't a resource limit |
 | [`must_fail/SorriedContract.lean`](../tests/contracts/must_fail/SorriedContract.lean) | A `sorry` compiles, and the axiom check refuses it |
@@ -163,13 +163,14 @@ Each row is one of LangRef's rules, where the model has it, and its status. "Gap
 
 | Rule | Model | Status | Gap |
 | --- | --- | --- | --- |
-| `undef` constants: each use may see a different value | Refused | Refused | A representation. See [dependencies](#what-refinement-depends-on) |
+| `undef` constants: each use may see a different value | Refused | Refused | Kept out of the model, by the maintainer's [decision](roadmap.md#three-decisions-of-2026-11-09) of 2026-11-09 |
 | `select` on an `undef` condition: each use picks either arm | `undef` never reaches it | Refused | Same |
 | Uninitialized memory reads as `undef` | Reads as poison | **Stricter** | Same. Already in [trust](trust.md#known-gaps-in-the-model) |
 | Shuffle of an `undef` lane is `undef` | `undef` never reaches it | Refused | Same |
-| `freeze` of `undef` or poison: arbitrary, fixed, the same for every use | `ModelStop.freezePoison` | **Model stop**, proved | A nondeterministic `Outcome`. Without it, any source that freezes poison gets no refinement certificate, and passes that insert `freeze` can only be checked where the operand is never poison |
-| Two `freeze`s of the same poison may differ; one `freeze` used twice may not | Both stop the model the same way | **Model stop**. Not distinguished | See the [boundary](#a-model-stop-is-not-a-result) below |
+| `freeze` of poison: arbitrary, fixed, the same for every use | `Val.freeze`, with the value the run's `IRLean.Choice` gives, since F3 | **Proved**, by `freeze_none` and `freeze_none_any`. Until F3 a model stop | `undef` never reaches it |
+| Two `freeze`s of the same poison may differ; one `freeze` used twice may not; one that runs twice may choose twice | Each `freeze` a run executes reads its own place in the `Choice`, and a `let` binds its value for every use | **Modeled**, and tested in `tests/emitter.sh`, `tests/refine.sh` and `tests/freeze.sh`, against Alive2 there | None known. See [refinement](refinement.md#runs-that-make-choices) |
 | `freeze` of a value is the value | `Val.freeze` | **Proved** | None |
+| `freeze` of a vector, lane by lane, or of a pointer | Refused | Refused | Model them when real code needs it |
 
 ### Floating point
 
@@ -179,7 +180,7 @@ decision is needed on each of these, and none is made here:
 - **IEEE 754 arithmetic.** Lean's core has no IEEE 754 binary formats. Options are a bit-level model proved against
   a reference such as Flocq, or one trusted and differentially tested.
 - **NaN.** LangRef's "Behavior of Floating-Point NaN values" makes the payload of a NaN result nondeterministic, within
-  rules. That needs the same nondeterministic `Outcome` as `freeze`.
+  rules. That needs a run to make choices, as `freeze` does since F3 through `IRLean.Choice`.
 - **Fast-math flags.** `nnan` and `ninf` are poison-generating, so `OnlyPoisons` fits them. `nsz`, `arcp`, `contract`,
   `afn` and `reassoc` allow a different value, not poison, so they need a semantics with sets of results.
 - **Floating-point environment and denormals.** LangRef assumes the default environment outside constrained
@@ -191,15 +192,16 @@ Floating point is where most of the gap between "every optimization" and today's
 ### A model stop is not a result
 
 Replacing `%f = freeze i32 %x` used twice with two `freeze`s of `%x` is wrong in LLVM, since two `freeze`s of poison
-may pick different values. In the model, both sides stop with `freezePoison` when `%x` is poison, and agree otherwise,
-so a theorem that they're equal holds. The adversarial lane reports that equality certifies this rewrite. So:
+may pick different values. Until F3, on 2026-11-09, both sides stopped the model with `freezePoison` when `%x` was
+poison, and agreed otherwise, so a theorem that they're equal held. The adversarial lane reported that equality
+certified this rewrite. Since F3 the two `freeze`s choose apart, so the functions differ, and this rewrite no longer
+shows it, but any other model stop still would. So:
 
 - **Equality of model outcomes is not refinement.** Where either side can stop the model, `src = tgt` says only that
   they stop the same way, which says nothing about LLVM. A certificate has to treat a source stop as allowing nothing,
   as [`Refines`](refinement.md) does, or prove neither side stops.
-- **The scalar contracts here don't fix this.** `freeze_none_stops` and `freeze_none_not_ub` say what the model does.
-  They don't make it say anything about `freeze` that LangRef does. Coordinating which certificates may use equality is
-  the binding lane's, and fixing it for real needs a nondeterministic `Outcome`, below.
+- **The scalar contracts here don't fix this.** They say what the model does. Coordinating which certificates may use
+  equality is the binding lane's: its equivalence claim also says the source never stops the model.
 
 ### Memory, provenance and undefined behavior
 
@@ -254,18 +256,17 @@ undefined behavior than LLVM there. This slice settles part of that:
   or poison beyond LangRef's, apart from shifts and flagged operations, where whether poison comes from exactly the
   inputs LangRef names is tested by `opcheck`, not proved.
 - **Not settled.** `br`, `switch`, `assume` and `noundef` match by reading, not by contract. Values match by testing,
-  not by proof. Vector lanes aren't stated. Anything that can stop the model, `freeze` first, needs a certificate that
-  doesn't count a stop on both sides as agreement.
+  not by proof. Vector lanes aren't stated. Anything that can stop the model needs a certificate that doesn't count a
+  stop on both sides as agreement.
 
 These are the exact dependencies, each a decision this lane doesn't make silently:
 
-1. **`undef`.** Needed for any refinement whose source reads uninitialized memory or has an `undef` constant, and for
-   every refinement with memory. The model reads it as poison, which is stricter, so a source that LangRef defines could
-   be certified against a wrong target. The options are a value with a set of possible bit patterns per use, or a
-   per-bit `undef` like LangRef's examples. Both need `Outcome` to allow more than one result.
-2. **Nondeterminism in `Outcome`.** `freeze`, NaN payloads and value-changing fast-math flags all need a run to have
-   more than one allowed result. Today's `Outcome` is a single result, so these are model stops or refused. This is the
-   largest change the model needs, and it changes the type every emitted function has.
+1. **`undef`.** Decided on 2026-11-09: it stays out of the model, refused as a constant, with uninitialized memory read
+   as poison, which is stricter, so a source that LangRef defines could be certified against a wrong target. F4, memory
+   refinement, has to settle that for memory.
+2. **Nondeterminism.** Done for `freeze` in F3: a function whose run makes choices returns `IRLean.Outcomes α`, an
+   outcome for each `IRLean.Choice`, and every other function keeps `Outcome α`. NaN payloads and value-changing
+   fast-math flags can make choices the same way.
 3. **`mustprogress`.** Settled by SEM-07: a run that breaks the promise is undefined, on both sides. What's left is a
    recursive function under a promise, and a run waiting on a promised callee that waits itself, which stop the model,
    so a refinement can't count them as undefined.
@@ -317,4 +318,4 @@ In order, each a contract with the same four checks:
 2. `PoisonUB` for `br`, `switch`, `assume`, `noundef` and `Mem.access`'s pointer operand.
 3. Exact poison: each flag poisons on exactly the inputs LangRef names, and each shift on exactly an amount at least the
    width. Then value contracts against a spec written from LangRef, not from the code, starting with `fshl`.
-4. A proposal for nondeterministic `Outcome`, with `freeze` as its first user, which `undef`, NaN and fast-math need.
+4. Nondeterminism, with `freeze` as its first user, done in F3. NaN and fast-math can use it.

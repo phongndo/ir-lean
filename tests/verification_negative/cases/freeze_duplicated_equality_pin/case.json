@@ -1,9 +1,9 @@
 {
   "schema": "ir-lean.verification-negative.case/1",
   "category": "freeze",
-  "summary": "The same wrong rewrite, claimed as equality, which Lean proves",
+  "summary": "The same wrong rewrite, claimed as equality for one way of choosing, which Lean refutes",
   "llvm_verdict": "invalid",
-  "why": "Both functions stop at a frozen poison, so tgt x = src x holds in the model, and tools/verify.py proves it. Equality treats a model stop as an answer, so it isn't refinement, and the gate only takes the refinement claim.",
+  "why": "Until F3 both functions stopped at a frozen poison, so tgt x = src x held in the model, and tools/verify.py proved it. Equality treats a model stop as an answer, so it isn't refinement. Since F3 each freeze chooses: where tgt's two choose 0 and 1, it returns 255 and src returns 0. The gate only takes the refinement claim either way.",
   "claim": {
     "binders": "(x : IRLean.Val 8)",
     "hypotheses": [],
@@ -11,7 +11,7 @@
     "tgt": "Opt.tgt x"
   },
   "pin_override": {
-    "statement": "∀ (x : IRLean.Val 8), Opt.tgt x = Opt.src x"
+    "statement": "∀ (x : IRLean.Val 8), Opt.tgt x (fun p => if p = [2] then 1 else 0) = Opt.src x (fun p => if p = [2] then 1 else 0)"
   },
   "names": [
     "Opt.src",
@@ -28,14 +28,20 @@
     "limits": {
       "timeout_seconds": 120,
       "memory_mb": 4000
-    }
+    },
+    "witnesses": [
+      {
+        "x": "none"
+      }
+    ]
   },
   "expect": {
     "certified": false,
     "verify": [
-      "proved/kernel_checked"
+      "counterexample/witness_falsifies"
     ],
     "gate": [
+      "not_proved",
       "pin_mismatch"
     ]
   }

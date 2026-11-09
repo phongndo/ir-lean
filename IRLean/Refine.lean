@@ -17,7 +17,9 @@ field. For a run:
 For a function, both get the same input, for every input its type has. An argument is a value or poison, never `undef`.
 
 Every relation here is transitive, so refinements compose. A value refines itself, and a run refines itself exactly when
-it doesn't stop the model, so `Refines f f` says `f` never stops the model on any input.
+it doesn't stop the model, so for `f` into `Outcome`, `Refines f f` says `f` never stops the model on any input. A run
+that makes choices refines itself where no way of choosing stops the model, and also where some way is undefined, which
+allows anything: `Refine.outcomes_le_self`.
 
 There's deliberately no instance for `Mem`. The emitter gives every function that mentions a pointer or touches memory a
 `Mem` argument and a `Mem` in its result, so such a function has no `Refines` claim at all. -/
@@ -72,6 +74,17 @@ instance [Refine α] : Refine (Outcome α) where
       obtain ⟨z, hc, hyz⟩ := hbc
       exact ⟨z, hc, Refine.trans hxy hyz⟩
 
+/-- Runs that make choices: however the target's `freeze`s choose, the source's can choose so that its run allows the
+target's. Each side's choices are made for the whole run, and the source's after the target's, as LLVM's own
+refinement has them: the target's nondeterminism is for any execution, and the source's is the optimizer's to pick.
+A source that's undefined for some way of choosing allows anything. -/
+instance [Refine α] : Refine (Outcomes α) where
+  le a b := ∀ ct, ∃ cs, Refine.le (a cs) (b ct)
+  trans {a b c} hab hbc ct := by
+    obtain ⟨cm, h₂⟩ := hbc ct
+    obtain ⟨cs, h₁⟩ := hab cm
+    exact ⟨cs, Refine.trans h₁ h₂⟩
+
 /-- For every input, the same input to both. Inputs range over everything the type has: for `Val`, poison too. -/
 instance {α β : Type} [Refine β] : Refine (α → β) where
   le f g := ∀ x, Refine.le (f x) (g x)
@@ -121,6 +134,27 @@ theorem outcome_none [Refine α] (b : Outcome α) : Refine.le (none : Outcome α
 
 theorem fn {α β : Type} [Refine β] (f g : α → β) : Refine.le f g ↔ ∀ x, Refine.le (f x) (g x) := Iff.rfl
 
+theorem outcomes_iff [Refine α] (a b : Outcomes α) : Refine.le a b ↔ ∀ ct, ∃ cs, Refine.le (a cs) (b ct) := Iff.rfl
+
+/-- Two runs that make no choices: refinement of their outcomes. -/
+theorem outcomes_det [Refine α] (a b : Outcome α) :
+    Refine.le (Outcomes.det a) (Outcomes.det b) ↔ Refine.le a b :=
+  ⟨fun h => let ⟨_, hc⟩ := h default; hc, fun h _ => ⟨default, h⟩⟩
+
+/-- A source that makes no choices: every way the target chooses has to be allowed. -/
+theorem outcomes_det_left [Refine α] (a : Outcome α) (b : Outcomes α) :
+    Refine.le (Outcomes.det a) b ↔ ∀ ct, Refine.le a (b ct) :=
+  ⟨fun h ct => let ⟨_, hc⟩ := h ct; hc, fun h ct => ⟨default, h ct⟩⟩
+
+/-- A target that makes no choices: some way the source chooses has to allow it. -/
+theorem outcomes_det_right [Refine α] (a : Outcomes α) (b : Outcome α) :
+    Refine.le a (Outcomes.det b) ↔ ∃ cs, Refine.le (a cs) b :=
+  ⟨fun h => h default, fun h _ => h⟩
+
+/-- Choosing the same on both sides is enough, and often how a proof goes. -/
+theorem outcomes_of_same [Refine α] {a b : Outcomes α} (h : ∀ c, Refine.le (a c) (b c)) : Refine.le a b :=
+  fun ct => ⟨ct, h ct⟩
+
 /-! ### Reflexivity -/
 
 instance : Reflexive (Val w) where
@@ -150,6 +184,12 @@ theorem outcome_le_self_iff [Refine α] [Reflexive α] (o : Outcome α) :
   | some (.ok x) => exact iff_of_true ⟨x, rfl, Reflexive.refl x⟩ nofun
   | some (.error (.undefined _)) => exact iff_of_true trivial nofun
   | some (.error (.model s)) => exact iff_of_false id fun h => h s rfl
+
+/-- Runs that make choices refine themselves where no way of choosing stops the model. Not the converse: a run
+undefined for one way of choosing allows anything, its own stops included. -/
+theorem outcomes_le_self [Refine α] [Reflexive α] {o : Outcomes α} (h : ∀ c s, o c ≠ Outcome.stop s) :
+    Refine.le o o :=
+  outcomes_of_same fun c => (outcome_le_self_iff (o c)).2 (h c)
 
 /-! ### Composition -/
 

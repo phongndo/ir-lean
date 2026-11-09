@@ -93,7 +93,7 @@ Evidence and not proof. A pass here means no disagreement was found on the input
 - **Random functions:** fuzzed integer functions at random optimization levels, against native code.
 - **Undefined behavior:** 46 functions LLVM calls undefined stop the model ([`ub.ll`](../tests/real/ub.ll)),
   including each promise being broken. 14 memory errors each stop it for their own reason
-  ([`memory_errors.ll`](../tests/real/memory_errors.ll)), and `memory_errors` fails if any reason changes. 18 that LLVM doesn't call undefined stop without being called so
+  ([`memory_errors.ll`](../tests/real/memory_errors.ll)), and `memory_errors` fails if any reason changes. 17 that LLVM doesn't call undefined stop without being called so
   ([`stops.ll`](../tests/real/stops.ll)).
 - **Promises kept:** 25 functions that keep their promises match native code with no input skipped
   ([`promises.ll`](../tests/real/promises.ll)).
@@ -237,7 +237,11 @@ reads it. That difference is itself a thing [Phase 3](roadmap.md#phase-3-c-and-r
 9. Promises the optimizer leaves, checked or refused. Done, with `mustprogress`, `willreturn` and
    `llvm.loop.mustprogress` [since SEM-07](trust.md#promises-to-progress).
 10. `inflate`: [measured](#measured). Its next step is [its invariant](roadmap.md#phase-1-zlib-inflate-memory-safety).
-11. A [lemma store](lemma-store.md): 163 checked lemmas from #42, #46 and #48 that later proofs can find, in `lake build`
-    and CI, 16 of them used by two proofs. Done in [#60](https://github.com/phongndo/ir-lean/pull/60).
+11. A [lemma store](lemma-store.md): 164 checked lemmas from #42, #46, #48 and F3 that later proofs can find, in
+    `lake build` and CI, 17 of them used by two proofs. Done in [#60](https://github.com/phongndo/ir-lean/pull/60).
 12. Tier-1 proof tests, which run a property on generated inputs and have the kernel check each counterexample. Done,
     for functions without memory: [proof tests](proof-tests.md) has what they refute, and what they can't run.
+13. `freeze` in the model, F3: `freeze` of poison is a value each run chooses, and `IRLean.Refines` quantifies over each
+    side's choices, so inserting, removing and duplicating a `freeze` are judged as LangRef judges them, and four real
+    `instcombine` runs on `freeze` are bound as refinements. `undef` stays out of the model. Done in
+    [#72](https://github.com/phongndo/ir-lean/pull/72). See [refinement](refinement.md#runs-that-make-choices).

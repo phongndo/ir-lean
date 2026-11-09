@@ -125,6 +125,9 @@ REFINES = " ∨ ".join(
     ]
 )
 CLAIM_FIELDS = {"binders", "hypotheses", "src", "tgt"}
+# A source whose run makes choices, as one with a `freeze` does, gets them after the inputs: the claim is that
+# some way it chooses allows the target, for every input, and every way the target chooses, which is a binder.
+OPTIONAL_CLAIM_FIELDS = {"src_choice"}
 
 # Every reason the gate can give for not certifying. A new one goes in the doc's table too.
 DENIALS = {
@@ -230,7 +233,8 @@ def load_case(directory: Path) -> Case:
     need("namespace" in request, "request.namespace is missing: the gate needs the Lean constant")
     claim = manifest.get("claim", "missing")
     need(
-        claim is None or (isinstance(claim, dict) and set(claim) == CLAIM_FIELDS),
+        claim is None
+        or (isinstance(claim, dict) and CLAIM_FIELDS <= set(claim) <= CLAIM_FIELDS | OPTIONAL_CLAIM_FIELDS),
         f"claim needs {CLAIM_FIELDS}",
     )
     need(
@@ -367,7 +371,8 @@ def envelope_for(harness: Harness, checkers: dict[str, str], probe: dict[str, An
 def canonical(claim: dict[str, Any]) -> str:
     """The statement a certificate for this claim has to pin."""
     hypotheses = "".join(f"{h} → " for h in claim["hypotheses"])
-    return f"∀ {claim['binders']}, {hypotheses}{REFINES.format(src=claim['src'], tgt=claim['tgt'])}"
+    choice = f"∃ ({claim['src_choice']} : IRLean.Choice), " if "src_choice" in claim else ""
+    return f"∀ {claim['binders']}, {hypotheses}{choice}{REFINES.format(src=claim['src'], tgt=claim['tgt'])}"
 
 
 def pinned_statement(case: Case) -> str | None:
