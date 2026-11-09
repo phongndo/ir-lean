@@ -510,8 +510,30 @@
     "IS.simplifyICmpWithBinOpOnLHS.L3295",
     "IS.simplifyICmpWithBinOpOnLHS.L3299"
   ],
+  "folds_run": {
+    "Peephole.IS.extractEquivalentCondition": "h792.792",
+    "Peephole.IS.simplifyAndOfICmps": "h7.1408",
+    "Peephole.IS.simplifyAndOfICmpsWithAdd": "h7.1408",
+    "Peephole.IS.simplifyAndOrOfCmps": "h7.1408",
+    "Peephole.IS.simplifyAndOrOfICmpsWithConstants": "h7.1408",
+    "Peephole.IS.simplifyAndOrOfICmpsWithCtpop": "h7.1408",
+    "Peephole.IS.simplifyCmpSelOfMaxMin": "h1.956",
+    "Peephole.IS.simplifyICmpWithBinOp": "h47.47",
+    "Peephole.IS.simplifyICmpWithBinOpOnLHS": "h71.71",
+    "Peephole.IS.simplifyICmpWithIntrinsicOnLHS": "h47.47",
+    "Peephole.IS.simplifyICmpWithMinMax": "h47.47",
+    "Peephole.IS.simplifyOrOfICmps": "h1.1995",
+    "Peephole.IS.simplifyOrOfICmpsWithAdd": "h1.1995",
+    "Peephole.IS.simplifySelectWithICmpCond": "h0.955"
+  },
+  "folds_not_run": [
+    "Peephole.IS.simplifyCmpSelCase",
+    "Peephole.IS.simplifyCmpSelFalseCase",
+    "Peephole.IS.simplifyCmpSelTrueCase"
+  ],
   "untagged": [],
   "mismatches": [],
   "unexplained": [],
-  "seconds": 4.1
+  "seconds": 4.7,
+  "folds_unwatchable": []
 }
