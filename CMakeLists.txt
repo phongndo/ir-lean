@@ -134,10 +134,12 @@ set_tests_properties(replay_challenge_static replay_challenge_alive PROPERTIES T
 set_tests_properties(replay_challenge PROPERTIES RUN_SERIAL TRUE TIMEOUT 1800)
 # A certificate bound to its IR, the opt run and the toolchain, and refused when any of them doesn't
 # match: one instcombine rewrite, and the cases of mismatched evidence, one capped Lean process at a time.
-add_test(NAME binding COMMAND ${CMAKE_SOURCE_DIR}/tests/binding.py)
+# In two halves, each case in one by a hash of its name, so CI runs them in two jobs.
+add_test(NAME binding COMMAND ${CMAKE_SOURCE_DIR}/tests/binding.py --shard 1/2)
+add_test(NAME binding_2 COMMAND ${CMAKE_SOURCE_DIR}/tests/binding.py --shard 2/2)
 # Alone, since each of its Lean processes takes up to 3.5 GB. It hashes the Lean toolchain on every check,
 # so it gets more time than it takes on a fast disk, about 5 minutes.
-set_tests_properties(binding PROPERTIES RUN_SERIAL TRUE TIMEOUT 1800)
+set_tests_properties(binding binding_2 PROPERTIES RUN_SERIAL TRUE TIMEOUT 1800)
 # The scorer, on two small tests rather than llvm-project: an instance counts only when tools/binding.py
 # binds its bundle in the same run. The rules in Python first, then the scorer itself, alone, since it runs
 # tools/binding.py, one capped Lean process at a time.
@@ -184,10 +186,18 @@ add_test(
         --strict --runs 400
 )
 add_test(NAME x86check COMMAND ${CMAKE_SOURCE_DIR}/tests/x86check.py $<TARGET_FILE:ir-lean>)
-add_test(NAME llama COMMAND ${CMAKE_SOURCE_DIR}/tests/llama.py $<TARGET_FILE:ir-lean>)
-set_tests_properties(x86 llama PROPERTIES SKIP_RETURN_CODE 77)
-set_tests_properties(x86 x86check llama PROPERTIES TIMEOUT 1800)
+# Refuting the three wrong rewrites takes about as long as everything else, so it's a test of its own, labeled
+# for a CI job of its own. `llama` refutes the change to the mask.
+add_test(NAME llama COMMAND ${CMAKE_SOURCE_DIR}/tests/llama.py $<TARGET_FILE:ir-lean> --mutants mask)
+add_test(
+    NAME llama_mutants
+    COMMAND
+        ${CMAKE_SOURCE_DIR}/tests/llama.py $<TARGET_FILE:ir-lean> --mutants signs,seven,scale --no-theorems
+)
+set_tests_properties(x86 llama llama_mutants PROPERTIES SKIP_RETURN_CODE 77)
+set_tests_properties(x86 x86check llama llama_mutants PROPERTIES TIMEOUT 1800)
 set_tests_properties(llama PROPERTIES LABELS llama)
+set_tests_properties(llama_mutants PROPERTIES LABELS llama_mutants)
 # llama.cpp's Q5 rewrite: the exact bit-unpacking slice and its proof, the matcher, the logit comparison and
 # the retained timings. None needs a model or llama.cpp's source, so they run in the default shell.
 add_test(NAME llama_bitspread COMMAND ${CMAKE_SOURCE_DIR}/tests/llama-bitspread.sh $<TARGET_FILE:ir-lean>)
@@ -216,6 +226,8 @@ set_tests_properties(zlib_slow PROPERTIES LABELS slow)
 # docs/testing.md.
 set_tests_properties(passes PROPERTIES LABELS passes)
 set_tests_properties(binding PROPERTIES LABELS binding)
+set_tests_properties(binding_2 PROPERTIES LABELS binding_2)
+set_tests_properties(proofs PROPERTIES LABELS proofs)
 set_tests_properties(llvm PROPERTIES LABELS llvm)
 set_tests_properties(
     verify_negative

@@ -36,8 +36,9 @@ FIXTURES = [str(HERE / "instcombine.ll"), str(HERE / "options.ll")]
 # A proof the automation can't finish in time: bv_decide on 64-bit multiplication, which takes far longer than
 # the wall clock the test sets.
 SLOW = str(HERE / "slow.ll")
-# One job, and less memory than a whole machine, as CI has.
-LIMITS = ["--jobs", "1", "--memory", "6000", "--lean-memory", "3000"]
+# Two jobs, the most the scorer runs, so the self-check's mutants are tried two at a time, with 2 x 3.5 GB for
+# Lean and 2 GB for the scorer: less than a whole machine, as CI's 16 GB runners have.
+LIMITS = ["--jobs", "2", "--memory", "9500", "--lean-memory", "3000"]
 
 
 def load_passes() -> Any:
