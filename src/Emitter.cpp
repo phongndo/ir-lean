@@ -1302,12 +1302,16 @@ void FunctionEmitter::emitInstruction(const Instruction &I, std::vector<Line> &O
     Cast("Val.trunc", flag(T.hasNoUnsignedWrap(), "nuw") + flag(T.hasNoSignedWrap(), "nsw"));
     return;
   }
-  // Between vectors of integers only. One lane width divides the other, so it's a split or a join.
+  // Between vectors of integers only. One lane width divides the other, so it's a split or a join. LangRef reads
+  // it as a store and a load, which puts lane 0 in the low bits only on a little-endian target, so a big-endian
+  // module is refused, even for a function that doesn't touch memory.
   case Instruction::BitCast: {
     auto *From = dyn_cast<FixedVectorType>(I.getOperand(0)->getType());
     auto *To = dyn_cast<FixedVectorType>(I.getType());
     if (!From || !To || !From->getElementType()->isIntegerTy() || !To->getElementType()->isIntegerTy())
       reject("instruction " + printed(I));
+    if (!Context.DL.isLittleEndian())
+      reject("big-endian integer bitcast " + printed(I));
     unsigned W = From->getScalarSizeInBits(), V = To->getScalarSizeInBits();
     std::string M = std::to_string(To->getNumElements()), VS = std::to_string(V);
     if (W == V)
@@ -1317,7 +1321,7 @@ void FunctionEmitter::emitInstruction(const Instruction &I, std::vector<Line> &O
     else if (V % W == 0)
       addLet(I, Out, "Vec.join " + M + " " + VS + " " + std::to_string(V / W) + " " + Op(0));
     else
-      reject("instruction " + printed(I));
+      reject("integer bitcast with nondividing lane widths " + printed(I));
     return;
   }
   case Instruction::ExtractElement:
