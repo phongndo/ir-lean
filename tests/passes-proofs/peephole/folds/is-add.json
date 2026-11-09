@@ -21,5 +21,19 @@
       ]
     }
   },
+  "lemmas": [
+    "Peephole.Lemmas.add_comm",
+    "Peephole.Lemmas.add_none_right",
+    "Peephole.Lemmas.add_refines_of_sum",
+    "Peephole.Lemmas.add_sub_cancel_refines",
+    "Peephole.Lemmas.add_sub_sub_refines",
+    "Peephole.Lemmas.add_not_left_refines",
+    "Peephole.Lemmas.add_not_right_refines",
+    "Peephole.Lemmas.add_intMin",
+    "Peephole.Lemmas.add_xor_signMask_refines",
+    "Peephole.Lemmas.eq_zero_of_not_uaddOverflow_allOnes",
+    "Peephole.Lemmas.add_nuw_allOnes_refines"
+  ],
+  "rests_on": {},
   "unproved": {}
 }
