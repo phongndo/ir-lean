@@ -1,0 +1,39 @@
+{
+  "schema": "ir-lean.verification-negative.case/1",
+  "category": "wrong_transformation",
+  "summary": "mustprogress added to a function whose loop never ends at 0, with the proof that trusting it allowed",
+  "llvm_verdict": "invalid",
+  "why": "At x = 0 src never returns, which LLVM allows, and tgt breaks the promise it added there, which is undefined. The proof checks if the model trusts mustprogress, so that tgt never finishes at 0 either, as it did before SEM-07. The model checks the promise, so tgt is undefined at 0, and the proof fails there. No witness: deciding one at 0 runs src forever.",
+  "claim": {
+    "binders": "(x : IRLean.Val 8)",
+    "hypotheses": [],
+    "src": "Opt.src x",
+    "tgt": "Opt.tgt x"
+  },
+  "names": [
+    "Opt.src",
+    "Opt.tgt"
+  ],
+  "request": {
+    "input": {
+      "ir": "Opt.ll"
+    },
+    "namespace": "Opt",
+    "function": "tgt",
+    "proof": "Proof.lean",
+    "theorem": "tgt_refines_src",
+    "limits": {
+      "timeout_seconds": 120,
+      "memory_mb": 4000
+    }
+  },
+  "expect": {
+    "certified": false,
+    "verify": [
+      "error/proof_failed"
+    ],
+    "gate": [
+      "not_proved"
+    ]
+  }
+}

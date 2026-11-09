@@ -144,9 +144,9 @@ this sits beside Hypothesis, QuickCheck, Kani, CBMC, Dafny and Verus.
 - **Whole systems.** Contracts and frame reasoning, so a caller's proof doesn't look inside its callees.
   [Phase 2](#phase-2-reusable-contracts-and-frame-reasoning).
 - **The bridge.** `Safe src → Refines src tgt → Safe tgt`, in [Phase 4](#phase-4-certified-translation-validation-and-superoptimization).
-  It needs SEM-07 first: while the model trusts `mustprogress` and `willreturn`, a target can claim a promise no
-  certificate checked. It also needs `Refines` for functions with memory, which [doesn't exist yet](refinement.md).
-  That's SEM-06, which [isn't in a wave yet](#not-in-a-wave-yet).
+  It needed SEM-07 first, so a target can't claim a promise no certificate checked, and SEM-07 landed in [#62](https://github.com/phongndo/ir-lean/pull/62). It
+  also needs `Refines` for functions with memory, which [doesn't exist yet](refinement.md). That's SEM-06, which
+  [isn't in a wave yet](#not-in-a-wave-yet).
 
 ### What's parked, and what stays
 
@@ -195,7 +195,7 @@ spend no effort on them until these work.
 
 | Horizon | Work | Why it's here |
 | --- | --- | --- |
-| **Now** | [Wave 2](#wave-2-revised-on-2026-11-08), as revised on 2026-11-08: lemma store v1, the stage-1 benchmark and soundness corpus, SEM-07, tier-1 proof tests, and speed, round 2. Wave 1 is done: [#57](https://github.com/phongndo/ir-lean/pull/57) and [#58](https://github.com/phongndo/ir-lean/pull/58) brought the llama.cpp results to `main` | Each starts a track, and each is the step the next one in that track waits on |
+| **Now** | [Wave 2](#wave-2-revised-on-2026-11-08), as revised on 2026-11-08: lemma store v1, the stage-1 benchmark and soundness corpus, SEM-07, which has landed, tier-1 proof tests, and speed, round 2. Wave 1 is done: [#57](https://github.com/phongndo/ir-lean/pull/57) and [#58](https://github.com/phongndo/ir-lean/pull/58) brought the llama.cpp results to `main` | Each starts a track, and each is the step the next one in that track waits on |
 | **Next** | Wave 3: superoptimizer v2, the safety bridge, the executable memory model, proof-test tiers 2 and 3 with the unit-test milestone, and the `inflate_table` proof. `inflate_table`'s statement is light work, taken up when a lane frees | Each needs something wave 2 builds, or waits for a lane |
 | **Later** | MLIR, contracts, C++ and Rust, and adoption | Each needs a milestone from wave 3 |
 
@@ -251,7 +251,7 @@ SEM-06 holds up only superoptimizer v2's memory candidates, not the rest of it.
 - File the 4 bugs #52 found in other lanes' code, as issues:
   - `tools/binding.py` reads whole files to hash about 2.8 GiB of toolchain on every verify, which costs about 455 MiB.
   - `tools/binding.py`'s `willreturn` check covers the whole module, so an intrinsic's declaration blocks a step whose
-    function promises nothing.
+    function promises nothing. Fixed by SEM-07 in [#62](https://github.com/phongndo/ir-lean/pull/62): the model checks promises, so the check is gone.
   - `tests/verify_negative.py` misreads memory on macOS: it divides `ru_maxrss` by 1024, and its free-memory guard
     reads only `/proc/meminfo`.
   - `tests/llvm_scope.py check` fails on macOS, because 12 of `llc`'s target pipelines depend on the host.
@@ -284,6 +284,7 @@ It waited on #48 and the CI split, which landed in #48 and #53. Five lanes:
   miscompilations, none of which may get a certificate.
 - SEM-07, F2, slice 23: breaking `mustprogress` or `willreturn` is UB, as in LangRef,
   [Phase 0](#phase-0-semantic-fidelity-and-trust-infrastructure).
+  Done in [#62](https://github.com/phongndo/ir-lean/pull/62).
 - Tier-1 proof tests on `tools/verify.py`, T1, slice 24, [Phase 7](#phase-7-proof-tests). Done in
   [#66](https://github.com/phongndo/ir-lean/pull/66).
 - Speed, round 2, C1, slice 30, [Phase 8](#phase-8-speed).
@@ -318,7 +319,7 @@ v1, SEM-07, the executable memory model, tier-1 proof tests, and `inflate_table`
 | --- | --- | --- |
 | #48 | Seeding the lemma store | Its rewrites at every width are the seed. Met: #48 landed |
 | The prior-art study | Superoptimizer v2's design | The field is moving: [Trivet](https://arxiv.org/abs/2609.19583) already does LLM-assisted refinement proofs in Lean on integer code. This is the reading the old Phase 4 asked for before stage 1. Met: #56 landed |
-| SEM-07 | The safety bridge | While `mustprogress` and `willreturn` are trusted, a target can claim a promise the certificate didn't check, and the bridge would carry safety to it |
+| SEM-07 | The safety bridge | While `mustprogress` and `willreturn` are trusted, a target can claim a promise the certificate didn't check, and the bridge would carry safety to it. Met: SEM-07 landed in [#62](https://github.com/phongndo/ir-lean/pull/62) |
 | `inflate_table`'s statement, reviewed | Its proof | A proof of the wrong statement is wasted, and the statement is where a memory-safety claim is most likely to be wrong |
 
 **Soft:** better in this order. Going the other way needs a reason, written in the pull request.
@@ -371,7 +372,7 @@ GEP flags ([#15](https://github.com/phongndo/ir-lean/pull/15)), attribute and li
 | 20 | Prior-art study for superoptimization and proof tests | 4, 7 | 1 | A note in `docs/` covering at least the work in [prior art](#prior-art), which superoptimizer v2's design cites |
 | 21 | #52's capture and measurement tools, without its ledger | 4 | 1 | Done in #54: `tools/corpus/capture.py` and `tools/measure.py`. Reading the corpus is superoptimizer v2's |
 | 22 | Lemma store v1 | 6 | 2 | E1 below |
-| 23 | Promises as UB, SEM-07 | 0 | 2 | A pass that deletes a loop under `mustprogress` certifies, and one that adds the promise doesn't |
+| 23 | Promises as UB, SEM-07 | 0 | 2 | Done in [#62](https://github.com/phongndo/ir-lean/pull/62): a `loop-deletion` run under `mustprogress` is bound as a refinement, and adding the promise provably isn't one |
 | 24 | Tier-1 proof tests on `tools/verify.py` | 7 | 2 | T1 below |
 | 29 | Stage-1 benchmark and soundness corpus | 4 | 2 | S1 below |
 | 30 | Speed, round 2 | 8 | 2 | C1 below |
@@ -396,7 +397,7 @@ Each is reached when its checks pass in CI, not on a date.
 | | Milestone | Phase | Depends on | Status |
 | --- | --- | --- | --- | --- |
 | F1 | Phase 0A done: axioms allow-listed, GEP gaps closed, pinned target and manifest | 0 | | In progress: axioms, GEPs and allow-lists are done |
-| F2 | `mustprogress` and `willreturn` checked as UB, SEM-07 | 0 | | Not started |
+| F2 | `mustprogress` and `willreturn` checked as UB, SEM-07 | 0 | | Done in [#62](https://github.com/phongndo/ir-lean/pull/62). Recursion under a promise stops the model, as [trust](trust.md#promises-to-progress) says |
 | F3 | `undef` and `freeze` in the model, SEM-02 and SEM-03 | 0 | The `undef` decision | A [prototype](undef-freeze.md) outside the model |
 | F4 | `Refines` for functions with memory, SEM-06 | 0 | F3 | Not started |
 | F5 | Phase 0B done: full inventory, semantic mutation, two-machine determinism | 0 | F1 | In progress: promises, model stops and Alive2 are done |
@@ -441,9 +442,10 @@ listed as an assumption of each theorem it affects.
 
 **On the critical path** to the goal, because a certificate is only as good as what the model says the source allows:
 
-- **`mustprogress` and `willreturn`,** SEM-07 in the task list. Both are trusted today, and not checked. That blocks
+- **`mustprogress` and `willreturn`,** SEM-07 in the task list. Done in [#62](https://github.com/phongndo/ir-lean/pull/62): breaking either, or
+  `llvm.loop.mustprogress`, is undefined, as [trust](trust.md#promises-to-progress) says. Trusting them blocked
   certifying any loop deletion, and anything after `function-attrs` in a pipeline, since #52's pilot found it adds both
-  to every loop-free function. It's a hard dependency of the safety bridge, and in wave 2.
+  to every loop-free function.
 - **The `undef` decision.** Whether and how the model takes `undef` and `freeze`, from #49's
   [prototype](undef-freeze.md). Memory refinement waits on it. [Not in a wave yet](#not-in-a-wave-yet).
 
@@ -462,8 +464,8 @@ listed as an assumption of each theorem it affects.
 - **Inventory:** `ir-lean --report` lists, for an input, every opcode, intrinsic, attribute, metadata
   kind and linkage it saw, and how each was handled. A table in the repo classifies each as modeled,
   refused or assumed.
-- **Promises:** done for what zlib's IR contains, [apart from `mustprogress` and `willreturn`](trust.md#known-gaps-in-the-model),
-  which is SEM-07. What Rust emits everywhere, starting with `noalias` on arguments, is refused until
+- **Promises:** done for what zlib's IR contains, including [`mustprogress` and `willreturn`](trust.md#promises-to-progress)
+  since SEM-07. What Rust emits everywhere, starting with `noalias` on arguments, is refused until
   [Phase 3](#phase-3-c-and-rust-demonstrations) needs it. An independent check of these rules, as Alive2 is for GEPs,
   is still to try.
 - **Poison, `undef`, provenance:** write down the choice for each, with its direction and a test. Integer poison is
@@ -505,8 +507,8 @@ showing every assumption that theorem rests on.
 **Goal:** a search finds replacements for real code that run faster than the compiler's, and for each, Lean checks a
 theorem that it refines the original. The search, and any AI in it, is untrusted. Only the certificate counts.
 
-**Prerequisites,** per stage below. Integer code needs only what's on `main`. Loops need SEM-07. Memory needs SEM-06,
-which waits on the `undef` decision.
+**Prerequisites,** per stage below. Integer code needs only what's on `main`. Loops needed SEM-07, which has landed.
+Memory needs SEM-06, which waits on the `undef` decision.
 
 **What's being certified:** [`IRLean.Refines`](refinement.md) ([#46](https://github.com/phongndo/ir-lean/pull/46)).
 `Refines src tgt` says `tgt` only does what `src` allows: where the source is undefined, anything; where the model
@@ -517,7 +519,7 @@ instance for memory yet.
 The hard parts are here, and they're mostly not the arithmetic. Poison and `undef` on each side, with the
 polarity problem [in the known gaps](trust.md#known-gaps-in-the-model). A target may allocate differently, so allocation
 numbers don't line up, and memory needs a relation instead of equality. Promises are checked or refused, so a target
-can't claim one the certificate didn't check, apart from `mustprogress` and `willreturn`.
+can't claim one the certificate didn't check, `mustprogress` and `willreturn` included since SEM-07.
 
 **Where it stands:**
 
@@ -540,7 +542,7 @@ can't claim one the certificate didn't check, apart from `mustprogress` and `wil
 3. **Superoptimizer v2.** More arguments, `select`, memory, and real targets: functions chosen because real programs
    spend time in them, from the [corpus](corpus.md) and the projects stage 2 used. Designed after the prior-art study, and
    proving from the lemma store. Its memory candidates need SEM-06.
-4. **Loops, memory, and safety carried across.** Needs SEM-07 and SEM-06. Prove the bridge
+4. **Loops, memory, and safety carried across.** Needs SEM-06, and SEM-07, which has landed. Prove the bridge
    `Safe src → Refines src tgt → Safe tgt`, so a safety proof carries to optimized code.
 5. **MLIR,** lowered to the LLVM dialect and exported, with candidates proved about the exported LLVM IR, as
    [multi-IR](multi-ir.md#proof-of-concept-plan)'s MIR-1 plans. A claim about the MLIR program itself needs a model of
@@ -734,10 +736,11 @@ theorem inflate_safe (h : StreamInv m strm) (hc : CallerBuffers m strm) :
       (StreamInv m' strm ∨ Finished code)
 ```
 
-It also says `inflate` finishes. That's on purpose: 28 of zlib's functions have loops marked
-`llvm.loop.mustprogress`, and LLVM calls one of those that spins undefined, where the model says `none`. A theorem
-that allowed `none` would [have a hole there](trust.md#known-gaps-in-the-model). This makes the proof harder, and it has to assume the
-allocator returns. It says nothing about decompressing correctly, which could come later as a separate theorem.
+It also says `inflate` finishes. That was on purpose: 28 of zlib's functions have loops marked
+`llvm.loop.mustprogress`, and LLVM calls one of those that spins undefined, where the model said `none`, so a theorem
+that allowed `none` had a hole there. Since SEM-07 the model makes such a run undefined too
+([trust](trust.md#promises-to-progress)), so that reason is gone, and the review can decide whether to keep it. It
+makes the proof harder, and it has to assume the allocator returns. It says nothing about decompressing correctly, which could come later as a separate theorem.
 
 **Scope and preconditions** to settle in that review:
 
@@ -1010,6 +1013,6 @@ The ones with the most leverage, for research collaborators:
 - How a search should choose its targets, and measure a win: `llvm-mca` cycles, size, or time on a real workload.
 - How far a lemma can generalize before matching it costs more than proving the step again.
 - What spec language a developer would write proof tests in, and how close to their own language it has to be.
-- What the model should do about `undef`, `mustprogress`, `noalias` on arguments and TBAA.
+- What the model should do about `undef`, `noalias` on arguments and TBAA.
 - The `inflate` invariant.
 - How far a check inside Lean can replace trust in the emitter.

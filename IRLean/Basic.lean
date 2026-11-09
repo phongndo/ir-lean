@@ -34,6 +34,12 @@ inductive UB where
   | expiredProvenance
   /-- `free` through a `nofree` argument. -/
   | forbiddenFree
+  /-- A run that never finishes under a promise to progress: in a function marked `mustprogress`, or in a loop marked
+  `llvm.loop.mustprogress`. A run waiting on a call that never returns, which LangRef allows of a function without
+  the promise, isn't this. `IRLean.runPromised` says which is which. -/
+  | noProgress
+  /-- A function marked `willreturn` that never returns. -/
+  | noReturn
   deriving Repr, DecidableEq, Inhabited
 
 /-- Why the model stopped instead of choosing an answer. These aren't undefined in LLVM, or LLVM's rules
@@ -65,6 +71,14 @@ inductive ModelStop where
   /-- A call to a function outside the module that promises not to return, such as an abort. What it does isn't
   modeled, only that the code after it doesn't run. -/
   | noReturnCall
+  /-- Under a promise to progress, a call to a function marked `mustprogress`, and not `willreturn`, that never
+  returns. Its own promise allows that only when something it calls never returns, which LangRef allows of a
+  function without the promise. LangRef doesn't say whether the caller's promise is then broken. -/
+  | progressUnsettled
+  /-- A function in a cycle of calls that never returns, where a function in the cycle, or a loop in one, promises
+  to progress. The model can't tell a run that breaks the promise from one waiting on a call LangRef allows never
+  to return. -/
+  | recursionUnsettled
   deriving Repr, DecidableEq, Inhabited
 
 /-- Why a run ended without a result. -/
@@ -73,7 +87,8 @@ inductive Stop where
   | model (reason : ModelStop)
   deriving Repr, DecidableEq, Inhabited
 
-/-- What running code does. The outer `none` means it never finishes. -/
+/-- What running code does. The outer `none` means it never finishes, which LLVM allows. A run that never finishes
+where a function or loop promised it would is undefined instead: see `IRLean.runPromised`. -/
 abbrev Outcome (α : Type) := Option (Except Stop α)
 
 namespace Outcome

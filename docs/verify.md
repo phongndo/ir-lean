@@ -33,7 +33,7 @@ what was generated, and prints, shortened here:
   "assumptions": [
     {"id": "scope.modeled_ir", "text": "The claim is about the function as this LLVM IR, ..."},
     {"id": "statement.unpinned", "text": "No statement was pinned, so a person has to read claim.statement ..."},
-    {"id": "llvm.mustprogress", "text": "The IR has llvm.loop.mustprogress, which the model trusts ..."}
+    {"id": "llvm.mustprogress", "text": "The IR has llvm.loop.mustprogress, which the model checks as it reads LangRef ..."}
   ],
   "reproduce": {"command": ["tools/verify.py", "check", "build/verify/0c1f…/request.json"]}
 }
@@ -165,7 +165,7 @@ pass by proving something else under the right name. The rest of `claim` takes i
 
 `assumptions` lists what the answer rests on that nothing here checks, each with a link to where it's
 explained: the scope of a theorem, the target, the front end, the trusted pipeline, `bv_decide`, the hypotheses,
-promises such as `mustprogress` that the model trusts, memory, and that the proof's code isn't sandboxed.
+how the model reads promises such as `mustprogress`, memory, and that the proof's code isn't sandboxed.
 
 `diagnostics` has Lean's errors and warnings, with paths pointing at the request's own files rather than the
 copies that were checked.
