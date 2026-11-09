@@ -159,9 +159,48 @@ private:
   std::set<std::string> Used;
 };
 
+// The floating-point formats IRLean/Float.lean has, as the exponent and significand widths every operation
+// there takes first: `half` is "5 10". `x86_fp80` and `ppc_fp128` aren't IEEE binary formats, and are
+// refused. A float is its bits, so its Lean type is an integer's of the same width. docs/float.md has the
+// design.
+bool isModeledFloat(const Type *T) {
+  return T->isHalfTy() || T->isBFloatTy() || T->isFloatTy() || T->isDoubleTy() || T->isFP128Ty();
+}
+
+std::string fpFormat(Type *T) {
+  switch (T->getScalarType()->getTypeID()) {
+  case Type::HalfTyID:
+    return "5 10";
+  case Type::BFloatTyID:
+    return "8 7";
+  case Type::FloatTyID:
+    return "8 23";
+  case Type::DoubleTyID:
+    return "11 52";
+  case Type::FP128TyID:
+    return "15 112";
+  default:
+    reject("type " + printedType(T));
+  }
+}
+
+// The first floating-point type in `T`, or null if it has none.
+Type *firstFloat(Type *T) {
+  if (T->isFPOrFPVectorTy())
+    return T;
+  for (Type *E : T->subtypes())
+    if (Type *F = firstFloat(E))
+      return F;
+  return nullptr;
+}
+
 std::string leanType(Type *T) {
   if (auto *I = dyn_cast<IntegerType>(T))
     return "Val " + std::to_string(I->getBitWidth());
+  if (T->isFloatingPointTy()) {
+    fpFormat(T);
+    return "Val " + std::to_string(T->getPrimitiveSizeInBits().getFixedValue());
+  }
   if (auto *P = dyn_cast<PointerType>(T)) {
     if (P->getAddressSpace() != 0)
       reject("type " + printedType(T));
@@ -170,10 +209,10 @@ std::string leanType(Type *T) {
   if (T->isVoidTy())
     return "Unit";
   if (auto *V = dyn_cast<FixedVectorType>(T)) {
-    if (!V->getElementType()->isIntegerTy())
+    if (!V->getElementType()->isIntegerTy() && !isModeledFloat(V->getElementType()))
       reject("type " + printedType(T));
-    return "(Vec " + std::to_string(V->getNumElements()) + " " +
-           std::to_string(V->getElementType()->getIntegerBitWidth()) + ")";
+    return "(Vec " + std::to_string(V->getNumElements()) + " " + std::to_string(V->getScalarSizeInBits()) +
+           ")";
   }
   if (auto *S = dyn_cast<StructType>(T)) {
     if (S->isOpaque() || S->getNumElements() == 0)
@@ -199,7 +238,7 @@ bool mentionsPointer(Type *T) {
 std::string bitVec(const APInt &V) { return toString(V, 10, false) + "#" + std::to_string(V.getBitWidth()); }
 
 std::string poisonOf(Type *T) {
-  if (T->isIntegerTy() || T->isPointerTy())
+  if (T->isIntegerTy() || T->isPointerTy() || T->isFloatingPointTy())
     return "(none : " + leanType(T) + ")";
   return "(HasPoison.poison : " + leanType(T) + ")";
 }
@@ -207,6 +246,11 @@ std::string poisonOf(Type *T) {
 std::string zeroOf(Type *T) {
   if (auto *I = dyn_cast<IntegerType>(T))
     return "(some 0#" + std::to_string(I->getBitWidth()) + ")";
+  // `0.0` is all zeros in every format the model has.
+  if (T->isFloatingPointTy()) {
+    leanType(T);
+    return "(some 0#" + std::to_string(T->getPrimitiveSizeInBits().getFixedValue()) + ")";
+  }
   if (T->isPointerTy())
     return "(some Ptr.null)";
   if (auto *V = dyn_cast<FixedVectorType>(T)) {
@@ -309,6 +353,11 @@ public:
       reject("undef");
     if (auto *I = dyn_cast<ConstantInt>(C))
       return "(some " + bitVec(I->getValue()) + ")";
+    // A float constant is its bits, NaN payloads and the sign of zero included.
+    if (auto *F = dyn_cast<ConstantFP>(C)) {
+      leanType(F->getType());
+      return "(some " + bitVec(F->getValueAPF().bitcastToAPInt()) + ")";
+    }
     if (isa<ConstantPointerNull>(C)) {
       leanType(C->getType());
       return "(some Ptr.null)";
@@ -515,11 +564,18 @@ private:
       appendInt(I->getValue(), Size, Out);
       return;
     }
+    if (auto *F = dyn_cast<ConstantFP>(C)) {
+      leanType(T);
+      appendInt(F->getValueAPF().bitcastToAPInt(), Size, Out);
+      return;
+    }
     if (auto *D = dyn_cast<ConstantDataSequential>(C)) {
-      if (!D->getElementType()->isIntegerTy())
+      Type *E = D->getElementType();
+      if (!E->isIntegerTy() && !isModeledFloat(E))
         reject("constant " + printed(*C));
-      for (unsigned I = 0, E = D->getNumElements(); I != E; ++I)
-        appendInt(D->getElementAsAPInt(I), DL.getTypeAllocSize(D->getElementType()), Out);
+      for (unsigned I = 0, N = D->getNumElements(); I != N; ++I)
+        appendInt(E->isIntegerTy() ? D->getElementAsAPInt(I) : D->getElementAsAPFloat(I).bitcastToAPInt(),
+                  DL.getTypeAllocSize(E), Out);
       return;
     }
     if (isa<ConstantArray>(C)) {
@@ -601,6 +657,8 @@ void checkValueAttributes(AttributeSet Attrs, const Type *T, Position At, bool M
     case Attribute::NonNull:
     case Attribute::Alignment:
     case Attribute::Dereferenceable:
+    // Poison where the value is in a class the mask names: `FP.nofpclass`.
+    case Attribute::NoFPClass:
       // The checks these emit only take one value, not a vector's lanes.
       if (T->isVectorTy())
         reject(std::string(Where) + " attribute " + A.getAsString() + " on a vector");
@@ -731,6 +789,13 @@ void checkFunctionAttributes(AttributeSet Attrs, const std::string &Where, bool 
     case Attribute::MustProgress:
     case Attribute::WillReturn:
       continue;
+    // The default floating-point environment, `ieee|ieee` for every type, is the only one the model has.
+    // LangRef: under the others "denormal outputs may be flushed to zero", and under `dynamic` the mode is
+    // the environment's when it runs.
+    case Attribute::DenormalFPEnv:
+      if (A.getDenormalFPEnv() != DenormalFPEnv::getDefault())
+        reject(Where + " attribute " + A.getAsString());
+      continue;
     // What makes `malloc` and `free` the functions `Mem` defines, and nothing else: on anything but those,
     // they'd be promises the model doesn't check.
     case Attribute::AllocKind:
@@ -744,9 +809,11 @@ void checkFunctionAttributes(AttributeSet Attrs, const std::string &Where, bool 
   }
 }
 
-// Wraps `Value` in what `range`, `nonnull` and `align` attributes imply.
-std::string withValueChecks(AttributeSet Attrs, const std::string &Value) {
+// Wraps `Value`, of type `T`, in what `range`, `nofpclass`, `nonnull` and `align` attributes imply.
+std::string withValueChecks(AttributeSet Attrs, const std::string &Value, Type *T) {
   std::string Out = Value;
+  if (FPClassTest Mask = Attrs.getNoFPClass())
+    Out = "(FP.nofpclass " + fpFormat(T) + " " + std::to_string(unsigned(Mask)) + " " + Out + ")";
   if (Attrs.hasAttribute(Attribute::Range)) {
     const ConstantRange &R = Attrs.getAttribute(Attribute::Range).getValueAsConstantRange();
     Out = "(Val.range " + bitVec(R.getLower()) + " " + bitVec(R.getUpper()) + " " + Out + ")";
@@ -760,7 +827,7 @@ std::string withValueChecks(AttributeSet Attrs, const std::string &Value) {
 
 bool hasValueChecks(AttributeSet Attrs) {
   return Attrs.hasAttribute(Attribute::Range) || Attrs.hasAttribute(Attribute::NonNull) ||
-         Attrs.hasAttribute(Attribute::Alignment);
+         Attrs.hasAttribute(Attribute::Alignment) || Attrs.hasAttribute(Attribute::NoFPClass);
 }
 
 // One line of a block's body.
@@ -812,6 +879,15 @@ private:
 
   std::string operand(const Value *V);
   std::string flag(bool On, const char *Name) { return On ? std::string(" (") + Name + " := true)" : ""; }
+  // The fast-math flags IRLean/Float.lean's operations take: `nnan` and `ninf`.
+  std::string fpFlags(const Instruction &I) {
+    if (!isa<FPMathOperator>(I))
+      return "";
+    FastMathFlags F = I.getFastMathFlags();
+    return flag(F.noNaNs(), "nnan") + flag(F.noInfs(), "ninf");
+  }
+  void checkFastMath(const Instruction &I);
+  void checkFloatTarget();
   std::string callArgument(const CallBase &C, unsigned N, std::vector<Line> &Out,
                            bool WithDeclaration = false);
   void checkCallResult(const CallBase &C, std::vector<Line> &Out);
@@ -1143,6 +1219,9 @@ void FunctionEmitter::checkMetadata(const Instruction &I) {
 static void checkMemoryType(Type *T, const Instruction &I) {
   if (T->isPointerTy())
     return;
+  // A float is stored as its bits, which LangRef says a load and a store don't change.
+  if (isModeledFloat(T->getScalarType()) && (T->isFloatingPointTy() || isa<FixedVectorType>(T)))
+    return;
   if (T->isIntOrIntVectorTy() && T->getScalarSizeInBits() % 8 == 0)
     return;
   reject("instruction " + printed(I));
@@ -1164,7 +1243,7 @@ void FunctionEmitter::emitLoad(const LoadInst &L, std::vector<Line> &Out) {
                 std::to_string(V->getScalarSizeInBits()) + " m " + P + " " + Align);
   } else
     addBind(L, Out,
-            "Mem.loadInt " + std::to_string(L.getType()->getIntegerBitWidth()) + " m " + P + " " + Align);
+            "Mem.loadInt " + std::to_string(L.getType()->getScalarSizeInBits()) + " m " + P + " " + Align);
   if (L.hasMetadata(LLVMContext::MD_noundef))
     Out.push_back({Line::Guard, "", "noundef " + Names.at(&L)});
 }
@@ -1365,6 +1444,24 @@ void FunctionEmitter::emitInstruction(const Instruction &I, std::vector<Line> &O
   case Instruction::Xor:
     Binary("Val.xor");
     return;
+  // Floating point, in IRLean/Float.lean: a float is its bits, and the format is the operation's first
+  // arguments.
+  case Instruction::FNeg: {
+    std::string Fn = "FP.fneg " + fpFormat(I.getType());
+    if (IsVector)
+      addLet(I, Out, "Vec.map (fun a => " + Fn + " a" + fpFlags(I) + ") " + Op(0));
+    else
+      addLet(I, Out, Fn + " " + Op(0) + fpFlags(I));
+    return;
+  }
+  case Instruction::FCmp: {
+    const auto &C = cast<FCmpInst>(I);
+    // LLVM numbers the predicates from `false`, 0, to `true`, 15, as `FP.fcmp` reads them.
+    Binary("FP.fcmp " + fpFormat(C.getOperand(0)->getType()) + " " +
+               std::to_string(unsigned(C.getPredicate())),
+           fpFlags(I));
+    return;
+  }
   case Instruction::ICmp: {
     const auto &C = cast<ICmpInst>(I);
     const char *Fn;
@@ -1453,15 +1550,17 @@ void FunctionEmitter::emitInstruction(const Instruction &I, std::vector<Line> &O
     Cast("Val.trunc", flag(T.hasNoUnsignedWrap(), "nuw") + flag(T.hasNoSignedWrap(), "nsw"));
     return;
   }
-  // Between integers and vectors of integers of the same size, where one lane width divides the other, so
-  // it's a split or a join, with a scalar as a vector of one lane. LangRef reads it as a store and a load,
-  // which puts lane 0 in the low bits only on a little-endian target, so a big-endian module is refused, even
-  // for a function that doesn't touch memory.
+  // Between integers, floats and vectors of them of the same size, where one lane width divides the other, so
+  // it's a split or a join, with a scalar as a vector of one lane. A float is its bits, so it's the same as
+  // an integer of its width: LangRef says `bitcast` doesn't change a NaN. LangRef reads it as a store and a
+  // load, which puts lane 0 in the low bits only on a little-endian target, so a big-endian module is
+  // refused, even for a function that doesn't touch memory.
   case Instruction::BitCast: {
     Type *Src = I.getOperand(0)->getType();
     Type *Dst = I.getType();
     auto IntegerShape = [](Type *T) {
-      return T->isIntegerTy() || (isa<FixedVectorType>(T) && T->getScalarType()->isIntegerTy());
+      Type *E = T->getScalarType();
+      return (E->isIntegerTy() || isModeledFloat(E)) && (E == T || isa<FixedVectorType>(T));
     };
     if (!IntegerShape(Src) || !IntegerShape(Dst))
       reject("integer bitcast shape " + printed(I));
@@ -1511,8 +1610,8 @@ void FunctionEmitter::emitInstruction(const Instruction &I, std::vector<Line> &O
   }
   case Instruction::Freeze:
     // Of a vector, LangRef freezes each lane, and of a pointer it gives one with no provenance: neither is
-    // modeled.
-    if (!I.getType()->isIntegerTy())
+    // modeled. A float is its bits, so it freezes to any of them, NaNs of every kind included.
+    if (!I.getType()->isIntegerTy() && !isModeledFloat(I.getType()))
       reject("instruction " + printed(I));
     addLet(I, Out, "Val.freeze (c'.pick " + nextChooser() + ") " + Op(0));
     return;
@@ -1601,7 +1700,7 @@ std::string FunctionEmitter::callArgument(const CallBase &C, unsigned N, std::ve
   bool NoUndef = false;
   for (AttributeSet Set : Sets) {
     checkValueAttributes(Set, C.getArgOperand(N)->getType(), Position::CallParameter);
-    Arg = withValueChecks(Set, Arg);
+    Arg = withValueChecks(Set, Arg, C.getArgOperand(N)->getType());
     NoUndef |= Set.hasAttribute(Attribute::NoUndef);
   }
   if (NoUndef)
@@ -1620,7 +1719,7 @@ void FunctionEmitter::checkCallResult(const CallBase &C, std::vector<Line> &Out)
   AttributeSet Ret = C.getAttributes().getRetAttrs();
   const std::string &Name = Names.at(&C);
   if (hasValueChecks(Ret))
-    Out.push_back({Line::Let, Name, withValueChecks(Ret, Name)});
+    Out.push_back({Line::Let, Name, withValueChecks(Ret, Name, C.getType())});
   if (Ret.hasAttribute(Attribute::NoUndef))
     Out.push_back({Line::Guard, "", "noundef " + Name});
   if (Ret.hasAttribute(Attribute::Dereferenceable))
@@ -1777,6 +1876,32 @@ bool FunctionEmitter::emitIntrinsic(const IntrinsicInst &C, std::vector<Line> &O
   case Intrinsic::x86_avx512_vpdpbusd_512:
     addLet(C, Out, "X86.vpdpbusd " + Op(0) + " " + Op(1) + " " + Op(2));
     return true;
+  // Floating point, in IRLean/Float.lean, on each lane of a vector.
+  case Intrinsic::fabs:
+  case Intrinsic::copysign: {
+    std::string Fn = std::string(C.getIntrinsicID() == Intrinsic::fabs ? "FP.fabs " : "FP.copysign ") +
+                     fpFormat(C.getType());
+    bool Two = C.getIntrinsicID() == Intrinsic::copysign;
+    if (C.getType()->isVectorTy())
+      addLet(C, Out,
+             std::string(Two ? "Vec.map2 (fun a b => " : "Vec.map (fun a => ") + Fn + (Two ? " a b" : " a") +
+                 fpFlags(C) + ") " + Op(0) + (Two ? " " + Op(1) : ""));
+    else
+      addLet(C, Out, Fn + " " + Op(0) + (Two ? " " + Op(1) : "") + fpFlags(C));
+    return true;
+  }
+  case Intrinsic::is_fpclass: {
+    auto *Mask = dyn_cast<ConstantInt>(C.getArgOperand(1));
+    if (!Mask)
+      reject("instruction " + printed(C));
+    std::string Fn = "FP.isFPClass " + fpFormat(C.getArgOperand(0)->getType());
+    std::string K = std::to_string(Mask->getZExtValue());
+    if (C.getType()->isVectorTy())
+      addLet(C, Out, "Vec.map (fun a => " + Fn + " a " + K + ") " + Op(0));
+    else
+      addLet(C, Out, Fn + " " + Op(0) + " " + K);
+    return true;
+  }
   case Intrinsic::ucmp:
   case Intrinsic::scmp:
     addLet(C, Out,
@@ -1899,7 +2024,7 @@ std::string FunctionEmitter::emitTerminator(const BasicBlock *BB) {
     if (!R->getReturnValue())
       return std::string(Ret) + WithMemory("()");
     AttributeSet Attrs = F.getAttributes().getRetAttrs();
-    std::string V = withValueChecks(Attrs, operand(R->getReturnValue()));
+    std::string V = withValueChecks(Attrs, operand(R->getReturnValue()), R->getReturnValue()->getType());
     std::string Checks;
     if (Attrs.hasAttribute(Attribute::NoUndef))
       Checks += "noundef " + V + " <| ";
@@ -1968,6 +2093,65 @@ std::string FunctionEmitter::emitArm(const BasicBlock *BB) {
   return Out + "    " + emitTerminator(BB) + "\n";
 }
 
+// Fast-math flags. `nnan` and `ninf` make a result poison, as IRLean/Float.lean's operations take them.
+// LangRef gives `arcp`, `contract`, `afn` and `reassoc` "rewrite-based semantics", over expressions of
+// several instructions, which no one instruction's meaning can say, so they're refused, as `fast` is, and so
+// is `nsz`, which is a choice the model doesn't make yet. On `fcmp`, LangRef says "the only flags that have
+// any effect on its semantics are ... `nnan`, `ninf`, and `reassoc`", so the others mean nothing there. The
+// operations that take flags are `fneg`, `fcmp`, `llvm.fabs` and `llvm.copysign`: on anything else, any flag
+// is refused. docs/float.md has the design.
+void FunctionEmitter::checkFastMath(const Instruction &I) {
+  FastMathFlags F = I.getFastMathFlags();
+  bool Takes = isa<UnaryOperator>(I) || isa<FCmpInst>(I);
+  if (const auto *C = dyn_cast<IntrinsicInst>(&I))
+    Takes = C->getIntrinsicID() == Intrinsic::fabs || C->getIntrinsicID() == Intrinsic::copysign;
+  bool Compare = isa<FCmpInst>(I);
+  auto Refuse = [&](bool On, bool Meaningless, const char *Name) {
+    if (On && !Meaningless)
+      reject(std::string("fast-math flag ") + Name + " on " + printed(I));
+  };
+  Refuse(F.noNaNs(), Takes, "nnan");
+  Refuse(F.noInfs(), Takes, "ninf");
+  Refuse(F.noSignedZeros(), Compare, "nsz");
+  Refuse(F.allowReciprocal(), Compare, "arcp");
+  Refuse(F.allowContract(), Compare, "contract");
+  Refuse(F.approxFunc(), Compare, "afn");
+  Refuse(F.allowReassoc(), false, "reassoc");
+}
+
+// LangRef lets a NaN result take a payload from a "target-specific set of 'extra' possible NaN payloads",
+// which "is empty on x86 and ARM, but can be non-empty on other architectures", and says x86-32 "may convert
+// floating-point values to x86_fp80 and back". The model's set is empty, so floating point is refused for any
+// other target. A module with no target is taken as one of these, as docs/float.md and docs/trust.md say.
+void FunctionEmitter::checkFloatTarget() {
+  Type *Float = firstFloat(F.getFunctionType());
+  for (const BasicBlock &BB : F)
+    for (const Instruction &I : BB) {
+      if (!Float)
+        Float = firstFloat(I.getType());
+      for (const Use &U : I.operands())
+        if (!Float)
+          Float = firstFloat(U->getType());
+    }
+  if (!Float)
+    return;
+  const Triple &T = F.getParent()->getTargetTriple();
+  switch (T.getArch()) {
+  case Triple::UnknownArch:
+  case Triple::x86_64:
+  case Triple::aarch64:
+  case Triple::aarch64_be:
+  case Triple::aarch64_32:
+  case Triple::arm:
+  case Triple::armeb:
+  case Triple::thumb:
+  case Triple::thumbeb:
+    return;
+  default:
+    reject("type " + printedType(Float) + " for target " + T.str());
+  }
+}
+
 void FunctionEmitter::prepare() {
   if (F.isVarArg())
     reject("variadic function");
@@ -1978,6 +2162,11 @@ void FunctionEmitter::prepare() {
   if (F.hasPrefixData() || F.hasPrologueData() || F.hasGC())
     reject("function with prefix data, prologue data or a garbage collector");
   checkFunctionAttributes(F.getAttributes().getFnAttrs(), "function");
+  checkFloatTarget();
+  for (const BasicBlock &BB : F)
+    for (const Instruction &I : BB)
+      if (isa<FPMathOperator>(I))
+        checkFastMath(I);
   // Neither needs checking on each run: what's reachable shows they hold, or the function is refused.
   if (Recursive && F.hasFnAttribute(Attribute::NoRecurse))
     reject("function attribute norecurse on a function in a cycle");
@@ -2128,7 +2317,7 @@ std::string FunctionEmitter::emitFunction() {
     checkValueAttributes(Param, A.getType(), Position::Parameter);
     const std::string &Name = Names.at(&A);
     if (hasValueChecks(Param))
-      Out += "  let " + Name + " := " + withValueChecks(Param, Name) + "\n";
+      Out += "  let " + Name + " := " + withValueChecks(Param, Name, A.getType()) + "\n";
     if (Param.hasAttribute(Attribute::NoUndef))
       Out += "  noundef " + Name + " <|\n";
     if (Param.hasAttribute(Attribute::Dereferenceable))

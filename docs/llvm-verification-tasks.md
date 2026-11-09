@@ -322,8 +322,8 @@ when they land.
 - **Owns:** `IRLean/Float.lean`
 - **Acceptance:** Each floating-point instruction and intrinsic is modeled or refused, checked against Alive2 and native code.
 - **Trust gaps:** LangRef leaves NaN payloads open, so the model has to keep that choice.
-- **Status:** not started
-- **Evidence:** None.
+- **Status:** in progress: [floating point](float.md) is the design, in five slices, and the first, the bit-level operations, is in the model. Arithmetic, conversions, `nsz`, the intrinsics and the rest of the vectors are still refused
+- **Evidence:** `IRLean/Float.lean`, with `fneg`, `fabs`, `copysign`, `fcmp`, `llvm.is.fpclass` and `nofpclass` on every format the model has, `nnan` and `ninf` where they apply, and floats as bits through `bitcast`, `select`, `phi`, `freeze`, vectors and memory. `tests/fpcheck.py` checks each against the constant folder, the processor and Alive2, and `tests/float.sh` proves the verdicts of 18 rewrites on what ir-lean emits, Alive2 agreeing.
 
 ### SEM-06: Memory for refinement
 

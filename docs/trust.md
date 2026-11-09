@@ -46,7 +46,8 @@ or native lowering.
 Integer `bitcast` supports scalars and fixed integer vectors of equal total size, when one lane width
 divides the other. It uses little-endian bit order; even pure big-endian functions are refused. Splitting
 a poison lane poisons all its pieces. Joining poisons only the destination lane containing a poison
-piece, so joining then splitting can spread poison. Floating-point, pointer, scalable-vector and
+piece, so joining then splitting can spread poison. A float is its bits ([floating point](float.md)), so a `bitcast`
+to or from a float of a format the model has is the same as an integer's. Pointer, scalable-vector and
 nondividing-width casts remain refused. These rules are part of the trusted semantic model, tested by
 the native vector comparisons, the explicit lane-order and poison cases in `tests/emitter.sh`, and
 `tests/x86check.py`, against Alive2 in both directions and LLVM's constant folder, poison included.
@@ -59,7 +60,7 @@ the native vector comparisons, the explicit lane-order and poison cases in `test
 | LLVM optimizer | Not trusted for what it did, since the proof covers its output, or for promises it left behind, which the model checks or the emitter refuses | The model reading a promise differently from LangRef | Tests of each promise, native code, and a one-off mutation run | An independent check of the promise rules, as Alive2 is for GEPs |
 | LLVM's IR parser | Trusted | Reads IR differently from the tool that wrote it, or upgrades older IR | Native-code comparison | Pin versions, and record them |
 | Emitter, about 2,300 lines of C++ | Trusted, unverified | Prints Lean that means something else | Differential tests, `tests/emitter.sh`, 13 C-level mutations, and one-off mutation of the GEP and promise rules | Full semantic and emitter mutation, then a check inside Lean ([in design](design.md#ir-and-lean-both-ways)) |
-| `IRLean`, about 2,800 lines | Trusted, incomplete | Doesn't match LLVM | Constant folder, Alive2 for integer operations and GEPs, native code | [Phase 0](roadmap.md#phase-0-semantic-fidelity-and-trust-infrastructure) |
+| `IRLean`, about 3,300 lines | Trusted, incomplete | Doesn't match LLVM | Constant folder, Alive2 for integer operations and GEPs, native code. Floating point's operations against the constant folder, the processor and Alive2, in [`tests/fpcheck.py`](../tests/fpcheck.py) | [Phase 0](roadmap.md#phase-0-semantic-fidelity-and-trust-infrastructure) |
 | x86 intrinsics in `IRLean/X86.lean` | Trusted, written from Intel's pseudo-code | Doesn't match the processor, or LLVM's reading of the intrinsic | `tests/real/x86.ll` against the processor, saturation and wrapping included, which needs AVX-512 VNNI. `tests/x86check.py` against Alive2 and LLVM's constant folder, poison included, for PMADDUBSW and PMADDWD. Neither knows VPDPBUSD | An independent check of VPDPBUSD |
 | Lean kernel | Trusted | A kernel bug | Lean's own process | Nothing planned |
 | `bv_decide` | Trusted | Proofs using it also trust Lean's compiled code through the axiom it adds for each call | [`tests/check_axioms.lean`](../tests/check_axioms.lean), which reads a proof and its imports as data, allows only these and the standard three, reruns each in a file with none of the proof's code, refuses `implemented_by` and `extern`, and counts them per proof. `leanchecker` then replays the proof through the kernel | Nothing planned |
@@ -135,7 +136,9 @@ in the model on a run LLVM calls undefined.
 | Provenance is an allocation and the tags of promises it came through. `inttoptr` is refused, reading a stored pointer as an integer stops, and `ptrtoint` gives an address with no notion of exposure | Conservative, and it refuses real code | Document it. Extend only when a demonstration needs it |
 | Stack and `alloca` never fail, and recursion depth is unbounded | A "safe" function can still overflow a real stack | Document it as a native-level caveat |
 | An `alloca` whose size in bytes doesn't fit in 64 bits would wrap to a smaller one. A constant one is refused, and a computed one is poison, which `alloca` takes as undefined. LangRef doesn't say what such an `alloca` does | More UB, for a computed size. Fine for safety proofs | Keep it, unless a refinement needs it |
-| Floating point, atomics, volatile, exceptions, variadics, most external calls, and anything but 64-bit little-endian memory are refused, and so is a `bitcast` between integers or vectors in a big-endian module, even where nothing touches memory | Refused, so sound | Keep refusing until a phase needs one |
+| Floating-point arithmetic, conversions and intrinsics other than `llvm.fabs`, `llvm.copysign` and `llvm.is.fpclass`, atomics, volatile, exceptions, variadics, most external calls, and anything but 64-bit little-endian memory are refused, and so is a `bitcast` between integers or vectors in a big-endian module, even where nothing touches memory | Refused, so sound | Floating point: SEM-05's [slices](float.md#the-slices). The rest: keep refusing until a phase needs one |
+| Floating point outside LangRef's default environment is refused by name: `denormal_fpenv` other than `ieee`, `strictfp`, `"amdgpu-ieee"`, `!fpmath`, and the constrained intrinsics. So are `x86_fp80` and `ppc_fp128`, the fast-math flags `arcp`, `contract`, `afn` and `reassoc` wherever they mean something, `nsz` but on `fcmp`, and any flag on an operation that doesn't take it yet | Refused, so sound | `nsz` in SEM-05's third slice. The rest stay out, as [floating point](float.md#decisions) says why |
+| LangRef lets a floating-point operation's NaN result take a payload from a target's "extra" set, which it says is empty on x86 and ARM. The model's set is empty, so floating point is refused for a target triple naming any other architecture, and for x86-32, where LangRef says LLVM may compute in `x86_fp80`. A module with no triple is taken as one of those | An assumption, for a module with no triple: one that runs on wasm or SPARC could give a NaN the model doesn't. No operation in the model gives a NaN of its own yet, so nothing rests on it until SEM-05's second slice | Keep it, and say it in each theorem about such a module, as [floating point](float.md#what-it-rests-on) lists |
 | LangRef doesn't say what poison does to a target intrinsic. The model makes a result lane poison when a lane it's computed from is, as LLVM's constant folds of PMADDWD and PMADDUBSW do, and Alive2 | Unsettled. [The llama.cpp rewrite](llama.md) is proved equal to clang's IR under this choice. If poison spread to the whole result instead, [an argument, not checked](llama.md#what-it-assumes) says it would still refine it | Ask upstream, or prove refinement under both |
 
 ### Closed
@@ -254,6 +257,10 @@ the same table has.
   reported upstream yet.
 - `tests/gepcheck.py` tries specific offsets on a global, and doesn't cover all offsets. Stack and heap pointers
   rely on `ub.ll`, `gep.ll` and native code.
+- `tests/fpcheck.py` tries every operand of floating point's one-operand operations at `half` on the model and the
+  processor, and every edge value against every other for two operands, with random values. The other formats are
+  sampled. Alive2 sees a sample, and can't check `arcp`, `contract` and `afn` on `fcmp`, which it approximates. The
+  processor runs `fp128` only where the host has a library for its arithmetic, which Linux does and macOS doesn't.
 - `tests/proofs.sh` pins x86-64 Linux, but `tests/zlib.sh` compiles for the host, so on any other host the
   differential evidence isn't about the IR the proofs are about. The flake lists three systems, while CI runs
   only on x86-64 Linux.

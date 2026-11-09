@@ -88,6 +88,11 @@ Evidence and not proof. A pass here means no disagreement was found on the input
   nothing is inlined away: two for big-endian machines, `crc32_combine_gen`, `_tr_align` and `_tr_tally`.
 - **Integer operations:** against LLVM's constant folder at many widths, and Alive2 for exact poison and
   UB at small widths: 265 variants proved exact, with none unchecked.
+- **Floating point's bit-level operations:** `fneg`, `fabs`, `copysign`, `fcmp`'s sixteen predicates, `llvm.is.fpclass`
+  and `nofpclass`, with `nnan` and `ninf`, at `half`, `bfloat`, `float`, `double` and `fp128`, 320 variants, against the
+  constant folder on 131,146 cases, the processor on 2,387,018, every operand of the one-operand operations at `half`
+  among them, and Alive2 on 2,170 both ways, with none wrong ([`fpcheck.py`](../tests/fpcheck.py)). On y on 2026-11-09,
+  where the processor can't run `fp128`.
 - **`getelementptr` flags:** 1,194 cases against Alive2, on 644 layouts. 927 are proved exact, and 267 depend on
   the layout as Alive2 confirms, with none unchecked or wrong.
 - **Random functions:** fuzzed integer functions at random optimization levels, against native code.

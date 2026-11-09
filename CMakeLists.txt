@@ -124,6 +124,13 @@ set_tests_properties(undef_freeze PROPERTIES TIMEOUT 900)
 # One Lean or Alive2 process at a time, each Lean process capped at 2 GB and 300 s.
 add_test(NAME freeze COMMAND ${CMAKE_SOURCE_DIR}/tests/freeze.sh $<TARGET_FILE:ir-lean>)
 set_tests_properties(freeze PROPERTIES TIMEOUT 900)
+# Floating point, SEM-05, as docs/float.md designs it. Each operation against LLVM's constant folder, the processor and
+# Alive2, as opcheck does for integers.
+add_test(NAME fpcheck COMMAND ${CMAKE_SOURCE_DIR}/tests/fpcheck.py $<TARGET_FILE:ir-lean>)
+# Floating-point rewrites on what ir-lean emits: right ones refine, wrong ones provably don't, and Alive2 agrees.
+# One Lean or Alive2 process at a time, each Lean process capped at 2 GB and 300 s.
+add_test(NAME float COMMAND ${CMAKE_SOURCE_DIR}/tests/float.sh $<TARGET_FILE:ir-lean>)
+set_tests_properties(float PROPERTIES TIMEOUT 900)
 add_test(NAME verify COMMAND ${CMAKE_SOURCE_DIR}/tests/verify.py $<TARGET_FILE:ir-lean>)
 # Tier-1 proof tests: the contract in Python, then tools/prooftest/prooftest.py on
 # tests/prooftest/Cases.ll, at most four cases at a time, each with at most one Lean process running.
@@ -267,6 +274,7 @@ set_tests_properties(
     refine
     undef_freeze
     freeze
+    float
     generic_rewrites
     cpp_correspondence
     store
