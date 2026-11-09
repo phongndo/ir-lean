@@ -1,4 +1,5 @@
 import IRLean.Int
+import IRLean.Refine
 import SimplifyAddModel
 
 /-! # Every value the `simplifyAddInst` model returns is right, at every width
@@ -6,6 +7,7 @@ import SimplifyAddModel
 `simplifyAddInst_sound` says: for every width, both flags, every recursion budget, and operands whose values are in
 IRLean's domain, if the model of `SimplifyAddModel.lean` returns a value, that value is defined and refines the `add`
 it replaces, in IRLean's semantics. Either the `add` is poison there, or the value is the `add`'s value.
+`simplifyAddInst_refines` says the same with the shared relation, `IRLean.Refines`.
 
 That's a theorem about the model. It says the rewrites the model makes are right. It doesn't say the C++ makes the
 same ones: that's the manual translation `tests/cpp_correspondence.py` checks against the pinned source and `opt`.
@@ -393,5 +395,14 @@ theorem simplifyAddInst_sound (ρ : Nat → Val w) (op0 op1 r : Operand w) (isNS
     · rw [add_comm v0 v1]
       exact afterFold_sound ρ op1 op0 r isNSW isNUW maxRecurse v1 v0 c1 c0 h1 h0 h
   · exact afterFold_sound ρ op0 op1 r isNSW isNUW maxRecurse v0 v1 c0 c1 h0 h1 h
+
+/-- The same, as `IRLean.Refines`: the value returned refines the `add` it replaces. -/
+theorem simplifyAddInst_refines (ρ : Nat → Val w) (op0 op1 r : Operand w) (isNSW isNUW : Bool)
+    (maxRecurse : Nat) (v0 v1 : Val w) (c0 : op0.Consistent ρ) (c1 : op1.Consistent ρ)
+    (h0 : op0.denote ρ = some v0) (h1 : op1.denote ρ = some v1)
+    (h : simplifyAddInst op0 op1 isNSW isNUW maxRecurse = .value r) :
+    ∃ vr, r.denote ρ = some vr ∧ Refines (Val.add v0 v1 isNUW isNSW) vr := by
+  obtain ⟨vr, hr, hv⟩ := simplifyAddInst_sound ρ op0 op1 r isNSW isNUW maxRecurse v0 v1 c0 c1 h0 h1 h
+  exact ⟨vr, hr, (Refine.val_iff _ _).2 hv⟩
 
 end CppCorrespondence.SimplifyAdd

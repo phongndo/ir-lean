@@ -430,12 +430,12 @@ def build(run: Runner, work: Path, model: str, strict: bool = True) -> str | Non
     """Compiles IRLean's integer modules, `model` as the model, then the theorem, into `work`, with warnings
     as errors if `strict`. The module that failed, with Lean's errors, or None."""
     (work / "IRLean").mkdir(parents=True, exist_ok=True)
-    for name in ("Attr", "Basic", "Int"):
+    for name in ("Attr", "Basic", "Int", "Refine"):
         shutil.copy(ROOT / "IRLean" / f"{name}.lean", work / "IRLean" / f"{name}.lean")
     (work / "SimplifyAddModel.lean").write_text(model)
     for name in ("SimplifyAddSound", "Driver"):
         shutil.copy(HERE / f"{name}.lean", work / f"{name}.lean")
-    steps = [("IRLean/Attr", []), ("IRLean/Basic", []), ("IRLean/Int", [])]
+    steps = [("IRLean/Attr", []), ("IRLean/Basic", []), ("IRLean/Int", []), ("IRLean/Refine", [])]
     strictly = ["-DwarningAsError=true"] if strict else []
     steps += [("SimplifyAddModel", strictly), ("SimplifyAddSound", strictly)]
     for path, options in steps:

@@ -40,8 +40,10 @@ its operation gives on its operands', so one address has one value. `denote` is 
 `undef`, and the hypotheses rule that out.
 
 So: if the model returns a value, then whatever the operands' values, poison included, either the `add` is poison or
-the value is the `add`'s. That's refinement for values, as `IRLean.Val.add` defines `add`'s flags. `Val.add` takes
-`nuw` first, and `simplifyAddInst` takes `IsNSW` first, as the C++ does.
+the value is the `add`'s. That's refinement for values, as `IRLean.Val.add` defines `add`'s flags.
+`simplifyAddInst_refines` states it with the shared relation, as `Refines (Val.add v0 v1 isNUW isNSW) vr`, through
+`IRLean.Refine.val_iff` (see [refinement](refinement.md)). `Val.add` takes `nuw` first, and `simplifyAddInst` takes
+`IsNSW` first, as the C++ does.
 
 ## The C++ it models
 
@@ -133,8 +135,6 @@ claim of it.
   (BIND-04 and BIND-05 in the [tasks](llvm-verification-tasks.md)), or a checked extraction.
 - **`undef`.** The `X + undef` step returns `undef`, which IRLean has no value for, and arguments that may be `undef`
   are outside the theorem. That waits on `undef` semantics.
-- **The shared refinement relation.** The theorem states refinement as `Val.add v0 v1 nuw nsw = none ∨ vr = ...`.
-  Once `IRLean.Refines` is on the main branch, it can be restated with it.
 - **The compiler and the binary.** Every route here trusts the compiler that built `opt`.
 
 ## When the pin moves
