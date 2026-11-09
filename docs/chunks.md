@@ -56,8 +56,8 @@ Under that, each chunk's percentage at each gate:
   share of InstCombine's own test transformations certified, is this gate for InstCombine.
 - **G2.** The units are [INV-04](llvm-verification-tasks.md#inv-04-rewrite-level-inventory)'s: a pass's rewrites, each
   with a stable ID and a source location, and for an analysis each kind of fact it reports. INV-04's scope names
-  InstCombine's and InstSimplify's rewrites and codegen's patterns. For the other passes, its units are written down when
-  their chunk reaches G2, and until then G2 isn't measured for them. A unit counts when it's proved for every
+  InstCombine's and InstSimplify's rewrites and codegen's patterns. For the other passes, its units are written down
+  when their chunk reaches G2, and until then G2 isn't measured for them. A unit counts when it's proved for every
   permitted input, at every width as [AUTO-03](llvm-verification-tasks.md#auto-03-from-instances-to-every-width) asks,
   over the inputs [INV-05](llvm-verification-tasks.md#inv-05-permitted-inputs-and-options) sets, checked by the
   kernel with only the standard axioms, and its lemmas are in the [lemma store](lemma-store.md) meeting the first three
@@ -132,7 +132,7 @@ the peepholes build the lemmas the next chunks use.
 | Gate | Needs from the platform |
 | --- | --- |
 | G0 | Coverage the emitter lacks: floating point, SEM-05, external calls and globals, and the long tail of refusals, SEM-08 |
-| G1 | Nothing new. `freeze` is in the model since [#72](https://github.com/phongndo/ir-lean/pull/72), and `tools/binding.py` binds a pair when every argument of its source is `noundef` |
+| G1 | `freeze` is in the model since [#72](https://github.com/phongndo/ir-lean/pull/72). `tools/binding.py` binds a pair only when its function uses no memory or pointers and every argument of its source is `noundef`: a caller can pass `undef` to any other argument, and the model keeps `undef` out. So F4 for pairs with memory, and nothing yet decided for pairs whose arguments lack `noundef` |
 | G2 | INV-04's list of rewrites, every-width proofs (AUTO-03), and the tactics, AUTO-01 to 03. The lemma store, E1, is done. Lemma mining at scale, E3, is this gate's burn-down |
 | G3 | BIND-02's closure, then binding gates B1 to B4 as [#74](https://github.com/phongndo/ir-lean/pull/74) sets them: BIND-04 for reading IR, the emitter taking the matcher layer whole, `simplifyAddInst` bound, then code that changes IR. The pass whose closure BIND-02 finds smallest is the first try at BIND-06, gate B5 |
 | G4 | BIND-03, composition (PASS-05), and the G2 of the analyses its passes read, in chunks 2 and 3 |
@@ -146,15 +146,15 @@ Where it stands:
 | `aggressive-instcombine` | Not measured | Not measured | Not measured | Not measured | Not done |
 | `reassociate` | Not measured | Not measured | Not measured | Not measured | Not done |
 
-InstCombine's G0 is from S1's run before F3 landed, as recorded with the decision of 2026-11-09. Its summary isn't on
-`main` yet. S1 is finishing, and its pull request is to commit it, with G1 for InstCombine. Then the same harness runs
-on the other three passes' tests.
+InstCombine's G0 is from S1's run before F3 landed, as recorded with the decision of 2026-11-09. That run's summary
+isn't on `main` yet, and nor is S1's harness. S1 is finishing, with G1 for InstCombine. Then G0 and G1 are measured
+across chunk 1's other three passes.
 
 What exists and doesn't count yet:
 
-- **33 rewrites proved for every width,** from InstSimplify and InstCombine, in [#48](https://github.com/phongndo/ir-lean/pull/48)
-  ([generic rewrites](generic-rewrites.md)), with their lemmas in the store. They were chosen by hand, so they aren't a
-  share of G2 until INV-04's list exists to count them against.
+- **33 rewrites proved for every width,** from InstSimplify and InstCombine, in
+  [#48](https://github.com/phongndo/ir-lean/pull/48) ([generic rewrites](generic-rewrites.md)), with their lemmas in
+  the store. They were chosen by hand, so they aren't a share of G2 until INV-04's list exists to count them against.
 - **Gate B0:** the [prototype](binding-approach.md#the-prototype) proves the compiled `llvm::isKnownNegation` computes
   #47's model of it, with 6 calls out of the module cut. A function with a cut doesn't count at G3.
 
@@ -162,8 +162,8 @@ What exists and doesn't count yet:
 
 The decision's eight, the other scalar and control-flow transforms that read and write no memory, and the analyses
 transforms read most: dominators and post-dominators, assumptions, lazy value info, demanded bits, cycles and regions,
-branch probabilities and block frequencies, and target and library information. Known bits isn't a registered pass. It's
-ValueTracking, which passes in every chunk call, and PASS-01 proves it sound with this chunk's analyses.
+branch probabilities and block frequencies, and target and library information. Known bits isn't a registered pass.
+It's ValueTracking, which passes in most chunks call, and PASS-01 proves it sound with this chunk's analyses.
 
 Some of these analyses only steer heuristics: block frequencies, profile summaries and optimization remarks. What G2
 means for one of them, that every pass reading it is right whatever it answers, is for PASS-01 to write down.
@@ -172,8 +172,8 @@ means for one of them, that every pass reading it is right whatever it answers, 
 
 The decision's seven, the other transforms of memory and pointers, such as `gvn-hoist`, `gvn-sink`, `mldst-motion`,
 `reg2mem`, `expand-memcmp`, `mergeicmps`, lowering atomics, inferring alignment and address spaces, splitting GEP
-offsets, and GC statepoints, and alias analysis, MemDep and MemorySSA. Nothing here can reach G1 before F4 gives
-`IRLean.Refines` an instance for memory.
+offsets, and GC statepoints, and alias analysis, MemDep and MemorySSA. A pair with memory can't count at G1 until F4
+gives `IRLean.Refines` an instance for memory.
 
 ### 4. Loops
 
@@ -190,7 +190,7 @@ call graph and summary analyses. A call out of a module is refused today, so thi
 
 ### 6. Vectorization
 
-`loop-vectorize`, which is VPlan, `slp-vectorizer` and `load-store-vectorizer`, with `vector-combine`, the sandbox
+`loop-vectorize`, which plans with VPlan, `slp-vectorizer` and `load-store-vectorizer`, with `vector-combine`, the sandbox
 vectorizer, `loop-idiom-vectorize`, lowering matrix intrinsics, the two scalarizers and `inject-tli-mappings`.
 
 ### 7. Pipelines
