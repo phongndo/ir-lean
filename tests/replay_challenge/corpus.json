@@ -1,0 +1,16 @@
+{
+  "schema": "ir-lean.replay-challenge.corpus/1",
+  "about": "What Alive2 has to say about each case in tests/verification_negative/cases, where that isn't just the case's llvm_verdict: valid is correct and invalid is incorrect, with or without undef arguments. A precondition is asked as llvm.assume at the start of src. Each entry here says why Alive2 answers otherwise, and the check that shows that reason holds.",
+  "alive2": {
+    "wrong_loop_deleted": {
+      "expect": "correct",
+      "because": "bounded_loops",
+      "why": "Alive2 unrolls a loop a bounded number of times and drops every run longer than that, so it never sees src run forever at x = 0. Its 'seems to be correct' isn't evidence for code with a loop. LLVM says the rewrite is wrong, IRLean doesn't certify it, and the check is that Alive2 cuts the loop: its unrolled src ends in #sink."
+    },
+    "precondition_vacuous": {
+      "expect": "correct",
+      "because": "vacuous_precondition",
+      "why": "x < 0 never holds for an unsigned x, so llvm.assume makes src undefined on every input, which allows anything. That's vacuous, as the case says. IRLean proves it too, and the gate refuses it as unwitnessed."
+    }
+  }
+}

@@ -121,12 +121,26 @@ add_test(
 )
 # Alone, so its Lean process has the memory to itself, and longer than every case's limits together.
 set_tests_properties(verify_negative PROPERTIES RUN_SERIAL TRUE TIMEOUT 900)
+# Replay certificates challenged from outside: manifests and processes tools/binding.py has to refuse or
+# call unknown, in Python; every rewrite those tests use against Alive2, one capped process at a time; and
+# IRLean on poison and flag rewrites, with tools/binding.py on real opt runs, alone, as it runs Lean.
+add_test(NAME replay_challenge_static COMMAND ${CMAKE_SOURCE_DIR}/tests/replay_challenge.py --tier static)
+add_test(NAME replay_challenge_alive COMMAND ${CMAKE_SOURCE_DIR}/tests/replay_challenge.py --tier alive)
+add_test(NAME replay_challenge COMMAND ${CMAKE_SOURCE_DIR}/tests/replay_challenge.py --tier live)
+set_tests_properties(replay_challenge_static replay_challenge_alive PROPERTIES TIMEOUT 600)
+set_tests_properties(replay_challenge PROPERTIES RUN_SERIAL TRUE TIMEOUT 1800)
 # A certificate bound to its IR, the opt run and the toolchain, and refused when any of them doesn't
 # match: one instcombine rewrite, and the cases of mismatched evidence, one capped Lean process at a time.
 add_test(NAME binding COMMAND ${CMAKE_SOURCE_DIR}/tests/binding.py)
 # Alone, since each of its Lean processes takes up to 3.5 GB. It hashes the Lean toolchain on every check,
 # so it gets more time than it takes on a fast disk, about 5 minutes.
 set_tests_properties(binding PROPERTIES RUN_SERIAL TRUE TIMEOUT 1800)
+# The scorer, on two small tests rather than llvm-project: an instance counts only when tools/binding.py
+# binds its bundle in the same run. The rules in Python first, then the scorer itself, alone, since it runs
+# tools/binding.py, one capped Lean process at a time.
+add_test(NAME passes_static COMMAND ${CMAKE_SOURCE_DIR}/tests/passes_test.py --tier static)
+add_test(NAME passes COMMAND ${CMAKE_SOURCE_DIR}/tests/passes_test.py --tier live)
+set_tests_properties(passes PROPERTIES RUN_SERIAL TRUE TIMEOUT 1800)
 # The semantic contracts against the model, compiled from copies in a temporary directory, one Lean
 # process at a time, each capped at 2 GB and 300 s by the script itself.
 add_test(NAME contracts COMMAND ${CMAKE_SOURCE_DIR}/tests/contracts.sh)
