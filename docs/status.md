@@ -272,3 +272,7 @@ reads it. That difference is itself a thing [Phase 3](roadmap.md#phase-3-c-and-r
 16. An inventory of chunk 1's rewrites, INV-04 for InstSimplify, InstCombine, AggressiveInstCombine and Reassociate:
     3,174 at `llvmorg-23.1.3`, 1,837 of them on integers only, each with an ID and its line, derived from the pinned
     source and checked in CI. None is proved for every input yet. See [rewrite inventory](rewrite-inventory.md).
+17. Gate B1 of binding proofs to LLVM's C++, on 2026-11-09: `IRLean/LLVMHeap.lean` says what bytes in memory mean as
+    LLVM's `Value`, `Use`, `ConstantInt`, `APInt` and `Type`, as the matchers read them, proved kept by
+    `ConstantInt::get`, `PoisonValue::get` and `BinaryOperator::Create` as specifications of what each does to memory,
+    and a layout probe agrees with it on the pinned `libLLVM`. See [LLVM's IR in memory](llvm-heap.md).
