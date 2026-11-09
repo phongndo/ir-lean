@@ -33,6 +33,10 @@
    "class": "modeled",
    "says": "A call to a function in the module that ir-lean translates, directly or through a pointer to one"
   },
+  "outside call": {
+   "class": "modeled",
+   "says": "A call to a function the module only declares, answered by IRLean.World: an event in the run's trace, or for one without effects, an answer at the run's choice (docs/calls.md)"
+  },
   "aggregate": {
    "class": "modeled",
    "says": "A struct is a Lean tuple, field by field"
@@ -358,9 +362,9 @@
  },
  "totals": {
   "items": 17044,
-  "modeled": 280,
+  "modeled": 281,
   "assumed": 260,
-  "refused": 16504,
+  "refused": 16503,
   "by_kind": {
    "instruction": {
     "modeled": 40,
@@ -406,13 +410,13 @@
     "refused": 18
    },
    "form": {
-    "modeled": 10,
+    "modeled": 11,
     "assumed": 3,
-    "refused": 38
+    "refused": 37
    }
   },
   "refused_by_lane": {
-   "external calls and globals": 65,
+   "external calls and globals": 64,
    "floating point": 139,
    "long tail": 1811,
    "memory": 122
@@ -17438,8 +17442,8 @@
   {"kind": "form", "name": "atomic-store", "class": "refused", "reason": "concurrency"},
   {"kind": "form", "name": "volatile-load", "class": "refused", "reason": "concurrency"},
   {"kind": "form", "name": "volatile-store", "class": "refused", "reason": "concurrency"},
+  {"kind": "form", "name": "call-to-a-declaration", "class": "modeled", "reason": "outside call"},
   {"kind": "form", "name": "alias-the-linker-may-replace", "class": "refused", "lane": "external calls and globals", "reason": "external"},
-  {"kind": "form", "name": "call-to-a-declaration", "class": "refused", "lane": "external calls and globals", "reason": "external"},
   {"kind": "form", "name": "call-to-an-odr-definition", "class": "refused", "lane": "external calls and globals", "reason": "external"},
   {"kind": "form", "name": "external-global", "class": "refused", "lane": "external calls and globals", "reason": "external"},
   {"kind": "form", "name": "variadic-call", "class": "refused", "lane": "external calls and globals", "reason": "external"},
