@@ -38,7 +38,7 @@ as [`pyproject.toml`](../pyproject.toml) requires.
 
 | Module | What it does |
 | --- | --- |
-| [`proc`](../tools/irlean/proc.py) | Runs a command in a session of its own, under a timeout and a memory cap, and kills everything it started at either limit, descendants in sessions of their own included. The cap is sampled from `ps`, a systemd scope, or `RLIMIT_AS`. Measures wall and CPU time and peak RSS, and holds the machine's heavy-job lock. A limit is never a success |
+| [`proc`](../tools/irlean/proc.py) | Runs a command in a session of its own, under a timeout and a memory cap, and kills everything it started at either limit, descendants in sessions of their own included. The cap is sampled from `ps`, a systemd scope, or `RLIMIT_AS`. Measures wall and CPU time and peak RSS, and holds a slot in the machine's pool of heavy jobs, which waits while memory is short. A limit is never a success |
 | [`hashing`](../tools/irlean/hashing.py) | SHA-256 of bytes, text and files, a piece at a time, and of trees, on several threads, read back one way, refusing links to anything unhashed, as [binding](llvm-proof-binding.md) needs |
 | [`lean`](../tools/irlean/lean.py) | `lean` with `-M` and 64 MB thread stacks, `leanchecker`, `LEAN_PATH`, the pinned toolchain, Lean's messages, the limits it reports, and the axiom audit through [`tests/check_axioms.lean`](../tests/check_axioms.lean) |
 | [`schemas`](../tools/irlean/schemas.py) | Every versioned JSON schema the repo writes, named once, and reading, writing and checking records of them |
