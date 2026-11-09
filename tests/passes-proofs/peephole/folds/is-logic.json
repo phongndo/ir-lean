@@ -1,0 +1,232 @@
+{
+  "schema": "ir-lean.peephole.folds/1",
+  "family": "is-logic",
+  "pass": "instsimplify",
+  "modules": [
+    "Peephole.IS.Logic",
+    "Peephole.IS.LogicAnd",
+    "Peephole.IS.LogicOr",
+    "Peephole.IS.LogicXor"
+  ],
+  "entries": [
+    {
+      "fold": "Peephole.IS.simplifyAndInst.onInst",
+      "opcodes": [
+        "and"
+      ],
+      "opt": "instsimplify"
+    },
+    {
+      "fold": "Peephole.IS.simplifyOrInst.onInst",
+      "opcodes": [
+        "or"
+      ],
+      "opt": "instsimplify"
+    },
+    {
+      "fold": "Peephole.IS.simplifyXorInst.onInst",
+      "opcodes": [
+        "xor"
+      ],
+      "opt": "instsimplify"
+    }
+  ],
+  "folds": {
+    "Peephole.IS.simplifyAndInst": {
+      "sound": "Peephole.IS.simplifyAndInst.sound",
+      "sites": [
+        "IS.simplifyAndInst.L2078",
+        "IS.simplifyAndInst.L2082",
+        "IS.simplifyAndInst.L2086",
+        "IS.simplifyAndInst.L2090",
+        "IS.simplifyAndInst.L2094",
+        "IS.simplifyAndInst.L2113",
+        "IS.simplifyAndInst.L2119",
+        "IS.simplifyAndInst.L2132",
+        "IS.simplifyAndInst.L2157",
+        "IS.simplifyAndInst.L2159",
+        "IS.simplifyAndInst.L2203",
+        "IS.simplifyAndInst.L2205",
+        "IS.simplifyAndInst.L2216",
+        "IS.simplifyAndInst.L2223",
+        "IS.simplifyAndInst.L2229",
+        "IS.simplifyAndInst.L2232",
+        "IS.simplifyAndInst.L2237",
+        "IS.simplifyAndInst.L2240"
+      ]
+    },
+    "Peephole.IS.simplifyAndCommutative": {
+      "sound": "Peephole.IS.simplifyAndCommutative.sound",
+      "sites": [
+        "IS.simplifyAndCommutative.L2024",
+        "IS.simplifyAndCommutative.L2028",
+        "IS.simplifyAndCommutative.L2034",
+        "IS.simplifyAndCommutative.L2045",
+        "IS.simplifyAndCommutative.L2051",
+        "IS.simplifyAndCommutative.L2060"
+      ]
+    },
+    "Peephole.IS.simplifyOrInst": {
+      "sound": "Peephole.IS.simplifyOrInst.sound",
+      "sites": [
+        "IS.simplifyOrInst.L2353",
+        "IS.simplifyOrInst.L2359",
+        "IS.simplifyOrInst.L2364",
+        "IS.simplifyOrInst.L2387",
+        "IS.simplifyOrInst.L2399",
+        "IS.simplifyOrInst.L2403",
+        "IS.simplifyOrInst.L2410",
+        "IS.simplifyOrInst.L2414",
+        "IS.simplifyOrInst.L2448",
+        "IS.simplifyOrInst.L2450",
+        "IS.simplifyOrInst.L2475",
+        "IS.simplifyOrInst.L2481",
+        "IS.simplifyOrInst.L2495",
+        "IS.simplifyOrInst.L2502",
+        "IS.simplifyOrInst.L2505",
+        "IS.simplifyOrInst.L2511",
+        "IS.simplifyOrInst.L2514"
+      ]
+    },
+    "Peephole.IS.simplifyOrLogic": {
+      "sound": "Peephole.IS.simplifyOrLogic.sound",
+      "sites": [
+        "IS.simplifyOrLogic.L2261",
+        "IS.simplifyOrLogic.L2265",
+        "IS.simplifyOrLogic.L2269",
+        "IS.simplifyOrLogic.L2277",
+        "IS.simplifyOrLogic.L2283",
+        "IS.simplifyOrLogic.L2291",
+        "IS.simplifyOrLogic.L2299",
+        "IS.simplifyOrLogic.L2307",
+        "IS.simplifyOrLogic.L2317",
+        "IS.simplifyOrLogic.L2324",
+        "IS.simplifyOrLogic.L2332",
+        "IS.simplifyOrLogic.L2339"
+      ]
+    },
+    "Peephole.IS.simplifyXorInst": {
+      "sound": "Peephole.IS.simplifyXorInst.sound",
+      "sites": [
+        "IS.simplifyXorInst.L2537",
+        "IS.simplifyXorInst.L2541",
+        "IS.simplifyXorInst.L2545",
+        "IS.simplifyXorInst.L2549",
+        "IS.simplifyXorInst.L2553",
+        "IS.simplifyXorInst.L2603"
+      ]
+    },
+    "Peephole.IS.simplifyXorInst.foldAndOrNot": {
+      "sound": "Peephole.IS.simplifyXorInst.foldAndOrNot.sound",
+      "sites": [
+        "IS.simplifyXorInst.foldAndOrNot.L2560",
+        "IS.simplifyXorInst.foldAndOrNot.L2569"
+      ]
+    },
+    "Peephole.IS.simplifyLogicOfAddSub": {
+      "sound": "Peephole.IS.simplifyLogicOfAddSub.sound",
+      "sites": [
+        "IS.simplifyLogicOfAddSub.L2011"
+      ]
+    },
+    "Peephole.IS.simplifyAndOrWithICmpEq": {
+      "sound": "Peephole.IS.simplifyAndOrWithICmpEq.sound",
+      "sites": []
+    },
+    "Peephole.IS.simplifyAndOrWithICmpEq.Simplify": {
+      "sound": "Peephole.IS.simplifyAndOrWithICmpEq.Simplify.sound",
+      "sites": [
+        "IS.simplifyAndOrWithICmpEq.Simplify.L1965",
+        "IS.simplifyAndOrWithICmpEq.Simplify.L1967",
+        "IS.simplifyAndOrWithICmpEq.Simplify.L1975"
+      ]
+    }
+  },
+  "lemmas": [
+    "Peephole.Lemmas.and_not_self_refines",
+    "Peephole.Lemmas.and_or_not_or_refines",
+    "Peephole.Lemmas.and_neg_self_refines",
+    "Peephole.Lemmas.and_add_allOnes_self_refines",
+    "Peephole.Lemmas.and_shl_shl_add_allOnes_refines",
+    "Peephole.Lemmas.and_shl_mask",
+    "Peephole.Lemmas.and_lshr_mask",
+    "Peephole.Lemmas.and_add_allOnes_twoPow_refines",
+    "Peephole.Lemmas.and_or_shl_mask_refines_right",
+    "Peephole.Lemmas.and_or_shl_mask_refines_left",
+    "Peephole.Lemmas.and_xor_or_xor_or_refines",
+    "Peephole.Lemmas.and_xor_xor_not_refines",
+    "Peephole.Lemmas.and_add_sub_not_refines",
+    "Peephole.Lemmas.or_add_sub_not_refines",
+    "Peephole.Lemmas.xor_add_sub_not_refines",
+    "Peephole.Lemmas.and_refines_left_of_implies",
+    "Peephole.Lemmas.and_refines_false_of_implies",
+    "Peephole.Lemmas.and_refines_right_of_false",
+    "Peephole.Lemmas.or_refines_left_of_implies",
+    "Peephole.Lemmas.or_refines_true_of_implies",
+    "Peephole.Lemmas.or_refines_right_of_true",
+    "Peephole.Lemmas.and_select_refines",
+    "Peephole.Lemmas.or_select_refines",
+    "Peephole.Lemmas.or_not_self_refines",
+    "Peephole.Lemmas.or_not_and_refines",
+    "Peephole.Lemmas.or_and_absorb_refines",
+    "Peephole.Lemmas.or_xor_or_refines",
+    "Peephole.Lemmas.or_not_xor_or_refines",
+    "Peephole.Lemmas.or_and_not_xor_refines",
+    "Peephole.Lemmas.or_xor_not_and_refines",
+    "Peephole.Lemmas.or_or_not_xor_refines",
+    "Peephole.Lemmas.or_and_not_not_or_refines",
+    "Peephole.Lemmas.or_logicalAnd_not_logicalOr_refines",
+    "Peephole.Lemmas.or_not_xor_and_refines",
+    "Peephole.Lemmas.or_not_and_xor_refines",
+    "Peephole.Lemmas.or_shl_lshr_allOnes_sub_left_refines",
+    "Peephole.Lemmas.or_shl_lshr_allOnes_sub_right_refines",
+    "Peephole.Lemmas.or_fshl_shl_refines",
+    "Peephole.Lemmas.or_fshr_lshr_refines",
+    "Peephole.Lemmas.or_and_add_and_lowMask_refines",
+    "Peephole.Lemmas.or_xor_xor_not_refines",
+    "Peephole.Lemmas.xor_not_self_refines",
+    "Peephole.Lemmas.xor_and_not_or_refines",
+    "Peephole.Lemmas.xor_or_not_and_refines",
+    "Peephole.Lemmas.xor_sub_nuw_lowMask_refines"
+  ],
+  "rests_on": {
+    "IS.simplifyAndOrWithICmpEq.Simplify.L1965": [
+      "Peephole.IS.Logic.Ext.Sound.replaced: simplifyWithOpReplaced(V, Op, RepOp, Q.getWithoutUndef(), AllowRefinement=true, nullptr, MaxRecurse), a recursive call into InstSimplify that isn't modelled, is a parameter, Logic.Ext.replaced; its answer refines V wherever Op and RepOp are the same value, as its contract in InstructionSimplify.h says. The site theorem takes this as hres, and simplifyAndOrWithICmpEq.sound derives hres from it"
+    ],
+    "IS.simplifyAndOrWithICmpEq.Simplify.L1967": [
+      "Peephole.IS.Logic.Ext.Sound.replaced: simplifyWithOpReplaced(V, Op, RepOp, Q.getWithoutUndef(), AllowRefinement=true, nullptr, MaxRecurse), a recursive call into InstSimplify that isn't modelled, is a parameter, Logic.Ext.replaced; its answer refines V wherever Op and RepOp are the same value, as its contract in InstructionSimplify.h says. The site theorem takes this as hres, and simplifyAndOrWithICmpEq.sound derives hres from it"
+    ],
+    "IS.simplifyAndOrWithICmpEq.Simplify.L1975": [
+      "Peephole.IS.Logic.Ext.Sound.replaced: simplifyWithOpReplaced(V, Op, RepOp, Q.getWithoutUndef(), AllowRefinement=true, nullptr, MaxRecurse), a recursive call into InstSimplify that isn't modelled, is a parameter, Logic.Ext.replaced; its answer refines V wherever Op and RepOp are the same value, as its contract in InstructionSimplify.h says. The site theorem takes this as hres, and simplifyAndOrWithICmpEq.sound derives hres from it"
+    ],
+    "IS.simplifyOrInst.L2502": [
+      "Peephole.IS.Logic.Ext.Sound.impliesFalse: isImpliedCondition(A, B, DL, LHSIsTrue=false), which the core Oracle doesn't answer (its implies is for LHSIsTrue=true), is a family-local analysis, Logic.Ext.impliesFalse; its soundness is PASS-01's, as Oracle.Sound is"
+    ],
+    "IS.simplifyOrInst.L2505": [
+      "Peephole.IS.Logic.Ext.Sound.impliesFalse: isImpliedCondition(A, B, DL, LHSIsTrue=false), which the core Oracle doesn't answer (its implies is for LHSIsTrue=true), is a family-local analysis, Logic.Ext.impliesFalse; its soundness is PASS-01's, as Oracle.Sound is"
+    ],
+    "IS.simplifyOrInst.L2511": [
+      "Peephole.IS.Logic.Ext.Sound.impliesFalse: isImpliedCondition(A, B, DL, LHSIsTrue=false), which the core Oracle doesn't answer (its implies is for LHSIsTrue=true), is a family-local analysis, Logic.Ext.impliesFalse; its soundness is PASS-01's, as Oracle.Sound is"
+    ],
+    "IS.simplifyOrInst.L2514": [
+      "Peephole.IS.Logic.Ext.Sound.impliesFalse: isImpliedCondition(A, B, DL, LHSIsTrue=false), which the core Oracle doesn't answer (its implies is for LHSIsTrue=true), is a family-local analysis, Logic.Ext.impliesFalse; its soundness is PASS-01's, as Oracle.Sound is"
+    ]
+  },
+  "delegates": {
+    "ConstantFoldBinaryOpOperands": "foldOrCommuteConstant with both operands constant, IS.foldOrCommuteConstant.L582: the constant folder, not modelled",
+    "simplifyAndOrOfCmps": "and/or of two icmps, looking through casts of one opcode from one type: another family's fold (simplifyAndOfICmps, simplifyOrOfICmps), not modelled here; the model hands over only where both operands are icmps after the look-through",
+    "simplifyAssociativeBinOp": "recursive calls to simplifyBinOp with MaxRecurse - 1; hands over only where MaxRecurse isn't 0 and an operand has the same opcode",
+    "expandCommutativeBinOp": "recursive calls to simplifyBinOp with MaxRecurse - 1; hands over only where MaxRecurse isn't 0 and an operand has the opcode it distributes over",
+    "threadBinOpOverSelect": "recursive calls to simplifyBinOp with MaxRecurse - 1; hands over only where MaxRecurse isn't 0 and an operand is a select",
+    "threadBinOpOverPHI": "recursive calls to simplifyBinOp with MaxRecurse - 1 over a phi's incoming values; a phi is an opaque Term (Term.var), so it hands over where MaxRecurse isn't 0 and an operand is opaque",
+    "simplifyByDomEq": "shared with sub, udiv, sdiv, urem and srem, and its sites (IS.simplifyByDomEq.L727, L736) aren't this family's; it answers only at MaxRecurse == RecursionLimit, and only where isImpliedByDomCondition says Op0 == Op1, which Logic.Ext.domEq answers; with no Ext the model hands over at the top level",
+    "isCheckForZeroAndMulWithOverflow": "the overflow bit isn't a Term (see unproved); hands over where an operand is opaque and the other an icmp of the right predicate against 0",
+    "simplifyWithOpReplaced": "with no Logic.Ext, as onInst has it, the model hands over where Op0 is an equality icmp or trunc nuw to i1; with an Ext, its answer is a parameter, see rests_on",
+    "isImpliedCondition": "with LHSIsTrue=false, in simplifyOrInst on i1: with no Logic.Ext, as onInst has it, the model hands over; with an Ext, see rests_on"
+  },
+  "unproved": {
+    "IS.simplifyAndCommutative.L2040": "the overflow bit of llvm.umul.with.overflow or llvm.smul.with.overflow, an extractvalue of the call's aggregate, isn't a Term: no Term is an aggregate or an extractvalue. The model hands over to isCheckForZeroAndMulWithOverflow (OverflowInstAnalysis.cpp) wherever an operand is opaque and could be that bit, so it claims nothing there",
+    "IS.simplifyOrInst.L2430": "the overflow bit of llvm.umul.with.overflow or llvm.smul.with.overflow, an extractvalue of the call's aggregate, isn't a Term: no Term is an aggregate or an extractvalue. The model hands over to isCheckForZeroAndMulWithOverflow (OverflowInstAnalysis.cpp) wherever an operand is opaque and could be that bit, so it claims nothing there",
+    "IS.simplifyOrInst.L2432": "the overflow bit of llvm.umul.with.overflow or llvm.smul.with.overflow, an extractvalue of the call's aggregate, isn't a Term: no Term is an aggregate or an extractvalue. The model hands over to isCheckForZeroAndMulWithOverflow (OverflowInstAnalysis.cpp) wherever an operand is opaque and could be that bit, so it claims nothing there"
+  }
+}
