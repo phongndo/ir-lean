@@ -257,6 +257,15 @@ set_tests_properties(generic_rewrites PROPERTIES TIMEOUT 900)
 # built, and runs its Lean processes two at a time, each capped at 4 GB.
 add_test(NAME store COMMAND ${CMAKE_SOURCE_DIR}/tests/store_test.py $<TARGET_FILE:ir-lean>)
 set_tests_properties(store PROPERTIES TIMEOUT 1200)
+# Chunk 1's G2, docs/rewrite-proofs.md. `lake build` checks the proofs. These check the harness's rules in
+# Python; every registered fold's model against the pinned opt; that every rewrite a registry lists as proved
+# counts; and that a broken model and a proof by `sorry` are each caught. Seconds each, one Lean process at a
+# time, each capped at 4 GB.
+add_test(NAME peephole_static COMMAND ${CMAKE_SOURCE_DIR}/tests/peephole_test.py --tier static)
+add_test(NAME peephole_compare COMMAND ${CMAKE_SOURCE_DIR}/tests/peephole.py compare)
+add_test(NAME peephole_score COMMAND ${CMAKE_SOURCE_DIR}/tests/peephole.py score --check)
+add_test(NAME peephole COMMAND ${CMAKE_SOURCE_DIR}/tests/peephole_test.py --tier live)
+set_tests_properties(peephole_compare peephole_score peephole PROPERTIES TIMEOUT 900)
 add_test(
     NAME zlib
     COMMAND
@@ -347,6 +356,9 @@ set_tests_properties(
     generic_rewrites
     cpp_correspondence
     store
+    peephole_compare
+    peephole_score
+    peephole
     prooftest
     prooftest_t1
     PROPERTIES LABELS semantics
