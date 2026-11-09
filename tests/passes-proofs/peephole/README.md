@@ -44,9 +44,12 @@ proofs that each rewrite they make is right for every input: G2 for chunk 1. The
 [rewrite proofs](../../../docs/rewrite-proofs.md) says:
 
 - `compare --family F --write` runs each entry point's model against the pinned `opt` on LLVM's regression tests and
-  generated cases, and records the result in `compared/<family>.json`, keyed by a hash of the model's sources. A
-  changed model has to be compared again.
+  generated cases, and records the result in `compared/<family>.json`, keyed by a hash of the model's sources, with
+  the folds its compared runs reached. A changed model has to be compared again.
 - `score --check` counts a site only if its theorem rests on the standard axioms, its fold's `sound` theorem uses it,
-  and its model's comparison is current, and fails if a registry lists one that doesn't count.
+  its family's comparison is current, a compared run reached its fold, and, for a site the inventory says needs more
+  than integers, the registry's `"covers": {"<ID>": [...]}` names those types. It fails if a registry lists a site
+  whose proof or comparison doesn't hold; a proved site whose fold no comparison reached, or an integer instance, is
+  reported and not counted.
 - `store --family F` offers the registry's `lemmas` to the lemma store, with the counterexamples in the family's lemma
   file, `LemmaStore.Counter.<lemma>.drop_<hypothesis>` and `.sat`.
