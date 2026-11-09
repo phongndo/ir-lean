@@ -17,7 +17,6 @@ import importlib.util
 import json
 import os
 import random
-import subprocess
 import sys
 import tempfile
 import textwrap
@@ -28,6 +27,9 @@ from pathlib import Path
 from typing import Any
 
 ROOT = Path(__file__).resolve().parent.parent
+sys.path.append(str(ROOT / "tools"))
+from irlean import proc, schemas  # noqa: E402
+
 TOOL = ROOT / "tools" / "prooftest" / "prooftest.py"
 CASES = ROOT / "tests" / "prooftest" / "Cases.ll"
 DOC = ROOT / "docs" / "proof-tests.md"
@@ -432,12 +434,12 @@ def cases() -> list[Case]:
 
 
 def run_tool(arguments: list[str]) -> dict[str, Any]:
-    ran = subprocess.run([sys.executable, str(TOOL), *arguments], capture_output=True, text=True, check=False)
+    ran = proc.run([sys.executable, str(TOOL), *arguments])
     try:
-        result = json.loads(ran.stdout)
+        result = json.loads(ran.out)
     except json.JSONDecodeError:
-        return {"_exit": ran.returncode, "_output": ran.stdout[-2000:] + ran.stderr[-2000:]}
-    result["_exit"] = ran.returncode
+        return {"_exit": ran.exit, "_output": ran.out[-2000:] + ran.err[-2000:]}
+    result["_exit"] = ran.exit
     return result
 
 
@@ -493,7 +495,7 @@ def main() -> int:
     if not failed:
         print("ok    static: generators, shrinking, the store, the decision, the contract and the doc")
     capabilities = run_tool(["capabilities"])
-    if capabilities.get("schema") != "ir-lean.prooftest/1" or capabilities["_exit"] != 0:
+    if capabilities.get("schema") != schemas.PROOFTEST or capabilities["_exit"] != 0:
         print("FAIL  capabilities")
         failed = True
     if args.static:

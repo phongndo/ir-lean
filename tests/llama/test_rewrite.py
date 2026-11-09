@@ -9,10 +9,8 @@ All CLI output is written to temporary directories and removed on completion.
 
 import argparse
 import copy
-import hashlib
 import json
 import re
-import subprocess
 import sys
 import tempfile
 import unittest
@@ -21,6 +19,9 @@ from pathlib import Path
 import rewrite as matcher
 
 HERE = Path(__file__).resolve().parent
+sys.path.append(str(HERE.parents[1] / "tools"))
+from irlean import hashing, proc  # noqa: E402
+
 FIXTURE = HERE.parent / "real/llama_q5_bitspread.ll"
 ACTUAL_SOURCE: Path | None = None
 REFERENCE_TARGET: Path | None = None
@@ -202,8 +203,8 @@ class BitspreadTests(unittest.TestCase):
                 "--witness",
                 str(witness_path),
             ]
-            result = subprocess.run(command, text=True, capture_output=True, check=False)
-            self.assertEqual(result.returncode, 0, result.stderr)
+            result = proc.run(command)
+            self.assertEqual(result.exit, 0, result.err)
             witness = json.loads(witness_path.read_text())
             self.assertEqual(witness["selected_functions"], ["selected_alternative"])
             for field, path in [
@@ -211,15 +212,15 @@ class BitspreadTests(unittest.TestCase):
                 ("target_sha256", target),
                 ("helper_sha256", helper),
             ]:
-                self.assertEqual(witness[field], hashlib.sha256(path.read_bytes()).hexdigest())
+                self.assertEqual(witness[field], hashing.sha256_file(path))
             self.assertEqual(witness["helper_ir"].encode(), helper.read_bytes())
             witness_hash = witness.pop("witness_sha256")
-            self.assertEqual(witness_hash, hashlib.sha256(matcher.canonical_json(witness)).hexdigest())
+            self.assertEqual(witness_hash, hashing.sha256(matcher.canonical_json(witness)))
             originals = [path.read_bytes() for path in [target, helper, witness_path]]
             command[command.index("--expect-sites") + 1] = "4"
-            failed = subprocess.run(command, text=True, capture_output=True, check=False)
-            self.assertNotEqual(failed.returncode, 0)
-            self.assertIn("expected exactly 4 rewrite sites, found 3", failed.stderr)
+            failed = proc.run(command)
+            self.assertNotEqual(failed.exit, 0)
+            self.assertIn("expected exactly 4 rewrite sites, found 3", failed.err)
             self.assertEqual(originals, [path.read_bytes() for path in [target, helper, witness_path]])
 
 

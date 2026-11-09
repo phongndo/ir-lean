@@ -64,7 +64,7 @@ import sys
 import tempfile
 import threading
 import time
-from collections.abc import Generator, Mapping, Sequence
+from collections.abc import Callable, Generator, Mapping, Sequence
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from functools import cache
@@ -522,6 +522,9 @@ class Ran:
     sys_s: float = 0.0
     # The systemd scope it ran in, if it ran in one.
     unit: str | None = None
+    # Its pid, which names nothing once it's reaped, as `run` returns: only for naming what it made, such as a
+    # scope of its own.
+    pid: int = 0
     # The rest only when sampling.
     peak_tree_mb: float | None = None
     peak_tree_processes: int = 0
@@ -591,6 +594,7 @@ def run(
     stderr: Stream = CAPTURE,
     env: Mapping[str, str] | None = None,
     cwd: str | os.PathLike[str] | None = None,
+    on_start: Callable[[int], None] | None = None,
 ) -> Ran:
     """Runs `argv` in a session of its own until it ends, `timeout` seconds pass, or its tree passes `cap_mb`,
     and returns how it ended. Kills it and everything it started at a limit, and its group, and scope if it
@@ -601,7 +605,8 @@ def run(
     so the command is done when it exits, not when everything it started closes its output. `stdin` is bytes
     or text to give it, an open file, INHERIT for this process's own, or None for nothing. `sample` measures
     the tree's RSS without a cap. `env` replaces the environment if given. `Ran.unit` names the scope, if
-    `scope` was asked for and systemd could make one."""
+    `scope` was asked for and systemd could make one. `on_start` is called with its pid once it has started,
+    as one that keeps track of what's running needs."""
     argv = [os.fspath(a) for a in argv]
     command = argv
     if address_mb is not None:
@@ -651,6 +656,8 @@ def run(
             timer.start()
         reaped = None
         try:
+            if on_start is not None:
+                on_start(p.pid)
             reaped = _wait(p.pid)
         except BaseException:
             kill_tree(p.pid)
@@ -696,6 +703,7 @@ def run(
         user_s=usage.ru_utime,
         sys_s=usage.ru_stime,
         unit=unit,
+        pid=p.pid,
     )
     if sampler is not None:
         ran.peak_tree_mb = sampler.peak_tree_kib / 1024

@@ -22,13 +22,15 @@ import os
 import random
 import re
 import shutil
-import subprocess
 import sys
 import tempfile
 
 import alive
 from differential import NATIVE, lean_output
 from opcheck import alive_verdict, lean_env, sh
+
+sys.path.append(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "tools"))
+from irlean import proc
 
 TRIPLE = "x86_64-unknown-linux-gnu"
 # Stands for a poison lane.
@@ -171,14 +173,9 @@ def eval_in_lean(tool, ops, all_cases, work):
             f.write(
                 f"\ndefine {ty(ret)} @{name}({params}) {{\n  %r = {instruction}\n  ret {ty(ret)} %r\n}}\n"
             )
-    r = subprocess.run(
-        [tool, ll, "-o", os.path.join(work, "Ops.lean"), "--namespace", "Ops"],
-        text=True,
-        capture_output=True,
-        check=False,
-    )
-    if r.returncode != 0:
-        sys.exit(f"the emitter left operations out:\n{r.stderr}")
+    r = proc.run([tool, ll, "-o", os.path.join(work, "Ops.lean"), "--namespace", "Ops"])
+    if r.exit != 0:
+        sys.exit(f"the emitter left operations out:\n{r.err}")
     src = [
         "import Ops",
         "open IRLean",
@@ -331,7 +328,7 @@ def check_folder(ops, all_cases, results, work):
     path = os.path.join(work, "fold.ll")
     with open(path, "w") as f:
         f.write(declarations() + "\n" + "\n".join(functions))
-    found = folded(sh(["opt", f"-mtriple={TRIPLE}", "-passes=instcombine", "-S", path]).stdout)
+    found = folded(sh(["opt", f"-mtriple={TRIPLE}", "-passes=instcombine", "-S", path]).out)
     agreed = refined = unfolded = 0
     wrong = []
     for (name, _, _, _), cs, rs in zip(ops, all_cases, results, strict=True):

@@ -22,7 +22,6 @@ import os
 import random
 import re
 import shutil
-import subprocess
 import sys
 import tempfile
 
@@ -30,6 +29,9 @@ import alive
 from differential import NATIVE, lean_output
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.append(os.path.join(ROOT, "tools"))
+from irlean import proc  # noqa: E402
+
 WRAP = ["", "nuw", "nsw", "nuw nsw"]
 PREDS = "eq ne ugt uge ult ule sgt sge slt sle".split()
 # Stands for a poison operand in a test case. It's larger than any value tested.
@@ -174,9 +176,9 @@ def cases_for(widths, rand):
 
 
 def sh(args, **kw):
-    r = subprocess.run(args, text=True, capture_output=True, check=False, **kw)
-    if r.returncode != 0:
-        sys.exit(f"{args[0]} failed:\n{(r.stdout + r.stderr)[:3000]}")
+    r = proc.run(args, **kw)
+    if r.exit != 0:
+        sys.exit(f"{args[0]} failed:\n{r.output[:3000]}")
     return r
 
 
@@ -203,11 +205,9 @@ def build_table(tool, work):
     with open(ops, "w") as f:
         f.write("\n".join(sorted(decls)) + "\n\n" + "\n".join(funcs))
     lean = os.path.join(work, "Ops.lean")
-    r = subprocess.run(
-        [tool, ops, "-o", lean, "--namespace", "Ops"], text=True, capture_output=True, check=False
-    )
-    if r.returncode != 0:
-        sys.exit(f"emitter left functions out:\n{r.stderr}")
+    r = proc.run([tool, ops, "-o", lean, "--namespace", "Ops"])
+    if r.exit != 0:
+        sys.exit(f"emitter left functions out:\n{r.err}")
     return table, shapes, lean
 
 
@@ -282,7 +282,7 @@ def check_folder(table, shapes, results, work):
     path = os.path.join(work, "fold.ll")
     with open(path, "w") as f:
         f.write("\n".join(sorted(decls)) + "\n\n" + "\n".join(src))
-    folded = sh(["opt", "-passes=instsimplify", "-S", path]).stdout
+    folded = sh(["opt", "-passes=instsimplify", "-S", path]).out
     found = {}
     for m in re.finditer(r"define i(\d+) @(\w+)\(\) [^{]*\{\n((?:.*\n)*?)\}", folded):
         ret_w, fn, body = int(m.group(1)), m.group(2), m.group(3)
@@ -360,8 +360,8 @@ def alive_verdict(direction, output):
 
 def llvm_version(*command):
     """The LLVM version a tool prints with `--version`."""
-    out = subprocess.run([*command, "--version"], text=True, capture_output=True, check=False)
-    m = re.search(r"LLVM version (\S+)", out.stdout + out.stderr)
+    out = proc.run([*command, "--version"])
+    m = re.search(r"LLVM version (\S+)", out.output)
     return m.group(1) if m else "unknown"
 
 

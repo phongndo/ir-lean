@@ -66,10 +66,12 @@ such a source its choice with `src_choice`: the claim is that for every input an
 The statement only names Lean, `IRLean` and the generated module, so it can be pinned. A `match` would make an
 auxiliary definition in the proof module, and `tools/verify.py` never lets a pinned statement name one of those.
 It's decidable, so a witness can be decided by running it. It lists the reasons for undefined behavior rather than
-the model stops, so a reason added to `IRLean.UB` later makes it stricter, never weaker. `noProgress` and `noReturn`,
-which SEM-07 added on 2026-11-08 for a broken promise to progress or to return, aren't listed, so a `src` that breaks
-one allows nothing here, which is stricter than `IRLean.Refines`. It's a stand-in for an
-`IRLean.Refines` that isn't on `main` yet: see [blocked](#blocked-integration-cases).
+the model stops, and since 2026-11-09 it lists every constructor of `IRLean.UB`, as
+[`irlean.model`](../tools/irlean/model.py) reads them from the model, so a reason added there is in the claim at once.
+Before that it kept its own copy, which missed `noProgress` and `noReturn` when SEM-07 added them on 2026-11-08, so a
+`src` that broke a promise to progress or to return allowed nothing, stricter than `IRLean.Refines`. The cases' proofs
+state the list the same way. It's a stand-in for an `IRLean.Refines` that isn't on `main` yet: see
+[blocked](#blocked-integration-cases).
 
 ## The live cases
 

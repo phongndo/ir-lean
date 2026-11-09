@@ -11,7 +11,6 @@ keeps its historical ir-baseline label; every other session requires clang.
 """
 
 import argparse
-import hashlib
 import json
 import math
 import random
@@ -20,6 +19,9 @@ import statistics
 import sys
 import tarfile
 from pathlib import Path
+
+sys.path.append(str(Path(__file__).resolve().parents[2] / "tools"))
+from irlean import hashing
 
 METRICS = ("wall_ms", "total_ms", "eval_ms", "prompt_ms")
 LOG_PATTERNS = {
@@ -76,7 +78,7 @@ def check_session(name, session, archive):
                 type(value) in (int, float) and math.isfinite(value) and value > 0,
                 f"{stem}: {metric} must be finite and positive",
             )
-        output_hash = hashlib.sha256(archive_bytes(archive, stem + ".txt")).hexdigest()
+        output_hash = hashing.sha256(archive_bytes(archive, stem + ".txt"))
         require(output_hash == row["stdout_sha256"], f"{stem}: stdout hash differs from timing row")
         require(reference_hash in (None, output_hash), f"{stem}: generated output differs within session")
         reference_hash = output_hash

@@ -8,7 +8,6 @@ usage: tests/corpus_test.py
 
 import importlib.util
 import json
-import subprocess
 import sys
 import tempfile
 import unittest
@@ -17,7 +16,7 @@ from typing import Any
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.append(str(ROOT / "tools"))
-from irlean import hashing, pins  # noqa: E402
+from irlean import hashing, pins, proc  # noqa: E402
 
 
 def load(name: str, path: Path) -> Any:
@@ -174,10 +173,10 @@ def unpinned() -> str | None:
     """Why the live tests can't run, or None when the repo's opt is on PATH."""
     tag = pins.llvm()["tag"]
     try:
-        r = subprocess.run(["opt", "--version"], capture_output=True, text=True, check=False)
+        r = proc.run(["opt", "--version"])
     except FileNotFoundError:
         return "no opt on PATH"
-    return None if f"LLVM version {tag.removeprefix('llvmorg-')}\n" in r.stdout else f"opt isn't {tag}"
+    return None if f"LLVM version {tag.removeprefix('llvmorg-')}\n" in r.out else f"opt isn't {tag}"
 
 
 UNPINNED = unpinned()
@@ -187,16 +186,16 @@ UNPINNED = unpinned()
 class Live(unittest.TestCase):
     """One seed through the pinned opt, which takes well under a second."""
 
-    def capture(self, out: Path, *extra: str) -> subprocess.CompletedProcess:
+    def capture(self, out: Path, *extra: str) -> proc.Ran:
         argv = [sys.executable, str(ROOT / "tools" / "corpus" / "capture.py"), "capture", "--out", str(out)]
-        return subprocess.run([*argv, *extra], capture_output=True, text=True, check=False)
+        return proc.run([*argv, *extra])
 
     def test_a_seed_is_captured_and_its_steps_replay_alone(self) -> None:
         seed = capture.SEEDS / "sub_add_cancel.ll"
         with tempfile.TemporaryDirectory() as d:
             out = Path(d)
             r = self.capture(out, str(seed))
-            self.assertEqual(r.returncode, 0, r.stderr)
+            self.assertEqual(r.exit, 0, r.err)
             record = json.loads((out / "sub_add_cancel" / "capture.json").read_text())
             self.assertEqual(record["status"], "captured")
             self.assertEqual(record["input_sha256"], hashing.sha256(seed.read_bytes()))
@@ -216,15 +215,15 @@ class Live(unittest.TestCase):
             pinned["opt"]["sha256"] = "0" * 64
             (out / "pin.json").write_text(json.dumps(pinned))
             r = self.capture(out, str(seed))
-            self.assertEqual(r.returncode, 1)
-            self.assertIn("the corpus there was made with opt", r.stderr)
+            self.assertEqual(r.exit, 1)
+            self.assertIn("the corpus there was made with opt", r.err)
 
     def test_an_input_for_another_target_is_refused(self) -> None:
         with tempfile.TemporaryDirectory() as d:
             ll = Path(d) / "arm.ll"
             ll.write_text('target triple = "aarch64-unknown-linux-gnu"\ndefine i32 @f() {\n  ret i32 0\n}\n')
             r = self.capture(Path(d) / "out", str(ll))
-            self.assertEqual(r.returncode, 1)
+            self.assertEqual(r.exit, 1)
             record = json.loads((Path(d) / "out" / "arm" / "capture.json").read_text())
             self.assertEqual(record["status"], "refused")
 
