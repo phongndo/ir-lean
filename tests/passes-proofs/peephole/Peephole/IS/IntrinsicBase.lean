@@ -144,6 +144,10 @@ theorem fsh_eval (ρ : Env) (l : Bool) (a b c : Term w) :
     (Repl.fsh l (.old a) (.old b) (.old c)).eval ρ =
       Outcome.ok ((if l then Val.fshl else Val.fshr) (a.denote ρ) (b.denote ρ) (c.denote ρ)) := rfl
 
+theorem _root_.Peephole.IS.un_denote {ρ : Env} {id : Nat} {f : UnIntr} {x : Term w} (c : (Term.un id f x).Consistent ρ) :
+    (Term.un id f x).denote ρ = f.eval (x.denote ρ) :=
+  c.2.symm
+
 /-- Each intrinsic of one operand gives poison for poison, as LangRef has it: `IRLean.Contract`'s `_strict`. -/
 theorem UnIntr.eval_none (f : UnIntr) : f.eval (none : Val w) = none := by
   cases f with
