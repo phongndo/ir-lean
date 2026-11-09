@@ -105,6 +105,10 @@ add_test(NAME llvm_scope_check COMMAND ${CMAKE_SOURCE_DIR}/tests/llvm_scope.py c
 set_tests_properties(llvm_scope llvm_scope_check PROPERTIES TIMEOUT 600)
 add_test(NAME superopt COMMAND ${CMAKE_SOURCE_DIR}/tests/superopt.py $<TARGET_FILE:ir-lean>)
 add_test(NAME names COMMAND ${CMAKE_SOURCE_DIR}/tests/names.sh)
+# The experimental undef and freeze semantics against LangRef's examples and Alive2, compiled from copies in a
+# temporary directory, one Lean or Alive2 process at a time, each Lean process capped at 2 GB and 300 s.
+add_test(NAME undef_freeze COMMAND ${CMAKE_SOURCE_DIR}/tests/undef_freeze.sh)
+set_tests_properties(undef_freeze PROPERTIES TIMEOUT 900)
 add_test(NAME verify COMMAND ${CMAKE_SOURCE_DIR}/tests/verify.py $<TARGET_FILE:ir-lean>)
 # What counts as a certificate: the gate on stored and broken results, in Python, and then a corpus of
 # wrong and right rewrites through tools/verify.py, one Lean process at a time.
