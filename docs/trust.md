@@ -141,7 +141,9 @@ Staying among the blocks of every promised loop is staying in one of them only i
 lies inside one promised loop. In reducible control flow that always holds, and the emitter refuses a function where
 it doesn't. Loop metadata is read where LangRef puts it and `Loop::getLoopID` reads it, on a loop's latches.
 Passes leave copies elsewhere, on a split exit edge or a rotated loop's header, as `clang -O2` does in zlib's
-`fill_window`, `deflate_stored` and `inflate`, and there they describe no loop and are ignored.
+`fill_window`, `deflate_stored` and `inflate`, and there they describe no loop and are ignored. Where LangRef doesn't
+say what the metadata means, the function is refused: on some of a loop's latches and not others, and off a latch in a
+function with irreducible control flow, whose cycles aren't loops.
 
 Two runs LangRef doesn't settle stop the model:
 

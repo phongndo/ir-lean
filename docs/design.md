@@ -26,12 +26,21 @@ def step : Block → Outcome (Next Block (Val 32))
     br tobool_not (.while_end add) (.while_body add shr)
   | .while_end c_0_lcssa => ret c_0_lcssa
 
+/-- The blocks of loops marked `llvm.loop.mustprogress`. -/
+def promise : Block → Bool
+  | (.while_body ..) => true
+  | _ => false
+
 end popcount
 
 def popcount (x : Val 32) : Outcome (Val 32) :=
   noundef x <|
-  run popcount.step (.entry x)
+  promised (run popcount.step (.entry x)) fun _ => runPromised popcount.promise popcount.step (.entry x)
 ```
+
+The loop is marked `llvm.loop.mustprogress`, so a run that stays in it for good is undefined, and `promise` says
+which blocks are the loop's. A function without such a promise ends in `run` alone. [Trust](trust.md#promises-to-progress)
+has the rules.
 
 ## What the model covers
 
