@@ -45,7 +45,12 @@ left, so elsewhere the step falls through, as the call returns `nullptr`.
 
 The recursive calls on the operands of two zero or two sign extensions, or of one against a constant that's an
 extension, are only right where the cast widens, as LLVM's verifier requires of `zext` and `sext`; `Term` can hold a
-`zext` that doesn't, so the model takes those steps only where `v < w`. -/
+`zext` that doesn't, so the model takes those steps only where `v < w`.
+
+`simplifyICmpInst` compares pointers too, and `Term` has none. `L3881`, `L3892`, `L4122` and `L4148` are reached by
+a compare of two pointers, so their theorems prove the integer instance, not every input, and `folds/is-icmp.json`
+lists them unproved. The other sites here need an integer operand: a cast, a `!range` or a range attribute, which
+only integers carry. -/
 
 namespace Peephole.IS
 
