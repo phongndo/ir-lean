@@ -62,6 +62,7 @@ theorem popcount_correct (x : BitVec 32) :
 | [Refinement](docs/refinement.md) | What `IRLean.Refines` says, its laws, and what a refinement certificate says about LLVM |
 | [Memory safety](docs/memory.md) | What a memory-safety theorem claims, the model of memory, and what it leaves out |
 | [Verify](docs/verify.md) | Checking a claim from a script or an agent, with a JSON answer: proved, counterexample, unsupported, timeout or error |
+| [Lemma store](docs/lemma-store.md) | Checked lemmas later proofs can find and reuse, the bar each meets, and looking one up from a script or an agent |
 | [Corpus](docs/corpus.md) | Real before-and-after IR from `opt`, one pass at a time, generated on demand for the superoptimizer and lemmas |
 | [LLVM's own code](docs/llvm.md) | What's proved about llvm-project, how to reproduce it, and what it assumes |
 | [llama.cpp](docs/llama.md) | A proved rewrite of the q4_K kernels that `clang -O3` misses, and what it does to real inference |

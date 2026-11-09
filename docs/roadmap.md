@@ -102,10 +102,10 @@ The store isn't trusted: a lemma is checked again wherever it's used. The bar is
 
 | Rule | Why | Shown today by |
 | --- | --- | --- |
-| Checked by the kernel, with only the standard axioms | Every later proof that uses it inherits what it rests on, so it can't carry `sorry` or `bv_decide`'s native-code axiom into them | `tests/check_axioms.lean` and `leanchecker`, as `generic_rewrites` runs them |
-| Stated for every width where that makes sense | A lemma at 32 bits doesn't help at 64. The q4_K store needed two core lemmas for its two widths | The 33 rewrites [#48](https://github.com/phongndo/ir-lean/pull/48) proves at every width, in [`IRLean/Generic`](../IRLean/Generic) |
-| Each hypothesis shown necessary by a counterexample | A hypothesis nothing needs makes a lemma apply less often than it could | [`RewriteCounter.lean`](../tests/generic_rewrites/RewriteCounter.lean), from #48 |
-| Reused by at least 2 proofs | A lemma one proof uses is that proof's step, not a library | Nothing yet |
+| Checked by the kernel, with only the standard axioms | Every later proof that uses it inherits what it rests on, so it can't carry `sorry` or `bv_decide`'s native-code axiom into them | `tests/check_axioms.lean` and `leanchecker` on each module holding a stored lemma, through `tools/store/store.py check` ([lemma store](lemma-store.md)) |
+| Stated for every width where that makes sense | A lemma at 32 bits doesn't help at 64. The q4_K store needed two core lemmas for its two widths | The 33 rewrites [#48](https://github.com/phongndo/ir-lean/pull/48) proves at every width, in [`IRLean/Generic`](../IRLean/Generic). `store.py check` refuses a width written as a number other than 1 |
+| Each hypothesis shown necessary by a counterexample | A hypothesis nothing needs makes a lemma apply less often than it could | [`RewriteCounter.lean`](../tests/generic_rewrites/RewriteCounter.lean), from #48, and for the store, a theorem in [`store/LemmaStore/Counter`](../store/LemmaStore/Counter) for each hypothesis, which `store.py check` checks states the lemma without it |
+| Reused by at least 2 proofs | A lemma one proof uses is that proof's step, not a library | `store.py check` counts the proofs that use each stored lemma. None of #48's rewrites has two yet |
 
 A lemma that meets the first three can wait in the store as a candidate, and counts once a second proof uses it. One
 consequence: a lemma only `bv_decide` proves, such as the prototype's steps for population counts, doesn't qualify
@@ -277,7 +277,8 @@ SEM-06 holds up only superoptimizer v2's memory candidates, not the rest of it.
 
 It waited on #48 and the CI split, which landed in #48 and #53. Five lanes:
 
-- Lemma store v1, E1, slice 22, [Phase 6](#phase-6-the-engine-and-the-lemma-store).
+- Lemma store v1, E1, slice 22, [Phase 6](#phase-6-the-engine-and-the-lemma-store). Done in
+  [#60](https://github.com/phongndo/ir-lean/pull/60).
 - The stage-1 benchmark and soundness corpus, S1, slice 29, [Phase 4](#phase-4-certified-translation-validation-and-superoptimization):
   InstCombine's own rewrites certified with `bv_decide` at fixed widths, compared with Alive2, and a corpus of known
   miscompilations, none of which may get a certificate.
@@ -405,7 +406,7 @@ Each is reached when its checks pass in CI, not on a date.
 | S4 | The safety bridge proved | 4 | F2, F4 | Not started |
 | S5 | A proved win on LLVM IR exported from MLIR | 4 | S3 | Not started |
 | S6 | A proved rewrite accepted upstream | 4 | S2 or S3 | Not started |
-| E1 | Lemma store v1 | 6 | #48 | A [prototype](lemma-reuse.md) outside the build and CI |
+| E1 | Lemma store v1 | 6 | #48 | Done in [#60](https://github.com/phongndo/ir-lean/pull/60): 163 lemmas in `lake build` and CI, each meeting rules 1 to 3, and 16 all four ([lemma store](lemma-store.md)) |
 | E2 | Executable memory model | 6 | | Not started |
 | E3 | The store makes proofs cheaper, measured | 6 | E1 | Not started |
 | T1 | Tier-1 proof tests | 7 | | Not started |
@@ -596,11 +597,13 @@ makes each proof cheaper than the last.
 
 **Where it stands:**
 
-- [`prototypes/lemma-reuse`](lemma-reuse.md) cuts proofs into lemmas and keeps them, outside the build and CI. It
-  matches lemmas word for word, so the same step written differently is a different lemma. Its vocabulary of facts
-  about operands is two facts.
-- #48's rewrites at every width meet the first three rules of [the bar](#the-flywheel). None is reused by two proofs
-  yet.
+- [Lemma store v1](lemma-store.md) is in `lake build` and CI, since [#60](https://github.com/phongndo/ir-lean/pull/60):
+  163 lemmas from #42, #46 and #48, each meeting the first three rules of [the bar](#the-flywheel), checked, and 16
+  meeting all four. It keys a statement after normalizing it, and finds lemmas by key, by `DiscrTree`, and through
+  Lean's premise selection.
+- None of #48's rewrites at every width is reused by two proofs yet. The 16 are refinement's laws, contracts and facts
+  about `BitVec w`.
+- [`prototypes/lemma-reuse`](lemma-reuse.md) is still there. None of its population-count lemmas meets the bar.
 - Refuting a candidate by running it works only for functions without memory. `Mem` is a chain of closures, which
   limits inputs to about 800 bytes, and [`tools/verify.py`](verify.md#counterexamples) answers `unsupported` for a
   witness to a function with memory.
@@ -932,7 +935,7 @@ that produced it. Current values live in [status](status.md).
 | Proved wins over `clang -O3`, on real code and on the rest | Yes, 2, neither a call real programs make on x86-64. The real-code results are on branches | The goal |
 | Speedup on a real workload, from proved rewrites | On branches only | Whether the goal matters to anyone |
 | Candidates refuted, proved, or left unknown, per search | No | Whether the engine's tiers pay |
-| Lemmas meeting each rule of the bar, and reuses per lemma | No | Whether the flywheel turns |
+| Lemmas meeting each rule of the bar, and reuses per lemma | Yes, by `tools/store/store.py check`, in CI | Whether the flywheel turns |
 | Proof-test bugs caught against the unit tests', and time | No | Whether proof tests beat what they replace |
 | Unknowns reported as passes | Checked to be 0 by the negative corpus and replay challenge | Must stay 0 |
 | Pull request CI wall time | Yes, from GitHub's job times | Speed |

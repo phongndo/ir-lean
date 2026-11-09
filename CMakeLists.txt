@@ -136,7 +136,8 @@ set_tests_properties(replay_challenge PROPERTIES RUN_SERIAL TRUE TIMEOUT 1800)
 # match: one instcombine rewrite, and the cases of mismatched evidence, one capped Lean process at a time.
 add_test(NAME binding COMMAND ${CMAKE_SOURCE_DIR}/tests/binding.py)
 # Alone, since each of its Lean processes takes up to 3.5 GB. It hashes the Lean toolchain on every check,
-# so it gets more time than it takes on a fast disk, about 5 minutes.
+# so it gets more time than it takes: about 3 minutes on 32 cores, and 10 on CI's 4 before that hashing got
+# faster.
 set_tests_properties(binding PROPERTIES RUN_SERIAL TRUE TIMEOUT 1800)
 # The scorer, on two small tests rather than llvm-project: an instance counts only when tools/binding.py
 # binds its bundle in the same run. The rules in Python first, then the scorer itself, alone, since it runs
@@ -160,6 +161,11 @@ set_tests_properties(cpp_correspondence PROPERTIES TIMEOUT 900)
 # one Lean process at a time, each capped at 2 GB and 300 s by the script itself.
 add_test(NAME generic_rewrites COMMAND ${CMAKE_SOURCE_DIR}/tests/generic_rewrites.sh)
 set_tests_properties(generic_rewrites PROPERTIES TIMEOUT 900)
+# The lemma store, docs/lemma-store.md: every stored lemma against the bar, lookup under restatements, a bad
+# lemma of each kind refused, and a proof from the store against one without it. It reads what `lake build`
+# built, and runs its Lean processes two at a time, each capped at 4 GB.
+add_test(NAME store COMMAND ${CMAKE_SOURCE_DIR}/tests/store_test.py $<TARGET_FILE:ir-lean>)
+set_tests_properties(store PROPERTIES TIMEOUT 1200)
 add_test(
     NAME zlib
     COMMAND
@@ -225,6 +231,7 @@ set_tests_properties(
     undef_freeze
     generic_rewrites
     cpp_correspondence
+    store
     PROPERTIES LABELS semantics
 )
 # These compile the same modules, and the second finds them in the cache.
