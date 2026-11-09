@@ -340,8 +340,8 @@ REASONS: dict[str, Reason] = {
     "calling convention mismatch": Reason(
         "refused",
         "long tail",
-        "A call whose calling convention isn't the "
-        "callee's, which LangRef makes undefined, refused until modeled so",
+        "A call whose calling convention or ABI attributes, such as inreg or signext, aren't the callee's, "
+        "which LangRef makes undefined, refused until modeled so",
     ),
     "attribute review": Reason(
         "refused",
@@ -842,7 +842,7 @@ FORM_RULES = [
     R("asm", "inline-asm-call"),
     R("gc", "function-with-gc"),
     R("machine", "prefix-or-prologue-data"),
-    R("calling convention mismatch", "calling-convention-mismatch"),
+    R("calling convention mismatch", "calling-convention-mismatch abi-attribute-mismatch"),
     R("attribute review", "speculatable-with-memory call-to-a-speculatable-function"),
     R("call", "indirect-call"),
     R("tail call", "tail-call musttail-call"),
@@ -1193,13 +1193,22 @@ def attribute_probes(item: Item) -> list[str]:
                     f"define {ret} @probe({params}) {{\n  {call}\n  {body}\n}}\n{group}\n"
                 )
         return out
-    return value_probes(at, [*VALUE_TYPES, "<4 x i32>"], lambda ty: attribute_text(a, ty))
+    return value_probes(
+        at, [*VALUE_TYPES, "<4 x i32>"], lambda ty: attribute_text(a, ty), a in ABI_ATTRIBUTES
+    )
 
 
-def value_probes(at: str, types: list[str], text: Callable[[str], str]) -> list[str]:
+# Attributes that have to be the same at a call and on the callee, or LangRef says the behavior may be
+# undefined, so a probe at a call puts them on the callee too. The form abi-attribute-mismatch probes one that
+# isn't.
+ABI_ATTRIBUTES = {"signext", "zeroext", "noext", "inreg", "alignstack"}
+
+
+def value_probes(at: str, types: list[str], text: Callable[[str], str], abi: bool = False) -> list[str]:
     out = []
     for ty in types:
         t = text(ty)
+        on_callee = f"{t} " if abi else ""
         if at == "parameter":
             out.append(f"define void @probe({ty} {t} %x) {{\n  ret void\n}}\n")
             out.append(f"define {ty} @probe({ty} {t} %x) {{\n  ret {ty} %x\n}}\n")
@@ -1208,12 +1217,12 @@ def value_probes(at: str, types: list[str], text: Callable[[str], str]) -> list[
             out.append(f"define {t} {ty} @probe({ty} %x) {{\n  ret {ty} %x\n}}\n")
         elif at == "call parameter":
             out.append(
-                f"define void @callee({ty} %x) {{\n  ret void\n}}\n"
+                f"define void @callee({ty} {on_callee}%x) {{\n  ret void\n}}\n"
                 f"define void @probe({ty} %x) {{\n  call void @callee({ty} {t} %x)\n  ret void\n}}\n"
             )
         elif at == "call return":
             out.append(
-                f"define {ty} @callee({ty} %x) {{\n  ret {ty} %x\n}}\n"
+                f"define {on_callee}{ty} @callee({ty} %x) {{\n  ret {ty} %x\n}}\n"
                 f"define {ty} @probe({ty} %x) {{\n  %r = call {t} {ty} @callee({ty} %x)\n  ret {ty} %r\n}}\n"
             )
     return out

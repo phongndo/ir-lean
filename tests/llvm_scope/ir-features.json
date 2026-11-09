@@ -235,7 +235,7 @@
   "calling convention mismatch": {
    "class": "refused",
    "lane": "long tail",
-   "says": "A call whose calling convention isn't the callee's, which LangRef makes undefined, refused until modeled so"
+   "says": "A call whose calling convention or ABI attributes, such as inreg or signext, aren't the callee's, which LangRef makes undefined, refused until modeled so"
   },
   "attribute review": {
    "class": "refused",
@@ -336,10 +336,10 @@
   }
  },
  "totals": {
-  "items": 17039,
+  "items": 17040,
   "modeled": 168,
   "assumed": 260,
-  "refused": 16611,
+  "refused": 16612,
   "by_kind": {
    "instruction": {
     "modeled": 38,
@@ -387,13 +387,13 @@
    "form": {
     "modeled": 10,
     "assumed": 3,
-    "refused": 33
+    "refused": 34
    }
   },
   "refused_by_lane": {
    "external calls and globals": 65,
    "floating point": 154,
-   "long tail": 1911,
+   "long tail": 1912,
    "memory": 114
   }
  },
@@ -17424,6 +17424,7 @@
   {"kind": "form", "name": "inline-asm-call", "class": "refused", "reason": "asm"},
   {"kind": "form", "name": "function-with-gc", "class": "refused", "reason": "gc"},
   {"kind": "form", "name": "prefix-or-prologue-data", "class": "refused", "reason": "machine"},
+  {"kind": "form", "name": "abi-attribute-mismatch", "class": "refused", "lane": "long tail", "reason": "calling convention mismatch"},
   {"kind": "form", "name": "calling-convention-mismatch", "class": "refused", "lane": "long tail", "reason": "calling convention mismatch"},
   {"kind": "form", "name": "call-to-a-speculatable-function", "class": "refused", "lane": "long tail", "reason": "attribute review"},
   {"kind": "form", "name": "speculatable-with-memory", "class": "refused", "lane": "long tail", "reason": "attribute review"},

@@ -2016,6 +2016,30 @@ void FunctionEmitter::emitCall(const CallBase &C, std::vector<Line> &Out) {
   else
     for (const Function *Target : Context.candidates(C.getFunctionType()))
       SameConvention(Target);
+  // LangRef: "ABI attributes must be specified *both* at the function declaration/definition and call-site,
+  // otherwise the behavior may be undefined." These are the ones the model reads as only saying how a value
+  // is passed. A variadic call's arguments past the declared ones have nothing to match.
+  auto SameABI = [&](const Function *Callee) {
+    if (Callee->isIntrinsic())
+      return;
+    auto Differ = [](AttributeSet A, AttributeSet B) {
+      for (Attribute::AttrKind Kind : {Attribute::SExt, Attribute::ZExt, Attribute::NoExt, Attribute::InReg})
+        if (A.hasAttribute(Kind) != B.hasAttribute(Kind))
+          return true;
+      return A.getStackAlignment() != B.getStackAlignment();
+    };
+    const AttributeList &Declared = Callee->getAttributes();
+    bool Mismatch = Differ(C.getAttributes().getRetAttrs(), Declared.getRetAttrs());
+    for (unsigned I = 0, E = std::min<unsigned>(C.arg_size(), Callee->arg_size()); I != E; ++I)
+      Mismatch |= Differ(C.getAttributes().getParamAttrs(I), Declared.getParamAttrs(I));
+    if (Mismatch)
+      reject("call to @" + Callee->getName().str() + " whose ABI attributes aren't the callee's");
+  };
+  if (Direct)
+    SameABI(Direct);
+  else
+    for (const Function *Target : Context.candidates(C.getFunctionType()))
+      SameABI(Target);
   bool Library = Direct && libraryFunction(*Direct);
   bool GivesUp = givesUp(C);
   if (isOutsideCall(C)) {

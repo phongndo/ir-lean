@@ -263,6 +263,27 @@ define i32 @f(i32 %x) {
   %y = call i32 @g(i32 %x)
   ret i32 %y
 }'
+# ABI attributes have to be the same at a call and on the callee, or LangRef says the behavior may be undefined.
+refuses 'ABI attributes' 'define internal i32 @g(i32 %x) { ret i32 %x }
+define i32 @f(i32 %x) {
+  %r = call i32 @g(i32 inreg %x)
+  ret i32 %r
+}'
+refuses 'ABI attributes' 'define internal signext i8 @g(i8 %x) { ret i8 %x }
+define i8 @f(i8 %x) {
+  %r = call i8 @g(i8 %x)
+  ret i8 %r
+}'
+refuses 'ABI attributes' 'declare i8 @g(i8 zeroext) memory(none)
+define i8 @f(i8 %x) {
+  %r = call i8 @g(i8 %x)
+  ret i8 %r
+}'
+accepts 'define internal i32 @g(i32 inreg %x) { ret i32 %x }
+define i32 @f(i32 %x) {
+  %r = call i32 @g(i32 inreg %x)
+  ret i32 %r
+}'
 refuses 'call attribute nobuiltin' 'declare ptr @malloc(i64)
 define ptr @f() {
   %p = call ptr @malloc(i64 8) nobuiltin

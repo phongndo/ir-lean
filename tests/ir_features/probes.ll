@@ -1419,6 +1419,15 @@ define i32 @probe(i32 %a) {
   ret i32 %r
 }
 
+; probe: form / abi-attribute-mismatch
+define internal i32 @callee(i32 %a) {
+  ret i32 %a
+}
+define i32 @probe(i32 %a) {
+  %r = call i32 @callee(i32 inreg %a)
+  ret i32 %r
+}
+
 ; probe: form / indirect-call
 define i32 @callee(i32 %a) {
   ret i32 %a
