@@ -1168,6 +1168,11 @@ def attribute_probes(item: Item) -> list[str]:
                 f"define void @probe() {{\n  call void @callee() #0\n  ret void\n}}\n{group}\n"
             ]
         return value_probes(at, ["i32"], lambda ty: text)
+    if (a, at) == ("jumptable", "call"):
+        # LLVM's verifier checks `jumptable` with `cast<GlobalValue>(V)->hasGlobalUnnamedAddr()`, and at a
+        # call `V` is the call, so the bits it reads aren't the call's. Whether a probe passes the verifier
+        # can change from run to run, as on macOS, or from shape to shape, as on Linux, so no probe is built.
+        return []
     if at in ("function", "call"):
         # In an attribute group, alignstack is written with `=`.
         text = "alignstack=8" if a == "alignstack" else ATTRIBUTE_TEXT.get(a, a)
@@ -1619,6 +1624,12 @@ UNPROBEABLE = {
     ): "only on an intrinsic's declaration; LLVM's verifier rejects it here",
     ("attribute", "function", "builtin"): "only at a call; LLVM's verifier rejects it on a function",
     ("attribute", "call", "speculatable"): "only on a function; LLVM's verifier rejects it at a call",
+    (
+        "attribute",
+        "call",
+        "jumptable",
+    ): "LLVM's verifier reads memory that isn't the call's to check it, so no probe of it is the same "
+    "every run; checkFunctionAttributes has no case for it, so the emitter refuses it",
     ("attribute", "call", "denormal_fpenv"): "only on a function; LLVM's verifier rejects it at a call",
     (
         "attribute",
