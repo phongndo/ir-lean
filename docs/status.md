@@ -197,4 +197,4 @@ reads it. That difference is itself a thing [Phase 3](roadmap.md#phase-3-c-and-r
 7. All of zlib: pointers in globals, function pointers, the C heap, vectors. Done.
 8. `crc32`. Done.
 9. Promises the optimizer leaves, checked or refused. Done, apart from `mustprogress` and `willreturn`.
-10. `inflate`: [measured](#measured). The next step is [its invariant](roadmap.md#phase-1-zlib-inflate-memory-safety).
+10. `inflate`: [measured](#measured). Its next step is [its invariant](roadmap.md#phase-1-zlib-inflate-memory-safety).
