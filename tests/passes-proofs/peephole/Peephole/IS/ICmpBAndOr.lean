@@ -560,7 +560,7 @@ theorem _root_.Peephole.IS.simplifyAndOfICmpsWithAdd.L1688 (ρ : Env) (d : Bool)
   obtain ⟨⟨⟨⟨hm', h0⟩, hd⟩, rfl⟩, rfl⟩ := h
   exact andAdd_false cc0 cc1 hk0 hk1 hm fun av hu hs => by
     rw [eq_add_ofNat hd]
-    exact Lemmas.ule_add_one_and_sgt (toInt_pos hm' h0)
+    exact (Bool.and_comm _ _).trans (Lemmas.ule_add_one_and_sgt (toInt_pos hm' h0))
 
 /-- `IS.simplifyAndOfICmpsWithAdd.L1690`: `(V +nsw C0 <=s C1) & (V >s C0)` to false, for `C0 >s 0` and `C1 - C0 == 1`. -/
 theorem _root_.Peephole.IS.simplifyAndOfICmpsWithAdd.L1690 (ρ : Env) (d : Bool) {id0 id1 aid : Nat} {p0 p1 : Pred} {s0 s1 : Bool} {f : Flags}
@@ -650,7 +650,7 @@ theorem _root_.Peephole.IS.simplifyOrOfICmpsWithAdd.L1778 (ρ : Env) (d : Bool) 
   obtain ⟨⟨⟨⟨hm', h0⟩, hd⟩, rfl⟩, rfl⟩ := h
   exact orAdd_true cc0 cc1 hk0 hk1 hm fun av hu hs => by
     rw [eq_add_ofNat hd]
-    exact Lemmas.ule_add_one_and_sgt (toInt_pos hm' h0)
+    exact (Bool.and_comm _ _).trans (Lemmas.ule_add_one_and_sgt (toInt_pos hm' h0))
 
 /-- `IS.simplifyOrOfICmpsWithAdd.L1780`: `(V +nsw C0 >s C1) | (V <=s C0)` to true, for `C0 >s 0` and `C1 - C0 == 1`. -/
 theorem _root_.Peephole.IS.simplifyOrOfICmpsWithAdd.L1780 (ρ : Env) (d : Bool) {id0 id1 aid : Nat} {p0 p1 : Pred} {s0 s1 : Bool} {f : Flags}
