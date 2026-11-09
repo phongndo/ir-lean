@@ -21,7 +21,6 @@ from __future__ import annotations
 
 import argparse
 import contextlib
-import hashlib
 import importlib.util
 import itertools
 import json
@@ -32,7 +31,6 @@ import random
 import re
 import secrets
 import shutil
-import subprocess
 import sys
 import threading
 import time
@@ -44,6 +42,7 @@ from typing import Any, NoReturn
 
 ROOT = Path(__file__).resolve().parent.parent.parent
 sys.path.append(str(ROOT / "tools"))
+from irlean import hashing, lean, proc, schemas  # noqa: E402
 from irlean import verdict as core  # noqa: E402
 
 
@@ -65,9 +64,9 @@ DEFAULT_STORE = ROOT / "build" / "prooftest" / "store"
 # Runs kept under build/prooftest/runs when no --work-dir is given. An explicit one is never deleted.
 RUNS_KEPT = 20
 
-SCHEMA = "ir-lean.prooftest/1"
-REQUEST_SCHEMA = "ir-lean.prooftest.request/1"
-STORE_SCHEMA = "ir-lean.prooftest.store/1"
+SCHEMA = schemas.PROOFTEST
+REQUEST_SCHEMA = schemas.PROOFTEST_REQUEST
+STORE_SCHEMA = schemas.PROOFTEST_STORE
 
 DEFAULTS: dict[str, Any] = {
     "seed": 0,
@@ -471,9 +470,7 @@ def property_key(statement: str, binders: list[dict[str, Any]]) -> str:
     """Names a property by its elaborated statement and binders, and not by the code. So an input that once
     failed is tried again after the code changes, as Hypothesis keys its database by the test."""
     shape = [[b["name"], b["kind"], b.get("width")] for b in binders]
-    return hashlib.sha256(
-        json.dumps({"statement": statement, "binders": shape}, sort_keys=True).encode()
-    ).hexdigest()[:32]
+    return hashing.sha256_text(json.dumps({"statement": statement, "binders": shape}, sort_keys=True))[:32]
 
 
 def fits(binders: list[dict[str, Any]], values: list[Any]) -> bool:
@@ -559,27 +556,12 @@ class Evaluated:
     stuck: int | None = None
 
 
-def rss_mb(pid: int) -> float | None:
-    """A process's resident memory, in MiB."""
-    with contextlib.suppress(OSError, ValueError):
-        if sys.platform.startswith("linux"):
-            for line in Path(f"/proc/{pid}/status").read_text().splitlines():
-                if line.startswith("VmRSS:"):
-                    return int(line.split()[1]) / 1024
-            return None
-        out = subprocess.run(
-            ["ps", "-o", "rss=", "-p", str(pid)], capture_output=True, text=True, check=False
-        )
-        return int(out.stdout.strip()) / 1024 if out.stdout.strip() else None
-    return None
-
-
 class Harness:
     """tools/prooftest/Harness.lean, running as a server in one Lean process, with a memory watchdog."""
 
     def __init__(self, run: Run) -> None:
         self.run = run
-        self.process: subprocess.Popen[str] | None = None
+        self.process: proc.Popen[str] | None = None
         self.answers: queue.Queue[str | None] = queue.Queue()
         # Set by the watchdog when Lean runs past the memory limit, and it kills Lean.
         self.over_memory = threading.Event()
@@ -624,20 +606,19 @@ class Harness:
             "LEAN_ABORT_ON_PANIC": "1",
         }
         memory = run.request["limits"]["memory_mb"]
-        argv = ["lean", "-M", str(memory), "-s", "65536", f"--load-dynlib={verify.DYLIB}"]
+        argv = lean.argv(memory, f"--load-dynlib={verify.DYLIB}")
         argv += ["-Dinterpreter.prefer_native=true", str(source)]
         run.commands.append({"step": f"harness:{self.starts}", "argv": argv, "cwd": str(ROOT)})
         try:
-            self.process = subprocess.Popen(
+            self.process = proc.spawn(
                 argv,
-                stdin=subprocess.PIPE,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.STDOUT,
+                stdin=proc.PIPE,
+                stdout=proc.PIPE,
+                stderr=proc.STDOUT,
                 text=True,
                 bufsize=1,
                 cwd=ROOT,
                 env=env,
-                start_new_session=True,
             )
         except OSError as error:
             raise Stop("toolchain_missing", f"can't run lean: {error}") from error
@@ -669,7 +650,7 @@ class Harness:
     def limit(self) -> str | None:
         return "memory_limit" if self.over_memory.is_set() else None
 
-    def _read(self, process: subprocess.Popen[str], answers: queue.Queue[str | None]) -> None:
+    def _read(self, process: proc.Popen[str], answers: queue.Queue[str | None]) -> None:
         marker = f"IRLEAN_PROOFTEST {self.run.nonce} "
         assert process.stdout is not None
         for line in process.stdout:
@@ -679,12 +660,12 @@ class Harness:
                 self.other.append(line)
         answers.put("")
 
-    def _watch(self, process: subprocess.Popen[str], memory_mb: int, over: threading.Event) -> None:
+    def _watch(self, process: proc.Popen[str], memory_mb: int, over: threading.Event) -> None:
         while process.poll() is None:
-            used = rss_mb(process.pid)
+            used = proc.rss_mb(process.pid)
             if used is not None and used > memory_mb:
                 over.set()
-                verify.kill_group(process.pid)
+                proc.kill_tree(process.pid)
                 return
             time.sleep(0.05)
 
@@ -752,7 +733,7 @@ class Harness:
 
     def wait(self) -> None:
         if self.process is not None:
-            with contextlib.suppress(subprocess.TimeoutExpired):
+            with contextlib.suppress(proc.TimeoutExpired):
                 self.process.wait(timeout=5)
 
     def stop(self) -> None:
@@ -764,17 +745,11 @@ class Harness:
             self.send({"op": "quit"})
             try:
                 self.process.wait(timeout=5)
-            except subprocess.TimeoutExpired:
+            except proc.TimeoutExpired:
                 killed = True
-        verify.kill_group(self.process.pid)
-        with contextlib.suppress(subprocess.TimeoutExpired):
-            self.process.wait(timeout=5)
-        code = self.process.returncode
+        proc.stop(self.process)
         limit = self.limit() or ("stopped" if killed else None)
-        self.ended = core.Step("harness", code, limit, "".join(self.other[-50:]))
-        if self.process.stdin:
-            with contextlib.suppress(OSError):
-                self.process.stdin.close()
+        self.ended = core.Step("harness", self.process.returncode, limit, "".join(self.other[-50:]))
         self.process = None
 
 
@@ -1122,7 +1097,7 @@ def prooftest(
         request = load_request(raw, base)
     except Stop as stop:
         return invalid_result(stop.detail, raw)
-    digest = hashlib.sha256(json.dumps(request, sort_keys=True).encode()).hexdigest()[:12]
+    digest = hashing.sha256_text(json.dumps(request, sort_keys=True))[:12]
     if work is None:
         RUNS.mkdir(parents=True, exist_ok=True)
         prune_runs()
@@ -1372,8 +1347,8 @@ def build_result(run: Run, started: float) -> dict[str, Any]:
         else None,
         "versions": {
             **(setup.get("versions") or {}),
-            "harness_sha256": hashlib.sha256(HARNESS.read_bytes()).hexdigest(),
-            "prooftest_sha256": hashlib.sha256(Path(__file__).read_bytes()).hexdigest(),
+            "harness_sha256": hashing.sha256_file(HARNESS),
+            "prooftest_sha256": hashing.sha256_file(Path(__file__)),
         },
         "reproduce": {
             "request": str(run.work / "request.json"),

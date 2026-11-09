@@ -84,6 +84,8 @@ class Run(unittest.TestCase):
         )
         r = proc.run([PY, "-c", code, str(ROOT / "tools")], stdin="payload")
         self.assertEqual(r.out.strip(), "payload")
+        # Text that spells it is still text.
+        self.assertEqual(proc.run([PY, "-c", inner], stdin="inherit").out.strip(), "inherit")
 
     def test_output_to_a_file(self) -> None:
         with tempfile.TemporaryDirectory() as d:
@@ -205,8 +207,21 @@ class Run(unittest.TestCase):
         p.stdin.flush()
         self.assertEqual(p.stdout.readline().strip(), "cba")
         proc.stop(p, grace=0.1)
+        p.stdout.close()
         self.assertIsNotNone(p.returncode)
         self.assertNotIn(p.pid, proc._LIVE)
+        self.assertTrue(p.stdin.closed)
+
+    def test_rss(self) -> None:
+        p = proc.spawn(
+            [PY, "-c", "import time; x = bytearray(80 << 20); x[::4096] = b'1' * 20480; time.sleep(60)"]
+        )
+        deadline = time.monotonic() + 10
+        while (proc.rss_mb(p.pid) or 0) < 70 and time.monotonic() < deadline:
+            time.sleep(0.05)
+        self.assertGreater(proc.rss_mb(p.pid) or 0, 70)
+        proc.stop(p)
+        self.assertIsNone(proc.rss_mb(p.pid))
 
     def test_kill_live_stops_every_running_command(self) -> None:
         p = proc.spawn([PY, "-c", "import time; time.sleep(60)"])
