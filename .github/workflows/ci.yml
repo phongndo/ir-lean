@@ -68,7 +68,7 @@ jobs:
         # A job for each of these ctest labels, set in CMakeLists.txt, runs the tests with it, so the longest
         # tests don't wait for each other. `rest` runs every other test the `lint` and `slow` jobs don't, so a
         # test with no label still runs, and first checks that CI runs each test exactly once.
-        shard: &labels [passes, binding, binding_2, llvm, semantics, llama, llama_mutants, proofs]
+        shard: &labels [passes, binding, binding_2, llvm, semantics, llama, llama_mutants, proofs, verify_claims]
         include:
           - shard: rest
             labels: *labels
