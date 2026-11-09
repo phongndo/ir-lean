@@ -141,7 +141,41 @@ def static_checks(pt: Any) -> list[str]:
         "a failure the confirmation contradicts",
     )
     confirmed = {"evidence": ["kernel"], "kernel": {"ok": True}, "shown": {"x": "1#8"}}
-    check(decided(counterexample=confirmed) == ("counterexample", "kernel_refuted"), "a confirmed failure")
+    clean = {"kernel": pt.core.Step("harness", 0)}
+    check(
+        decided(counterexample=confirmed, confirmed_by=clean) == ("counterexample", "kernel_refuted"),
+        "a confirmed failure",
+    )
+    # The answer counts only from a harness that then ended cleanly, and so does tools/verify.py's.
+    for ended in (None, pt.core.Step("harness", -11), pt.core.Step("harness", -9, limit="stopped")):
+        by = {} if ended is None else {"kernel": ended}
+        check(
+            decided(counterexample=confirmed, confirmed_by=by)[0] != "counterexample",
+            f"a kernel answer from a harness that ended {ended} refutes nothing",
+        )
+    # Where tools/verify.py records how its witness process ended: under reproduce.commands, as each
+    # command it ran, which is what the confirmation reads.
+    v = pt.verify
+    shape = v.Run({"input": {"ir": "x.ll"}, "statement": "True", "witnesses": []}, Path(), Path(), 0.0, 0.0)
+    shape.commands = [{"step": "claim:witness", "exit": 0, "timed_out": False}]
+    shape.request["limits"] = {"timeout_seconds": 1, "memory_mb": 1}
+    recorded = v.build_result(shape)
+    check(
+        pt.witness_step(recorded) == pt.core.Step("claim:witness", 0),
+        "the witness process is found where tools/verify.py records it",
+    )
+    timed = {"reproduce": {"commands": [{"step": "claim:witness", "exit": -9, "timed_out": True}]}}
+    check(
+        pt.witness_step(timed) == pt.core.Step("claim:witness", -9, "time_limit"), "a timed-out witness run"
+    )
+    check(pt.witness_step({"reproduce": None}) is None, "no record, no process")
+    evaluated = {**confirmed, "evidence": ["compiled_evaluation"]}
+    for ended, want in ((pt.core.Step("claim:witness", 0), "counterexample"), (None, "unknown")):
+        by = {} if ended is None else {"compiled_evaluation": ended}
+        check(
+            decided(counterexample=evaluated, confirmed_by=by)[0] == want,
+            f"compiled evaluation, its process {ended}, is {want}",
+        )
 
     # The contract turns a result that breaks it into unknown/internal_error.
     run = pt.Run({"min_satisfied": 10}, Path(), Path(), 0.0, 0.0)

@@ -473,6 +473,13 @@ CASES: list[tuple[str, Callable[[str], Path], list[str], tuple[str, str]]] = [
         [],
         ("refused", "toolchain_mismatch"),
     ),
+    # tools/irlean decides the verdict with tools/binding.py, so a bundle recorded with another one is stale.
+    (
+        "stale_library",
+        lambda n: edit_manifest(good(n), lambda m: m["toolchain"].update(irlean_py_sha256="0" * 64)),
+        [],
+        ("refused", "toolchain_mismatch"),
+    ),
 ]
 
 

@@ -29,7 +29,11 @@ from dataclasses import dataclass
 from pathlib import Path
 
 import alive
-from llvm import LEAN_ERROR, LIMIT, PROOFS, ROOT, Pipeline, run
+from llvm import LEAN_ERROR, LIMIT, PROOFS, ROOT, TIMEOUT_SECONDS, Pipeline, run
+
+sys.path.append(str(ROOT / "tools"))
+from irlean import proc
+from irlean import verdict as core
 
 REWRITES = PROOFS / "rewrites"
 
@@ -372,11 +376,13 @@ def main() -> int:
                     )
 
         try:
-            pipeline.compile_lean(work, PROOFS / "Rewrites.lean", PROOFS)
+            compiled = pipeline.compile_ran(work, PROOFS / "Rewrites.lean", PROOFS)
             namespaces = " ".join(n for f in FUNCTIONS for n in (f[0], f"Rw{f[4]}"))
-            axioms = pipeline.axioms(work, "Rewrites", namespaces, "\n".join(theorems))
-            for module in ["Rewrites", *config.get("support", [])]:
-                pipeline.replay(work, module)
+            axioms, proved = pipeline.proved(
+                work, compiled, "Rewrites", namespaces, "\n".join(theorems), tuple(config.get("support", []))
+            )
+            if not proved.granted:
+                raise RuntimeError(f"Rewrites.lean isn't proved: {proved.detail}")
             print(f"ok    Rewrites.lean (axioms: {axioms})")
         except RuntimeError as error:
             print(f"FAIL  Rewrites.lean\n{str(error)[:4000]}")
@@ -403,29 +409,42 @@ def main() -> int:
         pipeline.lean(
             wrong, "-R", str(wrong), "-o", str(wrong / "RwClzsi2.olean"), str(wrong / "RwClzsi2.lean")
         )
-        result = subprocess.run(
+        result = proc.run(
             ["lean", "-M", pipeline.memory, str(PROOFS / "Rewrites.lean")],
             env={**os.environ, "LEAN_PATH": f"{wrong}:{work}:{ROOT}/.lake/build/lib/lean"},
-            capture_output=True,
-            text=True,
-            check=False,
+            timeout=TIMEOUT_SECONDS,
         )
-        wrong_alive = subprocess.run(
+        wrong_alive = proc.run(
             ["alive-tv", "--disable-undef-input", str(work / "CrtClzsi2.ll"), str(wrong_ir)],
-            capture_output=True,
-            text=True,
-            check=False,
+            timeout=alive.TIMEOUT_SECONDS,
         )
         # Running out of time or memory says the theorem might still check, so only another error counts.
-        errors = [line for line in result.stdout.splitlines() if LEAN_ERROR.match(line)]
-        if result.returncode == 0:
+        errors = [line for line in result.out.splitlines() if LEAN_ERROR.match(line)]
+        own = [e for e in errors if not LIMIT.search(e)]
+        lean_caught = core.decide(
+            core.Verdict.CAUGHT,
+            core.Evidence(step=core.Step.of("lean", result), finding=own[0] if own else None),
+        )
+        # alive-tv exits 0 whatever it found, so what it found is in its summary.
+        alive_caught = core.decide(
+            core.Verdict.CAUGHT,
+            core.Evidence(
+                step=core.Step.of("alive-tv", wrong_alive),
+                found_exit=0,
+                finding="incorrect" if alive.verdict(wrong_alive.out) == "incorrect" else None,
+            ),
+        )
+        if result.exit == 0:
             print("FAIL  a wrong rewrite still passes the Lean theorem")
             failed = True
-        elif not [e for e in errors if not LIMIT.search(e)]:
-            print(f"FAIL  unknown whether a wrong rewrite stops the theorem:\n{result.stdout[:1000]}")
+        elif not lean_caught.granted:
+            print(
+                f"FAIL  unknown whether a wrong rewrite stops the theorem, since {lean_caught.detail}:\n"
+                f"{result.out[:1000]}"
+            )
             failed = True
-        elif alive.verdict(wrong_alive.stdout) != "incorrect":
-            print(f"FAIL  Alive2 didn't reject a wrong rewrite:\n{wrong_alive.stdout[:1000]}")
+        elif not alive_caught.granted:
+            print(f"FAIL  Alive2 didn't reject a wrong rewrite:\n{wrong_alive.out[:1000]}")
             failed = True
         else:
             print("ok    a wrong rewrite stops the theorem, and Alive2 rejects it")

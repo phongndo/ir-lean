@@ -63,8 +63,56 @@ the native vector comparisons, the explicit lane-order and poison cases in `test
 | x86 intrinsics in `IRLean/X86.lean` | Trusted, written from Intel's pseudo-code | Doesn't match the processor, or LLVM's reading of the intrinsic | `tests/real/x86.ll` against the processor, saturation and wrapping included, which needs AVX-512 VNNI. `tests/x86check.py` against Alive2 and LLVM's constant folder, poison included, for PMADDUBSW and PMADDWD. Neither knows VPDPBUSD | An independent check of VPDPBUSD |
 | Lean kernel | Trusted | A kernel bug | Lean's own process | Nothing planned |
 | `bv_decide` | Trusted | Proofs using it also trust Lean's compiled code through the axiom it adds for each call | [`tests/check_axioms.lean`](../tests/check_axioms.lean), which reads a proof and its imports as data, allows only these and the standard three, reruns each in a file with none of the proof's code, refuses `implemented_by` and `extern`, and counts them per proof. `leanchecker` then replays the proof through the kernel | Nothing planned |
+| Python glue in `tools/` and `tests/` | Trusted for which file, theorem and finding a verdict is about. Not for whether one counts: only [`irlean.verdict`](#where-python-decides-a-verdict) grants that | Counting a crash, a limit, a failed compile or a missing file as success, as happened three times before it | [`tests/verdict_test.py`](../tests/verdict_test.py), over every combination of how the processes a verdict rests on end, and the past bugs | Keep it small, [Python](python.md) |
 | Spec and theorem statement | Read by a person | The theorem proves the wrong thing | Review, and known test vectors | Publish statements separately from proofs |
 | Backend, linker, loader, hardware | Outside every theorem | Everything below IR | Native-code comparison, as evidence | Not planned. A research question for after [Phase 5](roadmap.md#phase-5-public-api-adoption-and-publication) |
+
+## Where Python decides a verdict
+
+Lean's kernel checks proofs, but Python decides which file, which theorem and which verdict count. That went wrong
+three times before 2026-11-09: a native check that crashed counted as catching a wrong rewrite, and a slice that failed to
+compile counted as a refutation, both found in [#57](https://github.com/phongndo/ir-lean/pull/57), and the old scorer
+counted cached results whose certificates were gone, found in [#51](https://github.com/phongndo/ir-lean/pull/51).
+
+Since 2026-11-09 one function decides: `decide` in [`tools/irlean/verdict.py`](../tools/irlean/verdict.py). Every tool
+and test that says something is proved, certified, refuted or caught asks it, and says so only if it grants it. It grants
+one only on clean evidence: each process it rests on ended on its own, with the exit code that means success, and no limit
+stopped it. Anything else is `unknown`, if a limit could explain it and more time or memory might decide it, or `error`.
+Never success.
+
+| Claim | What it needs, besides every file it's about being there and every other check passing |
+| --- | --- |
+| Proved | A module that `lean` compiled, `leanchecker` replayed and the axiom audit, [`tests/check_axioms.lean`](../tests/check_axioms.lean) or the policy it applies, passed, each exiting 0. Or a record from `tools/verify.py` saying `proved`, from a process that exited 0 |
+| Certified | The same, about at least one file, the evidence it's bound to. Or a verdict the same checker stored for exactly these files and tools. Or a record from `tools/binding.py` saying `bound`, or from `tools/verify.py` saying `proved`, each exiting 0 |
+| Refuted | A module, as for proved, of a theorem that the claim is false. Or the kernel accepting such a theorem inside a Lean process, as [proof tests](proof-tests.md) do, or the model's compiled code finding the claim false at an input, as `tools/verify.py`'s witnesses do, each only if the process that answered then ended cleanly. Or a record saying `counterexample`, from a process that exited 2 |
+| Caught | A check that has to fail on wrong code, ending on its own with the exit code that says it found something, and saying what it found, which isn't a resource limit: a Lean error of its own, a native check that exits 3, or Alive2's count of an incorrect transformation |
+
+What counts as a limit, and so `unknown`: a time limit or memory cap its runner enforced, a process killed by `SIGKILL`,
+which is how a cap or the OOM killer stops one, or one of Lean's limit errors in the output of a Lean process that
+failed. Exit codes count only as exact integers, since in Python `False == 0`, and a checker's record has to say the
+exit code its process ended with.
+
+The caller still chooses the file, the theorem and the finding. What `decide` makes sure of is that nothing a verdict
+rests on crashed, ran out of something or failed, and that nothing it needs is missing. These ask it:
+
+| Where | Asks for |
+| --- | --- |
+| `tools/verify.py` | Proved, and refuted by a witness |
+| `tools/binding.py` | Certified, for a replay and for a cache hit |
+| `tools/prooftest/prooftest.py` | Refuted, by the kernel or by `tools/verify.py` |
+| `tools/store/store.py` | Proved, for each lemma the bar admits |
+| `tests/llvm.py` | Proved, for each target, and caught, for each injected bug |
+| `tests/llama.py` | Proved, for each slice, refuted, for a wrong rewrite Lean shows differs, and caught, by a theorem stopping or the native check |
+| `tests/superopt.py` | Proved, for `Rewrites.lean`, and caught, by Lean and by Alive2, for the wrong rewrite |
+| `tests/passes.py` | Certified, for an instance `tools/binding.py` binds |
+| `tests/verify_negative.py` | Certified, for a result the gate passes |
+| `tests/cpp_correspondence.py` | Proved, for the model, and caught, for each broken model |
+
+`tools/binding.py` names `tools/irlean`'s files by hash in a bundle's toolchain, as it does itself, since they decide its
+verdict too: that's `ir-lean.binding.manifest/2`. The shell tests, such as `tests/proofs.sh`, decide in shell, and
+reading Alive2's own output is `tests/alive.py`'s; each has its own tests. `tests/verdict_test.py` checks `decide` over
+more than 100,000 combinations of how each process ended, each file and each check, breaks each grant in every way
+listed, one and two at a time, and checks each place above asks it.
 
 ## Known gaps in the model
 
