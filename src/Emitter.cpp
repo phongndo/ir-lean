@@ -1776,6 +1776,41 @@ bool FunctionEmitter::emitIntrinsic(const IntrinsicInst &C, std::vector<Line> &O
     return true;
   };
   auto Lanes = [&] { return std::to_string(cast<FixedVectorType>(C.getType())->getNumElements()); };
+  // A length in bytes, which LangRef reads as unsigned, as the 64 bits `Mem` counts in.
+  auto Length = [&](unsigned N) {
+    unsigned Width = C.getArgOperand(N)->getType()->getIntegerBitWidth();
+    if (Width > 64)
+      reject("instruction " + printed(C));
+    return Width == 64 ? Op(N) : "(Val.zext 64 " + Op(N) + ")";
+  };
+  // These print the scalar operation, which on vectors isn't the lane-by-lane one LangRef gives, nor even
+  // Lean that elaborates. tests/ir_features.py elaborates what this prints for every intrinsic it translates.
+  auto ScalarOnly = [&] {
+    if (any_of(C.args(), [](const Use &U) { return U->getType()->isVectorTy(); }))
+      reject("intrinsic " + C.getCalledFunction()->getName().str() + " of vectors");
+  };
+  switch (C.getIntrinsicID()) {
+  case Intrinsic::ctpop:
+  case Intrinsic::bitreverse:
+  case Intrinsic::bswap:
+  case Intrinsic::ctlz:
+  case Intrinsic::cttz:
+  case Intrinsic::abs:
+  case Intrinsic::fshl:
+  case Intrinsic::fshr:
+  case Intrinsic::uadd_with_overflow:
+  case Intrinsic::sadd_with_overflow:
+  case Intrinsic::usub_with_overflow:
+  case Intrinsic::ssub_with_overflow:
+  case Intrinsic::umul_with_overflow:
+  case Intrinsic::smul_with_overflow:
+  case Intrinsic::ucmp:
+  case Intrinsic::scmp:
+    ScalarOnly();
+    break;
+  default:
+    break;
+  }
   switch (C.getIntrinsicID()) {
   case Intrinsic::assume:
     for (unsigned B = 0, E = C.getNumOperandBundles(); B != E; ++B) {
@@ -1805,12 +1840,12 @@ bool FunctionEmitter::emitIntrinsic(const IntrinsicInst &C, std::vector<Line> &O
   case Intrinsic::memset:
     if (BoolArg(3) != "false")
       reject("instruction " + printed(C));
-    addMemoryUpdate(Out, "Mem.memset m " + Op(0) + " " + Op(1) + " " + Op(2));
+    addMemoryUpdate(Out, "Mem.memset m " + Op(0) + " " + Op(1) + " " + Length(2));
     return true;
   case Intrinsic::memcpy:
     if (BoolArg(3) != "false")
       reject("instruction " + printed(C));
-    addMemoryUpdate(Out, "Mem.memcpy m " + Op(0) + " " + Op(1) + " " + Op(2));
+    addMemoryUpdate(Out, "Mem.memcpy m " + Op(0) + " " + Op(1) + " " + Length(2));
     return true;
   case Intrinsic::vector_reduce_add:
     return Reduce("Val.add");
@@ -1906,6 +1941,20 @@ bool FunctionEmitter::emitIntrinsic(const IntrinsicInst &C, std::vector<Line> &O
 
 void FunctionEmitter::emitCall(const CallBase &C, std::vector<Line> &Out) {
   const Function *Direct = C.getCalledFunction();
+  // LangRef: "The calling convention of any pair of dynamic caller/callee must match, or the behavior of the
+  // program is undefined." The model would run such a call, so it's refused, as is a call through a pointer
+  // that can reach a function with another.
+  auto SameConvention = [&](const Function *Callee) {
+    if (Callee->getCallingConv() != C.getCallingConv())
+      reject("call with calling convention " + std::to_string(C.getCallingConv()) + " to @" +
+             Callee->getName().str() + ", whose calling convention is " +
+             std::to_string(Callee->getCallingConv()));
+  };
+  if (Direct)
+    SameConvention(Direct);
+  else
+    for (const Function *Target : Context.candidates(C.getFunctionType()))
+      SameConvention(Target);
   bool Library = Direct && libraryFunction(*Direct);
   bool GivesUp = givesUp(C);
   if (isOutsideCall(C)) {

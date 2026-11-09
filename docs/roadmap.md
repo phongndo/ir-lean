@@ -847,7 +847,9 @@ source allows:
 
 - **Inventory:** `ir-lean --report` lists, for an input, every opcode, intrinsic, attribute, metadata
   kind and linkage it saw, and how each was handled. A table in the repo classifies each as modeled,
-  refused or assumed.
+  refused or assumed. The table is done, as SEM-08 on 2026-11-09: [IR features](ir-features.md) classifies all
+  17,033 items the pinned IR can contain, and a test fails if one is unclassified or the emitter disagrees with its
+  class. `--report` listing what one input contains is still to do.
 - **Promises:** done for what zlib's IR contains, including [`mustprogress` and `willreturn`](trust.md#promises-to-progress)
   since SEM-07. What Rust emits everywhere, starting with `noalias` on arguments, is refused until
   [Phase 3](#phase-3-c-and-rust-demonstrations) needs it. An independent check of these rules, as Alive2 is for GEPs,
