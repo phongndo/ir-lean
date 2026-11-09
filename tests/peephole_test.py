@@ -186,8 +186,10 @@ class Classify(unittest.TestCase):
         self.assertEqual(self.outcome(fires, after("%v0")).mismatched, 1)
         # Neither folds.
         self.assertEqual(self.outcome({"result": {"null": True}}, after("%r")).agreed_no_fold, 1)
-        # opt folds, the model doesn't: an analysis that answered yes explains it, or nothing does.
-        explained = {"result": {"null": True}, "analysis": {"oracle": "x", "site": "IS.f.L2"}}
+        # opt folds, the model doesn't: an analysis explains it if the model, with the oracle that made it
+        # fire, gives opt's answer. Otherwise, or with no such oracle, nothing does.
+        zero = {"k": "const", "w": 8, "c": "0"}
+        explained = {"result": {"null": True}, "analysis": {"oracle": "x", "site": "IS.f.L2", "value": zero}}
         t = self.outcome(explained, after("0"))
         self.assertEqual((t.analysis, t.sites["IS.f.L2"]["analysis"], t.mismatched), (1, 1, 0))
         t = self.outcome({"result": {"null": True}}, after("0"))
@@ -198,6 +200,26 @@ class Classify(unittest.TestCase):
         # An operand changed first: left out, even where the answers differ.
         t = self.outcome(fires, after("%r", changed=True))
         self.assertEqual((t.operand_changed, t.compared, t.mismatched), (1, 0, 0))
+
+    def test_an_analysis_that_answers_otherwise_explains_nothing(self) -> None:
+        """`@and_trunc_nuw_implied` in and-or-implied-cond.ll: with an oracle that says yes, the model of
+        `simplifyAndInst` fires at L2229 and answers its operand `%n1`, while opt answers `%n3`, through
+        simplifyWithOpReplaced. That's not an analysis explaining opt's fold. Here the two values are `%v1`
+        and `%n5`."""
+        other = {"k": "old", "w": 8, "t": {"node": 1}}
+        answer = {
+            "result": {"null": True},
+            "analysis": {"oracle": "x", "site": "IS.simplifyAndInst.L2229", "value": other},
+        }
+        t = self.outcome(answer, after("%n5"))
+        self.assertEqual((t.analysis, t.unexplained), (0, 1))
+        self.assertNotIn("IS.simplifyAndInst.L2229", t.sites)
+        self.assertEqual(t.unexplained_cases[0]["model_with_an_analysis"], "%v1")
+
+    def test_folds_run_only_count_in_compared_cases(self) -> None:
+        reached = {"result": {"null": True}, "ran": ["Peephole.IS.g"]}
+        self.assertEqual(self.outcome(reached, after("%r")).folds_run, {"Peephole.IS.g": "c"})
+        self.assertEqual(self.outcome(reached, after("%r", changed=True)).folds_run, {})
 
 
 def step(name: str, exit_: int = 0, limit: str | None = None, output: str = "") -> core.Step:
@@ -226,19 +248,33 @@ class Counts(unittest.TestCase):
         "bv_decide": 0,
     }
 
-    def decide(self, **change: Any) -> core.Decision:
+    def judge(self, **change: Any) -> tuple[str, core.Decision]:
         a: dict[str, Any] = {
             "found": self.FOUND,
             "snd": self.SND,
             "built": step("lake"),
             "ran": self.RAN,
             "why_not": "",
+            "compared": True,
+            "uncovered": frozenset(),
         } | change
         return peephole.counts(
-            "IS.f.L1", a["found"], self.SOUND, a["snd"], a["built"], a["ran"], a["why_not"]
+            "IS.f.L1",
+            a["found"],
+            self.SOUND,
+            a["snd"],
+            a["built"],
+            a["ran"],
+            a["why_not"],
+            a["compared"],
+            a["uncovered"],
         )
 
+    def decide(self, **change: Any) -> core.Decision:
+        return self.judge(**change)[1]
+
     def test_every_rule(self) -> None:
+        self.assertEqual(self.judge()[0], "counted")
         self.assertTrue(self.decide().granted)
         broken = {
             "no theorem": {"found": None},
@@ -257,8 +293,19 @@ class Counts(unittest.TestCase):
         for what, change in broken.items():
             with self.subTest(what):
                 self.assertFalse(self.decide(**change).granted)
+                self.assertEqual(self.judge(**change)[0], "not counted")
         limited = self.decide(ran={**self.RAN, "leanchecker": step("leanchecker", -9, "time_limit")})
         self.assertEqual(limited.verdict, core.Verdict.UNKNOWN)
+
+    def test_proved_but_not_counted(self) -> None:
+        # A fold no compared run reached: its model was never run against opt.
+        status, decision = self.judge(compared=False)
+        self.assertEqual((status, decision.granted), ("proved, model not compared with opt", False))
+        # An integer proof of a rewrite the inventory says needs floating point too.
+        status, decision = self.judge(uncovered=frozenset({"fp"}))
+        self.assertEqual((status, decision.granted), ("integer instance proved", False))
+        # A broken proof is broken first, whatever else holds.
+        self.assertEqual(self.judge(found=None, compared=False)[0], "not counted")
 
 
 class Records(unittest.TestCase):
@@ -274,6 +321,20 @@ class Records(unittest.TestCase):
             self.assertIn("mismatch", peephole.recorded(reg)[1])
             path.write_text(json.dumps({**base, "sources": peephole.model_hash(reg), "status": "ok"}))
             self.assertEqual(peephole.recorded(reg)[1], "")
+
+    def test_only_current_clean_comparisons_show_runs(self) -> None:
+        good = {
+            "status": "ok",
+            "folds_run": {"F": "c1"},
+            "sites": {"S1": {"matched": 2}, "S2": {"matched": 0}},
+        }
+        stale = {"status": "ok", "folds_run": {"G": "c2"}, "sites": {"S3": {"matched": 1}}}
+        bad = {"status": "mismatch", "folds_run": {"H": "c3"}, "sites": {"S4": {"matched": 1}}}
+        helper = {"status": "no entry points", "folds_run": {}, "sites": {}}
+        folds, exercised = peephole.compared_runs(
+            {"a": (good, ""), "b": (stale, "other sources"), "c": (bad, "says mismatch"), "d": (helper, "")}
+        )
+        self.assertEqual((folds, exercised), ({"F"}, {"S1"}))
 
     def test_the_hash_covers_the_model_and_what_it_imports(self) -> None:
         reg = peephole.registries("is-add")[0]
