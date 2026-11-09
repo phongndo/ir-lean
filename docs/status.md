@@ -256,3 +256,8 @@ reads it. That difference is itself a thing [Phase 3](roadmap.md#phase-3-c-and-r
     and which of the callee's answers a call gets is the run's choice, so dropping, merging and reordering such calls
     refine under the attributes that allow it, and adding, duplicating or changing an argument doesn't. Calls with
     effects, and calls that pass or return a pointer, are still refused. See [calls](calls.md).
+15. An independent verifier for claims about LLVM's passes, BIND-03, on 2026-11-09: `tools/verify_claims.py` replays
+    a claim's evidence from the pinned source, sharing no code with the scorer, and `tests/llvm_scope.py` counts a
+    claim only if it agrees. It replays every function in [LLVM's own code](#llvms-own-code) and refuses forged
+    claims, each for its own reason. It verifies no claim about a pass yet: none can be complete before INV-04,
+    BIND-02 and PASS-05 say what each dimension has to cover. See [verifying claims](verify-claims.md).
