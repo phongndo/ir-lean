@@ -71,14 +71,12 @@
       "sound": "Peephole.IS.simplifyRightShift.sound",
       "sites": [
         "IS.simplifyRightShift.L1381",
-        "IS.simplifyRightShift.L1386",
         "IS.simplifyRightShift.L1393"
       ]
     },
     "Peephole.IS.simplifyShlInst": {
       "sound": "Peephole.IS.simplifyShlInst.sound",
       "sites": [
-        "IS.simplifyShlInst.L1411",
         "IS.simplifyShlInst.L1417",
         "IS.simplifyShlInst.L1421",
         "IS.simplifyShlInst.L1430"
@@ -102,16 +100,12 @@
     "Peephole.IS.simplifyCastInst": {
       "sound": "Peephole.IS.simplifyCastInst.sound",
       "sites": [
-        "IS.simplifyCastInst.L5641",
-        "IS.simplifyCastInst.L5653",
         "IS.simplifyCastInst.L5678"
       ]
     },
     "Peephole.IS.simplifyFreezeInst": {
       "sound": "Peephole.IS.simplifyFreezeInst.sound",
-      "sites": [
-        "IS.simplifyFreezeInst.L7631"
-      ]
+      "sites": []
     },
     "Peephole.IS.simplifySelectBitTest": {
       "sound": "Peephole.IS.simplifySelectBitTest.sound",
@@ -128,9 +122,7 @@
     },
     "Peephole.IS.simplifySelectWithEquivalence": {
       "sound": "Peephole.IS.simplifySelectWithEquivalence.sound",
-      "sites": [
-        "IS.simplifySelectWithEquivalence.L4819"
-      ]
+      "sites": []
     }
   },
   "delegates": {
@@ -202,7 +194,7 @@
     ]
   },
   "unproved": {
-    "IS.simplifyCastInst.L5660": "bitcast x -> x: Term and Repl have no bitcast, so an integer bitcast to its own type isn't representable; for trunc, zext and sext the step never fires",
+    "IS.simplifyCastInst.L5660": "bitcast x -> x: Term and Repl have no bitcast, so an integer bitcast to its own type isn't representable, and for trunc, zext and sext the step never fires; bitcast of floating-point, pointer and vector values reaches it too",
     "IS.simplifyCastInst.L5669": "ptrtoint of a ptradd: needs memory and pointers, which Term doesn't have",
     "IS.simplifyWithOpsReplaced.L4508": "past simplifyWithOpsReplaced's first loop, which the model delegates: it rests on what the recursive calls on V's operands answer, by induction over them, with AllowRefinement false's contract that the answer not refine V; x op identity to x, with ConstantExpr::getBinOpIdentity's identities",
     "IS.simplifyWithOpsReplaced.L4517": "past simplifyWithOpsReplaced's first loop, which the model delegates: it rests on what the recursive calls on V's operands answer, by induction over them, with AllowRefinement false's contract that the answer not refine V; x - x and x ^ x to 0, where an operand is a RepOp",
@@ -214,6 +206,12 @@
     "IS.simplifyWithOpsReplaced.L4575": "inventoried as fp and memory: getelementptr x, 0, past the delegated replacement",
     "IS.simplifyWithOpsReplaced.L4644": "inventoried as fp and calls: simplifyInstructionWithOperands on the replaced operands, a recursive call into InstSimplify, under PreventSelfSimplify",
     "IS.simplifyWithOpsReplaced.L4647": "inventoried as fp and calls: ConstantFoldInstOperands, the constant folder, on the replaced operands",
-    "IS.simplifyWithOpsReplaced.L4428": "integer instance proved, not claimed for every input: simplifyWithOpsReplaced also handles floating point, and the inventory tags this site fp. Peephole.IS.simplifyWithOpsReplaced.L4428, which Peephole.IS.simplifyWithOpsReplaced.sound uses, proves it for every scalar integer input; the floating-point instance waits for SEM-05"
+    "IS.simplifyWithOpsReplaced.L4428": "integer instance proved, not claimed for every input: simplifyWithOpsReplaced also handles floating point, and the inventory tags this site fp. Peephole.IS.simplifyWithOpsReplaced.L4428, which Peephole.IS.simplifyWithOpsReplaced.sound uses, proves it for every scalar integer input; the floating-point instance waits for SEM-05",
+    "IS.simplifyRightShift.L1386": "undef-only: `undef >> X` to 0, or to `undef` if `exact`. Q.isUndefValue also holds of poison, but simplifyShift, which simplifyRightShift calls first, takes a poison Op0: the constant folder does if the amount is a constant too, and IS.simplifyShift.L1310 if not. So only `undef` reaches this step, and the model has no `undef`. Peephole.IS.simplifyRightShift.L1386 proves the poison reading, which nothing reaches, and Peephole.IS.simplifyRightShift.sound uses it",
+    "IS.simplifyShlInst.L1411": "undef-only: `undef << X` to 0, or to `undef` with `nsw` or `nuw`. Q.isUndefValue also holds of poison, but simplifyShift, which simplifyShlInst calls first, takes a poison Op0: the constant folder does if the amount is a constant too, and IS.simplifyShift.L1310 if not. So only `undef` reaches this step, and the model has no `undef`. Peephole.IS.simplifyShlInst.L1411 proves the poison reading, which nothing reaches, and Peephole.IS.simplifyShlInst.sound uses it",
+    "IS.simplifyCastInst.L5641": "integer instance proved, not claimed for every input: simplifyCastInst constant-folds a cast of any constant: the floating-point casts (fptrunc, fpext, fptoui, fptosi, uitofp, sitofp), the pointer casts (ptrtoint, ptrtoaddr, inttoptr, addrspacecast) and bitcast reach this step too, with floating-point, pointer and vector constants. Peephole.IS.simplifyCastInst.L5641, which Peephole.IS.simplifyCastInst.sound uses, proves it for trunc, zext and sext of every scalar integer constant; the floating-point and pointer instances wait for SEM-05 and memory (F4)",
+    "IS.simplifyCastInst.L5653": "integer instance proved, not claimed for every input: CastInst::isEliminableCastPair also answers bitcast for fptrunc of fpext back to the source's type (its case 8), a pair of bitcasts back to the source's type, such as float to i32 to float (case 1), inttoptr of ptrtoint back to the same pointer type (case 7) and a pair of addrspacecasts back to the same address space (case 12), so floating-point and pointer values reach this step too, as does ptrtoint or ptrtoaddr of inttoptr back to the same integer type (case 11), through a pointer. Peephole.IS.simplifyCastInst.L5653, which Peephole.IS.simplifyCastInst.sound uses, proves trunc of zext or sext back to the source's type, the pairs whose second cast is one a Term has, for every scalar integer input; the floating-point and pointer instances wait for SEM-05 and memory (F4)",
+    "IS.simplifyFreezeInst.L7631": "integer instance proved, not claimed for every input: freeze takes a value of any type, and isGuaranteedNotToBeUndefOrPoison answers for any type, so floating-point, pointer, vector and aggregate values reach this step too. Peephole.IS.simplifyFreezeInst.L7631, which Peephole.IS.simplifyFreezeInst.sound uses, proves it for every scalar integer input; the floating-point and pointer instances wait for SEM-05 and memory (F4)",
+    "IS.simplifySelectWithEquivalence.L4819": "integer instance proved, not claimed for every input: a select's arms can be of any type, whatever its condition compares, and simplifySelectWithICmpCond calls simplifySelectWithEquivalence for an icmp eq of pointers where canReplacePointersIfEqual allows it, and simplifySelectWithFCmp for an fcmp equivalence of floating-point values. So floating-point and pointer values reach this step too, as arms and as Replacements. Peephole.IS.simplifySelectWithEquivalence.L4819, which Peephole.IS.simplifySelectWithEquivalence.sound uses, proves it for scalar integer arms and Replacements; the floating-point and pointer instances wait for SEM-05 and memory (F4)"
   }
 }

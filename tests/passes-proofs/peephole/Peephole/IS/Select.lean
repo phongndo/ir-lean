@@ -27,7 +27,12 @@ hypotheses there.
   through `V`'s operands, and what it calls, are `.delegate`d. Its answer is `V` wherever each `Op` is its `RepOp`,
   `Select.OpsHold`, which its callers know where the condition they took `Ops` from is true.
 - `simplifySelectWithEquivalence` compares what `simplifyWithOpsReplaced` gives for each arm, and is `.delegate`d where
-  that isn't modelled. Its callers know `Replacements` hold where the `select`'s condition is true. -/
+  that isn't modelled. Its callers know `Replacements` hold where the `select`'s condition is true.
+
+Each theorem is for scalar integer values, the ones a `Term` has. `simplifySelectBitTest`'s answers are all `X`, or an
+`and` or `or` of `X` with an integer constant, so integers alone reach it. A `select`'s arms, and the values
+`simplifyWithOpsReplaced` replaces, can be of any type, so the C++ reaches `L4428` and `L4819` with floating-point and
+pointer values too, and the family's registry lists those two as integer instances, under `unproved`. -/
 
 namespace Peephole.IS
 

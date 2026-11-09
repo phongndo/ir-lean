@@ -32,6 +32,10 @@ their model on `Peephole.Term`, step by step in the C++'s order. Each step that 
 | `IS.simplifyAShrInst.L1495` | `ashr (shl nsw X, A), A` to `X` |
 | `IS.simplifyAShrInst.L1500` | `ashr X, A` to `X`, where `ComputeNumSignBits(X)` is the width |
 
+`L1386` and `L1411` test `Q.isUndefValue(Op0)`, which also holds of poison, but `simplifyShift` runs first and takes
+a poison `Op0`, so only `undef`, which a `Term` doesn't have, reaches them. Their theorems are about the poison reading,
+which nothing reaches, and the family's registry lists them as undef-only, under `unproved`.
+
 `simplifyShlInst.sound`, `simplifyLShrInst.sound` and `simplifyAShrInst.sound` put them together: every value each
 model returns refines the shift it replaces, at every width, flag set and recursion budget, poison included. Each
 `onInst_sound` says the same of the instruction `onInst` is given.
@@ -766,7 +770,7 @@ theorem simplifyRightShift.L1381 (ρ : Env) {opc : BinOp} (hop : opc = .lshr ∨
 
 open Shift in
 /-- `IS.simplifyRightShift.L1386`: `undef >> X` to 0, or to `undef` if `exact`. Without `undef`, the operand is
-poison, and so is the shift. -/
+poison, and so is the shift. Only `undef` reaches the step, since `simplifyShift` takes a poison operand first. -/
 theorem simplifyRightShift.L1386 (ρ : Env) {opc : BinOp} (hop : IsShift opc) (f : Flags) (op0 op1 : Term w)
     (isExact : Bool) (u0 : op0.hasUndef = false) (h : isUndefValue op0 = true) :
     Refines ((shiftSrc opc f op0 op1).eval ρ) ((if isExact then Repl.old op0 else Repl.const 0#w).eval ρ) := by
@@ -835,7 +839,7 @@ theorem shlSrc_eval (ρ : Env) (op0 op1 : Term w) (isNSW isNUW : Bool) :
     (shlSrc op0 op1 isNSW isNUW).eval ρ = Outcome.ok (Val.shl (op0.denote ρ) (op1.denote ρ) isNUW isNSW) := rfl
 
 /-- `IS.simplifyShlInst.L1411`: `undef << X` to 0, or to `undef` with `nsw` or `nuw`. Without `undef`, the operand is
-poison, and so is the shift. -/
+poison, and so is the shift. Only `undef` reaches the step, since `simplifyShift` takes a poison operand first. -/
 theorem simplifyShlInst.L1411 (ρ : Env) (op0 op1 : Term w) (isNSW isNUW : Bool) (u0 : op0.hasUndef = false)
     (h : isUndefValue op0 = true) :
     Refines ((shlSrc op0 op1 isNSW isNUW).eval ρ)

@@ -2,7 +2,7 @@
   "schema": "ir-lean.peephole.comparison/1",
   "family": "is-shift",
   "registry": "tests/passes-proofs/peephole/folds/is-shift.json",
-  "sources": "19b2960ba7499dcd644e3fc1059d64f437dddd69774b673d526c6222b5953a91",
+  "sources": "2fe0408bee6481202cd788c5489bf65e9b9e2658ce83ff6e28e0a3c42723a6ee",
   "opt": "23.1.3",
   "date": "2026-11-09",
   "status": "ok",
@@ -40,6 +40,8 @@
       "matched": 73,
       "mismatched": 0,
       "analysis": 0,
+      "fired_without_undef": 73,
+      "matched_without_undef": 73,
       "files": [
         "compare.ll",
         "shift.ll",
@@ -52,6 +54,8 @@
       "matched": 1,
       "mismatched": 0,
       "analysis": 0,
+      "fired_without_undef": 1,
+      "matched_without_undef": 1,
       "files": [
         "exact-nsw-nuw.ll"
       ],
@@ -62,26 +66,32 @@
       "matched": 146,
       "mismatched": 0,
       "analysis": 0,
+      "fired_without_undef": 125,
+      "matched_without_undef": 125,
       "files": [
         "compare.ll"
       ],
-      "registered": true
+      "registered": false
     },
     "IS.simplifyCastInst.L5653": {
       "fired": 25,
       "matched": 25,
       "mismatched": 0,
       "analysis": 0,
+      "fired_without_undef": 25,
+      "matched_without_undef": 25,
       "files": [
         "cast.ll"
       ],
-      "registered": true
+      "registered": false
     },
     "IS.simplifyCastInst.L5678": {
       "fired": 2,
       "matched": 2,
       "mismatched": 0,
       "analysis": 0,
+      "fired_without_undef": 2,
+      "matched_without_undef": 2,
       "files": [
         "cast.ll"
       ],
@@ -92,14 +102,18 @@
       "matched": 0,
       "mismatched": 0,
       "analysis": 29,
+      "fired_without_undef": 0,
+      "matched_without_undef": 0,
       "files": [],
-      "registered": true
+      "registered": false
     },
     "IS.simplifyLShrInst.L1451": {
       "fired": 1,
       "matched": 1,
       "mismatched": 0,
       "analysis": 0,
+      "fired_without_undef": 1,
+      "matched_without_undef": 1,
       "files": [
         "exact-nsw-nuw.ll"
       ],
@@ -110,6 +124,8 @@
       "matched": 138,
       "mismatched": 0,
       "analysis": 0,
+      "fired_without_undef": 138,
+      "matched_without_undef": 138,
       "files": [
         "compare.ll"
       ],
@@ -120,17 +136,21 @@
       "matched": 139,
       "mismatched": 0,
       "analysis": 0,
+      "fired_without_undef": 0,
+      "matched_without_undef": 0,
       "files": [
         "shift.ll",
         "undef.ll"
       ],
-      "registered": true
+      "registered": false
     },
     "IS.simplifySelectBitTest.L4683": {
       "fired": 4,
       "matched": 4,
       "mismatched": 0,
       "analysis": 0,
+      "fired_without_undef": 4,
+      "matched_without_undef": 4,
       "files": [
         "select-inseltpoison.ll",
         "select.ll"
@@ -142,6 +162,8 @@
       "matched": 3,
       "mismatched": 0,
       "analysis": 0,
+      "fired_without_undef": 3,
+      "matched_without_undef": 3,
       "files": [
         "select-inseltpoison.ll",
         "select.ll"
@@ -153,6 +175,8 @@
       "matched": 2,
       "mismatched": 0,
       "analysis": 0,
+      "fired_without_undef": 2,
+      "matched_without_undef": 2,
       "files": [
         "select-inseltpoison.ll",
         "select.ll"
@@ -164,6 +188,8 @@
       "matched": 2,
       "mismatched": 0,
       "analysis": 0,
+      "fired_without_undef": 2,
+      "matched_without_undef": 2,
       "files": [
         "select-inseltpoison.ll",
         "select.ll"
@@ -175,6 +201,8 @@
       "matched": 371,
       "mismatched": 0,
       "analysis": 0,
+      "fired_without_undef": 371,
+      "matched_without_undef": 371,
       "files": [
         "shift.ll"
       ],
@@ -185,6 +213,8 @@
       "matched": 375,
       "mismatched": 0,
       "analysis": 0,
+      "fired_without_undef": 375,
+      "matched_without_undef": 375,
       "files": [
         "shift.ll",
         "shr-nop.ll"
@@ -196,6 +226,8 @@
       "matched": 374,
       "mismatched": 0,
       "analysis": 0,
+      "fired_without_undef": 373,
+      "matched_without_undef": 373,
       "files": [
         "shift.ll",
         "shr-scalar-vector-consistency.ll"
@@ -207,6 +239,8 @@
       "matched": 1656,
       "mismatched": 0,
       "analysis": 0,
+      "fired_without_undef": 1285,
+      "matched_without_undef": 1285,
       "files": [
         "shift.ll",
         "undef.ll"
@@ -218,6 +252,8 @@
       "matched": 2641,
       "mismatched": 0,
       "analysis": 176,
+      "fired_without_undef": 2545,
+      "matched_without_undef": 2545,
       "files": [
         "shift-knownbits.ll"
       ],
@@ -228,16 +264,20 @@
       "matched": 140,
       "mismatched": 0,
       "analysis": 0,
+      "fired_without_undef": 0,
+      "matched_without_undef": 0,
       "files": [
         "undef.ll"
       ],
-      "registered": true
+      "registered": false
     },
     "IS.simplifyShlInst.L1417": {
       "fired": 2,
       "matched": 2,
       "mismatched": 0,
       "analysis": 0,
+      "fired_without_undef": 2,
+      "matched_without_undef": 2,
       "files": [
         "exact-nsw-nuw.ll"
       ],
@@ -248,6 +288,8 @@
       "matched": 139,
       "mismatched": 0,
       "analysis": 0,
+      "fired_without_undef": 139,
+      "matched_without_undef": 139,
       "files": [
         "constantfold-shl-nuw-C-to-C.ll"
       ],
@@ -258,6 +300,8 @@
       "matched": 1,
       "mismatched": 0,
       "analysis": 0,
+      "fired_without_undef": 1,
+      "matched_without_undef": 1,
       "files": [
         "shift.ll"
       ],
@@ -266,10 +310,8 @@
   },
   "not_exercised": [
     "IS.simplifyAShrInst.L1500",
-    "IS.simplifyFreezeInst.L7631",
     "IS.simplifyLShrInst.L1466",
     "IS.simplifyRightShift.L1393",
-    "IS.simplifySelectWithEquivalence.L4819",
     "IS.simplifyShift.L1344",
     "IS.simplifyShift.L1364"
   ],
@@ -277,15 +319,16 @@
     "Peephole.IS.simplifyAShrInst": "h0.148",
     "Peephole.IS.simplifyCastInst": "h0.195",
     "Peephole.IS.simplifyFreezeInst": "h0.256",
-    "Peephole.IS.simplifyLShrInst": "h0.96",
+    "Peephole.IS.simplifyLShrInst": "h1.97",
     "Peephole.IS.simplifyRightShift": "a case where IS.simplifyRightShift.L1381 fired",
-    "Peephole.IS.simplifySelectBitTest": "h69.342",
-    "Peephole.IS.simplifySelectWithEquivalence": "h35.308",
+    "Peephole.IS.simplifySelectBitTest": "h122.395",
     "Peephole.IS.simplifyShift": "a case where IS.simplifyShift.L1310 fired",
-    "Peephole.IS.simplifyShlInst": "h0.0",
-    "Peephole.IS.simplifyWithOpsReplaced": "h35.308"
+    "Peephole.IS.simplifyShlInst": "h0.0"
   },
-  "folds_not_run": [],
+  "folds_not_run": [
+    "Peephole.IS.simplifySelectWithEquivalence",
+    "Peephole.IS.simplifyWithOpsReplaced"
+  ],
   "untagged": [],
   "mismatches": [],
   "unexplained": [
@@ -353,6 +396,6 @@
       "ir": "  %n2 = or i33 %v3, 33\n  call void (...) @use(i33 %v1, i33 %n2)\n  %r = ashr i33 %v1, %n2\n  ret i33 %r"
     }
   ],
-  "seconds": 4.3,
+  "seconds": 3.3,
   "folds_unwatchable": []
 }

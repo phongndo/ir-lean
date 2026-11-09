@@ -16,6 +16,11 @@ step by step in the C++'s order:
 `simplifyCastInst.sound` and `simplifyFreezeInst.sound` put them together, and `onInst_sound` says each `onInst`'s
 answer refines the instruction it's given.
 
+Each theorem is for every scalar integer input, the values a `Term` has. Only `L5678`'s step reads integers alone. The
+C++ reaches `L5641` with floating-point and pointer casts of constants, `L5653` with `fptrunc` of `fpext`, a pair of
+`bitcast`s and pointer cast pairs back to the source's type, and `L7631` with a `freeze` of any type, so the family's
+registry lists those three as integer instances, under `unproved`.
+
 What the model reads:
 
 - `ConstantFoldCastOperand`, for a scalar integer constant, is `ConstantFoldCastInstruction`'s answer, which the model
