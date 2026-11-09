@@ -1,9 +1,9 @@
 # Floating point: the design
 
 How `ir-lean` will model LLVM's floating point, SEM-05 in the [task list](llvm-verification-tasks.md#sem-05-floating-point).
-This page is the design, decided on 2026-11-09, before any of it is in the model: today the emitter refuses every
-floating-point type, and nothing in [trust](trust.md) or [status](status.md) changes until a slice below lands. For what
-any theorem means, read [trust](trust.md) first.
+This page is the design, decided on 2026-11-09. Its first slice, the bit-level operations, is in the model, and
+[the slices](#the-slices) say what each has done and what's still refused. [Trust](trust.md) and [status](status.md)
+say what's true now. For what any theorem means, read [trust](trust.md) first.
 
 **Why now.** Floating point is the largest gap in stage 1's coverage. Of InstCombine's 31,240 changed pairs at
 `dbfd710`, the emitter refuses 18,361, and 9,035 of those for floating point first, more than the next three reasons
@@ -346,6 +346,10 @@ every existing proof still passing, its coverage reported, and [trust](trust.md)
 1. **Bit-level operations:** the types and constants, `fneg`, `fabs`, `copysign`, `bitcast` between integers and floats,
    `select`, `phi` and `freeze` of floats, `fcmp`, `llvm.is.fpclass` and `nofpclass`, with `nnan` and `ninf` where they
    apply, and the refusals above by name. No operation in it makes a choice.
+   **In the model** since 2026-11-09, checked by `tests/fpcheck.py` against the constant folder, the processor and
+   Alive2, and by `tests/float.sh` on 18 rewrites, with `nofpclass` lane by lane on vectors, scalable ones
+   included, and the lane-moving vector intrinsics on vectors of floats. On the same pairs, it
+   makes 1,572 of those the emitter refused at `091275e` translatable, and moves 82 to a refusal for memory.
 2. **Arithmetic and conversions:** `fadd`, `fsub`, `fmul`, `fdiv` and `frem`, `fptrunc` and `fpext`, `fptoui` and
    `fptosi`, poison out of range, `uitofp` and `sitofp`, with `nneg`, and the `*.sat` conversions. Each is a chooser.
 3. **Fast-math flags:** `nnan`, `ninf` and `nsz` on everything, as above.
@@ -354,8 +358,9 @@ every existing proof still passing, its coverage reported, and [trust](trust.md)
 5. **Vectors of floats,** lane by lane, as each operation lands.
 
 What stays out: the four rewrite-based flags, the environments above, `x86_fp80` and `ppc_fp128`, the functions `afn`
-approximates (`sin`, `pow` and the rest, which LangRef leaves to the library), and scalable vectors of floats until the
-long-tail lane's scalable vectors land, when whichever lands second wires them up.
+approximates (`sin`, `pow` and the rest, which LangRef leaves to the library). Scalable vectors of floats are in, since
+the long-tail lane's scalable vectors, [#95](https://github.com/phongndo/ir-lean/pull/95), landed first, and slice 1
+wired them up: what applies to a vector of floats applies to a scalable one, lane by lane.
 
 ## What it rests on
 

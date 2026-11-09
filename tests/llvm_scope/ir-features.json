@@ -37,6 +37,10 @@
    "class": "modeled",
    "says": "A struct is a Lean tuple, field by field"
   },
+  "float": {
+   "class": "modeled",
+   "says": "Floating point in IRLean/Float.lean: a float is its bits, and each operation is checked by tests/fpcheck.py against LLVM's constant folder, the processor and Alive2 (SEM-05, docs/float.md)"
+  },
   "freeze": {
    "class": "modeled",
    "says": "freeze of an integer: the value, or for poison a value the run chooses (F3, docs/refinement.md)"
@@ -345,28 +349,28 @@
  },
  "totals": {
   "items": 17042,
-  "modeled": 175,
+  "modeled": 190,
   "assumed": 260,
-  "refused": 16607,
+  "refused": 16592,
   "by_kind": {
    "instruction": {
-    "modeled": 38,
-    "refused": 31
+    "modeled": 40,
+    "refused": 29
    },
    "type": {
-    "modeled": 8,
+    "modeled": 13,
     "assumed": 1,
-    "refused": 13
+    "refused": 8
    },
    "intrinsic": {
-    "modeled": 60,
+    "modeled": 63,
     "assumed": 4,
-    "refused": 16359
+    "refused": 16356
    },
    "attribute": {
-    "modeled": 39,
+    "modeled": 43,
     "assumed": 116,
-    "refused": 89
+    "refused": 85
    },
    "string attribute": {
     "assumed": 40,
@@ -385,8 +389,8 @@
     "assumed": 76
    },
    "constant": {
-    "modeled": 12,
-    "refused": 11
+    "modeled": 13,
+    "refused": 10
    },
    "operand bundle": {
     "modeled": 1,
@@ -400,7 +404,7 @@
   },
   "refused_by_lane": {
    "external calls and globals": 65,
-   "floating point": 154,
+   "floating point": 139,
    "long tail": 1906,
    "memory": 115
   }
@@ -418,7 +422,7 @@
   {"kind": "instruction", "name": "CatchRet", "class": "refused", "lane": "long tail", "reason": "exceptions"},
   {"kind": "instruction", "name": "CatchSwitch", "class": "refused", "lane": "long tail", "reason": "exceptions"},
   {"kind": "instruction", "name": "CallBr", "class": "refused", "reason": "asm"},
-  {"kind": "instruction", "name": "FNeg", "class": "refused", "lane": "floating point", "reason": "floating point"},
+  {"kind": "instruction", "name": "FNeg", "class": "modeled", "reason": "float"},
   {"kind": "instruction", "name": "Add", "class": "modeled", "reason": "integer"},
   {"kind": "instruction", "name": "FAdd", "class": "refused", "lane": "floating point", "reason": "floating point"},
   {"kind": "instruction", "name": "Sub", "class": "modeled", "reason": "integer"},
@@ -461,7 +465,7 @@
   {"kind": "instruction", "name": "CleanupPad", "class": "refused", "lane": "long tail", "reason": "exceptions"},
   {"kind": "instruction", "name": "CatchPad", "class": "refused", "lane": "long tail", "reason": "exceptions"},
   {"kind": "instruction", "name": "ICmp", "class": "modeled", "reason": "integer"},
-  {"kind": "instruction", "name": "FCmp", "class": "refused", "lane": "floating point", "reason": "floating point"},
+  {"kind": "instruction", "name": "FCmp", "class": "modeled", "reason": "float"},
   {"kind": "instruction", "name": "PHI", "class": "modeled", "reason": "control"},
   {"kind": "instruction", "name": "Call", "class": "modeled", "reason": "call"},
   {"kind": "instruction", "name": "Select", "class": "modeled", "reason": "integer"},
@@ -475,12 +479,12 @@
   {"kind": "instruction", "name": "InsertValue", "class": "modeled", "reason": "aggregate"},
   {"kind": "instruction", "name": "LandingPad", "class": "refused", "lane": "long tail", "reason": "exceptions"},
   {"kind": "instruction", "name": "Freeze", "class": "modeled", "reason": "freeze"},
-  {"kind": "type", "name": "Half", "class": "refused", "lane": "floating point", "reason": "floating point"},
-  {"kind": "type", "name": "BFloat", "class": "refused", "lane": "floating point", "reason": "floating point"},
-  {"kind": "type", "name": "Float", "class": "refused", "lane": "floating point", "reason": "floating point"},
-  {"kind": "type", "name": "Double", "class": "refused", "lane": "floating point", "reason": "floating point"},
+  {"kind": "type", "name": "Half", "class": "modeled", "reason": "float"},
+  {"kind": "type", "name": "BFloat", "class": "modeled", "reason": "float"},
+  {"kind": "type", "name": "Float", "class": "modeled", "reason": "float"},
+  {"kind": "type", "name": "Double", "class": "modeled", "reason": "float"},
   {"kind": "type", "name": "X86_FP80", "class": "refused", "lane": "floating point", "reason": "floating point"},
-  {"kind": "type", "name": "FP128", "class": "refused", "lane": "floating point", "reason": "floating point"},
+  {"kind": "type", "name": "FP128", "class": "modeled", "reason": "float"},
   {"kind": "type", "name": "PPC_FP128", "class": "refused", "lane": "floating point", "reason": "floating point"},
   {"kind": "type", "name": "Void", "class": "modeled", "reason": "control"},
   {"kind": "type", "name": "Label", "class": "modeled", "reason": "control"},
@@ -4247,7 +4251,7 @@
   {"kind": "intrinsic", "name": "llvm.cond.loop", "class": "refused", "lane": "long tail", "reason": "identity gap"},
   {"kind": "intrinsic", "name": "llvm.convert.from.arbitrary.fp", "class": "refused", "lane": "floating point", "reason": "floating point"},
   {"kind": "intrinsic", "name": "llvm.convert.to.arbitrary.fp", "class": "refused", "lane": "floating point", "reason": "floating point"},
-  {"kind": "intrinsic", "name": "llvm.copysign", "class": "refused", "lane": "floating point", "reason": "floating point"},
+  {"kind": "intrinsic", "name": "llvm.copysign", "class": "modeled", "reason": "float"},
   {"kind": "intrinsic", "name": "llvm.coro.align", "class": "refused", "reason": "coroutines"},
   {"kind": "intrinsic", "name": "llvm.coro.alloc", "class": "refused", "reason": "coroutines"},
   {"kind": "intrinsic", "name": "llvm.coro.alloca.alloc", "class": "refused", "reason": "coroutines"},
@@ -4510,7 +4514,7 @@
   {"kind": "intrinsic", "name": "llvm.experimental.vp.strided.load", "class": "refused", "lane": "long tail", "reason": "scalable"},
   {"kind": "intrinsic", "name": "llvm.experimental.vp.strided.store", "class": "refused", "lane": "long tail", "reason": "scalable"},
   {"kind": "intrinsic", "name": "llvm.experimental.widenable.condition", "class": "refused", "reason": "deoptimization"},
-  {"kind": "intrinsic", "name": "llvm.fabs", "class": "refused", "lane": "floating point", "reason": "floating point"},
+  {"kind": "intrinsic", "name": "llvm.fabs", "class": "modeled", "reason": "float"},
   {"kind": "intrinsic", "name": "llvm.fake.use", "class": "refused", "lane": "long tail", "reason": "identity gap"},
   {"kind": "intrinsic", "name": "llvm.floor", "class": "refused", "lane": "floating point", "reason": "floating point"},
   {"kind": "intrinsic", "name": "llvm.fma", "class": "refused", "lane": "floating point", "reason": "floating point"},
@@ -6662,7 +6666,7 @@
   {"kind": "intrinsic", "name": "llvm.invariant.end", "class": "refused", "lane": "memory", "reason": "memory model"},
   {"kind": "intrinsic", "name": "llvm.invariant.start", "class": "refused", "lane": "memory", "reason": "memory model"},
   {"kind": "intrinsic", "name": "llvm.is.constant", "class": "refused", "lane": "long tail", "reason": "nondeterministic"},
-  {"kind": "intrinsic", "name": "llvm.is.fpclass", "class": "refused", "lane": "floating point", "reason": "floating point"},
+  {"kind": "intrinsic", "name": "llvm.is.fpclass", "class": "modeled", "reason": "float"},
   {"kind": "intrinsic", "name": "llvm.launder.invariant.group", "class": "refused", "lane": "memory", "reason": "memory model"},
   {"kind": "intrinsic", "name": "llvm.ldexp", "class": "refused", "lane": "floating point", "reason": "floating point"},
   {"kind": "intrinsic", "name": "llvm.lifetime.end", "class": "modeled", "reason": "memory"},
@@ -17128,10 +17132,10 @@
   {"kind": "attribute", "at": "call return", "name": "dereferenceable_or_null", "class": "refused", "lane": "memory", "reason": "memory model"},
   {"kind": "attribute", "at": "function", "name": "memory", "class": "modeled", "reason": "memory promise"},
   {"kind": "attribute", "at": "call", "name": "memory", "class": "refused", "lane": "external calls and globals", "reason": "external"},
-  {"kind": "attribute", "at": "parameter", "name": "nofpclass", "class": "refused", "lane": "floating point", "reason": "floating point"},
-  {"kind": "attribute", "at": "call parameter", "name": "nofpclass", "class": "refused", "lane": "floating point", "reason": "floating point"},
-  {"kind": "attribute", "at": "return", "name": "nofpclass", "class": "refused", "lane": "floating point", "reason": "floating point"},
-  {"kind": "attribute", "at": "call return", "name": "nofpclass", "class": "refused", "lane": "floating point", "reason": "floating point"},
+  {"kind": "attribute", "at": "parameter", "name": "nofpclass", "class": "modeled", "reason": "float"},
+  {"kind": "attribute", "at": "call parameter", "name": "nofpclass", "class": "modeled", "reason": "float"},
+  {"kind": "attribute", "at": "return", "name": "nofpclass", "class": "modeled", "reason": "float"},
+  {"kind": "attribute", "at": "call return", "name": "nofpclass", "class": "modeled", "reason": "float"},
   {"kind": "attribute", "at": "function", "name": "alignstack", "class": "assumed", "reason": "hint"},
   {"kind": "attribute", "at": "call", "name": "alignstack", "class": "assumed", "reason": "hint"},
   {"kind": "attribute", "at": "parameter", "name": "alignstack", "class": "assumed", "reason": "abi"},
@@ -17364,7 +17368,7 @@
   {"kind": "constant", "name": "ConstantDataVector", "class": "modeled", "reason": "constant"},
   {"kind": "constant", "name": "ConstantInt", "class": "modeled", "reason": "constant"},
   {"kind": "constant", "name": "ConstantByte", "class": "refused", "lane": "memory", "reason": "memory model"},
-  {"kind": "constant", "name": "ConstantFP", "class": "refused", "lane": "floating point", "reason": "floating point"},
+  {"kind": "constant", "name": "ConstantFP", "class": "modeled", "reason": "float"},
   {"kind": "constant", "name": "ConstantTargetNone", "class": "refused", "reason": "other target"},
   {"kind": "constant", "name": "ConstantPointerNull", "class": "modeled", "reason": "constant"},
   {"kind": "constant", "name": "ConstantTokenNone", "class": "refused", "reason": "token"},
