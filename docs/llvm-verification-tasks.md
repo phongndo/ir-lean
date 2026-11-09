@@ -117,7 +117,7 @@ Each lane owns its files. Two tasks being worked on at once can't own the same f
 | --- | --- | --- | --- |
 | INV | Inventory and plan | `tests/llvm_scope*`, `docs/llvm-verification-tasks.md` | INV-01 to INV-03 are complete ([#43](https://github.com/phongndo/ir-lean/pull/43)). The rest wait with the program |
 | SEM | Semantics contracts: poison, `undef`, `freeze`, integers, floating point, memory, UB | `IRLean/*.lean` apart from the refinement tactic, `docs/trust.md`, `tests/opcheck.py`, `tests/gepcheck.py` | SEM-01 is complete ([#46](https://github.com/phongndo/ir-lean/pull/46)): [refinement](refinement.md). So is SEM-07: [promises to progress](trust.md#promises-to-progress). SEM-02, SEM-03 and SEM-06 follow the `undef` decision. SEM-04 has no prerequisites |
-| BIND | Binding proofs to LLVM's C++, and an independent verifier | `tools/`, new binding checks, `src/Emitter.*` for C++ support | Waits with the program. Certificate binding, from [#45](https://github.com/phongndo/ir-lean/pull/45), stays as a tool |
+| BIND | Binding proofs to LLVM's C++, and an independent verifier | `tools/`, new binding checks, `src/Emitter.*` for C++ support | BIND-01 is complete: [binding a proof to LLVM's C++](binding-approach.md). The rest waits with the program. Certificate binding, from [#45](https://github.com/phongndo/ir-lean/pull/45), stays as a tool |
 | NEG | Negative tests, CI and honest reporting | `CMakeLists.txt`, `.github/`, `tests/lint.sh`, mutation scripts | NEG-01 is complete (#43). NEG-03 has no prerequisites |
 | AUTO | Proof automation and lemma reuse | `IRLean/RefineTactic.lean`, lemma stores | AUTO-01 is drafted in another tree. AUTO-03 is in progress: [rewrites at every width](generic-rewrites.md). AUTO-02 is the roadmap's lemma store |
 | PASS | Analyses, scalar passes, composition | Per-pass proof directories | PASS-02 is in progress: [`tests/passes.py`](passes.md). The rest wait with the program |
@@ -384,11 +384,11 @@ when they land.
 - **Lane:** BIND
 - **Scope:** Choose how a proof is tied to LLVM's C++. The candidates: compile the pass at the pin and prove its IR, through `ir-lean`, makes only proved rewrites; or a certifying pass with a verified checker, as Crellvm does, which is per run and so only translation validation; or a Lean reimplementation proved equivalent to the C++.
 - **Depends on:** none
-- **Owns:** `docs/binding.md`
+- **Owns:** `docs/binding-approach.md`, `prototypes/binding/`
 - **Acceptance:** A reviewed note choosing one, stating what a `code-binding` claim's evidence is, and why the others don't meet the end condition.
-- **Trust gaps:** Every route trusts the C++ compiler that built the pass, unless it reasons about the binary.
-- **Status:** not started
-- **Evidence:** None.
+- **Trust gaps:** Every route trusts the C++ compiler that built the pass, unless it reasons about the binary. The chosen one also trusts `ir-lean`'s emitter and IRLean's semantics, as every theorem here does, and states the layout of LLVM's objects as a hypothesis until BIND-04 proves the constructors keep it.
+- **Status:** complete
+- **Evidence:** [`docs/binding-approach.md`](binding-approach.md) chooses compiling each unit of the pass at the pin and proving its IR computes a Lean model, whose rewrites are proved for every input, and says what a `code-binding` claim's evidence is, the gates in order, when to fall back, and why certifying passes, hand-written models alone, a pass generated from Lean and a C++ semantics don't meet the end condition. Its prototype, `prototypes/binding/check.sh`, proves the compiled `llvm::isKnownNegation` computes #47's model of it, with its 6 calls out of the module cut. Reviewed and merged in [#PRNUM](https://github.com/phongndo/ir-lean/pull/PRNUM).
 
 ### BIND-02: Implementation closure
 
@@ -419,7 +419,7 @@ when they land.
 - **Depends on:** BIND-01, SEM-06
 - **Owns:** `IRLean/LLVMHeap.lean`
 - **Acceptance:** The abstraction is proved preserved by the IR-building API calls a small pass makes.
-- **Trust gaps:** The C++ object layout comes from the compiled pass's IR, for one target.
+- **Trust gaps:** The C++ object layout comes from the compiled pass's IR, for one target. Some of what the code relies on is only asserted in the C++: in a release build, `ConstantInt::get(i1, 7)` keeps the word 7, breaking APInt's invariant that the bits above the width are 0 ([binding approach](binding-approach.md#what-this-means-for-the-other-tasks)).
 - **Status:** not started
 - **Evidence:** None.
 
@@ -441,7 +441,7 @@ when they land.
 - **Depends on:** BIND-03, BIND-04, BIND-05, PASS-03, PASS-05
 - **Owns:** `tests/llvm_scope/coverage.json`
 - **Acceptance:** `tests/llvm_scope.py summary` counts it done, and BIND-03 agrees.
-- **Trust gaps:** Whatever BIND-01 says the route trusts.
+- **Trust gaps:** Whatever [BIND-01's note](binding-approach.md#the-candidates) says the chosen route trusts.
 - **Status:** not started
 - **Evidence:** None.
 
