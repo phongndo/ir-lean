@@ -73,7 +73,7 @@ the 18 linked into one module.
 | Inventory | 913 anchor files, 851,964 lines. Anchors are entry files only: `instcombine`'s is `InstructionCombining.cpp`, one of 15 |
 | InstCombine | 55,303 lines in its 15 `.cpp` files, and 56,244 with `InstCombineInternal.h`. The directory has 17 files with `CMakeLists.txt` |
 | The 18 files, compiled and linked | 2,540 functions, 1,479 of them `linkonce_odr` copies of inline functions and templates, and 404,004 IR instructions. The median function has 68 instructions. 62 have more than 1,000, and the largest, `InstCombinerImpl::visitCallInst`, has 8,666 |
-| Translated today | 172 of 4,073 function definitions file by file, or 4.2%, and 78 of 2,540 linked, or 3.1%. Linking removes duplicate copies, and puts more functions in a call cycle with one that's refused |
+| Translated today | 146 of 3,703 function definitions file by file, or 3.9%, and 78 of 2,540 linked, or 3.1%. Linking removes duplicate copies, and puts more functions in a call cycle with one that's refused |
 | Calls leaving the 18 files | 172 distinct functions, such as `Constant::getSplatValue`, `SmallVectorBase::grow_pod`, `APInt`'s slow paths and `BinaryOperator::Create` |
 
 What stops the 2,462 linked functions that don't translate, by the first reason the emitter gives. Fixing one can expose
