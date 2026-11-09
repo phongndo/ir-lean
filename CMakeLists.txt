@@ -109,6 +109,9 @@ add_test(NAME corpus COMMAND ${CMAKE_SOURCE_DIR}/tests/corpus_test.py)
 # tools/irlean, the shared Python library, and tools/measure.py on it: about 3 s, and no Lean or LLVM.
 # docs/python.md.
 add_test(NAME irlean COMMAND ${CMAKE_SOURCE_DIR}/tests/irlean_test.py)
+# tools/irlean/verdict.py, the one place Python decides a verdict: every combination of how the processes
+# it rests on end, and each tool and test asking it. About 4 s, and no Lean. docs/trust.md.
+add_test(NAME verdict COMMAND ${CMAKE_SOURCE_DIR}/tests/verdict_test.py)
 add_test(NAME superopt COMMAND ${CMAKE_SOURCE_DIR}/tests/superopt.py $<TARGET_FILE:ir-lean>)
 add_test(NAME names COMMAND ${CMAKE_SOURCE_DIR}/tests/names.sh)
 # The experimental undef and freeze semantics against LangRef's examples and Alive2, compiled from copies in a

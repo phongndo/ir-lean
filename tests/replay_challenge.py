@@ -63,7 +63,7 @@ BIND_MB = 3000
 
 # tools/binding.py's contract, as docs/llvm-proof-binding.md states it, written out here rather than read from
 # the tool, so a change to the tool shows up as a change.
-MANIFEST_SCHEMA = "ir-lean.binding.manifest/1"
+MANIFEST_SCHEMA = "ir-lean.binding.manifest/2"
 VERDICT_SCHEMA = "ir-lean.binding.verdict/1"
 EXIT = {"bound": 0, "refused": 1, "unsupported": 3, "unknown": 4, "error": 5}
 ROLES = ["input", "src_ir", "tgt_ir", "src_lean", "tgt_lean", "certificate"]
@@ -79,6 +79,7 @@ TOOLCHAIN_KEYS = [
     "check_axioms_sha256",
     "binding_check_sha256",
     "binding_py_sha256",
+    "irlean_py_sha256",
 ]
 # What a bound verdict has to have run, in order. A cache hit replaces everything after `target`.
 REPLAY_CHECKS = [
