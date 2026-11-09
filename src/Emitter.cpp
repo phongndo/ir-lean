@@ -2260,6 +2260,112 @@ bool FunctionEmitter::emitIntrinsic(const IntrinsicInst &C, std::vector<Line> &O
   case Intrinsic::x86_avx512_vpdpbusd_512:
     addLet(C, Out, "X86.vpdpbusd " + Op(0) + " " + Op(1) + " " + Op(2));
     return true;
+  // x86's pure bit functions, IRLean/X86Bits.lean, each of which Alive2 knows.
+  case Intrinsic::x86_avx512_pternlog_d_128:
+  case Intrinsic::x86_avx512_pternlog_d_256:
+  case Intrinsic::x86_avx512_pternlog_d_512:
+  case Intrinsic::x86_avx512_pternlog_q_128:
+  case Intrinsic::x86_avx512_pternlog_q_256:
+  case Intrinsic::x86_avx512_pternlog_q_512:
+    addLet(C, Out,
+           "X86.pternlog " + std::to_string(cast<ConstantInt>(C.getArgOperand(3))->getZExtValue() & 0xFFU) +
+               " " + Op(0) + " " + Op(1) + " " + Op(2));
+    return true;
+  case Intrinsic::x86_avx2_pshuf_b:
+  case Intrinsic::x86_avx512_pshuf_b_512:
+  case Intrinsic::x86_ssse3_pshuf_b_128:
+    addLet(C, Out, "X86.pshufb " + Op(0) + " " + Op(1));
+    return true;
+  case Intrinsic::x86_avx2_psll_d:
+  case Intrinsic::x86_avx2_psll_q:
+  case Intrinsic::x86_avx2_psll_w:
+  case Intrinsic::x86_avx2_pslli_d:
+  case Intrinsic::x86_avx2_pslli_q:
+  case Intrinsic::x86_avx2_pslli_w:
+  case Intrinsic::x86_avx2_psllv_d:
+  case Intrinsic::x86_avx2_psllv_d_256:
+  case Intrinsic::x86_avx2_psllv_q:
+  case Intrinsic::x86_avx2_psllv_q_256:
+  case Intrinsic::x86_avx2_psra_d:
+  case Intrinsic::x86_avx2_psra_w:
+  case Intrinsic::x86_avx2_psrai_d:
+  case Intrinsic::x86_avx2_psrai_w:
+  case Intrinsic::x86_avx2_psrav_d:
+  case Intrinsic::x86_avx2_psrav_d_256:
+  case Intrinsic::x86_avx2_psrl_d:
+  case Intrinsic::x86_avx2_psrl_q:
+  case Intrinsic::x86_avx2_psrl_w:
+  case Intrinsic::x86_avx2_psrli_d:
+  case Intrinsic::x86_avx2_psrli_q:
+  case Intrinsic::x86_avx2_psrli_w:
+  case Intrinsic::x86_avx2_psrlv_d:
+  case Intrinsic::x86_avx2_psrlv_d_256:
+  case Intrinsic::x86_avx2_psrlv_q:
+  case Intrinsic::x86_avx2_psrlv_q_256:
+  case Intrinsic::x86_avx512_psll_d_512:
+  case Intrinsic::x86_avx512_psll_q_512:
+  case Intrinsic::x86_avx512_psll_w_512:
+  case Intrinsic::x86_avx512_pslli_d_512:
+  case Intrinsic::x86_avx512_pslli_q_512:
+  case Intrinsic::x86_avx512_pslli_w_512:
+  case Intrinsic::x86_avx512_psllv_d_512:
+  case Intrinsic::x86_avx512_psllv_q_512:
+  case Intrinsic::x86_avx512_psllv_w_128:
+  case Intrinsic::x86_avx512_psllv_w_256:
+  case Intrinsic::x86_avx512_psllv_w_512:
+  case Intrinsic::x86_avx512_psra_d_512:
+  case Intrinsic::x86_avx512_psra_q_128:
+  case Intrinsic::x86_avx512_psra_q_256:
+  case Intrinsic::x86_avx512_psra_q_512:
+  case Intrinsic::x86_avx512_psra_w_512:
+  case Intrinsic::x86_avx512_psrai_d_512:
+  case Intrinsic::x86_avx512_psrai_q_128:
+  case Intrinsic::x86_avx512_psrai_q_256:
+  case Intrinsic::x86_avx512_psrai_q_512:
+  case Intrinsic::x86_avx512_psrai_w_512:
+  case Intrinsic::x86_avx512_psrav_d_512:
+  case Intrinsic::x86_avx512_psrav_q_128:
+  case Intrinsic::x86_avx512_psrav_q_256:
+  case Intrinsic::x86_avx512_psrav_q_512:
+  case Intrinsic::x86_avx512_psrav_w_128:
+  case Intrinsic::x86_avx512_psrav_w_256:
+  case Intrinsic::x86_avx512_psrav_w_512:
+  case Intrinsic::x86_avx512_psrl_d_512:
+  case Intrinsic::x86_avx512_psrl_q_512:
+  case Intrinsic::x86_avx512_psrl_w_512:
+  case Intrinsic::x86_avx512_psrli_d_512:
+  case Intrinsic::x86_avx512_psrli_q_512:
+  case Intrinsic::x86_avx512_psrli_w_512:
+  case Intrinsic::x86_avx512_psrlv_d_512:
+  case Intrinsic::x86_avx512_psrlv_q_512:
+  case Intrinsic::x86_avx512_psrlv_w_128:
+  case Intrinsic::x86_avx512_psrlv_w_256:
+  case Intrinsic::x86_avx512_psrlv_w_512:
+  case Intrinsic::x86_sse2_psll_d:
+  case Intrinsic::x86_sse2_psll_q:
+  case Intrinsic::x86_sse2_psll_w:
+  case Intrinsic::x86_sse2_pslli_d:
+  case Intrinsic::x86_sse2_pslli_q:
+  case Intrinsic::x86_sse2_pslli_w:
+  case Intrinsic::x86_sse2_psra_d:
+  case Intrinsic::x86_sse2_psra_w:
+  case Intrinsic::x86_sse2_psrai_d:
+  case Intrinsic::x86_sse2_psrai_w:
+  case Intrinsic::x86_sse2_psrl_d:
+  case Intrinsic::x86_sse2_psrl_q:
+  case Intrinsic::x86_sse2_psrl_w:
+  case Intrinsic::x86_sse2_psrli_d:
+  case Intrinsic::x86_sse2_psrli_q:
+  case Intrinsic::x86_sse2_psrli_w: {
+    // After `ps`: `ll`, `rl` or `ra`, then `i` for an immediate count, `v` for a count in each lane, or
+    // nothing for a count in a vector's low 64 bits.
+    StringRef Shift = C.getCalledFunction()->getName().split(".ps").second;
+    std::string Kind = Shift.starts_with("ll") ? ".shl" : Shift.starts_with("rl") ? ".lshr" : ".ashr";
+    char Form = Shift.size() > 2 ? Shift[2] : '.';
+    std::string Fn = Form == 'i' ? "X86.shiftImm " : Form == 'v' ? "X86.shiftLanes " : "X86.shiftVec ";
+    addLet(C, Out, Fn + Kind + " " + Op(0) + " " + Op(1));
+    return true;
+  }
   // Floating point, in IRLean/Float.lean, on each lane of a vector.
   case Intrinsic::fabs:
   case Intrinsic::copysign: {

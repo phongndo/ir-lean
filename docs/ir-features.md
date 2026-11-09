@@ -19,7 +19,7 @@ the `ir_features` test.
 | --- | --- | ---: | ---: | ---: | ---: |
 | Instruction | `Instruction.def`, every opcode | 69 | 51 | 0 | 18 |
 | Type | `Type.h`, every `TypeID` | 22 | 13 | 1 | 8 |
-| Intrinsic | `Intrinsics*.td`, every `Intrinsic` record, through `llvm-tblgen` | 16,423 | 65 | 4 | 16,354 |
+| Intrinsic | `Intrinsics*.td`, every `Intrinsic` record, through `llvm-tblgen` | 16,423 | 155 | 4 | 16,264 |
 | Attribute | `Attributes.td`, each attribute at each place it can go: a function, a parameter, a return value, and each at a call | 244 | 43 | 116 | 85 |
 | String attribute | `Attributes.td`'s string attributes, the ones the emitter allows, and any other, at each place | 48 | 0 | 40 | 8 |
 | Metadata | `FixedMetadataKinds.def`, two kinds clang names by string that the emitter allows, and any other | 58 | 2 | 20 | 36 |
@@ -28,7 +28,7 @@ the `ir_features` test.
 | Constant | `Value.def`, every `HANDLE_CONSTANT` and `HANDLE_GLOBAL_VALUE` | 23 | 13 | 0 | 10 |
 | Operand bundle | `LLVMContext.cpp`'s bundle tags, and `BundleAttributes.def`'s `llvm.assume` bundles | 19 | 1 | 0 | 18 |
 | Form | Forms of these the emitter treats differently, such as `udiv` of vectors, listed in the script | 50 | 10 | 3 | 37 |
-| **Total** | | **17,043** | **203** | **260** | **16,580** |
+| **Total** | | **17,043** | **293** | **260** | **16,490** |
 
 ## The classes
 
@@ -47,7 +47,7 @@ A refused item is refused whatever it means, so refusing is always sound. What i
 | Floating point (SEM-05) | 127 | `x86_fp80`, `llvm.sqrt`, `llvm.fma`, `denormal_fpenv`, `!fpmath` |
 | External calls and globals | 65 | a call to a declaration, `call` attributes such as `memory(...)`, external globals, `weak` linkage, `ptrtoint` constant expressions |
 | Memory (F4, SEM-06) | 115 | `!tbaa`, `noalias` parameters, `byval`, `inttoptr`, masked loads, `llvm.objectsize` |
-| Long tail | 1,906 | 1,670 x86 intrinsics, the scalable intrinsics but five, exception handling, `freeze` of a vector, `nocreateundeforpoison` |
+| Long tail | 1,816 | 1,580 x86 intrinsics, the scalable intrinsics but five, exception handling, `freeze` of a vector, `nocreateundeforpoison` |
 | None | 14,367 | 14,207 intrinsics of other targets, coroutines, garbage collection, sanitizers, atomics |
 
 ## What the check does
@@ -156,7 +156,7 @@ a change to the classification, and shows in review as lines of the file.
 ## What it doesn't show
 
 - **That a modeled item is modeled right.** The probes show the emitter translates it and Lean accepts what it prints.
-  Whether that matches LLVM is what `opcheck`, `gepcheck`, `x86check`, the differential tests and Alive2 are for.
+  Whether that matches LLVM is what `opcheck`, `gepcheck`, `x86check`, `vecopcheck`, the differential tests and Alive2 are for.
 - **Every way an item can appear.** A probe uses an item once, in one place, at one type or a few. An attribute is
   probed on `i32`, a pointer and a vector, and a form is listed only where the emitter treats it differently.
 - **134 items have no probe.** 117 are intrinsics no call the generator builds passes LLVM's verifier, such as

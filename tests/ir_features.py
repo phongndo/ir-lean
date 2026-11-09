@@ -299,6 +299,12 @@ REASONS: dict[str, Reason] = {
     "intrinsic operand": Reason(
         "assumed", None, "Only an operand of an intrinsic, whose own class covers it"
     ),
+    "x86 bit function": Reason(
+        "modeled",
+        None,
+        "One of x86's pure bit functions, VPTERNLOG, PSHUFB and the shifts, in IRLean/X86Bits.lean, checked "
+        "by tests/vecopcheck.py against Alive2, both ways, and LLVM's constant folder with x86's own folds",
+    ),
     "scalable vector": Reason(
         "modeled",
         None,
@@ -350,8 +356,8 @@ REASONS: dict[str, Reason] = {
     "x86": Reason(
         "refused",
         "long tail",
-        "An x86 intrinsic. The pure bit functions among them are the long tail's "
-        "to model, and the rest stay refused by name",
+        "An x86 intrinsic besides those IRLean/X86.lean and IRLean/X86Bits.lean model. It stays refused, by "
+        "name, until it's modeled and checked against Alive2 and LLVM's constant folder",
     ),
     "layout": Reason(
         "refused",
@@ -614,6 +620,36 @@ INTRINSIC_RULES = [
         "llvm.experimental.patchpoint llvm.experimental.patchpoint.void llvm.experimental.stackmap",
     ),
     R("objc", "", "llvm.objc."),
+    R(
+        "x86 bit function",
+        "llvm.x86.avx2.pshuf.b llvm.x86.avx2.psll.d llvm.x86.avx2.psll.q llvm.x86.avx2.psll.w "
+        "llvm.x86.avx2.pslli.d llvm.x86.avx2.pslli.q llvm.x86.avx2.pslli.w llvm.x86.avx2.psllv.d "
+        "llvm.x86.avx2.psllv.d.256 llvm.x86.avx2.psllv.q llvm.x86.avx2.psllv.q.256 llvm.x86.avx2.psra.d "
+        "llvm.x86.avx2.psra.w llvm.x86.avx2.psrai.d llvm.x86.avx2.psrai.w llvm.x86.avx2.psrav.d "
+        "llvm.x86.avx2.psrav.d.256 llvm.x86.avx2.psrl.d llvm.x86.avx2.psrl.q llvm.x86.avx2.psrl.w "
+        "llvm.x86.avx2.psrli.d llvm.x86.avx2.psrli.q llvm.x86.avx2.psrli.w llvm.x86.avx2.psrlv.d "
+        "llvm.x86.avx2.psrlv.d.256 llvm.x86.avx2.psrlv.q llvm.x86.avx2.psrlv.q.256 "
+        "llvm.x86.avx512.pshuf.b.512 llvm.x86.avx512.psll.d.512 llvm.x86.avx512.psll.q.512 "
+        "llvm.x86.avx512.psll.w.512 llvm.x86.avx512.pslli.d.512 llvm.x86.avx512.pslli.q.512 "
+        "llvm.x86.avx512.pslli.w.512 llvm.x86.avx512.psllv.d.512 llvm.x86.avx512.psllv.q.512 "
+        "llvm.x86.avx512.psllv.w.128 llvm.x86.avx512.psllv.w.256 llvm.x86.avx512.psllv.w.512 "
+        "llvm.x86.avx512.psra.d.512 llvm.x86.avx512.psra.q.128 llvm.x86.avx512.psra.q.256 "
+        "llvm.x86.avx512.psra.q.512 llvm.x86.avx512.psra.w.512 llvm.x86.avx512.psrai.d.512 "
+        "llvm.x86.avx512.psrai.q.128 llvm.x86.avx512.psrai.q.256 llvm.x86.avx512.psrai.q.512 "
+        "llvm.x86.avx512.psrai.w.512 llvm.x86.avx512.psrav.d.512 llvm.x86.avx512.psrav.q.128 "
+        "llvm.x86.avx512.psrav.q.256 llvm.x86.avx512.psrav.q.512 llvm.x86.avx512.psrav.w.128 "
+        "llvm.x86.avx512.psrav.w.256 llvm.x86.avx512.psrav.w.512 llvm.x86.avx512.psrl.d.512 "
+        "llvm.x86.avx512.psrl.q.512 llvm.x86.avx512.psrl.w.512 llvm.x86.avx512.psrli.d.512 "
+        "llvm.x86.avx512.psrli.q.512 llvm.x86.avx512.psrli.w.512 llvm.x86.avx512.psrlv.d.512 "
+        "llvm.x86.avx512.psrlv.q.512 llvm.x86.avx512.psrlv.w.128 llvm.x86.avx512.psrlv.w.256 "
+        "llvm.x86.avx512.psrlv.w.512 llvm.x86.avx512.pternlog.d.128 llvm.x86.avx512.pternlog.d.256 "
+        "llvm.x86.avx512.pternlog.d.512 llvm.x86.avx512.pternlog.q.128 llvm.x86.avx512.pternlog.q.256 "
+        "llvm.x86.avx512.pternlog.q.512 llvm.x86.sse2.psll.d llvm.x86.sse2.psll.q llvm.x86.sse2.psll.w "
+        "llvm.x86.sse2.pslli.d llvm.x86.sse2.pslli.q llvm.x86.sse2.pslli.w llvm.x86.sse2.psra.d "
+        "llvm.x86.sse2.psra.w llvm.x86.sse2.psrai.d llvm.x86.sse2.psrai.w llvm.x86.sse2.psrl.d "
+        "llvm.x86.sse2.psrl.q llvm.x86.sse2.psrl.w llvm.x86.sse2.psrli.d llvm.x86.sse2.psrli.q "
+        "llvm.x86.sse2.psrli.w llvm.x86.ssse3.pshuf.b.128",
+    ),
     R("x86", "", "llvm.x86."),
     R(
         "other target",
