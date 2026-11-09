@@ -19,7 +19,7 @@ everything every time, in about a minute.
 | --- | --- |
 | `opcheck` | Each integer operation against LLVM's constant folder, and against Alive2 for exact poison and UB behavior. `freeze` runs under two choices, and a result that depends on them is one any value refines. Fails without `alive-tv`, or if it can't check a variant. `--no-alive` is the opt-out. Prints Alive2's LLVM version and this code's |
 | `gepcheck` | `getelementptr`'s flags against Alive2, on many layouts, since native code can't see poison pointers |
-| `differential` | Emitted Lean against natively compiled code, on real C |
+| `differential` | Emitted Lean against natively compiled code, on real C, and on [`choices.ll`](../tests/real/choices.ll)'s functions with a `freeze`, whose result under one choice is compared where it's what native code did, and otherwise skipped, since another choice could give that |
 | `vectors_pointers` | The same for vectors, function pointers, pointers in globals and the heap, GEPs LLVM defines, and promises kept, failing if any input is skipped |
 | `undefined` | Code LLVM calls undefined stops the model, since comparing with native code can't show that |
 | `memory_errors` | Memory errors through the emitter each stop the model for their own reason: out of bounds, after a free, through a dangling pointer or the wrong provenance, null, misaligned, an overlapping copy, a write to a constant, and frees of what `malloc` didn't return |

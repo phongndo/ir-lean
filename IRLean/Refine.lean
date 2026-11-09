@@ -17,7 +17,9 @@ field. For a run:
 For a function, both get the same input, for every input its type has. An argument is a value or poison, never `undef`.
 
 Every relation here is transitive, so refinements compose. A value refines itself, and a run refines itself exactly when
-it doesn't stop the model, so `Refines f f` says `f` never stops the model on any input.
+it doesn't stop the model, so for `f` into `Outcome`, `Refines f f` says `f` never stops the model on any input. A run
+that makes choices refines itself where no way of choosing stops the model, and also where some way is undefined, which
+allows anything: `Refine.outcomes_le_self`.
 
 There's deliberately no instance for `Mem`. The emitter gives every function that mentions a pointer or touches memory a
 `Mem` argument and a `Mem` in its result, so such a function has no `Refines` claim at all. -/

@@ -38,8 +38,9 @@ memory a `Mem` argument and a `Mem` in its result, so such a function has no `Re
 under rules nobody has checked.
 
 Every instance is transitive. Values, vectors, structs and functions into them are also reflexive, as the class
-`Refine.Reflexive` says. Runs aren't: a model stop refines nothing, itself included. So `Refines f f` holds exactly when
-`f` never stops the model on any input, and that's how equality of two functions becomes refinement.
+`Refine.Reflexive` says. Runs aren't: a model stop refines nothing, itself included. So for a function into `Outcome`,
+`Refines f f` holds exactly when `f` never stops the model on any input, and that's how equality of two functions
+becomes refinement.
 
 ## Runs that make choices
 
@@ -156,7 +157,7 @@ these hold. Each is a gap between the model and LLVM, and a certificate that rel
 | The source has no more undefined behavior or poison in the model than in LLVM, and the target no less | Integer operations, by the [contracts](llvm-semantic-contracts.md) and `tests/opcheck.py`. Undefined behavior in the source allows anything, so a source the model makes undefined where LLVM doesn't could hide a wrong target | Memory, where the model has more undefined behavior than LLVM, and so has no instance |
 | No argument is `undef` | Arguments that are `noundef` in the source: passing `undef` or poison there is undefined, which the model checks | Any other argument. A `Val` is a value or poison, never `undef`, so `and i8 %x, 0` refines `xor i8 %x, %x` in the model, where LLVM lets `xor` of an `undef` give anything. `tools/binding.py` refuses such a function as `undef_argument` |
 | A promise to progress or to return means what LangRef says | `mustprogress`, `willreturn` and `llvm.loop.mustprogress`, as [trust](trust.md#promises-to-progress) reads them: a run that never finishes under one is undefined, unless it waits on a call LangRef allows never to return. Since SEM-07, on 2026-11-08 | Where LangRef doesn't settle it, the model stops, which allows nothing in a source, or the emitter refuses the function |
-| A source that stops the model is never certified | Always: a model stop allows nothing | It makes the relation incomplete where the model stops, as [trust](trust.md#what-the-model-does-at-its-edges) lists. Until F3 that included `freeze` of poison, so inserting a `freeze`, which is right in LLVM, wasn't a refinement in the model. Since F3 it is: `freezeInserted` |
+| A source that stops the model is never certified | For a run that makes no choices, always: a model stop allows nothing. For one that makes choices, the way the source chooses that allows the target never stops the model, but under another way it may: if it's undefined under some way, it allows anything, as LLVM's source does, whatever it does under the rest | It makes the relation incomplete where the model stops, as [trust](trust.md#what-the-model-does-at-its-edges) lists. Until F3 that included `freeze` of poison, so inserting a `freeze`, which is right in LLVM, wasn't a refinement in the model. Since F3 it is: `freezeInserted` |
 | A `freeze` that runs twice may choose two values | Each `freeze` a run executes reads its own place in the run's `Choice`, as [above](#runs-that-make-choices) | Nowhere known. It's a reading of LangRef, which unrolling and inlining depend on |
 | A source that never finishes needs a target that doesn't either | Always: without a promise LLVM allows a run that never finishes, and nothing else in its place | Under a promise the run isn't `none` but undefined, which allows anything, so deleting a loop under `mustprogress` refines. `loopDeletedUnderPromise` in the tests proves it, and `tests/binding.py` binds a real `loop-deletion` run |
 

@@ -245,11 +245,9 @@ def run_lean(functions, cases, work, split):
         "class Shows (α : Type) where shows : α → String",
         "instance : Shows (Outcome (Val w)) := ⟨show'⟩",
         "instance : Shows (Outcome (Val w × Mem)) := ⟨fun x => show' (andThen x fun r => Outcome.ok r.1)⟩",
-        # A function with a `freeze` runs under two choices, and native code may have chosen anything, so a
-        # result that depends on them can't be compared.
-        "instance [Shows (Outcome α)] : Shows (Outcomes α) := ⟨fun o =>",
-        "  let a := Shows.shows (o fun _ => 0)",
-        '  if a == Shows.shows (o fun _ => 1) then a else "choice"⟩',
+        # A function with a `freeze` runs under one choice, marked: native code may have chosen otherwise.
+        "instance [Shows (Outcome α)] : Shows (Outcomes α) :=",
+        '  ⟨fun o => "choice:" ++ Shows.shows (o fun _ => 0)⟩',
     ]
     runners = []
     for i, (_, name, widths, _, memory) in enumerate(functions):
@@ -315,7 +313,11 @@ def run_native(functions, cases, keep, ll, work):
 
 
 def has_no_result(x):
-    return x in ("poison", "diverged", "choice") or x.startswith(("ub:", "stop:"))
+    """Whether a result from Lean can't be compared with native code's. One a function with a `freeze` gave
+    under one choice can be, and a match shows the model allows what native code did, but another choice
+    could give what native code did instead, so a difference isn't a mismatch."""
+    x = x.removeprefix("choice:")
+    return x in ("poison", "diverged") or x.startswith(("ub:", "stop:"))
 
 
 def compare_ll(tool, ll, runs, rand, stats, bounds=None, split=False, only="", slow=None):
@@ -345,7 +347,7 @@ def compare_ll(tool, ll, runs, rand, stats, bounds=None, split=False, only="", s
             stats.skipped += sum(not k for k in keep[-1])
             for x in row:
                 if has_no_result(x):
-                    kind = x.replace("ub:IRLean.UB.", "undefined: ")
+                    kind = x.removeprefix("choice:").replace("ub:IRLean.UB.", "undefined: ")
                     kind = kind.replace("stop:IRLean.ModelStop.", "model stop: ")
                     why = f"{kind} in @{functions[i][0]}"
                     stats.skip_reasons[why] = stats.skip_reasons.get(why, 0) + 1
@@ -354,9 +356,14 @@ def compare_ll(tool, ll, runs, rand, stats, bounds=None, split=False, only="", s
             for c, k, v in zip(cases[i], keep[i], values[i], strict=True):
                 if not k:
                     continue
-                stats.compared += 1
                 got = next(native)
-                if got != v:
+                if v.startswith("choice:") and got != v.removeprefix("choice:"):
+                    stats.skipped += 1
+                    why = f"choice in @{name}"
+                    stats.skip_reasons[why] = stats.skip_reasons.get(why, 0) + 1
+                    continue
+                stats.compared += 1
+                if got != v.removeprefix("choice:"):
                     stats.mismatches.append((name, c, f"lean={v}", f"native={got}"))
 
 

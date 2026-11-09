@@ -224,6 +224,9 @@ def eval_in_lean(table, shapes, lean, work):
         '  | some (.error (.undefined _)) => "ub"',
         '  | some (.error (.model _)) => "stop"',
         '  | none => "diverged"',
+        # Each operation is one instruction, so the only one that makes a choice is `freeze`, which gives 0
+        # and 1 under these two exactly when its operand is poison. So two that agree show it doesn't depend
+        # on them.
         "-- An operation that makes choices, `freeze`, runs under two: `choice` if its result depends.",
         "class Shows (α : Type) where shows : α → String",
         "instance : Shows (Outcome (Val w)) := ⟨show'⟩",

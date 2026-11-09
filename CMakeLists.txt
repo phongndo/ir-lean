@@ -27,7 +27,8 @@ add_test(
     COMMAND
         ${CMAKE_SOURCE_DIR}/tests/differential.py $<TARGET_FILE:ir-lean>
         ${CMAKE_SOURCE_DIR}/tests/real/bi_reverse.c ${CMAKE_SOURCE_DIR}/tests/real/calls.c
-        ${CMAKE_SOURCE_DIR}/tests/real/memory.c --bound fib=20 --bound is_even=200 --bound is_odd=200
+        ${CMAKE_SOURCE_DIR}/tests/real/memory.c ${CMAKE_SOURCE_DIR}/tests/real/choices.ll --bound fib=20
+        --bound is_even=200 --bound is_odd=200
 )
 add_test(
     NAME vectors_pointers
