@@ -242,13 +242,19 @@ def run_lean(functions, cases, work, split):
         '  | some (.error (.undefined e)) => "ub:" ++ reprStr e',
         '  | some (.error (.model e)) => "stop:" ++ reprStr e',
         '  | none => "diverged"',
-        "def showMem {w : Nat} (x : Outcome (Val w × Mem)) : String :=",
-        "  show' (andThen x fun r => Outcome.ok r.1)",
+        "class Shows (α : Type) where shows : α → String",
+        "instance : Shows (Outcome (Val w)) := ⟨show'⟩",
+        "instance : Shows (Outcome (Val w × Mem)) := ⟨fun x => show' (andThen x fun r => Outcome.ok r.1)⟩",
+        # A function with a `freeze` runs under two choices, and native code may have chosen anything, so a
+        # result that depends on them can't be compared.
+        "instance [Shows (Outcome α)] : Shows (Outcomes α) := ⟨fun o =>",
+        "  let a := Shows.shows (o fun _ => 0)",
+        '  if a == Shows.shows (o fun _ => 1) then a else "choice"⟩',
     ]
     runners = []
     for i, (_, name, widths, _, memory) in enumerate(functions):
         args = " ".join(f"(some (BitVec.ofNat {w} c[{k}]!))" for k, w in enumerate(widths))
-        call = f"showMem (M.{name} {args} M.initial)" if memory else f"show' (M.{name} {args})"
+        call = f"Shows.shows (M.{name} {args}{' M.initial' if memory else ''})"
         src.append(f"def r{i} : IO Unit := for c in ({cases[i]} : List (List Nat)) do IO.println ({call})")
         runners.append(f"r{i}")
     src.append("def main : IO Unit := do\n  for r in [" + ", ".join(runners) + "] do r")
@@ -309,7 +315,7 @@ def run_native(functions, cases, keep, ll, work):
 
 
 def has_no_result(x):
-    return x == "poison" or x == "diverged" or x.startswith(("ub:", "stop:"))
+    return x in ("poison", "diverged", "choice") or x.startswith(("ub:", "stop:"))
 
 
 def compare_ll(tool, ll, runs, rand, stats, bounds=None, split=False, only="", slow=None):

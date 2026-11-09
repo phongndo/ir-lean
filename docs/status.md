@@ -241,3 +241,7 @@ reads it. That difference is itself a thing [Phase 3](roadmap.md#phase-3-c-and-r
     `lake build` and CI, 17 of them used by two proofs. Done in [#60](https://github.com/phongndo/ir-lean/pull/60).
 12. Tier-1 proof tests, which run a property on generated inputs and have the kernel check each counterexample. Done,
     for functions without memory: [proof tests](proof-tests.md) has what they refute, and what they can't run.
+13. `freeze` in the model, F3: `freeze` of poison is a value each run chooses, and `IRLean.Refines` quantifies over each
+    side's choices, so inserting, removing and duplicating a `freeze` are judged as LangRef judges them, and four real
+    `instcombine` runs on `freeze` are bound as refinements. `undef` stays out of the model. See
+    [refinement](refinement.md#runs-that-make-choices).
