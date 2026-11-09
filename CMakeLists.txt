@@ -203,6 +203,7 @@ set_tests_properties(
     undef_freeze
     generic_rewrites
     cpp_correspondence
+    store
     PROPERTIES LABELS semantics
 )
 # These compile the same modules, and the second finds them in the cache.

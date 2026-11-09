@@ -179,9 +179,9 @@ theorem round_trip_256 : Refines Src256.f Tgt256.f := by
 | After rests on | the standard three | the standard three |
 
 Each is one Lean process compiling the proof, with the generated modules already compiled, on 2026-11-08, while
-other lanes' jobs kept the load average near 5. The proof after is the same text at every width, but for the modules it names; the one before is
-a new SAT problem at each, which grows with the width. `tests/store_test.py` checks all four, their axioms, and that
-`leanchecker` replays them.
+other lanes' jobs kept the load average near 5. The proof after is the same text at every width, but for the modules
+it names; the one before is a new SAT problem at each, which grows with the width. `tests/store_test.py` checks all
+four, their axioms, and that `leanchecker` replays them.
 
 Don't overread this. One rewrite, on one machine. Rewrites `bv_decide` normalizes away gain little:
 `mul nuw nsw x, 8` to `shl nuw nsw x, 3` checked in about the same time at `i256` with `bv_decide` as from
