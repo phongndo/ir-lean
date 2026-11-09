@@ -560,11 +560,26 @@ def read_jsonl(path: Path) -> list[dict]:
     )
 
 
+def sample(work: Path, upto: int | None) -> set[str] | None:
+    """The first `upto` changed pairs the model or Alive2 can be asked about, in the order of their ids. An id
+    is a SHA-256 of the test and function, so this is a uniform sample of them, the same one every run, and
+    each larger sample holds the smaller ones. None for every pair."""
+    if upto is None:
+        return None
+    ids = sorted(
+        p["id"] for p in read_jsonl(work / "pairs.jsonl") if p["status"] in ("candidate", "unsupported")
+    )
+    return set(ids[:upto])
+
+
 def cmd_prove(args: argparse.Namespace) -> int:
     work: Path = args.work
     pairs = [p for p in read_jsonl(work / "pairs.jsonl") if p["status"] == "candidate"]
     done = {r["id"]: r for r in read_jsonl(work / "prove.jsonl")} if not args.again else {}
-    todo = [p for p in pairs if p["id"] not in done][: args.limit]
+    keep = sample(work, getattr(args, "upto", None))
+    todo = sorted(
+        (p for p in pairs if p["id"] not in done and (keep is None or p["id"] in keep)), key=lambda p: p["id"]
+    )[: args.limit]
     v = VN.load_verify()
     versions = VN.current_versions(v, TOOL)
     t0 = time.time()
@@ -713,7 +728,12 @@ def cmd_certify(args: argparse.Namespace) -> int:
     pairs = {p["id"]: p for p in read_jsonl(work / "pairs.jsonl")}
     proved = {r["id"]: r for r in read_jsonl(work / "prove.jsonl") if r["lean"] == "proved"}
     done = {r["id"] for r in read_jsonl(work / "certify.jsonl")}
-    todo = [pairs[i] for i in proved if eligible(pairs[i]) and i not in done][: args.limit]
+    keep = sample(work, getattr(args, "upto", None))
+    todo = [
+        pairs[i]
+        for i in sorted(proved)
+        if eligible(pairs[i]) and i not in done and (keep is None or i in keep)
+    ][: args.limit]
     t0 = time.time()
     with (
         open(work / "certify.jsonl", "a") as f,
@@ -804,7 +824,10 @@ def cmd_alive(args: argparse.Namespace) -> int:
     wanted = ("candidate",) if getattr(args, "candidates_only", False) else ("candidate", "unsupported")
     pairs = [p for p in read_jsonl(work / "pairs.jsonl") if p["status"] in wanted]
     done = {r["id"] for r in read_jsonl(work / "alive.jsonl")}
-    todo = [p for p in pairs if p["id"] not in done][: args.limit]
+    keep = sample(work, getattr(args, "upto", None))
+    todo = sorted(
+        (p for p in pairs if p["id"] not in done and (keep is None or p["id"] in keep)), key=lambda p: p["id"]
+    )[: args.limit]
     t0 = time.time()
     with (
         open(work / "alive.jsonl", "a") as f,
@@ -840,6 +863,21 @@ UB_REASONS = constructors("UB")
 RETURNS = "IRLean.andThen ({0}) (fun _ => IRLean.Outcome.ok ()) = IRLean.Outcome.ok ()"
 # The decidable claim of tests/verify_negative.py, over every reason IRLean.UB has: undefined behavior in the
 # source allows anything, a run that never ends only another, a poison result any result, and a value itself.
+# The same for a vector result, lane by lane, without a `match`, which a statement can't hold: a poison lane
+# in the source allows any lane in the target there.
+LANES = (
+    "(List.range {n}).all (fun i => (IRLean.Vec.lane v i).isNone || "
+    "IRLean.Vec.lane u i == IRLean.Vec.lane v i)"
+)
+VEC_REFINES = " ∨ ".join(
+    [
+        "(∃ r ∈ [" + ", ".join(f"IRLean.UB.{r}" for r in UB_REASONS) + "], {src} = IRLean.Outcome.ub r)",
+        "({src} = Option.none ∧ {tgt} = Option.none)",
+        "IRLean.andThen ({src}) (fun v => IRLean.andThen ({tgt}) (fun u => if "
+        + LANES
+        + " then IRLean.Outcome.ok () else IRLean.Outcome.ub IRLean.UB.unreachable)) = IRLean.Outcome.ok ()",
+    ]
+)
 REFINES = " ∨ ".join(
     [
         "(∃ r ∈ [" + ", ".join(f"IRLean.UB.{r}" for r in UB_REASONS) + "], {src} = IRLean.Outcome.ub r)",
@@ -856,30 +894,84 @@ def edge_values(w: int) -> list[int | None]:
     return [None, *sorted({v & top for v in vals})]
 
 
-def witnesses(args: list[str], params: list[str], example: dict, limit: int, seed: str) -> list[dict]:
-    """Alive2's counterexample first, if it has one, then edge values, at most `limit` in all."""
-    widths = [int(a.split()[1]) for a in args]
+VAL = re.compile(r"Val (\d+)")
+VEC = re.compile(r"Vec (\d+) (\d+)")
+ALIVE_SCALAR = re.compile(r"^i\d+ %(\S+) = (poison|#x([0-9a-f]+) \(.*\))$", re.M)
+ALIVE_VECTOR = re.compile(r"^<\d+ x i\d+> %(\S+) = < (.*) >$", re.M)
 
-    def term(v: int | None, w: int) -> str:
-        return "none" if v is None else f"some {v}#{w}"
+
+def alive_example(output: str) -> dict:
+    """The inputs of Alive2's counterexample, by argument name: an integer, "poison", or a list of them for a
+    vector. Empty if it printed none."""
+    if "Example:" not in output:
+        return {}
+    block = output.split("Example:", 1)[1].split("\nSource:", 1)[0]
+    out: dict[str, Any] = {}
+    for m in ALIVE_SCALAR.finditer(block):
+        out[m.group(1)] = "poison" if m.group(2) == "poison" else int(m.group(3), 16)
+    for m in ALIVE_VECTOR.finditer(block):
+        lanes = []
+        for raw in m.group(2).split(", "):
+            lane = raw.strip()
+            hexa = re.match(r"#x([0-9a-f]+)", lane)
+            if lane == "poison":
+                lanes.append("poison")
+            elif hexa:
+                lanes.append(int(hexa.group(1), 16))
+            else:
+                break
+        else:
+            out[m.group(1)] = lanes
+    return out
+
+
+def witnesses(args: list[str], params: list[str], example: dict, limit: int, seed: str) -> list[dict]:
+    """Alive2's counterexample first, if it has one, then edge values, at most `limit` in all: every
+    combination when there are few, and a seeded sample otherwise. A vector's lanes take values
+    independently."""
+    shapes = []
+    for a in args:
+        if m := VAL.fullmatch(a):
+            shapes.append((None, int(m.group(1))))
+        elif m := VEC.fullmatch(a):
+            shapes.append((int(m.group(1)), int(m.group(2))))
+        else:
+            return []
+
+    def lane(v: Any, w: int) -> str:
+        return "none" if v is None or v == "poison" else f"some {v}#{w}"
+
+    def term(v: Any, shape: tuple[int | None, int]) -> str:
+        n, w = shape
+        return lane(v, w) if n is None else "#v[" + ", ".join(lane(x, w) for x in v) + "]"
 
     out = []
     if example and all(p in example for p in params):
-        out.append(
-            {
-                f"x{i}": term(None if example[p] == "poison" else example[p], w)
-                for i, (p, w) in enumerate(zip(params, widths, strict=True))
-            }
-        )
-    grid: list[list[int | None]] = [[]]
-    for w in widths:
-        grid = [[*g, v] for g in grid for v in edge_values(w)]
-        if len(grid) > 4096:
-            grid = random.Random(seed).sample(grid, 4096)
+        values = [example[p] for p in params]
+        if all(
+            (n is None) != isinstance(v, list) and (n is None or len(v) == n)
+            for v, (n, _) in zip(values, shapes, strict=True)
+        ):
+            out.append({f"x{i}": term(v, s) for i, (v, s) in enumerate(zip(values, shapes, strict=True))})
+    slots = [(i, w) for i, (n, w) in enumerate(shapes) for _ in range(n or 1)]
+    choices = [edge_values(w) for _, w in slots]
+    total = 1
+    for c in choices:
+        total *= len(c)
     rng = random.Random(seed)
-    rng.shuffle(grid)
+    if total <= 4096:
+        grid: list[list[int | None]] = [[]]
+        for c in choices:
+            grid = [[*g, v] for g in grid for v in c]
+        rng.shuffle(grid)
+    else:
+        grid = [[rng.choice(c) for c in choices] for _ in range(limit)]
     for g in grid[: max(0, limit - len(out))]:
-        out.append({f"x{i}": term(v, w) for i, (v, w) in enumerate(zip(g, widths, strict=True))})
+        values, k = [], 0
+        for n, _ in shapes:
+            values.append(g[k] if n is None else g[k : k + n])
+            k += n or 1
+        out.append({f"x{i}": term(v, s) for i, (v, s) in enumerate(zip(values, shapes, strict=True))})
     return out
 
 
@@ -888,12 +980,14 @@ def refute_pair(
 ) -> dict:
     out: dict[str, Any] = {"id": pair["id"]}
     args = prove.get("args")
+    result_type = prove.get("result", "")
+    vector_result = re.fullmatch(r"Outcome \(Vec (\d+) \d+\)", result_type)
     if (
         args is None
-        or not all(re.fullmatch(r"Val \d+", a) for a in args)
-        or not re.fullmatch(r"Outcome \(Val \d+\)", prove.get("result", ""))
+        or not all(VAL.fullmatch(a) or VEC.fullmatch(a) for a in args)
+        or not (re.fullmatch(r"Outcome \(Val \d+\)", result_type) or vector_result)
     ):
-        return {**out, "refute": "unsupported", "reason": "not_scalar"}
+        return {**out, "refute": "unsupported", "reason": "not_integers_or_vectors"}
     d = work / "prove" / pair["id"]
     files = d / "files"
     params = [
@@ -901,11 +995,22 @@ def refute_pair(
         for x in B.parameters((work / "pairs" / pair["id"] / "src.ll").read_text(), pair["function"])
     ]
     xs = [f"x{i}" for i in range(len(args))]
-    binders = " ".join(f"({x} : IRLean.{a})" for x, a in zip(xs, args, strict=True))
     app = " ".join(xs)
-    claim = REFINES.format(src=f"Opt.src {app}".strip(), tgt=f"Opt.tgt {app}".strip())
-    statement = f"∀ {binders}, {claim}" if binders else claim
-    ws = witnesses(args, params, (alive or {}).get("example") or {}, limit, pair["id"])
+    src, tgt = f"Opt.src {app}".strip(), f"Opt.tgt {app}".strip()
+    claim = (
+        VEC_REFINES.format(src=src, tgt=tgt, n=vector_result.group(1))
+        if vector_result
+        else REFINES.format(src=src, tgt=tgt)
+    )
+    saved = work / "alive" / f"{pair['id']}.txt"
+    example = alive_example(saved.read_text()) if saved.exists() else {}
+    if args:
+        binders = " ".join(f"({x} : IRLean.{a})" for x, a in zip(xs, args, strict=True))
+        ws = witnesses(args, params, example, limit, pair["id"])
+    else:
+        # tools/verify.py decides a statement at a witness, so one with no arguments gets a binder of its own.
+        binders, ws = "(u : Unit)", [{"u": "()"}]
+    statement = f"∀ {binders}, {claim}"
     request = {
         "input": {"ir": "Opt.ll"},
         "namespace": "Opt",
@@ -922,7 +1027,7 @@ def refute_pair(
     out.update(
         seconds=harness.seconds,
         witnesses=len(ws),
-        from_alive=bool(ws and (alive or {}).get("example")),
+        from_alive=bool(ws and example),
         verify_status=result.get("status"),
         verify_reason=result.get("reason"),
     )
@@ -940,7 +1045,7 @@ def refute_pair(
         )
         probe = {
             **request,
-            "statement": f"∀ {binders}, ¬({stopped})" if binders else f"¬({stopped})",
+            "statement": f"∀ {binders}, ¬({stopped})",
             "witnesses": [assignment],
         }
         ran, _ = verify_once(probe, files, "stops", d / "stops", timeout)
@@ -977,7 +1082,8 @@ def cmd_refute(args: argparse.Namespace) -> int:
         if (i not in done and r["lean"] in ("failed", "unknown"))
         or (i in alive and alive[i]["alive"] == "incorrect" and r["lean"] != "unsupported" and i not in done)
     ]
-    todo = todo[: args.limit]
+    keep = sample(work, getattr(args, "upto", None))
+    todo = sorted(i for i in todo if keep is None or i in keep)[: args.limit]
     t0 = time.time()
     with (
         open(work / "refute.jsonl", "a") as f,
@@ -1062,7 +1168,8 @@ def explain(lean: str, lean_reason: str, alive: str) -> str | None:
     proof = lean in ("certified", "proved")
     if (proof and alive == "correct") or (lean == "refuted" and alive == "incorrect"):
         return None
-    if (proof and alive == "incorrect") or (lean == "refuted" and alive == "correct"):
+    # A source always undefined allows any target, so the model refuting it there is a disagreement too.
+    if (proof and alive == "incorrect") or (lean == "refuted" and alive in ("correct", "src_always_ub")):
         return "investigate"
     if definite_lean and alive == "timeout":
         return "alive2_timeout"
@@ -1151,13 +1258,90 @@ def stats(values: list[Any]) -> dict:
     }
 
 
-def summarize(work: Path) -> dict:
+# Why the emitter refuses a function, grouped by feature. The emitter names one reason per function, the first
+# it meets, so these are exclusive, in this order: a reason matching an earlier group counts there.
+REFUSAL_GROUPS = [
+    ("emitter gave no report, crashed", r"^emitter gave no report"),
+    ("undef", r"^undef\b"),
+    ("scalable vectors", r"vscale"),
+    (
+        "floating point",
+        r"\b(float|double|half|bfloat|fp128|x86_fp80|ppc_fp128)\b|denormal_fpenv|strictfp|"
+        r"amdgpu-ieee|\bf(add|sub|mul|div|rem|neg|cmp)\b|\bfp(ext|trunc|tosi|toui)\b|\b[su]itofp\b",
+    ),
+    (
+        "target intrinsics",
+        r"^intrinsic llvm\.(x86|amdgcn|aarch64|arm|nvvm|ppc|wasm|riscv|hexagon|s390|r600|spv|dx)\.",
+    ),
+    ("other intrinsics", r"^intrinsic "),
+    ("division or remainder on vectors", r"^instruction .*\b[su](div|rem) <"),
+    ("atomics", r"\b(atomicrmw|cmpxchg|fence)\b|\batomic\b"),
+    ("metadata", r"^metadata"),
+    ("constant expressions", r"^constant"),
+    ("calls outside the module", r"^call to external|^variadic call|^call attribute|^call through"),
+    ("attributes on vectors", r"on a vector"),
+    ("vector casts and pointer vectors", r"bitcast <|bitcast .* to <|<\d+ x ptr>"),
+    ("pointers: address spaces, inttoptr, external globals", r"addrspace|inttoptr|external global|ptrtoaddr"),
+    ("data layouts", r"^data layout"),
+    ("other attributes", r"attribute"),
+    ("exceptions", r"exception"),
+    ("other instructions", r"^instruction"),
+    ("other types", r"^type"),
+]
+FEATURES = [
+    ("floating point", r"\b(float|double|half|bfloat|fp128|x86_fp80|ppc_fp128)\b"),
+    ("vectors", r"<\s*(vscale\s+x\s+)?\d+\s+x\s"),
+    ("scalable vectors", r"<\s*vscale\s+x"),
+    ("undef", r"\bundef\b"),
+    ("calls to a declared function", r"\bcall\b[^\n]*@(?!llvm\.)"),
+    ("target intrinsics", r"@llvm\.(x86|amdgcn|aarch64|arm|nvvm|ppc|wasm|riscv)\."),
+    ("pointers", r"\bptr\b"),
+    ("memory instructions", r"\b(load|store|alloca|getelementptr|memcpy|memset|memmove)\b"),
+]
+
+
+def refusals(work: Path, pairs: list[dict]) -> dict:
+    refused = [p for p in pairs if p["status"] == "unsupported" and p["reason"] == "emitter"]
+    groups: dict[str, int] = {name: 0 for name, _ in REFUSAL_GROUPS}
+    groups["other"] = 0
+    reasons: dict[str, int] = {}
+    features = {name: 0 for name, _ in FEATURES}
+    for p in refused:
+        side = "src" if p["emitter"]["src"] != "ok" else "tgt"
+        # No row for the function means ir-lean --report failed on the module, such as by crashing.
+        reason = (
+            p["emitter_detail"][side].split("\t")[-1].strip()
+            if p["emitter"][side] != "missing"
+            else "emitter gave no report"
+        )
+        key = re.sub(r"\b\d+\b", "N", re.sub(r"%[-\w.$\"]+", "%v", re.sub(r"@[-\w.$\"]+", "@F", reason)))[:80]
+        reasons[key] = reasons.get(key, 0) + 1
+        group = next((name for name, rx in REFUSAL_GROUPS if re.search(rx, reason)), "other")
+        groups[group] += 1
+        src = work / "pairs" / p["id"] / "src.ll"
+        body = (func_text(src.read_text(), p["function"]) or "") if src.exists() else ""
+        for name, rx in FEATURES:
+            features[name] += bool(re.search(rx, body))
+    return {
+        "functions": len(refused),
+        "by_first_reason": dict(sorted(groups.items(), key=lambda kv: -kv[1])),
+        "commonest_reasons": dict(sorted(reasons.items(), key=lambda kv: -kv[1])[:40]),
+        "features_in_the_source": features,
+    }
+
+
+def summarize(work: Path, upto: int | None = None) -> dict:
+    """Every count. The tests, the pairs and why the emitter refuses some are about every pair; the verdicts,
+    the matrix and the costs are about the sample, when `upto` gives one."""
     tests = read_jsonl(work / "tests.jsonl")
     pairs = read_jsonl(work / "pairs.jsonl")
-    prove = {r["id"]: r for r in read_jsonl(work / "prove.jsonl")}
-    cert = {r["id"]: r for r in read_jsonl(work / "certify.jsonl")}
-    alive = {r["id"]: r for r in read_jsonl(work / "alive.jsonl")}
-    refute = {r["id"]: r for r in read_jsonl(work / "refute.jsonl")}
+    keep = sample(work, upto)
+
+    def kept(path: Path) -> dict[str, dict]:
+        return {r["id"]: r for r in read_jsonl(path) if keep is None or r["id"] in keep}
+
+    prove, cert = kept(work / "prove.jsonl"), kept(work / "certify.jsonl")
+    alive, refute = kept(work / "alive.jsonl"), kept(work / "refute.jsonl")
 
     def count(items: Any) -> dict:
         out: dict[str, int] = {}
@@ -1165,19 +1349,11 @@ def summarize(work: Path) -> dict:
             out[k] = out.get(k, 0) + 1
         return dict(sorted(out.items(), key=lambda kv: -kv[1]))
 
-    rows = rows_of(work)
+    rows = [r for r in rows_of(work) if keep is None or r["id"] in keep]
     matrix = {lv: dict.fromkeys(ALIVE_ORDER, 0) for lv in LEAN_ORDER}
     for r in rows:
         matrix[r["lean"]][r["alive"]] += 1
     candidates = [p for p in pairs if p["status"] == "candidate"]
-    emitter_reasons = count(
-        (p["emitter_detail"]["src"] if p["emitter"]["src"] != "ok" else p["emitter_detail"]["tgt"])
-        .split("\t")[-1]
-        .split(" @")[0]
-        .split(" %")[0][:60]
-        for p in pairs
-        if p["status"] == "unsupported" and p["reason"] == "emitter"
-    )
     measured = read_jsonl(work / "stages.jsonl")
     known = [r for r in rows if r["known"]]
     soundness = (
@@ -1213,9 +1389,17 @@ def summarize(work: Path) -> dict:
             "defined": sum(t.get("functions", 0) for t in tests),
             "changed_by_the_test_run": sum(t.get("changed", 0) for t in tests),
         },
+        "sample": None
+        if keep is None
+        else {
+            "pairs": len(keep),
+            "of": sum(1 for p in pairs if p["status"] in ("candidate", "unsupported")),
+            "candidates": sum(1 for p in pairs if p["id"] in keep and p["status"] == "candidate"),
+            "how": "the first pairs by id, a SHA-256 of test and function: a uniform sample",
+        },
+        "emitter_refusals": refusals(work, pairs),
         "pairs": {
             "status": count(f"{p['status']}:{p['reason']}" for p in pairs),
-            "emitter_refuses": dict(list(emitter_reasons.items())[:15]),
             "candidates": len(candidates),
             "candidates_with_undef_arguments": sum(1 for p in candidates if p["undef_arguments"]),
             "candidates_with_a_promise_in_the_target": sum(1 for p in candidates if p["trusted_promise"]),
@@ -1249,7 +1433,7 @@ def summarize(work: Path) -> dict:
 
 def cmd_report(args: argparse.Namespace) -> int:
     work: Path = args.work
-    summary = summarize(work)
+    summary = summarize(work, getattr(args, "upto", None))
     summary["toolchain"] = toolchain()
     (work / "rows.jsonl").write_text("")
     out = args.out or work / "summary.json"
@@ -1778,22 +1962,26 @@ def main() -> int:
     p.add_argument("--seed", type=int, default=1)
     p.add_argument("--jobs", type=int, default=8)
     p = sub.add_parser("prove")
+    p.add_argument("--upto", type=int, help="only the first N changed pairs by id: a uniform sample")
     p.add_argument("--jobs", type=int, default=4)
     p.add_argument("--timeout", type=int, default=120)
     p.add_argument("--lean-memory", type=int, default=4000)
     p.add_argument("--limit", type=int)
     p.add_argument("--again", action="store_true")
     p = sub.add_parser("certify")
+    p.add_argument("--upto", type=int, help="only the first N changed pairs by id: a uniform sample")
     p.add_argument("--jobs", type=int, default=2)
     p.add_argument("--timeout", type=int, default=300)
     p.add_argument("--lean-memory", type=int, default=3000)
     p.add_argument("--limit", type=int)
     p = sub.add_parser("alive")
+    p.add_argument("--upto", type=int, help="only the first N changed pairs by id: a uniform sample")
     p.add_argument("--jobs", type=int, default=8)
     p.add_argument("--candidates-only", action="store_true")
     p.add_argument("--timeout", type=int, default=120)
     p.add_argument("--limit", type=int)
     p = sub.add_parser("refute")
+    p.add_argument("--upto", type=int, help="only the first N changed pairs by id: a uniform sample")
     p.add_argument("--jobs", type=int, default=4)
     p.add_argument("--timeout", type=int, default=300)
     p.add_argument("--lean-memory", type=int, default=4000)
@@ -1818,6 +2006,7 @@ def main() -> int:
     p.add_argument("--append", action="store_true")
     p = sub.add_parser("ci")
     p = sub.add_parser("report")
+    p.add_argument("--upto", type=int, help="only the first N changed pairs by id: a uniform sample")
     p.add_argument("--out", type=Path)
     args = ap.parse_args()
     args.work = args.work.resolve()
