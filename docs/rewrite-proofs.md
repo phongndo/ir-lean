@@ -10,7 +10,9 @@ has the conventions a family of folds follows. For what any theorem here means, 
 Facts here were checked on 2026-11-09 on branch `chunk1/g2-core`, at commits `29938ba` to `d87efe8`, and the
 scoreboard's after `main` and its revised inventory, #79, merged in, on an Apple silicon Mac with 16 cores and 64 GB,
 in the dev shell, with Lean 4.35.0 and LLVM 23.1.3, while other lanes' jobs held slots in the machine's pool of heavy
-jobs.
+jobs. What's here about InstCombine, its comparison with `opt` and its first family, `ic-add`, was checked on
+2026-11-09 on branch `chunk1/g2-ic-add`, on top of `chunk1/g2-core` at `656eddd`, on a Linux machine with 32 cores
+and 30 GB shared with four other lanes, with the same Lean and LLVM, through the same pool.
 
 ## What it found
 
@@ -25,6 +27,20 @@ jobs.
   from LLVM's own regression tests, and every one of its 8 sites fires on some. Two broken models are caught: dropping
   the `nuw` guard of `add nuw x, -1` gives 193 mismatches, all at that site, and dropping the flag guard of the
   sign-mask rule, which no theorem can catch since the rewrite is right without flags, gives 4.
+- **InstCombine's first family, `ic-add`, counts 18 of InstCombine's 2,536 rewrites** on `chunk1/g2-ic-add`: every
+  site of `foldAddWithConstant`, 0.71% of InstCombine's rewrites and 1.2% of its 1,499 that need only integers. `opt`
+  exercised 13. Its model is `visitAdd`'s, through `foldAddWithConstant`: it forwards to `simplifyAddInst`'s model, and
+  delegates the steps it doesn't follow where they could fire. [The method](#instcombines-folds) is below.
+- **InstCombine's answers are new IR, and the comparison now reads them:** the case's function, with the root replaced
+  by the model's answer and run through `opt -passes=instcombine`, has to return what `opt` returns from the case. On
+  22,376 cases, 4,319 compared, 0 mismatch. Three broken models of `foldAddWithConstant` are caught, each at its own
+  site only: one that drops the flag guard of `X + signmask` to a disjoint `or`, 60 mismatches; one that drops the
+  one-use guard of `add (sub X, Y), -1`, 9; and one that folds `add (sub C1, X), C2`'s constants with `sub`, 58.
+- **`foldAddWithConstant`'s `~X + C` to `(C - 1) - X` is wrong at `i1` on its own.** With `nsw`, `add nsw (xor %p,
+  true), true` is `true` for `%p = true`, and the `sub nsw false, %p` it builds is poison, since at `i1` the constant
+  `1` is `-1` and `C - 1` doesn't overflow. `visitAdd` never reaches it there: `simplifyAddInst`, which it calls first,
+  answers every `i1` `add`. The site's theorem assumes no `nsw` or a width other than 1, and `visitAdd.sound` proves
+  that from the order of the steps.
 - **The store took all 11 of the worked example's value lemmas:** 4 meet all four rules of the bar and 7 are
   candidates. None was refused as `trivial`. Two were refused until their counterexamples were written.
 - **E3 so far:** every one of the 8 proofs uses a stored rewrite lemma, but 7 use only lemmas cut from these same
@@ -50,6 +66,7 @@ What it doesn't claim:
 | Anything about `undef` | IRLean has no `undef`. Each theorem assumes no operand reaches one, `hasUndef = false`, as #47's does, so a site only `undef` reaches isn't proved, as [rule 7](#the-scoreboard) says |
 | That LLVM's analyses are right | A fold's theorem holds for every `Oracle` that's `Oracle.Sound`: every answer true in the run. That they are is [PASS-01](llvm-verification-tasks.md#pass-01-analyses-are-sound) |
 | Recursive calls into InstSimplify | A model either delegates them, which claims nothing, or takes the recursive simplifier as a parameter with a named soundness hypothesis, listed in the registry's `rests_on` |
+| That InstCombine folds what it would | Whether an operand has one use, and whether it's a phi, are a `Ctx` an InstCombine model takes, and its theorems hold for every `Ctx`: they say whether a fold is worth making, not whether it's right |
 | Constant folding, and code no model follows | Each is a `.delegate` step, which claims nothing |
 | That the model is the C++ | Written by hand. The comparison with `opt` below is evidence on finitely many cases, not proof |
 | The pass around the fold | Replacing uses, deleting dead code, revisiting users and dominance aren't modelled, as in [#47](llvm-cpp-correspondence.md#what-isnt-established) |
@@ -75,8 +92,9 @@ Its Lean side is [`tests/peephole/Harness.lean`](../tests/peephole/Harness.lean)
 1. **Cases from LLVM's own tests.** It reads each regression test of the entry's pass at the pin, such as
    `llvm/test/Transforms/InstSimplify/*.ll`, as `opt -S` prints it, and takes every instruction with that opcode whose
    type is a scalar integer. Its operands become a tree `Term` holds, as deep as five instructions, with one identity
-   for one value. An argument, an instruction `Term` can't hold, and one deeper than that become arguments. Two
-   instructions of the same shape, with the same sharing, are one case, which keeps the tests it came from.
+   for one value. An argument, an instruction `Term` can't hold, and one deeper than that become arguments. One cut
+   off by depth that's also a node nearer the root is an argument of its own, since in the case's function they're two
+   values. Two instructions of the same shape, with the same sharing, are one case, which keeps the tests it came from.
 2. **Generated cases,** as #47 made for `add`: every pair of operands from arguments, constants such as 0, 1, -1 and
    the sign mask, poison, `undef` and simple instructions, and operands built to match each other, such as `~p`,
    `0 - p`, `q - p` and a copy of `p` that isn't `p`, at several widths, with each set of flags the opcode takes. At
@@ -119,12 +137,69 @@ imports, the core included, and the folds, of any family, its compared runs reac
 that hash is the sources' now, so a changed model has to be compared again. A family with no entry points records
 `no entry points`: its folds run only through other families'.
 
-**InstCombine's folds** answer with new IR, not an existing value, so for them `compare` reads only whether each
-fires, and leaves comparing the new IR to `compare_new_ir` in `tests/peephole.py`, which answers "not compared" today.
-To fill it in: build the function the model's answer gives, its new instructions in place of the root, and check it
-against `opt`'s output for the same case, the same after `opt -passes=instsimplify` has normalized both, or else
-equivalent by Alive2's `alive-tv`. InstCombine also changes operands, so more of its cases will land in "an operand
-changed first".
+### InstCombine's folds
+
+An InstCombine fold is modelled as InstSimplify's are, with the core's `Step`s, `run` and `Repl`, and nothing in the
+core changed for it. [`Peephole.IC.Base`](../tests/passes-proofs/peephole/Peephole/IC/Base.lean) adds what its models
+share:
+
+- **The answer is a `Repl`:** new instructions on operands that exist, with the flags the C++ sets, such as `.bin .sub
+  {} (.const c) (.old x)` for `BinaryOperator::CreateSub(C, X)`. `Builder.Create*`, `ConstantExpr::get*` and
+  `InstCombiner::AddOne` fold constant operands to a constant, as IRBuilder's `TargetFolder` and LLVM's constant
+  folder do, poison and `undef` included. Each such fold is a function on `Term`s with a theorem that its value is the
+  instruction's.
+- **An in-place change of `I`,** `I.setHasNoSignedWrap(true)` or `replaceOperand(I, 0, A)` followed by `return &I`,
+  makes `I` a new instruction, and the step that ends the fold fires that instruction. `return &I` after a change the
+  model doesn't follow, as after `SimplifyAssociativeOrCommutative(I)`, is `.delegate`.
+- **`replaceInstUsesWith(I, V)`** answers `V`. `visitAdd`'s first statement calls `simplifyAddInst`, and its model
+  forwards to `Peephole.IS.simplifyAddInst`, whose `sound` theorem is that step's.
+- **What the C++ reads that isn't an operand or an analysis,** `V->hasOneUse()` and `isa<PHINode>(V)`, is a `Ctx`,
+  and a theorem holds for every `Ctx`.
+- **Delegated:** the pass around the fold, InstCombine's worklist, replacing `I`'s uses, revisiting its users,
+  deleting what's dead and running again until nothing changes, and every step the model doesn't follow, where it
+  could fire.
+
+A fold's theorem 1 says each value it answers refines `I`, `IRLean.Refines`, with `Repl.eval` running the new
+instructions, for every width, flag, `Ctx` and sound `Oracle`, poison included. An entry point takes the `Ctx` first:
+`visitAdd.onInst (c : Ctx) (o : Oracle) : {w : Nat} → Term w → Result w`.
+
+### InstCombine's new IR against `opt`
+
+`compare_new_ir` in `tests/peephole.py` decides a case where the model answers new IR. An entry point whose `opt` pass is
+`instcombine` changes the comparison in four ways:
+
+1. **Each case comes in two shapes.** One passes the root's operands to a call, as InstSimplify's cases do, so each
+   has more than one use. The other has no call, so each operand has the uses the tree gives it, and a fold that
+   needs an operand with one use can fire. 22,376 cases are 11,188 in each.
+2. **The `Ctx` is the case's function's.** The harness counts each argument's and instruction's uses in the function
+   `opt` runs, and passes those with one use to the driver. No case has a phi.
+3. **An operand changed first** is read two ways. With the call, `opt` has to leave every line up to it as it was:
+   InstCombine puts what it builds where the root was, after the call. Without it, the operands may be deleted once
+   the root is folded, so the harness runs `opt` on the same function with the root replaced by a call to an opaque
+   function of the same operands, which has the same uses, and the operands have to come out of that as they went in.
+4. **The answer is compared after normalizing.** The harness builds the case's function with the root replaced by the
+   model's new instructions, operands first, and the `ret` naming the last, runs `opt -passes=instcombine` on it, and
+   compares what it returns with what `opt` returns from the case, each written out as one expression down to
+   arguments and constants, so names and the order of lines don't matter.
+
+| Outcome | When | Fails `compare` |
+| --- | --- | --- |
+| Matched | `opt` changed the root, and the normalized answer returns the same expression | |
+| Mismatched | The model fires where `opt` leaves the root as it was, even if its answer normalizes back to the root, or its normalized answer returns another expression | Yes |
+| Delegated | A step before the one that fires is one the model doesn't follow and could fire, so `opt`'s first fold may be another. Not compared | |
+
+What it can catch: a step that fires where the C++'s doesn't, a guard dropped or a wrong one, a one-use guard dropped
+(through the shape with the call), a wrong constant or flag that changes what InstCombine makes of the answer, and a
+step taken where an earlier one the model claims can't fire does. `tests/peephole_test.py --tier live` checks three
+such broken models are caught, each at its own site only.
+
+What it can't: an answer that's wrong but that InstCombine normalizes to `opt`'s, such as a flag the next visit would
+drop or add anyway; a step that fires only on known bits, a dominating condition or a phi, which no case gives with
+`Oracle.none`; and a step the model delegates. Where the normalized answers differ only because two right answers
+normalize apart, the comparison reports a mismatch, which errs toward failing: none has come up. The probe for the
+shape without the call assumes InstCombine treats an operand the same whether its one user is an `add` or a call.
+
+`expected_text` still reads an answer that's an existing value, as for InstSimplify: `opt` has to return that value.
 
 ### `simplifyAddInst` against `opt`
 
@@ -161,6 +236,53 @@ from the `add nuw x, -1` step gives 193 mismatches, all at `IS.simplifyAddInst.L
 regression test files, such as `@pow2_decrement` in `AndOrXor.ll`. Dropping `(isNSW || isNUW) &&` from the sign-mask
 step gives 4, all at `IS.simplifyAddInst.L633`, all generated. Each mutant is the model without its theorems, put in
 front of the library with `PEEPHOLE_OVERLAY`: with them, the first wouldn't compile, and the second would.
+
+### `visitAdd` against `opt`
+
+On `chunk1/g2-ic-add`, `tests/peephole.py compare --family ic-add`, in 5 s:
+
+| | Cases |
+| --- | ---: |
+| All, half with the call keeping the root's operands and half without | 22,376 |
+| From LLVM's regression tests: 1,400 distinct scalar `add`s from 1,673 of InstCombine's test files, in both shapes | 2,800 |
+| Generated, as for `simplifyAddInst` | 19,576 |
+| Compared | 4,319 |
+| Matched: 3,210 through `simplifyAddInst`'s model, an existing value, and 465 new IR | 3,675 |
+| Neither folds | 644 |
+| Mismatched | 0 |
+| Delegated: 5,204 to the rest of `visitAdd`, 1,708 to `SimplifyAssociativeOrCommutative`, 1,160 to the constant folder, 1,138 to `simplifyAssociativeBinOp`, 772 to `simplifyXorInst`, 692 to `foldUsingDistributiveLaws` and 10 to `factorizeMathWithShlOps` | 10,684 |
+| An operand changed first | 7,373 |
+| An analysis explains it, or nothing does | 0 |
+
+| Site | Fired, and matched `opt` | Regression tests it fired on |
+| --- | ---: | --- |
+| `IC.AddSub.foldAddWithConstant.L874` | 74 | `addsub-constant-folding.ll` |
+| `IC.AddSub.foldAddWithConstant.L881` | 9 | `sub-not.ll` |
+| `IC.AddSub.foldAddWithConstant.L886` | 8 | `icmp-div-constant.ll`, `zext-bool-add-sub.ll` |
+| `IC.AddSub.foldAddWithConstant.L891` | 4 | `add.ll`, `preserve-profile.ll` |
+| `IC.AddSub.foldAddWithConstant.L902` | 84 | `add.ll`, `fold-inc-of-add-of-not-x-and-y-to-sub-x-from-y.ll`, `pr14365.ll` |
+| `IC.AddSub.foldAddWithConstant.L911` | 1 | `add.ll` |
+| `IC.AddSub.foldAddWithConstant.L924` | 10 | `add.ll` |
+| `IC.AddSub.foldAddWithConstant.L930` | 2 | `add.ll` |
+| `IC.AddSub.foldAddWithConstant.L936` | 148 | `add.ll`, `icmp-add.ll` |
+| `IC.AddSub.foldAddWithConstant.L940` | 64 | `add.ll`, `apint-add.ll` and 3 more |
+| `IC.AddSub.foldAddWithConstant.L947` | 2 | `apint-add.ll` |
+| `IC.AddSub.foldAddWithConstant.L952` | 58 | `add.ll` |
+| `IC.AddSub.foldAddWithConstant.L1003` | 1 | `saturating-add-sub.ll` |
+
+Five sites never fired. `L959`, `L976` and `L1020` need known bits of an instruction operand, or `isKnownNonZero`,
+which `Oracle.none` doesn't give, so the model falls through to the rest of `visitAdd`, which it delegates, and a
+delegated case isn't compared whatever an oracle that says yes would make it answer. `L989` and `L997` can't fire:
+`L891` takes every `sext` of an `i1` plus a constant first, and `L911` every `ashr` by `N - 1` with one use plus 1. The model returns `nullptr` only where both operands are arguments or constants, so most cases
+where `foldAddWithConstant` declines are delegated, and a model that failed to fire where the C++ does would mostly go
+unseen; one that fires where the C++ doesn't is always seen.
+
+Dropping `(nsw || nuw)` from `X + signmask` to a disjoint `or` gives 60 mismatches, all at `L936`, among them cases
+from `add.ll` and `apint-add.ll`. Dropping the one-use guard of `add (sub X, Y), -1` gives 9, all at `L881`, in the
+shape with the call, among them `@dec_sub` in `sub-not.ll`. Folding `add (sub C1, X), C2`'s constants with `sub` gives
+58, all at `L874`, among them `@const_sub_add_const` in `addsub-constant-folding.ll`. Each mutant is the models of
+`Peephole.IC.AddConst` and `Peephole.IC.Add` without their theorems, put in front of the library with
+`PEEPHOLE_OVERLAY`, as `tests/peephole_test.py --tier live` runs them.
 
 ## The scoreboard
 
@@ -201,15 +323,15 @@ and keeps its theorem.
 A registry lists its sites under `folds`, and each one it didn't prove under `unproved` with why. `score --check`
 also fails if two registries list one site, or one names an ID the inventory doesn't have. It writes JSON, schema
 `ir-lean.peephole.score/1`, to `build/peephole/score.json`, with each listed site's outcome and the ID of every blocked
-rewrite by what it waits for, and prints two tables. On this branch, on 2026-11-09, with #79's inventory:
+rewrite by what it waits for, and prints two tables. On `chunk1/g2-ic-add`, on 2026-11-09, with #79's inventory:
 
 | Pass | Rewrites | Proved | % | Of those, exercised by `opt` | Integers only | Proved of those | % | Proved, model not compared | Undef only | Integer instance proved | Need fp (SEM-05) | Need memory (F4) | Need calls |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | InstSimplify | 541 | 7 | 1.29 | 7 | 300 | 7 | 2.33 | 0 | 0 | 0 | 200 | 31 | 115 |
-| InstCombine | 2,536 | 0 | 0.0 | 0 | 1,499 | 0 | 0.0 | 0 | 0 | 0 | 607 | 281 | 515 |
+| InstCombine | 2,536 | 18 | 0.71 | 13 | 1,499 | 18 | 1.2 | 0 | 0 | 0 | 607 | 281 | 515 |
 | AggressiveInstCombine | 37 | 0 | 0.0 | 0 | 20 | 0 | 0.0 | 0 | 0 | 0 | 6 | 11 | 8 |
 | Reassociate | 60 | 0 | 0.0 | 0 | 18 | 0 | 0.0 | 0 | 0 | 0 | 42 | 0 | 3 |
-| All | 3,174 | 7 | 0.22 | 7 | 1,837 | 7 | 0.38 | 0 | 0 | 0 | 855 | 323 | 641 |
+| All | 3,174 | 25 | 0.79 | 20 | 1,837 | 25 | 1.36 | 0 | 0 | 0 | 855 | 323 | 641 |
 
 "Need calls" waits for the external-calls lane. The three overlap, as in [the inventory](rewrite-inventory.md#totals).
 A site proved by `sorry` keeps every site of its fold from counting, since the fold's `sound` theorem then rests on
@@ -321,6 +443,14 @@ understates the difference. 8 proofs of one fold aren't E3's 20, and their lemma
 say the machinery works, not that the store makes later proofs cheaper. The families now being proved are the first
 test of that.
 
+`ic-add`'s 18, `tests/peephole.py measure --family ic-add` on `chunk1/g2-ic-add`, are the first proofs of a pass but
+InstSimplify. Each takes 6.7 to 56.5 ms to elaborate and check, of which the kernel takes 0.41 to 2.63 ms. 17 of the
+18 use a stored rewrite lemma, each cut from `simplifyAddInst`'s proofs, which E3 counts as reuse: `add_refines_of_sum`
+in 15, `add_intMin` in 5 and `add_none_right` in 3. `L924`'s uses none. Each site's own lemma is new, in
+`Peephole.Lemmas.ICAdd`, which `IRLean.Generic`'s `add_of_and_eq_zero` and `shiftOk_iff` helped prove. Only one pair of
+a site and a stored lemma its proof names directly came up, so the kernel's median with and without the store, 1.14
+and 1.23 ms, rests on one pair.
+
 ### Peak memory targets
 
 Each module, elaborated alone by `lean -M 4096` with what it imports already built, through `tools/measure.py --heavy`:
@@ -333,6 +463,15 @@ Each module, elaborated alone by `lean -M 4096` with what it imports already bui
 | `Peephole.Fold` | 0.32 s | 673 MiB |
 | `Peephole.Lemmas.Add` | 0.31 s | 677 MiB |
 | `Peephole.IS.Add` | 0.60 s | 702 MiB |
+
+On `chunk1/g2-ic-add`'s Linux machine, the same way, importing alone costs more, about 800 MiB:
+
+| Module | Wall | Peak |
+| --- | ---: | ---: |
+| `Peephole.IC.Base` | 1.16 s | 876 MiB |
+| `Peephole.Lemmas.ICAdd` | 0.65 s | 875 MiB |
+| `Peephole.IC.AddConst` | 0.93 s | 919 MiB |
+| `Peephole.IC.Add` | 0.48 s | 841 MiB |
 
 A file that only imports `Peephole.IS.Add`, or only `Peephole.Oracle`, peaks at 652 MiB, so each module's own
 definitions and proofs add 17 to 73 MiB to what importing costs. Proposed, for the library and
@@ -350,8 +489,9 @@ definitions and proofs add 17 to 73 MiB to what importing costs. Proposed, for t
 
 `lake build` builds `Peephole` by default, so CI's setup checks every proof: 2.4 s from nothing on top of `IRLean`
 here. Four tests run in ctest, as [testing](testing.md) lists: `peephole_static` in the `rest` job, under a second, and
-`peephole_compare`, `peephole_score` and `peephole` in the `semantics` job, 2.6 s, 2.9 s and 9.5 s here. No CI run has
-measured them on its 4-core runners yet.
+`peephole_compare`, `peephole_score` and `peephole` in the `semantics` job, 2.6 s, 2.9 s and 9.5 s here. With `ic-add`
+on `chunk1/g2-ic-add`'s machine, `compare` takes 6.2 s for both families and `peephole` 26 s. No CI run has measured
+them on its 4-core runners yet.
 
 ## When a family lands
 
@@ -388,7 +528,8 @@ processes. Nothing here needs Linux.
 
 ## Gaps
 
-- **One fold on this branch.** The scoreboard here counts 7 of `simplifyAddInst`'s 8 sites. The five other families are
+- **Two families on this branch.** The scoreboard here counts 7 of `simplifyAddInst`'s 8 sites and 18 of
+  `foldAddWithConstant`'s. The five other families are
   on branches of their own, and count once their registries and comparisons land, [as above](#the-five-families-merged).
 - **The comparison is finite.** It covers what LLVM's tests and the generator reach, at a few widths. Vectors,
   constant expressions and `undef` inside instructions aren't generated, and an argument stands for anything deeper
@@ -401,5 +542,11 @@ processes. Nothing here needs Linux.
   sites don't count until one of its steps fires in a compared case. Each comparison's record lists the registered
   folds it couldn't watch at all.
 - **LLVM's tests reach 5 of `simplifyAddInst`'s 8 steps that rewrite.** `L605`, `L626` and `L633` fire only on generated cases.
-- **InstCombine's new IR isn't compared yet,** only whether each fold fires, as [above](#each-model-against-opt).
+- **InstCombine's new IR is compared after InstCombine normalizes it,** as
+  [above](#instcombines-new-ir-against-opt). An answer that's wrong only in what the next visit undoes passes, and two
+  right answers that normalize apart would fail. `alive-tv` isn't in the dev shell, so nothing checks two different
+  answers are equivalent.
+- **`visitAdd` is modelled through `foldAddWithConstant` only.** From `foldNoWrapAdd` on, it's one step that delegates
+  unless both operands are leaves, so most cases where `foldAddWithConstant` declines aren't compared, and its 35
+  sites are listed unproved.
 - **E3 is measured on 8 proofs** whose lemmas were cut from them.
