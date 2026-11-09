@@ -1,0 +1,157 @@
+# What tools/prooftest/bench.py measures tier-1 proof tests on, besides tests/llvm/targets.toml and the variants in
+# tools/prooftest/variants.toml. docs/proof-tests.md has the results.
+
+# The 16 bugs tests/proofs.sh injects into the C, each of which stops a proof from checking: the set milestone T1 in
+# docs/roadmap.md names. `from` and `to` are tests/proofs.sh's sed expressions as plain text. Every occurrence is
+# replaced, as sed does on each line, unless `first` is set, as for its `0,/re/` address.
+#
+# `zlib:` is zlib's source at the version the flake pins, as tests/proofs.sh unpacks it. Each property is the theorem
+# the bug stops, as its header states it, except popcount's: tests/proofs/Popcount.lean states it with `pop`, a
+# definition of its own, which tier 1 can't evaluate, so the property here says the same with core's `BitVec.cpop`.
+
+[[proofs_sh]]
+name = "popcount shifts by 2"
+source = "tests/real/bi_reverse.c"
+function = "popcount"
+namespace = "Real"
+statement = "∀ (x : BitVec 32), Real.popcount (some x) = IRLean.Outcome.ok (some (x.cpop.setWidth 32))"
+from = "x >>= 1;"
+to = "x >>= 2;"
+
+[[proofs_sh]]
+name = "adler32 wrong modulus"
+source = "zlib:adler32.c"
+function = "adler32_z"
+namespace = "Zlib"
+theorem = "tests/proofs/Adler32.lean:adler32_z_correct"
+from = "#define BASE 65521U"
+to = "#define BASE 65519U"
+
+[[proofs_sh]]
+name = "adler32 reads past the end"
+source = "zlib:adler32.c"
+function = "adler32_z"
+namespace = "Zlib"
+theorem = "tests/proofs/Adler32.lean:adler32_z_correct"
+from = "while (len >= 16) {"
+to = "while (len >= 15) {"
+
+[[proofs_sh]]
+name = "adler32 wrong sum"
+source = "zlib:adler32.c"
+function = "adler32_z"
+namespace = "Zlib"
+theorem = "tests/proofs/Adler32.lean:adler32_z_correct"
+from = "#define DO1(buf,i)  {adler += (buf)[i]; sum2 += adler;}"
+to = "#define DO1(buf,i)  {adler += (buf)[i]; sum2 += adler + 1;}"
+
+[[proofs_sh]]
+name = "adler32 skips a byte per block"
+source = "zlib:adler32.c"
+function = "adler32_z"
+namespace = "Zlib"
+theorem = "tests/proofs/Adler32.lean:adler32_z_correct"
+from = "len -= NMAX;"
+to = "len -= NMAX - 1;"
+
+[[proofs_sh]]
+name = "adler32 single-byte path forgets the modulus"
+source = "zlib:adler32.c"
+function = "adler32_z"
+namespace = "Zlib"
+theorem = "tests/proofs/Adler32.lean:adler32_z_correct"
+from = "        adler += buf[0];\n        if (adler >= BASE)"
+to = "        adler += buf[0];\n        if (adler > BASE)"
+
+[[proofs_sh]]
+name = "updatewindow copies past what the output has"
+source = "zlib:inflate.c"
+function = "updatewindow"
+namespace = "Inflate"
+theorem = "tests/proofs/UpdateWindow.lean:updatewindow_safe"
+from = "        if (dist > copy) dist = copy;"
+to = ""
+
+[[proofs_sh]]
+name = "updatewindow thinks the window is twice its size"
+source = "zlib:inflate.c"
+function = "updatewindow"
+namespace = "Inflate"
+theorem = "tests/proofs/UpdateWindow.lean:updatewindow_safe"
+from = "state->wsize = 1U << state->wbits;"
+to = "state->wsize = 2U << state->wbits;"
+
+[[proofs_sh]]
+name = "updatewindow copies one byte too many"
+source = "zlib:inflate.c"
+function = "updatewindow"
+namespace = "Inflate"
+theorem = "tests/proofs/UpdateWindow.lean:updatewindow_safe"
+from = "zmemcpy(state->window + state->wnext, end - copy, dist);"
+to = "zmemcpy(state->window + state->wnext, end - copy, dist + 1);"
+
+[[proofs_sh]]
+name = "crc32 wrong table entry"
+source = "zlib:crc32.c"
+file = "crc32.h"
+function = "crc32_z"
+namespace = "Crc"
+theorem = "tests/proofs/Crc32.lean:crc32_z_correct"
+from = "0x77073096"
+to = "0x77073097"
+
+[[proofs_sh]]
+name = "crc32 wrong braid table entry"
+source = "zlib:crc32.c"
+file = "crc32.h"
+function = "crc32_z"
+namespace = "Crc"
+theorem = "tests/proofs/Crc32.lean:crc32_z_correct"
+from = "0xaf449247"
+to = "0xaf449246"
+
+[[proofs_sh]]
+name = "crc32 reads past the end"
+source = "zlib:crc32.c"
+function = "crc32_z"
+namespace = "Crc"
+theorem = "tests/proofs/Crc32.lean:crc32_z_correct"
+from = "while (len >= 8) {"
+to = "while (len >= 7) {"
+
+[[proofs_sh]]
+name = "crc32 no preconditioning"
+source = "zlib:crc32.c"
+function = "crc32_z"
+namespace = "Crc"
+theorem = "tests/proofs/Crc32.lean:crc32_z_correct"
+from = "crc = (~crc) & 0xffffffff;"
+to = "crc = crc & 0xffffffff;"
+
+[[proofs_sh]]
+name = "crc32 no final inversion"
+source = "zlib:crc32.c"
+function = "crc32_z"
+namespace = "Crc"
+theorem = "tests/proofs/Crc32.lean:crc32_z_correct"
+from = "return crc ^ 0xffffffff;"
+to = "return crc;"
+
+[[proofs_sh]]
+name = "crc32 skips a word"
+source = "zlib:crc32.c"
+function = "crc32_z"
+namespace = "Crc"
+theorem = "tests/proofs/Crc32.lean:crc32_z_correct"
+from = "words += N;"
+to = "words += N + 1;"
+first = true
+
+[[proofs_sh]]
+name = "crc32 starts braid too soon"
+source = "zlib:crc32.c"
+function = "crc32_z"
+namespace = "Crc"
+theorem = "tests/proofs/Crc32.lean:crc32_z_correct"
+from = "if (len >= N * W + W - 1) {"
+to = "if (len >= N * W - 2) {"

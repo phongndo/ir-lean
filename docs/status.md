@@ -198,3 +198,5 @@ reads it. That difference is itself a thing [Phase 3](roadmap.md#phase-3-c-and-r
 8. `crc32`. Done.
 9. Promises the optimizer leaves, checked or refused. Done, apart from `mustprogress` and `willreturn`.
 10. `inflate`: [measured](#measured). Its next step is [its invariant](roadmap.md#phase-1-zlib-inflate-memory-safety).
+11. Tier-1 proof tests, which run a property on generated inputs and have the kernel check each counterexample. Done,
+    for functions without memory: [proof tests](proof-tests.md) has what they refute, and what they can't run.
