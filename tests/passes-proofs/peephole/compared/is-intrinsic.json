@@ -1,0 +1,427 @@
+{
+  "schema": "ir-lean.peephole.comparison/1",
+  "family": "is-intrinsic",
+  "registry": "tests/passes-proofs/peephole/folds/is-intrinsic.json",
+  "sources": "64c5d58691af96bd15e5fe1459b40de39b81165c3118a81c3b9d993115487124",
+  "opt": "23.1.3",
+  "date": "2026-11-09",
+  "status": "ok",
+  "cases": {
+    "cases": 15203,
+    "harvested": 321,
+    "generated": 14882,
+    "compared": 7912,
+    "matched": 2675,
+    "agreed_no_fold": 5237,
+    "fired_new_ir": 0,
+    "mismatched": 0,
+    "delegated": 5795,
+    "analysis": 3,
+    "unexplained": 3,
+    "operand_changed": 1490
+  },
+  "delegated_to": {
+    "ConstantFoldCall": 2203,
+    "simplifyICmpInst": 3592
+  },
+  "regression_tests": {
+    "read": 190,
+    "unread": 0
+  },
+  "sites": {
+    "IS.foldMinMaxSharedOp.L6698": {
+      "fired": 36,
+      "matched": 36,
+      "mismatched": 0,
+      "analysis": 0,
+      "fired_without_undef": 36,
+      "matched_without_undef": 36,
+      "files": [
+        "maxmin_intrinsics.ll"
+      ],
+      "registered": true
+    },
+    "IS.foldMinMaxSharedOp.L6701": {
+      "fired": 36,
+      "matched": 36,
+      "mismatched": 0,
+      "analysis": 0,
+      "fired_without_undef": 36,
+      "matched_without_undef": 36,
+      "files": [
+        "maxmin_intrinsics.ll"
+      ],
+      "registered": true
+    },
+    "IS.simplifyBinaryIntrinsic.L6928": {
+      "fired": 16,
+      "matched": 16,
+      "mismatched": 0,
+      "analysis": 0,
+      "fired_without_undef": 16,
+      "matched_without_undef": 16,
+      "files": [
+        "abs_intrinsic.ll"
+      ],
+      "registered": true
+    },
+    "IS.simplifyBinaryIntrinsic.L6934": {
+      "fired": 1,
+      "matched": 1,
+      "mismatched": 0,
+      "analysis": 0,
+      "fired_without_undef": 1,
+      "matched_without_undef": 1,
+      "files": [
+        "call.ll"
+      ],
+      "registered": true
+    },
+    "IS.simplifyBinaryIntrinsic.L6940": {
+      "fired": 2,
+      "matched": 2,
+      "mismatched": 0,
+      "analysis": 0,
+      "fired_without_undef": 2,
+      "matched_without_undef": 2,
+      "files": [
+        "call.ll"
+      ],
+      "registered": true
+    },
+    "IS.simplifyBinaryIntrinsic.L6942": {
+      "fired": 2,
+      "matched": 2,
+      "mismatched": 0,
+      "analysis": 0,
+      "fired_without_undef": 2,
+      "matched_without_undef": 2,
+      "files": [
+        "call.ll"
+      ],
+      "registered": true
+    },
+    "IS.simplifyBinaryIntrinsic.L7004": {
+      "fired": 94,
+      "matched": 94,
+      "mismatched": 0,
+      "analysis": 0,
+      "fired_without_undef": 94,
+      "matched_without_undef": 94,
+      "files": [
+        "maxmin_intrinsics.ll"
+      ],
+      "registered": true
+    },
+    "IS.simplifyBinaryIntrinsic.L7012": {
+      "fired": 186,
+      "matched": 186,
+      "mismatched": 0,
+      "analysis": 0,
+      "fired_without_undef": 0,
+      "matched_without_undef": 0,
+      "files": [
+        "maxmin_intrinsics.ll"
+      ],
+      "registered": false
+    },
+    "IS.simplifyBinaryIntrinsic.L7020": {
+      "fired": 188,
+      "matched": 188,
+      "mismatched": 0,
+      "analysis": 0,
+      "fired_without_undef": 188,
+      "matched_without_undef": 188,
+      "files": [
+        "maxmin_intrinsics.ll"
+      ],
+      "registered": true
+    },
+    "IS.simplifyBinaryIntrinsic.L7027": {
+      "fired": 188,
+      "matched": 188,
+      "mismatched": 0,
+      "analysis": 0,
+      "fired_without_undef": 188,
+      "matched_without_undef": 188,
+      "files": [
+        "maxmin_intrinsics.ll"
+      ],
+      "registered": true
+    },
+    "IS.simplifyBinaryIntrinsic.L7040": {
+      "fired": 12,
+      "matched": 12,
+      "mismatched": 0,
+      "analysis": 0,
+      "fired_without_undef": 12,
+      "matched_without_undef": 12,
+      "files": [
+        "maxmin_intrinsics.ll"
+      ],
+      "registered": true
+    },
+    "IS.simplifyBinaryIntrinsic.L7111": {
+      "fired": 48,
+      "matched": 48,
+      "mismatched": 0,
+      "analysis": 0,
+      "fired_without_undef": 48,
+      "matched_without_undef": 48,
+      "files": [
+        "saturating-add-sub.ll"
+      ],
+      "registered": true
+    },
+    "IS.simplifyBinaryIntrinsic.L7119": {
+      "fired": 96,
+      "matched": 96,
+      "mismatched": 0,
+      "analysis": 0,
+      "fired_without_undef": 0,
+      "matched_without_undef": 0,
+      "files": [
+        "saturating-add-sub.ll"
+      ],
+      "registered": false
+    },
+    "IS.simplifyBinaryIntrinsic.L7123": {
+      "fired": 48,
+      "matched": 48,
+      "mismatched": 0,
+      "analysis": 0,
+      "fired_without_undef": 48,
+      "matched_without_undef": 48,
+      "files": [
+        "saturating-add-sub.ll"
+      ],
+      "registered": true
+    },
+    "IS.simplifyBinaryIntrinsic.L7126": {
+      "fired": 48,
+      "matched": 48,
+      "mismatched": 0,
+      "analysis": 0,
+      "fired_without_undef": 48,
+      "matched_without_undef": 48,
+      "files": [
+        "saturating-add-sub.ll"
+      ],
+      "registered": true
+    },
+    "IS.simplifyBinaryIntrinsic.L7131": {
+      "fired": 48,
+      "matched": 48,
+      "mismatched": 0,
+      "analysis": 0,
+      "fired_without_undef": 48,
+      "matched_without_undef": 48,
+      "files": [
+        "saturating-add-sub.ll"
+      ],
+      "registered": true
+    },
+    "IS.simplifyBinaryIntrinsic.L7136": {
+      "fired": 144,
+      "matched": 144,
+      "mismatched": 0,
+      "analysis": 0,
+      "fired_without_undef": 48,
+      "matched_without_undef": 48,
+      "files": [
+        "saturating-add-sub.ll"
+      ],
+      "registered": true
+    },
+    "IS.simplifyBinaryIntrinsic.L7139": {
+      "fired": 48,
+      "matched": 48,
+      "mismatched": 0,
+      "analysis": 0,
+      "fired_without_undef": 48,
+      "matched_without_undef": 48,
+      "files": [
+        "saturating-add-sub.ll"
+      ],
+      "registered": true
+    },
+    "IS.simplifyIntrinsic.L7329": {
+      "fired": 892,
+      "matched": 892,
+      "mismatched": 0,
+      "analysis": 0,
+      "fired_without_undef": 816,
+      "matched_without_undef": 816,
+      "files": [
+        "call.ll",
+        "maxmin_intrinsics.ll",
+        "saturating-add-sub.ll"
+      ],
+      "registered": false
+    },
+    "IS.simplifyIntrinsic.L7375": {
+      "fired": 14,
+      "matched": 14,
+      "mismatched": 0,
+      "analysis": 0,
+      "fired_without_undef": 0,
+      "matched_without_undef": 0,
+      "files": [
+        "call.ll"
+      ],
+      "registered": false
+    },
+    "IS.simplifyIntrinsic.L7379": {
+      "fired": 158,
+      "matched": 158,
+      "mismatched": 0,
+      "analysis": 0,
+      "fired_without_undef": 0,
+      "matched_without_undef": 0,
+      "files": [
+        "call.ll"
+      ],
+      "registered": false
+    },
+    "IS.simplifyIntrinsic.L7387": {
+      "fired": 316,
+      "matched": 316,
+      "mismatched": 0,
+      "analysis": 0,
+      "fired_without_undef": 268,
+      "matched_without_undef": 268,
+      "files": [
+        "call.ll"
+      ],
+      "registered": true
+    },
+    "IS.simplifyIntrinsic.L7396": {
+      "fired": 3,
+      "matched": 3,
+      "mismatched": 0,
+      "analysis": 0,
+      "fired_without_undef": 3,
+      "matched_without_undef": 3,
+      "files": [
+        "call.ll"
+      ],
+      "registered": true
+    },
+    "IS.simplifyIntrinsic.L7401": {
+      "fired": 13,
+      "matched": 13,
+      "mismatched": 0,
+      "analysis": 0,
+      "fired_without_undef": 13,
+      "matched_without_undef": 13,
+      "files": [
+        "call.ll"
+      ],
+      "registered": true
+    },
+    "IS.simplifyIntrinsic.L7405": {
+      "fired": 13,
+      "matched": 13,
+      "mismatched": 0,
+      "analysis": 0,
+      "fired_without_undef": 13,
+      "matched_without_undef": 13,
+      "files": [
+        "call.ll"
+      ],
+      "registered": true
+    },
+    "IS.simplifyUnaryIntrinsic.L6604": {
+      "fired": 5,
+      "matched": 5,
+      "mismatched": 0,
+      "analysis": 0,
+      "fired_without_undef": 5,
+      "matched_without_undef": 5,
+      "files": [
+        "fold-intrinsics.ll"
+      ],
+      "registered": true
+    },
+    "IS.simplifyUnaryIntrinsic.L6609": {
+      "fired": 7,
+      "matched": 7,
+      "mismatched": 0,
+      "analysis": 0,
+      "fired_without_undef": 7,
+      "matched_without_undef": 7,
+      "files": [
+        "bitreverse-fold.ll"
+      ],
+      "registered": true
+    },
+    "IS.simplifyUnaryIntrinsic.L6614": {
+      "fired": 0,
+      "matched": 0,
+      "mismatched": 0,
+      "analysis": 3,
+      "fired_without_undef": 0,
+      "matched_without_undef": 0,
+      "files": [],
+      "registered": true
+    },
+    "IS.simplifyUnaryIntrinsic.L6620": {
+      "fired": 13,
+      "matched": 13,
+      "mismatched": 0,
+      "analysis": 0,
+      "fired_without_undef": 13,
+      "matched_without_undef": 13,
+      "files": [
+        "call.ll"
+      ],
+      "registered": true
+    }
+  },
+  "not_exercised": [
+    "IS.simplifyBinaryIntrinsic.L7052",
+    "IS.simplifyBinaryIntrinsic.L7054",
+    "IS.simplifyUnaryIntrinsic.L6614"
+  ],
+  "folds_run": {
+    "Peephole.IS.foldMinMaxSharedOp": "h117.117",
+    "Peephole.IS.simplifyBinaryIntrinsic": "h1.1",
+    "Peephole.IS.simplifyCall": "h1.1",
+    "Peephole.IS.simplifyIntrinsic": "h1.1",
+    "Peephole.IS.simplifyUnaryIntrinsic": "h13.13"
+  },
+  "folds_not_run": [],
+  "untagged": [],
+  "mismatches": [],
+  "unexplained": [
+    {
+      "case": "h63.63",
+      "where": "call.ll:@ctpop_lowbit:%r",
+      "opt": [
+        "%n1"
+      ],
+      "model_with_an_analysis": "1",
+      "ir": "  %n1 = and i32 %v2, 1\n  call void (...) @use(i32 %n1)\n  %r = call i32 @llvm.ctpop.i32(i32 %n1)\n  ret i32 %r"
+    },
+    {
+      "case": "g.ctpop.47.807",
+      "where": "",
+      "opt": [
+        "%n155"
+      ],
+      "model_with_an_analysis": "1",
+      "ir": "  %n155 = and i8 %v0, 1\n  call void (...) @use(i8 %n155)\n  %r = call i8 @llvm.ctpop.i8(i8 %n155)\n  ret i8 %r"
+    },
+    {
+      "case": "g.ctpop.74.834",
+      "where": "",
+      "opt": [
+        "%n199"
+      ],
+      "model_with_an_analysis": "1",
+      "ir": "  %n199 = and i32 %v0, 1\n  call void (...) @use(i32 %n199)\n  %r = call i32 @llvm.ctpop.i32(i32 %n199)\n  ret i32 %r"
+    }
+  ],
+  "seconds": 2.5,
+  "folds_unwatchable": []
+}
