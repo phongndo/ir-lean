@@ -47,19 +47,13 @@
     "Peephole.Lemmas.sub_eq_xor_of_and_eq",
     "Peephole.Lemmas.le_of_and_eq",
     "Peephole.Lemmas.xor_comm",
-    "Peephole.Lemmas.bv1_cases",
     "Peephole.Lemmas.toInt_not_eq",
     "Peephole.Lemmas.sshiftRight_width_sub_one",
     "Peephole.Lemmas.getLsbD_neg_twoPow",
-    "Peephole.Lemmas.getLsbD_twoPow_of_lt",
     "Peephole.Lemmas.add_eq_or",
-    "Peephole.Lemmas.sshiftRight_shiftLeft_getLsbD",
-    "Peephole.Lemmas.xor_add_sext",
     "Peephole.Lemmas.add_sub_left_refines",
     "Peephole.Lemmas.add_sub_allOnes_refines",
     "Peephole.Lemmas.add_zext_bool_refines",
-    "Peephole.Lemmas.signExtend_one",
-    "Peephole.Lemmas.signExtend_zero",
     "Peephole.Lemmas.add_sext_bool_refines",
     "Peephole.Lemmas.add_not_refines",
     "Peephole.Lemmas.add_ashr_sign_one",
@@ -76,8 +70,7 @@
     "Peephole.Lemmas.add_zext_add_neg_refines",
     "Peephole.Lemmas.zext_xor_intMin_add",
     "Peephole.Lemmas.add_zext_xor_intMin_refines",
-    "Peephole.Lemmas.add_xor_sext_refines",
-    "Peephole.Lemmas.not_refines_of"
+    "Peephole.Lemmas.add_xor_sext_refines"
   ],
   "rests_on": {
     "IC.AddSub.foldAddWithConstant.L902": [

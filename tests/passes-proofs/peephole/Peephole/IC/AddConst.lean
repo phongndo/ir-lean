@@ -471,7 +471,7 @@ theorem AddSub.foldAddWithConstant.L952 (ρ : Env) (op0 op1 x : Term w) (k : Bit
   obtain ⟨f, ct, hb, hc⟩ := xorConst?_spec h
   obtain rfl := const_of_apint hc
   refine refines_of_eval (IS.addSrc_eval ρ op0 _ nsw nuw) (by rw [eval_bin]; rfl) ?_
-  rw [IS.xor_denote hb c0]
+  rw [IS.xor_denote hb c0, BitVec.xor_comm (BitVec.intMin w) k]
   exact Lemmas.add_xor_signMask_const_refines _ _ _ _
 
 /-- `IC.AddSub.foldAddWithConstant.L959`: `(X ^ C2) + C` to `(C2 + C) - X`, where `computeKnownBits` knows every

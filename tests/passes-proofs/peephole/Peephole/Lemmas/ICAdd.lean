@@ -569,17 +569,17 @@ theorem add_signMask_xor_refines (x : Val w) (nuw nsw : Bool) :
   simp only [Val.xor, Val.map₂]
   exact add_refines_of_sum (add_intMin p)
 
-/-- `(x ^ signmask) + c` refines `x + (signmask ^ c)`, with no flags. `IC.AddSub.foldAddWithConstant.L952`. -/
+/-- `(x ^ signmask) + c` refines `x + (c ^ signmask)`, with no flags. `IC.AddSub.foldAddWithConstant.L952`. -/
 theorem add_xor_signMask_const_refines (x : Val w) (c : BitVec w) (nuw nsw : Bool) :
     Refines (Val.add (Val.xor x (some (BitVec.intMin w))) (some c) nuw nsw)
-      (Val.add x (some (BitVec.intMin w ^^^ c))) := by
+      (Val.add x (some (c ^^^ BitVec.intMin w))) := by
   cases x with
   | none => simp [Refines, Val.xor, Val.map₂, Val.add, Refine.le]
   | some p =>
   simp only [Val.xor, Val.map₂]
-  have : Val.add (some p) (some (BitVec.intMin w ^^^ c)) = some ((p ^^^ BitVec.intMin w) + c) := by
+  have : Val.add (some p) (some (c ^^^ BitVec.intMin w)) = some ((p ^^^ BitVec.intMin w) + c) := by
     simp only [Val.add, Bool.false_and, Bool.or_false, Bool.false_eq_true, ite_false, Option.some.injEq]
-    rw [← add_intMin p, BitVec.xor_comm (BitVec.intMin w) c, ← add_intMin c]
+    rw [← add_intMin p, ← add_intMin c]
     grind
   rw [this]
   exact add_refines_of_sum rfl
