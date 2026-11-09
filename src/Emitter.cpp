@@ -319,8 +319,13 @@ public:
     if (auto *V = dyn_cast<FixedVectorType>(C->getType())) {
       leanType(V);
       std::string Out = "#v[";
-      for (unsigned I = 0, E = V->getNumElements(); I != E; ++I)
-        Out += (I ? ", " : "") + constant(C->getAggregateElement(I));
+      for (unsigned I = 0, E = V->getNumElements(); I != E; ++I) {
+        // A constant expression of vector type, such as a `bitcast` of a vector, has no elements to read.
+        const Constant *Element = C->getAggregateElement(I);
+        if (!Element)
+          reject("constant " + printed(*C));
+        Out += (I ? ", " : "") + constant(Element);
+      }
       return Out + "]";
     }
     if (auto *S = dyn_cast<ConstantStruct>(C)) {
@@ -469,6 +474,8 @@ private:
         bool Overflow = false;
         if (StructType *S = I.getStructTypeOrNull())
           Step = APInt(64, DL.getStructLayout(S)->getElementOffset(Index->getZExtValue()));
+        else if (DL.getTypeAllocSize(I.getIndexedType()).isScalable())
+          reject("constant " + printed(*C));
         else
           Step = Index->getValue().sextOrTrunc(64).smul_ov(APInt(64, I.getSequentialElementStride(DL)),
                                                            Overflow);
@@ -626,12 +633,14 @@ void checkValueAttributes(AttributeSet Attrs, const Type *T, Position At, bool M
     if (A.isStringAttribute())
       continue;
     switch (A.getKindAsEnum()) {
+    // On a vector or a struct, `noundef` checks every lane and field, and `range` applies lane by lane.
     case Attribute::NoUndef:
     case Attribute::Range:
+      continue;
     case Attribute::NonNull:
     case Attribute::Alignment:
     case Attribute::Dereferenceable:
-      // The checks these emit only take one value, not a vector's lanes.
+      // The checks these emit only take one pointer, not a vector's lanes.
       if (T->isVectorTy())
         reject(std::string(Where) + " attribute " + A.getAsString() + " on a vector");
       continue;
@@ -833,18 +842,24 @@ std::string leanString(StringRef S) {
   return Out + "\"";
 }
 
-// Wraps `Value` in what `range`, `nonnull` and `align` attributes imply.
-std::string withValueChecks(AttributeSet Attrs, const std::string &Value) {
+// Wraps `Value`, of type `T`, in what `range`, `nonnull` and `align` attributes imply.
+std::string withValueChecks(AttributeSet Attrs, const Type *T, const std::string &Value) {
   std::string Out = Value;
   if (Attrs.hasAttribute(Attribute::Range)) {
     const ConstantRange &R = Attrs.getAttribute(Attribute::Range).getValueAsConstantRange();
-    Out = "(Val.range " + bitVec(R.getLower()) + " " + bitVec(R.getUpper()) + " " + Out + ")";
+    std::string Range = "Val.range " + bitVec(R.getLower()) + " " + bitVec(R.getUpper());
+    Out = T->isVectorTy() ? "(Vec.map (" + Range + ") " + Out + ")" : "(" + Range + " " + Out + ")";
   }
   if (Attrs.hasAttribute(Attribute::NonNull))
     Out = "(Mem.nonnull m " + Out + ")";
   if (MaybeAlign A = Attrs.getAlignment())
     Out = "(Mem.aligned m " + std::to_string(A->value()) + " " + Out + ")";
   return Out;
+}
+
+// The check `noundef` makes of a value of type `T`: on a vector or a struct, of every lane and field.
+std::string noundefCheck(const Type *T) {
+  return T->isVectorTy() || T->isStructTy() ? "noundefAll " : "noundef ";
 }
 
 bool hasValueChecks(AttributeSet Attrs) {
@@ -1332,6 +1347,9 @@ void FunctionEmitter::emitGep(const GetElementPtrInst &G, std::vector<Line> &Out
     // A wider index has its own rules about truncating, and no real code needs one.
     if (It.isVector() || Index->getType()->getIntegerBitWidth() > 64)
       reject("instruction " + printed(G));
+    // A scalable type's size is a multiple of `vscale`, which the model doesn't have.
+    if (DL.getTypeAllocSize(It.getIndexedType()).isScalable())
+      reject("instruction " + printed(G));
     uint64_t Stride = It.getSequentialElementStride(DL);
     if (auto *K = dyn_cast<ConstantInt>(Index)) {
       AddConstant(K->getValue().sext(64), Stride);
@@ -1421,10 +1439,12 @@ void FunctionEmitter::emitInstruction(const Instruction &I, std::vector<Line> &O
     else
       addLet(I, Out, Fn + " " + Width + " " + Op(0) + Flags);
   };
-  // Effects on one lane of a vector don't have a meaning here yet.
-  auto ScalarOnly = [&] {
+  // An operation that can be undefined. On vectors, it's undefined if any lane is, as IRLean/Lanes.lean says.
+  auto Undefinable = [&](const std::string &Fn, const std::string &Flags = "") {
     if (IsVector)
-      reject("instruction " + printed(I));
+      addBind(I, Out, "Vec.mapOutcome2 (fun a b => " + Fn + " a b" + Flags + ") " + Op(0) + " " + Op(1));
+    else
+      addBind(I, Out, Fn + " " + Op(0) + " " + Op(1) + Flags);
   };
   auto Wrap = [&] {
     std::string Flags;
@@ -1454,20 +1474,16 @@ void FunctionEmitter::emitInstruction(const Instruction &I, std::vector<Line> &O
     Binary("Val.ashr", flag(I.isExact(), "exact"));
     return;
   case Instruction::UDiv:
-    ScalarOnly();
-    addBind(I, Out, "Val.udiv " + Op(0) + " " + Op(1) + flag(I.isExact(), "exact"));
+    Undefinable("Val.udiv", flag(I.isExact(), "exact"));
     return;
   case Instruction::SDiv:
-    ScalarOnly();
-    addBind(I, Out, "Val.sdiv " + Op(0) + " " + Op(1) + flag(I.isExact(), "exact"));
+    Undefinable("Val.sdiv", flag(I.isExact(), "exact"));
     return;
   case Instruction::URem:
-    ScalarOnly();
-    addBind(I, Out, "Val.urem " + Op(0) + " " + Op(1));
+    Undefinable("Val.urem");
     return;
   case Instruction::SRem:
-    ScalarOnly();
-    addBind(I, Out, "Val.srem " + Op(0) + " " + Op(1));
+    Undefinable("Val.srem");
     return;
   case Instruction::And:
     Binary("Val.and");
@@ -1714,11 +1730,11 @@ std::string FunctionEmitter::callArgument(const CallBase &C, unsigned N, std::ve
   bool NoUndef = false;
   for (AttributeSet Set : Sets) {
     checkValueAttributes(Set, C.getArgOperand(N)->getType(), Position::CallParameter);
-    Arg = withValueChecks(Set, Arg);
+    Arg = withValueChecks(Set, C.getArgOperand(N)->getType(), Arg);
     NoUndef |= Set.hasAttribute(Attribute::NoUndef);
   }
   if (NoUndef)
-    Out.push_back({Line::Guard, "", "noundef " + Arg});
+    Out.push_back({Line::Guard, "", noundefCheck(C.getArgOperand(N)->getType()) + Arg});
   for (AttributeSet Set : Sets)
     if (Set.hasAttribute(Attribute::Dereferenceable))
       Out.push_back({Line::Guard, "",
@@ -1736,9 +1752,9 @@ void FunctionEmitter::checkCallResult(const CallBase &C, AttributeSet Ret, std::
     return;
   const std::string &Name = Names.at(&C);
   if (hasValueChecks(Ret))
-    Out.push_back({Line::Let, Name, withValueChecks(Ret, Name)});
+    Out.push_back({Line::Let, Name, withValueChecks(Ret, C.getType(), Name)});
   if (Ret.hasAttribute(Attribute::NoUndef))
-    Out.push_back({Line::Guard, "", "noundef " + Name});
+    Out.push_back({Line::Guard, "", noundefCheck(C.getType()) + Name});
   if (Ret.hasAttribute(Attribute::Dereferenceable))
     Out.push_back({Line::Guard, "",
                    "Mem.dereferenceable m " + Name + " " + std::to_string(Ret.getDereferenceableBytes())});
@@ -1750,6 +1766,22 @@ bool FunctionEmitter::emitIntrinsic(const IntrinsicInst &C, std::vector<Line> &O
   for (unsigned N = 0, E = C.arg_size(); N != E; ++N)
     Args.push_back(isa<MetadataAsValue>(C.getArgOperand(N)) ? "" : callArgument(C, N, Out));
   auto Op = [&](unsigned N) { return Args[N]; };
+  // On vectors, each of these is the scalar operation lane by lane, as IRLean/Lanes.lean says.
+  bool OnVectors = C.arg_size() && C.getArgOperand(0)->getType()->isVectorTy();
+  // `Fn` applied to the first `N` arguments, and `Extra` after them, such as ctlz's flag.
+  auto Lanewise = [&](const std::string &Fn, unsigned N, const std::string &Extra = "") {
+    std::string Operands;
+    for (unsigned I = 0; I != N; ++I)
+      Operands += " " + Op(I);
+    if (!OnVectors)
+      return Fn + Operands + Extra;
+    static const char *Names[] = {"a", "b", "c"};
+    static const char *Maps[] = {"Vec.map", "Vec.map2", "Vec.map3"};
+    std::string Params;
+    for (unsigned I = 0; I != N; ++I)
+      Params += std::string(" ") + Names[I];
+    return std::string(Maps[N - 1]) + " (fun" + Params + " => " + Fn + Params + Extra + ")" + Operands;
+  };
   auto BoolArg = [&](unsigned N) -> std::string {
     auto *K = dyn_cast<ConstantInt>(C.getArgOperand(N));
     if (!K)
@@ -1757,7 +1789,7 @@ bool FunctionEmitter::emitIntrinsic(const IntrinsicInst &C, std::vector<Line> &O
     return K->isOne() ? "true" : "false";
   };
   auto Unary = [&](const char *Fn) {
-    addLet(C, Out, std::string(Fn) + " " + Op(0));
+    addLet(C, Out, Lanewise(Fn, 1));
     return true;
   };
   auto Binary = [&](const char *Fn) {
@@ -1772,7 +1804,14 @@ bool FunctionEmitter::emitIntrinsic(const IntrinsicInst &C, std::vector<Line> &O
     return true;
   };
   auto Ternary = [&](const char *Fn) {
-    addLet(C, Out, std::string(Fn) + " " + Op(0) + " " + Op(1) + " " + Op(2));
+    addLet(C, Out, Lanewise(Fn, 3));
+    return true;
+  };
+  // An intrinsic with two results, such as `llvm.uadd.with.overflow`, whose vector form is a vector of each.
+  auto Overflow = [&](const char *Fn) {
+    addLet(C, Out,
+           OnVectors ? "Vec.map2Pair (fun a b => " + std::string(Fn) + " a b) " + Op(0) + " " + Op(1)
+                     : std::string(Fn) + " " + Op(0) + " " + Op(1));
     return true;
   };
   auto Lanes = [&] { return std::to_string(cast<FixedVectorType>(C.getType())->getNumElements()); };
@@ -1783,34 +1822,6 @@ bool FunctionEmitter::emitIntrinsic(const IntrinsicInst &C, std::vector<Line> &O
       reject("instruction " + printed(C));
     return Width == 64 ? Op(N) : "(Val.zext 64 " + Op(N) + ")";
   };
-  // These print the scalar operation, which on vectors isn't the lane-by-lane one LangRef gives, nor even
-  // Lean that elaborates. tests/ir_features.py elaborates what this prints for every intrinsic it translates.
-  auto ScalarOnly = [&] {
-    if (any_of(C.args(), [](const Use &U) { return U->getType()->isVectorTy(); }))
-      reject("intrinsic " + C.getCalledFunction()->getName().str() + " of vectors");
-  };
-  switch (C.getIntrinsicID()) {
-  case Intrinsic::ctpop:
-  case Intrinsic::bitreverse:
-  case Intrinsic::bswap:
-  case Intrinsic::ctlz:
-  case Intrinsic::cttz:
-  case Intrinsic::abs:
-  case Intrinsic::fshl:
-  case Intrinsic::fshr:
-  case Intrinsic::uadd_with_overflow:
-  case Intrinsic::sadd_with_overflow:
-  case Intrinsic::usub_with_overflow:
-  case Intrinsic::ssub_with_overflow:
-  case Intrinsic::umul_with_overflow:
-  case Intrinsic::smul_with_overflow:
-  case Intrinsic::ucmp:
-  case Intrinsic::scmp:
-    ScalarOnly();
-    break;
-  default:
-    break;
-  }
   switch (C.getIntrinsicID()) {
   case Intrinsic::assume:
     for (unsigned B = 0, E = C.getNumOperandBundles(); B != E; ++B) {
@@ -1872,13 +1883,13 @@ bool FunctionEmitter::emitIntrinsic(const IntrinsicInst &C, std::vector<Line> &O
   case Intrinsic::bswap:
     return Unary("Val.bswap");
   case Intrinsic::ctlz:
-    addLet(C, Out, "Val.ctlz " + Op(0) + " " + BoolArg(1));
+    addLet(C, Out, Lanewise("Val.ctlz", 1, " " + BoolArg(1)));
     return true;
   case Intrinsic::cttz:
-    addLet(C, Out, "Val.cttz " + Op(0) + " " + BoolArg(1));
+    addLet(C, Out, Lanewise("Val.cttz", 1, " " + BoolArg(1)));
     return true;
   case Intrinsic::abs:
-    addLet(C, Out, "Val.abs " + Op(0) + " " + BoolArg(1));
+    addLet(C, Out, Lanewise("Val.abs", 1, " " + BoolArg(1)));
     return true;
   case Intrinsic::umin:
     return Binary("Val.umin");
@@ -1901,17 +1912,17 @@ bool FunctionEmitter::emitIntrinsic(const IntrinsicInst &C, std::vector<Line> &O
   case Intrinsic::ssub_sat:
     return Binary("Val.ssubSat");
   case Intrinsic::uadd_with_overflow:
-    return Binary("Val.uaddWithOverflow");
+    return Overflow("Val.uaddWithOverflow");
   case Intrinsic::sadd_with_overflow:
-    return Binary("Val.saddWithOverflow");
+    return Overflow("Val.saddWithOverflow");
   case Intrinsic::usub_with_overflow:
-    return Binary("Val.usubWithOverflow");
+    return Overflow("Val.usubWithOverflow");
   case Intrinsic::ssub_with_overflow:
-    return Binary("Val.ssubWithOverflow");
+    return Overflow("Val.ssubWithOverflow");
   case Intrinsic::umul_with_overflow:
-    return Binary("Val.umulWithOverflow");
+    return Overflow("Val.umulWithOverflow");
   case Intrinsic::smul_with_overflow:
-    return Binary("Val.smulWithOverflow");
+    return Overflow("Val.smulWithOverflow");
   // x86's integer dot products, in IRLean/X86.lean. The first two need the number of lanes they produce.
   case Intrinsic::x86_ssse3_pmadd_ub_sw_128:
   case Intrinsic::x86_avx2_pmadd_ub_sw:
@@ -1931,8 +1942,9 @@ bool FunctionEmitter::emitIntrinsic(const IntrinsicInst &C, std::vector<Line> &O
   case Intrinsic::ucmp:
   case Intrinsic::scmp:
     addLet(C, Out,
-           std::string(C.getIntrinsicID() == Intrinsic::ucmp ? "Val.ucmp " : "Val.scmp ") +
-               std::to_string(C.getType()->getIntegerBitWidth()) + " " + Op(0) + " " + Op(1));
+           Lanewise(std::string(C.getIntrinsicID() == Intrinsic::ucmp ? "Val.ucmp " : "Val.scmp ") +
+                        std::to_string(C.getType()->getScalarSizeInBits()),
+                    2));
     return true;
   default:
     return false;
@@ -2148,10 +2160,11 @@ std::string FunctionEmitter::emitTerminator(const BasicBlock *BB) {
     if (!R->getReturnValue())
       return std::string(Ret) + WithMemory("()");
     AttributeSet Attrs = F.getAttributes().getRetAttrs();
-    std::string V = withValueChecks(Attrs, operand(R->getReturnValue()));
+    Type *RT = R->getReturnValue()->getType();
+    std::string V = withValueChecks(Attrs, RT, operand(R->getReturnValue()));
     std::string Checks;
     if (Attrs.hasAttribute(Attribute::NoUndef))
-      Checks += "noundef " + V + " <| ";
+      Checks += noundefCheck(RT) + V + " <| ";
     if (Attrs.hasAttribute(Attribute::Dereferenceable))
       Checks += "Mem.dereferenceable m " + V + " " + std::to_string(Attrs.getDereferenceableBytes()) + " <| ";
     if (Attrs.hasAttribute(Attribute::NoAlias))
@@ -2397,9 +2410,9 @@ std::string FunctionEmitter::emitFunction() {
     checkValueAttributes(Param, A.getType(), Position::Parameter);
     const std::string &Name = Names.at(&A);
     if (hasValueChecks(Param))
-      Out += "  let " + Name + " := " + withValueChecks(Param, Name) + "\n";
+      Out += "  let " + Name + " := " + withValueChecks(Param, A.getType(), Name) + "\n";
     if (Param.hasAttribute(Attribute::NoUndef))
-      Out += "  noundef " + Name + " <|\n";
+      Out += "  " + noundefCheck(A.getType()) + Name + " <|\n";
     if (Param.hasAttribute(Attribute::Dereferenceable))
       Out +=
           "  Mem.dereferenceable m " + Name + " " + std::to_string(Param.getDereferenceableBytes()) + " <|\n";
