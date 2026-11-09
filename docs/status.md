@@ -98,11 +98,14 @@ Evidence and not proof. A pass here means no disagreement was found on the input
   `vscale_range` agree with LangRef ([scalable vectors](scalable-vectors.md)). Checked on 2026-11-09.
 - **Integer operations:** against LLVM's constant folder at many widths, and Alive2 for exact poison and
   UB at small widths: 265 variants proved exact, with none unchecked.
-- **Floating point's bit-level operations:** `fneg`, `fabs`, `copysign`, `fcmp`'s sixteen predicates, `llvm.is.fpclass`
-  and `nofpclass`, with `nnan` and `ninf`, at `half`, `bfloat`, `float`, `double` and `fp128`, 320 variants, against the
-  constant folder on 131,146 cases, the processor on 2,387,018, every operand of the one-operand operations at `half`
-  among them, and Alive2 on 2,170 both ways, with none wrong ([`fpcheck.py`](../tests/fpcheck.py)). On y on 2026-11-09,
-  where the processor can't run `fp128`.
+- **Floating point:** `fneg`, `fabs`, `copysign`, `fcmp`, `llvm.is.fpclass`, `nofpclass`, the arithmetic, `frem`
+  included, and the conversions between formats and with integers, `.sat` ones included, with `nnan`, `ninf` and
+  `nneg`, at `half`, `bfloat`, `float`, `double` and `fp128`: 546 variants, against the constant folder on 215,445 cases,
+  the processor on 7,023,252, every operand of the one-operand operations of 16 bits among them, and Alive2 on 3,717,
+  with none wrong. Where IEEE 754 gives a NaN, in 31,368 cases, each of the model's sixteen choices gives a NaN LangRef
+  allows, and together they give all of them ([`fpcheck.py`](../tests/fpcheck.py)). On y on 2026-11-09, where the
+  processor can't run `fp128` or `i128`. On z, x86-64 Linux, the same day, it runs them too: 7,496,747 cases agree,
+  none wrong.
 - **`getelementptr` flags:** 1,194 cases against Alive2, on 644 layouts. 927 are proved exact, and 267 depend on
   the layout as Alive2 confirms, with none unchecked or wrong.
 - **Random functions:** fuzzed integer functions at random optimization levels, against native code.

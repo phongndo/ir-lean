@@ -68,7 +68,10 @@ which orders of quantifiers certify wrong rewrites.
 - **Places are paths.** A function whose run can make a choice takes one `Choice`, and each of its blocks carries its
   own: the entry block the function's, and each next block `c.sub 0` of the block `c` before it. In a block with `c`,
   the `k`th `freeze` or call to a function that makes choices, counting from 1, reads `c.pick k`, the number at `[k]`,
-  if it's a `freeze`, and gives its callee `c.sub k`, the numbers under `[k]`, if it's a call. So the place a `freeze`
+  if it's a `freeze`, and gives its callee `c.sub k`, the numbers under `[k]`, if it's a call. A floating-point
+  operation that can give a NaN is a chooser too, since LangRef leaves a NaN's sign and payload to a choice: it reads
+  `c.pick k`, and on a vector lane `i` reads `(c.sub k).pick i`, so each lane chooses on its own
+  ([floating point](float.md#nan-payloads-as-a-choice)). So the place a `freeze`
   reads is, for each frame from the outermost, a `0` for each block before the current one and then the call's
   number, and last the `freeze`'s own number. No two `freeze`s a run executes read the same place, and every way of
   choosing a value for each of them is some `Choice`. The outcomes over every `Choice` are exactly the outcomes over
@@ -76,8 +79,8 @@ which orders of quantifiers certify wrong rewrites.
   `tests/emitter.sh` runs emitted code under chosen `Choice`s to show each of those places is its own.
 - **`Val.freeze pick a`** is `a` when `a` is a value, and `some (BitVec.ofNat w pick)` when it's poison. Emitted code
   binds it with `let`, since it can't fail.
-- **`IRLean.Outcomes α`** is `Choice → Outcome α`. A function that has a `freeze`, or calls one that does, through a
-  pointer too, returns it after its arguments: `def f (x : Val 8) : Outcomes (Val 8) := fun c' => ...`. A cycle of
+- **`IRLean.Outcomes α`** is `Choice → Outcome α`. A function that has a `freeze` or a floating-point operation that
+  can give a NaN, or calls one that does, through a pointer too, returns it after its arguments: `def f (x : Val 8) : Outcomes (Val 8) := fun c' => ...`. A cycle of
   calls shares the answer. Every other function is emitted as before, and returns `Outcome α`, so no proof about one
   changes. `c'` is primed so no value's name can be the same.
 
@@ -183,8 +186,9 @@ These have no claim, or a claim that says nothing about LLVM, and stay that way 
 - `undef`, as a constant, which ir-lean refuses, or as an argument (SEM-02), which stays out of the model by the
   decision of 2026-11-09;
 - `freeze` of a vector, a pointer or a struct, which ir-lean refuses (the rest of SEM-03);
-- floating-point arithmetic, conversions and most intrinsics, which ir-lean refuses until SEM-05's later
-  [slices](float.md#the-slices). A float is its bits, so `Refines` on one is bit for bit, as LLVM's is;
+- floating point's `nsz`, and its intrinsics but `llvm.fabs`, `llvm.copysign`, `llvm.is.fpclass` and the saturating
+  conversions, which ir-lean refuses until SEM-05's later [slices](float.md#the-slices). A float is its bits, so
+  `Refines` on one is bit for bit, as LLVM's is, and a NaN result is a choice;
 - a run under a promise to progress that LangRef doesn't settle, which stops the model: a recursive function's, so
   deleting infinite recursion can't be certified, and one waiting on a promised callee that waits itself
   ([trust](trust.md#promises-to-progress)).
