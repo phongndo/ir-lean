@@ -43,6 +43,9 @@ from pathlib import Path
 from typing import Any
 
 ROOT = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(ROOT / "tools"))
+from irlean import proc  # noqa: E402
+
 CORPUS = ROOT / "tests" / "verification_negative"
 CASES = CORPUS / "cases"
 STUBS = CORPUS / "stubs"
@@ -54,8 +57,6 @@ PROBE_CASE = "control_precondition_sufficient"
 RUNS = ROOT / "build" / "verify-negative"
 RUNS_KEPT = 5
 VERIFY = ROOT / "tools" / "verify.py"
-# How memory is read on macOS and Linux, which count it differently.
-MEASURE = ROOT / "tools" / "measure.py"
 # What decides a verdict besides the inputs. A stored result checked by other versions of these is stale.
 CHECKER_FILES = ["tools/verify.py", "tools/verify_check.lean", "tests/check_axioms.lean"]
 
@@ -178,9 +179,6 @@ def load_tool(name: str, path: Path) -> Any:
 
 def load_verify() -> Any:
     return load_tool("verify_tool", VERIFY)
-
-
-M = load_tool("measure_tool", MEASURE)
 
 
 # Cases
@@ -325,7 +323,7 @@ def run_checker(argv: list[str], timeout: float, logs: Path) -> Harness:
         signal=-code if code < 0 else None,
         timed_out=fired.is_set(),
         seconds=round(time.monotonic() - started, 2),
-        peak_rss_mb=int(M.maxrss_mib(usage.ru_maxrss)),
+        peak_rss_mb=int(proc.maxrss_mib(usage.ru_maxrss)),
         stdout=out_path.read_text(errors="replace"),
         stderr=err_path.read_text(errors="replace"),
     )
@@ -675,8 +673,8 @@ def check_request(
 
 def run_live(case: Case, live: Live) -> Outcome:
     outcome = Outcome(case.id, "live", case.manifest["category"], "fail")
-    # tools/measure.py reads what's free as each kernel counts it, and on macOS its memory pressure too.
-    busy = M.too_busy(live.min_available_mb)
+    # irlean.proc reads what's free as each kernel counts it, and on macOS its memory pressure too.
+    busy = proc.too_busy(live.min_available_mb)
     if busy:
         outcome.outcome = "not_run"
         outcome.note = f"{busy}, from --min-available-mb"
@@ -1108,7 +1106,7 @@ def memory_readings(out: Path) -> list[Outcome]:
     if holds.exit != 0 or not 180 <= holds.peak_rss_mb <= 600:
         peak.outcome = "fail"
         peak.problems.append(f"a checker holding 200 MiB peaked at {holds.peak_rss_mb} MB, exit {holds.exit}")
-    free = M.memory()["available_mb"]
+    free = proc.memory()["available_mb"]
     guard = Outcome("free_memory_read", "static", "runner", "pass", note=f"{free} MB available")
     if not free > 0:
         guard.outcome = "fail"

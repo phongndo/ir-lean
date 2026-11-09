@@ -18,8 +18,9 @@ select = ["E", "F", "W", "I", "UP", "B", "C4", "SIM", "RUF", "PLE", "PLW"]
 ignore = ["SIM905", "RUF001"]
 
 [tool.ty.environment]
-# tests/fuzz.py imports tests/differential.py, which Python finds next to the script.
-extra-paths = ["tests"]
+# tests/fuzz.py imports tests/differential.py, and tests/llama/reproduce.py tests/llama/measure.py, which
+# Python finds next to each script. Every script finds the shared library, tools/irlean, in tools/.
+extra-paths = ["tests", "tests/llama", "tools"]
 
 [dependency-groups]
 dev = ["ruff>=0.17.4", "ty>=0.0.98"]

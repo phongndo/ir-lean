@@ -104,9 +104,12 @@ add_test(NAME llvm COMMAND ${CMAKE_SOURCE_DIR}/tests/llvm.py $<TARGET_FILE:ir-le
 add_test(NAME llvm_scope COMMAND ${CMAKE_SOURCE_DIR}/tests/llvm_scope_test.py)
 add_test(NAME llvm_scope_check COMMAND ${CMAKE_SOURCE_DIR}/tests/llvm_scope.py check)
 set_tests_properties(llvm_scope llvm_scope_check PROPERTIES TIMEOUT 600)
-# tools/corpus/capture.py and tools/measure.py, in Python, with one seed through opt when the pinned one is
-# on PATH: about 2 s, and no Lean. docs/corpus.md.
+# tools/corpus/capture.py, in Python, with one seed through opt when the pinned one is on PATH: under a
+# second, and no Lean. docs/corpus.md.
 add_test(NAME corpus COMMAND ${CMAKE_SOURCE_DIR}/tests/corpus_test.py)
+# tools/irlean, the shared Python library, and tools/measure.py on it: about 3 s, and no Lean or LLVM.
+# docs/python.md.
+add_test(NAME irlean COMMAND ${CMAKE_SOURCE_DIR}/tests/irlean_test.py)
 add_test(NAME superopt COMMAND ${CMAKE_SOURCE_DIR}/tests/superopt.py $<TARGET_FILE:ir-lean>)
 add_test(NAME names COMMAND ${CMAKE_SOURCE_DIR}/tests/names.sh)
 # The experimental undef and freeze semantics against LangRef's examples and Alive2, compiled from copies in a
