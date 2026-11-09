@@ -18,8 +18,9 @@ jobs. The InstSimplify families' scoreboard, store and E3 were checked the same 
 - **244 of chunk 1's 3,174 rewrites count as proved for every input,** all in InstSimplify: 45.1% of its 541, and
   242 of its 335 that need only integers, 72.24%. `opt` exercised 171 of them. Seven families hold them, from the
   worked example, `simplifyAddInst`, to the integer intrinsics, as the [per-family table](#the-instsimplify-families)
-  shows. 3 more are proved, but no compared run reaches their folds, and 38 are proved for integers only, though the
-  C++ reaches them with floating-point or pointer values too.
+  shows. 3 more are proved, but no compared run reaches their folds. 34 are proved for integers only, though the C++
+  reaches them with floating-point or pointer values too, and 4 for integers, which only reach them, but the
+  inventory tags them `fp`.
 - **`simplifyAddInst`'s eighth site, `IS.simplifyAddInst.L605`,** `X + undef` to `undef`, is unproved: only `undef`
   reaches its step, which the model doesn't have, so its theorem says nothing past `L601`'s. 11 sites of the other
   families are the same.
@@ -241,18 +242,23 @@ A site proved by `sorry` keeps every site of its fold from counting, since the f
 The three proved and not compared are `IS.threadBinOpOverSelect.L394`, whose arms' recursive calls `onInst` doesn't
 answer, and `IS.extractEquivalentCondition.L2630` and `L2633`, whose `select` SSA doesn't allow.
 
-**Integer instances.** `Term` holds scalar integers. A site the inventory tags `int` whose C++ also runs on
-floating-point or pointer values, as `icmp` of two pointers reaches `simplifyICmpWithZero` through `m_Zero` matching
-`ptr null`, isn't proved for every input. Its family lists it under `unproved`, with a reason that starts "integer
-instance proved, not claimed for every input" and names the types, and keeps its theorem. There are 38:
+**Integer instances.** `Term` holds scalar integers. A site whose C++ also runs on floating-point or pointer values,
+as `icmp` of two pointers reaches `simplifyICmpWithZero` through `m_Zero` matching `ptr null`, isn't proved for every
+input, whatever the inventory's tag. Its family lists it under `unproved`, with a reason that says the integer
+instance is proved and names the other types, and keeps its theorem. There are 34:
 
 - 22 of `is-icmp`'s;
-- 7 of `is-icmp-b`'s;
+- 3 of `is-icmp-b`'s;
 - 5 of `is-shift`'s;
 - 3 of `is-logic`'s;
 - 1 of `is-intrinsic`'s.
 
 Floating point is in the model now, and pointers will be with F4, so these are the first to revisit as each lands.
+
+Four more of `is-icmp-b`'s, `IS.simplifySelectWithICmpCond.L4876`, `L4890`, `L4896` and `L4900`, are listed unproved
+though only integers reach them: each needs a funnel shift, a rotate or `abs`, which only integers have. The inventory
+tags them `fp`, since their function also handles floating point, and the registry doesn't claim `fp` in `covers` for
+a proof about `Term`. They count once the inventory's rule reads those matchers as integers.
 
 **Families that call each other.** `is-icmp`'s `simplifyICmpInst` forwards to `is-icmp-b`'s folds, and `is-icmp-b`'s
 and and or of compares to `is-icmp`'s `simplifyUnsignedRangeCheck`, as the C++ calls them, so a comparison of one
