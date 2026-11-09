@@ -35,7 +35,7 @@ the program, including binding proofs to LLVM's C++, BIND-02 to BIND-05, which t
 | SEM-06 | Not started | Milestone F4, after F3. Superoptimizer v2's memory candidates and the safety bridge need it |
 | SEM-04, SEM-08, SEM-10 | Not started | [Phase 0](roadmap.md#phase-0-semantic-fidelity-and-trust-infrastructure)'s fidelity work |
 | AUTO-01 | In progress | A tactic the engine can try for `Refines` |
-| AUTO-02 | Not started | The [lemma store](roadmap.md#phase-6-the-engine-and-the-lemma-store) |
+| AUTO-02 | In progress | The [lemma store](roadmap.md#phase-6-the-engine-and-the-lemma-store), linked to the rewrites whose proofs use each lemma, with E3 measured over them |
 | AUTO-03 | In progress | Rewrites at every width, the lemma store's seed |
 | NEG-02, NEG-06 | Not started | The gates that keep wrong and unknown results from counting |
 | NEG-03, NEG-05, NEG-07 | Not started | Phase 0: mutation, which is the roadmap's slice 12, determinism, and the hermetic pin |
@@ -466,8 +466,9 @@ when they land.
 - **Owns:** `prototypes/lemma-reuse/`
 - **Acceptance:** Over InstSimplify's rewrites, most proofs reuse a stored lemma, measured.
 - **Trust gaps:** None.
-- **Status:** not started
-- **Evidence:** None.
+- **Status:** in progress
+- **Gate waiver:** The proofs whose reuse is measured are written by hand, so none needs AUTO-01's tactic. A proof that tactic makes later is measured the same way.
+- **Evidence:** On branch `chunk1/g2-core` on 2026-11-09, not yet on `main`: `tools/store/store.py` counts the `Peephole` library's proofs as uses and records, in each index entry's `rewrites`, the rewrites whose theorems use the lemma, and `tests/peephole.py measure` measures E3 over those proofs. All 8 proofs of InstSimplify's `simplifyAddInst` use a stored rewrite lemma, but only 1 uses one not cut from those same proofs, so most proofs don't reuse a lemma yet in the acceptance's sense. See [rewrite proofs](rewrite-proofs.md#e3-so-far).
 
 ### AUTO-03: From instances to every width
 
@@ -512,8 +513,9 @@ when they land.
 - **Owns:** `tests/passes-proofs/peephole/`
 - **Acceptance:** Each rewrite has an all-input proof, or is listed as unfinished with its reason.
 - **Trust gaps:** Rewrites that read analyses rest on PASS-01.
-- **Status:** not started
-- **Evidence:** None.
+- **Status:** in progress
+- **Gate waiver:** INV-04 has inventoried chunk 1's four passes, which is all this uses. Each proof is about the integer operations `IRLean/Int.lean` models today, as AUTO-03's are, and is checked again by `lake build` when SEM-04 changes them. AUTO-03's rewrites at every width are a source of lemmas, not a prerequisite of any proof here.
+- **Evidence:** On branch `chunk1/g2-core` on 2026-11-09, not yet on `main`: InstSimplify's `simplifyAddInst`, modelled in `tests/passes-proofs/peephole/Peephole/IS/Add.lean`, with all 8 of its rewrites proved for every input, which `tests/peephole.py score` counts by its rules: 8 of chunk 1's 3,000. Its model agrees with the pinned `opt` on 6,318 compared cases, 127 of them from LLVM's regression tests. See [rewrite proofs](rewrite-proofs.md).
 
 ### PASS-04: Scalar and CFG transforms
 

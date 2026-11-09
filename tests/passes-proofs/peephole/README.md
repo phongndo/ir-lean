@@ -37,3 +37,16 @@ proofs that each rewrite they make is right for every input: G2 for chunk 1. The
   No `bv_decide` and no `sorry`: every module rests on the standard three axioms.
 - **A family's registry,** `folds/<family>.json`, names its modules, its entry points and the opcodes they take, each
   fold's `sound` theorem and sites, and each site it didn't prove, with why.
+
+## How it's checked
+
+`lake build Peephole` checks the proofs. [`tests/peephole.py`](../../peephole.py) checks the rest, as
+[rewrite proofs](../../../docs/rewrite-proofs.md) says:
+
+- `compare --family F --write` runs each entry point's model against the pinned `opt` on LLVM's regression tests and
+  generated cases, and records the result in `compared/<family>.json`, keyed by a hash of the model's sources. A
+  changed model has to be compared again.
+- `score --check` counts a site only if its theorem rests on the standard axioms, its fold's `sound` theorem uses it,
+  and its model's comparison is current, and fails if a registry lists one that doesn't count.
+- `store --family F` offers the registry's `lemmas` to the lemma store, with the counterexamples in the family's lemma
+  file, `LemmaStore.Counter.<lemma>.drop_<hypothesis>` and `.sat`.
