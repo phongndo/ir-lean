@@ -222,4 +222,154 @@ def WellTyped : {w : Nat} → Term w → Prop
   | _, .freeze _ a | _, .un _ _ a => WellTyped a
   | _, .fsh _ _ a b c => WellTyped a ∧ WellTyped b ∧ WellTyped c
 
+/-! ### What a matched binary operator's value is -/
+
+theorem bin_val {ρ : Env} {t a b : Term w} {op : BinOp} {f : Flags} (h : binop? op t = some (f, a, b))
+    (hc : t.Consistent ρ) : op.eval f (a.denote ρ) (b.denote ρ) = Outcome.ok (t.denote ρ) :=
+  (binop?_consistent h hc).2.2
+
+theorem or_some {a b : Val w} {d : Bool} {x : BitVec w} (h : Val.or a b d = some x) :
+    ∃ p q, a = some p ∧ b = some q ∧ x = p ||| q := by
+  cases a with
+  | none => cases h
+  | some p =>
+  cases b with
+  | none => cases h
+  | some q =>
+  simp only [Val.or] at h
+  split at h
+  · cases h
+  · exact ⟨p, q, rfl, rfl, (Option.some.inj h).symm⟩
+
+theorem lshr_some {a b : Val w} {e : Bool} {x : BitVec w} (h : Val.lshr a b e = some x) :
+    ∃ p q, a = some p ∧ b = some q ∧ q.toNat < w ∧ x = p >>> q := by
+  cases a with
+  | none => cases h
+  | some p =>
+  cases b with
+  | none => cases h
+  | some q =>
+  simp only [Val.lshr] at h
+  split at h
+  · cases h
+  · next hq =>
+    split at h
+    · cases h
+    · refine ⟨p, q, rfl, rfl, ?_, (Option.some.inj h).symm⟩
+      simpa [Generic.shiftOk_iff] using hq
+
+theorem shl_some {a b : Val w} {nuw nsw : Bool} {x : BitVec w} (h : Val.shl a b nuw nsw = some x) :
+    ∃ p q, a = some p ∧ b = some q ∧ q.toNat < w ∧ x = p <<< q ∧
+      (nuw = true → (p <<< q) >>> q = p) ∧ (nsw = true → (p <<< q).sshiftRight' q = p) := by
+  cases a with
+  | none => cases h
+  | some p =>
+  cases b with
+  | none => cases h
+  | some q =>
+  simp only [Val.shl] at h
+  split at h
+  · cases h
+  · next hq =>
+    split at h
+    · cases h
+    · next hu =>
+      split at h
+      · cases h
+      · next hs =>
+        refine ⟨p, q, rfl, rfl, by simpa [Generic.shiftOk_iff] using hq, (Option.some.inj h).symm, ?_, ?_⟩
+        · intro hn; subst hn; simpa using hu
+        · intro hn; subst hn; simpa using hs
+
+theorem mul_some {a b : Val w} {nuw nsw : Bool} {x : BitVec w} (h : Val.mul a b nuw nsw = some x) :
+    ∃ p q, a = some p ∧ b = some q ∧ x = p * q := by
+  cases a with
+  | none => cases h
+  | some p =>
+  cases b with
+  | none => cases h
+  | some q =>
+  simp only [Val.mul] at h
+  split at h
+  · cases h
+  · exact ⟨p, q, rfl, rfl, (Option.some.inj h).symm⟩
+
+theorem sub_some {a b : Val w} {nuw nsw : Bool} {x : BitVec w} (h : Val.sub a b nuw nsw = some x) :
+    ∃ p q, a = some p ∧ b = some q ∧ x = p - q := by
+  cases a with
+  | none => cases h
+  | some p =>
+  cases b with
+  | none => cases h
+  | some q =>
+  simp only [Val.sub] at h
+  split at h
+  · cases h
+  · exact ⟨p, q, rfl, rfl, (Option.some.inj h).symm⟩
+
+theorem add_some {a b : Val w} {nuw nsw : Bool} {x : BitVec w} (h : Val.add a b nuw nsw = some x) :
+    ∃ p q, a = some p ∧ b = some q ∧ x = p + q ∧ (nuw = true → p.uaddOverflow q = false) ∧
+      (nsw = true → p.saddOverflow q = false) := by
+  cases a with
+  | none => cases h
+  | some p =>
+  cases b with
+  | none => cases h
+  | some q =>
+  simp only [Val.add] at h
+  split at h
+  · cases h
+  · next hf =>
+    refine ⟨p, q, rfl, rfl, (Option.some.inj h).symm, ?_, ?_⟩
+    · intro hn; subst hn; simp_all
+    · intro hn; subst hn; simp_all
+
+/-- A `urem` that ran has a non-zero divisor, and is the remainder where the dividend isn't poison. -/
+theorem urem_ok {a b r : Val w} (h : Val.urem a b = Outcome.ok r) :
+    ∃ q, b = some q ∧ q ≠ 0#w ∧ ∀ x, r = some x → ∃ p, a = some p ∧ x = p % q := by
+  cases b with
+  | none => cases h
+  | some q =>
+  simp only [Val.urem] at h
+  split at h
+  · cases h
+  · next hq =>
+    refine ⟨q, rfl, by simpa using hq, ?_⟩
+    intro x hx
+    subst hx
+    cases a with
+    | none => cases h
+    | some p => exact ⟨p, rfl, (Option.some.inj (ok_inj h)).symm⟩
+
+/-- A `udiv` that ran has a non-zero divisor, and is the quotient where it isn't poison. -/
+theorem udiv_ok {a b r : Val w} {e : Bool} (h : Val.udiv a b e = Outcome.ok r) :
+    ∃ q, b = some q ∧ q ≠ 0#w ∧ ∀ x, r = some x → ∃ p, a = some p ∧ x = p / q := by
+  cases b with
+  | none => cases h
+  | some q =>
+  simp only [Val.udiv] at h
+  split at h
+  · cases h
+  · next hq =>
+    refine ⟨q, rfl, by simpa using hq, ?_⟩
+    intro x hx
+    subst hx
+    cases a with
+    | none => cases h
+    | some p =>
+      refine ⟨p, rfl, ?_⟩
+      have := ok_inj h
+      split at this
+      · cases this
+      · exact (Option.some.inj this).symm
+
+/-- What a sound oracle's known bits say about the sign. -/
+theorem nonneg_of_knownZero {ρ : Env} {o : Oracle} (ho : o.Sound ρ) {t : Term w} {x : BitVec w}
+    (hx : t.denote ρ = some x) (hk : (o.knownZero t).msb = true) : x.msb = false :=
+  Lemmas.msb_false_of_and_eq_zero (ho.knownZero t x hx) hk
+
+theorem neg_of_knownOne {ρ : Env} {o : Oracle} (ho : o.Sound ρ) {t : Term w} {x : BitVec w}
+    (hx : t.denote ρ = some x) (hk : (o.knownOne t).msb = true) : x.msb = true :=
+  Lemmas.msb_true_of_and_eq (ho.knownOne t x hx) hk
+
 end Peephole.IS.ICmpB

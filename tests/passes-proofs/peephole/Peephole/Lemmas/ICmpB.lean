@@ -269,4 +269,104 @@ theorem or_subset {x c1 c2 : BitVec w} (h : c1 &&& ~~~c2 = 0#w) : (x ||| c1) &&&
   generalize c2.getLsbD i = c
   cases a <;> cases b <;> cases c <;> decide
 
+/-! ### Min and max: what `simplifyICmpWithMinMax` knows -/
+
+theorem toInt_inj' {a b : BitVec w} : a.toInt = b.toInt ↔ a = b := BitVec.toInt_inj
+
+/-- `smax(a, b) >=s a`. `IS.simplifyICmpWithMinMax.L3680`. -/
+theorem sle_smax (a b : BitVec w) : BitVec.sle a (if a.sle b then b else a) = true := by
+  split <;> simp_all [BitVec.sle]
+
+/-- `smax(a, b) == a` exactly when `a >=s b`. `IS.extractEquivalentCondition.L2630`, through
+`simplifyICmpWithMinMax`. -/
+theorem smax_beq (a b : BitVec w) : ((if a.sle b then b else a) == a) = BitVec.sle b a := by
+  simp only [BitVec.sle, decide_eq_true_eq]
+  split
+  · next h =>
+    apply Bool.eq_iff_iff.2
+    simp only [beq_iff_eq, decide_eq_true_eq, ← BitVec.toInt_inj]
+    omega
+  · next h => simp only [BEq.rfl]; exact (decide_eq_true (by omega)).symm
+
+/-- `smax(a, b) <=s a` exactly when `a >=s b`. -/
+theorem smax_sle (a b : BitVec w) : BitVec.sle (if a.sle b then b else a) a = BitVec.sle b a := by
+  split <;> simp_all [BitVec.sle] <;> omega
+
+/-- `a >=s smin(a, b)`. `IS.simplifyICmpWithMinMax.L3680`. -/
+theorem smin_sle (a b : BitVec w) : BitVec.sle (if a.sle b then a else b) a = true := by
+  split <;> simp_all [BitVec.sle] <;> omega
+
+/-- `a == smin(a, b)` exactly when `a <=s b`. -/
+theorem beq_smin (a b : BitVec w) : (a == (if a.sle b then a else b)) = BitVec.sle a b := by
+  simp only [BitVec.sle, decide_eq_true_eq]
+  split
+  · next h => simp only [BEq.rfl]; exact (decide_eq_true (by omega)).symm
+  · next h =>
+    apply Bool.eq_iff_iff.2
+    simp only [beq_iff_eq, decide_eq_true_eq, ← BitVec.toInt_inj]
+    omega
+
+/-- `a <=s smin(a, b)` exactly when `a <=s b`. -/
+theorem sle_smin (a b : BitVec w) : BitVec.sle a (if a.sle b then a else b) = BitVec.sle a b := by
+  split <;> simp_all [BitVec.sle]
+
+theorem ule_umax (a b : BitVec w) : BitVec.ule a (if a.ule b then b else a) = true := by
+  split <;> simp_all [BitVec.ule]
+
+theorem umax_beq (a b : BitVec w) : ((if a.ule b then b else a) == a) = BitVec.ule b a := by
+  simp only [BitVec.ule, decide_eq_true_eq]
+  split
+  · next h =>
+    apply Bool.eq_iff_iff.2
+    simp only [beq_iff_eq, decide_eq_true_eq, ← BitVec.toNat_inj]
+    omega
+  · next h => simp only [BEq.rfl]; exact (decide_eq_true (by omega)).symm
+
+theorem umax_ule (a b : BitVec w) : BitVec.ule (if a.ule b then b else a) a = BitVec.ule b a := by
+  split <;> simp_all [BitVec.ule] <;> omega
+
+theorem umin_ule (a b : BitVec w) : BitVec.ule (if a.ule b then a else b) a = true := by
+  split <;> simp_all [BitVec.ule] <;> omega
+
+theorem beq_umin (a b : BitVec w) : (a == (if a.ule b then a else b)) = BitVec.ule a b := by
+  simp only [BitVec.ule, decide_eq_true_eq]
+  split
+  · next h => simp only [BEq.rfl]; exact (decide_eq_true (by omega)).symm
+  · next h =>
+    apply Bool.eq_iff_iff.2
+    simp only [beq_iff_eq, decide_eq_true_eq, ← BitVec.toNat_inj]
+    omega
+
+theorem ule_umin (a b : BitVec w) : BitVec.ule a (if a.ule b then a else b) = BitVec.ule a b := by
+  split <;> simp_all [BitVec.ule]
+
+/-- `smin(c, d) <=s smax(a, b)` where they share an operand. `IS.simplifyICmpWithMinMax.L3773`. -/
+theorem smin_sle_smax {a b c d : BitVec w} (h : c = a ∨ d = a ∨ c = b ∨ d = b) :
+    BitVec.sle (if c.sle d then c else d) (if a.sle b then b else a) = true := by
+  simp only [BitVec.sle, decide_eq_true_eq] at *
+  rcases h with rfl | rfl | rfl | rfl <;> split <;> split <;> omega
+
+/-- `umin(c, d) <=u umax(a, b)` where they share an operand. `IS.simplifyICmpWithMinMax.L3782`. -/
+theorem umin_ule_umax {a b c d : BitVec w} (h : c = a ∨ d = a ∨ c = b ∨ d = b) :
+    BitVec.ule (if c.ule d then c else d) (if a.ule b then b else a) = true := by
+  simp only [BitVec.ule, decide_eq_true_eq] at *
+  rcases h with rfl | rfl | rfl | rfl <;> split <;> split <;> omega
+
+/-! ### Saturating arithmetic: what `simplifyICmpWithIntrinsicOnLHS` knows -/
+
+/-- `uadd.sat(x, y) >=u x + y`. `IS.simplifyICmpWithIntrinsicOnLHS.L3826`. -/
+theorem add_ule_uaddSat (x y : BitVec w) :
+    BitVec.ule (x + y) (if x.uaddOverflow y then BitVec.allOnes w else x + y) = true := by
+  split
+  · simp only [BitVec.ule, decide_eq_true_eq, BitVec.toNat_allOnes]
+    have := (x + y).isLt
+    omega
+  · simp [BitVec.ule]
+
+/-- `usub.sat(x, y) <=u x - y`. `IS.simplifyICmpWithIntrinsicOnLHS.L3836`. -/
+theorem usubSat_ule_sub (x y : BitVec w) :
+    BitVec.ule (if BitVec.ult x y then 0#w else x - y) (x - y) = true := by
+  split <;> simp [BitVec.ule]
+
 end Peephole.Lemmas
+
