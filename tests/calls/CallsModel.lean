@@ -23,6 +23,7 @@ import read_moved_across_effect_wrong_ir
 import effect_dropped_before_undefined_wrong_ir
 import effect_dropped_before_loop_wrong_ir
 import effect_then_spin_for_spin_or_return_wrong_ir
+import effect_last_call_changed_before_spin_wrong_ir
 import variadic_kept_right_ir
 import variadic_reordered_wrong_ir
 import variadic_argument_type_changed_wrong_ir
@@ -421,6 +422,39 @@ theorem effect_then_spin_for_spin_or_return_wrong :
       (by simp [effect_then_spin_for_spin_or_return_wrong_ir.tgt.step, effecting, World.callEffect, Exit.bind,
         andThen]; rfl), tgt_spins] at h1
     simp [effect_then_spin_for_spin_or_return_wrong_ir.src.step, effecting, World.callEffect, Exit.bind, andThen, ret,
+      Outcome.ok, Refine.le] at h1
+
+/-- A source that chooses between `use(1)` then spinning and `use(2)` then returning, for a target that does `use(2)`
+then spins. In a world where `@use` returns, watched for no calls, a source that spins is cut off at `use(1)` and the
+target at `use(2)`, and watched for one, a source that returns does, and the target spins. Cut off without the call
+it stopped at, the first would agree with the target at every number of calls. -/
+theorem effect_last_call_changed_before_spin_wrong :
+    ¬ Refines effect_last_call_changed_before_spin_wrong_ir.src effect_last_call_changed_before_spin_wrong_ir.tgt :=
+  fun h => by
+  obtain ⟨cs, hcs⟩ := h (effecting fun _ => .ret []) [] default
+  have tgt_spins : ∀ c w t n,
+      run effect_last_call_changed_before_spin_wrong_ir.tgt.step (.spin c w t n) = none := fun c w t n =>
+    run_forever (fun b => ∃ c w t n, b = .spin c w t n)
+      (fun _ ⟨c, w, t, n, hb⟩ => ⟨.spin (c.sub 0) w t n, by subst hb; rfl, c.sub 0, w, t, n, rfl⟩)
+      ⟨c, w, t, n, rfl⟩
+  simp only [effect_last_call_changed_before_spin_wrong_ir.src, effect_last_call_changed_before_spin_wrong_ir.tgt]
+    at hcs
+  by_cases hb : BitVec.ofNat 1 (cs.pick 1) = 1#1
+  · -- The source makes `use(1)`: watched for no calls, it's cut off there and the target at `use(2)`.
+    have h0 := hcs 0
+    rw [run_jump effect_last_call_changed_before_spin_wrong_ir.src.step
+      (by simp [effect_last_call_changed_before_spin_wrong_ir.src.step, Val.freeze, br, hb]; rfl), run.eq_1,
+      run.eq_1] at h0
+    simp [effect_last_call_changed_before_spin_wrong_ir.src.step, effect_last_call_changed_before_spin_wrong_ir.tgt.step,
+      World.callEffect, Exit.bind, andThen, ret, Outcome.ok, Lanes.ofVal, Refine.le] at h0
+  · -- The source makes `use(2)` and returns: watched for one call, the target spins after it.
+    have h1 := hcs 1
+    rw [run_jump effect_last_call_changed_before_spin_wrong_ir.src.step
+      (by simp [effect_last_call_changed_before_spin_wrong_ir.src.step, Val.freeze, br, hb]; rfl), run.eq_1,
+      run_jump effect_last_call_changed_before_spin_wrong_ir.tgt.step
+      (by simp [effect_last_call_changed_before_spin_wrong_ir.tgt.step, effecting, World.callEffect, Exit.bind,
+        andThen]; rfl), tgt_spins] at h1
+    simp [effect_last_call_changed_before_spin_wrong_ir.src.step, effecting, World.callEffect, Exit.bind, andThen, ret,
       Outcome.ok, Refine.le] at h1
 
 /-! ### Variadic calls -/
