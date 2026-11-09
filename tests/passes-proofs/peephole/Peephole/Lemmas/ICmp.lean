@@ -246,6 +246,68 @@ theorem ule_signExtend_of_ne (x : BitVec v) {c : BitVec w} (h : (c.setWidth v).s
   have : c.toNat ≠ (x.signExtend w).toNat := fun e => hne (BitVec.eq_of_toNat_eq e).symm
   omega
 
+/-! ### Subtraction, successor and the sign bit, on `toNat`s: what `ConstantRange`'s arithmetic comes down to -/
+
+/-- `x - y` on `toNat`s: the difference, or it plus `2 ^ w` if it went below 0. -/
+theorem toNat_sub_or (x y : BitVec w) :
+    (y.toNat ≤ x.toNat ∧ (x - y).toNat = x.toNat - y.toNat) ∨
+      (x.toNat < y.toNat ∧ (x - y).toNat = x.toNat + 2 ^ w - y.toNat) := by
+  have hx := x.isLt
+  have hy := y.isLt
+  rw [BitVec.toNat_sub]
+  by_cases h : y.toNat ≤ x.toNat
+  · refine Or.inl ⟨h, ?_⟩
+    rw [show 2 ^ w - y.toNat + x.toNat = (x.toNat - y.toNat) + 2 ^ w by omega, Nat.add_mod_right,
+      Nat.mod_eq_of_lt (by omega)]
+  · refine Or.inr ⟨by omega, ?_⟩
+    rw [Nat.mod_eq_of_lt (by omega)]
+    omega
+
+/-- `x + 1` on `toNat`s, at a positive width: the successor, or 0 past the maximum. -/
+theorem toNat_add_one_or (x : BitVec w) (hw : 0 < w) :
+    (x.toNat + 1 < 2 ^ w ∧ (x + 1#w).toNat = x.toNat + 1) ∨ (x.toNat + 1 = 2 ^ w ∧ (x + 1#w).toNat = 0) := by
+  have hx := x.isLt
+  rw [BitVec.toNat_add, BitVec.toNat_one hw]
+  by_cases h : x.toNat + 1 < 2 ^ w
+  · exact Or.inl ⟨h, Nat.mod_eq_of_lt h⟩
+  · refine Or.inr ⟨by omega, ?_⟩
+    rw [show x.toNat + 1 = 2 ^ w by omega, Nat.mod_self]
+
+/-- `x - 1` on `toNat`s, at a positive width: the predecessor, or the maximum below 0. -/
+theorem toNat_sub_one_or (x : BitVec w) (hw : 0 < w) :
+    (0 < x.toNat ∧ (x - 1#w).toNat = x.toNat - 1) ∨ (x.toNat = 0 ∧ (x - 1#w).toNat = 2 ^ w - 1) := by
+  have := toNat_sub_or x 1#w
+  rw [BitVec.toNat_one hw] at this
+  omega
+
+/-- Subtracting `intMin` flips the sign bit. -/
+theorem toNat_sub_intMin_or (x : BitVec w) (hw : 0 < w) :
+    (2 * x.toNat < 2 ^ w ∧ (x - BitVec.intMin w).toNat = x.toNat + 2 ^ (w - 1)) ∨
+      (2 ^ w ≤ 2 * x.toNat ∧ (x - BitVec.intMin w).toNat = x.toNat - 2 ^ (w - 1)) := by
+  have hx := x.isLt
+  have hp := two_pow_pred hw
+  have := toNat_sub_or x (BitVec.intMin w)
+  rw [BitVec.toNat_intMin_of_pos hw] at this
+  by_cases h : 2 * x.toNat < 2 ^ w
+  · exact Or.inl ⟨h, by omega⟩
+  · exact Or.inr ⟨by omega, by omega⟩
+
+/-- Signed order is unsigned order after subtracting `intMin`, which flips the sign bit. -/
+theorem slt_eq_sub_intMin (x y : BitVec w) (hw : 0 < w) :
+    x.slt y = decide ((x - BitVec.intMin w).toNat < (y - BitVec.intMin w).toNat) := by
+  rw [BitVec.slt_eq_decide, decide_eq_decide]
+  have := toNat_sub_intMin_or x hw
+  have := toNat_sub_intMin_or y hw
+  have hp := two_pow_pred hw
+  rcases toInt_cases x with ⟨h1, h2⟩ | ⟨h1, h2⟩ <;> rcases toInt_cases y with ⟨h3, h4⟩ | ⟨h3, h4⟩ <;> omega
+
+theorem sle_eq_sub_intMin (x y : BitVec w) (hw : 0 < w) :
+    x.sle y = decide ((x - BitVec.intMin w).toNat ≤ (y - BitVec.intMin w).toNat) := by
+  rw [BitVec.sle_eq_not_slt, slt_eq_sub_intMin y x hw]
+  by_cases h : (x - BitVec.intMin w).toNat ≤ (y - BitVec.intMin w).toNat
+  · rw [decide_eq_true h, decide_eq_false (by omega)]; rfl
+  · rw [decide_eq_false h, decide_eq_true (by omega)]; rfl
+
 /-! ### Comparing two extensions from one width: what `simplifyICmpInst`'s recursive calls on the operands of casts
 rest on -/
 
