@@ -77,6 +77,11 @@ for certificate in (FREEZE_NOUNDEF, FREEZE_POISON):
         in certificate
     )
 
+# Calls outside the module: a real instcombine run rewriting around a call with effects, which stays. Both
+# sides take the world and the trace, and end with the same trace, as docs/calls.md says.
+CALL_KEPT = (HERE / "CallKeptRefines.lean").read_text()
+assert "theorem Fx.cert : IRLean.Refines Fx.Src.f Fx.Tgt.f :=" in CALL_KEPT
+
 # A certificate that takes longer than the limit tests/binding.py gives it.
 SLOW = GOOD + "\nexample : True := by\n  sleep 120000\n  trivial\n"
 # One whose code takes more memory than the limit tests/binding.py gives it.
@@ -302,6 +307,13 @@ CASES: list[tuple[str, Callable[[str], Path], list[str], tuple[str, str]]] = [
     (
         "freeze_poison_replaced",
         lambda n: record(n, FREEZE_POISON, kind="ir_instance_refinement", input_ll="freeze_poison.ll"),
+        [],
+        ("bound", "replayed"),
+    ),
+    # A call outside the module with effects, kept, with a rewrite around it.
+    (
+        "call_kept",
+        lambda n: record(n, CALL_KEPT, kind="ir_instance_refinement", input_ll="call_kept.ll"),
         [],
         ("bound", "replayed"),
     ),

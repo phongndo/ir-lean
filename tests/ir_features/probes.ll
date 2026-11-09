@@ -1293,6 +1293,20 @@ define i32 @probe(ptr %p) {
   ret i32 %v
 }
 
+; probe: form / data-layout-32-bit-addresses-with-memory
+target datalayout = "e-p:64:64:64:32"
+define i32 @probe(ptr %p) {
+  %v = load i32, ptr %p
+  ret i32 %v
+}
+
+; probe: form / data-layout-null-all-ones-with-memory
+target datalayout = "e-po:64:64"
+define i32 @probe(ptr %p) {
+  %v = load i32, ptr %p
+  ret i32 %v
+}
+
 ; probe: form / data-layout-explicit-64-bit
 target datalayout = "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-i128:128-f80:128-n8:16:32:64-S128"
 define i32 @probe(ptr %p) {
@@ -1535,3 +1549,10 @@ define <vscale x 4 x i32> @probe(ptr %p) {
   %v = load <vscale x 4 x i32>, ptr %p
   ret <vscale x 4 x i32> %v
 }
+
+; probe: form / intrinsic-lane-count-mismatch
+define <4 x i32> @probe(float %a) {
+  %r = call <4 x i32> @llvm.fptosi.sat.v4i32.f32(float %a)
+  ret <4 x i32> %r
+}
+declare <4 x i32> @llvm.fptosi.sat.v4i32.f32(float)
