@@ -1160,7 +1160,7 @@ def counts(
         f"{sound} is a theorem on the standard three axioms only": snd.get("kind") == "theorem"
         and set(snd.get("axioms", ["?"])) <= STANDARD_AXIOMS,
         f"{sound} uses it": f"Peephole.{site}" in snd.get("sites", []),
-        "its module rests on nothing from bv_decide": ran.get("bv_decide") == 0,
+        "its module passes the axiom audit, with nothing from bv_decide": ran.get("bv_decide") == 0,
         "its model's comparison with opt is recorded for its sources now, with no mismatch": not why_not,
     }
     evidence = core.Evidence(

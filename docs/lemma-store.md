@@ -20,6 +20,11 @@ shell, while other work ran on the same machine.
   `freeze_none`, `freeze_ne_none` and `freeze_none_any` joined it as candidates: 164 lemmas, 17 meeting all four and
   147 candidates. `Refine.outcome_stop` is a candidate again, since `RefineCases` no longer stops the model at a
   `freeze`, and `Refine.outcome_le_self_iff` meets all four.
+- **The store counts the `Peephole` library's proofs as uses,** since 2026-11-09 on branch `chunk1/g2-core`, and
+  each lemma's entry names, in `rewrites`, the rewrites of chunk 1 whose theorems use it. InstSimplify's
+  `simplifyAddInst` gave it 11 lemmas, as family `peephole-is-add`: 4 meet all four rules and 7 are candidates, so it
+  holds 175 lemmas, 21 meeting all four and 154 candidates. [Rewrite proofs](rewrite-proofs.md#the-lemma-store-and-the-rewrites)
+  has the details.
 - **Seeding refused 6 of 169.** Two of #48's lemmas, `shl_lshr_eq_iff` and `shl_sshr_eq_iff`, hold without their
   bound on the shift, so their hypothesis is one nothing needs. `grind` alone closes two more and `Refines.of_eq`, and
   `add_of_and_eq_zero`'s conclusion isn't in the normalizer's form. [Below](#what-seeding-refused).
@@ -40,8 +45,9 @@ shell, while other work ran on the same machine.
 ## What's in it
 
 [`store/index.json`](../store/index.json) names every stored lemma, the module that proves it, the family it's in,
-where it came from, its key, its status, the counterexamples for its hypotheses, and the proofs that use it. Seeds
-stay where they're proved: the store names them, and `lake build` builds them as part of it.
+where it came from, its key, its status, the counterexamples for its hypotheses, the proofs that use it, and, if any
+do, the rewrites of chunk 1 whose theorems use it, by their IDs. Seeds stay where they're proved: the store names
+them, and `lake build` builds them as part of it.
 
 | Family | From | Lemmas | Admitted | Candidates |
 | --- | --- | --- | --- | --- |
@@ -290,7 +296,8 @@ so rules 1 and 2 would refuse them. Checking them here, and retiring the prototy
 
 ## Gaps
 
-- **Reuse is counted only where `check` looks:** the store's own modules, `IRLean`'s, and the consumer modules the
+- **Reuse is counted only where `check` looks:** the store's own modules, `IRLean`'s, every module of the `Peephole`
+  library in [`tests/passes-proofs/peephole`](../tests/passes-proofs/peephole), and the consumer modules the
   index names, [`RefineCases.lean`](../tests/refine/RefineCases.lean),
   [`ContractPoison.lean`](../tests/contracts/ContractPoison.lean) and
   [`RewriteCounter.lean`](../tests/generic_rewrites/RewriteCounter.lean). Proofs in `tests/proofs`, `tests/llvm` and
