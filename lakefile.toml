@@ -1,11 +1,23 @@
 name = "ir-lean"
 version = "0.1.0"
-defaultTargets = ["IRLean"]
+defaultTargets = ["IRLean", "LemmaStore", "StoreTool"]
 
 [[lean_lib]]
 name = "IRLean"
 # The tests run emitted code against this, natively. Interpreting it is about 10 times slower.
 defaultFacets = ["leanArts", "shared"]
+
+# The lemma store: lemmas later proofs can find and reuse, the counterexamples that show each hypothesis is needed,
+# and the selector that finds them. docs/lemma-store.md.
+[[lean_lib]]
+name = "LemmaStore"
+srcDir = "store"
+roots = ["LemmaStore", "LemmaStore.Counter", "LemmaStore.Select"]
+
+# The store's checker and lookup, which tools/store/store.py runs.
+[[lean_lib]]
+name = "StoreTool"
+srcDir = "tools/store"
 
 # The proofs, and the generated modules they import, from `tests/proofs.sh build/ir-lean --generate
 # build/generated`. These are for `lake build Proofs` and the language server. tests/proofs.sh checks
