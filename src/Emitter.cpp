@@ -123,7 +123,7 @@ const std::set<std::string> &reservedNames() {
         "loop", "none", "noundef", "ret", "run", "select", "some", "step", "sw", "true", "unreachable",
         "HasPoison", "Mem", "Ptr", "PtrVal", "initial", "m", "indirect", "Vec", "Vector", "a", "b", "Unit",
         "Nat", "BitVec", "Array", "promised", "runPromised", "Choice", "Outcomes", "World", "Trace", "Exit",
-        "Lanes", "Event", "Answer", "Promises",
+        "Lanes", "Event", "Answer", "Promises", "Talks",
         // Names Lean generates for every inductive type.
         "below", "binductionOn", "brecOn", "casesOn", "ctorElim", "ctorElimType", "ctorIdx", "ibelow",
         "injEq", "noConfusion", "noConfusionType", "rec", "recOn", "sizeOf", "toCtorIdx"};

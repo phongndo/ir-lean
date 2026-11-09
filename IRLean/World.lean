@@ -89,7 +89,7 @@ inductive Exit (α : Type) where
   | halted (t : Trace)
   /-- The call at the head of `t` unwound, and so did this function. -/
   | unwound (t : Trace)
-  /-- The run was watched for `t`'s calls with effects, and was about to make another. -/
+  /-- The run was about to make the call with effects at the head of `t`, past the number it was watched for. -/
   | cut (t : Trace)
   deriving DecidableEq, Repr
 
