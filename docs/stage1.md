@@ -172,7 +172,7 @@ Only `certified` is a certificate. `proved` is how most pairs can be compared wi
 | `src_always_ub` | The source is undefined on every input, so any target refines it. With `--fail-src-ub`, that's a failure to prove, not a pass |
 | `timeout` | Its solver or the 60 s limit ran out |
 | `incomplete` | It approximated something and couldn't decide, or its solver gave up |
-| `unsupported` | It can't read a type, instruction or attribute, such as scalable vectors or `x86_fp80` |
+| `unsupported` | It can't read a type, instruction or attribute, such as `x86_fp80` |
 
 A disagreement is a pair whose verdicts differ where at least one side has one. Each is one of:
 
@@ -285,7 +285,8 @@ the emitter refuses, and vectors run through every group.
 
 This is `dbfd710`'s emitter. [#88](https://github.com/phongndo/ir-lean/pull/88), after these runs, models vector
 intrinsics, vector division and remainder, and `noundef` and `range` on vectors, and by its own count on these pairs
-has the emitter translate 664 more of them.
+has the emitter translate 664 more of them. [#95](https://github.com/phongndo/ir-lean/pull/95) models scalable vectors
+since.
 
 ## Found along the way
 
