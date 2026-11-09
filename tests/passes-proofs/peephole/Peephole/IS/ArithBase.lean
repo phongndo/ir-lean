@@ -23,6 +23,10 @@ theorem ok_refl (a : Val w) : Refines (Outcome.ok a) (Outcome.ok a) :=
 
 theorem ok_refines_of_eq {a b : Val w} (h : b = a) : Refines (Outcome.ok a) (Outcome.ok b) := h ▸ ok_refl a
 
+/-- A value that refines another refines it as a run. -/
+theorem ok_refines {a b : Val w} (h : Refines a b) : Refines (Outcome.ok a) (Outcome.ok b) :=
+  (Refine.outcome_ok_ok a b).2 h
+
 /-- A run that refines poison refines any value: it's poison or undefined. -/
 theorem refines_of_refines_ok_none {o : Outcome (Val w)} (h : Refines o (Outcome.ok none)) (b : Val w) :
     Refines o (Outcome.ok b) := by
