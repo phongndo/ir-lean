@@ -11,11 +11,16 @@
     "Peephole.IS.ICmpWithConstant",
     "Peephole.IS.ICmpMonotonic",
     "Peephole.IS.ICmpUnsignedRangeCheck",
-    "Peephole.IS.ICmpDomEq",
     "Peephole.IS.ICmp"
   ],
   "entries": [
-    {"fold": "Peephole.IS.simplifyICmpInst.onInst", "opcodes": ["icmp"], "opt": "instsimplify"}
+    {
+      "fold": "Peephole.IS.simplifyICmpInst.onInst",
+      "opcodes": [
+        "icmp"
+      ],
+      "opt": "instsimplify"
+    }
   ],
   "folds": {
     "Peephole.IS.simplifyICmpInst": {
@@ -108,14 +113,6 @@
         "IS.simplifyUnsignedRangeCheck.L1608",
         "IS.simplifyUnsignedRangeCheck.L1613"
       ]
-    },
-    "Peephole.IS.simplifyByDomEq": {
-      "sound": "Peephole.IS.simplifyByDomEq.sound",
-      "sites": [
-        "IS.simplifyByDomEq.L727",
-        "IS.simplifyByDomEq.L731",
-        "IS.simplifyByDomEq.L736"
-      ]
     }
   },
   "delegates": {
@@ -133,8 +130,7 @@
     "Peephole.IS.ICmp.Ext": "analyses the core Oracle lacks: isImpliedByDomCondition (domCond), getRange (getRange) and computeConstantRange (constRange), with Ext.Sound; simplifyICmpInst.onInst takes Ext.none, which knows nothing, unless given one",
     "Peephole.IS.ICmp.CR": "ConstantRange as ConstantRange.cpp computes it (makeAllowedICmpRegion, makeExactICmpRegion, contains, inverse, icmp and the min and max of a range), with what each says about values proved; the steps that read a range only fire at a positive width, since LLVM has no i0 and at width 0 the full and the empty range are the same pair",
     "Peephole.IS.simplifyICmpInst.body": "simplifyICmpInst's own recursive calls (on the operands of two zexts or two sexts, on a zext or sext against a constant that's an extension, and on sext X against 0) are forwards to the model one MaxRecurse down; simplifyICmpInst.sound covers them by induction. Those on two extensions, or on one and an extended constant, are only taken where the cast widens (v < w), as LLVM's verifier requires and Term doesn't",
-    "Peephole.IS.simplifyUnsignedRangeCheck": "the source is ICmp.andOrSrc, the and (IsAnd) or the or of ZeroICmp and UnsignedICmp with any flags; sound_swap has them the other way round, as simplifyAndOfICmps' and simplifyOrOfICmps' second call needs",
-    "Peephole.IS.simplifyByDomEq": "the source is ICmp.binSrc, the caller's sub, xor, and, or, division or remainder with any flags"
+    "Peephole.IS.simplifyUnsignedRangeCheck": "the source is ICmp.andOrSrc, the and (IsAnd) or the or of ZeroICmp and UnsignedICmp with any flags; sound_swap has them the other way round, as simplifyAndOfICmps' and simplifyOrOfICmps' second call needs"
   },
   "lemmas": [
     "Peephole.Lemmas.setWidth_ule_signExtend",
@@ -196,15 +192,6 @@
     ],
     "IS.simplifyICmpWithConstant.L3135": [
       "Peephole.IS.ICmp.Ext.Sound, constRange: computeConstantRange's range contains the operand's value wherever it isn't poison"
-    ],
-    "IS.simplifyByDomEq.L727": [
-      "Peephole.IS.ICmp.Ext.Sound, domCond: what isImpliedByDomCondition(ICMP_EQ, Op0, Op1) answers holds of the operands' values at the instruction, where they aren't poison"
-    ],
-    "IS.simplifyByDomEq.L731": [
-      "Peephole.IS.ICmp.Ext.Sound, domCond: what isImpliedByDomCondition(ICMP_EQ, Op0, Op1) answers holds of the operands' values at the instruction, where they aren't poison"
-    ],
-    "IS.simplifyByDomEq.L736": [
-      "Peephole.IS.ICmp.Ext.Sound, domCond: what isImpliedByDomCondition(ICMP_EQ, Op0, Op1) answers holds of the operands' values at the instruction, where they aren't poison"
     ]
   },
   "unproved": {
