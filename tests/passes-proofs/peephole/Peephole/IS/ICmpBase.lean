@@ -14,7 +14,7 @@ what their models share:
 - `src`, the `icmp` a fold replaces, and the lemmas that reduce a rewrite of it to a fact about `test`. `samesign`
   only makes the source poison in more runs, which a replacement may refine in any way, so every rewrite here holds
   for both values of it.
-- `fwd`, a call to another fold modelled here as one step.
+- `fwd` and `fwdR`, a call to another fold modelled here as one step, by its steps or by its answer.
 - `Ext`, the analyses `simplifyICmpInst` asks that the core `Oracle` doesn't have: `isImpliedByDomCondition`,
   `getRange` and `computeConstantRange`, with `Ext.Sound`, what a sound answer means. The ranges are LLVM's
   `ConstantRange`, `CR` here. -/
@@ -196,6 +196,17 @@ theorem fwd_fire {steps : List (Step w)} {s : String} {r : Repl w} (h : fwd step
   · next r' hr => simp only [Step.fire.injEq] at h; rw [hr, h.2]
   · cases h
   · cases h
+
+/-- A call to a fold modelled here, by its answer, as one step: its value, the next step on `nullptr`, or its
+delegation. `callee` names the fold. -/
+def fwdR (callee : String) : Result w → Step w
+  | .value r => .fire callee r
+  | .null => .next
+  | .delegated c => .delegate c
+
+theorem fwdR_fire {callee s : String} {res : Result w} {r : Repl w} (h : fwdR callee res = .fire s r) :
+    res = .value r := by
+  cases res <;> simp_all [fwdR]
 
 /-- `t` as an operand of width `v`, if that's its width. `m_Specific` between values of different types never
 matches: they're different `Value *`s. -/

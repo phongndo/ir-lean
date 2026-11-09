@@ -39,7 +39,9 @@ own recursive calls, on the operands of two casts and on a constant brought to t
 the model one level of `MaxRecurse` down: `simplifyICmpInst.body` recurses on it. The forwards to
 `simplifyICmpWithBinOp`, `simplifyICmpWithMinMax`, `simplifyICmpWithIntrinsicOnLHS`,
 `simplifyICmpWithDominatingAssume`, `threadCmpOverSelect` and `threadCmpOverPHI` are `.delegate`s, which claim
-nothing: another family models the first three.
+nothing: another family models the first three. Each is a `.delegate` only where the C++ can answer: the first needs
+a binary operator on one side, the second a min, a max or a `select`, the third a `uadd.sat` or `usub.sat` on its
+left, so elsewhere the step falls through, as the call returns `nullptr`.
 
 The recursive calls on the operands of two zero or two sign extensions, or of one against a constant that's an
 extension, are only right where the cast widens, as LLVM's verifier requires of `zext` and `sext`; `Term` can hold a
@@ -54,6 +56,22 @@ variable {w v : Nat}
 /-! ### Helpers -/
 
 namespace ICmp
+
+/-- `dyn_cast<BinaryOperator>(V)`: what `simplifyICmpWithBinOp` needs on one side. -/
+def isBinOp : Term w → Bool
+  | .bin .. => true
+  | _ => false
+
+/-- What `m_SMax`, `m_SMin`, `m_UMax` and `m_UMin` can match: a min or max intrinsic, or a `select`, which
+`simplifyICmpWithMinMax` needs on one side. -/
+def isMinMaxLike : Term w → Bool
+  | .bi _ .smax .. | .bi _ .smin .. | .bi _ .umax .. | .bi _ .umin .. | .select .. => true
+  | _ => false
+
+/-- `uadd.sat` or `usub.sat`: the intrinsics `simplifyICmpWithIntrinsicOnLHS` answers for on its left. -/
+def isSatAddSub : Term w → Bool
+  | .bi _ .uaddSat .. | .bi _ .usubSat .. => true
+  | _ => false
 
 /-- `SrcOp == RI->getOperand(0)`: the same `Value *`, so of one type. -/
 def sameSrc {v v' : Nat} (x : Term v) (y : Term v') : Bool :=
@@ -261,9 +279,9 @@ def steps (o : Oracle) (e : Ext) (rec : ICmp.Rec) (p : Pred) (lhs rhs : Term w) 
     -- icmp X, undef -> true/false because undef could be X.
     if specific lhs rhs || isUndefValue rhs then .fire "IS.simplifyICmpInst.L3892" (getBool (isTrueWhenEqual p))
     else .next,
-    fwd (simplifyICmpOfBools.steps o p lhs rhs),
-    fwd (simplifyICmpWithZero.steps o p lhs rhs),
-    fwd (simplifyICmpWithConstant.steps o e p lhs rhs),
+    fwdR "IS.simplifyICmpOfBools" (simplifyICmpOfBools o p lhs rhs),
+    fwdR "IS.simplifyICmpWithZero" (simplifyICmpWithZero o p lhs rhs),
+    fwdR "IS.simplifyICmpWithConstant" (simplifyICmpWithConstant o e p lhs rhs),
     -- If both operands have range metadata, use the metadata to simplify the comparison. The ranges are only read at
     -- a positive width (`Peephole.IS.ICmpConstantRange`).
     match e.getRange rhs, e.getRange lhs with
@@ -289,12 +307,16 @@ def steps (o : Oracle) (e : Ext) (rec : ICmp.Rec) (p : Pred) (lhs rhs : Term w) 
     if isEquality p && !zero rhs && o.nonEqual lhs rhs then
       .fire "IS.simplifyICmpInst.L4122" (if p == .ne then getTrue else getFalse)
     else .next,
-    .delegate "simplifyICmpWithBinOp",
-    .delegate "simplifyICmpWithMinMax",
-    .delegate "simplifyICmpWithIntrinsicOnLHS",
-    .delegate "simplifyICmpWithIntrinsicOnLHS",
-    fwd (simplifyICmpUsingMonotonicValues.steps o p lhs rhs),
-    fwd (simplifyICmpUsingMonotonicValues.steps o (swap p) rhs lhs),
+    -- simplifyICmpWithBinOp: every statement of it that can answer needs an operand that's a `BinaryOperator`.
+    if isBinOp lhs || isBinOp rhs then .delegate "simplifyICmpWithBinOp" else .next,
+    -- simplifyICmpWithMinMax: every statement of it that can answer needs a min or a max on one side.
+    if isMinMaxLike lhs || isMinMaxLike rhs then .delegate "simplifyICmpWithMinMax" else .next,
+    -- simplifyICmpWithIntrinsicOnLHS(Pred, LHS, RHS), and with them swapped: it only answers for `uadd.sat` and
+    -- `usub.sat` on its left.
+    if isSatAddSub lhs then .delegate "simplifyICmpWithIntrinsicOnLHS" else .next,
+    if isSatAddSub rhs then .delegate "simplifyICmpWithIntrinsicOnLHS" else .next,
+    fwdR "IS.simplifyICmpUsingMonotonicValues" (simplifyICmpUsingMonotonicValues o p lhs rhs),
+    fwdR "IS.simplifyICmpUsingMonotonicValues" (simplifyICmpUsingMonotonicValues o (swap p) rhs lhs),
     .delegate "simplifyICmpWithDominatingAssume",
     match e.domCond p lhs rhs with
     | some b => .fire "IS.simplifyICmpInst.L4148" (getBool b)
@@ -912,9 +934,9 @@ theorem steps_sound (ρ : Env) (o : Oracle) (ho : o.Sound ρ) (e : Ext) (he : e.
     next hc =>
     obtain ⟨-, rfl⟩ := h
     exact L3892 ρ p s lhs rhs u1 hc
-  · exact simplifyICmpOfBools.sound ρ o ho p s lhs rhs c0 (fwd_fire h.symm)
-  · exact simplifyICmpWithZero.sound ρ o ho p s lhs rhs (fwd_fire h.symm)
-  · exact simplifyICmpWithConstant.sound ρ o ho e he p s lhs rhs c0 (fwd_fire h.symm)
+  · exact simplifyICmpOfBools.sound ρ o ho p s lhs rhs c0 (fwdR_fire h.symm)
+  · exact simplifyICmpWithZero.sound ρ o ho p s lhs rhs (fwdR_fire h.symm)
+  · exact simplifyICmpWithConstant.sound ρ o ho e he p s lhs rhs c0 (fwdR_fire h.symm)
   · split at h
     · next rc lc hr hl =>
       split at h <;> simp only [Step.fire.injEq, reduceCtorEq] at h
@@ -947,13 +969,13 @@ theorem steps_sound (ρ : Env) (o : Oracle) (ho : o.Sound ρ) (e : Ext) (he : e.
     obtain ⟨-, rfl⟩ := h
     simp only [Bool.and_eq_true] at hc
     exact L4122 ρ o ho p s lhs rhs hc.1.1 hc.2
-  · cases h
-  · cases h
-  · cases h
-  · cases h
-  · exact simplifyICmpUsingMonotonicValues.sound ρ o ho p s lhs rhs c0 c1 (fwd_fire h.symm)
+  · split at h <;> simp only [reduceCtorEq] at h
+  · split at h <;> simp only [reduceCtorEq] at h
+  · split at h <;> simp only [reduceCtorEq] at h
+  · split at h <;> simp only [reduceCtorEq] at h
+  · exact simplifyICmpUsingMonotonicValues.sound ρ o ho p s lhs rhs c0 c1 (fwdR_fire h.symm)
   · rw [← src_swap]
-    exact simplifyICmpUsingMonotonicValues.sound ρ o ho (swap p) s rhs lhs c1 c0 (fwd_fire h.symm)
+    exact simplifyICmpUsingMonotonicValues.sound ρ o ho (swap p) s rhs lhs c1 c0 (fwdR_fire h.symm)
   · cases h
   · split at h <;> simp only [Step.fire.injEq, reduceCtorEq] at h
     next b hb =>

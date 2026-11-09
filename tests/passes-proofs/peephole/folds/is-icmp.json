@@ -118,10 +118,10 @@
   "delegates": {
     "Peephole.IS.simplifyICmpInst": {
       "ConstantFoldCompareInstOperands": "two constants: the constant folder, IS.simplifyICmpInst.L3869",
-      "simplifyICmpWithBinOp": "modelled by the icmp-b family; delegated here, unconditionally, so the model's run ends at this step and the steps after it (simplifyICmpUsingMonotonicValues, L4148) are only reached once it's a forward",
-      "simplifyICmpWithMinMax": "modelled by the icmp-b family; delegated here",
-      "simplifyICmpWithIntrinsicOnLHS": "modelled by the icmp-b family; delegated here, for both of its calls",
-      "simplifyICmpWithDominatingAssume": "assumptions (needs calls): not modelled",
+      "simplifyICmpWithBinOp": "modelled by the icmp-b family; delegated here where an operand is a binary operator, which every statement of it that can answer needs, and the step falls through elsewhere",
+      "simplifyICmpWithMinMax": "modelled by the icmp-b family; delegated here where an operand is a min or max intrinsic or a select, and the step falls through elsewhere",
+      "simplifyICmpWithIntrinsicOnLHS": "modelled by the icmp-b family; delegated here, for each of its two calls, where its left operand is uadd.sat or usub.sat, and the step falls through elsewhere",
+      "simplifyICmpWithDominatingAssume": "assumptions (needs calls): not modelled; delegated unconditionally, so the steps after it (L4148, threadCmpOverSelect, threadCmpOverPHI) aren't reached by a run",
       "threadCmpOverSelect": "where an operand is a select: not modelled",
       "threadCmpOverPHI": "where an operand is a Term.var, which may be a phi: not modelled"
     }
@@ -196,7 +196,6 @@
   },
   "unproved": {
     "IS.simplifyICmpInst.L3869": "needs calls: two constants go to ConstantFoldCompareInstOperands, the constant folder, which isn't modelled; the model delegates",
-    "IS.simplifyICmpInst.L4154": "needs memory: computePointerICmp compares pointers, which Term doesn't have",
     "IS.simplifyICmpWithConstant.L3120": "needs fp: it matches bitcast (uitofp X), and Term has no floating point, so the model's step never fires"
   }
 }
