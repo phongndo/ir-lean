@@ -4,6 +4,7 @@ import IRLean.Generic.BitVec
 import IRLean.Generic.Bitwise
 import IRLean.Refine
 import Peephole.Lemmas.Add
+import Peephole.Lemmas.Arith
 
 /-! # The lemma store
 
@@ -193,6 +194,49 @@ def catalog : Array Lean.Name := #[
   ``Peephole.Lemmas.add_intMin,
   ``Peephole.Lemmas.add_xor_signMask_refines,
   ``Peephole.Lemmas.eq_zero_of_not_uaddOverflow_allOnes,
-  ``Peephole.Lemmas.add_nuw_allOnes_refines]
+  ``Peephole.Lemmas.add_nuw_allOnes_refines,
+  ``Peephole.Lemmas.sub_zero_left_nuw_refines,
+  ``Peephole.Lemmas.sub_zero_left_nsw_refines,
+  ``Peephole.Lemmas.sub_zero_left_refines_self,
+  ``Peephole.Lemmas.sub_mask_xor_nuw_refines,
+  ``Peephole.Lemmas.mul_comm,
+  ``Peephole.Lemmas.mul_udiv_exact_refines,
+  ``Peephole.Lemmas.mul_sdiv_exact_refines,
+  ``Peephole.Lemmas.mul_nsw_one_bit_refines,
+  ``Peephole.Lemmas.udiv_self_refines,
+  ``Peephole.Lemmas.urem_self_refines,
+  ``Peephole.Lemmas.sdiv_self_refines,
+  ``Peephole.Lemmas.srem_self_refines,
+  ``Peephole.Lemmas.udiv_zero_left_refines,
+  ``Peephole.Lemmas.urem_zero_left_refines,
+  ``Peephole.Lemmas.sdiv_zero_left_refines,
+  ``Peephole.Lemmas.srem_zero_left_refines,
+  ``Peephole.Lemmas.udiv_mul_nuw_refines,
+  ``Peephole.Lemmas.urem_mul_nuw_refines,
+  ``Peephole.Lemmas.sdiv_mul_nsw_refines,
+  ``Peephole.Lemmas.srem_mul_nsw_refines,
+  ``Peephole.Lemmas.udiv_mul_udiv_refines,
+  ``Peephole.Lemmas.urem_mul_udiv_refines,
+  ``Peephole.Lemmas.sdiv_mul_sdiv_refines,
+  ``Peephole.Lemmas.srem_mul_sdiv_refines,
+  ``Peephole.Lemmas.udiv_of_lt_refines,
+  ``Peephole.Lemmas.urem_of_lt_refines,
+  ``Peephole.Lemmas.sdiv_of_natAbs_lt_refines,
+  ``Peephole.Lemmas.srem_of_natAbs_lt_refines,
+  ``Peephole.Lemmas.udiv_exact_of_low_bit_refines,
+  ``Peephole.Lemmas.sdiv_exact_of_low_bit_refines,
+  ``Peephole.Lemmas.udiv_exact_mul_nsw_refines,
+  ``Peephole.Lemmas.sdiv_exact_mul_nuw_refines,
+  ``Peephole.Lemmas.urem_shl_nuw_refines,
+  ``Peephole.Lemmas.srem_shl_nsw_refines,
+  ``Peephole.Lemmas.urem_mul_nuw_of_umod_refines,
+  ``Peephole.Lemmas.srem_mul_nsw_of_srem_refines,
+  ``Peephole.Lemmas.sdiv_neg_nsw_left_refines,
+  ``Peephole.Lemmas.sdiv_neg_nsw_right_refines,
+  ``Peephole.Lemmas.sdiv_sub_nsw_swap_refines,
+  ``Peephole.Lemmas.srem_sext_one_bit_refines,
+  ``Peephole.Lemmas.srem_neg_left_refines,
+  ``Peephole.Lemmas.srem_neg_right_refines,
+  ``Peephole.Lemmas.srem_sub_swap_refines]
 
 end LemmaStore

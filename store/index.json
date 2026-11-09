@@ -3,7 +3,7 @@
   "version": {
     "lean": "leanprover/lean4:v4.35.0",
     "normalizer": 1,
-    "sources": "d6418720cf073a20d546dad067b50ac4de9240f506a037df613324d3d762ea68"
+    "sources": "2992ef0bece6e1d258111d71900d72842fcbca36d3dae59169b956ea60ab9f72"
   },
   "consumers": [
     {
@@ -35,7 +35,9 @@
         "IRLean.Generic.ashr_zero",
         "IRLean.Generic.lshr_zero",
         "IRLean.Generic.mul_twoPow",
-        "IRLean.Generic.shl_zero"
+        "IRLean.Generic.shl_zero",
+        "Peephole.Lemmas.srem_shl_nsw_refines",
+        "Peephole.Lemmas.urem_shl_nuw_refines"
       ]
     },
     {
@@ -114,7 +116,12 @@
       "widths": "every",
       "hypotheses": [],
       "witness": null,
-      "used_by": []
+      "used_by": [
+        "Peephole.IS.simplifySubInst.L763"
+      ],
+      "rewrites": [
+        "IS.simplifySubInst.L763"
+      ]
     },
     {
       "name": "IRLean.Generic.mul_one",
@@ -142,7 +149,12 @@
       "widths": "every",
       "hypotheses": [],
       "witness": null,
-      "used_by": []
+      "used_by": [
+        "Peephole.IS.simplifyMulInst.L915"
+      ],
+      "rewrites": [
+        "IS.simplifyMulInst.L915"
+      ]
     },
     {
       "name": "IRLean.Generic.sub_self_refines",
@@ -150,11 +162,20 @@
       "family": "generic-rewrites",
       "provenance": "#48, IRLean/Generic/Arith.lean",
       "key": "4ecb3e25930f5041a1aa",
-      "status": "candidate",
+      "status": "admitted",
       "widths": "every",
       "hypotheses": [],
       "witness": null,
-      "used_by": []
+      "used_by": [
+        "Peephole.IS.simplifyByDomEq.L727",
+        "Peephole.IS.simplifySubInst.L767",
+        "Peephole.Lemmas.sub_zero_left_nsw_refines",
+        "Peephole.Lemmas.sub_zero_left_nuw_refines"
+      ],
+      "rewrites": [
+        "IS.simplifyByDomEq.L727",
+        "IS.simplifySubInst.L767"
+      ]
     },
     {
       "name": "IRLean.Generic.mul_zero_refines",
@@ -166,7 +187,12 @@
       "widths": "every",
       "hypotheses": [],
       "witness": null,
-      "used_by": []
+      "used_by": [
+        "Peephole.IS.simplifyMulInst.L911"
+      ],
+      "rewrites": [
+        "IS.simplifyMulInst.L911"
+      ]
     },
     {
       "name": "IRLean.Generic.add_self",
@@ -239,7 +265,12 @@
         "LemmaStore.Counter.IRLean.Generic.udiv_one.drop_hw"
       ],
       "witness": "LemmaStore.Counter.IRLean.Generic.udiv_one.sat",
-      "used_by": []
+      "used_by": [
+        "Peephole.IS.simplifyDivRem.L1100"
+      ],
+      "rewrites": [
+        "IS.simplifyDivRem.L1100"
+      ]
     },
     {
       "name": "IRLean.Generic.urem_one_refines",
@@ -251,7 +282,12 @@
       "widths": "every",
       "hypotheses": [],
       "witness": null,
-      "used_by": []
+      "used_by": [
+        "Peephole.IS.simplifyDivRem.L1100"
+      ],
+      "rewrites": [
+        "IS.simplifyDivRem.L1100"
+      ]
     },
     {
       "name": "IRLean.Generic.sdiv_one",
@@ -279,7 +315,12 @@
       "widths": "every",
       "hypotheses": [],
       "witness": null,
-      "used_by": []
+      "used_by": [
+        "Peephole.IS.simplifyDivRem.L1100"
+      ],
+      "rewrites": [
+        "IS.simplifyDivRem.L1100"
+      ]
     },
     {
       "name": "IRLean.Generic.srem_one_refines",
@@ -291,7 +332,12 @@
       "widths": "every",
       "hypotheses": [],
       "witness": null,
-      "used_by": []
+      "used_by": [
+        "Peephole.IS.simplifyDivRem.L1100"
+      ],
+      "rewrites": [
+        "IS.simplifyDivRem.L1100"
+      ]
     },
     {
       "name": "IRLean.Generic.and_self",
@@ -303,7 +349,12 @@
       "widths": "every",
       "hypotheses": [],
       "witness": null,
-      "used_by": []
+      "used_by": [
+        "Peephole.IS.simplifyByDomEq.L736"
+      ],
+      "rewrites": [
+        "IS.simplifyByDomEq.L736"
+      ]
     },
     {
       "name": "IRLean.Generic.or_self",
@@ -327,7 +378,12 @@
       "widths": "every",
       "hypotheses": [],
       "witness": null,
-      "used_by": []
+      "used_by": [
+        "Peephole.IS.simplifyByDomEq.L736"
+      ],
+      "rewrites": [
+        "IS.simplifyByDomEq.L736"
+      ]
     },
     {
       "name": "IRLean.Generic.xor_self_refines",
@@ -339,7 +395,12 @@
       "widths": "every",
       "hypotheses": [],
       "witness": null,
-      "used_by": []
+      "used_by": [
+        "Peephole.IS.simplifyByDomEq.L727"
+      ],
+      "rewrites": [
+        "IS.simplifyByDomEq.L727"
+      ]
     },
     {
       "name": "IRLean.Generic.and_allOnes",
@@ -1879,6 +1940,13 @@
         "IRLean.Generic.xor_xor_cancel_refines",
         "Peephole.IS.simplifyAddInst.L601",
         "Peephole.IS.simplifyAddInst.L605",
+        "Peephole.IS.simplifySubInst.L780",
+        "Peephole.IS.simplifySubInst.L783",
+        "Peephole.Lemmas.mul_sdiv_exact_refines",
+        "Peephole.Lemmas.mul_udiv_exact_refines",
+        "Peephole.Lemmas.sub_mask_xor_nuw_refines",
+        "Peephole.Lemmas.sub_zero_left_nuw_refines",
+        "Peephole.Lemmas.sub_zero_left_refines_self",
         "RefineCases.addZero",
         "RefineCases.dropNuw",
         "RefineCases.freezeInserted",
@@ -1888,7 +1956,9 @@
       ],
       "rewrites": [
         "IS.simplifyAddInst.L601",
-        "IS.simplifyAddInst.L605"
+        "IS.simplifyAddInst.L605",
+        "IS.simplifySubInst.L780",
+        "IS.simplifySubInst.L783"
       ]
     },
     {
@@ -1903,6 +1973,7 @@
       "witness": null,
       "used_by": [
         "IRLean.Generic.Counter.not_refines",
+        "Peephole.IS.Arith.eq_of_refines_some",
         "RefineCases.addZero",
         "RefineCases.addedNuw",
         "RefineCases.freezeDuplicatedOfValue",
@@ -1915,6 +1986,13 @@
         "RefineCases.undefArgument",
         "RefineCases.valueToPoison",
         "RefineCases.wrongConstant"
+      ],
+      "rewrites": [
+        "IS.expandBinOp.L218",
+        "IS.simplifyAssociativeBinOp.L274",
+        "IS.simplifyAssociativeBinOp.L294",
+        "IS.simplifyAssociativeBinOp.L318",
+        "IS.simplifyAssociativeBinOp.L338"
       ]
     },
     {
@@ -1944,8 +2022,20 @@
         "IRLean.Generic.sub_self_refines",
         "IRLean.Generic.xor_self_refines",
         "IRLean.Generic.xor_xor_cancel_refines",
+        "Peephole.IS.Arith.eval_drop_flags",
+        "Peephole.IS.isICmpTrue_sound",
+        "Peephole.Lemmas.mul_nsw_one_bit_refines",
         "RefineCases.freezeDuplicated",
         "RefineCases.freezeRemoved"
+      ],
+      "rewrites": [
+        "IS.expandBinOp.L218",
+        "IS.simplifyAssociativeBinOp.L274",
+        "IS.simplifyAssociativeBinOp.L294",
+        "IS.simplifyAssociativeBinOp.L318",
+        "IS.simplifyAssociativeBinOp.L338",
+        "IS.simplifyDivRem.L1119",
+        "IS.threadBinOpOverSelect.L394"
       ]
     },
     {
@@ -2010,6 +2100,11 @@
         "IRLean.Generic.sdiv_one_refines",
         "IRLean.Generic.srem_one_refines",
         "IRLean.Generic.urem_one_refines",
+        "Peephole.IS.Arith.eq_of_refines_some",
+        "Peephole.IS.Arith.eval_drop_flags",
+        "Peephole.IS.Arith.ok_none_refines",
+        "Peephole.IS.Arith.ok_refines",
+        "Peephole.IS.Arith.ok_refl",
         "Peephole.IS.refines_ok",
         "RefineCases.addZero",
         "RefineCases.addedNuw",
@@ -2033,6 +2128,7 @@
         "RefineCases.wrongConstant"
       ],
       "rewrites": [
+        "IS.expandBinOp.L218",
         "IS.simplifyAddInst.L601",
         "IS.simplifyAddInst.L605",
         "IS.simplifyAddInst.L609",
@@ -2040,7 +2136,35 @@
         "IS.simplifyAddInst.L621",
         "IS.simplifyAddInst.L626",
         "IS.simplifyAddInst.L633",
-        "IS.simplifyAddInst.L637"
+        "IS.simplifyAddInst.L637",
+        "IS.simplifyAssociativeBinOp.L274",
+        "IS.simplifyAssociativeBinOp.L294",
+        "IS.simplifyAssociativeBinOp.L318",
+        "IS.simplifyAssociativeBinOp.L338",
+        "IS.simplifyByDomEq.L727",
+        "IS.simplifyByDomEq.L731",
+        "IS.simplifyByDomEq.L736",
+        "IS.simplifyDiv.L1157",
+        "IS.simplifyDivRem.L1057",
+        "IS.simplifyDivRem.L1068",
+        "IS.simplifyDivRem.L1073",
+        "IS.simplifyDivRem.L1092",
+        "IS.simplifyDivRem.L1100",
+        "IS.simplifyDivRem.L1119",
+        "IS.simplifyMulInst.L906",
+        "IS.simplifyMulInst.L911",
+        "IS.simplifyMulInst.L915",
+        "IS.simplifyMulInst.L923",
+        "IS.simplifyMulInst.L929",
+        "IS.simplifySubInst.L754",
+        "IS.simplifySubInst.L759",
+        "IS.simplifySubInst.L763",
+        "IS.simplifySubInst.L767",
+        "IS.simplifySubInst.L773",
+        "IS.simplifySubInst.L780",
+        "IS.simplifySubInst.L783",
+        "IS.simplifySubInst.L886",
+        "IS.threadBinOpOverSelect.L394"
       ]
     },
     {
@@ -2057,10 +2181,55 @@
         "IRLean.Generic.sdiv_one_refines",
         "IRLean.Generic.srem_one_refines",
         "IRLean.Generic.urem_one_refines",
+        "Peephole.IS.Arith.eval_drop_flags",
+        "Peephole.IS.Arith.refines_of_refines_ok_none",
+        "Peephole.IS.Arith.sdiv_none_left",
+        "Peephole.IS.Arith.sdiv_none_right",
+        "Peephole.IS.Arith.sdiv_refines_of",
+        "Peephole.IS.Arith.sdiv_zero_right",
+        "Peephole.IS.Arith.srem_none_left",
+        "Peephole.IS.Arith.srem_none_right",
+        "Peephole.IS.Arith.srem_refines_of",
+        "Peephole.IS.Arith.srem_zero_right",
+        "Peephole.IS.Arith.udiv_none_left",
+        "Peephole.IS.Arith.udiv_none_right",
+        "Peephole.IS.Arith.udiv_refines_of",
+        "Peephole.IS.Arith.udiv_zero_right",
+        "Peephole.IS.Arith.urem_none_left",
+        "Peephole.IS.Arith.urem_none_right",
+        "Peephole.IS.Arith.urem_refines_of",
+        "Peephole.IS.Arith.urem_zero_right",
+        "Peephole.Lemmas.sdiv_exact_mul_nuw_refines",
+        "Peephole.Lemmas.sdiv_exact_of_low_bit_refines",
+        "Peephole.Lemmas.udiv_exact_mul_nsw_refines",
+        "Peephole.Lemmas.udiv_exact_of_low_bit_refines",
         "RefineCases.freezeNoundefRemoved",
         "RefineCases.loopDeletedUnderPromise",
         "RefineCases.promiseDropped",
         "RefineCases.removeUB"
+      ],
+      "rewrites": [
+        "IS.expandBinOp.L218",
+        "IS.simplifyAssociativeBinOp.L274",
+        "IS.simplifyAssociativeBinOp.L294",
+        "IS.simplifyAssociativeBinOp.L318",
+        "IS.simplifyAssociativeBinOp.L338",
+        "IS.simplifyByDomEq.L727",
+        "IS.simplifyByDomEq.L731",
+        "IS.simplifyByDomEq.L736",
+        "IS.simplifyDiv.L1157",
+        "IS.simplifyDivRem.L1057",
+        "IS.simplifyDivRem.L1063",
+        "IS.simplifyDivRem.L1068",
+        "IS.simplifyDivRem.L1073",
+        "IS.simplifyDivRem.L1092",
+        "IS.simplifyDivRem.L1100",
+        "IS.simplifyDivRem.L1119",
+        "IS.simplifyMulInst.L906",
+        "IS.simplifyMulInst.L911",
+        "IS.simplifySubInst.L754",
+        "IS.simplifySubInst.L759",
+        "IS.threadBinOpOverSelect.L394"
       ]
     },
     {
@@ -2113,14 +2282,29 @@
       "hypotheses": [],
       "witness": null,
       "used_by": [
+        "Peephole.IS.Arith.ok_refl",
         "Peephole.IS.simplifyAddInst.L609",
+        "Peephole.IS.simplifyByDomEq.L736",
+        "Peephole.Lemmas.mul_sdiv_exact_refines",
+        "Peephole.Lemmas.mul_udiv_exact_refines",
+        "Peephole.Lemmas.sub_mask_xor_nuw_refines",
+        "Peephole.Lemmas.sub_zero_left_refines_self",
         "RefineCases.dropNuw",
         "RefineCases.loopDeletedUnderPromise",
         "RefineCases.poisonLane",
         "RefineCases.promiseDropped"
       ],
       "rewrites": [
-        "IS.simplifyAddInst.L609"
+        "IS.expandBinOp.L218",
+        "IS.simplifyAddInst.L609",
+        "IS.simplifyAssociativeBinOp.L274",
+        "IS.simplifyAssociativeBinOp.L294",
+        "IS.simplifyAssociativeBinOp.L318",
+        "IS.simplifyAssociativeBinOp.L338",
+        "IS.simplifyByDomEq.L736",
+        "IS.simplifyDivRem.L1100",
+        "IS.simplifySubInst.L763",
+        "IS.threadBinOpOverSelect.L394"
       ]
     },
     {
@@ -2197,7 +2381,7 @@
       "family": "refinement",
       "provenance": "#46, IRLean/Refine.lean",
       "key": "5efae2c05efad2128519",
-      "status": "candidate",
+      "status": "admitted",
       "widths": "every",
       "hypotheses": [
         "LemmaStore.Counter.IRLean.Refines.trans.drop_hab",
@@ -2205,7 +2389,23 @@
       ],
       "witness": "LemmaStore.Counter.IRLean.Refines.trans.sat",
       "used_by": [
+        "Peephole.IS.Arith.eval_assoc_refines",
+        "Peephole.IS.Arith.refines_trans_ok",
+        "Peephole.IS.threadBinOpOverSelect.L394",
+        "Peephole.IS.threadBinOpOverSelect.fwdOneF",
+        "Peephole.IS.threadBinOpOverSelect.fwdOneT",
+        "Peephole.IS.threadBinOpOverSelect.fwdSame",
+        "Peephole.IS.threadBinOpOverSelect.fwdUndefF",
+        "Peephole.IS.threadBinOpOverSelect.fwdUndefT",
         "RefineCases.chain"
+      ],
+      "rewrites": [
+        "IS.expandBinOp.L218",
+        "IS.simplifyAssociativeBinOp.L274",
+        "IS.simplifyAssociativeBinOp.L294",
+        "IS.simplifyAssociativeBinOp.L318",
+        "IS.simplifyAssociativeBinOp.L338",
+        "IS.threadBinOpOverSelect.L394"
       ]
     },
     {
@@ -2292,6 +2492,7 @@
       "hypotheses": [],
       "witness": null,
       "used_by": [
+        "Peephole.IS.Arith.eval_comm",
         "Peephole.IS.addSrc_comm",
         "Peephole.IS.simplifyAddInst.L613",
         "Peephole.IS.simplifyAddInst.L621",
@@ -2477,6 +2678,789 @@
       ],
       "rewrites": [
         "IS.simplifyAddInst.L637"
+      ]
+    },
+    {
+      "name": "Peephole.Lemmas.sub_zero_left_nuw_refines",
+      "module": "Peephole.Lemmas.Arith",
+      "family": "peephole-is-arith",
+      "provenance": "chunk 1's G2, tests/passes-proofs/peephole/folds/is-arith.json, cut from the proofs of IS.expandBinOp.L218, IS.simplifyAssociativeBinOp.L274, IS.simplifyAssociativeBinOp.L294, IS.simplifyAssociativeBinOp.L318, IS.simplifyAssociativeBinOp.L338, IS.simplifyByDomEq.L727, IS.simplifyByDomEq.L731, IS.simplifyByDomEq.L736, IS.simplifyDiv.L1157, IS.simplifyDiv.L1168, IS.simplifyDivRem.L1057, IS.simplifyDivRem.L1063, IS.simplifyDivRem.L1068, IS.simplifyDivRem.L1078, IS.simplifyDivRem.L1083, IS.simplifyDivRem.L1092, IS.simplifyDivRem.L1100, IS.simplifyDivRem.L1114, IS.simplifyDivRem.L1119, IS.simplifyMulInst.L906, IS.simplifyMulInst.L911, IS.simplifyMulInst.L915, IS.simplifyMulInst.L923, IS.simplifyMulInst.L929, IS.simplifyRem.L1189, IS.simplifyRem.L1204, IS.simplifySDivInst.L1216, IS.simplifySRemInst.L1246, IS.simplifySRemInst.L1250, IS.simplifySubInst.L754, IS.simplifySubInst.L763, IS.simplifySubInst.L767, IS.simplifySubInst.L773, IS.simplifySubInst.L780, IS.simplifySubInst.L783, IS.simplifySubInst.L886, IS.threadBinOpOverSelect.L394",
+      "key": "4a851f19e190f62faf61",
+      "status": "candidate",
+      "widths": "every",
+      "hypotheses": [],
+      "witness": null,
+      "used_by": [
+        "Peephole.IS.simplifySubInst.L773"
+      ],
+      "rewrites": [
+        "IS.simplifySubInst.L773"
+      ]
+    },
+    {
+      "name": "Peephole.Lemmas.sub_zero_left_nsw_refines",
+      "module": "Peephole.Lemmas.Arith",
+      "family": "peephole-is-arith",
+      "provenance": "chunk 1's G2, tests/passes-proofs/peephole/folds/is-arith.json, cut from the proofs of IS.expandBinOp.L218, IS.simplifyAssociativeBinOp.L274, IS.simplifyAssociativeBinOp.L294, IS.simplifyAssociativeBinOp.L318, IS.simplifyAssociativeBinOp.L338, IS.simplifyByDomEq.L727, IS.simplifyByDomEq.L731, IS.simplifyByDomEq.L736, IS.simplifyDiv.L1157, IS.simplifyDiv.L1168, IS.simplifyDivRem.L1057, IS.simplifyDivRem.L1063, IS.simplifyDivRem.L1068, IS.simplifyDivRem.L1078, IS.simplifyDivRem.L1083, IS.simplifyDivRem.L1092, IS.simplifyDivRem.L1100, IS.simplifyDivRem.L1114, IS.simplifyDivRem.L1119, IS.simplifyMulInst.L906, IS.simplifyMulInst.L911, IS.simplifyMulInst.L915, IS.simplifyMulInst.L923, IS.simplifyMulInst.L929, IS.simplifyRem.L1189, IS.simplifyRem.L1204, IS.simplifySDivInst.L1216, IS.simplifySRemInst.L1246, IS.simplifySRemInst.L1250, IS.simplifySubInst.L754, IS.simplifySubInst.L763, IS.simplifySubInst.L767, IS.simplifySubInst.L773, IS.simplifySubInst.L780, IS.simplifySubInst.L783, IS.simplifySubInst.L886, IS.threadBinOpOverSelect.L394",
+      "key": "70bc71aeaee6fde87aee",
+      "status": "candidate",
+      "widths": "every",
+      "hypotheses": [
+        "LemmaStore.Counter.Peephole.Lemmas.sub_zero_left_nsw_refines.drop_h"
+      ],
+      "witness": "LemmaStore.Counter.Peephole.Lemmas.sub_zero_left_nsw_refines.sat",
+      "used_by": [
+        "Peephole.IS.simplifySubInst.L780"
+      ],
+      "rewrites": [
+        "IS.simplifySubInst.L780"
+      ]
+    },
+    {
+      "name": "Peephole.Lemmas.sub_zero_left_refines_self",
+      "module": "Peephole.Lemmas.Arith",
+      "family": "peephole-is-arith",
+      "provenance": "chunk 1's G2, tests/passes-proofs/peephole/folds/is-arith.json, cut from the proofs of IS.expandBinOp.L218, IS.simplifyAssociativeBinOp.L274, IS.simplifyAssociativeBinOp.L294, IS.simplifyAssociativeBinOp.L318, IS.simplifyAssociativeBinOp.L338, IS.simplifyByDomEq.L727, IS.simplifyByDomEq.L731, IS.simplifyByDomEq.L736, IS.simplifyDiv.L1157, IS.simplifyDiv.L1168, IS.simplifyDivRem.L1057, IS.simplifyDivRem.L1063, IS.simplifyDivRem.L1068, IS.simplifyDivRem.L1078, IS.simplifyDivRem.L1083, IS.simplifyDivRem.L1092, IS.simplifyDivRem.L1100, IS.simplifyDivRem.L1114, IS.simplifyDivRem.L1119, IS.simplifyMulInst.L906, IS.simplifyMulInst.L911, IS.simplifyMulInst.L915, IS.simplifyMulInst.L923, IS.simplifyMulInst.L929, IS.simplifyRem.L1189, IS.simplifyRem.L1204, IS.simplifySDivInst.L1216, IS.simplifySRemInst.L1246, IS.simplifySRemInst.L1250, IS.simplifySubInst.L754, IS.simplifySubInst.L763, IS.simplifySubInst.L767, IS.simplifySubInst.L773, IS.simplifySubInst.L780, IS.simplifySubInst.L783, IS.simplifySubInst.L886, IS.threadBinOpOverSelect.L394",
+      "key": "73f7c75f1e744761e3ec",
+      "status": "candidate",
+      "widths": "every",
+      "hypotheses": [
+        "LemmaStore.Counter.Peephole.Lemmas.sub_zero_left_refines_self.drop_h"
+      ],
+      "witness": "LemmaStore.Counter.Peephole.Lemmas.sub_zero_left_refines_self.sat",
+      "used_by": [
+        "Peephole.IS.simplifySubInst.L783"
+      ],
+      "rewrites": [
+        "IS.simplifySubInst.L783"
+      ]
+    },
+    {
+      "name": "Peephole.Lemmas.sub_mask_xor_nuw_refines",
+      "module": "Peephole.Lemmas.Arith",
+      "family": "peephole-is-arith",
+      "provenance": "chunk 1's G2, tests/passes-proofs/peephole/folds/is-arith.json, cut from the proofs of IS.expandBinOp.L218, IS.simplifyAssociativeBinOp.L274, IS.simplifyAssociativeBinOp.L294, IS.simplifyAssociativeBinOp.L318, IS.simplifyAssociativeBinOp.L338, IS.simplifyByDomEq.L727, IS.simplifyByDomEq.L731, IS.simplifyByDomEq.L736, IS.simplifyDiv.L1157, IS.simplifyDiv.L1168, IS.simplifyDivRem.L1057, IS.simplifyDivRem.L1063, IS.simplifyDivRem.L1068, IS.simplifyDivRem.L1078, IS.simplifyDivRem.L1083, IS.simplifyDivRem.L1092, IS.simplifyDivRem.L1100, IS.simplifyDivRem.L1114, IS.simplifyDivRem.L1119, IS.simplifyMulInst.L906, IS.simplifyMulInst.L911, IS.simplifyMulInst.L915, IS.simplifyMulInst.L923, IS.simplifyMulInst.L929, IS.simplifyRem.L1189, IS.simplifyRem.L1204, IS.simplifySDivInst.L1216, IS.simplifySRemInst.L1246, IS.simplifySRemInst.L1250, IS.simplifySubInst.L754, IS.simplifySubInst.L763, IS.simplifySubInst.L767, IS.simplifySubInst.L773, IS.simplifySubInst.L780, IS.simplifySubInst.L783, IS.simplifySubInst.L886, IS.threadBinOpOverSelect.L394",
+      "key": "0fe03a5590dac7ade337",
+      "status": "candidate",
+      "widths": "every",
+      "hypotheses": [
+        "LemmaStore.Counter.Peephole.Lemmas.sub_mask_xor_nuw_refines.drop_hc"
+      ],
+      "witness": "LemmaStore.Counter.Peephole.Lemmas.sub_mask_xor_nuw_refines.sat",
+      "used_by": [
+        "Peephole.IS.simplifySubInst.L886"
+      ],
+      "rewrites": [
+        "IS.simplifySubInst.L886"
+      ]
+    },
+    {
+      "name": "Peephole.Lemmas.mul_comm",
+      "module": "Peephole.Lemmas.Arith",
+      "family": "peephole-is-arith",
+      "provenance": "chunk 1's G2, tests/passes-proofs/peephole/folds/is-arith.json, cut from the proofs of IS.expandBinOp.L218, IS.simplifyAssociativeBinOp.L274, IS.simplifyAssociativeBinOp.L294, IS.simplifyAssociativeBinOp.L318, IS.simplifyAssociativeBinOp.L338, IS.simplifyByDomEq.L727, IS.simplifyByDomEq.L731, IS.simplifyByDomEq.L736, IS.simplifyDiv.L1157, IS.simplifyDiv.L1168, IS.simplifyDivRem.L1057, IS.simplifyDivRem.L1063, IS.simplifyDivRem.L1068, IS.simplifyDivRem.L1078, IS.simplifyDivRem.L1083, IS.simplifyDivRem.L1092, IS.simplifyDivRem.L1100, IS.simplifyDivRem.L1114, IS.simplifyDivRem.L1119, IS.simplifyMulInst.L906, IS.simplifyMulInst.L911, IS.simplifyMulInst.L915, IS.simplifyMulInst.L923, IS.simplifyMulInst.L929, IS.simplifyRem.L1189, IS.simplifyRem.L1204, IS.simplifySDivInst.L1216, IS.simplifySRemInst.L1246, IS.simplifySRemInst.L1250, IS.simplifySubInst.L754, IS.simplifySubInst.L763, IS.simplifySubInst.L767, IS.simplifySubInst.L773, IS.simplifySubInst.L780, IS.simplifySubInst.L783, IS.simplifySubInst.L886, IS.threadBinOpOverSelect.L394",
+      "key": "be1e86bce87869c8d32f",
+      "status": "admitted",
+      "widths": "every",
+      "hypotheses": [],
+      "witness": null,
+      "used_by": [
+        "Peephole.IS.Arith.eval_comm",
+        "Peephole.IS.mulSrc_comm",
+        "Peephole.IS.simplifyDivRem.L1114"
+      ],
+      "rewrites": [
+        "IS.simplifyDivRem.L1114"
+      ]
+    },
+    {
+      "name": "Peephole.Lemmas.mul_udiv_exact_refines",
+      "module": "Peephole.Lemmas.Arith",
+      "family": "peephole-is-arith",
+      "provenance": "chunk 1's G2, tests/passes-proofs/peephole/folds/is-arith.json, cut from the proofs of IS.expandBinOp.L218, IS.simplifyAssociativeBinOp.L274, IS.simplifyAssociativeBinOp.L294, IS.simplifyAssociativeBinOp.L318, IS.simplifyAssociativeBinOp.L338, IS.simplifyByDomEq.L727, IS.simplifyByDomEq.L731, IS.simplifyByDomEq.L736, IS.simplifyDiv.L1157, IS.simplifyDiv.L1168, IS.simplifyDivRem.L1057, IS.simplifyDivRem.L1063, IS.simplifyDivRem.L1068, IS.simplifyDivRem.L1078, IS.simplifyDivRem.L1083, IS.simplifyDivRem.L1092, IS.simplifyDivRem.L1100, IS.simplifyDivRem.L1114, IS.simplifyDivRem.L1119, IS.simplifyMulInst.L906, IS.simplifyMulInst.L911, IS.simplifyMulInst.L915, IS.simplifyMulInst.L923, IS.simplifyMulInst.L929, IS.simplifyRem.L1189, IS.simplifyRem.L1204, IS.simplifySDivInst.L1216, IS.simplifySRemInst.L1246, IS.simplifySRemInst.L1250, IS.simplifySubInst.L754, IS.simplifySubInst.L763, IS.simplifySubInst.L767, IS.simplifySubInst.L773, IS.simplifySubInst.L780, IS.simplifySubInst.L783, IS.simplifySubInst.L886, IS.threadBinOpOverSelect.L394",
+      "key": "1bee937fa68568f51f33",
+      "status": "admitted",
+      "widths": "every",
+      "hypotheses": [
+        "LemmaStore.Counter.Peephole.Lemmas.mul_udiv_exact_refines.drop_h"
+      ],
+      "witness": "LemmaStore.Counter.Peephole.Lemmas.mul_udiv_exact_refines.sat",
+      "used_by": [
+        "Peephole.IS.simplifyMulInst.L923",
+        "Peephole.IS.simplifyMulInst.L923_swapped"
+      ],
+      "rewrites": [
+        "IS.simplifyMulInst.L923"
+      ]
+    },
+    {
+      "name": "Peephole.Lemmas.mul_sdiv_exact_refines",
+      "module": "Peephole.Lemmas.Arith",
+      "family": "peephole-is-arith",
+      "provenance": "chunk 1's G2, tests/passes-proofs/peephole/folds/is-arith.json, cut from the proofs of IS.expandBinOp.L218, IS.simplifyAssociativeBinOp.L274, IS.simplifyAssociativeBinOp.L294, IS.simplifyAssociativeBinOp.L318, IS.simplifyAssociativeBinOp.L338, IS.simplifyByDomEq.L727, IS.simplifyByDomEq.L731, IS.simplifyByDomEq.L736, IS.simplifyDiv.L1157, IS.simplifyDiv.L1168, IS.simplifyDivRem.L1057, IS.simplifyDivRem.L1063, IS.simplifyDivRem.L1068, IS.simplifyDivRem.L1078, IS.simplifyDivRem.L1083, IS.simplifyDivRem.L1092, IS.simplifyDivRem.L1100, IS.simplifyDivRem.L1114, IS.simplifyDivRem.L1119, IS.simplifyMulInst.L906, IS.simplifyMulInst.L911, IS.simplifyMulInst.L915, IS.simplifyMulInst.L923, IS.simplifyMulInst.L929, IS.simplifyRem.L1189, IS.simplifyRem.L1204, IS.simplifySDivInst.L1216, IS.simplifySRemInst.L1246, IS.simplifySRemInst.L1250, IS.simplifySubInst.L754, IS.simplifySubInst.L763, IS.simplifySubInst.L767, IS.simplifySubInst.L773, IS.simplifySubInst.L780, IS.simplifySubInst.L783, IS.simplifySubInst.L886, IS.threadBinOpOverSelect.L394",
+      "key": "5b8a8b930f8347787a1b",
+      "status": "admitted",
+      "widths": "every",
+      "hypotheses": [
+        "LemmaStore.Counter.Peephole.Lemmas.mul_sdiv_exact_refines.drop_h"
+      ],
+      "witness": "LemmaStore.Counter.Peephole.Lemmas.mul_sdiv_exact_refines.sat",
+      "used_by": [
+        "Peephole.IS.simplifyMulInst.L923",
+        "Peephole.IS.simplifyMulInst.L923_swapped"
+      ],
+      "rewrites": [
+        "IS.simplifyMulInst.L923"
+      ]
+    },
+    {
+      "name": "Peephole.Lemmas.mul_nsw_one_bit_refines",
+      "module": "Peephole.Lemmas.Arith",
+      "family": "peephole-is-arith",
+      "provenance": "chunk 1's G2, tests/passes-proofs/peephole/folds/is-arith.json, cut from the proofs of IS.expandBinOp.L218, IS.simplifyAssociativeBinOp.L274, IS.simplifyAssociativeBinOp.L294, IS.simplifyAssociativeBinOp.L318, IS.simplifyAssociativeBinOp.L338, IS.simplifyByDomEq.L727, IS.simplifyByDomEq.L731, IS.simplifyByDomEq.L736, IS.simplifyDiv.L1157, IS.simplifyDiv.L1168, IS.simplifyDivRem.L1057, IS.simplifyDivRem.L1063, IS.simplifyDivRem.L1068, IS.simplifyDivRem.L1078, IS.simplifyDivRem.L1083, IS.simplifyDivRem.L1092, IS.simplifyDivRem.L1100, IS.simplifyDivRem.L1114, IS.simplifyDivRem.L1119, IS.simplifyMulInst.L906, IS.simplifyMulInst.L911, IS.simplifyMulInst.L915, IS.simplifyMulInst.L923, IS.simplifyMulInst.L929, IS.simplifyRem.L1189, IS.simplifyRem.L1204, IS.simplifySDivInst.L1216, IS.simplifySRemInst.L1246, IS.simplifySRemInst.L1250, IS.simplifySubInst.L754, IS.simplifySubInst.L763, IS.simplifySubInst.L767, IS.simplifySubInst.L773, IS.simplifySubInst.L780, IS.simplifySubInst.L783, IS.simplifySubInst.L886, IS.threadBinOpOverSelect.L394",
+      "key": "39cd9854a4364d8ea6c5",
+      "status": "candidate",
+      "widths": "every",
+      "hypotheses": [],
+      "witness": null,
+      "used_by": [
+        "Peephole.IS.simplifyMulInst.L929"
+      ],
+      "rewrites": [
+        "IS.simplifyMulInst.L929"
+      ]
+    },
+    {
+      "name": "Peephole.Lemmas.udiv_self_refines",
+      "module": "Peephole.Lemmas.Arith",
+      "family": "peephole-is-arith",
+      "provenance": "chunk 1's G2, tests/passes-proofs/peephole/folds/is-arith.json, cut from the proofs of IS.expandBinOp.L218, IS.simplifyAssociativeBinOp.L274, IS.simplifyAssociativeBinOp.L294, IS.simplifyAssociativeBinOp.L318, IS.simplifyAssociativeBinOp.L338, IS.simplifyByDomEq.L727, IS.simplifyByDomEq.L731, IS.simplifyByDomEq.L736, IS.simplifyDiv.L1157, IS.simplifyDiv.L1168, IS.simplifyDivRem.L1057, IS.simplifyDivRem.L1063, IS.simplifyDivRem.L1068, IS.simplifyDivRem.L1078, IS.simplifyDivRem.L1083, IS.simplifyDivRem.L1092, IS.simplifyDivRem.L1100, IS.simplifyDivRem.L1114, IS.simplifyDivRem.L1119, IS.simplifyMulInst.L906, IS.simplifyMulInst.L911, IS.simplifyMulInst.L915, IS.simplifyMulInst.L923, IS.simplifyMulInst.L929, IS.simplifyRem.L1189, IS.simplifyRem.L1204, IS.simplifySDivInst.L1216, IS.simplifySRemInst.L1246, IS.simplifySRemInst.L1250, IS.simplifySubInst.L754, IS.simplifySubInst.L763, IS.simplifySubInst.L767, IS.simplifySubInst.L773, IS.simplifySubInst.L780, IS.simplifySubInst.L783, IS.simplifySubInst.L886, IS.threadBinOpOverSelect.L394",
+      "key": "bcfcaf30d85fd9927c16",
+      "status": "admitted",
+      "widths": "every",
+      "hypotheses": [],
+      "witness": null,
+      "used_by": [
+        "Peephole.IS.simplifyByDomEq.L731",
+        "Peephole.IS.simplifyDivRem.L1083"
+      ],
+      "rewrites": [
+        "IS.simplifyByDomEq.L731",
+        "IS.simplifyDivRem.L1083"
+      ]
+    },
+    {
+      "name": "Peephole.Lemmas.urem_self_refines",
+      "module": "Peephole.Lemmas.Arith",
+      "family": "peephole-is-arith",
+      "provenance": "chunk 1's G2, tests/passes-proofs/peephole/folds/is-arith.json, cut from the proofs of IS.expandBinOp.L218, IS.simplifyAssociativeBinOp.L274, IS.simplifyAssociativeBinOp.L294, IS.simplifyAssociativeBinOp.L318, IS.simplifyAssociativeBinOp.L338, IS.simplifyByDomEq.L727, IS.simplifyByDomEq.L731, IS.simplifyByDomEq.L736, IS.simplifyDiv.L1157, IS.simplifyDiv.L1168, IS.simplifyDivRem.L1057, IS.simplifyDivRem.L1063, IS.simplifyDivRem.L1068, IS.simplifyDivRem.L1078, IS.simplifyDivRem.L1083, IS.simplifyDivRem.L1092, IS.simplifyDivRem.L1100, IS.simplifyDivRem.L1114, IS.simplifyDivRem.L1119, IS.simplifyMulInst.L906, IS.simplifyMulInst.L911, IS.simplifyMulInst.L915, IS.simplifyMulInst.L923, IS.simplifyMulInst.L929, IS.simplifyRem.L1189, IS.simplifyRem.L1204, IS.simplifySDivInst.L1216, IS.simplifySRemInst.L1246, IS.simplifySRemInst.L1250, IS.simplifySubInst.L754, IS.simplifySubInst.L763, IS.simplifySubInst.L767, IS.simplifySubInst.L773, IS.simplifySubInst.L780, IS.simplifySubInst.L783, IS.simplifySubInst.L886, IS.threadBinOpOverSelect.L394",
+      "key": "1cc852e7ef4699f6a0da",
+      "status": "admitted",
+      "widths": "every",
+      "hypotheses": [],
+      "witness": null,
+      "used_by": [
+        "Peephole.IS.simplifyByDomEq.L727",
+        "Peephole.IS.simplifyDivRem.L1083"
+      ],
+      "rewrites": [
+        "IS.simplifyByDomEq.L727",
+        "IS.simplifyDivRem.L1083"
+      ]
+    },
+    {
+      "name": "Peephole.Lemmas.sdiv_self_refines",
+      "module": "Peephole.Lemmas.Arith",
+      "family": "peephole-is-arith",
+      "provenance": "chunk 1's G2, tests/passes-proofs/peephole/folds/is-arith.json, cut from the proofs of IS.expandBinOp.L218, IS.simplifyAssociativeBinOp.L274, IS.simplifyAssociativeBinOp.L294, IS.simplifyAssociativeBinOp.L318, IS.simplifyAssociativeBinOp.L338, IS.simplifyByDomEq.L727, IS.simplifyByDomEq.L731, IS.simplifyByDomEq.L736, IS.simplifyDiv.L1157, IS.simplifyDiv.L1168, IS.simplifyDivRem.L1057, IS.simplifyDivRem.L1063, IS.simplifyDivRem.L1068, IS.simplifyDivRem.L1078, IS.simplifyDivRem.L1083, IS.simplifyDivRem.L1092, IS.simplifyDivRem.L1100, IS.simplifyDivRem.L1114, IS.simplifyDivRem.L1119, IS.simplifyMulInst.L906, IS.simplifyMulInst.L911, IS.simplifyMulInst.L915, IS.simplifyMulInst.L923, IS.simplifyMulInst.L929, IS.simplifyRem.L1189, IS.simplifyRem.L1204, IS.simplifySDivInst.L1216, IS.simplifySRemInst.L1246, IS.simplifySRemInst.L1250, IS.simplifySubInst.L754, IS.simplifySubInst.L763, IS.simplifySubInst.L767, IS.simplifySubInst.L773, IS.simplifySubInst.L780, IS.simplifySubInst.L783, IS.simplifySubInst.L886, IS.threadBinOpOverSelect.L394",
+      "key": "ab8dcc0f0fb82406e768",
+      "status": "admitted",
+      "widths": "every",
+      "hypotheses": [],
+      "witness": null,
+      "used_by": [
+        "Peephole.IS.simplifyByDomEq.L731",
+        "Peephole.IS.simplifyDivRem.L1083"
+      ],
+      "rewrites": [
+        "IS.simplifyByDomEq.L731",
+        "IS.simplifyDivRem.L1083"
+      ]
+    },
+    {
+      "name": "Peephole.Lemmas.srem_self_refines",
+      "module": "Peephole.Lemmas.Arith",
+      "family": "peephole-is-arith",
+      "provenance": "chunk 1's G2, tests/passes-proofs/peephole/folds/is-arith.json, cut from the proofs of IS.expandBinOp.L218, IS.simplifyAssociativeBinOp.L274, IS.simplifyAssociativeBinOp.L294, IS.simplifyAssociativeBinOp.L318, IS.simplifyAssociativeBinOp.L338, IS.simplifyByDomEq.L727, IS.simplifyByDomEq.L731, IS.simplifyByDomEq.L736, IS.simplifyDiv.L1157, IS.simplifyDiv.L1168, IS.simplifyDivRem.L1057, IS.simplifyDivRem.L1063, IS.simplifyDivRem.L1068, IS.simplifyDivRem.L1078, IS.simplifyDivRem.L1083, IS.simplifyDivRem.L1092, IS.simplifyDivRem.L1100, IS.simplifyDivRem.L1114, IS.simplifyDivRem.L1119, IS.simplifyMulInst.L906, IS.simplifyMulInst.L911, IS.simplifyMulInst.L915, IS.simplifyMulInst.L923, IS.simplifyMulInst.L929, IS.simplifyRem.L1189, IS.simplifyRem.L1204, IS.simplifySDivInst.L1216, IS.simplifySRemInst.L1246, IS.simplifySRemInst.L1250, IS.simplifySubInst.L754, IS.simplifySubInst.L763, IS.simplifySubInst.L767, IS.simplifySubInst.L773, IS.simplifySubInst.L780, IS.simplifySubInst.L783, IS.simplifySubInst.L886, IS.threadBinOpOverSelect.L394",
+      "key": "8edeb5f707df19ad4943",
+      "status": "admitted",
+      "widths": "every",
+      "hypotheses": [],
+      "witness": null,
+      "used_by": [
+        "Peephole.IS.simplifyByDomEq.L727",
+        "Peephole.IS.simplifyDivRem.L1083"
+      ],
+      "rewrites": [
+        "IS.simplifyByDomEq.L727",
+        "IS.simplifyDivRem.L1083"
+      ]
+    },
+    {
+      "name": "Peephole.Lemmas.udiv_zero_left_refines",
+      "module": "Peephole.Lemmas.Arith",
+      "family": "peephole-is-arith",
+      "provenance": "chunk 1's G2, tests/passes-proofs/peephole/folds/is-arith.json, cut from the proofs of IS.expandBinOp.L218, IS.simplifyAssociativeBinOp.L274, IS.simplifyAssociativeBinOp.L294, IS.simplifyAssociativeBinOp.L318, IS.simplifyAssociativeBinOp.L338, IS.simplifyByDomEq.L727, IS.simplifyByDomEq.L731, IS.simplifyByDomEq.L736, IS.simplifyDiv.L1157, IS.simplifyDiv.L1168, IS.simplifyDivRem.L1057, IS.simplifyDivRem.L1063, IS.simplifyDivRem.L1068, IS.simplifyDivRem.L1078, IS.simplifyDivRem.L1083, IS.simplifyDivRem.L1092, IS.simplifyDivRem.L1100, IS.simplifyDivRem.L1114, IS.simplifyDivRem.L1119, IS.simplifyMulInst.L906, IS.simplifyMulInst.L911, IS.simplifyMulInst.L915, IS.simplifyMulInst.L923, IS.simplifyMulInst.L929, IS.simplifyRem.L1189, IS.simplifyRem.L1204, IS.simplifySDivInst.L1216, IS.simplifySRemInst.L1246, IS.simplifySRemInst.L1250, IS.simplifySubInst.L754, IS.simplifySubInst.L763, IS.simplifySubInst.L767, IS.simplifySubInst.L773, IS.simplifySubInst.L780, IS.simplifySubInst.L783, IS.simplifySubInst.L886, IS.threadBinOpOverSelect.L394",
+      "key": "1293f1482b65c5221f10",
+      "status": "candidate",
+      "widths": "every",
+      "hypotheses": [],
+      "witness": null,
+      "used_by": [
+        "Peephole.IS.simplifyDivRem.L1078"
+      ],
+      "rewrites": [
+        "IS.simplifyDivRem.L1078"
+      ]
+    },
+    {
+      "name": "Peephole.Lemmas.urem_zero_left_refines",
+      "module": "Peephole.Lemmas.Arith",
+      "family": "peephole-is-arith",
+      "provenance": "chunk 1's G2, tests/passes-proofs/peephole/folds/is-arith.json, cut from the proofs of IS.expandBinOp.L218, IS.simplifyAssociativeBinOp.L274, IS.simplifyAssociativeBinOp.L294, IS.simplifyAssociativeBinOp.L318, IS.simplifyAssociativeBinOp.L338, IS.simplifyByDomEq.L727, IS.simplifyByDomEq.L731, IS.simplifyByDomEq.L736, IS.simplifyDiv.L1157, IS.simplifyDiv.L1168, IS.simplifyDivRem.L1057, IS.simplifyDivRem.L1063, IS.simplifyDivRem.L1068, IS.simplifyDivRem.L1078, IS.simplifyDivRem.L1083, IS.simplifyDivRem.L1092, IS.simplifyDivRem.L1100, IS.simplifyDivRem.L1114, IS.simplifyDivRem.L1119, IS.simplifyMulInst.L906, IS.simplifyMulInst.L911, IS.simplifyMulInst.L915, IS.simplifyMulInst.L923, IS.simplifyMulInst.L929, IS.simplifyRem.L1189, IS.simplifyRem.L1204, IS.simplifySDivInst.L1216, IS.simplifySRemInst.L1246, IS.simplifySRemInst.L1250, IS.simplifySubInst.L754, IS.simplifySubInst.L763, IS.simplifySubInst.L767, IS.simplifySubInst.L773, IS.simplifySubInst.L780, IS.simplifySubInst.L783, IS.simplifySubInst.L886, IS.threadBinOpOverSelect.L394",
+      "key": "2d266deffd969c1905ac",
+      "status": "candidate",
+      "widths": "every",
+      "hypotheses": [],
+      "witness": null,
+      "used_by": [
+        "Peephole.IS.simplifyDivRem.L1078"
+      ],
+      "rewrites": [
+        "IS.simplifyDivRem.L1078"
+      ]
+    },
+    {
+      "name": "Peephole.Lemmas.sdiv_zero_left_refines",
+      "module": "Peephole.Lemmas.Arith",
+      "family": "peephole-is-arith",
+      "provenance": "chunk 1's G2, tests/passes-proofs/peephole/folds/is-arith.json, cut from the proofs of IS.expandBinOp.L218, IS.simplifyAssociativeBinOp.L274, IS.simplifyAssociativeBinOp.L294, IS.simplifyAssociativeBinOp.L318, IS.simplifyAssociativeBinOp.L338, IS.simplifyByDomEq.L727, IS.simplifyByDomEq.L731, IS.simplifyByDomEq.L736, IS.simplifyDiv.L1157, IS.simplifyDiv.L1168, IS.simplifyDivRem.L1057, IS.simplifyDivRem.L1063, IS.simplifyDivRem.L1068, IS.simplifyDivRem.L1078, IS.simplifyDivRem.L1083, IS.simplifyDivRem.L1092, IS.simplifyDivRem.L1100, IS.simplifyDivRem.L1114, IS.simplifyDivRem.L1119, IS.simplifyMulInst.L906, IS.simplifyMulInst.L911, IS.simplifyMulInst.L915, IS.simplifyMulInst.L923, IS.simplifyMulInst.L929, IS.simplifyRem.L1189, IS.simplifyRem.L1204, IS.simplifySDivInst.L1216, IS.simplifySRemInst.L1246, IS.simplifySRemInst.L1250, IS.simplifySubInst.L754, IS.simplifySubInst.L763, IS.simplifySubInst.L767, IS.simplifySubInst.L773, IS.simplifySubInst.L780, IS.simplifySubInst.L783, IS.simplifySubInst.L886, IS.threadBinOpOverSelect.L394",
+      "key": "d700c624d19629d05164",
+      "status": "candidate",
+      "widths": "every",
+      "hypotheses": [],
+      "witness": null,
+      "used_by": [
+        "Peephole.IS.simplifyDivRem.L1078"
+      ],
+      "rewrites": [
+        "IS.simplifyDivRem.L1078"
+      ]
+    },
+    {
+      "name": "Peephole.Lemmas.srem_zero_left_refines",
+      "module": "Peephole.Lemmas.Arith",
+      "family": "peephole-is-arith",
+      "provenance": "chunk 1's G2, tests/passes-proofs/peephole/folds/is-arith.json, cut from the proofs of IS.expandBinOp.L218, IS.simplifyAssociativeBinOp.L274, IS.simplifyAssociativeBinOp.L294, IS.simplifyAssociativeBinOp.L318, IS.simplifyAssociativeBinOp.L338, IS.simplifyByDomEq.L727, IS.simplifyByDomEq.L731, IS.simplifyByDomEq.L736, IS.simplifyDiv.L1157, IS.simplifyDiv.L1168, IS.simplifyDivRem.L1057, IS.simplifyDivRem.L1063, IS.simplifyDivRem.L1068, IS.simplifyDivRem.L1078, IS.simplifyDivRem.L1083, IS.simplifyDivRem.L1092, IS.simplifyDivRem.L1100, IS.simplifyDivRem.L1114, IS.simplifyDivRem.L1119, IS.simplifyMulInst.L906, IS.simplifyMulInst.L911, IS.simplifyMulInst.L915, IS.simplifyMulInst.L923, IS.simplifyMulInst.L929, IS.simplifyRem.L1189, IS.simplifyRem.L1204, IS.simplifySDivInst.L1216, IS.simplifySRemInst.L1246, IS.simplifySRemInst.L1250, IS.simplifySubInst.L754, IS.simplifySubInst.L763, IS.simplifySubInst.L767, IS.simplifySubInst.L773, IS.simplifySubInst.L780, IS.simplifySubInst.L783, IS.simplifySubInst.L886, IS.threadBinOpOverSelect.L394",
+      "key": "5b0808a005cf8efe6fc5",
+      "status": "candidate",
+      "widths": "every",
+      "hypotheses": [],
+      "witness": null,
+      "used_by": [
+        "Peephole.IS.simplifyDivRem.L1078"
+      ],
+      "rewrites": [
+        "IS.simplifyDivRem.L1078"
+      ]
+    },
+    {
+      "name": "Peephole.Lemmas.udiv_mul_nuw_refines",
+      "module": "Peephole.Lemmas.Arith",
+      "family": "peephole-is-arith",
+      "provenance": "chunk 1's G2, tests/passes-proofs/peephole/folds/is-arith.json, cut from the proofs of IS.expandBinOp.L218, IS.simplifyAssociativeBinOp.L274, IS.simplifyAssociativeBinOp.L294, IS.simplifyAssociativeBinOp.L318, IS.simplifyAssociativeBinOp.L338, IS.simplifyByDomEq.L727, IS.simplifyByDomEq.L731, IS.simplifyByDomEq.L736, IS.simplifyDiv.L1157, IS.simplifyDiv.L1168, IS.simplifyDivRem.L1057, IS.simplifyDivRem.L1063, IS.simplifyDivRem.L1068, IS.simplifyDivRem.L1078, IS.simplifyDivRem.L1083, IS.simplifyDivRem.L1092, IS.simplifyDivRem.L1100, IS.simplifyDivRem.L1114, IS.simplifyDivRem.L1119, IS.simplifyMulInst.L906, IS.simplifyMulInst.L911, IS.simplifyMulInst.L915, IS.simplifyMulInst.L923, IS.simplifyMulInst.L929, IS.simplifyRem.L1189, IS.simplifyRem.L1204, IS.simplifySDivInst.L1216, IS.simplifySRemInst.L1246, IS.simplifySRemInst.L1250, IS.simplifySubInst.L754, IS.simplifySubInst.L763, IS.simplifySubInst.L767, IS.simplifySubInst.L773, IS.simplifySubInst.L780, IS.simplifySubInst.L783, IS.simplifySubInst.L886, IS.threadBinOpOverSelect.L394",
+      "key": "67016d118dc0c127c808",
+      "status": "candidate",
+      "widths": "every",
+      "hypotheses": [],
+      "witness": null,
+      "used_by": [
+        "Peephole.IS.simplifyDivRem.L1114"
+      ],
+      "rewrites": [
+        "IS.simplifyDivRem.L1114"
+      ]
+    },
+    {
+      "name": "Peephole.Lemmas.urem_mul_nuw_refines",
+      "module": "Peephole.Lemmas.Arith",
+      "family": "peephole-is-arith",
+      "provenance": "chunk 1's G2, tests/passes-proofs/peephole/folds/is-arith.json, cut from the proofs of IS.expandBinOp.L218, IS.simplifyAssociativeBinOp.L274, IS.simplifyAssociativeBinOp.L294, IS.simplifyAssociativeBinOp.L318, IS.simplifyAssociativeBinOp.L338, IS.simplifyByDomEq.L727, IS.simplifyByDomEq.L731, IS.simplifyByDomEq.L736, IS.simplifyDiv.L1157, IS.simplifyDiv.L1168, IS.simplifyDivRem.L1057, IS.simplifyDivRem.L1063, IS.simplifyDivRem.L1068, IS.simplifyDivRem.L1078, IS.simplifyDivRem.L1083, IS.simplifyDivRem.L1092, IS.simplifyDivRem.L1100, IS.simplifyDivRem.L1114, IS.simplifyDivRem.L1119, IS.simplifyMulInst.L906, IS.simplifyMulInst.L911, IS.simplifyMulInst.L915, IS.simplifyMulInst.L923, IS.simplifyMulInst.L929, IS.simplifyRem.L1189, IS.simplifyRem.L1204, IS.simplifySDivInst.L1216, IS.simplifySRemInst.L1246, IS.simplifySRemInst.L1250, IS.simplifySubInst.L754, IS.simplifySubInst.L763, IS.simplifySubInst.L767, IS.simplifySubInst.L773, IS.simplifySubInst.L780, IS.simplifySubInst.L783, IS.simplifySubInst.L886, IS.threadBinOpOverSelect.L394",
+      "key": "cc9e9aa68a31a6cb7826",
+      "status": "candidate",
+      "widths": "every",
+      "hypotheses": [],
+      "witness": null,
+      "used_by": [
+        "Peephole.IS.simplifyDivRem.L1114"
+      ],
+      "rewrites": [
+        "IS.simplifyDivRem.L1114"
+      ]
+    },
+    {
+      "name": "Peephole.Lemmas.sdiv_mul_nsw_refines",
+      "module": "Peephole.Lemmas.Arith",
+      "family": "peephole-is-arith",
+      "provenance": "chunk 1's G2, tests/passes-proofs/peephole/folds/is-arith.json, cut from the proofs of IS.expandBinOp.L218, IS.simplifyAssociativeBinOp.L274, IS.simplifyAssociativeBinOp.L294, IS.simplifyAssociativeBinOp.L318, IS.simplifyAssociativeBinOp.L338, IS.simplifyByDomEq.L727, IS.simplifyByDomEq.L731, IS.simplifyByDomEq.L736, IS.simplifyDiv.L1157, IS.simplifyDiv.L1168, IS.simplifyDivRem.L1057, IS.simplifyDivRem.L1063, IS.simplifyDivRem.L1068, IS.simplifyDivRem.L1078, IS.simplifyDivRem.L1083, IS.simplifyDivRem.L1092, IS.simplifyDivRem.L1100, IS.simplifyDivRem.L1114, IS.simplifyDivRem.L1119, IS.simplifyMulInst.L906, IS.simplifyMulInst.L911, IS.simplifyMulInst.L915, IS.simplifyMulInst.L923, IS.simplifyMulInst.L929, IS.simplifyRem.L1189, IS.simplifyRem.L1204, IS.simplifySDivInst.L1216, IS.simplifySRemInst.L1246, IS.simplifySRemInst.L1250, IS.simplifySubInst.L754, IS.simplifySubInst.L763, IS.simplifySubInst.L767, IS.simplifySubInst.L773, IS.simplifySubInst.L780, IS.simplifySubInst.L783, IS.simplifySubInst.L886, IS.threadBinOpOverSelect.L394",
+      "key": "95833240682f43180bb8",
+      "status": "candidate",
+      "widths": "every",
+      "hypotheses": [],
+      "witness": null,
+      "used_by": [
+        "Peephole.IS.simplifyDivRem.L1114"
+      ],
+      "rewrites": [
+        "IS.simplifyDivRem.L1114"
+      ]
+    },
+    {
+      "name": "Peephole.Lemmas.srem_mul_nsw_refines",
+      "module": "Peephole.Lemmas.Arith",
+      "family": "peephole-is-arith",
+      "provenance": "chunk 1's G2, tests/passes-proofs/peephole/folds/is-arith.json, cut from the proofs of IS.expandBinOp.L218, IS.simplifyAssociativeBinOp.L274, IS.simplifyAssociativeBinOp.L294, IS.simplifyAssociativeBinOp.L318, IS.simplifyAssociativeBinOp.L338, IS.simplifyByDomEq.L727, IS.simplifyByDomEq.L731, IS.simplifyByDomEq.L736, IS.simplifyDiv.L1157, IS.simplifyDiv.L1168, IS.simplifyDivRem.L1057, IS.simplifyDivRem.L1063, IS.simplifyDivRem.L1068, IS.simplifyDivRem.L1078, IS.simplifyDivRem.L1083, IS.simplifyDivRem.L1092, IS.simplifyDivRem.L1100, IS.simplifyDivRem.L1114, IS.simplifyDivRem.L1119, IS.simplifyMulInst.L906, IS.simplifyMulInst.L911, IS.simplifyMulInst.L915, IS.simplifyMulInst.L923, IS.simplifyMulInst.L929, IS.simplifyRem.L1189, IS.simplifyRem.L1204, IS.simplifySDivInst.L1216, IS.simplifySRemInst.L1246, IS.simplifySRemInst.L1250, IS.simplifySubInst.L754, IS.simplifySubInst.L763, IS.simplifySubInst.L767, IS.simplifySubInst.L773, IS.simplifySubInst.L780, IS.simplifySubInst.L783, IS.simplifySubInst.L886, IS.threadBinOpOverSelect.L394",
+      "key": "ce44ddf971df19b51b4c",
+      "status": "candidate",
+      "widths": "every",
+      "hypotheses": [],
+      "witness": null,
+      "used_by": [
+        "Peephole.IS.simplifyDivRem.L1114"
+      ],
+      "rewrites": [
+        "IS.simplifyDivRem.L1114"
+      ]
+    },
+    {
+      "name": "Peephole.Lemmas.udiv_mul_udiv_refines",
+      "module": "Peephole.Lemmas.Arith",
+      "family": "peephole-is-arith",
+      "provenance": "chunk 1's G2, tests/passes-proofs/peephole/folds/is-arith.json, cut from the proofs of IS.expandBinOp.L218, IS.simplifyAssociativeBinOp.L274, IS.simplifyAssociativeBinOp.L294, IS.simplifyAssociativeBinOp.L318, IS.simplifyAssociativeBinOp.L338, IS.simplifyByDomEq.L727, IS.simplifyByDomEq.L731, IS.simplifyByDomEq.L736, IS.simplifyDiv.L1157, IS.simplifyDiv.L1168, IS.simplifyDivRem.L1057, IS.simplifyDivRem.L1063, IS.simplifyDivRem.L1068, IS.simplifyDivRem.L1078, IS.simplifyDivRem.L1083, IS.simplifyDivRem.L1092, IS.simplifyDivRem.L1100, IS.simplifyDivRem.L1114, IS.simplifyDivRem.L1119, IS.simplifyMulInst.L906, IS.simplifyMulInst.L911, IS.simplifyMulInst.L915, IS.simplifyMulInst.L923, IS.simplifyMulInst.L929, IS.simplifyRem.L1189, IS.simplifyRem.L1204, IS.simplifySDivInst.L1216, IS.simplifySRemInst.L1246, IS.simplifySRemInst.L1250, IS.simplifySubInst.L754, IS.simplifySubInst.L763, IS.simplifySubInst.L767, IS.simplifySubInst.L773, IS.simplifySubInst.L780, IS.simplifySubInst.L783, IS.simplifySubInst.L886, IS.threadBinOpOverSelect.L394",
+      "key": "8df870b98f7800d8b248",
+      "status": "candidate",
+      "widths": "every",
+      "hypotheses": [
+        "LemmaStore.Counter.Peephole.Lemmas.udiv_mul_udiv_refines.drop_h"
+      ],
+      "witness": "LemmaStore.Counter.Peephole.Lemmas.udiv_mul_udiv_refines.sat",
+      "used_by": [
+        "Peephole.IS.simplifyDivRem.L1114"
+      ],
+      "rewrites": [
+        "IS.simplifyDivRem.L1114"
+      ]
+    },
+    {
+      "name": "Peephole.Lemmas.urem_mul_udiv_refines",
+      "module": "Peephole.Lemmas.Arith",
+      "family": "peephole-is-arith",
+      "provenance": "chunk 1's G2, tests/passes-proofs/peephole/folds/is-arith.json, cut from the proofs of IS.expandBinOp.L218, IS.simplifyAssociativeBinOp.L274, IS.simplifyAssociativeBinOp.L294, IS.simplifyAssociativeBinOp.L318, IS.simplifyAssociativeBinOp.L338, IS.simplifyByDomEq.L727, IS.simplifyByDomEq.L731, IS.simplifyByDomEq.L736, IS.simplifyDiv.L1157, IS.simplifyDiv.L1168, IS.simplifyDivRem.L1057, IS.simplifyDivRem.L1063, IS.simplifyDivRem.L1068, IS.simplifyDivRem.L1078, IS.simplifyDivRem.L1083, IS.simplifyDivRem.L1092, IS.simplifyDivRem.L1100, IS.simplifyDivRem.L1114, IS.simplifyDivRem.L1119, IS.simplifyMulInst.L906, IS.simplifyMulInst.L911, IS.simplifyMulInst.L915, IS.simplifyMulInst.L923, IS.simplifyMulInst.L929, IS.simplifyRem.L1189, IS.simplifyRem.L1204, IS.simplifySDivInst.L1216, IS.simplifySRemInst.L1246, IS.simplifySRemInst.L1250, IS.simplifySubInst.L754, IS.simplifySubInst.L763, IS.simplifySubInst.L767, IS.simplifySubInst.L773, IS.simplifySubInst.L780, IS.simplifySubInst.L783, IS.simplifySubInst.L886, IS.threadBinOpOverSelect.L394",
+      "key": "29ec477e6e6bf5e1369f",
+      "status": "candidate",
+      "widths": "every",
+      "hypotheses": [
+        "LemmaStore.Counter.Peephole.Lemmas.urem_mul_udiv_refines.drop_h"
+      ],
+      "witness": "LemmaStore.Counter.Peephole.Lemmas.urem_mul_udiv_refines.sat",
+      "used_by": [
+        "Peephole.IS.simplifyDivRem.L1114"
+      ],
+      "rewrites": [
+        "IS.simplifyDivRem.L1114"
+      ]
+    },
+    {
+      "name": "Peephole.Lemmas.sdiv_mul_sdiv_refines",
+      "module": "Peephole.Lemmas.Arith",
+      "family": "peephole-is-arith",
+      "provenance": "chunk 1's G2, tests/passes-proofs/peephole/folds/is-arith.json, cut from the proofs of IS.expandBinOp.L218, IS.simplifyAssociativeBinOp.L274, IS.simplifyAssociativeBinOp.L294, IS.simplifyAssociativeBinOp.L318, IS.simplifyAssociativeBinOp.L338, IS.simplifyByDomEq.L727, IS.simplifyByDomEq.L731, IS.simplifyByDomEq.L736, IS.simplifyDiv.L1157, IS.simplifyDiv.L1168, IS.simplifyDivRem.L1057, IS.simplifyDivRem.L1063, IS.simplifyDivRem.L1068, IS.simplifyDivRem.L1078, IS.simplifyDivRem.L1083, IS.simplifyDivRem.L1092, IS.simplifyDivRem.L1100, IS.simplifyDivRem.L1114, IS.simplifyDivRem.L1119, IS.simplifyMulInst.L906, IS.simplifyMulInst.L911, IS.simplifyMulInst.L915, IS.simplifyMulInst.L923, IS.simplifyMulInst.L929, IS.simplifyRem.L1189, IS.simplifyRem.L1204, IS.simplifySDivInst.L1216, IS.simplifySRemInst.L1246, IS.simplifySRemInst.L1250, IS.simplifySubInst.L754, IS.simplifySubInst.L763, IS.simplifySubInst.L767, IS.simplifySubInst.L773, IS.simplifySubInst.L780, IS.simplifySubInst.L783, IS.simplifySubInst.L886, IS.threadBinOpOverSelect.L394",
+      "key": "48aea3f2c7de6561f0f4",
+      "status": "candidate",
+      "widths": "every",
+      "hypotheses": [
+        "LemmaStore.Counter.Peephole.Lemmas.sdiv_mul_sdiv_refines.drop_h"
+      ],
+      "witness": "LemmaStore.Counter.Peephole.Lemmas.sdiv_mul_sdiv_refines.sat",
+      "used_by": [
+        "Peephole.IS.simplifyDivRem.L1114"
+      ],
+      "rewrites": [
+        "IS.simplifyDivRem.L1114"
+      ]
+    },
+    {
+      "name": "Peephole.Lemmas.srem_mul_sdiv_refines",
+      "module": "Peephole.Lemmas.Arith",
+      "family": "peephole-is-arith",
+      "provenance": "chunk 1's G2, tests/passes-proofs/peephole/folds/is-arith.json, cut from the proofs of IS.expandBinOp.L218, IS.simplifyAssociativeBinOp.L274, IS.simplifyAssociativeBinOp.L294, IS.simplifyAssociativeBinOp.L318, IS.simplifyAssociativeBinOp.L338, IS.simplifyByDomEq.L727, IS.simplifyByDomEq.L731, IS.simplifyByDomEq.L736, IS.simplifyDiv.L1157, IS.simplifyDiv.L1168, IS.simplifyDivRem.L1057, IS.simplifyDivRem.L1063, IS.simplifyDivRem.L1068, IS.simplifyDivRem.L1078, IS.simplifyDivRem.L1083, IS.simplifyDivRem.L1092, IS.simplifyDivRem.L1100, IS.simplifyDivRem.L1114, IS.simplifyDivRem.L1119, IS.simplifyMulInst.L906, IS.simplifyMulInst.L911, IS.simplifyMulInst.L915, IS.simplifyMulInst.L923, IS.simplifyMulInst.L929, IS.simplifyRem.L1189, IS.simplifyRem.L1204, IS.simplifySDivInst.L1216, IS.simplifySRemInst.L1246, IS.simplifySRemInst.L1250, IS.simplifySubInst.L754, IS.simplifySubInst.L763, IS.simplifySubInst.L767, IS.simplifySubInst.L773, IS.simplifySubInst.L780, IS.simplifySubInst.L783, IS.simplifySubInst.L886, IS.threadBinOpOverSelect.L394",
+      "key": "74f3581d9ce7be594454",
+      "status": "candidate",
+      "widths": "every",
+      "hypotheses": [
+        "LemmaStore.Counter.Peephole.Lemmas.srem_mul_sdiv_refines.drop_h"
+      ],
+      "witness": "LemmaStore.Counter.Peephole.Lemmas.srem_mul_sdiv_refines.sat",
+      "used_by": [
+        "Peephole.IS.simplifyDivRem.L1114"
+      ],
+      "rewrites": [
+        "IS.simplifyDivRem.L1114"
+      ]
+    },
+    {
+      "name": "Peephole.Lemmas.udiv_of_lt_refines",
+      "module": "Peephole.Lemmas.Arith",
+      "family": "peephole-is-arith",
+      "provenance": "chunk 1's G2, tests/passes-proofs/peephole/folds/is-arith.json, cut from the proofs of IS.expandBinOp.L218, IS.simplifyAssociativeBinOp.L274, IS.simplifyAssociativeBinOp.L294, IS.simplifyAssociativeBinOp.L318, IS.simplifyAssociativeBinOp.L338, IS.simplifyByDomEq.L727, IS.simplifyByDomEq.L731, IS.simplifyByDomEq.L736, IS.simplifyDiv.L1157, IS.simplifyDiv.L1168, IS.simplifyDivRem.L1057, IS.simplifyDivRem.L1063, IS.simplifyDivRem.L1068, IS.simplifyDivRem.L1078, IS.simplifyDivRem.L1083, IS.simplifyDivRem.L1092, IS.simplifyDivRem.L1100, IS.simplifyDivRem.L1114, IS.simplifyDivRem.L1119, IS.simplifyMulInst.L906, IS.simplifyMulInst.L911, IS.simplifyMulInst.L915, IS.simplifyMulInst.L923, IS.simplifyMulInst.L929, IS.simplifyRem.L1189, IS.simplifyRem.L1204, IS.simplifySDivInst.L1216, IS.simplifySRemInst.L1246, IS.simplifySRemInst.L1250, IS.simplifySubInst.L754, IS.simplifySubInst.L763, IS.simplifySubInst.L767, IS.simplifySubInst.L773, IS.simplifySubInst.L780, IS.simplifySubInst.L783, IS.simplifySubInst.L886, IS.threadBinOpOverSelect.L394",
+      "key": "d1606975be85bfd069c7",
+      "status": "candidate",
+      "widths": "every",
+      "hypotheses": [
+        "LemmaStore.Counter.Peephole.Lemmas.udiv_of_lt_refines.drop_h"
+      ],
+      "witness": "LemmaStore.Counter.Peephole.Lemmas.udiv_of_lt_refines.sat",
+      "used_by": [
+        "Peephole.IS.simplifyDivRem.L1119"
+      ],
+      "rewrites": [
+        "IS.simplifyDivRem.L1119"
+      ]
+    },
+    {
+      "name": "Peephole.Lemmas.urem_of_lt_refines",
+      "module": "Peephole.Lemmas.Arith",
+      "family": "peephole-is-arith",
+      "provenance": "chunk 1's G2, tests/passes-proofs/peephole/folds/is-arith.json, cut from the proofs of IS.expandBinOp.L218, IS.simplifyAssociativeBinOp.L274, IS.simplifyAssociativeBinOp.L294, IS.simplifyAssociativeBinOp.L318, IS.simplifyAssociativeBinOp.L338, IS.simplifyByDomEq.L727, IS.simplifyByDomEq.L731, IS.simplifyByDomEq.L736, IS.simplifyDiv.L1157, IS.simplifyDiv.L1168, IS.simplifyDivRem.L1057, IS.simplifyDivRem.L1063, IS.simplifyDivRem.L1068, IS.simplifyDivRem.L1078, IS.simplifyDivRem.L1083, IS.simplifyDivRem.L1092, IS.simplifyDivRem.L1100, IS.simplifyDivRem.L1114, IS.simplifyDivRem.L1119, IS.simplifyMulInst.L906, IS.simplifyMulInst.L911, IS.simplifyMulInst.L915, IS.simplifyMulInst.L923, IS.simplifyMulInst.L929, IS.simplifyRem.L1189, IS.simplifyRem.L1204, IS.simplifySDivInst.L1216, IS.simplifySRemInst.L1246, IS.simplifySRemInst.L1250, IS.simplifySubInst.L754, IS.simplifySubInst.L763, IS.simplifySubInst.L767, IS.simplifySubInst.L773, IS.simplifySubInst.L780, IS.simplifySubInst.L783, IS.simplifySubInst.L886, IS.threadBinOpOverSelect.L394",
+      "key": "0dbffc0e2070c32cf023",
+      "status": "candidate",
+      "widths": "every",
+      "hypotheses": [
+        "LemmaStore.Counter.Peephole.Lemmas.urem_of_lt_refines.drop_h"
+      ],
+      "witness": "LemmaStore.Counter.Peephole.Lemmas.urem_of_lt_refines.sat",
+      "used_by": [
+        "Peephole.IS.simplifyDivRem.L1119"
+      ],
+      "rewrites": [
+        "IS.simplifyDivRem.L1119"
+      ]
+    },
+    {
+      "name": "Peephole.Lemmas.sdiv_of_natAbs_lt_refines",
+      "module": "Peephole.Lemmas.Arith",
+      "family": "peephole-is-arith",
+      "provenance": "chunk 1's G2, tests/passes-proofs/peephole/folds/is-arith.json, cut from the proofs of IS.expandBinOp.L218, IS.simplifyAssociativeBinOp.L274, IS.simplifyAssociativeBinOp.L294, IS.simplifyAssociativeBinOp.L318, IS.simplifyAssociativeBinOp.L338, IS.simplifyByDomEq.L727, IS.simplifyByDomEq.L731, IS.simplifyByDomEq.L736, IS.simplifyDiv.L1157, IS.simplifyDiv.L1168, IS.simplifyDivRem.L1057, IS.simplifyDivRem.L1063, IS.simplifyDivRem.L1068, IS.simplifyDivRem.L1078, IS.simplifyDivRem.L1083, IS.simplifyDivRem.L1092, IS.simplifyDivRem.L1100, IS.simplifyDivRem.L1114, IS.simplifyDivRem.L1119, IS.simplifyMulInst.L906, IS.simplifyMulInst.L911, IS.simplifyMulInst.L915, IS.simplifyMulInst.L923, IS.simplifyMulInst.L929, IS.simplifyRem.L1189, IS.simplifyRem.L1204, IS.simplifySDivInst.L1216, IS.simplifySRemInst.L1246, IS.simplifySRemInst.L1250, IS.simplifySubInst.L754, IS.simplifySubInst.L763, IS.simplifySubInst.L767, IS.simplifySubInst.L773, IS.simplifySubInst.L780, IS.simplifySubInst.L783, IS.simplifySubInst.L886, IS.threadBinOpOverSelect.L394",
+      "key": "cf90bf554b757b56857f",
+      "status": "candidate",
+      "widths": "every",
+      "hypotheses": [
+        "LemmaStore.Counter.Peephole.Lemmas.sdiv_of_natAbs_lt_refines.drop_h"
+      ],
+      "witness": "LemmaStore.Counter.Peephole.Lemmas.sdiv_of_natAbs_lt_refines.sat",
+      "used_by": [
+        "Peephole.IS.simplifyDivRem.L1119"
+      ],
+      "rewrites": [
+        "IS.simplifyDivRem.L1119"
+      ]
+    },
+    {
+      "name": "Peephole.Lemmas.srem_of_natAbs_lt_refines",
+      "module": "Peephole.Lemmas.Arith",
+      "family": "peephole-is-arith",
+      "provenance": "chunk 1's G2, tests/passes-proofs/peephole/folds/is-arith.json, cut from the proofs of IS.expandBinOp.L218, IS.simplifyAssociativeBinOp.L274, IS.simplifyAssociativeBinOp.L294, IS.simplifyAssociativeBinOp.L318, IS.simplifyAssociativeBinOp.L338, IS.simplifyByDomEq.L727, IS.simplifyByDomEq.L731, IS.simplifyByDomEq.L736, IS.simplifyDiv.L1157, IS.simplifyDiv.L1168, IS.simplifyDivRem.L1057, IS.simplifyDivRem.L1063, IS.simplifyDivRem.L1068, IS.simplifyDivRem.L1078, IS.simplifyDivRem.L1083, IS.simplifyDivRem.L1092, IS.simplifyDivRem.L1100, IS.simplifyDivRem.L1114, IS.simplifyDivRem.L1119, IS.simplifyMulInst.L906, IS.simplifyMulInst.L911, IS.simplifyMulInst.L915, IS.simplifyMulInst.L923, IS.simplifyMulInst.L929, IS.simplifyRem.L1189, IS.simplifyRem.L1204, IS.simplifySDivInst.L1216, IS.simplifySRemInst.L1246, IS.simplifySRemInst.L1250, IS.simplifySubInst.L754, IS.simplifySubInst.L763, IS.simplifySubInst.L767, IS.simplifySubInst.L773, IS.simplifySubInst.L780, IS.simplifySubInst.L783, IS.simplifySubInst.L886, IS.threadBinOpOverSelect.L394",
+      "key": "2b494aa3fb0738918018",
+      "status": "candidate",
+      "widths": "every",
+      "hypotheses": [
+        "LemmaStore.Counter.Peephole.Lemmas.srem_of_natAbs_lt_refines.drop_h"
+      ],
+      "witness": "LemmaStore.Counter.Peephole.Lemmas.srem_of_natAbs_lt_refines.sat",
+      "used_by": [
+        "Peephole.IS.simplifyDivRem.L1119"
+      ],
+      "rewrites": [
+        "IS.simplifyDivRem.L1119"
+      ]
+    },
+    {
+      "name": "Peephole.Lemmas.udiv_exact_of_low_bit_refines",
+      "module": "Peephole.Lemmas.Arith",
+      "family": "peephole-is-arith",
+      "provenance": "chunk 1's G2, tests/passes-proofs/peephole/folds/is-arith.json, cut from the proofs of IS.expandBinOp.L218, IS.simplifyAssociativeBinOp.L274, IS.simplifyAssociativeBinOp.L294, IS.simplifyAssociativeBinOp.L318, IS.simplifyAssociativeBinOp.L338, IS.simplifyByDomEq.L727, IS.simplifyByDomEq.L731, IS.simplifyByDomEq.L736, IS.simplifyDiv.L1157, IS.simplifyDiv.L1168, IS.simplifyDivRem.L1057, IS.simplifyDivRem.L1063, IS.simplifyDivRem.L1068, IS.simplifyDivRem.L1078, IS.simplifyDivRem.L1083, IS.simplifyDivRem.L1092, IS.simplifyDivRem.L1100, IS.simplifyDivRem.L1114, IS.simplifyDivRem.L1119, IS.simplifyMulInst.L906, IS.simplifyMulInst.L911, IS.simplifyMulInst.L915, IS.simplifyMulInst.L923, IS.simplifyMulInst.L929, IS.simplifyRem.L1189, IS.simplifyRem.L1204, IS.simplifySDivInst.L1216, IS.simplifySRemInst.L1246, IS.simplifySRemInst.L1250, IS.simplifySubInst.L754, IS.simplifySubInst.L763, IS.simplifySubInst.L767, IS.simplifySubInst.L773, IS.simplifySubInst.L780, IS.simplifySubInst.L783, IS.simplifySubInst.L886, IS.threadBinOpOverSelect.L394",
+      "key": "986c7dae7e070bb17585",
+      "status": "candidate",
+      "widths": "every",
+      "hypotheses": [
+        "LemmaStore.Counter.Peephole.Lemmas.udiv_exact_of_low_bit_refines.drop_hx",
+        "LemmaStore.Counter.Peephole.Lemmas.udiv_exact_of_low_bit_refines.drop_hk"
+      ],
+      "witness": "LemmaStore.Counter.Peephole.Lemmas.udiv_exact_of_low_bit_refines.sat",
+      "used_by": [
+        "Peephole.IS.simplifyDiv.L1157"
+      ],
+      "rewrites": [
+        "IS.simplifyDiv.L1157"
+      ]
+    },
+    {
+      "name": "Peephole.Lemmas.sdiv_exact_of_low_bit_refines",
+      "module": "Peephole.Lemmas.Arith",
+      "family": "peephole-is-arith",
+      "provenance": "chunk 1's G2, tests/passes-proofs/peephole/folds/is-arith.json, cut from the proofs of IS.expandBinOp.L218, IS.simplifyAssociativeBinOp.L274, IS.simplifyAssociativeBinOp.L294, IS.simplifyAssociativeBinOp.L318, IS.simplifyAssociativeBinOp.L338, IS.simplifyByDomEq.L727, IS.simplifyByDomEq.L731, IS.simplifyByDomEq.L736, IS.simplifyDiv.L1157, IS.simplifyDiv.L1168, IS.simplifyDivRem.L1057, IS.simplifyDivRem.L1063, IS.simplifyDivRem.L1068, IS.simplifyDivRem.L1078, IS.simplifyDivRem.L1083, IS.simplifyDivRem.L1092, IS.simplifyDivRem.L1100, IS.simplifyDivRem.L1114, IS.simplifyDivRem.L1119, IS.simplifyMulInst.L906, IS.simplifyMulInst.L911, IS.simplifyMulInst.L915, IS.simplifyMulInst.L923, IS.simplifyMulInst.L929, IS.simplifyRem.L1189, IS.simplifyRem.L1204, IS.simplifySDivInst.L1216, IS.simplifySRemInst.L1246, IS.simplifySRemInst.L1250, IS.simplifySubInst.L754, IS.simplifySubInst.L763, IS.simplifySubInst.L767, IS.simplifySubInst.L773, IS.simplifySubInst.L780, IS.simplifySubInst.L783, IS.simplifySubInst.L886, IS.threadBinOpOverSelect.L394",
+      "key": "c7d3bd99da5ff65b9399",
+      "status": "candidate",
+      "widths": "every",
+      "hypotheses": [
+        "LemmaStore.Counter.Peephole.Lemmas.sdiv_exact_of_low_bit_refines.drop_hx",
+        "LemmaStore.Counter.Peephole.Lemmas.sdiv_exact_of_low_bit_refines.drop_hk"
+      ],
+      "witness": "LemmaStore.Counter.Peephole.Lemmas.sdiv_exact_of_low_bit_refines.sat",
+      "used_by": [
+        "Peephole.IS.simplifyDiv.L1157"
+      ],
+      "rewrites": [
+        "IS.simplifyDiv.L1157"
+      ]
+    },
+    {
+      "name": "Peephole.Lemmas.udiv_exact_mul_nsw_refines",
+      "module": "Peephole.Lemmas.Arith",
+      "family": "peephole-is-arith",
+      "provenance": "chunk 1's G2, tests/passes-proofs/peephole/folds/is-arith.json, cut from the proofs of IS.expandBinOp.L218, IS.simplifyAssociativeBinOp.L274, IS.simplifyAssociativeBinOp.L294, IS.simplifyAssociativeBinOp.L318, IS.simplifyAssociativeBinOp.L338, IS.simplifyByDomEq.L727, IS.simplifyByDomEq.L731, IS.simplifyByDomEq.L736, IS.simplifyDiv.L1157, IS.simplifyDiv.L1168, IS.simplifyDivRem.L1057, IS.simplifyDivRem.L1063, IS.simplifyDivRem.L1068, IS.simplifyDivRem.L1078, IS.simplifyDivRem.L1083, IS.simplifyDivRem.L1092, IS.simplifyDivRem.L1100, IS.simplifyDivRem.L1114, IS.simplifyDivRem.L1119, IS.simplifyMulInst.L906, IS.simplifyMulInst.L911, IS.simplifyMulInst.L915, IS.simplifyMulInst.L923, IS.simplifyMulInst.L929, IS.simplifyRem.L1189, IS.simplifyRem.L1204, IS.simplifySDivInst.L1216, IS.simplifySRemInst.L1246, IS.simplifySRemInst.L1250, IS.simplifySubInst.L754, IS.simplifySubInst.L763, IS.simplifySubInst.L767, IS.simplifySubInst.L773, IS.simplifySubInst.L780, IS.simplifySubInst.L783, IS.simplifySubInst.L886, IS.threadBinOpOverSelect.L394",
+      "key": "7d177b9cffcc3a8ca448",
+      "status": "candidate",
+      "widths": "every",
+      "hypotheses": [
+        "LemmaStore.Counter.Peephole.Lemmas.udiv_exact_mul_nsw_refines.drop_hc"
+      ],
+      "witness": "LemmaStore.Counter.Peephole.Lemmas.udiv_exact_mul_nsw_refines.sat",
+      "used_by": [
+        "Peephole.IS.simplifyDiv.L1168"
+      ],
+      "rewrites": [
+        "IS.simplifyDiv.L1168"
+      ]
+    },
+    {
+      "name": "Peephole.Lemmas.sdiv_exact_mul_nuw_refines",
+      "module": "Peephole.Lemmas.Arith",
+      "family": "peephole-is-arith",
+      "provenance": "chunk 1's G2, tests/passes-proofs/peephole/folds/is-arith.json, cut from the proofs of IS.expandBinOp.L218, IS.simplifyAssociativeBinOp.L274, IS.simplifyAssociativeBinOp.L294, IS.simplifyAssociativeBinOp.L318, IS.simplifyAssociativeBinOp.L338, IS.simplifyByDomEq.L727, IS.simplifyByDomEq.L731, IS.simplifyByDomEq.L736, IS.simplifyDiv.L1157, IS.simplifyDiv.L1168, IS.simplifyDivRem.L1057, IS.simplifyDivRem.L1063, IS.simplifyDivRem.L1068, IS.simplifyDivRem.L1078, IS.simplifyDivRem.L1083, IS.simplifyDivRem.L1092, IS.simplifyDivRem.L1100, IS.simplifyDivRem.L1114, IS.simplifyDivRem.L1119, IS.simplifyMulInst.L906, IS.simplifyMulInst.L911, IS.simplifyMulInst.L915, IS.simplifyMulInst.L923, IS.simplifyMulInst.L929, IS.simplifyRem.L1189, IS.simplifyRem.L1204, IS.simplifySDivInst.L1216, IS.simplifySRemInst.L1246, IS.simplifySRemInst.L1250, IS.simplifySubInst.L754, IS.simplifySubInst.L763, IS.simplifySubInst.L767, IS.simplifySubInst.L773, IS.simplifySubInst.L780, IS.simplifySubInst.L783, IS.simplifySubInst.L886, IS.threadBinOpOverSelect.L394",
+      "key": "d44eb584f675f69fd00a",
+      "status": "candidate",
+      "widths": "every",
+      "hypotheses": [
+        "LemmaStore.Counter.Peephole.Lemmas.sdiv_exact_mul_nuw_refines.drop_hc"
+      ],
+      "witness": "LemmaStore.Counter.Peephole.Lemmas.sdiv_exact_mul_nuw_refines.sat",
+      "used_by": [
+        "Peephole.IS.simplifyDiv.L1168"
+      ],
+      "rewrites": [
+        "IS.simplifyDiv.L1168"
+      ]
+    },
+    {
+      "name": "Peephole.Lemmas.urem_shl_nuw_refines",
+      "module": "Peephole.Lemmas.Arith",
+      "family": "peephole-is-arith",
+      "provenance": "chunk 1's G2, tests/passes-proofs/peephole/folds/is-arith.json, cut from the proofs of IS.expandBinOp.L218, IS.simplifyAssociativeBinOp.L274, IS.simplifyAssociativeBinOp.L294, IS.simplifyAssociativeBinOp.L318, IS.simplifyAssociativeBinOp.L338, IS.simplifyByDomEq.L727, IS.simplifyByDomEq.L731, IS.simplifyByDomEq.L736, IS.simplifyDiv.L1157, IS.simplifyDiv.L1168, IS.simplifyDivRem.L1057, IS.simplifyDivRem.L1063, IS.simplifyDivRem.L1068, IS.simplifyDivRem.L1078, IS.simplifyDivRem.L1083, IS.simplifyDivRem.L1092, IS.simplifyDivRem.L1100, IS.simplifyDivRem.L1114, IS.simplifyDivRem.L1119, IS.simplifyMulInst.L906, IS.simplifyMulInst.L911, IS.simplifyMulInst.L915, IS.simplifyMulInst.L923, IS.simplifyMulInst.L929, IS.simplifyRem.L1189, IS.simplifyRem.L1204, IS.simplifySDivInst.L1216, IS.simplifySRemInst.L1246, IS.simplifySRemInst.L1250, IS.simplifySubInst.L754, IS.simplifySubInst.L763, IS.simplifySubInst.L767, IS.simplifySubInst.L773, IS.simplifySubInst.L780, IS.simplifySubInst.L783, IS.simplifySubInst.L886, IS.threadBinOpOverSelect.L394",
+      "key": "336fb16a42873849ec72",
+      "status": "candidate",
+      "widths": "every",
+      "hypotheses": [],
+      "witness": null,
+      "used_by": [
+        "Peephole.IS.simplifyRem.L1189"
+      ],
+      "rewrites": [
+        "IS.simplifyRem.L1189"
+      ]
+    },
+    {
+      "name": "Peephole.Lemmas.srem_shl_nsw_refines",
+      "module": "Peephole.Lemmas.Arith",
+      "family": "peephole-is-arith",
+      "provenance": "chunk 1's G2, tests/passes-proofs/peephole/folds/is-arith.json, cut from the proofs of IS.expandBinOp.L218, IS.simplifyAssociativeBinOp.L274, IS.simplifyAssociativeBinOp.L294, IS.simplifyAssociativeBinOp.L318, IS.simplifyAssociativeBinOp.L338, IS.simplifyByDomEq.L727, IS.simplifyByDomEq.L731, IS.simplifyByDomEq.L736, IS.simplifyDiv.L1157, IS.simplifyDiv.L1168, IS.simplifyDivRem.L1057, IS.simplifyDivRem.L1063, IS.simplifyDivRem.L1068, IS.simplifyDivRem.L1078, IS.simplifyDivRem.L1083, IS.simplifyDivRem.L1092, IS.simplifyDivRem.L1100, IS.simplifyDivRem.L1114, IS.simplifyDivRem.L1119, IS.simplifyMulInst.L906, IS.simplifyMulInst.L911, IS.simplifyMulInst.L915, IS.simplifyMulInst.L923, IS.simplifyMulInst.L929, IS.simplifyRem.L1189, IS.simplifyRem.L1204, IS.simplifySDivInst.L1216, IS.simplifySRemInst.L1246, IS.simplifySRemInst.L1250, IS.simplifySubInst.L754, IS.simplifySubInst.L763, IS.simplifySubInst.L767, IS.simplifySubInst.L773, IS.simplifySubInst.L780, IS.simplifySubInst.L783, IS.simplifySubInst.L886, IS.threadBinOpOverSelect.L394",
+      "key": "fb9503c567ee427cd9b4",
+      "status": "candidate",
+      "widths": "every",
+      "hypotheses": [],
+      "witness": null,
+      "used_by": [
+        "Peephole.IS.simplifyRem.L1189"
+      ],
+      "rewrites": [
+        "IS.simplifyRem.L1189"
+      ]
+    },
+    {
+      "name": "Peephole.Lemmas.urem_mul_nuw_of_umod_refines",
+      "module": "Peephole.Lemmas.Arith",
+      "family": "peephole-is-arith",
+      "provenance": "chunk 1's G2, tests/passes-proofs/peephole/folds/is-arith.json, cut from the proofs of IS.expandBinOp.L218, IS.simplifyAssociativeBinOp.L274, IS.simplifyAssociativeBinOp.L294, IS.simplifyAssociativeBinOp.L318, IS.simplifyAssociativeBinOp.L338, IS.simplifyByDomEq.L727, IS.simplifyByDomEq.L731, IS.simplifyByDomEq.L736, IS.simplifyDiv.L1157, IS.simplifyDiv.L1168, IS.simplifyDivRem.L1057, IS.simplifyDivRem.L1063, IS.simplifyDivRem.L1068, IS.simplifyDivRem.L1078, IS.simplifyDivRem.L1083, IS.simplifyDivRem.L1092, IS.simplifyDivRem.L1100, IS.simplifyDivRem.L1114, IS.simplifyDivRem.L1119, IS.simplifyMulInst.L906, IS.simplifyMulInst.L911, IS.simplifyMulInst.L915, IS.simplifyMulInst.L923, IS.simplifyMulInst.L929, IS.simplifyRem.L1189, IS.simplifyRem.L1204, IS.simplifySDivInst.L1216, IS.simplifySRemInst.L1246, IS.simplifySRemInst.L1250, IS.simplifySubInst.L754, IS.simplifySubInst.L763, IS.simplifySubInst.L767, IS.simplifySubInst.L773, IS.simplifySubInst.L780, IS.simplifySubInst.L783, IS.simplifySubInst.L886, IS.threadBinOpOverSelect.L394",
+      "key": "029968bc1cb178d28b8f",
+      "status": "candidate",
+      "widths": "every",
+      "hypotheses": [
+        "LemmaStore.Counter.Peephole.Lemmas.urem_mul_nuw_of_umod_refines.drop_h"
+      ],
+      "witness": "LemmaStore.Counter.Peephole.Lemmas.urem_mul_nuw_of_umod_refines.sat",
+      "used_by": [
+        "Peephole.IS.simplifyRem.L1204"
+      ],
+      "rewrites": [
+        "IS.simplifyRem.L1204"
+      ]
+    },
+    {
+      "name": "Peephole.Lemmas.srem_mul_nsw_of_srem_refines",
+      "module": "Peephole.Lemmas.Arith",
+      "family": "peephole-is-arith",
+      "provenance": "chunk 1's G2, tests/passes-proofs/peephole/folds/is-arith.json, cut from the proofs of IS.expandBinOp.L218, IS.simplifyAssociativeBinOp.L274, IS.simplifyAssociativeBinOp.L294, IS.simplifyAssociativeBinOp.L318, IS.simplifyAssociativeBinOp.L338, IS.simplifyByDomEq.L727, IS.simplifyByDomEq.L731, IS.simplifyByDomEq.L736, IS.simplifyDiv.L1157, IS.simplifyDiv.L1168, IS.simplifyDivRem.L1057, IS.simplifyDivRem.L1063, IS.simplifyDivRem.L1068, IS.simplifyDivRem.L1078, IS.simplifyDivRem.L1083, IS.simplifyDivRem.L1092, IS.simplifyDivRem.L1100, IS.simplifyDivRem.L1114, IS.simplifyDivRem.L1119, IS.simplifyMulInst.L906, IS.simplifyMulInst.L911, IS.simplifyMulInst.L915, IS.simplifyMulInst.L923, IS.simplifyMulInst.L929, IS.simplifyRem.L1189, IS.simplifyRem.L1204, IS.simplifySDivInst.L1216, IS.simplifySRemInst.L1246, IS.simplifySRemInst.L1250, IS.simplifySubInst.L754, IS.simplifySubInst.L763, IS.simplifySubInst.L767, IS.simplifySubInst.L773, IS.simplifySubInst.L780, IS.simplifySubInst.L783, IS.simplifySubInst.L886, IS.threadBinOpOverSelect.L394",
+      "key": "eacae4cf97f65035e8d0",
+      "status": "candidate",
+      "widths": "every",
+      "hypotheses": [
+        "LemmaStore.Counter.Peephole.Lemmas.srem_mul_nsw_of_srem_refines.drop_h"
+      ],
+      "witness": "LemmaStore.Counter.Peephole.Lemmas.srem_mul_nsw_of_srem_refines.sat",
+      "used_by": [
+        "Peephole.IS.simplifyRem.L1204"
+      ],
+      "rewrites": [
+        "IS.simplifyRem.L1204"
+      ]
+    },
+    {
+      "name": "Peephole.Lemmas.sdiv_neg_nsw_left_refines",
+      "module": "Peephole.Lemmas.Arith",
+      "family": "peephole-is-arith",
+      "provenance": "chunk 1's G2, tests/passes-proofs/peephole/folds/is-arith.json, cut from the proofs of IS.expandBinOp.L218, IS.simplifyAssociativeBinOp.L274, IS.simplifyAssociativeBinOp.L294, IS.simplifyAssociativeBinOp.L318, IS.simplifyAssociativeBinOp.L338, IS.simplifyByDomEq.L727, IS.simplifyByDomEq.L731, IS.simplifyByDomEq.L736, IS.simplifyDiv.L1157, IS.simplifyDiv.L1168, IS.simplifyDivRem.L1057, IS.simplifyDivRem.L1063, IS.simplifyDivRem.L1068, IS.simplifyDivRem.L1078, IS.simplifyDivRem.L1083, IS.simplifyDivRem.L1092, IS.simplifyDivRem.L1100, IS.simplifyDivRem.L1114, IS.simplifyDivRem.L1119, IS.simplifyMulInst.L906, IS.simplifyMulInst.L911, IS.simplifyMulInst.L915, IS.simplifyMulInst.L923, IS.simplifyMulInst.L929, IS.simplifyRem.L1189, IS.simplifyRem.L1204, IS.simplifySDivInst.L1216, IS.simplifySRemInst.L1246, IS.simplifySRemInst.L1250, IS.simplifySubInst.L754, IS.simplifySubInst.L763, IS.simplifySubInst.L767, IS.simplifySubInst.L773, IS.simplifySubInst.L780, IS.simplifySubInst.L783, IS.simplifySubInst.L886, IS.threadBinOpOverSelect.L394",
+      "key": "dd295a0c2c50086c655f",
+      "status": "candidate",
+      "widths": "every",
+      "hypotheses": [],
+      "witness": null,
+      "used_by": [
+        "Peephole.IS.simplifySDivInst.L1216"
+      ],
+      "rewrites": [
+        "IS.simplifySDivInst.L1216"
+      ]
+    },
+    {
+      "name": "Peephole.Lemmas.sdiv_neg_nsw_right_refines",
+      "module": "Peephole.Lemmas.Arith",
+      "family": "peephole-is-arith",
+      "provenance": "chunk 1's G2, tests/passes-proofs/peephole/folds/is-arith.json, cut from the proofs of IS.expandBinOp.L218, IS.simplifyAssociativeBinOp.L274, IS.simplifyAssociativeBinOp.L294, IS.simplifyAssociativeBinOp.L318, IS.simplifyAssociativeBinOp.L338, IS.simplifyByDomEq.L727, IS.simplifyByDomEq.L731, IS.simplifyByDomEq.L736, IS.simplifyDiv.L1157, IS.simplifyDiv.L1168, IS.simplifyDivRem.L1057, IS.simplifyDivRem.L1063, IS.simplifyDivRem.L1068, IS.simplifyDivRem.L1078, IS.simplifyDivRem.L1083, IS.simplifyDivRem.L1092, IS.simplifyDivRem.L1100, IS.simplifyDivRem.L1114, IS.simplifyDivRem.L1119, IS.simplifyMulInst.L906, IS.simplifyMulInst.L911, IS.simplifyMulInst.L915, IS.simplifyMulInst.L923, IS.simplifyMulInst.L929, IS.simplifyRem.L1189, IS.simplifyRem.L1204, IS.simplifySDivInst.L1216, IS.simplifySRemInst.L1246, IS.simplifySRemInst.L1250, IS.simplifySubInst.L754, IS.simplifySubInst.L763, IS.simplifySubInst.L767, IS.simplifySubInst.L773, IS.simplifySubInst.L780, IS.simplifySubInst.L783, IS.simplifySubInst.L886, IS.threadBinOpOverSelect.L394",
+      "key": "b89d8702a300f12bd023",
+      "status": "candidate",
+      "widths": "every",
+      "hypotheses": [],
+      "witness": null,
+      "used_by": [
+        "Peephole.IS.simplifySDivInst.L1216"
+      ],
+      "rewrites": [
+        "IS.simplifySDivInst.L1216"
+      ]
+    },
+    {
+      "name": "Peephole.Lemmas.sdiv_sub_nsw_swap_refines",
+      "module": "Peephole.Lemmas.Arith",
+      "family": "peephole-is-arith",
+      "provenance": "chunk 1's G2, tests/passes-proofs/peephole/folds/is-arith.json, cut from the proofs of IS.expandBinOp.L218, IS.simplifyAssociativeBinOp.L274, IS.simplifyAssociativeBinOp.L294, IS.simplifyAssociativeBinOp.L318, IS.simplifyAssociativeBinOp.L338, IS.simplifyByDomEq.L727, IS.simplifyByDomEq.L731, IS.simplifyByDomEq.L736, IS.simplifyDiv.L1157, IS.simplifyDiv.L1168, IS.simplifyDivRem.L1057, IS.simplifyDivRem.L1063, IS.simplifyDivRem.L1068, IS.simplifyDivRem.L1078, IS.simplifyDivRem.L1083, IS.simplifyDivRem.L1092, IS.simplifyDivRem.L1100, IS.simplifyDivRem.L1114, IS.simplifyDivRem.L1119, IS.simplifyMulInst.L906, IS.simplifyMulInst.L911, IS.simplifyMulInst.L915, IS.simplifyMulInst.L923, IS.simplifyMulInst.L929, IS.simplifyRem.L1189, IS.simplifyRem.L1204, IS.simplifySDivInst.L1216, IS.simplifySRemInst.L1246, IS.simplifySRemInst.L1250, IS.simplifySubInst.L754, IS.simplifySubInst.L763, IS.simplifySubInst.L767, IS.simplifySubInst.L773, IS.simplifySubInst.L780, IS.simplifySubInst.L783, IS.simplifySubInst.L886, IS.threadBinOpOverSelect.L394",
+      "key": "8ef07aec8c7c94df7211",
+      "status": "candidate",
+      "widths": "every",
+      "hypotheses": [],
+      "witness": null,
+      "used_by": [
+        "Peephole.IS.simplifySDivInst.L1216"
+      ],
+      "rewrites": [
+        "IS.simplifySDivInst.L1216"
+      ]
+    },
+    {
+      "name": "Peephole.Lemmas.srem_sext_one_bit_refines",
+      "module": "Peephole.Lemmas.Arith",
+      "family": "peephole-is-arith",
+      "provenance": "chunk 1's G2, tests/passes-proofs/peephole/folds/is-arith.json, cut from the proofs of IS.expandBinOp.L218, IS.simplifyAssociativeBinOp.L274, IS.simplifyAssociativeBinOp.L294, IS.simplifyAssociativeBinOp.L318, IS.simplifyAssociativeBinOp.L338, IS.simplifyByDomEq.L727, IS.simplifyByDomEq.L731, IS.simplifyByDomEq.L736, IS.simplifyDiv.L1157, IS.simplifyDiv.L1168, IS.simplifyDivRem.L1057, IS.simplifyDivRem.L1063, IS.simplifyDivRem.L1068, IS.simplifyDivRem.L1078, IS.simplifyDivRem.L1083, IS.simplifyDivRem.L1092, IS.simplifyDivRem.L1100, IS.simplifyDivRem.L1114, IS.simplifyDivRem.L1119, IS.simplifyMulInst.L906, IS.simplifyMulInst.L911, IS.simplifyMulInst.L915, IS.simplifyMulInst.L923, IS.simplifyMulInst.L929, IS.simplifyRem.L1189, IS.simplifyRem.L1204, IS.simplifySDivInst.L1216, IS.simplifySRemInst.L1246, IS.simplifySRemInst.L1250, IS.simplifySubInst.L754, IS.simplifySubInst.L763, IS.simplifySubInst.L767, IS.simplifySubInst.L773, IS.simplifySubInst.L780, IS.simplifySubInst.L783, IS.simplifySubInst.L886, IS.threadBinOpOverSelect.L394",
+      "key": "7caef082f18c62915e14",
+      "status": "candidate",
+      "widths": "every",
+      "hypotheses": [],
+      "witness": null,
+      "used_by": [
+        "Peephole.IS.simplifySRemInst.L1246"
+      ],
+      "rewrites": [
+        "IS.simplifySRemInst.L1246"
+      ]
+    },
+    {
+      "name": "Peephole.Lemmas.srem_neg_left_refines",
+      "module": "Peephole.Lemmas.Arith",
+      "family": "peephole-is-arith",
+      "provenance": "chunk 1's G2, tests/passes-proofs/peephole/folds/is-arith.json, cut from the proofs of IS.expandBinOp.L218, IS.simplifyAssociativeBinOp.L274, IS.simplifyAssociativeBinOp.L294, IS.simplifyAssociativeBinOp.L318, IS.simplifyAssociativeBinOp.L338, IS.simplifyByDomEq.L727, IS.simplifyByDomEq.L731, IS.simplifyByDomEq.L736, IS.simplifyDiv.L1157, IS.simplifyDiv.L1168, IS.simplifyDivRem.L1057, IS.simplifyDivRem.L1063, IS.simplifyDivRem.L1068, IS.simplifyDivRem.L1078, IS.simplifyDivRem.L1083, IS.simplifyDivRem.L1092, IS.simplifyDivRem.L1100, IS.simplifyDivRem.L1114, IS.simplifyDivRem.L1119, IS.simplifyMulInst.L906, IS.simplifyMulInst.L911, IS.simplifyMulInst.L915, IS.simplifyMulInst.L923, IS.simplifyMulInst.L929, IS.simplifyRem.L1189, IS.simplifyRem.L1204, IS.simplifySDivInst.L1216, IS.simplifySRemInst.L1246, IS.simplifySRemInst.L1250, IS.simplifySubInst.L754, IS.simplifySubInst.L763, IS.simplifySubInst.L767, IS.simplifySubInst.L773, IS.simplifySubInst.L780, IS.simplifySubInst.L783, IS.simplifySubInst.L886, IS.threadBinOpOverSelect.L394",
+      "key": "434f6c23cde2aa972288",
+      "status": "candidate",
+      "widths": "every",
+      "hypotheses": [],
+      "witness": null,
+      "used_by": [
+        "Peephole.IS.simplifySRemInst.L1250"
+      ],
+      "rewrites": [
+        "IS.simplifySRemInst.L1250"
+      ]
+    },
+    {
+      "name": "Peephole.Lemmas.srem_neg_right_refines",
+      "module": "Peephole.Lemmas.Arith",
+      "family": "peephole-is-arith",
+      "provenance": "chunk 1's G2, tests/passes-proofs/peephole/folds/is-arith.json, cut from the proofs of IS.expandBinOp.L218, IS.simplifyAssociativeBinOp.L274, IS.simplifyAssociativeBinOp.L294, IS.simplifyAssociativeBinOp.L318, IS.simplifyAssociativeBinOp.L338, IS.simplifyByDomEq.L727, IS.simplifyByDomEq.L731, IS.simplifyByDomEq.L736, IS.simplifyDiv.L1157, IS.simplifyDiv.L1168, IS.simplifyDivRem.L1057, IS.simplifyDivRem.L1063, IS.simplifyDivRem.L1068, IS.simplifyDivRem.L1078, IS.simplifyDivRem.L1083, IS.simplifyDivRem.L1092, IS.simplifyDivRem.L1100, IS.simplifyDivRem.L1114, IS.simplifyDivRem.L1119, IS.simplifyMulInst.L906, IS.simplifyMulInst.L911, IS.simplifyMulInst.L915, IS.simplifyMulInst.L923, IS.simplifyMulInst.L929, IS.simplifyRem.L1189, IS.simplifyRem.L1204, IS.simplifySDivInst.L1216, IS.simplifySRemInst.L1246, IS.simplifySRemInst.L1250, IS.simplifySubInst.L754, IS.simplifySubInst.L763, IS.simplifySubInst.L767, IS.simplifySubInst.L773, IS.simplifySubInst.L780, IS.simplifySubInst.L783, IS.simplifySubInst.L886, IS.threadBinOpOverSelect.L394",
+      "key": "3dc3974f1c9c211276d8",
+      "status": "candidate",
+      "widths": "every",
+      "hypotheses": [],
+      "witness": null,
+      "used_by": [
+        "Peephole.IS.simplifySRemInst.L1250"
+      ],
+      "rewrites": [
+        "IS.simplifySRemInst.L1250"
+      ]
+    },
+    {
+      "name": "Peephole.Lemmas.srem_sub_swap_refines",
+      "module": "Peephole.Lemmas.Arith",
+      "family": "peephole-is-arith",
+      "provenance": "chunk 1's G2, tests/passes-proofs/peephole/folds/is-arith.json, cut from the proofs of IS.expandBinOp.L218, IS.simplifyAssociativeBinOp.L274, IS.simplifyAssociativeBinOp.L294, IS.simplifyAssociativeBinOp.L318, IS.simplifyAssociativeBinOp.L338, IS.simplifyByDomEq.L727, IS.simplifyByDomEq.L731, IS.simplifyByDomEq.L736, IS.simplifyDiv.L1157, IS.simplifyDiv.L1168, IS.simplifyDivRem.L1057, IS.simplifyDivRem.L1063, IS.simplifyDivRem.L1068, IS.simplifyDivRem.L1078, IS.simplifyDivRem.L1083, IS.simplifyDivRem.L1092, IS.simplifyDivRem.L1100, IS.simplifyDivRem.L1114, IS.simplifyDivRem.L1119, IS.simplifyMulInst.L906, IS.simplifyMulInst.L911, IS.simplifyMulInst.L915, IS.simplifyMulInst.L923, IS.simplifyMulInst.L929, IS.simplifyRem.L1189, IS.simplifyRem.L1204, IS.simplifySDivInst.L1216, IS.simplifySRemInst.L1246, IS.simplifySRemInst.L1250, IS.simplifySubInst.L754, IS.simplifySubInst.L763, IS.simplifySubInst.L767, IS.simplifySubInst.L773, IS.simplifySubInst.L780, IS.simplifySubInst.L783, IS.simplifySubInst.L886, IS.threadBinOpOverSelect.L394",
+      "key": "970b18b56d26db5eb0c1",
+      "status": "candidate",
+      "widths": "every",
+      "hypotheses": [],
+      "witness": null,
+      "used_by": [
+        "Peephole.IS.simplifySRemInst.L1250"
+      ],
+      "rewrites": [
+        "IS.simplifySRemInst.L1250"
       ]
     }
   ],
