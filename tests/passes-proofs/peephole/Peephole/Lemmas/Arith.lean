@@ -132,7 +132,8 @@ theorem mul_comm (a b : Val w) (nuw nsw : Bool) : Val.mul a b nuw nsw = Val.mul 
   have hs : x.smulOverflow y = y.smulOverflow x := by simp [BitVec.smulOverflow, Int.mul_comm]
   rw [hu, hs, BitVec.mul_comm]
 
-/-- `(a udiv exact b) * b` refines `a`: an exact quotient times the divisor is the dividend. `IS.simplifyMulInst.L923`. -/
+/-- `(a udiv exact b) * b` refines `a`: an exact quotient times the divisor is the dividend.
+`IS.simplifyMulInst.L923`. -/
 theorem mul_udiv_exact_refines {a b q : Val w} (h : Val.udiv a b true = Outcome.ok q) (nuw nsw : Bool) :
     Refines (Val.mul q b nuw nsw) a := by
   obtain ⟨y, rfl, hy, hq⟩ := udiv_ok h
@@ -1007,7 +1008,8 @@ theorem Peephole.Lemmas.sub_zero_left_refines_self.sat :
 
 /-- `2` isn't a low-bit mask: `2 - (3 ^ 2)` is `1`, not `3`. -/
 theorem Peephole.Lemmas.sub_mask_xor_nuw_refines.drop_hc :
-    ¬ ∀ {w : Nat} (a : Val w) {c : BitVec w} (nsw : Bool), Refines (Val.sub (some c) (Val.xor a (some c)) true nsw) a :=
+    ¬ ∀ {w : Nat} (a : Val w) {c : BitVec w} (nsw : Bool),
+      Refines (Val.sub (some c) (Val.xor a (some c)) true nsw) a :=
   fun h => arith_not_refines_val 1#2 rfl (by decide) (@h 2 (some 3#2) 2#2 false)
 
 theorem Peephole.Lemmas.sub_mask_xor_nuw_refines.sat :

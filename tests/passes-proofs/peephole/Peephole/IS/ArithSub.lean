@@ -2,14 +2,14 @@ import Peephole.IS.ArithRecur
 
 /-! # InstSimplify's `simplifySubInst`, and its rewrites for every input
 
-`simplifySubInst` is at `llvm/lib/Analysis/InstructionSimplify.cpp:741-894` at `llvmorg-23.1.3`. This is its model on
+`simplifySubInst` is at `llvm/lib/Analysis/InstructionSimplify.cpp:746-889` at `llvmorg-23.1.3`. This is its model on
 `Peephole.Term`, step by step in the C++'s order. Each step that rewrites carries its ID from
 `tests/llvm_scope/rewrites/instsimplify.json`, and each has a theorem of that name:
 
 | ID | Rewrite |
 | --- | --- |
 | `IS.simplifySubInst.L754` | `X - poison` and `poison - X` to poison |
-| `IS.simplifySubInst.L759` | `X - undef` and `undef - X` to `undef`. IRLean has no `undef`, so this is about poison only |
+| `IS.simplifySubInst.L759` | `X - undef` and `undef - X` to `undef`. IRLean has no `undef`: this is about poison only |
 | `IS.simplifySubInst.L763` | `X - 0` to `X` |
 | `IS.simplifySubInst.L767` | `X - X` to 0 |
 | `IS.simplifySubInst.L773` | `sub nuw 0, X` to 0 |

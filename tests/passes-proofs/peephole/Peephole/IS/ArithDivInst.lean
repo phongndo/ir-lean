@@ -3,7 +3,7 @@ import Peephole.IS.ArithDiv
 /-! # InstSimplify's `simplifyDiv`, `simplifyRem`, and the division entry folds
 
 `simplifyDiv`, `simplifyRem`, `simplifySDivInst`, `simplifyUDivInst`, `simplifySRemInst` and `simplifyURemInst`, at
-`llvm/lib/Analysis/InstructionSimplify.cpp:1145-1265` at `llvmorg-23.1.3`, step by step in the C++'s order, with the
+`llvm/lib/Analysis/InstructionSimplify.cpp:1140-1268` at `llvmorg-23.1.3`, step by step in the C++'s order, with the
 theorems for their sites, `IS.simplifyDiv.L1157`, `L1168`, `IS.simplifyRem.L1189`, `L1204`,
 `IS.simplifySDivInst.L1216`, `IS.simplifySRemInst.L1246` and `L1250`, and each entry fold's `sound`. The table of
 what each rewrites is in `Peephole.IS.ArithDiv`. -/

@@ -3,7 +3,7 @@ import Peephole.IS.ArithCore
 /-! # The helper folds InstSimplify's arithmetic folds share
 
 `simplifyByDomEq`, `simplifyAssociativeBinOp`, `expandBinOp`, `expandCommutativeBinOp` and `threadBinOpOverSelect`, at
-`llvm/lib/Analysis/InstructionSimplify.cpp:198-421` and `712-739` at `llvmorg-23.1.3`, step by step in the C++'s order.
+`llvm/lib/Analysis/InstructionSimplify.cpp:198-422` and `712-742` at `llvmorg-23.1.3`, step by step in the C++'s order.
 Each is called with an opcode, and modelled for every one: a theorem about one holds for the opcodes its C++ asserts
 or its callers pass. The source each replaces is its caller's instruction, `binSrc op f LHS RHS`, with any flags.
 
@@ -16,8 +16,8 @@ or its callers pass. The source each replaces is its caller's instruction, `binS
 | `IS.simplifyAssociativeBinOp.L294` | `A op (B op C)` to `B op C` where `A op B` simplifies to `B` |
 | `IS.simplifyAssociativeBinOp.L318` | `(A op B) op C` to `A op B` where `C op A` simplifies to `A` |
 | `IS.simplifyAssociativeBinOp.L338` | `A op (B op C)` to `B op C` where `C op A` simplifies to `C` |
-| `IS.expandBinOp.L218` | `(B0 op' B1) op X` to `B0 op' B1` where `B0 op X` and `B1 op X` simplify to `B0` and `B1`, or to `B1` and `B0` |
-| `IS.threadBinOpOverSelect.L394` | `(select C, T, F) op X` to the select where `T op X` and `F op X` simplify to `T` and `F` |
+| `IS.expandBinOp.L218` | `(B0 op' B1) op X` to `B0 op' B1` where `Bi op X` simplify to `B0`, `B1`, or swapped |
+| `IS.threadBinOpOverSelect.L394` | `(select C, T, F) op X` to the select where each arm's `op X` is the arm |
 
 The returns of a recursive call's answer, such as `return W;` after reassociating, are forwards, not sites: each fires
 as `"simplifyBinOp"`, and has its own theorem here too, so each helper's `sound` covers every value it returns. -/
@@ -101,7 +101,8 @@ theorem simplifyByDomEq.L736 (ρ : Env) (d : DomOracle) (hd : d.Sound ρ) (op : 
 /-- Every step of `simplifyByDomEq` that fires is right, for the source's opcode with any flags. -/
 theorem simplifyByDomEq.steps_sound (ρ : Env) (d : DomOracle) (hd : d.Sound ρ) (op : BinOp) (f : Flags)
     (op0 op1 : Term w) (n : Nat) :
-    ∀ s r, Step.fire s r ∈ simplifyByDomEq.steps d op op0 op1 n → Refines ((binSrc op f op0 op1).eval ρ) (r.eval ρ) := by
+    ∀ s r, Step.fire s r ∈ simplifyByDomEq.steps d op op0 op1 n →
+      Refines ((binSrc op f op0 op1).eval ρ) (r.eval ρ) := by
   intro s r hmem
   simp only [simplifyByDomEq.steps, List.mem_cons, List.not_mem_nil, or_false] at hmem
   rcases hmem with h | h | h | h

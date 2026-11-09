@@ -3,7 +3,7 @@ import Peephole.IS.ArithRecur
 /-! # InstSimplify's divisions and remainders, and their rewrites for every input
 
 `isICmpTrue`, `isDivZero`, `simplifyDivRem`, `simplifyDiv`, `simplifyRem`, and the entry folds `simplifySDivInst`,
-`simplifyUDivInst`, `simplifySRemInst` and `simplifyURemInst`, at `llvm/lib/Analysis/InstructionSimplify.cpp:970-1265`
+`simplifyUDivInst`, `simplifySRemInst` and `simplifyURemInst`, at `llvm/lib/Analysis/InstructionSimplify.cpp:972-1268`
 at `llvmorg-23.1.3`, step by step in the C++'s order. A division is an `Outcome`: dividing by zero or poison, and the
 signed division of the minimum by `-1`, are undefined, and an undefined source allows any replacement.
 
@@ -20,7 +20,7 @@ signed division of the minimum by `-1`, are undefined, and an undefined source a
 | `IS.simplifyDivRem.L1114` | `X * Y / Y` to `X` and `X * Y % Y` to 0 where the product can't overflow |
 | `IS.simplifyDivRem.L1119` | `X / Y` to 0 and `X % Y` to `X` where `isDivZero` holds |
 | `IS.simplifyDiv.L1157` | `X /exact C` to poison where `X` has a known bit below `C`'s lowest |
-| `IS.simplifyDiv.L1168` | `udiv exact (mul nsw X, C), C` and `sdiv exact (mul nuw X, C), C` to `X`, `C` not a power of 2 |
+| `IS.simplifyDiv.L1168` | `udiv exact (mul nsw X, C), C`, `sdiv exact (mul nuw X, C), C` to `X`, `C` not a power of 2 |
 | `IS.simplifyRem.L1189` | `(X << Y) % X` to 0, for `shl nsw` and `srem`, or `shl nuw` and `urem` |
 | `IS.simplifyRem.L1204` | `srem (mul nsw X, C1), C0` and `urem (mul nuw X, C1), C0` to 0 where `C0` divides `C1` |
 | `IS.simplifySDivInst.L1216` | `X sdiv -X` to -1 where the negation has `nsw` |

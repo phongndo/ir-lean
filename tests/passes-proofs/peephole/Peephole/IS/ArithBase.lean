@@ -234,7 +234,8 @@ theorem sdiv_ok {a b x : Val w} {exact : Bool} (h : Val.sdiv a b exact = Outcome
               simp [this]
 
 theorem srem_ok {a b x : Val w} (h : Val.srem a b = Outcome.ok x) :
-    ∃ y, b = some y ∧ y ≠ 0#w ∧ (x = none ∨ ∃ p, a = some p ∧ p.sdivOverflow y = false ∧ x = some (p.srem y)) := by
+    ∃ y, b = some y ∧ y ≠ 0#w ∧
+      (x = none ∨ ∃ p, a = some p ∧ p.sdivOverflow y = false ∧ x = some (p.srem y)) := by
   cases b with
   | none => simp [Val.srem, Outcome.ub, Outcome.ok] at h
   | some y =>

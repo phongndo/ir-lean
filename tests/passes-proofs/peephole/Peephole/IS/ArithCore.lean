@@ -54,7 +54,8 @@ answer is consistent too, has no `undef`, and refines the operation, which has n
 structure Recur.Sound (r : Recur) (ρ : Env) : Prop where
   binOp : ∀ (n : Nat) {w : Nat} (op : BinOp) (a b t : Term w), r.binOp n op a b = .val t →
     a.Consistent ρ → b.Consistent ρ → a.hasUndef = false → b.hasUndef = false →
-    t.Consistent ρ ∧ t.hasUndef = false ∧ Refines (op.eval {} (a.denote ρ) (b.denote ρ)) (Outcome.ok (t.denote ρ))
+    t.Consistent ρ ∧ t.hasUndef = false ∧
+      Refines (op.eval {} (a.denote ρ) (b.denote ρ)) (Outcome.ok (t.denote ρ))
   icmp : ∀ (n : Nat) {w : Nat} (p : Pred) (a b : Term w) (t : Term 1), r.icmp n p a b = .val t →
     a.Consistent ρ → b.Consistent ρ → a.hasUndef = false → b.hasUndef = false →
     Refines (p.eval (a.denote ρ) (b.denote ρ) false) (t.denote ρ)

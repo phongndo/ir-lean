@@ -2,7 +2,7 @@ import Peephole.IS.ArithRecur
 
 /-! # InstSimplify's `simplifyMulInst`, and its rewrites for every input
 
-`simplifyMulInst` is at `llvm/lib/Analysis/InstructionSimplify.cpp:898-961` at `llvmorg-23.1.3`. This is its model on
+`simplifyMulInst` is at `llvm/lib/Analysis/InstructionSimplify.cpp:899-961` at `llvmorg-23.1.3`. This is its model on
 `Peephole.Term`, step by step in the C++'s order. Each step that rewrites carries its ID from
 `tests/llvm_scope/rewrites/instsimplify.json`, and each has a theorem of that name:
 
