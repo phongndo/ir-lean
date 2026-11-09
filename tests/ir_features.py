@@ -122,6 +122,12 @@ REASONS: dict[str, Reason] = {
         None,
         "A call to a function in the module that ir-lean translates, directly or through a pointer to one",
     ),
+    "outside call": Reason(
+        "modeled",
+        None,
+        "A call to a function the module only declares, answered by IRLean.World: an event in the run's "
+        "trace, or for one without effects, an answer at the run's choice (docs/calls.md)",
+    ),
     "aggregate": Reason("modeled", None, "A struct is a Lean tuple, field by field"),
     "float": Reason(
         "modeled",
@@ -321,11 +327,17 @@ REASONS: dict[str, Reason] = {
     "data layout": Reason(
         "modeled",
         None,
-        "A data layout the model reads the facts it uses from: 64-bit pointers "
-        "and indices, and little-endian",
+        "A data layout that says what Mem assumes, read from it: 64-bit pointers in address space 0, all of "
+        "them address, null all zeros, and little-endian",
     ),
     # Refused, with the lane working on it.
     "floating point": Reason("refused", "floating point", "Floating point"),
+    "float shape": Reason(
+        "refused",
+        "floating point",
+        "A conversion intrinsic whose result has another number of lanes than its argument, which LangRef "
+        "rules out and LLVM's verifier allows",
+    ),
     "external": Reason(
         "refused",
         "external calls and globals",
@@ -355,11 +367,22 @@ REASONS: dict[str, Reason] = {
     ),
     "layout": Reason(
         "refused",
+        "memory",
+        "Pointers Mem doesn't have yet: in another address space, in a vector, or, in a function with "
+        "memory, narrower than 64 bits, with fewer address bits, or with a null that isn't all zeros",
+    ),
+    "big-endian": Reason(
+        "refused",
         "long tail",
-        "A data layout, an address space or a vector of pointers the model doesn't have yet",
+        "A bitcast between integers and vectors in a big-endian module, whose lane order the model "
+        "doesn't have",
     ),
     "exceptions": Reason(
-        "refused", "long tail", "Exception handling: invoke, landingpad, resume and the funclet instructions"
+        "refused",
+        "long tail",
+        "Exception handling: invoke, landingpad, resume and the funclet instructions. Refused on review: a "
+        "landing pad's value is a pointer to the exception and a selector the personality function, outside "
+        "the module, chooses, so it waits on memory and on calls. docs/ir-features.md",
     ),
     "aggregate gap": Reason("refused", "long tail", "An aggregate form the emitter doesn't translate yet"),
     "calling convention mismatch": Reason(
@@ -508,13 +531,13 @@ INTRINSIC_RULES = [
         "llvm.x86.avx512.broadcastmw.128 llvm.x86.avx512.broadcastmw.256 llvm.x86.avx512.broadcastmw.512",
     ),
     R("progress effect", "llvm.sideeffect"),
-    R("float", "llvm.copysign llvm.fabs llvm.is.fpclass"),
+    R("float", "llvm.copysign llvm.fabs llvm.is.fpclass llvm.fptosi.sat llvm.fptoui.sat"),
     R(
         "floating point",
         "llvm.acos llvm.asin llvm.atan llvm.atan2 llvm.arithmetic.fence llvm.canonicalize llvm.ceil "
         "llvm.convert.from.arbitrary.fp llvm.convert.to.arbitrary.fp llvm.cos llvm.cosh "
         "llvm.exp "
-        "llvm.exp10 llvm.exp2 llvm.floor llvm.fma llvm.fmuladd llvm.fptosi.sat llvm.fptoui.sat "
+        "llvm.exp10 llvm.exp2 llvm.floor llvm.fma llvm.fmuladd "
         "llvm.fptrunc.round llvm.frexp llvm.get.fpenv llvm.get.fpmode llvm.get.rounding "
         "llvm.ldexp llvm.llrint llvm.llround llvm.log llvm.log10 llvm.log2 llvm.lrint llvm.lround "
         "llvm.maximum "
@@ -789,8 +812,7 @@ INSTRUCTION_RULES = [
     R("freeze", "Freeze"),
     R("call", "Call"),
     R("memory", "Alloca Load Store GetElementPtr PtrToInt PtrToAddr"),
-    R("float", "FNeg FCmp"),
-    R("floating point", "FAdd FSub FMul FDiv FRem FPToUI FPToSI UIToFP SIToFP FPTrunc FPExt"),
+    R("float", "FNeg FCmp FAdd FSub FMul FDiv FRem FPToUI FPToSI UIToFP SIToFP FPTrunc FPExt"),
     R("memory model", "IntToPtr"),
     R("layout", "AddrSpaceCast"),
     R("concurrency", "Fence AtomicCmpXchg AtomicRMW"),
@@ -886,6 +908,7 @@ BUNDLE_RULES = [
 # Forms: each with its class, and the probe that shows the emitter treats it so.
 FORM_RULES = [
     R("vector", "udiv-of-vectors sdiv-of-vectors urem-of-vectors srem-of-vectors"),
+    R("float shape", "intrinsic-lane-count-mismatch"),
     R("vector gap", "freeze-of-a-vector integer-bitcast-nondividing vector-constant-expression"),
     R("scalable", "getelementptr-over-a-scalable-type scalable-vector-in-a-recursive-function"),
     R("memory model", "load-of-a-scalable-vector"),
@@ -893,17 +916,16 @@ FORM_RULES = [
     R(
         "layout",
         "pointer-in-address-space vector-of-pointers getelementptr-of-vectors "
-        "data-layout-32-bit-pointers-with-memory big-endian-bitcast",
+        "data-layout-32-bit-pointers-with-memory data-layout-32-bit-addresses-with-memory "
+        "data-layout-null-all-ones-with-memory",
     ),
     R("memory model", "store-of-i1 load-of-i1 freeze-of-a-pointer"),
     R("concurrency", "volatile-load volatile-store atomic-load atomic-store"),
-    R(
-        "external",
-        "call-to-a-declaration call-to-an-odr-definition variadic-call external-global "
-        "alias-the-linker-may-replace",
-    ),
+    R("outside call", "call-to-a-declaration"),
+    R("external", "call-to-an-odr-definition variadic-call external-global alias-the-linker-may-replace"),
     R("variadic", "variadic-function"),
     R("exceptions", "personality-function"),
+    R("big-endian", "big-endian-bitcast"),
     R("asm", "inline-asm-call"),
     R("gc", "function-with-gc"),
     R("machine", "prefix-or-prologue-data"),
@@ -1664,6 +1686,10 @@ PARTIAL = [
     (r"^type (<(vscale x )?\d+ x )?ppc_fp128>?$", ("type", "", "PPC_FP128")),
     (r"^type <vscale x \d+ x ptr", ("form", "", "vector-of-pointers")),
     (r"^type <\d+ x ptr", ("form", "", "vector-of-pointers")),
+    (
+        r"^intrinsic llvm\.\S+ with another number of lanes than its argument$",
+        ("form", "", "intrinsic-lane-count-mismatch"),
+    ),
     (r"^type ptr addrspace", ("form", "", "pointer-in-address-space")),
 ]
 

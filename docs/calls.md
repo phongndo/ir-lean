@@ -316,6 +316,8 @@ undefined, like unwinding through a function marked so.
 - **A function with a stack frame, or that makes promises about memory,** wraps its body in `Mem.withFrame` or
   `Mem.call`, which don't pass an `Exit` through yet, so a call outside the module there is refused until they do.
 - **Calls through a pointer** to anything outside the module keep stopping the model, `unknownCallee`.
+- **A call to an `extern_weak` declaration** is refused: the function may not be there at all, and its address null,
+  as for an `extern_weak` global.
 
 ## Calls that touch memory
 
@@ -394,7 +396,14 @@ Each is a pull request, merged when green, with this page updated to say what's 
 2. **Calls with effects, and calls that only read,** in functions without memory, and calls touching only
    `inaccessiblemem` in any function. The emitter refuses calls that touch memory by name. Most of the coverage gain is
    here: of the 2,787 pairs refused first for `call to external`, 2,100 have no pointer in either side, 4 of them with
-   floating point, which stays refused.
+   floating point, which stays refused. **Built** on 2026-11-09: `tests/calls` has fifteen more rewrites, four right
+   and eleven wrong, among them the five wrong ones above for a call with effects, each refuted, and the two sources,
+   [above](#refinement), that would agree with a target's every prefix without the cut after the source's choice, or
+   without the call it stops at. Alive2 gives twelve the same verdict. It can't decide a call dropped before a loop
+   that never ends, and calls the last two correct: it unrolls a loop a fixed number of times, and drops the runs that
+   go on, which there are all of the target's.
+   `tests/binding.py` binds a real `instcombine` run that rewrites around a call to `@use`, which stays, as
+   `ir_instance_refinement`.
 3. **External globals,** and constant expressions over them, as above.
 4. **Variadic calls** to functions outside the module, as above.
 

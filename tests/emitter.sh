@@ -65,8 +65,13 @@ define i1 @f(double %x) { %r = fcmp nnan nsz arcp contract afn olt double %x, 1.
   ret i1 %r }'
 accepts 'define float @f(float %x) denormal_fpenv(ieee|ieee) { ret float %x }'
 refuses 'type x86_fp80' 'define x86_fp80 @f(x86_fp80 %x) { ret x86_fp80 %x }'
-refuses 'instruction %r = fadd' 'define float @f(float %x) { %r = fadd float %x, 1.0
+refuses 'fast-math flag nsz on %r = fadd' 'define float @f(float %x) { %r = fadd nsz float %x, 1.0
   ret float %r }'
+refuses 'fast-math flag nsz on %r = sitofp' 'define float @f(i32 %x) { %r = sitofp nsz i32 %x to float
+  ret float %r }'
+accepts 'define <2 x double> @f(<2 x double> %x, <2 x float> %y) { %e = fpext <2 x float> %y to <2 x double>
+  %r = fmul nnan ninf <2 x double> %x, %e
+  ret <2 x double> %r }'
 refuses 'fast-math flag reassoc on %r = fcmp' 'define i1 @f(float %x) { %r = fcmp reassoc olt float %x, 1.0
   ret i1 %r }'
 refuses 'fast-math flag nsz on %r = fneg' 'define float @f(float %x) { %r = fneg nsz float %x
@@ -103,6 +108,72 @@ if "$tool" "$work/FClass.ll" -o "$work/FClass.lean" --namespace FClass &&
   printf 'ok    nofpclass on a vector makes a lane poison on its own\n'
 else
   fail 'nofpclass on a vector'
+fi
+
+# LLVM 23 holds a fixed-length splat of a float, `zeroinitializer` included, as a `ConstantFP` of vector type. Every
+# lane has its value, in a function and in a global's bytes, where before 2026-11-09 the emitter printed one lane where
+# a vector goes, and wrote only lane 0 of a global. A vector in a global takes its whole allocation, padding included,
+# which before then an array of them didn't.
+cat >"$work/FSplat.ll" <<'IR'
+target datalayout = "e-m:e-i64:64-n8:16:32:64-S128"
+@g = global <2 x float> splat (float 1.0)
+@a = global [2 x <3 x float>] [<3 x float> splat (float 1.0), <3 x float> splat (float 2.0)]
+@b = global [2 x <3 x float>] [<3 x float> <float 1.0, float 2.0, float 3.0>, <3 x float> <float 4.0, float 5.0, float 6.0>]
+define <2 x float> @ones(<2 x float> %x) {
+  %r = call <2 x float> @llvm.copysign.v2f32(<2 x float> splat (float 1.0), <2 x float> %x)
+  ret <2 x float> %r
+}
+define <2 x float> @zeros(<2 x i1> %c, <2 x float> %x) {
+  %r = select <2 x i1> %c, <2 x float> %x, <2 x float> zeroinitializer
+  ret <2 x float> %r
+}
+define i32 @lane1() {
+  %p = getelementptr i8, ptr @g, i64 4
+  %v = load i32, ptr %p
+  ret i32 %v
+}
+define i32 @second(ptr %a) {
+  %p = getelementptr i8, ptr %a, i64 16
+  %v = load i32, ptr %p
+  ret i32 %v
+}
+define i32 @splats() {
+  %v = call i32 @second(ptr @a)
+  ret i32 %v
+}
+define i32 @lanes() {
+  %v = call i32 @second(ptr @b)
+  ret i32 %v
+}
+declare <2 x float> @llvm.copysign.v2f32(<2 x float>, <2 x float>)
+IR
+cat >"$work/FSplatCheck.lean" <<'LEAN'
+import FSplat
+open IRLean FSplat
+-- 1.0 is 1065353216, and -1.0 3212836864.
+#guard (match ones #v[some 0x80000000#32, some 0#32] with
+  | some (.ok v) => (v[0], v[1]) == (some 3212836864#32, some 1065353216#32)
+  | _ => false)
+#guard (match zeros #v[some 0#1, some 1#1] #v[some 7#32, some 7#32] with
+  | some (.ok v) => (v[0], v[1]) == (some 0#32, some 7#32)
+  | _ => false)
+#guard (match lane1 initial with
+  | some (.ok (v, _)) => v == some 1065353216#32
+  | _ => false)
+-- A `<3 x float>` takes 16 bytes, so the second of an array of them starts at 16: 2.0 is 1073741824, and 4.0
+-- 1082130432.
+#guard (match splats initial with
+  | some (.ok (v, _)) => v == some 1073741824#32
+  | _ => false)
+#guard (match lanes initial with
+  | some (.ok (v, _)) => v == some 1082130432#32
+  | _ => false)
+LEAN
+if "$tool" "$work/FSplat.ll" -o "$work/FSplat.lean" --namespace FSplat &&
+  lean -R "$work" -o "$work/FSplat.olean" "$work/FSplat.lean" && lean "$work/FSplatCheck.lean"; then
+  printf 'ok    a splat of a float has its value in every lane, in a function and in a global, and vectors their size\n'
+else
+  fail 'a splat of a float'
 fi
 refuses 'integer bitcast shape' 'define <vscale x 4 x i8> @f(<vscale x 2 x i16> %x) { %r = bitcast <vscale x 2 x i16> %x to <vscale x 4 x i8>
   ret <vscale x 4 x i8> %r }'
@@ -180,6 +251,22 @@ fi
 accepts 'target datalayout = "e"
 define <4 x i8> @f(<2 x i16> %x) { %r = bitcast <2 x i16> %x to <4 x i8>
   ret <4 x i8> %r }'
+
+# What `Mem` assumes of pointers is read from the data layout: 64 bits, all of them address, null all zeros, and
+# little-endian bytes. A function with memory under any other is refused.
+for layout in e-p:32:32 E-p:64:64 e-p:64:64:64:32 e-po:64:64; do
+  refuses "data layout $layout" "target datalayout = \"$layout\"
+define i1 @f(ptr %p) { %c = icmp eq ptr %p, null
+  ret i1 %c }"
+done
+# A global holding a pointer in another address space, whose null `po1` makes all ones, is refused too.
+refuses 'pointer in another address space' 'target datalayout = "e-po1:64:64"
+@g = global ptr addrspace(1) null
+define i64 @f() { %v = load i64, ptr @g
+  ret i64 %v }'
+accepts 'target datalayout = "e-pz:64:64-i64:64"
+define i1 @f(ptr %p) { %c = icmp eq ptr %p, null
+  ret i1 %c }'
 
 # A function of N blocks that calls itself, which keeps it from nesting its blocks.
 recursive_blocks() {
@@ -348,7 +435,8 @@ define i32 @f(i32 %x) {
   call void @gives_up() noreturn
   unreachable
 }'
-refuses 'call to external' 'declare void @returns()
+# A call outside the module with effects, in a function without memory, goes in the trace: docs/calls.md.
+accepts 'declare void @returns()
 define i32 @f(i32 %x) {
   call void @returns()
   ret i32 %x
@@ -372,6 +460,105 @@ accepts 'declare i8 @g(i8) memory(none)
 define internal i8 @h(i8 %x) { %r = call i8 @g(i8 %x)
   ret i8 %r }
 define i8 @f(i8 %x) { %r = call i8 @h(i8 %x)
+  ret i8 %r }'
+accepts 'declare i8 @g(i8) memory(read)
+define i8 @f(i8 %x) { %r = call i8 @g(i8 %x)
+  ret i8 %r }'
+accepts 'declare i8 @g() memory(inaccessiblemem: readwrite)
+define i8 @f(ptr %p) { %v = load i8, ptr %p
+  %r = call i8 @g()
+  %s = add i8 %v, %r
+  ret i8 %s }'
+refuses 'touches memory: F4' 'declare void @g(i8)
+define void @f(ptr %p) { call void @g(i8 1)
+  ret void }'
+refuses 'touches memory: F4' 'declare i8 @g(i8) memory(read)
+define i8 @f(ptr %p) { %r = call i8 @g(i8 1)
+  ret i8 %r }'
+# Under a promise to progress, a call with effects is progress, which the model can't count yet.
+for attribute in mustprogress willreturn; do
+  refuses 'with effects, under a promise to progress' "declare void @g(i8)
+define void @f(i8 %x) $attribute { call void @g(i8 %x)
+  ret void }"
+done
+refuses 'with effects, under a promise to progress' 'declare void @g(i8)
+define void @f(i8 %x) {
+entry:
+  br label %loop
+loop:
+  call void @g(i8 %x)
+  br label %loop, !llvm.loop !0
+}
+!0 = distinct !{!0, !1}
+!1 = !{!"llvm.loop.mustprogress"}'
+refuses 'which calls outside the module with effects, under a promise to progress' 'declare void @g(i8)
+define internal void @h(i8 %x) { call void @g(i8 %x)
+  ret void }
+define void @f(i8 %x) mustprogress { call void @h(i8 %x)
+  ret void }'
+accepts 'declare i8 @g(i8) memory(read)
+define i8 @f(i8 %x) mustprogress { %r = call i8 @g(i8 %x)
+  ret i8 %r }'
+# A recursive function's promise is its cycle's, and covers a call with effects in it the same way.
+refuses 'with effects, under a promise to progress' 'declare void @e()
+define void @f(i1 %c) {
+entry:
+  br i1 %c, label %rec, label %loop
+rec:
+  call void @f(i1 false)
+  ret void
+loop:
+  call void @e()
+  br label %loop, !llvm.loop !0
+}
+!0 = distinct !{!0, !1}
+!1 = !{!"llvm.loop.mustprogress"}'
+# A function with memory can't reach a call outside the module that may touch it through one without memory.
+for memory in '' ' memory(read)'; do
+  refuses 'whose calls outside the module may access' "declare i32 @e()$memory
+define internal i32 @g() { %r = call i32 @e()
+  ret i32 %r }
+define i32 @f(ptr %p) { %a = load i32, ptr %p
+  %c = call i32 @g()
+  %b = load i32, ptr %p
+  ret i32 %b }"
+done
+accepts 'declare i32 @e() memory(inaccessiblemem: readwrite)
+define internal i32 @g() { %r = call i32 @e()
+  ret i32 %r }
+define i32 @f(ptr %p) { %a = load i32, ptr %p
+  %c = call i32 @g()
+  ret i32 %a }'
+# `speculatable` promises no effects, which a call outside the module with effects has, directly or through another.
+refuses 'speculatable on a function whose calls outside the module have effects' 'declare void @e(i8)
+define void @f(i8 %x) speculatable { call void @e(i8 %x)
+  ret void }'
+refuses 'speculatable on a function whose calls outside the module have effects' 'declare void @e(i8)
+define internal void @g(i8 %x) { call void @e(i8 %x)
+  ret void }
+define void @f(i8 %x) speculatable { call void @g(i8 %x)
+  ret void }'
+accepts 'declare i8 @e(i8) memory(none) willreturn nounwind
+define i8 @f(i8 %x) speculatable { %r = call i8 @e(i8 %x)
+  ret i8 %r }'
+# `nosync` at a call promises the callee's calls outside the module don't synchronize.
+refuses 'call attribute nosync on a call to @g' 'declare void @e(i8)
+define internal void @g(i8 %x) { call void @e(i8 %x)
+  ret void }
+define void @f(i8 %x) { call void @g(i8 %x) nosync
+  ret void }'
+# A callee that accesses memory may synchronize, free, or access what its caller promised not to.
+refuses 'nosync on a function whose calls outside the module access memory' 'declare i8 @g(i8) memory(read)
+define i8 @f(i8 %x) nosync { %r = call i8 @g(i8 %x)
+  ret i8 %r }'
+refuses 'nofree on a function whose calls outside the module have effects' 'declare void @g(i8)
+define void @f(i8 %x) nofree { call void @g(i8 %x)
+  ret void }'
+refuses 'memory on a function whose calls outside the module access memory' 'declare void @g(i8)
+define void @f(i8 %x) memory(none) { call void @g(i8 %x)
+  ret void }'
+accepts 'declare i8 @g(i8) memory(none)
+define i8 @f(i8 %x) nosync nofree memory(none) { %r = call i8 @g(i8 %x)
   ret i8 %r }'
 refuses 'touches memory: F4' 'declare i8 @g(ptr) memory(none)
 define i8 @f(ptr %p) { %r = call i8 @g(ptr %p)
@@ -399,6 +586,9 @@ refuses 'stack frame or promises about memory' 'declare i8 @g(i8) memory(none)
 define i8 @f(ptr %p) memory(read) { %v = load i8, ptr %p
   %r = call i8 @g(i8 %v)
   ret i8 %r }'
+refuses 'call to external @g, which may be null' 'declare extern_weak void @g(i8)
+define void @f(i8 %x) { call void @g(i8 %x)
+  ret void }'
 refuses 'calling convention' 'declare fastcc i8 @g(i8) memory(none)
 define i8 @f(i8 %x) { %r = call i8 @g(i8 %x)
   ret i8 %r }'
@@ -791,6 +981,49 @@ if "$tool" "$work/Choices.ll" -o "$work/Choices.lean" --namespace Choices &&
   printf 'ok    each freeze a run executes chooses for itself, in loops, calls, recursion and memory\n'
 else
   fail 'what a freeze chooses, by where it runs'
+fi
+
+# A floating-point operation that can give a NaN chooses its sign and payload, as LangRef leaves them, and is a chooser
+# as a `freeze` is: each reads its own place, and on a vector each lane reads its own under the operation's, `[k, i]`.
+cat >"$work/FChoices.ll" <<'IR'
+define float @two(float %x) {
+  %a = fdiv float %x, %x
+  %b = fadd float %a, 1.0
+  ret float %b
+}
+define <2 x float> @lanes(<2 x float> %x) {
+  %r = fdiv <2 x float> %x, %x
+  ret <2 x float> %r
+}
+IR
+cat >"$work/FChoicesCheck.lean" <<'LEAN'
+import FChoices
+open IRLean FChoices
+
+def show' : Outcome (Val 32) → String
+  | some (.ok (some x)) => s!"{x.toNat}"
+  | _ => "other"
+
+def showV : Outcome (Vec 2 32) → String
+  | some (.ok v) => s!"{show' (Outcome.ok v[0])} {show' (Outcome.ok v[1])}"
+  | _ => "other"
+
+def only (p : List Nat) (n : Nat) : Choice := fun q => if q = p then n else 0
+
+-- 0.0 / 0.0 is a NaN. Choice 0 is the preferred NaN, 2143289344, and choice 1 the same with its sign set, 4290772992.
+#guard show' (two (some 0#32) (fun _ => 0)) == "2143289344"
+-- The `fadd`, the second chooser, reads `[2]`, and the `fdiv`'s choice at `[1]` doesn't reach its result.
+#guard show' (two (some 0#32) (only [2] 1)) == "4290772992"
+#guard show' (two (some 0#32) (only [1] 1)) == "2143289344"
+-- Each lane of the vector `fdiv` reads its own place.
+#guard showV (lanes #v[some 0#32, some 0#32] (only [1, 0] 1)) == "4290772992 2143289344"
+#guard showV (lanes #v[some 0#32, some 0#32] (only [1, 1] 1)) == "2143289344 4290772992"
+LEAN
+if "$tool" "$work/FChoices.ll" -o "$work/FChoices.lean" --namespace FChoices &&
+  lean -R "$work" -o "$work/FChoices.olean" "$work/FChoices.lean" && lean "$work/FChoicesCheck.lean"; then
+  printf 'ok    each floating-point operation, and each lane of one, chooses its NaN for itself\n'
+else
+  fail 'what a floating-point operation chooses, by where it runs'
 fi
 
 # Promises to progress and to return, as the model checks them (IRLean/Promise.lean): a run that never finishes under

@@ -185,6 +185,23 @@ std::string fpFormat(const Type *T) {
   }
 }
 
+// Whether an instruction is one of LangRef's "floating-point math operations" the model has that can give a
+// NaN, whose payload and sign LangRef leaves to a choice: a chooser, as `freeze` is. docs/float.md.
+bool choosesNaN(const Instruction &I) {
+  switch (I.getOpcode()) {
+  case Instruction::FAdd:
+  case Instruction::FSub:
+  case Instruction::FMul:
+  case Instruction::FDiv:
+  case Instruction::FRem:
+  case Instruction::FPTrunc:
+  case Instruction::FPExt:
+    return true;
+  default:
+    return false;
+  }
+}
+
 // The first floating-point type in `T`, or null if it has none.
 Type *firstFloat(Type *T) {
   if (T->isFPOrFPVectorTy())
@@ -237,6 +254,13 @@ std::string leanType(Type *T) {
   reject("type " + printedType(T));
 }
 
+// Whether a type holds a pointer outside address space 0, whose size and null `Mem` doesn't know.
+bool mentionsOtherAddressSpace(Type *T) {
+  if (auto *P = dyn_cast<PointerType>(T))
+    return P->getAddressSpace() != 0;
+  return any_of(T->subtypes(), [](Type *S) { return mentionsOtherAddressSpace(S); });
+}
+
 bool mentionsPointer(Type *T) {
   if (T->isPointerTy())
     return true;
@@ -285,6 +309,16 @@ std::string zeroOf(Type *T) {
 // isn't certainly the one either.
 bool hasExactLinkage(const GlobalValue &G) {
   return (G.hasExternalLinkage() || G.hasInternalLinkage() || G.hasPrivateLinkage()) && !G.isInterposable();
+}
+
+// Whether the module's data layout says what `Mem` assumes of pointers in address space 0 and of memory: a
+// pointer is 64 bits, all of them address, as LangRef's "The index size also specifies the width of addresses
+// in this address space" makes it when the index size is 64, null is all zeros, which a `p` with the `o` flag
+// changes, and bytes are stored little-endian. LLVM's parser refuses the `u` and `e` flags on address space
+// 0.
+bool memoryLayoutFits(const DataLayout &DL) {
+  return DL.getPointerSizeInBits(0) == 64 && DL.getAddressSizeInBits(0U) == 64 &&
+         DL.getNullPtrValue(0).isZero() && DL.isLittleEndian();
 }
 
 // A `linkonce_odr` or `weak_odr` definition, as C++ gives inline functions and templates. Its IR is still
@@ -394,9 +428,11 @@ public:
       return poisonOf(C->getType());
     if (isa<UndefValue>(C))
       reject("undef");
-    // A splat that isn't written lane by lane: of a scalable vector, or a vector-typed `ConstantInt`.
+    // A splat that isn't written lane by lane: of a scalable vector, or a vector-typed `ConstantInt` or
+    // `ConstantFP`, which is how LLVM 23 holds a fixed-length splat of a float, `zeroinitializer` included.
     if (auto *V = dyn_cast<VectorType>(C->getType());
-        V && (isa<ScalableVectorType>(V) || isa<ConstantInt>(C)) && !isa<ConstantAggregateZero>(C)) {
+        V && (isa<ScalableVectorType>(V) || isa<ConstantInt>(C) || isa<ConstantFP>(C)) &&
+        !isa<ConstantAggregateZero>(C)) {
       const Constant *Splat = C->getSplatValue();
       if (!Splat)
         reject("constant " + printed(*C));
@@ -591,6 +627,9 @@ private:
     if (!DL.isLittleEndian())
       reject("big-endian data");
     Type *T = C->getType();
+    // Its null may not be all zeros, and its size may not be 64 bits.
+    if (mentionsOtherAddressSpace(T))
+      reject("initializer with a pointer in another address space");
     uint64_t Size = DL.getTypeAllocSize(T);
     if (isa<UndefValue>(C)) {
       Out.insert(Out.end(), Size, 256);
@@ -619,6 +658,23 @@ private:
       Out.insert(Out.end(), Size, 0);
       return;
     }
+    // A vector-typed `ConstantInt` or `ConstantFP` is a splat, and each lane has its value, laid out as a
+    // `ConstantDataVector`'s lanes are below.
+    if (auto *V = dyn_cast<FixedVectorType>(T); V && (isa<ConstantInt>(C) || isa<ConstantFP>(C))) {
+      leanType(V);
+      Type *E = V->getElementType();
+      // A vector's lanes are packed by their size in bits, so a lane that isn't a whole number of bytes, such
+      // as an `i1`, isn't laid out this way.
+      if (E->getPrimitiveSizeInBits() != 8 * DL.getTypeAllocSize(E))
+        reject("initializer " + printed(*C));
+      APInt Lane = isa<ConstantInt>(C) ? cast<ConstantInt>(C)->getValue()
+                                       : cast<ConstantFP>(C)->getValueAPF().bitcastToAPInt();
+      size_t Start = Out.size();
+      for (unsigned I = 0, N = V->getNumElements(); I != N; ++I)
+        appendInt(Lane, DL.getTypeAllocSize(E), Out);
+      Out.resize(Start + Size, 256);
+      return;
+    }
     if (auto *I = dyn_cast<ConstantInt>(C)) {
       appendInt(I->getValue(), Size, Out);
       return;
@@ -628,13 +684,17 @@ private:
       appendInt(F->getValueAPF().bitcastToAPInt(), Size, Out);
       return;
     }
+    // A vector's allocation can end in padding, as `<3 x float>`'s 16 bytes do after its 12, which an array
+    // of them steps over.
     if (auto *D = dyn_cast<ConstantDataSequential>(C)) {
       Type *E = D->getElementType();
       if (!E->isIntegerTy() && !isModeledFloat(E))
         reject("constant " + printed(*C));
+      size_t Start = Out.size();
       for (unsigned I = 0, N = D->getNumElements(); I != N; ++I)
         appendInt(E->isIntegerTy() ? D->getElementAsAPInt(I) : D->getElementAsAPFloat(I).bitcastToAPInt(),
                   DL.getTypeAllocSize(E), Out);
+      Out.resize(Start + Size, 256);
       return;
     }
     if (isa<ConstantArray>(C)) {
@@ -688,16 +748,28 @@ bool isOutsideCall(const CallBase &C) {
          !givesUp(C);
 }
 
-// Whether a call outside the module accesses no memory, by what the call and the declaration say. With no
-// pointer argument, it can't access an argument's memory.
-bool accessesNoMemory(const CallBase &C) {
+// What a call outside the module may do to memory, by what the call and the declaration say. With no pointer
+// argument, it can't access an argument's memory.
+MemoryEffects outsideEffects(const CallBase &C) {
   bool Pointers = false;
   for (const Use &A : C.args())
     Pointers |= A->getType()->isPtrOrPtrVectorTy();
   MemoryEffects Effects = C.getMemoryEffects();
-  if (!Pointers)
-    Effects = Effects.getWithoutLoc(IRMemLocation::ArgMem);
-  return Effects.doesNotAccessMemory();
+  return Pointers ? Effects : Effects.getWithoutLoc(IRMemLocation::ArgMem);
+}
+
+// Whether a call outside the module has no effects: it accesses no memory, or only reads. Such a call answers
+// at the run's choice, as `IRLean.World.callPure` and `callRead` do, and goes in no trace.
+bool hasNoEffects(const CallBase &C) { return outsideEffects(C).onlyReadsMemory(); }
+
+// Whether a call outside the module accesses only memory nothing in the module can reach: what LangRef calls
+// `inaccessiblemem`, and the target's own state.
+bool touchesOnlyInaccessible(const CallBase &C) {
+  return outsideEffects(C)
+      .getWithoutLoc(IRMemLocation::InaccessibleMem)
+      .getWithoutLoc(IRMemLocation::TargetMem0)
+      .getWithoutLoc(IRMemLocation::TargetMem1)
+      .doesNotAccessMemory();
 }
 
 // Whether loop metadata carries `llvm.loop.mustprogress`, read as LLVM's `findOptionMDForLoopID` does.
@@ -1069,11 +1141,16 @@ public:
                   const std::set<const Function *> &MemoryFunctions,
                   const std::set<const Function *> &ChoosingFunctions,
                   const std::set<const Function *> &TalkingFunctions,
+                  const std::set<const Function *> &EffectFunctions,
+                  const std::set<const Function *> &AccessFunctions,
+                  const std::set<const Function *> &ReachFunctions,
                   const std::set<const Function *> &ReachesFree, const ModuleContext &Context)
       : F(F), LeanName(std::move(LeanName)), Recursive(Recursive), PromisedCycle(PromisedCycle),
         UsesMemory(UsesMemory), Chooses(Chooses), Talks(Talks), Callees(Callees),
         MemoryFunctions(MemoryFunctions), ChoosingFunctions(ChoosingFunctions),
-        TalkingFunctions(TalkingFunctions), ReachesFree(ReachesFree), Context(Context) {}
+        TalkingFunctions(TalkingFunctions), EffectFunctions(EffectFunctions),
+        AccessFunctions(AccessFunctions), ReachFunctions(ReachFunctions), ReachesFree(ReachesFree),
+        Context(Context) {}
 
   // Checks the function can be translated, and sets up names and liveness.
   void prepare();
@@ -1095,6 +1172,9 @@ private:
   void findPromises();
   std::string promisedRun(const std::string &Entry);
   std::string promisedCall(const Function *Callee, const std::string &Call);
+  // Whether the block being emitted is under a promise to progress or to return: its own, a loop's, or, in a
+  // cycle of calls where something promises to progress, the cycle's.
+  bool underPromise() const { return F.willReturn() || Promised.count(Current) || PromisedCycle; }
   std::string signature(const std::string &Name);
 
   std::string operand(const Value *V);
@@ -1181,6 +1261,13 @@ private:
   const std::set<const Function *> &MemoryFunctions;
   const std::set<const Function *> &ChoosingFunctions;
   const std::set<const Function *> &TalkingFunctions;
+  // Functions that make a call outside the module with effects, or call one that does.
+  const std::set<const Function *> &EffectFunctions;
+  // Functions that make a call outside the module that accesses memory, or call one that does.
+  const std::set<const Function *> &AccessFunctions;
+  // Functions that make a call outside the module that may access memory a function with memory can reach, or
+  // call one that does.
+  const std::set<const Function *> &ReachFunctions;
   const std::set<const Function *> &ReachesFree;
   const ModuleContext &Context;
   std::string RetType;
@@ -1696,6 +1783,55 @@ void FunctionEmitter::emitInstruction(const Instruction &I, std::vector<Line> &O
       addLet(I, Out, "Vec.map (fun a => " + Fn + " a" + fpFlags(I) + ") " + Op(0));
     else
       addLet(I, Out, Fn + " " + Op(0) + fpFlags(I));
+    return;
+  }
+  // The arithmetic, which chooses a NaN result: on a vector, lane `i` reads `(c'.sub k).pick i`.
+  case Instruction::FAdd:
+  case Instruction::FSub:
+  case Instruction::FMul:
+  case Instruction::FDiv:
+  case Instruction::FRem: {
+    const char *Name = I.getOpcode() == Instruction::FAdd   ? "FP.fadd "
+                       : I.getOpcode() == Instruction::FSub ? "FP.fsub "
+                       : I.getOpcode() == Instruction::FMul ? "FP.fmul "
+                       : I.getOpcode() == Instruction::FDiv ? "FP.fdiv "
+                                                            : "FP.frem ";
+    std::string Fn = Name + fpFormat(I.getType());
+    std::string K = nextChooser();
+    if (IsVector)
+      addLet(I, Out,
+             "FP.lanes2 (c'.sub " + K + ") (fun p a b => " + Fn + " p a b" + fpFlags(I) + ") " + Op(0) + " " +
+                 Op(1));
+    else
+      addLet(I, Out, Fn + " (c'.pick " + K + ") " + Op(0) + " " + Op(1) + fpFlags(I));
+    return;
+  }
+  case Instruction::FPTrunc:
+  case Instruction::FPExt: {
+    std::string Fn = "FP.fconv " + fpFormat(I.getOperand(0)->getType()) + " " + fpFormat(I.getType());
+    std::string K = nextChooser();
+    if (IsVector)
+      addLet(I, Out, "FP.lanes1 (c'.sub " + K + ") (fun p a => " + Fn + " p a" + fpFlags(I) + ") " + Op(0));
+    else
+      addLet(I, Out, Fn + " (c'.pick " + K + ") " + Op(0) + fpFlags(I));
+    return;
+  }
+  case Instruction::FPToUI:
+  case Instruction::FPToSI: {
+    std::string Fn = std::string(I.getOpcode() == Instruction::FPToUI ? "FP.fptoui " : "FP.fptosi ") +
+                     fpFormat(I.getOperand(0)->getType()) + " " +
+                     std::to_string(I.getType()->getScalarSizeInBits());
+    addLet(I, Out, IsVector ? "Vec.map (fun a => " + Fn + " a) " + Op(0) : Fn + " " + Op(0));
+    return;
+  }
+  case Instruction::UIToFP:
+  case Instruction::SIToFP: {
+    std::string Fn = std::string(I.getOpcode() == Instruction::UIToFP ? "FP.uitofp " : "FP.sitofp ") +
+                     fpFormat(I.getType());
+    std::string Flags =
+        (I.getOpcode() == Instruction::UIToFP ? flag(I.hasNonNeg(), "nneg") : "") + fpFlags(I);
+    addLet(I, Out,
+           IsVector ? "Vec.map (fun a => " + Fn + " a" + Flags + ") " + Op(0) : Fn + " " + Op(0) + Flags);
     return;
   }
   case Instruction::FCmp: {
@@ -2314,6 +2450,21 @@ bool FunctionEmitter::emitIntrinsic(const IntrinsicInst &C, std::vector<Line> &O
       addLet(C, Out, Fn + " " + Op(0) + (Two ? " " + Op(1) : "") + fpFlags(C));
     return true;
   }
+  case Intrinsic::fptoui_sat:
+  case Intrinsic::fptosi_sat: {
+    // LangRef: "The number of vector elements in argument and return must be the same." LLVM's verifier
+    // doesn't check it.
+    auto *RV = dyn_cast<VectorType>(C.getType());
+    auto *AV = dyn_cast<VectorType>(C.getArgOperand(0)->getType());
+    if (!RV != !AV || (RV && RV->getElementCount() != AV->getElementCount()))
+      reject("intrinsic " + C.getCalledFunction()->getName().str() +
+             " with another number of lanes than its argument");
+    std::string Fn =
+        std::string(C.getIntrinsicID() == Intrinsic::fptoui_sat ? "FP.fptouiSat " : "FP.fptosiSat ") +
+        fpFormat(C.getArgOperand(0)->getType()) + " " + std::to_string(C.getType()->getScalarSizeInBits());
+    addLet(C, Out, C.getType()->isVectorTy() ? "Vec.map (fun a => " + Fn + " a) " + Op(0) : Fn + " " + Op(0));
+    return true;
+  }
   case Intrinsic::is_fpclass: {
     auto *Mask = dyn_cast<ConstantInt>(C.getArgOperand(1));
     if (!Mask)
@@ -2464,7 +2615,19 @@ void FunctionEmitter::emitCall(const CallBase &C, std::vector<Line> &Out) {
     if (Talking)
       Expr += " n'";
     std::string Name = Memory ? Bound : Void ? "_" : Names.at(&C);
-    // A callee that calls outside the module may not come back, and the run then ends as it did.
+    // A callee that calls outside the module may not come back, and the run then ends as it did. One whose
+    // calls have effects is refused under a promise, as such a call is.
+    if (EffectFunctions.count(Callee) && underPromise())
+      reject("call to @" + Callee->getName().str() +
+             ", which calls outside the module with effects, under a promise to progress");
+    // The model doesn't see what such a callee's calls do to this function's memory, or what they read of it.
+    if (UsesMemory && ReachFunctions.count(Callee))
+      reject("call to @" + Callee->getName().str() +
+             ", whose calls outside the module may access this function's memory, which touches memory: F4");
+    // A callee outside the module may synchronize, which `nosync` at this call rules out.
+    if (AccessFunctions.count(Callee) && C.getAttributes().getFnAttrs().hasAttribute(Attribute::NoSync))
+      reject("call attribute nosync on a call to @" + Callee->getName().str() +
+             ", whose calls outside the module access memory");
     if (Talking)
       addExit(C, Out, Name, promisedCall(Callee, Expr));
     else
@@ -2500,9 +2663,10 @@ void FunctionEmitter::emitCall(const CallBase &C, std::vector<Line> &Out) {
 }
 
 // A call to a function the module only declares, as IRLean/World.lean says and docs/calls.md explains. One
-// that accesses no memory answers from the world, at the run's choice among the callee's answers. The rest
-// are refused for now: calls with effects or that only read, and calls that pass or return a pointer, which
-// touch memory and wait for F4.
+// that accesses no memory, or only reads, answers from the world at the run's choice among the callee's
+// answers. One with effects goes in the trace, and answers from the world given the trace. A call that passes
+// or returns a pointer, or may access memory a function with memory can reach, touches memory, and waits for
+// F4.
 void FunctionEmitter::emitOutsideCall(const CallBase &C, std::vector<Line> &Out) {
   const Function *Callee = C.getCalledFunction();
   const std::string Name = "@" + Callee->getName().str();
@@ -2510,13 +2674,19 @@ void FunctionEmitter::emitOutsideCall(const CallBase &C, std::vector<Line> &Out)
     reject("variadic call");
   if (C.hasOperandBundles())
     reject("instruction " + printed(C));
+  // An `extern_weak` function may not be there at all, and its address null.
+  if (Callee->hasExternalWeakLinkage())
+    reject("call to external " + Name + ", which may be null");
   bool Pointers = mentionsPointer(C.getType());
   for (const Use &A : C.args())
     Pointers |= mentionsPointer(A->getType());
-  if (Pointers)
+  if (Pointers || (UsesMemory && !touchesOnlyInaccessible(C)))
     reject("call to external " + Name + ", which touches memory: F4");
-  if (!accessesNoMemory(C))
-    reject("call to external " + Name);
+  // Under a promise to progress, interacting with the environment is progress, which IRLean.runPromised can't
+  // see, and under `willreturn` a call that never comes back is undefined, which `halted` isn't.
+  bool Effects = !hasNoEffects(C);
+  if (Effects && underPromise())
+    reject("call to external " + Name + " with effects, under a promise to progress");
   // LangRef makes a call with another calling convention than its callee's undefined.
   if (C.getCallingConv() != Callee->getCallingConv())
     reject("call to external " + Name + " with a calling convention it isn't declared with");
@@ -2541,7 +2711,8 @@ void FunctionEmitter::emitOutsideCall(const CallBase &C, std::vector<Line> &Out)
     // Its type, and the attributes that change what the callee receives, are part of the event: a variadic
     // callee can receive the same lanes as different types.
     std::string Type = printedType(T);
-    for (auto [Kind, Word] : {std::pair{Attribute::SExt, " signext"}, std::pair{Attribute::ZExt, " zeroext"}})
+    for (auto [Kind, Word] : {std::pair{Attribute::SExt, " signext"}, std::pair{Attribute::ZExt, " zeroext"},
+                              std::pair{Attribute::NoExt, " noext"}, std::pair{Attribute::InReg, " inreg"}})
       if (C.paramHasAttr(I, Kind))
         Type += Word;
     Args += (I ? ", (" : "(") + leanString(Type) + ", " +
@@ -2553,8 +2724,15 @@ void FunctionEmitter::emitOutsideCall(const CallBase &C, std::vector<Line> &Out)
         std::pair{C.doesNotThrow(), "nounwind"}})
     if (On)
       Promises += std::string(Promises.empty() ? " " : ", ") + Field + " := true";
-  std::string Expr = "World.callPure w' t' ⟨" + leanString(Callee->getName()) + ", [" + Args +
-                     "]⟩ (c'.pick " + nextChooser() + ") {" + Promises + (Promises.empty() ? "" : " ") + "}";
+  std::string Event = "⟨" + leanString(Callee->getName()) + ", [" + Args + "]⟩";
+  Promises = " {" + Promises + (Promises.empty() ? "" : " ") + "}";
+  std::string Expr;
+  if (Effects)
+    Expr = "World.callEffect w' t' n' " + Event + Promises;
+  else if (outsideEffects(C).doesNotAccessMemory())
+    Expr = "World.callPure w' t' " + Event + " (c'.pick " + nextChooser() + ")" + Promises;
+  else
+    Expr = "World.callRead w' t' " + Event + " (c'.pick " + nextChooser() + ")" + Promises;
   // Under a promise to progress, a call to a function that promises to progress, and not to return, that
   // never comes back is a run LangRef doesn't settle, as `promisedCall` says for the module's own functions.
   if (!Recursive && !F.willReturn() && Promised.count(Current) && C.hasFnAttr(Attribute::MustProgress) &&
@@ -2670,11 +2848,12 @@ std::string FunctionEmitter::emitArm(const BasicBlock *BB) {
 // several instructions, which no one instruction's meaning can say, so they're refused, as `fast` is, and so
 // is `nsz`, which is a choice the model doesn't make yet. On `fcmp`, LangRef says "the only flags that have
 // any effect on its semantics are ... `nnan`, `ninf`, and `reassoc`", so the others mean nothing there. The
-// operations that take flags are `fneg`, `fcmp`, `llvm.fabs` and `llvm.copysign`: on anything else, any flag
-// is refused. docs/float.md has the design.
+// operations that take flags are `fneg`, `fcmp`, `llvm.fabs`, `llvm.copysign`, the arithmetic and the
+// conversions to floats: on anything else, any flag is refused. docs/float.md has the design.
 void FunctionEmitter::checkFastMath(const Instruction &I) {
   FastMathFlags F = I.getFastMathFlags();
-  bool Takes = isa<UnaryOperator>(I) || isa<FCmpInst>(I);
+  bool Takes =
+      isa<UnaryOperator>(I) || isa<FCmpInst>(I) || choosesNaN(I) || isa<UIToFPInst>(I) || isa<SIToFPInst>(I);
   if (const auto *C = dyn_cast<IntrinsicInst>(&I))
     Takes = C->getIntrinsicID() == Intrinsic::fabs || C->getIntrinsicID() == Intrinsic::copysign;
   bool Compare = isa<FCmpInst>(I);
@@ -2747,8 +2926,20 @@ void FunctionEmitter::prepare() {
   // doesn't see it do so.
   if (Talks && F.hasFnAttribute(Attribute::NoRecurse))
     reject("function attribute norecurse on a function that calls outside the module");
+  // The same for what a callee that accesses memory may do: synchronize, free, or access memory this function
+  // promised it wouldn't.
+  if (AccessFunctions.count(&F) && F.hasFnAttribute(Attribute::NoSync))
+    reject("function attribute nosync on a function whose calls outside the module access memory");
+  if (EffectFunctions.count(&F) && F.hasFnAttribute(Attribute::NoFree))
+    reject("function attribute nofree on a function whose calls outside the module have effects");
+  if (AccessFunctions.count(&F) && F.getMemoryEffects() != MemoryEffects::unknown())
+    reject("function attribute memory on a function whose calls outside the module access memory");
   if (F.hasFnAttribute(Attribute::Speculatable) && UsesMemory)
     reject("function attribute speculatable on a function that uses memory");
+  // A call outside the module with effects is an effect of this function's too, which `speculatable` rules
+  // out.
+  if (F.hasFnAttribute(Attribute::Speculatable) && EffectFunctions.count(&F))
+    reject("function attribute speculatable on a function whose calls outside the module have effects");
   if (F.hasFnAttribute(Attribute::NoFree) && ReachesFree.count(&F))
     reject("function attribute nofree on a function that can reach free");
   collectBlocks();
@@ -2765,7 +2956,7 @@ void FunctionEmitter::prepare() {
   checkValueAttributes(F.getAttributes().getRetAttrs(), F.getReturnType(), Position::Return);
   for (const Value *V : Values)
     leanType(V->getType());
-  if (UsesMemory && (Context.DL.getPointerSizeInBits() != 64 || !Context.DL.isLittleEndian()))
+  if (UsesMemory && !memoryLayoutFits(Context.DL))
     reject("data layout " + F.getParent()->getDataLayoutStr());
   for (const BasicBlock *BB : Blocks)
     for (const Instruction &I : *BB)
@@ -3151,8 +3342,9 @@ Emitted emitModule(Module &M, const std::string &Namespace, const std::string &S
   std::set<const Function *> MemoryFunctions;
   // Functions whose run can make a choice, which take an `IRLean.Choice`: see `FunctionEmitter`.
   std::set<const Function *> ChoosingFunctions;
-  // Functions that call outside the module, which take an `IRLean.World` and an `IRLean.Trace`.
-  std::set<const Function *> TalkingFunctions;
+  // Functions that call outside the module, which take an `IRLean.World` and an `IRLean.Trace`, and those
+  // whose calls have effects.
+  std::set<const Function *> TalkingFunctions, EffectFunctions, AccessFunctions, ReachFunctions;
 
   NameTable FunctionNames;
   DenseMap<const Function *, std::string> LeanNames, Translated;
@@ -3226,26 +3418,32 @@ Emitted emitModule(Module &M, const std::string &Namespace, const std::string &S
     if (UsesMemory)
       MemoryFunctions.insert(Component.begin(), Component.end());
 
-    // A function chooses if it has a `freeze` or a call outside the module that accesses no memory, or calls
-    // something that chooses, through a pointer too. It talks if it calls outside the module, or calls
-    // something that does. Members of a cycle pass choices, the world and the trace along for each other, so
-    // they share the answers.
-    bool Chooses = false, Talks = false;
+    // A function chooses if it has a `freeze`, a floating-point operation that can give a NaN, or a call
+    // outside the module that accesses no memory, or calls something that chooses, through a pointer too. It
+    // talks if it calls outside the module, or calls something that does. Members of a cycle pass choices,
+    // the world and the trace along for each other, so they share the answers.
+    bool Chooses = false, Talks = false, Effects = false, Accesses = false, Reaches = false;
     for (const Function *F : Component)
       for (const BasicBlock &BB : *F)
         for (const Instruction &I : BB) {
-          Chooses |= isa<FreezeInst>(I);
+          Chooses |= isa<FreezeInst>(I) || choosesNaN(I);
           const auto *C = dyn_cast<CallBase>(&I);
           if (!C)
             continue;
           if (isOutsideCall(*C)) {
             Talks = true;
-            Chooses |= accessesNoMemory(*C);
+            Chooses |= hasNoEffects(*C);
+            Effects |= !hasNoEffects(*C);
+            Accesses |= !outsideEffects(*C).doesNotAccessMemory();
+            Reaches |= !touchesOnlyInaccessible(*C);
             continue;
           }
           if (const Function *Callee = C->getCalledFunction()) {
             Chooses |= ChoosingFunctions.count(Callee) != 0;
             Talks |= TalkingFunctions.count(Callee) != 0;
+            Effects |= EffectFunctions.count(Callee) != 0;
+            Accesses |= AccessFunctions.count(Callee) != 0;
+            Reaches |= ReachFunctions.count(Callee) != 0;
             continue;
           }
           for (const Function *Target : Context.candidates(C->getFunctionType())) {
@@ -3259,13 +3457,20 @@ Emitted emitModule(Module &M, const std::string &Namespace, const std::string &S
       ChoosingFunctions.insert(Component.begin(), Component.end());
     if (Talks)
       TalkingFunctions.insert(Component.begin(), Component.end());
+    if (Effects)
+      EffectFunctions.insert(Component.begin(), Component.end());
+    if (Accesses)
+      AccessFunctions.insert(Component.begin(), Component.end());
+    if (Reaches)
+      ReachFunctions.insert(Component.begin(), Component.end());
 
     std::vector<std::unique_ptr<FunctionEmitter>> Emitters;
     std::string Types, Loops, Functions, Wrappers, Failure;
     for (Function *F : Component) {
       Emitters.push_back(std::make_unique<FunctionEmitter>(
           *F, LeanNames.lookup(F), Recursive, PromisedCycle, UsesMemory, Chooses, Talks, Translated,
-          MemoryFunctions, ChoosingFunctions, TalkingFunctions, ReachesFree, Context));
+          MemoryFunctions, ChoosingFunctions, TalkingFunctions, EffectFunctions, AccessFunctions,
+          ReachFunctions, ReachesFree, Context));
       FunctionEmitter &E = *Emitters.back();
       try {
         E.prepare();
