@@ -181,6 +181,22 @@ set_tests_properties(
     PROPERTIES TIMEOUT 1800
 )
 set_tests_properties(zlib_slow PROPERTIES LABELS slow)
+# CI's test jobs: the longest tests apart, so they don't wait for each other. Each job is named after its
+# label and runs the tests with it, and a test with none of these runs in the job for the rest. See
+# docs/testing.md.
+set_tests_properties(passes PROPERTIES LABELS passes)
+set_tests_properties(binding PROPERTIES LABELS binding)
+set_tests_properties(llvm PROPERTIES LABELS llvm)
+set_tests_properties(
+    verify_negative
+    replay_challenge
+    contracts
+    refine
+    undef_freeze
+    generic_rewrites
+    cpp_correspondence
+    PROPERTIES LABELS semantics
+)
 # These compile the same modules, and the second finds them in the cache.
 set_tests_properties(zlib_slow PROPERTIES DEPENDS zlib)
 # Formatters, linters and language servers. The lint test comes first, so the language servers can find the
