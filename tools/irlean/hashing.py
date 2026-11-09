@@ -125,6 +125,15 @@ def tree_hash(base: Path, *roots: Path) -> str:
     return digest.hexdigest()
 
 
+def files_hash(base: Path, paths: list[Path]) -> str:
+    """Files by their paths from `base`, sorted, each as its path, a NUL and its SHA-256, which reads back one
+    way: a path can't hold a NUL, and a hash is 32 bytes."""
+    digest = hashlib.sha256()
+    for path in sorted(paths):
+        digest.update(os.fsencode(path.relative_to(base)) + b"\0" + bytes.fromhex(sha256_file(path)))
+    return digest.hexdigest()
+
+
 def stamp(*roots: Path) -> dict[str, tuple[int, ...]]:
     """What `lstat` says of every entry under `roots`. Any write, replacement, new file or removal changes it:
     a write moves the change time, which a process without root can't set back. It checks that nothing changed

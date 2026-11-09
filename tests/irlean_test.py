@@ -61,6 +61,12 @@ class Run(unittest.TestCase):
         self.assertEqual((r.out, r.err, r.output), ("out", "err", "outerr"))
         self.assertFalse(r.ok)
 
+    def test_text_reads_as_text_mode_does(self) -> None:
+        # As subprocess gives text with text=True: \r\n and a bare \r are newlines, and what isn't UTF-8
+        # is replaced.
+        r = proc.run([PY, "-c", "import sys; sys.stdout.buffer.write(b'a\\r\\nb\\rc\\n\\xff')"])
+        self.assertEqual((r.out, r.stdout), ("a\nb\nc\n\ufffd", b"a\r\nb\rc\n\xff"))
+
     def test_stderr_can_follow_stdout(self) -> None:
         code = "import sys; print('a', flush=True); print('b', file=sys.stderr, flush=True); print('c')"
         r = proc.run([PY, "-c", code], stderr=proc.STDOUT)
@@ -86,6 +92,8 @@ class Run(unittest.TestCase):
         )
         r = proc.run([PY, "-c", code, str(ROOT / "tools")], stdin="payload")
         self.assertEqual(r.out.strip(), "payload")
+        # Text that spells it is still text.
+        self.assertEqual(proc.run([PY, "-c", inner], stdin="inherit").out.strip(), "inherit")
 
     def test_output_to_a_file(self) -> None:
         with tempfile.TemporaryDirectory() as d:
@@ -207,8 +215,21 @@ class Run(unittest.TestCase):
         p.stdin.flush()
         self.assertEqual(p.stdout.readline().strip(), "cba")
         proc.stop(p, grace=0.1)
+        p.stdout.close()
         self.assertIsNotNone(p.returncode)
         self.assertNotIn(p.pid, proc._LIVE)
+        self.assertTrue(p.stdin.closed)
+
+    def test_rss(self) -> None:
+        p = proc.spawn(
+            [PY, "-c", "import time; x = bytearray(80 << 20); x[::4096] = b'1' * 20480; time.sleep(60)"]
+        )
+        deadline = time.monotonic() + 10
+        while (proc.rss_mb(p.pid) or 0) < 70 and time.monotonic() < deadline:
+            time.sleep(0.05)
+        self.assertGreater(proc.rss_mb(p.pid) or 0, 70)
+        proc.stop(p)
+        self.assertIsNone(proc.rss_mb(p.pid))
 
     def test_kill_live_stops_every_running_command(self) -> None:
         p = proc.spawn([PY, "-c", "import time; time.sleep(60)"])

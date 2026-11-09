@@ -125,9 +125,11 @@ model_mutant() {
     printf 'ok    model mutant %s stops %s: %s\n' "$name" "$hit" "$(head -1 <<<"$errors" | sed "s|$dir/||" | cut -c1-120)"
   fi
 }
-# `freeze` of poison gives poison instead of stopping the model. Freezing once and twice would then agree, though LLVM
-# may freeze poison to two different values.
-model_mutant 'freeze keeps poison' Int 's/^  | none => Outcome.stop .freezePoison$/  | none => Outcome.ok none/' \
+# `freeze` of poison gives poison instead of a value, so removing a `freeze` would refine.
+model_mutant 'freeze keeps poison' Int 's/^  | none => some (BitVec.ofNat w pick)$/  | none => none/' freezeRemoved
+# `freeze` of poison is always 0, as VeIR has it, instead of a value the run chooses. Freezing once and twice would
+# then agree, though LLVM may freeze poison to two different values.
+model_mutant 'freeze always picks 0' Int 's/^  | none => some (BitVec.ofNat w pick)$/  | none => some 0#w/' \
   freezeDuplicated
 # `add` ignores `nuw`, so adding the flag would change nothing.
 model_mutant 'add ignores nuw' Int '/def add /,/some (x + y)/s/if (nuw \&\& x.uaddOverflow y) || /if /' addedNuw

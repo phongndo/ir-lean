@@ -18,7 +18,6 @@ import re
 import shutil
 import tomllib
 from dataclasses import dataclass
-from functools import cache
 from pathlib import Path
 
 from . import ROOT, hashing, proc
@@ -29,7 +28,6 @@ ALIVE2_PIN = ROOT / "nix" / "shell.nix"
 LLVM_VERSION = re.compile(r"LLVM version (\S+)")
 
 
-@cache
 def llvm() -> dict[str, str]:
     """The llvm-project this repo pins: its repository, tag, commit and nix_hash."""
     project = tomllib.loads(LLVM_PIN.read_text())["project"]
@@ -46,7 +44,6 @@ def lean() -> str:
     return LEAN_PIN.read_text().strip()
 
 
-@cache
 def alive2() -> dict[str, str]:
     """The Alive2 commit nix/shell.nix builds `alive-tv` from, and its source's hash."""
     text = ALIVE2_PIN.read_text()

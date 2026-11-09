@@ -46,8 +46,6 @@ inductive UB where
 for them are unsettled, so a proof of `.ok` still holds in LLVM, but a proof that one of these happens
 says nothing about LLVM. -/
 inductive ModelStop where
-  /-- `freeze` of poison picks an arbitrary value. -/
-  | freezePoison
   /-- `strlen` of a string with an uninitialized byte before its end. -/
   | readUninit
   /-- Reading a stored pointer as an integer, or a partial or misaligned pointer. -/
@@ -103,6 +101,38 @@ end Outcome
   | none => none
   | some (.error e) => some (.error e)
   | some (.ok a) => k a
+
+/-- How a run's `freeze`s choose. LangRef says `freeze` of poison "returns an arbitrary, but fixed, value of type
+`ty`": every use of that `freeze` sees the same value, and two `freeze`s, or two runs of one, may choose apart. A
+`Choice` fixes every choice of a whole run in advance, as a number for each place in the run where a `freeze` can
+run. A `freeze` of width `w` reads its number modulo `2 ^ w`, so every value of the type is some choice.
+
+A place is a path. A function whose run can make a choice takes one `Choice`, and each of its blocks carries its own:
+the entry block the function's, and each next block `c.sub 0` of the block `c` before it. In a block with `c`, the
+`k`th `freeze` or call to a function that makes choices, counting from 1, is its `k`th chooser: a `freeze` reads
+`c.pick k`, and a call gives its callee `c.sub k`. So no two `freeze`s a run executes read the same place, a `freeze`
+in a loop or a function called twice included, and every way of choosing a value for each of them is some `Choice`.
+-/
+def Choice : Type := List Nat → Nat
+
+instance : Inhabited Choice := ⟨fun _ => 0⟩
+
+namespace Choice
+
+/-- What the block's `k`th chooser, a `freeze`, chooses. -/
+@[llvm] def pick (c : Choice) (k : Nat) : Nat := c [k]
+
+/-- The choices left to the block's `k`th chooser, a call, and to the next block, `k = 0`. -/
+@[llvm] def sub (c : Choice) (k : Nat) : Choice := fun p => c (k :: p)
+
+end Choice
+
+/-- What a function whose run can make choices does: an outcome for each `Choice`. Its arguments come first, so
+`IRLean.Refines` says, for each input, that every way the target chooses has a way the source chooses that allows it. -/
+def Outcomes (α : Type) : Type := Choice → Outcome α
+
+/-- A run that makes no choices, as one that does: the same outcome for every `Choice`. -/
+@[llvm] def Outcomes.det (o : Outcome α) : Outcomes α := fun _ => o
 
 /-- Reads an `i1` from a comparison back as the condition it came from. -/
 @[llvm, simp] theorem ofBool_eq_one (b : Bool) : (BitVec.ofBool b = 1#1) = (b = true) := by

@@ -12,7 +12,7 @@ namespace LemmaStore.Counter
 open IRLean
 
 /-- A run that stops the model, which refines nothing. -/
-abbrev stopped : Outcome (Val 1) := Outcome.stop .freezePoison
+abbrev stopped : Outcome (Val 1) := Outcome.stop .pointerBytes
 
 theorem stopped_not_le (b : Outcome (Val 1)) : ¬ Refine.le stopped b := Refine.outcome_stop _ _
 

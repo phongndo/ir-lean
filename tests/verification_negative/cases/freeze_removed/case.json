@@ -3,11 +3,12 @@
   "category": "freeze",
   "summary": "freeze X -> X, for an X that can be poison, refuted at X = poison",
   "llvm_verdict": "invalid",
-  "why": "LLVM's src returns some value for a poison X and tgt returns poison. The model's src stops there (ModelStop.freezePoison), which allows nothing, so the counterexample is the model's. LLVM agrees here.",
+  "why": "LLVM's src returns some value for a poison X and tgt returns poison. The model agrees, and tests/freeze/FreezeModel.lean proves it doesn't refine, as freeze_removed_wrong. The claim says some way src chooses allows tgt, which Lean can't decide at a witness, so tools/verify.py finds no counterexample.",
   "claim": {
     "binders": "(x : IRLean.Val 8)",
     "hypotheses": [],
-    "src": "Opt.src x",
+    "src_choice": "cs",
+    "src": "Opt.src x cs",
     "tgt": "Opt.tgt x"
   },
   "names": [
@@ -36,7 +37,7 @@
   "expect": {
     "certified": false,
     "verify": [
-      "counterexample/witness_falsifies"
+      "unsupported/witness_unsupported"
     ],
     "gate": [
       "not_proved"

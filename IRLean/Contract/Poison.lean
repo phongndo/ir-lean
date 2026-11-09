@@ -567,7 +567,7 @@ theorem cttz_onlyPoisons {p p' : Bool} (h : p' = true → p = true) : OnlyPoison
 
 end Flags
 
-/-! ### `select`, and `freeze`, where the model stops -/
+/-! ### `select` and `freeze` -/
 
 /-- LangRef, `select`: "If the condition evaluates to `poison`, the instruction returns `poison`." Otherwise only the
 chosen arm matters, so poison in the other doesn't reach the result. -/
@@ -575,16 +575,21 @@ theorem select_poison [HasPoison α] (t e : α) : select none t e = HasPoison.po
 theorem select_true [HasPoison α] (t e : α) : select (some 1#1) t e = t := rfl
 theorem select_false [HasPoison α] (t e : α) : select (some 0#1) t e = e := rfl
 
-/-- `freeze` of a value is that value. -/
-theorem freeze_some {τ : Type} (x : τ) : Val.freeze (some x) = Outcome.ok (some x) := rfl
+/-- `freeze` of a value is that value, whatever the run chose. LangRef: "Otherwise, this instruction is a no-op and
+returns the input argument." -/
+theorem freeze_some (n : Nat) (x : BitVec w) : Val.freeze n (some x) = some x := rfl
 
-/-- `freeze` of poison stops the model: LangRef picks "an arbitrary, but fixed, value", and the model doesn't choose
-one. It isn't undefined, and it isn't a result, so no theorem about a run that freezes poison says anything about
-LLVM there. -/
-theorem freeze_none_stops {τ : Type} : Val.freeze (none : Option τ) = Outcome.stop .freezePoison := rfl
+/-- `freeze` of poison is the value the run chose for it. LangRef: "If the argument is `undef` or `poison`, `freeze`
+returns an arbitrary, but fixed, value of type `ty`." -/
+theorem freeze_none (n : Nat) : Val.freeze n (none : Val w) = some (BitVec.ofNat w n) := rfl
 
-theorem freeze_none_not_ub {τ : Type} : ¬ IsUB (Val.freeze (none : Option τ)) := by
-  rintro ⟨r, h⟩
-  simp [Val.freeze, Outcome.stop, Outcome.ub] at h
+/-- `freeze` never gives poison. -/
+theorem freeze_ne_none (n : Nat) (a : Val w) : ¬ Val.freeze n a = none := by
+  cases a <;> simp [Val.freeze]
+
+/-- Every value of the type is one some choice makes of poison, so the model's `freeze` is LangRef's arbitrary value,
+not some narrower one. -/
+theorem freeze_none_any (x : BitVec w) : ∃ n, Val.freeze n (none : Val w) = some x :=
+  ⟨x.toNat, by simp [Val.freeze]⟩
 
 end IRLean.Contract

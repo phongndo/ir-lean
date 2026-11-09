@@ -52,7 +52,7 @@ what it's counted as.
 
 | Finding | Where | Effect | Status |
 | --- | --- | --- | --- |
-| Equality of two generated functions certified a wrong rewrite: duplicating a `freeze`. On a poison input both stop the model at the frozen poison, so they're equal there, though LLVM's target can return anything where its source returns 0. `tools/binding.py` asked for exactly that equality | The adversarial lane's `tests/verification_negative/cases/freeze_duplicated_equality_pin`, against `tools/verify.py`. The same claim shape was this tool's `ir_instance_equivalence` | A certificate could bind any rewrite where both sides stop the model, which a model stop never says anything about | Fixed. The claim now also says the source never stops the model, and `freeze_equality` in `tests/binding.py` reproduces the attack on a real `instcombine` run: the certificate proves equality and that the source stops, and is refused |
+| Equality of two generated functions certified a wrong rewrite: duplicating a `freeze`. On a poison input both stop the model at the frozen poison, so they're equal there, though LLVM's target can return anything where its source returns 0. `tools/binding.py` asked for exactly that equality | The adversarial lane's `tests/verification_negative/cases/freeze_duplicated_equality_pin`, against `tools/verify.py`. The same claim shape was this tool's `ir_instance_equivalence` | A certificate could bind any rewrite where both sides stop the model, which a model stop never says anything about | Fixed. The claim now also says the source never stops the model. Until F3, on 2026-11-09, `freeze_equality` in `tests/binding.py` reproduced the attack on a real `instcombine` run: the certificate proved equality and that the source stops, and was refused. Since F3 `freeze` of poison is a value, the source doesn't stop there, and the same run is bound as a refinement, `freeze_kept` |
 | A generated module names its input file, and nothing else: not the IR's hash, ir-lean's version, the triple or the data layout | `src/Emitter.cpp`'s header | A generated module on its own isn't bound to any IR. Only regenerating it binds it | `tools/binding.py` regenerates and compares bytes. The emitter is unchanged |
 | `checkRefines` checks that the instance argument uses only Lean's and `IRLean`'s constants, not that it's the instance Lean would find. A theorem stating `@IRLean.Refines _ ⟨fun _ _ => True⟩ Src.f Tgt.f` would pass it, proved by `trivial` | `tests/check_axioms.lean` on the unpublished branch | None through `tests/passes.py`, which writes the statement itself and lets Lean find the instance. A certificate from anywhere else could prove nothing | Analysis only: the unpublished branch wasn't built or run. `tools/binding_check.lean` compares the whole type, instance included, with the one it builds |
 | A cached `certified` can't be checked again: the certificate, the generated modules and the IR are deleted, and the cache entry is a status | `tests/passes.py` | The score trusts `build/passes/cache`. Nothing records which pass spec, triple and test file a certified instance came from | Fixed: an instance counts only if `tools/binding.py verify` binds its bundle in the same run, and the research scorer's cache is never read. See [passes](passes.md#the-cache) |
@@ -102,8 +102,8 @@ stdin, so neither names a path.
 
 | Kind | The claim, as Lean | Checkable now |
 | --- | --- | --- |
-| `ir_instance_equivalence` | `Fx.Src.f = Fx.Tgt.f ∧ ∀ (x : IRLean.Val 8) (s : IRLean.ModelStop), Fx.Src.f x ≠ some (.error (.model s))`, with a binder for each argument: on every input, poison included, both have the same outcome in IRLean's semantics, and the source never stops the model | Yes, for a function without memory, whose arguments are all `noundef` in the source |
-| `ir_instance_refinement` | `IRLean.Refines Fx.Src.f Fx.Tgt.f`, with the instance Lean finds where only `IRLean` and the generated modules are imported: on every input, poison included, the target only does what the source allows, and a model stop in the source allows nothing ([refinement](refinement.md)) | Yes, for the same functions as `ir_instance_equivalence` |
+| `ir_instance_equivalence` | `Fx.Src.f = Fx.Tgt.f ∧ ∀ (x : IRLean.Val 8) (s : IRLean.ModelStop), Fx.Src.f x ≠ some (.error (.model s))`, with a binder for each argument: on every input, poison included, both have the same outcome in IRLean's semantics, and the source never stops the model. For a function whose run makes choices, which has a `freeze` and returns `IRLean.Outcomes`, the second part has `(c : IRLean.Choice)` after the arguments, and applies `Fx.Src.f` to it too | Yes, for a function without memory, whose arguments are all `noundef` in the source |
+| `ir_instance_refinement` | `IRLean.Refines Fx.Src.f Fx.Tgt.f`, with the instance Lean finds where only `IRLean` and the generated modules are imported: on every input, poison included, the target only does what the source allows, and a model stop in the source allows nothing ([refinement](refinement.md)). Since F3, where one side's run makes choices and the other's doesn't, the other is lifted: `IRLean.Refines Fx.Src.f fun x => IRLean.Outcomes.det (Fx.Tgt.f x)`, or the same with the source lifted, so every way the target chooses has to be allowed by some way the source does ([refinement](refinement.md#runs-that-make-choices)) | Yes, for the same functions as `ir_instance_equivalence` |
 | `rewrite_all_inputs` | The pass's rewrite is right for every input module (L3) | No. Always `unsupported` |
 | `pass_implementation` | The pass's compiled C++ makes only proved rewrites (L4) | No. Always `unsupported` |
 | `pipeline_composition` | A pipeline at a level and target preserves meaning | No. Always `unsupported` |
@@ -331,8 +331,8 @@ source, the first source equals the last target. The contract this needs first, 
 **Unsupported today.**
 
 - Functions that use memory or pointers, and arguments that aren't `noundef`.
-- Rewrites whose source can stop the model, such as on a frozen poison. `ir_instance_refinement` says a model stop in
-  the source allows nothing, so these can't be bound either, until `freeze` has a semantics that chooses (SEM-03).
+- Rewrites whose source can stop the model. `ir_instance_refinement` says a model stop in the source allows nothing, so
+  these can't be bound either. Until F3, on 2026-11-09, that included every source that froze poison.
 - Any `opt` option but `-passes=` and `-mtriple`.
 - More than one function per manifest, and functions a pass adds or removes.
 - Changes outside a function: globals, declarations, metadata and module flags, and other functions. The verdict's
@@ -352,7 +352,6 @@ each case breaks one thing and has to get the status and reason given:
 | Kind | Cases | Verdict |
 | --- | --- | --- |
 | Wrong theorem type | The functions swapped, equality alone, the stop condition on the target, `Src.f = Src.f`, a claim leaving out poison | `refused`, `claim_type_mismatch` |
-| | The freeze attack: equality on a real `instcombine` run where both sides stop the model, with a proof that the source stops | `refused`, `claim_type_mismatch` |
 | | A definition, named as the theorem | `refused`, `not_a_theorem` |
 | | A predicate the certificate defines | `refused`, `foreign_constant` |
 | | `sorry` | `refused`, `axiom_policy_failed` |
@@ -370,6 +369,7 @@ each case breaks one thing and has to get the status and reason given:
 | | An argument without `noundef`, and one named `%noundef` without it | `unsupported`, `undef_argument` |
 | What the model checks | `loop-deletion` deleting a loop under `mustprogress`, with a refinement certificate that rests on the promise | `bound` |
 | | A function making no promise in a module whose intrinsic declaration carries `willreturn`, which this tool refused before SEM-07 | `bound` |
+| | Since F3, four `instcombine` runs on `freeze` as refinements: `freeze.ll`, which drops an `add %a, 0` after a `freeze` of a shift that can be poison, and was the freeze attack's input until then, `freeze (freeze y)` to `freeze y`, a `freeze` of a `noundef` argument dropped, and a frozen poison made 0, the last two with the target lifted | `bound` |
 | Limits | A certificate that sleeps past `--timeout 20`, and nothing of it left running | `unknown`, `time_limit` |
 | | A certificate that allocates past `--memory 1500` | `unknown`, `resource_limit` |
 | Uncovered changes | A run that also changes another function | `bound` about `f`, with `g` in `uncovered_changes` |

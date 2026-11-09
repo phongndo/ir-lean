@@ -3,11 +3,12 @@
   "category": "control",
   "summary": "freeze X -> X for a noundef X",
   "llvm_verdict": "valid",
-  "why": "A poison noundef argument is undefined behavior on entry to src, which allows anything.",
+  "why": "A poison noundef argument is undefined behavior on entry to src, which allows anything. Otherwise src's freeze keeps x, however it chooses.",
   "claim": {
     "binders": "(x : IRLean.Val 8)",
     "hypotheses": [],
-    "src": "Opt.src x",
+    "src_choice": "cs",
+    "src": "Opt.src x cs",
     "tgt": "Opt.tgt x"
   },
   "names": [

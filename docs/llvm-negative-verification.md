@@ -52,7 +52,16 @@ on every input, poison included. That's this statement, which the runner writes 
 
 Equality, `tgt x = src x`, isn't refinement, and isn't safe as a claim. It lets a model stop in `tgt` match the same
 stop in `src`. [`freeze_duplicated_equality_pin`](../tests/verification_negative/cases/freeze_duplicated_equality_pin/)
-is a wrong rewrite that Lean proves equal, since both sides stop at a frozen poison. The gate refuses it.
+was a wrong rewrite that Lean proved equal, since both sides stopped at a frozen poison. Since F3, on 2026-11-09, the
+model's `freeze` chooses, so Lean refutes the equality, and the gate refuses it either way.
+
+**Since F3, a run can make choices.** A function with a `freeze` returns an outcome for each `IRLean.Choice`, as
+[refinement](refinement.md#runs-that-make-choices) says. A claim gives such a target its choice as a binder, `ct`, and
+such a source its choice with `src_choice`: the claim is that for every input and every way `tgt` chooses, some way
+`src` chooses, `∃ (cs : IRLean.Choice)`, after the binders and hypotheses, meets the template. Lean can't decide that
+`∃` at a witness, so `tools/verify.py` finds no counterexample to a claim whose source makes choices. It answers
+`unsupported`, or the error of a proof that failed. The wrong rewrites there are refuted by kernel-checked theorems in
+[`tests/freeze/FreezeModel.lean`](../tests/freeze/FreezeModel.lean) instead.
 
 The statement only names Lean, `IRLean` and the generated module, so it can be pinned. A `match` would make an
 auxiliary definition in the proof module, and `tools/verify.py` never lets a pinned statement name one of those.
@@ -71,13 +80,13 @@ Each runs `tools/verify.py` on its own copy of the case's files, one at a time.
 | `control_mul2_to_shl1` | `mul X, 2` to `shl X, 1` | Right | proved | Yes |
 | `control_drop_nsw` | `add nsw X, 1` to `add X, 1` | Right | proved | Yes |
 | `control_freeze_noundef_removed` | `freeze X` to `X`, for `noundef` X | Right | proved | Yes |
+| `control_freeze_added` | `X` to `freeze X` | Right | proved, since F3 | Yes |
 | `control_precondition_sufficient` | `(X << 1) >> 1` to `X`, for X < 128 | Right | proved, and the probe meets X < 128 | Yes |
 | `wrong_mul2_to_shl2` | `mul X, 2` to `shl X, 2` | Wrong at 1 | counterexample | No |
 | `poison_add_nsw_introduced` | `add X, 1` to `add nsw X, 1` | Wrong at 127 | counterexample | No |
-| `freeze_removed` | `freeze X` to `X` | Wrong at poison | counterexample, the model's | No |
-| `freeze_duplicated` | One freeze used twice to two freezes | Wrong at poison | counterexample, the model's | No |
-| `freeze_duplicated_equality_pin` | The same, claimed as equality | Wrong at poison | proved | No: `pin_mismatch` |
-| `freeze_added_unmodeled` | `X` to `freeze X` | Right | counterexample, the model's | No |
+| `freeze_removed` | `freeze X` to `X` | Wrong at poison | unsupported: no witness can be decided against a source that makes choices | No |
+| `freeze_duplicated` | One freeze used twice to two freezes | Wrong at poison | `proof_failed`, and no witness can be decided | No |
+| `freeze_duplicated_equality_pin` | The same, claimed as equality where `tgt`'s two freezes choose 0 and 1 | Wrong at poison | counterexample | No: `pin_mismatch` |
 | `undef_in_target` | `sub X, X` to `undef` | Wrong | unsupported | No |
 | `float_fadd_zero_removed` | `fadd X, 0.0` to `X` | Wrong at -0.0 | unsupported | No |
 | `precondition_insufficient` | `(X << 1) >> 1` to `X`, for X < 200 | Wrong at 150 | counterexample | No |
@@ -94,10 +103,11 @@ Each runs `tools/verify.py` on its own copy of the case's files, one at a time.
 | `stale_proof` | The control, certified, then its proof edited | Right | proved | No: `stale_proof` |
 
 "LLVM says" is what LangRef's rules give, worked out by hand for each case and written in its `case.json`. Nothing
-here checks it, and Alive2 wasn't run on these. A counterexample marked "the model's" involves a model stop: it's
-a counterexample to the claim in the model, and not necessarily one in LLVM. `freeze_added_unmodeled` is a right
-rewrite that the model refutes, since its `tgt` stops at a frozen poison. It stays uncertified, rather than
-certified by a semantics for `freeze` the model doesn't have.
+here checks it, and Alive2 wasn't run on these, apart from the `freeze` ones, which `tests/freeze.sh` checks under
+other names. A counterexample that runs through a model stop is a counterexample to the claim in the model, and not
+necessarily one in LLVM. Until F3, `freeze_removed` and `freeze_duplicated` were refuted only that way, at a frozen
+poison, and `control_freeze_added`, then `freeze_added_unmodeled`, was a right rewrite the model refuted, since its
+`tgt` stopped there.
 
 A precondition can be unsatisfiable, and then the theorem is true and says nothing. So for a claim with
 hypotheses, the runner also asks `tools/verify.py` to refute `∀ x, hypotheses → tgt x ≠ tgt x` at the case's
@@ -194,7 +204,7 @@ when it lands.
   contradict themselves, not a dishonest checker.
 - **The emitter and the model**, as [trust](trust.md) says. Each certificate is about `IRLean`'s meaning of the IR.
 - **The claim template** in `tests/verify_negative.py`, `REFINES`, which a person has to read. Each control proves it,
-  and `freeze_duplicated` refutes it where equality is fooled, but that's tests, not a proof that it's refinement.
+  and the wrong cases refute it, but that's tests, not a proof that it's refinement.
 - **The gate itself**, about 140 lines of Python, which the static cases test and nothing proves.
 - **Each case's `llvm_verdict`**, worked out by hand.
 - **Lean's compiler**, for counterexamples, as for every witness in [verify](verify.md#counterexamples). Certificates
@@ -203,6 +213,7 @@ when it lands.
 ## Assumptions
 
 - A case's functions take and return one integer, and touch no memory. The claim template is only refinement there.
+  A function that makes choices takes one more argument, its `IRLean.Choice`.
 - The binder in a claim isn't named `r` or `_`, which the template binds.
 - `tools/verify.py` runs on the toolchain of the dev shell, with `IRLean` built from the same commit.
 - A result's `versions.ir_lean` names a commit only when the emitter, `IRLean` and `tools/` have no local changes.
@@ -212,8 +223,9 @@ when it lands.
 ## What isn't covered
 
 - Memory, pointers, vectors, floating point, `undef` and calls between functions: no claim, or blocked above.
-- Model stops: a `src` that stops in the model allows nothing, so a right rewrite like `freeze_added_unmodeled` can't
-  be certified.
+- Model stops: a `src` that stops in the model allows nothing, so a right rewrite through one can't be certified.
+  Until F3, `freeze` of poison was one, and `control_freeze_added` was such a rewrite.
+- A counterexample to a claim whose source makes choices, which Lean can't decide at a witness.
 - Counterexamples are only as good as the model: one that runs through a model stop isn't LLVM's.
 - Only `tools/verify.py`'s answers are tested. `tests/proofs.sh`, `tests/llvm.py`, `tests/superopt.py` and any pass
   scorer have their own checks, which this doesn't exercise.
@@ -229,8 +241,9 @@ when it lands.
 
 ## Found while building this
 
-- **Equality isn't refinement.** `tgt x = src x` proves `freeze_duplicated`, a wrong rewrite, because both sides stop
-  at a frozen poison. Any claim of equality between two functions that can stop in the model has this problem.
+- **Equality isn't refinement.** Until F3, `tgt x = src x` proved `freeze_duplicated`, a wrong rewrite, because both
+  sides stopped at a frozen poison. Any claim of equality between two functions that can stop in the model has this
+  problem.
 - **`tools/verify.py` proves a vacuous precondition**, as [verify](verify.md#reading-a-result) says it will. Nothing
   in a result says whether a hypothesis can hold. The probe above is one way to check.
 - **`assert_contract` in `tools/verify.py` raises `KeyError`**, not `AssertionError`, on a result missing a required

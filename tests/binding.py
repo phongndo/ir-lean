@@ -9,7 +9,8 @@ reason given, never `bound`: a theorem of another type, a changed file, a change
 from another toolchain, a cache entry that isn't for this evidence, and claims nothing here can check. Two
 more have to be bound: `loop-deletion` deleting a loop under `mustprogress`, which only the promise makes
 right, and a module whose intrinsic declaration carries `willreturn`, which this tool once refused for the
-whole module.
+whole module. Four `freeze` runs have to be bound too, since F3 made `freeze` of poison a value the run
+chooses.
 
 It runs one process at a time, each capped by tools/binding.py, in build/binding/tests, and needs
 `nix develop`, build/ir-lean and `lake build`.
@@ -57,33 +58,23 @@ assert "theorem Fx.cert : IRLean.Refines Fx.Src.f Fx.Tgt.f :=" in REFINES
 LOOP_DELETED = (HERE / "LoopDeletedRefines.lean").read_text()
 assert "theorem Fx.cert : IRLean.Refines Fx.Src.f Fx.Tgt.f :=" in LOOP_DELETED
 
-# The attack the adversarial lane found with tools/verify.py, on a real instcombine run: the two are equal in
-# the model, since both stop at a frozen poison, and Fx.stops shows the source does. Equality alone is all a
-# certificate can prove here, and it isn't the claim.
-FREEZE_EQUAL = (
-    HEADER
-    + """theorem Fx.cert : Fx.Src.f = Fx.Tgt.f := by
-  funext x
-  cases x with
-  | none => rfl
-  | some x =>
-    simp only [Fx.Src.f, Fx.Tgt.f, noundef]
-    rw [run.eq_1 Fx.Src.f.step, run.eq_1 Fx.Tgt.f.step]
-    by_cases h : 8#8 ≤ x
-    · simp [Fx.Src.f.step, Fx.Tgt.f.step, llvm, h]
-    · have : 1#8 <<< x.toNat >>> x.toNat = 1#8 := by
-        have hx : x.toNat < 8 := by bv_omega
-        generalize x.toNat = n at hx ⊢
-        match n, hx with
-        | 0, _ | 1, _ | 2, _ | 3, _ | 4, _ | 5, _ | 6, _ | 7, _ => decide
-      simp [Fx.Src.f.step, Fx.Tgt.f.step, llvm, h, this]
-
-theorem Fx.stops : Fx.Src.f (some 8#8) = some (.error (.model .freezePoison)) := by
-  simp only [Fx.Src.f, noundef]
-  rw [run.eq_1 Fx.Src.f.step]
-  simp [Fx.Src.f.step, llvm]
-"""
-)
+# `freeze` in the model, F3: four real instcombine runs, each bound as a refinement. On freeze.ll it keeps a
+# `freeze` of a shift that's poison for x of 8 or more. Until F3 the model stopped there on both sides, so the
+# two were equal in the model and equality was all a certificate could prove, which isn't the claim. The other
+# three are `freeze (freeze y)` to `freeze y`, a `freeze` of a `noundef` argument dropped, and a frozen poison
+# made 0. In the last two only the source makes a choice, so the claim lifts the target with
+# `IRLean.Outcomes.det`.
+FREEZE = (HERE / "FreezeRefines.lean").read_text()
+FREEZE_FREEZE = (HERE / "FreezeFreezeRefines.lean").read_text()
+FREEZE_NOUNDEF = (HERE / "FreezeNoundefRefines.lean").read_text()
+FREEZE_POISON = (HERE / "FreezePoisonRefines.lean").read_text()
+for certificate in (FREEZE, FREEZE_FREEZE):
+    assert "theorem Fx.cert : IRLean.Refines Fx.Src.f Fx.Tgt.f :=" in certificate
+for certificate in (FREEZE_NOUNDEF, FREEZE_POISON):
+    assert (
+        "theorem Fx.cert : IRLean.Refines Fx.Src.f fun x => IRLean.Outcomes.det (Fx.Tgt.f x) :="
+        in certificate
+    )
 
 # A certificate that takes longer than the limit tests/binding.py gives it.
 SLOW = GOOD + "\nexample : True := by\n  sleep 120000\n  trivial\n"
@@ -290,11 +281,30 @@ CASES: list[tuple[str, Callable[[str], Path], list[str], tuple[str, str]]] = [
         [],
         ("refused", "foreign_constant"),
     ),
+    # `freeze` in the model: each run's frozen poison is a value it chooses, so these refine.
     (
-        "freeze_equality",
-        lambda n: record(n, FREEZE_EQUAL, input_ll="freeze.ll"),
+        "freeze_kept",
+        lambda n: record(n, FREEZE, kind="ir_instance_refinement", input_ll="freeze.ll"),
         [],
-        ("refused", "claim_type_mismatch"),
+        ("bound", "replayed"),
+    ),
+    (
+        "freeze_of_freeze",
+        lambda n: record(n, FREEZE_FREEZE, kind="ir_instance_refinement", input_ll="freeze_freeze.ll"),
+        [],
+        ("bound", "replayed"),
+    ),
+    (
+        "freeze_noundef_dropped",
+        lambda n: record(n, FREEZE_NOUNDEF, kind="ir_instance_refinement", input_ll="freeze_noundef.ll"),
+        [],
+        ("bound", "replayed"),
+    ),
+    (
+        "freeze_poison_replaced",
+        lambda n: record(n, FREEZE_POISON, kind="ir_instance_refinement", input_ll="freeze_poison.ll"),
+        [],
+        ("bound", "replayed"),
     ),
     (
         "not_a_theorem",
