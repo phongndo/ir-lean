@@ -1,9 +1,9 @@
 {
   "schema": "ir-lean.verification-negative.case/1",
   "category": "unsupported",
-  "summary": "fadd X, 0.0 -> X, which the emitter refuses",
+  "summary": "fadd X, 0.0 -> X, whose fadd the emitter refuses",
   "llvm_verdict": "invalid",
-  "why": "-0.0 + 0.0 is +0.0, not -0.0. The model has no floating point, so there's no claim to certify.",
+  "why": "-0.0 + 0.0 is +0.0, not -0.0. The model has no floating-point arithmetic yet, so there's no claim to certify.",
   "claim": null,
   "pin_override": {
     "statement": "True"
@@ -14,7 +14,7 @@
       "ir": "Opt.ll"
     },
     "namespace": "Opt",
-    "function": "tgt",
+    "function": "src",
     "limits": {
       "timeout_seconds": 120,
       "memory_mb": 4000
