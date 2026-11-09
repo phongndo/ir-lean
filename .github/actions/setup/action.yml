@@ -1,5 +1,9 @@
 name: Set up
 description: Installs Nix, restores what's slow to rebuild, and builds the translator and the Lean library.
+inputs:
+  shell:
+    description: The dev shell the job's tests run in, as `nix develop` takes it, if it isn't the default one.
+    default: ''
 outputs:
   cache-key:
     description: The key for this commit's cache. Only the lint job saves it, after its tests.
@@ -7,9 +11,25 @@ outputs:
   cache-paths:
     description: What the cache holds.
     value: ${{ steps.paths.outputs.paths }}
+  alive2-key:
+    description: The key for alive2's cache, named after what Nix builds it from.
+    value: ${{ steps.alive2.outputs.cache-primary-key }}
+  alive2-hit:
+    description: Whether alive2 came from its cache. Only the lint job saves it, when it didn't.
+    value: ${{ steps.alive2.outputs.cache-hit }}
 runs:
   using: composite
   steps:
+    # The Nix installer downloads Nix with one curl, and fails when that does, as it did on 2026-11-09 with a
+    # TLS "unexpected eof" from releases.nixos.org after a minute with nothing received. curl reads this file
+    # for every call in the job, so each download is tried six times, given up after 30 s without a connection
+    # or below 1 kB/s, and started again. The installer checks the tarball's SHA-256, so a bad one still fails.
+    - name: Have curl retry
+      shell: bash
+      run: |
+        printf '%s\n' 'retry = 5' 'retry-all-errors' 'connect-timeout = 30' 'speed-limit = 1000' 'speed-time = 30' \
+          >"$RUNNER_TEMP/.curlrc"
+        echo "CURL_HOME=$RUNNER_TEMP" >>"$GITHUB_ENV"
     - uses: cachix/install-nix-action@v31
     - name: Name what the cache holds
       id: paths
@@ -32,6 +52,59 @@ runs:
         path: ${{ steps.paths.outputs.paths }}
         key: tools-${{ runner.os }}-${{ hashFiles('lean-toolchain', 'uv.lock', 'flake.lock') }}-${{ github.sha }}
         restore-keys: tools-${{ runner.os }}-${{ hashFiles('lean-toolchain', 'uv.lock', 'flake.lock') }}-
+    # The dev shell's alive2 is built from source, as cache.nixos.org doesn't have it on this LLVM: about 73 s of
+    # every job's setup, and a download from GitHub that failed with HTTP 504 on 2026-11-08. Its build is kept
+    # here, 1.2 MB, as `nix-store --export` writes it, under a key naming every file Nix builds it from, so a
+    # change to any of them builds it again. Its dependencies come from cache.nixos.org, like the rest of the
+    # shell. It's the cache's word, unsigned, as the rest of what the jobs restore is.
+    - name: Restore alive2
+      id: alive2
+      uses: actions/cache/restore@v6
+      with:
+        path: ~/.cache/ir-lean-alive2
+        key: alive2-${{ runner.os }}-${{ hashFiles('flake.lock', 'flake.nix', 'nix/**') }}
+    - name: Import alive2
+      if: steps.alive2.outputs.cache-hit == 'true'
+      shell: bash
+      run: |
+        kept=~/.cache/ir-lean-alive2
+        # If this fails, the next step builds it.
+        if mapfile -t references <"$kept/references" && nix-store --realise "${references[@]}" >/dev/null &&
+          nix-store --import <"$kept/alive2.nar"; then
+          echo "Imported $(cat "$kept/path")"
+        else
+          echo "::warning::alive2's cache didn't import, so it's built"
+        fi
+    # Nix retries a download itself, but a build fails at once when its source can't be downloaded, and
+    # cache.nixos.org has answered with HTTP 416 here, which Nix doesn't retry. What was done stays in the
+    # store, so another try only does what's left. The build below needs the default shell, and the tests the
+    # job's own, such as `.#llama`, which downloads llama.cpp's source from GitHub.
+    - name: Set up the dev shell
+      shell: bash
+      env:
+        JOB_SHELL: ${{ inputs.shell }}
+      run: |
+        for shell in . ${JOB_SHELL:+"$JOB_SHELL"}; do
+          for attempt in 1 2 3; do
+            nix develop "$shell" -c true && continue 2
+            if [ "$attempt" -lt 3 ]; then
+              echo "::warning::Setting up $shell failed, try $attempt of 3. Trying again in $((attempt * 30)) s"
+              sleep $((attempt * 30))
+            fi
+          done
+          exit 1
+        done
+    - name: Keep alive2
+      if: steps.alive2.outputs.cache-hit != 'true'
+      shell: bash
+      run: |
+        kept=~/.cache/ir-lean-alive2
+        alive2=$(nix develop -c sh -c 'command -v alive-tv')
+        alive2=${alive2%/bin/alive-tv}
+        mkdir -p "$kept"
+        echo "$alive2" >"$kept/path"
+        nix-store --query --references "$alive2" | grep -vxF "$alive2" >"$kept/references" || true
+        nix-store --export "$alive2" >"$kept/alive2.nar"
     - name: Build
       shell: bash
       run: |
