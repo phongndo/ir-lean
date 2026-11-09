@@ -86,8 +86,8 @@ Evidence and not proof. A pass here means no disagreement was found on the input
   of at most about 800 bytes, because the semantics are slow to run: each memory access walks back through
   earlier writes. The harness reaches all but 5 of zlib's functions, counted without optimization so
   nothing is inlined away: two for big-endian machines, `crc32_combine_gen`, `_tr_align` and `_tr_tally`.
-- **What the emitter accepts:** all 17,042 items the pinned IR can contain are classified, 265 modeled, 260
-  assumed and 16,517 refused, and a probe of each shows the emitter does what its class says, with the Lean it
+- **What the emitter accepts:** all 17,042 items the pinned IR can contain are classified, 280 modeled, 260
+  assumed and 16,502 refused, and a probe of each shows the emitter does what its class says, with the Lean it
   prints for each it translates elaborating ([IR features](ir-features.md)). Since 2026-11-09.
 - **Vector forms of integer operations:** the vector forms of 16 intrinsics, vector division and remainder,
   `noundef` and `range` on vectors and structs, and x86's VPTERNLOG, PSHUFB and shifts agree with Alive2 both ways,
@@ -98,6 +98,11 @@ Evidence and not proof. A pass here means no disagreement was found on the input
   `vscale_range` agree with LangRef ([scalable vectors](scalable-vectors.md)). Checked on 2026-11-09.
 - **Integer operations:** against LLVM's constant folder at many widths, and Alive2 for exact poison and
   UB at small widths: 265 variants proved exact, with none unchecked.
+- **Floating point's bit-level operations:** `fneg`, `fabs`, `copysign`, `fcmp`'s sixteen predicates, `llvm.is.fpclass`
+  and `nofpclass`, with `nnan` and `ninf`, at `half`, `bfloat`, `float`, `double` and `fp128`, 320 variants, against the
+  constant folder on 131,146 cases, the processor on 2,387,018, every operand of the one-operand operations at `half`
+  among them, and Alive2 on 2,170 both ways, with none wrong ([`fpcheck.py`](../tests/fpcheck.py)). On y on 2026-11-09,
+  where the processor can't run `fp128`.
 - **`getelementptr` flags:** 1,194 cases against Alive2, on 644 layouts. 927 are proved exact, and 267 depend on
   the layout as Alive2 confirms, with none unchecked or wrong.
 - **Random functions:** fuzzed integer functions at random optimization levels, against native code.
