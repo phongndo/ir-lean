@@ -172,6 +172,22 @@ add_test(
     COMMAND ${CMAKE_SOURCE_DIR}/tests/zlib.sh $<TARGET_FILE:ir-lean> --runs 1 --only harness_slow
 )
 set_tests_properties(zlib zlib_slow PROPERTIES TIMEOUT 5400)
+# llama.cpp's q4_K rewrite. x86's dot-product intrinsics against the processor, which needs AVX-512 VNNI, so
+# it skips without it. Those and vector bitcasts against Alive2 and LLVM's constant folder, on any processor.
+# And the rewrite's proofs, which need llama.cpp's source, so they're labeled `llama`, run in
+# `nix develop .#llama`, and skip in any other shell.
+add_test(
+    NAME x86
+    COMMAND
+        sh -c "grep -q avx512_vnni /proc/cpuinfo || exit 77; exec \"$@\"" sh
+        ${CMAKE_SOURCE_DIR}/tests/differential.py $<TARGET_FILE:ir-lean> ${CMAKE_SOURCE_DIR}/tests/real/x86.ll
+        --strict --runs 400
+)
+add_test(NAME x86check COMMAND ${CMAKE_SOURCE_DIR}/tests/x86check.py $<TARGET_FILE:ir-lean>)
+add_test(NAME llama COMMAND ${CMAKE_SOURCE_DIR}/tests/llama.py $<TARGET_FILE:ir-lean>)
+set_tests_properties(x86 llama PROPERTIES SKIP_RETURN_CODE 77)
+set_tests_properties(x86 x86check llama PROPERTIES TIMEOUT 1800)
+set_tests_properties(llama PROPERTIES LABELS llama)
 # ctest has no limit of its own, and a Lean run that never ends would otherwise hang these.
 set_tests_properties(
     differential

@@ -44,6 +44,20 @@ accepts() {
   fi
 }
 
+# A `bitcast` between vectors of integers puts lane 0 in the low bits only on a little-endian target, even in a
+# function that doesn't touch memory. Lane widths that don't divide each other, and anything but vectors of
+# integers, are refused too. tests/x86check.py checks what the accepted ones mean against Alive2.
+refuses 'big-endian integer bitcast' 'target datalayout = "E"
+define <4 x i8> @f(<2 x i16> %x) { %r = bitcast <2 x i16> %x to <4 x i8>
+  ret <4 x i8> %r }'
+refuses 'nondividing lane widths' 'define <3 x i8> @f(<2 x i12> %x) { %r = bitcast <2 x i12> %x to <3 x i8>
+  ret <3 x i8> %r }'
+refuses 'instruction' 'define <4 x i8> @f(i32 %x) { %r = bitcast i32 %x to <4 x i8>
+  ret <4 x i8> %r }'
+accepts 'target datalayout = "e"
+define <4 x i8> @f(<2 x i16> %x) { %r = bitcast <2 x i16> %x to <4 x i8>
+  ret <4 x i8> %r }'
+
 # A function of N blocks that calls itself, which keeps it from nesting its blocks.
 recursive_blocks() {
   local i phi="[ %r, %last ]"
