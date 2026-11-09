@@ -58,6 +58,9 @@ from pathlib import Path
 from typing import Any, NoReturn
 
 ROOT = Path(__file__).resolve().parent.parent
+sys.path.append(str(ROOT / "tools"))
+from irlean import verdict as core  # noqa: E402
+
 LIBRARY = ROOT / ".lake" / "build" / "lib" / "lean"
 TOOL = ROOT / "build" / "ir-lean"
 CHECK = ROOT / "tools" / "binding_check.lean"
@@ -65,10 +68,12 @@ AXIOMS = ROOT / "tests" / "check_axioms.lean"
 PIN = ROOT / "tests" / "llvm" / "targets.toml"
 RUNS = ROOT / "build" / "binding" / "runs"
 SELF = Path(__file__).resolve()
+# The shared library's Python, which decides the verdict with this file: irlean.verdict grants `bound`.
+IRLEAN_PY = sorted((ROOT / "tools" / "irlean").glob("*.py"))
 # The files a verdict depends on that aren't in a tree tree_hash() covers. Each has to be a file, not a link.
-STANDALONE = [TOOL, AXIOMS, CHECK, SELF]
+STANDALONE = [TOOL, AXIOMS, CHECK, SELF, *IRLEAN_PY]
 
-MANIFEST_SCHEMA = "ir-lean.binding.manifest/1"
+MANIFEST_SCHEMA = "ir-lean.binding.manifest/2"
 VERDICT_SCHEMA = "ir-lean.binding.verdict/1"
 EXIT = {"bound": 0, "refused": 1, "unsupported": 3, "unknown": 4, "error": 5}
 DEFAULT_TIMEOUT = 300
@@ -233,6 +238,15 @@ def tree_hash(base: Path, *roots: Path) -> str:
             digest.update(os.fsencode(raw) + b"\0")
         elif kinds[path] == b"file":
             digest.update(bytes.fromhex(contents[path]))
+    return digest.hexdigest()
+
+
+def files_hash(base: Path, paths: list[Path]) -> str:
+    """Files by their paths from `base`, sorted, each as its path, a NUL and its SHA-256, which reads back one
+    way: a path can't hold a NUL, and a hash is 32 bytes."""
+    digest = hashlib.sha256()
+    for path in sorted(paths):
+        digest.update(os.fsencode(path.relative_to(base)) + b"\0" + bytes.fromhex(sha256_file(path)))
     return digest.hexdigest()
 
 
@@ -413,6 +427,7 @@ def toolchain(run: Runner) -> dict[str, str]:
         "check_axioms_sha256": sha256_file(AXIOMS),
         "binding_check_sha256": sha256_file(CHECK),
         "binding_py_sha256": sha256_file(SELF),
+        "irlean_py_sha256": files_hash(ROOT / "tools", IRLEAN_PY),
     }
 
 
@@ -693,6 +708,7 @@ def validate(manifest: Any) -> dict:
             "check_axioms_sha256",
             "binding_check_sha256",
             "binding_py_sha256",
+            "irlean_py_sha256",
         },
         "toolchain",
     )
@@ -842,6 +858,7 @@ def _verify(
             if good:
                 verdict["cache"] = "hit"
                 checks("cache", "a verdict for exactly this manifest and toolchain")
+                certified(core.Evidence(cached=True, files=present(bundle, m), checks=passed(checks)))
                 return {
                     "status": "bound",
                     "reason": "replayed",
@@ -856,7 +873,7 @@ def _verify(
         raise Verdict("error", "invalid_request", f"work directory {work} isn't empty")
     work.mkdir(parents=True, exist_ok=True)
     try:
-        result = replay(m, data, work, nonce, run, checks)
+        result = replay(m, data, work, nonce, run, checks, present(bundle, m))
     finally:
         if not keep:
             shutil.rmtree(work, ignore_errors=True)
@@ -875,7 +892,34 @@ def _verify(
     return result
 
 
-def replay(m: dict, data: dict[str, bytes], work: Path, nonce: str, run: Runner, checks: Check) -> dict:
+def present(bundle: Path, m: dict) -> dict[str, bool]:
+    """Whether each of the bundle's files is still there, as a plain file. artifact() checked their hashes."""
+    return {
+        a["path"]: (bundle / a["path"]).is_file() and not (bundle / a["path"]).is_symlink()
+        for a in m["artifacts"].values()
+    }
+
+
+def passed(checks: Check) -> dict[str, bool]:
+    return {c["name"]: c["result"] == "pass" for c in checks.done}
+
+
+def certified(evidence: core.Evidence) -> None:
+    """That irlean.verdict grants `bound` on this evidence. It always should here: anything else is a bug."""
+    decision = core.decide(core.Verdict.CERTIFIED, evidence)
+    if not decision.granted:
+        raise Verdict("error", "internal_error", f"every check passed, and still: {decision.detail}")
+
+
+def replay(
+    m: dict,
+    data: dict[str, bytes],
+    work: Path,
+    nonce: str,
+    run: Runner,
+    checks: Check,
+    files: dict[str, bool],
+) -> dict:
     claim, t = m["claim"], m["transform"]
     ns = claim["namespace"]
 
@@ -971,6 +1015,7 @@ def replay(m: dict, data: dict[str, bytes], work: Path, nonce: str, run: Runner,
     # file the certificate adds, such as a module named like one it imports, would change what checks read.
     watched = snapshot(lean_dir, library)
     code, err, out = run(run.lean("-R", str(lean_dir), "-o", str(cert_olean), str(cert)), env=env)
+    compiled = core.Step("compile_certificate", code, None, out.decode(errors="replace") + err)
     if code != 0:
         refused("certificate_compile_failed", f"Lean rejects the certificate: {(out.decode() + err)[-800:]}")
     # The certificate's code ran while it compiled. What it could have changed is checked again.
@@ -1036,11 +1081,13 @@ def replay(m: dict, data: dict[str, bytes], work: Path, nonce: str, run: Runner,
             "IRLEAN_CHECK_THEOREMS": f"{claim['theorem']} {src}\n{claim['theorem']} {tgt}",
         },
     )
+    axioms = core.Step("axioms", code, None, out.decode(errors="replace") + err)
     if code != 0:
         refused("axiom_policy_failed", (out.decode() + err)[-800:])
     checks("axioms", out.decode().strip()[-200:])
 
     code, err, out = run([run.bins["leanchecker"], f"{ns}.Src", f"{ns}.Tgt", f"{ns}.Cert"], env=env)
+    replayed = core.Step("kernel_replay", code, None, out.decode(errors="replace") + err)
     if code != 0:
         refused("kernel_replay_failed", (out.decode() + err)[-800:])
     checks("kernel_replay", "leanchecker replays the generated modules and the certificate")
@@ -1051,6 +1098,10 @@ def replay(m: dict, data: dict[str, bytes], work: Path, nonce: str, run: Runner,
     if changed:
         refused("artifacts_modified", f"these changed while they were being checked: {changed}")
     checks("unchanged", "every module and tool checked is the one compiled, start to finish")
+    files[str(cert_olean)] = cert_olean.is_file()
+    certified(
+        core.Evidence(lean=compiled, replay=replayed, axioms=axioms, files=files, checks=passed(checks))
+    )
     return {
         "status": "bound",
         "reason": "replayed",

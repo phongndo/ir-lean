@@ -47,6 +47,10 @@ import tempfile
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
+sys.path.append(str(ROOT / "tools"))
+from irlean import proc  # noqa: E402
+from irlean import verdict as core  # noqa: E402
+
 HERE = ROOT / "tests" / "llama"
 
 SOURCE = "ggml/src/ggml-cpu/arch/x86/repack.cpp"
@@ -193,21 +197,16 @@ def prove(tool: Path, slices: Path, work: Path, refute: str | None = None) -> di
     shutil.copy(ROOT / "lean-toolchain", work)
     env = {**os.environ, "LEAN_PATH": f"{work}:{ROOT}/.lake/build/lib/lean"}
 
-    def lean(*a, stdin: str | None = None, extra: dict | None = None) -> subprocess.CompletedProcess:
-        return subprocess.run(
-            ["lean", *LIMITS, *map(str, a)],
-            cwd=work,
-            env={**env, **(extra or {})},
-            input=stdin,
-            capture_output=True,
-            text=True,
-            check=False,
-        )
+    def lean(*a, stdin: str | None = None, extra: dict | None = None) -> proc.Ran:
+        return proc.run(["lean", *LIMITS, *map(str, a)], cwd=work, env={**env, **(extra or {})}, stdin=stdin)
 
-    def audit(module: str, name: str, theorem: str) -> tuple[str | None, str]:
+    def audit(
+        compiled: proc.Ran, module: str, name: str, theorem: str, claim: core.Verdict
+    ) -> tuple[str, str]:
         """The axioms `module` rests on, reading it and what it imports as data, and that `theorem` is about
         both slices as ir-lean generated them. Then the kernel replays it, since Lean code can add a
-        declaration it never checked. Returns the axioms, or None and why not."""
+        declaration it never checked. Returns the axioms, and why irlean.verdict doesn't grant `claim` on
+        it, compiled as `compiled`, or an empty string if it does."""
         S, T = f"{name.upper()}Src", f"{name.upper()}Tgt"
         axioms = lean(
             ROOT / "tests" / "check_axioms.lean",
@@ -217,19 +216,27 @@ def prove(tool: Path, slices: Path, work: Path, refute: str | None = None) -> di
                 "IRLEAN_CHECK_THEOREMS": f"{theorem} {S}.{name}_src\n{theorem} {T}.{name}_tgt",
             },
         )
-        if axioms.returncode != 0:
-            return None, f"axioms: {axioms.stdout[-2000:]}{axioms.stderr[-2000:]}"
-        replay = subprocess.run(
-            ["leanchecker", module], cwd=work, env=env, capture_output=True, text=True, check=False
+        if axioms.exit != 0:
+            return "", f"axioms: {axioms.out[-2000:]}{axioms.err[-2000:]}"
+        replay = proc.run(["leanchecker", module], cwd=work, env=env)
+        if replay.exit != 0:
+            return "", f"leanchecker rejects {module}: {replay.out[-2000:]}{replay.err[-2000:]}"
+        olean = work / f"{module}.olean"
+        decision = core.decide(
+            claim,
+            core.Evidence(
+                lean=core.Step.of("lean", compiled),
+                replay=core.Step.of("leanchecker", replay),
+                axioms=core.Step.of("check_axioms", axioms),
+                files={str(olean): olean.is_file()},
+            ),
         )
-        if replay.returncode != 0:
-            return None, f"leanchecker rejects {module}: {replay.stdout[-2000:]}{replay.stderr[-2000:]}"
-        return axioms.stdout.strip(), ""
+        return axioms.out.strip(), "" if decision.granted else f"{module}: {decision.detail}"
 
     shutil.copy(HERE / "Vnni.lean", work)
     r = lean("-DwarningAsError=true", "-o", work / "Vnni.olean", work / "Vnni.lean")
-    if r.returncode != 0:
-        raise RuntimeError(f"Vnni.lean:\n{r.stdout[-4000:]}{r.stderr[-4000:]}")
+    if r.exit != 0:
+        raise RuntimeError(f"Vnni.lean:\n{r.out[-4000:]}{r.err[-4000:]}")
     index = json.loads((slices / "slices.json").read_text())
 
     def differs(name: str, S: str, T: str, sig: str) -> bool:
@@ -251,7 +258,8 @@ def prove(tool: Path, slices: Path, work: Path, refute: str | None = None) -> di
             f"end {module}\n"
         )
         r = lean("-DwarningAsError=true", "-o", work / f"{module}.olean", work / f"{module}.lean")
-        return r.returncode == 0 and audit(module, name, f"{name}_differs")[0] is not None
+        # A slice that doesn't compile, or a theorem that doesn't, refutes nothing.
+        return r.exit == 0 and not audit(r, module, name, f"{name}_differs", core.Verdict.REFUTED)[1]
 
     def one(entry: dict) -> tuple[str, dict]:
         name = entry["name"]
@@ -269,9 +277,9 @@ def prove(tool: Path, slices: Path, work: Path, refute: str | None = None) -> di
                 ]
             )
             r = lean("-o", work / f"{ns}.olean", work / f"{ns}.lean")
-            if r.returncode != 0:
+            if r.exit != 0:
                 # A slice that doesn't compile is a failure of the test, not of the theorem.
-                return name, {"failure": f"{ns}: {r.stdout[-2000:]}", "unknown": True}
+                return name, {"failure": f"{ns}: {r.out[-2000:]}", "unknown": True}
         src = (work / f"{S}.lean").read_text()
         sig = found(
             re.search(rf"noncomputable def {name}_src (.*?) : Outcome .* :=\n", src), "signature"
@@ -287,11 +295,17 @@ def prove(tool: Path, slices: Path, work: Path, refute: str | None = None) -> di
             f"  vnni_slice {T}.{name}_tgt {S}.{name}_src {T}.{name}_tgt.step {S}.{name}_src.step\n"
         )
         r = lean("-DwarningAsError=true", "-o", work / f"{theorem}.olean", work / f"{theorem}.lean")
-        if r.returncode != 0:
-            failure = r.stdout[-3000:] + r.stderr[-1000:]
-            return name, {"failure": failure, "unknown": only_limits(r.stdout)}
-        axioms, why = audit(theorem, name, f"{name}_same")
-        if axioms is None:
+        if r.exit != 0:
+            failure = r.out[-3000:] + r.err[-1000:]
+            # It stopped the theorem only with an error of its own: not a limit, a crash or nothing.
+            own = [line for line in r.out.splitlines() if LEAN_ERROR.match(line) and not LIMIT.search(line)]
+            caught = core.decide(
+                core.Verdict.CAUGHT,
+                core.Evidence(step=core.Step.of("lean", r), finding=own[0] if own else None),
+            )
+            return name, {"failure": failure, "unknown": only_limits(r.out) or not caught.granted}
+        axioms, why = audit(r, theorem, name, f"{name}_same", core.Verdict.PROVED)
+        if why:
             # The theorem checked. Whatever stops its audit, the rewrite isn't refuted by it.
             return name, {"failure": why, "unknown": True}
         statement = lean(
@@ -301,7 +315,7 @@ def prove(tool: Path, slices: Path, work: Path, refute: str | None = None) -> di
             "function": entry["function"],
             "value": entry["value"],
             "axioms": axioms,
-            "statement": statement.stdout.strip(),
+            "statement": statement.out.strip(),
             "lean_sha256": {k: sha256(work / f"{k}.lean") for k in (S, T, theorem)},
         }
 
@@ -357,7 +371,11 @@ def native(slices: Path, work: Path, *runs: str) -> tuple[bool | None, str]:
     """Whether the slice pairs differ natively, or None if the check couldn't tell, and what it printed."""
     r = run([sys.executable, HERE / "native_check.py", slices, work, *runs], check=False)
     said = (r.stdout + r.stderr).strip()
-    return {0: False, 3: True}.get(r.returncode), said
+    # It exits 3 when a pair differs. A check that didn't build or crashed says nothing.
+    step = core.Step("native_check", r.returncode, None, said)
+    if core.decide(core.Verdict.CAUGHT, core.Evidence(step=step, found_exit=3, finding=said)).granted:
+        return True, said
+    return (False if r.returncode == 0 else None), said
 
 
 def main() -> int:

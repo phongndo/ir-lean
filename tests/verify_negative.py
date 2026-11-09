@@ -45,6 +45,7 @@ from typing import Any
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "tools"))
 from irlean import proc  # noqa: E402
+from irlean import verdict as core  # noqa: E402
 
 CORPUS = ROOT / "tests" / "verification_negative"
 CASES = CORPUS / "cases"
@@ -58,7 +59,13 @@ RUNS = ROOT / "build" / "verify-negative"
 RUNS_KEPT = 5
 VERIFY = ROOT / "tools" / "verify.py"
 # What decides a verdict besides the inputs. A stored result checked by other versions of these is stale.
-CHECKER_FILES = ["tools/verify.py", "tools/verify_check.lean", "tests/check_axioms.lean"]
+# tools/verify.py decides with the shared library, so its files count too.
+CHECKER_FILES = [
+    "tools/verify.py",
+    "tools/verify_check.lean",
+    "tests/check_axioms.lean",
+    *sorted(str(p.relative_to(ROOT)) for p in (ROOT / "tools" / "irlean").glob("*.py")),
+]
 
 CASE_SCHEMA = "ir-lean.verification-negative.case/1"
 ENVELOPE_SCHEMA = "ir-lean.verification-negative.envelope/1"
@@ -150,7 +157,8 @@ DENIALS = {
     "stale_emitter": "The emitter's commit isn't the one checked out now",
     "dirty_emitter": "The emitter had uncommitted changes, so no commit says what it was",
     "stale_lean": "The Lean it used isn't the one on PATH now",
-    "stale_checker": "tools/verify.py, tools/verify_check.lean or tests/check_axioms.lean changed since",
+    "stale_checker": "tools/verify.py, tools/verify_check.lean, tests/check_axioms.lean or tools/irlean "
+    "changed since",
 }
 
 
@@ -514,6 +522,26 @@ def _gate(envelope: Any, expected: dict[str, Any], v: Any, deny: Callable[[str],
         deny("stale_checker")
 
 
+def certify(envelope: Any, expected: dict[str, Any]) -> core.Decision:
+    """irlean.verdict on an envelope the gate passed: tools/verify.py's process and result, and the case's
+    files as the result names them."""
+    harness = envelope["harness"]
+    signum = harness.get("signal")
+    step = core.Step(
+        "tools/verify.py",
+        -signum if isinstance(signum, int) else harness.get("exit"),
+        "time_limit" if harness.get("timed_out") else None,
+    )
+    files = (envelope["result"].get("artifacts") or {}).get("files") or {}
+    return core.decide(
+        core.Verdict.CERTIFIED,
+        core.Evidence(
+            upstream=(step, envelope["result"]),
+            files={role: (files.get(role) or {}).get("sha256") == d for role, d in expected["files"].items()},
+        ),
+    )
+
+
 def probe_witnessed(probe: Any, expected: dict[str, Any]) -> bool:
     """The probe is the runner's own: the statement it built from the case's preconditions, refuted at a
     witness, for the same IR, by a checker that exited as a counterexample does."""
@@ -604,13 +632,21 @@ class Outcome:
         return f"{tag} {self.tier:6} {self.id}: {detail}"
 
 
-def judge(outcome: Outcome, expect: dict[str, Any], result: Any) -> None:
+def judge(
+    outcome: Outcome, expect: dict[str, Any], result: Any, envelope: Any, expected: dict[str, Any]
+) -> None:
     """Whether the case came out as it has to. A not-certified case also has to fail for its own reason, so a
-    broken toolchain can't pass every negative case at once."""
+    broken toolchain can't pass every negative case at once. Certified means the gate denied nothing and
+    irlean.verdict grants it."""
     if isinstance(result, dict) and "status" in result:
         outcome.verify = f"{result.get('status')}/{result.get('reason')}"
-    outcome.certified = not outcome.denials
     problems = outcome.problems
+    outcome.certified = not outcome.denials
+    if outcome.certified:
+        decision = certify(envelope, expected)
+        if not decision.granted:
+            outcome.certified = False
+            problems.append(f"the gate passed it, and irlean.verdict doesn't certify it: {decision.detail}")
     if outcome.certified != expect["certified"]:
         problems.append("certified, and mustn't be" if outcome.certified else "not certified, and has to be")
     if "verify" in expect and outcome.verify not in expect["verify"]:
@@ -718,9 +754,10 @@ def run_live(case: Case, live: Live) -> Outcome:
         if text.count(stale["old"]) != 1:
             raise ManifestError(f"{case.id}: {stale['old']!r} isn't in {stale['file']} exactly once")
         edited.write_text(text.replace(stale["old"], stale["new"]))
-        outcome.denials = gate(envelope, expected_for(case, files, live.versions, this_run=True), live.v)
+        expected = expected_for(case, files, live.versions, this_run=True)
+        outcome.denials = gate(envelope, expected, live.v)
         outcome.note = f"edited {stale['file']} after the run"
-    judge(outcome, case.expect, result)
+    judge(outcome, case.expect, result, envelope, expected)
     budget = live.case_memory_mb * 5 // 4 + 512
     if outcome.peak_rss_mb > budget:
         outcome.problems.append(f"peak memory {outcome.peak_rss_mb} MB, over the budget of {budget} MB")
@@ -1114,7 +1151,7 @@ def run_static(item: Static, ctx: StaticContext) -> Outcome:
     envelope, expected = item.run(ctx)
     outcome.denials = gate(envelope, expected, ctx.v)
     result = envelope.get("result") if isinstance(envelope, dict) else None
-    judge(outcome, item.expect, result)
+    judge(outcome, item.expect, result, envelope, expected)
     return outcome
 
 
