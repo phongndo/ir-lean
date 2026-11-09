@@ -4,12 +4,15 @@ peak resident memory, of the process and of everything it starts. docs/corpus.md
 tools/irlean/proc.py, which does the work, what each number means and how the limits are kept.
 
 A cap or a timeout kills the process and every descendant, with the process groups and sessions they started,
-and the record says `resource_limit` or `time_limit`. Neither is ever a success. `--heavy` takes the machine's
-heavy-job lock first, shared by every checkout, so two heavy jobs don't run at once.
+and the record says `resource_limit` or `time_limit`. Neither is ever a success. `--heavy` takes a slot in
+the machine's pool of heavy jobs first, shared by every checkout, declaring `--max-tree-rss-mb` as what it
+needs, or 3.5 GB without one, and waits while running it would leave too little memory. `pool` says how many
+slots there are and who holds them.
 
 usage: tools/measure.py run --label L [--heavy] [--timeout S] [--max-tree-rss-mb MB] [--workers N]
                             [--cap TEXT ...] [--min-available-mb MB] [--out FILE.jsonl] -- COMMAND ...
        tools/measure.py memory
+       tools/measure.py pool
 """
 
 from __future__ import annotations
@@ -29,9 +32,10 @@ def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = ap.add_subparsers(dest="cmd", required=True)
     sub.add_parser("memory", help="print what the machine has now")
+    sub.add_parser("pool", help="print the pool of heavy jobs: its slots, its reserve and who holds each")
     r = sub.add_parser("run", help="run a command and record what it cost")
     r.add_argument("--label", required=True)
-    r.add_argument("--heavy", action="store_true", help="hold the machine's heavy-job lock while it runs")
+    r.add_argument("--heavy", action="store_true", help="hold a slot in the machine's pool of heavy jobs")
     r.add_argument("--lock-wait", type=float, default=3600)
     r.add_argument("--timeout", type=float, default=3600)
     r.add_argument("--max-tree-rss-mb", type=float, default=None)
@@ -46,6 +50,9 @@ def main() -> int:
     if args.cmd == "memory":
         print(json.dumps(proc.memory(), indent=2))
         return 0
+    if args.cmd == "pool":
+        print(json.dumps(proc.pool(), indent=2))
+        return 0
     argv = args.argv[1:] if args.argv[:1] == ["--"] else args.argv
     if not argv:
         ap.error("no command")
@@ -53,7 +60,11 @@ def main() -> int:
         print(f"not started: {why}", file=sys.stderr)
         return proc.BUSY
     with contextlib.ExitStack() as stack:
-        lock = str(stack.enter_context(proc.heavy_lock(args.label, args.lock_wait))) if args.heavy else None
+        lock = (
+            str(stack.enter_context(proc.heavy_lock(args.label, args.lock_wait, args.max_tree_rss_mb)))
+            if args.heavy
+            else None
+        )
         log = stack.enter_context(args.log.open("wb")) if args.log else None
         record = proc.measure(
             argv,
