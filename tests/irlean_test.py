@@ -357,6 +357,64 @@ class Pool(unittest.TestCase):
             with proc.heavy_lock("fourth", 0, 3000):
                 pass
 
+    def test_growth_between_readings_is_never_counted_as_free(self) -> None:
+        # Found in review: available memory read before the running job's RSS let a job that grew in between
+        # count its growth as free. A job needing 6 GB takes a slot with 12 GB available, then grows to 6 GB
+        # as the next one decides, which leaves 6 GB: a second 6 GB job doesn't fit a 2 GB reserve.
+        state = {"available": 12000}
+
+        def memory() -> dict[str, Any]:
+            return {"total_mb": 16000, "available_mb": state["available"], "pressure_level": None}
+
+        def tree(pid: int) -> list[tuple[int, int, str]]:
+            state["available"] = 6000
+            return [(pid, 6000 << 10, "lean")]
+
+        with (
+            mock.patch.dict(os.environ, {"IR_LEAN_HEAVY_SLOTS": "4"}),
+            mock.patch.object(proc, "memory", side_effect=memory),
+            proc.heavy_lock("first", 0, 6000),
+            mock.patch.object(proc, "tree", side_effect=tree),
+            self.assertRaisesRegex(TimeoutError, "running jobs grow"),
+            proc.heavy_lock("second", 0, 6000),
+        ):
+            pass
+
+    def test_a_job_in_a_slot_past_this_count_still_counts(self) -> None:
+        # Found in review: with fewer slots than another job used, its slot went unseen, so a job thought
+        # itself alone and skipped the memory check.
+        with contextlib.ExitStack() as held:
+            with mock.patch.dict(os.environ, {"IR_LEAN_HEAVY_SLOTS": "2"}), self.machine(16000, 12000):
+                first = held.enter_context(contextlib.ExitStack())
+                first.enter_context(proc.heavy_lock("slot0", 0, 100))
+                held.enter_context(proc.heavy_lock("slot1", 0, 100))
+                first.close()
+            with (
+                mock.patch.dict(os.environ, {"IR_LEAN_HEAVY_SLOTS": "1"}),
+                self.machine(16000, 100),
+                self.assertRaisesRegex(TimeoutError, "running jobs grow"),
+                proc.heavy_lock("alone?", 0, 3000),
+            ):
+                pass
+            self.assertEqual([h["label"] for h in proc.pool()["held"].values()], ["slot1"])
+
+    def test_a_failure_while_deciding_releases_every_lock(self) -> None:
+        # Found in review: a failure after a slot was taken left it, and heavy-job.lock, held.
+        with (
+            mock.patch.dict(os.environ, {"IR_LEAN_HEAVY_SLOTS": "1"}),
+            mock.patch.object(proc, "now", side_effect=OSError("no clock")),
+            self.assertRaisesRegex(OSError, "no clock"),
+            proc.heavy_lock("fails", 0, 100),
+        ):
+            pass
+        with proc.heavy_lock("after", 0, 100):
+            pass
+        old = os.open(self.lock, os.O_RDWR)
+        try:
+            fcntl.flock(old, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        finally:
+            os.close(old)
+
     def test_a_job_alone_is_let_in_whatever_memory_says(self) -> None:
         with self.machine(16000, 100), proc.heavy_lock("big", 0, 20000):
             pass

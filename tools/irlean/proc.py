@@ -224,20 +224,27 @@ def _still_needs(holder: dict[str, Any]) -> int:
     return max(0, need - used)
 
 
+def _slots_on_disk() -> list[int]:
+    """Every slot whose file exists, which a job using more slots than this process counts may have made."""
+    base = lock_path()
+    name = re.compile(rf"{re.escape(base.stem)}\.slot(\d+){re.escape(base.suffix)}")
+    if not base.parent.is_dir():
+        return []
+    return sorted(int(m[1]) for p in base.parent.iterdir() if (m := name.fullmatch(p.name)))
+
+
 def pool() -> dict[str, Any]:
-    """The pool now: its slots, its reserve, what's available, and who holds each slot."""
+    """The pool now: its slots, its reserve, what's available, and who holds each slot, every slot file there
+    is included."""
     m = memory()
     slots = heavy_slots(m["total_mb"])
     held = {}
-    for i in range(slots):
+    for i in _slots_on_disk():
         path = _slot(i)
-        fd = os.open(path, os.O_RDWR | os.O_CREAT, 0o644) if path.parent.exists() else None
-        if fd is None:
-            continue
+        fd = os.open(path, os.O_RDWR)
         try:
-            if _try(fd, fcntl.LOCK_EX):
-                continue
-            held[str(path)] = _holder(path)
+            if not _try(fd, fcntl.LOCK_EX):
+                held[str(path)] = _holder(path)
         finally:
             os.close(fd)
     return {
@@ -258,12 +265,12 @@ def heavy_lock(label: str, wait_s: float, need_mb: float | None = None) -> Gener
     base = lock_path()
     base.parent.mkdir(parents=True, exist_ok=True)
     deadline = time.monotonic() + wait_s
-    fds: list[int] = []
-    why = "no slot"
+    # Every lock taken, from the moment it's taken, so none outlives a failure.
+    held: list[int] = []
 
     def release() -> None:
-        while fds:
-            os.close(fds.pop())
+        while held:
+            os.close(held.pop())
 
     try:
         while True:
@@ -271,61 +278,70 @@ def heavy_lock(label: str, wait_s: float, need_mb: float | None = None) -> Gener
             gate = os.open(_gate(), os.O_RDWR | os.O_CREAT, 0o644)
             try:
                 fcntl.flock(gate, fcntl.LOCK_EX)
-                got = _admit(label, need)
+                got = _admit(label, need, held)
             finally:
                 os.close(gate)
-            if isinstance(got, tuple):
-                fds.extend(got[1])
+            if isinstance(got, Path):
                 break
-            why = got
+            release()
             if time.monotonic() > deadline:
-                raise TimeoutError(f"no heavy-job slot in {wait_s:.0f} s: {why}")
+                raise TimeoutError(f"no heavy-job slot in {wait_s:.0f} s: {got}")
             time.sleep(2)
-        yield got[0]
+        yield got
     finally:
         release()
 
 
-def _admit(label: str, need: int) -> tuple[Path, list[int]] | str:
-    """With the gate held: a free slot and the locks taken for it, if the pool has room for `need`, or why
-    not."""
-    legacy = os.open(lock_path(), os.O_RDWR | os.O_CREAT, 0o644)
+def _admit(label: str, need: int, held: list[int]) -> Path | str:
+    """With the gate held: a free slot, if the pool has room for `need`, or why not. Every lock it takes goes
+    in `held` at once, and the caller releases them if it doesn't get a slot."""
+
+    def take(path: Path) -> int:
+        fd = os.open(path, os.O_RDWR | os.O_CREAT, 0o644)
+        held.append(fd)
+        return fd
+
+    def drop(fd: int) -> None:
+        held.remove(fd)
+        os.close(fd)
+
+    legacy = take(lock_path())
     if not _try(legacy, fcntl.LOCK_SH):
-        os.close(legacy)
         who = lock_path().with_suffix(".holder")
         said = who.read_text().strip() if who.exists() else ""
         return f"{lock_path()} is held by a checkout on the single lock: {said}"
-    m = memory()
-    slots = heavy_slots(m["total_mb"])
-    mine: tuple[Path, int] | None = None
+    total = memory()["total_mb"]
+    slots = heavy_slots(total)
+    mine: Path | None = None
     others: list[dict[str, Any]] = []
-    for i in range(slots):
+    # Every slot there is, not only this process's count of them, so a job in a slot past it still counts.
+    for i in sorted(set(range(slots)) | set(_slots_on_disk())):
         path = _slot(i)
-        fd = os.open(path, os.O_RDWR | os.O_CREAT, 0o644)
-        if mine is None and _try(fd, fcntl.LOCK_EX):
-            mine = (path, fd)
-            continue
+        fd = take(path)
         if not _try(fd, fcntl.LOCK_EX):
             others.append(_holder(path))
-        os.close(fd)
+            drop(fd)
+        elif mine is None and i < slots:
+            mine = path
+        else:
+            drop(fd)
     if mine is None:
-        os.close(legacy)
         return f"all {slots} slots are held"
     if others:
-        reserve = heavy_reserve_mb(m["total_mb"])
-        free = m["available_mb"] - sum(_still_needs(h) for h in others)
+        # What the running jobs may still grow into is read first, and what's available after, so growth
+        # between the two is counted twice, never not at all.
+        still = sum(_still_needs(h) for h in others)
+        free = memory()["available_mb"] - still
+        reserve = heavy_reserve_mb(total)
         if free - need < reserve:
-            os.close(mine[1])
-            os.close(legacy)
             return (
                 f"{free} MB free once {len(others)} running jobs grow, less {need} needed, is under {reserve}"
             )
-    path, fd = mine
-    path.with_suffix(".holder").write_text(
+    mine.with_suffix(".holder").write_text(
         json.dumps({"pid": os.getpid(), "label": label, "need_mb": need, "cwd": os.getcwd(), "since": now()})
         + "\n"
     )
-    return path, [fd, legacy]
+    return mine
 
 
 # ------------------------------------------------------------------------------------------------------------
