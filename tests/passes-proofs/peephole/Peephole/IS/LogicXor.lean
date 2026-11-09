@@ -70,7 +70,7 @@ def simplifyXorInst.steps (x : Option Ext) (op0 op1 : Term w) (n : Nat) : List (
     forward (simplifyXorInst.foldAndOrNot.steps op1 op0),
     forward (simplifyLogicOfAddSub.steps op0 op1 .xor),
     -- Try some generic simplifications for associative operations.
-    if n != 0 && (isBin .xor op0 || isBin .xor op1) then .delegate "simplifyAssociativeBinOp" else .next,
+    if assocMayAnswer x .xor op0 op1 n then .delegate "simplifyAssociativeBinOp" else .next,
     -- Threading Xor over selects and phi nodes is pointless, so don't bother.
     domEqStep x op0 op1 n,
     -- (xor (sub nuw C_Mask, X), C_Mask) -> X
@@ -87,9 +87,9 @@ def simplifyXorInst (x : Option Ext) (op0 op1 : Term w) (n : Nat) : Result w :=
   else run (simplifyXorInst.steps x op0 op1 n)
 
 /-- What InstSimplify does with an instruction it reaches: `simplifyInstruction` calls `simplifyXorInst` on an `xor`,
-with `MaxRecurse` at `RecursionLimit`, 3. What the core `Oracle` doesn't answer, the model hands over. -/
+with `MaxRecurse` at `RecursionLimit`, 3. What the core `Oracle` doesn't answer, `Logic.Ext.none` answers: nothing. -/
 def simplifyXorInst.onInst (_o : Oracle) : {w : Nat} → Term w → Result w
-  | _, .bin _ .xor _ a b => simplifyXorInst none a b 3
+  | _, .bin _ .xor _ a b => simplifyXorInst (some Ext.none) a b 3
   | _, _ => .null
 
 /-! ### The rewrites, one theorem each -/
@@ -255,7 +255,7 @@ theorem simplifyXorInst.onInst_sound (ρ : Env) (o : Oracle) (t : Term w) (ht : 
     cases op <;> simp only [simplifyXorInst.onInst, reduceCtorEq] at h
     obtain ⟨ca, cb, -⟩ := ht
     simp only [Term.hasUndef, Bool.or_eq_false_iff] at hu
-    exact simplifyXorInst.sound ρ none a b 3 ca cb hu.1 hu.2 h
+    exact simplifyXorInst.sound ρ _ a b 3 ca cb hu.1 hu.2 h
   | _ => simp [simplifyXorInst.onInst] at h
 
 end Peephole.IS

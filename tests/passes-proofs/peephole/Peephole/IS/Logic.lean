@@ -34,8 +34,17 @@ Three calls in these folds ask what the core `Oracle` doesn't have. `Logic.Ext` 
 - `isImpliedByDomCondition(ICMP_EQ, Op0, Op1, ...)`, which `simplifyByDomEq` asks. `simplifyByDomEq` isn't modelled
   here, so the answer only says when the model hands over to it, and claims nothing.
 
-A fold takes `Option Logic.Ext`. With `none`, as `onInst` has it, the model hands over (`.delegate`) at each of these
-calls, so it claims nothing there. -/
+`Logic.Ext` also says what decides whether the helpers that call back into InstSimplify, which the model doesn't
+follow, could answer: whether the first `simplifyBinOp` each makes answers, and whether an operand the model doesn't
+look into is a `phi`, or the overflow bit of a multiplication. Those only say where the model hands over, and claim
+nothing.
+
+A fold takes `Option Logic.Ext`. With `none`, the model hands over (`.delegate`) at each of these calls, and wherever
+one of the helpers could answer, so it claims nothing there. `onInst` runs with `some Logic.Ext.none`, which knows
+nothing: no implication, no dominating equality, `simplifyWithOpReplaced` simplifying nothing, every recursive
+`simplifyBinOp` possibly answering, and every operand the model doesn't look into an argument, as in the functions the
+comparison with `opt` builds. It's sound in every run, as `Oracle.none` is, and the comparison runs with both, so a fold
+`opt` makes and the model doesn't is one an analysis, or `simplifyWithOpReplaced`, would explain. -/
 
 namespace Peephole.IS
 
@@ -58,6 +67,15 @@ structure Ext where
   /-- `simplifyWithOpReplaced(V, Op, RepOp, Q.getWithoutUndef(), /*AllowRefinement=*/true, nullptr, MaxRecurse)`: `V`
   simplified with `Op` replaced by `RepOp`, if it simplifies. -/
   replaced : Nat → {u v : Nat} → Term u → Term v → Term v → Option (Term u)
+  /-- `simplifyBinOp(Opcode, LHS, RHS, Q, MaxRecurse)`, a recursive call into InstSimplify, with `Q.getWithoutUndef()`
+  if the flag is set: whether it answers. `simplifyAssociativeBinOp`, `expandBinOp` and `threadBinOpOverSelect` call
+  it first, and answer `nullptr` if it doesn't, so this says only where the model hands over to them. -/
+  simplifies : Nat → BinOp → Bool → {w : Nat} → Term w → Term w → Bool
+  /-- `isa<PHINode>(V)`, for an operand the model doesn't look into. -/
+  isPhi : {w : Nat} → Term w → Bool
+  /-- Whether an operand the model doesn't look into is the overflow bit of `umul.with.overflow` or
+  `smul.with.overflow`, an `extractvalue`. -/
+  isMulOverflowBit : {w : Nat} → Term w → Bool
 
 /-- `e`'s answers are true in the run `ρ`: the analysis's, and the recursive simplifier's. -/
 structure Ext.Sound (e : Ext) (ρ : Env) : Prop where
@@ -68,6 +86,28 @@ structure Ext.Sound (e : Ext) (ρ : Env) : Prop where
   answers refines `V`. -/
   replaced : ∀ (n : Nat) {u v : Nat} (V r : Term u) (a b : Term v) (x : BitVec v),
     e.replaced n V a b = some r → a.denote ρ = some x → b.denote ρ = some x → Refines (V.denote ρ) (r.denote ρ)
+
+/-- The extension that knows nothing: no implication, no dominating equality, `simplifyWithOpReplaced` simplifying
+nothing, and every operand the model doesn't look into an argument, as in the functions the comparison with `opt`
+builds. A recursive `simplifyBinOp` may answer, so the model hands over to the helpers that make one, as it does with
+no `Ext`. `onInst` runs with it, as the comparison runs with `Oracle.none`. -/
+def Ext.none : Ext where
+  impliesFalse _ _ := Option.none
+  domEq _ _ := Option.none
+  replaced := fun _ {_ _} _ _ _ => Option.none
+  simplifies _ _ _ _ _ _ := true
+  isPhi _ := false
+  isMulOverflowBit _ := false
+
+theorem Ext.none_sound (ρ : Env) : Ext.none.Sound ρ where
+  impliesFalse _ _ _ h := by simp [Ext.none] at h
+  replaced := by intro n u v V r a b x h; simp [Ext.none] at h
+
+/-- `some Ext.none`, as `onInst` gives it, is sound in every run. -/
+theorem some_none_sound (ρ : Env) : ∀ e, some Ext.none = some e → e.Sound ρ := by
+  intro e h
+  cases h
+  exact Ext.none_sound ρ
 
 /-! ### Calls to other folds -/
 

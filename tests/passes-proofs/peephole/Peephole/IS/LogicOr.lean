@@ -275,12 +275,12 @@ def simplifyOrInst.steps (o : Oracle) (x : Option Ext) (op0 op1 : Term w) (n : N
     -- If we have a multiplication overflow check that is being 'and'ed with a
     -- check that one of the multipliers is not zero, we can omit the 'and', and
     -- only keep the overflow check.
-    if mulOverflowCheck false op0 op1 then .delegate "isCheckForZeroAndMulWithOverflow" else .next,
-    if mulOverflowCheck false op1 op0 then .delegate "isCheckForZeroAndMulWithOverflow" else .next,
+    if mulOverflowCheck x false op0 op1 then .delegate "isCheckForZeroAndMulWithOverflow" else .next,
+    if mulOverflowCheck x false op1 op0 then .delegate "isCheckForZeroAndMulWithOverflow" else .next,
     -- Try some generic simplifications for associative operations.
-    if n != 0 && (isBin .or op0 || isBin .or op1) then .delegate "simplifyAssociativeBinOp" else .next,
+    if assocMayAnswer x .or op0 op1 n then .delegate "simplifyAssociativeBinOp" else .next,
     -- Or distributes over And.  Try some generic simplifications based on this.
-    if n != 0 && (isBin .and op0 || isBin .and op1) then .delegate "expandCommutativeBinOp" else .next,
+    if expandMayAnswer x .or .and op0 op1 n then .delegate "expandCommutativeBinOp" else .next,
     -- A | (A || B) -> A || B
     if (isSelect op0 || isSelect op1) && w == 1 && selectOf false op0 op1 then
       .fire "IS.simplifyOrInst.L2448" (.old op1)
@@ -291,7 +291,8 @@ def simplifyOrInst.steps (o : Oracle) (x : Option Ext) (op0 op1 : Term w) (n : N
     -- If the operation is with the result of a select instruction, check
     -- whether operating on either branch of the select always yields the same
     -- value.
-    if (isSelect op0 || isSelect op1) && n != 0 then .delegate "threadBinOpOverSelect" else .next,
+    if (isSelect op0 || isSelect op1) && selectMayAnswer x .or op0 op1 n then .delegate "threadBinOpOverSelect"
+    else .next,
     -- (A & C1)|(B & C2)
     -- If we have: ((V + N) & C1) | (V & C2)
     -- .. and C2 = ~C1 and C2 is 0+1+ and (N & C2) == 0
@@ -315,7 +316,7 @@ def simplifyOrInst.steps (o : Oracle) (x : Option Ext) (op0 op1 : Term w) (n : N
     | _, _ => .next,
     -- If the operation is with the result of a phi instruction, check whether
     -- operating on all incoming values of the phi always yields the same value.
-    if (isOpaque op0 || isOpaque op1) && n != 0 then .delegate "threadBinOpOverPHI" else .next,
+    if phiMayAnswer x op0 op1 n then .delegate "threadBinOpOverPHI" else .next,
     -- (A ^ C) | (A ^ ~C) -> -1, i.e. all bits set to one.
     match xorConst? op0, xorConst? op1 with
     | some (A, c1), some (A', c2) =>
@@ -340,10 +341,10 @@ def simplifyOrInst (o : Oracle) (x : Option Ext) (op0 op1 : Term w) (n : Nat) : 
   else run (simplifyOrInst.steps o x op0 op1 n)
 
 /-- What InstSimplify does with an instruction it reaches: `simplifyInstruction` calls `simplifyOrInst` on an `or`,
-whatever its `disjoint` flag, with `MaxRecurse` at `RecursionLimit`, 3. What the core `Oracle` doesn't answer, the
-model hands over. -/
+whatever its `disjoint` flag, with `MaxRecurse` at `RecursionLimit`, 3. What the core `Oracle` doesn't answer,
+`Logic.Ext.none` answers: nothing. -/
 def simplifyOrInst.onInst (o : Oracle) : {w : Nat} → Term w → Result w
-  | _, .bin _ .or _ a b => simplifyOrInst o none a b 3
+  | _, .bin _ .or _ a b => simplifyOrInst o (some Ext.none) a b 3
   | _, _ => .null
 
 /-! ### What the matchers say about values -/
@@ -1052,7 +1053,7 @@ theorem simplifyOrInst.onInst_sound (ρ : Env) (o : Oracle) (ho : o.Sound ρ) (t
     cases op <;> simp only [simplifyOrInst.onInst, reduceCtorEq] at h
     obtain ⟨ca, cb, -⟩ := ht
     simp only [Term.hasUndef, Bool.or_eq_false_iff] at hu
-    exact simplifyOrInst.sound ρ o ho none (fun _ h => by cases h) a b 3 f.disjoint ca cb hu.1 hu.2 h
+    exact simplifyOrInst.sound ρ o ho _ (some_none_sound ρ) a b 3 f.disjoint ca cb hu.1 hu.2 h
   | _ => simp [simplifyOrInst.onInst] at h
 
 end Peephole.IS

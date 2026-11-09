@@ -83,9 +83,67 @@ def icmpZeroPred : {w : Nat} → Term w → Option Pred
 could hold: `Op0` is `icmp ne X, 0` for `and`, or `icmp eq X, 0` for `or`, and `Op1` for `and`, or what `Op1` negates
 for `or`, could be the overflow bit of `umul.with.overflow` or `smul.with.overflow`, an `extractvalue`, which only
 an opaque operand can be. It isn't modelled, so this only says when the model hands over to it. -/
-def mulOverflowCheck (isAnd : Bool) (op0 op1 : Term w) : Bool :=
-  if isAnd then icmpZeroPred op0 == some .ne && isOpaque op1
-  else icmpZeroPred op0 == some .eq && (match not? op1 with | some v => isOpaque v | none => false)
+def mulOverflowCheck (x : Option Ext) (isAnd : Bool) (op0 op1 : Term w) : Bool :=
+  if isAnd then icmpZeroPred op0 == some .ne && overflowBit op1
+  else icmpZeroPred op0 == some .eq && (match not? op1 with | some v => overflowBit v | none => false)
+where
+  /-- Whether an operand could be the overflow bit: one the model doesn't look into, which `Ext` says is one. -/
+  overflowBit (v : Term w) : Bool :=
+    isOpaque v && match x with
+      | none => true
+      | some e => e.isMulOverflowBit v
+
+/-- Whether `simplifyAssociativeBinOp(Opcode, LHS, RHS, Q, MaxRecurse)`, for a commutative `Opcode`, could answer: it
+answers `nullptr` at `MaxRecurse == 0`, and unless the first `simplifyBinOp` of one of its four transforms answers.
+With no `Ext`, wherever an operand has the opcode. -/
+def assocMayAnswer (x : Option Ext) (opc : BinOp) (lhs rhs : Term w) (n : Nat) : Bool :=
+  n != 0 && match x with
+    | none => isBin opc lhs || isBin opc rhs
+    | some e =>
+      -- "(A op B) op C" ==> "A op (B op C)", then "(A op B) op C" ==> "(C op A) op B"
+      (match binop? opc lhs with
+        | some (_, a, b) => e.simplifies (n - 1) opc false b rhs || e.simplifies (n - 1) opc false rhs a
+        | none => false) ||
+      -- "A op (B op C)" ==> "(A op B) op C", then "A op (B op C)" ==> "B op (C op A)"
+      (match binop? opc rhs with
+        | some (_, b, c) => e.simplifies (n - 1) opc false lhs b || e.simplifies (n - 1) opc false c lhs
+        | none => false)
+
+/-- Whether `expandCommutativeBinOp(Opcode, L, R, OpcodeToExpand, Q, MaxRecurse)` could answer: it answers `nullptr` at
+`MaxRecurse == 0`, and unless, for `L` or `R` an `OpcodeToExpand` of `B0` and `B1`, `simplifyBinOp(Opcode, B0, other,
+Q.getWithoutUndef(), ...)` answers. With no `Ext`, wherever an operand has `OpcodeToExpand`. -/
+def expandMayAnswer (x : Option Ext) (opc opEx : BinOp) (l r : Term w) (n : Nat) : Bool :=
+  n != 0 && match x with
+    | none => isBin opEx l || isBin opEx r
+    | some e =>
+      (match binop? opEx l with
+        | some (_, b0, _) => e.simplifies (n - 1) opc true b0 r
+        | none => false) ||
+      (match binop? opEx r with
+        | some (_, b0, _) => e.simplifies (n - 1) opc true b0 l
+        | none => false)
+
+/-- Whether `threadBinOpOverSelect(Opcode, LHS, RHS, Q, MaxRecurse)` could answer: it answers `nullptr` at
+`MaxRecurse == 0`, and where the operation on neither of the select's values simplifies. With no `Ext`, wherever it's
+called. -/
+def selectMayAnswer (x : Option Ext) (opc : BinOp) (lhs rhs : Term w) (n : Nat) : Bool :=
+  n != 0 && match x with
+    | none => true
+    | some e =>
+      match lhs with
+      | .select _ _ t f => e.simplifies (n - 1) opc false t rhs || e.simplifies (n - 1) opc false f rhs
+      | _ =>
+        match rhs with
+        | .select _ _ t f => e.simplifies (n - 1) opc false lhs t || e.simplifies (n - 1) opc false lhs f
+        | _ => false
+
+/-- Whether `threadBinOpOverPHI(Opcode, LHS, RHS, Q, MaxRecurse)` is called and could answer: an operand is a `phi`,
+which only an operand the model doesn't look into can be, and `MaxRecurse` isn't 0. With no `Ext`, wherever an operand
+is one the model doesn't look into. -/
+def phiMayAnswer (x : Option Ext) (lhs rhs : Term w) (n : Nat) : Bool :=
+  n != 0 && match x with
+    | none => isOpaque lhs || isOpaque rhs
+    | some e => (isOpaque lhs && e.isPhi lhs) || (isOpaque rhs && e.isPhi rhs)
 
 /-- `m_<Shift>(m_Value(X), m_APInt(C))`: `X` and `C`. -/
 def shiftConst? (op : BinOp) (t : Term w) : Option (Term w × BitVec w) :=
@@ -190,7 +248,7 @@ def simplifyAndCommutative.steps (o : Oracle) (x : Option Ext) (op0 op1 : Term w
     -- If we have a multiplication overflow check that is being 'and'ed with a
     -- check that one of the multipliers is not zero, we can omit the 'and', and
     -- only keep the overflow check.
-    if mulOverflowCheck true op0 op1 then .delegate "isCheckForZeroAndMulWithOverflow" else .next,
+    if mulOverflowCheck x true op0 op1 then .delegate "isCheckForZeroAndMulWithOverflow" else .next,
     -- -A & A = A if A is a power of two or zero.
     match neg? op0 with
     | some v =>
@@ -258,11 +316,11 @@ def simplifyAndInst.steps (o : Oracle) (x : Option Ext) (op0 op1 : Term w) (n : 
     | _, _ => .next,
     if isCmpPair op0 op1 then .delegate "simplifyAndOrOfCmps" else .next,
     -- Try some generic simplifications for associative operations.
-    if n != 0 && (isBin .and op0 || isBin .and op1) then .delegate "simplifyAssociativeBinOp" else .next,
+    if assocMayAnswer x .and op0 op1 n then .delegate "simplifyAssociativeBinOp" else .next,
     -- And distributes over Or.  Try some generic simplifications based on this.
-    if n != 0 && (isBin .or op0 || isBin .or op1) then .delegate "expandCommutativeBinOp" else .next,
+    if expandMayAnswer x .and .or op0 op1 n then .delegate "expandCommutativeBinOp" else .next,
     -- And distributes over Xor.  Try some generic simplifications based on this.
-    if n != 0 && (isBin .xor op0 || isBin .xor op1) then .delegate "expandCommutativeBinOp" else .next,
+    if expandMayAnswer x .and .xor op0 op1 n then .delegate "expandCommutativeBinOp" else .next,
     -- A & (A && B) -> A && B
     if (isSelect op0 || isSelect op1) && w == 1 && selectOf true op0 op1 then
       .fire "IS.simplifyAndInst.L2157" (.old op1)
@@ -273,10 +331,11 @@ def simplifyAndInst.steps (o : Oracle) (x : Option Ext) (op0 op1 : Term w) (n : 
     -- If the operation is with the result of a select instruction, check
     -- whether operating on either branch of the select always yields the same
     -- value.
-    if (isSelect op0 || isSelect op1) && n != 0 then .delegate "threadBinOpOverSelect" else .next,
+    if (isSelect op0 || isSelect op1) && selectMayAnswer x .and op0 op1 n then .delegate "threadBinOpOverSelect"
+    else .next,
     -- If the operation is with the result of a phi instruction, check whether
     -- operating on all incoming values of the phi always yields the same value.
-    if (isOpaque op0 || isOpaque op1) && n != 0 then .delegate "threadBinOpOverPHI" else .next,
+    if phiMayAnswer x op0 op1 n then .delegate "threadBinOpOverPHI" else .next,
     -- ((X << A) | Y) & Mask -> Y,
     --     if Mask = ((1 << effective_width_of(Y)) - 1)
     -- ((X << A) | Y) & Mask -> X << A,
@@ -336,9 +395,9 @@ def simplifyAndInst (o : Oracle) (x : Option Ext) (op0 op1 : Term w) (n : Nat) :
   else run (simplifyAndInst.steps o x op0 op1 n)
 
 /-- What InstSimplify does with an instruction it reaches: `simplifyInstruction` calls `simplifyAndInst` on an `and`,
-with `MaxRecurse` at `RecursionLimit`, 3. What the core `Oracle` doesn't answer, the model hands over. -/
+with `MaxRecurse` at `RecursionLimit`, 3. What the core `Oracle` doesn't answer, `Logic.Ext.none` answers: nothing. -/
 def simplifyAndInst.onInst (o : Oracle) : {w : Nat} → Term w → Result w
-  | _, .bin _ .and _ a b => simplifyAndInst o none a b 3
+  | _, .bin _ .and _ a b => simplifyAndInst o (some Ext.none) a b 3
   | _, _ => .null
 
 /-! ### What the helpers' matches say about values -/
@@ -1055,7 +1114,7 @@ theorem simplifyAndInst.onInst_sound (ρ : Env) (o : Oracle) (ho : o.Sound ρ) (
     cases op <;> simp only [simplifyAndInst.onInst, reduceCtorEq] at h
     obtain ⟨ca, cb, -⟩ := ht
     simp only [Term.hasUndef, Bool.or_eq_false_iff] at hu
-    exact simplifyAndInst.sound ρ o ho none (fun _ h => by cases h) a b 3 ca cb hu.1 hu.2 h
+    exact simplifyAndInst.sound ρ o ho _ (some_none_sound ρ) a b 3 ca cb hu.1 hu.2 h
   | _ => simp [simplifyAndInst.onInst] at h
 
 end Peephole.IS
