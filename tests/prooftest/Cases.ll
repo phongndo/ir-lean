@@ -93,8 +93,8 @@ define i8 @load(ptr %p) {
   ret i8 %r
 }
 
-; Floating point, which the emitter refuses.
+; Floating point the emitter refuses: `reassoc` has rewrite-based semantics, which the model doesn't have.
 define float @fadd(float %x) {
-  %r = fadd float %x, 1.0
+  %r = fadd reassoc float %x, 1.0
   ret float %r
 }

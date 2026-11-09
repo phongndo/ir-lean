@@ -287,7 +287,7 @@ before F3, which changed its `freeze` cases, [below](#the-negative-corpus-since-
 | `freeze_added_unmodeled`, right in LLVM, but not in the model, where `freeze` of poison stops | `counterexample`, at poison |
 | `proof_for_other_target`, whose claim is about a wrong rewrite, `tgt_bad` | `counterexample`, at 1 |
 | `wrong_loop_deleted`, and `wrong_promise_added`, which adds `mustprogress` to a loop that never ends at 0, each refuted only by a run that never ends | `unknown/input_timeout` |
-| `undef_in_target`, `float_fadd_zero_removed` | `unknown/function_unsupported` |
+| `undef_in_target`, and until SEM-05's second slice `float_fadd_zero_removed` | `unknown/function_unsupported` |
 | `freeze_duplicated_equality_pin`, wrong in LLVM, but pinning an equality that holds in the model | `passed_tier1/exhaustive` |
 | `precondition_vacuous` | `vacuous` |
 | The 4 controls, and the 7 cases about certificates and limits, whose claims are right | `passed_tier1/exhaustive` |
@@ -308,6 +308,7 @@ one, so it answers those claims `unknown`, and `--check-t1` counts a case it can
 | `freeze_duplicated_equality_pin`, wrong, pinning an equality for one way of choosing, which is false | `counterexample`, at poison |
 | `control_freeze_added`, until F3 `freeze_added_unmodeled`, right, whose target's choice is a binder | `unknown/binder_unsupported` |
 | `control_freeze_noundef_removed`, right, whose source makes choices | `unknown/undecidable` |
+| `float_fadd_zero_removed`, wrong, whose source's `fadd` makes a choice of a NaN since SEM-05's second slice, measured the same way on y on 2026-11-09 | `unknown/undecidable` |
 
 The rest answered as above. 5 were refuted, each confirmed by the kernel: `wrong_mul2_to_shl2`,
 `poison_add_nsw_introduced`, `precondition_insufficient`, `proof_for_other_target` and

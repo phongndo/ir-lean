@@ -90,7 +90,7 @@ Each runs `tools/verify.py` on its own copy of the case's files, one at a time.
 | `freeze_duplicated` | One freeze used twice to two freezes | Wrong at poison | `proof_failed`, and no witness can be decided | No |
 | `freeze_duplicated_equality_pin` | The same, claimed as equality where `tgt`'s two freezes choose 0 and 1 | Wrong at poison | counterexample | No: `pin_mismatch` |
 | `undef_in_target` | `sub X, X` to `undef` | Wrong | unsupported | No |
-| `float_fadd_zero_removed` | `fadd X, 0.0` to `X` | Wrong at -0.0 | unsupported | No |
+| `float_fadd_zero_removed` | `fadd X, 0.0` to `X` | Wrong at -0.0 | `proof_failed`, and no witness can be decided, since the source's `fadd` makes a choice | No |
 | `precondition_insufficient` | `(X << 1) >> 1` to `X`, for X < 200 | Wrong at 150 | counterexample | No |
 | `precondition_vacuous` | The same, for X < 0 | Says nothing | proved | No: `hypotheses_unwitnessed` |
 | `proof_for_other_target` | A proof about one `tgt`, given for another | Wrong | `statement_not_about_target` | No |

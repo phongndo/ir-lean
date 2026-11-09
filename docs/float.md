@@ -1,8 +1,8 @@
 # Floating point: the design
 
 How `ir-lean` will model LLVM's floating point, SEM-05 in the [task list](llvm-verification-tasks.md#sem-05-floating-point).
-This page is the design, decided on 2026-11-09. Its first slice, the bit-level operations, is in the model, and
-[the slices](#the-slices) say what each has done and what's still refused. [Trust](trust.md) and [status](status.md)
+This page is the design, decided on 2026-11-09. Its first two slices, the bit-level operations and the arithmetic and
+conversions, are in the model, and [the slices](#the-slices) say what each has done and what's still refused. [Trust](trust.md) and [status](status.md)
 say what's true now. For what any theorem means, read [trust](trust.md) first.
 
 **Why now.** Floating point is the largest gap in stage 1's coverage. Of InstCombine's 31,240 changed pairs at
@@ -355,6 +355,12 @@ every existing proof still passing, its coverage reported, and [trust](trust.md)
    rest zeros, which made the model read a value LLVM doesn't. 168 of those pairs printed a splat.
 2. **Arithmetic and conversions:** `fadd`, `fsub`, `fmul`, `fdiv` and `frem`, `fptrunc` and `fpext`, `fptoui` and
    `fptosi`, poison out of range, `uitofp` and `sitofp`, with `nneg`, and the `*.sat` conversions. Each is a chooser.
+   **In the model** since 2026-11-09, written without `let` as the circuits [above](#no-let-in-a-circuit). Checked by
+   `tests/fpcheck.py` against the constant folder, the processor and Alive2, with every one of the model's sixteen
+   choices of a NaN checked against LangRef's set where IEEE 754 gives one, and by `tests/float.sh` on 14 more
+   rewrites, among them `fadd x, -0.0` to `x` and `fadd x, y` to `fadd y, x`, whose proofs name the source's choice.
+   On the same pairs, it makes 1,175 of those the emitter refused at `45a55e7` translatable, and moves 29 to a refusal
+   for memory.
 3. **Fast-math flags:** `nnan`, `ninf` and `nsz` on everything, as above.
 4. **Intrinsics,** by how often InstCombine's tests use them: `fma` and `fmuladd`; `minnum`, `maxnum`, `minimum`,
    `maximum`, `minimumnum` and `maximumnum`; `sqrt` and the rounding family; `ldexp` and `frexp`; then the rest.

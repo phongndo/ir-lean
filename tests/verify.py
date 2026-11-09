@@ -49,10 +49,10 @@ done:
   ret i32 %x
 }
 
-define float @fadd1(float %x) {
+define x86_fp80 @fadd1(x86_fp80 %x) {
 entry:
-  %r = fadd float %x, 1.0
-  ret float %r
+  %r = fadd x86_fp80 %x, 0xK3FFF8000000000000000
+  ret x86_fp80 %r
 }
 """
 
@@ -354,7 +354,7 @@ def cases() -> list[Case]:
             "function_unsupported",
             {**small(statement="True"), "function": "fadd1"},
             {"Small.ll": SMALL_LL},
-            check=lambda r, _: expect("float" in r["detail"], r["detail"]),
+            check=lambda r, _: expect("x86_fp80" in r["detail"], r["detail"]),
         ),
         Case(
             "unsupported_witness",
