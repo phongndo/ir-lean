@@ -764,6 +764,6 @@
       "ir": "  %n3542 = add i32 %v0, %v1\n  %n3549 = and i32 %v0, 1\n  call void (...) @use(i32 %n3542, i32 %n3549)\n  %r = sdiv exact i32 %n3542, %n3549\n  ret i32 %r"
     }
   ],
-  "seconds": 5.0,
+  "seconds": 5.5,
   "folds_unwatchable": []
 }
