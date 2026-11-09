@@ -181,6 +181,35 @@
       "sites": []
     }
   },
+  "delegates": {
+    "Peephole.IS.ICmpB.icmpOnInst": {
+      "ConstantFoldCompareInstOperands": "two constants: the constant folder",
+      "simplifyICmpInst: a step before simplifyICmpWithBinOp": "the steps the icmp family models, where one could answer: an undef or poison operand, X == X, i1 operands, a ConstantInt on the right, a cast against a constant or a cast, or isKnownNonEqual",
+      "simplifyICmpInst: a step after simplifyICmpWithIntrinsicOnLHS": "the rest of simplifyICmpInst: simplifyICmpUsingMonotonicValues, the dominating conditions, threadCmpOverSelect and threadCmpOverPHI"
+    },
+    "Peephole.IS.ICmpB.selectOnInst": {
+      "simplifySelectInst: a step before simplifySelectWithICmpCond": "a constant condition, the i1 logic folds, select ?, X, X, and a poison or undef arm",
+      "simplifySelectInst: a step after simplifySelectWithICmpCond": "the rest of simplifySelectInst"
+    },
+    "Peephole.IS.ICmpB.andOnInst and orOnInst": {
+      "simplifyAndInst/simplifyOrInst: a step before simplifyAndOrOfCmps": "any pair of operands simplifyAndOrOfCmps can't answer for, a constant operand, X op X, and simplifyAndOrWithICmpEq on an equality compare",
+      "simplifyAndInst/simplifyOrInst: a step after simplifyAndOrOfCmps": "the rest of simplifyAndInst and simplifyOrInst"
+    },
+    "Peephole.IS.simplifyAndOfICmps and simplifyOrOfICmps": {
+      "simplifyUnsignedRangeCheck": "the icmp family's fold, a parameter here: delegated where its first compare is icmp eq/ne Y, 0, and declining elsewhere, as its first statement does"
+    },
+    "Peephole.IS.simplifyAndOrOfCmps": {
+      "ConstantFoldCastOperand": "the cast of a constant V that isn't an i1 the model can fold"
+    },
+    "Peephole.IS.simplifyCmpSelCase": {
+      "simplifyICmpInst": "the recursive simplifyCmpInst, delegated at every call from the entry points"
+    },
+    "Peephole.IS.simplifySelectWithICmpCond": {
+      "matchDecomposedSelectPattern": "ValueTracking's select-pattern analysis, not modelled: its answer is a parameter, which may fire for any relational predicate",
+      "simplifySelectBitTest": "modelled by the is-shift family; here only whether it answers is modelled, and delegated where it does",
+      "simplifySelectWithEquivalence": "modelled by the is-shift family, through simplifyWithOpsReplaced; delegated here for an equality"
+    }
+  },
   "lemmas": [
     "Peephole.Lemmas.add_ule_uaddSat",
     "Peephole.Lemmas.beq_umin",
@@ -261,9 +290,9 @@
     "IS.simplifyCmpSelCase.L121": "integer instance proved, not claimed for every input: threadCmpOverSelect calls simplifyCmpSelCase from simplifyICmpInst on compares of pointers too, and from simplifyFCmpInst on fcmps, and the recursive simplifyCmpInst can answer with the select's condition there. Peephole.IS.simplifyCmpSelCase.L121, which Peephole.IS.simplifyCmpSelCase.sound uses, proves it for every scalar integer input; the pointer instance waits for pointers in the model (memory, F4), and the floating-point one for SEM-05",
     "IS.simplifyCmpSelCase.L125": "integer instance proved, not claimed for every input: threadCmpOverSelect calls simplifyCmpSelCase from simplifyICmpInst on compares of pointers too, and from simplifyFCmpInst on fcmps, and isSameCompare reads any CmpInst. Peephole.IS.simplifyCmpSelCase.L125, which Peephole.IS.simplifyCmpSelCase.sound uses, proves it for every scalar integer input; the pointer instance waits for pointers in the model (memory, F4), and the floating-point one for SEM-05",
     "IS.simplifySelectWithICmpCond.L4857": "the C++ returns X where ValueTracking's matchDecomposedSelectPattern finds a min/max flavor whose predicate is Pred and whose other operand is the flavor's limit constant; that analysis (matchSelectPattern, matchClamp, matchMinMaxOfMinMax, getNotValue, the abs/nabs patterns) isn't modelled, so the model takes its answer as a parameter and delegates this step",
-    "IS.simplifySelectWithICmpCond.L4876": "tagged fp/generic: simplifySelectWithICmpCond's path also handles floating point. The integer instance is proved for every input, by Peephole.IS.simplifySelectWithICmpCond.L4876, which Peephole.IS.simplifySelectWithICmpCond.sound uses; the floating-point instance waits for SEM-05",
-    "IS.simplifySelectWithICmpCond.L4890": "tagged fp/generic: simplifySelectWithICmpCond's path also handles floating point. The integer instance is proved for every input, by Peephole.IS.simplifySelectWithICmpCond.L4890, which Peephole.IS.simplifySelectWithICmpCond.sound uses; the floating-point instance waits for SEM-05",
-    "IS.simplifySelectWithICmpCond.L4896": "tagged fp/generic: simplifySelectWithICmpCond's path also handles floating point. The integer instance is proved for every input, by Peephole.IS.simplifySelectWithICmpCond.L4896, which Peephole.IS.simplifySelectWithICmpCond.sound uses; the floating-point instance waits for SEM-05",
-    "IS.simplifySelectWithICmpCond.L4900": "tagged fp/generic: simplifySelectWithICmpCond's path also handles floating point. The integer instance is proved for every input, by Peephole.IS.simplifySelectWithICmpCond.L4900, which Peephole.IS.simplifySelectWithICmpCond.sound uses; the floating-point instance waits for SEM-05"
+    "IS.simplifySelectWithICmpCond.L4876": "integer instance proved, and the C++ has no other: the inventory tags it fp, since simplifySelectWithICmpCond handles floating point elsewhere, but this step needs TrueVal to be fshl or fshr, integer intrinsics, so no floating-point or pointer select reaches it. Peephole.IS.simplifySelectWithICmpCond.L4876, which Peephole.IS.simplifySelectWithICmpCond.sound uses, proves it for every scalar integer input. With no floating-point instance, it would count with `covers` naming fp, which the scoring rules don't give a proof about Term today",
+    "IS.simplifySelectWithICmpCond.L4890": "integer instance proved, and the C++ has no other: the inventory tags it fp, since simplifySelectWithICmpCond handles floating point elsewhere, but this step needs FalseVal to be a rotate, fshl or fshr of X with itself, integer intrinsics, so no floating-point or pointer select reaches it. Peephole.IS.simplifySelectWithICmpCond.L4890, which Peephole.IS.simplifySelectWithICmpCond.sound uses, proves it for every scalar integer input. With no floating-point instance, it would count with `covers` naming fp, which the scoring rules don't give a proof about Term today",
+    "IS.simplifySelectWithICmpCond.L4896": "integer instance proved, and the C++ has no other: the inventory tags it fp, since simplifySelectWithICmpCond handles floating point elsewhere, but this step needs the arms to be abs of the compared value and its negation, an integer intrinsic, so no floating-point or pointer select reaches it. Peephole.IS.simplifySelectWithICmpCond.L4896, which Peephole.IS.simplifySelectWithICmpCond.sound uses, proves it for every scalar integer input. With no floating-point instance, it would count with `covers` naming fp, which the scoring rules don't give a proof about Term today",
+    "IS.simplifySelectWithICmpCond.L4900": "integer instance proved, and the C++ has no other: the inventory tags it fp, since simplifySelectWithICmpCond handles floating point elsewhere, but this step needs the arms to be abs of the compared value and its negation, an integer intrinsic, so no floating-point or pointer select reaches it. Peephole.IS.simplifySelectWithICmpCond.L4900, which Peephole.IS.simplifySelectWithICmpCond.sound uses, proves it for every scalar integer input. With no floating-point instance, it would count with `covers` naming fp, which the scoring rules don't give a proof about Term today"
   }
 }
