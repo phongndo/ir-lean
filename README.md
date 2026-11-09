@@ -67,6 +67,7 @@ theorem popcount_correct (x : BitVec 32) :
 | [Design](docs/design.md) | What gets emitted, what the model covers, and why |
 | [Testing](docs/testing.md) | How to run the tests and linters, and what each one checks |
 | [Roadmap](docs/roadmap.md) | Where this is going, in what order, and the [first pull requests](docs/roadmap.md#near-term-pull-requests) |
+| [Prior art](docs/prior-art.md) | What others have built toward proved superoptimization, a lemma store and proof tests, and whether Trivet or Lean-MLIR already cover integer stage 1 |
 
 Each fact lives in one doc, and the others link to it. When a result changes, update its doc in the same pull
 request, with a link to the test or run that shows it.
