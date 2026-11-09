@@ -177,11 +177,12 @@ theorem round_trip_256 : Refines Src256.f Tgt256.f := by
 | --- | --- | --- |
 | Before: Lean, from start to end | 0.9 s | 15.8 s, with `bv_decide` given 300 s. Given its default 10 s, it ran out once of two runs |
 | After | 0.2 s | 0.2 s |
+| In CI's `store` test, before and after | 1.5 s and 0.4 s | 22.3 s and 0.4 s |
 | Before rests on | the standard three, and one of `bv_decide`'s axioms | the same |
 | After rests on | the standard three | the standard three |
 
-Each is one Lean process compiling the proof, with the generated modules already compiled, on 2026-11-08, while
-other lanes' jobs kept the load average near 5. The proof after is the same text at every width, but for the modules
+Each is one Lean process compiling the proof, with the generated modules already compiled, on 2026-11-08, on this
+machine while other lanes' jobs kept the load average near 5, and in CI on a 4-core runner. The proof after is the same text at every width, but for the modules
 it names; the one before is a new SAT problem at each, which grows with the width. `tests/store_test.py` checks all
 four, their axioms, and that `leanchecker` replays them.
 
@@ -276,11 +277,11 @@ so rules 1 and 2 would refuse them. Checking them here, and retiring the prototy
 
 | | Time |
 | --- | --- |
-| `lake build` of the store and its tool, on top of `IRLean`, from nothing | XX s |
-| `store.py check`, with the store built | XX s, of which Lean's facts about every lemma XX s and the axiom checks and replays XX s |
+| `lake build` of the store and its tool, on top of `IRLean`, from nothing | 4.2 s, compiling its 12 modules one at a time on this machine |
+| `store.py check`, with the store built | 22.7 s in CI, on a 4-core runner: 3 consumer modules compiled, 9 modules' axioms checked and replayed, and Lean's facts about all 163 lemmas |
 | Checking one lemma again in the kernel | 0.28 ms at the median, 3.9 ms at most |
-| `store.py lookup` | About XX s, most of it starting Lean and importing the store |
-| The `store` test | XX s |
+| `store.py lookup` | 0.5 s for its Lean process on this machine |
+| The `store` test | 94.5 s in CI, in the `semantics` job |
 
 ## Gaps
 
