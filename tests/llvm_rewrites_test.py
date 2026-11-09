@@ -79,6 +79,31 @@ Value *visitToy(Instruction &I) {
   return Changed ? &I : nullptr;
 }
 
+Value *visitShadow(Instruction &I) {
+  if (Value *X = foldInner(I.getOperand(0), I.getOperand(1)))
+    return X;
+  Value *X = nullptr;
+  if (match(I.getOperand(0), m_Not(m_Value(X))))
+    return X;
+  auto Hint = [&](Use &U) {
+    if (U.get() != X)
+      replaceUse(U, X);
+  };
+  Hint(I.getOperandUse(0));
+  return nullptr;
+}
+
+Value *visitGeneric(Instruction &I) {
+  if (isa<FPMathOperator>(I) && !I.hasNoNaNs())
+    return nullptr;
+  if (I.getOperand(0) == I.getOperand(1))
+    return I.getOperand(0);
+  const APInt *C;
+  if (match(I.getOperand(1), m_APInt(C)))
+    return I.getOperand(1);
+  return nullptr;
+}
+
 bool runToy(Function &F) {
   bool Changed = false;
   for (Instruction &I : F) {
@@ -96,7 +121,13 @@ bool runToy(Function &F) {
 }
 """
 
-TOY_PASSES = {"toy": {"prefix": "T", "files": ["lib/Toy.cpp"], "entries": ["runToy", "visitToy"]}}
+TOY_PASSES = {
+    "toy": {
+        "prefix": "T",
+        "files": ["lib/Toy.cpp"],
+        "entries": ["runToy", "visitToy", "visitShadow", "visitGeneric"],
+    }
+}
 
 
 def toy_inventory(tmp: Path, source: str) -> dict:
@@ -128,6 +159,12 @@ def test_rule(failures: list[str]) -> None:
         ("visitToy", line_of(TOY, "Changed = true;")),  # a flag
         ("changeInPlace", line_of(TOY, "return true;")),  # a bool fold that changes IR
         ("runToy", line_of(TOY, "Changed = true;", 3)),  # the driver's dead-code erase
+        # A name an `if` binds to a fold's result is that `if`'s alone: the matcher's `X` after it is a site.
+        ("visitShadow", line_of(TOY, "return X;", 3)),
+        # A change committed with no return or flag after it.
+        ("visitShadow::Hint", line_of(TOY, "replaceUse(U, X);")),
+        ("visitGeneric", line_of(TOY, "return I.getOperand(0);")),
+        ("visitGeneric", line_of(TOY, "return I.getOperand(1);")),
     }
     for w in sorted(want - sites):
         failures.append(f"rule: expected a site at {w}")
@@ -145,6 +182,17 @@ def test_rule(failures: list[str]) -> None:
         failures.append(f"rule: findThing should be a helper, not a fold: {inv['helpers']}")
     if "getFalse" not in inv["builders"]:
         failures.append(f"rule: getFalse should be a builder: {inv['builders']}")
+    needs = {r["line"]: r["needs"] for r in inv["rewrites"]}
+    # A function that handles floating point rewrites it too, unless the path says integer.
+    if needs.get(line_of(TOY, "return I.getOperand(0);")) != ["fp"]:
+        failures.append(
+            f"rule: a generic site should need fp: {needs.get(line_of(TOY, 'return I.getOperand(0);'))}"
+        )
+    if needs.get(line_of(TOY, "return I.getOperand(1);")) != ["int"]:
+        failures.append("rule: a site behind m_APInt is integers only")
+    kinds = {r["line"]: r["kind"] for r in inv["rewrites"]}
+    if kinds.get(line_of(TOY, "replaceUse(U, X);")) != "change":
+        failures.append("rule: a lone replaceUse should be a change site")
     ids = [r["id"] for r in inv["rewrites"]]
     if len(set(ids)) != len(ids):
         failures.append(f"rule: IDs aren't unique: {ids}")

@@ -15,11 +15,11 @@ source files, so it gives the same bytes on any host.
 
 | Pass | Rewrites | Integers only | Need floating point | Need memory | Need calls | Folds | Files |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| InstSimplify | 540 | 305 | 189 | 32 | 109 | 150 | 2 |
-| InstCombine | 2,392 | 1,600 | 428 | 178 | 381 | 520 | 15 |
-| AggressiveInstCombine | 25 | 13 | 3 | 7 | 5 | 33 | 2 |
-| Reassociate | 43 | 29 | 13 | 0 | 1 | 23 | 1 |
-| All | 3,000 | 1,947 | 633 | 217 | 496 | 726 | 20 |
+| InstSimplify | 541 | 300 | 198 | 31 | 111 | 150 | 2 |
+| InstCombine | 2,596 | 1,606 | 603 | 241 | 421 | 514 | 15 |
+| AggressiveInstCombine | 51 | 24 | 8 | 20 | 12 | 33 | 2 |
+| Reassociate | 59 | 22 | 36 | 0 | 1 | 23 | 1 |
+| All | 3,247 | 1,952 | 845 | 292 | 545 | 720 | 20 |
 
 A rewrite can need more than one of floating point, memory and calls, so those columns overlap. "Integers only" is
 the rest, which needs none of them. `tests/llvm_rewrites.py summary` prints these from the files.
@@ -36,7 +36,7 @@ What the blocked ones wait for:
 
 ### A rewrite is a site
 
-A **rewrite** is a *site*: a statement in the pinned C++ where a fold function commits a change. There are two kinds.
+A **rewrite** is a *site*: a statement in the pinned C++ where a fold function commits a change. There are three kinds.
 
 - **A return** of something other than `nullptr`, `false`, `{}` or `std::nullopt`, from a fold whose result is an IR
   value, such as `Value *` or `Instruction *`, or `std::optional` of one, or a `bool` that says it changed something.
@@ -45,6 +45,11 @@ A **rewrite** is a *site*: a statement in the pinned C++ where a fold function c
 - **A flag**: `Changed = true;`, or the same for `MadeChange`, `MadeIRChange` and `Modified`. This is how flag
   inference and in-place canonicalization commit, as in `visitAdd`'s `nsw` inference and Reassociate's
   `OptimizeInst`.
+- **A change**: a statement that changes IR in place, such as `replaceUse`, `setOperand`, `swapOperands`, a flag
+  setter or an eraser, with no return of a change and no flag set after it in its block to commit it. InstCombine's
+  `MaybeSimplifyHint` lambda in `visitCallInst` is one: it calls `replaceUse` and returns nothing. `MUTATES` in the
+  script lists the calls. A change followed in its block by a return or flag site is part of that site, as
+  `replaceOperand(I, 0, X); return &I;` is one rewrite.
 
 A site's obligation for G2 is that whatever reaches it is right for every input. That's the path from the function's
 entry to the site, with every condition on it, and the value built there.
@@ -78,12 +83,14 @@ A **forward** passes on another fold's result. It isn't a site, and it makes its
 
 - `return g(...)`, `return replaceInstUsesWith(I, g(...))`, or `return C ? g(...) : h(...)`, where `g` and `h` are
   folds;
-- `if (Value *V = g(...)) return V;`, or `return replaceInstUsesWith(I, V);`, where every value assigned to `V` is a
-  fold's result. A name bound by a matcher, such as `m_Value(Y)`, holds the site's own value, so `return Y;` is a site;
+- `if (Value *V = g(...)) return V;`, or `return replaceInstUsesWith(I, V);`, where `V` is bound to a fold's
+  result. A name declared in an `if`'s condition is bound only inside that `if`. Outside one, every value assigned to
+  the name has to be a fold's result. A name a matcher binds, such as `X` in `m_Value(X)`, may hold the site's own
+  value, so a return of it outside such an `if` is a site, as `return Y;` is in `simplifyAddInst`;
 - `if (g(I)) return &I;`, and `Changed |= g(I);`, where `g` is a fold that returns `bool`;
 - `return foldA(...) || foldB(...);` in a fold that returns `bool`;
 - a driver's `if (Value *V = g(I)) { I.replaceAllUsesWith(V); Changed = true; }`, where the block changes nothing but
-  installing `V`;
+  installing `V`, and `I->replaceAllUsesWith(V)` on its own where `V` is a fold's result;
 - `return Changed ? &I : nullptr;`, whose sites are where `Changed` is set.
 
 So InstCombine's `visitAdd` calling `simplifyAddInst` isn't a site of InstCombine's: the eight sites in
@@ -119,7 +126,11 @@ Each rewrite has:
 
 - `needs`: `int`, or any of `fp`, `memory` and `calls`, from the identifiers on its path. The path is the function's
   name and parameters, the conditions of the statements around the site, the plain statements before it in each
-  enclosing block, the case labels it's under, and the site itself;
+  enclosing block, the case labels it's under, and the site itself. A function that handles floating point as well
+  as integers, such as Reassociate's `RewriteExprTree`, rewrites both, so a site in it needs `fp` too unless its path
+  says its values are integers: an integer opcode, an integer matcher such as `m_APInt` or `m_Add`, or a type test
+  such as `isIntOrIntVectorTy`. Those sites are also tagged `generic`. A generic rewrite proved for integers isn't
+  proved for every input until its floating-point instance is;
 - `also`: `vector` for shuffles, extracts, inserts and vector types, `cfg` for phis, branches and blocks, and `undef`
   for folds that test for `undef`. These don't block G2: the model has fixed-width vectors and control flow, and it has
   no `undef`, so a proof covers poison and says nothing about `undef`, as #47's does. Scalable vectors aren't in the
@@ -147,18 +158,22 @@ For the reviewer, the places the rule can be wrong:
 - **Helpers and builders aren't counted.** What a builder builds is part of the site that returns it, and what a helper
   finds is part of the site that uses it. A helper that's really a fold, because its caller installs its result in a
   way the forward rules don't name, would be missed. The `helpers` lists are short for that reason: 2 in InstSimplify,
-  36 in InstCombine, 1 in each of the others.
-- **Changes with no site.** A function that changes IR and returns neither a value nor a flag, or changes IR before
-  declining, has a change no site names. A test of every such call would need data flow the scanner doesn't have.
+  40 in InstCombine, 1 in AggressiveInstCombine and none in Reassociate.
+- **Changes counted with a later site.** A change followed in its block by a return of a change or a flag set is
+  counted as part of that site, even when the two are unrelated. Changes in helpers and builders, which aren't folds,
+  are part of the sites that call them.
+- **Names rebound inside an `if`.** A name an `if`'s condition binds to a fold's result, then rebound by a matcher
+  inside that `if`, reads as the fold's result there.
 - **Other counts measure other things.** InstCombine's `.cpp` files have 2,308 calls to `match(`: patterns tried, of
-  which several can guard one site and one can guard several. The 520 folds include lambdas and helpers that build,
+  which several can guard one site and one can guard several. The 514 folds include lambdas and helpers that build,
   so they're more than the functions named `fold*` or `visit*`.
 - **Preprocessor conditionals are read as code.** At the pin no site is inside `#ifndef NDEBUG` or
   `#if LLVM_ENABLE_STATS`, which the release `opt` leaves out. A site there would be counted.
 
 [`tests/llvm_rewrites_test.py`](../tests/llvm_rewrites_test.py) checks the rule on small C++ files, a positive case
-for each kind of site and forward, a helper and a builder. On a copy of the pinned source, it checks that a rewrite
-removed, added or changed is each reported by its ID.
+for each kind of site and forward, a helper and a builder, a name an `if` binds shadowing a matcher's, a change in a
+lambda, and a generic function's tags. On a copy of the pinned source, it checks that a rewrite removed, added or
+changed is each reported by its ID.
 
 ## Reproducing
 

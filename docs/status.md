@@ -246,5 +246,5 @@ reads it. That difference is itself a thing [Phase 3](roadmap.md#phase-3-c-and-r
     `instcombine` runs on `freeze` are bound as refinements. `undef` stays out of the model. Done in
     [#72](https://github.com/phongndo/ir-lean/pull/72). See [refinement](refinement.md#runs-that-make-choices).
 14. An inventory of chunk 1's rewrites, INV-04 for InstSimplify, InstCombine, AggressiveInstCombine and Reassociate:
-    3,000 at `llvmorg-23.1.3`, 1,947 of them on integers only, each with an ID and its line, derived from the pinned
+    3,247 at `llvmorg-23.1.3`, 1,952 of them on integers only, each with an ID and its line, derived from the pinned
     source and checked in CI. None is proved for every input yet. See [rewrite inventory](rewrite-inventory.md).
