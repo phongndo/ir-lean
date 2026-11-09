@@ -537,7 +537,8 @@ def check(write: bool) -> tuple[dict[str, Any], int]:
     by_name = {e["name"]: e for e in index["lemmas"]}
     for fact in facts:
         entry = by_name[fact["name"]]
-        r = verdict(fact, entry, keys)
+        # Writing the index is how a changed statement, or a new normalizer, gets its key recorded.
+        r = verdict(fact, {**entry, "key": None} if write else entry, keys)
         module_refusals(r, trust, counter_trust)
         r["family"] = entry.get("family")
         r["provenance"] = entry.get("provenance")
@@ -675,7 +676,6 @@ def add(
             *[c["module"] for c in consumers(index)],
             *(extra_imports or []),
         ]
-        module_reasons: list[tuple[str, str]] = []
         modules: list[str] = []
         if file is not None:
             if not file.exists():
@@ -711,9 +711,10 @@ def add(
                 return result, EXIT["refused"]
             modules = ["StoreCandidate"]
             imports.append("StoreCandidate")
-            trust = trust_checks(modules, lean_env(*paths))
-            module_reasons = trust["StoreCandidate"]
         found = lean_facts(existing, catalog, imports, paths, modules=modules, catalog_keys=True)
+        # Each new lemma's module, read as data and replayed, as `check` does for every stored lemma's.
+        held = sorted({f["module"] for f in found["lemmas"] if f.get("found") and f["name"] not in catalog})
+        module_reasons = trust_checks(held, lean_env(*paths))
         keys: dict[str, str] = {}
         for p in found["catalog"]:
             keys.setdefault(key_of(p["key_text"]), p["name"])
@@ -725,7 +726,7 @@ def add(
                 continue
             entry = {"provenance": provenance, "family": family}
             r = verdict(fact, entry, keys)
-            for code, detail in module_reasons:
+            for code, detail in module_reasons.get(fact.get("module") or "", []):
                 r["reasons"].append({"code": code, "rule": REASONS[code][0], "detail": detail})
                 r["status"] = "refused"
             if r.get("key"):

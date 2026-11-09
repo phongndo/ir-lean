@@ -8,8 +8,9 @@
   reordered, `>` for `<`, `not =` for `!=`, the operands of `and` and `or` swapped, and an equation the
   other way round. It finds a lemma whose conclusion becomes a goal at a real width, with its side
   conditions closed. A statement nothing proves finds nothing, and one that doesn't elaborate is an error.
-- `store.py add` refuses each lemma in tests/store/must_refuse for the reason it's there, and accepts
-  tests/store/Admissible.lean, so the refusals aren't the checker refusing everything.
+- `store.py add` refuses each lemma in tests/store/must_refuse for the reason it's there, and one of #48's
+  lemmas through `--existing`, and accepts tests/store/Admissible.lean, so the refusals aren't the checker
+  refusing everything.
 - `grind +suggestions` proves two goals from stored lemmas it isn't told the names of, and plain `grind`
   proves neither.
 - The reuse example in tests/store/reuse: both proofs of each theorem check, the one from the store rests on
@@ -176,6 +177,7 @@ MUST_REFUSE = {
     "BvDecide.lean": "nonstandard_axiom",
     "FixedWidth.lean": "fixed_width",
     "NoCounterexample.lean": "hypothesis_unwitnessed",
+    "SorriedCounterexample.lean": "hypothesis_unwitnessed",
     "Duplicate.lean": "duplicate",
     "FalseStatement.lean": "does_not_check",
 }
@@ -199,6 +201,27 @@ def check_refused(name: str, reason: str) -> None:
         ok = ok and not any(RESOURCE.search(d) for d in details)
     first = (details[0].splitlines() or [""])[0][:160] if details else ""
     report(ok, f"add refuses must_refuse/{name}: {reason}: {first}", json.dumps(r)[:3000])
+
+
+def check_existing_refused() -> None:
+    """A lemma already proved in the library goes through the same checks: `shl_lshr_eq_iff` has a hypothesis
+    nothing needs, so no counterexample for it exists."""
+    code, r = store(
+        "add",
+        "--existing",
+        "IRLean.Generic.shl_lshr_eq_iff",
+        "--family",
+        "test",
+        "--provenance",
+        "tests/store_test.py",
+        "--dry-run",
+    )
+    codes = {x["code"] for lemma in r.get("lemmas", []) for x in lemma["reasons"]}
+    report(
+        code == 2 and r.get("status") == "refused" and "hypothesis_unwitnessed" in codes,
+        "add --existing refuses IRLean.Generic.shl_lshr_eq_iff: hypothesis_unwitnessed",
+        json.dumps(r)[:3000],
+    )
 
 
 def check_admitted() -> None:
@@ -323,6 +346,7 @@ def main() -> None:
         jobs += [pool.submit(check_instance, *case) for case in INSTANCES]
         jobs.append(pool.submit(check_lookup_misses))
         jobs += [pool.submit(check_refused, name, reason) for name, reason in MUST_REFUSE.items()]
+        jobs.append(pool.submit(check_existing_refused))
         jobs.append(pool.submit(check_admitted))
         jobs.append(pool.submit(check_suggestions))
         for j in jobs:

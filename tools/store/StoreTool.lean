@@ -107,14 +107,18 @@ def dropName (x : Expr) (pos : Nat) : MetaM String := do
   let n := (← x.fvarId!.getDecl).userName
   return if n.hasMacroScopes || n.isAnonymous then s!"drop_{pos}" else s!"drop_{n.eraseMacroScopes}"
 
-/-- Whether the theorem `c` states `expected`: the same proposition up to reducible unfolding, or with the same key. -/
+/-- Whether the theorem `c` states `expected`, the same proposition up to reducible unfolding or with the same key,
+and rests on the standard axioms only: one proved with `sorry` shows nothing. `none` when it does, or what's wrong. -/
 def states (c : Name) (expected : Expr) : MetaM (Option String) := do
   let some info := (← getEnv).find? c | return some "missing"
   unless info matches .thmInfo _ do return some "not_a_theorem"
   let actual ← instantiateTypeLevelParams info.toConstantVal (← mkFreshLevelMVarsFor info)
-  if ← withoutModifyingState (withReducible (isDefEq expected actual)) then return none
-  if (← LemmaStore.Normal.keyText [] expected) == (← LemmaStore.Normal.keyText [] actual) then return none
-  return some "mismatch"
+  unless (← withoutModifyingState (withReducible (isDefEq expected actual))) ||
+      (← LemmaStore.Normal.keyText [] expected) == (← LemmaStore.Normal.keyText [] actual) do
+    return some "mismatch"
+  let extra := (← collectAxioms c).filter (!standardAxioms.contains ·)
+  if extra.isEmpty then return none
+  return some s!"rests on {", ".intercalate (extra.toList.map toString)}"
 
 /-- `∃ xs, body`, the variables innermost last. -/
 def mkExists (xs : Array Expr) (body : Expr) : MetaM Expr :=

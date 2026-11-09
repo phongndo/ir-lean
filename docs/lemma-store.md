@@ -23,8 +23,8 @@ shell, while other work ran on the same machine.
   a real width, such as `mul nuw nsw i32 %x, 8` to `shl nuw nsw i32 %x, 3`, finds the lemma for every width it's an
   instance of, with its side conditions closed by `decide`.
 - **The checker refuses each kind of bad lemma,** in `tests/store/must_refuse`: a `sorry`, an axiom of its own, an
-  axiom from `bv_decide`, a fixed width, a hypothesis with no counterexample, a duplicate after normalization and a
-  false statement.
+  axiom from `bv_decide`, a fixed width, a hypothesis with no counterexample, a counterexample proved by `sorry`, a
+  duplicate after normalization and a false statement.
 - **A proof from the store is shorter, width-independent and faster where the solver struggles.** InstSimplify's
   `lshr (shl nuw x, s), s` to `x`, on what ir-lean emits, checks in 15.8 s at `i256` with `bv_decide`, which needs
   more than its default 10 s of solving, and in 0.2 s from the store, whose proof rests on the standard three axioms
@@ -64,7 +64,7 @@ The [roadmap](roadmap.md#the-flywheel)'s four rules, and how each is checked:
 | --- | --- | --- | --- |
 | 1. Checked by the kernel, with only the standard axioms | `tests/check_axioms.lean` on each module that holds a stored lemma or a counterexample, reading it as data, with none of `bv_decide`'s axioms allowed, `leanchecker` replaying the module, and each lemma's own axioms read again | `sorry`, `nonstandard_axiom`, `compiled_code`, `replay_failed`, `does_not_check` | `Sorried.lean`, `ExtraAxiom.lean`, `BvDecide.lean`, `FalseStatement.lean` |
 | 2. Stated for every width where that makes sense | No `BitVec n` or `Val n` with `n` written as a number other than 1, which LLVM fixes for conditions, flags and comparisons, unless the index records why | `fixed_width` | `FixedWidth.lean` |
-| 3. Each hypothesis shown necessary by a counterexample | For each hypothesis `h`, a theorem `LemmaStore.Counter.<lemma>.drop_<h>` stating exactly that the lemma without `h` is false, and `LemmaStore.Counter.<lemma>.sat` that the hypotheses can all hold | `hypothesis_unwitnessed`, `hypotheses_unsatisfiable` | `NoCounterexample.lean` |
+| 3. Each hypothesis shown necessary by a counterexample | For each hypothesis `h`, a theorem `LemmaStore.Counter.<lemma>.drop_<h>` stating exactly that the lemma without `h` is false, and `LemmaStore.Counter.<lemma>.sat` that the hypotheses can all hold, each resting on the standard axioms only | `hypothesis_unwitnessed`, `hypotheses_unsatisfiable` | `NoCounterexample.lean`, `SorriedCounterexample.lean` |
 | 4. Reused by at least 2 proofs | The theorems whose proofs use it, directly or through declarations private to their module, in the store's modules and the consumer modules the index names | Not refused: a candidate until a second proof uses it | |
 
 `check` builds the statement each counterexample has to have from the lemma itself, so one stating something else is
@@ -197,7 +197,8 @@ tools/store/store.py add --existing IRLean.Foo.bar --family NAME --provenance '#
 tools/store/store.py forget NAME --reason 'why'
 ```
 
-`add` judges each theorem a file declares, apart from its counterexamples, against the store, with every check above.
+`add` judges each theorem a file declares, apart from its counterexamples, against the store, with every check above,
+the axiom check and replay of its module included, as `--existing` does for a lemma already proved elsewhere.
 A file's counterexamples go in it, under `LemmaStore.Counter.<lemma>`. If every theorem is admitted or a candidate, and
 it isn't a dry run, the file becomes `store/LemmaStore/Lemmas/<name>.lean`, the index gets an entry for each, and
 `store/LemmaStore.lean` is written again. A file mustn't import `LemmaStore` itself, which would import it back.
@@ -221,8 +222,8 @@ time, in CI.
 
 When a change to `IRLean` breaks a stored lemma, `lake build` fails in that lemma's module, and `check` doesn't pass,
 so the lemma is reported, not dropped. When it changes a statement, `check` reports `statement_changed`. When it
-changes only how many proofs use a lemma, so its status changes, `check` reports the drift, and `check --write`
-records the new status.
+changes only how many proofs use a lemma, so its status changes, `check` reports the drift. `check --write` records
+the new key or status, so the change shows in `store/index.json`'s diff.
 
 The store keeps no LRAT files, because it admits nothing proved by `bv_decide`: rule 1 rules its axioms out. A lemma
 only `bv_decide` proves waits outside the store until it's proved without it.
