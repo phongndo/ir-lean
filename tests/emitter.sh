@@ -430,7 +430,8 @@ define i32 @f(i32 %x) {
   call void @gives_up() noreturn
   unreachable
 }'
-refuses 'call to external' 'declare void @returns()
+# A call outside the module with effects, in a function without memory, goes in the trace: docs/calls.md.
+accepts 'declare void @returns()
 define i32 @f(i32 %x) {
   call void @returns()
   ret i32 %x
@@ -454,6 +455,105 @@ accepts 'declare i8 @g(i8) memory(none)
 define internal i8 @h(i8 %x) { %r = call i8 @g(i8 %x)
   ret i8 %r }
 define i8 @f(i8 %x) { %r = call i8 @h(i8 %x)
+  ret i8 %r }'
+accepts 'declare i8 @g(i8) memory(read)
+define i8 @f(i8 %x) { %r = call i8 @g(i8 %x)
+  ret i8 %r }'
+accepts 'declare i8 @g() memory(inaccessiblemem: readwrite)
+define i8 @f(ptr %p) { %v = load i8, ptr %p
+  %r = call i8 @g()
+  %s = add i8 %v, %r
+  ret i8 %s }'
+refuses 'touches memory: F4' 'declare void @g(i8)
+define void @f(ptr %p) { call void @g(i8 1)
+  ret void }'
+refuses 'touches memory: F4' 'declare i8 @g(i8) memory(read)
+define i8 @f(ptr %p) { %r = call i8 @g(i8 1)
+  ret i8 %r }'
+# Under a promise to progress, a call with effects is progress, which the model can't count yet.
+for attribute in mustprogress willreturn; do
+  refuses 'with effects, under a promise to progress' "declare void @g(i8)
+define void @f(i8 %x) $attribute { call void @g(i8 %x)
+  ret void }"
+done
+refuses 'with effects, under a promise to progress' 'declare void @g(i8)
+define void @f(i8 %x) {
+entry:
+  br label %loop
+loop:
+  call void @g(i8 %x)
+  br label %loop, !llvm.loop !0
+}
+!0 = distinct !{!0, !1}
+!1 = !{!"llvm.loop.mustprogress"}'
+refuses 'which calls outside the module with effects, under a promise to progress' 'declare void @g(i8)
+define internal void @h(i8 %x) { call void @g(i8 %x)
+  ret void }
+define void @f(i8 %x) mustprogress { call void @h(i8 %x)
+  ret void }'
+accepts 'declare i8 @g(i8) memory(read)
+define i8 @f(i8 %x) mustprogress { %r = call i8 @g(i8 %x)
+  ret i8 %r }'
+# A recursive function's promise is its cycle's, and covers a call with effects in it the same way.
+refuses 'with effects, under a promise to progress' 'declare void @e()
+define void @f(i1 %c) {
+entry:
+  br i1 %c, label %rec, label %loop
+rec:
+  call void @f(i1 false)
+  ret void
+loop:
+  call void @e()
+  br label %loop, !llvm.loop !0
+}
+!0 = distinct !{!0, !1}
+!1 = !{!"llvm.loop.mustprogress"}'
+# A function with memory can't reach a call outside the module that may touch it through one without memory.
+for memory in '' ' memory(read)'; do
+  refuses 'whose calls outside the module may access' "declare i32 @e()$memory
+define internal i32 @g() { %r = call i32 @e()
+  ret i32 %r }
+define i32 @f(ptr %p) { %a = load i32, ptr %p
+  %c = call i32 @g()
+  %b = load i32, ptr %p
+  ret i32 %b }"
+done
+accepts 'declare i32 @e() memory(inaccessiblemem: readwrite)
+define internal i32 @g() { %r = call i32 @e()
+  ret i32 %r }
+define i32 @f(ptr %p) { %a = load i32, ptr %p
+  %c = call i32 @g()
+  ret i32 %a }'
+# `speculatable` promises no effects, which a call outside the module with effects has, directly or through another.
+refuses 'speculatable on a function whose calls outside the module have effects' 'declare void @e(i8)
+define void @f(i8 %x) speculatable { call void @e(i8 %x)
+  ret void }'
+refuses 'speculatable on a function whose calls outside the module have effects' 'declare void @e(i8)
+define internal void @g(i8 %x) { call void @e(i8 %x)
+  ret void }
+define void @f(i8 %x) speculatable { call void @g(i8 %x)
+  ret void }'
+accepts 'declare i8 @e(i8) memory(none) willreturn nounwind
+define i8 @f(i8 %x) speculatable { %r = call i8 @e(i8 %x)
+  ret i8 %r }'
+# `nosync` at a call promises the callee's calls outside the module don't synchronize.
+refuses 'call attribute nosync on a call to @g' 'declare void @e(i8)
+define internal void @g(i8 %x) { call void @e(i8 %x)
+  ret void }
+define void @f(i8 %x) { call void @g(i8 %x) nosync
+  ret void }'
+# A callee that accesses memory may synchronize, free, or access what its caller promised not to.
+refuses 'nosync on a function whose calls outside the module access memory' 'declare i8 @g(i8) memory(read)
+define i8 @f(i8 %x) nosync { %r = call i8 @g(i8 %x)
+  ret i8 %r }'
+refuses 'nofree on a function whose calls outside the module have effects' 'declare void @g(i8)
+define void @f(i8 %x) nofree { call void @g(i8 %x)
+  ret void }'
+refuses 'memory on a function whose calls outside the module access memory' 'declare void @g(i8)
+define void @f(i8 %x) memory(none) { call void @g(i8 %x)
+  ret void }'
+accepts 'declare i8 @g(i8) memory(none)
+define i8 @f(i8 %x) nosync nofree memory(none) { %r = call i8 @g(i8 %x)
   ret i8 %r }'
 refuses 'touches memory: F4' 'declare i8 @g(ptr) memory(none)
 define i8 @f(ptr %p) { %r = call i8 @g(ptr %p)
@@ -481,6 +581,9 @@ refuses 'stack frame or promises about memory' 'declare i8 @g(i8) memory(none)
 define i8 @f(ptr %p) memory(read) { %v = load i8, ptr %p
   %r = call i8 @g(i8 %v)
   ret i8 %r }'
+refuses 'call to external @g, which may be null' 'declare extern_weak void @g(i8)
+define void @f(i8 %x) { call void @g(i8 %x)
+  ret void }'
 refuses 'calling convention' 'declare fastcc i8 @g(i8) memory(none)
 define i8 @f(i8 %x) { %r = call i8 @g(i8 %x)
   ret i8 %r }'
