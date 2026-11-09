@@ -117,8 +117,8 @@ run the machine out of memory together:
 - **Slots:** one per 3.5 GB of RAM, a Lean process's peak in the `binding` test, at least one, or
   `IR_LEAN_HEAVY_SLOTS`. Each is an `flock` of its own.
 - **Memory:** a job declares what it needs with `--max-tree-rss-mb`, which is also its cap, or 3.5 GB without one. It
-  takes a free slot only if available memory, less what the jobs in other slots may still grow into, less its need,
-  stays above a reserve: a tenth of RAM, at least 2 GB, or `IR_LEAN_HEAVY_RESERVE_MB`. Otherwise it waits, up to
+  takes a free slot only if available memory, less what the jobs in other slots declared, less its need, stays above
+  a reserve: a tenth of RAM, at least 2 GB, or `IR_LEAN_HEAVY_RESERVE_MB`. Otherwise it waits, up to
   `--lock-wait` seconds. A job alone in the pool starts whatever memory says.
 - **Older checkouts:** one still on the single lock takes `heavy-job.lock` exclusively, and each slot holds it shared,
   so such a job still runs alone.

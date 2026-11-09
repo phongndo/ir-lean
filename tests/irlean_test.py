@@ -344,7 +344,7 @@ class Pool(unittest.TestCase):
             with contextlib.ExitStack() as held:
                 paths = {held.enter_context(proc.heavy_lock(f"job{i}", 0, 3000)) for i in range(3)}
                 self.assertEqual(len(paths), 3)
-                with self.assertRaisesRegex(TimeoutError, "running jobs grow"):
+                with self.assertRaisesRegex(TimeoutError, "set aside"):
                     held.enter_context(proc.heavy_lock("fourth", 0, 3000))
                 # One that needs less still fits.
                 held.enter_context(proc.heavy_lock("small", 0, 500))
@@ -357,28 +357,28 @@ class Pool(unittest.TestCase):
             with proc.heavy_lock("fourth", 0, 3000):
                 pass
 
-    def test_growth_between_readings_is_never_counted_as_free(self) -> None:
-        # Found in review: available memory read before the running job's RSS let a job that grew in between
-        # count its growth as free. A job needing 6 GB takes a slot with 12 GB available, then grows to 6 GB
-        # as the next one decides, which leaves 6 GB: a second 6 GB job doesn't fit a 2 GB reserve.
-        state = {"available": 12000}
-
-        def memory() -> dict[str, Any]:
-            return {"total_mb": 16000, "available_mb": state["available"], "pressure_level": None}
-
-        def tree(pid: int) -> list[tuple[int, int, str]]:
-            state["available"] = 6000
-            return [(pid, 6000 << 10, "lean")]
-
+    def test_a_running_job_counts_at_its_whole_need(self) -> None:
+        # Found in review twice: a running job's RSS and what's available can't be read at once, so memory it
+        # grew into, or released and could take back, in between was counted as free. Now each running job
+        # counts at its whole declared need, whatever it holds. With one declaring 6 GB, a 2 GB reserve, and
+        # 12 GB available, whether it has used nothing yet or has released what it used: a 6 GB or 10 GB job
+        # doesn't fit, and a 3 GB one does. With 6 GB available, as when it has grown, a 3 GB one doesn't.
+        # Its tree, read in passing, holds its whole 6 GB, which crediting would count as already spent.
+        whole = [(os.getpid(), 6000 << 10, "lean")]
         with (
             mock.patch.dict(os.environ, {"IR_LEAN_HEAVY_SLOTS": "4"}),
-            mock.patch.object(proc, "memory", side_effect=memory),
-            proc.heavy_lock("first", 0, 6000),
-            mock.patch.object(proc, "tree", side_effect=tree),
-            self.assertRaisesRegex(TimeoutError, "running jobs grow"),
-            proc.heavy_lock("second", 0, 6000),
+            mock.patch.object(proc, "tree", return_value=whole),
         ):
-            pass
+            for available, fits in ((12000, {6000: False, 10000: False, 3000: True}), (6000, {3000: False})):
+                with self.machine(16000, available), proc.heavy_lock("first", 0, 6000):
+                    for need, want in fits.items():
+                        try:
+                            with proc.heavy_lock(f"needs {need}", 0, need):
+                                got = True
+                        except TimeoutError as e:
+                            self.assertIn("set aside", str(e))
+                            got = False
+                        self.assertEqual(got, want, (available, need))
 
     def test_a_job_in_a_slot_past_this_count_still_counts(self) -> None:
         # Found in review: with fewer slots than another job used, its slot went unseen, so a job thought
@@ -392,7 +392,7 @@ class Pool(unittest.TestCase):
             with (
                 mock.patch.dict(os.environ, {"IR_LEAN_HEAVY_SLOTS": "1"}),
                 self.machine(16000, 100),
-                self.assertRaisesRegex(TimeoutError, "running jobs grow"),
+                self.assertRaisesRegex(TimeoutError, "set aside"),
                 proc.heavy_lock("alone?", 0, 3000),
             ):
                 pass

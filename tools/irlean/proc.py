@@ -35,7 +35,7 @@ Two peaks are measured, because neither is enough alone:
 Heavy jobs take a slot in a pool first, shared by every checkout on the machine, so they don't run out of
 memory together. There are `heavy_slots()` slots, one per 3.5 GB of RAM, a Lean process's peak in the
 `binding` test, at least one, or `IR_LEAN_HEAVY_SLOTS`. A job declares the memory it needs, and takes a free
-slot only if what's available, less what the jobs already holding slots may still grow into, less its need,
+slot only if what's available, less what the jobs already holding slots declared, less its need,
 stays above `heavy_reserve_mb()`. Otherwise it waits. A job alone in the pool is let in whatever memory says,
 as one at a time always was. What it declares is its cap too: `tools/measure.py` passes `--max-tree-rss-mb` as
 both.
@@ -214,14 +214,10 @@ def _holder(slot: Path) -> dict[str, Any]:
     return {}
 
 
-def _still_needs(holder: dict[str, Any]) -> int:
-    """What a slot's job may still grow into: what it declared, less what its tree holds now."""
+def _declared(holder: dict[str, Any]) -> int:
+    """What a slot's job declared it needs, or SLOT_MB if its holder file doesn't say."""
     need = holder.get("need_mb")
-    pid = holder.get("pid")
-    if type(need) is not int or type(pid) is not int:
-        return SLOT_MB
-    used = sum(rss for _, rss, _ in tree(pid)) >> 10
-    return max(0, need - used)
+    return need if type(need) is int and need >= 0 else SLOT_MB
 
 
 def _slots_on_disk() -> list[int]:
@@ -328,14 +324,16 @@ def _admit(label: str, need: int, held: list[int]) -> Path | str:
     if mine is None:
         return f"all {slots} slots are held"
     if others:
-        # What the running jobs may still grow into is read first, and what's available after, so growth
-        # between the two is counted twice, never not at all.
-        still = sum(_still_needs(h) for h in others)
-        free = memory()["available_mb"] - still
+        # Each running job counts at its whole declared need, on top of what it already holds. What it holds
+        # can't be read at the same moment as what's available, and a job that shrank in between could grow
+        # back, so crediting it could let in too much. This sets some memory aside twice, never too little.
+        reserved = sum(_declared(h) for h in others)
+        free = memory()["available_mb"] - reserved
         reserve = heavy_reserve_mb(total)
         if free - need < reserve:
             return (
-                f"{free} MB free once {len(others)} running jobs grow, less {need} needed, is under {reserve}"
+                f"{free} MB free with {len(others)} running jobs' {reserved} MB set aside, less {need} "
+                f"needed, is under {reserve}"
             )
     mine.with_suffix(".holder").write_text(
         json.dumps({"pid": os.getpid(), "label": label, "need_mb": need, "cwd": os.getcwd(), "since": now()})
