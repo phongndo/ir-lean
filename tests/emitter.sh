@@ -399,6 +399,28 @@ define i8 @h(i8 %x) { %r = call i8 @g(i8 %x)
 define i8 @f(i8 %x) { %t = load ptr, ptr @p
   %r = call i8 %t(i8 %x)
   ret i8 %r }'
+# Values and functions named like what emitted code uses for calls outside the module get other names.
+cat >"$work/Names.ll" <<'IR'
+declare i8 @g(i8) memory(none)
+define i8 @Talks(i8 %x) {
+  %r = call i8 @g(i8 %x)
+  ret i8 %r
+}
+define i8 @f(i8 %Talks, i8 %World, i8 %Trace, i8 %Exit, i8 %Lanes) {
+  %r = call i8 @g(i8 %Talks)
+  ret i8 %r
+}
+define i8 @h(i8 %x) {
+  %r = call i8 @Talks(i8 %x)
+  ret i8 %r
+}
+IR
+if out=$("$tool" "$work/Names.ll" -o "$work/Names.lean" --namespace Names --no-code 2>&1) &&
+  out=$(lean -R "$work" -o "$work/Names.olean" "$work/Names.lean" 2>&1); then
+  printf 'ok    names that calls outside the module use are kept for them\n'
+else
+  fail "names that calls outside the module use should be kept for them: $out"
+fi
 # Under a promise to progress, one that promises to progress, and not to return, and never comes back stops the model.
 printf '%s\n' 'declare i8 @g(i8) memory(none) mustprogress
 define i8 @f(i8 %x) mustprogress { %r = call i8 @g(i8 %x)
