@@ -31,8 +31,8 @@ ID. The core (#97) and InstSimplify's seven families (#103) are on `main`; new f
 
 ## Rules
 - No `sorry`, `bv_decide`, `native_decide` or new axioms. Every theorem for a variable width.
-- No tool or model names anywhere (commits, comments, files, PR text): no "Claude", "Opus", "Sol", "Codex", "gpt",
-  "sol-loop", no reviewer-tool names. Plain commit messages saying what changed.
+- No tool or model names anywhere (commits, comments, files, PR text): name no AI model, assistant, review loop or
+  reviewer tool. Plain commit messages saying what changed.
 - No calendar estimates (weeks, months). Describe progress by gates and dependencies.
 - Quality over count: a site counts only if its model is the C++'s (pinned source at `$LLVM_PROJECT_SRC` inside
   `nix develop`) and its theorem is real. If unsure, list it unproved with a specific reason.
