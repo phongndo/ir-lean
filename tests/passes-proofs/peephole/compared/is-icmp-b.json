@@ -2,7 +2,7 @@
   "schema": "ir-lean.peephole.comparison/1",
   "family": "is-icmp-b",
   "registry": "tests/passes-proofs/peephole/folds/is-icmp-b.json",
-  "sources": "98e902f452d268c70667b75fc27e673ed995744e917f42902b1ed80b8b915727",
+  "sources": "cde35e39d4af5fca48614db3e0f7d4138c5a6daa4992575722c9c545c597d753",
   "opt": "23.1.3",
   "date": "2026-11-09",
   "status": "ok",
@@ -534,6 +534,6 @@
   "untagged": [],
   "mismatches": [],
   "unexplained": [],
-  "seconds": 4.7,
+  "seconds": 4.8,
   "folds_unwatchable": []
 }
