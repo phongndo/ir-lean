@@ -29,7 +29,7 @@ the program, including binding proofs to LLVM's C++, BIND-02 to BIND-05, which t
 | --- | --- | --- |
 | INV-01 to INV-03, NEG-01 | Complete | The inventory and its checks, kept as a reference and run in CI |
 | SEM-01 | Complete | `IRLean.Refines`, the statement every certificate proves, in [Phase 4](roadmap.md#phase-4-certified-translation-validation-and-superoptimization) |
-| SEM-07 | Complete | Milestone F2, reached. The safety bridge waits on F4 now |
+| SEM-07 | Complete | Milestone F2, reached in [#62](https://github.com/phongndo/ir-lean/pull/62). The safety bridge waits on F4 now |
 | SEM-02, SEM-03 | Not started | Milestone F3, after the `undef` decision, which is on the critical path |
 | SEM-06 | Not started | Milestone F4. Superoptimizer v2's memory candidates and the safety bridge need it |
 | SEM-04, SEM-08, SEM-10 | Not started | [Phase 0](roadmap.md#phase-0-semantic-fidelity-and-trust-infrastructure)'s fidelity work |
@@ -344,7 +344,7 @@ when they land.
 - **Acceptance:** A pass that deletes a loop under `mustprogress` certifies, and one that adds the promise doesn't.
 - **Trust gaps:** Promises on arguments that Rust emits are refused today. A recursive function under a promise, and a run waiting on a promised callee that waits itself, stop the model where LangRef doesn't settle them, so deleting infinite recursion can't be certified.
 - **Status:** complete
-- **Evidence:** `IRLean/Promise.lean` and `src/Emitter.cpp`, read in [trust](trust.md#promises-to-progress). `tests/binding.py` binds a real `loop-deletion` run under `mustprogress` as `ir_instance_refinement`, with `tests/binding/LoopDeletedRefines.lean`. `tests/refine/RefineCases.lean` proves deleting the loop refines under the promise and not without it, adding the promise doesn't refine, and the promise is broken exactly on the inputs where the loop never ends. `tests/emitter.sh` proves what the model says of a run that never finishes under each rule, of emitted code, and `wrong_promise_added` in `tests/verification_negative` fails the proof the model allowed before.
+- **Evidence:** `IRLean/Promise.lean` and `src/Emitter.cpp`, read in [trust](trust.md#promises-to-progress). `tests/binding.py` binds a real `loop-deletion` run under `mustprogress` as `ir_instance_refinement`, with `tests/binding/LoopDeletedRefines.lean`. `tests/refine/RefineCases.lean` proves deleting the loop refines under the promise and not without it, adding the promise doesn't refine, and the promise is broken exactly on the inputs where the loop never ends. `tests/emitter.sh` proves what the model says of a run that never finishes under each rule, of emitted code, and `wrong_promise_added` in `tests/verification_negative` fails the proof the model allowed before. Merged in [#62](https://github.com/phongndo/ir-lean/pull/62).
 
 ### SEM-08: Every instruction, intrinsic, attribute and metadata kind classified
 
