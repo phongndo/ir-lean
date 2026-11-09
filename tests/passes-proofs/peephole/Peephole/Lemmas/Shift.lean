@@ -10,7 +10,11 @@ can use. The rewrite each one was cut from is named in its docstring. A shift by
 so the shift is poison, or shifts a bit out that a flag forbids.
 
 For each hypothesis, `LemmaStore.Counter.<lemma>.drop_<hypothesis>` at the end gives an input where the lemma without
-it fails, and `.sat` one where they all hold, as `store/LemmaStore/Counter/Generic.lean` has them. -/
+it fails, and `.sat` one where they all hold, as `store/LemmaStore/Counter/Generic.lean` has them.
+
+Four are steps of the others that the store refuses as trivial, since `simp` or `grind` closes each, so the family's
+registry doesn't offer them: `ushiftRight_toNat_self`, `getLsbD_zero_shiftLeft`, `allOnes_sshiftRight` and
+`signExtend_of_width_one`. -/
 
 namespace Peephole.Lemmas
 
@@ -78,7 +82,8 @@ theorem ashr_zero_left_refines (b : Val w) (exact : Bool) : Refines (Val.ashr (s
 
 /-! ### Shifting a value by itself -/
 
-/-- A value is less than 2 to its own power, so shifting it right by itself leaves 0. -/
+/-- A value is less than 2 to its own power, so shifting it right by itself leaves 0. A step, not offered to the
+store: `simp` closes it. -/
 theorem ushiftRight_toNat_self (x : BitVec w) : x >>> x.toNat = 0#w := by
   apply BitVec.eq_of_toNat_eq
   simp
@@ -119,7 +124,7 @@ theorem ashr_self_refines (a : Val w) (exact : Bool) : Refines (Val.ashr a a exa
 
 /-! ### Flags that let nothing through but a shift by 0 -/
 
-/-- A shift left by at least one clears bit 0. -/
+/-- A shift left by at least one clears bit 0. A step, not offered to the store: `grind` closes it. -/
 theorem getLsbD_zero_shiftLeft {x : BitVec w} {n : Nat} (hn : n ≠ 0) : (x <<< n).getLsbD 0 = false := by
   simp [BitVec.getLsbD_shiftLeft]; omega
 
@@ -266,7 +271,7 @@ theorem lshr_or_shl_nuw_refines (a : Val w) {y c : BitVec w} (hy : y.toNat < 2 ^
 
 /-! ### All ones, and values that are all sign bits -/
 
-/-- All ones shifted right arithmetically is all ones. -/
+/-- All ones shifted right arithmetically is all ones. A step, not offered to the store: `grind` closes it. -/
 theorem allOnes_sshiftRight (n : Nat) : (BitVec.allOnes w).sshiftRight n = BitVec.allOnes w := by
   ext i hi
   simp [BitVec.getElem_sshiftRight, BitVec.msb_allOnes, show 0 < w by omega]
@@ -339,7 +344,8 @@ theorem ashr_of_getMsbD_refines (x : BitVec w) (hx : ∀ i, i < w → x.getMsbD 
     · exact Or.inl rfl
     · split <;> simp
 
-/-- A `sext` of an `i1` is 0 or all ones. `IS.simplifyShift.L1322`: a shift by it is a shift by 0, or poison. -/
+/-- A `sext` of an `i1` is 0 or all ones. `IS.simplifyShift.L1322`: a shift by it is a shift by 0, or poison. A step,
+not offered to the store: `grind` closes it. -/
 theorem signExtend_of_width_one (x : BitVec 1) (w : Nat) :
     x.signExtend w = 0#w ∨ x.signExtend w = BitVec.allOnes w := by
   rcases (by omega : x.toNat = 0 ∨ x.toNat = 1) with h | h
@@ -470,14 +476,6 @@ theorem Peephole.Lemmas.msb_eq_false_of_toNat_lt.drop_h : ¬ ∀ {w : Nat} {x : 
 
 theorem Peephole.Lemmas.msb_eq_false_of_toNat_lt.sat : ∃ (w : Nat) (x : BitVec w), x.toNat < w :=
   ⟨1, 0#1, Nat.one_pos⟩
-
-/-- At `n = 0` nothing is shifted in. -/
-theorem Peephole.Lemmas.getLsbD_zero_shiftLeft.drop_hn :
-    ¬ ∀ {w : Nat} {x : BitVec w} {n : Nat}, (x <<< n).getLsbD 0 = false :=
-  fun h => absurd (@h 1 1#1 0) (by decide)
-
-theorem Peephole.Lemmas.getLsbD_zero_shiftLeft.sat : ∃ (w : Nat) (_ : BitVec w) (n : Nat), n ≠ 0 :=
-  ⟨0, 0#0, 1, Nat.one_ne_zero⟩
 
 /-- `lshr exact i2 2, 1` is 1: no set bit is dropped. -/
 theorem Peephole.Lemmas.lshr_exact_of_getLsbD_refines.drop_hx :

@@ -2,7 +2,7 @@
   "schema": "ir-lean.peephole.comparison/1",
   "family": "is-shift",
   "registry": "tests/passes-proofs/peephole/folds/is-shift.json",
-  "sources": "2fe0408bee6481202cd788c5489bf65e9b9e2658ce83ff6e28e0a3c42723a6ee",
+  "sources": "80844b3d4f34eccaaf1672c9131bb33a705b9983004bbd370a9ff2861e7df4dc",
   "opt": "23.1.3",
   "date": "2026-11-09",
   "status": "ok",
@@ -396,6 +396,6 @@
       "ir": "  %n2 = or i33 %v3, 33\n  call void (...) @use(i33 %v1, i33 %n2)\n  %r = ashr i33 %v1, %n2\n  ret i33 %r"
     }
   ],
-  "seconds": 3.3,
+  "seconds": 4.3,
   "folds_unwatchable": []
 }
