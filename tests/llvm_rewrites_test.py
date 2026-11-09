@@ -79,6 +79,66 @@ Value *visitToy(Instruction &I) {
   return Changed ? &I : nullptr;
 }
 
+Value *visitShadow(Instruction &I) {
+  if (Value *X = foldInner(I.getOperand(0), I.getOperand(1)))
+    return X;
+  Value *X = nullptr;
+  if (match(I.getOperand(0), m_Not(m_Value(X))))
+    return X;
+  auto Hint = [&](Use &U) {
+    if (U.get() != X)
+      replaceUse(U, X);
+  };
+  Hint(I.getOperandUse(0));
+  return nullptr;
+}
+
+Value *visitGeneric(Instruction &I) {
+  if (isa<FPMathOperator>(I) && !I.hasNoNaNs())
+    return nullptr;
+  if (I.getOperand(0) == I.getOperand(1))
+    return I.getOperand(0);
+  const APInt *C;
+  if (match(I.getOperand(1), m_APInt(C)))
+    return I.getOperand(1);
+  return nullptr;
+}
+
+static Instruction *lookupJ(Value *V) {
+  if (auto *J = dyn_cast<Instruction>(V))
+    return J;
+  return nullptr;
+}
+
+Value *visitNegate(Instruction &I) {
+  if (Instruction *J = lookupJ(I.getOperand(0))) {
+    J->setOperand(0, I.getOperand(1));
+    return J;
+  }
+  return nullptr;
+}
+
+static bool foldTop(Instruction &I) {
+  if (!match(I.getOperand(0), m_Zero()))
+    return false;
+  I.setOperand(0, I.getOperand(1));
+  return true;
+}
+
+static bool setFlags(Instruction &I) {
+  bool Changed = I.getOperand(0) == I.getOperand(1);
+  I.setIsExact(Changed);
+  return Changed;
+}
+
+static Instruction *foldPtr(Instruction &I) {
+  auto *P = dyn_cast<IntToPtrInst>(I.getOperand(0));
+  if (!P)
+    return nullptr;
+  I.setOperand(0, P->getOperand(0));
+  return &I;
+}
+
 bool runToy(Function &F) {
   bool Changed = false;
   for (Instruction &I : F) {
@@ -96,7 +156,13 @@ bool runToy(Function &F) {
 }
 """
 
-TOY_PASSES = {"toy": {"prefix": "T", "files": ["lib/Toy.cpp"], "entries": ["runToy", "visitToy"]}}
+TOY_PASSES = {
+    "toy": {
+        "prefix": "T",
+        "files": ["lib/Toy.cpp"],
+        "entries": ["runToy", "visitToy", "visitShadow", "visitGeneric", "visitNegate"],
+    }
+}
 
 
 def toy_inventory(tmp: Path, source: str) -> dict:
@@ -128,6 +194,21 @@ def test_rule(failures: list[str]) -> None:
         ("visitToy", line_of(TOY, "Changed = true;")),  # a flag
         ("changeInPlace", line_of(TOY, "return true;")),  # a bool fold that changes IR
         ("runToy", line_of(TOY, "Changed = true;", 3)),  # the driver's dead-code erase
+        # A name an `if` binds to a fold's result is that `if`'s alone: the matcher's `X` after it is a site.
+        ("visitShadow", line_of(TOY, "return X;", 3)),
+        # A change committed with no return or flag after it.
+        ("visitShadow::Hint", line_of(TOY, "replaceUse(U, X);")),
+        ("visitGeneric", line_of(TOY, "return I.getOperand(0);")),
+        ("visitGeneric", line_of(TOY, "return I.getOperand(1);")),
+        # A change to what a lookup found, before `return` forwards it: the change is the site.
+        ("visitNegate", line_of(TOY, "J->setOperand(0, I.getOperand(1));")),
+        ("lookupJ", line_of(TOY, "return J;")),
+        # A change at the top of a function, committed by the `return true` after it: one site.
+        ("foldTop", line_of(TOY, "return true;", 2)),
+        # A returned flag isn't a site, so it doesn't commit the change before it.
+        ("setFlags", line_of(TOY, "I.setIsExact(Changed);")),
+        # The change and the return after it are one site, which needs what the statements before them read.
+        ("foldPtr", line_of(TOY, "return &I;", 2)),
     }
     for w in sorted(want - sites):
         failures.append(f"rule: expected a site at {w}")
@@ -145,9 +226,61 @@ def test_rule(failures: list[str]) -> None:
         failures.append(f"rule: findThing should be a helper, not a fold: {inv['helpers']}")
     if "getFalse" not in inv["builders"]:
         failures.append(f"rule: getFalse should be a builder: {inv['builders']}")
+    needs = {r["line"]: r["needs"] for r in inv["rewrites"]}
+    # A function that handles floating point rewrites it too, unless the path says integer.
+    if needs.get(line_of(TOY, "return I.getOperand(0);")) != ["fp"]:
+        failures.append(
+            f"rule: a generic site should need fp: {needs.get(line_of(TOY, 'return I.getOperand(0);'))}"
+        )
+    if needs.get(line_of(TOY, "return I.getOperand(1);")) != ["int"]:
+        failures.append("rule: a site behind m_APInt is integers only")
+    if needs.get(line_of(TOY, "return &I;", 2)) != ["memory"]:
+        failures.append(
+            f"rule: a site after an inttoptr should need memory: {needs.get(line_of(TOY, 'return &I;', 3))}"
+        )
+    kinds = {r["line"]: r["kind"] for r in inv["rewrites"]}
+    if kinds.get(line_of(TOY, "replaceUse(U, X);")) != "change":
+        failures.append("rule: a lone replaceUse should be a change site")
     ids = [r["id"] for r in inv["rewrites"]]
     if len(set(ids)) != len(ids):
         failures.append(f"rule: IDs aren't unique: {ids}")
+
+
+REASSOCIATE = """
+namespace llvm {
+void ReassociatePass::canonicalizeOperands(Instruction *I) {
+  Value *LHS = I->getOperand(0);
+  Value *RHS = I->getOperand(1);
+  if (LHS == RHS || isa<Constant>(RHS))
+    return;
+  if (isa<Constant>(LHS) || getRank(RHS) < getRank(LHS)) {
+    cast<BinaryOperator>(I)->swapOperands();
+    MadeChange = true;
+  }
+}
+
+PreservedAnalyses ReassociatePass::run(Function &F) {
+  for (Instruction &I : F)
+    if (I.isCommutative())
+      canonicalizeOperands(&I);
+  return PreservedAnalyses::none();
+}
+}
+"""
+
+
+def test_generic_pass(failures: list[str]) -> None:
+    """Reassociate serves floating point as well as integers throughout, so a site in it with no integer guard
+    needs floating point, though its own function never mentions it."""
+    rel = "lib/Transforms/Scalar/Reassociate.cpp"
+    passes = {"ra": {"prefix": "RA", "files": [rel], "entries": ["ReassociatePass::run"]}}
+    with tempfile.TemporaryDirectory() as d:
+        (Path(d) / rel).parent.mkdir(parents=True)
+        (Path(d) / rel).write_text(REASSOCIATE)
+        rows = lr.inventory(Path(d), passes)["ra"]["rewrites"]
+    got = [(r["function"], r["needs"]) for r in rows]
+    if got != [("ReassociatePass::canonicalizeOperands", ["fp"])]:
+        failures.append(f"generic pass: canonicalizeOperands should need fp, got {got}")
 
 
 def mutate(src: Path, tmp: Path, rel: str, old: str, new: str) -> Path:
@@ -225,6 +358,7 @@ def test_check(failures: list[str]) -> None:
 def main() -> int:
     failures: list[str] = []
     test_rule(failures)
+    test_generic_pass(failures)
     test_check(failures)
     for f in failures:
         print(f"FAIL {f}")

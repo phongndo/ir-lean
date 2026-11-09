@@ -55,7 +55,7 @@ refuses 'nondividing lane widths' 'define <3 x i8> @f(<2 x i12> %x) { %r = bitca
   ret <3 x i8> %r }'
 refuses 'type' 'define <2 x i32> @f(<2 x float> %x) { %r = bitcast <2 x float> %x to <2 x i32>
   ret <2 x i32> %r }'
-refuses 'type' 'define <vscale x 4 x i8> @f(<vscale x 2 x i16> %x) { %r = bitcast <vscale x 2 x i16> %x to <vscale x 4 x i8>
+refuses 'integer bitcast shape' 'define <vscale x 4 x i8> @f(<vscale x 2 x i16> %x) { %r = bitcast <vscale x 2 x i16> %x to <vscale x 4 x i8>
   ret <vscale x 4 x i8> %r }'
 refuses 'integer bitcast shape' 'define ptr @f(ptr %x) { %r = bitcast ptr %x to ptr
   ret ptr %r }'
@@ -244,11 +244,46 @@ for linkage in '' internal private dso_local; do
 done
 
 # Function attributes: anything that isn't on the reviewed list.
-for attribute in noreturn naked returns_twice sanitize_address strictfp null_pointer_is_valid \
-  convergent nocf_check speculatable nocallback '"made-up"="1"'; do
+for attribute in naked returns_twice strictfp null_pointer_is_valid '"made-up"="1"'; do
   # The verifier rejects a naked function that reads its arguments.
   refuses "attribute" "define i32 @f(i32 %x) $attribute { ret i32 0 }"
 done
+# Accepted on review, with the reasons in docs/ir-features.md. `noreturn` makes the `ret` undefined, which
+# `noreturn_returns` in tests/real/ub.ll checks.
+for attribute in noreturn sanitize_address convergent nocf_check speculatable nocallback; do
+  accepts "define i32 @f(i32 %x) $attribute { ret i32 0 }"
+done
+# `speculatable` would rule out effects nothing checks, and makes a call undefined even where it doesn't run.
+refuses 'speculatable on a function that uses memory' 'define i32 @f(ptr %p) speculatable {
+  %v = load i32, ptr %p
+  ret i32 %v
+}'
+refuses 'which is speculatable' 'define internal i32 @g(i32 %x) speculatable { ret i32 %x }
+define i32 @f(i32 %x) {
+  %y = call i32 @g(i32 %x)
+  ret i32 %y
+}'
+# ABI attributes have to be the same at a call and on the callee, or LangRef says the behavior may be undefined.
+refuses 'ABI attributes' 'define internal i32 @g(i32 %x) { ret i32 %x }
+define i32 @f(i32 %x) {
+  %r = call i32 @g(i32 inreg %x)
+  ret i32 %r
+}'
+refuses 'ABI attributes' 'define internal signext i8 @g(i8 %x) { ret i8 %x }
+define i8 @f(i8 %x) {
+  %r = call i8 @g(i8 %x)
+  ret i8 %r
+}'
+refuses 'ABI attributes' 'declare i8 @g(i8 zeroext) memory(none)
+define i8 @f(i8 %x) {
+  %r = call i8 @g(i8 %x)
+  ret i8 %r
+}'
+accepts 'define internal i32 @g(i32 inreg %x) { ret i32 %x }
+define i32 @f(i32 %x) {
+  %r = call i32 @g(i32 inreg %x)
+  ret i32 %r
+}'
 refuses 'call attribute nobuiltin' 'declare ptr @malloc(i64)
 define ptr @f() {
   %p = call ptr @malloc(i64 8) nobuiltin
@@ -269,6 +304,93 @@ define i32 @f(i32 %x) {
   call void @returns()
   ret i32 %x
 }'
+# Calls outside the module: docs/calls.md. One that accesses no memory answers from the world, in any function. One
+# that passes or returns a pointer touches memory, and waits for F4. Promises the model doesn't check are refused.
+accepts 'declare i8 @g(i8) memory(none)
+define i8 @f(i8 %x) { %r = call i8 @g(i8 %x)
+  ret i8 %r }'
+accepts 'declare <2 x i8> @g(<2 x i8>, i32 noundef) memory(none) willreturn nounwind
+define <2 x i8> @f(<2 x i8> %x) { %r = call <2 x i8> @g(<2 x i8> %x, i32 7)
+  ret <2 x i8> %r }'
+accepts 'declare void @g(i8)
+define i8 @f(i8 %x) { call void @g(i8 %x) memory(none)
+  ret i8 %x }'
+accepts 'declare i32 @g(i32) memory(none)
+define i32 @f(ptr %p) { %v = load i32, ptr %p
+  %r = call i32 @g(i32 %v)
+  ret i32 %r }'
+accepts 'declare i8 @g(i8) memory(none)
+define internal i8 @h(i8 %x) { %r = call i8 @g(i8 %x)
+  ret i8 %r }
+define i8 @f(i8 %x) { %r = call i8 @h(i8 %x)
+  ret i8 %r }'
+refuses 'touches memory: F4' 'declare i8 @g(ptr) memory(none)
+define i8 @f(ptr %p) { %r = call i8 @g(ptr %p)
+  ret i8 %r }'
+refuses 'touches memory: F4' 'declare ptr @g(i8) memory(none)
+define ptr @f(i8 %x) { %r = call ptr @g(i8 %x)
+  ret ptr %r }'
+for attribute in speculatable nosync nofree norecurse nocallback convergent returns_twice; do
+  refuses "attribute $attribute of external @g" "declare i8 @g(i8) memory(none) $attribute
+define i8 @f(i8 %x) { %r = call i8 @g(i8 %x)
+  ret i8 %r }"
+done
+# A callee outside the module may call back into its caller, which `norecurse` rules out.
+refuses 'norecurse on a function that calls outside the module' 'declare i8 @g(i8) memory(none)
+define i8 @f(i8 %x) norecurse { %r = call i8 @g(i8 %x)
+  ret i8 %r }'
+# Mem.withFrame and Mem.call don't pass a run that didn't come back through yet.
+refuses 'stack frame or promises about memory' 'declare i8 @g(i8) memory(none)
+define i8 @f(i8 %x) { %p = alloca i8
+  store i8 %x, ptr %p
+  %v = load i8, ptr %p
+  %r = call i8 @g(i8 %v)
+  ret i8 %r }'
+refuses 'stack frame or promises about memory' 'declare i8 @g(i8) memory(none)
+define i8 @f(ptr %p) memory(read) { %v = load i8, ptr %p
+  %r = call i8 @g(i8 %v)
+  ret i8 %r }'
+refuses 'calling convention' 'declare fastcc i8 @g(i8) memory(none)
+define i8 @f(i8 %x) { %r = call i8 @g(i8 %x)
+  ret i8 %r }'
+refuses 'which calls outside the module' 'declare i8 @g(i8) memory(none)
+define i8 @h(i8 %x) { %r = call i8 @g(i8 %x)
+  ret i8 %r }
+@p = global ptr @h
+define i8 @f(i8 %x) { %t = load ptr, ptr @p
+  %r = call i8 %t(i8 %x)
+  ret i8 %r }'
+# Values and functions named like what emitted code uses for calls outside the module get other names.
+cat >"$work/Names.ll" <<'IR'
+declare i8 @g(i8) memory(none)
+define i8 @Talks(i8 %x) {
+  %r = call i8 @g(i8 %x)
+  ret i8 %r
+}
+define i8 @f(i8 %Talks, i8 %World, i8 %Trace, i8 %Exit, i8 %Lanes) {
+  %r = call i8 @g(i8 %Talks)
+  ret i8 %r
+}
+define i8 @h(i8 %x) {
+  %r = call i8 @Talks(i8 %x)
+  ret i8 %r
+}
+IR
+if out=$("$tool" "$work/Names.ll" -o "$work/Names.lean" --namespace Names --no-code 2>&1) &&
+  out=$(lean -R "$work" -o "$work/Names.olean" "$work/Names.lean" 2>&1); then
+  printf 'ok    names that calls outside the module use are kept for them\n'
+else
+  fail "names that calls outside the module use should be kept for them: $out"
+fi
+# Under a promise to progress, one that promises to progress, and not to return, and never comes back stops the model.
+printf '%s\n' 'declare i8 @g(i8) memory(none) mustprogress
+define i8 @f(i8 %x) mustprogress { %r = call i8 @g(i8 %x)
+  ret i8 %r }' >"$work/input.ll"
+if "$tool" "$work/input.ll" | grep -q 'fun _ => Outcome.stop .progressUnsettled'; then
+  printf 'ok    a call outside the module that may never come back under a promise stops the model\n'
+else
+  fail 'a call outside the module that may never come back under a promise should stop the model'
+fi
 refuses 'call attribute noreturn' 'declare void @llvm.donothing()
 define void @f() { call void @llvm.donothing() noreturn
   ret void }'
