@@ -1312,6 +1312,9 @@ def main() -> int:
     args = ap.parse_args()
     if args.tool.resolve() != TOOL.resolve():
         sys.exit(f"tools/binding.py checks {TOOL}, so the scorer uses it, not {args.tool}")
+    if args.kind != "ir_instance_equivalence" and not args.debug:
+        # Every instance would be failed, no_automation, and the self-check can't pass, so nothing is scored.
+        sys.exit(f"the automation proves only ir_instance_equivalence, so --kind {args.kind} needs --debug")
     if not 1 <= args.jobs <= MAX_JOBS:
         sys.exit(
             f"--jobs is 1 to {MAX_JOBS}: each job can hold several GB, and an uncapped run once filled RAM"

@@ -61,9 +61,11 @@ A test run is `skipped` when `opt` rejects the test or fails running the pass, `
 a limit stopped `opt`, and `unsupported` as a run when its options or configuration can't be represented. A limit
 that stopped `tools/binding.py record` makes the instance `unknown`, with the reason it gave.
 
-The claim kind is `ir_instance_equivalence` by default. `--kind ir_instance_refinement` is accepted, and every
-instance is `unsupported`, `claim_kind_unavailable`, until `IRLean` has `IRLean.Refines`. After that it's `failed`,
-`no_automation`, until the automation proves refinement.
+The claim kind is `ir_instance_equivalence`. `IRLean` has `IRLean.Refines` ([refinement](refinement.md)), and
+`tools/binding.py` can bind an `ir_instance_refinement` certificate, but the automation here proves only
+equivalence. So `--kind ir_instance_refinement` is refused, except with `--debug`, which shows each instance as
+`failed`, `no_automation`: a full run couldn't pass its own self-check, and would score nothing. On an `IRLean`
+without `IRLean.Refines`, they'd be `unsupported`, `claim_kind_unavailable`.
 
 ## The contract
 

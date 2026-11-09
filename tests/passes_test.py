@@ -359,6 +359,17 @@ def static(f: Failures) -> None:
             P.run = real_run
 
     scopes(f)
+    r = subprocess.run(
+        [*SCORER, "--kind", "ir_instance_refinement", "--work", str(Path(tempfile.gettempdir()) / "unused")],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    f.check(
+        r.returncode == 1 and "proves only ir_instance_equivalence" in r.stderr,
+        "a full run with a claim kind the automation can't prove is refused before it starts",
+        (r.returncode, r.stderr[-300:]),
+    )
 
 
 def scopes(f: Failures) -> None:
@@ -548,6 +559,26 @@ def live(f: Failures, keep: bool) -> None:
         and (got["round_trip"]["status"], got["round_trip"]["reason"]) == ("refused", "instance_mismatch"),
         "a valid bundle for another instance, where this one's should be, is refused",
         (said[-800:], got.get("round_trip")),
+    )
+
+    refinement = ["--work", str(WORK / "refinement"), "--memory", "6000", "--kind", "ir_instance_refinement"]
+    r = subprocess.run(
+        [*SCORER, "--debug", FIXTURES[0], "instcombine", "", *refinement],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    try:
+        judged = {
+            n: v for n, v in json.loads(r.stdout)["instances"].items() if n in ("guarded", "round_trip")
+        }
+    except (ValueError, KeyError):
+        judged = {}
+    f.check(
+        len(judged) == 2
+        and all((v["status"], v["reason"]) == ("failed", "no_automation") for v in judged.values()),
+        "with IRLean.Refines on main, a refinement instance nothing here proves is failed, never bound",
+        (judged, r.stderr[-500:]),
     )
 
     stopped(f, WORK / "limits", SLOW, ["--timeout", "5"], {"distributes"}, "time_limit", "a 5 s wall clock")

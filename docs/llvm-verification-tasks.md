@@ -98,9 +98,10 @@ Each lane owns its files. Two tasks being worked on at once can't own the same f
 | LOOP | Loops, vectorization, IPO and LTO | Per-pass proof directories | Waits on PASS-01 and SEM |
 | CG | Codegen, legalization, machine passes, per target | Per-target proof directories | Waits on CG-01 |
 
-The refinement scorer on `research/prove-llvm-optimizations` (`IRLean/RefineTactic.lean`, `tests/passes.py`,
-`tests/passes/`, `docs/passes.md`) isn't on `main`. It's AUTO-01 and PASS-02 below, and this lane doesn't touch its
-files. Its relation, `IRLean/Refine.lean`, is SEM-01, and is on `main` with [its own page](refinement.md).
+The refinement scorer on `research/prove-llvm-optimizations` was drafted with its relation and tactic. The relation,
+`IRLean/Refine.lean`, is SEM-01, and is on `main` with [its own page](refinement.md). The scorer is rebuilt on `main`
+as [`tests/passes.py`](passes.md), PASS-02 below, binding each instance with `tools/binding.py`. The tactic,
+`IRLean/RefineTactic.lean`, is AUTO-01, and isn't on `main`. This lane doesn't touch any of their files.
 
 ```mermaid
 flowchart LR
@@ -473,7 +474,7 @@ when they land.
 - **Trust gaps:** One pass at a time, outside its pipeline, on inputs chosen by LLVM's authors.
 - **Status:** in progress
 - **Gate waiver:** Drafted before SEM-01 was frozen. Its results are re-run when it is.
-- **Evidence:** [`tests/passes.py`](passes.md) counts an instance only when `tools/binding.py` binds its bundle in the same run, checked by `tests/passes_test.py` on two small tests. It proves equivalence, not refinement, hasn't been run on the corpus, and writes no `translation-validation` claims yet. The research draft stays uncommitted on `research/prove-llvm-optimizations`.
+- **Evidence:** [`tests/passes.py`](passes.md) counts an instance only when `tools/binding.py` binds its bundle in the same run, checked by `tests/passes_test.py` on three small tests. It proves equivalence, not refinement, though `IRLean.Refines` is on `main`, hasn't been run on the corpus, and writes no `translation-validation` claims yet. The research draft stays uncommitted on `research/prove-llvm-optimizations`.
 
 ### PASS-03: Peephole rewrites for all inputs
 
