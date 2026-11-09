@@ -1,6 +1,7 @@
 import Peephole.Match
 import Peephole.Oracle
 import Peephole.Fold
+import Peephole.IS.Add
 import Peephole.IS.ArithBase
 import Peephole.Lemmas.Add
 import Peephole.Lemmas.Arith
