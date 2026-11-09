@@ -464,7 +464,7 @@ theorem Peephole.Lemmas.ashr_of_le_toNat.drop_h :
 theorem Peephole.Lemmas.ashr_of_le_toNat.sat : ∃ (w : Nat) (_ : Val w) (y : BitVec w) (_ : Bool), w ≤ y.toNat :=
   ⟨0, none, 0#0, false, Nat.le_refl _⟩
 
-/-- `x >>> y` with `x` of width `w` and `y < w` is less than `w`: here `msb` is about a value in range. -/
+/-- `1` in `i1` has its sign bit set. -/
 theorem Peephole.Lemmas.msb_eq_false_of_toNat_lt.drop_h : ¬ ∀ {w : Nat} {x : BitVec w}, x.msb = false :=
   fun h => absurd (@h 1 1#1) (by decide)
 
