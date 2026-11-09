@@ -15,11 +15,11 @@ source files, so it gives the same bytes on any host.
 
 | Pass | Rewrites | Integers only | Need floating point | Need memory | Need calls | Folds | Files |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| InstSimplify | 541 | 300 | 200 | 31 | 115 | 150 | 2 |
-| InstCombine | 2,536 | 1,499 | 607 | 281 | 515 | 514 | 15 |
-| AggressiveInstCombine | 37 | 20 | 6 | 11 | 8 | 33 | 2 |
+| InstSimplify | 541 | 335 | 165 | 31 | 64 | 150 | 2 |
+| InstCombine | 2,536 | 1,576 | 581 | 281 | 428 | 514 | 15 |
+| AggressiveInstCombine | 37 | 21 | 6 | 11 | 7 | 33 | 2 |
 | Reassociate | 60 | 18 | 42 | 0 | 3 | 23 | 1 |
-| All | 3,174 | 1,837 | 855 | 323 | 641 | 720 | 20 |
+| All | 3,174 | 1,950 | 794 | 323 | 502 | 720 | 20 |
 
 A rewrite can need more than one of floating point, memory and calls, so those columns overlap. "Integers only" is
 the rest, which needs none of them. `tests/llvm_rewrites.py summary` prints these from the files.
@@ -128,13 +128,19 @@ Each rewrite has:
 
 - `needs`: `int`, or any of `fp`, `memory` and `calls`, from the identifiers on its path. The path is the function's
   name and parameters, the conditions of the statements around the site, the plain statements before it in each
-  enclosing block and in the function's own body, the case labels it's under, and the site itself. A function that handles floating point as well
-  as integers rewrites both, so a site in it needs `fp` too unless its path says its values are integers. A function
-  handles floating point if it names it, or if it's in Reassociate, whose every function serves integer and fast-math
-  floating-point reassociation alike from `OptimizeInst`, as `canonicalizeOperands` does. Its path says its values
-  are integers with an integer opcode, an integer matcher such as `m_APInt` or `m_Add`, or a type test
-  such as `isIntOrIntVectorTy`. Those sites are also tagged `generic`. A generic rewrite proved for integers isn't
-  proved for every input until its floating-point instance is;
+  enclosing block and in the function's own body, the case labels it's under, and the site itself. A function that
+  handles floating point as well as integers rewrites both, so a site in it needs `fp` too unless its path says its
+  values are integers. A function handles floating point if it names it, or if it's in Reassociate, whose every
+  function serves integer and fast-math floating-point reassociation alike from `OptimizeInst`, as
+  `canonicalizeOperands` does. Its path says its values are integers with an integer opcode, an integer matcher such
+  as `m_APInt` or `m_Add`, a type test such as `isIntOrIntVectorTy`, or case labels that name only integer
+  intrinsics. The sites that need `fp` only this way are also tagged `generic`. A generic rewrite proved for integers
+  isn't proved for every input until its floating-point instance is. Case labels such as `case Intrinsic::umax:` say
+  the call a site is about is one of them, so its values are integers, if every `case Intrinsic::X:` label it's
+  under names an integer intrinsic, and so does every case that falls through into it with `[[fallthrough]]`. Then a
+  floating-point type among the function's parameters doesn't make the site need `fp` either:
+  `simplifyBinaryIntrinsic` takes `FastMathFlags` for its floating-point intrinsics, and its `umax` sites don't read
+  them;
 - `also`: `vector` for shuffles, extracts, inserts and vector types, `cfg` for phis, branches and blocks, and `undef`
   for folds that test for `undef`. These don't block G2: the model has fixed-width vectors and control flow, and it has
   no `undef`, so a proof covers poison and says nothing about `undef`, as #47's does. Scalable vectors aren't in the
@@ -142,8 +148,10 @@ Each rewrite has:
 - `analyses`: the analyses on its path, such as `computeKnownBits` or `isKnownToBeAPowerOfTwo`. A proof takes each
   analysis's answer as a hypothesis that it's sound, which is [PASS-01](llvm-verification-tasks.md#pass-01-analyses-are-sound)'s
   to prove. 321 of InstCombine's rewrites and 85 of InstSimplify's read one;
-- `intrinsics`: those named on its path. The integer intrinsics `src/Emitter.cpp` translates, such as `umax`, `ctpop`
-  and `fshl`, count as integers only. An intrinsic the model doesn't have counts as a call.
+- `intrinsics`: those named on its path, as `Intrinsic::umax`. `Intrinsic::ID`, the type of an intrinsic's ID, and
+  `Intrinsic::not_intrinsic`, the ID of a function that isn't one, aren't intrinsics. The integer intrinsics
+  `src/Emitter.cpp` translates, such as `umax`, `ctpop` and `fshl`, count as integers only. An intrinsic the model
+  doesn't have counts as a call.
 
 The tags are triage, read from names. A proof can find a rewrite needs more than its tags say. When it does, the
 proof's record says so. The tags don't decide what's proved.
@@ -172,14 +180,21 @@ For the reviewer, the places the rule can be wrong:
   which several can guard one site and one can guard several. The 514 folds include lambdas and helpers that build,
   so they're more than the functions named `fold*` or `visit*`.
 - **A generic function that never names floating point,** outside Reassociate, is read as integers only. Which of
-  InstCombine's opcode-generic helpers also see floating point isn't derived from their callers.
+  InstCombine's opcode-generic helpers also see floating point isn't derived from their callers. Nor is which
+  intrinsic a helper's caller had: `foldMinMaxSharedOp`, which only `simplifyBinaryIntrinsic`'s integer min and max
+  case calls, is under no case label of its own, and its path names `IntrinsicInst`, so its two sites need `calls`.
+- **Names read as floating point by their prefix:** `m_FShl` and `m_FShr`, the funnel shifts' matchers, match
+  `FP_MATCHERS`' `m_F...`, so two of `visitCallInst`'s funnel-shift sites, `IC.Calls.visitCallInst.L2634` and
+  `L2636`, need `fp`.
 - **Preprocessor conditionals are read as code.** At the pin no site is inside `#ifndef NDEBUG` or
   `#if LLVM_ENABLE_STATS`, which the release `opt` leaves out. A site there would be counted.
 
 [`tests/llvm_rewrites_test.py`](../tests/llvm_rewrites_test.py) checks the rule on small C++ files, a positive case
 for each kind of site and forward, a helper and a builder, a name an `if` binds shadowing a matcher's, a change in a
 lambda, a change before a forward, a returned flag or a site, and the tags of a generic function, in Reassociate
-too, and of a site whose function starts by reading a pointer. On a copy of the pinned source, it checks that a rewrite removed, added or
+too, of a site whose function starts by reading a pointer, and of sites under integer and floating-point
+intrinsics' case labels, one reached through `[[fallthrough]]`, and one whose path names only `Intrinsic::ID` and
+`Intrinsic::not_intrinsic`. On a copy of the pinned source, it checks that a rewrite removed, added or
 changed is each reported by its ID.
 
 ## Reproducing

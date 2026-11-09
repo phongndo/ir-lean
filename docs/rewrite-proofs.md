@@ -15,7 +15,7 @@ jobs.
 ## What it found
 
 - **7 of chunk 1's 3,174 rewrites count as proved for every input on this branch,** all of them in InstSimplify's
-  `simplifyAddInst`, the worked example: 1.29% of InstSimplify's 541 and 2.33% of its 300 that need only integers.
+  `simplifyAddInst`, the worked example: 1.29% of InstSimplify's 541 and 2.09% of its 335 that need only integers.
   `opt` exercised all 7. Its eighth, `IS.simplifyAddInst.L605`, `X + undef` to `undef`, is unproved: only `undef`
   reaches its step, which the model doesn't have, so its theorem says nothing past `L601`'s.
 - **On a scratch merge of the five families' branches, 237 counted** before the rules about `undef` and about compared
@@ -201,15 +201,16 @@ and keeps its theorem.
 A registry lists its sites under `folds`, and each one it didn't prove under `unproved` with why. `score --check`
 also fails if two registries list one site, or one names an ID the inventory doesn't have. It writes JSON, schema
 `ir-lean.peephole.score/1`, to `build/peephole/score.json`, with each listed site's outcome and the ID of every blocked
-rewrite by what it waits for, and prints two tables. On this branch, on 2026-11-09, with #79's inventory:
+rewrite by what it waits for, and prints two tables. On this branch, on 2026-11-09, with #79's inventory and its
+intrinsic folds' tags corrected:
 
 | Pass | Rewrites | Proved | % | Of those, exercised by `opt` | Integers only | Proved of those | % | Proved, model not compared | Undef only | Integer instance proved | Need fp (SEM-05) | Need memory (F4) | Need calls |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| InstSimplify | 541 | 7 | 1.29 | 7 | 300 | 7 | 2.33 | 0 | 0 | 0 | 200 | 31 | 115 |
-| InstCombine | 2,536 | 0 | 0.0 | 0 | 1,499 | 0 | 0.0 | 0 | 0 | 0 | 607 | 281 | 515 |
-| AggressiveInstCombine | 37 | 0 | 0.0 | 0 | 20 | 0 | 0.0 | 0 | 0 | 0 | 6 | 11 | 8 |
+| InstSimplify | 541 | 7 | 1.29 | 7 | 335 | 7 | 2.09 | 0 | 0 | 0 | 165 | 31 | 64 |
+| InstCombine | 2,536 | 0 | 0.0 | 0 | 1,576 | 0 | 0.0 | 0 | 0 | 0 | 581 | 281 | 428 |
+| AggressiveInstCombine | 37 | 0 | 0.0 | 0 | 21 | 0 | 0.0 | 0 | 0 | 0 | 6 | 11 | 7 |
 | Reassociate | 60 | 0 | 0.0 | 0 | 18 | 0 | 0.0 | 0 | 0 | 0 | 42 | 0 | 3 |
-| All | 3,174 | 7 | 0.22 | 7 | 1,837 | 7 | 0.38 | 0 | 0 | 0 | 855 | 323 | 641 |
+| All | 3,174 | 7 | 0.22 | 7 | 1,950 | 7 | 0.36 | 0 | 0 | 0 | 794 | 323 | 502 |
 
 "Need calls" waits for the external-calls lane. The three overlap, as in [the inventory](rewrite-inventory.md#totals).
 A site proved by `sorry` keeps every site of its fold from counting, since the fold's `sound` theorem then rests on
