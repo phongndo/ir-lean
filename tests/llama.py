@@ -8,13 +8,15 @@ on a Zen 5 machine, and then:
 2. Rewrites each `pmaddwd` of eight summed `pmaddubsw` in the q4_K kernels as a chain of VNNI `vpdpbusd` and a
    multiply, with tests/llama/vnni.py, and checks that no other function's machine code changes.
 3. Cuts each rewritten place out, before and after, with tests/llama/slices.py, and checks that every changed
-   line is in one of those slices.
+   line is in one of those slices and every other line is where it was. A store moved to another block, and an
+   edit outside every slice, have to fail that check.
 4. Translates each slice to Lean, and checks a theorem that the rewritten one gives the same result as clang's
    on every input, poison included, with only the standard axioms and what `bv_decide` adds.
 5. Runs each slice pair natively against each other on random and extreme inputs, if this processor has
    AVX-512 VNNI. That's testing and not proof, but it doesn't depend on the Lean model.
 6. Makes three wrong rewrites, and one change to clang's IR that breaks what the rewrite relies on, and checks
-   that each stops the theorems, and that the native run catches it.
+   that none of the theorems still checks, and that each is refuted: every theorem stops with an error of its
+   own, or the native run catches it. A theorem that only runs out of time or memory is unknown, not refuted.
 
 docs/llama.md has what this shows and what it assumes, and tests/llama_bench.py measures the speed.
 
@@ -64,6 +66,20 @@ FLAGS = [
     "-march=znver5",
 ]
 LIMITS = ["-M", os.environ.get("LEAN_MAX_MB", "6000"), "-s", "65536"]
+# Lean's errors for running out of time, memory or stack, in a tactic or the kernel. A proof that stops at one
+# of these might check with more, so it says nothing about whether what it's about is wrong.
+LIMIT = re.compile(
+    r"maximum number of heartbeats|\(deterministic\) timeout|maximum recursion depth|deep recursion|"
+    r"stack overflow|excessive memory|out of memory|SAT solver timed out|maximum number of steps",
+    re.IGNORECASE,
+)
+LEAN_ERROR = re.compile(r"^.*?:\d+:\d+: error")
+
+
+def only_limits(output: str) -> bool:
+    """Whether a failed Lean run's errors are all resource limits, or it printed none, so that more time or
+    memory might have let it check."""
+    return all(LIMIT.search(line) for line in output.splitlines() if LEAN_ERROR.match(line))
 
 
 def found(m: re.Match[str] | None, what: str) -> re.Match[str]:
@@ -177,7 +193,7 @@ def prove(tool: Path, slices: Path, work: Path) -> dict[str, dict]:
             )
             r = lean("-o", work / f"{ns}.olean", work / f"{ns}.lean")
             if r.returncode != 0:
-                return name, {"failure": f"{ns}: {r.stdout[-2000:]}"}
+                return name, {"failure": f"{ns}: {r.stdout[-2000:]}", "unknown": only_limits(r.stdout)}
         src = (work / f"{S}.lean").read_text()
         sig = found(
             re.search(rf"noncomputable def {name}_src (.*?) : Outcome .* :=\n", src), "signature"
@@ -192,7 +208,7 @@ def prove(tool: Path, slices: Path, work: Path) -> dict[str, dict]:
         )
         r = lean("-DwarningAsError=true", "-o", work / f"{theorem}.olean", work / f"{theorem}.lean")
         if r.returncode != 0:
-            return name, {"failure": r.stdout[-3000:] + r.stderr[-1000:]}
+            return name, {"failure": r.stdout[-3000:] + r.stderr[-1000:], "unknown": only_limits(r.stdout)}
         axioms = lean("--stdin", stdin=check_axioms.replace("MODULE", theorem))
         if axioms.returncode != 0:
             return name, {"failure": f"axioms: {axioms.stdout[-2000:]}{axioms.stderr[-2000:]}"}
@@ -210,6 +226,35 @@ def prove(tool: Path, slices: Path, work: Path) -> dict[str, dict]:
     jobs = int(os.environ.get("LEAN_JOBS", "4"))
     with concurrent.futures.ThreadPoolExecutor(jobs) as pool:
         return dict(pool.map(one, index))
+
+
+def checker_controls(ll: Path, rw: Path, report: Path, work: Path) -> list[str]:
+    """Changes to the rewritten IR outside every slice that slices.py has to refuse: a store moved into the
+    next block, which keeps every line and changes what the kernel does, and an edited comparison. Returns
+    those it doesn't."""
+    lines = rw.read_text().split("\n")
+    start = next(i for i, line in enumerate(lines) if re.match(rf"^define .*@{FUNCTIONS[0]}\(", line))
+    end = lines.index("}", start)
+    store = next(i for i in range(start, end) if lines[i].startswith("  store "))
+    label = next(i for i in range(store, end) if re.match(r"^[\w.]+:", lines[i]))
+    after = label + 1
+    while lines[after].lstrip().startswith(("%", "#")) and " = phi " in lines[after]:
+        after += 1
+    moved = lines[:store] + lines[store + 1 : after] + [lines[store]] + lines[after:]
+    compare = next(i for i in range(start, end) if " = icmp slt " in lines[i])
+    edited = [*lines]
+    edited[compare] = edited[compare].replace(" = icmp slt ", " = icmp sle ", 1)
+    missed = []
+    for name, text in (("a store moved to the next block", moved), ("an edited comparison", edited)):
+        d = work / f"control-{name.split()[1]}"
+        d.mkdir(parents=True, exist_ok=True)
+        (d / "rw.ll").write_text("\n".join(text))
+        r = run([sys.executable, HERE / "slices.py", ll, d / "rw.ll", report, d / "slices"], check=False)
+        why = next((line for line in r.stderr.splitlines() if "aren't in any slice" in line), "it passed")
+        print(f"{'ok  ' if r.returncode != 0 else 'FAIL'} slices.py refuses {name}: {why}", flush=True)
+        if r.returncode == 0:
+            missed.append(name)
+    return missed
 
 
 def has_vnni() -> bool:
@@ -281,6 +326,7 @@ def main() -> int:
         )
         if cover.returncode != 0:
             failures.append("slices")
+        failures += [f"slices.py accepts {c}" for c in checker_controls(ll, rw, report, work / "controls")]
         manifest["slices_sha256"] = {p.name: sha256(p) for p in sorted(slices.glob("*.ll"))}
 
         results = prove(tool, slices, work / "lean")
@@ -330,7 +376,9 @@ def main() -> int:
                     failures.append(f"mutant {mutant}")
                     continue
                 r = prove(tool, d / "slices", d / "lean")
-                stopped = [n for n, x in r.items() if "failure" in x]
+                proved = [n for n, x in r.items() if "failure" not in x]
+                unknown = [n for n, x in r.items() if "failure" in x and x["unknown"]]
+                stopped = [n for n, x in r.items() if "failure" in x and not x["unknown"]]
                 caught = None
                 if vnni:
                     caught = (
@@ -347,9 +395,13 @@ def main() -> int:
                         ).returncode
                         != 0
                     )
-                ok = len(stopped) == len(r) and caught is not False
+                # Refuted: every theorem stops with an error of its own, or the native run finds an input
+                # where the slices differ. One that only runs out of resources refutes nothing.
+                ok = not proved and caught is not False and (len(stopped) == len(r) or caught is True)
                 print(
-                    f"{'ok  ' if ok else 'FAIL'} mutant {mutant}: stops {len(stopped)}/{len(r)} theorems"
+                    f"{'ok  ' if ok else 'FAIL'} mutant {mutant}: {len(stopped)}/{len(r)} theorems stop with "
+                    f"an error of their own, {len(unknown)} are unknown after running out of resources, "
+                    f"{len(proved)} still check"
                     + (
                         ""
                         if caught is None
@@ -357,7 +409,13 @@ def main() -> int:
                     ),
                     flush=True,
                 )
-                manifest["mutants"][mutant] = {"stopped": len(stopped), "of": len(r), "native_caught": caught}
+                manifest["mutants"][mutant] = {
+                    "stopped": len(stopped),
+                    "unknown": len(unknown),
+                    "proved": len(proved),
+                    "of": len(r),
+                    "native_caught": caught,
+                }
                 if not ok:
                     failures.append(f"mutant {mutant}")
                 if not args.keep:

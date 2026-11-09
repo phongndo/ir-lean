@@ -70,8 +70,10 @@ theorem s00_same (v90 v92 : Vec 4 64) (v176 v9 : Vec 2 64) (v94 v96 v98 v100 : V
 loads, phis and arguments. Those become the parameters, so the theorem holds whatever they are. The slices include how
 clang computed the operands, the masking with `0x0F0F0F0F` and the shuffles that repeat each scale, so the three facts
 above are proved from clang's own instructions, and aren't hypotheses. Every line of a slice is a line of the kernel,
-and the script checks that every line that differs between the two kernels is in a slice: 32 removed and 24 added in
-`gemv`, and 512 removed and 384 added in `gemm`.
+and the script lines the two kernels up as a diff, and checks that every line that differs is in a slice and every other
+line is where it was: 32 removed and 24 added in `gemv`, and 512 removed and 384 added in `gemm`. Which lines each has
+isn't enough, since a store moved into another block keeps every line and changes what the kernel does. `tests/llama.py`
+moves one, and edits a comparison outside every slice, and the script has to refuse both.
 
 [`Vnni.lean`](../tests/llama/Vnni.lean) has the proof, which is the same for every place: an invariant that holds after
 each `maddubs` and `vpdpbusd` pair, that each 16-bit sum is the exact integer sum and at most 3,840 in size for each
@@ -93,8 +95,10 @@ None of these depend on the Lean model.
   each other, on 200,000 inputs each, a quarter of them from bytes at the extremes. None of the 34 differ.
 - **Wrong rewrites.** `vnni.py --mutant` makes three: reading the weights as signed instead of the activations, leaving
   out the last `vpdpbusd`, and multiplying by the whole 32-bit lane of scales. And `tests/llama.py` changes clang's mask
-  from `0x0F` to `0x1F` in each byte, which breaks the first fact. Each stops all 34 theorems, and the native run
-  catches each.
+  from `0x0F` to `0x1F` in each byte, which breaks the first fact. None of the 34 theorems checks for any of them, and
+  the native run catches each. Only the mask change stops every theorem with an error of its own. For the three wrong
+  rewrites, every theorem runs out of resources instead, which refutes nothing, since more might let it check. So the
+  native run is what refutes those, and on a processor without AVX-512 VNNI they fail as unknown.
 - **Whole programs.** `llama-perplexity`, with the two libraries, gives the same logits bit for bit, on both models in
   the table below, for 16 chunks of 512 tokens of WikiText-2. Before the reproducer existed, a run of 60 chunks on the
   first model did too: 4.6 GB of logits each, and a perplexity of 10.0878 both times.
@@ -173,8 +177,8 @@ model, and takes about 3 minutes with 6 Lean jobs. The manifest has the hashes o
 each theorem's statement and axioms, and what each mutant did. [`llama-manifest.json`](data/llama-manifest.json) is the
 one behind this page. Two runs on this machine, hours apart, gave the same hashes for everything in it: the source, IR,
 rewritten IR and object, all 68 slices, and every generated Lean file. Another machine with the same flake should too,
-which hasn't been tried. On a processor without AVX-512 VNNI, the native comparison and its half of each mutant are
-skipped.
+which hasn't been tried. On a processor without AVX-512 VNNI, the native comparison is skipped, and so the three wrong
+rewrites, which only the native run refutes, fail as unknown.
 
 The measurement needs models and text, which aren't in the repo:
 
@@ -197,7 +201,8 @@ C++ source or the machine code. On top of that:
 
 - **From the slices to the kernel is an argument, not a theorem.** Each theorem is about a slice, and the kernel uses
   floating point, which the model doesn't have, so there's no theorem about the whole kernel. A script checks that each
-  slice is the kernel's own lines, that every changed line is in a slice, and that the rewritten value keeps its name.
+  slice is the kernel's own lines, that every changed line is in a slice and every other line is where it was, and that
+  the rewritten value keeps its name.
   The instructions the rewrite adds or takes out are `vpdpbusd`, `pmaddubsw`, `pmaddwd`, `add`, `mul`, `shl`, `ashr`
   and `bitcast`, which don't touch memory and aren't undefined on any input. Replacing such a value with an equal one
   doesn't change a program, but no proof says that here.

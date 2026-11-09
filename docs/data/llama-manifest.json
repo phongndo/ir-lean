@@ -480,22 +480,30 @@
  "native": "0 of 34 slice pairs differ, 200000 inputs each",
  "mutants": {
   "signs": {
-   "stopped": 34,
+   "stopped": 0,
+   "unknown": 34,
+   "proved": 0,
    "of": 34,
    "native_caught": true
   },
   "seven": {
-   "stopped": 34,
+   "stopped": 0,
+   "unknown": 34,
+   "proved": 0,
    "of": 34,
    "native_caught": true
   },
   "scale": {
-   "stopped": 34,
+   "stopped": 0,
+   "unknown": 34,
+   "proved": 0,
    "of": 34,
    "native_caught": true
   },
   "mask": {
    "stopped": 34,
+   "unknown": 0,
+   "proved": 0,
    "of": 34,
    "native_caught": true
   }

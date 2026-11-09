@@ -12,18 +12,22 @@ whatever those values are.
 
 Both slices of a place take the same parameters in the same order, and every line of a slice is a line of the
 kernel, as is apart from attribute groups and metadata. Then, for the theorem about each slice to say the
-rewritten kernel computes what clang's did, this checks that every line clang's kernel has and the rewritten
-one doesn't is in a source slice, and every line the other way is in a target slice. The rewrite keeps the
-name %R, so the rest of the kernel reads the same value.
+rewritten kernel computes what clang's did, this checks that the two kernels differ only in slices, in
+order: lined up as a diff, every line clang's kernel has and the rewritten one doesn't is in a source slice,
+every line the other way is in a target slice, and every other line is where it was. Which lines each has
+isn't enough, since moving a store into another block changes what the kernel does and keeps the same lines.
+A slice's lines only compute values, so they can move, but none the rewrite puts somewhere may divide, which
+could be undefined where nothing was before. The rewrite keeps the name %R, so the rest of the kernel reads
+the same value.
 
 usage: slices.py ORIGINAL.ll REWRITTEN.ll REPORT.json OUT_DIR
 Writes OUT_DIR/<name>.src.ll and OUT_DIR/<name>.tgt.ll for each place, and OUT_DIR/slices.json.
 """
 
+import difflib
 import json
 import re
 import sys
-from collections import Counter
 from pathlib import Path
 
 NAME = r"%[\w.]+"
@@ -46,6 +50,8 @@ DECLS = {
 BINARY = {"add", "sub", "mul", "and", "or", "xor", "shl", "lshr", "ashr", "udiv", "sdiv", "urem", "srem"}
 FLAGS = {"nuw", "nsw", "exact", "disjoint", "nneg", "samesign"}
 CUT = re.compile(r"^(load|phi|alloca|getelementptr|select|icmp|extractvalue|insertvalue|freeze) ")
+# What a slice can have that may be undefined on some input, and so can't be put where it wasn't.
+DIVIDES = re.compile(r"^\s*%[\w.]+ = [us](div|rem) ")
 
 
 def found(m: re.Match[str] | None, what: str) -> re.Match[str]:
@@ -180,20 +186,25 @@ def main() -> int:
                 "tgt_lines": len(tgt_lines),
             }
         )
-    # Every change is inside a slice.
+    # Every change is inside a slice, and every other line is where it was.
     for fn, (src_cover, tgt_cover) in covered.items():
-        a, b = function_body(orig_text, fn), function_body(rw_text, fn)
-        a_lines = Counter(line for line in a if not line.lstrip().startswith("uselistorder"))
-        b_lines = Counter(line for line in b if not line.lstrip().startswith("uselistorder"))
-        gone, new = a_lines - b_lines, b_lines - a_lines
-        outside = [line for line in gone if line not in src_cover]
-        outside += [line for line in new if line not in tgt_cover]
+        a = [line for line in function_body(orig_text, fn) if not line.lstrip().startswith("uselistorder")]
+        b = [line for line in function_body(rw_text, fn) if not line.lstrip().startswith("uselistorder")]
+        outside, removed, added = [], 0, 0
+        for tag, i1, i2, j1, j2 in difflib.SequenceMatcher(None, a, b, autojunk=False).get_opcodes():
+            if tag == "equal":
+                continue
+            outside += [f"- {line}" for line in a[i1:i2] if line not in src_cover]
+            outside += [f"+ {line}" for line in b[j1:j2] if line not in tgt_cover or DIVIDES.match(line)]
+            removed, added = removed + i2 - i1, added + j2 - j1
         if outside:
             raise SystemExit(
-                f"{fn}: {len(outside)} changed lines aren't in any slice, such as\n{outside[:5]}"
+                f"{fn}: {len(outside)} changed lines aren't in any slice, or divide where nothing did, "
+                f"such as\n" + "\n".join(outside[:5])
             )
         print(
-            f"{fn}: all {sum(gone.values())} removed and {sum(new.values())} added lines are in slices",
+            f"{fn}: all {removed} removed and {added} added lines are in slices, and every other line is "
+            "where it was",
             file=sys.stderr,
         )
     (out / "slices.json").write_text(json.dumps(index, indent=1))
