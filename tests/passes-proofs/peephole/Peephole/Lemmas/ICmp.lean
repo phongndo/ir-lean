@@ -19,7 +19,7 @@ variable {v w : Nat}
 /-! ### A bit vector's signed value, as linear facts about its `toNat` -/
 
 /-- `x.toInt` is `x.toNat` below half the range, and `x.toNat - 2 ^ w` from there. -/
-theorem toInt_cases (x : BitVec w) :
+theorem toInt_toNat_cases (x : BitVec w) :
     (2 * x.toNat < 2 ^ w ∧ x.toInt = x.toNat) ∨
       (2 ^ w ≤ 2 * x.toNat ∧ x.toInt = (x.toNat : Int) - ((2 ^ w : Nat) : Int)) := by
   rw [BitVec.toInt_eq_msb_cond]
@@ -77,8 +77,8 @@ theorem signExtend_sle_setWidth (x : BitVec v) (w : Nat) : (x.signExtend w).sle 
         cases v
         · simp at hx; have : (2 : Nat) ^ 0 = 1 := rfl; omega
         · omega
-      rcases toInt_cases (x.signExtend w) with ⟨h1, h2⟩ | ⟨h1, h2⟩ <;>
-      rcases toInt_cases (x.setWidth w) with ⟨h3, h4⟩ | ⟨h3, h4⟩ <;>
+      rcases toInt_toNat_cases (x.signExtend w) with ⟨h1, h2⟩ | ⟨h1, h2⟩ <;>
+      rcases toInt_toNat_cases (x.setWidth w) with ⟨h3, h4⟩ | ⟨h3, h4⟩ <;>
       · rw [h2, h4]; omega
 
 /-! ### `zext x` against a constant that isn't one. `IS.simplifyICmpInst.L4000` to `L4016` -/
@@ -111,8 +111,8 @@ theorem setWidth_signed_of_ne (x : BitVec v) {c : BitVec w} (h : (c.setWidth v).
   have hz : (x.setWidth w).toNat = x.toNat := by
     rw [BitVec.toNat_setWidth, Nat.mod_eq_of_lt (by omega)]
   rw [← Bool.not_eq_true, msb_iff]
-  rcases toInt_cases (x.setWidth w) with ⟨h1, h3⟩ | ⟨h1, h3⟩ <;>
-  rcases toInt_cases c with ⟨h4, h5⟩ | ⟨h4, h5⟩ <;>
+  rcases toInt_toNat_cases (x.setWidth w) with ⟨h1, h3⟩ | ⟨h1, h3⟩ <;>
+  rcases toInt_toNat_cases c with ⟨h4, h5⟩ | ⟨h4, h5⟩ <;>
   · rw [h3, h5]; omega
 
 /-- `zext x <s c` exactly when `c` is non-negative. -/
@@ -156,7 +156,7 @@ theorem toInt_signExtend_range (x : BitVec v) (h : v ≤ w) :
     -((2 ^ v : Nat) : Int) ≤ 2 * (x.signExtend w).toInt ∧ 2 * (x.signExtend w).toInt < ((2 ^ v : Nat) : Int) := by
   rw [BitVec.toInt_signExtend_of_le h]
   have := x.isLt
-  rcases toInt_cases x with ⟨h1, h2⟩ | ⟨h1, h2⟩ <;> rw [h2] <;> omega
+  rcases toInt_toNat_cases x with ⟨h1, h2⟩ | ⟨h1, h2⟩ <;> rw [h2] <;> omega
 
 /-- A constant that truncating to `v` bits and sign-extending back changes is outside the range of `v` bits, and
 `v` is below its width. -/
@@ -191,9 +191,9 @@ theorem signExtend_slt_of_ne (x : BitVec v) {c : BitVec w} (h : (c.setWidth v).s
   rw [BitVec.slt_eq_decide]
   cases hm : c.msb
   · have := BitVec.msb_eq_false_iff_two_mul_lt.1 hm
-    rcases toInt_cases c with ⟨h1, h2⟩ | ⟨h1, h2⟩ <;> simp only [h2, Bool.not_false, decide_eq_true_eq] <;> omega
+    rcases toInt_toNat_cases c with ⟨h1, h2⟩ | ⟨h1, h2⟩ <;> simp only [h2, Bool.not_false, decide_eq_true_eq] <;> omega
   · have := (msb_iff c).1 hm
-    rcases toInt_cases c with ⟨h1, h2⟩ | ⟨h1, h2⟩ <;> simp only [h2, Bool.not_true, decide_eq_false_iff_not] <;>
+    rcases toInt_toNat_cases c with ⟨h1, h2⟩ | ⟨h1, h2⟩ <;> simp only [h2, Bool.not_true, decide_eq_false_iff_not] <;>
       omega
 
 /-- `sext x ≤s c` exactly when `c` is non-negative: they're never equal. -/
@@ -229,12 +229,12 @@ theorem ult_signExtend_of_ne (x : BitVec v) {c : BitVec w} (h : (c.setWidth v).s
   rw [BitVec.ult_eq_decide, ← hm]
   cases hs : (x.signExtend w).msb
   · have := BitVec.msb_eq_false_iff_two_mul_lt.1 hs
-    rcases toInt_cases c with ⟨h1, h2⟩ | ⟨h1, h2⟩ <;>
-    rcases toInt_cases (x.signExtend w) with ⟨h3, h4⟩ | ⟨h3, h4⟩ <;>
+    rcases toInt_toNat_cases c with ⟨h1, h2⟩ | ⟨h1, h2⟩ <;>
+    rcases toInt_toNat_cases (x.signExtend w) with ⟨h3, h4⟩ | ⟨h3, h4⟩ <;>
     · simp only [decide_eq_false_iff_not]; omega
   · have := (msb_iff (x.signExtend w)).1 hs
-    rcases toInt_cases c with ⟨h1, h2⟩ | ⟨h1, h2⟩ <;>
-    rcases toInt_cases (x.signExtend w) with ⟨h3, h4⟩ | ⟨h3, h4⟩ <;>
+    rcases toInt_toNat_cases c with ⟨h1, h2⟩ | ⟨h1, h2⟩ <;>
+    rcases toInt_toNat_cases (x.signExtend w) with ⟨h3, h4⟩ | ⟨h3, h4⟩ <;>
     · simp only [decide_eq_true_eq]; omega
 
 /-- `c ≤u sext x` exactly when `x` is negative: they're never equal. -/
@@ -299,7 +299,7 @@ theorem slt_eq_sub_intMin (x y : BitVec w) (hw : 0 < w) :
   have := toNat_sub_intMin_or x hw
   have := toNat_sub_intMin_or y hw
   have hp := two_pow_pred hw
-  rcases toInt_cases x with ⟨h1, h2⟩ | ⟨h1, h2⟩ <;> rcases toInt_cases y with ⟨h3, h4⟩ | ⟨h3, h4⟩ <;> omega
+  rcases toInt_toNat_cases x with ⟨h1, h2⟩ | ⟨h1, h2⟩ <;> rcases toInt_toNat_cases y with ⟨h3, h4⟩ | ⟨h3, h4⟩ <;> omega
 
 theorem sle_eq_sub_intMin (x y : BitVec w) (hw : 0 < w) :
     x.sle y = decide ((x - BitVec.intMin w).toNat ≤ (y - BitVec.intMin w).toNat) := by
@@ -330,7 +330,7 @@ theorem setWidth_beq_setWidth (x y : BitVec v) (h : v ≤ w) : (x.setWidth w == 
 theorem toInt_setWidth_of_lt (x : BitVec v) (h : v < w) : (x.setWidth w).toInt = x.toNat := by
   have := two_pow_lt h
   have := x.isLt
-  rcases toInt_cases (x.setWidth w) with ⟨h1, h2⟩ | ⟨h1, h2⟩ <;>
+  rcases toInt_toNat_cases (x.setWidth w) with ⟨h1, h2⟩ | ⟨h1, h2⟩ <;>
     rw [toNat_setWidth_of_le _ (Nat.le_of_lt h)] at h1 h2 <;> omega
 
 theorem setWidth_slt_setWidth (x y : BitVec v) (h : v < w) : (x.setWidth w).slt (y.setWidth w) = x.ult y := by
@@ -369,10 +369,10 @@ theorem signExtend_ult_signExtend (x y : BitVec v) (h : v ≤ w) :
   have := (x.signExtend w).isLt
   have := (y.signExtend w).isLt
   simp only [BitVec.ult_eq_decide, decide_eq_decide]
-  rcases toInt_cases x with ⟨h1, h2⟩ | ⟨h1, h2⟩ <;>
-  rcases toInt_cases y with ⟨h3, h4⟩ | ⟨h3, h4⟩ <;>
-  rcases toInt_cases (x.signExtend w) with ⟨h5, h6⟩ | ⟨h5, h6⟩ <;>
-  rcases toInt_cases (y.signExtend w) with ⟨h7, h8⟩ | ⟨h7, h8⟩ <;>
+  rcases toInt_toNat_cases x with ⟨h1, h2⟩ | ⟨h1, h2⟩ <;>
+  rcases toInt_toNat_cases y with ⟨h3, h4⟩ | ⟨h3, h4⟩ <;>
+  rcases toInt_toNat_cases (x.signExtend w) with ⟨h5, h6⟩ | ⟨h5, h6⟩ <;>
+  rcases toInt_toNat_cases (y.signExtend w) with ⟨h7, h8⟩ | ⟨h7, h8⟩ <;>
   omega
 
 theorem signExtend_ule_signExtend (x y : BitVec v) (h : v ≤ w) :
@@ -452,11 +452,11 @@ theorem mul_ne_of_srem_ne {x m c : BitVec w} (hov : x.smulOverflow m = false) (h
 
 /-! ### Values a value is known to be at least, or at most. `IS.simplifyICmpUsingMonotonicValues` -/
 
-theorem ule_or_left (x y : BitVec w) : x.ule (x ||| y) = true := by
+theorem ule_or_self_left (x y : BitVec w) : x.ule (x ||| y) = true := by
   simp only [BitVec.ule_eq_decide, BitVec.toNat_or, decide_eq_true_eq]
   exact Nat.left_le_or
 
-theorem ule_or_right (x y : BitVec w) : y.ule (x ||| y) = true := by
+theorem ule_or_self_right (x y : BitVec w) : y.ule (x ||| y) = true := by
   simp only [BitVec.ule_eq_decide, BitVec.toNat_or, decide_eq_true_eq]
   exact Nat.right_le_or
 

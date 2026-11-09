@@ -24,7 +24,7 @@ variable {w : Nat}
 /-- `getUnsignedMonotonicValues(Res, V, MonotonicType::GreaterEq, Q)` from depth 0: `V`, and values `V` is at least
 by its operation: the operands of an `or` or a `uadd.sat`, and an operand of a `mul nuw` whose other operand is known
 non-zero. -/
-def greaterValues (o : Oracle) (v : Term w) : List (Term w) :=
+def ICmp.greaterValues (o : Oracle) (v : Term w) : List (Term w) :=
   v :: match v with
   | .bin _ .or _ x y => [x, y]
   | .bi _ .uaddSat x y => [x, y]
@@ -35,7 +35,7 @@ def greaterValues (o : Oracle) (v : Term w) : List (Term w) :=
 /-- `getUnsignedMonotonicValues(Res, V, MonotonicType::LowerEq, Q)` from depth 0: `V`, and values `V` is at most by
 its operation: the operands of an `and`, the first operand of a `urem`, `udiv` or `lshr`, and the first argument of a
 `usub.sat`. -/
-def lowerValues (v : Term w) : List (Term w) :=
+def ICmp.lowerValues (v : Term w) : List (Term w) :=
   v :: match v with
   | .bin _ .and _ x y => [x, y]
   | .bin _ .urem _ x _ | .bin _ .udiv _ x _ | .bin _ .lshr _ x _ => [x]
@@ -83,8 +83,8 @@ theorem greaterValues_le {ρ : Env} {o : Oracle} (ho : o.Sound ρ) {v g : Term w
       obtain ⟨a, b, ha, hb, rfl⟩ := or_some hd
       simp only [List.mem_cons, List.not_mem_nil, or_false] at hg
       rcases hg with rfl | rfl
-      · exact ⟨a, ha, Lemmas.ule_or_left a b⟩
-      · exact ⟨b, hb, Lemmas.ule_or_right a b⟩
+      · exact ⟨a, ha, Lemmas.ule_or_self_left a b⟩
+      · exact ⟨b, hb, Lemmas.ule_or_self_right a b⟩
     · next id x y =>
       simp only [Term.Consistent, BinIntr.eval, Val.uaddSat] at hc
       have hd := hc.2.2

@@ -50,9 +50,9 @@ def simplifyByDomEq (e : Ext) (op : BinOp) (op0 op1 : Term w) (maxRecurse : Nat)
 /-! ### The rewrites, one theorem each -/
 
 /-- The binary operator `simplifyByDomEq`'s caller simplifies, with its flags. -/
-def binSrc (op : BinOp) (f : Flags) (op0 op1 : Term w) : Repl w := .bin op f (.old op0) (.old op1)
+def ICmp.binSrc (op : BinOp) (f : Flags) (op0 op1 : Term w) : Repl w := .bin op f (.old op0) (.old op1)
 
-theorem binSrc_eval (ρ : Env) (op : BinOp) (f : Flags) (op0 op1 : Term w) :
+theorem ICmp.binSrc_eval (ρ : Env) (op : BinOp) (f : Flags) (op0 op1 : Term w) :
     (binSrc op f op0 op1).eval ρ = op.eval f (op0.denote ρ) (op1.denote ρ) := rfl
 
 namespace ICmp
