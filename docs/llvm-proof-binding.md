@@ -99,7 +99,7 @@ stdin, so neither names a path.
 | Kind | The claim, as Lean | Checkable now |
 | --- | --- | --- |
 | `ir_instance_equivalence` | `Fx.Src.f = Fx.Tgt.f ∧ ∀ (x : IRLean.Val 8) (s : IRLean.ModelStop), Fx.Src.f x ≠ some (.error (.model s))`, with a binder for each argument: on every input, poison included, both have the same outcome in IRLean's semantics, and the source never stops the model | Yes, for a function without memory, whose arguments are all `noundef` in the source, and whose target IR makes no promise IRLean trusts |
-| `ir_instance_refinement` | `IRLean.Refines Fx.Src.f Fx.Tgt.f`, with the instance Lean finds where only `IRLean` and the generated modules are imported | Only with an `IRLean` that has `IRLean.Refines`, which this commit doesn't. Until then it's `unsupported`, `claim_kind_unavailable` |
+| `ir_instance_refinement` | `IRLean.Refines Fx.Src.f Fx.Tgt.f`, with the instance Lean finds where only `IRLean` and the generated modules are imported: on every input, poison included, the target only does what the source allows, and a model stop in the source allows nothing ([refinement](refinement.md)) | Yes, for the same functions as `ir_instance_equivalence` |
 | `rewrite_all_inputs` | The pass's rewrite is right for every input module (L3) | No. Always `unsupported` |
 | `pass_implementation` | The pass's compiled C++ makes only proved rewrites (L4) | No. Always `unsupported` |
 | `pipeline_composition` | A pipeline at a level and target preserves meaning | No. Always `unsupported` |
@@ -107,9 +107,10 @@ stdin, so neither names a path.
 Equality alone isn't evidence. A model stop is where IRLean doesn't know what LLVM does, so two functions that stop
 there are equal in the model and can differ in LLVM. With the source never stopping, neither does the target, and
 every outcome the source has, the target has too: a value, poison, undefined behavior, or a run that never ends. That
-implies refinement as the adversarial lane's contract states it, where a model stop in the source allows nothing.
+implies `IRLean.Refines`, where a model stop in the source allows nothing, through `Refines.of_eq` and
+`Refines.self_iff` ([refinement](refinement.md)).
 
-It also holds only where the model has no less undefined behavior than LLVM in the source, and no more in the target.
+It also holds only where the model has no more undefined behavior than LLVM in the source, and no less in the target.
 So three kinds of function are `unsupported`, before any proof is read:
 
 - one that uses memory or pointers, where the model has more undefined behavior than LLVM
@@ -199,7 +200,7 @@ Only `bound` is a success. Every verdict, whatever its status, carries `does_not
 | `axiom_policy_failed` | `refused` | `tests/check_axioms.lean` rejects the certificate's modules |
 | `kernel_replay_failed` | `refused` | `leanchecker` rejects a declaration |
 | `claim_kind_unverifiable` | `unsupported` | The kind is L3, L4 or a pipeline |
-| `claim_kind_unavailable` | `unsupported` | `IRLean` has no `IRLean.Refines` |
+| `claim_kind_unavailable` | `unsupported` | `IRLean` has no `IRLean.Refines`, or no instance of it for the functions' type |
 | `function_unsupported` | `unsupported` | ir-lean leaves the function out |
 | `memory_unsupported` | `unsupported` | The function uses memory or pointers |
 | `undef_argument` | `unsupported` | An argument isn't `noundef` in the source, so a caller can pass `undef` |
@@ -275,19 +276,15 @@ source, the first source equals the last target. The contract this needs first, 
 
 - a manifest listing steps, where each step's `tgt_ir` hash is the next step's `input` hash, and the steps are what
   `opt -print-pipeline-passes` says the level runs, for that triple;
-- for refinement, a transitivity theorem for `IRLean.Refines`, which is the semantics owner's to state, since it depends
-  on how poison, undefined behavior and model stops are treated;
+- for refinement, transitivity, which `IRLean.Refines.trans` states ([refinement](refinement.md));
 - functions the pipeline adds, removes, inlines or changes the signature of, which a per-function claim can't express.
 
 **Unsupported today.**
 
-- `ir_instance_refinement`, until `IRLean.Refines` is on the main branch. The checker builds it with `mkAppM`, and that
-  path hasn't been run.
 - Functions that use memory or pointers, arguments that aren't `noundef`, and target IR with `mustprogress` or
   `willreturn`.
-- Rewrites whose source can stop the model, such as on a frozen poison. A refinement claim could say a model stop in
-  the source allows nothing, and so can't be bound either; it needs `ir_instance_refinement`, or a stand-in such as the
-  adversarial lane's, under separate ownership.
+- Rewrites whose source can stop the model, such as on a frozen poison. `ir_instance_refinement` says a model stop in
+  the source allows nothing, so these can't be bound either, until `freeze` has a semantics that chooses (SEM-03).
 - Any `opt` option but `-passes=` and `-mtriple`.
 - More than one function per manifest, and functions a pass adds or removes.
 - Changes outside a function: globals, declarations, metadata and module flags, and other functions. The verdict's
@@ -300,8 +297,9 @@ source, the first source equals the last target. The contract this needs first, 
 [`tests/binding.py`](../tests/binding.py) runs in the dev shell after `lake build` and building `build/ir-lean`. It
 records one real rewrite, `instcombine` folding `add i8 %x, 0` from
 [`tests/binding/add_zero.ll`](../tests/binding/add_zero.ll), with the certificate
-[`tests/binding/AddZero.lean`](../tests/binding/AddZero.lean), and has to get `bound`. Then each case breaks one thing
-and has to get the status and reason given:
+[`tests/binding/AddZero.lean`](../tests/binding/AddZero.lean), and has to get `bound`. So does the same run as an
+`ir_instance_refinement` claim, with [`tests/binding/AddZeroRefines.lean`](../tests/binding/AddZeroRefines.lean). Then
+each case breaks one thing and has to get the status and reason given:
 
 | Kind | Cases | Verdict |
 | --- | --- | --- |
@@ -317,7 +315,7 @@ and has to get the status and reason given:
 | | A certificate whose code rewrites the generated target, adds a module named `IRLean` where Lean looks first, or adds a companion `.ir` file to `IRLean`'s library, while it compiles | `refused`, `artifacts_modified` |
 | | A certificate whose code leaves a process running | `bound`, and the process is gone |
 | | A `leanchecker` earlier on PATH that passes anything, with a certificate the kernel never saw | `refused`, `kernel_replay_failed` |
-| | `ir_instance_refinement`, on this `IRLean` | `unsupported`, `claim_kind_unavailable` |
+| | An `ir_instance_refinement` claim with an equivalence certificate | `refused`, `claim_type_mismatch` |
 | | `pass_implementation`, `rewrite_all_inputs` | `unsupported`, `claim_kind_unverifiable` |
 | What the model can't judge | A function reading memory | `unsupported`, `memory_unsupported` |
 | | A function ir-lean refuses, on floating point | `unsupported`, `function_unsupported` |

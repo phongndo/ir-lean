@@ -194,7 +194,7 @@ so a theorem that they're equal holds. The adversarial lane reports that equalit
 
 - **Equality of model outcomes is not refinement.** Where either side can stop the model, `src = tgt` says only that
   they stop the same way, which says nothing about LLVM. A certificate has to treat a source stop as allowing nothing,
-  as the unpublished `Refines` does, or prove neither side stops.
+  as [`Refines`](refinement.md) does, or prove neither side stops.
 - **The scalar contracts here don't fix this.** `freeze_none_stops` and `freeze_none_not_ub` say what the model does.
   They don't make it say anything about `freeze` that LangRef does. Coordinating which certificates may use equality is
   the binding lane's, and fixing it for real needs a nondeterministic `Outcome`, below.
@@ -242,7 +242,7 @@ are all refused, which is sound, and blocks most `-O2` builds without `-fno-stri
 
 ## What refinement depends on
 
-The unpublished refinement work defines `Refines src tgt` for code without memory. It assumes the model has no more
+[`Refines src tgt`](refinement.md) is defined for code without memory. It assumes the model has no more
 undefined behavior than LLVM there. This slice settles part of that:
 
 - **Settled, for scalars, given the reading of LangRef above.** Division meets `PoisonUB`, and is undefined exactly for

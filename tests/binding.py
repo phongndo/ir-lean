@@ -40,6 +40,9 @@ CLAIM = (
 assert CLAIM in GOOD
 # The good certificate's theorem as `Fx.good`, for certificates that state something else and still compile.
 GOOD_LEMMA = GOOD.split("open IRLean\n", 1)[1].replace("theorem Fx.cert", "theorem Fx.good")
+# The same rewrite, with a certificate of the refinement claim.
+REFINES = (HERE / "AddZeroRefines.lean").read_text()
+assert "theorem Fx.cert : IRLean.Refines Fx.Src.f Fx.Tgt.f :=" in REFINES
 
 # The attack the adversarial lane found with tools/verify.py, on a real instcombine run: the two are equal in
 # the model, since both stop at a frozen poison, and Fx.stops shows the source does. Equality alone is all a
@@ -321,11 +324,19 @@ CASES: list[tuple[str, Callable[[str], Path], list[str], tuple[str, str]]] = [
     # Limits make a verdict unknown, never bound or refused.
     ("time_limit", lambda n: record(n, SLOW), ["--timeout", "20"], ("unknown", "time_limit")),
     ("memory_limit", lambda n: record(n, GREEDY), ["--memory", "1500"], ("unknown", "resource_limit")),
+    # The refinement claim: bound for a certificate stating IRLean.Refines, and refused for one stating
+    # equivalence instead, since the checker compares the whole type.
     (
-        "refinement_unavailable",
+        "refinement_bound",
+        lambda n: record(n, REFINES, kind="ir_instance_refinement"),
+        [],
+        ("bound", "replayed"),
+    ),
+    (
+        "refinement_from_equivalence",
         lambda n: record(n, GOOD, kind="ir_instance_refinement"),
         [],
-        ("unsupported", "claim_kind_unavailable"),
+        ("refused", "claim_type_mismatch"),
     ),
     # Claims no tool here can check, whatever the evidence.
     (
