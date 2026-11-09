@@ -228,8 +228,9 @@ general, watching for `n` calls shows the first `n + 1` calls of the run, the la
 prefix of a run's trace, finite or not, is something the relation compares.
 
 **Why the cut shows the call it stops at.** Without it, the call after the `n` watched for would be seen only by
-what it answers, and a run that then spins silently shows nothing. A source that picks between `use(1); spin` and
-`use(2); return`, for a target that does `use(2); spin`, would agree at every `n` with one source run per world: cut
+what it answers, and a run that then spins silently shows nothing. For a `@use` marked `willreturn nounwind`, a source
+that picks between `use(1); spin` and `use(2); return`, for a target that does `use(2); spin`, would agree at every `n`
+with one source run per world: cut
 off with no calls at `n = 0`, and past it, `use(1); spin` where `use(2)` returns, giving `none` like the target. No
 source run does what the target does when both calls return. Cut off with the call at its head, at `n = 0` the source
 shows `use(1)` and the target `use(2)`.
@@ -315,6 +316,8 @@ undefined, like unwinding through a function marked so.
 - **A function with a stack frame, or that makes promises about memory,** wraps its body in `Mem.withFrame` or
   `Mem.call`, which don't pass an `Exit` through yet, so a call outside the module there is refused until they do.
 - **Calls through a pointer** to anything outside the module keep stopping the model, `unknownCallee`.
+- **A call to an `extern_weak` declaration** is refused: the function may not be there at all, and its address null,
+  as for an `extern_weak` global.
 
 ## Calls that touch memory
 

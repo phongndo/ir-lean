@@ -16,8 +16,8 @@ proved for every input, bound to the C++ that implements it, and correct in ever
 [task list](llvm-verification-tasks.md) defines done. The passes are in nine [chunks](chunks.md), and each chunk goes
 through from expressing its own regression tests to being counted done. A [platform track](#the-platform-track) runs under
 all of them, and the chunks pull from it. The headline is the passes counted done, of the 1,162, with each chunk's
-percentage at each gate. It's 0 today: a pass counts only when BIND-03, the independent verifier, accepts it, and that
-verifier doesn't exist yet.
+percentage at each gate. It's 0 today: a pass counts only when BIND-03, the independent verifier, accepts it, and since
+2026-11-09 it exists and refuses every claim whose coverage nothing can decide yet ([verifying claims](verify-claims.md)).
 
 **Proved superoptimization and proof tests ride on the same platform.** Superoptimization finds code that's faster than
 what the compiler produced, and proves in Lean that it refines the original: on every input, the new code does only
@@ -847,7 +847,9 @@ source allows:
 
 - **Inventory:** `ir-lean --report` lists, for an input, every opcode, intrinsic, attribute, metadata
   kind and linkage it saw, and how each was handled. A table in the repo classifies each as modeled,
-  refused or assumed.
+  refused or assumed. The table is done, as SEM-08 on 2026-11-09: [IR features](ir-features.md) classifies all
+  17,033 items the pinned IR can contain, and a test fails if one is unclassified or the emitter disagrees with its
+  class. `--report` listing what one input contains is still to do.
 - **Promises:** done for what zlib's IR contains, including [`mustprogress` and `willreturn`](trust.md#promises-to-progress)
   since SEM-07. What Rust emits everywhere, starting with `noalias` on arguments, is refused until
   [Phase 3](#phase-3-c-and-rust-demonstrations) needs it. An independent check of these rules, as Alive2 is for GEPs,

@@ -18,6 +18,13 @@ target_compile_definitions(ir-lean PRIVATE ${LLVM_DEFINITIONS_LIST})
 target_compile_options(ir-lean PRIVATE -Wall -Wextra -fno-rtti)
 llvm_config(ir-lean USE_SHARED analysis core irreader support)
 
+# A call to every intrinsic the pinned LLVM defines, for tests/ir_features.py. See src/Probe.cpp.
+add_executable(ir-lean-probe src/Probe.cpp)
+target_include_directories(ir-lean-probe SYSTEM PRIVATE ${LLVM_INCLUDE_DIRS})
+target_compile_definitions(ir-lean-probe PRIVATE ${LLVM_DEFINITIONS_LIST})
+target_compile_options(ir-lean-probe PRIVATE -Wall -Wextra -fno-rtti)
+llvm_config(ir-lean-probe USE_SHARED core support)
+
 # Tests need the Lean library: run `lake build` first.
 enable_testing()
 add_test(NAME opcheck COMMAND ${CMAKE_SOURCE_DIR}/tests/opcheck.py $<TARGET_FILE:ir-lean>)
@@ -104,10 +111,29 @@ add_test(NAME llvm COMMAND ${CMAKE_SOURCE_DIR}/tests/llvm.py $<TARGET_FILE:ir-le
 add_test(NAME llvm_scope COMMAND ${CMAKE_SOURCE_DIR}/tests/llvm_scope_test.py)
 add_test(NAME llvm_scope_check COMMAND ${CMAKE_SOURCE_DIR}/tests/llvm_scope.py check)
 set_tests_properties(llvm_scope llvm_scope_check PROPERTIES TIMEOUT 600)
+# SEM-08: everything the pinned IR can contain, each item modeled, refused or assumed, in
+# tests/llvm_scope/ir-features.json. The rules, in Python. Then the file derived again from LLVM's source and
+# compared byte for byte, and a probe of each item through the emitter, which has to do what the item's class
+# says, with what it prints for the probes it translates elaborated in one Lean process. About 40 s.
+add_test(NAME ir_features_rules COMMAND ${CMAKE_SOURCE_DIR}/tests/ir_features_test.py)
+add_test(
+    NAME ir_features
+    COMMAND
+        ${CMAKE_SOURCE_DIR}/tests/ir_features.py check --tool $<TARGET_FILE:ir-lean> --probe
+        $<TARGET_FILE:ir-lean-probe>
+)
+set_tests_properties(ir_features PROPERTIES TIMEOUT 900)
 # Which of the nine chunks of docs/chunks.md each of the inventory's passes is in, and the counts that page
 # gives: every pass in exactly one, against tests/llvm_scope/inventory.json. Under a second, and no Lean or
 # LLVM.
 add_test(NAME chunks COMMAND ${CMAKE_SOURCE_DIR}/tests/chunks_test.py)
+# BIND-03's verifier, tools/verify_claims.py: claims refused before any replay, in Python, then every function
+# tests/llvm.py proves replayed as one piece of evidence, tools/verify.py's controls, and forged claims, each
+# refused for its own reason. docs/verify-claims.md.
+add_test(NAME verify_claims_static COMMAND ${CMAKE_SOURCE_DIR}/tests/verify_claims_test.py --tier static)
+add_test(NAME verify_claims COMMAND ${CMAKE_SOURCE_DIR}/tests/verify_claims_test.py --tier live)
+set_tests_properties(verify_claims_static PROPERTIES TIMEOUT 600)
+set_tests_properties(verify_claims PROPERTIES RUN_SERIAL TRUE TIMEOUT 1800)
 # tools/corpus/capture.py, in Python, with one seed through opt when the pinned one is on PATH: under a
 # second, and no Lean. docs/corpus.md.
 add_test(NAME corpus COMMAND ${CMAKE_SOURCE_DIR}/tests/corpus_test.py)
@@ -269,6 +295,7 @@ set_tests_properties(binding_2 PROPERTIES LABELS binding_2)
 # verify_negative runs alone, after proofs, in the same job, so semantics has only one test that runs alone.
 set_tests_properties(proofs verify_negative PROPERTIES LABELS proofs)
 set_tests_properties(llvm PROPERTIES LABELS llvm)
+set_tests_properties(verify_claims PROPERTIES LABELS verify_claims)
 set_tests_properties(
     replay_challenge
     contracts
