@@ -20,7 +20,7 @@ together ([coverage](#coverage)).
 | Formats | `half`, `bfloat`, `float`, `double`, `fp128`. `x86_fp80` and `ppc_fp128` refused | They're IEEE binary formats, or `bfloat`, which is laid out as one. The other two aren't, and 41 pairs are refused first for them |
 | NaN results | A choice, through F3's `IRLean.Choice`: either sign, and the preferred NaN, or an input NaN quieted or unchanged | LangRef's rule, word for word. The target-specific extra payloads are taken as empty, as LangRef says of x86 and ARM, and a module for another architecture is refused |
 | `nnan`, `ninf` | Poison, as LangRef says | Exact |
-| `nsz` | A choice: each zero operand's sign may flip | LangRef 23.1.3 says exactly that, of inputs only |
+| `nsz` | A choice: each zero operand's sign may flip, and on `uitofp` and `sitofp` a zero result's sign | LangRef 23.1.3 says exactly that: of inputs, and of the result where the input is an integer |
 | `arcp`, `contract`, `afn`, `reassoc`, `fast` | Refused by name | LangRef gives them "rewrite-based semantics" over several instructions, not a meaning per instruction. Alive2 can't prove anything with them either |
 | Environment | The default one only: round to nearest, no traps, subnormals kept. `denormal_fpenv` other than `ieee`, `strictfp`, constrained intrinsics, rounding-mode arguments, `"amdgpu-ieee"` and `!fpmath` refused by name | LangRef calls running outside it "typically" undefined unless those attributes say otherwise, and they each need a model of their own |
 | Where it lives | `IRLean/Float.lean`, which this lane owns. Shared files get small, local edits | The rule for running three semantics lanes at once |
@@ -146,6 +146,11 @@ An operand that isn't a NaN gives the preferred NaN. So every choice is a result
 allows is some choice: the preferred NaN with either sign, and each NaN operand, quieted or as it was, with either sign.
 Where IEEE 754 gives anything else, the choice is ignored, and the result is the same for every choice.
 
+**Between formats,** `fptrunc` and `fpext` carry a NaN operand's payload as LangRef says: `fptrunc` drops the payload's
+low bits that don't fit, and `fpext` copies it "to the high order bits of the resulting payload, and the remaining low
+order bits are zero". Where dropping bits leaves an all-zero payload, the unchanged NaN would be an infinity, so only
+the quieted one is allowed, as LangRef says too. Alive2's `FloatType::fromFloat` reads it the same way.
+
 **`Refines` needs no change.** For every way the target chooses, some way the source chooses gives a result that allows
 the target's, bit for bit. So `fadd %x, -0.0` to `%x` refines: where `%x` is a NaN, the source may return it unchanged
 with its own sign. `fadd %x, %nan` to the preferred NaN refines, and to any other payload doesn't. Alive2 agrees on all
@@ -170,7 +175,7 @@ intrinsics and attributes are refused too, 92 for x86-32 and 67 for `unknown`.
 | --- | --- | --- |
 | `nnan` | Poison if an operand is a NaN, or the result would be | The same |
 | `ninf` | Poison if an operand is an infinity, or the result would be | The same |
-| `nsz` | A choice: each operand that's a zero may have its sign flipped, before the operation. One more bit of the choice per operand | The same, `any_fp_zero` on each input |
+| `nsz` | A choice: each operand that's a zero may have its sign flipped, before the operation. One more bit of the choice per operand. On `uitofp` and `sitofp`, whose operand is an integer with no sign, LangRef says instead "if the input value is 0, the sign bit of the result is non-deterministic": one bit of the choice, for the result | The same, `any_fp_zero` on each input |
 | `arcp`, `contract`, `afn`, `reassoc`, and `fast` | Refused by name, on the source and target alike | An uninterpreted function and an approximation, so it never says a rewrite with one is correct |
 
 The four refused flags give permission to rewrite an expression, LangRef says, and they hold only where every
@@ -287,7 +292,7 @@ in a new test, `fpcheck`:
 | Lean's `Float.Model` | The circuits themselves, against `UnpackedFloat`'s operations, compiled and run | Every pair at small formats, for every operation `Float.Model` has |
 | LLVM's constant folder, `APFloat` | The emitted Lean for each operation, run on constants, against `opt -passes=instsimplify` folding the same instruction on them. A NaN result has to be one LangRef allows of the fold's inputs | Every value at `half` for operations of one operand. Sampled for two, and for `float`, `double`, `bfloat` and `fp128` |
 | Native code | The same, against the processor, through clang | The same. `half` is native on AArch64, and on x86-64 computed in `float`, which is exact for `+`, `-`, `×`, `/` and `sqrt` |
-| Alive2 | For sampled constants, the instruction against the model's result, as a table, in both directions where the result isn't a NaN, and in one, table to instruction, where it is, since the instruction may give several | Sampled, at every format Alive2 reads |
+| Alive2 | For sampled constants, the instruction against the model's result, as a table, in both directions where the result isn't a NaN. Where it is, in one: the instruction as the source and the table as the target, which says the model's NaN is one the instruction may give, since it may give several | Sampled, at every format Alive2 reads |
 
 Two operands at `half` are 2^32 pairs, about 4.3 billion: too many to run the model on in a test, so they're sampled,
 with every edge value against every other.

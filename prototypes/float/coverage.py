@@ -25,6 +25,7 @@ import json
 import re
 import sys
 from pathlib import Path
+from typing import Any
 
 CLASSIFIED = (
     "emitter",
@@ -53,7 +54,9 @@ def main() -> int:
     spec = importlib.util.spec_from_file_location(
         "stage1", args.stage1 / "bench" / "instcombine" / "stage1.py"
     )
-    s1 = importlib.util.module_from_spec(spec)
+    if spec is None or spec.loader is None:
+        sys.exit(f"can't load {args.stage1}/bench/instcombine/stage1.py")
+    s1: Any = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(s1)
     s1.TOOL = args.tool.resolve()
 
