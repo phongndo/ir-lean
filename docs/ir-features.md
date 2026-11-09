@@ -133,10 +133,13 @@ a change to the classification, and shows in review as lines of the file.
   Whether that matches LLVM is what `opcheck`, `gepcheck`, `x86check`, the differential tests and Alive2 are for.
 - **Every way an item can appear.** A probe uses an item once, in one place, at one type or a few. An attribute is
   probed on `i32`, a pointer and a vector, and a form is listed only where the emitter treats it differently.
-- **133 items have no probe.** 117 are intrinsics no call the generator builds passes LLVM's verifier, such as
+- **134 items have no probe.** 117 are intrinsics no call the generator builds passes LLVM's verifier, such as
   `llvm.experimental.gc.statepoint`. Each is refused, and has no case in `emitIntrinsic`, so the emitter's default
-  refuses it, which the check confirms for each. The other 16 are listed in the script's `UNPROBEABLE`, each with why
+  refuses it, which the check confirms for each. The other 17 are listed in the script's `UNPROBEABLE`, each with why
   no IR the emitter reads can hold it, such as `UserOp1`, internal to LLVM's passes, or `elementtype` on a
-  definition's parameter, which the verifier rejects. All are refused but three: `immarg`, at two places, goes only
+  definition's parameter, which the verifier rejects. One, `jumptable` at a call, has IR that can hold it, but LLVM
+  23.1.3's verifier checks it with `cast<GlobalValue>(V)->hasGlobalUnnamedAddr()`, where `V` is the call, so it
+  reads bits that aren't the call's, and whether a probe passes changed from run to run on macOS. The emitter refuses
+  it, having no case for it in `checkFunctionAttributes`. All are refused but three: `immarg`, at two places, goes only
   on an intrinsic's declaration, where LLVM's verifier checks it, and the `metadata` type is only an operand of an
   intrinsic, and the emitter translates none that takes one.
