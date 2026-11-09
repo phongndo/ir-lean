@@ -5,14 +5,6 @@ target triple = "x86_64-unknown-linux-gnu"
 
 declare i64 @strlen(ptr)
 
-; LLVM picks some value.
-define i32 @freeze_poison(i32 %x) {
-  %p = add nuw i32 -1, 1
-  %f = freeze i32 %p
-  %r = xor i32 %f, %x
-  ret i32 %r
-}
-
 ; LLVM has no settled answer for a stored pointer read back as an integer.
 define i64 @pointer_as_bytes(i32 %x) {
   %a = alloca ptr, align 8

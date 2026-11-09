@@ -30,8 +30,9 @@ the program, including binding proofs to LLVM's C++, BIND-02 to BIND-05, which t
 | INV-01 to INV-03, NEG-01 | Complete | The inventory and its checks, kept as a reference and run in CI |
 | SEM-01 | Complete | `IRLean.Refines`, the statement every certificate proves, in [Phase 4](roadmap.md#phase-4-certified-translation-validation-and-superoptimization) |
 | SEM-07 | Complete | Milestone F2, reached in [#62](https://github.com/phongndo/ir-lean/pull/62). The safety bridge waits on F4 now |
-| SEM-02, SEM-03 | Not started | Milestone F3, after the `undef` decision, which is on the critical path |
-| SEM-06 | Not started | Milestone F4. Superoptimizer v2's memory candidates and the safety bridge need it |
+| SEM-03 | Complete | Milestone F3, `freeze` in the model, with `undef` kept out, as the maintainer [decided](roadmap.md#three-decisions-of-2026-11-09) on 2026-11-09 |
+| SEM-02 | Blocked | Kept out of the model by the same decision: `undef` constants stay refused, and uninitialized memory reads as poison |
+| SEM-06 | Not started | Milestone F4, after F3. Superoptimizer v2's memory candidates and the safety bridge need it |
 | SEM-04, SEM-08, SEM-10 | Not started | [Phase 0](roadmap.md#phase-0-semantic-fidelity-and-trust-infrastructure)'s fidelity work |
 | AUTO-01 | In progress | A tactic the engine can try for `Refines` |
 | AUTO-02 | Not started | The [lemma store](roadmap.md#phase-6-the-engine-and-the-lemma-store) |
@@ -116,7 +117,7 @@ Each lane owns its files. Two tasks being worked on at once can't own the same f
 | Lane | Covers | Files it owns | Now |
 | --- | --- | --- | --- |
 | INV | Inventory and plan | `tests/llvm_scope*`, `docs/llvm-verification-tasks.md` | INV-01 to INV-03 are complete ([#43](https://github.com/phongndo/ir-lean/pull/43)). The rest wait with the program |
-| SEM | Semantics contracts: poison, `undef`, `freeze`, integers, floating point, memory, UB | `IRLean/*.lean` apart from the refinement tactic, `docs/trust.md`, `tests/opcheck.py`, `tests/gepcheck.py` | SEM-01 is complete ([#46](https://github.com/phongndo/ir-lean/pull/46)): [refinement](refinement.md). So is SEM-07: [promises to progress](trust.md#promises-to-progress). SEM-02, SEM-03 and SEM-06 follow the `undef` decision. SEM-04 has no prerequisites |
+| SEM | Semantics contracts: poison, `undef`, `freeze`, integers, floating point, memory, UB | `IRLean/*.lean` apart from the refinement tactic, `docs/trust.md`, `tests/opcheck.py`, `tests/gepcheck.py` | SEM-01 is complete ([#46](https://github.com/phongndo/ir-lean/pull/46)): [refinement](refinement.md). So are SEM-07: [promises to progress](trust.md#promises-to-progress), and SEM-03, F3: [`freeze`](refinement.md#runs-that-make-choices). SEM-02 is blocked: `undef` stays out of the model, as decided on 2026-11-09. SEM-06 follows SEM-03. SEM-04 has no prerequisites |
 | BIND | Binding proofs to LLVM's C++, and an independent verifier | `tools/`, new binding checks, `src/Emitter.*` for C++ support | Waits with the program. Certificate binding, from [#45](https://github.com/phongndo/ir-lean/pull/45), stays as a tool |
 | NEG | Negative tests, CI and honest reporting | `CMakeLists.txt`, `.github/`, `tests/lint.sh`, mutation scripts | NEG-01 is complete (#43). NEG-03 has no prerequisites |
 | AUTO | Proof automation and lemma reuse | `IRLean/RefineTactic.lean`, lemma stores | AUTO-01 is drafted in another tree. AUTO-03 is in progress: [rewrites at every width](generic-rewrites.md). AUTO-02 is the roadmap's lemma store |
@@ -140,7 +141,7 @@ flowchart LR
   SEM01[SEM-01 refinement contract] --> SEM02[SEM-02 undef]
   SEM01 --> SEM03[SEM-03 poison, freeze]
   SEM01 --> SEM05[SEM-05 floating point]
-  SEM02 --> SEM06[SEM-06 memory]
+  SEM03 --> SEM06[SEM-06 memory]
   SEM01 --> SEM07[SEM-07 promises]
   BIND01[BIND-01 what binding means] --> BIND03[BIND-03 verifier]
   INV02 --> BIND03
@@ -288,8 +289,8 @@ when they land.
 - **Owns:** `IRLean/Basic.lean`
 - **Acceptance:** `undef` constants translate. Each use is a fresh choice, as LangRef says. Alive2 agrees, run without `--disable-undef-input`.
 - **Trust gaps:** Alive2 runs with undef inputs off today.
-- **Status:** not started
-- **Evidence:** None.
+- **Status:** blocked: on 2026-11-09 the maintainer decided `undef` stays out of the model, following LLVM's move to remove it ([roadmap](roadmap.md#three-decisions-of-2026-11-09)). It comes back only by a change written down there
+- **Evidence:** None. #49's [prototype](undef-freeze.md) settles what a semantics with `undef` has to say, outside the model.
 
 ### SEM-03: Poison and freeze
 
@@ -298,9 +299,9 @@ when they land.
 - **Depends on:** SEM-01
 - **Owns:** `IRLean/Vec.lean`
 - **Acceptance:** `freeze` agrees with Alive2 on every integer and vector width the opcheck covers, and a rewrite that duplicates a `freeze` fails to certify.
-- **Trust gaps:** None beyond SEM-01's.
-- **Status:** not started
-- **Evidence:** None.
+- **Trust gaps:** None beyond SEM-01's. `freeze` of a vector, a pointer or a struct is refused, and `opcheck` has no vector operations, so its vector widths are none. Its Alive2 tables take values only, as for every operation, so `freeze` of poison is checked against Alive2 by `tests/freeze.sh`, at `i1` and `i8`.
+- **Status:** complete: milestone F3, on 2026-11-09. `freeze` of poison is a value each run chooses, through `IRLean.Choice`, and `IRLean.Refines` quantifies over each side's choices ([refinement](refinement.md#runs-that-make-choices))
+- **Evidence:** `Val.freeze` in `IRLean/Int.lean`, `Choice` and `Outcomes` in `IRLean/Basic.lean`, and their refinement in `IRLean/Refine.lean`. `tests/opcheck.py` runs `freeze` against Alive2 and the constant folder. `tests/freeze.sh` proves ten rewrites' verdicts on emitted code, Alive2 agreeing, including `freeze_duplicated_wrong`, and `tests/refine.sh` proves `freezeDuplicated`. `tests/binding.py` binds four real `instcombine` runs on `freeze`.
 
 ### SEM-04: Integer and vector operations for every width
 
@@ -328,7 +329,7 @@ when they land.
 
 - **Lane:** SEM
 - **Scope:** A relation between source and target memories, since a target may allocate differently. Also provenance and exposure for `ptrtoint` and `inttoptr`, bytes that are poison or `undef`, lifetimes, and dead stack objects, which are more UB than LLVM today and so wrong for a source.
-- **Depends on:** SEM-01, SEM-02
+- **Depends on:** SEM-01, SEM-03. Until 2026-11-09, SEM-02, which the maintainer's decision kept out of the model
 - **Owns:** `IRLean/Mem.lean`, `IRLean/Safety.lean`
 - **Acceptance:** `Refines` has an instance for functions with memory, and the known gaps in [trust](trust.md#known-gaps-in-the-model) each have a side: no more UB than LLVM on the source, no less on the target.
 - **Trust gaps:** `tbaa` and scoped `noalias` are refused, and stay refused until modeled.

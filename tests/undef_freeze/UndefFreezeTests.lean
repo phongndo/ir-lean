@@ -382,8 +382,8 @@ theorem freeze_noundef_removed_right :
   rw [freeze_of_some]
   exact Run.le_refl _
 
-/-- `freeze_added_unmodeled`: `%x` to `freeze %x`, right, for every input. The model can't certify this, since its
-`freeze` stops on poison. -/
+/-- `freeze_added`: `%x` to `freeze %x`, right, for every input. Since F3 the model certifies it too: its `freeze`
+of poison chooses a value, where it used to stop. -/
 theorem freeze_added_right : Refines (fun x : Arg 8 => pure x.uses) (fun x => freeze x.uses) := by
   intro x
   rintro T ⟨c, hc, rfl⟩
@@ -466,18 +466,37 @@ theorem undef_to_poison_wrong : ¬ Refines (fun _ : Unit => pure (UVal.undef : U
 
 /-! ### Equality of the model's outcomes
 
-The model stops at `freeze` of poison, in both functions of `freeze_duplicated`, so they're equal, though the rewrite
-is wrong. `tests/verification_negative/cases/freeze_duplicated_equality_pin` is this case. -/
+Until F3, the model stopped at `freeze` of poison, as `stoppingFreeze` does here with `none`, in both functions of
+`freeze_duplicated`, so they were equal, though the rewrite is wrong. Equality counts a stop as an answer.
+`tests/verification_negative/cases/freeze_duplicated_equality_pin` was this case. The model's `freeze` chooses now, and
+tells the two apart: `model_separates_freeze_duplicated`. -/
 
-def dupSrcModel (x : Val 8) : Outcome (Val 8) :=
-  andThen (Val.freeze x) fun a => Outcome.ok (Val.sub a a)
+/-- The model's `freeze` before F3: a value, or `none` where it stopped. -/
+def stoppingFreeze (a : Val 8) : Option (Val 8) := a.map some
 
-def dupTgtModel (x : Val 8) : Outcome (Val 8) :=
-  andThen (Val.freeze x) fun a => andThen (Val.freeze x) fun b => Outcome.ok (Val.sub a b)
+def dupSrcStopping (x : Val 8) : Option (Val 8) :=
+  (stoppingFreeze x).map fun a => Val.sub a a
 
-theorem shortcut_model_equality_accepts_freeze_duplicated : ∀ x, dupSrcModel x = dupTgtModel x := by
+def dupTgtStopping (x : Val 8) : Option (Val 8) :=
+  (stoppingFreeze x).bind fun a => (stoppingFreeze x).map fun b => Val.sub a b
+
+theorem shortcut_model_equality_accepts_freeze_duplicated : ∀ x, dupSrcStopping x = dupTgtStopping x := by
   intro x
-  cases x <;> simp [dupSrcModel, dupTgtModel, Val.freeze, andThen, Outcome.ok, Outcome.stop]
+  cases x <;> simp [dupSrcStopping, dupTgtStopping, stoppingFreeze]
+
+/-- The model's `freeze_duplicated`, as ir-lean emits it: each `freeze` reads its own number from the run's `Choice`. -/
+def dupSrcModel (x : Val 8) (c : Choice) : Val 8 :=
+  let a := Val.freeze (c.pick 1) x
+  Val.sub a a
+
+def dupTgtModel (x : Val 8) (c : Choice) : Val 8 :=
+  let a := Val.freeze (c.pick 1) x
+  let b := Val.freeze (c.pick 2) x
+  Val.sub a b
+
+theorem model_separates_freeze_duplicated : dupSrcModel none (fun p => if p = [2] then 1 else 0) ≠
+    dupTgtModel none (fun p => if p = [2] then 1 else 0) := by
+  simp [dupSrcModel, dupTgtModel, Choice.pick, Val.freeze, Val.sub]
 
 /-! ### A target run, rather than every one
 

@@ -81,7 +81,8 @@ in the model on a run LLVM calls undefined.
 | The address in `captures`, `memory(none)` accesses, `noalias` results and `returned` stop the model, since LangRef defines them by what's observable or doesn't say what happens. See [below](#what-the-model-does-at-its-edges) | No answer. Fine for safety proofs, and a refinement can't count them as UB | Stays, unless LangRef settles them |
 | `inbounds` on a freed allocation is poison, since the model has forgotten its size, where LLVM only says any access is undefined | More UB. Fine for safety proofs | Keep it, unless a proof needs the pointer afterward |
 | A stack object is gone once its function returns, so a load through a pointer to it is undefined. LangRef calls it dead, and a load from a dead stack object poison | More UB. Fine for safety proofs, wrong for the source side of a refinement | Keep it, unless a refinement needs it |
-| `undef` constants are refused, and reading uninitialized memory gives poison, where LLVM gives `undef` | More UB. Fine for safety proofs, wrong for the source side of a refinement | Decide how to represent `undef` |
+| `undef` constants are refused, and reading uninitialized memory gives poison, where LLVM gives `undef` | More UB. Fine for safety proofs, wrong for the source side of a refinement | Kept on purpose: on 2026-11-09 the maintainer [decided](roadmap.md#three-decisions-of-2026-11-09) `undef` stays out of the model, following LLVM's move to remove it. F4 settles uninitialized memory for refinement |
+| `freeze` of a vector, a pointer or a struct is refused. LangRef freezes a vector's lanes one by one, and gives a pointer with no provenance | Refused, so sound | Model them when real code needs it |
 | `Mem.base` is unconstrained: addresses can be zero, overlap, wrap, or ignore an allocation's alignment | Theorems are stronger than needed, so proofs carry hypotheses like `hnn`, `crcAlign`, `Readable.fits` and `Tables.crcFits` | State well-formed layouts once, as lemmas. `Mem.Object` does this for one object ([memory](memory.md)), and a whole layout is still to do |
 | Provenance is an allocation and the tags of promises it came through. `inttoptr` is refused, reading a stored pointer as an integer stops, and `ptrtoint` gives an address with no notion of exposure | Conservative, and it refuses real code | Document it. Extend only when a demonstration needs it |
 | Stack and `alloca` never fail, and recursion depth is unbounded | A "safe" function can still overflow a real stack | Document it as a native-level caveat |
@@ -112,6 +113,7 @@ in the model on a run LLVM calls undefined.
 | A definition another module could replace at load time was accepted | Refused, through `isInterposable()` | [`tests/emitter.sh`](../tests/emitter.sh) |
 | A mutant counted as breaking its proof when the proof only ran out of heartbeats, recursion depth, memory or stack. Two did: `crc32 skips a word`, whose proof also fails further on with an error of its own, and `__udivmoddi4`'s `wrong shift count`, whose proof never did | A limit says the proof might check with more, so a mutant needs an error that isn't one, and one with none fails as unknown. The `__udivmoddi4` mutant now shifts one less, which `bv_decide` refutes. Alive2 timeouts were already unknown, and are now read from its summary, since `alive-tv` exits 0 on one | `limit_is_unknown` in [`tests/proofs.sh`](../tests/proofs.sh), [`tests/llvm.py`](../tests/llvm.py) and [`tests/superopt.py`](../tests/superopt.py) |
 | A `mustprogress` or `willreturn` function, or an `llvm.loop.mustprogress` loop, that never finished was `none`, where LLVM calls it undefined: less UB than LLVM, so a theorem allowing `none` had a hole there, no refinement could delete such a loop, and `tools/binding.py` refused any target with one | Undefined, as `UB.noProgress` or `UB.noReturn`, unless the run waits on a call LangRef allows never to return. See [promises to progress](#promises-to-progress) | SEM-07. [`tests/emitter.sh`](../tests/emitter.sh), [`tests/refine.sh`](../tests/refine.sh), `promise_checked` in [`tests/binding.py`](../tests/binding.py) |
+| `freeze` of poison stopped the model, so a source that froze poison allowed nothing, inserting a `freeze` couldn't be certified, and two functions that both stopped there were equal though LLVM tells them apart | It's a value the run chooses, through `IRLean.Choice`, and `Refines` quantifies over each side's choices. See [above](#freeze-and-what-a-run-chooses) | F3. [`tests/freeze.sh`](../tests/freeze.sh), `tests/refine.sh`, the `freeze` runs in `tests/binding.py`, and the choices in [`tests/emitter.sh`](../tests/emitter.sh) |
 
 For safety proofs, more UB than LLVM is conservative and less is unsound. For refinement it splits by
 side: the source must have no more UB than LLVM, and the target no less. So a single conservative
@@ -216,8 +218,8 @@ the same table has.
 
 ## What the model does at its edges
 
-Some things stop the model instead of choosing an answer, and the `ModelStop` type lists them: `freeze` of
-poison, reading a stored pointer as an integer, calling through a pointer to something outside the module,
+Some things stop the model instead of choosing an answer, and the `ModelStop` type lists them: reading a stored
+pointer as an integer, calling through a pointer to something outside the module,
 calling something outside the module that promises not to return, such as an abort, and the two runs under a
 promise to progress that LangRef doesn't settle, [above](#promises-to-progress).
 So do promises LangRef defines by what's observable, or doesn't say what happens if broken: looking at an address
@@ -229,6 +231,25 @@ about LLVM, and neither is a claim of undefined behavior.
 Reading uninitialized memory gives poison, where LLVM gives `undef`. Poison is stricter: a result that
 isn't poison in the model doesn't depend on those bytes. This caught zlib's `slide_hash` reading
 entries of `prev` that were never written, which a comment in its source says is harmless.
+
+Until F3, on 2026-11-09, `freeze` of poison stopped the model too. Now it's a value the run chooses, below.
+
+## `freeze`, and what a run chooses
+
+Since F3, on 2026-11-09, `freeze` of poison is an arbitrary value of its type, the same for every use of that
+`freeze`, and chosen again each time it runs, as LangRef says. A function that has a `freeze`, or calls one that
+does, returns `IRLean.Outcomes α`: an outcome for each `IRLean.Choice`, which fixes every choice of the run in
+advance, and gives each `freeze` that runs a place of its own. [Refinement](refinement.md#runs-that-make-choices) has
+the design, and why every way each `freeze` can choose is some `Choice`.
+
+- **A theorem for every `Choice` is about every run LLVM allows.** `∀ c, f x c = Outcome.ok y` says each way `f` can
+  choose returns `y`. A theorem about one `Choice` says what one run does, not what every run does.
+- **A function without `freeze` is emitted as before,** and returns `Outcome α`, so no theorem about one changed.
+- **`Refines` is for every way the target chooses, some way the source does,** with the source's choices after the
+  target's, as the prototype in [`undef` and `freeze`](undef-freeze.md) settled. A source undefined for some way of
+  choosing allows anything there.
+- **Not covered:** `undef`, which stays out, and `freeze` of anything but an integer, which is refused, both in
+  [known gaps](#known-gaps-in-the-model).
 
 ## Rules for every proof
 

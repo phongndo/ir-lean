@@ -3,7 +3,7 @@ import IRLean.Int
 /-! # Experimental: `undef` and `freeze`
 
 **A prototype, not the model.** `IRLean.lean` doesn't import this, the emitter never targets it, and no claim in status,
-trust or a certificate rests on it. [`docs/undef-freeze.md`](../../docs/undef-freeze.md) says what it's for, what it
+trust or a certificate rests on it. Since F3 the model has this `freeze`, without `undef`: `model_freeze` says so. [`docs/undef-freeze.md`](../../docs/undef-freeze.md) says what it's for, what it
 settles, and what it leaves open.
 
 What LangRef 23.1.3 says, in "Undefined Values", "Poison Values" and "`freeze`":
@@ -27,7 +27,7 @@ So there are two kinds of choice here, made at different times:
   the set, `Run`, of what it can give: one result for each way its `freeze`s can choose.
 
 Instructions are the model's own operations on `Val`, applied to each draw, so on single values this is the model:
-`lift₂_of`, `freeze_of_some`. Where the model stops, at `freeze` of poison, this chooses: `freeze_of_none`.
+`lift₂_of`, and `model_freeze`, which says the model's `freeze`, over every way a run chooses, is this one.
 
 Refinement nests the two: for every input, for every way the target's `freeze`s choose, there's a way the source's can
 choose, such that whatever a use of the target's result sees, a use of the source's could see something it refines.
@@ -286,7 +286,7 @@ theorem UVal.le_of (a b : Val w) : UVal.le (UVal.of a) (UVal.of b) ↔ ValLe a b
   · rintro h c rfl
     exact ⟨a, rfl, h⟩
 
-/-- `freeze` of a value is that value, as `Val.freeze (some x) = Outcome.ok (some x)` in the model. -/
+/-- `freeze` of a value is that value, as `Val.freeze n (some x) = some x` in the model. -/
 theorem freeze_of_some (x : BitVec w) : freeze (UVal.of (some x)) = Pure.pure (UVal.of (some x)) := by
   funext r
   apply propext
@@ -299,7 +299,7 @@ theorem freeze_of_some (x : BitVec w) : freeze (UVal.of (some x)) = Pure.pure (U
   · intro h
     exact ⟨x, Or.inl rfl, h⟩
 
-/-- `freeze` of poison can be any value, where the model stops with `ModelStop.freezePoison`. -/
+/-- `freeze` of poison can be any value, as in the model, where the run's `Choice` says which. -/
 theorem freeze_of_none (r : UVal w) : freeze (UVal.of none) r ↔ ∃ x, r = UVal.const x := by
   constructor
   · rintro ⟨x, -, rfl⟩
@@ -307,14 +307,20 @@ theorem freeze_of_none (r : UVal w) : freeze (UVal.of none) r ↔ ∃ x, r = UVa
   · rintro ⟨x, rfl⟩
     exact ⟨x, Or.inr rfl, rfl⟩
 
-/-- The model's `freeze` gives a result exactly where this one has a single choice, and stops exactly where this one
-chooses among every value. -/
-theorem model_freeze (a : Val w) :
-    (∃ x, a = some x ∧ Val.freeze a = Outcome.ok a ∧ freeze (UVal.of a) = Pure.pure (UVal.of a)) ∨
-      (a = none ∧ Val.freeze a = Outcome.stop .freezePoison ∧ ∀ r, freeze (UVal.of a) r ↔ ∃ x, r = UVal.const x) := by
+/-- The model's `freeze` is this one, on single values: what this `freeze` can give is what the model's gives over every
+choice of a run, `Val.freeze n a` for some `n`. Until F3 the model stopped at `freeze` of poison, where this chooses. -/
+theorem model_freeze (a : Val w) (r : UVal w) : freeze (UVal.of a) r ↔ ∃ n, r = UVal.of (Val.freeze n a) := by
   cases a with
-  | some x => exact Or.inl ⟨x, rfl, rfl, freeze_of_some x⟩
-  | none => exact Or.inr ⟨rfl, rfl, freeze_of_none⟩
+  | some x =>
+    rw [freeze_of_some]
+    exact ⟨fun h => ⟨0, h⟩, fun ⟨_, h⟩ => h⟩
+  | none =>
+    rw [freeze_of_none]
+    constructor
+    · rintro ⟨x, rfl⟩
+      exact ⟨x.toNat, by simp [UVal.const, Val.freeze]⟩
+    · rintro ⟨n, rfl⟩
+      exact ⟨BitVec.ofNat w n, rfl⟩
 
 /-! ### Poison, and what a set holding it means -/
 
@@ -337,7 +343,7 @@ theorem UVal.le_poison (s : UVal w) : UVal.le s UVal.poison ↔ s none := by
 
 A target with no result at all would refine anything, since `Run.le` asks something of each of its results. Nothing
 here has none: an `Arg` is nonempty, instructions keep that, `freeze` always has a choice, and so does sequencing.
-This is the prototype's answer to the model's stop at `freeze` of poison, which gives no result. -/
+This was the prototype's answer to the model's stop at `freeze` of poison, which gave no result until F3. -/
 
 /-- The set is nonempty: some use sees something. -/
 def UVal.Nonempty (a : UVal w) : Prop := ∃ e, a e

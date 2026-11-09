@@ -783,6 +783,9 @@ def t1_expected(record: dict[str, Any]) -> set[str]:
     pass."""
     if record["set"] == "proofs_sh":
         return {"unknown"} if record.get("reason") in CANT_RUN else {"counterexample"}
+    # A claim tier 1 can't run, such as one about a `freeze`, quantifying over how a run chooses, is unknown.
+    if record["status"] == "unknown" and record.get("reason") in CANT_RUN:
+        return {"unknown"}
     expects = record.get("verify_expects") or []
     if "counterexample/witness_falsifies" in expects:
         return {"counterexample"}

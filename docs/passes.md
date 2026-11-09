@@ -122,8 +122,8 @@ certificates were deleted, so none of the 3,679 instances it called `certified` 
 Before scoring, seven known-wrong rewrites have to fail in the proof, as `failed` or `unknown`, and one right one,
 `instcombine` folding `add 1` then `sub 1`, has to be bound end to end, or nothing is scored and the exit code is 1.
 The wrong ones each have `noundef` arguments, so they reach the proof: a wrong constant, an added `nuw`, poison
-where there was a value, added undefined behavior, a dropped branch guard, a duplicated `freeze`, which both sides
-stop the model on, and a loop that never ends. A wrong rewrite that comes back `unsupported` fails the check too,
+where there was a value, added undefined behavior, a dropped branch guard, a duplicated `freeze`, which until F3
+both sides stopped the model on and since then chooses apart, and a loop that never ends. A wrong rewrite that comes back `unsupported` fails the check too,
 since it never reached the proof. `score.json`'s `self_check` has each one's result.
 
 A self-check where every mutant failed is kept in `WORK/selfcheck/SALT.json`, and its mutants' results are reused

@@ -122,7 +122,7 @@ const std::set<std::string> &reservedNames() {
         "Block", "IRLean", "Next", "Outcome", "Val", "andThen", "assume", "br", "branch", "false", "jump",
         "loop", "none", "noundef", "ret", "run", "select", "some", "step", "sw", "true", "unreachable",
         "HasPoison", "Mem", "Ptr", "PtrVal", "initial", "m", "indirect", "Vec", "Vector", "a", "b", "Unit",
-        "Nat", "BitVec", "Array", "promised", "runPromised",
+        "Nat", "BitVec", "Array", "promised", "runPromised", "Choice", "Outcomes",
         // Names Lean generates for every inductive type.
         "below", "binductionOn", "brecOn", "casesOn", "ctorElim", "ctorElimType", "ctorIdx", "ibelow",
         "injEq", "noConfusion", "noConfusionType", "rec", "recOn", "sizeOf", "toCtorIdx"};
@@ -777,13 +777,16 @@ struct Line {
 class FunctionEmitter {
 public:
   // `PromisedCycle` is for a recursive function in a cycle where some function or loop promises to progress.
+  // `Chooses` is for a function whose run can make a choice: one with a `freeze`, or a call to such a
+  // function.
   FunctionEmitter(Function &F, std::string LeanName, bool Recursive, bool PromisedCycle, bool UsesMemory,
-                  const DenseMap<const Function *, std::string> &Callees,
+                  bool Chooses, const DenseMap<const Function *, std::string> &Callees,
                   const std::set<const Function *> &MemoryFunctions,
+                  const std::set<const Function *> &ChoosingFunctions,
                   const std::set<const Function *> &ReachesFree, const ModuleContext &Context)
       : F(F), LeanName(std::move(LeanName)), Recursive(Recursive), PromisedCycle(PromisedCycle),
-        UsesMemory(UsesMemory), Callees(Callees), MemoryFunctions(MemoryFunctions), ReachesFree(ReachesFree),
-        Context(Context) {}
+        UsesMemory(UsesMemory), Chooses(Chooses), Callees(Callees), MemoryFunctions(MemoryFunctions),
+        ChoosingFunctions(ChoosingFunctions), ReachesFree(ReachesFree), Context(Context) {}
 
   // Checks the function can be translated, and sets up names and liveness.
   void prepare();
@@ -830,6 +833,9 @@ private:
   std::string pointerAsInt(const Value *V);
   void observeAddress(const Value *V, bool NullCheck, std::vector<Line> &Out);
   std::string resultType() const { return UsesMemory ? RetType + " × Mem" : RetType; }
+  // The block's next chooser, as `IRLean.Choice` numbers them: a `freeze`, or a call to a function that
+  // chooses.
+  std::string nextChooser() { return std::to_string(NextChooser++); }
   void emitCall(const CallBase &C, std::vector<Line> &Out);
   bool emitIntrinsic(const IntrinsicInst &C, std::vector<Line> &Out);
   void addLet(const Instruction &I, std::vector<Line> &Out, std::string Expr) {
@@ -850,6 +856,9 @@ private:
   bool Recursive;
   bool PromisedCycle;
   bool UsesMemory;
+  bool Chooses;
+  // Choosers in the block being emitted are numbered from 1. `c'.sub 0` is the next block's.
+  unsigned NextChooser = 1;
   // Blocks under a promise to progress: every block of a function marked `mustprogress` or `willreturn`, and
   // the blocks of each loop marked `llvm.loop.mustprogress` otherwise.
   std::set<const BasicBlock *> Promised;
@@ -859,6 +868,7 @@ private:
   bool HasCall = false;
   const DenseMap<const Function *, std::string> &Callees;
   const std::set<const Function *> &MemoryFunctions;
+  const std::set<const Function *> &ChoosingFunctions;
   const std::set<const Function *> &ReachesFree;
   const ModuleContext &Context;
   std::string RetType;
@@ -1082,6 +1092,8 @@ std::string FunctionEmitter::goTo(const BasicBlock *From, const BasicBlock *To) 
 
 std::string FunctionEmitter::target(const BasicBlock *From, const BasicBlock *To) {
   std::string Inner = BlockNames.lookup(To);
+  if (Chooses)
+    Inner += " (c'.sub 0)";
   if (UsesMemory)
     Inner += " m";
   for (const PHINode &P : To->phis())
@@ -1093,6 +1105,8 @@ std::string FunctionEmitter::target(const BasicBlock *From, const BasicBlock *To
 
 std::string FunctionEmitter::emitConstructor(const BasicBlock *BB) {
   std::string Out = "  | " + BlockNames.lookup(BB);
+  if (Chooses)
+    Out += " (c' : Choice)";
   if (UsesMemory)
     Out += " (m : Mem)";
   std::vector<const Value *> Params = blockParams(BB);
@@ -1496,8 +1510,11 @@ void FunctionEmitter::emitInstruction(const Instruction &I, std::vector<Line> &O
     return;
   }
   case Instruction::Freeze:
-    ScalarOnly();
-    addBind(I, Out, "Val.freeze " + Op(0));
+    // Of a vector, LangRef freezes each lane, and of a pointer it gives one with no provenance: neither is
+    // modeled.
+    if (!I.getType()->isIntegerTy())
+      reject("instruction " + printed(I));
+    addLet(I, Out, "Val.freeze (c'.pick " + nextChooser() + ") " + Op(0));
     return;
   case Instruction::ExtractValue: {
     const auto &E = cast<ExtractValueInst>(I);
@@ -1830,9 +1847,20 @@ void FunctionEmitter::emitCall(const CallBase &C, std::vector<Line> &Out) {
     Args += " " + callArgument(C, I, Out);
   bool Void = C.getType()->isVoidTy();
   std::string Bound = "(" + (Void ? std::string("_") : Names.at(&C)) + ", m)";
+  // A call to a function that chooses gives it the choices at this chooser's place.
+  std::string Choices;
+  auto Chooser = [&]() -> const std::string & {
+    if (Choices.empty())
+      Choices = " (c'.sub " + nextChooser() + ")";
+    return Choices;
+  };
   if (Callee) {
     std::string Expr = Callees.lookup(Callee) + Args;
-    if (MemoryFunctions.count(Callee))
+    if (ChoosingFunctions.count(Callee))
+      Expr += (MemoryFunctions.count(Callee) ? " m" : "") + Chooser();
+    if (ChoosingFunctions.count(Callee) && MemoryFunctions.count(Callee))
+      Out.push_back({Line::Bind, Bound, promisedCall(Callee, Expr)});
+    else if (MemoryFunctions.count(Callee))
       Out.push_back({Line::Bind, Bound, promisedCall(Callee, Expr + " m")});
     else
       addBind(C, Out, promisedCall(Callee, Expr));
@@ -1848,7 +1876,11 @@ void FunctionEmitter::emitCall(const CallBase &C, std::vector<Line> &Out) {
         reject("indirect call that can reach @" + Target->getName().str() + ", which isn't translated");
       std::string Call = Callees.lookup(Target) + Args;
       if (MemoryFunctions.count(Target))
-        Call = promisedCall(Target, Call + " m");
+        Call += " m";
+      if (ChoosingFunctions.count(Target))
+        Call += Chooser();
+      if (MemoryFunctions.count(Target))
+        Call = promisedCall(Target, Call);
       else
         Call = "andThen (" + promisedCall(Target, Call) + ") fun r' => Outcome.ok (r', m)";
       Expr += "\n      if q'.same " + Context.functionAddress(Target) + " then " + Call + " else";
@@ -1905,7 +1937,10 @@ std::string FunctionEmitter::emitTerminator(const BasicBlock *BB) {
 
 std::string FunctionEmitter::emitArm(const BasicBlock *BB) {
   Current = BB;
+  NextChooser = 1;
   std::string Out = "  | ." + BlockNames.lookup(BB);
+  if (Chooses)
+    Out += " c'";
   if (UsesMemory)
     Out += " m";
   for (const Value *V : blockParams(BB))
@@ -2046,6 +2081,8 @@ std::string FunctionEmitter::signature(const std::string &Name) {
     Out += " (" + Names.at(&A) + " : " + leanType(A.getType()) + ")";
   if (UsesMemory)
     Out += " (m : Mem)";
+  if (Chooses)
+    return Out + " : Outcomes (" + resultType() + ") := fun c' =>\n";
   return Out + " : Outcome (" + resultType() + ") :=\n";
 }
 
@@ -2077,6 +2114,8 @@ std::string FunctionEmitter::emitPromisedCycleWrapper() {
     Args += " " + Names.at(&A);
   if (UsesMemory)
     Args += " m";
+  if (Chooses)
+    Args += " c'";
   return signature(LeanName) + "  promised (" + LeanName + ".raw" + Args + ") fun _ => " +
          (F.willReturn() ? "Outcome.ub .noReturn" : "Outcome.stop .recursionUnsettled") + "\n";
 }
@@ -2127,6 +2166,8 @@ std::string FunctionEmitter::emitFunction() {
   if (HasAlloca)
     Out += "  Mem.withFrame m fun m =>\n";
   std::string Entry = BlockNames.lookup(Blocks.front());
+  if (Chooses)
+    Entry += " c'";
   if (UsesMemory)
     Entry += " m";
   for (const Value *V : blockParams(Blocks.front()))
@@ -2312,6 +2353,8 @@ Emitted emitModule(Module &M, const std::string &Namespace, const std::string &S
   CallGraphOrder Order(M);
   ModuleContext Context(M, NoCode);
   std::set<const Function *> MemoryFunctions;
+  // Functions whose run can make a choice, which take an `IRLean.Choice`: see `FunctionEmitter`.
+  std::set<const Function *> ChoosingFunctions;
 
   NameTable FunctionNames;
   DenseMap<const Function *, std::string> LeanNames, Translated;
@@ -2385,12 +2428,32 @@ Emitted emitModule(Module &M, const std::string &Namespace, const std::string &S
     if (UsesMemory)
       MemoryFunctions.insert(Component.begin(), Component.end());
 
+    // A function chooses if it has a `freeze`, or calls something that does, through a pointer too. Members
+    // of a cycle pass choices along for each other, so they share the answer.
+    bool Chooses = false;
+    for (const Function *F : Component)
+      for (const BasicBlock &BB : *F)
+        for (const Instruction &I : BB) {
+          Chooses |= isa<FreezeInst>(I);
+          const auto *C = dyn_cast<CallBase>(&I);
+          if (!C)
+            continue;
+          if (const Function *Callee = C->getCalledFunction()) {
+            Chooses |= ChoosingFunctions.count(Callee) != 0;
+            continue;
+          }
+          for (const Function *Target : Context.candidates(C->getFunctionType()))
+            Chooses |= ChoosingFunctions.count(Target) != 0;
+        }
+    if (Chooses)
+      ChoosingFunctions.insert(Component.begin(), Component.end());
+
     std::vector<std::unique_ptr<FunctionEmitter>> Emitters;
     std::string Types, Loops, Functions, Wrappers, Failure;
     for (Function *F : Component) {
       Emitters.push_back(std::make_unique<FunctionEmitter>(*F, LeanNames.lookup(F), Recursive, PromisedCycle,
-                                                           UsesMemory, Translated, MemoryFunctions,
-                                                           ReachesFree, Context));
+                                                           UsesMemory, Chooses, Translated, MemoryFunctions,
+                                                           ChoosingFunctions, ReachesFree, Context));
       FunctionEmitter &E = *Emitters.back();
       try {
         E.prepare();

@@ -166,7 +166,8 @@ undef_line='^def undef : UVal w := fun e => ∃ x, e = some x$'
 mutant 'undef includes poison' "s/$undef_line/def undef : UVal w := fun _ => True/" undef_to_poison_wrong
 # `undef` as one value, 0, the same at every use: then `add %w, %w` would never be odd.
 mutant 'undef is zero' "s/$undef_line/def undef : UVal w := fun e => e = some 0/" langref_freeze_y_odd
-# `freeze` of poison with no result, as the model's stop: then a target that freezes poison would refine anything.
+# `freeze` of poison with no result, as the model's stop was until F3: then a target that freezes poison would refine
+# anything.
 mutant 'freeze of poison stops' 's/(a (some x) ∨ a none) ∧ r = UVal.const x/a (some x) ∧ r = UVal.const x/' \
   freeze_total
 # `freeze` drawn again at each use, so it fixes nothing: then a frozen poison would still differ between uses.

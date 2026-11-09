@@ -6,7 +6,7 @@
       "blocked_on": [
         "T1: the semantics and refinement contract (what Refines means, for which types)"
       ],
-      "negative": "Restate wrong_mul2_to_shl2, poison_add_nsw_introduced, freeze_added_unmodeled, control_drop_nsw and the precondition cases as IRLean.Refines claims, and check the same verdicts.",
+      "negative": "Restate wrong_mul2_to_shl2, poison_add_nsw_introduced, control_freeze_added, control_drop_nsw and the precondition cases as IRLean.Refines claims, and check the same verdicts.",
       "needs": "A Refines definition on main, its rules for model stops and runs that never finish, and the axioms its tactic adds to tests/check_axioms.lean's policy."
     },
     {

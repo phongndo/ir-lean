@@ -54,8 +54,12 @@ example : Val.udiv (some 7#32) (some 2#32) = Outcome.ok (some 3#32) := rfl
 example : select (some 1#1) (some 5#32) (none : Val 32) = some 5#32 := rfl
 /-- A poison condition gives poison. -/
 example : select (none : Val 1) (some 5#32) (some 5#32) = none := rfl
-/-- The model doesn't choose a value for `freeze poison`, and doesn't call it undefined either. -/
-example : Val.freeze (none : Val 32) = Outcome.stop .freezePoison := rfl
+/-- `freeze poison` is the value the run chose, modulo `2 ^ 32`, and `freeze` of a value is the value. -/
+example : Val.freeze 7 (none : Val 32) = some 7#32 := rfl
+example : Val.freeze (2 ^ 32 + 7) (none : Val 32) = some 7#32 := rfl
+example : Val.freeze 7 (some 5#32) = some 5#32 := rfl
+/-- Every value is one some choice gives. -/
+example : ∃ n, Val.freeze n (none : Val 32) = some 0xdeadbeef#32 := freeze_none_any _
 
 /-! The contracts, used together: dropping `nsw` from `add` keeps any value it had, at `i8`. -/
 example (a b : Val 8) (x : BitVec 8) (h : Val.add a b (nsw := true) = some x) : Val.add a b = some x :=

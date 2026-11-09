@@ -3,12 +3,13 @@
   "category": "freeze",
   "summary": "One freeze used twice -> two freezes, refuted at X = poison",
   "llvm_verdict": "invalid",
-  "why": "src's a - a is 0. tgt's two freezes of a poison X can differ, so tgt can return anything. The model's src stops at the freeze, which allows nothing, so the refinement fails there.",
+  "why": "src's a - a is 0. tgt's two freezes of a poison X can choose apart, so tgt can return anything. The model agrees, and tests/freeze/FreezeModel.lean proves it doesn't refine, as freeze_duplicated_wrong. The claim says some way src chooses allows each way tgt chooses, which Lean can't decide at a witness, so tools/verify.py finds no counterexample, and reports the proof that failed.",
   "claim": {
-    "binders": "(x : IRLean.Val 8)",
+    "binders": "(x : IRLean.Val 8) (ct : IRLean.Choice)",
     "hypotheses": [],
-    "src": "Opt.src x",
-    "tgt": "Opt.tgt x"
+    "src_choice": "cs",
+    "src": "Opt.src x cs",
+    "tgt": "Opt.tgt x ct"
   },
   "names": [
     "Opt.src",
@@ -24,7 +25,8 @@
     "theorem": "tgt_refines_src",
     "witnesses": [
       {
-        "x": "none"
+        "x": "none",
+        "ct": "fun p => if p = [2] then 1 else 0"
       }
     ],
     "limits": {
@@ -35,7 +37,7 @@
   "expect": {
     "certified": false,
     "verify": [
-      "counterexample/witness_falsifies"
+      "error/proof_failed"
     ],
     "gate": [
       "not_proved"

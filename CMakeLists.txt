@@ -58,7 +58,7 @@ add_test(
 )
 set_tests_properties(
     model_stops_are_not_undefined
-    PROPERTIES PASS_REGULAR_EXPRESSION "not undefined: .*model stop: freezePoison"
+    PROPERTIES PASS_REGULAR_EXPRESSION "not undefined: .*model stop: pointerBytes"
 )
 # Each memory error has to stop for its own reason, not just any undefined behavior, so this checks them all.
 add_test(
@@ -112,6 +112,11 @@ add_test(NAME names COMMAND ${CMAKE_SOURCE_DIR}/tests/names.sh)
 # temporary directory, one Lean or Alive2 process at a time, each Lean process capped at 2 GB and 300 s.
 add_test(NAME undef_freeze COMMAND ${CMAKE_SOURCE_DIR}/tests/undef_freeze.sh)
 set_tests_properties(undef_freeze PROPERTIES TIMEOUT 900)
+# The model's freeze, F3, on what ir-lean emits: right rewrites refine, wrong ones provably don't, and Alive2
+# agrees.
+# One Lean or Alive2 process at a time, each Lean process capped at 2 GB and 300 s.
+add_test(NAME freeze COMMAND ${CMAKE_SOURCE_DIR}/tests/freeze.sh $<TARGET_FILE:ir-lean>)
+set_tests_properties(freeze PROPERTIES TIMEOUT 900)
 add_test(NAME verify COMMAND ${CMAKE_SOURCE_DIR}/tests/verify.py $<TARGET_FILE:ir-lean>)
 # Tier-1 proof tests: the contract in Python, then tools/prooftest/prooftest.py on
 # tests/prooftest/Cases.ll, at most four cases at a time, each with at most one Lean process running.
@@ -254,6 +259,7 @@ set_tests_properties(
     contracts
     refine
     undef_freeze
+    freeze
     generic_rewrites
     cpp_correspondence
     store

@@ -1,0 +1,37 @@
+{
+  "schema": "ir-lean.verification-negative.case/1",
+  "category": "control",
+  "summary": "X -> freeze X: right in LLVM, and in the model since F3",
+  "llvm_verdict": "valid",
+  "why": "A frozen poison is one of the values poison allows, so LLVM accepts this. Until F3 the model's tgt stopped at a frozen poison, which refuted it there. Since F3 the model's freeze chooses a value, and every way tgt chooses is allowed.",
+  "claim": {
+    "binders": "(x : IRLean.Val 8) (ct : IRLean.Choice)",
+    "hypotheses": [],
+    "src": "Opt.src x",
+    "tgt": "Opt.tgt x ct"
+  },
+  "names": [
+    "Opt.src",
+    "Opt.tgt"
+  ],
+  "request": {
+    "input": {
+      "ir": "Opt.ll"
+    },
+    "namespace": "Opt",
+    "function": "tgt",
+    "proof": "Proof.lean",
+    "theorem": "tgt_refines_src",
+    "limits": {
+      "timeout_seconds": 120,
+      "memory_mb": 4000
+    }
+  },
+  "expect": {
+    "certified": true,
+    "verify": [
+      "proved/kernel_checked"
+    ],
+    "gate": []
+  }
+}
