@@ -16,11 +16,12 @@ on a Zen 5 machine, and then:
    theorem is about both slices as ir-lean generated them, and leanchecker replays it.
 5. Runs each slice pair natively against each other on random and extreme inputs, if this processor has
    AVX-512 VNNI. That's testing and not proof, but it doesn't depend on the Lean model.
-6. Makes three wrong rewrites, and one change to clang's IR that breaks what the rewrite relies on, and checks
-   that none of the theorems still checks, and that each is refuted: Lean proves a rewritten slice gives a
-   different result from clang's on an input, which needs no particular processor, or the native run catches
-   it, or every theorem stops with an error of its own. A theorem that only runs out of time or memory is
-   unknown, not refuted.
+6. Makes three wrong rewrites, and one change to clang's IR that breaks what the rewrite relies on. At each
+   place, it first tries to prove in Lean that the rewritten slice gives a different result from clang's on
+   one input, which needs no particular processor. Where that checks, the theorem that they're the same is
+   false, so it isn't tried. Where it doesn't, the theorem is tried, and mustn't check. Each change has to be
+   refuted: by Lean, by the native run, or by every theorem tried stopping with an error of its own. A theorem
+   that only runs out of time or memory is unknown, not refuted.
 
 docs/llama.md has what this shows and what it assumes, and tests/llama_bench.py measures the speed.
 
@@ -178,8 +179,9 @@ def input_for(signature: str, seed: str) -> str | None:
 
 def prove(tool: Path, slices: Path, work: Path, refute: str | None = None) -> dict[str, dict]:
     """Translates each slice pair and checks its theorem. Returns, for each, its statement and axioms, or why
-    it failed. With `refute`, a seed, it also tries to prove the two slices differ on an input from that seed,
-    which only a wrong rewrite can, and says whether that checked."""
+    it failed. With `refute`, a seed, it first tries to prove the two slices differ on an input from that
+    seed, which only a wrong rewrite can. Where that checks, the theorem that they're the same is false, so
+    it isn't tried, and the place is marked refuted."""
     work.mkdir(parents=True, exist_ok=True)
     shutil.copy(ROOT / "lean-toolchain", work)
     env = {**os.environ, "LEAN_PATH": f"{work}:{ROOT}/.lake/build/lib/lean"}
@@ -266,7 +268,8 @@ def prove(tool: Path, slices: Path, work: Path, refute: str | None = None) -> di
         sig = found(
             re.search(rf"noncomputable def {name}_src (.*?) : Outcome .* :=\n", src), "signature"
         ).group(1)
-        refuted = {"refuted": differs(name, S, T, sig)} if refute else {}
+        if refute and differs(name, S, T, sig):
+            return name, {"refuted": True}
         args = " ".join(re.findall(r"\((\w+) : ", sig))
         theorem = f"T{name}"
         (work / f"{theorem}.lean").write_text(
@@ -278,10 +281,10 @@ def prove(tool: Path, slices: Path, work: Path, refute: str | None = None) -> di
         r = lean("-DwarningAsError=true", "-o", work / f"{theorem}.olean", work / f"{theorem}.lean")
         if r.returncode != 0:
             failure = r.stdout[-3000:] + r.stderr[-1000:]
-            return name, {"failure": failure, "unknown": only_limits(r.stdout), **refuted}
+            return name, {"failure": failure, "unknown": only_limits(r.stdout)}
         axioms, why = audit(theorem, name, f"{name}_same")
         if axioms is None:
-            return name, {"failure": why, "unknown": False, **refuted}
+            return name, {"failure": why, "unknown": False}
         statement = lean(
             "--stdin", stdin=f"import {theorem}\nset_option pp.fullNames true\n#check @{name}_same\n"
         )
@@ -291,7 +294,6 @@ def prove(tool: Path, slices: Path, work: Path, refute: str | None = None) -> di
             "axioms": axioms,
             "statement": statement.stdout.strip(),
             "lean_sha256": {k: sha256(work / f"{k}.lean") for k in (S, T, theorem)},
-            **refuted,
         }
 
     jobs = int(os.environ.get("LEAN_JOBS", "4"))
@@ -465,10 +467,10 @@ def main() -> int:
                     failures.append(f"mutant {mutant}")
                     continue
                 r = prove(tool, d / "slices", d / "lean", refute=mutant)
-                proved = [n for n, x in r.items() if "failure" not in x]
+                refuted = [n for n, x in r.items() if x.get("refuted")]
+                proved = [n for n, x in r.items() if "failure" not in x and not x.get("refuted")]
                 unknown = [n for n, x in r.items() if "failure" in x and x["unknown"]]
                 stopped = [n for n, x in r.items() if "failure" in x and not x["unknown"]]
-                refuted = [n for n, x in r.items() if x.get("refuted")]
                 caught = None
                 if vnni:
                     # Only a pair that differs counts. A check that didn't build or crashed says nothing.
@@ -480,8 +482,8 @@ def main() -> int:
                         )
                         failures.append(f"mutant {mutant} native")
                 # Refuted: Lean proves a rewritten slice differs from clang's on an input, or the native run
-                # finds one, or every theorem stops with an error of its own. One that only runs out of
-                # resources refutes nothing.
+                # finds one, or every theorem tried stops with an error of its own. One that only runs out
+                # of resources refutes nothing.
                 ok = (
                     not proved
                     and caught is not False
@@ -489,9 +491,9 @@ def main() -> int:
                 )
                 print(
                     f"{'ok  ' if ok else 'FAIL'} mutant {mutant}: Lean proves {len(refuted)}/{len(r)} "
-                    f"rewritten slices differ from clang's on an input, {len(stopped)}/{len(r)} theorems "
-                    f"stop with an error of their own, {len(unknown)} are unknown after running out of "
-                    f"resources, {len(proved)} still check"
+                    f"rewritten slices differ from clang's on an input, so their theorems are false. Of the "
+                    f"other {len(r) - len(refuted)}, {len(stopped)} stop with an error of their own, "
+                    f"{len(unknown)} are unknown after running out of resources, {len(proved)} still check"
                     + (
                         ""
                         if caught is None
