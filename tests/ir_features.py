@@ -122,6 +122,12 @@ REASONS: dict[str, Reason] = {
         None,
         "A call to a function in the module that ir-lean translates, directly or through a pointer to one",
     ),
+    "outside global": Reason(
+        "modeled",
+        None,
+        "A global another module defines: an address, with no allocation in initial, so what it holds is the "
+        "memory's (docs/calls.md)",
+    ),
     "outside call": Reason(
         "modeled",
         None,
@@ -922,7 +928,8 @@ FORM_RULES = [
     R("memory model", "store-of-i1 load-of-i1 freeze-of-a-pointer"),
     R("concurrency", "volatile-load volatile-store atomic-load atomic-store"),
     R("outside call", "call-to-a-declaration"),
-    R("external", "call-to-an-odr-definition variadic-call external-global alias-the-linker-may-replace"),
+    R("outside global", "external-global"),
+    R("external", "call-to-an-odr-definition variadic-call alias-the-linker-may-replace"),
     R("variadic", "variadic-function"),
     R("exceptions", "personality-function"),
     R("big-endian", "big-endian-bitcast"),

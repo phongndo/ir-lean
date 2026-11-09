@@ -86,8 +86,8 @@ Evidence and not proof. A pass here means no disagreement was found on the input
   of at most about 800 bytes, because the semantics are slow to run: each memory access walks back through
   earlier writes. The harness reaches all but 5 of zlib's functions, counted without optimization so
   nothing is inlined away: two for big-endian machines, `crc32_combine_gen`, `_tr_align` and `_tr_tally`.
-- **What the emitter accepts:** all 17,044 items the pinned IR can contain are classified, 281 modeled, 260
-  assumed and 16,503 refused, and a probe of each shows the emitter does what its class says, with the Lean it
+- **What the emitter accepts:** all 17,045 items the pinned IR can contain are classified, 295 modeled, 260
+  assumed and 16,490 refused, and a probe of each shows the emitter does what its class says, with the Lean it
   prints for each it translates elaborating ([IR features](ir-features.md)). Since 2026-11-09.
 - **Vector forms of integer operations:** the vector forms of 16 intrinsics, vector division and remainder,
   `noundef` and `range` on vectors and structs, and x86's VPTERNLOG, PSHUFB and shifts agree with Alive2 both ways,
@@ -270,7 +270,7 @@ reads it. That difference is itself a thing [Phase 3](roadmap.md#phase-3-c-and-r
     For a call without effects, which of the callee's answers it gets is the run's choice, so dropping, merging and
     reordering such calls refine under the attributes that allow it, and adding, duplicating or changing an argument
     doesn't. Calls that pass or return a pointer, or may touch memory the function can reach, are still refused, for
-    F4. See [calls](calls.md).
+    F4. A global another module defines has an address, and no allocation in `initial`. See [calls](calls.md).
 15. An independent verifier for claims about LLVM's passes, BIND-03, on 2026-11-09: `tools/verify_claims.py` replays
     a claim's evidence from the pinned source, sharing no code with the scorer, and `tests/llvm_scope.py` counts a
     claim only if it agrees. It replays every function in [LLVM's own code](#llvms-own-code) and refuses forged
