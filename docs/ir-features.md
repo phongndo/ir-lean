@@ -27,8 +27,8 @@ the `ir_features` test.
 | Calling convention | `CallingConv.h`, every one it names | 76 | 0 | 76 | 0 |
 | Constant | `Value.def`, every `HANDLE_CONSTANT` and `HANDLE_GLOBAL_VALUE` | 23 | 12 | 0 | 11 |
 | Operand bundle | `LLVMContext.cpp`'s bundle tags, and `BundleAttributes.def`'s `llvm.assume` bundles | 19 | 1 | 0 | 18 |
-| Form | Forms of these the emitter treats differently, such as `udiv` of vectors, listed in the script | 42 | 4 | 3 | 35 |
-| **Total** | | **17,033** | **161** | **170** | **16,702** |
+| Form | Forms of these the emitter treats differently, such as `udiv` of vectors, listed in the script | 42 | 5 | 3 | 34 |
+| **Total** | | **17,033** | **162** | **170** | **16,701** |
 
 ## The classes
 
@@ -45,7 +45,7 @@ A refused item is refused whatever it means, so refusing is always sound. What i
 | Lane | Refused items | Such as |
 | --- | ---: | --- |
 | Floating point (SEM-05) | 154 | `float`, `fadd`, `llvm.sqrt`, `nofpclass`, `!fpmath` |
-| External calls and globals | 61 | `call` attributes such as `memory(...)` on calls to the module's own functions, external globals, `weak` linkage, `ptrtoint` constant expressions. A call to a declaration is modeled since [calls](calls.md) slice 2 |
+| External calls and globals | 60 | `call` attributes such as `memory(...)` on calls to the module's own functions, `weak` linkage, `ptrtoint` constant expressions. A call to a declaration is modeled since [calls](calls.md) slice 2, and an external global since slice 3 |
 | Memory (F4, SEM-06) | 114 | `!tbaa`, `noalias` parameters, `byval`, `inttoptr`, masked loads, `llvm.objectsize` |
 | Long tail | 1,974 | 1,670 x86 intrinsics, scalable vectors, `nocallback`, exception handling, `udiv` of vectors |
 | None | 14,399 | 14,207 intrinsics of other targets, coroutines, garbage collection, sanitizers, atomics |

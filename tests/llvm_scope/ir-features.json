@@ -33,6 +33,10 @@
    "class": "modeled",
    "says": "A call to a function in the module that ir-lean translates, directly or through a pointer to one"
   },
+  "outside global": {
+   "class": "modeled",
+   "says": "A global another module defines: an address, with no allocation in initial, so what it holds is the memory's (docs/calls.md)"
+  },
   "outside call": {
    "class": "modeled",
    "says": "A call to a function the module only declares, answered by IRLean.World: an event in the run's trace, or for one without effects, an answer at the run's choice (docs/calls.md)"
@@ -326,9 +330,9 @@
  },
  "totals": {
   "items": 17033,
-  "modeled": 161,
+  "modeled": 162,
   "assumed": 170,
-  "refused": 16702,
+  "refused": 16701,
   "by_kind": {
    "instruction": {
     "modeled": 38,
@@ -374,13 +378,13 @@
     "refused": 18
    },
    "form": {
-    "modeled": 4,
+    "modeled": 5,
     "assumed": 3,
-    "refused": 35
+    "refused": 34
    }
   },
   "refused_by_lane": {
-   "external calls and globals": 61,
+   "external calls and globals": 60,
    "floating point": 154,
    "long tail": 1974,
    "memory": 114
@@ -17401,9 +17405,9 @@
   {"kind": "form", "name": "volatile-load", "class": "refused", "reason": "concurrency"},
   {"kind": "form", "name": "volatile-store", "class": "refused", "reason": "concurrency"},
   {"kind": "form", "name": "call-to-a-declaration", "class": "modeled", "reason": "outside call"},
+  {"kind": "form", "name": "external-global", "class": "modeled", "reason": "outside global"},
   {"kind": "form", "name": "alias-the-linker-may-replace", "class": "refused", "lane": "external calls and globals", "reason": "external"},
   {"kind": "form", "name": "call-to-an-odr-definition", "class": "refused", "lane": "external calls and globals", "reason": "external"},
-  {"kind": "form", "name": "external-global", "class": "refused", "lane": "external calls and globals", "reason": "external"},
   {"kind": "form", "name": "variadic-call", "class": "refused", "lane": "external calls and globals", "reason": "external"},
   {"kind": "form", "name": "variadic-function", "class": "refused", "reason": "variadic"},
   {"kind": "form", "name": "personality-function", "class": "refused", "lane": "long tail", "reason": "exceptions"},
