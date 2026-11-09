@@ -1,0 +1,212 @@
+{
+  "schema": "ir-lean.peephole.folds/1",
+  "family": "is-shift",
+  "pass": "instsimplify",
+  "modules": [
+    "Peephole.IS.ShiftKnownBits",
+    "Peephole.IS.Shift",
+    "Peephole.IS.Cast",
+    "Peephole.IS.Select"
+  ],
+  "entries": [
+    {
+      "fold": "Peephole.IS.simplifyShlInst.onInst",
+      "opcodes": [
+        "shl"
+      ],
+      "opt": "instsimplify"
+    },
+    {
+      "fold": "Peephole.IS.simplifyLShrInst.onInst",
+      "opcodes": [
+        "lshr"
+      ],
+      "opt": "instsimplify"
+    },
+    {
+      "fold": "Peephole.IS.simplifyAShrInst.onInst",
+      "opcodes": [
+        "ashr"
+      ],
+      "opt": "instsimplify"
+    },
+    {
+      "fold": "Peephole.IS.simplifyCastInst.onInst",
+      "opcodes": [
+        "trunc",
+        "zext",
+        "sext"
+      ],
+      "opt": "instsimplify"
+    },
+    {
+      "fold": "Peephole.IS.simplifyFreezeInst.onInst",
+      "opcodes": [
+        "freeze"
+      ],
+      "opt": "instsimplify"
+    }
+  ],
+  "folds": {
+    "Peephole.IS.simplifyShift": {
+      "sound": "Peephole.IS.simplifyShift.sound",
+      "sites": [
+        "IS.simplifyShift.L1310",
+        "IS.simplifyShift.L1314",
+        "IS.simplifyShift.L1322",
+        "IS.simplifyShift.L1326",
+        "IS.simplifyShift.L1344",
+        "IS.simplifyShift.L1350",
+        "IS.simplifyShift.L1364"
+      ]
+    },
+    "Peephole.IS.simplifyRightShift": {
+      "sound": "Peephole.IS.simplifyRightShift.sound",
+      "sites": [
+        "IS.simplifyRightShift.L1381",
+        "IS.simplifyRightShift.L1386",
+        "IS.simplifyRightShift.L1393"
+      ]
+    },
+    "Peephole.IS.simplifyShlInst": {
+      "sound": "Peephole.IS.simplifyShlInst.sound",
+      "sites": [
+        "IS.simplifyShlInst.L1411",
+        "IS.simplifyShlInst.L1417",
+        "IS.simplifyShlInst.L1421",
+        "IS.simplifyShlInst.L1430"
+      ]
+    },
+    "Peephole.IS.simplifyLShrInst": {
+      "sound": "Peephole.IS.simplifyLShrInst.sound",
+      "sites": [
+        "IS.simplifyLShrInst.L1451",
+        "IS.simplifyLShrInst.L1466"
+      ]
+    },
+    "Peephole.IS.simplifyAShrInst": {
+      "sound": "Peephole.IS.simplifyAShrInst.sound",
+      "sites": [
+        "IS.simplifyAShrInst.L1490",
+        "IS.simplifyAShrInst.L1495",
+        "IS.simplifyAShrInst.L1500"
+      ]
+    },
+    "Peephole.IS.simplifyCastInst": {
+      "sound": "Peephole.IS.simplifyCastInst.sound",
+      "sites": [
+        "IS.simplifyCastInst.L5641",
+        "IS.simplifyCastInst.L5653",
+        "IS.simplifyCastInst.L5678"
+      ]
+    },
+    "Peephole.IS.simplifyFreezeInst": {
+      "sound": "Peephole.IS.simplifyFreezeInst.sound",
+      "sites": [
+        "IS.simplifyFreezeInst.L7631"
+      ]
+    },
+    "Peephole.IS.simplifySelectBitTest": {
+      "sound": "Peephole.IS.simplifySelectBitTest.sound",
+      "sites": [
+        "IS.simplifySelectBitTest.L4683",
+        "IS.simplifySelectBitTest.L4689",
+        "IS.simplifySelectBitTest.L4699",
+        "IS.simplifySelectBitTest.L4709"
+      ]
+    },
+    "Peephole.IS.simplifyWithOpsReplaced": {
+      "sound": "Peephole.IS.simplifyWithOpsReplaced.sound",
+      "sites": [
+        "IS.simplifyWithOpsReplaced.L4428"
+      ]
+    },
+    "Peephole.IS.simplifySelectWithEquivalence": {
+      "sound": "Peephole.IS.simplifySelectWithEquivalence.sound",
+      "sites": [
+        "IS.simplifySelectWithEquivalence.L4819"
+      ]
+    }
+  },
+  "delegates": {
+    "ConstantFoldBinaryOpOperands": "simplifyShift's foldOrCommuteConstant with two constant operands: the constant folder's answer, IS.foldOrCommuteConstant.L582, isn't this family's",
+    "threadBinOpOverSelect": "simplifyShift with a select operand and MaxRecurse above 0: it calls simplifyBinOp on the select's arms, a recursive call into InstSimplify",
+    "threadBinOpOverPHI": "simplifyShift with a phi operand, by Shift.Ext.phi, and MaxRecurse above 0: it calls simplifyBinOp on the phi's incoming values",
+    "simplifyWithOpsReplaced": "simplifyWithOpsReplaced past its first loop and the checks after it, and on a V a Term shows as var: the replacement through V's operands, which recurses and calls simplifyInstructionWithOperands or ConstantFoldInstOperands. simplifySelectWithEquivalence delegates wherever it gets that answer"
+  },
+  "lemmas": [
+    "Peephole.Lemmas.shl_of_le_toNat",
+    "Peephole.Lemmas.lshr_of_le_toNat",
+    "Peephole.Lemmas.ashr_of_le_toNat",
+    "Peephole.Lemmas.shl_zero_left_refines",
+    "Peephole.Lemmas.lshr_zero_left_refines",
+    "Peephole.Lemmas.ashr_zero_left_refines",
+    "Peephole.Lemmas.ushiftRight_toNat_self",
+    "Peephole.Lemmas.lshr_self_refines",
+    "Peephole.Lemmas.msb_eq_false_of_toNat_lt",
+    "Peephole.Lemmas.ashr_self_refines",
+    "Peephole.Lemmas.getLsbD_zero_shiftLeft",
+    "Peephole.Lemmas.lshr_exact_of_getLsbD_refines",
+    "Peephole.Lemmas.ashr_exact_of_getLsbD_refines",
+    "Peephole.Lemmas.shl_nuw_of_msb_refines",
+    "Peephole.Lemmas.shl_nuw_nsw_of_toNat_eq_refines",
+    "Peephole.Lemmas.lshr_or_shl_nuw_refines",
+    "Peephole.Lemmas.allOnes_sshiftRight",
+    "Peephole.Lemmas.ashr_allOnes_refines",
+    "Peephole.Lemmas.ashr_shl_allOnes_refines",
+    "Peephole.Lemmas.getLsbD_eq_msb",
+    "Peephole.Lemmas.sshiftRight_of_getMsbD",
+    "Peephole.Lemmas.ashr_of_getMsbD_refines",
+    "Peephole.Lemmas.signExtend_of_width_one",
+    "Peephole.Lemmas.trunc_zext_refines",
+    "Peephole.Lemmas.trunc_sext_refines",
+    "Peephole.Lemmas.zext_trunc_nuw_refines",
+    "Peephole.Lemmas.sext_trunc_nsw_refines"
+  ],
+  "rests_on": {
+    "IS.simplifyShift.L1364": [
+      "Peephole.IS.Shift.KnownBits.shl_holds: KnownBits::shl, modelled in Peephole.IS.ShiftKnownBits and proved there, so nothing beyond Oracle.Sound"
+    ],
+    "IS.simplifyShlInst.L1430": [
+      "that IS.simplifyShift.L1322 fell through, so the amount isn't 0: at width 1, w - 1 is 0, and shl nuw nsw x, 0 is x. simplifyShlInst.sound gets it from the C++'s order, with no hypothesis"
+    ],
+    "IS.simplifyCastInst.L5653": [
+      "Peephole.IS.Cast.Widens: the zext or sext operand is valid IR, its result no narrower than its operand, as LLVM's verifier has it"
+    ],
+    "IS.simplifyFreezeInst.L7631": [
+      "Peephole.IS.Shift.Ext.Sound: isGuaranteedNotToBeUndefOrPoison is sound, PASS-01's, as Oracle.Sound is for the core's analyses"
+    ],
+    "IS.simplifySelectBitTest.L4683": [
+      "Peephole.IS.Select.BitTest: the callers' contract, that where the select's condition and X aren't poison, the condition is (X & Y) == 0 if TrueWhenUnset and != 0 if not. simplifySelectWithBitTest owes it through decomposeBitTest, and simplifySelectWithICmpCond from icmp eq (and X, Y), 0"
+    ],
+    "IS.simplifySelectBitTest.L4689": [
+      "Peephole.IS.Select.BitTest: the callers' contract, that where the select's condition and X aren't poison, the condition is (X & Y) == 0 if TrueWhenUnset and != 0 if not. simplifySelectWithBitTest owes it through decomposeBitTest, and simplifySelectWithICmpCond from icmp eq (and X, Y), 0"
+    ],
+    "IS.simplifySelectBitTest.L4699": [
+      "Peephole.IS.Select.BitTest: the callers' contract, that where the select's condition and X aren't poison, the condition is (X & Y) == 0 if TrueWhenUnset and != 0 if not. simplifySelectWithBitTest owes it through decomposeBitTest, and simplifySelectWithICmpCond from icmp eq (and X, Y), 0"
+    ],
+    "IS.simplifySelectBitTest.L4709": [
+      "Peephole.IS.Select.BitTest: the callers' contract, that where the select's condition and X aren't poison, the condition is (X & Y) == 0 if TrueWhenUnset and != 0 if not. simplifySelectWithBitTest owes it through decomposeBitTest, and simplifySelectWithICmpCond from icmp eq (and X, Y), 0"
+    ],
+    "IS.simplifyWithOpsReplaced.L4428": [
+      "Peephole.IS.Select.OpsHold: in the run, each Op is its RepOp, which the callers know where the condition they took Ops from is true; the theorem says the answer is V there"
+    ],
+    "IS.simplifySelectWithEquivalence.L4819": [
+      "the callers' contract, hcond: where the select's condition is true, Peephole.IS.Select.OpsHold for Replacements, as for icmp eq X, Y and {X, Y}. simplifySelectWithICmpCond and simplifySelectWithFCmp owe it"
+    ]
+  },
+  "unproved": {
+    "IS.simplifyCastInst.L5660": "bitcast x -> x: Term and Repl have no bitcast, so an integer bitcast to its own type isn't representable; for trunc, zext and sext the step never fires",
+    "IS.simplifyCastInst.L5669": "ptrtoint of a ptradd: needs memory and pointers, which Term doesn't have",
+    "IS.simplifyWithOpsReplaced.L4508": "past simplifyWithOpsReplaced's first loop, which the model delegates: it rests on what the recursive calls on V's operands answer, by induction over them, with AllowRefinement false's contract that the answer not refine V; x op identity to x, with ConstantExpr::getBinOpIdentity's identities",
+    "IS.simplifyWithOpsReplaced.L4517": "past simplifyWithOpsReplaced's first loop, which the model delegates: it rests on what the recursive calls on V's operands answer, by induction over them, with AllowRefinement false's contract that the answer not refine V; x - x and x ^ x to 0, where an operand is a RepOp",
+    "IS.simplifyWithOpsReplaced.L4530": "past simplifyWithOpsReplaced's first loop, which the model delegates: it rests on what the recursive calls on V's operands answer, by induction over them, with AllowRefinement false's contract that the answer not refine V; the absorber, which also needs impliesPoison, which the core Oracle lacks",
+    "IS.simplifyWithOpsReplaced.L4546": "past simplifyWithOpsReplaced's first loop, which the model delegates: it rests on what the recursive calls on V's operands answer, by induction over them, with AllowRefinement false's contract that the answer not refine V; scmp and ucmp of x, x to 0, intrinsics Term doesn't have",
+    "IS.simplifyWithOpsReplaced.L4491": "inventoried as fp; past the delegated replacement too",
+    "IS.simplifyWithOpsReplaced.L4494": "inventoried as fp; past the delegated replacement too",
+    "IS.simplifyWithOpsReplaced.L4566": "inventoried as calls: min and max intrinsics with their identity, past the delegated replacement",
+    "IS.simplifyWithOpsReplaced.L4575": "inventoried as memory: getelementptr x, 0",
+    "IS.simplifyWithOpsReplaced.L4644": "inventoried as calls: simplifyInstructionWithOperands on the replaced operands, a recursive call into InstSimplify, under PreventSelfSimplify",
+    "IS.simplifyWithOpsReplaced.L4647": "inventoried as calls: ConstantFoldInstOperands, the constant folder, on the replaced operands"
+  }
+}
