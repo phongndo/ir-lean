@@ -184,10 +184,12 @@ tests/llama.py build/ir-lean --manifest build/llama-manifest.json
 ```
 
 `nix develop .#llama` is the default shell with llama.cpp's source, which the flake fetches by hash. The default shell
-leaves it out, as it's 185 MB that no binary cache has, and in it `ctest` skips the `llama` test. In CI, it's the
-`llama` test job, in `nix develop .#llama`. That compiles the kernels from the pinned release, rewrites them, checks the 34
-theorems, runs the native comparison if the processor has AVX-512 VNNI, and checks the four mutants. It needs no
-model, and takes under 3 minutes with 6 Lean jobs, or about 3 and a half with 4 and no native comparison.
+leaves it out, as it's 185 MB that no binary cache has, and in it `ctest` skips the `llama` test. That compiles the
+kernels from the pinned release, rewrites them, checks the 34 theorems, runs the native comparison if the processor has
+AVX-512 VNNI, and checks the four mutants. It needs no model, and takes under 3 minutes with 6 Lean jobs, or about 3
+and a half with 4 and no native comparison. In CI, two test jobs in `nix develop .#llama` split it: `llama` runs
+`tests/llama.py --mutants mask`, everything but three of the mutants, and `llama_mutants` runs
+`--mutants signs,seven,scale --no-theorems`, those three alone.
 
 The manifest has the hashes of the source, IR and rewritten object, each theorem's statement and axioms, and what each
 mutant did. [`llama-manifest.json`](data/llama-manifest.json) is the one behind this page. Three runs on this machine,
