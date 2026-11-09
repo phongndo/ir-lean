@@ -11,7 +11,6 @@
       "sound": "Peephole.IS.simplifyAddInst.sound",
       "sites": [
         "IS.simplifyAddInst.L601",
-        "IS.simplifyAddInst.L605",
         "IS.simplifyAddInst.L609",
         "IS.simplifyAddInst.L613",
         "IS.simplifyAddInst.L621",
@@ -35,5 +34,7 @@
     "Peephole.Lemmas.add_nuw_allOnes_refines"
   ],
   "rests_on": {},
-  "unproved": {}
+  "unproved": {
+    "IS.simplifyAddInst.L605": "only undef reaches it, and the model has no undef; its poison case is L601's. Peephole.IS.simplifyAddInst.L605 is kept, but says nothing past what L601's does"
+  }
 }
