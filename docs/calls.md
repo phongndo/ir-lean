@@ -316,6 +316,8 @@ undefined, like unwinding through a function marked so.
 - **A function with a stack frame, or that makes promises about memory,** wraps its body in `Mem.withFrame` or
   `Mem.call`, which don't pass an `Exit` through yet, so a call outside the module there is refused until they do.
 - **Calls through a pointer** to anything outside the module keep stopping the model, `unknownCallee`.
+- **A call to an `extern_weak` declaration** is refused: the function may not be there at all, and its address null,
+  as for an `extern_weak` global.
 
 ## Calls that touch memory
 

@@ -367,6 +367,9 @@ refuses 'stack frame or promises about memory' 'declare i8 @g(i8) memory(none)
 define i8 @f(ptr %p) memory(read) { %v = load i8, ptr %p
   %r = call i8 @g(i8 %v)
   ret i8 %r }'
+refuses 'call to external @g, which may be null' 'declare extern_weak void @g(i8)
+define void @f(i8 %x) { call void @g(i8 %x)
+  ret void }'
 refuses 'calling convention' 'declare fastcc i8 @g(i8) memory(none)
 define i8 @f(i8 %x) { %r = call i8 @g(i8 %x)
   ret i8 %r }'

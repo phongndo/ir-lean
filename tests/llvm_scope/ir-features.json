@@ -33,6 +33,10 @@
    "class": "modeled",
    "says": "A call to a function in the module that ir-lean translates, directly or through a pointer to one"
   },
+  "outside call": {
+   "class": "modeled",
+   "says": "A call to a function the module only declares, answered by IRLean.World: an event in the run's trace, or for one without effects, an answer at the run's choice (docs/calls.md)"
+  },
   "aggregate": {
    "class": "modeled",
    "says": "A struct is a Lean tuple, field by field"
@@ -322,9 +326,9 @@
  },
  "totals": {
   "items": 17033,
-  "modeled": 160,
+  "modeled": 161,
   "assumed": 170,
-  "refused": 16703,
+  "refused": 16702,
   "by_kind": {
    "instruction": {
     "modeled": 38,
@@ -370,13 +374,13 @@
     "refused": 18
    },
    "form": {
-    "modeled": 3,
+    "modeled": 4,
     "assumed": 3,
-    "refused": 36
+    "refused": 35
    }
   },
   "refused_by_lane": {
-   "external calls and globals": 62,
+   "external calls and globals": 61,
    "floating point": 154,
    "long tail": 1974,
    "memory": 114
@@ -17396,8 +17400,8 @@
   {"kind": "form", "name": "atomic-store", "class": "refused", "reason": "concurrency"},
   {"kind": "form", "name": "volatile-load", "class": "refused", "reason": "concurrency"},
   {"kind": "form", "name": "volatile-store", "class": "refused", "reason": "concurrency"},
+  {"kind": "form", "name": "call-to-a-declaration", "class": "modeled", "reason": "outside call"},
   {"kind": "form", "name": "alias-the-linker-may-replace", "class": "refused", "lane": "external calls and globals", "reason": "external"},
-  {"kind": "form", "name": "call-to-a-declaration", "class": "refused", "lane": "external calls and globals", "reason": "external"},
   {"kind": "form", "name": "call-to-an-odr-definition", "class": "refused", "lane": "external calls and globals", "reason": "external"},
   {"kind": "form", "name": "external-global", "class": "refused", "lane": "external calls and globals", "reason": "external"},
   {"kind": "form", "name": "variadic-call", "class": "refused", "lane": "external calls and globals", "reason": "external"},

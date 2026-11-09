@@ -2097,6 +2097,9 @@ void FunctionEmitter::emitOutsideCall(const CallBase &C, std::vector<Line> &Out)
     reject("variadic call");
   if (C.hasOperandBundles())
     reject("instruction " + printed(C));
+  // An `extern_weak` function may not be there at all, and its address null.
+  if (Callee->hasExternalWeakLinkage())
+    reject("call to external " + Name + ", which may be null");
   bool Pointers = mentionsPointer(C.getType());
   for (const Use &A : C.args())
     Pointers |= mentionsPointer(A->getType());
