@@ -17,18 +17,18 @@ the `ir_features` test.
 
 | Kind | Read from, at the pin | Items | Modeled | Assumed | Refused |
 | --- | --- | ---: | ---: | ---: | ---: |
-| Instruction | `Instruction.def`, every opcode | 69 | 38 | 0 | 31 |
-| Type | `Type.h`, every `TypeID` | 22 | 7 | 1 | 14 |
-| Intrinsic | `Intrinsics*.td`, every `Intrinsic` record, through `llvm-tblgen` | 16,423 | 55 | 4 | 16,364 |
-| Attribute | `Attributes.td`, each attribute at each place it can go: a function, a parameter, a return value, and each at a call | 244 | 37 | 40 | 167 |
+| Instruction | `Instruction.def`, every opcode | 69 | 40 | 0 | 29 |
+| Type | `Type.h`, every `TypeID` | 22 | 12 | 1 | 9 |
+| Intrinsic | `Intrinsics*.td`, every `Intrinsic` record, through `llvm-tblgen` | 16,423 | 58 | 4 | 16,361 |
+| Attribute | `Attributes.td`, each attribute at each place it can go: a function, a parameter, a return value, and each at a call | 244 | 41 | 40 | 163 |
 | String attribute | `Attributes.td`'s string attributes, the ones the emitter allows, and any other, at each place | 46 | 0 | 26 | 20 |
 | Metadata | `FixedMetadataKinds.def`, two kinds clang names by string that the emitter allows, and any other | 58 | 2 | 20 | 36 |
 | Linkage | `GlobalValue.h`, every `LinkageTypes` | 11 | 5 | 0 | 6 |
 | Calling convention | `CallingConv.h`, every one it names | 76 | 0 | 76 | 0 |
-| Constant | `Value.def`, every `HANDLE_CONSTANT` and `HANDLE_GLOBAL_VALUE` | 23 | 12 | 0 | 11 |
+| Constant | `Value.def`, every `HANDLE_CONSTANT` and `HANDLE_GLOBAL_VALUE` | 23 | 13 | 0 | 10 |
 | Operand bundle | `LLVMContext.cpp`'s bundle tags, and `BundleAttributes.def`'s `llvm.assume` bundles | 19 | 1 | 0 | 18 |
 | Form | Forms of these the emitter treats differently, such as `udiv` of vectors, listed in the script | 44 | 10 | 3 | 31 |
-| **Total** | | **17,035** | **167** | **170** | **16,698** |
+| **Total** | | **17,035** | **182** | **170** | **16,683** |
 
 ## The classes
 
@@ -44,7 +44,7 @@ A refused item is refused whatever it means, so refusing is always sound. What i
 
 | Lane | Refused items | Such as |
 | --- | ---: | --- |
-| Floating point (SEM-05) | 154 | `float`, `fadd`, `llvm.sqrt`, `nofpclass`, `!fpmath` |
+| Floating point (SEM-05) | 139 | `fadd`, `x86_fp80`, `llvm.sqrt`, `denormal_fpenv`, `!fpmath` |
 | External calls and globals | 62 | a call to a declaration, `call` attributes such as `memory(...)`, external globals, `weak` linkage, `ptrtoint` constant expressions |
 | Memory (F4, SEM-06) | 114 | `!tbaa`, `noalias` parameters, `byval`, `inttoptr`, masked loads, `llvm.objectsize` |
 | Long tail | 1,969 | 1,670 x86 intrinsics, scalable vectors, `nocallback`, exception handling, `freeze` of a vector |
