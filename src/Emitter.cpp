@@ -652,8 +652,10 @@ private:
         reject("initializer " + printed(*C));
       APInt Lane = isa<ConstantInt>(C) ? cast<ConstantInt>(C)->getValue()
                                        : cast<ConstantFP>(C)->getValueAPF().bitcastToAPInt();
+      size_t Start = Out.size();
       for (unsigned I = 0, N = V->getNumElements(); I != N; ++I)
         appendInt(Lane, DL.getTypeAllocSize(E), Out);
+      Out.resize(Start + Size, 256);
       return;
     }
     if (auto *I = dyn_cast<ConstantInt>(C)) {
@@ -665,13 +667,17 @@ private:
       appendInt(F->getValueAPF().bitcastToAPInt(), Size, Out);
       return;
     }
+    // A vector's allocation can end in padding, as `<3 x float>`'s 16 bytes do after its 12, which an array
+    // of them steps over.
     if (auto *D = dyn_cast<ConstantDataSequential>(C)) {
       Type *E = D->getElementType();
       if (!E->isIntegerTy() && !isModeledFloat(E))
         reject("constant " + printed(*C));
+      size_t Start = Out.size();
       for (unsigned I = 0, N = D->getNumElements(); I != N; ++I)
         appendInt(E->isIntegerTy() ? D->getElementAsAPInt(I) : D->getElementAsAPFloat(I).bitcastToAPInt(),
                   DL.getTypeAllocSize(E), Out);
+      Out.resize(Start + Size, 256);
       return;
     }
     if (isa<ConstantArray>(C)) {
