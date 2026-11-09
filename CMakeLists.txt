@@ -18,6 +18,13 @@ target_compile_definitions(ir-lean PRIVATE ${LLVM_DEFINITIONS_LIST})
 target_compile_options(ir-lean PRIVATE -Wall -Wextra -fno-rtti)
 llvm_config(ir-lean USE_SHARED analysis core irreader support)
 
+# A call to every intrinsic the pinned LLVM defines, for tests/ir_features.py. See src/Probe.cpp.
+add_executable(ir-lean-probe src/Probe.cpp)
+target_include_directories(ir-lean-probe SYSTEM PRIVATE ${LLVM_INCLUDE_DIRS})
+target_compile_definitions(ir-lean-probe PRIVATE ${LLVM_DEFINITIONS_LIST})
+target_compile_options(ir-lean-probe PRIVATE -Wall -Wextra -fno-rtti)
+llvm_config(ir-lean-probe USE_SHARED core support)
+
 # Tests need the Lean library: run `lake build` first.
 enable_testing()
 add_test(NAME opcheck COMMAND ${CMAKE_SOURCE_DIR}/tests/opcheck.py $<TARGET_FILE:ir-lean>)
@@ -104,6 +111,18 @@ add_test(NAME llvm COMMAND ${CMAKE_SOURCE_DIR}/tests/llvm.py $<TARGET_FILE:ir-le
 add_test(NAME llvm_scope COMMAND ${CMAKE_SOURCE_DIR}/tests/llvm_scope_test.py)
 add_test(NAME llvm_scope_check COMMAND ${CMAKE_SOURCE_DIR}/tests/llvm_scope.py check)
 set_tests_properties(llvm_scope llvm_scope_check PROPERTIES TIMEOUT 600)
+# SEM-08: everything the pinned IR can contain, each item modeled, refused or assumed, in
+# tests/llvm_scope/ir-features.json. The rules, in Python. Then the file derived again from LLVM's source and
+# compared byte for byte, and a probe of each item through the emitter, which has to do what the item's class
+# says, with what it prints for the probes it translates elaborated in one Lean process. About 40 s.
+add_test(NAME ir_features_rules COMMAND ${CMAKE_SOURCE_DIR}/tests/ir_features_test.py)
+add_test(
+    NAME ir_features
+    COMMAND
+        ${CMAKE_SOURCE_DIR}/tests/ir_features.py check --tool $<TARGET_FILE:ir-lean> --probe
+        $<TARGET_FILE:ir-lean-probe>
+)
+set_tests_properties(ir_features PROPERTIES TIMEOUT 900)
 # BIND-02's closure of simplifyAddInst: its files hashed, and its 64 files of llvm-project compiled again to
 # the same IR, with 4 clang processes at once. docs/llvm-closure.md.
 add_test(NAME llvm_closure COMMAND ${CMAKE_SOURCE_DIR}/tests/llvm_closure_test.py)
