@@ -283,6 +283,165 @@ def test_generic_pass(failures: list[str]) -> None:
         failures.append(f"generic pass: canonicalizeOperands should need fp, got {got}")
 
 
+INTRINSICS = """
+namespace llvm {
+static Value *simplifyToyIntrinsic(Intrinsic::ID IID, Value *Op0, Value *Op1, FastMathFlags FMF) {
+  switch (IID) {
+  case Intrinsic::umax:
+    // umax(X, X) -> X
+    if (Op0 == Op1)
+      return Op0;
+    break;
+  case Intrinsic::minnum:
+    // minnum(X, X) -> X
+    if (Op0 == Op1)
+      return Op1;
+    break;
+  case Intrinsic::fabs:
+    if (FMF.noNaNs())
+      return Op0;
+    [[fallthrough]];
+  case Intrinsic::ctpop:
+    // ctpop(0) -> 0, and fabs(0) -> 0 with it
+    if (match(Op0, m_Zero()))
+      return Op0;
+    break;
+  default:
+    break;
+  }
+  return nullptr;
+}
+
+static Value *foldToyShared(Intrinsic::ID IID, Value *Op0, Value *Op1) {
+  if (IID != Intrinsic::not_intrinsic && Op0 == Op1)
+    return Op1;
+  return nullptr;
+}
+
+Instruction *visitToyCall(CallInst &CI) {
+  Value *Op0 = CI.getArgOperand(0);
+  switch (CI.getIntrinsicID()) {
+  case Intrinsic::smin:
+    // smin(X, X) -> X
+    if (Op0 == CI.getArgOperand(1))
+      return replaceInstUsesWith(CI, Op0);
+    break;
+  case Intrinsic::copysign:
+    if (isa<ConstantFP>(Op0))
+      return replaceInstUsesWith(CI, Op0);
+    break;
+  default:
+    break;
+  }
+  return nullptr;
+}
+
+static Value *simplifyToyDefault(Intrinsic::ID IID, Value *Op0, FastMathFlags FMF) {
+  switch (IID) {
+  default:
+  case Intrinsic::ctpop:
+    if (match(Op0, m_Zero()))
+      return ToyDefaultFirst;
+    break;
+  }
+  switch (IID) {
+  default:
+    if (FMF.noNaNs())
+      break;
+    [[fallthrough]];
+  case Intrinsic::ctlz:
+    if (match(Op0, m_Zero()))
+      return ToyDefaultSecond;
+    break;
+  }
+  return nullptr;
+}
+
+Instruction *visitToyAssume(IntrinsicInst *II) {
+  switch (II->getIntrinsicID()) {
+  case Intrinsic::assume: {
+    for (auto [Idx, OBU] : llvm::enumerate(II->operand_bundles())) {
+      switch (getBundleAttrFromOBU(OBU)) {
+      case BundleAttr::Align: {
+        auto [Ptr, _, OffsetPtr, Alignment, Offset] = getAssumeAlignInfo(OBU);
+        if (*Alignment == 1)
+          return ToyRemoveAlign;
+        break;
+      }
+      case BundleAttr::NoUndef:
+        return ToyRemoveNoUndef;
+      }
+    }
+    if (II->hasOperandBundles())
+      break;
+    if (isa<ConstantInt>(II->getArgOperand(0)))
+      return ToyEraseAssume;
+    break;
+  }
+  default:
+    break;
+  }
+  return nullptr;
+}
+}
+"""
+
+
+def test_intrinsic_cases(failures: list[str]) -> None:
+    """A case label naming an integer intrinsic says the site's values are integers, in a function that takes
+    floating point for its other intrinsics, through a `FastMathFlags` parameter or by naming it; a
+    floating-point intrinsic's case, or one falling through into an integer one, stays floating point; and
+    `Intrinsic::ID` and `Intrinsic::not_intrinsic` aren't intrinsics, so they don't make a site a call. A
+    `default` label reaching a case says nothing of the intrinsic, and operand bundles make a site a call."""
+    passes = {
+        "toy": {
+            "prefix": "T",
+            "files": ["lib/Toy.cpp"],
+            "entries": [
+                "simplifyToyIntrinsic",
+                "foldToyShared",
+                "visitToyCall",
+                "simplifyToyDefault",
+                "visitToyAssume",
+            ],
+        }
+    }
+    with tempfile.TemporaryDirectory() as d:
+        (Path(d) / "lib").mkdir()
+        (Path(d) / "lib" / "Toy.cpp").write_text(INTRINSICS)
+        rows = lr.inventory(Path(d), passes)["toy"]["rewrites"]
+    got = {r["line"]: (r["needs"], r["intrinsics"]) for r in rows}
+    want = {
+        # Under `case Intrinsic::umax:`, in a function that also takes `minnum` and its `FastMathFlags`.
+        line_of(INTRINSICS, "return Op0;"): (["int"], ["umax"]),
+        line_of(INTRINSICS, "return Op1;"): (["fp"], ["minnum"]),
+        line_of(INTRINSICS, "return Op0;", 2): (["fp"], ["fabs"]),
+        # `fabs` falls through into `ctpop`, so the site sees floating point too.
+        line_of(INTRINSICS, "return Op0;", 3): (["fp"], ["ctpop"]),
+        # Only `Intrinsic::ID` and `Intrinsic::not_intrinsic` on its path: no intrinsic, and no call.
+        line_of(INTRINSICS, "return Op1;", 2): (["int"], []),
+        # A visit method that names floating point, under `case Intrinsic::smin:`.
+        line_of(INTRINSICS, "return replaceInstUsesWith(CI, Op0);"): (["int"], ["smin"]),
+        # Its path names `CallInst` and an intrinsic that isn't an integer one, so it's a call too.
+        line_of(INTRINSICS, "return replaceInstUsesWith(CI, Op0);", 2): (["fp", "calls"], ["copysign"]),
+        # A `default` label reaches each of these, with any intrinsic, so `FastMathFlags` counts.
+        line_of(INTRINSICS, "return ToyDefaultFirst;"): (["fp"], ["ctpop"]),
+        line_of(INTRINSICS, "return ToyDefaultSecond;"): (["fp"], ["ctlz"]),
+        # `llvm.assume`'s operand bundles aren't in the model, and "align" carries a pointer.
+        line_of(INTRINSICS, "return ToyRemoveAlign;"): (["memory", "calls"], ["assume"]),
+        line_of(INTRINSICS, "return ToyRemoveNoUndef;"): (["calls"], ["assume"]),
+        # Past `if (II->hasOperandBundles()) break;`, an assume of an `i1` constant.
+        line_of(INTRINSICS, "return ToyEraseAssume;"): (["int"], ["assume"]),
+    }
+    for line, w in sorted(want.items()):
+        if got.get(line) != w:
+            failures.append(
+                f"intrinsic cases: line {line} should need {w[0]} with {w[1]}, got {got.get(line)}"
+            )
+    for line in sorted(set(got) - set(want)):
+        failures.append(f"intrinsic cases: unexpected site at line {line}: {got[line]}")
+
+
 def mutate(src: Path, tmp: Path, rel: str, old: str, new: str) -> Path:
     """A copy of the passes' files under `tmp`, with `old` replaced by `new` once in `rel`, line for line."""
     root = tmp / "llvm"
@@ -359,6 +518,7 @@ def main() -> int:
     failures: list[str] = []
     test_rule(failures)
     test_generic_pass(failures)
+    test_intrinsic_cases(failures)
     test_check(failures)
     for f in failures:
         print(f"FAIL {f}")
