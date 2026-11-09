@@ -1,0 +1,126 @@
+{
+  "schema": "ir-lean.replay-challenge.pairs/1",
+  "ir": "pairs.ll",
+  "about": "Each pair rewrites ID_src into ID_tgt. `llvm` is whether that's right in LLVM, worked out by hand from LangRef 23.1.3: once where an argument can't be undef, as IRLean assumes, and once where it can. `failing` is every input where it's wrong when no argument is undef, as [first, last, step] runs of values, and `poison` for a poison argument. `equal` is whether the two are the same function in IRLean's semantics, which is what an ir_instance_equivalence certificate needs. A refinement that isn't equal needs ir_instance_refinement.",
+  "pairs": [
+    {
+      "id": "mul_nsw_shl_nsw",
+      "llvm": {"no_undef": "valid", "undef": "valid"},
+      "failing": [],
+      "equal": true,
+      "why": "x * 2 and x << 1 are the same bits, and nsw makes each poison exactly when the signed product overflows."
+    },
+    {
+      "id": "mul_nsw_shl_nuw",
+      "llvm": {"no_undef": "invalid", "undef": "invalid"},
+      "failing": [[192, 255, 1]],
+      "equal": false,
+      "why": "For x from -64 to -1 the signed product fits, and shl nuw shifts out x's set top bit, which is poison. From -128 to -65 the source is poison too, which allows anything."
+    },
+    {
+      "id": "add_drop_nuw",
+      "llvm": {"no_undef": "valid", "undef": "valid"},
+      "failing": [],
+      "equal": false,
+      "why": "Dropping nuw only turns the source's poison at 255 into 0."
+    },
+    {
+      "id": "add_add_nuw",
+      "llvm": {"no_undef": "invalid", "undef": "invalid"},
+      "failing": [[255, 255, 1]],
+      "equal": false,
+      "why": "At 255 the source wraps to 0, and the target is poison."
+    },
+    {
+      "id": "or_disjoint_add",
+      "llvm": {"no_undef": "valid", "undef": "valid"},
+      "failing": [],
+      "equal": false,
+      "why": "or disjoint with 1 is poison for odd x, and x + 1 for even x."
+    },
+    {
+      "id": "add_or_disjoint",
+      "llvm": {"no_undef": "invalid", "undef": "invalid"},
+      "failing": [[1, 255, 2]],
+      "equal": false,
+      "why": "For odd x the source is x + 1, and the target is poison, as x and 1 share a bit."
+    },
+    {
+      "id": "zext_nneg_sext",
+      "llvm": {"no_undef": "valid", "undef": "valid"},
+      "failing": [],
+      "equal": false,
+      "why": "zext nneg is poison for negative x, and zext and sext agree on the rest."
+    },
+    {
+      "id": "sext_zext_nneg",
+      "llvm": {"no_undef": "invalid", "undef": "invalid"},
+      "failing": [[128, 255, 1]],
+      "equal": false,
+      "why": "For negative x the source sign-extends it, and the target is poison."
+    },
+    {
+      "id": "udiv_exact_lshr_exact",
+      "llvm": {"no_undef": "valid", "undef": "valid"},
+      "failing": [],
+      "equal": true,
+      "why": "Dividing by 4 is shifting by 2, and exact makes each poison exactly when x isn't a multiple of 4."
+    },
+    {
+      "id": "udiv_lshr_exact",
+      "llvm": {"no_undef": "invalid", "undef": "invalid"},
+      "failing": [[1, 253, 4], [2, 254, 4], [3, 255, 4]],
+      "equal": false,
+      "why": "Where x isn't a multiple of 4 the source rounds down, and the target is poison."
+    },
+    {
+      "id": "icmp_samesign_slt",
+      "llvm": {"no_undef": "valid", "undef": "valid"},
+      "failing": [],
+      "equal": false,
+      "why": "samesign is poison where x is negative, as 5 isn't, and ult and slt agree where both are non-negative."
+    },
+    {
+      "id": "icmp_add_samesign",
+      "llvm": {"no_undef": "invalid", "undef": "invalid"},
+      "failing": [[128, 255, 1]],
+      "equal": false,
+      "why": "For negative x the source is false, and the target is poison."
+    },
+    {
+      "id": "shl_overshift_zero",
+      "llvm": {"no_undef": "valid", "undef": "valid"},
+      "failing": [],
+      "equal": false,
+      "why": "A shift by 8 or more is poison, which the target's 0 refines. The select picks 0 there, whatever the shift is."
+    },
+    {
+      "id": "ctlz_drop_zero_poison",
+      "llvm": {"no_undef": "valid", "undef": "valid"},
+      "failing": [],
+      "equal": false,
+      "why": "With is_zero_poison the source is poison at 0, where the target gives 8."
+    },
+    {
+      "id": "ctlz_add_zero_poison",
+      "llvm": {"no_undef": "invalid", "undef": "invalid"},
+      "failing": [[0, 0, 1]],
+      "equal": false,
+      "why": "At 0 the source gives 8, and the target is poison."
+    },
+    {
+      "id": "abs_add_int_min_poison",
+      "llvm": {"no_undef": "invalid", "undef": "invalid"},
+      "failing": [[128, 128, 1]],
+      "equal": false,
+      "why": "At -128 the source returns -128, and the target is poison."
+    },
+    {
+      "id": "and_zero_xor_self",
+      "llvm": {"no_undef": "valid", "undef": "invalid"},
+      "failing": [],
+      "equal": true,
+      "why": "Both are 0, or poison for a poison x. An undef x can be a different value at each use, so x ^ x can be anything, while x & 0 is 0."
+    }
+  ]
+}

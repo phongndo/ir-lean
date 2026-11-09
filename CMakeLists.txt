@@ -108,6 +108,10 @@ set_tests_properties(llvm_scope llvm_scope_check PROPERTIES TIMEOUT 600)
 add_test(NAME o1_campaign COMMAND ${CMAKE_SOURCE_DIR}/campaign/o1/test_o1.py)
 add_test(NAME superopt COMMAND ${CMAKE_SOURCE_DIR}/tests/superopt.py $<TARGET_FILE:ir-lean>)
 add_test(NAME names COMMAND ${CMAKE_SOURCE_DIR}/tests/names.sh)
+# The experimental undef and freeze semantics against LangRef's examples and Alive2, compiled from copies in a
+# temporary directory, one Lean or Alive2 process at a time, each Lean process capped at 2 GB and 300 s.
+add_test(NAME undef_freeze COMMAND ${CMAKE_SOURCE_DIR}/tests/undef_freeze.sh)
+set_tests_properties(undef_freeze PROPERTIES TIMEOUT 900)
 add_test(NAME verify COMMAND ${CMAKE_SOURCE_DIR}/tests/verify.py $<TARGET_FILE:ir-lean>)
 # What counts as a certificate: the gate on stored and broken results, in Python, and then a corpus of
 # wrong and right rewrites through tools/verify.py, one Lean process at a time.
@@ -120,6 +124,14 @@ add_test(
 )
 # Alone, so its Lean process has the memory to itself, and longer than every case's limits together.
 set_tests_properties(verify_negative PROPERTIES RUN_SERIAL TRUE TIMEOUT 900)
+# Replay certificates challenged from outside: manifests and processes tools/binding.py has to refuse or
+# call unknown, in Python; every rewrite those tests use against Alive2, one capped process at a time; and
+# IRLean on poison and flag rewrites, with tools/binding.py on real opt runs, alone, as it runs Lean.
+add_test(NAME replay_challenge_static COMMAND ${CMAKE_SOURCE_DIR}/tests/replay_challenge.py --tier static)
+add_test(NAME replay_challenge_alive COMMAND ${CMAKE_SOURCE_DIR}/tests/replay_challenge.py --tier alive)
+add_test(NAME replay_challenge COMMAND ${CMAKE_SOURCE_DIR}/tests/replay_challenge.py --tier live)
+set_tests_properties(replay_challenge_static replay_challenge_alive PROPERTIES TIMEOUT 600)
+set_tests_properties(replay_challenge PROPERTIES RUN_SERIAL TRUE TIMEOUT 1800)
 # A certificate bound to its IR, the opt run and the toolchain, and refused when any of them doesn't
 # match: one instcombine rewrite, and the cases of mismatched evidence, one capped Lean process at a time.
 add_test(NAME binding COMMAND ${CMAKE_SOURCE_DIR}/tests/binding.py)
@@ -130,6 +142,14 @@ set_tests_properties(binding PROPERTIES RUN_SERIAL TRUE TIMEOUT 1800)
 # process at a time, each capped at 2 GB and 300 s by the script itself.
 add_test(NAME contracts COMMAND ${CMAKE_SOURCE_DIR}/tests/contracts.sh)
 set_tests_properties(contracts PROPERTIES TIMEOUT 900)
+# The refinement contract against its cases, the same way: copies in a temporary directory, one Lean
+# process at a time, each capped at 2 GB and 300 s by the script itself.
+add_test(NAME refine COMMAND ${CMAKE_SOURCE_DIR}/tests/refine.sh)
+set_tests_properties(refine PROPERTIES TIMEOUT 900)
+# A model of LLVM's simplifyAddInst against the pinned C++ and opt, compiled in a temporary directory, one
+# Lean process at a time, each capped at 2 GB and 300 s by the script itself.
+add_test(NAME cpp_correspondence COMMAND ${CMAKE_SOURCE_DIR}/tests/cpp_correspondence.py)
+set_tests_properties(cpp_correspondence PROPERTIES TIMEOUT 900)
 add_test(
     NAME zlib
     COMMAND
