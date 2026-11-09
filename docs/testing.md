@@ -55,6 +55,7 @@ everything every time, in about a minute.
 | `refine` | [Refinement](refinement.md): `IRLean.Refines` builds with warnings as errors and rests on the standard axioms, right rewrites refine and nine known-wrong ones provably don't, memory has no claim, the claim `tools/binding_check.lean` builds is the statement a certificate elaborates, a false proof fails, and two edits to a copy of `IRLean/Int.lean` each stop the case guarding them. One Lean process at a time, each capped at 2 GB, about 10 s |
 | `cpp_correspondence` | [LLVM's C++](llvm-cpp-correspondence.md): a model of the pinned `simplifyAddInst`, proved right at every width, its quotes of the C++ at the pinned hashes and lines, with every code line quoted, and its answers against `opt -passes=instsimplify` on generated `add`s, with a changed quote, a missing one and two broken models each caught. One Lean process at a time, each capped at 2 GB, about 12 s |
 | `generic_rewrites` | [Rewrites at every width](generic-rewrites.md): `IRLean.Generic` builds with warnings as errors, its uses at real widths hold, a counterexample shows each hypothesis and flag is needed and each refinement isn't an equality, every module rests on the standard axioms and `leanchecker` replays it, two false rewrites and a `sorry` are refused, and five edits to a copy of `IRLean/Int.lean` each stop the theorem they target with an error that isn't a resource limit. One Lean process at a time, each capped at 2 GB, about 20 s |
+| `needs_tests` | [`.github/needs-tests.py`](#skipping-the-tests), which lets a pull request skip CI's test jobs: 15 changes in a scratch git repo each get the answer given, the three documents tests here are known to read each have a reader it finds, and the scripts it leaves out as the lint job's are what the tests labeled `lint` run. About a second, and only git |
 | `zlib` | All of zlib translates, and real calls into it match native code, failing if any input is skipped |
 | `zlib_slow` | The same for the calls that slide `deflate`'s window, the slowest of them |
 | `lint` | Every formatter and linter below, for every language |
@@ -103,6 +104,48 @@ depending on the runner, one Lean process at a time, so CI takes 13 to 16 minute
 
 Every job restores one cache, of the Lean toolchain, uv's packages, `.lake` and `build/lean-cache`, from the latest
 commit that saved one. Only the lint job saves it, so the jobs don't race for its key.
+
+### Setting up
+
+`.github/actions/setup` installs Nix, restores the caches, sets up the dev shell, and builds `build/ir-lean` and the
+Lean library. Three downloads in it have failed a run:
+
+| When | What failed | What happens now |
+| --- | --- | --- |
+| 2026-11-09, [run 42555906703](https://github.com/phongndo/ir-lean/actions/runs/42555906703/attempts/1) | The Nix installer's download of `nix-2.35.4-x86_64-linux.tar.xz` from releases.nixos.org: nothing for a minute, then a TLS "unexpected eof" | Every `curl` in the job reads `$RUNNER_TEMP/.curlrc`, which tries a download six times, and gives up on a try after 30 s without a connection or below 1 kB/s for 30 s. The installer runs `curl` once for the tarball and has no option for retries, so this is the one place to add them. It checks the tarball's SHA-256, so a bad download still fails |
+| 2026-11-08, runs [42473433450](https://github.com/phongndo/ir-lean/actions/runs/42473433450) and [42473641335](https://github.com/phongndo/ir-lean/actions/runs/42473641335) | alive2's source from GitHub, HTTP 504 on all four tries, while Nix set up the dev shell | alive2 comes from a cache of its own, so its source isn't downloaded, and the dev shell, and the job's own if it has one, such as `.#llama` with llama.cpp's source from GitHub, are each set up up to three times, 30 s and then 60 s apart |
+| Reported, with no run found among the latest 200 | HTTP 416 from cache.nixos.org while Nix set up the dev shell | The same three tries. What Nix finished stays in the store, so a second try only does the rest |
+
+Retrying the whole install step instead would have to reason about what a failed install left behind, and the
+installer fails on the download before it changes anything, so retrying the download itself is the smaller change.
+
+alive2 is built from source, since cache.nixos.org doesn't have it on this LLVM, which took about 73 s of every job's
+setup. After the first job builds it, `nix-store --export` writes it to `~/.cache/ir-lean-alive2`, 1.2 MB, with the paths it
+depends on. The lint job saves that under a key naming `flake.lock`, `flake.nix` and `nix/`, so a change to anything
+Nix builds it from builds it again. Other jobs fetch what it depends on from cache.nixos.org, as for the rest of the
+shell, and `nix-store --import` it. That's unsigned: the cache is trusted as the toolchain and the library the jobs
+restore are, and a pull request's run only ever saves a cache its own runs can read. If the import fails, Nix builds it.
+
+### Skipping the tests
+
+A job, "Which jobs the change needs", runs first and decides with `.github/needs-tests.py`. A pull request skips the
+test jobs only when every file it changes is Markdown it adds or edits, and no file in the repo that isn't Markdown
+names that file, ignoring case. Tests read a document by naming it:
+
+| Document | Read by |
+| --- | --- |
+| `docs/llvm-verification-tasks.md` | `tests/llvm_scope.py`, which parses the task list |
+| `docs/llvm-cpp-correspondence.md` | `tests/cpp_correspondence.py`, which checks its anchors |
+| `docs/verify.md` | `tests/verify.py`, which checks it names every status and reason |
+| Any document `tests/llvm_scope/coverage.json` gives as evidence | `tests/llvm_scope.py`, which checks the evidence's hash |
+| Every Markdown file | `tests/lint.sh` and `tests/lsp.py`, the lint job's, which runs on every pull request |
+
+A name in a comment counts too, so as of 2026-11-08 only `docs/llama-q5.md`, `docs/prior-art.md`, `docs/roadmap.md` and
+new documents can skip the tests. Removing or renaming a file always runs them, since a test can check that a file it
+was told about exists. The rule only sees names: a test that read every document by a pattern would have to be added to
+it. Lint runs either way, and pushes to `main` and manual runs run everything. A skipped job counts as passed for a
+required check, so the tests are skipped only when that job says so: if it fails, they run. `needs_tests` tests the
+rule, and fails if the documents above stop having readers it finds.
 
 ## Formatters, linters and language servers
 

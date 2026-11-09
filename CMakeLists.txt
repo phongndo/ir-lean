@@ -207,6 +207,9 @@ set_tests_properties(
     verify
     PROPERTIES TIMEOUT 1800
 )
+# .github/needs-tests.py, which lets a pull request that only adds or edits documents no test reads skip CI's
+# test jobs: in a scratch git repo, and against the documents tests here read. About a second, and only git.
+add_test(NAME needs_tests COMMAND ${CMAKE_SOURCE_DIR}/tests/needs_tests_test.py ${CMAKE_BINARY_DIR})
 set_tests_properties(zlib_slow PROPERTIES LABELS slow)
 # CI's test jobs: the longest tests apart, so they don't wait for each other. Each job is named after its
 # label and runs the tests with it, and a test with none of these runs in the job for the rest. See
