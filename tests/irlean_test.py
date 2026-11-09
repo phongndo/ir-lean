@@ -9,6 +9,8 @@ repo is named once, and that the pins are read from the repo's pin files. docs/p
 usage: tests/irlean_test.py
 """
 
+import contextlib
+import fcntl
 import hashlib
 import json
 import os
@@ -21,7 +23,7 @@ import tempfile
 import time
 import unittest
 from pathlib import Path
-from typing import ClassVar
+from typing import Any, ClassVar
 from unittest import mock
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -255,6 +257,13 @@ class Measure(unittest.TestCase):
                 [*argv, "--", PY, "-c", "raise SystemExit(5)"], capture_output=True, check=False
             )
             self.assertEqual(r.returncode, 5)
+            # --heavy takes a slot, declaring what it caps the tree at as what it needs.
+            pool = {**os.environ, "IR_LEAN_HEAVY_LOCK": str(Path(d) / "heavy-job.lock")}
+            heavy = [*argv, "--heavy", "--max-tree-rss-mb", "500", "--", PY, "-c", "pass"]
+            r = subprocess.run(heavy, capture_output=True, text=True, env=pool, check=False)
+            self.assertEqual(r.returncode, 0, r.stderr)
+            last = json.loads(out.read_text().splitlines()[-1])
+            self.assertRegex(last["heavy_lock"], r"heavy-job\.slot\d+\.lock$")
             # It reads what's piped to measure.py, as it would alone.
             read = [PY, "-c", "import sys; assert sys.stdin.read() == 'payload'"]
             r = subprocess.run([*argv, "--", *read], input=b"payload", capture_output=True, check=False)
@@ -277,24 +286,129 @@ class Measure(unittest.TestCase):
             ):
                 self.assertEqual(proc.lock_path(), want, (platform, env))
 
-    def test_the_lock_is_exclusive(self) -> None:
-        with tempfile.TemporaryDirectory() as d:
-            path = str(Path(d) / "heavy-job.lock")
-            with mock.patch.dict(os.environ, {"IR_LEAN_HEAVY_LOCK": path}):
-                with (
-                    proc.heavy_lock("first", 0),
-                    self.assertRaisesRegex(TimeoutError, "first"),
-                    proc.heavy_lock("second", 0),
-                ):
-                    pass
-                with proc.heavy_lock("after", 0):
-                    pass
-
     def test_memory_is_read(self) -> None:
         m = proc.memory()
         self.assertGreater(m["total_mb"], 0)
         self.assertIsNone(proc.too_busy(0))
         self.assertIsNotNone(proc.too_busy(1 << 40))
+
+
+class Pool(unittest.TestCase):
+    """The pool of heavy jobs: slots by memory, waiting while too little is left, and a checkout still on the
+    single lock running alone."""
+
+    def setUp(self) -> None:
+        self.dir = tempfile.TemporaryDirectory()
+        self.lock = Path(self.dir.name) / "heavy-job.lock"
+        env = {"IR_LEAN_HEAVY_LOCK": str(self.lock), "IR_LEAN_HEAVY_RESERVE_MB": "2000"}
+        clean = {k: v for k, v in os.environ.items() if k != "IR_LEAN_HEAVY_SLOTS"}
+        self.env = mock.patch.dict(os.environ, clean | env, clear=True)
+        self.env.start()
+
+    def tearDown(self) -> None:
+        self.env.stop()
+        self.dir.cleanup()
+
+    def machine(self, total: int, available: int) -> Any:
+        return mock.patch.object(
+            proc,
+            "memory",
+            return_value={"total_mb": total, "available_mb": available, "pressure_level": None},
+        )
+
+    def test_slots_and_reserve_come_from_memory(self) -> None:
+        with mock.patch.dict(os.environ, {"IR_LEAN_HEAVY_RESERVE_MB": ""}):
+            del os.environ["IR_LEAN_HEAVY_RESERVE_MB"]
+            self.assertEqual([proc.heavy_slots(t) for t in (31129, 7168, 3000, 0)], [8, 2, 1, 1])
+            self.assertEqual([proc.heavy_reserve_mb(t) for t in (31129, 65536, 8000)], [3112, 6553, 2048])
+        for given, want in (("3", 3), ("0", 1), ("12", 12)):
+            with mock.patch.dict(os.environ, {"IR_LEAN_HEAVY_SLOTS": given}):
+                self.assertEqual(proc.heavy_slots(31129), want)
+        self.assertEqual(proc.heavy_reserve_mb(31129), 2000)
+
+    def test_one_slot_is_exclusive(self) -> None:
+        with mock.patch.dict(os.environ, {"IR_LEAN_HEAVY_SLOTS": "1"}):
+            with (
+                proc.heavy_lock("first", 0, 100),
+                self.assertRaisesRegex(TimeoutError, "all 1 slots"),
+                proc.heavy_lock("second", 0, 100),
+            ):
+                pass
+            with proc.heavy_lock("after", 0, 100):
+                pass
+
+    def test_jobs_share_the_pool_while_memory_allows(self) -> None:
+        # 12 GB available, a 2 GB reserve, and jobs needing 3 GB each, which haven't grown yet: three fit, and
+        # a fourth would leave less than the reserve once they do.
+        with mock.patch.dict(os.environ, {"IR_LEAN_HEAVY_SLOTS": "6"}), self.machine(16000, 12000):
+            with contextlib.ExitStack() as held:
+                paths = {held.enter_context(proc.heavy_lock(f"job{i}", 0, 3000)) for i in range(3)}
+                self.assertEqual(len(paths), 3)
+                with self.assertRaisesRegex(TimeoutError, "running jobs grow"):
+                    held.enter_context(proc.heavy_lock("fourth", 0, 3000))
+                # One that needs less still fits.
+                held.enter_context(proc.heavy_lock("small", 0, 500))
+                state = proc.pool()
+                self.assertEqual(
+                    sorted(h["label"] for h in state["held"].values()),
+                    [*map("job{}".format, range(3)), "small"],
+                )
+                self.assertEqual({h["need_mb"] for h in state["held"].values()}, {3000, 500})
+            with proc.heavy_lock("fourth", 0, 3000):
+                pass
+
+    def test_a_job_alone_is_let_in_whatever_memory_says(self) -> None:
+        with self.machine(16000, 100), proc.heavy_lock("big", 0, 20000):
+            pass
+
+    def test_a_checkout_on_the_single_lock_runs_alone(self) -> None:
+        # As tools/measure.py held it before the pool: heavy-job.lock, exclusively.
+        old = os.open(self.lock, os.O_RDWR | os.O_CREAT, 0o644)
+        try:
+            fcntl.flock(old, fcntl.LOCK_EX)
+            with self.assertRaisesRegex(TimeoutError, "single lock"), proc.heavy_lock("new", 0, 100):
+                pass
+        finally:
+            os.close(old)
+        with proc.heavy_lock("new", 0, 100):
+            old = os.open(self.lock, os.O_RDWR | os.O_CREAT, 0o644)
+            try:
+                with self.assertRaises(BlockingIOError):
+                    fcntl.flock(old, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            finally:
+                os.close(old)
+
+    def test_a_slot_is_released_however_its_job_exits(self) -> None:
+        code = (
+            "import os, signal, sys; sys.path.insert(0, sys.argv[1]); from irlean import proc\n"
+            "with proc.heavy_lock('killed', 0, 100):\n"
+            "    print('held', flush=True); os.kill(os.getpid(), signal.SIGKILL)"
+        )
+        with mock.patch.dict(os.environ, {"IR_LEAN_HEAVY_SLOTS": "1"}):
+            r = proc.run([PY, "-c", code, str(ROOT / "tools")], env=dict(os.environ))
+            self.assertEqual((r.out.strip(), r.signal), ("held", signal.SIGKILL))
+            with proc.heavy_lock("after", 0, 100):
+                pass
+
+    def test_macos_memory_is_read_from_vm_stat_and_sysctl(self) -> None:
+        sysctl = {
+            "hw.pagesize": "16384",
+            "hw.memsize": str(64 << 30),
+            "vm.swapusage": "total = 0.00M  used = 12.50M  free = 0.00M",
+            "kern.memorystatus_vm_pressure_level": "1",
+            "kern.memorystatus_level": "40",
+        }
+        vm = 'Mach Virtual Memory Statistics: (page size of 16384 bytes)\n"Pages free": 100000.\n'
+        vm += '"Pages inactive": 200000.\n"Pages speculative": 20000.\n"Pages active": 900000.\n'
+        done = subprocess.CompletedProcess(["vm_stat"], 0, vm, "")
+        with (
+            mock.patch.object(proc.sys, "platform", "darwin"),
+            mock.patch.object(proc, "_sysctl", side_effect=sysctl.get),
+            mock.patch.object(proc.subprocess, "run", return_value=done),
+        ):
+            m = proc.memory()
+            self.assertEqual((m["total_mb"], m["available_mb"], m["pressure_level"]), (65536, 5000, 1))
+            self.assertEqual(proc.heavy_slots(), 18)
 
 
 class Hashing(unittest.TestCase):

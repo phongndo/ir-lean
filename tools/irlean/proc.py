@@ -32,11 +32,20 @@ Two peaks are measured, because neither is enough alone:
   descendant it waited for. macOS gives it in bytes and Linux in KiB, and both become MiB here.
 - `peak_tree_mb` is sampled, as for `cap_mb`, and only when sampling. It's what several workers cost together.
 
-Heavy jobs take a lock first, shared by every checkout on the machine, so two of them don't run at once. It
-lives in the platform's cache directory: `~/Library/Caches/ir-lean/heavy-job.lock` on macOS, and
-`$XDG_CACHE_HOME/ir-lean/heavy-job.lock`, by default `~/.cache/ir-lean/heavy-job.lock`, elsewhere.
-`IR_LEAN_HEAVY_LOCK` overrides it. It's flock(2), which macOS and Linux both have, and it's released when the
-process exits, however it exits.
+Heavy jobs take a slot in a pool first, shared by every checkout on the machine, so they don't run out of
+memory together. There are `heavy_slots()` slots, one per 3.5 GB of RAM, a Lean process's peak in the
+`binding` test, at least one, or `IR_LEAN_HEAVY_SLOTS`. A job declares the memory it needs, and takes a free
+slot only if what's available, less what the jobs already holding slots may still grow into, less its need,
+stays above `heavy_reserve_mb()`. Otherwise it waits. A job alone in the pool is let in whatever memory says,
+as one at a time always was. What it declares is its cap too: `tools/measure.py` passes `--max-tree-rss-mb` as
+both.
+
+The pool lives in the platform's cache directory: `~/Library/Caches/ir-lean/` on macOS, and
+`$XDG_CACHE_HOME/ir-lean/`, by default `~/.cache/ir-lean/`, elsewhere, as `heavy-job.slotN.lock`, with
+`heavy-job.gate.lock`, held while a job decides, and `heavy-job.lock`, which each slot also holds shared, so a
+checkout still on the single lock, which holds it exclusively, runs alone. `IR_LEAN_HEAVY_LOCK` moves all of
+them, naming the one that's `heavy-job.lock`. Each is flock(2), which macOS and Linux both have, and released
+when the process exits, however it exits.
 """
 
 from __future__ import annotations
@@ -157,31 +166,166 @@ def lock_path() -> Path:
     return cache_dir() / "heavy-job.lock"
 
 
+# A Lean process's peak, as the `binding` test caps one: what a slot is sized for, and what a job that doesn't
+# say what it needs is taken to need.
+SLOT_MB = 3584
+
+
+def heavy_slots(total_mb: int | None = None) -> int:
+    """How many heavy jobs may run at once: `IR_LEAN_HEAVY_SLOTS`, or one per SLOT_MB of RAM, at least one."""
+    if env := os.environ.get("IR_LEAN_HEAVY_SLOTS"):
+        return max(1, int(env))
+    total = memory()["total_mb"] if total_mb is None else total_mb
+    return max(1, total // SLOT_MB)
+
+
+def heavy_reserve_mb(total_mb: int | None = None) -> int:
+    """Memory a job may not take: `IR_LEAN_HEAVY_RESERVE_MB`, or a tenth of RAM, at least 2 GB, for whatever
+    else the machine runs."""
+    if env := os.environ.get("IR_LEAN_HEAVY_RESERVE_MB"):
+        return max(0, int(env))
+    total = memory()["total_mb"] if total_mb is None else total_mb
+    return max(2048, total // 10)
+
+
+def _slot(i: int) -> Path:
+    base = lock_path()
+    return base.with_name(f"{base.stem}.slot{i}{base.suffix}")
+
+
+def _gate() -> Path:
+    base = lock_path()
+    return base.with_name(f"{base.stem}.gate{base.suffix}")
+
+
+def _try(fd: int, how: int) -> bool:
+    try:
+        fcntl.flock(fd, how | fcntl.LOCK_NB)
+        return True
+    except BlockingIOError:
+        return False
+
+
+def _holder(slot: Path) -> dict[str, Any]:
+    with contextlib.suppress(OSError, ValueError):
+        found = json.loads(slot.with_suffix(".holder").read_text())
+        if isinstance(found, dict):
+            return found
+    return {}
+
+
+def _still_needs(holder: dict[str, Any]) -> int:
+    """What a slot's job may still grow into: what it declared, less what its tree holds now."""
+    need = holder.get("need_mb")
+    pid = holder.get("pid")
+    if type(need) is not int or type(pid) is not int:
+        return SLOT_MB
+    used = sum(rss for _, rss, _ in tree(pid)) >> 10
+    return max(0, need - used)
+
+
+def pool() -> dict[str, Any]:
+    """The pool now: its slots, its reserve, what's available, and who holds each slot."""
+    m = memory()
+    slots = heavy_slots(m["total_mb"])
+    held = {}
+    for i in range(slots):
+        path = _slot(i)
+        fd = os.open(path, os.O_RDWR | os.O_CREAT, 0o644) if path.parent.exists() else None
+        if fd is None:
+            continue
+        try:
+            if _try(fd, fcntl.LOCK_EX):
+                continue
+            held[str(path)] = _holder(path)
+        finally:
+            os.close(fd)
+    return {
+        "slots": slots,
+        "slot_mb": SLOT_MB,
+        "reserve_mb": heavy_reserve_mb(m["total_mb"]),
+        "total_mb": m["total_mb"],
+        "available_mb": m["available_mb"],
+        "held": held,
+    }
+
+
 @contextlib.contextmanager
-def heavy_lock(label: str, wait_s: float) -> Generator[Path]:
-    """Holds the machine's heavy-job lock, waiting up to `wait_s` for it. Who holds it is in a file beside
-    it."""
-    path = lock_path()
-    path.parent.mkdir(parents=True, exist_ok=True)
-    fd = os.open(path, os.O_RDWR | os.O_CREAT, 0o644)
+def heavy_lock(label: str, wait_s: float, need_mb: float | None = None) -> Generator[Path]:
+    """Holds a slot in the machine's pool of heavy jobs, for a job needing `need_mb`, or SLOT_MB if it doesn't
+    say, waiting up to `wait_s` for one. Who holds a slot, and what it needs, is in a file beside it."""
+    need = SLOT_MB if need_mb is None else int(need_mb)
+    base = lock_path()
+    base.parent.mkdir(parents=True, exist_ok=True)
     deadline = time.monotonic() + wait_s
+    fds: list[int] = []
+    why = "no slot"
+
+    def release() -> None:
+        while fds:
+            os.close(fds.pop())
+
     try:
         while True:
+            # Only one job decides at a time, briefly, so two can't both count the same free memory.
+            gate = os.open(_gate(), os.O_RDWR | os.O_CREAT, 0o644)
             try:
-                fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                fcntl.flock(gate, fcntl.LOCK_EX)
+                got = _admit(label, need)
+            finally:
+                os.close(gate)
+            if isinstance(got, tuple):
+                fds.extend(got[1])
                 break
-            except BlockingIOError:
-                if time.monotonic() > deadline:
-                    holder = path.with_suffix(".holder")
-                    who = holder.read_text().strip() if holder.exists() else "unknown"
-                    raise TimeoutError(f"{path} is held: {who}") from None
-                time.sleep(2)
-        path.with_suffix(".holder").write_text(
-            json.dumps({"pid": os.getpid(), "label": label, "cwd": os.getcwd(), "since": now()}) + "\n"
-        )
-        yield path
+            why = got
+            if time.monotonic() > deadline:
+                raise TimeoutError(f"no heavy-job slot in {wait_s:.0f} s: {why}")
+            time.sleep(2)
+        yield got[0]
     finally:
+        release()
+
+
+def _admit(label: str, need: int) -> tuple[Path, list[int]] | str:
+    """With the gate held: a free slot and the locks taken for it, if the pool has room for `need`, or why
+    not."""
+    legacy = os.open(lock_path(), os.O_RDWR | os.O_CREAT, 0o644)
+    if not _try(legacy, fcntl.LOCK_SH):
+        os.close(legacy)
+        who = lock_path().with_suffix(".holder")
+        said = who.read_text().strip() if who.exists() else ""
+        return f"{lock_path()} is held by a checkout on the single lock: {said}"
+    m = memory()
+    slots = heavy_slots(m["total_mb"])
+    mine: tuple[Path, int] | None = None
+    others: list[dict[str, Any]] = []
+    for i in range(slots):
+        path = _slot(i)
+        fd = os.open(path, os.O_RDWR | os.O_CREAT, 0o644)
+        if mine is None and _try(fd, fcntl.LOCK_EX):
+            mine = (path, fd)
+            continue
+        if not _try(fd, fcntl.LOCK_EX):
+            others.append(_holder(path))
         os.close(fd)
+    if mine is None:
+        os.close(legacy)
+        return f"all {slots} slots are held"
+    if others:
+        reserve = heavy_reserve_mb(m["total_mb"])
+        free = m["available_mb"] - sum(_still_needs(h) for h in others)
+        if free - need < reserve:
+            os.close(mine[1])
+            os.close(legacy)
+            return (
+                f"{free} MB free once {len(others)} running jobs grow, less {need} needed, is under {reserve}"
+            )
+    path, fd = mine
+    path.with_suffix(".holder").write_text(
+        json.dumps({"pid": os.getpid(), "label": label, "need_mb": need, "cwd": os.getcwd(), "since": now()})
+        + "\n"
+    )
+    return path, [fd, legacy]
 
 
 # ------------------------------------------------------------------------------------------------------------
