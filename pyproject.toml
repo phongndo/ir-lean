@@ -13,9 +13,49 @@ line-length = 110
 
 [tool.ruff.lint]
 select = ["E", "F", "W", "I", "UP", "B", "C4", "SIM", "RUF", "PLE", "PLW"]
+extend-select = ["TID251"]
 # `"a b c".split()` is the clearer way to write these lists of words, and the Lean in these strings
 # uses `×` on purpose.
 ignore = ["SIM905", "RUF001"]
+
+# Processes, hashes and process killing go through the shared library, tools/irlean, so each is done one
+# way: a limit is never a success, everything a command started is killed, and hashes read back one way.
+# docs/python.md. tests/irlean_test.py checks the exceptions below are these and no others.
+[tool.ruff.lint.flake8-tidy-imports.banned-api]
+"subprocess".msg = "Run commands with irlean.proc: run, spawn and stop. docs/python.md"
+"hashlib".msg = "Hash with irlean.hashing. docs/python.md"
+"os.kill".msg = "Stop processes with irlean.proc: kill_tree, stop or kill_live. docs/python.md"
+"os.killpg".msg = "Stop processes with irlean.proc: kill_tree, stop or kill_live. docs/python.md"
+"os.wait4".msg = "Wait for commands through irlean.proc, which reaps them. docs/python.md"
+"os.waitpid".msg = "Wait for commands through irlean.proc, which reaps them. docs/python.md"
+"os.waitid".msg = "Wait for commands through irlean.proc, which reaps them. docs/python.md"
+"os.setsid".msg = "irlean.proc starts every command in a session of its own. docs/python.md"
+"os.setpgid".msg = "irlean.proc starts every command in a session of its own. docs/python.md"
+"resource.setrlimit".msg = "Cap memory with irlean.proc: cap_mb, scope or address_mb. docs/python.md"
+
+[tool.ruff.lint.per-file-ignores]
+# The library, where these live.
+"tools/irlean/*.py" = ["TID251"]
+# Checks irlean.proc and irlean.hashing from outside, against the standard library.
+"tests/irlean_test.py" = ["TID251"]
+# Runs in CI before the dev shell exists, on the runner's own Python, so it stands alone.
+".github/needs-tests.py" = ["TID251"]
+# The stage-1 lane edits it on 2026-11-09. It moves onto irlean once that lands.
+"tests/alive.py" = ["TID251"]
+# Research prototypes outside CI, which reproduce what docs/lemma-reuse.md and docs/binding-approach.md
+# measured, and which nothing here runs, so they aren't changed untested.
+"prototypes/**/*.py" = ["TID251"]
+# Its own SHA-256 is recorded in committed evidence, tests/llama/results/2026-11-07/rewrite-witness.json, so
+# any edit to it invalidates that evidence.
+"tests/llama/rewrite.py" = ["TID251"]
+# It checks tools/verify.py leaves nothing running, which irlean.proc would clean up before it looked.
+"tests/verify.py" = ["TID251"]
+# The stage-1 lane's harness, not on main on 2026-11-09. It moves onto irlean once it lands.
+"bench/instcombine/stage1.py" = ["TID251"]
+# BIND-03's independent verifier, docs/llvm-verification-tasks.md: it shares no code with any scorer, so it
+# runs commands and hashes without irlean, and must never import it.
+"tools/verify_claims.py" = ["TID251"]
+"tools/verify_claims/**/*.py" = ["TID251"]
 
 [tool.ty.environment]
 # tests/fuzz.py imports tests/differential.py, and tests/llama/reproduce.py tests/llama/measure.py, which

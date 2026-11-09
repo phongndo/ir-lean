@@ -18,6 +18,13 @@ target_compile_definitions(ir-lean PRIVATE ${LLVM_DEFINITIONS_LIST})
 target_compile_options(ir-lean PRIVATE -Wall -Wextra -fno-rtti)
 llvm_config(ir-lean USE_SHARED analysis core irreader support)
 
+# A call to every intrinsic the pinned LLVM defines, for tests/ir_features.py. See src/Probe.cpp.
+add_executable(ir-lean-probe src/Probe.cpp)
+target_include_directories(ir-lean-probe SYSTEM PRIVATE ${LLVM_INCLUDE_DIRS})
+target_compile_definitions(ir-lean-probe PRIVATE ${LLVM_DEFINITIONS_LIST})
+target_compile_options(ir-lean-probe PRIVATE -Wall -Wextra -fno-rtti)
+llvm_config(ir-lean-probe USE_SHARED core support)
+
 # Tests need the Lean library: run `lake build` first.
 enable_testing()
 add_test(NAME opcheck COMMAND ${CMAKE_SOURCE_DIR}/tests/opcheck.py $<TARGET_FILE:ir-lean>)
@@ -104,6 +111,22 @@ add_test(NAME llvm COMMAND ${CMAKE_SOURCE_DIR}/tests/llvm.py $<TARGET_FILE:ir-le
 add_test(NAME llvm_scope COMMAND ${CMAKE_SOURCE_DIR}/tests/llvm_scope_test.py)
 add_test(NAME llvm_scope_check COMMAND ${CMAKE_SOURCE_DIR}/tests/llvm_scope.py check)
 set_tests_properties(llvm_scope llvm_scope_check PROPERTIES TIMEOUT 600)
+# SEM-08: everything the pinned IR can contain, each item modeled, refused or assumed, in
+# tests/llvm_scope/ir-features.json. The rules, in Python. Then the file derived again from LLVM's source and
+# compared byte for byte, and a probe of each item through the emitter, which has to do what the item's class
+# says, with what it prints for the probes it translates elaborated in one Lean process. About 40 s.
+add_test(NAME ir_features_rules COMMAND ${CMAKE_SOURCE_DIR}/tests/ir_features_test.py)
+add_test(
+    NAME ir_features
+    COMMAND
+        ${CMAKE_SOURCE_DIR}/tests/ir_features.py check --tool $<TARGET_FILE:ir-lean> --probe
+        $<TARGET_FILE:ir-lean-probe>
+)
+set_tests_properties(ir_features PROPERTIES TIMEOUT 900)
+# Which of the nine chunks of docs/chunks.md each of the inventory's passes is in, and the counts that page
+# gives: every pass in exactly one, against tests/llvm_scope/inventory.json. Under a second, and no Lean or
+# LLVM.
+add_test(NAME chunks COMMAND ${CMAKE_SOURCE_DIR}/tests/chunks_test.py)
 # tools/corpus/capture.py, in Python, with one seed through opt when the pinned one is on PATH: under a
 # second, and no Lean. docs/corpus.md.
 add_test(NAME corpus COMMAND ${CMAKE_SOURCE_DIR}/tests/corpus_test.py)
@@ -131,6 +154,10 @@ add_test(NAME fpcheck COMMAND ${CMAKE_SOURCE_DIR}/tests/fpcheck.py $<TARGET_FILE
 # One Lean or Alive2 process at a time, each Lean process capped at 2 GB and 300 s.
 add_test(NAME float COMMAND ${CMAKE_SOURCE_DIR}/tests/float.sh $<TARGET_FILE:ir-lean>)
 set_tests_properties(float PROPERTIES TIMEOUT 900)
+# Calls outside the module, on what ir-lean emits: right rewrites refine, wrong ones provably don't, and
+# Alive2 gives each the verdict its case says, the same way. See docs/calls.md.
+add_test(NAME calls COMMAND ${CMAKE_SOURCE_DIR}/tests/calls.sh $<TARGET_FILE:ir-lean>)
+set_tests_properties(calls PROPERTIES TIMEOUT 900)
 add_test(NAME verify COMMAND ${CMAKE_SOURCE_DIR}/tests/verify.py $<TARGET_FILE:ir-lean>)
 # Tier-1 proof tests: the contract in Python, then tools/prooftest/prooftest.py on
 # tests/prooftest/Cases.ll, at most four cases at a time, each with at most one Lean process running.
@@ -275,6 +302,7 @@ set_tests_properties(
     undef_freeze
     freeze
     float
+    calls
     generic_rewrites
     cpp_correspondence
     store

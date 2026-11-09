@@ -39,7 +39,7 @@ from pathlib import Path
 from typing import Any
 
 ROOT = Path(__file__).resolve().parent.parent
-sys.path.insert(0, str(ROOT / "tools"))
+sys.path.append(str(ROOT / "tools"))
 from irlean import hashing, model, proc, schemas  # noqa: E402
 from irlean import verdict as core  # noqa: E402
 

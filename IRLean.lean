@@ -9,3 +9,4 @@ import IRLean.X86
 import IRLean.Lemmas
 import IRLean.Safety
 import IRLean.Refine
+import IRLean.World
