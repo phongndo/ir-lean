@@ -27,6 +27,10 @@ on a Zen 5 machine, and then:
 docs/llama.md has what this shows and what it assumes, and tests/llama_bench.py measures the speed.
 
 usage: tests/llama.py path/to/ir-lean [--manifest FILE] [--keep DIR] [--no-mutants] [--no-native]
+                      [--mutants NAME,...] [--no-theorems]
+
+`--mutants` and `--no-theorems` split the work, which CI runs in two jobs: steps 1 to 5 and the `mask` change
+in one, and the three wrong rewrites alone in the other.
 """
 
 import argparse
@@ -48,6 +52,8 @@ HERE = ROOT / "tests" / "llama"
 SOURCE = "ggml/src/ggml-cpu/arch/x86/repack.cpp"
 FUNCTIONS = ["ggml_gemm_q4_K_8x8_q8_K", "ggml_gemv_q4_K_8x8_q8_K"]
 PLACES = 34
+# The changes step 6 has to refute: three wrong rewrites, and IR that doesn't mask the weights to four bits.
+MUTANTS = ("signs", "seven", "scale", "mask")
 # What llama.cpp's CMake passes for this file in a Release build with GGML_NATIVE, its default. On the Ryzen 9
 # 9950X these were taken from, -march=native gives the same function bodies as -march=znver5, and naming the
 # CPU makes the IR the same on any host. The frame pointer flags undo what the dev shell's compiler wrapper
@@ -365,9 +371,22 @@ def main() -> int:
     )
     parser.add_argument("--no-mutants", action="store_true")
     parser.add_argument(
+        "--mutants",
+        default=",".join(MUTANTS),
+        help=f"the changes to refute, from {', '.join(MUTANTS)}, separated by commas",
+    )
+    parser.add_argument(
+        "--no-theorems",
+        action="store_true",
+        help="skip the slice theorems and the native comparison, steps 4 and 5, to refute changes alone",
+    )
+    parser.add_argument(
         "--no-native", action="store_true", help="skip running slices natively, as without AVX-512 VNNI"
     )
     args = parser.parse_args()
+    mutants = [] if args.no_mutants else [m for m in args.mutants.split(",") if m]
+    if set(mutants) - set(MUTANTS):
+        parser.error(f"--mutants: {', '.join(sorted(set(mutants) - set(MUTANTS)))} isn't one of {MUTANTS}")
     tool = args.tool.resolve()
     if not os.environ.get("LLAMA_CPP_SRC"):
         print("skip: LLAMA_CPP_SRC isn't set, so there's no llama.cpp. Run this in `nix develop .#llama`")
@@ -425,32 +444,34 @@ def main() -> int:
         failures += [f"slices.py accepts {c}" for c in checker_controls(ll, rw, report, work / "controls")]
         manifest["slices_sha256"] = {p.name: sha256(p) for p in sorted(slices.glob("*.ll"))}
 
-        results = prove(tool, slices, work / "lean")
-        proved = [n for n, r in results.items() if "failure" not in r]
-        print(
-            f"{'ok  ' if len(proved) == PLACES else 'FAIL'} {len(proved)}/{PLACES} slice theorems checked, "
-            f"{next(iter(results.values())).get('axioms', '')}",
-            flush=True,
-        )
-        for name, r in sorted(results.items()):
-            if "failure" in r:
-                print(f"FAIL {name}:\n{r['failure'][:3000]}", flush=True)
-        if len(proved) != PLACES:
-            failures.append("theorems")
-        manifest["theorems"] = results
-
         vnni = can_run() and not args.no_native
-        if vnni:
-            differ, said = native(slices, work / "native")
-            print(f"{'ok  ' if differ is False else 'FAIL'} natively: {said[-2000:]}", flush=True)
-            manifest["native"] = said
-            if differ is not False:
-                failures.append("native")
+        if args.no_theorems:
+            print("skip the slice theorems and the native comparison: --no-theorems", flush=True)
         else:
-            why = "--no-native" if args.no_native else "this processor has no AVX-512 VNNI with VL and BW"
-            print(f"skip native comparison: {why}", flush=True)
+            results = prove(tool, slices, work / "lean")
+            proved = [n for n, r in results.items() if "failure" not in r]
+            print(
+                f"{'ok  ' if len(proved) == PLACES else 'FAIL'} {len(proved)}/{PLACES} slice theorems "
+                f"checked, {next(iter(results.values())).get('axioms', '')}",
+                flush=True,
+            )
+            for name, r in sorted(results.items()):
+                if "failure" in r:
+                    print(f"FAIL {name}:\n{r['failure'][:3000]}", flush=True)
+            if len(proved) != PLACES:
+                failures.append("theorems")
+            manifest["theorems"] = results
+            if vnni:
+                differ, said = native(slices, work / "native")
+                print(f"{'ok  ' if differ is False else 'FAIL'} natively: {said[-2000:]}", flush=True)
+                manifest["native"] = said
+                if differ is not False:
+                    failures.append("native")
+            else:
+                why = "--no-native" if args.no_native else "this processor has no AVX-512 VNNI with VL and BW"
+                print(f"skip native comparison: {why}", flush=True)
 
-        if not args.no_mutants:
+        if mutants:
             manifest["mutants"] = {}
             # A wrong rewrite, or IR that doesn't mask the weights to four bits, has to stop every theorem.
             masked = work / "repack.mask.ll"
@@ -459,7 +480,8 @@ def main() -> int:
                 .replace("splat (i32 252645135)", "splat (i32 522133279)")
                 .replace("splat (i16 3855)", "splat (i16 7967)")
             )
-            for mutant, base in (("signs", ll), ("seven", ll), ("scale", ll), ("mask", masked)):
+            bases = {"signs": ll, "seven": ll, "scale": ll, "mask": masked}
+            for mutant, base in ((m, bases[m]) for m in MUTANTS if m in mutants):
                 d = work / f"mutant-{mutant}"
                 d.mkdir(exist_ok=True)
                 m_rw, m_report = d / "rw.ll", d / "report.json"

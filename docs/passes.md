@@ -129,7 +129,10 @@ since it never reached the proof. `score.json`'s `self_check` has each one's res
 A self-check where every mutant failed is kept in `WORK/selfcheck/SALT.json`, and its mutants' results are reused
 by a run with the same salt, the run key's first part: a mutant never reaches `tools/binding.py`, so its result
 depends only on this scorer, Lean, `IRLean` and the limits. A stored self-check where any mutant was proved, or is
-missing, or from another salt, is ignored. The control is scored, and its bundle verified, every time.
+missing, or from another salt, is ignored. The control is scored, and its bundle verified, every time. The mutants
+are tried as many at a time as the scorer's memory cap holds, at least `--jobs`: they never reach
+`tools/binding.py`, so they all run in its scope. Three of the seven run until Lean's heartbeat limit, about a minute
+each on a 32-core machine on 2026-11-09, so they take as long as one when they run at once.
 
 ## Limits
 
@@ -143,6 +146,7 @@ An uncapped run of the research scorer once filled 30 GB and the OOM killer took
 | Each process | `--timeout`, 300 s, on the wall clock | The scorer, which kills its process group and cgroup |
 | `tools/binding.py`'s processes | The same `--timeout` and `--lean-memory`, in scopes of their own | `tools/binding.py`. If it's killed or dies of a limit, the scorer kills each of its scopes holding a process with the token that one `tools/binding.py` was given, so never another process's scope |
 | Test runs at once | 1: `--jobs`, at most 2 | The scorer |
+| The self-check's mutants at once | As many as the cap holds, at least `--jobs` | The scorer |
 
 So the most it holds at once is the scorer's cap plus `--jobs` times `--lean-memory` plus 512 MB. A process stopped
 by any limit, or by any signal, makes its instances `unknown`, never `bound` or `refused`. A signal to the scorer

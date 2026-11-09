@@ -14,7 +14,11 @@ whole module.
 It runs one process at a time, each capped by tools/binding.py, in build/binding/tests, and needs
 `nix develop`, build/ir-lean and `lake build`.
 
-usage: tests/binding.py [--keep] [--only NAME ...]
+A case belongs to one of `--shard I/N`'s shards by a hash of its name, so CI can run the cases in N jobs, and
+a case added later lands in one of them without being listed anywhere. A case run behind `args.only` alone,
+not `runs()`, runs in every shard: twice, not never.
+
+usage: tests/binding.py [--keep] [--only NAME ...] [--shard I/N]
 """
 
 import argparse
@@ -29,6 +33,7 @@ import sys
 from collections.abc import Callable
 from pathlib import Path
 from typing import Any
+from zlib import crc32
 
 ROOT = Path(__file__).resolve().parent.parent
 HERE = ROOT / "tests" / "binding"
@@ -752,13 +757,23 @@ def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--keep", action="store_true", help="keep build/binding/tests")
     ap.add_argument("--only", nargs="*")
+    ap.add_argument("--shard", default="1/1", help="I/N: run the cases in shard I of N")
     args = ap.parse_args()
+    shard, shards = (int(x) for x in args.shard.split("/"))
+    if not 1 <= shard <= shards:
+        sys.exit(f"--shard {args.shard}: I has to be from 1 to N")
+
+    def runs(name: str) -> bool:
+        """Whether this run has the case `name`: it's asked for, and in this shard."""
+        mine = crc32(name.encode()) % shards == shard - 1
+        return (not args.only or name in args.only) and mine
+
     shutil.rmtree(WORK, ignore_errors=True)
     WORK.mkdir(parents=True)
     failures: list[str] = []
     ran = 0
     for name, make, extra, (status, reason) in CASES:
-        if args.only and name not in args.only:
+        if not runs(name):
             continue
         ran += 1
         verdict = verify(make(name), *extra)
@@ -771,9 +786,9 @@ def main() -> int:
             print(f"ok    {name}: {got[0]} {got[1]}")
         if "open_obligation" not in verdict or not verdict.get("does_not_establish"):
             failures.append(f"{name}: the verdict doesn't say what it leaves open")
-    if not args.only or "hashes" in args.only:
+    if runs("hashes"):
         ran += hash_cases(failures)
-    if not args.only or "time_limit" in args.only:
+    if runs("time_limit"):
         # The certificate that ran out of time mustn't still be running.
         ran += 1
         left = subprocess.run(
@@ -786,7 +801,7 @@ def main() -> int:
             failures.append(f"time_limit: left running: {left}")
         else:
             print("ok    time_limit_stopped: nothing left running")
-    if not args.only or "adds_companion" in args.only:
+    if runs("adds_companion"):
         # A file added to IRLean's library is caught, whatever its name. It's this checkout's own build, and
         # the file is removed after.
         ran += 1
@@ -803,7 +818,7 @@ def main() -> int:
                 failures.append(f"adds_companion: expected refused artifacts_modified, got {got}")
             else:
                 print(f"ok    adds_companion: {got[0]} {got[1]}")
-    if not args.only or "leaves_process" in args.only:
+    if runs("leaves_process"):
         # Code that ran while the certificate compiled doesn't outlive it.
         ran += 1
         verdict = verify(record("leaves_process", LEAVES_PROCESS))
@@ -816,7 +831,7 @@ def main() -> int:
             )
         else:
             print("ok    leaves_process: bound, nothing left running")
-    if not args.only or "path_leanchecker" in args.only:
+    if runs("path_leanchecker"):
         # A leanchecker earlier on PATH that passes everything isn't the one that runs.
         ran += 1
         fake = WORK / "fake-bin"
@@ -831,7 +846,7 @@ def main() -> int:
             failures.append(f"path_leanchecker: expected refused kernel_replay_failed, got {got}")
         else:
             print(f"ok    path_leanchecker: {got[0]} {got[1]}")
-    if not args.only or "uncovered" in args.only:
+    if runs("uncovered"):
         # A bound claim about f says what else the run changed, which it doesn't cover.
         ran += 1
         verdict = verify(record("uncovered", GOOD, input_ll="two.ll"))
@@ -840,7 +855,7 @@ def main() -> int:
             failures.append(f"uncovered: expected bound with g uncovered, got {got}: {verdict.get('detail')}")
         else:
             print(f"ok    uncovered: {got[0]}, uncovered {got[1]}")
-    if not args.only or "other_source" in args.only:
+    if runs("other_source"):
         # The same version of opt, with LLVM_PROJECT_SRC some other tree: not the pinned source.
         ran += 1
         verdict = verify(good("other_source"), env={"LLVM_PROJECT_SRC": str(HERE)})
@@ -849,7 +864,7 @@ def main() -> int:
             failures.append(f"other_source: expected refused llvm_pin_mismatch, got {got}")
         else:
             print(f"ok    other_source: {got[0]} {got[1]}")
-    if not args.only or "other_store_source" in args.only:
+    if runs("other_store_source"):
         # Another store path, which tools/binding.py looks up rather than hashes when root owns the store.
         ran += 1
         verdict = verify(good("other_store_source"), env={"LLVM_PROJECT_SRC": os.environ["ZLIB_SRC"]})
@@ -858,7 +873,7 @@ def main() -> int:
             failures.append(f"other_store_source: expected refused llvm_pin_mismatch, got {got}")
         else:
             print(f"ok    other_store_source: {got[0]} {got[1]}")
-    if not args.only or "forged_store_source" in args.only:
+    if runs("forged_store_source"):
         # The same, with the user's Nix configuration naming a binary cache that says it's the pinned source.
         ran += 1
         zlib = os.environ["ZLIB_SRC"]
@@ -869,7 +884,7 @@ def main() -> int:
             failures.append(f"forged_store_source: expected refused llvm_pin_mismatch, got {got}")
         else:
             print(f"ok    forged_store_source: {got[0]} {got[1]}")
-    if not args.only or "cache" in args.only:
+    if runs("cache"):
         ran += cache_cases(failures)
     if not args.keep:
         shutil.rmtree(WORK, ignore_errors=True)
