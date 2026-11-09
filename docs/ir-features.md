@@ -83,7 +83,8 @@ The first run, on 2026-11-09, found three things the emitter did wrong, now fixe
   convention of any pair of dynamic caller/callee must match, or the behavior of the program is undefined", so the
   model had less undefined behavior than LLVM there, which is unsound for a safety proof and for the target of a
   refinement. It's refused now, and so is a call through a pointer that could reach a function with another one.
-  InstCombine turns such calls into `store i1 true, ptr poison`, which shows up among stage 1's refusals.
+  InstCombine replaces such a call with `store i1 true, ptr poison`, its mark for code that can't run, unless it
+  counts one of the two conventions as compatible with C's.
 - **Vector forms of 16 integer intrinsics were reported translated, and printed Lean that doesn't elaborate:**
   `ctpop`, `ctlz`, `cttz`, `abs`, `bswap`, `bitreverse`, `fshl`, `fshr`, `ucmp`, `scmp`, and the six
   `*.with.overflow`. Each printed the scalar operation applied to a vector. Lean rejected them, so no proof was wrong,
