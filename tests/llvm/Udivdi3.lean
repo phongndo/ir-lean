@@ -109,6 +109,8 @@ theorem loop (m : Nat) (hinc : inc.toNat ≤ 64) (hsub : sub = inc - 1#32) (hun 
 theorem correct (n d : BitVec 64) (hd : d ≠ 0#64) :
     CrtUdivdi3._udivdi3 (some n) (some d) = Outcome.ok (some (n / d)) := by
   simp only [CrtUdivdi3._udivdi3, noundef_some]
+  -- The loop is marked `llvm.loop.mustprogress`. A run that finishes keeps that promise, so it's set aside.
+  refine promised_of_eq ?_
   llvm_step CrtUdivdi3._udivdi3.step
   apply ite_cases <;> intro hbig
   · llvm_step CrtUdivdi3._udivdi3.step

@@ -6,15 +6,23 @@ One real rewrite, `instcombine` folding `add i8 %x, 0` in tests/binding/add_zero
 the functions ir-lean generates before and after are equal. Its bundle has to come back `bound`. Then each
 case breaks one thing, as someone handing over wrong evidence would, and the verdict has to be the status and
 reason given, never `bound`: a theorem of another type, a changed file, a changed configuration, a manifest
-from another toolchain, a cache entry that isn't for this evidence, and claims nothing here can check.
+from another toolchain, a cache entry that isn't for this evidence, and claims nothing here can check. Two
+more have to be bound: `loop-deletion` deleting a loop under `mustprogress`, which only the promise makes
+right, and a module whose intrinsic declaration carries `willreturn`, which this tool once refused for the
+whole module.
 
 It runs one process at a time, each capped by tools/binding.py, in build/binding/tests, and needs
 `nix develop`, build/ir-lean and `lake build`.
 
-usage: tests/binding.py [--keep] [--only NAME ...]
+A case belongs to one of `--shard I/N`'s shards by a hash of its name, so CI can run the cases in N jobs, and
+a case added later lands in one of them without being listed anywhere. A case run behind `args.only` alone,
+not `runs()`, runs in every shard: twice, not never.
+
+usage: tests/binding.py [--keep] [--only NAME ...] [--shard I/N]
 """
 
 import argparse
+import base64
 import hashlib
 import importlib.util
 import json
@@ -24,6 +32,8 @@ import subprocess
 import sys
 from collections.abc import Callable
 from pathlib import Path
+from typing import Any
+from zlib import crc32
 
 ROOT = Path(__file__).resolve().parent.parent
 HERE = ROOT / "tests" / "binding"
@@ -43,6 +53,9 @@ GOOD_LEMMA = GOOD.split("open IRLean\n", 1)[1].replace("theorem Fx.cert", "theor
 # The same rewrite, with a certificate of the refinement claim.
 REFINES = (HERE / "AddZeroRefines.lean").read_text()
 assert "theorem Fx.cert : IRLean.Refines Fx.Src.f Fx.Tgt.f :=" in REFINES
+# loop-deletion on loop_deleted.ll: the target refines the source because the source promised to progress.
+LOOP_DELETED = (HERE / "LoopDeletedRefines.lean").read_text()
+assert "theorem Fx.cert : IRLean.Refines Fx.Src.f Fx.Tgt.f :=" in LOOP_DELETED
 
 # The attack the adversarial lane found with tools/verify.py, on a real instcombine run: the two are equal in
 # the model, since both stop at a frozen poison, and Fx.stops shows the source does. Equality alone is all a
@@ -116,12 +129,35 @@ LEAVES_PROCESS = GOOD + (
 )
 
 
+# The pinned llvm-project's NAR hash, as `nix-store --query --hash` prints it, in Nix's base-32.
+PINNED_NIX32 = "1pnjmz111lj6xxv41s14s7ifj0w7z41j3mdj872gn2hvh6ymivpr"
+
+
+def forged_store(t: Path, path: Path) -> dict[str, str]:
+    """The environment of a user whose Nix configuration names a binary cache of its own, with a record that
+    says `path` has the pinned llvm-project's NAR hash, as a certificate's code could leave for later runs."""
+    cache = t / "forged-cache"
+    (cache / "nar").mkdir(parents=True, exist_ok=True)
+    (cache / "nix-cache-info").write_text("StoreDir: /nix/store\nWantMassQuery: 0\nPriority: 50\n")
+    (cache / f"{path.name.split('-', 1)[0]}.narinfo").write_text(
+        f"StorePath: {path}\nURL: nar/x.nar\nCompression: none\nNarHash: sha256:{PINNED_NIX32}\n"
+        "NarSize: 1\nReferences: \n"
+    )
+    conf = t / "forged-nix.conf"
+    conf.write_text(f"store = file://{cache}\n")
+    return {"NIX_USER_CONF_FILES": str(conf), "NIX_REMOTE": f"file://{cache}"}
+
+
 def sha(data: bytes) -> str:
     return hashlib.sha256(data).hexdigest()
 
 
 def record(
-    name: str, certificate: str, kind: str = "ir_instance_equivalence", input_ll: str = "add_zero.ll"
+    name: str,
+    certificate: str,
+    kind: str = "ir_instance_equivalence",
+    input_ll: str = "add_zero.ll",
+    passes: str = "instcombine",
 ) -> Path:
     """A fresh bundle for an input in tests/binding with this certificate, as `record` writes it."""
     out = WORK / name
@@ -135,7 +171,7 @@ def record(
             "--input",
             str(HERE / input_ll),
             "--passes",
-            "instcombine",
+            passes,
             "--mtriple",
             "x86_64-unknown-linux-gnu",
             "--function",
@@ -315,12 +351,17 @@ CASES: list[tuple[str, Callable[[str], Path], list[str], tuple[str, str]]] = [
         [],
         ("unsupported", "undef_argument"),
     ),
+    # Promises to progress and to return are checked by the model, not refused: a loop deleted under one is
+    # bound, and one on an intrinsic's declaration doesn't stand in the way of a function that makes none.
     (
-        "trusted_promise",
-        lambda n: record(n, GOOD, input_ll="willreturn.ll"),
+        "promise_checked",
+        lambda n: record(
+            n, LOOP_DELETED, kind="ir_instance_refinement", input_ll="loop_deleted.ll", passes="loop-deletion"
+        ),
         [],
-        ("unsupported", "trusted_promise"),
+        ("bound", "replayed"),
     ),
+    ("intrinsic_declared", lambda n: record(n, GOOD, input_ll="intrinsic.ll"), [], ("bound", "replayed")),
     # Limits make a verdict unknown, never bound or refused.
     ("time_limit", lambda n: record(n, SLOW), ["--timeout", "20"], ("unknown", "time_limit")),
     ("memory_limit", lambda n: record(n, GREEDY), ["--memory", "1500"], ("unknown", "resource_limit")),
@@ -591,6 +632,124 @@ def hash_cases(failures: list[str]) -> int:
         print("ok    standalone_plain: a plain file and this checkout's tracked files are accepted")
     except binding.Verdict as v:
         failures.append(f"standalone_plain: refused {v.status} {v.reason}: {v.detail}")
+    return ran + tree_changes(binding, t / "changes", failures) + recorded_hashes(binding, t, failures)
+
+
+def tree_changes(binding: Any, t: Path, failures: list[str]) -> int:
+    """Every change to a tree changes its hash, including the two that hashed the same when a tree was hashed
+    as one stream of paths and bytes: a file holding what two files would, and a directory where an empty
+    file was."""
+
+    def tree(name: str, entries: dict[str, str | None]) -> str:
+        """A tree of files by path and content, or a directory for None, and its hash."""
+        root = t / name / "IRLean"
+        root.mkdir(parents=True)
+        for path, content in entries.items():
+            if content is None:
+                (root / path).mkdir(parents=True)
+            else:
+                (root / path).parent.mkdir(parents=True, exist_ok=True)
+                (root / path).write_bytes(content.encode())
+        return binding.tree_hash(t / name, root)
+
+    base = tree("base", {"a": "1", "b": "2", "d": None})
+    changed = {
+        "content": tree("content", {"a": "1", "b": "3", "d": None}),
+        "added": tree("added", {"a": "1", "b": "2", "c": "", "d": None}),
+        "removed": tree("removed", {"a": "1", "d": None}),
+        "renamed": tree("renamed", {"a": "1", "c": "2", "d": None}),
+        "moved": tree("moved", {"a": "1", "d/b": "2"}),
+        "one_file_for_two": tree("one_file_for_two", {"a": "1\0IRLean/b\0" + "2", "d": None}),
+        "file_for_directory": tree("file_for_directory", {"a": "1", "b": "2", "d": ""}),
+    }
+    linked = t / "linked" / "IRLean"
+    linked.mkdir(parents=True)
+    for path, content in (("a", "1"), ("b", "2"), ("c", "2")):
+        (linked / path).write_text(content)
+    (linked / "d").symlink_to("b")
+    other = t / "other_link" / "IRLean"
+    shutil.copytree(linked, other, symlinks=True)
+    (other / "d").unlink()
+    (other / "d").symlink_to("c")
+    changed["link_target"] = binding.tree_hash(t / "other_link", other)
+    if binding.tree_hash(t / "linked", linked) == changed["link_target"]:
+        failures.append("tree_link_target: a link to another file hashes the same")
+    same = [name for name, h in changed.items() if h == base]
+    if same or len(set(changed.values())) != len(changed):
+        failures.append(f"tree_changes: these hash as the unchanged tree or as each other: {same or changed}")
+    else:
+        print(f"ok    tree_changes: {len(changed)} changes each change the hash: {', '.join(changed)}")
+    return 1
+
+
+def recorded_hashes(binding: Any, t: Path, failures: list[str]) -> int:
+    """Nix's recorded NAR hash is read right, used only for a store path root owns, and is the hash of what's
+    there, which `nix hash path` works out again."""
+    ran = 1
+    # `nix-store --query --hash` and `nix hash path` for the pinned llvm-project.
+    nix32 = PINNED_NIX32
+    pinned = "sha256-+e5YvYEbCvvEQbLVIQP5hwPp4tEk6EB270bSEMKv0t4="
+    bad = []
+    for text in (nix32[1:], nix32[:-1] + "e", "z" + nix32[1:]):
+        try:
+            binding.nix32_decode(text, 32)
+            bad.append(text)
+        except ValueError:
+            pass
+    decoded = "sha256-" + base64.b64encode(binding.nix32_decode(nix32, 32)).decode()
+    if decoded != pinned or bad:
+        failures.append(f"nix32: decoded {decoded}, and accepted {bad}")
+    else:
+        print("ok    nix32: the pin's hash reads back, and a short, misspelled or overlong one is an error")
+    run = binding.Runner(120, 1000)
+    # A store this user owns, as a single-user install makes: its record could have been rewritten.
+    ran += 1
+    owned = t / "store"
+    (owned / "x-source").mkdir(parents=True)
+    store = binding.NIX_STORE
+    binding.NIX_STORE = owned
+    try:
+        got = binding.recorded_nar_hash(run, owned / "x-source")
+    finally:
+        binding.NIX_STORE = store
+    if got is not None:
+        failures.append(f"user_owned_store: used the record {got} of a path this user owns")
+    else:
+        print("ok    user_owned_store: a path this user owns is hashed, not looked up")
+    ran += 1
+    source = Path(os.environ["LLVM_PROJECT_SRC"])
+    recorded = binding.recorded_nar_hash(run, source)
+    nested = binding.recorded_nar_hash(run, source / "llvm")
+    hashed = subprocess.run(
+        ["nix", "hash", "path", str(source)], capture_output=True, text=True, check=True
+    ).stdout.strip()
+    if nested is not None or recorded not in (None, hashed):
+        failures.append(
+            f"recorded_hash: {recorded} recorded, {hashed} hashed, {nested} for a directory in it"
+        )
+    else:
+        how = "not used, as the store isn't root's" if recorded is None else "the hash of what's there"
+        print(f"ok    recorded_hash: {how}, and a directory inside a store path isn't looked up")
+    # A store the user's configuration names, a binary cache whose record says zlib's source is llvm-project.
+    ran += 1
+    zlib = Path(os.environ["ZLIB_SRC"])
+    forged = forged_store(t, zlib)
+    query = ["nix-store", "--query", "--hash", str(zlib)]
+    fooled = subprocess.run(query, capture_output=True, text=True, env={**os.environ, **forged}, check=False)
+    misled = binding.Runner(120, 1000)
+    misled.env.update(forged)
+    got = binding.recorded_nar_hash(misled, zlib)
+    hashed = subprocess.run(
+        ["nix", "hash", "path", str(zlib)], capture_output=True, text=True, check=True
+    ).stdout.strip()
+    if got not in (None, hashed):
+        failures.append(
+            f"forged_store: read {got} for {zlib}, from the user's store, which hashes to {hashed}"
+        )
+    else:
+        alone = fooled.stdout.strip() == f"sha256:{nix32}"
+        how = "fools nix-store alone" if alone else "doesn't fool nix-store here"
+        print(f"ok    forged_store: a binary cache the user's configuration names, which {how}, isn't read")
     return ran
 
 
@@ -598,13 +757,23 @@ def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--keep", action="store_true", help="keep build/binding/tests")
     ap.add_argument("--only", nargs="*")
+    ap.add_argument("--shard", default="1/1", help="I/N: run the cases in shard I of N")
     args = ap.parse_args()
+    shard, shards = (int(x) for x in args.shard.split("/"))
+    if not 1 <= shard <= shards:
+        sys.exit(f"--shard {args.shard}: I has to be from 1 to N")
+
+    def runs(name: str) -> bool:
+        """Whether this run has the case `name`: it's asked for, and in this shard."""
+        mine = crc32(name.encode()) % shards == shard - 1
+        return (not args.only or name in args.only) and mine
+
     shutil.rmtree(WORK, ignore_errors=True)
     WORK.mkdir(parents=True)
     failures: list[str] = []
     ran = 0
     for name, make, extra, (status, reason) in CASES:
-        if args.only and name not in args.only:
+        if not runs(name):
             continue
         ran += 1
         verdict = verify(make(name), *extra)
@@ -617,9 +786,9 @@ def main() -> int:
             print(f"ok    {name}: {got[0]} {got[1]}")
         if "open_obligation" not in verdict or not verdict.get("does_not_establish"):
             failures.append(f"{name}: the verdict doesn't say what it leaves open")
-    if not args.only or "hashes" in args.only:
+    if runs("hashes"):
         ran += hash_cases(failures)
-    if not args.only or "time_limit" in args.only:
+    if runs("time_limit"):
         # The certificate that ran out of time mustn't still be running.
         ran += 1
         left = subprocess.run(
@@ -632,7 +801,7 @@ def main() -> int:
             failures.append(f"time_limit: left running: {left}")
         else:
             print("ok    time_limit_stopped: nothing left running")
-    if not args.only or "adds_companion" in args.only:
+    if runs("adds_companion"):
         # A file added to IRLean's library is caught, whatever its name. It's this checkout's own build, and
         # the file is removed after.
         ran += 1
@@ -649,7 +818,7 @@ def main() -> int:
                 failures.append(f"adds_companion: expected refused artifacts_modified, got {got}")
             else:
                 print(f"ok    adds_companion: {got[0]} {got[1]}")
-    if not args.only or "leaves_process" in args.only:
+    if runs("leaves_process"):
         # Code that ran while the certificate compiled doesn't outlive it.
         ran += 1
         verdict = verify(record("leaves_process", LEAVES_PROCESS))
@@ -662,7 +831,7 @@ def main() -> int:
             )
         else:
             print("ok    leaves_process: bound, nothing left running")
-    if not args.only or "path_leanchecker" in args.only:
+    if runs("path_leanchecker"):
         # A leanchecker earlier on PATH that passes everything isn't the one that runs.
         ran += 1
         fake = WORK / "fake-bin"
@@ -677,7 +846,7 @@ def main() -> int:
             failures.append(f"path_leanchecker: expected refused kernel_replay_failed, got {got}")
         else:
             print(f"ok    path_leanchecker: {got[0]} {got[1]}")
-    if not args.only or "uncovered" in args.only:
+    if runs("uncovered"):
         # A bound claim about f says what else the run changed, which it doesn't cover.
         ran += 1
         verdict = verify(record("uncovered", GOOD, input_ll="two.ll"))
@@ -686,7 +855,7 @@ def main() -> int:
             failures.append(f"uncovered: expected bound with g uncovered, got {got}: {verdict.get('detail')}")
         else:
             print(f"ok    uncovered: {got[0]}, uncovered {got[1]}")
-    if not args.only or "other_source" in args.only:
+    if runs("other_source"):
         # The same version of opt, with LLVM_PROJECT_SRC some other tree: not the pinned source.
         ran += 1
         verdict = verify(good("other_source"), env={"LLVM_PROJECT_SRC": str(HERE)})
@@ -695,7 +864,27 @@ def main() -> int:
             failures.append(f"other_source: expected refused llvm_pin_mismatch, got {got}")
         else:
             print(f"ok    other_source: {got[0]} {got[1]}")
-    if not args.only or "cache" in args.only:
+    if runs("other_store_source"):
+        # Another store path, which tools/binding.py looks up rather than hashes when root owns the store.
+        ran += 1
+        verdict = verify(good("other_store_source"), env={"LLVM_PROJECT_SRC": os.environ["ZLIB_SRC"]})
+        got = (verdict.get("status"), verdict.get("reason"))
+        if got != ("refused", "llvm_pin_mismatch"):
+            failures.append(f"other_store_source: expected refused llvm_pin_mismatch, got {got}")
+        else:
+            print(f"ok    other_store_source: {got[0]} {got[1]}")
+    if runs("forged_store_source"):
+        # The same, with the user's Nix configuration naming a binary cache that says it's the pinned source.
+        ran += 1
+        zlib = os.environ["ZLIB_SRC"]
+        forged = forged_store(WORK / "forged", Path(zlib))
+        verdict = verify(good("forged_store_source"), env={"LLVM_PROJECT_SRC": zlib, **forged})
+        got = (verdict.get("status"), verdict.get("reason"))
+        if got != ("refused", "llvm_pin_mismatch"):
+            failures.append(f"forged_store_source: expected refused llvm_pin_mismatch, got {got}")
+        else:
+            print(f"ok    forged_store_source: {got[0]} {got[1]}")
+    if runs("cache"):
         ran += cache_cases(failures)
     if not args.keep:
         shutil.rmtree(WORK, ignore_errors=True)

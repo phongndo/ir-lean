@@ -13,8 +13,8 @@ checks it with `tools/binding.py verify`. An instance counts only if that verdic
   bound        tools/binding.py verify said `bound` in this run, with exit code 0
   refused      it said `refused`: the evidence doesn't bind. Never a counterexample
   unsupported  the model or the bundle format can't state the claim: the function is left out, uses memory,
-               can take `undef`, the target IR makes a promise IRLean trusts, the pass added or removed the
-               function, or the RUN line has an option a bundle can't represent
+               can take `undef`, the pass added or removed the function, or the RUN line has an option a
+               bundle can't represent
   failed       the automation found no proof. Never a counterexample: nothing here finds one
   unknown      a time or memory limit stopped a step. More may help
   error        a tool failed, or a bug here
@@ -821,7 +821,6 @@ class Scorer:
         if not changed:
             return out
         (rs, stop_s), (rt, stop_t) = self.report(src, d, "Src"), self.report(tgt, d, "Tgt")
-        trusted = B.TRUSTED_PROMISES.search(tgt) is not None
         pending: dict[str, str] = {}
         for n in changed:
             if n in added_removed:
@@ -835,10 +834,6 @@ class Scorer:
                 out[n] = result("unsupported", "function_unsupported", f"ir-lean leaves it out: {why}")
             elif rs[n][-1] != "pure" or rt[n][-1] != "pure":
                 out[n] = result("unsupported", "memory_unsupported", "it uses memory or pointers")
-            elif trusted:
-                out[n] = result(
-                    "unsupported", "trusted_promise", "the target IR has mustprogress or willreturn"
-                )
             elif noundef_arguments(src, n):
                 out[n] = result("unsupported", "undef_argument", f"{noundef_arguments(src, n)}")
             elif rs[n][2] != rt[n][2]:
@@ -1168,21 +1163,28 @@ def mutants_passed(scorer: Scorer) -> dict | None:
     return mutants if good else None
 
 
-def self_check(scorer: Scorer) -> dict:
+def self_check(scorer: Scorer, jobs: int = 1) -> dict:
     """Each mutant's result and the control's. `ok` is false if a mutant was proved, or didn't reach the
-    proof, or the control isn't bound. The control is scored and verified every time."""
+    proof, or the control isn't bound. The control is scored and verified every time. The mutants are tried
+    `jobs` at a time, each in a directory of its own."""
     out: dict = {"mutants": {}, "ok": True, "problems": [], "mutants_from_cache": False}
     cached = mutants_passed(scorer)
     if cached is not None:
         out["mutants"], out["mutants_from_cache"] = cached, True
-    for name, src, tgt in [] if cached is not None else MUTANTS:
+
+    def attempt(mutant: tuple[str, str, str]) -> tuple[str, dict]:
+        name, src, tgt = mutant
         d = scorer.scratch / f"mutant-{uuid.uuid4().hex[:8]}"
         d.mkdir(parents=True)
         try:
-            found = scorer.instances(src, tgt, "Mutant", d, record=None)
+            return name, scorer.instances(src, tgt, "Mutant", d, record=None)
         finally:
             if not scorer.keep:
                 shutil.rmtree(d, ignore_errors=True)
+
+    with concurrent.futures.ThreadPoolExecutor(jobs) as ex:
+        attempts = list(ex.map(attempt, [] if cached is not None else MUTANTS))
+    for name, found in attempts:
         statuses = sorted({v["status"] for v in found.values()})
         out["mutants"][name] = {n: {"status": v["status"], "reason": v["reason"]} for n, v in found.items()}
         # It has to fail in the proof itself: anything else, such as unsupported, would hide a wrong
@@ -1362,7 +1364,10 @@ def main() -> int:
         r = Run(single_pass(spec) or spec, Path(f).resolve(), spec, triple or None, ())
         print(json.dumps(scorer.score(r), indent=1))
         return 0
-    check = self_check(scorer)
+    # The mutants never reach tools/binding.py, so they all run in the scorer's own scope, and as many can run
+    # at once as its memory holds. Three of them run until Lean's heartbeat limit, which only running them at
+    # once shortens.
+    check = self_check(scorer, max(args.jobs, min(len(MUTANTS), (budget - SCORER_MB) // process_mb)))
     if not check["ok"]:
         print(f"UNSOUND or broken, so nothing is scored: {check['problems']}", file=sys.stderr)
         return 1

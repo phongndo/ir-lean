@@ -29,7 +29,7 @@ the program, including binding proofs to LLVM's C++, BIND-02 to BIND-05, which t
 | --- | --- | --- |
 | INV-01 to INV-03, NEG-01 | Complete | The inventory and its checks, kept as a reference and run in CI |
 | SEM-01 | Complete | `IRLean.Refines`, the statement every certificate proves, in [Phase 4](roadmap.md#phase-4-certified-translation-validation-and-superoptimization) |
-| SEM-07 | Not started | Milestone F2, in wave 2. The safety bridge waits on it |
+| SEM-07 | Complete | Milestone F2, reached in [#62](https://github.com/phongndo/ir-lean/pull/62). The safety bridge waits on F4 now |
 | SEM-02, SEM-03 | Not started | Milestone F3, after the `undef` decision, which is on the critical path |
 | SEM-06 | Not started | Milestone F4. Superoptimizer v2's memory candidates and the safety bridge need it |
 | SEM-04, SEM-08, SEM-10 | Not started | [Phase 0](roadmap.md#phase-0-semantic-fidelity-and-trust-infrastructure)'s fidelity work |
@@ -116,7 +116,7 @@ Each lane owns its files. Two tasks being worked on at once can't own the same f
 | Lane | Covers | Files it owns | Now |
 | --- | --- | --- | --- |
 | INV | Inventory and plan | `tests/llvm_scope*`, `docs/llvm-verification-tasks.md` | INV-01 to INV-03 are complete ([#43](https://github.com/phongndo/ir-lean/pull/43)). The rest wait with the program |
-| SEM | Semantics contracts: poison, `undef`, `freeze`, integers, floating point, memory, UB | `IRLean/*.lean` apart from the refinement tactic, `docs/trust.md`, `tests/opcheck.py`, `tests/gepcheck.py` | SEM-01 is complete ([#46](https://github.com/phongndo/ir-lean/pull/46)): [refinement](refinement.md). SEM-07 is in the roadmap's wave 2, and SEM-02, SEM-03 and SEM-06 follow the `undef` decision. SEM-04 has no prerequisites |
+| SEM | Semantics contracts: poison, `undef`, `freeze`, integers, floating point, memory, UB | `IRLean/*.lean` apart from the refinement tactic, `docs/trust.md`, `tests/opcheck.py`, `tests/gepcheck.py` | SEM-01 is complete ([#46](https://github.com/phongndo/ir-lean/pull/46)): [refinement](refinement.md). So is SEM-07: [promises to progress](trust.md#promises-to-progress). SEM-02, SEM-03 and SEM-06 follow the `undef` decision. SEM-04 has no prerequisites |
 | BIND | Binding proofs to LLVM's C++, and an independent verifier | `tools/`, new binding checks, `src/Emitter.*` for C++ support | Waits with the program. Certificate binding, from [#45](https://github.com/phongndo/ir-lean/pull/45), stays as a tool |
 | NEG | Negative tests, CI and honest reporting | `CMakeLists.txt`, `.github/`, `tests/lint.sh`, mutation scripts | NEG-01 is complete (#43). NEG-03 has no prerequisites |
 | AUTO | Proof automation and lemma reuse | `IRLean/RefineTactic.lean`, lemma stores | AUTO-01 is drafted in another tree. AUTO-03 is in progress: [rewrites at every width](generic-rewrites.md). AUTO-02 is the roadmap's lemma store |
@@ -338,13 +338,13 @@ when they land.
 ### SEM-07: Promises as UB
 
 - **Lane:** SEM
-- **Scope:** `mustprogress` and `willreturn` are trusted today rather than checked. Make breaking them UB, as LangRef does, and classify every attribute and metadata kind as checked, poison, UB or refused.
+- **Scope:** `mustprogress`, `willreturn` and `llvm.loop.mustprogress` were trusted rather than checked. Make breaking them UB, as LangRef does. Classifying every other attribute and metadata kind as checked, poison, UB or refused, first listed here too, is SEM-08's, which names it.
 - **Depends on:** SEM-01
-- **Owns:** `IRLean/Attr.lean`
+- **Owns:** `IRLean/Attr.lean`, `IRLean/Promise.lean`
 - **Acceptance:** A pass that deletes a loop under `mustprogress` certifies, and one that adds the promise doesn't.
-- **Trust gaps:** Promises on arguments that Rust emits are refused today.
-- **Status:** not started
-- **Evidence:** None.
+- **Trust gaps:** Promises on arguments that Rust emits are refused today. A recursive function under a promise, and a run waiting on a promised callee that waits itself, stop the model where LangRef doesn't settle them, so deleting infinite recursion can't be certified.
+- **Status:** complete
+- **Evidence:** `IRLean/Promise.lean` and `src/Emitter.cpp`, read in [trust](trust.md#promises-to-progress). `tests/binding.py` binds a real `loop-deletion` run under `mustprogress` as `ir_instance_refinement`, with `tests/binding/LoopDeletedRefines.lean`. `tests/refine/RefineCases.lean` proves deleting the loop refines under the promise and not without it, adding the promise doesn't refine, and the promise is broken exactly on the inputs where the loop never ends. `tests/emitter.sh` proves what the model says of a run that never finishes under each rule, of emitted code, and `wrong_promise_added` in `tests/verification_negative` fails the proof the model allowed before. Merged in [#62](https://github.com/phongndo/ir-lean/pull/62).
 
 ### SEM-08: Every instruction, intrinsic, attribute and metadata kind classified
 
@@ -554,7 +554,7 @@ when they land.
 - **Depends on:** PASS-01, SEM-07
 - **Owns:** `tests/passes-proofs/loops/`
 - **Acceptance:** An all-input claim for each, complete or with its gap.
-- **Trust gaps:** Deleting a loop rests on SEM-07's `mustprogress`.
+- **Trust gaps:** Deleting a loop under `mustprogress` rests on SEM-07's reading of the promise. Infinite recursion under one stops the model.
 - **Status:** not started
 - **Evidence:** None.
 

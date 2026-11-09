@@ -98,7 +98,7 @@ stdin, so neither names a path.
 
 | Kind | The claim, as Lean | Checkable now |
 | --- | --- | --- |
-| `ir_instance_equivalence` | `Fx.Src.f = Fx.Tgt.f ∧ ∀ (x : IRLean.Val 8) (s : IRLean.ModelStop), Fx.Src.f x ≠ some (.error (.model s))`, with a binder for each argument: on every input, poison included, both have the same outcome in IRLean's semantics, and the source never stops the model | Yes, for a function without memory, whose arguments are all `noundef` in the source, and whose target IR makes no promise IRLean trusts |
+| `ir_instance_equivalence` | `Fx.Src.f = Fx.Tgt.f ∧ ∀ (x : IRLean.Val 8) (s : IRLean.ModelStop), Fx.Src.f x ≠ some (.error (.model s))`, with a binder for each argument: on every input, poison included, both have the same outcome in IRLean's semantics, and the source never stops the model | Yes, for a function without memory, whose arguments are all `noundef` in the source |
 | `ir_instance_refinement` | `IRLean.Refines Fx.Src.f Fx.Tgt.f`, with the instance Lean finds where only `IRLean` and the generated modules are imported: on every input, poison included, the target only does what the source allows, and a model stop in the source allows nothing ([refinement](refinement.md)) | Yes, for the same functions as `ir_instance_equivalence` |
 | `rewrite_all_inputs` | The pass's rewrite is right for every input module (L3) | No. Always `unsupported` |
 | `pass_implementation` | The pass's compiled C++ makes only proved rewrites (L4) | No. Always `unsupported` |
@@ -111,12 +111,10 @@ implies `IRLean.Refines`, where a model stop in the source allows nothing, throu
 `Refines.self_iff` ([refinement](refinement.md)).
 
 It also holds only where the model has no more undefined behavior than LLVM in the source, and no less in the target.
-So three kinds of function are `unsupported`, before any proof is read:
+So two kinds of function are `unsupported`, before any proof is read:
 
 - one that uses memory or pointers, where the model has more undefined behavior than LLVM
   ([trust](trust.md#known-gaps-in-the-model)), so a source undefined in the model can be defined in LLVM;
-- any target IR with `mustprogress` or `willreturn`, which IRLean trusts instead of checking: a target that spins
-  under one is undefined in LLVM, and runs forever in the model, just as a source without one does;
 - one with an argument that isn't `noundef` in the source. IRLean's values are a value or poison, never `undef`, and
   the emitter refuses `undef` in the IR, but a caller can still pass one. An `undef` argument can be a different value
   at each use, so `and i8 %x, 0` and `xor i8 %x, %x` are equal in the model and differ in LLVM. `noundef` makes passing
@@ -142,9 +140,9 @@ Each one that runs is listed in the verdict's `checks`. The first that fails dec
 7. **`cache`**, if `--cache` is given: see [below](#the-cache).
 8. **`transform_replay`**: `opt` gives both IR files byte for byte.
 9. **`translation_replay`**: ir-lean gives both Lean modules byte for byte, and the same name for the function. It
-   has to translate the function, without memory, on both sides, and its arguments have to be `noundef`. Before this, a target IR with `mustprogress` or
-   `willreturn` is `unsupported`, and the verdict's `uncovered_changes` lists the other functions the run changed and
-   whether anything outside a function changed, none of which the claim covers.
+   has to translate the function, without memory, on both sides, and its arguments have to be `noundef`. Before this,
+   the verdict's `uncovered_changes` lists the other functions the run changed and whether anything outside a function
+   changed, none of which the claim covers.
 10. **`compile_generated`**, **`compile_certificate`**: Lean compiles them in a fresh directory, from source, with only
     `IRLean` on the path besides them. No `.olean` comes from the bundle. The certificate's code runs here, so every
     file and link where Lean finds modules is listed with its hash before and after, and only the certificate's
@@ -204,7 +202,6 @@ Only `bound` is a success. Every verdict, whatever its status, carries `does_not
 | `function_unsupported` | `unsupported` | ir-lean leaves the function out |
 | `memory_unsupported` | `unsupported` | The function uses memory or pointers |
 | `undef_argument` | `unsupported` | An argument isn't `noundef` in the source, so a caller can pass `undef` |
-| `trusted_promise` | `unsupported` | The target IR has `mustprogress` or `willreturn` |
 | `time_limit`, `resource_limit` | `unknown` | A step ran out of time, or Lean or a cgroup ran out of memory, heartbeats or stack |
 | `toolchain_untrusted_link` | `error` | A link in the toolchain or `IRLean`'s library isn't a bare file name naming a sibling that's hashed itself, or an absolute path into the Nix store that stays there. A root that's itself a link, a link to a directory, and `build/ir-lean`, `tests/check_axioms.lean`, `tools/binding_check.lean` or `tools/binding.py` being a link, are refused too |
 | `toolchain_missing`, `tool_failed`, `generated_module_failed`, `checker_error`, `invalid_request`, `internal_error` | `error` | Something here failed |
@@ -218,6 +215,53 @@ everything is replayed.
 
 The cache is local, trusted storage, and an optimization. An entry someone writes with the right key, manifest hash and
 toolchain is believed. A verdict for anyone else has to come from `verify` without `--cache`.
+
+### Hashing
+
+Every `record` and `verify` hashes everything in the manifest's `toolchain` again, and checks `LLVM_PROJECT_SRC`.
+Nothing is kept between runs. As of 2026-11-08, this is how, and why each shortcut is sound:
+
+- **Files** are hashed a piece at a time, with `hashlib.file_digest`, so none is held in memory whole. The Lean
+  toolchain's largest file, `lib/lean/libLean.a`, is 297 MiB. [#52](https://github.com/phongndo/ir-lean/pull/52)
+  measured about 455 MiB for a `verify` that read each file whole. A process doing only the hashing peaked at
+  378 MiB that way, and peaks at 99 MiB now.
+- **Trees**, the Lean toolchain and `IRLean`'s library, are hashed an entry at a time: its path, a NUL, its kind
+  (`file`, `link`, `dir` or `other`) and a NUL, then a file's SHA-256, 32 bytes, or a link's target and a NUL. A
+  path or a link's target can't hold a NUL, and a hash is always 32 bytes, so the bytes read back one way, and two
+  different trees can't give the same ones. Files are hashed on up to 8 threads at once. Before 2026-11-08 a tree
+  was hashed as its paths and its files' bytes between NULs, which two trees could share: a file `a` holding
+  `1`, NUL, `IRLean/b`, NUL, `2` hashed the same as a file `a` holding `1` next to a file `b` holding `2`, and an
+  empty directory the same as an empty file. The pinned toolchain, 18,573 entries and 3.0 GB, hashed in 2.0 s on a
+  32-core machine before, and in 1.0 s now.
+- **`LLVM_PROJECT_SRC`**, 2.3 GB as a NAR, was hashed with `nix hash path`, which took 1.8 to 4.9 s on that machine.
+  When it's a path directly in `/nix/store`, owned by root, and `tools/binding.py` isn't running as root,
+  `nix-store --query --hash` gives the NAR hash Nix recorded when it added the path, in 0.07 s, and that's compared
+  with the pin instead. That's the hash of what's there now because:
+  - Nix hashes every path it adds, whether it built, downloaded or imported it, and refuses one whose hash isn't the
+    one it was given. So what it recorded is the hash of what it added. A trusted Nix user can add and remove paths
+    through the daemon, but each one added is hashed the same way.
+  - When the store is root's, as it is with a daemon, on NixOS, macOS and CI, Nix makes every file in a path
+    root's and read-only, so only root can change it afterward. A certificate's code runs as the user.
+  - The record comes from the daemon, through `unix:///nix/var/nix/daemon-socket/socket`, which has to be a socket
+    root owns in a directory only root can write, with the user's Nix configuration left out
+    (`NIX_USER_CONF_FILES=/dev/null`). The user's configuration, which a certificate's code can write, could
+    otherwise name another store, such as a binary cache whose made-up record says any path has the pinned hash.
+    Plain `nix-store --query --hash` believes such a record.
+
+  Anything else is hashed with `nix hash path`, as before: a store a single-user install made, which the user owns
+  along with Nix's record of it, a directory inside a store path, which the record doesn't describe, anything
+  outside the store, and a daemon socket that isn't a socket root owns in a directory only root can write. On
+  macOS with Determinate Nix the socket's path is a link, so the files are hashed there. Like the rest of this page, it doesn't hold against a process running as root.
+- **Nothing is cached between runs.** The Lean toolchain is in `~/.elan`, which the user, and so a certificate's code,
+  can write. A cache of its hash keyed by what `lstat` says, as `stamp()` compares within a run, would have to be
+  somewhere that code could write too, and an entry it forged would let a changed toolchain through.
+
+`tests/binding.py` checks each of these: a tree's hash changes when a file's bytes change, or a file is added,
+removed, renamed or moved, or a link leads to another file, and the two pairs above hash differently; Nix's base-32
+reads back the pin's hash; a path this user owns isn't looked up; the recorded hash equals `nix hash path`'s, every
+run; a binary cache the user's Nix configuration names, whose record says zlib's source has the pinned hash, isn't
+read; and `LLVM_PROJECT_SRC` set to zlib's source, a root-owned store path, is refused as `llvm_pin_mismatch`, with and
+without that cache.
 
 ### Limits
 
@@ -237,6 +281,7 @@ Everything in [trust](trust.md), and these:
 | IRLean's semantics are LLVM's for this code, and the emitter is faithful | [Trust](trust.md) and `tests/opcheck.py`. An emitter bug the same on both sides cancels out of an equality, so it can hide one | A wrong operation those checks miss |
 | Without memory, the model's undefined behavior is no more than LLVM's, and its other gaps are model stops, which the claim rules out | The known cases of more are about memory ([trust](trust.md#known-gaps-in-the-model)), and memory is unsupported. `undef` is refused by the emitter in the IR, and arguments have to be `noundef` | More undefined behavior in integer code than LLVM has, which would let a source's undefined behavior hide a wrong target |
 | `opt` does the same on a rerun | It's deterministic on one input, and the replay checks it did | Nothing here: a nondeterministic pass is refused, not wrongly bound |
+| Nix's record of a store path's NAR hash is the hash of what's there | Nix hashes every path it adds, and only root can change a path when the store is root's. It's used only then, for `LLVM_PROJECT_SRC`, and the files are hashed otherwise. See [hashing](#hashing) | A process running as root, or a Nix bug recording a hash other than the one it checked |
 | The `opt` binary is built from the pinned source | `LLVM_PROJECT_SRC` has the pinned NAR hash, and the same `llvmPackages` gives both. The derivation came from the binary cache, so it isn't on this machine to inspect | A Nix or binary-cache compromise |
 | `-passes=` and `-mtriple` are all the configuration | They are all `opt` was given | A pass reading another option's default, or the environment |
 | Lean's kernel, elaborator and `leanchecker` | [Trust](trust.md) | A Lean bug |
@@ -281,8 +326,7 @@ source, the first source equals the last target. The contract this needs first, 
 
 **Unsupported today.**
 
-- Functions that use memory or pointers, arguments that aren't `noundef`, and target IR with `mustprogress` or
-  `willreturn`.
+- Functions that use memory or pointers, and arguments that aren't `noundef`.
 - Rewrites whose source can stop the model, such as on a frozen poison. `ir_instance_refinement` says a model stop in
   the source allows nothing, so these can't be bound either, until `freeze` has a semantics that chooses (SEM-03).
 - Any `opt` option but `-passes=` and `-mtriple`.
@@ -320,7 +364,8 @@ each case breaks one thing and has to get the status and reason given:
 | What the model can't judge | A function reading memory | `unsupported`, `memory_unsupported` |
 | | A function ir-lean refuses, on floating point | `unsupported`, `function_unsupported` |
 | | An argument without `noundef`, and one named `%noundef` without it | `unsupported`, `undef_argument` |
-| | A target marked `willreturn` | `unsupported`, `trusted_promise` |
+| What the model checks | `loop-deletion` deleting a loop under `mustprogress`, with a refinement certificate that rests on the promise | `bound` |
+| | A function making no promise in a module whose intrinsic declaration carries `willreturn`, which this tool refused before SEM-07 | `bound` |
 | Limits | A certificate that sleeps past `--timeout 20`, and nothing of it left running | `unknown`, `time_limit` |
 | | A certificate that allocates past `--memory 1500` | `unknown`, `resource_limit` |
 | Uncovered changes | A run that also changes another function | `bound` about `f`, with `g` in `uncovered_changes` |
@@ -330,19 +375,20 @@ each case breaks one thing and has to get the status and reason given:
 | | An extra field, a path outside the bundle | `refused`, `manifest_invalid` |
 | Changed configuration | Another pass spec | `refused`, `transform_replay_mismatch` |
 | | Another `-mtriple`, another data layout | `refused`, `config_mismatch` |
-| | Another llvm-project commit, another source tree | `refused`, `llvm_pin_mismatch` |
+| | Another llvm-project commit, another source tree, and another path in the Nix store, with or without a binary cache the user's Nix configuration names saying it's the pinned one | `refused`, `llvm_pin_mismatch` |
 | | Another ir-lean or checker | `refused`, `toolchain_mismatch` |
 | Stale cache | A second run of the good bundle | `bound`, cache `hit` |
 | | A certificate changed with its hash updated | Replayed and `refused`, cache `miss` |
 | | An entry for another manifest, or another toolchain, at the key | Replayed and `refused`, cache `stale_ignored` |
 | | A changed file, with a `bound` entry in the cache | `refused` before the cache is read |
 
-58 cases took 298 s, one process at a time. Eight of them check the hash on small trees, without Lean: a library
-hashes the same in another place, and a link out of it, a library that's a link, a link to a directory, a link out and
-back in, a `..` through a link to somewhere else, and a checker that's a link to a writable file are errors, while
-plain files, and this checkout's own, are accepted. `memory_limit` also comes back `unknown` without a systemd scope, from
-Lean's `-M` alone, which was checked by hand. `ctest` runs it as `binding`, alone, with a 30-minute limit, and CI runs
-it on every pull request. See [testing](testing.md).
+There are 66 cases. 64 of them, all but the two with a forged binary cache, took 191 s on a 32-core machine on
+2026-11-08, one process at a time. Thirteen of them check hashing without Lean: a library hashes the same in another
+place, and a link out of it, a library that's a link, a link to a directory, a link out and back in, a `..` through a
+link to somewhere else, and a checker that's a link to a writable file are errors, while plain files, and this
+checkout's own, are accepted. The other five are in [hashing](#hashing). `memory_limit` also comes back `unknown`
+without a systemd scope, from Lean's `-M` alone, which was checked by hand. `ctest` runs it as `binding`, alone, with a
+30-minute limit, and CI runs it on every pull request. See [testing](testing.md).
 
 No test reaches `function_not_found`, `function_not_generated`, `signature_mismatch`, `module_shadowed`, which the
 directory listing stops first, or the `error` reasons.

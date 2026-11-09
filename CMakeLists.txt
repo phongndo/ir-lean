@@ -16,7 +16,7 @@ target_include_directories(ir-lean SYSTEM PRIVATE ${LLVM_INCLUDE_DIRS})
 separate_arguments(LLVM_DEFINITIONS_LIST NATIVE_COMMAND ${LLVM_DEFINITIONS})
 target_compile_definitions(ir-lean PRIVATE ${LLVM_DEFINITIONS_LIST})
 target_compile_options(ir-lean PRIVATE -Wall -Wextra -fno-rtti)
-llvm_config(ir-lean USE_SHARED core irreader support)
+llvm_config(ir-lean USE_SHARED analysis core irreader support)
 
 # Tests need the Lean library: run `lake build` first.
 enable_testing()
@@ -121,6 +121,19 @@ add_test(NAME names COMMAND ${CMAKE_SOURCE_DIR}/tests/names.sh)
 add_test(NAME undef_freeze COMMAND ${CMAKE_SOURCE_DIR}/tests/undef_freeze.sh)
 set_tests_properties(undef_freeze PROPERTIES TIMEOUT 900)
 add_test(NAME verify COMMAND ${CMAKE_SOURCE_DIR}/tests/verify.py $<TARGET_FILE:ir-lean>)
+# Tier-1 proof tests: the contract in Python, then tools/prooftest/prooftest.py on
+# tests/prooftest/Cases.ll, at most four cases at a time, each with at most one Lean process running.
+add_test(NAME prooftest COMMAND ${CMAKE_SOURCE_DIR}/tests/prooftest_test.py $<TARGET_FILE:ir-lean>)
+set_tests_properties(prooftest PROPERTIES TIMEOUT 600)
+# Milestone T1: tier 1 on the 16 bugs tests/proofs.sh injects and the negative corpus. Each one it can run
+# refuted, each one it can't unknown, at a median under 100 ms. Two cases at a time.
+add_test(
+    NAME prooftest_t1
+    COMMAND
+        ${CMAKE_SOURCE_DIR}/tools/prooftest/bench.py --tool $<TARGET_FILE:ir-lean> --sets proofs_sh,negative
+        --check-t1 --workers 2 --out ${CMAKE_BINARY_DIR}/prooftest-t1
+)
+set_tests_properties(prooftest_t1 PROPERTIES TIMEOUT 900)
 # What counts as a certificate: the gate on stored and broken results, in Python, and then a corpus of
 # wrong and right rewrites through tools/verify.py, one Lean process at a time.
 add_test(NAME verify_negative_static COMMAND ${CMAKE_SOURCE_DIR}/tests/verify_negative.py --tier static)
@@ -142,10 +155,13 @@ set_tests_properties(replay_challenge_static replay_challenge_alive PROPERTIES T
 set_tests_properties(replay_challenge PROPERTIES RUN_SERIAL TRUE TIMEOUT 1800)
 # A certificate bound to its IR, the opt run and the toolchain, and refused when any of them doesn't
 # match: one instcombine rewrite, and the cases of mismatched evidence, one capped Lean process at a time.
-add_test(NAME binding COMMAND ${CMAKE_SOURCE_DIR}/tests/binding.py)
+# In two halves, each case in one by a hash of its name, so CI runs them in two jobs.
+add_test(NAME binding COMMAND ${CMAKE_SOURCE_DIR}/tests/binding.py --shard 1/2)
+add_test(NAME binding_2 COMMAND ${CMAKE_SOURCE_DIR}/tests/binding.py --shard 2/2)
 # Alone, since each of its Lean processes takes up to 3.5 GB. It hashes the Lean toolchain on every check,
-# so it gets more time than it takes on a fast disk, about 5 minutes.
-set_tests_properties(binding PROPERTIES RUN_SERIAL TRUE TIMEOUT 1800)
+# so it gets more time than it takes: about 3 minutes on 32 cores for both halves, and 10 on CI's 4 cores
+# before that hashing got faster.
+set_tests_properties(binding binding_2 PROPERTIES RUN_SERIAL TRUE TIMEOUT 1800)
 # The scorer, on two small tests rather than llvm-project: an instance counts only when tools/binding.py
 # binds its bundle in the same run. The rules in Python first, then the scorer itself, alone, since it runs
 # tools/binding.py, one capped Lean process at a time.
@@ -168,6 +184,11 @@ set_tests_properties(cpp_correspondence PROPERTIES TIMEOUT 900)
 # one Lean process at a time, each capped at 2 GB and 300 s by the script itself.
 add_test(NAME generic_rewrites COMMAND ${CMAKE_SOURCE_DIR}/tests/generic_rewrites.sh)
 set_tests_properties(generic_rewrites PROPERTIES TIMEOUT 900)
+# The lemma store, docs/lemma-store.md: every stored lemma against the bar, lookup under restatements, a bad
+# lemma of each kind refused, and a proof from the store against one without it. It reads what `lake build`
+# built, and runs its Lean processes two at a time, each capped at 4 GB.
+add_test(NAME store COMMAND ${CMAKE_SOURCE_DIR}/tests/store_test.py $<TARGET_FILE:ir-lean>)
+set_tests_properties(store PROPERTIES TIMEOUT 1200)
 add_test(
     NAME zlib
     COMMAND
@@ -192,10 +213,18 @@ add_test(
         --strict --runs 400
 )
 add_test(NAME x86check COMMAND ${CMAKE_SOURCE_DIR}/tests/x86check.py $<TARGET_FILE:ir-lean>)
-add_test(NAME llama COMMAND ${CMAKE_SOURCE_DIR}/tests/llama.py $<TARGET_FILE:ir-lean>)
-set_tests_properties(x86 llama PROPERTIES SKIP_RETURN_CODE 77)
-set_tests_properties(x86 x86check llama PROPERTIES TIMEOUT 1800)
+# Refuting the three wrong rewrites takes about as long as everything else, so it's a test of its own, labeled
+# for a CI job of its own. `llama` refutes the change to the mask.
+add_test(NAME llama COMMAND ${CMAKE_SOURCE_DIR}/tests/llama.py $<TARGET_FILE:ir-lean> --mutants mask)
+add_test(
+    NAME llama_mutants
+    COMMAND
+        ${CMAKE_SOURCE_DIR}/tests/llama.py $<TARGET_FILE:ir-lean> --mutants signs,seven,scale --no-theorems
+)
+set_tests_properties(x86 llama llama_mutants PROPERTIES SKIP_RETURN_CODE 77)
+set_tests_properties(x86 x86check llama llama_mutants PROPERTIES TIMEOUT 1800)
 set_tests_properties(llama PROPERTIES LABELS llama)
+set_tests_properties(llama_mutants PROPERTIES LABELS llama_mutants)
 # llama.cpp's Q5 rewrite: the exact bit-unpacking slice and its proof, the matcher, the logit comparison and
 # the retained timings. None needs a model or llama.cpp's source, so they run in the default shell.
 add_test(NAME llama_bitspread COMMAND ${CMAKE_SOURCE_DIR}/tests/llama-bitspread.sh $<TARGET_FILE:ir-lean>)
@@ -215,22 +244,30 @@ set_tests_properties(
     verify
     PROPERTIES TIMEOUT 1800
 )
+# .github/needs-tests.py, which lets a pull request that only adds or edits documents no test reads skip CI's
+# test jobs: in a scratch git repo, and against the documents tests here read. About a second, and only git.
+add_test(NAME needs_tests COMMAND ${CMAKE_SOURCE_DIR}/tests/needs_tests_test.py ${CMAKE_BINARY_DIR})
 set_tests_properties(zlib_slow PROPERTIES LABELS slow)
 # CI's test jobs: the longest tests apart, so they don't wait for each other. Each job is named after its
 # label and runs the tests with it, and a test with none of these runs in the job for the rest. See
 # docs/testing.md.
 set_tests_properties(passes PROPERTIES LABELS passes)
-set_tests_properties(binding PROPERTIES LABELS binding)
+# stage1 binds two certificates with tools/binding.py, and runs alone, so it goes with binding's first half.
+set_tests_properties(binding stage1 PROPERTIES LABELS binding)
+set_tests_properties(binding_2 PROPERTIES LABELS binding_2)
+# verify_negative runs alone, after proofs, in the same job, so semantics has only one test that runs alone.
+set_tests_properties(proofs verify_negative PROPERTIES LABELS proofs)
 set_tests_properties(llvm PROPERTIES LABELS llvm)
 set_tests_properties(
-    verify_negative
     replay_challenge
     contracts
     refine
     undef_freeze
     generic_rewrites
     cpp_correspondence
-    stage1
+    store
+    prooftest
+    prooftest_t1
     PROPERTIES LABELS semantics
 )
 # These compile the same modules, and the second finds them in the cache.

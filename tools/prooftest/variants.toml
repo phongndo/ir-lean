@@ -1,0 +1,1169 @@
+# More bugs in each compiler-rt builtin tests/llvm/targets.toml proves, for
+# tools/prooftest/bench.py. Made by `tools/prooftest/bench.py --generate-variants
+# --per-target 3 --seed 0`: every simple operator change in the builtin's body
+# (relational, logical, bitwise, arithmetic, shift, compound assignment, and a constant one more
+# or one less), each compiled as tests/llvm.py compiles the builtin. Of those that change the IR,
+# each to IR no other one gives, it picks this many at random, with the seed. `candidates` is how
+# many there were. Some may be equivalent: bench.py's --check-equivalent says which, with the
+# builtin's proof.
+
+[[variant]]
+module = "CrtAshldi3"
+function = "__ashldi3"
+name = "relational `==` to `!=` at ashldi3.c:28:11"
+file = "compiler-rt/lib/builtins/ashldi3.c"
+from = "    if (b == 0)"
+to = "    if (b != 0)"
+candidates = 11
+
+[[variant]]
+module = "CrtAshldi3"
+function = "__ashldi3"
+name = "shift `<<` to `>>` at ashldi3.c:32:31"
+file = "compiler-rt/lib/builtins/ashldi3.c"
+from = "        ((su_int)input.s.high << b) | (input.s.low >> (bits_in_word - b));"
+to = "        ((su_int)input.s.high >> b) | (input.s.low >> (bits_in_word - b));"
+candidates = 11
+
+[[variant]]
+module = "CrtAshldi3"
+function = "__ashldi3"
+name = "arithmetic `-` to `+` at ashldi3.c:32:69"
+file = "compiler-rt/lib/builtins/ashldi3.c"
+from = "        ((su_int)input.s.high << b) | (input.s.low >> (bits_in_word - b));"
+to = "        ((su_int)input.s.high << b) | (input.s.low >> (bits_in_word + b));"
+candidates = 11
+
+[[variant]]
+module = "CrtAshlti3"
+function = "__ashlti3"
+name = "relational `==` to `!=` at ashlti3.c:30:11"
+file = "compiler-rt/lib/builtins/ashlti3.c"
+from = "    if (b == 0)"
+to = "    if (b != 0)"
+candidates = 11
+
+[[variant]]
+module = "CrtAshlti3"
+function = "__ashlti3"
+name = "shift `<<` to `>>` at ashlti3.c:34:31"
+file = "compiler-rt/lib/builtins/ashlti3.c"
+from = "        ((du_int)input.s.high << b) | (input.s.low >> (bits_in_dword - b));"
+to = "        ((du_int)input.s.high >> b) | (input.s.low >> (bits_in_dword - b));"
+candidates = 11
+
+[[variant]]
+module = "CrtAshlti3"
+function = "__ashlti3"
+name = "arithmetic `-` to `+` at ashlti3.c:34:70"
+file = "compiler-rt/lib/builtins/ashlti3.c"
+from = "        ((du_int)input.s.high << b) | (input.s.low >> (bits_in_dword - b));"
+to = "        ((du_int)input.s.high << b) | (input.s.low >> (bits_in_dword + b));"
+candidates = 11
+
+[[variant]]
+module = "CrtLshrdi3"
+function = "__lshrdi3"
+name = "shift `>>` to `<<` at lshrdi3.c:30:34"
+file = "compiler-rt/lib/builtins/lshrdi3.c"
+from = "    result.s.high = input.s.high >> b;"
+to = "    result.s.high = input.s.high << b;"
+candidates = 10
+
+[[variant]]
+module = "CrtLshrdi3"
+function = "__lshrdi3"
+name = "shift `<<` to `>>` at lshrdi3.c:31:34"
+file = "compiler-rt/lib/builtins/lshrdi3.c"
+from = "    result.s.low = (input.s.high << (bits_in_word - b)) | (input.s.low >> b);"
+to = "    result.s.low = (input.s.high >> (bits_in_word - b)) | (input.s.low >> b);"
+candidates = 10
+
+[[variant]]
+module = "CrtLshrdi3"
+function = "__lshrdi3"
+name = "shift `>>` to `<<` at lshrdi3.c:31:72"
+file = "compiler-rt/lib/builtins/lshrdi3.c"
+from = "    result.s.low = (input.s.high << (bits_in_word - b)) | (input.s.low >> b);"
+to = "    result.s.low = (input.s.high << (bits_in_word - b)) | (input.s.low << b);"
+candidates = 10
+
+[[variant]]
+module = "CrtLshrti3"
+function = "__lshrti3"
+name = "arithmetic `-` to `+` at lshrti3.c:28:39"
+file = "compiler-rt/lib/builtins/lshrti3.c"
+from = "    result.s.low = input.s.high >> (b - bits_in_dword);"
+to = "    result.s.low = input.s.high >> (b + bits_in_dword);"
+candidates = 11
+
+[[variant]]
+module = "CrtLshrti3"
+function = "__lshrti3"
+name = "constant `0` to `1` at lshrti3.c:30:14"
+file = "compiler-rt/lib/builtins/lshrti3.c"
+from = "    if (b == 0)"
+to = "    if (b == 1)"
+candidates = 11
+
+[[variant]]
+module = "CrtLshrti3"
+function = "__lshrti3"
+name = "shift `>>` to `<<` at lshrti3.c:32:34"
+file = "compiler-rt/lib/builtins/lshrti3.c"
+from = "    result.s.high = input.s.high >> b;"
+to = "    result.s.high = input.s.high << b;"
+candidates = 11
+
+[[variant]]
+module = "CrtAshrdi3"
+function = "__ashrdi3"
+name = "arithmetic `-` to `+` at ashrdi3.c:26:51"
+file = "compiler-rt/lib/builtins/ashrdi3.c"
+from = "    result.s.high = input.s.high >> (bits_in_word - 1);"
+to = "    result.s.high = input.s.high >> (bits_in_word + 1);"
+candidates = 13
+
+[[variant]]
+module = "CrtAshrdi3"
+function = "__ashrdi3"
+name = "arithmetic `-` to `+` at ashrdi3.c:27:39"
+file = "compiler-rt/lib/builtins/ashrdi3.c"
+from = "    result.s.low = input.s.high >> (b - bits_in_word);"
+to = "    result.s.low = input.s.high >> (b + bits_in_word);"
+candidates = 13
+
+[[variant]]
+module = "CrtAshrdi3"
+function = "__ashrdi3"
+name = "shift `>>` to `<<` at ashrdi3.c:33:69"
+file = "compiler-rt/lib/builtins/ashrdi3.c"
+from = "        ((su_int)input.s.high << (bits_in_word - b)) | (input.s.low >> b);"
+to = "        ((su_int)input.s.high << (bits_in_word - b)) | (input.s.low << b);"
+candidates = 13
+
+[[variant]]
+module = "CrtAshrti3"
+function = "__ashrti3"
+name = "shift `>>` to `<<` at ashrti3.c:28:34"
+file = "compiler-rt/lib/builtins/ashrti3.c"
+from = "    result.s.high = input.s.high >> (bits_in_dword - 1);"
+to = "    result.s.high = input.s.high << (bits_in_dword - 1);"
+candidates = 13
+
+[[variant]]
+module = "CrtAshrti3"
+function = "__ashrti3"
+name = "arithmetic `-` to `+` at ashrti3.c:28:52"
+file = "compiler-rt/lib/builtins/ashrti3.c"
+from = "    result.s.high = input.s.high >> (bits_in_dword - 1);"
+to = "    result.s.high = input.s.high >> (bits_in_dword + 1);"
+candidates = 13
+
+[[variant]]
+module = "CrtAshrti3"
+function = "__ashrti3"
+name = "shift `>>` to `<<` at ashrti3.c:29:33"
+file = "compiler-rt/lib/builtins/ashrti3.c"
+from = "    result.s.low = input.s.high >> (b - bits_in_dword);"
+to = "    result.s.low = input.s.high << (b - bits_in_dword);"
+candidates = 13
+
+[[variant]]
+module = "CrtBswapsi2"
+function = "__bswapsi2"
+name = "constant `0xff000000` to `4278190079` at bswapsi2.c:16:17"
+file = "compiler-rt/lib/builtins/bswapsi2.c"
+from = "  return ((((u)&0xff000000) >> 24) |"
+to = "  return ((((u)&4278190079) >> 24) |"
+candidates = 18
+
+[[variant]]
+module = "CrtBswapsi2"
+function = "__bswapsi2"
+name = "constant `8` to `9` at bswapsi2.c:18:32"
+file = "compiler-rt/lib/builtins/bswapsi2.c"
+from = "          (((u)&0x0000ff00) << 8)  |"
+to = "          (((u)&0x0000ff00) << 9)  |"
+candidates = 18
+
+[[variant]]
+module = "CrtBswapsi2"
+function = "__bswapsi2"
+name = "constant `24` to `23` at bswapsi2.c:19:32"
+file = "compiler-rt/lib/builtins/bswapsi2.c"
+from = "          (((u)&0x000000ff) << 24));"
+to = "          (((u)&0x000000ff) << 23));"
+candidates = 18
+
+[[variant]]
+module = "CrtBswapdi2"
+function = "__bswapdi2"
+name = "constant `8` to `9` at bswapdi2.c:20:39"
+file = "compiler-rt/lib/builtins/bswapdi2.c"
+from = "      (((u)&0x000000ff00000000ULL) >> 8)  |"
+to = "      (((u)&0x000000ff00000000ULL) >> 9)  |"
+candidates = 35
+
+[[variant]]
+module = "CrtBswapdi2"
+function = "__bswapdi2"
+name = "constant `0x00000000ff000000` to `4278190079` at bswapdi2.c:21:13"
+file = "compiler-rt/lib/builtins/bswapdi2.c"
+from = "      (((u)&0x00000000ff000000ULL) << 8)  |"
+to = "      (((u)&4278190079ULL) << 8)  |"
+candidates = 35
+
+[[variant]]
+module = "CrtBswapdi2"
+function = "__bswapdi2"
+name = "constant `0x00000000000000ff` to `256` at bswapdi2.c:24:13"
+file = "compiler-rt/lib/builtins/bswapdi2.c"
+from = "      (((u)&0x00000000000000ffULL) << 56));"
+to = "      (((u)&256ULL) << 56));"
+candidates = 35
+
+[[variant]]
+module = "CrtClzsi2"
+function = "__clzsi2"
+name = "constant `16` to `15` at clzsi2.c:22:9"
+file = "compiler-rt/lib/builtins/clzsi2.c"
+from = "  x >>= 16 - t;                            // x = [0 - 0xFFFF]"
+to = "  x >>= 15 - t;                            // x = [0 - 0xFFFF]"
+candidates = 57
+
+[[variant]]
+module = "CrtClzsi2"
+function = "__clzsi2"
+name = "relational `==` to `!=` at clzsi2.c:25:21"
+file = "compiler-rt/lib/builtins/clzsi2.c"
+from = "  t = ((x & 0xFF00) == 0) << 3;"
+to = "  t = ((x & 0xFF00) != 0) << 3;"
+candidates = 57
+
+[[variant]]
+module = "CrtClzsi2"
+function = "__clzsi2"
+name = "relational `==` to `!=` at clzsi2.c:33:18"
+file = "compiler-rt/lib/builtins/clzsi2.c"
+from = "  t = ((x & 0xC) == 0) << 1;"
+to = "  t = ((x & 0xC) != 0) << 1;"
+candidates = 57
+
+[[variant]]
+module = "CrtClzdi2"
+function = "__clzdi2"
+name = "bitwise `&` to `|` at clzdi2.c:33:26"
+file = "compiler-rt/lib/builtins/clzdi2.c"
+from = "  return clzsi((x.s.high & ~f) | (x.s.low & f)) +"
+to = "  return clzsi((x.s.high | ~f) | (x.s.low & f)) +"
+candidates = 7
+
+[[variant]]
+module = "CrtClzdi2"
+function = "__clzdi2"
+name = "bitwise `~` to `` at clzdi2.c:33:28"
+file = "compiler-rt/lib/builtins/clzdi2.c"
+from = "  return clzsi((x.s.high & ~f) | (x.s.low & f)) +"
+to = "  return clzsi((x.s.high & f) | (x.s.low & f)) +"
+candidates = 7
+
+[[variant]]
+module = "CrtClzdi2"
+function = "__clzdi2"
+name = "bitwise `&` to `|` at clzdi2.c:33:43"
+file = "compiler-rt/lib/builtins/clzdi2.c"
+from = "  return clzsi((x.s.high & ~f) | (x.s.low & f)) +"
+to = "  return clzsi((x.s.high & ~f) | (x.s.low | f)) +"
+candidates = 7
+
+[[variant]]
+module = "CrtClzti2"
+function = "__clzti2"
+name = "constant `0` to `1` at clzti2.c:24:34"
+file = "compiler-rt/lib/builtins/clzti2.c"
+from = "  const di_int f = -(x.s.high == 0);"
+to = "  const di_int f = -(x.s.high == 1);"
+candidates = 7
+
+[[variant]]
+module = "CrtClzti2"
+function = "__clzti2"
+name = "bitwise `&` to `|` at clzti2.c:25:36"
+file = "compiler-rt/lib/builtins/clzti2.c"
+from = "  return __builtin_clzll((x.s.high & ~f) | (x.s.low & f)) +"
+to = "  return __builtin_clzll((x.s.high | ~f) | (x.s.low & f)) +"
+candidates = 7
+
+[[variant]]
+module = "CrtClzti2"
+function = "__clzti2"
+name = "bitwise `&` to `|` at clzti2.c:25:53"
+file = "compiler-rt/lib/builtins/clzti2.c"
+from = "  return __builtin_clzll((x.s.high & ~f) | (x.s.low & f)) +"
+to = "  return __builtin_clzll((x.s.high & ~f) | (x.s.low | f)) +"
+candidates = 7
+
+[[variant]]
+module = "CrtCtzsi2"
+function = "__ctzsi2"
+name = "constant `0` to `1` at ctzsi2.c:21:35"
+file = "compiler-rt/lib/builtins/ctzsi2.c"
+from = "  si_int t = ((x & 0x0000FFFF) == 0)"
+to = "  si_int t = ((x & 0x0000FFFF) == 1)"
+candidates = 52
+
+[[variant]]
+module = "CrtCtzsi2"
+function = "__ctzsi2"
+name = "constant `0x00FF` to `256` at ctzsi2.c:26:13"
+file = "compiler-rt/lib/builtins/ctzsi2.c"
+from = "  t = ((x & 0x00FF) == 0) << 3;"
+to = "  t = ((x & 256) == 0) << 3;"
+candidates = 52
+
+[[variant]]
+module = "CrtCtzsi2"
+function = "__ctzsi2"
+name = "constant `1` to `0` at ctzsi2.c:34:27"
+file = "compiler-rt/lib/builtins/ctzsi2.c"
+from = "  t = ((x & 0x3) == 0) << 1;"
+to = "  t = ((x & 0x3) == 0) << 0;"
+candidates = 52
+
+[[variant]]
+module = "CrtCtzdi2"
+function = "__ctzdi2"
+name = "relational `==` to `!=` at ctzdi2.c:32:30"
+file = "compiler-rt/lib/builtins/ctzdi2.c"
+from = "  const si_int f = -(x.s.low == 0);"
+to = "  const si_int f = -(x.s.low != 0);"
+candidates = 7
+
+[[variant]]
+module = "CrtCtzdi2"
+function = "__ctzdi2"
+name = "bitwise `|` to `&` at ctzdi2.c:33:31"
+file = "compiler-rt/lib/builtins/ctzdi2.c"
+from = "  return ctzsi((x.s.high & f) | (x.s.low & ~f)) +"
+to = "  return ctzsi((x.s.high & f) & (x.s.low & ~f)) +"
+candidates = 7
+
+[[variant]]
+module = "CrtCtzdi2"
+function = "__ctzdi2"
+name = "bitwise `~` to `` at ctzdi2.c:33:44"
+file = "compiler-rt/lib/builtins/ctzdi2.c"
+from = "  return ctzsi((x.s.high & f) | (x.s.low & ~f)) +"
+to = "  return ctzsi((x.s.high & f) | (x.s.low & f)) +"
+candidates = 7
+
+[[variant]]
+module = "CrtCtzti2"
+function = "__ctzti2"
+name = "constant `0` to `1` at ctzti2.c:24:33"
+file = "compiler-rt/lib/builtins/ctzti2.c"
+from = "  const di_int f = -(x.s.low == 0);"
+to = "  const di_int f = -(x.s.low == 1);"
+candidates = 7
+
+[[variant]]
+module = "CrtCtzti2"
+function = "__ctzti2"
+name = "bitwise `&` to `|` at ctzti2.c:25:36"
+file = "compiler-rt/lib/builtins/ctzti2.c"
+from = "  return __builtin_ctzll((x.s.high & f) | (x.s.low & ~f)) +"
+to = "  return __builtin_ctzll((x.s.high | f) | (x.s.low & ~f)) +"
+candidates = 7
+
+[[variant]]
+module = "CrtCtzti2"
+function = "__ctzti2"
+name = "bitwise `&` to `|` at ctzti2.c:26:21"
+file = "compiler-rt/lib/builtins/ctzti2.c"
+from = "         ((si_int)f & ((si_int)(sizeof(di_int) * CHAR_BIT)));"
+to = "         ((si_int)f | ((si_int)(sizeof(di_int) * CHAR_BIT)));"
+candidates = 7
+
+[[variant]]
+module = "CrtFfssi2"
+function = "__ffssi2"
+name = "constant `0` to `1` at ffssi2.c:19:12"
+file = "compiler-rt/lib/builtins/ffssi2.c"
+from = "  if (a == 0) {"
+to = "  if (a == 1) {"
+candidates = 6
+
+[[variant]]
+module = "CrtFfssi2"
+function = "__ffssi2"
+name = "constant `0` to `1` at ffssi2.c:20:12"
+file = "compiler-rt/lib/builtins/ffssi2.c"
+from = "    return 0;"
+to = "    return 1;"
+candidates = 6
+
+[[variant]]
+module = "CrtFfssi2"
+function = "__ffssi2"
+name = "constant `1` to `0` at ffssi2.c:22:21"
+file = "compiler-rt/lib/builtins/ffssi2.c"
+from = "  return ctzsi(a) + 1;"
+to = "  return ctzsi(a) + 0;"
+candidates = 6
+
+[[variant]]
+module = "CrtFfsdi2"
+function = "__ffsdi2"
+name = "relational `==` to `!=` at ffsdi2.c:21:15"
+file = "compiler-rt/lib/builtins/ffsdi2.c"
+from = "  if (x.s.low == 0) {"
+to = "  if (x.s.low != 0) {"
+candidates = 12
+
+[[variant]]
+module = "CrtFfsdi2"
+function = "__ffsdi2"
+name = "constant `0` to `1` at ffsdi2.c:23:14"
+file = "compiler-rt/lib/builtins/ffsdi2.c"
+from = "      return 0;"
+to = "      return 1;"
+candidates = 12
+
+[[variant]]
+module = "CrtFfsdi2"
+function = "__ffsdi2"
+name = "arithmetic `+` to `-` at ffsdi2.c:26:25"
+file = "compiler-rt/lib/builtins/ffsdi2.c"
+from = "  return ctzsi(x.s.low) + 1;"
+to = "  return ctzsi(x.s.low) - 1;"
+candidates = 12
+
+[[variant]]
+module = "CrtFfsti2"
+function = "__ffsti2"
+name = "constant `0` to `1` at ffsti2.c:25:14"
+file = "compiler-rt/lib/builtins/ffsti2.c"
+from = "      return 0;"
+to = "      return 1;"
+candidates = 12
+
+[[variant]]
+module = "CrtFfsti2"
+function = "__ffsti2"
+name = "arithmetic `+` to `-` at ffsti2.c:26:43"
+file = "compiler-rt/lib/builtins/ffsti2.c"
+from = "    return __builtin_ctzll(x.s.high) + (1 + sizeof(di_int) * CHAR_BIT);"
+to = "    return __builtin_ctzll(x.s.high) + (1 - sizeof(di_int) * CHAR_BIT);"
+candidates = 12
+
+[[variant]]
+module = "CrtFfsti2"
+function = "__ffsti2"
+name = "arithmetic `+` to `-` at ffsti2.c:28:35"
+file = "compiler-rt/lib/builtins/ffsti2.c"
+from = "  return __builtin_ctzll(x.s.low) + 1;"
+to = "  return __builtin_ctzll(x.s.low) - 1;"
+candidates = 12
+
+[[variant]]
+module = "CrtParitysi2"
+function = "__paritysi2"
+name = "shift `>>` to `<<` at paritysi2.c:19:10"
+file = "compiler-rt/lib/builtins/paritysi2.c"
+from = "  x ^= x >> 16;"
+to = "  x ^= x << 16;"
+candidates = 19
+
+[[variant]]
+module = "CrtParitysi2"
+function = "__paritysi2"
+name = "constant `0x6996` to `27029` at paritysi2.c:22:11"
+file = "compiler-rt/lib/builtins/paritysi2.c"
+from = "  return (0x6996 >> (x & 0xF)) & 1;"
+to = "  return (27029 >> (x & 0xF)) & 1;"
+candidates = 19
+
+[[variant]]
+module = "CrtParitysi2"
+function = "__paritysi2"
+name = "bitwise `&` to `|` at paritysi2.c:22:32"
+file = "compiler-rt/lib/builtins/paritysi2.c"
+from = "  return (0x6996 >> (x & 0xF)) & 1;"
+to = "  return (0x6996 >> (x & 0xF)) | 1;"
+candidates = 19
+
+[[variant]]
+module = "CrtParitydi2"
+function = "__paritydi2"
+name = "assignment `^=` to `|=` at paritydi2.c:22:6"
+file = "compiler-rt/lib/builtins/paritydi2.c"
+from = "  x2 ^= x2 >> 8;"
+to = "  x2 |= x2 >> 8;"
+candidates = 20
+
+[[variant]]
+module = "CrtParitydi2"
+function = "__paritydi2"
+name = "shift `>>` to `<<` at paritydi2.c:23:12"
+file = "compiler-rt/lib/builtins/paritydi2.c"
+from = "  x2 ^= x2 >> 4;"
+to = "  x2 ^= x2 << 4;"
+candidates = 20
+
+[[variant]]
+module = "CrtParitydi2"
+function = "__paritydi2"
+name = "constant `0x6996` to `27029` at paritydi2.c:24:11"
+file = "compiler-rt/lib/builtins/paritydi2.c"
+from = "  return (0x6996 >> (x2 & 0xF)) & 1;"
+to = "  return (27029 >> (x2 & 0xF)) & 1;"
+candidates = 20
+
+[[variant]]
+module = "CrtParityti2"
+function = "__parityti2"
+name = "constant `8` to `7` at parityti2.c:26:15"
+file = "compiler-rt/lib/builtins/parityti2.c"
+from = "  x3 ^= x3 >> 8;"
+to = "  x3 ^= x3 >> 7;"
+candidates = 21
+
+[[variant]]
+module = "CrtParityti2"
+function = "__parityti2"
+name = "shift `>>` to `<<` at parityti2.c:28:18"
+file = "compiler-rt/lib/builtins/parityti2.c"
+from = "  return (0x6996 >> (x3 & 0xF)) & 1;"
+to = "  return (0x6996 << (x3 & 0xF)) & 1;"
+candidates = 21
+
+[[variant]]
+module = "CrtParityti2"
+function = "__parityti2"
+name = "constant `1` to `2` at parityti2.c:28:35"
+file = "compiler-rt/lib/builtins/parityti2.c"
+from = "  return (0x6996 >> (x3 & 0xF)) & 1;"
+to = "  return (0x6996 >> (x3 & 0xF)) & 2;"
+candidates = 21
+
+[[variant]]
+module = "CrtPopcountsi2"
+function = "__popcountsi2"
+name = "bitwise `&` to `|` at popcountsi2.c:19:21"
+file = "compiler-rt/lib/builtins/popcountsi2.c"
+from = "  x = x - ((x >> 1) & 0x55555555);"
+to = "  x = x - ((x >> 1) | 0x55555555);"
+candidates = 35
+
+[[variant]]
+module = "CrtPopcountsi2"
+function = "__popcountsi2"
+name = "bitwise `&` to `|` at popcountsi2.c:23:22"
+file = "compiler-rt/lib/builtins/popcountsi2.c"
+from = "  x = (x + (x >> 4)) & 0x0F0F0F0F;"
+to = "  x = (x + (x >> 4)) | 0x0F0F0F0F;"
+candidates = 35
+
+[[variant]]
+module = "CrtPopcountsi2"
+function = "__popcountsi2"
+name = "constant `0x0F0F0F0F` to `252645134` at popcountsi2.c:23:24"
+file = "compiler-rt/lib/builtins/popcountsi2.c"
+from = "  x = (x + (x >> 4)) & 0x0F0F0F0F;"
+to = "  x = (x + (x >> 4)) & 252645134;"
+candidates = 35
+
+[[variant]]
+module = "CrtPopcountdi2"
+function = "__popcountdi2"
+name = "bitwise `&` to `|` at popcountdi2.c:19:24"
+file = "compiler-rt/lib/builtins/popcountdi2.c"
+from = "  x2 = x2 - ((x2 >> 1) & 0x5555555555555555uLL);"
+to = "  x2 = x2 - ((x2 >> 1) | 0x5555555555555555uLL);"
+candidates = 39
+
+[[variant]]
+module = "CrtPopcountdi2"
+function = "__popcountdi2"
+name = "shift `>>` to `<<` at popcountdi2.c:23:18"
+file = "compiler-rt/lib/builtins/popcountdi2.c"
+from = "  x2 = (x2 + (x2 >> 4)) & 0x0F0F0F0F0F0F0F0FuLL;"
+to = "  x2 = (x2 + (x2 << 4)) & 0x0F0F0F0F0F0F0F0FuLL;"
+candidates = 39
+
+[[variant]]
+module = "CrtPopcountdi2"
+function = "__popcountdi2"
+name = "arithmetic `+` to `-` at popcountdi2.c:28:9"
+file = "compiler-rt/lib/builtins/popcountdi2.c"
+from = "  x = x + (x >> 16);"
+to = "  x = x - (x >> 16);"
+candidates = 39
+
+[[variant]]
+module = "CrtPopcountti2"
+function = "__popcountti2"
+name = "shift `>>` to `<<` at popcountti2.c:22:18"
+file = "compiler-rt/lib/builtins/popcountti2.c"
+from = "  x3 = x3 - ((x3 >> 1) &"
+to = "  x3 = x3 - ((x3 << 1) &"
+candidates = 63
+
+[[variant]]
+module = "CrtPopcountti2"
+function = "__popcountti2"
+name = "constant `0x3333333333333333` to `3689348814741910322` at popcountti2.c:27:55"
+file = "compiler-rt/lib/builtins/popcountti2.c"
+from = "       (x3 & (((tu_int)0x3333333333333333uLL << 64) | 0x3333333333333333uLL));"
+to = "       (x3 & (((tu_int)0x3333333333333333uLL << 64) | 3689348814741910322uLL));"
+candidates = 63
+
+[[variant]]
+module = "CrtPopcountti2"
+function = "__popcountti2"
+name = "constant `4` to `5` at popcountti2.c:29:21"
+file = "compiler-rt/lib/builtins/popcountti2.c"
+from = "  x3 = (x3 + (x3 >> 4)) &"
+to = "  x3 = (x3 + (x3 >> 5)) &"
+candidates = 63
+
+[[variant]]
+module = "CrtCmpdi2"
+function = "__cmpdi2"
+name = "relational `<` to `<=` at cmpdi2.c:24:16"
+file = "compiler-rt/lib/builtins/cmpdi2.c"
+from = "  if (x.s.high < y.s.high)"
+to = "  if (x.s.high <= y.s.high)"
+candidates = 12
+
+[[variant]]
+module = "CrtCmpdi2"
+function = "__cmpdi2"
+name = "constant `0` to `1` at cmpdi2.c:25:12"
+file = "compiler-rt/lib/builtins/cmpdi2.c"
+from = "  if (x.s.high < y.s.high)\n    return 0;"
+to = "  if (x.s.high < y.s.high)\n    return 1;"
+candidates = 12
+
+[[variant]]
+module = "CrtCmpdi2"
+function = "__cmpdi2"
+name = "relational `>` to `>=` at cmpdi2.c:26:16"
+file = "compiler-rt/lib/builtins/cmpdi2.c"
+from = "  if (x.s.high > y.s.high)"
+to = "  if (x.s.high >= y.s.high)"
+candidates = 12
+
+[[variant]]
+module = "CrtCmpti2"
+function = "__cmpti2"
+name = "constant `2` to `1` at cmpti2.c:29:12"
+file = "compiler-rt/lib/builtins/cmpti2.c"
+from = "  if (x.s.high > y.s.high)\n    return 2;"
+to = "  if (x.s.high > y.s.high)\n    return 1;"
+candidates = 12
+
+[[variant]]
+module = "CrtCmpti2"
+function = "__cmpti2"
+name = "relational `<` to `<=` at cmpti2.c:30:15"
+file = "compiler-rt/lib/builtins/cmpti2.c"
+from = "  if (x.s.low < y.s.low)"
+to = "  if (x.s.low <= y.s.low)"
+candidates = 12
+
+[[variant]]
+module = "CrtCmpti2"
+function = "__cmpti2"
+name = "constant `2` to `3` at cmpti2.c:33:12"
+file = "compiler-rt/lib/builtins/cmpti2.c"
+from = "  if (x.s.low > y.s.low)\n    return 2;"
+to = "  if (x.s.low > y.s.low)\n    return 3;"
+candidates = 12
+
+[[variant]]
+module = "CrtUcmpdi2"
+function = "__ucmpdi2"
+name = "relational `>` to `>=` at ucmpdi2.c:26:16"
+file = "compiler-rt/lib/builtins/ucmpdi2.c"
+from = "  if (x.s.high > y.s.high)"
+to = "  if (x.s.high >= y.s.high)"
+candidates = 12
+
+[[variant]]
+module = "CrtUcmpdi2"
+function = "__ucmpdi2"
+name = "relational `>` to `>=` at ucmpdi2.c:30:15"
+file = "compiler-rt/lib/builtins/ucmpdi2.c"
+from = "  if (x.s.low > y.s.low)"
+to = "  if (x.s.low >= y.s.low)"
+candidates = 12
+
+[[variant]]
+module = "CrtUcmpdi2"
+function = "__ucmpdi2"
+name = "constant `2` to `3` at ucmpdi2.c:31:12"
+file = "compiler-rt/lib/builtins/ucmpdi2.c"
+from = "  if (x.s.low > y.s.low)\n    return 2;"
+to = "  if (x.s.low > y.s.low)\n    return 3;"
+candidates = 12
+
+[[variant]]
+module = "CrtUcmpti2"
+function = "__ucmpti2"
+name = "relational `<` to `<=` at ucmpti2.c:26:16"
+file = "compiler-rt/lib/builtins/ucmpti2.c"
+from = "  if (x.s.high < y.s.high)"
+to = "  if (x.s.high <= y.s.high)"
+candidates = 12
+
+[[variant]]
+module = "CrtUcmpti2"
+function = "__ucmpti2"
+name = "relational `>` to `>=` at ucmpti2.c:28:16"
+file = "compiler-rt/lib/builtins/ucmpti2.c"
+from = "  if (x.s.high > y.s.high)"
+to = "  if (x.s.high >= y.s.high)"
+candidates = 12
+
+[[variant]]
+module = "CrtUcmpti2"
+function = "__ucmpti2"
+name = "constant `2` to `3` at ucmpti2.c:29:12"
+file = "compiler-rt/lib/builtins/ucmpti2.c"
+from = "  if (x.s.high > y.s.high)\n    return 2;"
+to = "  if (x.s.high > y.s.high)\n    return 3;"
+candidates = 12
+
+[[variant]]
+module = "CrtAddvsi3"
+function = "__addvsi3"
+name = "relational `>=` to `>` at addvsi3.c:21:9"
+file = "compiler-rt/lib/builtins/addvsi3.c"
+from = "  if (b >= 0) {"
+to = "  if (b > 0) {"
+candidates = 5
+
+[[variant]]
+module = "CrtAddvsi3"
+function = "__addvsi3"
+name = "constant `0` to `1` at addvsi3.c:21:12"
+file = "compiler-rt/lib/builtins/addvsi3.c"
+from = "  if (b >= 0) {"
+to = "  if (b >= 1) {"
+candidates = 5
+
+[[variant]]
+module = "CrtAddvsi3"
+function = "__addvsi3"
+name = "relational `>=` to `>` at addvsi3.c:25:11"
+file = "compiler-rt/lib/builtins/addvsi3.c"
+from = "    if (s >= a)"
+to = "    if (s > a)"
+candidates = 5
+
+[[variant]]
+module = "CrtSubvsi3"
+function = "__subvsi3"
+name = "arithmetic `-` to `+` at subvsi3.c:20:24"
+file = "compiler-rt/lib/builtins/subvsi3.c"
+from = "  si_int s = (su_int)a - (su_int)b;"
+to = "  si_int s = (su_int)a + (su_int)b;"
+candidates = 5
+
+[[variant]]
+module = "CrtSubvsi3"
+function = "__subvsi3"
+name = "relational `>=` to `>` at subvsi3.c:21:9"
+file = "compiler-rt/lib/builtins/subvsi3.c"
+from = "  if (b >= 0) {"
+to = "  if (b > 0) {"
+candidates = 5
+
+[[variant]]
+module = "CrtSubvsi3"
+function = "__subvsi3"
+name = "constant `0` to `1` at subvsi3.c:21:12"
+file = "compiler-rt/lib/builtins/subvsi3.c"
+from = "  if (b >= 0) {"
+to = "  if (b >= 1) {"
+candidates = 5
+
+[[variant]]
+module = "CrtNegvsi2"
+function = "__negvsi2"
+name = "constant `1` to `2` at negvsi2.c:21:24"
+file = "compiler-rt/lib/builtins/negvsi2.c"
+from = "      (si_int)((su_int)1 << ((int)(sizeof(si_int) * CHAR_BIT) - 1));"
+to = "      (si_int)((su_int)2 << ((int)(sizeof(si_int) * CHAR_BIT) - 1));"
+candidates = 7
+
+[[variant]]
+module = "CrtNegvsi2"
+function = "__negvsi2"
+name = "arithmetic `-` to `+` at negvsi2.c:21:63"
+file = "compiler-rt/lib/builtins/negvsi2.c"
+from = "      (si_int)((su_int)1 << ((int)(sizeof(si_int) * CHAR_BIT) - 1));"
+to = "      (si_int)((su_int)1 << ((int)(sizeof(si_int) * CHAR_BIT) + 1));"
+candidates = 7
+
+[[variant]]
+module = "CrtNegvsi2"
+function = "__negvsi2"
+name = "constant `1` to `0` at negvsi2.c:21:65"
+file = "compiler-rt/lib/builtins/negvsi2.c"
+from = "      (si_int)((su_int)1 << ((int)(sizeof(si_int) * CHAR_BIT) - 1));"
+to = "      (si_int)((su_int)1 << ((int)(sizeof(si_int) * CHAR_BIT) - 0));"
+candidates = 7
+
+[[variant]]
+module = "CrtAbsvsi2"
+function = "__absvsi2"
+name = "constant `1` to `2` at absvsi2.c:21:30"
+file = "compiler-rt/lib/builtins/absvsi2.c"
+from = "  if (a == ((si_int)((su_int)1 << (N - 1))))"
+to = "  if (a == ((si_int)((su_int)2 << (N - 1))))"
+candidates = 12
+
+[[variant]]
+module = "CrtAbsvsi2"
+function = "__absvsi2"
+name = "arithmetic `-` to `+` at absvsi2.c:23:28"
+file = "compiler-rt/lib/builtins/absvsi2.c"
+from = "  const si_int t = a >> (N - 1);"
+to = "  const si_int t = a >> (N + 1);"
+candidates = 12
+
+[[variant]]
+module = "CrtAbsvsi2"
+function = "__absvsi2"
+name = "bitwise `^` to `|` at absvsi2.c:24:13"
+file = "compiler-rt/lib/builtins/absvsi2.c"
+from = "  return (a ^ t) - t;"
+to = "  return (a | t) - t;"
+candidates = 12
+
+[[variant]]
+module = "CrtAddvdi3"
+function = "__addvdi3"
+name = "relational `>=` to `>` at addvdi3.c:21:9"
+file = "compiler-rt/lib/builtins/addvdi3.c"
+from = "  if (b >= 0) {"
+to = "  if (b > 0) {"
+candidates = 5
+
+[[variant]]
+module = "CrtAddvdi3"
+function = "__addvdi3"
+name = "relational `<` to `<=` at addvdi3.c:22:11"
+file = "compiler-rt/lib/builtins/addvdi3.c"
+from = "    if (s < a)"
+to = "    if (s <= a)"
+candidates = 5
+
+[[variant]]
+module = "CrtAddvdi3"
+function = "__addvdi3"
+name = "relational `>=` to `>` at addvdi3.c:25:11"
+file = "compiler-rt/lib/builtins/addvdi3.c"
+from = "    if (s >= a)"
+to = "    if (s > a)"
+candidates = 5
+
+[[variant]]
+module = "CrtSubvdi3"
+function = "__subvdi3"
+name = "arithmetic `-` to `+` at subvdi3.c:20:24"
+file = "compiler-rt/lib/builtins/subvdi3.c"
+from = "  di_int s = (du_int)a - (du_int)b;"
+to = "  di_int s = (du_int)a + (du_int)b;"
+candidates = 5
+
+[[variant]]
+module = "CrtSubvdi3"
+function = "__subvdi3"
+name = "constant `0` to `1` at subvdi3.c:21:12"
+file = "compiler-rt/lib/builtins/subvdi3.c"
+from = "  if (b >= 0) {"
+to = "  if (b >= 1) {"
+candidates = 5
+
+[[variant]]
+module = "CrtSubvdi3"
+function = "__subvdi3"
+name = "relational `>` to `>=` at subvdi3.c:22:11"
+file = "compiler-rt/lib/builtins/subvdi3.c"
+from = "    if (s > a)"
+to = "    if (s >= a)"
+candidates = 5
+
+[[variant]]
+module = "CrtNegvdi2"
+function = "__negvdi2"
+name = "constant `1` to `0` at negvdi2.c:21:24"
+file = "compiler-rt/lib/builtins/negvdi2.c"
+from = "      (di_int)((du_int)1 << ((int)(sizeof(di_int) * CHAR_BIT) - 1));"
+to = "      (di_int)((du_int)0 << ((int)(sizeof(di_int) * CHAR_BIT) - 1));"
+candidates = 7
+
+[[variant]]
+module = "CrtNegvdi2"
+function = "__negvdi2"
+name = "constant `1` to `2` at negvdi2.c:21:24"
+file = "compiler-rt/lib/builtins/negvdi2.c"
+from = "      (di_int)((du_int)1 << ((int)(sizeof(di_int) * CHAR_BIT) - 1));"
+to = "      (di_int)((du_int)2 << ((int)(sizeof(di_int) * CHAR_BIT) - 1));"
+candidates = 7
+
+[[variant]]
+module = "CrtNegvdi2"
+function = "__negvdi2"
+name = "shift `<<` to `>>` at negvdi2.c:21:26"
+file = "compiler-rt/lib/builtins/negvdi2.c"
+from = "      (di_int)((du_int)1 << ((int)(sizeof(di_int) * CHAR_BIT) - 1));"
+to = "      (di_int)((du_int)1 >> ((int)(sizeof(di_int) * CHAR_BIT) - 1));"
+candidates = 7
+
+[[variant]]
+module = "CrtAbsvdi2"
+function = "__absvdi2"
+name = "constant `1` to `0` at absvdi2.c:21:30"
+file = "compiler-rt/lib/builtins/absvdi2.c"
+from = "  if (a == ((di_int)((du_int)1 << (N - 1))))"
+to = "  if (a == ((di_int)((du_int)0 << (N - 1))))"
+candidates = 12
+
+[[variant]]
+module = "CrtAbsvdi2"
+function = "__absvdi2"
+name = "arithmetic `-` to `+` at absvdi2.c:23:28"
+file = "compiler-rt/lib/builtins/absvdi2.c"
+from = "  const di_int t = a >> (N - 1);"
+to = "  const di_int t = a >> (N + 1);"
+candidates = 12
+
+[[variant]]
+module = "CrtAbsvdi2"
+function = "__absvdi2"
+name = "bitwise `^` to `|` at absvdi2.c:24:13"
+file = "compiler-rt/lib/builtins/absvdi2.c"
+from = "  return (a ^ t) - t;"
+to = "  return (a | t) - t;"
+candidates = 12
+
+[[variant]]
+module = "CrtAddvti3"
+function = "__addvti3"
+name = "arithmetic `+` to `-` at addvti3.c:22:24"
+file = "compiler-rt/lib/builtins/addvti3.c"
+from = "  ti_int s = (tu_int)a + (tu_int)b;"
+to = "  ti_int s = (tu_int)a - (tu_int)b;"
+candidates = 5
+
+[[variant]]
+module = "CrtAddvti3"
+function = "__addvti3"
+name = "relational `<` to `<=` at addvti3.c:24:11"
+file = "compiler-rt/lib/builtins/addvti3.c"
+from = "    if (s < a)"
+to = "    if (s <= a)"
+candidates = 5
+
+[[variant]]
+module = "CrtAddvti3"
+function = "__addvti3"
+name = "relational `>=` to `>` at addvti3.c:27:11"
+file = "compiler-rt/lib/builtins/addvti3.c"
+from = "    if (s >= a)"
+to = "    if (s > a)"
+candidates = 5
+
+[[variant]]
+module = "CrtSubvti3"
+function = "__subvti3"
+name = "arithmetic `-` to `+` at subvti3.c:22:24"
+file = "compiler-rt/lib/builtins/subvti3.c"
+from = "  ti_int s = (tu_int)a - (tu_int)b;"
+to = "  ti_int s = (tu_int)a + (tu_int)b;"
+candidates = 5
+
+[[variant]]
+module = "CrtSubvti3"
+function = "__subvti3"
+name = "constant `0` to `1` at subvti3.c:23:12"
+file = "compiler-rt/lib/builtins/subvti3.c"
+from = "  if (b >= 0) {"
+to = "  if (b >= 1) {"
+candidates = 5
+
+[[variant]]
+module = "CrtSubvti3"
+function = "__subvti3"
+name = "relational `<=` to `<` at subvti3.c:27:11"
+file = "compiler-rt/lib/builtins/subvti3.c"
+from = "    if (s <= a)"
+to = "    if (s < a)"
+candidates = 5
+
+[[variant]]
+module = "CrtNegvti2"
+function = "__negvti2"
+name = "constant `1` to `2` at negvti2.c:22:30"
+file = "compiler-rt/lib/builtins/negvti2.c"
+from = "  const ti_int MIN = (tu_int)1 << ((int)(sizeof(ti_int) * CHAR_BIT) - 1);"
+to = "  const ti_int MIN = (tu_int)2 << ((int)(sizeof(ti_int) * CHAR_BIT) - 1);"
+candidates = 7
+
+[[variant]]
+module = "CrtNegvti2"
+function = "__negvti2"
+name = "constant `1` to `0` at negvti2.c:22:30"
+file = "compiler-rt/lib/builtins/negvti2.c"
+from = "  const ti_int MIN = (tu_int)1 << ((int)(sizeof(ti_int) * CHAR_BIT) - 1);"
+to = "  const ti_int MIN = (tu_int)0 << ((int)(sizeof(ti_int) * CHAR_BIT) - 1);"
+candidates = 7
+
+[[variant]]
+module = "CrtNegvti2"
+function = "__negvti2"
+name = "relational `==` to `!=` at negvti2.c:23:9"
+file = "compiler-rt/lib/builtins/negvti2.c"
+from = "  if (a == MIN)"
+to = "  if (a != MIN)"
+candidates = 7
+
+[[variant]]
+module = "CrtAbsvti2"
+function = "__absvti2"
+name = "constant `1` to `2` at absvti2.c:23:29"
+file = "compiler-rt/lib/builtins/absvti2.c"
+from = "  if (a == (ti_int)((tu_int)1 << (N - 1)))"
+to = "  if (a == (ti_int)((tu_int)2 << (N - 1)))"
+candidates = 12
+
+[[variant]]
+module = "CrtAbsvti2"
+function = "__absvti2"
+name = "arithmetic `-` to `+` at absvti2.c:25:28"
+file = "compiler-rt/lib/builtins/absvti2.c"
+from = "  const ti_int s = a >> (N - 1);"
+to = "  const ti_int s = a >> (N + 1);"
+candidates = 12
+
+[[variant]]
+module = "CrtAbsvti2"
+function = "__absvti2"
+name = "arithmetic `-` to `+` at absvti2.c:26:18"
+file = "compiler-rt/lib/builtins/absvti2.c"
+from = "  return (a ^ s) - s;"
+to = "  return (a ^ s) + s;"
+candidates = 12
+
+[[variant]]
+module = "CrtUdivsi3"
+function = "__udivsi3"
+name = "constant `1` to `2` at int_div_impl.inc:31:15"
+file = "compiler-rt/lib/builtins/int_div_impl.inc"
+from = "    return n;\n  ++sr;\n  // 1 <= sr <= N - 1. Shifts do not trigger UB.\n  fixuint_t r = n >> sr;\n  n <<= N - sr;\n  fixuint_t carry = 0;\n  for (; sr > 0; --sr) {\n    r = (r << 1) | (n >> (N - 1));"
+to = "    return n;\n  ++sr;\n  // 1 <= sr <= N - 1. Shifts do not trigger UB.\n  fixuint_t r = n >> sr;\n  n <<= N - sr;\n  fixuint_t carry = 0;\n  for (; sr > 0; --sr) {\n    r = (r << 2) | (n >> (N - 1));"
+candidates = 38
+
+[[variant]]
+module = "CrtUdivsi3"
+function = "__udivsi3"
+name = "constant `1` to `2` at int_div_impl.inc:40:13"
+file = "compiler-rt/lib/builtins/int_div_impl.inc"
+from = "  }\n  n = (n << 1) | carry;"
+to = "  }\n  n = (n << 2) | carry;"
+candidates = 38
+
+[[variant]]
+module = "CrtUdivsi3"
+function = "__udivsi3"
+name = "bitwise `|` to `&` at int_div_impl.inc:40:16"
+file = "compiler-rt/lib/builtins/int_div_impl.inc"
+from = "  }\n  n = (n << 1) | carry;"
+to = "  }\n  n = (n << 1) & carry;"
+candidates = 38
+
+[[variant]]
+module = "CrtUmodsi3"
+function = "__umodsi3"
+name = "arithmetic `-` to `+` at int_div_impl.inc:57:11"
+file = "compiler-rt/lib/builtins/int_div_impl.inc"
+from = "    return 0;\n  ++sr;\n  // 1 <= sr <= N - 1. Shifts do not trigger UB.\n  fixuint_t r = n >> sr;\n  n <<= N - sr;"
+to = "    return 0;\n  ++sr;\n  // 1 <= sr <= N - 1. Shifts do not trigger UB.\n  fixuint_t r = n >> sr;\n  n <<= N + sr;"
+candidates = 35
+
+[[variant]]
+module = "CrtUmodsi3"
+function = "__umodsi3"
+name = "shift `>>` to `<<` at int_div_impl.inc:60:23"
+file = "compiler-rt/lib/builtins/int_div_impl.inc"
+from = "    return 0;\n  ++sr;\n  // 1 <= sr <= N - 1. Shifts do not trigger UB.\n  fixuint_t r = n >> sr;\n  n <<= N - sr;\n  fixuint_t carry = 0;\n  for (; sr > 0; --sr) {\n    r = (r << 1) | (n >> (N - 1));"
+to = "    return 0;\n  ++sr;\n  // 1 <= sr <= N - 1. Shifts do not trigger UB.\n  fixuint_t r = n >> sr;\n  n <<= N - sr;\n  fixuint_t carry = 0;\n  for (; sr > 0; --sr) {\n    r = (r << 1) | (n << (N - 1));"
+candidates = 35
+
+[[variant]]
+module = "CrtUmodsi3"
+function = "__umodsi3"
+name = "constant `1` to `2` at int_div_impl.inc:66:17"
+file = "compiler-rt/lib/builtins/int_div_impl.inc"
+from = "    return 0;\n  ++sr;\n  // 1 <= sr <= N - 1. Shifts do not trigger UB.\n  fixuint_t r = n >> sr;\n  n <<= N - sr;\n  fixuint_t carry = 0;\n  for (; sr > 0; --sr) {\n    r = (r << 1) | (n >> (N - 1));\n    n = (n << 1) | carry;\n    // Branch-less version of:\n    // carry = 0;\n    // if (r >= d) r -= d, carry = 1;\n    const fixint_t s = (fixint_t)(d - r - 1) >> (N - 1);\n    carry = s & 1;"
+to = "    return 0;\n  ++sr;\n  // 1 <= sr <= N - 1. Shifts do not trigger UB.\n  fixuint_t r = n >> sr;\n  n <<= N - sr;\n  fixuint_t carry = 0;\n  for (; sr > 0; --sr) {\n    r = (r << 1) | (n >> (N - 1));\n    n = (n << 1) | carry;\n    // Branch-less version of:\n    // carry = 0;\n    // if (r >= d) r -= d, carry = 1;\n    const fixint_t s = (fixint_t)(d - r - 1) >> (N - 1);\n    carry = s & 2;"
+candidates = 35
+
+[[variant]]
+module = "CrtUdivdi3"
+function = "__udivdi3"
+name = "arithmetic `-` to `+` at int_div_impl.inc:23:15"
+file = "compiler-rt/lib/builtins/int_div_impl.inc"
+from = "    return 0;\n  if (sr == N - 1) // d == 1"
+to = "    return 0;\n  if (sr == N + 1) // d == 1"
+candidates = 38
+
+[[variant]]
+module = "CrtUdivdi3"
+function = "__udivdi3"
+name = "shift `>>` to `<<` at int_div_impl.inc:27:19"
+file = "compiler-rt/lib/builtins/int_div_impl.inc"
+from = "    return n;\n  ++sr;\n  // 1 <= sr <= N - 1. Shifts do not trigger UB.\n  fixuint_t r = n >> sr;"
+to = "    return n;\n  ++sr;\n  // 1 <= sr <= N - 1. Shifts do not trigger UB.\n  fixuint_t r = n << sr;"
+candidates = 38
+
+[[variant]]
+module = "CrtUdivdi3"
+function = "__udivdi3"
+name = "bitwise `|` to `&` at int_div_impl.inc:32:18"
+file = "compiler-rt/lib/builtins/int_div_impl.inc"
+from = "    return n;\n  ++sr;\n  // 1 <= sr <= N - 1. Shifts do not trigger UB.\n  fixuint_t r = n >> sr;\n  n <<= N - sr;\n  fixuint_t carry = 0;\n  for (; sr > 0; --sr) {\n    r = (r << 1) | (n >> (N - 1));\n    n = (n << 1) | carry;"
+to = "    return n;\n  ++sr;\n  // 1 <= sr <= N - 1. Shifts do not trigger UB.\n  fixuint_t r = n >> sr;\n  n <<= N - sr;\n  fixuint_t carry = 0;\n  for (; sr > 0; --sr) {\n    r = (r << 1) | (n >> (N - 1));\n    n = (n << 1) & carry;"
+candidates = 38
+
+[[variant]]
+module = "CrtUmoddi3"
+function = "__umoddi3"
+name = "constant `1` to `2` at int_div_impl.inc:52:17"
+file = "compiler-rt/lib/builtins/int_div_impl.inc"
+from = "    return n;\n  if (sr == N - 1) // d == 1"
+to = "    return n;\n  if (sr == N - 2) // d == 1"
+candidates = 35
+
+[[variant]]
+module = "CrtUmoddi3"
+function = "__umoddi3"
+name = "arithmetic `-` to `+` at int_div_impl.inc:57:11"
+file = "compiler-rt/lib/builtins/int_div_impl.inc"
+from = "    return 0;\n  ++sr;\n  // 1 <= sr <= N - 1. Shifts do not trigger UB.\n  fixuint_t r = n >> sr;\n  n <<= N - sr;"
+to = "    return 0;\n  ++sr;\n  // 1 <= sr <= N - 1. Shifts do not trigger UB.\n  fixuint_t r = n >> sr;\n  n <<= N + sr;"
+candidates = 35
+
+[[variant]]
+module = "CrtUmoddi3"
+function = "__umoddi3"
+name = "constant `0` to `1` at int_div_impl.inc:58:21"
+file = "compiler-rt/lib/builtins/int_div_impl.inc"
+from = "    return 0;\n  ++sr;\n  // 1 <= sr <= N - 1. Shifts do not trigger UB.\n  fixuint_t r = n >> sr;\n  n <<= N - sr;\n  fixuint_t carry = 0;"
+to = "    return 0;\n  ++sr;\n  // 1 <= sr <= N - 1. Shifts do not trigger UB.\n  fixuint_t r = n >> sr;\n  n <<= N - sr;\n  fixuint_t carry = 1;"
+candidates = 35

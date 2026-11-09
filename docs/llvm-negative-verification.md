@@ -57,7 +57,9 @@ is a wrong rewrite that Lean proves equal, since both sides stop at a frozen poi
 The statement only names Lean, `IRLean` and the generated module, so it can be pinned. A `match` would make an
 auxiliary definition in the proof module, and `tools/verify.py` never lets a pinned statement name one of those.
 It's decidable, so a witness can be decided by running it. It lists the reasons for undefined behavior rather than
-the model stops, so a reason added to `IRLean.UB` later makes it stricter, never weaker. It's a stand-in for an
+the model stops, so a reason added to `IRLean.UB` later makes it stricter, never weaker. `noProgress` and `noReturn`,
+which SEM-07 added on 2026-11-08 for a broken promise to progress or to return, aren't listed, so a `src` that breaks
+one allows nothing here, which is stricter than `IRLean.Refines`. It's a stand-in for an
 `IRLean.Refines` that isn't on `main` yet: see [blocked](#blocked-integration-cases).
 
 ## The live cases
@@ -87,6 +89,7 @@ Each runs `tools/verify.py` on its own copy of the case's files, one at a time.
 | `resource_memory` | The control, with 300 MB | Right | timeout | No |
 | `resource_wall_time` | The control, after a 2-minute sleep, with 20 s | Right | timeout | No |
 | `wrong_loop_deleted` | A loop that never ends, deleted | Wrong at 0 | timeout: deciding it runs `src` forever | No |
+| `wrong_promise_added` | `mustprogress` added to a function whose loop never ends at 0, with the proof that trusting it allowed | Wrong at 0 | `proof_failed`: `tgt` breaks the promise at 0 | No |
 | `stale_input` | The control, certified, then its IR edited | Right | proved | No: `stale_input` |
 | `stale_proof` | The control, certified, then its proof edited | Right | proved | No: `stale_proof` |
 

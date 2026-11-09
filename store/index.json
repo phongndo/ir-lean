@@ -1,0 +1,2233 @@
+{
+  "schema": "ir-lean.store.index/1",
+  "version": {
+    "lean": "leanprover/lean4:v4.35.0",
+    "normalizer": 1,
+    "sources": "d0042bf6b177eb3f6588b5a36d2c91807756b86a981651cb1d172253743f61b8"
+  },
+  "consumers": [
+    {
+      "file": "tests/refine/RefineCases.lean",
+      "module": "RefineCases"
+    },
+    {
+      "file": "tests/contracts/ContractPoison.lean",
+      "module": "ContractPoison"
+    },
+    {
+      "file": "tests/generic_rewrites/RewriteCounter.lean",
+      "module": "RewriteCounter"
+    }
+  ],
+  "lemmas": [
+    {
+      "name": "IRLean.Generic.shiftOk_iff",
+      "module": "IRLean.Generic.BitVec",
+      "family": "bitvec",
+      "provenance": "#48, IRLean/Generic/BitVec.lean",
+      "key": "cb36532313e89f3d7749",
+      "status": "admitted",
+      "widths": "every",
+      "hypotheses": [],
+      "witness": null,
+      "used_by": [
+        "IRLean.Generic.add_self",
+        "IRLean.Generic.ashr_zero",
+        "IRLean.Generic.lshr_zero",
+        "IRLean.Generic.mul_twoPow",
+        "IRLean.Generic.shl_zero"
+      ]
+    },
+    {
+      "name": "IRLean.Generic.toNat_ofNat_of_lt",
+      "module": "IRLean.Generic.BitVec",
+      "family": "bitvec",
+      "provenance": "#48, IRLean/Generic/BitVec.lean",
+      "key": "decc6ce868a91686e951",
+      "status": "admitted",
+      "widths": "every",
+      "hypotheses": [
+        "LemmaStore.Counter.IRLean.Generic.toNat_ofNat_of_lt.drop_hk"
+      ],
+      "witness": "LemmaStore.Counter.IRLean.Generic.toNat_ofNat_of_lt.sat",
+      "used_by": [
+        "IRLean.Generic.add_self",
+        "IRLean.Generic.mul_twoPow"
+      ]
+    },
+    {
+      "name": "IRLean.Generic.umulOverflow_twoPow",
+      "module": "IRLean.Generic.BitVec",
+      "family": "bitvec",
+      "provenance": "#48, IRLean/Generic/BitVec.lean",
+      "key": "74738dbeeda547a8b4cd",
+      "status": "candidate",
+      "widths": "every",
+      "hypotheses": [
+        "LemmaStore.Counter.IRLean.Generic.umulOverflow_twoPow.drop_hk"
+      ],
+      "witness": "LemmaStore.Counter.IRLean.Generic.umulOverflow_twoPow.sat",
+      "used_by": [
+        "IRLean.Generic.mul_twoPow"
+      ]
+    },
+    {
+      "name": "IRLean.Generic.smulOverflow_twoPow",
+      "module": "IRLean.Generic.BitVec",
+      "family": "bitvec",
+      "provenance": "#48, IRLean/Generic/BitVec.lean",
+      "key": "6c150e584cb0ae89f946",
+      "status": "candidate",
+      "widths": "every",
+      "hypotheses": [
+        "LemmaStore.Counter.IRLean.Generic.smulOverflow_twoPow.drop_hk"
+      ],
+      "witness": "LemmaStore.Counter.IRLean.Generic.smulOverflow_twoPow.sat",
+      "used_by": [
+        "IRLean.Generic.mul_twoPow"
+      ]
+    },
+    {
+      "name": "IRLean.Generic.add_zero",
+      "module": "IRLean.Generic.Arith",
+      "family": "generic-rewrites",
+      "provenance": "#48, IRLean/Generic/Arith.lean",
+      "key": "b987a455e02df09ad68d",
+      "status": "candidate",
+      "widths": "every",
+      "hypotheses": [],
+      "witness": null,
+      "used_by": []
+    },
+    {
+      "name": "IRLean.Generic.sub_zero",
+      "module": "IRLean.Generic.Arith",
+      "family": "generic-rewrites",
+      "provenance": "#48, IRLean/Generic/Arith.lean",
+      "key": "eae28a96b32b1fcf1409",
+      "status": "candidate",
+      "widths": "every",
+      "hypotheses": [],
+      "witness": null,
+      "used_by": []
+    },
+    {
+      "name": "IRLean.Generic.mul_one",
+      "module": "IRLean.Generic.Arith",
+      "family": "generic-rewrites",
+      "provenance": "#48, IRLean/Generic/Arith.lean",
+      "key": "c231b9d9623526151f19",
+      "status": "candidate",
+      "widths": "every",
+      "hypotheses": [
+        "LemmaStore.Counter.IRLean.Generic.mul_one.drop_h"
+      ],
+      "witness": "LemmaStore.Counter.IRLean.Generic.mul_one.sat",
+      "used_by": [
+        "IRLean.Generic.mul_one_refines"
+      ]
+    },
+    {
+      "name": "IRLean.Generic.mul_one_refines",
+      "module": "IRLean.Generic.Arith",
+      "family": "generic-rewrites",
+      "provenance": "#48, IRLean/Generic/Arith.lean",
+      "key": "b242a0ac543824532e65",
+      "status": "candidate",
+      "widths": "every",
+      "hypotheses": [],
+      "witness": null,
+      "used_by": []
+    },
+    {
+      "name": "IRLean.Generic.sub_self_refines",
+      "module": "IRLean.Generic.Arith",
+      "family": "generic-rewrites",
+      "provenance": "#48, IRLean/Generic/Arith.lean",
+      "key": "4ecb3e25930f5041a1aa",
+      "status": "candidate",
+      "widths": "every",
+      "hypotheses": [],
+      "witness": null,
+      "used_by": []
+    },
+    {
+      "name": "IRLean.Generic.mul_zero_refines",
+      "module": "IRLean.Generic.Arith",
+      "family": "generic-rewrites",
+      "provenance": "#48, IRLean/Generic/Arith.lean",
+      "key": "1f88927de85907596f19",
+      "status": "candidate",
+      "widths": "every",
+      "hypotheses": [],
+      "witness": null,
+      "used_by": []
+    },
+    {
+      "name": "IRLean.Generic.add_self",
+      "module": "IRLean.Generic.Arith",
+      "family": "generic-rewrites",
+      "provenance": "#48, IRLean/Generic/Arith.lean",
+      "key": "c47c1e2c14e989665e8c",
+      "status": "candidate",
+      "widths": "every",
+      "hypotheses": [
+        "LemmaStore.Counter.IRLean.Generic.add_self.drop_hw"
+      ],
+      "witness": "LemmaStore.Counter.IRLean.Generic.add_self.sat",
+      "used_by": []
+    },
+    {
+      "name": "IRLean.Generic.mul_twoPow",
+      "module": "IRLean.Generic.Arith",
+      "family": "generic-rewrites",
+      "provenance": "#48, IRLean/Generic/Arith.lean",
+      "key": "d0985118261edee124ba",
+      "status": "candidate",
+      "widths": "every",
+      "hypotheses": [
+        "LemmaStore.Counter.IRLean.Generic.mul_twoPow.drop_hc",
+        "LemmaStore.Counter.IRLean.Generic.mul_twoPow.drop_hk",
+        "LemmaStore.Counter.IRLean.Generic.mul_twoPow.drop_hs"
+      ],
+      "witness": "LemmaStore.Counter.IRLean.Generic.mul_twoPow.sat",
+      "used_by": [
+        "IRLean.Generic.mul_twoPow_refines"
+      ]
+    },
+    {
+      "name": "IRLean.Generic.mul_twoPow_refines",
+      "module": "IRLean.Generic.Arith",
+      "family": "generic-rewrites",
+      "provenance": "#48, IRLean/Generic/Arith.lean",
+      "key": "1ad7041aa4ae234cce21",
+      "status": "candidate",
+      "widths": "every",
+      "hypotheses": [
+        "LemmaStore.Counter.IRLean.Generic.mul_twoPow_refines.drop_hc",
+        "LemmaStore.Counter.IRLean.Generic.mul_twoPow_refines.drop_hk"
+      ],
+      "witness": "LemmaStore.Counter.IRLean.Generic.mul_twoPow_refines.sat",
+      "used_by": []
+    },
+    {
+      "name": "IRLean.Generic.or_disjoint_refines_add",
+      "module": "IRLean.Generic.Arith",
+      "family": "generic-rewrites",
+      "provenance": "#48, IRLean/Generic/Arith.lean",
+      "key": "16615c924f27c4599455",
+      "status": "candidate",
+      "widths": "every",
+      "hypotheses": [],
+      "witness": null,
+      "used_by": []
+    },
+    {
+      "name": "IRLean.Generic.udiv_one",
+      "module": "IRLean.Generic.Arith",
+      "family": "generic-rewrites",
+      "provenance": "#48, IRLean/Generic/Arith.lean",
+      "key": "f7f623cd40087d2bdf2c",
+      "status": "candidate",
+      "widths": "every",
+      "hypotheses": [
+        "LemmaStore.Counter.IRLean.Generic.udiv_one.drop_hw"
+      ],
+      "witness": "LemmaStore.Counter.IRLean.Generic.udiv_one.sat",
+      "used_by": []
+    },
+    {
+      "name": "IRLean.Generic.urem_one_refines",
+      "module": "IRLean.Generic.Arith",
+      "family": "generic-rewrites",
+      "provenance": "#48, IRLean/Generic/Arith.lean",
+      "key": "a82000914318e9300073",
+      "status": "candidate",
+      "widths": "every",
+      "hypotheses": [],
+      "witness": null,
+      "used_by": []
+    },
+    {
+      "name": "IRLean.Generic.sdiv_one",
+      "module": "IRLean.Generic.Arith",
+      "family": "generic-rewrites",
+      "provenance": "#48, IRLean/Generic/Arith.lean",
+      "key": "11b8e91ba0aea6754b8e",
+      "status": "candidate",
+      "widths": "every",
+      "hypotheses": [
+        "LemmaStore.Counter.IRLean.Generic.sdiv_one.drop_hw"
+      ],
+      "witness": "LemmaStore.Counter.IRLean.Generic.sdiv_one.sat",
+      "used_by": [
+        "IRLean.Generic.sdiv_one_refines"
+      ]
+    },
+    {
+      "name": "IRLean.Generic.sdiv_one_refines",
+      "module": "IRLean.Generic.Arith",
+      "family": "generic-rewrites",
+      "provenance": "#48, IRLean/Generic/Arith.lean",
+      "key": "942884f5e8ee411c0063",
+      "status": "candidate",
+      "widths": "every",
+      "hypotheses": [],
+      "witness": null,
+      "used_by": []
+    },
+    {
+      "name": "IRLean.Generic.srem_one_refines",
+      "module": "IRLean.Generic.Arith",
+      "family": "generic-rewrites",
+      "provenance": "#48, IRLean/Generic/Arith.lean",
+      "key": "cbf0dbeb06dfebaf1dd9",
+      "status": "candidate",
+      "widths": "every",
+      "hypotheses": [],
+      "witness": null,
+      "used_by": []
+    },
+    {
+      "name": "IRLean.Generic.and_self",
+      "module": "IRLean.Generic.Bitwise",
+      "family": "generic-rewrites",
+      "provenance": "#48, IRLean/Generic/Bitwise.lean",
+      "key": "13d32136904940d188bb",
+      "status": "candidate",
+      "widths": "every",
+      "hypotheses": [],
+      "witness": null,
+      "used_by": []
+    },
+    {
+      "name": "IRLean.Generic.or_self",
+      "module": "IRLean.Generic.Bitwise",
+      "family": "generic-rewrites",
+      "provenance": "#48, IRLean/Generic/Bitwise.lean",
+      "key": "f82d48fe6ec13fbbcd49",
+      "status": "candidate",
+      "widths": "every",
+      "hypotheses": [],
+      "witness": null,
+      "used_by": []
+    },
+    {
+      "name": "IRLean.Generic.or_self_disjoint_refines",
+      "module": "IRLean.Generic.Bitwise",
+      "family": "generic-rewrites",
+      "provenance": "#48, IRLean/Generic/Bitwise.lean",
+      "key": "d56cd3e9ec707f032fff",
+      "status": "candidate",
+      "widths": "every",
+      "hypotheses": [],
+      "witness": null,
+      "used_by": []
+    },
+    {
+      "name": "IRLean.Generic.xor_self_refines",
+      "module": "IRLean.Generic.Bitwise",
+      "family": "generic-rewrites",
+      "provenance": "#48, IRLean/Generic/Bitwise.lean",
+      "key": "bc2e12379d0a7bac1977",
+      "status": "candidate",
+      "widths": "every",
+      "hypotheses": [],
+      "witness": null,
+      "used_by": []
+    },
+    {
+      "name": "IRLean.Generic.and_allOnes",
+      "module": "IRLean.Generic.Bitwise",
+      "family": "generic-rewrites",
+      "provenance": "#48, IRLean/Generic/Bitwise.lean",
+      "key": "978e3de8e618a0af943b",
+      "status": "candidate",
+      "widths": "every",
+      "hypotheses": [],
+      "witness": null,
+      "used_by": []
+    },
+    {
+      "name": "IRLean.Generic.or_zero",
+      "module": "IRLean.Generic.Bitwise",
+      "family": "generic-rewrites",
+      "provenance": "#48, IRLean/Generic/Bitwise.lean",
+      "key": "fd55990a999038cb2c72",
+      "status": "candidate",
+      "widths": "every",
+      "hypotheses": [],
+      "witness": null,
+      "used_by": []
+    },
+    {
+      "name": "IRLean.Generic.xor_zero",
+      "module": "IRLean.Generic.Bitwise",
+      "family": "generic-rewrites",
+      "provenance": "#48, IRLean/Generic/Bitwise.lean",
+      "key": "d06c09bb794b5a315e3c",
+      "status": "candidate",
+      "widths": "every",
+      "hypotheses": [],
+      "witness": null,
+      "used_by": []
+    },
+    {
+      "name": "IRLean.Generic.and_zero_refines",
+      "module": "IRLean.Generic.Bitwise",
+      "family": "generic-rewrites",
+      "provenance": "#48, IRLean/Generic/Bitwise.lean",
+      "key": "6dca65bbae3d9ce91146",
+      "status": "candidate",
+      "widths": "every",
+      "hypotheses": [],
+      "witness": null,
+      "used_by": []
+    },
+    {
+      "name": "IRLean.Generic.or_allOnes_refines",
+      "module": "IRLean.Generic.Bitwise",
+      "family": "generic-rewrites",
+      "provenance": "#48, IRLean/Generic/Bitwise.lean",
+      "key": "d75637b1d2a857c0f632",
+      "status": "candidate",
+      "widths": "every",
+      "hypotheses": [],
+      "witness": null,
+      "used_by": []
+    },
+    {
+      "name": "IRLean.Generic.not_and",
+      "module": "IRLean.Generic.Bitwise",
+      "family": "generic-rewrites",
+      "provenance": "#48, IRLean/Generic/Bitwise.lean",
+      "key": "ac219f9c5d16febcf240",
+      "status": "candidate",
+      "widths": "every",
+      "hypotheses": [],
+      "witness": null,
+      "used_by": []
+    },
+    {
+      "name": "IRLean.Generic.not_or",
+      "module": "IRLean.Generic.Bitwise",
+      "family": "generic-rewrites",
+      "provenance": "#48, IRLean/Generic/Bitwise.lean",
+      "key": "acfe194b47f3cc8ff51d",
+      "status": "candidate",
+      "widths": "every",
+      "hypotheses": [],
+      "witness": null,
+      "used_by": []
+    },
+    {
+      "name": "IRLean.Generic.not_or_refines",
+      "module": "IRLean.Generic.Bitwise",
+      "family": "generic-rewrites",
+      "provenance": "#48, IRLean/Generic/Bitwise.lean",
+      "key": "37e4e94377816cb9a042",
+      "status": "candidate",
+      "widths": "every",
+      "hypotheses": [],
+      "witness": null,
+      "used_by": []
+    },
+    {
+      "name": "IRLean.Generic.xor_xor_cancel_refines",
+      "module": "IRLean.Generic.Bitwise",
+      "family": "generic-rewrites",
+      "provenance": "#48, IRLean/Generic/Bitwise.lean",
+      "key": "3e1567630ddbd0668006",
+      "status": "candidate",
+      "widths": "every",
+      "hypotheses": [],
+      "witness": null,
+      "used_by": []
+    },
+    {
+      "name": "IRLean.Generic.and_or_absorb_refines",
+      "module": "IRLean.Generic.Bitwise",
+      "family": "generic-rewrites",
+      "provenance": "#48, IRLean/Generic/Bitwise.lean",
+      "key": "601f54c14c767e55838d",
+      "status": "candidate",
+      "widths": "every",
+      "hypotheses": [],
+      "witness": null,
+      "used_by": []
+    },
+    {
+      "name": "IRLean.Generic.shl_zero",
+      "module": "IRLean.Generic.Bitwise",
+      "family": "generic-rewrites",
+      "provenance": "#48, IRLean/Generic/Bitwise.lean",
+      "key": "41830ae75315589844ad",
+      "status": "candidate",
+      "widths": "every",
+      "hypotheses": [
+        "LemmaStore.Counter.IRLean.Generic.shl_zero.drop_hw"
+      ],
+      "witness": "LemmaStore.Counter.IRLean.Generic.shl_zero.sat",
+      "used_by": []
+    },
+    {
+      "name": "IRLean.Generic.lshr_zero",
+      "module": "IRLean.Generic.Bitwise",
+      "family": "generic-rewrites",
+      "provenance": "#48, IRLean/Generic/Bitwise.lean",
+      "key": "00944dddde1c40f37da5",
+      "status": "candidate",
+      "widths": "every",
+      "hypotheses": [
+        "LemmaStore.Counter.IRLean.Generic.lshr_zero.drop_hw"
+      ],
+      "witness": "LemmaStore.Counter.IRLean.Generic.lshr_zero.sat",
+      "used_by": []
+    },
+    {
+      "name": "IRLean.Generic.ashr_zero",
+      "module": "IRLean.Generic.Bitwise",
+      "family": "generic-rewrites",
+      "provenance": "#48, IRLean/Generic/Bitwise.lean",
+      "key": "b31fb1b52d38edc8660c",
+      "status": "candidate",
+      "widths": "every",
+      "hypotheses": [
+        "LemmaStore.Counter.IRLean.Generic.ashr_zero.drop_hw"
+      ],
+      "witness": "LemmaStore.Counter.IRLean.Generic.ashr_zero.sat",
+      "used_by": []
+    },
+    {
+      "name": "IRLean.Generic.lshr_shl",
+      "module": "IRLean.Generic.Bitwise",
+      "family": "generic-rewrites",
+      "provenance": "#48, IRLean/Generic/Bitwise.lean",
+      "key": "f1bdbfab9175eb507bdc",
+      "status": "candidate",
+      "widths": "every",
+      "hypotheses": [],
+      "witness": null,
+      "used_by": []
+    },
+    {
+      "name": "IRLean.Generic.shl_lshr",
+      "module": "IRLean.Generic.Bitwise",
+      "family": "generic-rewrites",
+      "provenance": "#48, IRLean/Generic/Bitwise.lean",
+      "key": "5c332d05e6185aab3be5",
+      "status": "candidate",
+      "widths": "every",
+      "hypotheses": [],
+      "witness": null,
+      "used_by": []
+    },
+    {
+      "name": "IRLean.Generic.lshr_shl_nuw_refines",
+      "module": "IRLean.Generic.Bitwise",
+      "family": "generic-rewrites",
+      "provenance": "#48, IRLean/Generic/Bitwise.lean",
+      "key": "7409086087317838f7cf",
+      "status": "candidate",
+      "widths": "every",
+      "hypotheses": [],
+      "witness": null,
+      "used_by": []
+    },
+    {
+      "name": "IRLean.Generic.ashr_shl_nsw_refines",
+      "module": "IRLean.Generic.Bitwise",
+      "family": "generic-rewrites",
+      "provenance": "#48, IRLean/Generic/Bitwise.lean",
+      "key": "3b9d7cf770abc128b25e",
+      "status": "candidate",
+      "widths": "every",
+      "hypotheses": [],
+      "witness": null,
+      "used_by": []
+    },
+    {
+      "name": "IRLean.Generic.shl_lshr_exact_refines",
+      "module": "IRLean.Generic.Bitwise",
+      "family": "generic-rewrites",
+      "provenance": "#48, IRLean/Generic/Bitwise.lean",
+      "key": "20e0dc80fb213bd67208",
+      "status": "candidate",
+      "widths": "every",
+      "hypotheses": [],
+      "witness": null,
+      "used_by": []
+    },
+    {
+      "name": "IRLean.Generic.shl_ashr_exact_refines",
+      "module": "IRLean.Generic.Bitwise",
+      "family": "generic-rewrites",
+      "provenance": "#48, IRLean/Generic/Bitwise.lean",
+      "key": "129d9e1a53ffc79766d3",
+      "status": "candidate",
+      "widths": "every",
+      "hypotheses": [],
+      "witness": null,
+      "used_by": []
+    },
+    {
+      "name": "IRLean.Contract.not_isUB_ok",
+      "module": "IRLean.Contract.Poison",
+      "family": "contracts",
+      "provenance": "#42, IRLean/Contract/Poison.lean",
+      "key": "7520a3d2ff4656215dc8",
+      "status": "admitted",
+      "widths": "every",
+      "hypotheses": [],
+      "witness": null,
+      "used_by": [
+        "IRLean.Contract.Test.sdivLax_not_poisonUB",
+        "IRLean.Contract.Test.udivPoisonDivisor_not_poisonUB",
+        "IRLean.Contract.sdiv_exact_onlyPoisons",
+        "IRLean.Contract.sdiv_isUB_iff",
+        "IRLean.Contract.sdiv_poisonUB",
+        "IRLean.Contract.srem_isUB_iff",
+        "IRLean.Contract.srem_poisonUB",
+        "IRLean.Contract.udiv_exact_onlyPoisons",
+        "IRLean.Contract.udiv_isUB_iff",
+        "IRLean.Contract.udiv_poisonUB",
+        "IRLean.Contract.urem_isUB_iff",
+        "IRLean.Contract.urem_poisonUB"
+      ]
+    },
+    {
+      "name": "IRLean.Contract.isUB_ub",
+      "module": "IRLean.Contract.Poison",
+      "family": "contracts",
+      "provenance": "#42, IRLean/Contract/Poison.lean",
+      "key": "b7a0c4ed1ba74cbcd277",
+      "status": "admitted",
+      "widths": "every",
+      "hypotheses": [],
+      "witness": null,
+      "used_by": [
+        "IRLean.Contract.Test.udivExactTraps_not_onlyPoisons",
+        "IRLean.Contract.Test.udivPoisonDivisor_not_poisonUB",
+        "IRLean.Contract.Test.udivStrict_not_poisonUB",
+        "IRLean.Contract.sdiv_isUB_iff",
+        "IRLean.Contract.sdiv_poisonUB",
+        "IRLean.Contract.srem_isUB_iff",
+        "IRLean.Contract.srem_poisonUB",
+        "IRLean.Contract.udiv_isUB_iff",
+        "IRLean.Contract.udiv_poisonUB",
+        "IRLean.Contract.urem_isUB_iff",
+        "IRLean.Contract.urem_poisonUB"
+      ]
+    },
+    {
+      "name": "IRLean.Contract.udiv_isUB_iff",
+      "module": "IRLean.Contract.Poison",
+      "family": "contracts",
+      "provenance": "#42, IRLean/Contract/Poison.lean",
+      "key": "27546d11edfc5a780f2e",
+      "status": "admitted",
+      "widths": "every",
+      "hypotheses": [],
+      "witness": null,
+      "used_by": [
+        "IRLean.Contract.Test.udivExactTraps_not_onlyPoisons",
+        "IRLean.Contract.Test.udivStrict_not_poisonUB",
+        "IRLean.Contract.udiv_noPoison",
+        "IRLean.Contract.udiv_poisonUB"
+      ]
+    },
+    {
+      "name": "IRLean.Contract.urem_isUB_iff",
+      "module": "IRLean.Contract.Poison",
+      "family": "contracts",
+      "provenance": "#42, IRLean/Contract/Poison.lean",
+      "key": "2108c8f8a963d6284477",
+      "status": "admitted",
+      "widths": "every",
+      "hypotheses": [],
+      "witness": null,
+      "used_by": [
+        "IRLean.Contract.urem_noPoison",
+        "IRLean.Contract.urem_poisonUB"
+      ]
+    },
+    {
+      "name": "IRLean.Contract.sdiv_isUB_iff",
+      "module": "IRLean.Contract.Poison",
+      "family": "contracts",
+      "provenance": "#42, IRLean/Contract/Poison.lean",
+      "key": "f651ce78e593017cc70d",
+      "status": "admitted",
+      "widths": "every",
+      "hypotheses": [],
+      "witness": null,
+      "used_by": [
+        "IRLean.Contract.Test.sdivLax_not_poisonUB",
+        "IRLean.Contract.sdiv_poisonUB"
+      ]
+    },
+    {
+      "name": "IRLean.Contract.srem_isUB_iff",
+      "module": "IRLean.Contract.Poison",
+      "family": "contracts",
+      "provenance": "#42, IRLean/Contract/Poison.lean",
+      "key": "055597aa0e0548830453",
+      "status": "candidate",
+      "widths": "every",
+      "hypotheses": [],
+      "witness": null,
+      "used_by": [
+        "IRLean.Contract.srem_poisonUB"
+      ]
+    },
+    {
+      "name": "IRLean.Contract.udiv_poisonUB",
+      "module": "IRLean.Contract.Poison",
+      "family": "contracts",
+      "provenance": "#42, IRLean/Contract/Poison.lean",
+      "key": "4ce486143080800ea796",
+      "status": "candidate",
+      "widths": "every",
+      "hypotheses": [],
+      "witness": null,
+      "used_by": []
+    },
+    {
+      "name": "IRLean.Contract.urem_poisonUB",
+      "module": "IRLean.Contract.Poison",
+      "family": "contracts",
+      "provenance": "#42, IRLean/Contract/Poison.lean",
+      "key": "e34a9db5febf224beb0a",
+      "status": "candidate",
+      "widths": "every",
+      "hypotheses": [],
+      "witness": null,
+      "used_by": []
+    },
+    {
+      "name": "IRLean.Contract.sdiv_poisonUB",
+      "module": "IRLean.Contract.Poison",
+      "family": "contracts",
+      "provenance": "#42, IRLean/Contract/Poison.lean",
+      "key": "a4d7cb223495d37e63b7",
+      "status": "candidate",
+      "widths": "every",
+      "hypotheses": [],
+      "witness": null,
+      "used_by": []
+    },
+    {
+      "name": "IRLean.Contract.srem_poisonUB",
+      "module": "IRLean.Contract.Poison",
+      "family": "contracts",
+      "provenance": "#42, IRLean/Contract/Poison.lean",
+      "key": "30409d8446f79003e790",
+      "status": "candidate",
+      "widths": "every",
+      "hypotheses": [],
+      "witness": null,
+      "used_by": []
+    },
+    {
+      "name": "IRLean.Contract.udiv_answers",
+      "module": "IRLean.Contract.Poison",
+      "family": "contracts",
+      "provenance": "#42, IRLean/Contract/Poison.lean",
+      "key": "7d11c8fd2d53e775adc8",
+      "status": "candidate",
+      "widths": "every",
+      "hypotheses": [],
+      "witness": null,
+      "used_by": []
+    },
+    {
+      "name": "IRLean.Contract.sdiv_answers",
+      "module": "IRLean.Contract.Poison",
+      "family": "contracts",
+      "provenance": "#42, IRLean/Contract/Poison.lean",
+      "key": "153ab9d70c922584e189",
+      "status": "candidate",
+      "widths": "every",
+      "hypotheses": [],
+      "witness": null,
+      "used_by": [
+        "IRLean.Contract.sdiv_noPoison"
+      ]
+    },
+    {
+      "name": "IRLean.Contract.urem_answers",
+      "module": "IRLean.Contract.Poison",
+      "family": "contracts",
+      "provenance": "#42, IRLean/Contract/Poison.lean",
+      "key": "6f047f1587d28c8fba3e",
+      "status": "candidate",
+      "widths": "every",
+      "hypotheses": [],
+      "witness": null,
+      "used_by": []
+    },
+    {
+      "name": "IRLean.Contract.srem_answers",
+      "module": "IRLean.Contract.Poison",
+      "family": "contracts",
+      "provenance": "#42, IRLean/Contract/Poison.lean",
+      "key": "f5bcba1af859f8e5bd4e",
+      "status": "candidate",
+      "widths": "every",
+      "hypotheses": [],
+      "witness": null,
+      "used_by": [
+        "IRLean.Contract.srem_noPoison"
+      ]
+    },
+    {
+      "name": "IRLean.Contract.udiv_exact_onlyPoisons",
+      "module": "IRLean.Contract.Poison",
+      "family": "contracts",
+      "provenance": "#42, IRLean/Contract/Poison.lean",
+      "key": "ad55b6a87e05752808d3",
+      "status": "candidate",
+      "widths": "every",
+      "hypotheses": [],
+      "witness": null,
+      "used_by": []
+    },
+    {
+      "name": "IRLean.Contract.sdiv_exact_onlyPoisons",
+      "module": "IRLean.Contract.Poison",
+      "family": "contracts",
+      "provenance": "#42, IRLean/Contract/Poison.lean",
+      "key": "9372c7efa42c35f9ef77",
+      "status": "candidate",
+      "widths": "every",
+      "hypotheses": [],
+      "witness": null,
+      "used_by": []
+    },
+    {
+      "name": "IRLean.Contract.add_strict",
+      "module": "IRLean.Contract.Poison",
+      "family": "contracts",
+      "provenance": "#42, IRLean/Contract/Poison.lean",
+      "key": "cbfba89965bc83bb1009",
+      "status": "candidate",
+      "widths": "every",
+      "hypotheses": [],
+      "witness": null,
+      "used_by": []
+    },
+    {
+      "name": "IRLean.Contract.sub_strict",
+      "module": "IRLean.Contract.Poison",
+      "family": "contracts",
+      "provenance": "#42, IRLean/Contract/Poison.lean",
+      "key": "5a509b799a627fc3ed02",
+      "status": "candidate",
+      "widths": "every",
+      "hypotheses": [],
+      "witness": null,
+      "used_by": []
+    },
+    {
+      "name": "IRLean.Contract.mul_strict",
+      "module": "IRLean.Contract.Poison",
+      "family": "contracts",
+      "provenance": "#42, IRLean/Contract/Poison.lean",
+      "key": "216fc4c7804f9be369af",
+      "status": "candidate",
+      "widths": "every",
+      "hypotheses": [],
+      "witness": null,
+      "used_by": []
+    },
+    {
+      "name": "IRLean.Contract.and_strict",
+      "module": "IRLean.Contract.Poison",
+      "family": "contracts",
+      "provenance": "#42, IRLean/Contract/Poison.lean",
+      "key": "3b60171f85737dafe04f",
+      "status": "candidate",
+      "widths": "every",
+      "hypotheses": [],
+      "witness": null,
+      "used_by": []
+    },
+    {
+      "name": "IRLean.Contract.xor_strict",
+      "module": "IRLean.Contract.Poison",
+      "family": "contracts",
+      "provenance": "#42, IRLean/Contract/Poison.lean",
+      "key": "7e294f4be3ab9996bc9d",
+      "status": "candidate",
+      "widths": "every",
+      "hypotheses": [],
+      "witness": null,
+      "used_by": []
+    },
+    {
+      "name": "IRLean.Contract.or_strict",
+      "module": "IRLean.Contract.Poison",
+      "family": "contracts",
+      "provenance": "#42, IRLean/Contract/Poison.lean",
+      "key": "842fa69b876875bede88",
+      "status": "candidate",
+      "widths": "every",
+      "hypotheses": [],
+      "witness": null,
+      "used_by": []
+    },
+    {
+      "name": "IRLean.Contract.shl_strict",
+      "module": "IRLean.Contract.Poison",
+      "family": "contracts",
+      "provenance": "#42, IRLean/Contract/Poison.lean",
+      "key": "cf3e40b95a6041ac8568",
+      "status": "candidate",
+      "widths": "every",
+      "hypotheses": [],
+      "witness": null,
+      "used_by": []
+    },
+    {
+      "name": "IRLean.Contract.lshr_strict",
+      "module": "IRLean.Contract.Poison",
+      "family": "contracts",
+      "provenance": "#42, IRLean/Contract/Poison.lean",
+      "key": "767573cd15b93158cb4e",
+      "status": "candidate",
+      "widths": "every",
+      "hypotheses": [],
+      "witness": null,
+      "used_by": []
+    },
+    {
+      "name": "IRLean.Contract.ashr_strict",
+      "module": "IRLean.Contract.Poison",
+      "family": "contracts",
+      "provenance": "#42, IRLean/Contract/Poison.lean",
+      "key": "ca9c801bf3396c780bd1",
+      "status": "candidate",
+      "widths": "every",
+      "hypotheses": [],
+      "witness": null,
+      "used_by": []
+    },
+    {
+      "name": "IRLean.Contract.icmp_strict",
+      "module": "IRLean.Contract.Poison",
+      "family": "contracts",
+      "provenance": "#42, IRLean/Contract/Poison.lean",
+      "key": "a837462719af918a6120",
+      "status": "candidate",
+      "widths": "every",
+      "hypotheses": [],
+      "witness": null,
+      "used_by": []
+    },
+    {
+      "name": "IRLean.Contract.umin_strict",
+      "module": "IRLean.Contract.Poison",
+      "family": "contracts",
+      "provenance": "#42, IRLean/Contract/Poison.lean",
+      "key": "40cf0336dbcf8f8c275c",
+      "status": "candidate",
+      "widths": "every",
+      "hypotheses": [],
+      "witness": null,
+      "used_by": []
+    },
+    {
+      "name": "IRLean.Contract.umax_strict",
+      "module": "IRLean.Contract.Poison",
+      "family": "contracts",
+      "provenance": "#42, IRLean/Contract/Poison.lean",
+      "key": "599cc00c961e45d107d9",
+      "status": "candidate",
+      "widths": "every",
+      "hypotheses": [],
+      "witness": null,
+      "used_by": []
+    },
+    {
+      "name": "IRLean.Contract.smin_strict",
+      "module": "IRLean.Contract.Poison",
+      "family": "contracts",
+      "provenance": "#42, IRLean/Contract/Poison.lean",
+      "key": "d1e1eebf937e14ea662c",
+      "status": "candidate",
+      "widths": "every",
+      "hypotheses": [],
+      "witness": null,
+      "used_by": []
+    },
+    {
+      "name": "IRLean.Contract.smax_strict",
+      "module": "IRLean.Contract.Poison",
+      "family": "contracts",
+      "provenance": "#42, IRLean/Contract/Poison.lean",
+      "key": "92f0ad837fae9cb72c93",
+      "status": "candidate",
+      "widths": "every",
+      "hypotheses": [],
+      "witness": null,
+      "used_by": []
+    },
+    {
+      "name": "IRLean.Contract.uaddSat_strict",
+      "module": "IRLean.Contract.Poison",
+      "family": "contracts",
+      "provenance": "#42, IRLean/Contract/Poison.lean",
+      "key": "660f358ed758cce3212e",
+      "status": "candidate",
+      "widths": "every",
+      "hypotheses": [],
+      "witness": null,
+      "used_by": []
+    },
+    {
+      "name": "IRLean.Contract.usubSat_strict",
+      "module": "IRLean.Contract.Poison",
+      "family": "contracts",
+      "provenance": "#42, IRLean/Contract/Poison.lean",
+      "key": "877bc8f5a46ade992a0e",
+      "status": "candidate",
+      "widths": "every",
+      "hypotheses": [],
+      "witness": null,
+      "used_by": []
+    },
+    {
+      "name": "IRLean.Contract.saddSat_strict",
+      "module": "IRLean.Contract.Poison",
+      "family": "contracts",
+      "provenance": "#42, IRLean/Contract/Poison.lean",
+      "key": "94e694423ffb86fe6ca9",
+      "status": "candidate",
+      "widths": "every",
+      "hypotheses": [],
+      "witness": null,
+      "used_by": []
+    },
+    {
+      "name": "IRLean.Contract.ssubSat_strict",
+      "module": "IRLean.Contract.Poison",
+      "family": "contracts",
+      "provenance": "#42, IRLean/Contract/Poison.lean",
+      "key": "85f55a8e9a8aea4f3988",
+      "status": "candidate",
+      "widths": "every",
+      "hypotheses": [],
+      "witness": null,
+      "used_by": []
+    },
+    {
+      "name": "IRLean.Contract.ucmp_strict",
+      "module": "IRLean.Contract.Poison",
+      "family": "contracts",
+      "provenance": "#42, IRLean/Contract/Poison.lean",
+      "key": "bee0d96358536abc1361",
+      "status": "candidate",
+      "widths": "every",
+      "hypotheses": [],
+      "witness": null,
+      "used_by": []
+    },
+    {
+      "name": "IRLean.Contract.scmp_strict",
+      "module": "IRLean.Contract.Poison",
+      "family": "contracts",
+      "provenance": "#42, IRLean/Contract/Poison.lean",
+      "key": "c7e371cfe654da1d16d0",
+      "status": "candidate",
+      "widths": "every",
+      "hypotheses": [],
+      "witness": null,
+      "used_by": []
+    },
+    {
+      "name": "IRLean.Contract.fshl_strict",
+      "module": "IRLean.Contract.Poison",
+      "family": "contracts",
+      "provenance": "#42, IRLean/Contract/Poison.lean",
+      "key": "7f11d182858bef14d90e",
+      "status": "candidate",
+      "widths": "every",
+      "hypotheses": [
+        "LemmaStore.Counter.IRLean.Contract.fshl_strict.drop_h"
+      ],
+      "witness": "LemmaStore.Counter.IRLean.Contract.fshl_strict.sat",
+      "used_by": []
+    },
+    {
+      "name": "IRLean.Contract.fshr_strict",
+      "module": "IRLean.Contract.Poison",
+      "family": "contracts",
+      "provenance": "#42, IRLean/Contract/Poison.lean",
+      "key": "f99dbd9c830229e3a833",
+      "status": "candidate",
+      "widths": "every",
+      "hypotheses": [
+        "LemmaStore.Counter.IRLean.Contract.fshr_strict.drop_h"
+      ],
+      "witness": "LemmaStore.Counter.IRLean.Contract.fshr_strict.sat",
+      "used_by": []
+    },
+    {
+      "name": "IRLean.Contract.withOverflow_strict",
+      "module": "IRLean.Contract.Poison",
+      "family": "contracts",
+      "provenance": "#42, IRLean/Contract/Poison.lean",
+      "key": "e2841b715d3e9097f27a",
+      "status": "candidate",
+      "widths": "every",
+      "hypotheses": [
+        "LemmaStore.Counter.IRLean.Contract.withOverflow_strict.drop_h"
+      ],
+      "witness": "LemmaStore.Counter.IRLean.Contract.withOverflow_strict.sat",
+      "used_by": []
+    },
+    {
+      "name": "IRLean.Contract.zext_strict",
+      "module": "IRLean.Contract.Poison",
+      "family": "contracts",
+      "provenance": "#42, IRLean/Contract/Poison.lean",
+      "key": "4023fd87a80e4f4ac31a",
+      "status": "candidate",
+      "widths": "every",
+      "hypotheses": [],
+      "witness": null,
+      "used_by": []
+    },
+    {
+      "name": "IRLean.Contract.sext_strict",
+      "module": "IRLean.Contract.Poison",
+      "family": "contracts",
+      "provenance": "#42, IRLean/Contract/Poison.lean",
+      "key": "57d3c5247272d5c59211",
+      "status": "candidate",
+      "widths": "every",
+      "hypotheses": [],
+      "witness": null,
+      "used_by": []
+    },
+    {
+      "name": "IRLean.Contract.trunc_strict",
+      "module": "IRLean.Contract.Poison",
+      "family": "contracts",
+      "provenance": "#42, IRLean/Contract/Poison.lean",
+      "key": "0e96683733a2fef67881",
+      "status": "candidate",
+      "widths": "every",
+      "hypotheses": [],
+      "witness": null,
+      "used_by": []
+    },
+    {
+      "name": "IRLean.Contract.abs_strict",
+      "module": "IRLean.Contract.Poison",
+      "family": "contracts",
+      "provenance": "#42, IRLean/Contract/Poison.lean",
+      "key": "7c005648580710854f75",
+      "status": "candidate",
+      "widths": "every",
+      "hypotheses": [],
+      "witness": null,
+      "used_by": []
+    },
+    {
+      "name": "IRLean.Contract.ctpop_strict",
+      "module": "IRLean.Contract.Poison",
+      "family": "contracts",
+      "provenance": "#42, IRLean/Contract/Poison.lean",
+      "key": "ac6d909bd0421c6ac2ab",
+      "status": "candidate",
+      "widths": "every",
+      "hypotheses": [],
+      "witness": null,
+      "used_by": []
+    },
+    {
+      "name": "IRLean.Contract.bitreverse_strict",
+      "module": "IRLean.Contract.Poison",
+      "family": "contracts",
+      "provenance": "#42, IRLean/Contract/Poison.lean",
+      "key": "6c775a0e525173943aea",
+      "status": "candidate",
+      "widths": "every",
+      "hypotheses": [],
+      "witness": null,
+      "used_by": []
+    },
+    {
+      "name": "IRLean.Contract.bswap_strict",
+      "module": "IRLean.Contract.Poison",
+      "family": "contracts",
+      "provenance": "#42, IRLean/Contract/Poison.lean",
+      "key": "b7665734d367780fea81",
+      "status": "candidate",
+      "widths": "every",
+      "hypotheses": [],
+      "witness": null,
+      "used_by": []
+    },
+    {
+      "name": "IRLean.Contract.ctlz_strict",
+      "module": "IRLean.Contract.Poison",
+      "family": "contracts",
+      "provenance": "#42, IRLean/Contract/Poison.lean",
+      "key": "dab9be74847faed10d9e",
+      "status": "candidate",
+      "widths": "every",
+      "hypotheses": [],
+      "witness": null,
+      "used_by": []
+    },
+    {
+      "name": "IRLean.Contract.cttz_strict",
+      "module": "IRLean.Contract.Poison",
+      "family": "contracts",
+      "provenance": "#42, IRLean/Contract/Poison.lean",
+      "key": "b1b70157ebd8db15167d",
+      "status": "candidate",
+      "widths": "every",
+      "hypotheses": [],
+      "witness": null,
+      "used_by": []
+    },
+    {
+      "name": "IRLean.Contract.range_strict",
+      "module": "IRLean.Contract.Poison",
+      "family": "contracts",
+      "provenance": "#42, IRLean/Contract/Poison.lean",
+      "key": "bb22bfbd49da45b6028a",
+      "status": "candidate",
+      "widths": "every",
+      "hypotheses": [],
+      "witness": null,
+      "used_by": []
+    },
+    {
+      "name": "IRLean.Contract.add_noPoison",
+      "module": "IRLean.Contract.Poison",
+      "family": "contracts",
+      "provenance": "#42, IRLean/Contract/Poison.lean",
+      "key": "33c3280804d33556c8de",
+      "status": "candidate",
+      "widths": "every",
+      "hypotheses": [],
+      "witness": null,
+      "used_by": []
+    },
+    {
+      "name": "IRLean.Contract.sub_noPoison",
+      "module": "IRLean.Contract.Poison",
+      "family": "contracts",
+      "provenance": "#42, IRLean/Contract/Poison.lean",
+      "key": "c0b7d9b644ed562fcd5a",
+      "status": "candidate",
+      "widths": "every",
+      "hypotheses": [],
+      "witness": null,
+      "used_by": []
+    },
+    {
+      "name": "IRLean.Contract.mul_noPoison",
+      "module": "IRLean.Contract.Poison",
+      "family": "contracts",
+      "provenance": "#42, IRLean/Contract/Poison.lean",
+      "key": "fe9f44ad39398da7f50b",
+      "status": "candidate",
+      "widths": "every",
+      "hypotheses": [],
+      "witness": null,
+      "used_by": []
+    },
+    {
+      "name": "IRLean.Contract.and_noPoison",
+      "module": "IRLean.Contract.Poison",
+      "family": "contracts",
+      "provenance": "#42, IRLean/Contract/Poison.lean",
+      "key": "9f106e4f4d555e7a12b4",
+      "status": "candidate",
+      "widths": "every",
+      "hypotheses": [],
+      "witness": null,
+      "used_by": []
+    },
+    {
+      "name": "IRLean.Contract.xor_noPoison",
+      "module": "IRLean.Contract.Poison",
+      "family": "contracts",
+      "provenance": "#42, IRLean/Contract/Poison.lean",
+      "key": "b88071c4b808f4083cba",
+      "status": "candidate",
+      "widths": "every",
+      "hypotheses": [],
+      "witness": null,
+      "used_by": []
+    },
+    {
+      "name": "IRLean.Contract.or_noPoison",
+      "module": "IRLean.Contract.Poison",
+      "family": "contracts",
+      "provenance": "#42, IRLean/Contract/Poison.lean",
+      "key": "12984c7f6b08f466d41a",
+      "status": "candidate",
+      "widths": "every",
+      "hypotheses": [],
+      "witness": null,
+      "used_by": []
+    },
+    {
+      "name": "IRLean.Contract.icmp_noPoison",
+      "module": "IRLean.Contract.Poison",
+      "family": "contracts",
+      "provenance": "#42, IRLean/Contract/Poison.lean",
+      "key": "f735bc7458b964c11c80",
+      "status": "candidate",
+      "widths": "every",
+      "hypotheses": [],
+      "witness": null,
+      "used_by": []
+    },
+    {
+      "name": "IRLean.Contract.umin_noPoison",
+      "module": "IRLean.Contract.Poison",
+      "family": "contracts",
+      "provenance": "#42, IRLean/Contract/Poison.lean",
+      "key": "0b5ad421dede9a9c2610",
+      "status": "candidate",
+      "widths": "every",
+      "hypotheses": [],
+      "witness": null,
+      "used_by": []
+    },
+    {
+      "name": "IRLean.Contract.umax_noPoison",
+      "module": "IRLean.Contract.Poison",
+      "family": "contracts",
+      "provenance": "#42, IRLean/Contract/Poison.lean",
+      "key": "4c27d99585c3f42ce4b0",
+      "status": "candidate",
+      "widths": "every",
+      "hypotheses": [],
+      "witness": null,
+      "used_by": []
+    },
+    {
+      "name": "IRLean.Contract.smin_noPoison",
+      "module": "IRLean.Contract.Poison",
+      "family": "contracts",
+      "provenance": "#42, IRLean/Contract/Poison.lean",
+      "key": "68282c77ddee3cc5731c",
+      "status": "candidate",
+      "widths": "every",
+      "hypotheses": [],
+      "witness": null,
+      "used_by": []
+    },
+    {
+      "name": "IRLean.Contract.smax_noPoison",
+      "module": "IRLean.Contract.Poison",
+      "family": "contracts",
+      "provenance": "#42, IRLean/Contract/Poison.lean",
+      "key": "6ab31637e724b59e7bdc",
+      "status": "candidate",
+      "widths": "every",
+      "hypotheses": [],
+      "witness": null,
+      "used_by": []
+    },
+    {
+      "name": "IRLean.Contract.uaddSat_noPoison",
+      "module": "IRLean.Contract.Poison",
+      "family": "contracts",
+      "provenance": "#42, IRLean/Contract/Poison.lean",
+      "key": "ad606d6cd27453f8d40d",
+      "status": "candidate",
+      "widths": "every",
+      "hypotheses": [],
+      "witness": null,
+      "used_by": []
+    },
+    {
+      "name": "IRLean.Contract.usubSat_noPoison",
+      "module": "IRLean.Contract.Poison",
+      "family": "contracts",
+      "provenance": "#42, IRLean/Contract/Poison.lean",
+      "key": "5067560d162c8704dbe7",
+      "status": "candidate",
+      "widths": "every",
+      "hypotheses": [],
+      "witness": null,
+      "used_by": []
+    },
+    {
+      "name": "IRLean.Contract.saddSat_noPoison",
+      "module": "IRLean.Contract.Poison",
+      "family": "contracts",
+      "provenance": "#42, IRLean/Contract/Poison.lean",
+      "key": "48a28d3bc8ec9332b70d",
+      "status": "candidate",
+      "widths": "every",
+      "hypotheses": [],
+      "witness": null,
+      "used_by": []
+    },
+    {
+      "name": "IRLean.Contract.ssubSat_noPoison",
+      "module": "IRLean.Contract.Poison",
+      "family": "contracts",
+      "provenance": "#42, IRLean/Contract/Poison.lean",
+      "key": "bf6837d4e2228702b88d",
+      "status": "candidate",
+      "widths": "every",
+      "hypotheses": [],
+      "witness": null,
+      "used_by": []
+    },
+    {
+      "name": "IRLean.Contract.ucmp_noPoison",
+      "module": "IRLean.Contract.Poison",
+      "family": "contracts",
+      "provenance": "#42, IRLean/Contract/Poison.lean",
+      "key": "c49cdb6aaac254b15629",
+      "status": "candidate",
+      "widths": "every",
+      "hypotheses": [],
+      "witness": null,
+      "used_by": []
+    },
+    {
+      "name": "IRLean.Contract.scmp_noPoison",
+      "module": "IRLean.Contract.Poison",
+      "family": "contracts",
+      "provenance": "#42, IRLean/Contract/Poison.lean",
+      "key": "6b6cd310874b3ad560cd",
+      "status": "candidate",
+      "widths": "every",
+      "hypotheses": [],
+      "witness": null,
+      "used_by": []
+    },
+    {
+      "name": "IRLean.Contract.fshl_noPoison",
+      "module": "IRLean.Contract.Poison",
+      "family": "contracts",
+      "provenance": "#42, IRLean/Contract/Poison.lean",
+      "key": "2dcbdc948658b7c47e8c",
+      "status": "candidate",
+      "widths": "every",
+      "hypotheses": [],
+      "witness": null,
+      "used_by": []
+    },
+    {
+      "name": "IRLean.Contract.fshr_noPoison",
+      "module": "IRLean.Contract.Poison",
+      "family": "contracts",
+      "provenance": "#42, IRLean/Contract/Poison.lean",
+      "key": "e12d84e5622f983538c5",
+      "status": "candidate",
+      "widths": "every",
+      "hypotheses": [],
+      "witness": null,
+      "used_by": []
+    },
+    {
+      "name": "IRLean.Contract.withOverflow_noPoison",
+      "module": "IRLean.Contract.Poison",
+      "family": "contracts",
+      "provenance": "#42, IRLean/Contract/Poison.lean",
+      "key": "f1f4159c1368321d4971",
+      "status": "candidate",
+      "widths": "every",
+      "hypotheses": [],
+      "witness": null,
+      "used_by": []
+    },
+    {
+      "name": "IRLean.Contract.zext_noPoison",
+      "module": "IRLean.Contract.Poison",
+      "family": "contracts",
+      "provenance": "#42, IRLean/Contract/Poison.lean",
+      "key": "01aa14af150f8b302fea",
+      "status": "candidate",
+      "widths": "every",
+      "hypotheses": [],
+      "witness": null,
+      "used_by": []
+    },
+    {
+      "name": "IRLean.Contract.sext_noPoison",
+      "module": "IRLean.Contract.Poison",
+      "family": "contracts",
+      "provenance": "#42, IRLean/Contract/Poison.lean",
+      "key": "6ee472f782892dadfe2b",
+      "status": "candidate",
+      "widths": "every",
+      "hypotheses": [],
+      "witness": null,
+      "used_by": []
+    },
+    {
+      "name": "IRLean.Contract.trunc_noPoison",
+      "module": "IRLean.Contract.Poison",
+      "family": "contracts",
+      "provenance": "#42, IRLean/Contract/Poison.lean",
+      "key": "11726b1fd0c2ec7335f0",
+      "status": "candidate",
+      "widths": "every",
+      "hypotheses": [],
+      "witness": null,
+      "used_by": []
+    },
+    {
+      "name": "IRLean.Contract.abs_noPoison",
+      "module": "IRLean.Contract.Poison",
+      "family": "contracts",
+      "provenance": "#42, IRLean/Contract/Poison.lean",
+      "key": "916e84eb139387e13e99",
+      "status": "candidate",
+      "widths": "every",
+      "hypotheses": [],
+      "witness": null,
+      "used_by": []
+    },
+    {
+      "name": "IRLean.Contract.ctpop_noPoison",
+      "module": "IRLean.Contract.Poison",
+      "family": "contracts",
+      "provenance": "#42, IRLean/Contract/Poison.lean",
+      "key": "a02484ac037c087f90a9",
+      "status": "candidate",
+      "widths": "every",
+      "hypotheses": [],
+      "witness": null,
+      "used_by": []
+    },
+    {
+      "name": "IRLean.Contract.bitreverse_noPoison",
+      "module": "IRLean.Contract.Poison",
+      "family": "contracts",
+      "provenance": "#42, IRLean/Contract/Poison.lean",
+      "key": "0e5e0d8663672535633f",
+      "status": "candidate",
+      "widths": "every",
+      "hypotheses": [],
+      "witness": null,
+      "used_by": []
+    },
+    {
+      "name": "IRLean.Contract.bswap_noPoison",
+      "module": "IRLean.Contract.Poison",
+      "family": "contracts",
+      "provenance": "#42, IRLean/Contract/Poison.lean",
+      "key": "636f091d9831745bc1b1",
+      "status": "candidate",
+      "widths": "every",
+      "hypotheses": [],
+      "witness": null,
+      "used_by": []
+    },
+    {
+      "name": "IRLean.Contract.ctlz_noPoison",
+      "module": "IRLean.Contract.Poison",
+      "family": "contracts",
+      "provenance": "#42, IRLean/Contract/Poison.lean",
+      "key": "3eccdb85b4074d690db6",
+      "status": "candidate",
+      "widths": "every",
+      "hypotheses": [],
+      "witness": null,
+      "used_by": []
+    },
+    {
+      "name": "IRLean.Contract.cttz_noPoison",
+      "module": "IRLean.Contract.Poison",
+      "family": "contracts",
+      "provenance": "#42, IRLean/Contract/Poison.lean",
+      "key": "0e0e10cf7dd4be230c89",
+      "status": "candidate",
+      "widths": "every",
+      "hypotheses": [],
+      "witness": null,
+      "used_by": []
+    },
+    {
+      "name": "IRLean.Contract.udiv_noPoison",
+      "module": "IRLean.Contract.Poison",
+      "family": "contracts",
+      "provenance": "#42, IRLean/Contract/Poison.lean",
+      "key": "68f96146996d78378878",
+      "status": "candidate",
+      "widths": "every",
+      "hypotheses": [
+        "LemmaStore.Counter.IRLean.Contract.udiv_noPoison.drop_h"
+      ],
+      "witness": "LemmaStore.Counter.IRLean.Contract.udiv_noPoison.sat",
+      "used_by": []
+    },
+    {
+      "name": "IRLean.Contract.sdiv_noPoison",
+      "module": "IRLean.Contract.Poison",
+      "family": "contracts",
+      "provenance": "#42, IRLean/Contract/Poison.lean",
+      "key": "a482329f0d377cabfbea",
+      "status": "candidate",
+      "widths": "every",
+      "hypotheses": [
+        "LemmaStore.Counter.IRLean.Contract.sdiv_noPoison.drop_h"
+      ],
+      "witness": "LemmaStore.Counter.IRLean.Contract.sdiv_noPoison.sat",
+      "used_by": []
+    },
+    {
+      "name": "IRLean.Contract.urem_noPoison",
+      "module": "IRLean.Contract.Poison",
+      "family": "contracts",
+      "provenance": "#42, IRLean/Contract/Poison.lean",
+      "key": "d0e97da05eb2d908f450",
+      "status": "candidate",
+      "widths": "every",
+      "hypotheses": [
+        "LemmaStore.Counter.IRLean.Contract.urem_noPoison.drop_h"
+      ],
+      "witness": "LemmaStore.Counter.IRLean.Contract.urem_noPoison.sat",
+      "used_by": []
+    },
+    {
+      "name": "IRLean.Contract.srem_noPoison",
+      "module": "IRLean.Contract.Poison",
+      "family": "contracts",
+      "provenance": "#42, IRLean/Contract/Poison.lean",
+      "key": "c57226bf773e194c0de2",
+      "status": "candidate",
+      "widths": "every",
+      "hypotheses": [
+        "LemmaStore.Counter.IRLean.Contract.srem_noPoison.drop_h"
+      ],
+      "witness": "LemmaStore.Counter.IRLean.Contract.srem_noPoison.sat",
+      "used_by": []
+    },
+    {
+      "name": "IRLean.Contract.add_onlyPoisons",
+      "module": "IRLean.Contract.Poison",
+      "family": "contracts",
+      "provenance": "#42, IRLean/Contract/Poison.lean",
+      "key": "ddbbcb58f41e7e064d13",
+      "status": "candidate",
+      "widths": "every",
+      "hypotheses": [
+        "LemmaStore.Counter.IRLean.Contract.add_onlyPoisons.drop_h1",
+        "LemmaStore.Counter.IRLean.Contract.add_onlyPoisons.drop_h2"
+      ],
+      "witness": "LemmaStore.Counter.IRLean.Contract.add_onlyPoisons.sat",
+      "used_by": []
+    },
+    {
+      "name": "IRLean.Contract.sub_onlyPoisons",
+      "module": "IRLean.Contract.Poison",
+      "family": "contracts",
+      "provenance": "#42, IRLean/Contract/Poison.lean",
+      "key": "57e126d5f466ba17a617",
+      "status": "candidate",
+      "widths": "every",
+      "hypotheses": [
+        "LemmaStore.Counter.IRLean.Contract.sub_onlyPoisons.drop_h1",
+        "LemmaStore.Counter.IRLean.Contract.sub_onlyPoisons.drop_h2"
+      ],
+      "witness": "LemmaStore.Counter.IRLean.Contract.sub_onlyPoisons.sat",
+      "used_by": []
+    },
+    {
+      "name": "IRLean.Contract.mul_onlyPoisons",
+      "module": "IRLean.Contract.Poison",
+      "family": "contracts",
+      "provenance": "#42, IRLean/Contract/Poison.lean",
+      "key": "2ed9528492761d604ad7",
+      "status": "candidate",
+      "widths": "every",
+      "hypotheses": [
+        "LemmaStore.Counter.IRLean.Contract.mul_onlyPoisons.drop_h1",
+        "LemmaStore.Counter.IRLean.Contract.mul_onlyPoisons.drop_h2"
+      ],
+      "witness": "LemmaStore.Counter.IRLean.Contract.mul_onlyPoisons.sat",
+      "used_by": []
+    },
+    {
+      "name": "IRLean.Contract.shl_onlyPoisons",
+      "module": "IRLean.Contract.Poison",
+      "family": "contracts",
+      "provenance": "#42, IRLean/Contract/Poison.lean",
+      "key": "66a938a7a4cc004c449d",
+      "status": "candidate",
+      "widths": "every",
+      "hypotheses": [
+        "LemmaStore.Counter.IRLean.Contract.shl_onlyPoisons.drop_h1",
+        "LemmaStore.Counter.IRLean.Contract.shl_onlyPoisons.drop_h2"
+      ],
+      "witness": "LemmaStore.Counter.IRLean.Contract.shl_onlyPoisons.sat",
+      "used_by": []
+    },
+    {
+      "name": "IRLean.Contract.lshr_onlyPoisons",
+      "module": "IRLean.Contract.Poison",
+      "family": "contracts",
+      "provenance": "#42, IRLean/Contract/Poison.lean",
+      "key": "b2b9937343e4bdbcf478",
+      "status": "candidate",
+      "widths": "every",
+      "hypotheses": [
+        "LemmaStore.Counter.IRLean.Contract.lshr_onlyPoisons.drop_h"
+      ],
+      "witness": "LemmaStore.Counter.IRLean.Contract.lshr_onlyPoisons.sat",
+      "used_by": []
+    },
+    {
+      "name": "IRLean.Contract.ashr_onlyPoisons",
+      "module": "IRLean.Contract.Poison",
+      "family": "contracts",
+      "provenance": "#42, IRLean/Contract/Poison.lean",
+      "key": "e598fe7c0994132ea075",
+      "status": "candidate",
+      "widths": "every",
+      "hypotheses": [
+        "LemmaStore.Counter.IRLean.Contract.ashr_onlyPoisons.drop_h"
+      ],
+      "witness": "LemmaStore.Counter.IRLean.Contract.ashr_onlyPoisons.sat",
+      "used_by": []
+    },
+    {
+      "name": "IRLean.Contract.or_onlyPoisons",
+      "module": "IRLean.Contract.Poison",
+      "family": "contracts",
+      "provenance": "#42, IRLean/Contract/Poison.lean",
+      "key": "4a89cb1357cdec74435c",
+      "status": "candidate",
+      "widths": "every",
+      "hypotheses": [
+        "LemmaStore.Counter.IRLean.Contract.or_onlyPoisons.drop_h"
+      ],
+      "witness": "LemmaStore.Counter.IRLean.Contract.or_onlyPoisons.sat",
+      "used_by": []
+    },
+    {
+      "name": "IRLean.Contract.icmp_onlyPoisons",
+      "module": "IRLean.Contract.Poison",
+      "family": "contracts",
+      "provenance": "#42, IRLean/Contract/Poison.lean",
+      "key": "b6769ae507dd2773f321",
+      "status": "candidate",
+      "widths": "every",
+      "hypotheses": [
+        "LemmaStore.Counter.IRLean.Contract.icmp_onlyPoisons.drop_h"
+      ],
+      "witness": "LemmaStore.Counter.IRLean.Contract.icmp_onlyPoisons.sat",
+      "used_by": []
+    },
+    {
+      "name": "IRLean.Contract.zext_onlyPoisons",
+      "module": "IRLean.Contract.Poison",
+      "family": "contracts",
+      "provenance": "#42, IRLean/Contract/Poison.lean",
+      "key": "ba5c6e84129463894a0c",
+      "status": "candidate",
+      "widths": "every",
+      "hypotheses": [
+        "LemmaStore.Counter.IRLean.Contract.zext_onlyPoisons.drop_h"
+      ],
+      "witness": "LemmaStore.Counter.IRLean.Contract.zext_onlyPoisons.sat",
+      "used_by": []
+    },
+    {
+      "name": "IRLean.Contract.trunc_onlyPoisons",
+      "module": "IRLean.Contract.Poison",
+      "family": "contracts",
+      "provenance": "#42, IRLean/Contract/Poison.lean",
+      "key": "9282136204f86881a35e",
+      "status": "candidate",
+      "widths": "every",
+      "hypotheses": [
+        "LemmaStore.Counter.IRLean.Contract.trunc_onlyPoisons.drop_h1",
+        "LemmaStore.Counter.IRLean.Contract.trunc_onlyPoisons.drop_h2"
+      ],
+      "witness": "LemmaStore.Counter.IRLean.Contract.trunc_onlyPoisons.sat",
+      "used_by": []
+    },
+    {
+      "name": "IRLean.Contract.abs_onlyPoisons",
+      "module": "IRLean.Contract.Poison",
+      "family": "contracts",
+      "provenance": "#42, IRLean/Contract/Poison.lean",
+      "key": "a4736c90e7871eeadd77",
+      "status": "candidate",
+      "widths": "every",
+      "hypotheses": [
+        "LemmaStore.Counter.IRLean.Contract.abs_onlyPoisons.drop_h"
+      ],
+      "witness": "LemmaStore.Counter.IRLean.Contract.abs_onlyPoisons.sat",
+      "used_by": []
+    },
+    {
+      "name": "IRLean.Contract.ctlz_onlyPoisons",
+      "module": "IRLean.Contract.Poison",
+      "family": "contracts",
+      "provenance": "#42, IRLean/Contract/Poison.lean",
+      "key": "1f392707efc21fd1c291",
+      "status": "candidate",
+      "widths": "every",
+      "hypotheses": [
+        "LemmaStore.Counter.IRLean.Contract.ctlz_onlyPoisons.drop_h"
+      ],
+      "witness": "LemmaStore.Counter.IRLean.Contract.ctlz_onlyPoisons.sat",
+      "used_by": []
+    },
+    {
+      "name": "IRLean.Contract.cttz_onlyPoisons",
+      "module": "IRLean.Contract.Poison",
+      "family": "contracts",
+      "provenance": "#42, IRLean/Contract/Poison.lean",
+      "key": "48df40c81bbce2e15b6c",
+      "status": "candidate",
+      "widths": "every",
+      "hypotheses": [
+        "LemmaStore.Counter.IRLean.Contract.cttz_onlyPoisons.drop_h"
+      ],
+      "witness": "LemmaStore.Counter.IRLean.Contract.cttz_onlyPoisons.sat",
+      "used_by": []
+    },
+    {
+      "name": "IRLean.Contract.select_poison",
+      "module": "IRLean.Contract.Poison",
+      "family": "contracts",
+      "provenance": "#42, IRLean/Contract/Poison.lean",
+      "key": "94580568118e02a64863",
+      "status": "candidate",
+      "widths": "every",
+      "hypotheses": [],
+      "witness": null,
+      "used_by": []
+    },
+    {
+      "name": "IRLean.Contract.select_true",
+      "module": "IRLean.Contract.Poison",
+      "family": "contracts",
+      "provenance": "#42, IRLean/Contract/Poison.lean",
+      "key": "434c5c4da2c300928953",
+      "status": "candidate",
+      "widths": "every",
+      "hypotheses": [],
+      "witness": null,
+      "used_by": []
+    },
+    {
+      "name": "IRLean.Contract.select_false",
+      "module": "IRLean.Contract.Poison",
+      "family": "contracts",
+      "provenance": "#42, IRLean/Contract/Poison.lean",
+      "key": "38185df99a6fb040ef62",
+      "status": "candidate",
+      "widths": "every",
+      "hypotheses": [],
+      "witness": null,
+      "used_by": []
+    },
+    {
+      "name": "IRLean.Contract.freeze_some",
+      "module": "IRLean.Contract.Poison",
+      "family": "contracts",
+      "provenance": "#42, IRLean/Contract/Poison.lean",
+      "key": "86016152ed30583d4e30",
+      "status": "candidate",
+      "widths": "every",
+      "hypotheses": [],
+      "witness": null,
+      "used_by": []
+    },
+    {
+      "name": "IRLean.Contract.freeze_none_stops",
+      "module": "IRLean.Contract.Poison",
+      "family": "contracts",
+      "provenance": "#42, IRLean/Contract/Poison.lean",
+      "key": "c0db0fc64f3822ef2f1c",
+      "status": "candidate",
+      "widths": "every",
+      "hypotheses": [],
+      "witness": null,
+      "used_by": []
+    },
+    {
+      "name": "IRLean.Contract.freeze_none_not_ub",
+      "module": "IRLean.Contract.Poison",
+      "family": "contracts",
+      "provenance": "#42, IRLean/Contract/Poison.lean",
+      "key": "40e5b46406f2b9938774",
+      "status": "candidate",
+      "widths": "every",
+      "hypotheses": [],
+      "witness": null,
+      "used_by": []
+    },
+    {
+      "name": "IRLean.Refine.val_none",
+      "module": "IRLean.Refine",
+      "family": "refinement",
+      "provenance": "#46, IRLean/Refine.lean",
+      "key": "c627fff2109ce17797cf",
+      "status": "admitted",
+      "widths": "every",
+      "hypotheses": [],
+      "witness": null,
+      "used_by": [
+        "IRLean.Generic.and_or_absorb_refines",
+        "IRLean.Generic.and_zero_refines",
+        "IRLean.Generic.ashr_shl_nsw_refines",
+        "IRLean.Generic.lshr_shl_nuw_refines",
+        "IRLean.Generic.mul_one_refines",
+        "IRLean.Generic.mul_twoPow_refines",
+        "IRLean.Generic.mul_zero_refines",
+        "IRLean.Generic.not_or_refines",
+        "IRLean.Generic.or_allOnes_refines",
+        "IRLean.Generic.or_disjoint_refines_add",
+        "IRLean.Generic.or_self_disjoint_refines",
+        "IRLean.Generic.shl_ashr_exact_refines",
+        "IRLean.Generic.shl_lshr_exact_refines",
+        "IRLean.Generic.sub_self_refines",
+        "IRLean.Generic.xor_self_refines",
+        "IRLean.Generic.xor_xor_cancel_refines",
+        "RefineCases.addZero",
+        "RefineCases.dropNuw",
+        "RefineCases.poisonLane",
+        "RefineCases.poisonToValue",
+        "RefineCases.undefArgument"
+      ]
+    },
+    {
+      "name": "IRLean.Refine.val_some",
+      "module": "IRLean.Refine",
+      "family": "refinement",
+      "provenance": "#46, IRLean/Refine.lean",
+      "key": "218751f32a1520b32197",
+      "status": "admitted",
+      "widths": "every",
+      "hypotheses": [],
+      "witness": null,
+      "used_by": [
+        "IRLean.Generic.Counter.not_refines",
+        "RefineCases.addZero",
+        "RefineCases.addedNuw",
+        "RefineCases.swappedLanes",
+        "RefineCases.undefArgument",
+        "RefineCases.valueToPoison",
+        "RefineCases.wrongConstant"
+      ]
+    },
+    {
+      "name": "IRLean.Refine.val_iff",
+      "module": "IRLean.Refine",
+      "family": "refinement",
+      "provenance": "#46, IRLean/Refine.lean",
+      "key": "eba4dc70e3097117dbce",
+      "status": "admitted",
+      "widths": "every",
+      "hypotheses": [],
+      "witness": null,
+      "used_by": [
+        "IRLean.Generic.and_or_absorb_refines",
+        "IRLean.Generic.and_zero_refines",
+        "IRLean.Generic.ashr_shl_nsw_refines",
+        "IRLean.Generic.lshr_shl_nuw_refines",
+        "IRLean.Generic.mul_one_refines",
+        "IRLean.Generic.mul_twoPow_refines",
+        "IRLean.Generic.mul_zero_refines",
+        "IRLean.Generic.not_or_refines",
+        "IRLean.Generic.or_allOnes_refines",
+        "IRLean.Generic.or_disjoint_refines_add",
+        "IRLean.Generic.or_self_disjoint_refines",
+        "IRLean.Generic.shl_ashr_exact_refines",
+        "IRLean.Generic.shl_lshr_exact_refines",
+        "IRLean.Generic.sub_self_refines",
+        "IRLean.Generic.xor_self_refines",
+        "IRLean.Generic.xor_xor_cancel_refines"
+      ]
+    },
+    {
+      "name": "IRLean.Refine.vector_iff",
+      "module": "IRLean.Refine",
+      "family": "refinement",
+      "provenance": "#46, IRLean/Refine.lean",
+      "key": "f97379163856702e0ea5",
+      "status": "candidate",
+      "widths": "every",
+      "hypotheses": [],
+      "witness": null,
+      "used_by": []
+    },
+    {
+      "name": "IRLean.Refine.prod_iff",
+      "module": "IRLean.Refine",
+      "family": "refinement",
+      "provenance": "#46, IRLean/Refine.lean",
+      "key": "de7e434d7c17a9d85e5f",
+      "status": "candidate",
+      "widths": "every",
+      "hypotheses": [],
+      "witness": null,
+      "used_by": []
+    },
+    {
+      "name": "IRLean.Refine.unit",
+      "module": "IRLean.Refine",
+      "family": "refinement",
+      "provenance": "#46, IRLean/Refine.lean",
+      "key": "6f2f502adeaa9bbd972a",
+      "status": "candidate",
+      "widths": "every",
+      "hypotheses": [],
+      "witness": null,
+      "used_by": []
+    },
+    {
+      "name": "IRLean.Refine.outcome_ok",
+      "module": "IRLean.Refine",
+      "family": "refinement",
+      "provenance": "#46, IRLean/Refine.lean",
+      "key": "6926334fdc109b5bbb08",
+      "status": "candidate",
+      "widths": "every",
+      "hypotheses": [],
+      "witness": null,
+      "used_by": []
+    },
+    {
+      "name": "IRLean.Refine.outcome_ok_ok",
+      "module": "IRLean.Refine",
+      "family": "refinement",
+      "provenance": "#46, IRLean/Refine.lean",
+      "key": "bb422d1a377243495749",
+      "status": "admitted",
+      "widths": "every",
+      "hypotheses": [],
+      "witness": null,
+      "used_by": [
+        "IRLean.Generic.sdiv_one_refines",
+        "IRLean.Generic.srem_one_refines",
+        "IRLean.Generic.urem_one_refines",
+        "RefineCases.addZero",
+        "RefineCases.addedNuw",
+        "RefineCases.dropNuw",
+        "RefineCases.inContext",
+        "RefineCases.loopDeletedUnderPromise",
+        "RefineCases.poisonLane",
+        "RefineCases.poisonToValue",
+        "RefineCases.promiseDropped",
+        "RefineCases.swappedLanes",
+        "RefineCases.undefArgument",
+        "RefineCases.valueToPoison",
+        "RefineCases.wrongConstant"
+      ]
+    },
+    {
+      "name": "IRLean.Refine.outcome_ub",
+      "module": "IRLean.Refine",
+      "family": "refinement",
+      "provenance": "#46, IRLean/Refine.lean",
+      "key": "ba1deb75957402dab0ec",
+      "status": "admitted",
+      "widths": "every",
+      "hypotheses": [],
+      "witness": null,
+      "used_by": [
+        "IRLean.Generic.sdiv_one_refines",
+        "IRLean.Generic.srem_one_refines",
+        "IRLean.Generic.urem_one_refines",
+        "RefineCases.loopDeletedUnderPromise",
+        "RefineCases.promiseDropped",
+        "RefineCases.removeUB"
+      ]
+    },
+    {
+      "name": "IRLean.Refine.outcome_stop",
+      "module": "IRLean.Refine",
+      "family": "refinement",
+      "provenance": "#46, IRLean/Refine.lean",
+      "key": "1a709fc6e63dc1a8b691",
+      "status": "admitted",
+      "widths": "every",
+      "hypotheses": [],
+      "witness": null,
+      "used_by": [
+        "RefineCases.freezeDuplicated",
+        "RefineCases.freezeToPoison"
+      ]
+    },
+    {
+      "name": "IRLean.Refine.outcome_none",
+      "module": "IRLean.Refine",
+      "family": "refinement",
+      "provenance": "#46, IRLean/Refine.lean",
+      "key": "e548a644642e7a2637ef",
+      "status": "admitted",
+      "widths": "every",
+      "hypotheses": [],
+      "witness": null,
+      "used_by": [
+        "RefineCases.loopDeletedWithoutPromise",
+        "RefineCases.promiseAdded"
+      ]
+    },
+    {
+      "name": "IRLean.Refine.fn",
+      "module": "IRLean.Refine",
+      "family": "refinement",
+      "provenance": "#46, IRLean/Refine.lean",
+      "key": "d912b7cbcbdfe0090d78",
+      "status": "candidate",
+      "widths": "every",
+      "hypotheses": [],
+      "witness": null,
+      "used_by": []
+    },
+    {
+      "name": "IRLean.Refine.refl_val",
+      "module": "IRLean.Refine",
+      "family": "refinement",
+      "provenance": "#46, IRLean/Refine.lean",
+      "key": "ffadaf6585e75ebf452d",
+      "status": "admitted",
+      "widths": "every",
+      "hypotheses": [],
+      "witness": null,
+      "used_by": [
+        "RefineCases.dropNuw",
+        "RefineCases.loopDeletedUnderPromise",
+        "RefineCases.poisonLane",
+        "RefineCases.promiseDropped"
+      ]
+    },
+    {
+      "name": "IRLean.Refine.outcome_le_self_iff",
+      "module": "IRLean.Refine",
+      "family": "refinement",
+      "provenance": "#46, IRLean/Refine.lean",
+      "key": "6abe3142856f6aa0b4a7",
+      "status": "candidate",
+      "widths": "every",
+      "hypotheses": [
+        "LemmaStore.Counter.IRLean.Refine.outcome_le_self_iff.drop_2"
+      ],
+      "witness": "LemmaStore.Counter.IRLean.Refine.outcome_le_self_iff.sat",
+      "used_by": [
+        "IRLean.Refines.self_iff"
+      ]
+    },
+    {
+      "name": "IRLean.Refine.andThen_mono",
+      "module": "IRLean.Refine",
+      "family": "refinement",
+      "provenance": "#46, IRLean/Refine.lean",
+      "key": "583ac039b90a8ea290fd",
+      "status": "candidate",
+      "widths": "every",
+      "hypotheses": [
+        "LemmaStore.Counter.IRLean.Refine.andThen_mono.drop_hx",
+        "LemmaStore.Counter.IRLean.Refine.andThen_mono.drop_hk"
+      ],
+      "witness": "LemmaStore.Counter.IRLean.Refine.andThen_mono.sat",
+      "used_by": [
+        "RefineCases.inContext"
+      ]
+    },
+    {
+      "name": "IRLean.Refine.val_map_mono",
+      "module": "IRLean.Refine",
+      "family": "refinement",
+      "provenance": "#46, IRLean/Refine.lean",
+      "key": "5ec6b27774290d91373a",
+      "status": "candidate",
+      "widths": "every",
+      "hypotheses": [
+        "LemmaStore.Counter.IRLean.Refine.val_map_mono.drop_hf",
+        "LemmaStore.Counter.IRLean.Refine.val_map_mono.drop_h"
+      ],
+      "witness": "LemmaStore.Counter.IRLean.Refine.val_map_mono.sat",
+      "used_by": []
+    },
+    {
+      "name": "IRLean.Refine.val_map₂_mono",
+      "module": "IRLean.Refine",
+      "family": "refinement",
+      "provenance": "#46, IRLean/Refine.lean",
+      "key": "db8e5a27d66ea2513e1c",
+      "status": "candidate",
+      "widths": "every",
+      "hypotheses": [
+        "LemmaStore.Counter.IRLean.Refine.val_map₂_mono.drop_hl",
+        "LemmaStore.Counter.IRLean.Refine.val_map₂_mono.drop_hr",
+        "LemmaStore.Counter.IRLean.Refine.val_map₂_mono.drop_ha",
+        "LemmaStore.Counter.IRLean.Refine.val_map₂_mono.drop_hb"
+      ],
+      "witness": "LemmaStore.Counter.IRLean.Refine.val_map₂_mono.sat",
+      "used_by": [
+        "RefineCases.inContext"
+      ]
+    },
+    {
+      "name": "IRLean.Refines.trans",
+      "module": "IRLean.Refine",
+      "family": "refinement",
+      "provenance": "#46, IRLean/Refine.lean",
+      "key": "5efae2c05efad2128519",
+      "status": "candidate",
+      "widths": "every",
+      "hypotheses": [
+        "LemmaStore.Counter.IRLean.Refines.trans.drop_hab",
+        "LemmaStore.Counter.IRLean.Refines.trans.drop_hbc"
+      ],
+      "witness": "LemmaStore.Counter.IRLean.Refines.trans.sat",
+      "used_by": [
+        "RefineCases.chain"
+      ]
+    },
+    {
+      "name": "IRLean.Refines.refl",
+      "module": "IRLean.Refine",
+      "family": "refinement",
+      "provenance": "#46, IRLean/Refine.lean",
+      "key": "96e74e9b3379200de8d8",
+      "status": "admitted",
+      "widths": "every",
+      "hypotheses": [
+        "LemmaStore.Counter.IRLean.Refines.refl.drop_2"
+      ],
+      "witness": "LemmaStore.Counter.IRLean.Refines.refl.sat",
+      "used_by": [
+        "IRLean.Generic.mul_one_refines",
+        "IRLean.Generic.mul_twoPow_refines",
+        "IRLean.Generic.sdiv_one_refines",
+        "IRLean.Generic.srem_one_refines",
+        "IRLean.Generic.urem_one_refines"
+      ]
+    },
+    {
+      "name": "IRLean.Refines.self_iff",
+      "module": "IRLean.Refine",
+      "family": "refinement",
+      "provenance": "#46, IRLean/Refine.lean",
+      "key": "fd4237639f73f40dfb8c",
+      "status": "admitted",
+      "widths": "every",
+      "hypotheses": [
+        "LemmaStore.Counter.IRLean.Refines.self_iff.drop_3"
+      ],
+      "witness": "LemmaStore.Counter.IRLean.Refines.self_iff.sat",
+      "used_by": [
+        "RefineCases.addZeroSrc_self",
+        "RefineCases.frozen_not_self",
+        "RefineCases.of_equivalence"
+      ]
+    }
+  ],
+  "forgotten": []
+}

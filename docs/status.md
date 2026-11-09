@@ -234,5 +234,10 @@ reads it. That difference is itself a thing [Phase 3](roadmap.md#phase-3-c-and-r
 6. Memory, then the go/no-go: prove zlib's `adler32`. Done, at 615 lines for 65 of C, about 9:1 at the time.
 7. All of zlib: pointers in globals, function pointers, the C heap, vectors. Done.
 8. `crc32`. Done.
-9. Promises the optimizer leaves, checked or refused. Done, apart from `mustprogress` and `willreturn`.
+9. Promises the optimizer leaves, checked or refused. Done, with `mustprogress`, `willreturn` and
+   `llvm.loop.mustprogress` [since SEM-07](trust.md#promises-to-progress).
 10. `inflate`: [measured](#measured). Its next step is [its invariant](roadmap.md#phase-1-zlib-inflate-memory-safety).
+11. A [lemma store](lemma-store.md): 163 checked lemmas from #42, #46 and #48 that later proofs can find, in `lake build`
+    and CI, 16 of them used by two proofs. Done in [#60](https://github.com/phongndo/ir-lean/pull/60).
+12. Tier-1 proof tests, which run a property on generated inputs and have the kernel check each counterexample. Done,
+    for functions without memory: [proof tests](proof-tests.md) has what they refute, and what they can't run.

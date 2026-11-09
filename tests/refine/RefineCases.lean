@@ -1,3 +1,5 @@
+import IRLean.Lemmas
+import IRLean.Promise
 import IRLean.Refine
 import IRLean.Vec
 
@@ -123,11 +125,125 @@ theorem spinTarget : ¬ Refines addZeroTgt spin := fun h => by
   obtain ⟨_, hb, _⟩ := h none
   simp [spin] at hb
 
-/-- A source that never finishes needs a target that doesn't either. LLVM would let a `mustprogress` source do
-anything here, so this is stricter than LLVM. -/
+/-- A source that never finishes needs a target that doesn't either. Under a promise to progress it isn't `none` but
+undefined, which allows anything: see `loopDeletedUnderPromise`. -/
 theorem spinSource : ¬ Refines spin addZeroTgt := fun h => by
   have : addZeroTgt none = none := h none
   simp [addZeroTgt, Outcome.ok] at this
+
+/-! ### Promises to progress
+
+A loop counting up from 0 by 2 until it reaches `n`, whose result nothing uses, as `loop-deletion` finds it. It never
+ends for an odd `n`. In a function marked `mustprogress` that's undefined, so deleting the loop is right, and without
+the promise it isn't. Adding the promise is wrong, and dropping it is right. -/
+
+inductive Count where
+  | entry (n : Val 8)
+  | loop (i n : Val 8)
+  | exit
+
+def countStep : Count → Outcome (Next Count (Val 8))
+  | .entry n => jump (.loop (some 0#8) n)
+  | .loop i n => br (Val.icmpEq i n) .exit (.loop (Val.add i (some 2#8)) n)
+  | .exit => ret (some 0#8)
+
+/-- The loop in a function without the promise. -/
+def countFree (n : Val 8) : Outcome (Val 8) := noundef n <| run countStep (.entry n)
+
+/-- The same loop in a function marked `mustprogress`, as ir-lean emits it. -/
+def countPromised (n : Val 8) : Outcome (Val 8) :=
+  noundef n <| promised (run countStep (.entry n)) fun _ => runPromised (fun _ => true) countStep (.entry n)
+
+/-- The loop deleted. -/
+def countDeleted (n : Val 8) : Outcome (Val 8) := noundef n <| Outcome.ok (some 0#8)
+
+theorem count_even (n : BitVec 8) (k : Nat) : ∀ i : BitVec 8, i.toNat ≤ n.toNat → n.toNat - i.toNat = 2 * k →
+    run countStep (.loop (some i) (some n)) = Outcome.ok (some 0#8) := by
+  induction k with
+  | zero =>
+    intro i hle hk
+    have : i = n := BitVec.eq_of_toNat_eq (by omega)
+    subst this
+    rw [run_jump _ (show countStep _ = jump .exit by simp [countStep, llvm_val, br])]
+    exact run_ret _ rfl
+  | succ k ih =>
+    intro i hle hk
+    have hne : i ≠ n := by rintro rfl; omega
+    rw [run_jump _ (show countStep _ = jump (.loop (some (i + 2#8)) (some n)) by simp [countStep, llvm_val, hne])]
+    have h2 : (i + 2#8).toNat = i.toNat + 2 := by
+      simp only [BitVec.toNat_add, BitVec.toNat_ofNat]; have := n.isLt; omega
+    exact ih _ (by omega) (by omega)
+
+/-- The loop's states for an odd `n`: `i` stays even, so it never reaches `n`. -/
+def oddStates (n : BitVec 8) (b : Count) : Prop := ∃ i : BitVec 8, i.toNat % 2 = 0 ∧ b = .loop (some i) (some n)
+
+theorem odd_next (n : BitVec 8) (hn : n.toNat % 2 = 1) :
+    ∀ b, oddStates n b → ∃ b', countStep b = jump b' ∧ (fun _ => true) b' = true ∧ oddStates n b' := by
+  rintro b ⟨i, hi, rfl⟩
+  have hne : i ≠ n := by rintro rfl; omega
+  refine ⟨.loop (some (i + 2#8)) (some n), by simp [countStep, llvm_val, hne], rfl, i + 2#8, ?_, rfl⟩
+  simp only [BitVec.toNat_add, BitVec.toNat_ofNat]; omega
+
+theorem count_entry (n : BitVec 8) : countStep (.entry (some n)) = jump (.loop (some 0#8) (some n)) := rfl
+
+theorem countFree_odd (n : BitVec 8) (hn : n.toNat % 2 = 1) : countFree (some n) = none := by
+  rw [countFree, noundef_some, run_jump _ (count_entry n)]
+  exact run_forever (oddStates n) (fun b hb => let ⟨b', h, _, h'⟩ := odd_next n hn b hb; ⟨b', h, h'⟩) ⟨0#8, rfl, rfl⟩
+
+/-- A promise broken on some inputs: undefined exactly where the loop never ends, and the loop's result elsewhere. -/
+theorem countPromised_odd (n : BitVec 8) (hn : n.toNat % 2 = 1) : countPromised (some n) = Outcome.ub .noProgress := by
+  have spins : run countStep (.entry (some n)) = none := by
+    have := countFree_odd n hn
+    rwa [countFree, noundef_some] at this
+  rw [countPromised, noundef_some, spins, promised_none, runPromised_jump (count_entry n), runPromised,
+    stay_forever (oddStates n) (odd_next n hn) ⟨0#8, rfl, rfl⟩]
+
+theorem countPromised_even (n : BitVec 8) (hn : n.toNat % 2 = 0) : countPromised (some n) = Outcome.ok (some 0#8) := by
+  rw [countPromised, noundef_some, run_jump _ (count_entry n),
+    count_even n (n.toNat / 2) 0#8 (by simp) (by simp; omega)]
+  rfl
+
+theorem countFree_even (n : BitVec 8) (hn : n.toNat % 2 = 0) : countFree (some n) = Outcome.ok (some 0#8) := by
+  rw [countFree, noundef_some, run_jump _ (count_entry n), count_even n (n.toNat / 2) 0#8 (by simp) (by simp; omega)]
+
+theorem promiseBrokenOnSomeInput :
+    countPromised (some 1#8) = Outcome.ub .noProgress ∧ countPromised (some 2#8) = Outcome.ok (some 0#8) :=
+  ⟨countPromised_odd _ (by decide), countPromised_even _ (by decide)⟩
+
+/-- Deleting the loop under the promise: where it never ends, the source is undefined. -/
+theorem loopDeletedUnderPromise : Refines countPromised countDeleted := by
+  intro n
+  cases n with
+  | none => exact Refine.outcome_ub _ _
+  | some n =>
+    by_cases hn : n.toNat % 2 = 0
+    · rw [countPromised_even n hn]; exact (Refine.outcome_ok_ok _ _).2 (Refine.refl_val _)
+    · rw [countPromised_odd n (by omega)]; exact Refine.outcome_ub _ _
+
+/-- Deleting it without the promise: at `n = 1` the source never finishes, and the target returns. -/
+theorem loopDeletedWithoutPromise : ¬ Refines countFree countDeleted := fun h => by
+  have h1 := h (some 1#8)
+  rw [countFree_odd 1#8 (by decide)] at h1
+  have : countDeleted (some 1#8) = none := (Refine.outcome_none _).1 h1
+  simp [countDeleted, noundef_some, Outcome.ok] at this
+
+/-- Adding the promise: at `n = 1` the source never finishes, which LLVM allows, and the target is undefined. -/
+theorem promiseAdded : ¬ Refines countFree countPromised := fun h => by
+  have h1 := h (some 1#8)
+  rw [countFree_odd 1#8 (by decide)] at h1
+  have : countPromised (some 1#8) = none := (Refine.outcome_none _).1 h1
+  rw [countPromised_odd 1#8 (by decide)] at this
+  simp [Outcome.ub] at this
+
+/-- Dropping the promise: the target never finishes only where the source is undefined. -/
+theorem promiseDropped : Refines countPromised countFree := by
+  intro n
+  cases n with
+  | none => exact Refine.outcome_ub _ _
+  | some n =>
+    by_cases hn : n.toNat % 2 = 0
+    · rw [countPromised_even n hn, countFree_even n hn]; exact (Refine.outcome_ok_ok _ _).2 (Refine.refl_val _)
+    · rw [countPromised_odd n (by omega)]; exact Refine.outcome_ub _ _
 
 /-! ### What the model can't certify
 

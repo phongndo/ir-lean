@@ -135,4 +135,4 @@ The raw results, the generated Lean and the bundles stay in `build/`, which git 
 `ctest`'s `stage1` runs `stage1.py ci` on [`bench/instcombine/fixture/`](../bench/instcombine/fixture/): four functions
 from an InstCombine-style test and three known miscompilations, through every stage, against `expect.json`. It fails if
 any pair's verdict differs, or if a known-wrong pair is proved or certified, whatever `expect.json` says. It runs in
-CI's `semantics` job, alone, one Lean process at a time.
+CI's `binding` job, alone, one Lean process at a time.

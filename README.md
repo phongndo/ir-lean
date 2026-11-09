@@ -62,6 +62,8 @@ theorem popcount_correct (x : BitVec 32) :
 | [Refinement](docs/refinement.md) | What `IRLean.Refines` says, its laws, and what a refinement certificate says about LLVM |
 | [Memory safety](docs/memory.md) | What a memory-safety theorem claims, the model of memory, and what it leaves out |
 | [Verify](docs/verify.md) | Checking a claim from a script or an agent, with a JSON answer: proved, counterexample, unsupported, timeout or error |
+| [Lemma store](docs/lemma-store.md) | Checked lemmas later proofs can find and reuse, the bar each meets, and looking one up from a script or an agent |
+| [Proof tests](docs/proof-tests.md) | Tier 1: a property run on generated inputs, with each counterexample shrunk, checked by the kernel and stored. What it measured, and the design of tiers 2 and 3 |
 | [Corpus](docs/corpus.md) | Real before-and-after IR from `opt`, one pass at a time, generated on demand for the superoptimizer and lemmas |
 | [LLVM's own code](docs/llvm.md) | What's proved about llvm-project, how to reproduce it, and what it assumes |
 | [llama.cpp](docs/llama.md) | A proved rewrite of the q4_K kernels that `clang -O3` misses, and what it does to real inference |
@@ -74,3 +76,18 @@ theorem popcount_correct (x : BitVec 32) :
 
 Each fact lives in one doc, and the others link to it. When a result changes, update its doc in the same pull
 request, with a link to the test or run that shows it.
+
+## License
+
+`ir-lean` is under the [Apache License, Version 2.0](LICENSE). Copyright 2026 the `ir-lean` authors.
+Contributions are under the same license unless they say otherwise, as section 5 of the license puts it.
+
+Two committed files come from other projects, and keep those projects' licenses:
+
+| File | From | License |
+| --- | --- | --- |
+| `bi_reverse` in [`tests/real/bi_reverse.c`](tests/real/bi_reverse.c) | zlib 1.3.2's `bi_reverse` in `trees.c`, altered: no longer `local`, and two `__builtin_assume` lines added. Copyright (C) 1995-2026 Jean-loup Gailly and Mark Adler | [zlib](https://zlib.net/zlib_license.html) |
+| [`tests/real/llama_q5_bitspread.ll`](tests/real/llama_q5_bitspread.ll) | LLVM IR generated from llama.cpp's Q5 bit-unpacking code, at release `b12189` | [MIT](https://github.com/ggml-org/llama.cpp/blob/b12189/LICENSE) |
+
+The toolchains, libraries and programs the dev shell fetches, such as LLVM, Lean, zlib, llama.cpp and Alive2, aren't
+in this repository, and each keeps its own license.

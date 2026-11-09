@@ -69,9 +69,9 @@ these hold. Each is a gap between the model and LLVM, and a certificate that rel
 | --- | --- | --- |
 | The source has no more undefined behavior or poison in the model than in LLVM, and the target no less | Integer operations, by the [contracts](llvm-semantic-contracts.md) and `tests/opcheck.py`. Undefined behavior in the source allows anything, so a source the model makes undefined where LLVM doesn't could hide a wrong target | Memory, where the model has more undefined behavior than LLVM, and so has no instance |
 | No argument is `undef` | Arguments that are `noundef` in the source: passing `undef` or poison there is undefined, which the model checks | Any other argument. A `Val` is a value or poison, never `undef`, so `and i8 %x, 0` refines `xor i8 %x, %x` in the model, where LLVM lets `xor` of an `undef` give anything. `tools/binding.py` refuses such a function as `undef_argument` |
-| The target makes no promise the model trusts | A target without `mustprogress` or `willreturn` | A target that spins under one is undefined in LLVM, and runs forever in the model, which a source that runs forever allows. `tools/binding.py` refuses such a target as `trusted_promise` |
+| A promise to progress or to return means what LangRef says | `mustprogress`, `willreturn` and `llvm.loop.mustprogress`, as [trust](trust.md#promises-to-progress) reads them: a run that never finishes under one is undefined, unless it waits on a call LangRef allows never to return. Since SEM-07, on 2026-11-08 | Where LangRef doesn't settle it, the model stops, which allows nothing in a source, or the emitter refuses the function |
 | A source that stops the model is never certified | Always: a model stop allows nothing | It makes the relation incomplete. Inserting a `freeze` is right in LLVM, and isn't a refinement in the model, since the target stops at `freeze` of poison |
-| A source that never finishes needs a target that doesn't either | Always | It's stricter than LLVM, which lets a `mustprogress` source that never finishes do anything. So deleting such a loop can't be certified |
+| A source that never finishes needs a target that doesn't either | Always: without a promise LLVM allows a run that never finishes, and nothing else in its place | Under a promise the run isn't `none` but undefined, which allows anything, so deleting a loop under `mustprogress` refines. `loopDeletedUnderPromise` in the tests proves it, and `tests/binding.py` binds a real `loop-deletion` run |
 
 Equality isn't refinement. Duplicating a `freeze` is wrong in LLVM, and the two functions are equal in the model, since
 both stop at a frozen poison. They don't refine, since the source stops. `freezeDuplicated` in the tests proves both.
@@ -89,31 +89,40 @@ These have no claim, or a claim that says nothing about LLVM, and stay that way 
 - `undef`, as a constant, which ir-lean refuses, or as an argument (SEM-02);
 - `freeze` of poison, a model stop, and any rewrite inserting or moving one (SEM-03);
 - floating point, which ir-lean refuses (SEM-05);
-- `mustprogress` and `willreturn` as promises, which the model trusts instead of checking (SEM-07).
+- a run under a promise to progress that LangRef doesn't settle, which stops the model: a recursive function's, so
+  deleting infinite recursion can't be certified, and one waiting on a promised callee that waits itself
+  ([trust](trust.md#promises-to-progress)).
 
 ## Tests
 
-`tests/refine.sh`, the `refine` test in [testing](testing.md), checks this in about 10 s, one Lean process at a time,
+`tests/refine.sh`, the `refine` test in [testing](testing.md), checks this in about 25 s, one Lean process at a time,
 each capped at 2 GB and 300 s, from copies in a temporary directory:
 
-- `IRLean/Refine.lean` builds with warnings as errors, rests on the standard axioms only, and `leanchecker` replays it.
+- `IRLean/Refine.lean` builds with warnings as errors, and it and `IRLean/Promise.lean` rest on the standard axioms
+  only, and `leanchecker` replays them.
 - [`tests/refine/RefineCases.lean`](../tests/refine/RefineCases.lean) proves, of functions written by hand in the shape
   ir-lean emits, that right rewrites refine: `add %x, 0` to `%x`, dropping `nuw`, poison to a value, removing undefined
   behavior, a value in a poison lane. And that known-wrong ones don't, each at the input it fails on: a wrong constant,
   an added `nuw`, a value to poison, `freeze` to poison, a duplicated `freeze`, added undefined behavior, swapped
   lanes, a target that never finishes and a source that never finishes. It also proves the laws on these, that
   inserting a `freeze` isn't a refinement in the model, which is a limit of the model and not a counterexample, and
-  that `and i8 %x, 0` to `xor i8 %x, %x` is one, which LLVM's `undef` makes wrong.
+  that `and i8 %x, 0` to `xor i8 %x, %x` is one, which LLVM's `undef` makes wrong. For a loop that never ends on odd
+  inputs, it proves the promise is broken exactly there (`promiseBrokenOnSomeInput`), that deleting the loop refines
+  under `mustprogress` and doesn't without it, and that dropping the promise refines and adding it doesn't.
 - [`tests/refine/RefineClaims.lean`](../tests/refine/RefineClaims.lean) checks that memory has no instance, and that
   the claim `tools/binding_check.lean` builds with `mkAppM` is the same `Expr` a certificate elaborates.
 - A proof of the wrong constant, [`must_fail/WrongConstantProof.lean`](../tests/refine/must_fail/WrongConstantProof.lean),
   fails with an error that isn't a resource limit.
-- Two edits to a copy of `IRLean/Int.lean` each stop the case guarding them: `freeze` keeping poison stops
-  `freezeDuplicated`, and `add` ignoring `nuw` stops `addedNuw`.
+- Three edits to a copy of the model each stop the case guarding them: in `IRLean/Int.lean`, `freeze` keeping poison
+  stops `freezeDuplicated`, and `add` ignoring `nuw` stops `addedNuw`; in `IRLean/Promise.lean`, a broken promise
+  never finishing instead of being undefined stops `countPromised_odd`. That copy leaves out `Promise.lean`'s laws,
+  which pin the same choice and would fail first.
 
 `tests/binding.py` binds a real `instcombine` run with an `ir_instance_refinement` certificate,
 [`tests/binding/AddZeroRefines.lean`](../tests/binding/AddZeroRefines.lean), and refuses an equivalence certificate
-offered for that claim.
+offered for that claim. It also binds a real `loop-deletion` run that deletes a loop only `mustprogress` makes
+deletable, with [`tests/binding/LoopDeletedRefines.lean`](../tests/binding/LoopDeletedRefines.lean), which proves the
+function after refines the one before because the loop breaks the promise wherever it never ends.
 
 A `¬ Refines` theorem is about the model. It never says a rewrite is wrong in LLVM, and no test here counts one as a
 counterexample to a pass.

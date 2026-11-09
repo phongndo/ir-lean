@@ -19,7 +19,7 @@ llvm-project, `tests/passes.py`:
 2. Finds the instances: the functions whose text changed, attribute groups included, and every function calling one.
 3. Rules out, as `unsupported`, what the model or a bundle can't judge, by the same tests `tools/binding.py` applies:
    a function the pass added or removed, one ir-lean leaves out, one using memory or pointers, an argument that isn't
-   `noundef` in the source, a target with `mustprogress` or `willreturn`, and a name a manifest can't hold.
+   `noundef` in the source, and a name a manifest can't hold.
 4. Writes a certificate for each of the rest, stating the claim `tools/binding_check.lean` builds for the claim kind,
    with a proof its own automation found: every argument split into poison and a value, both sides run a block at
    a time, each branch split, and each path closed with `bv_decide`. The automation is in the certificate, untrusted,
@@ -129,7 +129,10 @@ since it never reached the proof. `score.json`'s `self_check` has each one's res
 A self-check where every mutant failed is kept in `WORK/selfcheck/SALT.json`, and its mutants' results are reused
 by a run with the same salt, the run key's first part: a mutant never reaches `tools/binding.py`, so its result
 depends only on this scorer, Lean, `IRLean` and the limits. A stored self-check where any mutant was proved, or is
-missing, or from another salt, is ignored. The control is scored, and its bundle verified, every time.
+missing, or from another salt, is ignored. The control is scored, and its bundle verified, every time. The mutants
+are tried as many at a time as the scorer's memory cap holds, at least `--jobs`: they never reach
+`tools/binding.py`, so they all run in its scope. Three of the seven run until Lean's heartbeat limit, about a minute
+each on a 32-core machine on 2026-11-09, so they take as long as one when they run at once.
 
 ## Limits
 
@@ -143,6 +146,7 @@ An uncapped run of the research scorer once filled 30 GB and the OOM killer took
 | Each process | `--timeout`, 300 s, on the wall clock | The scorer, which kills its process group and cgroup |
 | `tools/binding.py`'s processes | The same `--timeout` and `--lean-memory`, in scopes of their own | `tools/binding.py`. If it's killed or dies of a limit, the scorer kills each of its scopes holding a process with the token that one `tools/binding.py` was given, so never another process's scope |
 | Test runs at once | 1: `--jobs`, at most 2 | The scorer |
+| The self-check's mutants at once | As many as the cap holds, at least `--jobs` | The scorer |
 
 So the most it holds at once is the scorer's cap plus `--jobs` times `--lean-memory` plus 512 MB. A process stopped
 by any limit, or by any signal, makes its instances `unknown`, never `bound` or `refused`. A signal to the scorer
@@ -179,7 +183,9 @@ nix develop -c bash -c 'T=$LLVM_PROJECT_SRC/llvm/test/Transforms; tests/passes.p
 | `unsupported` | 9: 5 use memory, 2 have an argument that isn't `noundef`, and 2 have a target with `mustprogress` or `willreturn` somewhere in it |
 | `refused`, `failed`, `unknown`, `error` | 0 |
 
-It took 228 s, the self-check included, and the scorer's scope peaked at 2.9 GB of its 8 GB cap. Nothing else has
+It took 228 s, the self-check included, and the scorer's scope peaked at 2.9 GB of its 8 GB cap. That was before
+SEM-07: since 2026-11-08 a target with `mustprogress` or `willreturn` isn't ruled out, since the model checks both, and
+the 2 instances it ruled out haven't been scored since. Nothing else has
 been run with this version: not the 12,662 single-pass runs in the pinned tests.
 
 ## Assumptions
@@ -196,7 +202,7 @@ Everything [binding](llvm-proof-binding.md#what-a-bound-verdict-rests-on) rests 
 - Every claim kind but `ir_instance_equivalence`. Equivalence fails on rewrites that only refine, such as removing
   undefined behavior or poison, so those come back `failed`, not wrong.
 - Functions with memory or pointers, vectors (ir-lean refuses `noundef` on a vector argument), arguments that aren't
-  `noundef`, functions a pass adds or removes, and target IR with `mustprogress` or `willreturn`.
+  `noundef`, and functions a pass adds or removes.
 - Loops and recursion: the automation runs the blocks without an invariant, so a loop runs it out of heartbeats
   or recursion depth, which is `unknown`.
 - Any `opt` option but `-passes=` and `-mtriple`, pipelines, codegen, and `llc`.

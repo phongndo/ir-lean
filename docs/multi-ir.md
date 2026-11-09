@@ -186,12 +186,14 @@ Each step is opened only by the one before it. Each has a way to stop.
 | --- | --- | --- | --- |
 | **MIR-0** | This note and its prototype | Done: 7 theorems proved, with the round-trip numbers above | — |
 | **MIR-1** | One MLIR program through export: an `arith` and `scf` function, lowered with upstream passes, exported, translated and proved against a spec | A theorem about the exported IR, and the emitter's refusals on MLIR's output listed | The emitter refuses most of what MLIR's lowering produces, such as descriptor structs. Then publish the list. **Depends on** accepting call-site `memory(...)` that matches the callee's, which is LLVM feature work, not multi-IR work |
-| **MIR-2** | A GIMPLE reader spike, after a license decision: integers, PHIs, branches, returns. Either a plugin, as [gcc2cryptoline](https://github.com/fmlab-iis/gcc2cryptoline) and smtgcc are, or a parser for the `-gimple` dump | Its output for `example.c` matches `MultiIR.lean` up to names, then GCC's `adler32_z` is proved against the same RFC 1950 spec as clang's | The integer subset needs over about 1,500 lines, or smtgcc and GCC disagree on a case the proof needs |
+| **MIR-2** | A GIMPLE reader spike: integers, PHIs, branches, returns. Either a plugin, as [gcc2cryptoline](https://github.com/fmlab-iis/gcc2cryptoline) and smtgcc are, or a parser for the `-gimple` dump | Its output for `example.c` matches `MultiIR.lean` up to names, then GCC's `adler32_z` is proved against the same RFC 1950 spec as clang's | The integer subset needs over about 1,500 lines, or smtgcc and GCC disagree on a case the proof needs |
 | **MIR-3** | Generic stop reasons: `run`, `andThen`, `jump`, `ret` and the monotonicity lemmas over a reason type, with `Outcome α := Result Stop α` | Emitted LLVM Lean byte-identical, every proof unchanged, check time within noise | Any LLVM proof needs changing |
 | **MIR-4** | Clang and GCC differential: both models on the zlib harness | Every disagreement explained, as a model bug, a compiler difference or UB in the source | — |
 
-MIR-2 is where the cost is. A plugin is the robust reader, but it must be GPL-compatible, and **this repository has
-no license yet** ([Phase 5](roadmap.md#phase-5-public-api-adoption-and-publication)). The GCC Runtime Library
+MIR-2 is where the cost is. A plugin is the robust reader, but it must be GPL-compatible. This repository is under
+Apache-2.0 since 2026-11-08 ([Phase 5](roadmap.md#phase-5-public-api-adoption-and-publication)), which the FSF
+[lists](https://www.gnu.org/licenses/license-list.html#apache2) as compatible with GPLv3, GCC's license, though not
+with GPLv2. The GCC Runtime Library
 Exception's "Eligible Compilation Process" is about tools that change what GCC compiles, and a read-only export
 doesn't ([FAQ](https://www.gnu.org/licenses/gcc-exception-3.1-faq.html)). That's a reading, not legal advice. A
 dump parser avoids the license question, but adds a trusted parser of a format GCC calls a debug dump.
