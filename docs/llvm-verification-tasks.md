@@ -93,7 +93,7 @@ Each lane owns its files. Two tasks being worked on at once can't own the same f
 | SEM | Semantics contracts: poison, `undef`, `freeze`, integers, floating point, memory, UB | `IRLean/*.lean` apart from the refinement tactic, `docs/trust.md`, `tests/opcheck.py`, `tests/gepcheck.py` | SEM-01 is in review: [refinement](refinement.md). SEM-04 has no prerequisites |
 | BIND | Binding proofs to LLVM's C++, and an independent verifier | `tools/`, new binding checks, `src/Emitter.*` for C++ support | BIND-01 has no prerequisites. BIND-02 once INV-01 lands |
 | NEG | Negative tests, CI and honest reporting | `CMakeLists.txt`, `.github/`, `tests/lint.sh`, mutation scripts | NEG-03 has no prerequisites. NEG-01 once INV-01 and INV-02 land |
-| AUTO | Proof automation and lemma reuse | `IRLean/RefineTactic.lean`, lemma stores | AUTO-01 is drafted in another tree. The rest wait on SEM-01 |
+| AUTO | Proof automation and lemma reuse | `IRLean/RefineTactic.lean`, lemma stores | AUTO-01 is drafted in another tree. AUTO-03 is in progress: [rewrites at every width](generic-rewrites.md). The rest wait on SEM-01 |
 | PASS | Analyses, scalar passes, composition | Per-pass proof directories | PASS-02 is drafted in another tree. The rest wait on SEM and BIND |
 | LOOP | Loops, vectorization, IPO and LTO | Per-pass proof directories | Waits on PASS-01 and SEM |
 | CG | Codegen, legalization, machine passes, per target | Per-target proof directories | Waits on CG-01 |
@@ -447,11 +447,12 @@ when they land.
 - **Lane:** AUTO
 - **Scope:** Prove rewrites for all bit widths at once, rather than with `bv_decide` per width, so an all-input claim covers every width the verifier allows.
 - **Depends on:** AUTO-01, SEM-04
-- **Owns:** `IRLean/Generic.lean`
+- **Owns:** `IRLean/Generic/`, `tests/generic_rewrites/`, `tests/generic_rewrites.sh`
 - **Acceptance:** The rewrites INV-04 lists for InstSimplify are proved for every width, or listed with the widths they're proved for.
 - **Trust gaps:** None.
-- **Status:** not started
-- **Evidence:** None.
+- **Status:** in progress
+- **Gate waiver:** Proofs written by hand need neither AUTO-01's tactic nor SEM-04's table. Each is about the operations `IRLean/Int.lean` models today, and is re-checked when SEM-04 changes them.
+- **Evidence:** 33 InstSimplify and InstCombine rewrites, chosen by hand rather than from INV-04, proved for every width in `IRLean/Generic/Arith.lean` and `IRLean/Generic/Bitwise.lean` and checked by `tests/generic_rewrites.sh`. See [rewrites at every width](generic-rewrites.md).
 
 ### PASS-01: Analyses are sound
 
