@@ -194,7 +194,7 @@ spend no effort on them until these work.
 
 | Horizon | Work | Why it's here |
 | --- | --- | --- |
-| **Now** | [Waves 0 and 1](#next-steps): land and clean up what's open, split CI, bring the llama.cpp results to `main`, study prior art, and slim #52's tools | The best results aren't on `main`, CI is too slow to take more tests, and superoptimizer v2 shouldn't be designed without the prior art |
+| **Now** | [Waves 0 and 1](#next-steps): land and clean up what's open, split CI, which [#53](https://github.com/phongndo/ir-lean/pull/53) did, bring the llama.cpp results to `main`, study prior art, and slim #52's tools | The best results aren't on `main`, CI was too slow to take more tests, and superoptimizer v2 shouldn't be designed without the prior art |
 | **Next** | Wave 2: lemma store v1, SEM-07, the executable memory model, tier-1 proof tests, and `inflate_table`'s statement | Each starts a track, and each is the step the next one in that track waits on |
 | **Later** | Wave 3: superoptimizer v2, the safety bridge, proof-test tiers 2 and 3 with the unit-test milestone, and the `inflate_table` proof. Then MLIR, contracts, C++ and Rust, and adoption | Each needs something wave 2 builds |
 
@@ -256,7 +256,8 @@ SEM-06 holds up only superoptimizer v2's memory candidates, not the rest of it.
 ### Wave 1: now, all in parallel
 
 - This roadmap.
-- Split CI into parallel jobs. Another lane owns it, and [Phase 8](#phase-8-speed) has its target.
+- Split CI into parallel jobs. Done in [#53](https://github.com/phongndo/ir-lean/pull/53). [Phase 8](#phase-8-speed) has the
+  target, which it doesn't reach yet.
 - Bring the two llama.cpp branches to `main` as pull requests. Each is 6 commits ahead of `main` and 19 behind, with no
   pull request:
   - `feat/prove-llvm-optimization-1`: the q4_K VNNI rewrite, proved at all 34 places, reads prompts 5.5% to 7.2%
@@ -267,6 +268,8 @@ SEM-06 holds up only superoptimizer v2's memory candidates, not the rest of it.
 - The slim pull request of #52's capture and measurement tools.
 
 ### Wave 2: after #48 and the CI split land
+
+Both have landed, in #48 and #53.
 
 - Lemma store v1, [Phase 6](#phase-6-the-engine-and-the-lemma-store).
 - SEM-07: breaking `mustprogress` or `willreturn` is UB, as in LangRef, [Phase 0](#phase-0-semantic-fidelity-and-trust-infrastructure).
@@ -296,7 +299,7 @@ SEM-06 holds up only superoptimizer v2's memory candidates, not the rest of it.
 
 | First | Then | Why |
 | --- | --- | --- |
-| The CI split | Wave 2's pull requests | They all add tests, and CI already takes 37 to 38 minutes of its 60-minute limit |
+| The CI split | Wave 2's pull requests | They all add tests, and before the split CI took 37 to 38 minutes of its 60-minute limit. Met: #53 landed |
 | Lemma store v1 | Superoptimizer v2, and proof-test tier 3 | Both prove from stored lemmas. Without the store, each would build its own |
 
 ### Not in a wave yet
@@ -337,7 +340,7 @@ GEP flags ([#15](https://github.com/phongndo/ir-lean/pull/15)), attribute and li
 
 | # | Slice | Phase | Wave | Done when |
 | --- | --- | --- | --- | --- |
-| 17 | Split CI into parallel jobs | 8 | 1 | C1 below |
+| 17 | Split CI into parallel jobs | 8 | 1 | Done in #53. C1 below is still open |
 | 18 | The q4_K rewrite, from `feat/prove-llvm-optimization-1` | 4 | 1 | On `main`, its proofs checked in CI, and its benchmark reproducible from the repo |
 | 19 | The Q5 rewrite, from `feat/prove-llvm-optimization` | 4 | 1 | The same |
 | 20 | Prior-art study for superoptimization and proof tests | 4, 7 | 1 | A note in `docs/` covering at least the work in [prior art](#prior-art), which superoptimizer v2's design cites |
@@ -382,7 +385,7 @@ Each is reached when its checks pass in CI, not on a date.
 | T1 | Tier-1 proof tests | 7 | | Not started |
 | T2 | Tiers 2 and 3 | 7 | T1. E1, soft, for tier 3 | Not started |
 | T3 | One real project's unit-test file replaced | 7 | T2 | Not started |
-| C1 | Pull request CI in at most 10 minutes | 8 | | In progress, in another lane |
+| C1 | Pull request CI in at most 10 minutes | 8 | | In progress: after #53's split, CI takes 13 to 16 minutes ([testing](testing.md#ci)) |
 | C2 | One candidate or proof checked locally in seconds | 8 | | Not measured as such |
 | G1 | `inflate_table`'s statement reviewed | 1 | | Not started |
 | G2 | `inflate_table` proved: entries stay inside `codes`, links stay in the table | 1 | G1, F1 | Not started |
@@ -647,7 +650,7 @@ to write than its unit tests did.
 **Goal:** a fast tool and a fast dev cycle. This is a fast-moving project, and every other phase pays for slow checks.
 
 **Why now:** GitHub's times for the CI job "Tests and proofs", over successful runs, by the day each started in UTC,
-up to when this was written:
+before #53 split it:
 
 | Day | Runs | Median | Longest |
 | --- | --- | --- | --- |
@@ -655,11 +658,12 @@ up to when this was written:
 | 2026-11-08 | 26 | 15.8 minutes | 29.2 minutes |
 | 2026-11-09 | 11 | 29.6 minutes | 38.4 minutes |
 
-The latest two took 37.3 and 38.4 minutes, and the job's limit in `.github/workflows/ci.yml` is 60.
+The latest two took 37.3 and 38.4 minutes, against the job's 60-minute limit in `.github/workflows/ci.yml`.
 
 **Targets:** pull request CI in at most 10 minutes, and checking one candidate or one proof locally in seconds.
 
-**Work:** another lane is splitting CI into parallel jobs. This page states only the goal and the targets.
+**Work:** [#53](https://github.com/phongndo/ir-lean/pull/53) split CI into parallel jobs, and [testing](testing.md#ci)
+says how long each takes: 13 to 16 minutes in all. This page states only the goal and the targets.
 
 **Exit criteria:**
 
