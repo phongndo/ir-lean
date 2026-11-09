@@ -142,7 +142,8 @@ in Lean that offers both an MLIR-style imperative design and (optional) ITP-leve
 - **Division agrees with `ir-lean`.** A zero or poison divisor is UB, and so is `-1` with an `INT_MIN` or poison
   dividend (`Veir/Data/LLVM/Int/Basic.lean`, lines 357 and 368). That's `IRLean/Int.lean`'s `divOverflows`.
 - **`freeze`:** "We currently always pick zero" (same file, lines 866–870). LangRef says "an arbitrary, but fixed,
-  value". `ir-lean` stops the model.
+  value". `ir-lean` stopped the model when this was written. Since F3, on 2026-11-09, it chooses a value for each run
+  ([refinement](refinement.md#runs-that-make-choices)).
 - **Refinement:** `.ub _, _ => True` and `.fail _, _ => True`, where `.fail` is the interpreter giving up
   (`Veir/Interpreter/Refinement/Basic.lean`, lines 100–107). So a source it can't run refines anything. In
   `ir-lean` a model stop refines nothing ([refinement](refinement.md#the-relation)).
@@ -170,7 +171,7 @@ in Lean that offers both an MLIR-style imperative design and (optional) ITP-leve
 | Poison divisor | UB | UB | Poison | UB | Not stated |
 | `sdiv INT_MIN, -1` | UB | UB | Poison | UB | Not stated |
 | `sdiv i1 -1, -1` | UB | UB | `-1` | UB | Not stated |
-| `freeze poison` | Arbitrary, fixed | Model stop | 0 | 0 | Not stated |
+| `freeze poison` | Arbitrary, fixed | Model stop. Since F3, on 2026-11-09, arbitrary and fixed, chosen each run | 0 | 0 | Not stated |
 | `icmp samesign` | Poison if signs differ | Yes | Absent | Absent | Lost on import |
 | `ctpop`, `ctlz`, `cttz` | | Yes | Absent | Yes | Added in the fork |
 | A source the model can't run | | Refines nothing | | Refines anything | |

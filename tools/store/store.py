@@ -30,12 +30,10 @@ import argparse
 import concurrent.futures
 import contextlib
 import datetime
-import hashlib
 import json
 import os
 import re
 import shutil
-import subprocess
 import sys
 import tempfile
 import time
@@ -43,6 +41,11 @@ from pathlib import Path
 from typing import Any, NoReturn
 
 ROOT = Path(__file__).resolve().parent.parent.parent
+sys.path.append(str(ROOT / "tools"))
+from irlean import hashing, proc, schemas  # noqa: E402
+from irlean import lean as leanlib  # noqa: E402
+from irlean import verdict as core  # noqa: E402
+
 STORE = ROOT / "store"
 INDEX = STORE / "index.json"
 ROOT_MODULE = STORE / "LemmaStore.lean"
@@ -51,10 +54,10 @@ LIB = ROOT / ".lake" / "build" / "lib" / "lean"
 WORK = ROOT / "build" / "store"
 CHECK_AXIOMS = ROOT / "tests" / "check_axioms.lean"
 
-SCHEMA = "ir-lean.store/1"
-LOOKUP_SCHEMA = "ir-lean.store.lookup/1"
-ADMISSION_SCHEMA = "ir-lean.store.admission/1"
-INDEX_SCHEMA = "ir-lean.store.index/1"
+SCHEMA = schemas.STORE
+LOOKUP_SCHEMA = schemas.STORE_LOOKUP
+ADMISSION_SCHEMA = schemas.STORE_ADMISSION
+INDEX_SCHEMA = schemas.STORE_INDEX
 COUNTER_PREFIX = "LemmaStore.Counter"
 STANDARD_AXIOMS = {"propext", "Classical.choice", "Quot.sound"}
 # A lemma the kernel takes longer than this to check again should be cut into smaller ones.
@@ -109,10 +112,7 @@ STATUSES = {
     "refused": "Fails a check. `reasons` says which",
 }
 # Lean errors that say it ran out of something, which never count as the lemma being wrong.
-RESOURCE = re.compile(
-    r"maximum number of heartbeats|\(deterministic\) timeout|maximum recursion depth|deep recursion|"
-    r"stack overflow|excessive memory|out of memory|maximum number of steps"
-)
+RESOURCE = leanlib.LIMIT
 
 
 class StoreError(Exception):
@@ -136,23 +136,14 @@ def lean_env(*paths: Path) -> dict[str, str]:
 
 def run(cmd: list[str], env: dict[str, str] | None = None, timeout: int = LEAN_TIMEOUT) -> tuple[int, str]:
     """Runs `cmd` from the repo's root, and returns its exit code and what it printed, both streams
-    together."""
+    together. Past `timeout`, it and everything it started are killed, and it says so as Lean would."""
     try:
-        p = subprocess.run(
-            cmd,
-            cwd=ROOT,
-            env=env,
-            capture_output=True,
-            text=True,
-            timeout=timeout,
-            check=False,
-        )
-    except subprocess.TimeoutExpired as e:
-        out = (e.stdout or b"").decode() if isinstance(e.stdout, bytes) else (e.stdout or "")
-        return 124, out + f"\n(deterministic) timeout: {cmd[0]} ran past {timeout} s"
+        r = proc.run(cmd, cwd=ROOT, env=env, timeout=timeout)
     except FileNotFoundError as e:
         raise StoreError("toolchain_missing", f"{cmd[0]} isn't on PATH") from e
-    return p.returncode, p.stdout + p.stderr
+    if r.limit is not None:
+        return 124, r.out + f"\n(deterministic) timeout: {cmd[0]} ran past {timeout} s"
+    return r.exit, r.out + r.err
 
 
 def lean(args: list[str], env: dict[str, str]) -> tuple[int, str]:
@@ -170,7 +161,7 @@ def json_line(out: str) -> Any:
     raise StoreError("tool_failed", "the checker printed no result:\n" + out[-4000:])
 
 
-def lake_built(targets: list[str]) -> None:
+def lake_built(targets: list[str]) -> core.Step:
     """That `lake build` has nothing left to do for `targets`, so the modules read are the sources' own."""
     code, out = run(["lake", "build", "--no-build", *targets])
     if code != 0:
@@ -178,6 +169,7 @@ def lake_built(targets: list[str]) -> None:
             "store_not_built",
             f"lake has {', '.join(targets)} to build first: run `lake build`\n{out[-2000:]}",
         )
+    return core.Step("lake build --no-build", code, None, out)
 
 
 # ------------------------------------------------------------------------------------------------------------
@@ -225,14 +217,13 @@ def closure(modules: list[str]) -> list[str]:
     return sorted(seen)
 
 
-def toolchain() -> str:
-    return (ROOT / "lean-toolchain").read_text().strip()
+toolchain = leanlib.toolchain
 
 
 def sources_hash(modules: list[str]) -> str:
     """What the store's validity depends on, as Mathlib's cache hashes it: the toolchain and the sources of
     every module the store imports from this repo."""
-    h = hashlib.sha256(toolchain().encode())
+    h = hashing.new(toolchain().encode())
     for m in closure(modules):
         f = module_file(m)
         assert f is not None
@@ -242,7 +233,7 @@ def sources_hash(modules: list[str]) -> str:
 
 
 def key_of(key_text: str) -> str:
-    return hashlib.sha256(key_text.encode()).hexdigest()[:20]
+    return hashing.sha256_text(key_text)[:20]
 
 
 def counter_modules() -> list[str]:
@@ -284,7 +275,7 @@ def build_consumers(index: dict[str, Any], work: Path) -> None:
     for c in consumers(index):
         f = ROOT / c["file"]
         olean, stamp = work / f"{c['module']}.olean", work / f"{c['module']}.key"
-        h = hashlib.sha256(f.read_bytes())
+        h = hashing.new(f.read_bytes())
         h.update(sources_hash(imports_of(f)).encode())
         key = h.hexdigest()
         if olean.exists() and stamp.exists() and stamp.read_text() == key:
@@ -299,49 +290,83 @@ def build_consumers(index: dict[str, Any], work: Path) -> None:
 # The checks that make a module trusted, read as data
 
 
-def axiom_check(module: str, env: dict[str, str]) -> tuple[str | None, str]:
+def axiom_check(module: str, env: dict[str, str]) -> tuple[str | None, str, core.Step]:
     """`tests/check_axioms.lean` on `module`, which reads it and everything it imports as data. Returns the
     refusal it gives, if any, and what it said. A module holding stored lemmas may rest on nothing beyond the
     standard three, so even `bv_decide`'s axioms, which that check allows, are refused here."""
     code, out = lean([str(CHECK_AXIOMS)], {**env, "IRLEAN_CHECK_MODULE": module})
+    step = core.Step("check_axioms", code, None, out)
     said = (out.strip().splitlines() or [""])[-1]
     if code != 0:
         if RESOURCE.search(out):
             raise StoreError("resource_limit", f"checking {module}'s axioms ran out: {said}")
         m = re.search(r"not an allowed axiom: (\S+)", out)
         if m:
-            return ("sorry" if m.group(1) == "sorryAx" else "nonstandard_axiom"), f"{module}: {m.group(0)}"
+            return (
+                ("sorry" if m.group(1) == "sorryAx" else "nonstandard_axiom"),
+                f"{module}: {m.group(0)}",
+                step,
+            )
         if "implemented_by" in out or "extern" in out:
-            return "compiled_code", f"{module}: {said}"
-        return "nonstandard_axiom", f"{module}: {out.strip()[-500:]}"
+            return "compiled_code", f"{module}: {said}", step
+        return "nonstandard_axiom", f"{module}: {out.strip()[-500:]}", step
     m = re.search(r"and (\d+) from bv_decide", out)
     if not m:
         raise StoreError("tool_failed", f"tests/check_axioms.lean said something else about {module}: {out}")
     if m.group(1) != "0":
-        return "nonstandard_axiom", f"{module}: {m.group(1)} of bv_decide's axioms"
-    return None, f"{module}: {said}"
+        return "nonstandard_axiom", f"{module}: {m.group(1)} of bv_decide's axioms", step
+    return None, f"{module}: {said}", step
 
 
-def replay_check(module: str, env: dict[str, str]) -> tuple[str | None, str]:
+def replay_check(module: str, env: dict[str, str]) -> tuple[str | None, str, core.Step]:
     code, out = run(["leanchecker", module], env)
+    step = core.Step("leanchecker", code, None, out)
     if code != 0:
         if RESOURCE.search(out):
             raise StoreError("resource_limit", f"replaying {module} ran out: {out[-300:]}")
-        return "replay_failed", f"{module}: {out.strip()[-500:]}"
-    return None, f"{module}: replayed"
+        return "replay_failed", f"{module}: {out.strip()[-500:]}", step
+    return None, f"{module}: replayed", step
 
 
-def trust_checks(modules: list[str], env: dict[str, str]) -> dict[str, list[tuple[str, str]]]:
-    """Each module's axioms and kernel replay, a few at a time. Maps a module to the refusals it earned."""
-    found: dict[str, list[tuple[str, str]]] = {m: [] for m in modules}
+# Each module's axiom audit and kernel replay, as trust_checks ran them, for irlean.verdict.
+type Steps = dict[str, dict[str, core.Step]]
+# Each module's refusals, as codes and details.
+type Refusals = dict[str, list[tuple[str, str]]]
+
+
+def trust_checks(modules: list[str], env: dict[str, str]) -> tuple[Refusals, Steps]:
+    """Each module's axioms and kernel replay, a few at a time. Maps a module to the refusals it earned, and
+    to how each check's process ended."""
+    found: Refusals = {m: [] for m in modules}
+    steps: Steps = {m: {} for m in modules}
     jobs = int(os.environ.get("LEAN_JOBS", "2"))
     with concurrent.futures.ThreadPoolExecutor(max_workers=max(1, min(jobs, 4))) as pool:
         futures = {pool.submit(fn, m, env): m for m in modules for fn in (axiom_check, replay_check)}
         for f in concurrent.futures.as_completed(futures):
-            reason, detail = f.result()
+            reason, detail, step = f.result()
+            steps[futures[f]][step.name] = step
             if reason:
                 found[futures[f]].append((reason, detail))
-    return found
+    return found, steps
+
+
+def proved(result: dict[str, Any], compiled: core.Step, steps: Steps) -> None:
+    """That irlean.verdict calls a lemma the bar didn't refuse proved: its module compiled, passed the axiom
+    audit and was replayed by the kernel. It always should: anything else is a bug here."""
+    if result["status"] == "refused":
+        return
+    ran = steps.get(result.get("module") or "", {})
+    decision = core.decide(
+        core.Verdict.PROVED,
+        core.Evidence(
+            lean=compiled,
+            replay=ran.get("leanchecker"),
+            axioms=ran.get("check_axioms"),
+            checks={"admission": not result["reasons"]},
+        ),
+    )
+    if not decision.granted:
+        raise StoreError("tool_failed", f"{result['name']} met the bar, and isn't proved: {decision.detail}")
 
 
 # ------------------------------------------------------------------------------------------------------------
@@ -506,7 +531,7 @@ def check(write: bool) -> tuple[dict[str, Any], int]:
             "index_invalid",
             f"{ROOT_MODULE} doesn't list what {INDEX} does: run `tools/store/store.py check --write`",
         )
-    lake_built(["LemmaStore", "StoreTool"])
+    built = lake_built(["LemmaStore", "StoreTool"])
     timings["build_seconds"] = time.monotonic() - started
 
     t = time.monotonic()
@@ -518,7 +543,7 @@ def check(write: bool) -> tuple[dict[str, Any], int]:
     env = lean_env(consumer_dir)
     held = lemma_modules(index)
     counters = counter_modules()
-    trust = trust_checks(held + counters, env)
+    trust, steps = trust_checks(held + counters, env)
     counter_trust = [r for m in counters for r in trust[m]]
     timings["trust_seconds"] = time.monotonic() - t
 
@@ -540,6 +565,7 @@ def check(write: bool) -> tuple[dict[str, Any], int]:
         # Writing the index is how a changed statement, or a new normalizer, gets its key recorded.
         r = verdict(fact, {**entry, "key": None} if write else entry, keys)
         module_refusals(r, trust, counter_trust)
+        proved(r, built, steps)
         r["family"] = entry.get("family")
         r["provenance"] = entry.get("provenance")
         if r.get("key"):
@@ -661,7 +687,7 @@ def add(
 ) -> tuple[dict[str, Any], int]:
     """Judges new lemmas against the store, and adds them if they're admitted or candidates."""
     started = time.monotonic()
-    lake_built(["LemmaStore", "StoreTool"])
+    built = lake_built(["LemmaStore", "StoreTool"])
     index = read_index()
     catalog = [e["name"] for e in index["lemmas"]]
     WORK.mkdir(parents=True, exist_ok=True)
@@ -677,6 +703,7 @@ def add(
             *(extra_imports or []),
         ]
         modules: list[str] = []
+        candidate = built
         if file is not None:
             if not file.exists():
                 raise StoreError("input_not_found", f"{file} doesn't exist")
@@ -691,6 +718,7 @@ def add(
                     f"{file} imports {', '.join(bad)}, which would import it back once stored",
                 )
             code, out = lean(["-o", str(work / "StoreCandidate.olean"), str(file)], lean_env(*paths))
+            candidate = core.Step("lean", code, None, out)
             if code != 0:
                 if RESOURCE.search(out):
                     raise StoreError("resource_limit", out[-2000:])
@@ -720,7 +748,7 @@ def add(
                 if f.get("module") and not f.get("limit") and f["name"] not in catalog
             }
         )
-        module_reasons = trust_checks(held, lean_env(*paths))
+        module_reasons, steps = trust_checks(held, lean_env(*paths))
         keys: dict[str, str] = {}
         for p in found["catalog"]:
             keys.setdefault(key_of(p["key_text"]), p["name"])
@@ -735,6 +763,7 @@ def add(
             for code, detail in module_reasons.get(fact.get("module") or "", []):
                 r["reasons"].append({"code": code, "rule": REASONS[code][0], "detail": detail})
                 r["status"] = "refused"
+            proved(r, candidate if fact.get("module") == "StoreCandidate" else built, steps)
             if r.get("key"):
                 keys.setdefault(r["key"], r["name"])
             results.append(r)

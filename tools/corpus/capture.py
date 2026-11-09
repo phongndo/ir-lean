@@ -22,14 +22,11 @@ from __future__ import annotations
 
 import argparse
 import concurrent.futures
-import hashlib
 import json
 import os
 import re
 import shutil
-import subprocess
 import sys
-import tomllib
 from pathlib import Path
 from typing import Any
 
@@ -37,9 +34,11 @@ HERE = Path(__file__).resolve().parent
 ROOT = HERE.parent.parent
 SEEDS = HERE / "seeds"
 INVENTORY = ROOT / "tests" / "llvm_scope" / "inventory.json"
-TARGETS = ROOT / "tests" / "llvm" / "targets.toml"
-SCHEMA = "ir-lean.corpus.capture/1"
-PIN_SCHEMA = "ir-lean.corpus.pin/1"
+sys.path.append(str(ROOT / "tools"))
+from irlean import hashing, pins, proc, schemas  # noqa: E402
+
+SCHEMA = schemas.CORPUS_CAPTURE
+PIN_SCHEMA = schemas.CORPUS_PIN
 SPEC = "default<O1>"
 # The triple the repo's proofs, the inventory and tools/binding.py use, so a pair captured on a Mac is the
 # same IR as one captured on Linux.
@@ -63,15 +62,6 @@ def write_json(path: Path, data: Any) -> None:
     path.write_text(json.dumps(data, indent=1, sort_keys=True, ensure_ascii=False) + "\n")
 
 
-def sha256_bytes(b: bytes) -> str:
-    return hashlib.sha256(b).hexdigest()
-
-
-def sha256_file(p: Path) -> str:
-    with p.open("rb") as f:
-        return hashlib.file_digest(f, "sha256").hexdigest()
-
-
 def slug(text: str) -> str:
     return re.sub(r"[^A-Za-z0-9_.-]+", "-", text).strip("-")
 
@@ -83,11 +73,10 @@ def opt_argv(opt: str, passes: str, mtriple: str) -> list[str]:
 
 def run(argv: list[str], stdin: bytes, timeout: float) -> tuple[int, bytes, str]:
     """The exit code, stdout and stderr. A timeout is exit code -1."""
-    try:
-        r = subprocess.run(argv, input=stdin, capture_output=True, timeout=timeout, check=False)
-    except subprocess.TimeoutExpired:
+    r = proc.run(argv, stdin=stdin, timeout=timeout)
+    if r.limit is not None:
         return -1, b"", f"timed out after {timeout} s"
-    return r.returncode, r.stdout, r.stderr.decode(errors="replace")
+    return r.exit, r.stdout, r.err
 
 
 # ------------------------------------------------------------------------------------------------------------
@@ -97,10 +86,9 @@ def run(argv: list[str], stdin: bytes, timeout: float) -> tuple[int, bytes, str]
 def derive_pin(spec: str, mtriple: str) -> dict:
     """The toolchain a capture runs: opt by path, hash and version, and the pipeline it prints for `spec`. On
     Nix, opt's runpath names the store path of the libLLVM it loads, so its hash changes with that library."""
-    found = shutil.which("opt")
-    if found is None:
+    opt = pins.which("opt")
+    if opt is None:
         sys.exit("no opt on PATH: run this in `nix develop`")
-    opt = Path(found).resolve()
     code, out, err = run([str(opt), "--version"], b"", 30)
     if code != 0:
         sys.exit(f"{opt} --version failed: {err[-400:]}")
@@ -112,11 +100,11 @@ def derive_pin(spec: str, mtriple: str) -> dict:
         sys.exit(f"opt can't build the pipeline {spec}: {err[-400:]}")
     pipeline = out.decode().strip()
     tag = re.search(r"LLVM version (\S+)", "\n".join(version))
-    project = tomllib.loads(TARGETS.read_text())["project"]
+    project = pins.llvm()
     inventory = read_json(INVENTORY)["pipelines"]["opt"].get(spec)
     return {
         "schema": PIN_SCHEMA,
-        "opt": {"path": str(opt), "sha256": sha256_file(opt), "version": version},
+        "opt": {"path": str(opt), "sha256": hashing.sha256_file(opt), "version": version},
         "llvm": {
             "tag": f"llvmorg-{tag.group(1)}" if tag else None,
             "repo_tag": project["tag"],
@@ -126,7 +114,7 @@ def derive_pin(spec: str, mtriple: str) -> dict:
         "mtriple": mtriple,
         "pipeline": {
             "text": pipeline,
-            "sha256": sha256_bytes(pipeline.encode()),
+            "sha256": hashing.sha256(pipeline.encode()),
             # None when the inventory has no entry for this spec to compare with.
             "inventory_match": None if inventory is None else pipeline == inventory["pipeline"],
         },
@@ -452,7 +440,7 @@ def capture_case(path: Path, pin: dict, leaves: list[dict], names: dict[str, str
         "mtriple": mtriple,
         "opt_sha256": pin["opt"]["sha256"],
         "pipeline_sha256": pin["pipeline"]["sha256"],
-        "input_sha256": sha256_bytes(data),
+        "input_sha256": hashing.sha256(data),
     }
     triple = re.search(r'^target triple = "([^"]*)"', data.decode(errors="replace"), re.M)
     if triple is None or triple.group(1) != mtriple:
@@ -506,8 +494,8 @@ def capture_case(path: Path, pin: dict, leaves: list[dict], names: dict[str, str
                 "k": k,
                 "before": str(d / "before.ll"),
                 "after": str(d / "after.ll"),
-                "before_sha256": sha256_bytes(before.encode()),
-                "after_sha256": sha256_bytes(after.encode()),
+                "before_sha256": hashing.sha256(before.encode()),
+                "after_sha256": hashing.sha256(after.encode()),
                 "replay_tried": s["replay"],
                 "replay": replay,
                 "reproduced": replay is not None,
@@ -515,7 +503,7 @@ def capture_case(path: Path, pin: dict, leaves: list[dict], names: dict[str, str
             }
         )
     status = "captured" if all(checks.values()) else "inconsistent"
-    return record | checks | {"status": status, "output_sha256": sha256_bytes(output), "steps": steps}
+    return record | checks | {"status": status, "output_sha256": hashing.sha256(output), "steps": steps}
 
 
 def cmd_capture(args: argparse.Namespace) -> int:

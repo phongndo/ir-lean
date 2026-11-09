@@ -224,6 +224,15 @@ def eval_in_lean(table, shapes, lean, work):
         '  | some (.error (.undefined _)) => "ub"',
         '  | some (.error (.model _)) => "stop"',
         '  | none => "diverged"',
+        # Each operation is one instruction, so the only one that makes a choice is `freeze`, which gives 0
+        # and 1 under these two exactly when its operand is poison. So two that agree show it doesn't depend
+        # on them.
+        "-- An operation that makes choices, `freeze`, runs under two: `choice` if its result depends.",
+        "class Shows (α : Type) where shows : α → String",
+        "instance : Shows (Outcome (Val w)) := ⟨show'⟩",
+        "instance : Shows (Outcomes (Val w)) := ⟨fun o =>",
+        "  let a := show' (o fun _ => 0)",
+        '  if a == show\' (o fun _ => 1) then a else "choice"⟩',
     ]
     for s, n in shape_names.items():
         src.append(f"def {n} : List (List Nat) := {shapes[s]}")
@@ -232,7 +241,8 @@ def eval_in_lean(table, shapes, lean, work):
     for i, (name, _, _, shape, _, _, _) in enumerate(table):
         args = " ".join(f"(lit {w} c[{k}]!)" for k, w in enumerate(shape))
         src.append(
-            f"def r{i} : IO Unit := for c in {shape_names[shape]} do IO.println (show' (Ops.{name} {args}))"
+            f"def r{i} : IO Unit := for c in {shape_names[shape]} do "
+            f"IO.println (Shows.shows (Ops.{name} {args}))"
         )
         runners.append(f"r{i}")
     src.append("def main : IO Unit := do\n  for r in [" + ", ".join(runners) + "] do r")
@@ -256,8 +266,8 @@ def eval_in_lean(table, shapes, lean, work):
 
 def check_folder(table, shapes, results, work):
     """A value from Lean must equal the fold. Lean's poison or UB may fold to anything, since that
-    only refines, and the model stopping says nothing. A fold to poison where Lean has a value would
-    make Lean too defined."""
+    only refines, and so may a result Lean leaves to the run's choice, which any value refines. The model
+    stopping says nothing. A fold to poison where Lean has a value would make Lean too defined."""
     src, decls, keys = [], set(), []
     for name, _, _, shape, ret, body, ds in table:
         decls.update(ds)
@@ -293,7 +303,7 @@ def check_folder(table, shapes, results, work):
         fold = found.get(f"{name}__{ci}")
         if fold is None:
             unfolded += 1
-        elif lean in ("poison", "ub", "stop"):
+        elif lean in ("poison", "ub", "stop", "choice"):
             refined += 1
         elif fold == "poison" or int(lean) != fold:
             bad.append((name, ci, lean, fold))
@@ -372,6 +382,9 @@ def check_alive(table, shapes, results, work):
         if "stop" in res:
             stopped.append((name, "the model stops on an input this checks"))
             continue
+        if "choice" in res:
+            stopped.append((name, "the model's result depends on the run's choice, which a table can't say"))
+            continue
         jobs.append((name, *alive_functions(shape, ret, body, cases, res)))
         declarations.update(ds)
     proved, failed, skipped = 0, [], stopped
@@ -407,7 +420,8 @@ def main():
         print(f"{len(table)} operation variants, {total} cases")
         agreed, refined, unfolded, bad = check_folder(table, shapes, results, work)
         print(
-            f"constant folder: {agreed} agree, {refined} where Lean is poison or UB and LLVM refines it, "
+            f"constant folder: {agreed} agree, {refined} where Lean is poison, UB or a choice and LLVM "
+            "refines it, "
             f"{unfolded} not folded, {len(bad)} wrong"
         )
         for b in bad[:25]:

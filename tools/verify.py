@@ -24,14 +24,11 @@ The exit code is 0 for proved, 2 for counterexample, 3 for unsupported, 4 for ti
 
 import argparse
 import contextlib
-import hashlib
 import json
 import os
 import re
 import secrets
 import shutil
-import signal
-import subprocess
 import sys
 import time
 from dataclasses import dataclass, field
@@ -39,6 +36,9 @@ from pathlib import Path
 from typing import Any, NoReturn
 
 ROOT = Path(__file__).resolve().parent.parent
+sys.path.append(str(ROOT / "tools"))
+from irlean import hashing, lean, proc, schemas, verdict  # noqa: E402
+
 LIBRARY = ROOT / ".lake" / "build" / "lib" / "lean"
 DYLIB = (
     ROOT / ".lake" / "build" / "lib" / f"libir_x2dlean_IRLean.{'dylib' if sys.platform == 'darwin' else 'so'}"
@@ -49,8 +49,8 @@ RUNS = ROOT / "build" / "verify"
 # Runs kept under build/verify when no --work-dir is given. An explicit one is never deleted.
 RUNS_KEPT = 20
 
-SCHEMA = "ir-lean.verify/1"
-REQUEST_SCHEMA = "ir-lean.verify.request/1"
+SCHEMA = schemas.VERIFY
+REQUEST_SCHEMA = schemas.VERIFY_REQUEST
 DEFAULT_TIMEOUT = 600
 DEFAULT_MEMORY_MB = 4000
 # What tests/proofs.sh compiles proof targets with, after PROOF_CFLAGS. The emitter refuses `tbaa`.
@@ -173,18 +173,6 @@ LEAN_KEYWORDS = set(
 IDENTIFIER = re.compile(r"[A-Za-z][A-Za-z0-9_]*")
 MODULE_NAME = re.compile(r"[A-Za-z_][A-Za-z0-9_]*(\.[A-Za-z_][A-Za-z0-9_]*)*")
 
-LEAN_MESSAGE = re.compile(
-    r"^(?P<file>.+?):(?P<line>\d+):(?P<column>\d+): "
-    r"(?P<severity>error|warning|info)(?:\([^)]*\))?: (?P<text>.*)$"
-)
-LIMITS = [
-    ("memory_limit", re.compile(r"excessive memory consumption|out of memory", re.I)),
-    ("heartbeat_limit", re.compile(r"maximum number of heartbeats|\(deterministic\) timeout")),
-    ("recursion_limit", re.compile(r"maximum recursion depth has been reached")),
-    ("stack_limit", re.compile(r"deep recursion was detected|stack overflow", re.I)),
-    ("solver_limit", re.compile(r"SAT solver timed out")),
-    ("step_limit", re.compile(r"maximum number of steps exceeded")),
-]
 BV_COUNTEREXAMPLE = re.compile(r"found a (potentially spurious )?counterexample", re.I)
 BV_ASSIGNMENT = re.compile(r"^\s*([^\s=]+) = (\S.*?)\s*$")
 
@@ -245,6 +233,9 @@ class Run:
     input_path: Path = Path()
     # Hashes from before the proof's code ran, compared at the end.
     before: dict[str, str] | None = None
+    # How the processes a verdict rests on ended, and the modules they wrote, for irlean.verdict.
+    steps: dict[str, verdict.Step] = field(default_factory=dict)
+    outputs: dict[str, Path] = field(default_factory=dict)
 
     def check(self, name: str, result: str, detail: Any = None, seconds: float | None = None) -> None:
         entry = self.checks[name]
@@ -276,31 +267,12 @@ class Run:
         remaining = self.remaining()
         if remaining <= 0:
             raise Stop("time_limit", f"the time limit ran out before {step or argv[0]}", step or None)
-        started = time.monotonic()
         try:
-            process = subprocess.Popen(
-                argv,
-                stdin=subprocess.PIPE if stdin is not None else subprocess.DEVNULL,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                text=True,
-                cwd=cwd,
-                env=env,
-                start_new_session=True,
-            )
-        except FileNotFoundError as error:
+            r = proc.run(argv, timeout=remaining, stdin=stdin, env=env, cwd=cwd)
+        except (FileNotFoundError, PermissionError) as error:
             raise Stop("toolchain_missing", f"can't run {argv[0]}: {error}", step or None) from error
-        except PermissionError as error:
-            raise Stop("toolchain_missing", f"can't run {argv[0]}: {error}", step or None) from error
-        timed_out = False
-        try:
-            stdout, stderr = process.communicate(stdin, timeout=remaining)
-        except subprocess.TimeoutExpired:
-            timed_out = True
-            kill_group(process.pid)
-            stdout, stderr = process.communicate()
-        kill_group(process.pid)
-        ran = Ran(argv, process.returncode, stdout or "", stderr or "", time.monotonic() - started, timed_out)
+        timed_out = r.limit is not None
+        ran = Ran(argv, r.exit, r.out, r.err, r.seconds, timed_out)
         self.commands.append(
             {
                 "step": step,
@@ -315,15 +287,6 @@ class Run:
         return ran
 
 
-def kill_group(pid: int) -> None:
-    with contextlib.suppress(ProcessLookupError, PermissionError):
-        os.killpg(pid, signal.SIGKILL)
-
-
-def sha256(path: Path) -> str:
-    return hashlib.sha256(path.read_bytes()).hexdigest()
-
-
 def unmap(run: Run, text: str) -> str:
     """Names the requester's files instead of the copies Lean read."""
     for copy, original in run.path_map.items():
@@ -335,7 +298,7 @@ def lean_messages(run: Run, output: str, source: str) -> list[dict[str, Any]]:
     """Lean's errors and warnings, each with the lines that continue it."""
     messages: list[dict[str, Any]] = []
     for line in output.splitlines():
-        m = LEAN_MESSAGE.match(line)
+        m = lean.MESSAGE.match(line)
         if m:
             messages.append(
                 {
@@ -354,13 +317,6 @@ def lean_messages(run: Run, output: str, source: str) -> list[dict[str, Any]]:
     return [m for m in messages if m["severity"] != "info"]
 
 
-def limit_of(text: str) -> str | None:
-    for reason, pattern in LIMITS:
-        if pattern.search(text):
-            return reason
-    return None
-
-
 def classify_lean(ran: Ran, messages: list[dict[str, Any]]) -> str | None:
     """The resource limit a failed Lean run hit first, if it hit one before any other error. What fails
     after a limit often fails because of it, as later declarations lose what they need, so only the first
@@ -369,8 +325,8 @@ def classify_lean(ran: Ran, messages: list[dict[str, Any]]) -> str | None:
         return "time_limit"
     errors = [m for m in messages if m["severity"] == "error"]
     if errors:
-        return limit_of(errors[0]["message"])
-    return limit_of(ran.output)
+        return lean.limit_of(errors[0]["message"])
+    return lean.limit_of(ran.output)
 
 
 # Requests
@@ -539,7 +495,11 @@ def copy_inputs(run: Run) -> None:
         destination.parent.mkdir(parents=True, exist_ok=True)
         shutil.copyfile(path, destination)
         run.path_map[str(destination)] = str(path)
-        files[role] = {"original": str(path), "copy": str(destination), "sha256": sha256(destination)}
+        files[role] = {
+            "original": str(path),
+            "copy": str(destination),
+            "sha256": hashing.sha256_file(destination),
+        }
         return destination
 
     source = request["input"].get("ir") or request["input"]["c"]
@@ -597,7 +557,7 @@ def compile_c(run: Run) -> Path:
             "verify",
             "PROOF_CFLAGS isn't set, so clang compiled for this host, not the pinned target",
         )
-    run.artifacts["ir"] = {"path": str(ll), "sha256": sha256(ll)}
+    run.artifacts["ir"] = {"path": str(ll), "sha256": hashing.sha256_file(ll)}
     return ll
 
 
@@ -724,7 +684,7 @@ def generate(run: Run, ll: Path) -> Path:
         run.diagnose("error", "ir-lean", ran.output or f"exit {ran.returncode}")
         raise Stop("tool_failed", f"ir-lean exited with {ran.returncode}", "generate")
     run.check("generate", "pass", {"code": not no_code}, ran.seconds)
-    run.artifacts["generated"] = {"path": str(lean), "sha256": sha256(lean), "code": not no_code}
+    run.artifacts["generated"] = {"path": str(lean), "sha256": hashing.sha256_file(lean), "code": not no_code}
     return lean
 
 
@@ -744,7 +704,7 @@ def lean_env(run: Run) -> dict[str, str]:
 
 def lean_argv(run: Run, *args: str) -> list[str]:
     # As tests/llvm.py runs it: a memory limit, and 64 MB thread stacks so bv_decide's fork doesn't run out.
-    return ["lean", "-M", str(run.request["limits"]["memory_mb"]), "-s", "65536", *args]
+    return lean.argv(run.request["limits"]["memory_mb"], *args)
 
 
 def compile_module(run: Run, source: Path, check: str, failure: str) -> bool:
@@ -754,6 +714,10 @@ def compile_module(run: Run, source: Path, check: str, failure: str) -> bool:
     ran = run.run(
         lean_argv(run, "-R", str(run.work / "lean"), "-o", str(olean), str(source)), lean_env(run), step=check
     )
+    run.steps[check] = verdict.Step(
+        check, ran.returncode, "time_limit" if ran.timed_out else None, ran.output
+    )
+    run.outputs[check] = olean
     messages = lean_messages(run, ran.output, "lean")
     for message in messages:
         if len(run.diagnostics) < DIAGNOSTICS_KEPT:
@@ -808,12 +772,14 @@ def snapshot(run: Run) -> dict[str, str]:
     paths += sorted(LIBRARY.glob("IRLean*.olean")) + sorted((LIBRARY / "IRLean").glob("*.olean"))
     if run.request["witnesses"]:
         paths.append(DYLIB)
-    return {str(p): sha256(p) if p.exists() else "missing" for p in paths}
+    return {str(p): hashing.sha256_file(p) if p.exists() else "missing" for p in paths}
 
 
 def library_hash() -> str:
-    digest = hashlib.sha256()
-    for path in sorted(LIBRARY.glob("IRLean*.olean")) + sorted((LIBRARY / "IRLean").glob("*.olean")):
+    """IRLean's modules, each as its name, a NUL and its bytes, as results have recorded it since
+    ir-lean.verify/1."""
+    digest = hashing.new()
+    for path in lean.library_modules():
         digest.update(path.name.encode() + b"\0" + path.read_bytes())
     return digest.hexdigest()
 
@@ -943,11 +909,14 @@ def kernel_replay(run: Run) -> None:
     without the kernel checking it, with `debug.skipKernelTC`, and nothing else here would notice."""
     modules = [run.request["namespace"], *run.artifacts["support_modules"], run.artifacts["proof_module"]]
     ran = run.run(["leanchecker", *modules], lean_env(run), step="kernel_replay")
+    run.steps["kernel_replay"] = verdict.Step(
+        "kernel_replay", ran.returncode, "time_limit" if ran.timed_out else None, ran.output
+    )
     if ran.timed_out:
         raise Stop("time_limit", "leanchecker didn't finish in time", "kernel_replay")
     if ran.returncode != 0:
         run.diagnose("error", "leanchecker", ran.output or f"exit {ran.returncode}")
-        limit = limit_of(ran.output)
+        limit = lean.limit_of(ran.output)
         if limit:
             raise Stop(limit, f"leanchecker hit a limit: {limit.replace('_', ' ')}", "kernel_replay")
         run.check("kernel_replay", "fail", unmap(run, ran.output.strip())[:TRUNCATE], ran.seconds)
@@ -994,6 +963,9 @@ def evaluate_witnesses(run: Run) -> None:
         # No time was left to start. That's the same as running out partway: the witnesses time out, and
         # whatever the proof showed stands.
         ran, answers = Ran([], -9, "", "", 0.0, True), []
+    run.steps["witnesses"] = verdict.Step(
+        "witnesses", ran.returncode, "time_limit" if ran.timed_out else None, ran.output
+    )
     results = {a["index"]: a for a in answers if a.get("kind") == "witness"}
     started = any(a.get("kind") == "witness_start" for a in answers)
     trouble = next((a["error"] for a in answers if a.get("kind") == "witness_error"), None)
@@ -1015,7 +987,7 @@ def evaluate_witnesses(run: Run) -> None:
         else:
             w["result"] = "aborted"
             w["error"] = f"evaluation stopped with exit {ran.returncode} before this witness"
-            limit = limit_of(ran.output)
+            limit = lean.limit_of(ran.output)
             if limit:
                 w["result"] = "timeout"
                 w["error"] = f"evaluation hit a limit: {limit.replace('_', ' ')}"
@@ -1041,27 +1013,15 @@ def first_line(run: Run, argv: list[str]) -> str:
 
 def emitter_commit() -> str:
     try:
-        commit = subprocess.run(
-            ["git", "-C", str(ROOT), "rev-parse", "HEAD"], capture_output=True, text=True, check=True
-        ).stdout.strip()
-        dirty = subprocess.run(
-            [
-                "git",
-                "-C",
-                str(ROOT),
-                "status",
-                "--porcelain",
-                "src",
-                "IRLean",
-                "tools",
-            ],
-            capture_output=True,
-            text=True,
-            check=True,
-        ).stdout.strip()
-    except (OSError, subprocess.CalledProcessError):
+        commit = proc.run(["git", "-C", str(ROOT), "rev-parse", "HEAD"], timeout=60)
+        dirty = proc.run(
+            ["git", "-C", str(ROOT), "status", "--porcelain", "src", "IRLean", "tools"], timeout=60
+        )
+    except OSError:
         return "unknown"
-    return commit + (" with local changes" if dirty else "")
+    if not commit.ok or not dirty.ok:
+        return "unknown"
+    return commit.out.strip() + (" with local changes" if dirty.out.strip() else "")
 
 
 # Results
@@ -1073,7 +1033,8 @@ def decide(run: Run) -> tuple[str, str, str]:
     1. A checked file that changed while the proof's code ran makes everything after it suspect.
     2. A run that stopped early answers with why it stopped.
     3. A witness that makes the claim false is a counterexample, unless the proof passed every check for
-       that same statement, when one of the two is wrong and neither can be reported.
+       that same statement, when one of the two is wrong and neither can be reported. It counts only if the
+       process that evaluated it ended cleanly: otherwise it's a timeout or an error.
     4. With a proof, the first check it failed. `proved` only comes after every required check passed.
     5. With only a statement, nothing can be proved: whatever the witnesses showed, short of a refutation.
     """
@@ -1084,6 +1045,22 @@ def decide(run: Run) -> tuple[str, str, str]:
     has_proof = "proof" in run.request
     falsified = [w for w in run.witnesses if w.get("result") == "fails"]
     if falsified:
+        # A witness only fails against a statement that names the target, which is all a refutation needs, and
+        # only counts if the process that evaluated it ended cleanly.
+        refuted = verdict.decide(
+            verdict.Verdict.REFUTED, verdict.Evidence(evaluated=True, lean=run.steps.get("witnesses"))
+        )
+        step = run.steps.get("witnesses")
+        if refuted.verdict is verdict.Verdict.UNKNOWN:
+            # Its time ran out, Lean said it ran out of something, or it was killed, as at a memory cap.
+            limit = (
+                "time_limit" if step is None or step.limit else lean.limit_of(step.output) or "memory_limit"
+            )
+            why = f"a witness made the statement false, and its evaluation didn't finish: {refuted.detail}"
+            return "timeout", limit, why
+        if not refuted.granted:
+            why = f"a witness made the statement false, and its evaluation failed: {refuted.detail}"
+            return "error", "tool_failed", why
         proof_stands = has_proof and all(run.checks[c]["result"] == "pass" for c in REQUIRED)
         if proof_stands and run.checks["statement"]["result"] in ("pass", "skip"):
             return (
@@ -1122,6 +1099,23 @@ def decide(run: Run) -> tuple[str, str, str]:
         broken = [c for c in OPTIONAL if run.checks[c]["result"] == "fail"]
         if unmet or broken:
             return "error", "internal_error", f"checks didn't pass: {', '.join(unmet + broken)}"
+        proved = verdict.decide(
+            verdict.Verdict.PROVED,
+            verdict.Evidence(
+                lean=run.steps.get("compile_proof"),
+                replay=run.steps.get("kernel_replay"),
+                axioms=run.checks["axioms"]["result"] == "pass",
+                files={
+                    str(run.outputs[c]) if c in run.outputs else c: c in run.outputs
+                    and run.outputs[c].exists()
+                    for c in ("compile_generated", "compile_proof")
+                },
+                checks={c: run.checks[c]["result"] == "pass" for c in REQUIRED}
+                | {c: run.checks[c]["result"] != "fail" for c in OPTIONAL},
+            ),
+        )
+        if not proved.granted:
+            return "error", "internal_error", f"every check passed, and still: {proved.detail}"
         return "proved", "kernel_checked", f"{theorem['name']} is a kernel-checked theorem"
 
     statement = run.claim.get("statement") or {}
@@ -1362,7 +1356,7 @@ def verify(raw: Any, base: Path, tool: Path = DEFAULT_TOOL, work: Path | None = 
         request = load_request(raw, base)
     except Stop as stop:
         return invalid_result(stop.detail, raw)
-    digest = hashlib.sha256(json.dumps(request, sort_keys=True).encode()).hexdigest()[:12]
+    digest = hashing.sha256_text(json.dumps(request, sort_keys=True))[:12]
     if work is None:
         RUNS.mkdir(parents=True, exist_ok=True)
         prune_runs()
@@ -1395,7 +1389,7 @@ def verify(raw: Any, base: Path, tool: Path = DEFAULT_TOOL, work: Path | None = 
             {
                 "lean": first_line(run, ["lean", "--version"]),
                 "ir_lean": emitter_commit(),
-                "ir_lean_binary_sha256": sha256(run.tool),
+                "ir_lean_binary_sha256": hashing.sha256_file(run.tool),
                 "irlean_library_sha256": library_hash(),
             }
         )
@@ -1407,7 +1401,7 @@ def verify(raw: Any, base: Path, tool: Path = DEFAULT_TOOL, work: Path | None = 
         generated = generate(run, ll)
         if compile_module(run, generated, "compile_generated", "generated_module_failed"):
             run.check("compile_generated", "pass")
-            run.artifacts["generated"]["olean_sha256"] = sha256(generated.with_suffix(".olean"))
+            run.artifacts["generated"]["olean_sha256"] = hashing.sha256_file(generated.with_suffix(".olean"))
         # Before any of the proof's code runs, as it does while Lean compiles the support modules and proof.
         run.before = snapshot(run)
         if "proof" in request:

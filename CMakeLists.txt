@@ -27,7 +27,8 @@ add_test(
     COMMAND
         ${CMAKE_SOURCE_DIR}/tests/differential.py $<TARGET_FILE:ir-lean>
         ${CMAKE_SOURCE_DIR}/tests/real/bi_reverse.c ${CMAKE_SOURCE_DIR}/tests/real/calls.c
-        ${CMAKE_SOURCE_DIR}/tests/real/memory.c --bound fib=20 --bound is_even=200 --bound is_odd=200
+        ${CMAKE_SOURCE_DIR}/tests/real/memory.c ${CMAKE_SOURCE_DIR}/tests/real/choices.ll --bound fib=20
+        --bound is_even=200 --bound is_odd=200
 )
 add_test(
     NAME vectors_pointers
@@ -58,7 +59,7 @@ add_test(
 )
 set_tests_properties(
     model_stops_are_not_undefined
-    PROPERTIES PASS_REGULAR_EXPRESSION "not undefined: .*model stop: freezePoison"
+    PROPERTIES PASS_REGULAR_EXPRESSION "not undefined: .*model stop: pointerBytes"
 )
 # Each memory error has to stop for its own reason, not just any undefined behavior, so this checks them all.
 add_test(
@@ -103,9 +104,15 @@ add_test(NAME llvm COMMAND ${CMAKE_SOURCE_DIR}/tests/llvm.py $<TARGET_FILE:ir-le
 add_test(NAME llvm_scope COMMAND ${CMAKE_SOURCE_DIR}/tests/llvm_scope_test.py)
 add_test(NAME llvm_scope_check COMMAND ${CMAKE_SOURCE_DIR}/tests/llvm_scope.py check)
 set_tests_properties(llvm_scope llvm_scope_check PROPERTIES TIMEOUT 600)
-# tools/corpus/capture.py and tools/measure.py, in Python, with one seed through opt when the pinned one is
-# on PATH: about 2 s, and no Lean. docs/corpus.md.
+# tools/corpus/capture.py, in Python, with one seed through opt when the pinned one is on PATH: under a
+# second, and no Lean. docs/corpus.md.
 add_test(NAME corpus COMMAND ${CMAKE_SOURCE_DIR}/tests/corpus_test.py)
+# tools/irlean, the shared Python library, and tools/measure.py on it: about 3 s, and no Lean or LLVM.
+# docs/python.md.
+add_test(NAME irlean COMMAND ${CMAKE_SOURCE_DIR}/tests/irlean_test.py)
+# tools/irlean/verdict.py, the one place Python decides a verdict: every combination of how the processes
+# it rests on end, and each tool and test asking it. About 4 s, and no Lean. docs/trust.md.
+add_test(NAME verdict COMMAND ${CMAKE_SOURCE_DIR}/tests/verdict_test.py)
 # tests/alive.py on three small rewrites through alive-tv: a source that's undefined on every input is unknown,
 # never correct. About a second, and no Lean.
 add_test(NAME alive COMMAND ${CMAKE_SOURCE_DIR}/tests/alive_test.py)
@@ -120,6 +127,11 @@ add_test(NAME names COMMAND ${CMAKE_SOURCE_DIR}/tests/names.sh)
 # temporary directory, one Lean or Alive2 process at a time, each Lean process capped at 2 GB and 300 s.
 add_test(NAME undef_freeze COMMAND ${CMAKE_SOURCE_DIR}/tests/undef_freeze.sh)
 set_tests_properties(undef_freeze PROPERTIES TIMEOUT 900)
+# The model's freeze, F3, on what ir-lean emits: right rewrites refine, wrong ones provably don't, and Alive2
+# agrees.
+# One Lean or Alive2 process at a time, each Lean process capped at 2 GB and 300 s.
+add_test(NAME freeze COMMAND ${CMAKE_SOURCE_DIR}/tests/freeze.sh $<TARGET_FILE:ir-lean>)
+set_tests_properties(freeze PROPERTIES TIMEOUT 900)
 add_test(NAME verify COMMAND ${CMAKE_SOURCE_DIR}/tests/verify.py $<TARGET_FILE:ir-lean>)
 # Tier-1 proof tests: the contract in Python, then tools/prooftest/prooftest.py on
 # tests/prooftest/Cases.ll, at most four cases at a time, each with at most one Lean process running.
@@ -263,6 +275,7 @@ set_tests_properties(
     contracts
     refine
     undef_freeze
+    freeze
     generic_rewrites
     cpp_correspondence
     store

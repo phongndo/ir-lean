@@ -43,6 +43,10 @@ from pathlib import Path
 from typing import Any
 
 ROOT = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(ROOT / "tools"))
+from irlean import proc  # noqa: E402
+from irlean import verdict as core  # noqa: E402
+
 CORPUS = ROOT / "tests" / "verification_negative"
 CASES = CORPUS / "cases"
 STUBS = CORPUS / "stubs"
@@ -54,10 +58,14 @@ PROBE_CASE = "control_precondition_sufficient"
 RUNS = ROOT / "build" / "verify-negative"
 RUNS_KEPT = 5
 VERIFY = ROOT / "tools" / "verify.py"
-# How memory is read on macOS and Linux, which count it differently.
-MEASURE = ROOT / "tools" / "measure.py"
 # What decides a verdict besides the inputs. A stored result checked by other versions of these is stale.
-CHECKER_FILES = ["tools/verify.py", "tools/verify_check.lean", "tests/check_axioms.lean"]
+# tools/verify.py decides with the shared library, so its files count too.
+CHECKER_FILES = [
+    "tools/verify.py",
+    "tools/verify_check.lean",
+    "tests/check_axioms.lean",
+    *sorted(str(p.relative_to(ROOT)) for p in (ROOT / "tools" / "irlean").glob("*.py")),
+]
 
 CASE_SCHEMA = "ir-lean.verification-negative.case/1"
 ENVELOPE_SCHEMA = "ir-lean.verification-negative.envelope/1"
@@ -117,6 +125,9 @@ REFINES = " ∨ ".join(
     ]
 )
 CLAIM_FIELDS = {"binders", "hypotheses", "src", "tgt"}
+# A source whose run makes choices, as one with a `freeze` does, gets them after the inputs: the claim is that
+# some way it chooses allows the target, for every input, and every way the target chooses, which is a binder.
+OPTIONAL_CLAIM_FIELDS = {"src_choice"}
 
 # Every reason the gate can give for not certifying. A new one goes in the doc's table too.
 DENIALS = {
@@ -149,7 +160,8 @@ DENIALS = {
     "stale_emitter": "The emitter's commit isn't the one checked out now",
     "dirty_emitter": "The emitter had uncommitted changes, so no commit says what it was",
     "stale_lean": "The Lean it used isn't the one on PATH now",
-    "stale_checker": "tools/verify.py, tools/verify_check.lean or tests/check_axioms.lean changed since",
+    "stale_checker": "tools/verify.py, tools/verify_check.lean, tests/check_axioms.lean or tools/irlean "
+    "changed since",
 }
 
 
@@ -175,9 +187,6 @@ def load_tool(name: str, path: Path) -> Any:
 
 def load_verify() -> Any:
     return load_tool("verify_tool", VERIFY)
-
-
-M = load_tool("measure_tool", MEASURE)
 
 
 # Cases
@@ -224,7 +233,8 @@ def load_case(directory: Path) -> Case:
     need("namespace" in request, "request.namespace is missing: the gate needs the Lean constant")
     claim = manifest.get("claim", "missing")
     need(
-        claim is None or (isinstance(claim, dict) and set(claim) == CLAIM_FIELDS),
+        claim is None
+        or (isinstance(claim, dict) and CLAIM_FIELDS <= set(claim) <= CLAIM_FIELDS | OPTIONAL_CLAIM_FIELDS),
         f"claim needs {CLAIM_FIELDS}",
     )
     need(
@@ -321,7 +331,7 @@ def run_checker(argv: list[str], timeout: float, logs: Path) -> Harness:
         signal=-code if code < 0 else None,
         timed_out=fired.is_set(),
         seconds=round(time.monotonic() - started, 2),
-        peak_rss_mb=int(M.maxrss_mib(usage.ru_maxrss)),
+        peak_rss_mb=int(proc.maxrss_mib(usage.ru_maxrss)),
         stdout=out_path.read_text(errors="replace"),
         stderr=err_path.read_text(errors="replace"),
     )
@@ -361,7 +371,8 @@ def envelope_for(harness: Harness, checkers: dict[str, str], probe: dict[str, An
 def canonical(claim: dict[str, Any]) -> str:
     """The statement a certificate for this claim has to pin."""
     hypotheses = "".join(f"{h} → " for h in claim["hypotheses"])
-    return f"∀ {claim['binders']}, {hypotheses}{REFINES.format(src=claim['src'], tgt=claim['tgt'])}"
+    choice = f"∃ ({claim['src_choice']} : IRLean.Choice), " if "src_choice" in claim else ""
+    return f"∀ {claim['binders']}, {hypotheses}{choice}{REFINES.format(src=claim['src'], tgt=claim['tgt'])}"
 
 
 def pinned_statement(case: Case) -> str | None:
@@ -516,6 +527,26 @@ def _gate(envelope: Any, expected: dict[str, Any], v: Any, deny: Callable[[str],
         deny("stale_checker")
 
 
+def certify(envelope: Any, expected: dict[str, Any]) -> core.Decision:
+    """irlean.verdict on an envelope the gate passed: tools/verify.py's process and result, and the case's
+    files as the result names them."""
+    harness = envelope["harness"]
+    signum = harness.get("signal")
+    step = core.Step(
+        "tools/verify.py",
+        -signum if isinstance(signum, int) else harness.get("exit"),
+        "time_limit" if harness.get("timed_out") else None,
+    )
+    files = (envelope["result"].get("artifacts") or {}).get("files") or {}
+    return core.decide(
+        core.Verdict.CERTIFIED,
+        core.Evidence(
+            upstream=(step, envelope["result"]),
+            files={role: (files.get(role) or {}).get("sha256") == d for role, d in expected["files"].items()},
+        ),
+    )
+
+
 def probe_witnessed(probe: Any, expected: dict[str, Any]) -> bool:
     """The probe is the runner's own: the statement it built from the case's preconditions, refuted at a
     witness, for the same IR, by a checker that exited as a counterexample does."""
@@ -606,13 +637,21 @@ class Outcome:
         return f"{tag} {self.tier:6} {self.id}: {detail}"
 
 
-def judge(outcome: Outcome, expect: dict[str, Any], result: Any) -> None:
+def judge(
+    outcome: Outcome, expect: dict[str, Any], result: Any, envelope: Any, expected: dict[str, Any]
+) -> None:
     """Whether the case came out as it has to. A not-certified case also has to fail for its own reason, so a
-    broken toolchain can't pass every negative case at once."""
+    broken toolchain can't pass every negative case at once. Certified means the gate denied nothing and
+    irlean.verdict grants it."""
     if isinstance(result, dict) and "status" in result:
         outcome.verify = f"{result.get('status')}/{result.get('reason')}"
-    outcome.certified = not outcome.denials
     problems = outcome.problems
+    outcome.certified = not outcome.denials
+    if outcome.certified:
+        decision = certify(envelope, expected)
+        if not decision.granted:
+            outcome.certified = False
+            problems.append(f"the gate passed it, and irlean.verdict doesn't certify it: {decision.detail}")
     if outcome.certified != expect["certified"]:
         problems.append("certified, and mustn't be" if outcome.certified else "not certified, and has to be")
     if "verify" in expect and outcome.verify not in expect["verify"]:
@@ -670,8 +709,8 @@ def check_request(
 
 def run_live(case: Case, live: Live) -> Outcome:
     outcome = Outcome(case.id, "live", case.manifest["category"], "fail")
-    # tools/measure.py reads what's free as each kernel counts it, and on macOS its memory pressure too.
-    busy = M.too_busy(live.min_available_mb)
+    # irlean.proc reads what's free as each kernel counts it, and on macOS its memory pressure too.
+    busy = proc.too_busy(live.min_available_mb)
     if busy:
         outcome.outcome = "not_run"
         outcome.note = f"{busy}, from --min-available-mb"
@@ -720,9 +759,10 @@ def run_live(case: Case, live: Live) -> Outcome:
         if text.count(stale["old"]) != 1:
             raise ManifestError(f"{case.id}: {stale['old']!r} isn't in {stale['file']} exactly once")
         edited.write_text(text.replace(stale["old"], stale["new"]))
-        outcome.denials = gate(envelope, expected_for(case, files, live.versions, this_run=True), live.v)
+        expected = expected_for(case, files, live.versions, this_run=True)
+        outcome.denials = gate(envelope, expected, live.v)
         outcome.note = f"edited {stale['file']} after the run"
-    judge(outcome, case.expect, result)
+    judge(outcome, case.expect, result, envelope, expected)
     budget = live.case_memory_mb * 5 // 4 + 512
     if outcome.peak_rss_mb > budget:
         outcome.problems.append(f"peak memory {outcome.peak_rss_mb} MB, over the budget of {budget} MB")
@@ -1103,7 +1143,7 @@ def memory_readings(out: Path) -> list[Outcome]:
     if holds.exit != 0 or not 180 <= holds.peak_rss_mb <= 600:
         peak.outcome = "fail"
         peak.problems.append(f"a checker holding 200 MiB peaked at {holds.peak_rss_mb} MB, exit {holds.exit}")
-    free = M.memory()["available_mb"]
+    free = proc.memory()["available_mb"]
     guard = Outcome("free_memory_read", "static", "runner", "pass", note=f"{free} MB available")
     if not free > 0:
         guard.outcome = "fail"
@@ -1116,7 +1156,7 @@ def run_static(item: Static, ctx: StaticContext) -> Outcome:
     envelope, expected = item.run(ctx)
     outcome.denials = gate(envelope, expected, ctx.v)
     result = envelope.get("result") if isinstance(envelope, dict) else None
-    judge(outcome, item.expect, result)
+    judge(outcome, item.expect, result, envelope, expected)
     return outcome
 
 

@@ -65,6 +65,9 @@ from pathlib import Path
 from typing import Any
 
 ROOT = Path(__file__).resolve().parent.parent
+sys.path.append(str(ROOT / "tools"))
+from irlean import verdict as core  # noqa: E402
+
 SELF = Path(__file__).resolve()
 BINDING_PY = ROOT / "tools" / "binding.py"
 INVENTORY = ROOT / "tests" / "llvm_scope" / "inventory.json"
@@ -119,7 +122,10 @@ IO_FLAGS = {"-S", "-", "%s", "-disable-output", "--disable-output"}
 REDIRECT = re.compile(r"\d*(?:<|>>?)(&\d+|\S*)")
 FUNCTION_NAME = re.compile(r"[A-Za-z0-9_.$]+")
 DEFINE_NAME = re.compile(r'^define [^@]*@"?([^"(]+)"?\(', re.M)
-SIGNATURE = re.compile(r"^noncomputable def (\S+)((?: \([^()]*\))*) : (Outcome .*) :=$", re.M)
+# A function whose run makes choices returns `Outcomes`, and takes its `IRLean.Choice` as `c'`.
+SIGNATURE = re.compile(
+    r"^noncomputable def (\S+)((?: \([^()]*\))*) : (Outcomes? .*) :=(?: fun c' =>)?$", re.M
+)
 
 
 def sha(*parts: str | bytes) -> str:
@@ -565,6 +571,15 @@ def binders(module: str, lean_name: str) -> list[tuple[str, str]] | None:
     return None
 
 
+def chooses(module: str, lean_name: str) -> bool:
+    """Whether a generated function's run makes choices, so it returns `Outcomes`."""
+    bare = lean_name.split(".")[-1]
+    return any(
+        m.group(1) in (lean_name, bare, f"«{bare}»") and m.group(3).startswith("Outcomes ")
+        for m in SIGNATURE.finditer(module)
+    )
+
+
 def functions_in(module: str, ns: str) -> list[str]:
     """Every generated function in a module, and its step, for the proof to unfold."""
     out = []
@@ -598,20 +613,27 @@ end {ns}.Auto
 
 
 def certificate(
-    ns: str, lean_name: str, args: list[tuple[str, str]], src_defs: list[str], tgt_defs: list[str]
+    ns: str,
+    lean_name: str,
+    args: list[tuple[str, str]],
+    src_defs: list[str],
+    tgt_defs: list[str],
+    choice: bool = False,
 ) -> str:
     """A certificate for `ir_instance_equivalence`, stating the claim as tests/binding/AddZero.lean does, with
     a proof found by symbolic execution. Its type has to be exactly what tools/binding_check.lean builds; the
-    proof is untrusted."""
-    names = [f"x{i}" for i in range(len(args))]
-    bound = " ".join(f"({n} : {ty})" for n, (_, ty) in zip(names, args, strict=True))
+    proof is untrusted. With `choice`, the function's run makes choices, and the claim takes one after the
+    arguments, as tools/binding_check.lean does."""
+    names = [f"x{i}" for i in range(len(args))] + (["c"] if choice else [])
+    types = [ty for _, ty in args] + (["IRLean.Choice"] if choice else [])
+    bound = " ".join(f"({n} : {ty})" for n, ty in zip(names, types, strict=True))
     applied = " ".join(names)
     src, tgt = f"{ns}.Src.{lean_name}", f"{ns}.Tgt.{lean_name}"
     claim = (
         f"{src} = {tgt} ∧\n    ∀ {bound + ' ' if bound else ''}(s : IRLean.ModelStop), "
         f"{src}{' ' + applied if applied else ''} ≠ some (.error (.model s))"
     )
-    split = " <;> ".join(f"cases {n}" for n in names)
+    split = " <;> ".join(f"cases {n}" for n in names[: len(args)])
     lead = f"{split} <;> " if split else ""
     both = ", ".join(src_defs + tgt_defs)
     only = ", ".join(src_defs)
@@ -900,7 +922,11 @@ class Scorer:
             if any(not re.fullmatch(r"Val \d+", ty) for _, ty in args):
                 out[n] = result("failed", "no_automation", f"arguments of types {[t for _, t in args]}")
                 continue
-            cert = certificate(ns, lean_name, args, src_defs, tgt_defs)
+            choice = chooses(modules["Src"], lean_name)
+            if choice != chooses(modules["Tgt"], lean_name):
+                out[n] = result("failed", "no_automation", "one side makes choices and the other doesn't")
+                continue
+            cert = certificate(ns, lean_name, args, src_defs, tgt_defs, choice)
             proved = self.prove(cert, ns, lean_dir)
             if proved is not None:
                 out[n] = proved
@@ -1075,6 +1101,19 @@ class Scorer:
             why = self.mismatch(claimed, verdict, r, input_ll, function)
             if why is not None:
                 return result("refused", "instance_mismatch", why, bundle=rel)
+            # Bound, by irlean.verdict, on tools/binding.py's verdict and the bundle as it is now.
+            artifacts = (claimed or {}).get("artifacts") or {}
+            files = {str(manifest): manifest.is_file()} | {
+                str(manifest.parent / a.get("path", "")): (manifest.parent / a.get("path", "")).is_file()
+                for a in artifacts.values()
+                if isinstance(a, dict)
+            }
+            step = core.Step("tools/binding.py verify", ran.code, None, ran.out + ran.err)
+            certified = core.decide(
+                core.Verdict.CERTIFIED, core.Evidence(upstream=(step, verdict), files=files)
+            )
+            if not certified.granted:
+                return result("error", "verdict_unreadable", certified.detail, bundle=rel)
         verdict_path = self.verdicts / f"{manifest.parent.name}.json"
         verdict_path.write_text(json.dumps(verdict, indent=1, ensure_ascii=False))
         return result(

@@ -3,7 +3,7 @@
   "version": {
     "lean": "leanprover/lean4:v4.35.0",
     "normalizer": 1,
-    "sources": "d0042bf6b177eb3f6588b5a36d2c91807756b86a981651cb1d172253743f61b8"
+    "sources": "3cc7c34c5be5bdc1f7925c098475cf4e3ab09ba5b69e0afa67d42fd0209e5e34"
   },
   "consumers": [
     {
@@ -1838,31 +1838,7 @@
       "module": "IRLean.Contract.Poison",
       "family": "contracts",
       "provenance": "#42, IRLean/Contract/Poison.lean",
-      "key": "86016152ed30583d4e30",
-      "status": "candidate",
-      "widths": "every",
-      "hypotheses": [],
-      "witness": null,
-      "used_by": []
-    },
-    {
-      "name": "IRLean.Contract.freeze_none_stops",
-      "module": "IRLean.Contract.Poison",
-      "family": "contracts",
-      "provenance": "#42, IRLean/Contract/Poison.lean",
-      "key": "c0db0fc64f3822ef2f1c",
-      "status": "candidate",
-      "widths": "every",
-      "hypotheses": [],
-      "witness": null,
-      "used_by": []
-    },
-    {
-      "name": "IRLean.Contract.freeze_none_not_ub",
-      "module": "IRLean.Contract.Poison",
-      "family": "contracts",
-      "provenance": "#42, IRLean/Contract/Poison.lean",
-      "key": "40e5b46406f2b9938774",
+      "key": "d9b9b6101b7cf4e132b1",
       "status": "candidate",
       "widths": "every",
       "hypotheses": [],
@@ -1898,6 +1874,7 @@
         "IRLean.Generic.xor_xor_cancel_refines",
         "RefineCases.addZero",
         "RefineCases.dropNuw",
+        "RefineCases.freezeInserted",
         "RefineCases.poisonLane",
         "RefineCases.poisonToValue",
         "RefineCases.undefArgument"
@@ -1917,6 +1894,12 @@
         "IRLean.Generic.Counter.not_refines",
         "RefineCases.addZero",
         "RefineCases.addedNuw",
+        "RefineCases.freezeDuplicatedOfValue",
+        "RefineCases.freezeInserted",
+        "RefineCases.freezeNoundefRemoved",
+        "RefineCases.freezeOfFreeze",
+        "RefineCases.freezeOfValueRemoved",
+        "RefineCases.freezePoisonToConstant",
         "RefineCases.swappedLanes",
         "RefineCases.undefArgument",
         "RefineCases.valueToPoison",
@@ -1949,7 +1932,9 @@
         "IRLean.Generic.shl_lshr_exact_refines",
         "IRLean.Generic.sub_self_refines",
         "IRLean.Generic.xor_self_refines",
-        "IRLean.Generic.xor_xor_cancel_refines"
+        "IRLean.Generic.xor_xor_cancel_refines",
+        "RefineCases.freezeDuplicated",
+        "RefineCases.freezeRemoved"
       ]
     },
     {
@@ -2017,6 +2002,14 @@
         "RefineCases.addZero",
         "RefineCases.addedNuw",
         "RefineCases.dropNuw",
+        "RefineCases.freezeDuplicated",
+        "RefineCases.freezeDuplicatedOfValue",
+        "RefineCases.freezeInserted",
+        "RefineCases.freezeNoundefRemoved",
+        "RefineCases.freezeOfFreeze",
+        "RefineCases.freezeOfValueRemoved",
+        "RefineCases.freezePoisonToConstant",
+        "RefineCases.freezeRemoved",
         "RefineCases.inContext",
         "RefineCases.loopDeletedUnderPromise",
         "RefineCases.poisonLane",
@@ -2042,6 +2035,7 @@
         "IRLean.Generic.sdiv_one_refines",
         "IRLean.Generic.srem_one_refines",
         "IRLean.Generic.urem_one_refines",
+        "RefineCases.freezeNoundefRemoved",
         "RefineCases.loopDeletedUnderPromise",
         "RefineCases.promiseDropped",
         "RefineCases.removeUB"
@@ -2053,14 +2047,11 @@
       "family": "refinement",
       "provenance": "#46, IRLean/Refine.lean",
       "key": "1a709fc6e63dc1a8b691",
-      "status": "admitted",
+      "status": "candidate",
       "widths": "every",
       "hypotheses": [],
       "witness": null,
-      "used_by": [
-        "RefineCases.freezeDuplicated",
-        "RefineCases.freezeToPoison"
-      ]
+      "used_by": []
     },
     {
       "name": "IRLean.Refine.outcome_none",
@@ -2112,13 +2103,14 @@
       "family": "refinement",
       "provenance": "#46, IRLean/Refine.lean",
       "key": "6abe3142856f6aa0b4a7",
-      "status": "candidate",
+      "status": "admitted",
       "widths": "every",
       "hypotheses": [
         "LemmaStore.Counter.IRLean.Refine.outcome_le_self_iff.drop_2"
       ],
       "witness": "LemmaStore.Counter.IRLean.Refine.outcome_le_self_iff.sat",
       "used_by": [
+        "IRLean.Refine.outcomes_le_self",
         "IRLean.Refines.self_iff"
       ]
     },
@@ -2224,10 +2216,60 @@
       "witness": "LemmaStore.Counter.IRLean.Refines.self_iff.sat",
       "used_by": [
         "RefineCases.addZeroSrc_self",
-        "RefineCases.frozen_not_self",
         "RefineCases.of_equivalence"
       ]
+    },
+    {
+      "name": "IRLean.Contract.freeze_none",
+      "module": "IRLean.Contract.Poison",
+      "family": "contracts",
+      "provenance": "F3, IRLean/Contract/Poison.lean",
+      "key": "e00adf08dcb06269bbc3",
+      "status": "candidate",
+      "widths": "every",
+      "hypotheses": [],
+      "witness": null,
+      "used_by": []
+    },
+    {
+      "name": "IRLean.Contract.freeze_ne_none",
+      "module": "IRLean.Contract.Poison",
+      "family": "contracts",
+      "provenance": "F3, IRLean/Contract/Poison.lean",
+      "key": "35d6b58d6af65bbfe96b",
+      "status": "candidate",
+      "widths": "every",
+      "hypotheses": [],
+      "witness": null,
+      "used_by": []
+    },
+    {
+      "name": "IRLean.Contract.freeze_none_any",
+      "module": "IRLean.Contract.Poison",
+      "family": "contracts",
+      "provenance": "F3, IRLean/Contract/Poison.lean",
+      "key": "3ada88084fef7538f915",
+      "status": "candidate",
+      "widths": "every",
+      "hypotheses": [],
+      "witness": null,
+      "used_by": []
     }
   ],
-  "forgotten": []
+  "forgotten": [
+    {
+      "name": "IRLean.Contract.freeze_none_stops",
+      "key": "c0db0fc64f3822ef2f1c",
+      "status": "candidate",
+      "reason": "F3: freeze of poison chooses a value, so the model no longer stops there. IRLean.Contract.freeze_none says what it gives",
+      "date": "2026-11-09"
+    },
+    {
+      "name": "IRLean.Contract.freeze_none_not_ub",
+      "key": "40e5b46406f2b9938774",
+      "status": "candidate",
+      "reason": "F3: freeze of poison chooses a value, so whether its stop was undefined no longer applies. IRLean.Contract.freeze_ne_none says it never gives poison",
+      "date": "2026-11-09"
+    }
+  ]
 }

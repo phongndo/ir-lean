@@ -70,6 +70,7 @@ theorem popcount_correct (x : BitVec 32) :
 | [llama.cpp's Q5](docs/llama-q5.md) | A proved Q5 bit-unpacking rewrite, real CPU generation measurements, and the reproducer |
 | [Design](docs/design.md) | What gets emitted, what the model covers, and why |
 | [Testing](docs/testing.md) | How to run the tests and linters, and what each one checks |
+| [Python](docs/python.md) | What the Python is for, the library every script shares, and the rules that keep it small |
 | [Roadmap](docs/roadmap.md) | Where this is going, in what order, and the [first pull requests](docs/roadmap.md#near-term-pull-requests) |
 | [Stage 1](docs/stage1.md) | InstCombine's own rewrites, certified with `bv_decide` and compared with Alive2, and known miscompilations that must not be certified |
 | [Prior art](docs/prior-art.md) | What others have built toward proved superoptimization, a lemma store and proof tests, and whether Trivet or Lean-MLIR already cover integer stage 1 |

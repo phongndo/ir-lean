@@ -27,14 +27,12 @@ usage: tools/prooftest/bench.py [--tool build/ir-lean] [--sets llvm,variants,pro
 from __future__ import annotations
 
 import argparse
-import hashlib
 import importlib.util
 import json
 import os
 import random
 import re
 import shutil
-import subprocess
 import sys
 import tarfile
 import tempfile
@@ -49,8 +47,10 @@ from typing import Any
 HERE = Path(__file__).resolve().parent
 ROOT = HERE.parent.parent
 sys.path.insert(0, str(ROOT / "tests"))
+sys.path.append(str(ROOT / "tools"))
 import llvm  # noqa: E402
 import verify_negative  # noqa: E402
+from irlean import hashing, proc, schemas  # noqa: E402
 
 
 def load_prooftest() -> Any:
@@ -424,23 +424,21 @@ def llvm_items(
 
 
 def zlib_source(where: Path) -> Path:
-    tarball = (
-        os.environ.get("ZLIB_SRC")
-        or subprocess.run(
-            [
-                "nix",
-                "build",
-                "--inputs-from",
-                str(ROOT),
-                "--no-link",
-                "--print-out-paths",
-                "nixpkgs#zlib.src",
-            ],
-            capture_output=True,
-            text=True,
-            check=True,
-        ).stdout.strip()
-    )
+    tarball = os.environ.get("ZLIB_SRC")
+    if not tarball:
+        argv = [
+            "nix",
+            "build",
+            "--inputs-from",
+            str(ROOT),
+            "--no-link",
+            "--print-out-paths",
+            "nixpkgs#zlib.src",
+        ]
+        built = proc.run(argv)
+        if not built.ok:
+            raise RuntimeError(f"nix build nixpkgs#zlib.src failed: {built.err[-2000:]}")
+        tarball = built.out.strip()
     directory = where / "zlib"
     if not directory.exists():
         directory.mkdir(parents=True)
@@ -552,7 +550,7 @@ def negative_items() -> list[Item]:
 def run_item(
     index: int, item: Item, out: Path, max_inputs: int, tool: Path, verify_confirm: str
 ) -> dict[str, Any]:
-    slug = hashlib.sha256(f"{item.set}:{item.label}:{item.module}".encode()).hexdigest()[:8]
+    slug = hashing.sha256_text(f"{item.set}:{item.label}:{item.module}")[:8]
     where = out / "runs" / f"{index:04d}-{slug}"
     shutil.rmtree(where, ignore_errors=True)
     (where / "input").mkdir(parents=True)
@@ -567,7 +565,7 @@ def run_item(
     }
     try:
         source = item.prepare(where / "input")
-    except (RuntimeError, OSError, subprocess.CalledProcessError) as error:
+    except (RuntimeError, OSError) as error:
         record.update(status="not_run", reason="prepare_failed", detail=str(error)[:2000])
         return record
     request = {
@@ -783,6 +781,9 @@ def t1_expected(record: dict[str, Any]) -> set[str]:
     pass."""
     if record["set"] == "proofs_sh":
         return {"unknown"} if record.get("reason") in CANT_RUN else {"counterexample"}
+    # A claim tier 1 can't run, such as one about a `freeze`, quantifying over how a run chooses, is unknown.
+    if record["status"] == "unknown" and record.get("reason") in CANT_RUN:
+        return {"unknown"}
     expects = record.get("verify_expects") or []
     if "counterexample/witness_falsifies" in expects:
         return {"counterexample"}
@@ -880,7 +881,7 @@ def main() -> int:
         deep_check(records, args.tool, args.deep, args.workers)
     summary = summarize(records)
     report = {
-        "schema": "ir-lean.prooftest.bench/1",
+        "schema": schemas.PROOFTEST_BENCH,
         "max_inputs": args.max_inputs,
         "deep": args.deep,
         "verify_confirm": args.verify_confirm,

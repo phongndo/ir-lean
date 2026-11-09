@@ -63,8 +63,56 @@ the native vector comparisons, the explicit lane-order and poison cases in `test
 | x86 intrinsics in `IRLean/X86.lean` | Trusted, written from Intel's pseudo-code | Doesn't match the processor, or LLVM's reading of the intrinsic | `tests/real/x86.ll` against the processor, saturation and wrapping included, which needs AVX-512 VNNI. `tests/x86check.py` against Alive2 and LLVM's constant folder, poison included, for PMADDUBSW and PMADDWD. Neither knows VPDPBUSD | An independent check of VPDPBUSD |
 | Lean kernel | Trusted | A kernel bug | Lean's own process | Nothing planned |
 | `bv_decide` | Trusted | Proofs using it also trust Lean's compiled code through the axiom it adds for each call | [`tests/check_axioms.lean`](../tests/check_axioms.lean), which reads a proof and its imports as data, allows only these and the standard three, reruns each in a file with none of the proof's code, refuses `implemented_by` and `extern`, and counts them per proof. `leanchecker` then replays the proof through the kernel | Nothing planned |
+| Python glue in `tools/` and `tests/` | Trusted for which file, theorem and finding a verdict is about. Not for whether one counts: only [`irlean.verdict`](#where-python-decides-a-verdict) grants that | Counting a crash, a limit, a failed compile or a missing file as success, as happened three times before it | [`tests/verdict_test.py`](../tests/verdict_test.py), over every combination of how the processes a verdict rests on end, and the past bugs | Keep it small, [Python](python.md) |
 | Spec and theorem statement | Read by a person | The theorem proves the wrong thing | Review, and known test vectors | Publish statements separately from proofs |
 | Backend, linker, loader, hardware | Outside every theorem | Everything below IR | Native-code comparison, as evidence | Not planned. A research question for after [Phase 5](roadmap.md#phase-5-public-api-adoption-and-publication) |
+
+## Where Python decides a verdict
+
+Lean's kernel checks proofs, but Python decides which file, which theorem and which verdict count. That went wrong
+three times before 2026-11-09: a native check that crashed counted as catching a wrong rewrite, and a slice that failed to
+compile counted as a refutation, both found in [#57](https://github.com/phongndo/ir-lean/pull/57), and the old scorer
+counted cached results whose certificates were gone, found in [#51](https://github.com/phongndo/ir-lean/pull/51).
+
+Since 2026-11-09 one function decides: `decide` in [`tools/irlean/verdict.py`](../tools/irlean/verdict.py). Every tool
+and test that says something is proved, certified, refuted or caught asks it, and says so only if it grants it. It grants
+one only on clean evidence: each process it rests on ended on its own, with the exit code that means success, and no limit
+stopped it. Anything else is `unknown`, if a limit could explain it and more time or memory might decide it, or `error`.
+Never success.
+
+| Claim | What it needs, besides every file it's about being there and every other check passing |
+| --- | --- |
+| Proved | A module that `lean` compiled, `leanchecker` replayed and the axiom audit, [`tests/check_axioms.lean`](../tests/check_axioms.lean) or the policy it applies, passed, each exiting 0. Or a record from `tools/verify.py` saying `proved`, from a process that exited 0 |
+| Certified | The same, about at least one file, the evidence it's bound to. Or a verdict the same checker stored for exactly these files and tools. Or a record from `tools/binding.py` saying `bound`, or from `tools/verify.py` saying `proved`, each exiting 0 |
+| Refuted | A module, as for proved, of a theorem that the claim is false. Or the kernel accepting such a theorem inside a Lean process, as [proof tests](proof-tests.md) do, or the model's compiled code finding the claim false at an input, as `tools/verify.py`'s witnesses do, each only if the process that answered then ended cleanly. Or a record saying `counterexample`, from a process that exited 2 |
+| Caught | A check that has to fail on wrong code, ending on its own with the exit code that says it found something, and saying what it found, which isn't a resource limit: a Lean error of its own, a native check that exits 3, or Alive2's count of an incorrect transformation |
+
+What counts as a limit, and so `unknown`: a time limit or memory cap its runner enforced, a process killed by `SIGKILL`,
+which is how a cap or the OOM killer stops one, or one of Lean's limit errors in the output of a Lean process that
+failed. Exit codes count only as exact integers, since in Python `False == 0`, and a checker's record has to say the
+exit code its process ended with.
+
+The caller still chooses the file, the theorem and the finding. What `decide` makes sure of is that nothing a verdict
+rests on crashed, ran out of something or failed, and that nothing it needs is missing. These ask it:
+
+| Where | Asks for |
+| --- | --- |
+| `tools/verify.py` | Proved, and refuted by a witness |
+| `tools/binding.py` | Certified, for a replay and for a cache hit |
+| `tools/prooftest/prooftest.py` | Refuted, by the kernel or by `tools/verify.py` |
+| `tools/store/store.py` | Proved, for each lemma the bar admits |
+| `tests/llvm.py` | Proved, for each target, and caught, for each injected bug |
+| `tests/llama.py` | Proved, for each slice, refuted, for a wrong rewrite Lean shows differs, and caught, by a theorem stopping or the native check |
+| `tests/superopt.py` | Proved, for `Rewrites.lean`, and caught, by Lean and by Alive2, for the wrong rewrite |
+| `tests/passes.py` | Certified, for an instance `tools/binding.py` binds |
+| `tests/verify_negative.py` | Certified, for a result the gate passes |
+| `tests/cpp_correspondence.py` | Proved, for the model, and caught, for each broken model |
+
+`tools/binding.py` names `tools/irlean`'s files by hash in a bundle's toolchain, as it does itself, since they decide its
+verdict too: that's `ir-lean.binding.manifest/2`. The shell tests, such as `tests/proofs.sh`, decide in shell, and
+reading Alive2's own output is `tests/alive.py`'s; each has its own tests. `tests/verdict_test.py` checks `decide` over
+more than 100,000 combinations of how each process ended, each file and each check, breaks each grant in every way
+listed, one and two at a time, and checks each place above asks it.
 
 ## Known gaps in the model
 
@@ -81,7 +129,8 @@ in the model on a run LLVM calls undefined.
 | The address in `captures`, `memory(none)` accesses, `noalias` results and `returned` stop the model, since LangRef defines them by what's observable or doesn't say what happens. See [below](#what-the-model-does-at-its-edges) | No answer. Fine for safety proofs, and a refinement can't count them as UB | Stays, unless LangRef settles them |
 | `inbounds` on a freed allocation is poison, since the model has forgotten its size, where LLVM only says any access is undefined | More UB. Fine for safety proofs | Keep it, unless a proof needs the pointer afterward |
 | A stack object is gone once its function returns, so a load through a pointer to it is undefined. LangRef calls it dead, and a load from a dead stack object poison | More UB. Fine for safety proofs, wrong for the source side of a refinement | Keep it, unless a refinement needs it |
-| `undef` constants are refused, and reading uninitialized memory gives poison, where LLVM gives `undef` | More UB. Fine for safety proofs, wrong for the source side of a refinement | Decide how to represent `undef` |
+| `undef` constants are refused, and reading uninitialized memory gives poison, where LLVM gives `undef` | More UB. Fine for safety proofs, wrong for the source side of a refinement | Kept on purpose: on 2026-11-09 the maintainer [decided](roadmap.md#three-decisions-of-2026-11-09) `undef` stays out of the model, following LLVM's move to remove it. F4 settles uninitialized memory for refinement |
+| `freeze` of a vector, a pointer or a struct is refused. LangRef freezes a vector's lanes one by one, and gives a pointer with no provenance | Refused, so sound | Model them when real code needs it |
 | `Mem.base` is unconstrained: addresses can be zero, overlap, wrap, or ignore an allocation's alignment | Theorems are stronger than needed, so proofs carry hypotheses like `hnn`, `crcAlign`, `Readable.fits` and `Tables.crcFits` | State well-formed layouts once, as lemmas. `Mem.Object` does this for one object ([memory](memory.md)), and a whole layout is still to do |
 | Provenance is an allocation and the tags of promises it came through. `inttoptr` is refused, reading a stored pointer as an integer stops, and `ptrtoint` gives an address with no notion of exposure | Conservative, and it refuses real code | Document it. Extend only when a demonstration needs it |
 | Stack and `alloca` never fail, and recursion depth is unbounded | A "safe" function can still overflow a real stack | Document it as a native-level caveat |
@@ -112,6 +161,7 @@ in the model on a run LLVM calls undefined.
 | A definition another module could replace at load time was accepted | Refused, through `isInterposable()` | [`tests/emitter.sh`](../tests/emitter.sh) |
 | A mutant counted as breaking its proof when the proof only ran out of heartbeats, recursion depth, memory or stack. Two did: `crc32 skips a word`, whose proof also fails further on with an error of its own, and `__udivmoddi4`'s `wrong shift count`, whose proof never did | A limit says the proof might check with more, so a mutant needs an error that isn't one, and one with none fails as unknown. The `__udivmoddi4` mutant now shifts one less, which `bv_decide` refutes. Alive2 timeouts were already unknown, and are now read from its summary, since `alive-tv` exits 0 on one | `limit_is_unknown` in [`tests/proofs.sh`](../tests/proofs.sh), [`tests/llvm.py`](../tests/llvm.py) and [`tests/superopt.py`](../tests/superopt.py) |
 | A `mustprogress` or `willreturn` function, or an `llvm.loop.mustprogress` loop, that never finished was `none`, where LLVM calls it undefined: less UB than LLVM, so a theorem allowing `none` had a hole there, no refinement could delete such a loop, and `tools/binding.py` refused any target with one | Undefined, as `UB.noProgress` or `UB.noReturn`, unless the run waits on a call LangRef allows never to return. See [promises to progress](#promises-to-progress) | SEM-07. [`tests/emitter.sh`](../tests/emitter.sh), [`tests/refine.sh`](../tests/refine.sh), `promise_checked` in [`tests/binding.py`](../tests/binding.py) |
+| `freeze` of poison stopped the model, so a source that froze poison allowed nothing, inserting a `freeze` couldn't be certified, and two functions that both stopped there were equal though LLVM tells them apart | It's a value the run chooses, through `IRLean.Choice`, and `Refines` quantifies over each side's choices. See [above](#freeze-and-what-a-run-chooses) | F3. [`tests/freeze.sh`](../tests/freeze.sh), `tests/refine.sh`, the `freeze` runs in `tests/binding.py`, and the choices in [`tests/emitter.sh`](../tests/emitter.sh) |
 
 For safety proofs, more UB than LLVM is conservative and less is unsound. For refinement it splits by
 side: the source must have no more UB than LLVM, and the target no less. So a single conservative
@@ -216,8 +266,8 @@ the same table has.
 
 ## What the model does at its edges
 
-Some things stop the model instead of choosing an answer, and the `ModelStop` type lists them: `freeze` of
-poison, reading a stored pointer as an integer, calling through a pointer to something outside the module,
+Some things stop the model instead of choosing an answer, and the `ModelStop` type lists them: reading a stored
+pointer as an integer, calling through a pointer to something outside the module,
 calling something outside the module that promises not to return, such as an abort, and the two runs under a
 promise to progress that LangRef doesn't settle, [above](#promises-to-progress).
 So do promises LangRef defines by what's observable, or doesn't say what happens if broken: looking at an address
@@ -229,6 +279,25 @@ about LLVM, and neither is a claim of undefined behavior.
 Reading uninitialized memory gives poison, where LLVM gives `undef`. Poison is stricter: a result that
 isn't poison in the model doesn't depend on those bytes. This caught zlib's `slide_hash` reading
 entries of `prev` that were never written, which a comment in its source says is harmless.
+
+Until F3, on 2026-11-09, `freeze` of poison stopped the model too. Now it's a value the run chooses, below.
+
+## `freeze`, and what a run chooses
+
+Since F3, on 2026-11-09, `freeze` of poison is an arbitrary value of its type, the same for every use of that
+`freeze`, and chosen again each time it runs, as LangRef says. A function that has a `freeze`, or calls one that
+does, returns `IRLean.Outcomes α`: an outcome for each `IRLean.Choice`, which fixes every choice of the run in
+advance, and gives each `freeze` that runs a place of its own. [Refinement](refinement.md#runs-that-make-choices) has
+the design, and why every way each `freeze` can choose is some `Choice`.
+
+- **A theorem for every `Choice` is about every run LLVM allows.** `∀ c, f x c = Outcome.ok y` says each way `f` can
+  choose returns `y`. A theorem about one `Choice` says what one run does, not what every run does.
+- **A function without `freeze` is emitted as before,** and returns `Outcome α`, so no theorem about one changed.
+- **`Refines` is for every way the target chooses, some way the source does,** with the source's choices after the
+  target's, as the prototype in [`undef` and `freeze`](undef-freeze.md) settled. A source undefined for some way of
+  choosing allows anything there.
+- **Not covered:** `undef`, which stays out, and `freeze` of anything but an integer, which is refused, both in
+  [known gaps](#known-gaps-in-the-model).
 
 ## Rules for every proof
 

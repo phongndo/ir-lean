@@ -1,9 +1,15 @@
 # `undef` and `freeze`: an experimental semantics
 
-**A prototype. It changes nothing in the model.** [`IRLean/Experimental/UndefFreeze.lean`](../IRLean/Experimental/UndefFreeze.lean)
-is a small semantics for LLVM's `undef` and `freeze`, with its tests. `IRLean.lean` doesn't import it, and the emitter
-never targets it. No certificate, scorer, status row or `IRLean.Refines` claim rests on it. The model still refuses
-`undef` and stops at `freeze` of poison, as [semantic contracts](llvm-semantic-contracts.md#undef-and-freeze) says.
+**A prototype.** [`IRLean/Experimental/UndefFreeze.lean`](../IRLean/Experimental/UndefFreeze.lean) is a small
+semantics for LLVM's `undef` and `freeze`, with its tests. `IRLean.lean` doesn't import it, and the emitter never
+targets it. No certificate, scorer, status row or `IRLean.Refines` claim rests on it.
+
+**Since F3, on 2026-11-09, the model has its `freeze`, without `undef`.** The maintainer
+[decided](roadmap.md#three-decisions-of-2026-11-09) that day that `undef` stays out of the model, refused as a
+constant, and that `freeze` goes in as this prototype defines it. The model's `freeze` of poison is a value each run
+chooses, through `IRLean.Choice`, and `IRLean.Refines` puts the two sides' choices in this prototype's order.
+[Refinement](refinement.md#runs-that-make-choices) has the design, and `model_freeze`, below, proves the two `freeze`s
+agree.
 
 It's here to settle, on a small fragment, what a semantics with `undef` and `freeze` has to say before the model can
 have one:
@@ -53,8 +59,9 @@ draw of its operands, by `lift₁`, `lift₂` and `lift₃`. A register bound wi
 again. `freeze a` chooses one value a use of `a` could see, or any value if a use could see poison, and binds the set
 of just that value. Sequencing is the set monad's.
 
-On single values this is the model: `lift₂ f (of a) (of b) = of (f a b)`, and `freeze (of (some x)) = pure (of (some
-x))`. Where the model stops, at `freeze` of poison, this chooses among every value. `model_freeze` says both.
+On single values this is the model: `lift₂ f (of a) (of b) = of (f a b)`, and `model_freeze` says what this `freeze` can
+give is exactly what the model's `Val.freeze n a` gives over every choice `n`. Until F3 the model stopped at `freeze`
+of poison, where this chooses among every value.
 
 A set that holds poison is as weak as poison. LangRef's `%poison = add nsw i1 %k, undef`, commented as poison, is the
 set `{-1, poison}` when `%k` is true and `{0, -1}` when it's false. So the comment is exact only for a true `%k`, and
@@ -88,7 +95,7 @@ Each of these shortcuts certifies a wrong rewrite that `Refines` rejects, in
 
 | Shortcut | Wrong rewrite it certifies | Theorem |
 | --- | --- | --- |
-| Equality of the model's outcomes. Both sides stop at `freeze` of poison | `freeze_duplicated` | `shortcut_model_equality_accepts_freeze_duplicated` |
+| Equality of the model's outcomes, while both sides stopped at `freeze` of poison, as the model did until F3 | `freeze_duplicated` | `shortcut_model_equality_accepts_freeze_duplicated`, and `model_separates_freeze_duplicated`: the model since F3 tells them apart |
 | One target run, rather than every one, as running it once would see | `ret 0` to `ret (freeze undef)` | `shortcut_some_run_accepts` |
 | The source's run chosen after a use of the target's result is seen, as comparing one use of each would | `freeze undef` to `undef` | `shortcut_per_use_accepts`, and `shortcut_per_use_not_compositional`: inside `sub %r, %r` it rejects |
 | A register keeps one value for all its uses, without `freeze` | `ret 0` to `%a = add %x, undef; sub %a, %a` | `shortcut_pin_accepts`, and `per_use_follows_langref`: LangRef's own safe rewrite rules it out |
@@ -100,10 +107,10 @@ Each of these shortcuts certifies a wrong rewrite that `Refines` rejects, in
 
 | Check | What it shows |
 | --- | --- |
-| The prototype and its tests build with warnings as errors | The definitions, 32 theorems about them, and 49 tests |
+| The prototype and its tests build with warnings as errors | The definitions, 32 theorems about them, and 50 tests |
 | `tests/check_axioms.lean` and `leanchecker` on both | They rest on the standard axioms and `bv_decide`'s, which the checker reruns, and replay in the kernel |
 | LangRef's examples | 18 from "Undefined Values": each one LangRef calls safe is a refinement, and each one it calls unsafe isn't, with a counterexample. `select %X, %Y, undef` to `%Y` is safe when `%Y` can't be poison, and wrong for a poison `%Y`. And all of the `freeze` example: `add %w, %w` is `undef` and can be odd, `add %x, %x` is even in every run, two `freeze`s compared can be true or false, and `freeze` of `add nsw i1 %k, undef` branches either way |
-| Rewrites with a known verdict | The `freeze` cases of [negative verification](llvm-negative-verification.md), under their names. `freeze_added_unmodeled`, which the model can't certify, is right here. `freeze_removed` and `freeze_duplicated` are wrong, with counterexamples in LLVM's terms. Also `mul %x, 2` to `add %x, %x`, wrong for `undef`, from "Taming Undefined Behavior in LLVM" (PLDI 2017), section 3, and poison against `undef` both ways |
+| Rewrites with a known verdict | The `freeze` cases of [negative verification](llvm-negative-verification.md), under their names. `freeze_added_unmodeled`, which the model couldn't certify until F3, is right here, and the corpus calls it `control_freeze_added` now. `freeze_removed` and `freeze_duplicated` are wrong, with counterexamples in LLVM's terms. Also `mul %x, 2` to `add %x, %x`, wrong for `undef`, from "Taming Undefined Behavior in LLVM" (PLDI 2017), section 3, and poison against `undef` both ways |
 | Two false claims must fail | Proofs that `freeze_duplicated` and `mul %x, 2` to `add %x, %x` are right each stop with an error that isn't a resource limit |
 | A sorried claim must be refused | The axiom check refuses it |
 | Five mutants of the prototype | Each makes a copy into a semantics LangRef rules out, and a theorem false under it has to stop with an error of its own: `undef` including poison stops `undef_to_poison_wrong`, `undef` as 0 stops `langref_freeze_y_odd`, `freeze` of poison giving no result, as the model's stop does, stops `freeze_total`, `freeze` drawn at each use stops `freeze_of_none`, and a value allowing poison stops `ValLe.trans` |
@@ -122,7 +129,8 @@ Trusted:
 
 Not claimed:
 
-- **Anything about the model, the emitter, certificates or LLVM's C++.** Nothing uses this yet.
+- **Anything about the model, the emitter, certificates or LLVM's C++.** Nothing uses this. The model's `freeze` is its
+  own, and `model_freeze` is the only theorem relating the two.
 - **Equivalence with LLVM or Alive2 in general.** Values are whole-value sets drawn per use. LangRef also speaks of
   `undef` bits. A set can say anything a per-bit description can, such as `and undef, 0xF0`, and more, such as
   `add (and undef, 1), (and undef, 1)`, which is `{0, 1, 2}`. That this is LLVM's meaning past these examples is a
@@ -144,17 +152,22 @@ These are unsupported, not modeled as something else:
   uninitialized memory isn't modeled. `freeze` of a pointer gives a non-dereferenceable one.
 - **Floating point.** Nothing, as in the model.
 
-## What using it in the model would need
+## What F3 took into the model
 
-Not started. Each step is a decision for the lanes that own the model, refinement and certificates:
+F3, on 2026-11-09, took the `freeze` half, and left `undef` out, as the maintainer decided. Each step this page listed:
 
-1. A nondeterministic `Outcome`, such as `Run (Outcome (UVal w))`, where a source with undefined behavior on some draw
-   allows anything. When an operand of `udiv` is drawn has to be fixed first.
-2. Emitted code over `UVal` and `Run`, with `undef` constants as `UVal.undef`, and `freeze` as a bind. That changes the
-   type of every emitted function, and every proof and certificate. The deterministic model could stay as the fast
-   path for code with neither, since this is the model on single values.
-3. A refinement claim for certificates that uses this `Refines`, alongside `IRLean.Refines`, with
-   [binding](llvm-proof-binding.md) and the scorer told which one a certificate states.
+1. **A nondeterministic `Outcome`.** `IRLean.Outcomes α` is `Choice → Outcome α`, one outcome for each way a run
+   chooses. Without `undef` a use sees one value, so the per-use sets here aren't needed, and this is the same set of
+   outcomes, indexed. Undefined behavior on some way of choosing allows anything in a source, as here.
+2. **Emitted code.** A `freeze` is `Val.freeze (c'.pick k) x`, a value, where `c'` is the block's `Choice`, and a
+   function with one, or a call to one, returns `Outcomes`. Every other function is emitted as before, so no proof
+   about one changed. `undef` constants stay refused.
+3. **A refinement claim.** `IRLean.Refines` has an instance for `Outcomes`, with the target's choices for every run
+   and the source's after them, as here. `tools/binding_check.lean` lifts a side whose run makes no choices with
+   `Outcomes.det`, so a certificate can relate the two.
+
+What's left out: `undef`, `freeze` of vectors, pointers and structs, which ir-lean refuses, and running a claim that
+quantifies over choices, which tier-1 proof tests and `tools/verify.py` answer unknown or unsupported.
 
 ## Files
 
@@ -167,4 +180,4 @@ Not started. Each step is a decision for the lanes that own the model, refinemen
 | `tests/undef_freeze/alive2/` | The rewrites as LLVM IR, each with its verdict |
 | `tests/undef_freeze.sh`, `tests/undef_freeze_alive.py` | The test, run by `ctest` as `undef_freeze` |
 
-It changes no existing file but `CMakeLists.txt`, which registers the test, and `docs/testing.md`, which lists it.
+Pull request #49 changed no existing file but `CMakeLists.txt`, which registers the test, and `docs/testing.md`, which lists it.

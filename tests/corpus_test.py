@@ -1,27 +1,23 @@
 #!/usr/bin/env python3
-"""Checks tools/corpus/capture.py and tools/measure.py without LLVM or Lean: that pipelines and traces are
-read right, that a corpus refuses a toolchain other than its own, that measurements are in MiB on macOS and
-Linux and stop the whole process tree at their limits, and that the heavy-job lock is exclusive and in the
-platform's cache directory. With the pinned opt on PATH, as in `nix develop`, it also captures one seed.
-docs/corpus.md.
+"""Checks tools/corpus/capture.py without LLVM or Lean: that pipelines and traces are read right, and that a
+corpus refuses a toolchain other than its own. With the pinned opt on PATH, as in `nix develop`, it also
+captures one seed. tests/irlean_test.py checks tools/measure.py and the library it runs on. docs/corpus.md.
 
 usage: tests/corpus_test.py
 """
 
 import importlib.util
 import json
-import os
 import subprocess
 import sys
 import tempfile
-import time
-import tomllib
 import unittest
 from pathlib import Path
 from typing import Any
-from unittest import mock
 
 ROOT = Path(__file__).resolve().parent.parent
+sys.path.append(str(ROOT / "tools"))
+from irlean import hashing, pins  # noqa: E402
 
 
 def load(name: str, path: Path) -> Any:
@@ -32,7 +28,6 @@ def load(name: str, path: Path) -> Any:
     return module
 
 
-measure = load("measure", ROOT / "tools" / "measure.py")
 capture = load("capture", ROOT / "tools" / "corpus" / "capture.py")
 PIPELINE = json.loads(capture.INVENTORY.read_text())["pipelines"]["opt"][capture.SPEC]["pipeline"]
 
@@ -57,12 +52,6 @@ Running pass: PrintModulePass on [module]
 """
 
 
-def alive(pid: int) -> bool:
-    """Running, not a zombie waiting to be reaped."""
-    r = subprocess.run(["ps", "-o", "stat=", "-p", str(pid)], capture_output=True, text=True, check=False)
-    return r.returncode == 0 and bool(r.stdout.strip()) and not r.stdout.strip().startswith("Z")
-
-
 def leaf(pos: str, name: str, cls: str) -> dict:
     return {"pos": pos, "name": name, "spec": name, "class": cls, "unit": "function", "replay": []}
 
@@ -82,81 +71,6 @@ def pin(**changes: Any) -> dict:
         else:
             p[part] = value
     return p
-
-
-class Measure(unittest.TestCase):
-    def test_maxrss_is_bytes_on_macos_and_kib_on_linux(self) -> None:
-        with mock.patch.object(measure.sys, "platform", "darwin"):
-            self.assertEqual(measure.maxrss_mib(300 << 20), 300)
-        with mock.patch.object(measure.sys, "platform", "linux"):
-            self.assertEqual(measure.maxrss_mib(300 << 10), 300)
-
-    def test_a_cap_stops_the_whole_tree(self) -> None:
-        argv = [sys.executable, "-c", "import time; x = bytearray(200 << 20); time.sleep(30)"]
-        r = measure.run(argv, label="cap", timeout=60, cap_mb=64, interval=0.05)
-        self.assertEqual(r["outcome"], "resource_limit")
-        self.assertLess(r["wall_s"], 30)
-
-    def test_a_timeout_is_not_a_success(self) -> None:
-        r = measure.run(
-            [sys.executable, "-c", "import time; time.sleep(30)"], label="t", timeout=0.5, cap_mb=None
-        )
-        self.assertEqual(r["outcome"], "time_limit")
-
-    def test_a_limit_kills_descendants_in_sessions_of_their_own(self) -> None:
-        # As tools/binding.py runs each step: a child in a new session, which the root waits for.
-        child = "import time; x = bytearray({mb} << 20); time.sleep(60)"
-        root = (
-            "import subprocess, sys; p = subprocess.Popen([sys.executable, '-c', {child!r}], "
-            "start_new_session=True); open(sys.argv[1], 'w').write(str(p.pid)); p.wait()"
-        )
-        for mb, cap, timeout, outcome in ((200, 64, 60, "resource_limit"), (1, None, 1, "time_limit")):
-            with tempfile.TemporaryDirectory() as d:
-                pidfile = Path(d) / "pid"
-                argv = [sys.executable, "-c", root.format(child=child.format(mb=mb)), str(pidfile)]
-                r = measure.run(argv, label="session", timeout=timeout, cap_mb=cap, interval=0.05)
-                self.assertEqual(r["outcome"], outcome)
-                pid = int(pidfile.read_text())
-                deadline = time.monotonic() + 5
-                while time.monotonic() < deadline and alive(pid):
-                    time.sleep(0.05)
-                self.assertFalse(alive(pid), f"{outcome} left pid {pid} running")
-
-    def test_a_child_peak_is_counted(self) -> None:
-        child = "import subprocess, sys; subprocess.run([sys.executable, '-c', 'x = bytearray(100 << 20)'])"
-        r = measure.run([sys.executable, "-c", child], label="child", timeout=60, cap_mb=None)
-        self.assertEqual(r["outcome"], "ok")
-        self.assertGreater(r["peak_process_mb"], 95)
-
-    def test_the_lock_is_in_the_platform_cache_directory(self) -> None:
-        home = Path.home()
-        cases = (
-            ("darwin", {}, home / "Library" / "Caches" / "ir-lean" / "heavy-job.lock"),
-            ("linux", {}, home / ".cache" / "ir-lean" / "heavy-job.lock"),
-            ("linux", {"XDG_CACHE_HOME": "/xdg"}, Path("/xdg/ir-lean/heavy-job.lock")),
-            ("linux", {"XDG_CACHE_HOME": "relative"}, home / ".cache" / "ir-lean" / "heavy-job.lock"),
-            ("darwin", {"IR_LEAN_HEAVY_LOCK": "/x.lock"}, Path("/x.lock")),
-        )
-        for platform, env, want in cases:
-            clean = {k: v for k, v in os.environ.items() if k not in ("XDG_CACHE_HOME", "IR_LEAN_HEAVY_LOCK")}
-            with (
-                mock.patch.object(measure.sys, "platform", platform),
-                mock.patch.dict(os.environ, clean | env, clear=True),
-            ):
-                self.assertEqual(measure.lock_path(), want, (platform, env))
-
-    def test_the_lock_is_exclusive(self) -> None:
-        with tempfile.TemporaryDirectory() as d:
-            path = str(Path(d) / "heavy-job.lock")
-            with mock.patch.dict(os.environ, {"IR_LEAN_HEAVY_LOCK": path}):
-                with (
-                    measure.heavy_lock("first", 0),
-                    self.assertRaisesRegex(TimeoutError, "first"),
-                    measure.heavy_lock("second", 0),
-                ):
-                    pass
-                with measure.heavy_lock("after", 0):
-                    pass
 
 
 class Pipeline(unittest.TestCase):
@@ -258,7 +172,7 @@ class Pin(unittest.TestCase):
 
 def unpinned() -> str | None:
     """Why the live tests can't run, or None when the repo's opt is on PATH."""
-    tag = tomllib.loads(capture.TARGETS.read_text())["project"]["tag"]
+    tag = pins.llvm()["tag"]
     try:
         r = subprocess.run(["opt", "--version"], capture_output=True, text=True, check=False)
     except FileNotFoundError:
@@ -285,13 +199,13 @@ class Live(unittest.TestCase):
             self.assertEqual(r.returncode, 0, r.stderr)
             record = json.loads((out / "sub_add_cancel" / "capture.json").read_text())
             self.assertEqual(record["status"], "captured")
-            self.assertEqual(record["input_sha256"], capture.sha256_bytes(seed.read_bytes()))
+            self.assertEqual(record["input_sha256"], hashing.sha256(seed.read_bytes()))
             self.assertIn("instcombine", [s["name"] for s in record["steps"]])
             for s in record["steps"]:
                 self.assertTrue(s["reproduced"], s)
                 for side in ("before", "after"):
                     data = (out / "sub_add_cancel" / s[side]).read_bytes()
-                    self.assertEqual(capture.sha256_bytes(data), s[f"{side}_sha256"])
+                    self.assertEqual(hashing.sha256(data), s[f"{side}_sha256"])
             # Each step follows the last, from the input as opt prints it to the output.
             for prev, s in zip(record["steps"], record["steps"][1:], strict=False):
                 self.assertEqual(prev["after_sha256"], s["before_sha256"])
