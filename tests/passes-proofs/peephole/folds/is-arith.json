@@ -1,0 +1,296 @@
+{
+  "schema": "ir-lean.peephole.folds/1",
+  "family": "is-arith",
+  "pass": "instsimplify",
+  "modules": [
+    "Peephole.IS.ArithBase",
+    "Peephole.Lemmas.Arith",
+    "Peephole.IS.ArithCore",
+    "Peephole.IS.ArithRecur",
+    "Peephole.IS.ArithSub",
+    "Peephole.IS.ArithMul",
+    "Peephole.IS.ArithDiv",
+    "Peephole.IS.ArithDivInst"
+  ],
+  "entries": [
+    {
+      "fold": "Peephole.IS.simplifySubInst.onInst",
+      "opcodes": [
+        "sub"
+      ],
+      "opt": "instsimplify"
+    },
+    {
+      "fold": "Peephole.IS.simplifyMulInst.onInst",
+      "opcodes": [
+        "mul"
+      ],
+      "opt": "instsimplify"
+    },
+    {
+      "fold": "Peephole.IS.simplifyUDivInst.onInst",
+      "opcodes": [
+        "udiv"
+      ],
+      "opt": "instsimplify"
+    },
+    {
+      "fold": "Peephole.IS.simplifySDivInst.onInst",
+      "opcodes": [
+        "sdiv"
+      ],
+      "opt": "instsimplify"
+    },
+    {
+      "fold": "Peephole.IS.simplifyURemInst.onInst",
+      "opcodes": [
+        "urem"
+      ],
+      "opt": "instsimplify"
+    },
+    {
+      "fold": "Peephole.IS.simplifySRemInst.onInst",
+      "opcodes": [
+        "srem"
+      ],
+      "opt": "instsimplify"
+    }
+  ],
+  "folds": {
+    "Peephole.IS.simplifySubInst": {
+      "sound": "Peephole.IS.simplifySubInst.sound",
+      "sites": [
+        "IS.simplifySubInst.L754",
+        "IS.simplifySubInst.L759",
+        "IS.simplifySubInst.L763",
+        "IS.simplifySubInst.L767",
+        "IS.simplifySubInst.L773",
+        "IS.simplifySubInst.L780",
+        "IS.simplifySubInst.L783",
+        "IS.simplifySubInst.L886"
+      ]
+    },
+    "Peephole.IS.simplifyMulInst": {
+      "sound": "Peephole.IS.simplifyMulInst.sound",
+      "sites": [
+        "IS.simplifyMulInst.L906",
+        "IS.simplifyMulInst.L911",
+        "IS.simplifyMulInst.L915",
+        "IS.simplifyMulInst.L923",
+        "IS.simplifyMulInst.L929"
+      ]
+    },
+    "Peephole.IS.simplifyByDomEq": {
+      "sound": "Peephole.IS.simplifyByDomEq.sound",
+      "sites": [
+        "IS.simplifyByDomEq.L727",
+        "IS.simplifyByDomEq.L731",
+        "IS.simplifyByDomEq.L736"
+      ]
+    },
+    "Peephole.IS.simplifyAssociativeBinOp": {
+      "sound": "Peephole.IS.simplifyAssociativeBinOp.sound",
+      "sites": [
+        "IS.simplifyAssociativeBinOp.L274",
+        "IS.simplifyAssociativeBinOp.L294",
+        "IS.simplifyAssociativeBinOp.L318",
+        "IS.simplifyAssociativeBinOp.L338"
+      ]
+    },
+    "Peephole.IS.expandBinOp": {
+      "sound": "Peephole.IS.expandBinOp.sound",
+      "sites": [
+        "IS.expandBinOp.L218"
+      ]
+    },
+    "Peephole.IS.expandCommutativeBinOp": {
+      "sound": "Peephole.IS.expandCommutativeBinOp.sound",
+      "sites": []
+    },
+    "Peephole.IS.threadBinOpOverSelect": {
+      "sound": "Peephole.IS.threadBinOpOverSelect.sound",
+      "sites": [
+        "IS.threadBinOpOverSelect.L394"
+      ]
+    },
+    "Peephole.IS.simplifyDivRem": {
+      "sound": "Peephole.IS.simplifyDivRem.sound",
+      "sites": [
+        "IS.simplifyDivRem.L1057",
+        "IS.simplifyDivRem.L1063",
+        "IS.simplifyDivRem.L1068",
+        "IS.simplifyDivRem.L1073",
+        "IS.simplifyDivRem.L1078",
+        "IS.simplifyDivRem.L1083",
+        "IS.simplifyDivRem.L1092",
+        "IS.simplifyDivRem.L1100",
+        "IS.simplifyDivRem.L1114",
+        "IS.simplifyDivRem.L1119"
+      ]
+    },
+    "Peephole.IS.simplifyDiv": {
+      "sound": "Peephole.IS.simplifyDiv.sound",
+      "sites": [
+        "IS.simplifyDiv.L1157",
+        "IS.simplifyDiv.L1168"
+      ]
+    },
+    "Peephole.IS.simplifyRem": {
+      "sound": "Peephole.IS.simplifyRem.sound",
+      "sites": [
+        "IS.simplifyRem.L1189",
+        "IS.simplifyRem.L1204"
+      ]
+    },
+    "Peephole.IS.simplifySDivInst": {
+      "sound": "Peephole.IS.simplifySDivInst.sound",
+      "sites": [
+        "IS.simplifySDivInst.L1216"
+      ]
+    },
+    "Peephole.IS.simplifyUDivInst": {
+      "sound": "Peephole.IS.simplifyUDivInst.sound",
+      "sites": []
+    },
+    "Peephole.IS.simplifySRemInst": {
+      "sound": "Peephole.IS.simplifySRemInst.sound",
+      "sites": [
+        "IS.simplifySRemInst.L1246",
+        "IS.simplifySRemInst.L1250"
+      ]
+    },
+    "Peephole.IS.simplifyURemInst": {
+      "sound": "Peephole.IS.simplifyURemInst.sound",
+      "sites": []
+    }
+  },
+  "delegates": {
+    "Peephole.IS.simplifySubInst": [
+      "ConstantFoldBinaryOpOperands",
+      "simplifyCastInst",
+      "simplifyXorInst",
+      "simplifyBinOp, recursively, where Recur doesn't say"
+    ],
+    "Peephole.IS.simplifyMulInst": [
+      "ConstantFoldBinaryOpOperands",
+      "simplifyAndInst",
+      "threadBinOpOverPHI",
+      "simplifyBinOp, recursively, where Recur doesn't say"
+    ],
+    "Peephole.IS.simplifyDivRem": [
+      "simplifyICmpInst, recursively in isICmpTrue, where Recur doesn't say",
+      "threadBinOpOverPHI",
+      "simplifyBinOp, recursively, where Recur doesn't say"
+    ],
+    "Peephole.IS.simplifyDiv": [
+      "ConstantFoldBinaryOpOperands"
+    ],
+    "Peephole.IS.simplifyRem": [
+      "ConstantFoldBinaryOpOperands"
+    ]
+  },
+  "lemmas": [
+    "Peephole.Lemmas.sub_zero_left_nuw_refines",
+    "Peephole.Lemmas.sub_zero_left_nsw_refines",
+    "Peephole.Lemmas.sub_zero_left_refines_self",
+    "Peephole.Lemmas.sub_mask_xor_nuw_refines",
+    "Peephole.Lemmas.mul_comm",
+    "Peephole.Lemmas.mul_udiv_exact_refines",
+    "Peephole.Lemmas.mul_sdiv_exact_refines",
+    "Peephole.Lemmas.mul_nsw_one_bit_refines",
+    "Peephole.Lemmas.udiv_self_refines",
+    "Peephole.Lemmas.urem_self_refines",
+    "Peephole.Lemmas.sdiv_self_refines",
+    "Peephole.Lemmas.srem_self_refines",
+    "Peephole.Lemmas.udiv_zero_left_refines",
+    "Peephole.Lemmas.urem_zero_left_refines",
+    "Peephole.Lemmas.sdiv_zero_left_refines",
+    "Peephole.Lemmas.srem_zero_left_refines",
+    "Peephole.Lemmas.udiv_mul_nuw_refines",
+    "Peephole.Lemmas.urem_mul_nuw_refines",
+    "Peephole.Lemmas.sdiv_mul_nsw_refines",
+    "Peephole.Lemmas.srem_mul_nsw_refines",
+    "Peephole.Lemmas.udiv_mul_udiv_refines",
+    "Peephole.Lemmas.urem_mul_udiv_refines",
+    "Peephole.Lemmas.sdiv_mul_sdiv_refines",
+    "Peephole.Lemmas.srem_mul_sdiv_refines",
+    "Peephole.Lemmas.udiv_of_lt_refines",
+    "Peephole.Lemmas.urem_of_lt_refines",
+    "Peephole.Lemmas.sdiv_of_natAbs_lt_refines",
+    "Peephole.Lemmas.srem_of_natAbs_lt_refines",
+    "Peephole.Lemmas.udiv_exact_of_low_bit_refines",
+    "Peephole.Lemmas.sdiv_exact_of_low_bit_refines",
+    "Peephole.Lemmas.udiv_exact_mul_nsw_refines",
+    "Peephole.Lemmas.sdiv_exact_mul_nuw_refines",
+    "Peephole.Lemmas.urem_shl_nuw_refines",
+    "Peephole.Lemmas.srem_shl_nsw_refines",
+    "Peephole.Lemmas.urem_mul_nuw_of_umod_refines",
+    "Peephole.Lemmas.srem_mul_nsw_of_srem_refines",
+    "Peephole.Lemmas.sdiv_neg_nsw_left_refines",
+    "Peephole.Lemmas.sdiv_neg_nsw_right_refines",
+    "Peephole.Lemmas.sdiv_sub_nsw_swap_refines",
+    "Peephole.Lemmas.srem_sext_one_bit_refines",
+    "Peephole.Lemmas.srem_neg_left_refines",
+    "Peephole.Lemmas.srem_neg_right_refines",
+    "Peephole.Lemmas.srem_sub_swap_refines"
+  ],
+  "rests_on": {
+    "IS.simplifyByDomEq.L727": [
+      "Peephole.IS.Arith.DomOracle.Sound: isImpliedByDomCondition's answers are true in the run, for operands that aren't poison"
+    ],
+    "IS.simplifyByDomEq.L731": [
+      "Peephole.IS.Arith.DomOracle.Sound: isImpliedByDomCondition's answers are true in the run, for operands that aren't poison"
+    ],
+    "IS.simplifyByDomEq.L736": [
+      "Peephole.IS.Arith.DomOracle.Sound: isImpliedByDomCondition's answers are true in the run, for operands that aren't poison"
+    ],
+    "IS.simplifyAssociativeBinOp.L274": [
+      "Peephole.IS.Arith.Recur.Sound: every value the recursive simplifyBinOp answers, for operands consistent with the run and with no undef, is consistent, has no undef, and refines the operation with no flags",
+      "opcode: isAssociative op, which simplifyAssociativeBinOp asserts"
+    ],
+    "IS.simplifyAssociativeBinOp.L294": [
+      "Peephole.IS.Arith.Recur.Sound: every value the recursive simplifyBinOp answers, for operands consistent with the run and with no undef, is consistent, has no undef, and refines the operation with no flags",
+      "opcode: isAssociative op, which simplifyAssociativeBinOp asserts"
+    ],
+    "IS.simplifyAssociativeBinOp.L318": [
+      "Peephole.IS.Arith.Recur.Sound: every value the recursive simplifyBinOp answers, for operands consistent with the run and with no undef, is consistent, has no undef, and refines the operation with no flags",
+      "opcode: isAssociative op, which simplifyAssociativeBinOp asserts"
+    ],
+    "IS.simplifyAssociativeBinOp.L338": [
+      "Peephole.IS.Arith.Recur.Sound: every value the recursive simplifyBinOp answers, for operands consistent with the run and with no undef, is consistent, has no undef, and refines the operation with no flags",
+      "opcode: isAssociative op, which simplifyAssociativeBinOp asserts"
+    ],
+    "IS.expandBinOp.L218": [
+      "Peephole.IS.Arith.Recur.Sound: every value the recursive simplifyBinOp answers, for operands consistent with the run and with no undef, is consistent, has no undef, and refines the operation with no flags",
+      "opcode: distributes op opex (mul over add, and over or and xor, or over and), the pairs expandCommutativeBinOp's callers pass"
+    ],
+    "IS.threadBinOpOverSelect.L394": [
+      "Peephole.IS.Arith.Recur.Sound: every value the recursive simplifyBinOp answers, for operands consistent with the run and with no undef, is consistent, has no undef, and refines the operation with no flags"
+    ],
+    "IS.simplifyDivRem.L1063": [
+      "opcode: udiv, sdiv, urem or srem, the opcodes simplifyDivRem is called with"
+    ],
+    "IS.simplifyDivRem.L1078": [
+      "opcode: udiv, sdiv, urem or srem, the opcodes simplifyDivRem is called with"
+    ],
+    "IS.simplifyDivRem.L1083": [
+      "opcode: udiv, sdiv, urem or srem, the opcodes simplifyDivRem is called with"
+    ],
+    "IS.simplifyDivRem.L1092": [
+      "opcode: udiv, sdiv, urem or srem, the opcodes simplifyDivRem is called with"
+    ],
+    "IS.simplifyDivRem.L1100": [
+      "opcode: udiv, sdiv, urem or srem, the opcodes simplifyDivRem is called with"
+    ],
+    "IS.simplifyDivRem.L1114": [
+      "opcode: udiv, sdiv, urem or srem, the opcodes simplifyDivRem is called with"
+    ],
+    "IS.simplifyDivRem.L1119": [
+      "Peephole.IS.Arith.Recur.Sound: where the recursive simplifyICmpInst answers a value, the comparison refines it",
+      "opcode: udiv, sdiv, urem or srem, the opcodes simplifyDivRem is called with"
+    ]
+  },
+  "unproved": {
+    "IS.simplifySubInst.L860": "needs memory: ptrtoint/ptrtoaddr of two pointers off one base, folded to the constant difference of their offsets; no Term is a ptrtoint, so the model's step for it never matches"
+  }
+}
