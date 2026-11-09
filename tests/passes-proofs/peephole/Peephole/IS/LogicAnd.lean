@@ -16,7 +16,7 @@ carries its ID from `tests/llvm_scope/rewrites/instsimplify.json`, and each has 
 | `IS.simplifyAndCommutative.L2051` | `(A - 1) & A` to 0 where `A` is a power of two or 0 |
 | `IS.simplifyAndCommutative.L2060` | `(X << N) & ((X << M) - 1)` to 0 where `X` is a power of two or 0 and `M ≤ N` |
 | `IS.simplifyAndInst.L2078` | `X & poison` to poison |
-| `IS.simplifyAndInst.L2082` | `X & undef` to 0. IRLean has no `undef`, so this is about poison only |
+| `IS.simplifyAndInst.L2082` | `X & undef` to 0. Only `undef` reaches it, so it's listed unproved; see below |
 | `IS.simplifyAndInst.L2086` | `X & X` to `X` |
 | `IS.simplifyAndInst.L2090` | `X & 0` to 0 |
 | `IS.simplifyAndInst.L2094` | `X & -1` to `X` |
@@ -36,6 +36,10 @@ carries its ID from `tests/llvm_scope/rewrites/instsimplify.json`, and each has 
 
 `IS.simplifyAndCommutative.L2040` isn't proved: the overflow bit of `umul.with.overflow`, an `extractvalue`, isn't a
 `Term`, so the model hands over to `isCheckForZeroAndMulWithOverflow` wherever `Op1` could be one.
+
+`IS.simplifyAndInst.L2082` isn't proved either. Without `undef`, `isUndefValue(Op1)` holds only of poison, which
+`L2078` takes first, so only an `undef` operand reaches its step, and every theorem assumes none does. Its theorem is
+kept, about the poison case the step before never leaves to it, and says nothing past what `L2078`'s does.
 
 `simplifyAndInst.sound` puts them together with the folds it calls: every value the model returns refines the `and`, at
 every width and recursion budget, poison included, in every run where the `Oracle`'s answers, and the `Logic.Ext`'s if

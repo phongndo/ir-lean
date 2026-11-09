@@ -36,7 +36,6 @@
       "sound": "Peephole.IS.simplifyAndInst.sound",
       "sites": [
         "IS.simplifyAndInst.L2078",
-        "IS.simplifyAndInst.L2082",
         "IS.simplifyAndInst.L2086",
         "IS.simplifyAndInst.L2090",
         "IS.simplifyAndInst.L2094",
@@ -109,7 +108,6 @@
       "sound": "Peephole.IS.simplifyXorInst.sound",
       "sites": [
         "IS.simplifyXorInst.L2537",
-        "IS.simplifyXorInst.L2541",
         "IS.simplifyXorInst.L2545",
         "IS.simplifyXorInst.L2549",
         "IS.simplifyXorInst.L2553",
@@ -227,6 +225,8 @@
   "unproved": {
     "IS.simplifyAndCommutative.L2040": "the overflow bit of llvm.umul.with.overflow or llvm.smul.with.overflow, an extractvalue of the call's aggregate, isn't a Term: no Term is an aggregate or an extractvalue. The model hands over to isCheckForZeroAndMulWithOverflow (OverflowInstAnalysis.cpp) wherever an operand is opaque and could be that bit, so it claims nothing there",
     "IS.simplifyOrInst.L2430": "the overflow bit of llvm.umul.with.overflow or llvm.smul.with.overflow, an extractvalue of the call's aggregate, isn't a Term: no Term is an aggregate or an extractvalue. The model hands over to isCheckForZeroAndMulWithOverflow (OverflowInstAnalysis.cpp) wherever an operand is opaque and could be that bit, so it claims nothing there",
-    "IS.simplifyOrInst.L2432": "the overflow bit of llvm.umul.with.overflow or llvm.smul.with.overflow, an extractvalue of the call's aggregate, isn't a Term: no Term is an aggregate or an extractvalue. The model hands over to isCheckForZeroAndMulWithOverflow (OverflowInstAnalysis.cpp) wherever an operand is opaque and could be that bit, so it claims nothing there"
+    "IS.simplifyOrInst.L2432": "the overflow bit of llvm.umul.with.overflow or llvm.smul.with.overflow, an extractvalue of the call's aggregate, isn't a Term: no Term is an aggregate or an extractvalue. The model hands over to isCheckForZeroAndMulWithOverflow (OverflowInstAnalysis.cpp) wherever an operand is opaque and could be that bit, so it claims nothing there",
+    "IS.simplifyAndInst.L2082": "undef-only: X & undef to 0. Without undef, isUndefValue(Op1) holds only of poison, which IS.simplifyAndInst.L2078 (X & poison to poison) takes first, so only an undef operand reaches this step, and every theorem assumes none does. Its theorem, Peephole.IS.simplifyAndInst.L2082, is kept: it's the poison case, which the step before never leaves to it",
+    "IS.simplifyXorInst.L2541": "undef-only: A ^ undef to undef. Without undef, isUndefValue(Op1) holds only of poison, which IS.simplifyXorInst.L2537 (X ^ poison to poison) takes first, so only an undef operand reaches this step, and every theorem assumes none does. Its theorem, Peephole.IS.simplifyXorInst.L2541, is kept: it's the poison case, which the step before never leaves to it"
   }
 }

@@ -2,7 +2,7 @@
   "schema": "ir-lean.peephole.comparison/1",
   "family": "is-logic",
   "registry": "tests/passes-proofs/peephole/folds/is-logic.json",
-  "sources": "6dc921398c7a1611b38b626ce4fbd36d6426211f97b0f6997199e2ba0fc05b22",
+  "sources": "a90ab75ee7669a7963b6c955f2084d655941019db961503ec3d71c6df23a279f",
   "opt": "23.1.3",
   "date": "2026-11-09",
   "status": "ok",
@@ -38,6 +38,8 @@
       "matched": 82,
       "mismatched": 0,
       "analysis": 0,
+      "fired_without_undef": 82,
+      "matched_without_undef": 82,
       "files": [],
       "registered": true
     },
@@ -46,6 +48,8 @@
       "matched": 80,
       "mismatched": 0,
       "analysis": 0,
+      "fired_without_undef": 80,
+      "matched_without_undef": 80,
       "files": [],
       "registered": true
     },
@@ -54,6 +58,8 @@
       "matched": 6,
       "mismatched": 0,
       "analysis": 0,
+      "fired_without_undef": 6,
+      "matched_without_undef": 6,
       "files": [
         "and.ll"
       ],
@@ -64,6 +70,8 @@
       "matched": 0,
       "mismatched": 0,
       "analysis": 3,
+      "fired_without_undef": 0,
+      "matched_without_undef": 0,
       "files": [],
       "registered": true
     },
@@ -72,6 +80,8 @@
       "matched": 0,
       "mismatched": 0,
       "analysis": 1,
+      "fired_without_undef": 0,
+      "matched_without_undef": 0,
       "files": [],
       "registered": true
     },
@@ -80,6 +90,8 @@
       "matched": 0,
       "mismatched": 0,
       "analysis": 1,
+      "fired_without_undef": 0,
+      "matched_without_undef": 0,
       "files": [],
       "registered": true
     },
@@ -88,6 +100,8 @@
       "matched": 93,
       "mismatched": 0,
       "analysis": 0,
+      "fired_without_undef": 93,
+      "matched_without_undef": 93,
       "files": [
         "and.ll"
       ],
@@ -98,14 +112,18 @@
       "matched": 92,
       "mismatched": 0,
       "analysis": 0,
+      "fired_without_undef": 0,
+      "matched_without_undef": 0,
       "files": [],
-      "registered": true
+      "registered": false
     },
     "IS.simplifyAndInst.L2086": {
       "fired": 46,
       "matched": 46,
       "mismatched": 0,
       "analysis": 0,
+      "fired_without_undef": 46,
+      "matched_without_undef": 46,
       "files": [],
       "registered": true
     },
@@ -114,6 +132,8 @@
       "matched": 94,
       "mismatched": 0,
       "analysis": 0,
+      "fired_without_undef": 94,
+      "matched_without_undef": 94,
       "files": [
         "AndOrXor.ll",
         "icmp-equiv-zero.ll"
@@ -125,6 +145,8 @@
       "matched": 92,
       "mismatched": 0,
       "analysis": 0,
+      "fired_without_undef": 92,
+      "matched_without_undef": 92,
       "files": [],
       "registered": true
     },
@@ -133,6 +155,8 @@
       "matched": 1,
       "mismatched": 0,
       "analysis": 0,
+      "fired_without_undef": 1,
+      "matched_without_undef": 1,
       "files": [
         "AndOrXor.ll"
       ],
@@ -143,6 +167,8 @@
       "matched": 1,
       "mismatched": 0,
       "analysis": 0,
+      "fired_without_undef": 1,
+      "matched_without_undef": 1,
       "files": [
         "AndOrXor.ll"
       ],
@@ -153,6 +179,8 @@
       "matched": 37,
       "mismatched": 0,
       "analysis": 0,
+      "fired_without_undef": 37,
+      "matched_without_undef": 37,
       "files": [
         "and-or-implied-cond.ll",
         "icmp-ranges.ll"
@@ -164,6 +192,8 @@
       "matched": 37,
       "mismatched": 0,
       "analysis": 0,
+      "fired_without_undef": 37,
+      "matched_without_undef": 37,
       "files": [
         "and-or-implied-cond.ll",
         "icmp-ranges.ll"
@@ -175,6 +205,8 @@
       "matched": 37,
       "mismatched": 0,
       "analysis": 0,
+      "fired_without_undef": 37,
+      "matched_without_undef": 37,
       "files": [
         "and-or-implied-cond.ll",
         "icmp-ranges.ll"
@@ -186,6 +218,8 @@
       "matched": 3,
       "mismatched": 0,
       "analysis": 0,
+      "fired_without_undef": 3,
+      "matched_without_undef": 3,
       "files": [
         "AndOrXor.ll"
       ],
@@ -196,6 +230,8 @@
       "matched": 185,
       "mismatched": 0,
       "analysis": 0,
+      "fired_without_undef": 185,
+      "matched_without_undef": 185,
       "files": [
         "or.ll"
       ],
@@ -206,6 +242,8 @@
       "matched": 372,
       "mismatched": 0,
       "analysis": 0,
+      "fired_without_undef": 188,
+      "matched_without_undef": 188,
       "files": [
         "or.ll"
       ],
@@ -216,6 +254,8 @@
       "matched": 282,
       "mismatched": 0,
       "analysis": 0,
+      "fired_without_undef": 282,
+      "matched_without_undef": 282,
       "files": [
         "or.ll"
       ],
@@ -226,6 +266,8 @@
       "matched": 3,
       "mismatched": 0,
       "analysis": 0,
+      "fired_without_undef": 3,
+      "matched_without_undef": 3,
       "files": [
         "or.ll"
       ],
@@ -236,6 +278,8 @@
       "matched": 1,
       "mismatched": 0,
       "analysis": 0,
+      "fired_without_undef": 1,
+      "matched_without_undef": 1,
       "files": [
         "or.ll"
       ],
@@ -246,6 +290,8 @@
       "matched": 1,
       "mismatched": 0,
       "analysis": 0,
+      "fired_without_undef": 1,
+      "matched_without_undef": 1,
       "files": [
         "or.ll"
       ],
@@ -256,6 +302,8 @@
       "matched": 1,
       "mismatched": 0,
       "analysis": 0,
+      "fired_without_undef": 1,
+      "matched_without_undef": 1,
       "files": [
         "or.ll"
       ],
@@ -266,6 +314,8 @@
       "matched": 1,
       "mismatched": 0,
       "analysis": 0,
+      "fired_without_undef": 1,
+      "matched_without_undef": 1,
       "files": [
         "or.ll"
       ],
@@ -276,6 +326,8 @@
       "matched": 166,
       "mismatched": 0,
       "analysis": 0,
+      "fired_without_undef": 166,
+      "matched_without_undef": 166,
       "files": [
         "AndOrXor.ll",
         "or.ll"
@@ -287,6 +339,8 @@
       "matched": 2,
       "mismatched": 0,
       "analysis": 0,
+      "fired_without_undef": 2,
+      "matched_without_undef": 2,
       "files": [
         "or.ll"
       ],
@@ -297,6 +351,8 @@
       "matched": 179,
       "mismatched": 0,
       "analysis": 0,
+      "fired_without_undef": 179,
+      "matched_without_undef": 179,
       "files": [
         "or.ll"
       ],
@@ -307,6 +363,8 @@
       "matched": 15,
       "mismatched": 0,
       "analysis": 0,
+      "fired_without_undef": 15,
+      "matched_without_undef": 15,
       "files": [
         "or.ll"
       ],
@@ -317,6 +375,8 @@
       "matched": 2,
       "mismatched": 0,
       "analysis": 0,
+      "fired_without_undef": 2,
+      "matched_without_undef": 2,
       "files": [
         "or.ll"
       ],
@@ -327,6 +387,8 @@
       "matched": 7,
       "mismatched": 0,
       "analysis": 0,
+      "fired_without_undef": 7,
+      "matched_without_undef": 7,
       "files": [
         "AndOrXor.ll"
       ],
@@ -337,6 +399,8 @@
       "matched": 7,
       "mismatched": 0,
       "analysis": 0,
+      "fired_without_undef": 7,
+      "matched_without_undef": 7,
       "files": [
         "AndOrXor.ll"
       ],
@@ -347,6 +411,8 @@
       "matched": 8,
       "mismatched": 0,
       "analysis": 0,
+      "fired_without_undef": 8,
+      "matched_without_undef": 8,
       "files": [
         "or.ll"
       ],
@@ -357,6 +423,8 @@
       "matched": 6,
       "mismatched": 0,
       "analysis": 0,
+      "fired_without_undef": 6,
+      "matched_without_undef": 6,
       "files": [
         "or.ll"
       ],
@@ -367,6 +435,8 @@
       "matched": 3,
       "mismatched": 0,
       "analysis": 0,
+      "fired_without_undef": 3,
+      "matched_without_undef": 3,
       "files": [
         "or.ll"
       ],
@@ -377,6 +447,8 @@
       "matched": 2,
       "mismatched": 0,
       "analysis": 0,
+      "fired_without_undef": 2,
+      "matched_without_undef": 2,
       "files": [
         "or.ll"
       ],
@@ -387,6 +459,8 @@
       "matched": 3,
       "mismatched": 0,
       "analysis": 0,
+      "fired_without_undef": 3,
+      "matched_without_undef": 3,
       "files": [
         "or.ll"
       ],
@@ -397,6 +471,8 @@
       "matched": 93,
       "mismatched": 0,
       "analysis": 0,
+      "fired_without_undef": 93,
+      "matched_without_undef": 93,
       "files": [
         "xor.ll"
       ],
@@ -407,14 +483,18 @@
       "matched": 92,
       "mismatched": 0,
       "analysis": 0,
+      "fired_without_undef": 0,
+      "matched_without_undef": 0,
       "files": [],
-      "registered": true
+      "registered": false
     },
     "IS.simplifyXorInst.L2545": {
       "fired": 92,
       "matched": 92,
       "mismatched": 0,
       "analysis": 0,
+      "fired_without_undef": 92,
+      "matched_without_undef": 92,
       "files": [],
       "registered": true
     },
@@ -423,6 +503,8 @@
       "matched": 46,
       "mismatched": 0,
       "analysis": 0,
+      "fired_without_undef": 46,
+      "matched_without_undef": 46,
       "files": [],
       "registered": true
     },
@@ -431,6 +513,8 @@
       "matched": 82,
       "mismatched": 0,
       "analysis": 0,
+      "fired_without_undef": 82,
+      "matched_without_undef": 82,
       "files": [],
       "registered": true
     },
@@ -439,6 +523,8 @@
       "matched": 1,
       "mismatched": 0,
       "analysis": 0,
+      "fired_without_undef": 1,
+      "matched_without_undef": 1,
       "files": [
         "subnuw-with-xor.ll"
       ],
@@ -449,6 +535,8 @@
       "matched": 6,
       "mismatched": 0,
       "analysis": 0,
+      "fired_without_undef": 6,
+      "matched_without_undef": 6,
       "files": [
         "xor.ll"
       ],
@@ -459,6 +547,8 @@
       "matched": 6,
       "mismatched": 0,
       "analysis": 0,
+      "fired_without_undef": 6,
+      "matched_without_undef": 6,
       "files": [
         "xor.ll"
       ],
@@ -505,6 +595,6 @@
   "untagged": [],
   "mismatches": [],
   "unexplained": [],
-  "seconds": 4.6,
+  "seconds": 4.0,
   "folds_unwatchable": []
 }

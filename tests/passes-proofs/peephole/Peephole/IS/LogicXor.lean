@@ -9,13 +9,17 @@ carries its ID from `tests/llvm_scope/rewrites/instsimplify.json`, and each has 
 | ID | Rewrite |
 | --- | --- |
 | `IS.simplifyXorInst.L2537` | `X ^ poison` to poison |
-| `IS.simplifyXorInst.L2541` | `A ^ undef` to `undef`. IRLean has no `undef`, so this is about poison only |
+| `IS.simplifyXorInst.L2541` | `A ^ undef` to `undef`. Only `undef` reaches it, so it's listed unproved; see below |
 | `IS.simplifyXorInst.L2545` | `A ^ 0` to `A` |
 | `IS.simplifyXorInst.L2549` | `A ^ A` to 0 |
 | `IS.simplifyXorInst.L2553` | `A ^ ~A` and `~A ^ A` to -1 |
 | `IS.simplifyXorInst.foldAndOrNot.L2560` | `(~A & B) ^ (A \| B)` to `A`, in every order |
 | `IS.simplifyXorInst.foldAndOrNot.L2569` | `(~A \| B) ^ (A & B)` to `~A`, in every order |
 | `IS.simplifyXorInst.L2603` | `(sub nuw C, X) ^ C` to `X`, where `C` is a mask of low bits |
+
+`IS.simplifyXorInst.L2541` isn't proved: without `undef`, `isUndefValue(Op1)` holds only of poison, which `L2537`
+takes first, so only an `undef` operand reaches its step, and every theorem assumes none does. Its theorem is kept,
+about the poison case the step before never leaves to it, and says nothing past what `L2537`'s does.
 
 `simplifyXorInst.sound` puts them together with the folds it calls: every value the model returns refines the `xor`, at
 every width and recursion budget, poison included. -/
