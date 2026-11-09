@@ -160,6 +160,11 @@ set_tests_properties(cpp_correspondence PROPERTIES TIMEOUT 900)
 # one Lean process at a time, each capped at 2 GB and 300 s by the script itself.
 add_test(NAME generic_rewrites COMMAND ${CMAKE_SOURCE_DIR}/tests/generic_rewrites.sh)
 set_tests_properties(generic_rewrites PROPERTIES TIMEOUT 900)
+# The lemma store, docs/lemma-store.md: every stored lemma against the bar, lookup under restatements, a bad
+# lemma of each kind refused, and a proof from the store against one without it. It reads what `lake build`
+# built, and runs its Lean processes two at a time, each capped at 4 GB.
+add_test(NAME store COMMAND ${CMAKE_SOURCE_DIR}/tests/store_test.py $<TARGET_FILE:ir-lean>)
+set_tests_properties(store PROPERTIES TIMEOUT 1200)
 add_test(
     NAME zlib
     COMMAND
