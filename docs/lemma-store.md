@@ -231,7 +231,7 @@ only `bv_decide` proves waits outside the store until it's proved without it.
 
 ## What seeding refused
 
-`store.py check` ran on every theorem in the four seed modules, 169 of them, and refused 6:
+The checker ran on every public theorem in the five seed modules, 169 of them, and refused 6:
 
 | Lemma | Refused as | Why |
 | --- | --- | --- |
@@ -293,14 +293,15 @@ so rules 1 and 2 would refuse them. Checking them here, and retiring the prototy
   the same file count: `urem_isUB_iff`'s two users are both in `IRLean/Contract/Poison.lean`. The reuse example's
   proofs aren't consumers, since they were written to show reuse.
 - **Most candidates are LangRef's contracts,** which no proof uses yet. They wait as rule 4 says.
-- **Normalization knows `ac_nf`'s operators only.** `Val`'s operations aren't registered as commutative, and `Val.add`
-  with flags is, so `Val.add a b` and `Val.add b a` have different keys.
+- **Normalization knows `ac_nf`'s operators only.** `Val`'s operations aren't registered as commutative, so
+  `Val.and a b` and `Val.and b a` have different keys, and lookup won't find one stated as the other.
 - **The width rule reads numbers, not intent.** A lemma at width 1 passes, as LLVM fixes `i1` for conditions and flags.
-  One written for a width variable `w` passes even if it's only true at some.
+  So does one stated for a width variable `w` with a hypothesis such as `w = 8`, given a counterexample and a witness.
 - **Triviality is judged with a budget.** A lemma `grind` would close with more heartbeats is admitted.
 - **Subsumption only tries applying one lemma.** A lemma derivable in two steps is admitted.
-- **The prototype isn't retired yet,** and its q4_K lemmas aren't checked against the bar. Nor are `Count.lean`'s
-  and `tests/llvm/Bits.lean`'s counting lemmas in the store, since no library `lake build` builds them.
+- **The prototype isn't retired yet.** That, with its q4_K lemmas recorded against the bar, is the next pull request.
+  `Count.lean`'s and `tests/llvm/Bits.lean`'s counting lemmas aren't in the store, since no library `lake build`
+  builds them.
 - **No lemma store for memory yet.** Every stored lemma is about values and runs without `Mem`, since `Refines` has no
   instance for it until SEM-06.
 
