@@ -99,7 +99,9 @@ of `opt` differs between Linux and macOS, and it changes whenever `flake.lock` d
 
 ## Measuring a heavy job
 
-[`tools/measure.py`](../tools/measure.py) runs a command under a timeout and a memory cap. It records:
+[`tools/measure.py`](../tools/measure.py) runs a command under a timeout and a memory cap, through the shared
+library's [`irlean.proc`](../tools/irlean/proc.py), which every tool and test runs its commands with
+([Python](python.md)). It records:
 
 - wall and CPU time;
 - the exact peak RSS of the process, from `ru_maxrss`, which is in bytes on macOS and KiB on Linux, both turned into
@@ -118,5 +120,6 @@ nix develop -c tools/measure.py run --label 'lake build' --heavy --max-tree-rss-
   --out build/measurements.jsonl -- lake build
 ```
 
-The `corpus` test checks both tools in about 2 s. It needs no Lean. When the pinned `opt` is on `PATH`, it also captures
-one seed, and otherwise it skips that part.
+The `corpus` test checks the capture in under a second, and `irlean` checks `measure.py` and the library under it in
+about 3 s. Neither needs Lean. When the pinned `opt` is on `PATH`, `corpus` also captures one seed, and otherwise it
+skips that part.
