@@ -87,9 +87,11 @@ For evidence, the first that fails decides:
 11. **Unchanged.** The run's directory holds what it did, apart from each evidence module's new `.olean`, and nothing
     stamped has changed.
 
-Every Lean process runs with `-M`, by the toolchain's absolute path rather than `elan`'s shim, and every process has a
-time limit, after which it's killed with everything in its session. A limit is `unknown`, never `refused` or
-`replayed`.
+Every Lean process runs with `-M` and a thread stack of 64 MB, `-s 65536`, as `tests/llvm.py` gives it: Lean commits
+about 1 GiB of stack for each thread, and `bv_decide` forks Lean to start its solver, which fails with `ENOMEM` on a
+machine with less memory than that, such as a CI runner. Each runs by the toolchain's absolute path rather than
+`elan`'s shim, and every process has a time limit, after which it's killed with everything in its session. A limit,
+including running out of memory, is `unknown`, never `refused` or `replayed`.
 
 For a claim, `tools/verify_claims.py claim` refuses before replaying anything a claim that isn't `complete`, covers
 some contexts, lists gaps, or is about translation validation, which [never counts](llvm-verification-tasks.md#translation-validation-isnt-proof-for-all-inputs).
