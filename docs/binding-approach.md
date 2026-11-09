@@ -275,6 +275,14 @@ Each gate depends only on the ones before it, and its check is what passes it. N
 | B4 | Code that changes IR: InstSimplify's loop, with `replaceAllUsesWith`, use lists and erasing | B3, and BIND-04 for writing | Theorem 2 for `InstSimplifyPass::run`'s loop, given B3 for every opcode it reaches |
 | B5 | A whole pass, end to end, which is [BIND-06](llvm-verification-tasks.md#bind-06-the-first-pass-bound-end-to-end) | B4, BIND-03, PASS-03, PASS-05 | BIND-06's acceptance, for the pass whose closure BIND-02 finds smallest |
 
+**B1 passed on 2026-11-09:** [LLVM's IR in memory](llvm-heap.md). `IRLean/LLVMHeap.lean`'s view of `Value`, `Use`,
+`ConstantInt`, `APInt` and `Type` is proved preserved by `ConstantInt::get`, `PoisonValue::get` and
+`BinaryOperator::Create`, each as a specification of what it does to memory, and 316 facts of the layout probe,
+`tests/llvm_heap/layout_probe.cpp`, built with the numbers the proofs use, hold on the pinned `libLLVM`. It carries the
+`APInt` finding of #74 as a hypothesis of `ConstantInt::get`, and a theorem that a dirty word is no `ConstantInt` the
+view describes. That the C++ constructors do what the specifications say is the probe's evidence, not proof: proving
+it needs their closure through the emitter, B2 and B3.
+
 ### When to stop
 
 Switch to the fallback, and say so in the task list, if any of these holds:
