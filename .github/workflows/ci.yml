@@ -17,25 +17,38 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - uses: ./.github/actions/setup
+        id: setup
       - run: nix develop -c ctest --test-dir build -L lint --output-on-failure
+      # Every job restores the cache, and only this one saves it, so jobs don't race for the key. It finishes
+      # first, and has used all of it: the toolchain, the library built at this commit, and uv's packages for
+      # the linters as well as the tests.
+      - name: Save caches
+        if: ${{ !cancelled() && steps.setup.outcome == 'success' }}
+        uses: actions/cache/save@v6
+        with:
+          path: ${{ steps.setup.outputs.cache-paths }}
+          key: ${{ steps.setup.outputs.cache-key }}
   test:
-    name: Tests and proofs
+    name: Tests and proofs (${{ matrix.shard }})
     runs-on: ubuntu-latest
     timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        # A job for each of these ctest labels, set in CMakeLists.txt, runs the tests with it, so the longest
+        # tests don't wait for each other. `rest` runs every other test the `lint` and `slow` jobs don't, so a
+        # test with no label still runs, and first checks that CI runs each test exactly once.
+        shard: &labels [passes, binding, llvm, semantics, llama]
+        include:
+          - shard: rest
+            labels: *labels
+          # Only this shell has llama.cpp's source, which the llama tests need, and every other job does without.
+          - shard: llama
+            shell: .#llama
     steps:
       - uses: actions/checkout@v7
       - uses: ./.github/actions/setup
-      - run: nix develop -c ctest --test-dir build -LE 'lint|slow|llama' --output-on-failure
-  # Its own job, alongside the others, since only its shell has llama.cpp's source. It needs no model, and
-  # measures nothing: tests/llama_bench.py does that, and CI doesn't run it.
-  llama:
-    name: llama.cpp's q4_K rewrite
-    runs-on: ubuntu-latest
-    timeout-minutes: 60
-    steps:
-      - uses: actions/checkout@v7
-      - uses: ./.github/actions/setup
-      - run: nix develop .#llama -c ctest --test-dir build -L llama --output-on-failure
+      - run: nix develop ${{ matrix.shell }} -c .github/test-shard.sh ${{ matrix.shard }} ${{ join(matrix.labels, ' ') }}
   slow:
     name: Slow zlib tests
     if: github.event_name != 'pull_request'
