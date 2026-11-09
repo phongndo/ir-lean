@@ -137,6 +137,14 @@ theorem simplifyDiv.steps_sound (ρ : Env) (o : Oracle) (ho : o.Sound ρ) (d : D
       · simp only [reduceCtorEq] at h
     · simp only [reduceCtorEq] at h
 
+/-- `simplifyDiv`: every value it returns refines its caller's `udiv` or `sdiv`, with or without `exact`. -/
+theorem simplifyDiv.sound (ρ : Env) (o : Oracle) (ho : o.Sound ρ) (d : DomOracle) (hd : d.Sound ρ)
+    (r : Recur) (hr : r.Sound ρ) (op : BinOp) (hop : op = .udiv ∨ op = .sdiv) (op0 op1 : Term w) (isExact : Bool)
+    (n : Nat) (c0 : op0.Consistent ρ) (c1 : op1.Consistent ρ) (u0 : op0.hasUndef = false)
+    (u1 : op1.hasUndef = false) {res : Repl w} (h : run (simplifyDiv.steps o d r op op0 op1 isExact n) = .value res) :
+    Refines ((binSrc op { exact := isExact } op0 op1).eval ρ) (res.eval ρ) :=
+  run_sound (simplifyDiv.steps_sound ρ o ho d hd r hr op hop op0 op1 isExact n c0 c1 u0 u1) h
+
 /-! ## `simplifyRem` -/
 
 /-- `m_NSWShl(m_Specific(S), m_Value())` on `V` if `nsw`, else `m_NUWShl`. -/
@@ -267,6 +275,14 @@ theorem simplifyRem.steps_sound (ρ : Env) (o : Oracle) (ho : o.Sound ρ) (d : D
       · rw [ite_eq_right hm] at h
         cases h
     · simp only [reduceCtorEq] at h
+
+/-- `simplifyRem`: every value it returns refines its caller's `urem` or `srem`. -/
+theorem simplifyRem.sound (ρ : Env) (o : Oracle) (ho : o.Sound ρ) (d : DomOracle) (hd : d.Sound ρ)
+    (r : Recur) (hr : r.Sound ρ) (op : BinOp) (hop : op = .urem ∨ op = .srem) (f : Flags) (op0 op1 : Term w)
+    (n : Nat) (c0 : op0.Consistent ρ) (c1 : op1.Consistent ρ) (u0 : op0.hasUndef = false)
+    (u1 : op1.hasUndef = false) {res : Repl w} (h : run (simplifyRem.steps o d r op op0 op1 n) = .value res) :
+    Refines ((binSrc op f op0 op1).eval ρ) (res.eval ρ) :=
+  run_sound (simplifyRem.steps_sound ρ o ho d hd r hr op hop f op0 op1 n c0 c1 u0 u1) h
 
 /-! ## The entry folds -/
 

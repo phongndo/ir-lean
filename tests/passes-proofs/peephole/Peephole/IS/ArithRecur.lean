@@ -839,4 +839,47 @@ theorem threadBinOpOverSelect.steps_sound (ρ : Env) (r : Recur) (hr : r.Sound �
       · exact threadBinOpOverSelect.fwdOneF ρ r hr op f lhs rhs _ cl cr ul ur hsel hfv h.symm
       · simp only [reduceCtorEq] at h
 
+/-! ## Each helper fold's theorem -/
+
+/-- `simplifyByDomEq`: every value it returns refines its caller's instruction, for any opcode and flags, where the
+dominating conditions are sound. -/
+theorem simplifyByDomEq.sound (ρ : Env) (d : DomOracle) (hd : d.Sound ρ) (op : BinOp) (f : Flags)
+    (op0 op1 : Term w) (n : Nat) {res : Repl w} (h : run (simplifyByDomEq.steps d op op0 op1 n) = .value res) :
+    Refines ((binSrc op f op0 op1).eval ρ) (res.eval ρ) :=
+  run_sound (simplifyByDomEq.steps_sound ρ d hd op f op0 op1 n) h
+
+/-- `simplifyAssociativeBinOp`: every value it returns refines its caller's instruction, for an associative opcode,
+which its C++ asserts, with any flags. -/
+theorem simplifyAssociativeBinOp.sound (ρ : Env) (r : Recur) (hr : r.Sound ρ) (op : BinOp)
+    (hop : isAssociative op = true) (f : Flags) (lhs rhs : Term w) (n : Nat)
+    (cl : lhs.Consistent ρ) (cr : rhs.Consistent ρ) (ul : lhs.hasUndef = false) (ur : rhs.hasUndef = false)
+    {res : Repl w} (h : run (simplifyAssociativeBinOp.steps r op lhs rhs n) = .value res) :
+    Refines ((binSrc op f lhs rhs).eval ρ) (res.eval ρ) :=
+  run_sound (simplifyAssociativeBinOp.steps_sound ρ r hr op hop f lhs rhs n cl cr ul ur) h
+
+/-- `expandBinOp`: every value it returns refines `V op OtherOp`, where `op` distributes over the opcode expanded. -/
+theorem expandBinOp.sound (ρ : Env) (r : Recur) (hr : r.Sound ρ) (op opex : BinOp)
+    (hd : distributes op opex = true) (f : Flags) (v other : Term w) (n : Nat)
+    (cv : v.Consistent ρ) (co : other.Consistent ρ) (uv : v.hasUndef = false) (uo : other.hasUndef = false)
+    {res : Repl w} (h : run (expandBinOp.steps r op v other opex n) = .value res) :
+    Refines ((binSrc op f v other).eval ρ) (res.eval ρ) :=
+  run_sound (expandBinOp.steps_sound ρ r hr op opex hd f v other n cv co uv uo) h
+
+/-- `expandCommutativeBinOp`: every value it returns refines its caller's instruction, where `op` distributes over the
+opcode expanded, as for every pair it's called with. -/
+theorem expandCommutativeBinOp.sound (ρ : Env) (r : Recur) (hr : r.Sound ρ) (op opex : BinOp)
+    (hd : distributes op opex = true) (f : Flags) (l rr : Term w) (n : Nat)
+    (cl : l.Consistent ρ) (cr : rr.Consistent ρ) (ul : l.hasUndef = false) (ur : rr.hasUndef = false)
+    {res : Repl w} (h : run (expandCommutativeBinOp.steps r op l rr opex n) = .value res) :
+    Refines ((binSrc op f l rr).eval ρ) (res.eval ρ) :=
+  run_sound (expandCommutativeBinOp.steps_sound ρ r hr op opex hd f l rr n cl cr ul ur) h
+
+/-- `threadBinOpOverSelect`: every value it returns refines its caller's instruction, for any opcode and flags. -/
+theorem threadBinOpOverSelect.sound (ρ : Env) (r : Recur) (hr : r.Sound ρ) (op : BinOp) (f : Flags)
+    (lhs rhs : Term w) (n : Nat)
+    (cl : lhs.Consistent ρ) (cr : rhs.Consistent ρ) (ul : lhs.hasUndef = false) (ur : rhs.hasUndef = false)
+    {res : Repl w} (h : run (threadBinOpOverSelect.steps r op lhs rhs n) = .value res) :
+    Refines ((binSrc op f lhs rhs).eval ρ) (res.eval ρ) :=
+  run_sound (threadBinOpOverSelect.steps_sound ρ r hr op f lhs rhs n cl cr ul ur) h
+
 end Peephole.IS

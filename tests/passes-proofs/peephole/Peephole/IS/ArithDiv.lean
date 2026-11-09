@@ -547,4 +547,12 @@ theorem simplifyDivRem.steps_sound (ρ : Env) (o : Oracle) (ho : o.Sound ρ) (d 
     · simp only [reduceCtorEq] at h
   · split at h <;> simp only [reduceCtorEq] at h
 
+/-- `simplifyDivRem`: every value it returns refines its caller's division or remainder, with any flags. -/
+theorem simplifyDivRem.sound (ρ : Env) (o : Oracle) (ho : o.Sound ρ) (d : DomOracle) (hd : d.Sound ρ)
+    (r : Recur) (hr : r.Sound ρ) (op : BinOp) (hop : isDivRem op = true) (f : Flags) (op0 op1 : Term w) (n : Nat)
+    (c0 : op0.Consistent ρ) (c1 : op1.Consistent ρ) (u0 : op0.hasUndef = false) (u1 : op1.hasUndef = false)
+    {res : Repl w} (h : run (simplifyDivRem.steps o d r op op0 op1 n) = .value res) :
+    Refines ((binSrc op f op0 op1).eval ρ) (res.eval ρ) :=
+  run_sound (simplifyDivRem.steps_sound ρ o ho d hd r hr op hop f op0 op1 n c0 c1 u0 u1) h
+
 end Peephole.IS
