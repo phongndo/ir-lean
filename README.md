@@ -59,6 +59,7 @@ theorem popcount_correct (x : BitVec 32) :
 | --- | --- |
 | [Status](docs/status.md) | What's proved, what's tested, what's measured |
 | [Trust](docs/trust.md) | What a theorem means, what it rests on, and the known gaps |
+| [IR features](docs/ir-features.md) | Everything the pinned IR can contain, each item modeled, refused or assumed, and the test that the emitter agrees |
 | [Refinement](docs/refinement.md) | What `IRLean.Refines` says, its laws, and what a refinement certificate says about LLVM |
 | [Memory safety](docs/memory.md) | What a memory-safety theorem claims, the model of memory, and what it leaves out |
 | [Verify](docs/verify.md) | Checking a claim from a script or an agent, with a JSON answer: proved, counterexample, unsupported, timeout or error |
