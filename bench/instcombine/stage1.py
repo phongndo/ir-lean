@@ -33,7 +33,6 @@ from __future__ import annotations
 import argparse
 import concurrent.futures
 import functools
-import hashlib
 import importlib.util
 import json
 import os
@@ -48,12 +47,16 @@ from pathlib import Path
 from typing import Any
 
 ROOT = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(ROOT / "tools"))
+from irlean import hashing, proc, schemas  # noqa: E402
+from irlean import verdict as core  # noqa: E402
+
 TOOL = ROOT / "build" / "ir-lean"
 BINDING_PY = ROOT / "tools" / "binding.py"
 LIBRARY = ROOT / ".lake" / "build" / "lib" / "lean"
 WORK = ROOT / "build" / "stage1"
-SCHEMA = "ir-lean.stage1.pair/1"
-SUMMARY_SCHEMA = "ir-lean.stage1.summary/1"
+SCHEMA = schemas.STAGE1_PAIR
+SUMMARY_SCHEMA = schemas.STAGE1_SUMMARY
 # The namespace of every certificate tools/binding.py checks. Each compiles in a directory of its own, so
 # they can share it.
 NS = "S1"
@@ -77,7 +80,7 @@ B = load("binding", BINDING_PY)
 
 
 def sha(data: str | bytes) -> str:
-    return hashlib.sha256(data.encode() if isinstance(data, str) else data).hexdigest()
+    return hashing.sha256_text(data) if isinstance(data, str) else hashing.sha256(data)
 
 
 def sh(
@@ -87,26 +90,9 @@ def sh(
     cwd: Path | None = None,
     env: dict[str, str] | None = None,
 ) -> tuple[int | None, str, str]:
-    """(exit code, stdout, stderr). The exit code is None if the time limit stopped it."""
-    try:
-        r = subprocess.run(
-            argv,
-            input=stdin,
-            capture_output=True,
-            text=True,
-            timeout=timeout,
-            cwd=cwd,
-            env={**os.environ, **(env or {})},
-            check=False,
-            errors="replace",
-        )
-    except subprocess.TimeoutExpired as e:
-        return (
-            None,
-            (e.stdout or b"").decode(errors="replace") if isinstance(e.stdout, bytes) else (e.stdout or ""),
-            "",
-        )
-    return r.returncode, r.stdout, r.stderr
+    """(exit code, stdout, stderr), through irlean.proc. The exit code is None if a limit stopped it."""
+    ran = proc.run(argv, timeout=timeout, stdin=stdin, cwd=cwd, env={**os.environ, **(env or {})})
+    return (None if ran.limit else ran.exit), ran.out, ran.err
 
 
 def llvm_tests() -> Path:
@@ -323,9 +309,7 @@ def cmd_pairs(args: argparse.Namespace) -> int:
 # Proofs, through tools/verify.py and the negative-verification gate
 
 VN = load("verify_negative", ROOT / "tests" / "verify_negative.py")
-SIGNATURE = re.compile(r"^noncomputable def (\S+)((?: \([^()]*\))*) : (Outcome .*) :=$", re.M)
 # Inputs that are values or poison, never undef: Alive2's --disable-undef-input.
-PIN = "IRLean.Refines Opt.src Opt.tgt"
 
 AUTOMATION = """namespace {ns}.Auto
 
@@ -367,7 +351,7 @@ end {ns}.Auto
 """
 
 
-SIGNATURE_LINE = re.compile(r"^noncomputable def (\S+)(.*) : (Outcome .*) :=$", re.M)
+SIGNATURE_LINE = re.compile(r"^noncomputable def (\S+)(.*) : (Outcomes? .*) :=(?: fun \S+ =>)?$", re.M)
 
 
 def groups(text: str) -> list[str]:
@@ -401,15 +385,49 @@ def signature(module: str, name: str) -> tuple[list[str], str] | None:
                 while ty.startswith("(") and ty.endswith(")") and groups(ty) == [ty[1:-1]]:
                     ty = ty[1:-1].strip()
                 types += [ty] * len(names_.split())
-            result = m.group(3)
-            inner = result.removeprefix("Outcome ").strip()
+            kind, _, inner = m.group(3).partition(" ")
+            inner = inner.strip()
             while inner.startswith("(") and inner.endswith(")") and groups(inner) == [inner[1:-1]]:
                 inner = inner[1:-1].strip()
-            return types, f"Outcome ({inner})"
+            return types, f"{kind} ({inner})"
     return None
 
 
-def proof(ns: str, src: str, tgt: str, args: list[str], imports: list[str], module: str) -> str:
+def claim(src: str, tgt: str, n: int, chooses: tuple[bool, bool]) -> str:
+    """`IRLean.Refines src tgt`, as tools/binding_check.lean builds it. Since F3, a function whose run makes
+    choices returns `IRLean.Outcomes`; where only one side does, the other is lifted with
+    `IRLean.Outcomes.det`, the same outcome for every choice."""
+    xs = " ".join(f"x{i}" for i in range(n))
+
+    def lifted(f: str) -> str:
+        return f"(fun {xs} => IRLean.Outcomes.det ({f} {xs}))" if n else f"(IRLean.Outcomes.det {f})"
+
+    if chooses == (False, True):
+        return f"IRLean.Refines {lifted(src)} {tgt}"
+    if chooses == (True, False):
+        return f"IRLean.Refines {src} {lifted(tgt)}"
+    return f"IRLean.Refines {src} {tgt}"
+
+
+# Past the arguments, how the proof takes each side's choices: for every way the target chooses, a source
+# that makes none allows it, or one that does chooses the same, or, choosing alone, chooses 0 everywhere.
+CHOICE_TACTIC = {
+    (False, False): "",
+    (False, True): "rw [IRLean.Refine.outcomes_det_left]\n  intro ct\n  ",
+    (True, True): "apply IRLean.Refine.outcomes_of_same\n  intro ct\n  ",
+    (True, False): "rw [IRLean.Refine.outcomes_det_right]\n  refine ⟨fun _ => 0, ?_⟩\n  ",
+}
+
+
+def proof(
+    ns: str,
+    src: str,
+    tgt: str,
+    args: list[str],
+    imports: list[str],
+    module: str,
+    chooses: tuple[bool, bool] = (False, False),
+) -> str:
     """A refinement certificate: the claim, stated as tools/binding_check.lean builds it, and a proof found by
     case splits and `bv_decide`. The proof is untrusted; the gates check it."""
     unfold = []
@@ -419,7 +437,8 @@ def proof(ns: str, src: str, tgt: str, args: list[str], imports: list[str], modu
         if re.search(rf"^namespace «?{re.escape(bare)}»?$", module, re.M):
             unfold.append(f"{f}.step")
     xs = [f"x{i}" for i in range(len(args))]
-    intro = f"intro {' '.join(xs)}\n  " if xs else ""
+    intro = (f"intro {' '.join(xs)}\n  " if xs else "") + ("dsimp only\n  " if any(chooses) else "")
+    intro += CHOICE_TACTIC[chooses]
     # Each vector argument is taken apart into its lanes, and each value, lane or not, into poison or a
     # value: at most 2^CASE_BITS cases, past which nothing is split and the proof is left to fail or run out.
     lanes = sum(int(m.group(1)) if (m := re.fullmatch(r"Vec (\d+) \d+", ty)) else 1 for ty in args)
@@ -444,7 +463,7 @@ def proof(ns: str, src: str, tgt: str, args: list[str], imports: list[str], modu
         + "set_option exponentiation.threshold 4096\n\n"
         + AUTOMATION.format(ns=ns)
         + f"\nset_option maxHeartbeats {HEARTBEATS} in\n"
-        + f"theorem {ns}.cert : IRLean.Refines {src} {tgt} := by\n"
+        + f"theorem {ns}.cert : {claim(src, tgt, len(args), chooses)} := by\n"
         + f"  {intro}{split + ' <;> ' if split else ''}ir_refine [{', '.join(unfold)}]\n"
     )
 
@@ -472,22 +491,42 @@ def WORK_OF(d: Path) -> Path:
     return d.parent.parent / "pairs" / d.name
 
 
-def verify_once(request: dict, files: Path, name: str, logs: Path, timeout: float) -> tuple[Any, Any]:
+def verify_once(request: dict, files: Path, name: str, logs: Path, timeout: float) -> tuple[Any, Any, Any]:
+    """tools/verify.py on one request, through irlean.proc, which stops it a minute past its own limit and
+    kills whatever it leaves. Returns the negative-verification gate's view of the run, the checkers'
+    hashes, and the run itself, for irlean.verdict."""
     path = files / f"{name}.json"
     path.write_text(json.dumps(request, ensure_ascii=False, indent=2) + "\n")
     checkers = VN.checker_hashes()
-    argv = [
-        sys.executable,
-        str(ROOT / "tools" / "verify.py"),
-        "check",
-        str(path),
-        "--tool",
-        str(TOOL),
-        "--work-dir",
-        str(logs / "work"),
-    ]
-    harness = VN.run_checker(argv, timeout + 60, logs)
-    return harness, checkers
+    argv = [sys.executable, str(ROOT / "tools" / "verify.py"), "check", str(path), "--tool", str(TOOL)]
+    logs.mkdir(parents=True, exist_ok=True)
+    ran = proc.run([*argv, "--work-dir", str(logs / "work")], timeout=timeout + 60, cwd=ROOT)
+    (logs / "stdout.txt").write_bytes(ran.stdout)
+    (logs / "stderr.txt").write_bytes(ran.stderr)
+    harness = VN.Harness(
+        exit=ran.exit if ran.exit >= 0 else None,
+        signal=ran.signal,
+        timed_out=ran.limit == "time_limit",
+        seconds=round(ran.seconds, 2),
+        peak_rss_mb=int(ran.peak_process_mb),
+        stdout=ran.out,
+        stderr=ran.err,
+    )
+    return harness, checkers, ran
+
+
+def record_of(ran: Any) -> Any:
+    try:
+        return json.loads(ran.out)
+    except ValueError:
+        return None
+
+
+def decided(claim: core.Verdict, ran: Any, record: Any, files: dict[str, bool]) -> core.Decision:
+    """irlean.verdict on tools/verify.py's run and the record it printed, about these files."""
+    return core.decide(
+        claim, core.Evidence(upstream=(core.Step.of("tools/verify.py", ran), record), files=files)
+    )
 
 
 def prove_pair(pair: dict, work: Path, timeout: int, memory: int, versions: dict, v: Any) -> dict:
@@ -506,24 +545,29 @@ def prove_pair(pair: dict, work: Path, timeout: int, memory: int, versions: dict
     sig_src, sig_tgt = signature(module, "src"), signature(module, "tgt")
     if code not in (0, 3) or sig_src is None or sig_tgt is None:
         return {**out, "lean": "unsupported", "reason": "emitter_combined", "detail": err.strip()[-300:]}
-    out["args"], out["result"] = sig_src
-    (files / "Proof.lean").write_text(proof("Opt", "Opt.src", "Opt.tgt", sig_src[0], ["Opt"], module))
+    out["args"], out["result"], out["tgt_result"] = sig_src[0], sig_src[1], sig_tgt[1]
+    chooses = (sig_src[1].startswith("Outcomes "), sig_tgt[1].startswith("Outcomes "))
+    out["chooses"] = list(chooses)
+    pin = claim("Opt.src", "Opt.tgt", len(sig_src[0]), chooses)
+    (files / "Proof.lean").write_text(
+        proof("Opt", "Opt.src", "Opt.tgt", sig_src[0], ["Opt"], module, chooses)
+    )
     request = {
         "input": {"ir": "Opt.ll"},
         "namespace": "Opt",
         "function": "tgt",
         "proof": "Proof.lean",
         "theorem": "Opt.cert",
-        "statement": PIN,
+        "statement": pin,
         "limits": {"timeout_seconds": timeout, "memory_mb": memory},
     }
-    harness, checkers = verify_once(request, files, "request", d / "check", timeout)
+    harness, checkers, ran = verify_once(request, files, "request", d / "check", timeout)
     envelope = VN.envelope_for(harness, checkers, None)
     (d / "envelope.json").write_text(json.dumps(envelope, indent=1, ensure_ascii=False) + "\n")
     expected = {
         "function": "tgt",
         "namespace": "Opt",
-        "pin": PIN,
+        "pin": pin,
         "names": ["Opt.src", "Opt.tgt"],
         "precondition": None,
         "files": {"input": VN.sha256_file(files / "Opt.ll"), "proof": VN.sha256_file(files / "Proof.lean")},
@@ -541,7 +585,21 @@ def prove_pair(pair: dict, work: Path, timeout: int, memory: int, versions: dict
         denials=denials,
     )
     if not denials:
-        return {**out, "lean": "proved", "reason": "kernel_checked"}
+        # The gate passed; irlean.verdict decides, from tools/verify.py's run and record, and the files
+        # it hashed.
+        hashed = (result.get("artifacts") or {}).get("files") or {}
+        files_ok = {
+            role: (hashed.get(role) or {}).get("sha256") == h for role, h in expected["files"].items()
+        }
+        decision = decided(core.Verdict.PROVED, ran, record_of(ran), files_ok)
+        if decision.granted:
+            return {**out, "lean": "proved", "reason": "kernel_checked"}
+        return {
+            **out,
+            "lean": str(decision.verdict),
+            "reason": f"verdict_{decision.reason}",
+            "detail": decision.detail,
+        }
     status = result.get("status")
     diag = json.dumps(result.get("diagnostics") or "")
     out["bv_counterexample"] = "counterexample" in diag
@@ -607,7 +665,7 @@ def cmd_prove(args: argparse.Namespace) -> int:
 # ------------------------------------------------------------------------------------------------------------
 # Certificates, through tools/binding.py
 
-VERDICT_SCHEMA = "ir-lean.binding.verdict/1"
+VERDICT_SCHEMA = schemas.BINDING_VERDICT
 
 
 def certify_pair(pair: dict, prove: dict, work: Path, timeout: int, memory: int) -> dict:
@@ -620,17 +678,21 @@ def certify_pair(pair: dict, prove: dict, work: Path, timeout: int, memory: int)
     if d.exists():
         shutil.rmtree(d)
     d.mkdir(parents=True)
-    src_ll = work / "pairs" / pair["id"] / "src.ll"
-    code, module, err = sh([str(TOOL), str(src_ll), "--no-code", "--namespace", f"{NS}.Src"])
     lean = pair["lean_name"]
-    sig = signature(module, lean)
-    if code not in (0, 3) or sig is None:
+    sigs, modules = [], []
+    for side in ("Src", "Tgt"):
+        ll = work / "pairs" / pair["id"] / f"{side.lower()}.ll"
+        code, module, err = sh([str(TOOL), str(ll), "--no-code", "--namespace", f"{NS}.{side}"])
+        sigs.append(signature(module, lean) if code in (0, 3) else None)
+        modules.append(module)
+    if sigs[0] is None or sigs[1] is None:
         return {**out, "gate": "error", "reason": "no_signature", "detail": err[-300:]}
+    chooses = (sigs[0][1].startswith("Outcomes "), sigs[1][1].startswith("Outcomes "))
     lean_ref = lean if re.fullmatch(r"[A-Za-z_][\w']*", lean) else f"«{lean}»"
     cert = d / "Cert.lean"
-    cert.write_text(
-        proof(NS, f"{NS}.Src.{lean_ref}", f"{NS}.Tgt.{lean_ref}", sig[0], [f"{NS}.Src", f"{NS}.Tgt"], module)
-    )
+    src_f, tgt_f = f"{NS}.Src.{lean_ref}", f"{NS}.Tgt.{lean_ref}"
+    imports = [f"{NS}.Src", f"{NS}.Tgt"]
+    cert.write_text(proof(NS, src_f, tgt_f, sigs[0][0], imports, "\n".join(modules), chooses))
     bundle = d / "bundle"
     t0 = time.time()
     record = [
@@ -671,25 +733,13 @@ def certify_pair(pair: dict, prove: dict, work: Path, timeout: int, memory: int)
         }
     manifest_path = bundle / "manifest.json"
     manifest = json.loads(manifest_path.read_text())
-    code, stdout, err = sh(
-        [
-            sys.executable,
-            str(BINDING_PY),
-            "verify",
-            str(manifest_path),
-            "--timeout",
-            str(timeout),
-            "--memory",
-            str(memory),
-        ],
-        timeout=timeout * 12,
-    )
+    argv = [sys.executable, str(BINDING_PY), "verify", str(manifest_path), "--timeout", str(timeout)]
+    ran = proc.run([*argv, "--memory", str(memory)], timeout=timeout * 12, cwd=ROOT)
     out["seconds"] = round(time.time() - t0, 1)
-    (d / "verdict.json").write_text(stdout)
-    try:
-        verdict = json.loads(stdout)
-    except ValueError:
-        return {**out, "gate": "error", "reason": "verdict_unreadable", "detail": err.strip()[-300:]}
+    (d / "verdict.json").write_bytes(ran.stdout)
+    verdict = record_of(ran)
+    if not isinstance(verdict, dict):
+        return {**out, "gate": "error", "reason": "verdict_unreadable", "detail": ran.err.strip()[-300:]}
     status = verdict.get("status")
     out.update(
         binding_status=status,
@@ -702,18 +752,23 @@ def certify_pair(pair: dict, prove: dict, work: Path, timeout: int, memory: int)
         and manifest["claim"]["kind"] == "ir_instance_refinement"
         and manifest["artifacts"]["input"]["sha256"] == pair["input_sha256"]
     )
-    if (
-        verdict.get("schema") == VERDICT_SCHEMA
-        and status == "bound"
-        and verdict.get("reason") == "replayed"
-        and verdict.get("exit_code") == 0
-        and code == 0
-        and about
-        and (verdict.get("claim") or {}).get("kind") == "ir_instance_refinement"
-    ):
-        return {**out, "gate": "bound", "reason": "replayed"}
     if status == "bound":
-        return {**out, "gate": "error", "reason": "bound_but_inconsistent"}
+        # irlean.verdict decides, from tools/binding.py's run and verdict, and that the bundle is this pair's.
+        decision = core.decide(
+            core.Verdict.CERTIFIED,
+            core.Evidence(
+                upstream=(core.Step.of("tools/binding.py", ran), verdict),
+                files={"input": manifest["artifacts"]["input"]["sha256"] == pair["input_sha256"]},
+                checks={
+                    "about_this_pair": about,
+                    "replayed": verdict.get("reason") == "replayed",
+                    "refinement": (verdict.get("claim") or {}).get("kind") == "ir_instance_refinement",
+                },
+            ),
+        )
+        if decision.granted:
+            return {**out, "gate": "bound", "reason": "replayed"}
+        return {**out, "gate": "error", "reason": f"verdict_{decision.reason}", "detail": decision.detail}
     return {**out, "gate": status or "error", "reason": verdict.get("reason") or "unknown"}
 
 
@@ -978,16 +1033,22 @@ def witnesses(args: list[str], params: list[str], example: dict, limit: int, see
 def refute_pair(
     pair: dict, prove: dict, alive: dict | None, work: Path, timeout: int, memory: int, limit: int
 ) -> dict:
+    """The model run on inputs, through tools/verify.py: a counterexample that irlean.verdict grants as
+    refuted, and that no model stop explains, is the model's refutation."""
     out: dict[str, Any] = {"id": pair["id"]}
     args = prove.get("args")
     result_type = prove.get("result", "")
-    vector_result = re.fullmatch(r"Outcome \(Vec (\d+) \d+\)", result_type)
+    vector_result = re.fullmatch(r"Outcomes? \(Vec (\d+) \d+\)", result_type)
+    src_chooses, tgt_chooses = prove.get("chooses") or (False, False)
     if (
         args is None
         or not all(VAL.fullmatch(a) or VEC.fullmatch(a) for a in args)
-        or not (re.fullmatch(r"Outcome \(Val \d+\)", result_type) or vector_result)
+        or not (re.fullmatch(r"Outcomes? \(Val \d+\)", result_type) or vector_result)
     ):
         return {**out, "refute": "unsupported", "reason": "not_integers_or_vectors"}
+    if src_chooses:
+        # Refuting needs every way the source chooses to fail, which no witness shows.
+        return {**out, "refute": "unsupported", "reason": "source_chooses"}
     d = work / "prove" / pair["id"]
     files = d / "files"
     params = [
@@ -996,8 +1057,10 @@ def refute_pair(
     ]
     xs = [f"x{i}" for i in range(len(args))]
     app = " ".join(xs)
-    src, tgt = f"Opt.src {app}".strip(), f"Opt.tgt {app}".strip()
-    claim = (
+    # A target that chooses is refuted by one way of choosing, which is a binder like the inputs.
+    src, tgt = f"Opt.src {app}".strip(), f"Opt.tgt {app} ct".replace("  ", " ") if tgt_chooses else ""
+    tgt = tgt or f"Opt.tgt {app}".strip()
+    text = (
         VEC_REFINES.format(src=src, tgt=tgt, n=vector_result.group(1))
         if vector_result
         else REFINES.format(src=src, tgt=tgt)
@@ -1010,7 +1073,10 @@ def refute_pair(
     else:
         # tools/verify.py decides a statement at a witness, so one with no arguments gets a binder of its own.
         binders, ws = "(u : Unit)", [{"u": "()"}]
-    statement = f"∀ {binders}, {claim}"
+    if tgt_chooses:
+        binders += " (ct : IRLean.Choice)"
+        ws = [{**w, "ct": f"fun _ => {k}"} for w in ws[: max(1, limit // 2)] for k in (0, 1)]
+    statement = f"∀ {binders}, {text}"
     request = {
         "input": {"ir": "Opt.ll"},
         "namespace": "Opt",
@@ -1019,11 +1085,8 @@ def refute_pair(
         "witnesses": ws,
         "limits": {"timeout_seconds": timeout, "memory_mb": memory},
     }
-    harness, _ = verify_once(request, files, "refute", d / "refute", timeout)
-    try:
-        result = json.loads(harness.stdout)
-    except ValueError:
-        result = {}
+    harness, _, ran = verify_once(request, files, "refute", d / "refute", timeout)
+    result = record_of(ran) or {}
     out.update(
         seconds=harness.seconds,
         witnesses=len(ws),
@@ -1032,31 +1095,28 @@ def refute_pair(
         verify_reason=result.get("reason"),
     )
     status = result.get("status")
-    if status == "counterexample" and result.get("exit_code") == 2 and harness.exit == 2:
-        cx = result.get("counterexample") or {}
-        assignment = cx.get("assignment")
+    if status == "counterexample":
+        refuted = decided(core.Verdict.REFUTED, ran, result, {})
+        if not refuted.granted:
+            return {**out, "refute": str(refuted.verdict), "reason": f"verdict_{refuted.reason}"}
+        assignment = (result.get("counterexample") or {}).get("assignment")
         out["assignment"] = assignment
         # A model stop isn't LLVM's answer, so a counterexample through one says nothing about LLVM:
         # ask whether either side stops the model on that input.
         stops = "[" + ", ".join(f"IRLean.ModelStop.{s}" for s in MODEL_STOPS) + "]"
-        stopped = " ∨ ".join(
-            f"(∃ s ∈ {stops}, Opt.{f} {app} = IRLean.Outcome.stop s)".replace("  ", " ")
-            for f in ("src", "tgt")
-        )
-        probe = {
-            **request,
-            "statement": f"∀ {binders}, ¬({stopped})",
-            "witnesses": [assignment],
-        }
-        ran, _ = verify_once(probe, files, "stops", d / "stops", timeout)
-        try:
-            pr = json.loads(ran.stdout)
-        except ValueError:
-            pr = {}
-        out["seconds"] = round(out["seconds"] + ran.seconds, 2)
-        if pr.get("status") == "counterexample" and ran.exit == 2:
+        stopped = " ∨ ".join(f"(∃ s ∈ {stops}, {f} = IRLean.Outcome.stop s)" for f in (src, tgt))
+        probe = {**request, "statement": f"∀ {binders}, ¬({stopped})", "witnesses": [assignment]}
+        harness2, _, ran2 = verify_once(probe, files, "stops", d / "stops", timeout)
+        pr = record_of(ran2) or {}
+        out["seconds"] = round(out["seconds"] + harness2.seconds, 2)
+        if decided(core.Verdict.REFUTED, ran2, pr, {}).granted:
             return {**out, "refute": "model_stop", "reason": "a side stops the model on the counterexample"}
-        if pr.get("status") == "error" and pr.get("reason") == "not_proved" and ran.exit == 1:
+        if (
+            pr.get("status") == "error"
+            and pr.get("reason") == "not_proved"
+            and ran2.exit == 1
+            and not ran2.limit
+        ):
             return {**out, "refute": "refuted", "reason": "witness_falsifies"}
         return {**out, "refute": "unknown", "reason": f"stop probe: {pr.get('status')}/{pr.get('reason')}"}
     if harness.timed_out or status == "timeout":
@@ -1068,7 +1128,7 @@ def refute_pair(
 
 def cmd_refute(args: argparse.Namespace) -> int:
     work: Path = args.work
-    if "freezePoison" not in MODEL_STOPS or "divByZero" not in UB_REASONS:
+    if "unknownCallee" not in MODEL_STOPS or "divByZero" not in UB_REASONS:
         sys.exit(
             f"can't read IRLean.UB or IRLean.ModelStop from IRLean/Basic.lean: {UB_REASONS} {MODEL_STOPS}"
         )
@@ -1503,7 +1563,7 @@ def cmd_all(args: argparse.Namespace) -> int:
 # Known miscompilations
 
 KNOWN = Path(__file__).resolve().parent / "known_wrong.json"
-KNOWN_SCHEMA = "ir-lean.stage1.known-wrong/1"
+KNOWN_SCHEMA = schemas.STAGE1_KNOWN_WRONG
 DASHBOARD = "https://web.ist.utl.pt/nuno.lopes/alive2/index.php"
 DASHBOARD_RUN = "c3466a6048874dbf"
 SHORTLINK = "https://alive2.llvm.org/ce/api/shortlinkinfo/"
