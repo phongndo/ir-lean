@@ -2,10 +2,19 @@ import IRLean.Vec
 
 /-! The x86 integer dot-product intrinsics clang emits for `_mm256_maddubs_epi16`, `_mm256_madd_epi16` and
 `_mm256_dpbusd_epi32`, and their 128- and 512-bit forms, following the pseudo-code for PMADDUBSW, PMADDWD and
-VPDPBUSD in Intel's Software Developer's Manual. `tests/real/x86.ll` runs each against the processor.
+VPDPBUSD in Intel's Software Developer's Manual.
 
-LangRef says nothing about poison in target intrinsics. Here a lane of the result is poison when a lane it's
-computed from is, the way the model treats every other vector operation. -/
+LangRef 23.1.3 doesn't define target intrinsics, and its one rule for poison, "Most instructions return '`poison`'
+when one of their arguments is '`poison`'" (Poison Values), doesn't say which lanes. Here a lane of the result is
+poison when a lane it's computed from is, the way the model treats every other vector operation. LLVM agrees where it
+says anything: at the pin, `simplifyX86pmadd` in `llvm/lib/Target/X86/X86InstCombineIntrinsic.cpp` folds PMADDWD and
+PMADDUBSW on constants as shuffles, extensions, `mul` and `add` or `sadd.sat`, lane by lane, and
+`createVPDPBUSD` in `X86ISelLowering.cpp` reads VPDPBUSD as `C[i] + A[4i]B[4i] + ... + A[4i+3]B[4i+3]`, with `A`
+zero-extended and `B` sign-extended. So does Alive2's `x86_intrinsics.cpp`, for the first two.
+
+`tests/x86check.py` checks PMADDUBSW and PMADDWD at every width against Alive2, both ways, and against LLVM's
+constant folder, poison included. Neither knows VPDPBUSD, so only `tests/real/x86.ll` checks it, against the
+processor, which needs AVX-512 VNNI and can't see poison. -/
 
 namespace IRLean.X86
 

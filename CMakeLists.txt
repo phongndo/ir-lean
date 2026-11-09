@@ -46,6 +46,9 @@ add_test(
         --strict --runs 400
 )
 set_tests_properties(x86 PROPERTIES SKIP_RETURN_CODE 77)
+# The same intrinsics but VPDPBUSD, and vector bitcasts, against Alive2 and LLVM's constant folder, on any
+# processor.
+add_test(NAME x86check COMMAND ${CMAKE_SOURCE_DIR}/tests/x86check.py $<TARGET_FILE:ir-lean>)
 add_test(
     NAME undefined
     COMMAND
@@ -189,6 +192,7 @@ set_tests_properties(
     superopt
     llama
     x86
+    x86check
     verify
     PROPERTIES TIMEOUT 1800
 )
