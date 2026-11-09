@@ -41,3 +41,12 @@ roots = [
   "Popcount",
   "UpdateWindow",
 ]
+
+# Chunk 1's G2: models of the folds in InstSimplify, InstCombine, AggressiveInstCombine and Reassociate, each
+# rewrite proved for every input, by the IDs tests/llvm_scope/rewrites gives them. Each Lean process is capped at
+# 4 GB: a proof that needs more is missing a lemma. docs/rewrite-proofs.md.
+[[lean_lib]]
+name = "Peephole"
+srcDir = "tests/passes-proofs/peephole"
+globs = ["Peephole.+"]
+moreLeanArgs = ["-M", "4096"]

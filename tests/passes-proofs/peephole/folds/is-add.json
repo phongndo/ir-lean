@@ -1,0 +1,25 @@
+{
+  "schema": "ir-lean.peephole.folds/1",
+  "family": "is-add",
+  "pass": "instsimplify",
+  "modules": ["Peephole.IS.Add"],
+  "entries": [
+    {"fold": "Peephole.IS.simplifyAddInst.onInst", "opcodes": ["add"], "opt": "instsimplify"}
+  ],
+  "folds": {
+    "Peephole.IS.simplifyAddInst": {
+      "sound": "Peephole.IS.simplifyAddInst.sound",
+      "sites": [
+        "IS.simplifyAddInst.L601",
+        "IS.simplifyAddInst.L605",
+        "IS.simplifyAddInst.L609",
+        "IS.simplifyAddInst.L613",
+        "IS.simplifyAddInst.L621",
+        "IS.simplifyAddInst.L626",
+        "IS.simplifyAddInst.L633",
+        "IS.simplifyAddInst.L637"
+      ]
+    }
+  },
+  "unproved": {}
+}
