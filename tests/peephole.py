@@ -89,7 +89,7 @@ def today() -> str:
 
 
 def rel(path: Path) -> str:
-    return path.relative_to(ROOT).as_posix()
+    return path.relative_to(ROOT).as_posix() if path.is_relative_to(ROOT) else str(path)
 
 
 # ------------------------------------------------------------------------------------------------------------
@@ -228,6 +228,14 @@ def inventory() -> dict[str, list[dict[str, Any]]]:
 # Running Lean, opt and lake
 
 
+def lean_env(*dirs: Path, **extra: str) -> dict[str, str]:
+    """The environment for a Lean process reading modules from `dirs`, then from the directories
+    PEEPHOLE_OVERLAY lists, then from the library lake built. A test puts a changed module in an overlay to
+    see that each command notices."""
+    overlay = [Path(p) for p in os.environ.get("PEEPHOLE_OVERLAY", "").split(os.pathsep) if p]
+    return {**leanlib.env(*dirs, *overlay), **extra}
+
+
 def run(argv: Sequence[str | Path], env: dict[str, str] | None = None, timeout: float = TIMEOUT) -> proc.Ran:
     """Runs a command from the repo's root. A limit is Unknown, never a result."""
     try:
@@ -276,7 +284,7 @@ def build_harness(work: Path) -> None:
         leanlib.argv(
             LEAN_MB, "-R", work, "-o", work / "PeepholeHarness.olean", work / "PeepholeHarness.lean"
         ),
-        leanlib.env(work),
+        lean_env(work),
     )
     if r.exit != 0:
         raise HarnessError(f"tests/peephole/Harness.lean doesn't compile:\n{r.output[-3000:]}")
@@ -290,7 +298,7 @@ def facts(work: Path, request: dict[str, Any], modules: list[str], pool: str | N
     driver.write_text(
         "".join(f"import {m}\n" for m in ["PeepholeHarness", *modules]) + "\nrun_meta PeepholeHarness.facts\n"
     )
-    argv, env = leanlib.argv(LEAN_MB, driver), leanlib.env(work, PEEPHOLE_REQUEST=str(work / "request.json"))
+    argv, env = leanlib.argv(LEAN_MB, driver), lean_env(work, PEEPHOLE_REQUEST=str(work / "request.json"))
     if pool is not None:
         record, said = pooled(pool, argv, env, LEAN_MB + 1000, TIMEOUT)
         if record["exit"] != 0:
@@ -650,9 +658,9 @@ def generated_terms(op: str) -> list[dict[str, Any]]:
         ]
         for v in (8,):
             conds += [
-                {"k": "icmp", "w": 1, "id": g.fresh(), "p": p, "samesign": False, "a": g.var(0, v), "b": b}
+                {"k": "icmp", "w": 1, "id": g.fresh(), "p": p, "samesign": False, "a": g.var(3, v), "b": b}
                 for p in ("eq", "ne", "ult", "slt")
-                for b in (g.var(1, v), g.c(0, v))
+                for b in (g.var(4, v), g.c(0, v))
             ]
         for w in (1, 8, 32):
             vals = g.leaves(w) + g.instructions(w)[:4]
@@ -754,7 +762,9 @@ class Emitter:
             if k in ("poison", "undef"):
                 return k
             if k == "var":
-                args[t["id"]] = t["w"]
+                # One identity is one value, of one type: two would be one `Value *` to the model.
+                if args.setdefault(t["id"], t["w"]) != t["w"]:
+                    raise HarnessError(f"case {n}: argument {t['id']} at widths {args[t['id']]} and {t['w']}")
                 names[t["id"]] = f"%v{t['id']}"
                 return f"%v{t['id']}"
             if t["id"] not in names:
@@ -932,7 +942,7 @@ def run_models(
     with (work / "cases.jsonl").open("w") as f:
         for c in cases:
             f.write(json.dumps({"name": c.name, "entry": c.entry, "term": c.term}) + "\n")
-    r = run(leanlib.argv(LEAN_MB, "--run", work / "Driver.lean", work / "cases.jsonl"), leanlib.env(work))
+    r = run(leanlib.argv(LEAN_MB, "--run", work / "Driver.lean", work / "cases.jsonl"), lean_env(work))
     if r.exit != 0:
         raise HarnessError(f"the models' driver failed:\n{r.output[-4000:]}")
     untagged = [line.split(" ", 1)[1] for line in r.err.splitlines() if line.startswith("HARNESS-UNTAGGED ")]
@@ -1115,10 +1125,10 @@ def module_checks(modules: list[str]) -> dict[str, dict[str, Any]]:
     leanchecker, a few at a time."""
 
     def audit(m: str) -> tuple[str, str, proc.Ran]:
-        return m, "check_axioms", run(leanlib.audit_argv(LEAN_MB), {**leanlib.env(), **leanlib.audit_env(m)})
+        return m, "check_axioms", run(leanlib.audit_argv(LEAN_MB), {**lean_env(), **leanlib.audit_env(m)})
 
     def replay(m: str) -> tuple[str, str, proc.Ran]:
-        return m, "leanchecker", run(leanlib.checker(m), leanlib.env())
+        return m, "leanchecker", run(leanlib.checker(m), lean_env())
 
     out: dict[str, dict[str, Any]] = {m: {} for m in modules}
     with concurrent.futures.ThreadPoolExecutor(max_workers=2) as pool:
@@ -1130,6 +1140,33 @@ def module_checks(modules: list[str]) -> dict[str, dict[str, Any]]:
                 said = re.search(r"and (\d+) from bv_decide", r.out)
                 out[m]["bv_decide"] = int(said[1]) if said else None
     return out
+
+
+def counts(
+    site: str,
+    found: dict[str, Any] | None,
+    sound: str,
+    snd: dict[str, Any],
+    built: core.Step,
+    ran: dict[str, Any],
+    why_not: str,
+) -> core.Decision:
+    """Whether a rewrite counts as proved for every input: what Lean says of its theorem, `found`, and of
+    its fold's `sound` theorem, `snd`, its module's axiom audit and replay, `ran`, and why its comparison with
+    `opt` doesn't count, `why_not`, if it doesn't. irlean.verdict decides."""
+    rules = {
+        f"Peephole.{site} is a theorem": bool(found) and found["kind"] == "theorem",
+        "it rests on the standard three axioms only": bool(found) and set(found["axioms"]) <= STANDARD_AXIOMS,
+        f"{sound} is a theorem on the standard three axioms only": snd.get("kind") == "theorem"
+        and set(snd.get("axioms", ["?"])) <= STANDARD_AXIOMS,
+        f"{sound} uses it": f"Peephole.{site}" in snd.get("sites", []),
+        "its module rests on nothing from bv_decide": ran.get("bv_decide") == 0,
+        "its model's comparison with opt is recorded for its sources now, with no mismatch": not why_not,
+    }
+    evidence = core.Evidence(
+        lean=built, replay=ran.get("leanchecker"), axioms=ran.get("check_axioms"), checks=rules
+    )
+    return core.decide(core.Verdict.PROVED, evidence)
 
 
 def pct(n: int, d: int) -> float:
@@ -1166,24 +1203,10 @@ def score(args: argparse.Namespace) -> int:
     comparisons = {reg.family: recorded(reg) for reg in regs}
     proved, not_counted = [], []
     for s, (reg, fold, sound) in sorted(listed.items()):
-        f, snd = sites.get(s), sounds.get(sound, {})
-        ran = checks.get(f["module"], {}) if f else {}
+        f = sites.get(s)
         why_not = comparisons[reg.family][1]
-        rules = {
-            f"Peephole.{s} is a theorem": bool(f) and f["kind"] == "theorem",
-            "it rests on the standard three axioms only": bool(f) and set(f["axioms"]) <= STANDARD_AXIOMS,
-            f"{sound} is a theorem on the standard three axioms only": snd.get("kind") == "theorem"
-            and set(snd.get("axioms", ["?"])) <= STANDARD_AXIOMS,
-            f"{sound} uses it": f"Peephole.{s}" in snd.get("sites", []),
-            "its module rests on nothing from bv_decide": ran.get("bv_decide") == 0,
-            "its model's comparison with opt is recorded for its sources now, with no mismatch": not why_not,
-        }
-        decision = core.decide(
-            core.Verdict.PROVED,
-            core.Evidence(
-                lean=built, replay=ran.get("leanchecker"), axioms=ran.get("check_axioms"), checks=rules
-            ),
-        )
+        ran = checks.get(f["module"], {}) if f else {}
+        decision = counts(s, f, sound, sounds.get(sound, {}), built, ran, why_not)
         if decision.granted:
             proved.append(
                 {"id": s, "family": reg.family, "fold": fold, "theorem": f"Peephole.{s}", "sound": sound}
@@ -1345,7 +1368,7 @@ def measure(args: argparse.Namespace) -> int:
         per_module, timed = {}, {}
         for m in modules:
             record, _ = pooled(
-                f"peephole-{m}", leanlib.argv(LEAN_MB, module_file(m)), leanlib.env(), LEAN_MB + 1000, TIMEOUT
+                f"peephole-{m}", leanlib.argv(LEAN_MB, module_file(m)), lean_env(), LEAN_MB + 1000, TIMEOUT
             )
             per_module[m] = {
                 k: record[k]
@@ -1354,7 +1377,7 @@ def measure(args: argparse.Namespace) -> int:
             _, said = pooled(
                 f"peephole-time-{m}",
                 leanlib.argv(LEAN_MB, "--run", work / "Time.lean", module_file(m), m),
-                leanlib.env(work),
+                lean_env(work),
                 LEAN_MB + 1000,
                 TIMEOUT,
             )
