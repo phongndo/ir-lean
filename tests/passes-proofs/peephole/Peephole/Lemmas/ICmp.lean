@@ -7,8 +7,14 @@ Each is about bit vectors, not about LLVM's code: a candidate for the lemma stor
 can use. The rewrite each one was cut from is named in its docstring. Comparisons are `BitVec`'s own: `ult`, `ule`,
 `slt` and `sle`, which `IRLean.Val.icmp` reads, with `>` written by swapping the operands.
 
-For each hypothesis of each lemma, `LemmaStore.Counter.<lemma>.drop_<hypothesis>`, at the end, gives one input where
-the lemma without it is false, and `LemmaStore.Counter.<lemma>.sat` one where its hypotheses all hold. -/
+The facts about `toNat` and `toInt` that the proofs below go through (`toInt_toNat_cases`, `two_pow_*`,
+`toNat_sub_or` and the like, `slt_eq_sub_intMin`, `outside_of_signExtend_ne`, `toInt_signExtend_range`) are
+arithmetic for the proofs here, not offered to the store; nor are `ule_or_self_right`, which is the icmp-b family's
+`ule_or_right`, and `msb_of_and_eq_self` and `msb_of_and_eq_zero`, which are its `msb_true_of_and_eq` and
+`msb_false_of_and_eq_zero`. `folds/is-icmp.json` lists what is offered.
+
+For each hypothesis of each lemma offered, `LemmaStore.Counter.<lemma>.drop_<hypothesis>`, at the end, gives one
+input where the lemma without it is false, and `LemmaStore.Counter.<lemma>.sat` one where its hypotheses all hold. -/
 
 namespace Peephole.Lemmas
 
@@ -531,3 +537,259 @@ theorem usubSat_ule (x y : BitVec w) : (if BitVec.ult x y then 0#w else x - y).u
     omega
 
 end Peephole.Lemmas
+
+/-! ### Counterexamples for the lemmas offered to the store
+
+For each hypothesis of each lemma `folds/is-icmp.json` offers, the lemma without it is false: `drop_<hypothesis>`
+gives one input where it fails. `sat` gives one input where its hypotheses all hold. -/
+
+namespace LemmaStore.Counter
+
+open IRLean
+
+/-! #### A zero extension against a constant that isn't one -/
+
+theorem Peephole.Lemmas.setWidth_ult_of_ne.drop_h :
+    ¬ ∀ {v w : Nat} (x : BitVec v) {c : BitVec w}, (x.setWidth w).ult c = true :=
+  fun h => absurd (@h 1 1 0#1 0#1) (by decide)
+
+theorem Peephole.Lemmas.setWidth_ult_of_ne.sat :
+    ∃ (v w : Nat) (_ : BitVec v) (c : BitVec w), (c.setWidth v).setWidth w ≠ c := ⟨0, 1, 0#0, 1#1, by decide⟩
+
+theorem Peephole.Lemmas.setWidth_slt_of_ne.drop_h :
+    ¬ ∀ {v w : Nat} (x : BitVec v) {c : BitVec w}, (x.setWidth w).slt c = !c.msb :=
+  fun h => absurd (@h 1 1 0#1 0#1) (by decide)
+
+theorem Peephole.Lemmas.setWidth_slt_of_ne.sat :
+    ∃ (v w : Nat) (_ : BitVec v) (c : BitVec w), (c.setWidth v).setWidth w ≠ c := ⟨0, 1, 0#0, 1#1, by decide⟩
+
+theorem Peephole.Lemmas.setWidth_sle_of_ne.drop_h :
+    ¬ ∀ {v w : Nat} (x : BitVec v) {c : BitVec w}, (x.setWidth w).sle c = !c.msb :=
+  fun h => absurd (@h 2 2 1#2 0#2) (by decide)
+
+theorem Peephole.Lemmas.setWidth_sle_of_ne.sat :
+    ∃ (v w : Nat) (_ : BitVec v) (c : BitVec w), (c.setWidth v).setWidth w ≠ c := ⟨0, 1, 0#0, 1#1, by decide⟩
+
+theorem Peephole.Lemmas.slt_setWidth_of_ne.drop_h :
+    ¬ ∀ {v w : Nat} (x : BitVec v) {c : BitVec w}, c.slt (x.setWidth w) = c.msb :=
+  fun h => absurd (@h 1 1 1#1 1#1) (by decide)
+
+theorem Peephole.Lemmas.slt_setWidth_of_ne.sat :
+    ∃ (v w : Nat) (_ : BitVec v) (c : BitVec w), (c.setWidth v).setWidth w ≠ c := ⟨0, 1, 0#0, 1#1, by decide⟩
+
+theorem Peephole.Lemmas.sle_setWidth_of_ne.drop_h :
+    ¬ ∀ {v w : Nat} (x : BitVec v) {c : BitVec w}, c.sle (x.setWidth w) = c.msb :=
+  fun h => absurd (@h 1 1 0#1 0#1) (by decide)
+
+theorem Peephole.Lemmas.sle_setWidth_of_ne.sat :
+    ∃ (v w : Nat) (_ : BitVec v) (c : BitVec w), (c.setWidth v).setWidth w ≠ c := ⟨0, 1, 0#0, 1#1, by decide⟩
+
+/-! #### A sign extension against a constant that isn't one -/
+
+theorem Peephole.Lemmas.signExtend_ne_of_ne.drop_h :
+    ¬ ∀ {v w : Nat} (x : BitVec v) {c : BitVec w}, x.signExtend w ≠ c :=
+  fun h => absurd (@h 1 1 0#1 0#1) (by decide)
+
+theorem Peephole.Lemmas.signExtend_ne_of_ne.sat :
+    ∃ (v w : Nat) (_ : BitVec v) (c : BitVec w), (c.setWidth v).signExtend w ≠ c := ⟨1, 2, 0#1, 1#2, by decide⟩
+
+theorem Peephole.Lemmas.signExtend_slt_of_ne.drop_h :
+    ¬ ∀ {v w : Nat} (x : BitVec v) {c : BitVec w}, (x.signExtend w).slt c = !c.msb :=
+  fun h => absurd (@h 1 1 0#1 0#1) (by decide)
+
+theorem Peephole.Lemmas.signExtend_slt_of_ne.sat :
+    ∃ (v w : Nat) (_ : BitVec v) (c : BitVec w), (c.setWidth v).signExtend w ≠ c := ⟨1, 2, 0#1, 1#2, by decide⟩
+
+theorem Peephole.Lemmas.signExtend_sle_of_ne.drop_h :
+    ¬ ∀ {v w : Nat} (x : BitVec v) {c : BitVec w}, (x.signExtend w).sle c = !c.msb :=
+  fun h => absurd (@h 2 2 1#2 0#2) (by decide)
+
+theorem Peephole.Lemmas.signExtend_sle_of_ne.sat :
+    ∃ (v w : Nat) (_ : BitVec v) (c : BitVec w), (c.setWidth v).signExtend w ≠ c := ⟨1, 2, 0#1, 1#2, by decide⟩
+
+theorem Peephole.Lemmas.slt_signExtend_of_ne.drop_h :
+    ¬ ∀ {v w : Nat} (x : BitVec v) {c : BitVec w}, c.slt (x.signExtend w) = c.msb :=
+  fun h => absurd (@h 1 1 1#1 1#1) (by decide)
+
+theorem Peephole.Lemmas.slt_signExtend_of_ne.sat :
+    ∃ (v w : Nat) (_ : BitVec v) (c : BitVec w), (c.setWidth v).signExtend w ≠ c := ⟨1, 2, 0#1, 1#2, by decide⟩
+
+theorem Peephole.Lemmas.sle_signExtend_of_ne.drop_h :
+    ¬ ∀ {v w : Nat} (x : BitVec v) {c : BitVec w}, c.sle (x.signExtend w) = c.msb :=
+  fun h => absurd (@h 1 1 0#1 0#1) (by decide)
+
+theorem Peephole.Lemmas.sle_signExtend_of_ne.sat :
+    ∃ (v w : Nat) (_ : BitVec v) (c : BitVec w), (c.setWidth v).signExtend w ≠ c := ⟨1, 2, 0#1, 1#2, by decide⟩
+
+theorem Peephole.Lemmas.ult_signExtend_of_ne.drop_h :
+    ¬ ∀ {v w : Nat} (x : BitVec v) {c : BitVec w}, c.ult (x.signExtend w) = x.msb :=
+  fun h => absurd (@h 1 1 1#1 1#1) (by decide)
+
+theorem Peephole.Lemmas.ult_signExtend_of_ne.sat :
+    ∃ (v w : Nat) (_ : BitVec v) (c : BitVec w), (c.setWidth v).signExtend w ≠ c := ⟨1, 2, 0#1, 1#2, by decide⟩
+
+theorem Peephole.Lemmas.ule_signExtend_of_ne.drop_h :
+    ¬ ∀ {v w : Nat} (x : BitVec v) {c : BitVec w}, c.ule (x.signExtend w) = x.msb :=
+  fun h => absurd (@h 1 1 0#1 0#1) (by decide)
+
+theorem Peephole.Lemmas.ule_signExtend_of_ne.sat :
+    ∃ (v w : Nat) (_ : BitVec v) (c : BitVec w), (c.setWidth v).signExtend w ≠ c := ⟨1, 2, 0#1, 1#2, by decide⟩
+
+/-! #### Two extensions from one width: narrowing loses the order -/
+
+theorem Peephole.Lemmas.setWidth_ult_setWidth.drop_h :
+    ¬ ∀ {v w : Nat} (x y : BitVec v), (x.setWidth w).ult (y.setWidth w) = x.ult y :=
+  fun h => absurd (@h 2 1 2#2 1#2) (by decide)
+
+theorem Peephole.Lemmas.setWidth_ult_setWidth.sat : ∃ (v w : Nat) (_ _ : BitVec v), v ≤ w :=
+  ⟨0, 0, 0#0, 0#0, Nat.le_refl 0⟩
+
+theorem Peephole.Lemmas.setWidth_ule_setWidth.drop_h :
+    ¬ ∀ {v w : Nat} (x y : BitVec v), (x.setWidth w).ule (y.setWidth w) = x.ule y :=
+  fun h => absurd (@h 2 1 2#2 1#2) (by decide)
+
+theorem Peephole.Lemmas.setWidth_ule_setWidth.sat : ∃ (v w : Nat) (_ _ : BitVec v), v ≤ w :=
+  ⟨0, 0, 0#0, 0#0, Nat.le_refl 0⟩
+
+theorem Peephole.Lemmas.setWidth_beq_setWidth.drop_h :
+    ¬ ∀ {v w : Nat} (x y : BitVec v), (x.setWidth w == y.setWidth w) = (x == y) :=
+  fun h => absurd (@h 2 1 2#2 0#2) (by decide)
+
+theorem Peephole.Lemmas.setWidth_beq_setWidth.sat : ∃ (v w : Nat) (_ _ : BitVec v), v ≤ w :=
+  ⟨0, 0, 0#0, 0#0, Nat.le_refl 0⟩
+
+/-- Zero extension to the same width keeps the sign bit, so signed order isn't unsigned order. -/
+theorem Peephole.Lemmas.setWidth_slt_setWidth.drop_h :
+    ¬ ∀ {v w : Nat} (x y : BitVec v), (x.setWidth w).slt (y.setWidth w) = x.ult y :=
+  fun h => absurd (@h 1 1 1#1 0#1) (by decide)
+
+theorem Peephole.Lemmas.setWidth_slt_setWidth.sat : ∃ (v w : Nat) (_ _ : BitVec v), v < w :=
+  ⟨0, 1, 0#0, 0#0, Nat.one_pos⟩
+
+theorem Peephole.Lemmas.setWidth_sle_setWidth.drop_h :
+    ¬ ∀ {v w : Nat} (x y : BitVec v), (x.setWidth w).sle (y.setWidth w) = x.ule y :=
+  fun h => absurd (@h 1 1 1#1 0#1) (by decide)
+
+theorem Peephole.Lemmas.setWidth_sle_setWidth.sat : ∃ (v w : Nat) (_ _ : BitVec v), v < w :=
+  ⟨0, 1, 0#0, 0#0, Nat.one_pos⟩
+
+theorem Peephole.Lemmas.signExtend_slt_signExtend.drop_h :
+    ¬ ∀ {v w : Nat} (x y : BitVec v), (x.signExtend w).slt (y.signExtend w) = x.slt y :=
+  fun h => absurd (@h 2 1 1#2 2#2) (by decide)
+
+theorem Peephole.Lemmas.signExtend_slt_signExtend.sat : ∃ (v w : Nat) (_ _ : BitVec v), v ≤ w :=
+  ⟨0, 0, 0#0, 0#0, Nat.le_refl 0⟩
+
+theorem Peephole.Lemmas.signExtend_sle_signExtend.drop_h :
+    ¬ ∀ {v w : Nat} (x y : BitVec v), (x.signExtend w).sle (y.signExtend w) = x.sle y :=
+  fun h => absurd (@h 2 1 1#2 2#2) (by decide)
+
+theorem Peephole.Lemmas.signExtend_sle_signExtend.sat : ∃ (v w : Nat) (_ _ : BitVec v), v ≤ w :=
+  ⟨0, 0, 0#0, 0#0, Nat.le_refl 0⟩
+
+theorem Peephole.Lemmas.signExtend_beq_signExtend.drop_h :
+    ¬ ∀ {v w : Nat} (x y : BitVec v), (x.signExtend w == y.signExtend w) = (x == y) :=
+  fun h => absurd (@h 2 1 2#2 0#2) (by decide)
+
+theorem Peephole.Lemmas.signExtend_beq_signExtend.sat : ∃ (v w : Nat) (_ _ : BitVec v), v ≤ w :=
+  ⟨0, 0, 0#0, 0#0, Nat.le_refl 0⟩
+
+theorem Peephole.Lemmas.signExtend_ult_signExtend.drop_h :
+    ¬ ∀ {v w : Nat} (x y : BitVec v), (x.signExtend w).ult (y.signExtend w) = x.ult y :=
+  fun h => absurd (@h 2 1 1#2 2#2) (by decide)
+
+theorem Peephole.Lemmas.signExtend_ult_signExtend.sat : ∃ (v w : Nat) (_ _ : BitVec v), v ≤ w :=
+  ⟨0, 0, 0#0, 0#0, Nat.le_refl 0⟩
+
+theorem Peephole.Lemmas.signExtend_ule_signExtend.drop_h :
+    ¬ ∀ {v w : Nat} (x y : BitVec v), (x.signExtend w).ule (y.signExtend w) = x.ule y :=
+  fun h => absurd (@h 2 1 1#2 2#2) (by decide)
+
+theorem Peephole.Lemmas.signExtend_ule_signExtend.sat : ∃ (v w : Nat) (_ _ : BitVec v), v ≤ w :=
+  ⟨0, 0, 0#0, 0#0, Nat.le_refl 0⟩
+
+/-! #### Constants next to zero: at width 0 every constant is 0, and in `i1`, 1 is -1 -/
+
+theorem Peephole.Lemmas.allOnes_slt.drop_hw :
+    ¬ ∀ {w : Nat} (x : BitVec w), (BitVec.allOnes w).slt x = (0#w).sle x :=
+  fun h => absurd (@h 0 0#0) (by decide)
+
+theorem Peephole.Lemmas.allOnes_slt.sat : ∃ (w : Nat) (_ : BitVec w), 0 < w := ⟨1, 0#1, Nat.one_pos⟩
+
+theorem Peephole.Lemmas.sle_allOnes.drop_hw :
+    ¬ ∀ {w : Nat} (x : BitVec w), x.sle (BitVec.allOnes w) = x.slt 0#w :=
+  fun h => absurd (@h 0 0#0) (by decide)
+
+theorem Peephole.Lemmas.sle_allOnes.sat : ∃ (w : Nat) (_ : BitVec w), 0 < w := ⟨1, 0#1, Nat.one_pos⟩
+
+theorem Peephole.Lemmas.one_sle.drop_hw : ¬ ∀ {w : Nat} (x : BitVec w), (1#w).sle x = (0#w).slt x :=
+  fun h => absurd (@h 1 0#1) (by decide)
+
+theorem Peephole.Lemmas.one_sle.sat : ∃ (w : Nat) (_ : BitVec w), 1 < w := ⟨2, 0#2, by decide⟩
+
+theorem Peephole.Lemmas.slt_one.drop_hw : ¬ ∀ {w : Nat} (x : BitVec w), x.slt 1#w = x.sle 0#w :=
+  fun h => absurd (@h 1 0#1) (by decide)
+
+theorem Peephole.Lemmas.slt_one.sat : ∃ (w : Nat) (_ : BitVec w), 1 < w := ⟨2, 0#2, by decide⟩
+
+theorem Peephole.Lemmas.one_ule.drop_hw : ¬ ∀ {w : Nat} (x : BitVec w), (1#w).ule x = (0#w).ult x :=
+  fun h => absurd (@h 0 0#0) (by decide)
+
+theorem Peephole.Lemmas.one_ule.sat : ∃ (w : Nat) (_ : BitVec w), 0 < w := ⟨1, 0#1, Nat.one_pos⟩
+
+theorem Peephole.Lemmas.ult_one.drop_hw : ¬ ∀ {w : Nat} (x : BitVec w), x.ult 1#w = x.ule 0#w :=
+  fun h => absurd (@h 0 0#0) (by decide)
+
+theorem Peephole.Lemmas.ult_one.sat : ∃ (w : Nat) (_ : BitVec w), 0 < w := ⟨1, 0#1, Nat.one_pos⟩
+
+/-! #### Multiples -/
+
+/-- `3 * 3` wraps to `1` in `i2`, which isn't a multiple of 3. -/
+theorem Peephole.Lemmas.mul_ne_of_umod_ne.drop_hov :
+    ¬ ∀ {w : Nat} {x m c : BitVec w}, c % m ≠ 0#w → x * m ≠ c :=
+  fun h => absurd (@h 2 3#2 3#2 1#2 (by decide)) (by decide)
+
+theorem Peephole.Lemmas.mul_ne_of_umod_ne.drop_hc :
+    ¬ ∀ {w : Nat} {x m c : BitVec w}, x.umulOverflow m = false → x * m ≠ c :=
+  fun h => absurd (@h 1 0#1 1#1 0#1 (by decide)) (by decide)
+
+theorem Peephole.Lemmas.mul_ne_of_umod_ne.sat :
+    ∃ (w : Nat) (x m c : BitVec w), x.umulOverflow m = false ∧ c % m ≠ 0#w :=
+  ⟨1, 0#1, 0#1, 1#1, by decide, by decide⟩
+
+/-- `3 * 3` wraps to `1` in `i3`, which isn't a multiple of 3. -/
+theorem Peephole.Lemmas.mul_ne_of_srem_ne.drop_hov :
+    ¬ ∀ {w : Nat} {x m c : BitVec w}, c.srem m ≠ 0#w → x * m ≠ c :=
+  fun h => absurd (@h 3 3#3 3#3 1#3 (by decide)) (by decide)
+
+theorem Peephole.Lemmas.mul_ne_of_srem_ne.drop_hc :
+    ¬ ∀ {w : Nat} {x m c : BitVec w}, x.smulOverflow m = false → x * m ≠ c :=
+  fun h => absurd (@h 1 0#1 1#1 0#1 (by decide)) (by decide)
+
+theorem Peephole.Lemmas.mul_ne_of_srem_ne.sat :
+    ∃ (w : Nat) (x m c : BitVec w), x.smulOverflow m = false ∧ c.srem m ≠ 0#w :=
+  ⟨1, 0#1, 0#1, 1#1, by decide, by decide⟩
+
+/-! #### Products that don't wrap -/
+
+theorem Peephole.Lemmas.ule_mul_left.drop_hov : ¬ ∀ {w : Nat} {x y : BitVec w}, y ≠ 0#w → x.ule (x * y) = true :=
+  fun h => absurd (@h 2 3#2 2#2 (by decide)) (by decide)
+
+theorem Peephole.Lemmas.ule_mul_left.drop_hy :
+    ¬ ∀ {w : Nat} {x y : BitVec w}, x.umulOverflow y = false → x.ule (x * y) = true :=
+  fun h => absurd (@h 1 1#1 0#1 (by decide)) (by decide)
+
+theorem Peephole.Lemmas.ule_mul_left.sat : ∃ (w : Nat) (x y : BitVec w), x.umulOverflow y = false ∧ y ≠ 0#w :=
+  ⟨1, 0#1, 1#1, by decide, by decide⟩
+
+theorem Peephole.Lemmas.ule_mul_right.drop_hov : ¬ ∀ {w : Nat} {x y : BitVec w}, x ≠ 0#w → y.ule (x * y) = true :=
+  fun h => absurd (@h 2 2#2 3#2 (by decide)) (by decide)
+
+theorem Peephole.Lemmas.ule_mul_right.drop_hx :
+    ¬ ∀ {w : Nat} {x y : BitVec w}, x.umulOverflow y = false → y.ule (x * y) = true :=
+  fun h => absurd (@h 1 0#1 1#1 (by decide)) (by decide)
+
+theorem Peephole.Lemmas.ule_mul_right.sat : ∃ (w : Nat) (x y : BitVec w), x.umulOverflow y = false ∧ x ≠ 0#w :=
+  ⟨1, 1#1, 0#1, by decide, by decide⟩
+
+end LemmaStore.Counter
