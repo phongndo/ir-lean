@@ -127,6 +127,8 @@ def rel(path: Path) -> str:
 # Pairs
 
 RUN_LINE = re.compile(r"^\s*;\s*RUN:(.*)$", re.M)
+# Promises to progress or to return. Recorded for the report: since SEM-07 the model checks them.
+PROMISES = re.compile(r"\b(mustprogress|willreturn)\b")
 DEFINE_NAME = re.compile(r'^define [^@]*@("(?:[^"\\]|\\.)*"|[-\w.$]+)\(', re.M)
 
 
@@ -701,13 +703,9 @@ def certify_pair(pair: dict, prove: dict, work: Path, timeout: int, memory: int)
 
 
 def eligible(pair: dict) -> bool:
-    """What tools/binding.py can bind: no argument that can be undef, and no trusted promise in the target."""
-    return (
-        pair["status"] == "candidate"
-        and bool(pair.get("spec"))
-        and not pair["undef_arguments"]
-        and not pair["trusted_promise"]
-    )
+    """What tools/binding.py can bind: an opt run, with no argument that can be undef. Since SEM-07 it binds
+    targets with `mustprogress` or `willreturn` too, since the model checks them."""
+    return pair["status"] == "candidate" and bool(pair.get("spec")) and not pair["undef_arguments"]
 
 
 def cmd_certify(args: argparse.Namespace) -> int:
@@ -829,10 +827,27 @@ def cmd_alive(args: argparse.Namespace) -> int:
 # Refutations: the model run on inputs, through tools/verify.py
 
 
-MODEL_STOPS = (
-    "freezePoison readUninit pointerBytes unknownCallee assumeOnPoison unobservableAccess "
-    "addressObserved returnedDiffers noaliasResult noReturnCall"
-).split()
+def constructors(kind: str) -> list[str]:
+    """The constructors of `IRLean.UB` or `IRLean.ModelStop`, read from IRLean/Basic.lean, so a reason or a
+    stop added there is never left out here."""
+    text = (ROOT / "IRLean" / "Basic.lean").read_text()
+    body = text.split(f"inductive {kind} where", 1)[1].split("deriving", 1)[0]
+    return re.findall(r"^  \| (\w+)", body, re.M)
+
+
+MODEL_STOPS = constructors("ModelStop")
+UB_REASONS = constructors("UB")
+RETURNS = "IRLean.andThen ({0}) (fun _ => IRLean.Outcome.ok ()) = IRLean.Outcome.ok ()"
+# The decidable claim of tests/verify_negative.py, over every reason IRLean.UB has: undefined behavior in the
+# source allows anything, a run that never ends only another, a poison result any result, and a value itself.
+REFINES = " ∨ ".join(
+    [
+        "(∃ r ∈ [" + ", ".join(f"IRLean.UB.{r}" for r in UB_REASONS) + "], {src} = IRLean.Outcome.ub r)",
+        "({src} = Option.none ∧ {tgt} = Option.none)",
+        "({src} = IRLean.Outcome.ok Option.none ∧ " + RETURNS.format("{tgt}") + ")",
+        "({src} ≠ IRLean.Outcome.ok Option.none ∧ " + RETURNS.format("{src}") + " ∧ {tgt} = {src})",
+    ]
+)
 
 
 def edge_values(w: int) -> list[int | None]:
@@ -888,7 +903,7 @@ def refute_pair(
     xs = [f"x{i}" for i in range(len(args))]
     binders = " ".join(f"({x} : IRLean.{a})" for x, a in zip(xs, args, strict=True))
     app = " ".join(xs)
-    claim = VN.REFINES.format(src=f"Opt.src {app}".strip(), tgt=f"Opt.tgt {app}".strip())
+    claim = REFINES.format(src=f"Opt.src {app}".strip(), tgt=f"Opt.tgt {app}".strip())
     statement = f"∀ {binders}, {claim}" if binders else claim
     ws = witnesses(args, params, (alive or {}).get("example") or {}, limit, pair["id"])
     request = {
@@ -946,18 +961,11 @@ def refute_pair(
     return {**out, "refute": status or "error", "reason": result.get("reason") or "unreadable"}
 
 
-def model_stops_in_basic() -> list[str]:
-    text = (ROOT / "IRLean" / "Basic.lean").read_text()
-    body = text.split("inductive ModelStop where", 1)[1].split("deriving", 1)[0]
-    return re.findall(r"^  \| (\w+)", body, re.M)
-
-
 def cmd_refute(args: argparse.Namespace) -> int:
     work: Path = args.work
-    if sorted(model_stops_in_basic()) != sorted(MODEL_STOPS):
+    if "freezePoison" not in MODEL_STOPS or "divByZero" not in UB_REASONS:
         sys.exit(
-            f"IRLean.ModelStop is {model_stops_in_basic()}, and this lists {list(MODEL_STOPS)}: a stop "
-            "left out would pass for a counterexample"
+            f"can't read IRLean.UB or IRLean.ModelStop from IRLean/Basic.lean: {UB_REASONS} {MODEL_STOPS}"
         )
     pairs = {p["id"]: p for p in read_jsonl(work / "pairs.jsonl")}
     prove = {r["id"]: r for r in read_jsonl(work / "prove.jsonl")}
@@ -1210,8 +1218,8 @@ def summarize(work: Path) -> dict:
             "emitter_refuses": dict(list(emitter_reasons.items())[:15]),
             "candidates": len(candidates),
             "candidates_with_undef_arguments": sum(1 for p in candidates if p["undef_arguments"]),
-            "candidates_with_trusted_promise": sum(1 for p in candidates if p["trusted_promise"]),
-            "candidates_with_trusted_promise_in_the_function": sum(
+            "candidates_with_a_promise_in_the_target": sum(1 for p in candidates if p["trusted_promise"]),
+            "candidates_with_a_promise_on_the_function": sum(
                 1 for p in candidates if p["trusted_promise_in_function"]
             ),
             "candidates_with_vectors": sum(1 for p in candidates if p["vector"]),
@@ -1610,8 +1618,8 @@ def classify(rec: dict, d: Path, src: str, tgt: str, function: str) -> dict:
         if not re.search(r"\bnoundef\b", re.sub(r'%"[^"]*"|%[-\w.$]+|"[^"]*"', "", x))
     ]
     rec["undef_arguments"] = len(loose)
-    rec["trusted_promise"] = bool(B.TRUSTED_PROMISES.search(tgt))
-    rec["trusted_promise_in_function"] = bool(B.TRUSTED_PROMISES.search(func_text(tgt, function) or ""))
+    rec["trusted_promise"] = bool(PROMISES.search(tgt))
+    rec["trusted_promise_in_function"] = bool(PROMISES.search(func_text(tgt, function) or ""))
     rec["vector"] = bool(rec["signature"] and "<" in rec["signature"])
     if any(rec["emitter"][s] != "ok" for s in ("src", "tgt")):
         return {**rec, "status": "unsupported", "reason": "emitter"}
