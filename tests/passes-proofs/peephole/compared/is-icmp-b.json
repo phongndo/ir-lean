@@ -2,7 +2,7 @@
   "schema": "ir-lean.peephole.comparison/1",
   "family": "is-icmp-b",
   "registry": "tests/passes-proofs/peephole/folds/is-icmp-b.json",
-  "sources": "c25e19a66613fb3cf6084eb457a8ff69a321a9e5e18b6a24fd68114e7c88f02c",
+  "sources": "6e6db66cd47539c8cb31eacea1b461a17241f14ecf9e42bd9a47d54a85b80932",
   "opt": "23.1.3",
   "date": "2026-11-09",
   "status": "ok",
