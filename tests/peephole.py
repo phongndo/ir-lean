@@ -447,8 +447,12 @@ class Builder:
         if re.fullmatch(r"-?\d+", text):
             return {"k": "const", "w": w, "c": str(int(text) % (1 << w))}
         inst = parse_instruction(self.defs[text]) if text in self.defs else None
-        if inst is None or inst[1] != w or depth >= MAX_DEPTH or text in stack:
+        if inst is None:
             return {"k": "var", "w": w, "id": self.ident(text)}
+        if inst[1] != w or depth >= MAX_DEPTH or text in stack:
+            # An instruction cut off here may be a node of the tree elsewhere, nearer the root, so as an
+            # argument it's another value, with an identity of its own.
+            return {"k": "var", "w": w, "id": self.ident(f"{text}#cut")}
         return self.node(text, inst, depth, stack)
 
     def node(self, name: str, inst: tuple, depth: int, stack: frozenset[str]) -> dict[str, Any]:
@@ -513,6 +517,9 @@ class Case:
     # The regression tests it was found in, or none if it's generated.
     files: list[str] = field(default_factory=list)
     where: str = ""
+    # Whether its function passes the root's operands to a call too, so each has more than one use. InstCombine's
+    # cases come both ways, since its folds ask whether an operand has one use. docs/rewrite-proofs.md.
+    keep: bool = True
 
 
 def harvest(entries: list[tuple[str, str, set[str]]], src: Path) -> tuple[list[Case], dict[str, Any]]:
@@ -749,12 +756,18 @@ INTRINSIC_ARITY = {**dict.fromkeys(UNARY, 1), **dict.fromkeys(BINARY, 2), **dict
 class Emitter:
     """One case as a function: its arguments are the `var`s, each instruction is emitted once, operands first,
     a call keeps the root's operands alive whatever happens to the root, and the root, `%r`, is returned. So
-    every line but the root and the `ret` has to come out of `opt` as it went in."""
+    every line but the root and the `ret` has to come out of `opt` as it went in.
+
+    With `keep` false there's no such call, so each operand has the uses the tree gives it, and InstCombine's
+    folds that need an operand with one use can fire. With `probe` the root is a call to an opaque function of
+    the same operands, which no pass folds: what `opt` does to the operands before it reaches the root."""
 
     def __init__(self) -> None:
         self.declares: set[str] = set()
 
-    def function(self, n: int, term: dict[str, Any]) -> tuple[str, dict[int, str]]:
+    def function(
+        self, n: int, term: dict[str, Any], keep: bool = True, probe: bool = False
+    ) -> tuple[str, dict[int, str]]:
         args: dict[int, int] = {}
         names: dict[int, str] = {}
         body: list[str] = []
@@ -778,11 +791,16 @@ class Emitter:
             return f"%n{t['id']}"
 
         operands = [(t["w"], value(t)) for t in (term[key] for key in OPERANDS[term["k"]])]
-        root = self.instruction(term, value)
+        uses = ", ".join(f"i{w} {v}" for w, v in operands)
+        if probe:
+            self.declares.add(f"declare i{term['w']} @probe.i{term['w']}(...)")
+            root = f"call i{term['w']} (...) @probe.i{term['w']}({uses})"
+        else:
+            root = self.instruction(term, value)
         names[term["id"]] = "%r"
         params = ", ".join(f"i{w} %v{i}" for i, w in sorted(args.items()))
-        uses = ", ".join(f"i{w} {v}" for w, v in operands)
-        lines = [f"define i{term['w']} @c{n}({params}) {{", *body, f"  call void (...) @use({uses})"]
+        lines = [f"define i{term['w']} @c{n}({params}) {{", *body]
+        lines += [f"  call void (...) @use({uses})"] if keep else []
         lines += [f"  %r = {root}", f"  ret i{term['w']} %r", "}"]
         return "\n".join(lines), names
 
@@ -838,11 +856,88 @@ def expected_text(answer: dict[str, Any], names: dict[int, str]) -> str | None:
     return names.get(t["node"], f"<no value with id {t['node']}>")
 
 
-# A comparison hook for folds whose answer is new IR, as InstCombine's are: given the case, the model's
-# answer and the root's function after `opt`, say whether they agree, or None to leave it uncompared.
-# docs/rewrite-proofs.md says how to fill it in.
-def compare_new_ir(case: Case, answer: dict[str, Any], after: list[str]) -> bool | None:
-    return None
+# The flags each opcode can carry, as LangRef has them: a model's `Flags` may set others, which mean nothing.
+FLAGS_OF = {
+    **dict.fromkeys(("add", "sub", "mul", "shl"), ("nuw", "nsw")),
+    **dict.fromkeys(("udiv", "sdiv", "lshr", "ashr"), ("exact",)),
+    "or": ("disjoint",),
+}
+RE_LOCAL = re.compile(r'%[-\w$.]+|%"[^"]*"')
+RE_ID = re.compile(r"%([vn])(\d+)\b")
+
+
+def one_use(text: str) -> list[int]:
+    """The identities of the arguments and instructions of a case's function, as Emitter names them, that have
+    exactly one use in it: what `V->hasOneUse()` answers for each."""
+    count: Counter[int] = Counter()
+    for line in text.splitlines()[1:]:
+        m = RE_DEF.match(line)
+        count.update(int(x[2]) for x in RE_ID.finditer(m[2] if m else line))
+    return sorted(i for i, k in count.items() if k == 1)
+
+
+def new_ir_function(text: str, answer: dict[str, Any], names: dict[int, str], em: Emitter) -> str:
+    """A case's function with the root replaced by what the model answered: its new instructions, in order,
+    operands first, where the root was, and the `ret` naming the answer."""
+    lines: list[str] = []
+
+    def value(r: dict[str, Any]) -> str:
+        k, w = r["k"], r["w"]
+        if k in ("old", "const", "poison"):
+            said = expected_text(r, names)
+            assert said is not None
+            return said
+        if k == "bin":
+            r = {**r, **{f: bool(r.get(f)) and f in FLAGS_OF.get(r["op"], ()) for f in ("nuw", "nsw", "exact", "disjoint")}}
+        text = em.instruction(r, value)
+        lines.append(f"  %m{len(lines)} = {text}")
+        return f"%m{len(lines) - 1}"
+
+    top = value(answer)
+    body = text.splitlines()
+    root = [i for i, x in enumerate(body) if x.startswith("  %r = ")]
+    if len(root) != 1:
+        raise HarnessError(f"no root in {body[0]}")
+    w = answer["w"]
+    return "\n".join([*body[: root[0]], *lines, f"  ret i{w} {top}", "}"])
+
+
+def expansion(lines: list[str]) -> str | None:
+    """What a function returns, as one expression: each value an instruction of it defines written out as that
+    instruction, its operands written out the same way, down to arguments and constants. Two functions that
+    compute the same tree of instructions, whatever they name them and whatever order they're in, have the same
+    expansion."""
+    defs: dict[str, str] = {}
+    for line in lines:
+        if m := RE_DEF.match(line):
+            rhs = re.split(r",\s*!", m[2], maxsplit=1)[0]
+            defs[m[1]] = re.sub(r"\s+#\d+$", "", rhs).strip()
+    rets = [x.split()[-1] for x in lines if x.startswith("  ret ")]
+    if len(rets) != 1:
+        return None
+    memo: dict[str, str] = {}
+
+    def go(v: str) -> str:
+        if v not in defs:
+            return v
+        if v not in memo:
+            memo[v] = "(" + RE_LOCAL.sub(lambda m: go(m[0]), defs[v]) + ")"
+        return memo[v]
+
+    return go(rets[0])
+
+
+def compare_new_ir(
+    case: Case, answer: dict[str, Any], after: list[str], normalized: list[str] | None = None
+) -> bool | None:
+    """Whether a model's answer that's new IR, as InstCombine's are, is what `opt` answers: the function with
+    the root replaced by the answer's instructions, `normalized` after `opt -passes=instcombine`, returns the
+    same expression as the case's function after `opt` does, `after`. None if the answer wasn't run through
+    `opt`, which leaves the case uncompared. docs/rewrite-proofs.md says what this can and can't tell apart."""
+    if normalized is None:
+        return None
+    want, got = expansion(after), expansion(normalized)
+    return want is not None and want == got
 
 
 @dataclass
@@ -903,9 +998,20 @@ def unchanged(before: list[str], after: list[str]) -> bool:
 
 
 def classify(
-    case: Case, answer: dict[str, Any], before: list[str], after: list[str], names: dict[int, str], t: Tally
+    case: Case,
+    answer: dict[str, Any],
+    before: list[str],
+    after: list[str],
+    names: dict[int, str],
+    t: Tally,
+    same_operands: bool | None = None,
+    normalized: dict[str, list[str]] | None = None,
 ) -> None:
-    """Puts one case's comparison into `t`."""
+    """Puts one case's comparison into `t`. `same_operands` says whether `opt` left the root's operands as
+    they were when it reached the root, if the caller worked it out, as for InstCombine's cases; otherwise it's
+    every line of the function but the root and the `ret` coming out as it went in. `normalized` has the
+    function with the root replaced by the model's new IR, after `opt`, for its `"result"` and its
+    `"analysis"`."""
     t.cases += 1
     t.harvested += bool(case.files)
     t.generated += not case.files
@@ -913,7 +1019,8 @@ def classify(
     root_after = [x for x in after if x.startswith("  %r = ")]
     root_before = [x for x in before if x.startswith("  %r = ")]
     result = answer["result"]
-    if not unchanged(before, after):
+    normalized = normalized or {}
+    if not (unchanged(before, after) if same_operands is None else same_operands):
         t.operand_changed += 1
         return
 
@@ -939,7 +1046,11 @@ def classify(
         if "analysis" in answer:
             value = answer["analysis"]["value"]
             said = expected_text(value, names)
-            explained = rets == [said] if said is not None else compare_new_ir(case, value, after) is True
+            explained = (
+                rets == [said]
+                if said is not None
+                else compare_new_ir(case, value, after, normalized.get("analysis")) is True
+            )
             if explained:
                 t.analysis += 1
                 t.site(answer["analysis"].get("site") or "unknown")["analysis"] += 1
@@ -959,7 +1070,7 @@ def classify(
     expect = expected_text(result["value"], names)
     ok: bool | None
     if expect is None:
-        ok = compare_new_ir(case, result["value"], after) if opt_changed else False
+        ok = compare_new_ir(case, result["value"], after, normalized.get("result")) if opt_changed else False
         if ok is None:
             t.fired_new_ir += 1
             return
@@ -1026,7 +1137,73 @@ def comparison_cases(regs: list[Registry], src: Path) -> tuple[list[Case], dict[
             cases += [
                 Case(f"g.{op}.{i}", fold, pass_, op, term) for i, term in enumerate(generated_terms(op))
             ]
+    # InstCombine's folds ask whether an operand has one use, so each of its cases comes a second time with no
+    # call keeping the root's operands, where they have the uses the tree gives them.
+    cases += [
+        Case(f"{c.name}.u", c.entry, c.pass_, c.opcode, c.term, c.files, c.where, keep=False)
+        for c in cases
+        if c.pass_ == "instcombine"
+    ]
     return cases, stats
+
+
+def unchanged_prefix(before: list[str], after: list[str]) -> bool:
+    """For a case with the call that keeps the root's operands alive: whether `opt` left every line up to and
+    including that call as it was. InstCombine puts what it builds where the root was, after the call, so this
+    holds whatever it replaced the root with, where `unchanged` needs the root replaced by one value."""
+
+    def upto(lines: list[str]) -> list[str] | None:
+        calls = [i for i, x in enumerate(lines) if x.startswith("  call void (...) @use(")]
+        return lines[: calls[0] + 1] if calls else None
+
+    head = upto(before)
+    return head is not None and head == upto(after)
+
+
+def opt_module(path: Path, em: Emitter, functions: list[str], pass_: str) -> tuple[dict, dict]:
+    """Each function, as `opt -S` prints it, before and after `-passes=<pass_>`."""
+    path.write_text(em.module(functions))
+    verified = run(["opt", "-S", "-passes=verify", path])
+    optimized = run(["opt", "-S", f"-passes={pass_}", path])
+    if verified.exit != 0 or optimized.exit != 0:
+        raise HarnessError(
+            f"opt refused {path.name} for {pass_}: {verified.err[-2000:]}{optimized.err[-2000:]}"
+        )
+    return opt_functions(verified.out), opt_functions(optimized.out)
+
+
+def normalize_new_ir(
+    work: Path,
+    by_pass: dict[str, list[tuple[int, Case]]],
+    answers: dict[str, dict[str, Any]],
+    texts: dict[str, str],
+    names: dict[str, dict[int, str]],
+    declares: dict[str, set[str]],
+) -> dict[str, dict[str, list[str]]]:
+    """For each case whose model answered new IR, with `Oracle.none` or with an oracle that says yes: its
+    function with the root replaced by that IR, after `opt` runs the case's pass on it, by case and by
+    `"result"` or `"analysis"`."""
+    out: dict[str, dict[str, list[str]]] = defaultdict(dict)
+    for pass_, items in by_pass.items():
+        em = Emitter()
+        em.declares |= declares[pass_]
+        fns, keys = [], []
+        for n, c in items:
+            a = answers[c.name]
+            for kind, value in (
+                ("result", a["result"].get("value")),
+                ("analysis", a.get("analysis", {}).get("value")),
+            ):
+                if value is None or expected_text(value, names[c.name]) is not None:
+                    continue
+                fn = new_ir_function(texts[c.name], value, names[c.name], em)
+                fns.append(fn.replace(f"@c{n}(", f"@{kind[0]}{n}(", 1))
+                keys.append((c.name, kind, f"{kind[0]}{n}"))
+        if fns:
+            _, post = opt_module(work / f"new-ir-{pass_}.ll", em, fns, pass_)
+            for name, kind, fname in keys:
+                out[name][kind] = post[fname]
+    return out
 
 
 def compare(args: argparse.Namespace) -> int:
@@ -1048,33 +1225,43 @@ def compare(args: argparse.Namespace) -> int:
         before: dict[str, list[str]] = {}
         after: dict[str, list[str]] = {}
         names: dict[str, dict[int, str]] = {}
+        texts: dict[str, str] = {}
+        declares: dict[str, set[str]] = {}
+        # Whether opt left the root's operands as they were when it reached the root, where that isn't every
+        # line but the root and the `ret` coming out as it went in: InstCombine's cases.
+        same: dict[str, bool] = {}
         for pass_, items in by_pass.items():
             em = Emitter()
-            texts = []
             for n, c in items:
-                text, names[c.name] = em.function(n, c.term)
-                texts.append(text)
-            path = work / f"cases-{pass_}.ll"
-            path.write_text(em.module(texts))
-            verified = run(["opt", "-S", "-passes=verify", path])
-            optimized = run(["opt", "-S", f"-passes={pass_}", path])
-            if verified.exit != 0 or optimized.exit != 0:
-                raise HarnessError(
-                    f"opt refused the cases for {pass_}: {verified.err[-2000:]}{optimized.err[-2000:]}"
-                )
-            pre, post = opt_functions(verified.out), opt_functions(optimized.out)
+                texts[c.name], names[c.name] = em.function(n, c.term, keep=c.keep)
+            pre, post = opt_module(work / f"cases-{pass_}.ll", em, [texts[c.name] for _, c in items], pass_)
+            declares[pass_] = em.declares
             for n, c in items:
                 before[c.name], after[c.name] = pre[f"c{n}"], post[f"c{n}"]
+                if c.pass_ == "instcombine" and c.keep:
+                    same[c.name] = unchanged_prefix(before[c.name], after[c.name])
+            # With no call keeping them, the operands of a case InstCombine folds may be deleted after, so
+            # what it does to them first is read from the same function with an opaque call for the root.
+            probes = [(n, c) for n, c in items if c.pass_ == "instcombine" and not c.keep]
+            if probes:
+                pem = Emitter()
+                fns = [pem.function(n, c.term, keep=False, probe=True)[0] for n, c in probes]
+                ppre, ppost = opt_module(work / f"probes-{pass_}.ll", pem, fns, pass_)
+                for n, c in probes:
+                    same[c.name] = unchanged(ppre[f"c{n}"], ppost[f"c{n}"])
         # Which folds a run reaches is only looked for in cases whose operands opt left as they were, and the
-        # driver needs to know where opt folded the root, to tell which of those are compared.
+        # driver needs to know where opt folded the root, to tell which of those are compared. An InstCombine
+        # case gives its fold the arguments and instructions with one use in its function.
         watch = {
             c.name: {
-                "watch": unchanged(before[c.name], after[c.name]),
+                "watch": same.get(c.name, unchanged(before[c.name], after[c.name])),
                 "opt_folded": folded(before[c.name], after[c.name]),
+                **({"one_use": one_use(texts[c.name])} if c.pass_ == "instcombine" else {}),
             }
             for c in cases
         }
         answers, untagged, missing = run_models(work, regs, cases, watch)
+        normalized = normalize_new_ir(work, by_pass, answers, texts, names, declares)
     seconds = time.monotonic() - started
     failed = False
     reports = []
@@ -1083,7 +1270,16 @@ def compare(args: argparse.Namespace) -> int:
         t = Tally(untagged=[u for u in untagged if u.split(":")[0] in folds])
         for c in cases:
             if c.entry in folds:
-                classify(c, answers[c.name], before[c.name], after[c.name], names[c.name], t)
+                classify(
+                    c,
+                    answers[c.name],
+                    before[c.name],
+                    after[c.name],
+                    names[c.name],
+                    t,
+                    same.get(c.name),
+                    normalized.get(c.name),
+                )
         report = comparison_record(reg, t, stats, version, seconds)
         report["folds_unwatchable"] = sorted(set(reg.folds) & missing)
         reports.append(report)

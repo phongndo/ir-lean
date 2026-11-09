@@ -1,0 +1,22 @@
+{
+  "schema": "ir-lean.peephole.folds/1",
+  "family": "ic-add",
+  "pass": "instcombine",
+  "modules": ["Peephole.IC.Add"],
+  "entries": [
+    {"fold": "Peephole.IC.visitAdd.onInst", "opcodes": ["add"], "opt": "instcombine"}
+  ],
+  "folds": {
+    "Peephole.IC.visitAdd": {
+      "sound": "Peephole.IC.visitAdd.sound",
+      "sites": []
+    },
+    "Peephole.IC.foldAddWithConstant": {
+      "sound": "Peephole.IC.foldAddWithConstant.sound",
+      "sites": []
+    }
+  },
+  "lemmas": [],
+  "rests_on": {},
+  "unproved": {}
+}

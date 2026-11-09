@@ -1,6 +1,7 @@
 import Lean
 import Peephole.Fold
 import Peephole.Oracle
+import Peephole.IC.Base
 
 /-! # The Lean side of `tests/peephole.py`
 
@@ -8,7 +9,9 @@ import Peephole.Oracle
 families' modules. Nothing proved rests on it: it runs models, reads facts about theorems, and times them.
 
 - `runCases`: each case's entry point on its operand, with `Oracle.none`, for `compare`. One JSON case a line in,
-  one JSON answer a line out: the answer, the site that fired, and the registered folds the run reached.
+  one JSON answer a line out: the answer, the site that fired, and the registered folds the run reached. An InstCombine
+  entry point takes a `Peephole.IC.Ctx` too, which the case gives: the instructions and arguments with one use in the
+  function `opt` runs, and the phis, of which it has none.
 - `prepare`: a fold's answer doesn't say which of its steps gave it, or which folds it ran through, so for each entry
   point this makes copies of it that say, below.
 - `facts`: what `score` and `measure` ask: whether each site's theorem exists and what it rests on, which site
@@ -208,6 +211,19 @@ def runTagged {w : Nat} (steps : List (Step w)) : Result w :=
 /-- What an entry point gives in place of its copy, when it couldn't be copied: no site. -/
 def noSites : Oracle → {w : Nat} → Term w → Result w := fun _ _ _ => .delegated untaggedTag
 
+/-- An entry point, as the driver runs it: with the `Ctx` an InstCombine fold reads, which InstSimplify's ignore. -/
+abbrev EntryFn := IC.Ctx → Oracle → {w : Nat} → Term w → Result w
+
+/-- Whether a constant of type `ty` takes a `Ctx` first, as an InstCombine entry point does. -/
+def takesCtx (ty : Expr) : Bool :=
+  match ty with
+  | .forallE _ (.const n _) _ _ => n == ``Peephole.IC.Ctx
+  | _ => false
+
+/-- The constant `c`, of type `ty`, as an `EntryFn`: itself if it takes a `Ctx`, else ignoring one. -/
+def asEntryFn (ty : Expr) (c : Expr) : Expr :=
+  if takesCtx ty then c else .lam `_ctx (.const ``Peephole.IC.Ctx []) c .default
+
 def taggedName (c : Name) : Name := `PeepholeHarness.Tagged ++ c
 
 /-- The copy of `c` in which `fold` answers that it was reached. -/
@@ -279,10 +295,10 @@ def watched (fold : Name) : MetaM (Option (Name × Expr)) := do
 
 structure Entry where
   name : String
-  fold : Oracle → {w : Nat} → Term w → Result w
-  tagged : Oracle → {w : Nat} → Term w → Result w
+  fold : EntryFn
+  tagged : EntryFn
   /-- For each registered fold the entry point reaches, a copy of it in which that fold answers that it was reached. -/
-  ran : Array (String × (Oracle → {w : Nat} → Term w → Result w))
+  ran : Array (String × EntryFn)
 
 /-- For each entry point, its copies, and `PeepholeHarness.Driver.table`, the `Entry` of each, for the driver's `main`.
 `folds` are the registered folds to watch for. -/
@@ -303,8 +319,10 @@ def prepare (entries folds : Array Name) : MetaM Unit :=
         unless (← getEnv).contains (taggedName e) do throwError "it doesn't reach Peephole.run"
       catch ex =>
         IO.eprintln s!"HARNESS-UNTAGGED {e}: {← ex.toMessageData.toString}"
+        let value := if takesCtx info.type then .lam `_ctx (.const ``Peephole.IC.Ctx []) (.const ``noSites [])
+          .default else .const ``noSites []
         addAndCompile (.defnDecl {
-          name := taggedName e, levelParams := [], type := info.type, value := .const ``noSites [],
+          name := taggedName e, levelParams := [], type := info.type, value,
           hints := .opaque, safety := .safe, all := [taggedName e] })
       let mut ran := #[]
       for (f, target, m) in targets do
@@ -312,12 +330,13 @@ def prepare (entries folds : Array Name) : MetaM Unit :=
         if path.isEmpty then continue
         try
           copyReplacing path (ranName f) target fun _ => m
-          ran := ran.push (← mkAppM ``Prod.mk #[toExpr f.toString, .const (ranName f e) []])
+          ran := ran.push (mkApp4 (.const ``Prod.mk [0, 0]) (.const ``String []) (.const ``EntryFn [])
+            (toExpr f.toString) (asEntryFn info.type (.const (ranName f e) [])))
         catch ex =>
           IO.eprintln s!"HARNESS-UNWATCHED {e} {f}: {← ex.toMessageData.toString}"
-      let pair ← mkAppM ``Prod #[.const ``String [], info.type]
-      table := table.push (mkAppN (.const ``Entry.mk []) #[toExpr e.toString, .const e [], .const (taggedName e) [],
-        ← mkArrayLit pair ran.toList])
+      let pair := mkApp2 (.const ``Prod [0, 0]) (.const ``String []) (.const ``EntryFn [])
+      table := table.push (mkAppN (.const ``Entry.mk []) #[toExpr e.toString, asEntryFn info.type (.const e []),
+        asEntryFn info.type (.const (taggedName e) []), ← mkArrayLit pair ran.toList])
     let name := `PeepholeHarness.Driver.table
     addAndCompile (.defnDecl {
       name, levelParams := [], type := mkApp (.const ``Array [Level.zero]) (.const ``Entry []),
@@ -325,12 +344,24 @@ def prepare (entries folds : Array Name) : MetaM Unit :=
 
 /-! ### Running cases -/
 
-def siteOf (e : Entry) (o : Oracle) {w : Nat} (t : Term w) : Json :=
-  match e.tagged o t with
+def siteOf (e : Entry) (c : IC.Ctx) (o : Oracle) {w : Nat} (t : Term w) : Json :=
+  match e.tagged c o t with
   | .delegated s =>
     if s.startsWith siteTag then toJson (String.ofList (s.toList.drop siteTag.length))
     else if s == untaggedTag then "unknown" else Json.null
   | _ => Json.null
+
+/-- The `Ctx` a case gives: `"one_use"`, the identities of the instructions and arguments with one use in the function
+`opt` runs, and `"phi"`, those that are phis. A constant has neither. -/
+def ctxOf (j : Json) : IC.Ctx :=
+  let ids (k : String) : Array Nat := (j.getObjValAs? (Array Nat) k).toOption.getD #[]
+  let one := ids "one_use"
+  let phis := ids "phi"
+  let has (xs : Array Nat) {w : Nat} (t : Term w) : Bool :=
+    match t.ident with
+    | .node id => xs.contains id
+    | _ => false
+  { oneUse := has one, phi := has phis }
 
 /-- One case: the entry point's answer with `Oracle.none`, the site that fired, and if none did, the first oracle that
 answers yes to everything and makes it fire. Then the folds a run with `Oracle.none` reached, of those `watch` says to
@@ -344,15 +375,16 @@ def runCase (entries : Array Entry) (watch : String → String → Bool) (line :
   let tj ← j.getObjVal? "term"
   let w ← tj.getObjValAs? Nat "w"
   let t ← term w tj
-  let r := e.fold Oracle.none t
+  let c := ctxOf j
+  let r := e.fold c Oracle.none t
   let mut out := [("name", toJson name), ("result", resultJson r)]
   match r with
-  | .value _ => out := out ++ [("site", siteOf e Oracle.none t)]
+  | .value _ => out := out ++ [("site", siteOf e c Oracle.none t)]
   | _ =>
     for (label, o) in oracles do
-      if let .value r' := e.fold o t then
+      if let .value r' := e.fold c o t then
         out := out ++ [("analysis",
-          Json.mkObj [("oracle", toJson label), ("value", replJson r'), ("site", siteOf e o t)])]
+          Json.mkObj [("oracle", toJson label), ("value", replJson r'), ("site", siteOf e c o t)])]
         break
   -- Folds are looked for only in a case that's compared: `opt` left its operands alone, `"watch"`, and the model
   -- fired, or neither the model nor `opt` folded. A delegated case, or one where only `opt` folded, isn't.
@@ -365,7 +397,7 @@ def runCase (entries : Array Entry) (watch : String → String → Bool) (line :
   let mut reached := #[]
   for (f, copy) in e.ran do
     if !watching || !watch entry f then continue
-    if let .delegated s := copy Oracle.none t then
+    if let .delegated s := copy c Oracle.none t then
       if s == ranTag ++ f then reached := reached.push f
   return (Json.mkObj (out ++ [("ran", toJson reached)]), entry, reached)
 
