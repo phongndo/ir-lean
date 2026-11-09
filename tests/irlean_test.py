@@ -59,6 +59,12 @@ class Run(unittest.TestCase):
         self.assertEqual((r.out, r.err, r.output), ("out", "err", "outerr"))
         self.assertFalse(r.ok)
 
+    def test_text_reads_as_text_mode_does(self) -> None:
+        # As subprocess gives text with text=True: \r\n and a bare \r are newlines, and what isn't UTF-8
+        # is replaced.
+        r = proc.run([PY, "-c", "import sys; sys.stdout.buffer.write(b'a\\r\\nb\\rc\\n\\xff')"])
+        self.assertEqual((r.out, r.stdout), ("a\nb\nc\n\ufffd", b"a\r\nb\rc\n\xff"))
+
     def test_stderr_can_follow_stdout(self) -> None:
         code = "import sys; print('a', flush=True); print('b', file=sys.stderr, flush=True); print('c')"
         r = proc.run([PY, "-c", code], stderr=proc.STDOUT)

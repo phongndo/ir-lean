@@ -343,6 +343,10 @@ class Sampler(threading.Thread):
             self.stop.wait(self.interval)
 
 
+def _text(data: bytes) -> str:
+    return data.decode(errors="replace").replace("\r\n", "\n").replace("\r", "\n")
+
+
 @dataclass
 class Ran:
     """How a command ended, and what it cost."""
@@ -368,11 +372,13 @@ class Ran:
 
     @property
     def out(self) -> str:
-        return self.stdout.decode(errors="replace")
+        """stdout as text, as `subprocess` gives it with `text=True`: newlines as `\\n`, and anything that
+        isn't UTF-8 replaced."""
+        return _text(self.stdout)
 
     @property
     def err(self) -> str:
-        return self.stderr.decode(errors="replace")
+        return _text(self.stderr)
 
     @property
     def output(self) -> str:
