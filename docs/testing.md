@@ -29,6 +29,8 @@ everything every time, in about a minute.
 | `llvm_scope` | The checks on [claims about LLVM's passes and the task list](llvm-verification-tasks.md), without LLVM: no claim counts as done without an independent verifier, finite translation validation never counts for all inputs, a stale hash or evidence outside the repo is refused, and the list's scope line matches the inventory. Python only |
 | `llvm_scope_check` | The inventory of every name the pinned LLVM registers a pass or codegen implementation under, derived again from its source, `opt` and `llc`, and compared byte for byte, so the denominator can't move quietly. About 5 s, and no Lean |
 | `corpus` | [The corpus](corpus.md)'s capture reads `opt`'s pipelines and traces right, and a corpus refuses a toolchain other than its own. `tools/measure.py` gives MiB on macOS and Linux, stops the whole process tree at a cap or timeout, and keeps its heavy-job lock exclusive, in the platform's cache directory. With the pinned `opt` on `PATH`, one seed is captured and each of its steps replays alone byte for byte. About 2 s, and no Lean |
+| `alive` | [`tests/alive.py`](../tests/alive.py) on three small rewrites, through `alive-tv`: a right one is correct, a wrong one incorrect, and one whose source is undefined on every input is unknown, never correct, through `run` and through `refinements`. Fails without `alive-tv`. About a second, and no Lean |
+| `stage1` | [The stage-1 harness](stage1.md) on [its fixture](../bench/instcombine/fixture/): InstCombine's rewrites of four functions and three known miscompilations, each certified, proved, refuted or unsupported as `expect.json` says, and no known-wrong rewrite proved or certified. One Lean process at a time, alone |
 | `superopt` | What a search finds for real functions, against Alive2 and a Lean theorem that names both and says they do the same, and that a wrong rewrite fails both, with an error in Lean and a counterexample from Alive2. An Alive2 timeout is never a pass. `--bench` also measures it against `clang -O3`, which CI doesn't, since timings vary |
 | `names` | Every word Lean reserves is avoided in generated names |
 | `undef_freeze` | [An experimental `undef` and `freeze` semantics](undef-freeze.md), not the model's: it builds with warnings as errors, LangRef's examples get LangRef's verdicts, four shortcuts each certify a wrong rewrite it rejects, both modules rest on the standard axioms and `leanchecker` replays them, two false proofs and a `sorry` are refused, five edits to a copy of it each stop the theorem they target, and Alive2 gives the same verdict on 31 rewrites. One process at a time, each Lean process capped at 2 GB, about 17 s of CPU |
@@ -77,7 +79,7 @@ with 4 cores and 16 GB, and the jobs run at once:
 | Tests and proofs (`passes`) | `passes` |
 | Tests and proofs (`binding`) | `binding` |
 | Tests and proofs (`llvm`) | `llvm` |
-| Tests and proofs (`semantics`) | `verify_negative`, `replay_challenge`, `contracts`, `refine`, `undef_freeze`, `generic_rewrites` and `cpp_correspondence` |
+| Tests and proofs (`semantics`) | `verify_negative`, `replay_challenge`, `contracts`, `refine`, `undef_freeze`, `generic_rewrites`, `cpp_correspondence` and `stage1` |
 | Tests and proofs (`rest`) | Every other test, apart from `zlib_slow` |
 | Slow zlib tests | `zlib_slow`, on pushes to `main` |
 

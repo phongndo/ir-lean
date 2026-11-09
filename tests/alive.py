@@ -4,7 +4,11 @@ what a caller reads about a failure or a timeout doesn't depend on what else was
 proved isn't asked again, for the same `alive-tv`.
 
 `alive-tv` exits 0 whatever it found, including when its solver times out, so `verdict` reads its summary, and
-anything but a proof of every function or a counterexample is unknown."""
+anything but a proof of every function or a counterexample is unknown.
+
+A source that's undefined on every input is refined by any target, so `alive-tv` counts it correct, with only
+a warning. `--fail-src-ub` makes it a failure to prove instead, which `verdict` reads as unknown: a check that
+proves nothing about the target mustn't pass as one that does."""
 
 import concurrent.futures
 import hashlib
@@ -22,6 +26,9 @@ CHUNK = 32
 CORRECT = "Transformation seems to be correct!"
 # How long one `alive-tv` process may take. Past this, what it would have said is unknown.
 TIMEOUT_SECONDS = 300
+# Inputs are values or poison, as IRLean's are. And a source that's undefined everywhere isn't a proof: the
+# pinned alive-tv spells that `--fail-src-ub`.
+FLAGS = ("--disable-undef-input", "--fail-src-ub")
 SUMMARY = re.compile(
     r"^\s*(\d+) (correct|incorrect|failed-to-prove) transformations$|^\s*(\d+) Alive2 errors$", re.M
 )
@@ -40,7 +47,7 @@ def run(source, target, work):
                 f.write(text)
         try:
             r = subprocess.run(
-                ["alive-tv", "--disable-undef-input", a, b],
+                ["alive-tv", *FLAGS, a, b],
                 text=True,
                 capture_output=True,
                 timeout=TIMEOUT_SECONDS,
@@ -108,7 +115,11 @@ def refinements(declarations, pairs, work):
     """For each (source, target) pair of functions named @F, None if the source is proved to refine the
     target, and otherwise what `alive-tv` says with that pair alone."""
     tool = os.path.realpath(shutil.which("alive-tv") or "alive-tv")
-    keys = [hashlib.sha256(f"{tool}\0{declarations}\0{s}\0{t}".encode()).hexdigest() for s, t in pairs]
+    # The flags are in the key, so what was proved under other flags is asked again.
+    keys = [
+        hashlib.sha256(f"{tool}\0{' '.join(FLAGS)}\0{declarations}\0{s}\0{t}".encode()).hexdigest()
+        for s, t in pairs
+    ]
     try:
         with open(PROVED) as f:
             known = set(f.read().split())

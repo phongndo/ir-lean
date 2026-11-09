@@ -62,6 +62,7 @@ theorem popcount_correct (x : BitVec 32) :
 | [Design](docs/design.md) | What gets emitted, what the model covers, and why |
 | [Testing](docs/testing.md) | How to run the tests and linters, and what each one checks |
 | [Roadmap](docs/roadmap.md) | Where this is going, in what order, and the [first pull requests](docs/roadmap.md#near-term-pull-requests) |
+| [Stage 1](docs/stage1.md) | InstCombine's own rewrites, certified with `bv_decide` and compared with Alive2, and known miscompilations that must not be certified |
 | [Prior art](docs/prior-art.md) | What others have built toward proved superoptimization, a lemma store and proof tests, and whether Trivet or Lean-MLIR already cover integer stage 1 |
 
 Each fact lives in one doc, and the others link to it. When a result changes, update its doc in the same pull

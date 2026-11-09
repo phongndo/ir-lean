@@ -106,6 +106,14 @@ set_tests_properties(llvm_scope llvm_scope_check PROPERTIES TIMEOUT 600)
 # tools/corpus/capture.py and tools/measure.py, in Python, with one seed through opt when the pinned one is
 # on PATH: about 2 s, and no Lean. docs/corpus.md.
 add_test(NAME corpus COMMAND ${CMAKE_SOURCE_DIR}/tests/corpus_test.py)
+# tests/alive.py on three small rewrites through alive-tv: a source that's undefined on every input is unknown,
+# never correct. About a second, and no Lean.
+add_test(NAME alive COMMAND ${CMAKE_SOURCE_DIR}/tests/alive_test.py)
+# The stage-1 benchmark's harness on its fixture: InstCombine's rewrites of a few functions, certified, proved,
+# refuted or unsupported as bench/instcombine/fixture/expect.json says, and three known miscompilations never
+# certified. One Lean process at a time, alone. docs/stage1.md.
+add_test(NAME stage1 COMMAND ${CMAKE_SOURCE_DIR}/bench/instcombine/stage1.py --work ${CMAKE_BINARY_DIR}/stage1-ci ci)
+set_tests_properties(stage1 PROPERTIES RUN_SERIAL TRUE TIMEOUT 900)
 add_test(NAME superopt COMMAND ${CMAKE_SOURCE_DIR}/tests/superopt.py $<TARGET_FILE:ir-lean>)
 add_test(NAME names COMMAND ${CMAKE_SOURCE_DIR}/tests/names.sh)
 # The experimental undef and freeze semantics against LangRef's examples and Alive2, compiled from copies in a
@@ -198,6 +206,7 @@ set_tests_properties(
     undef_freeze
     generic_rewrites
     cpp_correspondence
+    stage1
     PROPERTIES LABELS semantics
 )
 # These compile the same modules, and the second finds them in the cache.

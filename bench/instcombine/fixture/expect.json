@@ -1,0 +1,12 @@
+{
+ "about": "What bench/instcombine/stage1.py ci has to find for each fixture pair, keyed by test and function. lean is the gated verdict, alive is Alive2's, through tests/alive.py's flags.",
+ "pairs": {
+  "rewrites.ll:add_sub": {"lean": "certified", "alive": "correct"},
+  "rewrites.ll:masked": {"lean": "certified", "alive": "correct"},
+  "rewrites.ll:masked_loose": {"lean": "proved", "alive": "correct"},
+  "rewrites.ll:forward": {"lean": "unsupported", "alive": "correct"},
+  "issue 121428:f": {"lean": "refuted", "alive": "incorrect"},
+  "issue 111934:f": {"lean": "refuted", "alive": "incorrect"},
+  "issue 55291:f": {"lean": "proved", "alive": "correct"}
+ }
+}
