@@ -9,7 +9,10 @@
   well formed.
 - live, with Lean, opt and the library built: every opcode's generated cases are IR `opt` accepts; a model
   that drops `simplifyAddInst`'s `nuw` guard, and one that drops its sign-mask rule's flag guard, each fail
-  `compare` at that site and no other; and a site proved with `sorry` makes `score --check` fail.
+  `compare` at that site and no other; so do three broken models of InstCombine's `foldAddWithConstant`, whose
+  answers are new IR: one that drops the flag guard of `X + signmask` to a disjoint `or`, one that drops
+  the one-use guard of `add (sub X, Y), -1`, and one that folds `add (sub C1, X), C2`'s constants with
+  `sub`; and a site proved with `sorry` makes `score --check` fail.
 
 usage: tests/peephole_test.py --tier static|live
 """
@@ -17,6 +20,7 @@ usage: tests/peephole_test.py --tier static|live
 import argparse
 import json
 import os
+import re
 import shutil
 import sys
 import tempfile
@@ -36,6 +40,8 @@ sys.path.insert(0, str(ROOT / "tests"))
 import peephole  # noqa: E402
 
 ADD = peephole.PEEPHOLE / "Peephole" / "IS" / "Add.lean"
+IC_ADD_CONST = peephole.PEEPHOLE / "Peephole" / "IC" / "AddConst.lean"
+IC_ADD = peephole.PEEPHOLE / "Peephole" / "IC" / "Add.lean"
 
 
 def inst(text: str) -> tuple:
@@ -269,6 +275,120 @@ class Classify(unittest.TestCase):
         self.assertEqual((exercised, undef_only), ({"IS.f.L1"}, {"IS.f.L5"}))
 
 
+class NewIR(unittest.TestCase):
+    """InstCombine's answers are new IR: what the comparison builds from them, and how it reads opt's."""
+
+    def test_uses_and_the_two_shapes(self) -> None:
+        sub = bin_("sub", V1, V0, 5)
+        term = bin_("add", sub, peephole.Gen.c(-1, 8), 9)
+        kept, _ = peephole.Emitter().function(1, term)
+        alone, _ = peephole.Emitter().function(1, term, keep=False)
+        # With the call keeping the root's operands, the `sub` has two uses; without, one.
+        self.assertIn("call void (...) @use(i8 %n5, i8 -1)", kept)
+        self.assertNotIn("@use", alone)
+        self.assertEqual(peephole.one_use(kept), [0, 1])
+        self.assertEqual(peephole.one_use(alone), [0, 1, 5])
+        em = peephole.Emitter()
+        probe, _ = em.function(1, term, keep=False, probe=True)
+        self.assertIn("  %r = call i8 (...) @probe.i8(i8 %n5, i8 -1)", probe)
+        self.assertIn("declare i8 @probe.i8(...)", em.module([]))
+
+    def test_the_function_an_answer_gives(self) -> None:
+        term = bin_("add", V0, peephole.Gen.c(-128, 8), 9)
+        em = peephole.Emitter()
+        text, names = em.function(4, term, keep=False)
+        # `or disjoint (xor %v0, -1), -128`, with a flag `or` can't carry dropped.
+        answer = {
+            "k": "bin",
+            "w": 8,
+            "op": "or",
+            "nuw": True,
+            "disjoint": True,
+            "a": {
+                "k": "bin",
+                "w": 8,
+                "op": "xor",
+                "a": {"k": "old", "w": 8, "t": {"node": 0}},
+                "b": {"k": "const", "w": 8, "c": "255"},
+            },
+            "b": {"k": "const", "w": 8, "c": "128"},
+        }
+        fn = peephole.new_ir_function(text, answer, names, em)
+        self.assertEqual(
+            fn.splitlines(),
+            [
+                "define i8 @c4(i8 %v0) {",
+                "  %m0 = xor i8 %v0, -1",
+                "  %m1 = or disjoint i8 %m0, -128",
+                "  ret i8 %m1",
+                "}",
+            ],
+        )
+
+    def test_expansion_reads_the_returned_tree(self) -> None:
+        a = ["  %x = xor i8 %v0, -1", "  %y = sub i8 16, %v0, !dbg !3", "  %r = add i8 %y, %x", "  ret i8 %r"]
+        b = ["  %t1 = sub i8 16, %v0", "  %t0 = xor i8 %v0, -1", "  %m = add i8 %t1, %t0", "  ret i8 %m"]
+        c = ["  %t1 = sub i8 16, %v0", "  %t0 = xor i8 %v0, -1", "  %m = add i8 %t0, %t1", "  ret i8 %m"]
+        self.assertEqual(peephole.expansion(a), "(add i8 (sub i8 16, %v0), (xor i8 %v0, -1))")
+        # Names and order don't matter; operand order does.
+        self.assertEqual(peephole.expansion(a), peephole.expansion(b))
+        self.assertNotEqual(peephole.expansion(a), peephole.expansion(c))
+        self.assertEqual(peephole.expansion(["  ret i8 7"]), "7")
+        case = peephole.Case("c", "F", "instcombine", "add", ROOT_TERM)
+        self.assertTrue(peephole.compare_new_ir(case, {}, a, b))
+        self.assertFalse(peephole.compare_new_ir(case, {}, a, c))
+        self.assertIsNone(peephole.compare_new_ir(case, {}, a))
+
+    def test_classify_new_ir(self) -> None:
+        new = {
+            "k": "bin",
+            "w": 8,
+            "op": "sub",
+            "a": {"k": "const", "w": 8, "c": "16"},
+            "b": {"k": "old", "w": 8, "t": {"node": 0}},
+        }
+        fires = {"result": {"value": new}, "site": "IC.f.L1"}
+        opt_said = [*BEFORE[:2], "  %r = sub i8 16, %v0", "  ret i8 %r"]
+        same = {"result": ["  %m0 = sub i8 16, %v0", "  ret i8 %m0"]}
+        other = {"result": ["  %m0 = sub i8 15, %v0", "  ret i8 %m0"]}
+
+        def outcome(after: list[str], normalized: dict, operands: bool = True) -> peephole.Tally:
+            t = peephole.Tally()
+            case = peephole.Case("c0", "F", "instcombine", "add", ROOT_TERM)
+            names = {0: "%v0", 1: "%v1", 5: "%n5", 9: "%r"}
+            peephole.classify(case, fires, BEFORE, after, names, t, operands, normalized)
+            return t
+
+        self.assertEqual((outcome(opt_said, same).matched, outcome(opt_said, same).mismatched), (1, 0))
+        # Another value after normalizing, or the model firing where opt left the root alone: a mismatch, even
+        # where the model's answer normalizes back to the root.
+        self.assertEqual(outcome(opt_said, other).mismatched, 1)
+        self.assertEqual(
+            outcome(after("%r"), {"result": ["  %r = add i8 %v0, %n5", "  ret i8 %r"]}).mismatched, 1
+        )
+        # Not normalized: not compared. An operand opt changed first: left out.
+        self.assertEqual(outcome(opt_said, {}).fired_new_ir, 1)
+        t = outcome(opt_said, other, operands=False)
+        self.assertEqual((t.operand_changed, t.mismatched), (1, 0))
+
+    def test_operands_unchanged_up_to_the_call(self) -> None:
+        opt_said = [*BEFORE[:2], "  %0 = xor i8 %v0, -1", "  %r = add i8 %0, 17", "  ret i8 %r"]
+        self.assertTrue(peephole.unchanged_prefix(BEFORE, opt_said))
+        self.assertFalse(peephole.unchanged(BEFORE, opt_said))
+        self.assertFalse(peephole.unchanged_prefix(BEFORE, after("%r", changed=True)))
+
+    def test_an_instruction_cut_off_is_another_value(self) -> None:
+        """Found in InstCombine's tests: `%x` reached nearer the root as an instruction and past the depth
+        limit as an argument had one identity, and the case's function used `%n<id>` without defining it."""
+        defs = {f"%a{i}": f"add i8 %a{i + 1}, 1" for i in range(6)}
+        defs["%r"] = "add i8 %a0, %a5"
+        t = peephole.Builder(defs).node("%r", inst(defs["%r"]), 0, frozenset())
+        text, _ = peephole.Emitter().function(0, t)
+        defined = {line.split(" = ")[0].strip() for line in text.splitlines() if " = " in line}
+        used = set(re.findall(r"%n\d+", text))
+        self.assertLessEqual(used, defined)
+
+
 def step(name: str, exit_: int = 0, limit: str | None = None, output: str = "") -> core.Step:
     return core.Step(name, exit_, limit, output)
 
@@ -462,20 +582,22 @@ def harness(*args: str, overlay: Path | None = None) -> proc.Ran:
     )
 
 
-def overlay_with(text: str, work: Path) -> Path:
-    """The library, with `Peephole.IS.Add` compiled from `text`, in a directory of its own to put in front of
-    lake's. Lean looks for a library's modules where it first finds its root, so the rest comes too."""
+def overlay_with(text: str | dict[Path, str], work: Path) -> Path:
+    """The library, with `Peephole.IS.Add` compiled from `text`, or each module of a dict compiled from its
+    text in order, in a directory of its own to put in front of lake's. Lean looks for a library's modules
+    where it first finds its root, so the rest comes too."""
     shutil.copytree(leanlib.LIBRARY / "Peephole", work / "Peephole")
-    src = work / "Peephole" / "IS" / "Add.lean"
-    src.write_text(text)
-    r = proc.run(
-        leanlib.argv(peephole.LEAN_MB, "-R", work, "-o", src.with_suffix(".olean"), src),
-        cwd=ROOT,
-        env=leanlib.env(),
-        timeout=600,
-    )
-    if r.exit != 0:
-        raise AssertionError(f"the changed module doesn't compile:\n{r.output[-3000:]}")
+    for module, body in (text if isinstance(text, dict) else {ADD: text}).items():
+        src = work / module.relative_to(peephole.PEEPHOLE)
+        src.write_text(body)
+        r = proc.run(
+            leanlib.argv(peephole.LEAN_MB, "-R", work, "-o", src.with_suffix(".olean"), src),
+            cwd=ROOT,
+            env=leanlib.env(),
+            timeout=600,
+        )
+        if r.exit != 0:
+            raise AssertionError(f"the changed module doesn't compile:\n{r.output[-3000:]}")
     return work
 
 
@@ -486,6 +608,18 @@ def model_only(change: str, to: str) -> str:
     assert text.count(change) == 1, change
     model = text.split("/-! ### The rewrites, one theorem each -/")[0]
     return model.replace(change, to) + "end Peephole.IS\n"
+
+
+def ic_model_only(change: str, to: str) -> dict[Path, str]:
+    """`Peephole.IC.AddConst` and `Peephole.IC.Add`, their models without their theorems, with one line of
+    `foldAddWithConstant` changed."""
+    const = IC_ADD_CONST.read_text()
+    assert const.count(change) == 1, change
+    const = (
+        const.split("/-! ### What a match says about values -/")[0].replace(change, to) + "end Peephole.IC\n"
+    )
+    add = IC_ADD.read_text().split("/-! ### The fold's theorem -/")[0] + "end Peephole.IC\n"
+    return {IC_ADD_CONST: const, IC_ADD: add}
 
 
 class Live(unittest.TestCase):
@@ -502,11 +636,10 @@ class Live(unittest.TestCase):
             r = proc.run(["opt", "-passes=verify", "-disable-output", str(path)], timeout=300)
         self.assertEqual(r.exit, 0, r.err[-2000:])
 
-    def mutant(self, change: str, to: str, site: str) -> None:
+    def mutant(self, change: str, to: str, site: str, family: str = "is-add") -> None:
+        model = model_only(change, to) if family == "is-add" else ic_model_only(change, to)
         with tempfile.TemporaryDirectory() as d:
-            r = harness(
-                "compare", "--family", "is-add", overlay=overlay_with(model_only(change, to), Path(d))
-            )
+            r = harness("compare", "--family", family, overlay=overlay_with(model, Path(d)))
         said = r.output
         self.assertEqual(r.exit, 1, said[-3000:])
         lines = [x for x in said.splitlines() if "MISMATCH" in x]
@@ -521,6 +654,37 @@ class Live(unittest.TestCase):
     def test_dropping_the_sign_mask_flag_guard_mismatches(self) -> None:
         self.mutant(
             "if (isNSW || isNUW) && signMask op1 then", "if signMask op1 then", "IS.simplifyAddInst.L633"
+        )
+
+    def test_instcombine_dropping_the_sign_mask_flag_guard_mismatches(self) -> None:
+        """Without `nsw` or `nuw`, `X + signmask` is `X ^ signmask`, which opt answers, and the broken model
+        a disjoint `or`, which is poison where `X` has the sign bit. Both are new IR, so only the comparison
+        of new IR sees it."""
+        self.mutant(
+            "if k = BitVec.intMin w && (nsw || nuw) then",
+            "if k = BitVec.intMin w then",
+            "IC.AddSub.foldAddWithConstant.L936",
+            "ic-add",
+        )
+
+    def test_instcombine_dropping_a_one_use_guard_mismatches(self) -> None:
+        """With the call keeping the root's operands alive, the `sub` has two uses, so opt doesn't rewrite
+        `add (sub X, Y), -1`, and the broken model does."""
+        self.mutant(
+            "match binop1? c .sub op0 with",
+            "match binop? .sub op0 with",
+            "IC.AddSub.foldAddWithConstant.L881",
+            "ic-add",
+        )
+
+    def test_instcombine_folding_constants_wrongly_mismatches(self) -> None:
+        """`add (sub C1, X), C2` to `sub (C1 - C2), X`: where both fire, opt's `sub (C1 + C2), X` and the
+        model's differ once each is normalized."""
+        self.mutant(
+            "(.bin .sub {} (constAdd c1 op1) (.old x))",
+            "(.bin .sub {} (constSub c1 op1) (.old x))",
+            "IC.AddSub.foldAddWithConstant.L874",
+            "ic-add",
         )
 
     def test_a_site_proved_by_sorry_doesnt_count(self) -> None:
@@ -549,7 +713,9 @@ def main() -> None:
     parser.add_argument("--tier", choices=["static", "live"], required=True)
     args = parser.parse_args()
     cases = (
-        [Parse, Emit, Classify, Counts, Records, Registries, Generated] if args.tier == "static" else [Live]
+        [Parse, Emit, Classify, NewIR, Counts, Records, Registries, Generated]
+        if args.tier == "static"
+        else [Live]
     )
     suite = unittest.TestSuite(unittest.defaultTestLoader.loadTestsFromTestCase(c) for c in cases)
     result = unittest.TextTestRunner(verbosity=2).run(suite)

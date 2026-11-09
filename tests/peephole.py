@@ -517,8 +517,9 @@ class Case:
     # The regression tests it was found in, or none if it's generated.
     files: list[str] = field(default_factory=list)
     where: str = ""
-    # Whether its function passes the root's operands to a call too, so each has more than one use. InstCombine's
-    # cases come both ways, since its folds ask whether an operand has one use. docs/rewrite-proofs.md.
+    # Whether its function passes the root's operands to a call too, so each has more than one use.
+    # InstCombine's cases come both ways, since its folds ask whether an operand has one use.
+    # docs/rewrite-proofs.md.
     keep: bool = True
 
 
@@ -882,13 +883,19 @@ def new_ir_function(text: str, answer: dict[str, Any], names: dict[int, str], em
     lines: list[str] = []
 
     def value(r: dict[str, Any]) -> str:
-        k, w = r["k"], r["w"]
+        k = r["k"]
         if k in ("old", "const", "poison"):
             said = expected_text(r, names)
             assert said is not None
             return said
         if k == "bin":
-            r = {**r, **{f: bool(r.get(f)) and f in FLAGS_OF.get(r["op"], ()) for f in ("nuw", "nsw", "exact", "disjoint")}}
+            r = {
+                **r,
+                **{
+                    f: bool(r.get(f)) and f in FLAGS_OF.get(r["op"], ())
+                    for f in ("nuw", "nsw", "exact", "disjoint")
+                },
+            }
         text = em.instruction(r, value)
         lines.append(f"  %m{len(lines)} = {text}")
         return f"%m{len(lines) - 1}"
@@ -904,9 +911,9 @@ def new_ir_function(text: str, answer: dict[str, Any], names: dict[int, str], em
 
 def expansion(lines: list[str]) -> str | None:
     """What a function returns, as one expression: each value an instruction of it defines written out as that
-    instruction, its operands written out the same way, down to arguments and constants. Two functions that
-    compute the same tree of instructions, whatever they name them and whatever order they're in, have the same
-    expansion."""
+    instruction, its operands written out the same way, down to arguments and constants. Two functions
+    that compute the same tree of instructions, whatever they name them and whatever order they're in, have
+    the same expansion."""
     defs: dict[str, str] = {}
     for line in lines:
         if m := RE_DEF.match(line):
@@ -932,8 +939,9 @@ def compare_new_ir(
 ) -> bool | None:
     """Whether a model's answer that's new IR, as InstCombine's are, is what `opt` answers: the function with
     the root replaced by the answer's instructions, `normalized` after `opt -passes=instcombine`, returns the
-    same expression as the case's function after `opt` does, `after`. None if the answer wasn't run through
-    `opt`, which leaves the case uncompared. docs/rewrite-proofs.md says what this can and can't tell apart."""
+    same expression as the case's function after `opt` does, `after`. None if the answer wasn't run
+    through `opt`, which leaves the case uncompared. docs/rewrite-proofs.md says what this can and can't
+    tell apart."""
     if normalized is None:
         return None
     want, got = expansion(after), expansion(normalized)
@@ -1008,8 +1016,8 @@ def classify(
     normalized: dict[str, list[str]] | None = None,
 ) -> None:
     """Puts one case's comparison into `t`. `same_operands` says whether `opt` left the root's operands as
-    they were when it reached the root, if the caller worked it out, as for InstCombine's cases; otherwise it's
-    every line of the function but the root and the `ret` coming out as it went in. `normalized` has the
+    they were when it reached the root, if the caller worked it out, as for InstCombine's cases; otherwise
+    it's every line of the function but the root and the `ret` coming out as it went in. `normalized` has the
     function with the root replaced by the model's new IR, after `opt`, for its `"result"` and its
     `"analysis"`."""
     t.cases += 1
