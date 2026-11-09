@@ -283,14 +283,18 @@ vectors in 7,131, calls to a declared function in 5,264, target intrinsics in 4,
 instructions in 2,913, `undef` in 1,222, and scalable vectors in 906. So floating point alone blocks about half of what
 the emitter refuses, and vectors run through every group.
 
+This is `dbfd710`'s emitter. [#88](https://github.com/phongndo/ir-lean/pull/88), after these runs, models vector
+intrinsics, vector division and remainder, and `noundef` and `range` on vectors, and by its own count on these pairs
+has the emitter translate 664 more of them.
+
 ## Found along the way
 
 None is a soundness bug: each makes the model or a tool say less, never prove a wrong rewrite.
 
 | Finding | Where | Effect | Next |
 | --- | --- | --- | --- |
-| The emitter writes the vector form of an intrinsic as its scalar operation, such as `Val.saddWithOverflow` on a `Vec` for a vector `llvm.sadd.with.overflow`, and the same for vector bit counts and `llvm.bitreverse` in InstSimplify's tests. It also applies `noundef` to a struct value as if it were one integer. Lean rejects the module | `src/Emitter.cpp` | Fails closed: `tools/verify.py` says `generated_module_failed`, an `error` here. 40 pairs in the sample and 2 in the corpus | An issue for the emitter |
-| `ir-lean --report` crashes, with a segmentation fault, on a constant `bitcast` of one vector type to another inside an instruction, such as `and <2 x i64> bitcast (<4 x i32> ... to <2 x i64>), ...` from `x86-muldq-inseltpoison.ll` | `src/Emitter.cpp` | Fails closed: the function gets no report and counts as refused. 34 changed functions | An issue for the emitter |
+| The emitter writes the vector form of an intrinsic as its scalar operation, such as `Val.saddWithOverflow` on a `Vec` for a vector `llvm.sadd.with.overflow`, and the same for vector bit counts and `llvm.bitreverse` in InstSimplify's tests. It also applies `noundef` to a struct value as if it were one integer. Lean rejects the module | `src/Emitter.cpp` | Fails closed: `tools/verify.py` says `generated_module_failed`, an `error` here. 40 pairs in the sample and 2 in the corpus | Fixed by [#88](https://github.com/phongndo/ir-lean/pull/88), after these runs, which models both lane by lane and field by field |
+| `ir-lean --report` crashes, with a segmentation fault, on a constant `bitcast` of one vector type to another inside an instruction, such as `and <2 x i64> bitcast (<4 x i32> ... to <2 x i64>), ...` from `x86-muldq-inseltpoison.ll` | `src/Emitter.cpp` | Fails closed: the function gets no report and counts as refused. 34 changed functions | Fixed by [#88](https://github.com/phongndo/ir-lean/pull/88), after these runs: the emitter refuses the form instead |
 | `tools/binding.py` binds only a source whose arguments are all `noundef`, since an `undef` argument can be a different value at each use and `IRLean`'s values never are. 91 of the 12,002 candidates are | `tools/binding.py`, by design | Certificates are rare. The rest can be `proved` for every value or poison, the same scope as Alive2's `--disable-undef-input`, but aren't certificates | Modeling `undef` arguments, which F3 kept out, is what would let most of InstCombine's tests be certified |
 | `tests/verify_negative.py`'s list of `IRLean.UB` missed `noProgress` and `noReturn` after SEM-07 added them, so its decidable claim was stricter than refinement where a source spins | `tests/verify_negative.py` | A spurious counterexample where a source breaks a promise; never a false certificate | Fixed by [#77](https://github.com/phongndo/ir-lean/pull/77), which reads the list from the model. This harness reads it from `IRLean/Basic.lean` too |
 | Alive2 calls the source of issue 91127 always undefined, a loop of three trips that returns 1. By default it drops paths around a loop. With `--src-unroll=4 --tgt-unroll=4` it finds the value mismatch the model finds | Alive2's defaults | Its `src_always_ub` there is its bound on loops, not the source's behavior | Kept as Alive2 is configured in `tests/alive.py`, and explained [below](#disagreements) |
