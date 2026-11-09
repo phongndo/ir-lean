@@ -424,10 +424,12 @@ define ptr @f() { ret ptr getelementptr inbounds (i8, ptr @g, i64 8) }'
 printf '%s\n' '@g = external global i32
 @h = global i32 0
 define ptr @f() { ret ptr @g }' >"$work/input.ll"
-if out=$("$tool" "$work/input.ll") && grep -q 'addGlobal 2 4' <<<"$out" && ! grep -q 'addGlobal 1 ' <<<"$out"; then
-  printf 'ok    a global another module defines has an address and no allocation in initial\n'
+# It's numbered after what the module defines, so a declaration doesn't move a defined global's allocation.
+if out=$("$tool" "$work/input.ll") && grep -q 'addGlobal 1 4' <<<"$out" && grep -q 'g_g : Ptr := ⟨2,' <<<"$out" &&
+  ! grep -q 'addGlobal 2 ' <<<"$out"; then
+  printf 'ok    a global another module defines has an address after the module'"'"'s own, and no allocation in initial\n'
 else
-  fail "a global another module defines should have an address and no allocation in initial: $out"
+  fail "a global another module defines should have an address after the module's own, and no allocation in initial: $out"
 fi
 # Under a promise to progress, a call with effects is progress, which the model can't count yet.
 for attribute in mustprogress willreturn; do

@@ -347,33 +347,9 @@ public:
     unsigned Block = 1;
     // Every global gets its allocation before any initializer is read, since initializers can point
     // at each other.
-    for (const GlobalVariable &G : M.globals()) {
-      if (G.isThreadLocal()) {
-        Rejected[&G] = "thread-local global @" + G.getName().str();
-        continue;
-      }
-      // A global another module defines is an allocation this module doesn't create, which `initial` leaves
-      // out: its address is all the module knows, and what it holds is the memory's. See docs/calls.md.
-      bool External = !G.hasInitializer();
-      if (External && G.hasExternalWeakLinkage()) {
-        Rejected[&G] = "external global @" + G.getName().str() + ", which may be null";
-        continue;
-      }
-      if (External && !G.getValueType()->isSized()) {
-        Rejected[&G] = "external global @" + G.getName().str() + ", whose size isn't known";
-        continue;
-      }
-      // Memory has address space 0 only, and a constant operand's address space isn't checked where it's
-      // used.
-      if (External && G.getAddressSpace() != 0) {
-        Rejected[&G] = "external global @" + G.getName().str() + " in address space " +
-                       std::to_string(G.getAddressSpace());
-        continue;
-      }
-      if (!External && (!hasExactLinkage(G) || G.isExternallyInitialized())) {
-        Rejected[&G] = "global @" + G.getName().str() + ", whose initial value may not be this one";
-        continue;
-      }
+    // Globals another module defines are numbered last, after this module's globals and function addresses,
+    // so what a module defines keeps its allocation's number whatever it declares.
+    auto Add = [&](const GlobalVariable &G, bool External) {
       Global Info;
       Info.Name = GlobalNames.make("g_" + G.getName().str(), "g");
       GlobalNames.make(Info.Name + "_init", "g");
@@ -382,6 +358,22 @@ public:
       Info.ReadOnly = G.isConstant();
       Info.External = External;
       Globals[&G] = std::move(Info);
+    };
+    std::vector<const GlobalVariable *> Declared;
+    for (const GlobalVariable &G : M.globals()) {
+      if (G.isThreadLocal()) {
+        Rejected[&G] = "thread-local global @" + G.getName().str();
+        continue;
+      }
+      if (!G.hasInitializer()) {
+        Declared.push_back(&G);
+        continue;
+      }
+      if (!hasExactLinkage(G) || G.isExternallyInitialized()) {
+        Rejected[&G] = "global @" + G.getName().str() + ", whose initial value may not be this one";
+        continue;
+      }
+      Add(G, false);
     }
     for (const Function &F : M) {
       if (!F.hasAddressTaken())
@@ -389,6 +381,21 @@ public:
       FunctionAddresses[&F] = {GlobalNames.make("fn_" + F.getName().str(), "fn"), Block++};
       if (!F.isDeclaration())
         ByType[F.getFunctionType()].push_back(&F);
+    }
+    // A global another module defines is an allocation this module doesn't create, which `initial` leaves
+    // out: its address is all the module knows, and what it holds is the memory's. See docs/calls.md.
+    for (const GlobalVariable *G : Declared) {
+      if (G->hasExternalWeakLinkage())
+        Rejected[G] = "external global @" + G->getName().str() + ", which may be null";
+      else if (!G->getValueType()->isSized())
+        Rejected[G] = "external global @" + G->getName().str() + ", whose size isn't known";
+      // Memory has address space 0 only, and a constant operand's address space isn't checked where it's
+      // used.
+      else if (G->getAddressSpace() != 0)
+        Rejected[G] = "external global @" + G->getName().str() + " in address space " +
+                      std::to_string(G->getAddressSpace());
+      else
+        Add(*G, true);
     }
     NextBlock = Block;
     // Rejecting a global rejects whatever points at it, so go until nothing changes.
