@@ -599,7 +599,7 @@ makes each proof cheaper than the last.
 to tier 3, and never report a pass they haven't earned. See [one engine, two products](#one-engine-two-products).
 
 **Prerequisites:** `tools/verify.py` for tier 1. The executable memory model for code with memory. Lemma store v1 for
-tier 3.
+tier 3, as a [soft dependency](#dependencies).
 
 **Where it stands:** [`tools/verify.py`](verify.md) checks one claim about one function and answers `proved`,
 `counterexample`, `unsupported`, `timeout` or `error`, in JSON. It tries the witnesses it's given, and doesn't
