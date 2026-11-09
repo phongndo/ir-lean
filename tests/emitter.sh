@@ -65,8 +65,13 @@ define i1 @f(double %x) { %r = fcmp nnan nsz arcp contract afn olt double %x, 1.
   ret i1 %r }'
 accepts 'define float @f(float %x) denormal_fpenv(ieee|ieee) { ret float %x }'
 refuses 'type x86_fp80' 'define x86_fp80 @f(x86_fp80 %x) { ret x86_fp80 %x }'
-refuses 'instruction %r = fadd' 'define float @f(float %x) { %r = fadd float %x, 1.0
+refuses 'fast-math flag nsz on %r = fadd' 'define float @f(float %x) { %r = fadd nsz float %x, 1.0
   ret float %r }'
+refuses 'fast-math flag nsz on %r = sitofp' 'define float @f(i32 %x) { %r = sitofp nsz i32 %x to float
+  ret float %r }'
+accepts 'define <2 x double> @f(<2 x double> %x, <2 x float> %y) { %e = fpext <2 x float> %y to <2 x double>
+  %r = fmul nnan ninf <2 x double> %x, %e
+  ret <2 x double> %r }'
 refuses 'fast-math flag reassoc on %r = fcmp' 'define i1 @f(float %x) { %r = fcmp reassoc olt float %x, 1.0
   ret i1 %r }'
 refuses 'fast-math flag nsz on %r = fneg' 'define float @f(float %x) { %r = fneg nsz float %x
@@ -910,6 +915,49 @@ if "$tool" "$work/Choices.ll" -o "$work/Choices.lean" --namespace Choices &&
   printf 'ok    each freeze a run executes chooses for itself, in loops, calls, recursion and memory\n'
 else
   fail 'what a freeze chooses, by where it runs'
+fi
+
+# A floating-point operation that can give a NaN chooses its sign and payload, as LangRef leaves them, and is a chooser
+# as a `freeze` is: each reads its own place, and on a vector each lane reads its own under the operation's, `[k, i]`.
+cat >"$work/FChoices.ll" <<'IR'
+define float @two(float %x) {
+  %a = fdiv float %x, %x
+  %b = fadd float %a, 1.0
+  ret float %b
+}
+define <2 x float> @lanes(<2 x float> %x) {
+  %r = fdiv <2 x float> %x, %x
+  ret <2 x float> %r
+}
+IR
+cat >"$work/FChoicesCheck.lean" <<'LEAN'
+import FChoices
+open IRLean FChoices
+
+def show' : Outcome (Val 32) → String
+  | some (.ok (some x)) => s!"{x.toNat}"
+  | _ => "other"
+
+def showV : Outcome (Vec 2 32) → String
+  | some (.ok v) => s!"{show' (Outcome.ok v[0])} {show' (Outcome.ok v[1])}"
+  | _ => "other"
+
+def only (p : List Nat) (n : Nat) : Choice := fun q => if q = p then n else 0
+
+-- 0.0 / 0.0 is a NaN. Choice 0 is the preferred NaN, 2143289344, and choice 1 the same with its sign set, 4290772992.
+#guard show' (two (some 0#32) (fun _ => 0)) == "2143289344"
+-- The `fadd`, the second chooser, reads `[2]`, and the `fdiv`'s choice at `[1]` doesn't reach its result.
+#guard show' (two (some 0#32) (only [2] 1)) == "4290772992"
+#guard show' (two (some 0#32) (only [1] 1)) == "2143289344"
+-- Each lane of the vector `fdiv` reads its own place.
+#guard showV (lanes #v[some 0#32, some 0#32] (only [1, 0] 1)) == "4290772992 2143289344"
+#guard showV (lanes #v[some 0#32, some 0#32] (only [1, 1] 1)) == "2143289344 4290772992"
+LEAN
+if "$tool" "$work/FChoices.ll" -o "$work/FChoices.lean" --namespace FChoices &&
+  lean -R "$work" -o "$work/FChoices.olean" "$work/FChoices.lean" && lean "$work/FChoicesCheck.lean"; then
+  printf 'ok    each floating-point operation, and each lane of one, chooses its NaN for itself\n'
+else
+  fail 'what a floating-point operation chooses, by where it runs'
 fi
 
 # Promises to progress and to return, as the model checks them (IRLean/Promise.lean): a run that never finishes under
