@@ -891,12 +891,13 @@ public:
                   const std::set<const Function *> &ChoosingFunctions,
                   const std::set<const Function *> &TalkingFunctions,
                   const std::set<const Function *> &EffectFunctions,
+                  const std::set<const Function *> &AccessFunctions,
                   const std::set<const Function *> &ReachesFree, const ModuleContext &Context)
       : F(F), LeanName(std::move(LeanName)), Recursive(Recursive), PromisedCycle(PromisedCycle),
         UsesMemory(UsesMemory), Chooses(Chooses), Talks(Talks), Callees(Callees),
         MemoryFunctions(MemoryFunctions), ChoosingFunctions(ChoosingFunctions),
-        TalkingFunctions(TalkingFunctions), EffectFunctions(EffectFunctions), ReachesFree(ReachesFree),
-        Context(Context) {}
+        TalkingFunctions(TalkingFunctions), EffectFunctions(EffectFunctions),
+        AccessFunctions(AccessFunctions), ReachesFree(ReachesFree), Context(Context) {}
 
   // Checks the function can be translated, and sets up names and liveness.
   void prepare();
@@ -994,6 +995,8 @@ private:
   const std::set<const Function *> &TalkingFunctions;
   // Functions that make a call outside the module with effects, or call one that does.
   const std::set<const Function *> &EffectFunctions;
+  // Functions that make a call outside the module that accesses memory, or call one that does.
+  const std::set<const Function *> &AccessFunctions;
   const std::set<const Function *> &ReachesFree;
   const ModuleContext &Context;
   std::string RetType;
@@ -2095,7 +2098,7 @@ void FunctionEmitter::emitOutsideCall(const CallBase &C, std::vector<Line> &Out)
   Promises = " {" + Promises + (Promises.empty() ? "" : " ") + "}";
   std::string Expr;
   if (Effects)
-    Expr = "World.callEffect w' t' " + Event + Promises;
+    Expr = "World.callEffect w' t' n' " + Event + Promises;
   else if (outsideEffects(C).doesNotAccessMemory())
     Expr = "World.callPure w' t' " + Event + " (c'.pick " + nextChooser() + ")" + Promises;
   else
@@ -2222,6 +2225,14 @@ void FunctionEmitter::prepare() {
   // doesn't see it do so.
   if (Talks && F.hasFnAttribute(Attribute::NoRecurse))
     reject("function attribute norecurse on a function that calls outside the module");
+  // The same for what a callee that accesses memory may do: synchronize, free, or access memory this function
+  // promised it wouldn't.
+  if (AccessFunctions.count(&F) && F.hasFnAttribute(Attribute::NoSync))
+    reject("function attribute nosync on a function whose calls outside the module access memory");
+  if (EffectFunctions.count(&F) && F.hasFnAttribute(Attribute::NoFree))
+    reject("function attribute nofree on a function whose calls outside the module have effects");
+  if (AccessFunctions.count(&F) && F.getMemoryEffects() != MemoryEffects::unknown())
+    reject("function attribute memory on a function whose calls outside the module access memory");
   if (F.hasFnAttribute(Attribute::NoFree) && ReachesFree.count(&F))
     reject("function attribute nofree on a function that can reach free");
   collectBlocks();
@@ -2610,7 +2621,7 @@ Emitted emitModule(Module &M, const std::string &Namespace, const std::string &S
   std::set<const Function *> ChoosingFunctions;
   // Functions that call outside the module, which take an `IRLean.World` and an `IRLean.Trace`, and those
   // whose calls have effects.
-  std::set<const Function *> TalkingFunctions, EffectFunctions;
+  std::set<const Function *> TalkingFunctions, EffectFunctions, AccessFunctions;
 
   NameTable FunctionNames;
   DenseMap<const Function *, std::string> LeanNames, Translated;
@@ -2688,7 +2699,7 @@ Emitted emitModule(Module &M, const std::string &Namespace, const std::string &S
     // something that chooses, through a pointer too. It talks if it calls outside the module, or calls
     // something that does. Members of a cycle pass choices, the world and the trace along for each other, so
     // they share the answers.
-    bool Chooses = false, Talks = false, Effects = false;
+    bool Chooses = false, Talks = false, Effects = false, Accesses = false;
     for (const Function *F : Component)
       for (const BasicBlock &BB : *F)
         for (const Instruction &I : BB) {
@@ -2700,12 +2711,14 @@ Emitted emitModule(Module &M, const std::string &Namespace, const std::string &S
             Talks = true;
             Chooses |= hasNoEffects(*C);
             Effects |= !hasNoEffects(*C);
+            Accesses |= !outsideEffects(*C).doesNotAccessMemory();
             continue;
           }
           if (const Function *Callee = C->getCalledFunction()) {
             Chooses |= ChoosingFunctions.count(Callee) != 0;
             Talks |= TalkingFunctions.count(Callee) != 0;
             Effects |= EffectFunctions.count(Callee) != 0;
+            Accesses |= AccessFunctions.count(Callee) != 0;
             continue;
           }
           for (const Function *Target : Context.candidates(C->getFunctionType())) {
@@ -2721,13 +2734,16 @@ Emitted emitModule(Module &M, const std::string &Namespace, const std::string &S
       TalkingFunctions.insert(Component.begin(), Component.end());
     if (Effects)
       EffectFunctions.insert(Component.begin(), Component.end());
+    if (Accesses)
+      AccessFunctions.insert(Component.begin(), Component.end());
 
     std::vector<std::unique_ptr<FunctionEmitter>> Emitters;
     std::string Types, Loops, Functions, Wrappers, Failure;
     for (Function *F : Component) {
       Emitters.push_back(std::make_unique<FunctionEmitter>(
           *F, LeanNames.lookup(F), Recursive, PromisedCycle, UsesMemory, Chooses, Talks, Translated,
-          MemoryFunctions, ChoosingFunctions, TalkingFunctions, EffectFunctions, ReachesFree, Context));
+          MemoryFunctions, ChoosingFunctions, TalkingFunctions, EffectFunctions, AccessFunctions, ReachesFree,
+          Context));
       FunctionEmitter &E = *Emitters.back();
       try {
         E.prepare();

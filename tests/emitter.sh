@@ -328,6 +328,19 @@ define void @f(i8 %x) mustprogress { call void @h(i8 %x)
 accepts 'declare i8 @g(i8) memory(read)
 define i8 @f(i8 %x) mustprogress { %r = call i8 @g(i8 %x)
   ret i8 %r }'
+# A callee that accesses memory may synchronize, free, or access what its caller promised not to.
+refuses 'nosync on a function whose calls outside the module access memory' 'declare i8 @g(i8) memory(read)
+define i8 @f(i8 %x) nosync { %r = call i8 @g(i8 %x)
+  ret i8 %r }'
+refuses 'nofree on a function whose calls outside the module have effects' 'declare void @g(i8)
+define void @f(i8 %x) nofree { call void @g(i8 %x)
+  ret void }'
+refuses 'memory on a function whose calls outside the module access memory' 'declare void @g(i8)
+define void @f(i8 %x) memory(none) { call void @g(i8 %x)
+  ret void }'
+accepts 'declare i8 @g(i8) memory(none)
+define i8 @f(i8 %x) nosync nofree memory(none) { %r = call i8 @g(i8 %x)
+  ret i8 %r }'
 refuses 'touches memory: F4' 'declare i8 @g(ptr) memory(none)
 define i8 @f(ptr %p) { %r = call i8 @g(ptr %p)
   ret i8 %r }'

@@ -22,6 +22,7 @@ import effect_twice_wrong_ir
 import read_moved_across_effect_wrong_ir
 import effect_dropped_before_undefined_wrong_ir
 import effect_dropped_before_loop_wrong_ir
+import effect_then_spin_for_spin_or_return_wrong_ir
 
 /-! Calls outside the module, as ir-lean emits them: each rewrite in `tests/calls`, with a theorem of the case's name
 proving its verdict. A `_right` case refines, and a `_wrong` one provably doesn't, in the world, input and target
@@ -205,9 +206,11 @@ theorem nounwind_call_added_wrong :
 
 /-! ### Calls with effects, and calls that only read -/
 
-/-- `0 - (0 - x)` to `x` around a call with effects, which stays: the same trace, and a result that refines. -/
+/-- `0 - (0 - x)` to `x` around a call with effects, which stays: cut off at it, both have the same trace, and past
+it, the same trace and a result that refines. -/
 theorem effect_kept_right : Refines effect_kept_right_ir.src effect_kept_right_ir.tgt := by
-  intro x w t
+  intro x w t ct
+  refine ⟨ct, fun n => ?_⟩
   have hr : Refine.le (Val.sub (some 0#8) (Val.sub (some 0#8) x)) x := by
     cases x with
     | none => trivial
@@ -216,33 +219,43 @@ theorem effect_kept_right : Refines effect_kept_right_ir.src effect_kept_right_i
   simp only [effect_kept_right_ir.src, effect_kept_right_ir.tgt]
   rw [run.eq_1, run.eq_1]
   simp only [effect_kept_right_ir.src.step, effect_kept_right_ir.tgt.step, World.callEffect, Exit.bind]
-  cases w.effect (⟨"use", [Lanes.ofVal (Val.sub (some 0#8) x)]⟩ :: t) <;>
-    simp only [andThen, ret, Outcome.ok, Outcome.ub, Bool.false_eq_true, ite_false]
-  · exact ⟨_, rfl, ⟨_, rfl, hr⟩⟩
-  all_goals first | trivial | exact ⟨_, rfl, Refine.Reflexive.refl _⟩
+  by_cases hn : n ≤ t.length
+  · simp only [hn, ite_true, andThen, ret, Outcome.ok]
+    exact ⟨_, rfl, rfl⟩
+  · simp only [hn, ite_false]
+    cases w.effect (⟨"use", [("i8", Lanes.ofVal (Val.sub (some 0#8) x))]⟩ :: t) <;>
+      simp only [andThen, ret, Outcome.ok, Outcome.ub, Bool.false_eq_true, ite_false]
+    · exact ⟨_, rfl, ⟨_, rfl, hr⟩⟩
+    all_goals first | trivial | exact ⟨_, rfl, Refine.Reflexive.refl _⟩
 
-/-- Undefined behavior after a call with effects, to poison: in a world where the call comes back, the source is
-undefined, and in one where it doesn't, both end in it. -/
-theorem effect_then_undefined_right : Refines effect_then_undefined_right_ir.src effect_then_undefined_right_ir.tgt := by
-  intro x w t
+/-- Undefined behavior after a call with effects, to poison: watched past the call, where it comes back, the source is
+undefined, and where it doesn't, both end in it; watched no further, both are cut off at it. -/
+theorem effect_then_undefined_right :
+    Refines effect_then_undefined_right_ir.src effect_then_undefined_right_ir.tgt := by
+  intro x w t ct
+  refine ⟨ct, fun n => ?_⟩
   simp only [effect_then_undefined_right_ir.src, effect_then_undefined_right_ir.tgt]
   rw [run.eq_1, run.eq_1]
   simp only [effect_then_undefined_right_ir.src.step, effect_then_undefined_right_ir.tgt.step, World.callEffect,
     Exit.bind]
-  cases w.effect (⟨"use", [Lanes.ofVal x]⟩ :: t) <;>
-    simp only [andThen, ret, Outcome.ok, Outcome.ub, Bool.false_eq_true, ite_false]
-  · cases x <;> simp only [Val.udiv, Outcome.ub] <;> trivial
-  all_goals first | trivial | exact ⟨_, rfl, Refine.Reflexive.refl _⟩
+  by_cases hn : n ≤ t.length
+  · simp only [hn, ite_true, andThen, ret, Outcome.ok]
+    exact ⟨_, rfl, rfl⟩
+  · simp only [hn, ite_false]
+    cases w.effect (⟨"use", [("i8", Lanes.ofVal x)]⟩ :: t) <;>
+      simp only [andThen, ret, Outcome.ok, Outcome.ub, Bool.false_eq_true, ite_false]
+    · cases x <;> simp only [Val.udiv, Outcome.ub] <;> trivial
+    all_goals first | trivial | exact ⟨_, rfl, Refine.Reflexive.refl _⟩
 
 /-- An unused call that only reads, will return and can't unwind, dropped. -/
 theorem read_dropped_right :
-    Refines read_dropped_right_ir.src (fun x _ t => Outcomes.det (Exit.lift (read_dropped_right_ir.tgt x) t)) := by
+    Refines read_dropped_right_ir.src (fun x _ t => Talks.lift (read_dropped_right_ir.tgt x) t) := by
   intro x w t ct
-  refine ⟨ct, ?_⟩
-  simp only [read_dropped_right_ir.src, read_dropped_right_ir.tgt, Outcomes.det]
+  refine ⟨ct, fun n => ?_⟩
+  simp only [read_dropped_right_ir.src, read_dropped_right_ir.tgt, Talks.lift]
   rw [run_ret read_dropped_right_ir.tgt.step (by rfl), run.eq_1]
   simp only [read_dropped_right_ir.src.step, World.callRead, World.quiet, Exit.bind]
-  cases w.read t ⟨"peek", [Lanes.ofVal x]⟩ (ct.pick 1) <;>
+  cases w.read t ⟨"peek", [("i8", Lanes.ofVal x)]⟩ (ct.pick 1) <;>
     simp only [andThen, ret, Outcome.ok, Outcome.ub, Exit.lift] <;>
     first | trivial | exact ⟨_, rfl, Refine.Reflexive.refl _⟩
 
@@ -250,13 +263,13 @@ theorem read_dropped_right :
 source picks the target's answer for both. -/
 theorem read_merged_right : Refines read_merged_right_ir.src read_merged_right_ir.tgt := by
   intro x w t ct
-  refine ⟨fun p => if p = [2] then ct [1] else ct p, ?_⟩
+  refine ⟨fun p => if p = [2] then ct [1] else ct p, fun n => ?_⟩
   simp only [read_merged_right_ir.src, read_merged_right_ir.tgt]
   rw [run.eq_1, run.eq_1]
   simp +decide only [read_merged_right_ir.src.step, read_merged_right_ir.tgt.step, World.callRead, World.quiet,
     Exit.bind, Choice.pick, ite_true, ite_false]
   -- The second read is under the first's continuation, so its answer is rewritten once the first has returned.
-  cases hA : w.read t ⟨"peek", [Lanes.ofVal x]⟩ (ct [1]) with
+  cases hA : w.read t ⟨"peek", [("i8", Lanes.ofVal x)]⟩ (ct [1]) with
   | ret v =>
     simp only [andThen, ret, Outcome.ok, hA]
     refine ⟨_, rfl, ⟨_, rfl, ?_⟩⟩
@@ -267,20 +280,24 @@ theorem read_merged_right : Refines read_merged_right_ir.src read_merged_right_i
   | stays => rfl
   | unwinds => exact ⟨_, rfl, rfl⟩
 
-/-- Adding a call with effects: in a world where it returns, the target's trace has it and the source's doesn't. -/
+/-- Adding a call with effects: in a world where it returns, watched past it, the target's trace has it and the
+source's doesn't. -/
 theorem effect_added_wrong :
-    ¬ Refines (fun x _ t => Exit.lift (effect_added_wrong_ir.src x) t) effect_added_wrong_ir.tgt := fun h => by
-  have hcs := h none (effecting fun _ => .ret []) []
-  simp only [effect_added_wrong_ir.src, effect_added_wrong_ir.tgt] at hcs
+    ¬ Refines (fun x _ t => Talks.lift (effect_added_wrong_ir.src x) t) effect_added_wrong_ir.tgt := fun h => by
+  obtain ⟨cs, hcs⟩ := h none (effecting fun _ => .ret []) [] default
+  have hcs := hcs 1
+  simp only [effect_added_wrong_ir.src, effect_added_wrong_ir.tgt, Talks.lift] at hcs
   rw [run_ret effect_added_wrong_ir.src.step (by rfl), run.eq_1] at hcs
   simp [effect_added_wrong_ir.tgt.step, effecting, World.callEffect, Exit.bind, Exit.lift, andThen, ret, Outcome.ok,
     Refine.le] at hcs
 
-/-- Dropping a call with effects: in a world where it returns, the source's trace has it and the target's doesn't. -/
+/-- Dropping a call with effects: in a world where it returns, watched past it, the source's trace has it and the
+target's doesn't. -/
 theorem effect_dropped_wrong :
-    ¬ Refines effect_dropped_wrong_ir.src (fun x _ t => Exit.lift (effect_dropped_wrong_ir.tgt x) t) := fun h => by
-  have hcs := h none (effecting fun _ => .ret []) []
-  simp only [effect_dropped_wrong_ir.src, effect_dropped_wrong_ir.tgt] at hcs
+    ¬ Refines effect_dropped_wrong_ir.src (fun x _ t => Talks.lift (effect_dropped_wrong_ir.tgt x) t) := fun h => by
+  obtain ⟨cs, hcs⟩ := h none (effecting fun _ => .ret []) [] default
+  have hcs := hcs 1
+  simp only [effect_dropped_wrong_ir.src, effect_dropped_wrong_ir.tgt, Talks.lift] at hcs
   rw [run_ret effect_dropped_wrong_ir.tgt.step (by rfl), run.eq_1] at hcs
   simp [effect_dropped_wrong_ir.src.step, effecting, World.callEffect, Exit.bind, Exit.lift, andThen, ret, Outcome.ok,
     Refine.le] at hcs
@@ -289,16 +306,18 @@ theorem effect_dropped_wrong :
 see, so the traces differ in a world where it returns. -/
 theorem effect_dropped_willreturn_wrong :
     ¬ Refines effect_dropped_willreturn_wrong_ir.src
-      (fun x _ t => Exit.lift (effect_dropped_willreturn_wrong_ir.tgt x) t) := fun h => by
-  have hcs := h none (effecting fun _ => .ret []) []
-  simp only [effect_dropped_willreturn_wrong_ir.src, effect_dropped_willreturn_wrong_ir.tgt] at hcs
+      (fun x _ t => Talks.lift (effect_dropped_willreturn_wrong_ir.tgt x) t) := fun h => by
+  obtain ⟨cs, hcs⟩ := h none (effecting fun _ => .ret []) [] default
+  have hcs := hcs 1
+  simp only [effect_dropped_willreturn_wrong_ir.src, effect_dropped_willreturn_wrong_ir.tgt, Talks.lift] at hcs
   rw [run_ret effect_dropped_willreturn_wrong_ir.tgt.step (by rfl), run.eq_1] at hcs
   simp [effect_dropped_willreturn_wrong_ir.src.step, effecting, World.callEffect, Exit.bind, Exit.lift, andThen, ret,
     Outcome.ok, Refine.le] at hcs
 
 /-- Swapping two calls with effects: at 0 and 1, the traces differ in order. -/
 theorem effect_reordered_wrong : ¬ Refines effect_reordered_wrong_ir.src effect_reordered_wrong_ir.tgt := fun h => by
-  have hcs := h (some 0#8) (some 1#8) (effecting fun _ => .ret []) []
+  obtain ⟨cs, hcs⟩ := h (some 0#8) (some 1#8) (effecting fun _ => .ret []) [] default
+  have hcs := hcs 2
   simp only [effect_reordered_wrong_ir.src, effect_reordered_wrong_ir.tgt] at hcs
   rw [run.eq_1, run.eq_1] at hcs
   simp [effect_reordered_wrong_ir.src.step, effect_reordered_wrong_ir.tgt.step, effecting, World.callEffect, Exit.bind,
@@ -307,7 +326,8 @@ theorem effect_reordered_wrong : ¬ Refines effect_reordered_wrong_ir.src effect
 /-- Changing the argument of a call with effects from `x` to `x + 1`: at 0, the traces differ in it. -/
 theorem effect_argument_changed_wrong :
     ¬ Refines effect_argument_changed_wrong_ir.src effect_argument_changed_wrong_ir.tgt := fun h => by
-  have hcs := h (some 0#8) (effecting fun _ => .ret []) []
+  obtain ⟨cs, hcs⟩ := h (some 0#8) (effecting fun _ => .ret []) [] default
+  have hcs := hcs 1
   simp only [effect_argument_changed_wrong_ir.src, effect_argument_changed_wrong_ir.tgt] at hcs
   rw [run.eq_1, run.eq_1] at hcs
   simp [effect_argument_changed_wrong_ir.src.step, effect_argument_changed_wrong_ir.tgt.step, effecting,
@@ -315,7 +335,8 @@ theorem effect_argument_changed_wrong :
 
 /-- Calling a function with effects twice where the source calls it once: the target's trace has one more call. -/
 theorem effect_twice_wrong : ¬ Refines effect_twice_wrong_ir.src effect_twice_wrong_ir.tgt := fun h => by
-  have hcs := h none (effecting fun _ => .ret []) []
+  obtain ⟨cs, hcs⟩ := h none (effecting fun _ => .ret []) [] default
+  have hcs := hcs 2
   simp only [effect_twice_wrong_ir.src, effect_twice_wrong_ir.tgt] at hcs
   rw [run.eq_1, run.eq_1] at hcs
   simp [effect_twice_wrong_ir.src.step, effect_twice_wrong_ir.tgt.step, effecting, World.callEffect, Exit.bind,
@@ -326,32 +347,75 @@ before it, the source returns 0 however it picks, and the target 1. -/
 theorem read_moved_across_effect_wrong :
     ¬ Refines read_moved_across_effect_wrong_ir.src read_moved_across_effect_wrong_ir.tgt := fun h => by
   obtain ⟨cs, hcs⟩ := h none (effecting (fun _ => .ret []) fun t _ _ => .ret [some t.length]) [] default
+  have hcs := hcs 1
   simp only [read_moved_across_effect_wrong_ir.src, read_moved_across_effect_wrong_ir.tgt] at hcs
   rw [run.eq_1, run.eq_1] at hcs
   simp [read_moved_across_effect_wrong_ir.src.step, read_moved_across_effect_wrong_ir.tgt.step, effecting,
     World.callEffect, World.callRead, World.quiet, Exit.bind, andThen, ret, Outcome.ok, Lanes.toVal, Lanes.lane,
     Refine.le] at hcs
 
-/-- Dropping a call with effects before undefined behavior: in a world where the call never comes back, the source ends
-in it, defined, and the target returns poison. -/
+/-- Dropping a call with effects before undefined behavior: watched for no calls, the source is cut off at the call,
+defined, and the target returns poison. -/
 theorem effect_dropped_before_undefined_wrong :
     ¬ Refines effect_dropped_before_undefined_wrong_ir.src
-      (fun x _ t => Exit.lift (effect_dropped_before_undefined_wrong_ir.tgt x) t) := fun h => by
-  have hcs := h none (effecting fun _ => .stays) []
-  simp only [effect_dropped_before_undefined_wrong_ir.src, effect_dropped_before_undefined_wrong_ir.tgt] at hcs
+      (fun x _ t => Talks.lift (effect_dropped_before_undefined_wrong_ir.tgt x) t) := fun h => by
+  obtain ⟨cs, hcs⟩ := h none (effecting fun _ => .ret []) [] default
+  have hcs := hcs 0
+  simp only [effect_dropped_before_undefined_wrong_ir.src, effect_dropped_before_undefined_wrong_ir.tgt,
+    Talks.lift] at hcs
   rw [run_ret effect_dropped_before_undefined_wrong_ir.tgt.step (by rfl), run.eq_1] at hcs
-  simp [effect_dropped_before_undefined_wrong_ir.src.step, effecting, World.callEffect, Exit.bind, Exit.lift, andThen,
+  simp [effect_dropped_before_undefined_wrong_ir.src.step, World.callEffect, Exit.bind, Exit.lift, andThen,
     ret, Outcome.ok, Refine.le] at hcs
 
-/-- Dropping a call with effects before a loop that never ends: in a world where the call never comes back, the source
-ends in it, and the target runs forever. Neither finishes, and the world that stops at the call tells them apart. -/
+/-- Dropping a call with effects before a loop that never ends: watched for no calls, the source is cut off at the
+call, and the target runs forever. Neither finishes, and watching tells them apart. -/
 theorem effect_dropped_before_loop_wrong :
     ¬ Refines effect_dropped_before_loop_wrong_ir.src
-      (fun x _ t => Exit.lift (effect_dropped_before_loop_wrong_ir.tgt x) t) := fun h => by
-  have hcs := h none (effecting fun _ => .stays) []
+      (fun x _ t => Talks.lift (effect_dropped_before_loop_wrong_ir.tgt x) t) := fun h => by
+  obtain ⟨cs, hcs⟩ := h none (effecting fun _ => .ret []) [] default
+  have hcs := hcs 0
   have forever : run effect_dropped_before_loop_wrong_ir.tgt.step .entry = none :=
     run_forever (fun _ => True) (fun b _ => by cases b <;> exact ⟨_, rfl, trivial⟩) trivial
-  simp only [effect_dropped_before_loop_wrong_ir.src, effect_dropped_before_loop_wrong_ir.tgt, forever] at hcs
+  simp only [effect_dropped_before_loop_wrong_ir.src, effect_dropped_before_loop_wrong_ir.tgt, Talks.lift,
+    forever] at hcs
   rw [run.eq_1] at hcs
-  simp [effect_dropped_before_loop_wrong_ir.src.step, effecting, World.callEffect, Exit.bind, Exit.lift, andThen,
+  simp [effect_dropped_before_loop_wrong_ir.src.step, World.callEffect, Exit.bind, Exit.lift, andThen,
     ret, Outcome.ok, Refine.le] at hcs
+
+/-- A source that chooses between spinning silently and calling `@use` then returning, for a target that calls `@use`
+then spins. In a world where `@use` returns, every prefix of the target's trace is one of some source run's, and no
+one source run does what the target does: watched for no calls, the target is cut off and a spinning source isn't,
+and watched for one, the target spins and a calling source returns. -/
+theorem effect_then_spin_for_spin_or_return_wrong :
+    ¬ Refines effect_then_spin_for_spin_or_return_wrong_ir.src effect_then_spin_for_spin_or_return_wrong_ir.tgt :=
+  fun h => by
+  obtain ⟨cs, hcs⟩ := h none (effecting fun _ => .ret []) [] default
+  have tgt_spins : ∀ c w t n,
+      run effect_then_spin_for_spin_or_return_wrong_ir.tgt.step (.spin c w t n) = none := fun c w t n =>
+    run_forever (fun b => ∃ c w t n, b = .spin c w t n)
+      (fun _ ⟨c, w, t, n, hb⟩ => ⟨.spin (c.sub 0) w t n, by subst hb; rfl, c.sub 0, w, t, n, rfl⟩)
+      ⟨c, w, t, n, rfl⟩
+  have src_spins : ∀ c w t n,
+      run effect_then_spin_for_spin_or_return_wrong_ir.src.step (.spin c w t n) = none := fun c w t n =>
+    run_forever (fun b => ∃ c w t n, b = .spin c w t n)
+      (fun _ ⟨c, w, t, n, hb⟩ => ⟨.spin (c.sub 0) w t n, by subst hb; rfl, c.sub 0, w, t, n, rfl⟩)
+      ⟨c, w, t, n, rfl⟩
+  simp only [effect_then_spin_for_spin_or_return_wrong_ir.src, effect_then_spin_for_spin_or_return_wrong_ir.tgt]
+    at hcs
+  by_cases hb : BitVec.ofNat 1 (cs.pick 1) = 1#1
+  · -- The source spins: watched for no calls, the target is cut off at its call.
+    have h0 := hcs 0
+    rw [run_jump effect_then_spin_for_spin_or_return_wrong_ir.src.step
+      (by simp [effect_then_spin_for_spin_or_return_wrong_ir.src.step, Val.freeze, br, hb]; rfl), src_spins,
+      run.eq_1] at h0
+    simp [effect_then_spin_for_spin_or_return_wrong_ir.tgt.step, World.callEffect, Exit.bind, andThen, ret,
+      Outcome.ok, Refine.le] at h0
+  · -- The source calls and returns: watched for one call, the target spins after it.
+    have h1 := hcs 1
+    rw [run_jump effect_then_spin_for_spin_or_return_wrong_ir.src.step
+      (by simp [effect_then_spin_for_spin_or_return_wrong_ir.src.step, Val.freeze, br, hb]; rfl), run.eq_1,
+      run_jump effect_then_spin_for_spin_or_return_wrong_ir.tgt.step
+      (by simp [effect_then_spin_for_spin_or_return_wrong_ir.tgt.step, effecting, World.callEffect, Exit.bind,
+        andThen]; rfl), tgt_spins] at h1
+    simp [effect_then_spin_for_spin_or_return_wrong_ir.src.step, effecting, World.callEffect, Exit.bind, andThen, ret,
+      Outcome.ok, Refine.le] at h1
