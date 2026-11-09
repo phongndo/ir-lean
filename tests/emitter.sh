@@ -393,6 +393,18 @@ define internal i32 @g() { %r = call i32 @e()
 define i32 @f(ptr %p) { %a = load i32, ptr %p
   %c = call i32 @g()
   ret i32 %a }'
+# `speculatable` promises no effects, which a call outside the module with effects has, directly or through another.
+refuses 'speculatable on a function whose calls outside the module have effects' 'declare void @e(i8)
+define void @f(i8 %x) speculatable { call void @e(i8 %x)
+  ret void }'
+refuses 'speculatable on a function whose calls outside the module have effects' 'declare void @e(i8)
+define internal void @g(i8 %x) { call void @e(i8 %x)
+  ret void }
+define void @f(i8 %x) speculatable { call void @g(i8 %x)
+  ret void }'
+accepts 'declare i8 @e(i8) memory(none) willreturn nounwind
+define i8 @f(i8 %x) speculatable { %r = call i8 @e(i8 %x)
+  ret i8 %r }'
 # `nosync` at a call promises the callee's calls outside the module don't synchronize.
 refuses 'call attribute nosync on a call to @g' 'declare void @e(i8)
 define internal void @g(i8 %x) { call void @e(i8 %x)

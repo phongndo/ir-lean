@@ -2509,6 +2509,10 @@ void FunctionEmitter::prepare() {
     reject("function attribute memory on a function whose calls outside the module access memory");
   if (F.hasFnAttribute(Attribute::Speculatable) && UsesMemory)
     reject("function attribute speculatable on a function that uses memory");
+  // A call outside the module with effects is an effect of this function's too, which `speculatable` rules
+  // out.
+  if (F.hasFnAttribute(Attribute::Speculatable) && EffectFunctions.count(&F))
+    reject("function attribute speculatable on a function whose calls outside the module have effects");
   if (F.hasFnAttribute(Attribute::NoFree) && ReachesFree.count(&F))
     reject("function attribute nofree on a function that can reach free");
   collectBlocks();
