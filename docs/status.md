@@ -62,7 +62,7 @@ A rewrite of the IR clang `-O3` gives llama.cpp's q4_K matrix kernels, at releas
 Lean proves each of the 34 places it changes gives the same result as clang's IR on every input, from slices of the
 kernels that include how clang computed their operands. For each of three wrong rewrites, it proves the rewritten slice
 differs from clang's at every place. [llama.cpp](llama.md) has the details, what connects the slices to the kernels,
-which is a checked argument and not a theorem, and the measurements. CI checks it in a job of its own, which needs no
+which is a checked argument and not a theorem, and the measurements. CI checks it in a test job of its own, which needs no
 model. The proofs were checked on 2026-11-07 on top of `6293d34`, and again on 2026-11-08 merged with `main` at
 `0330cd7`, with the same hashes for the IR, every slice and every generated Lean file.
 

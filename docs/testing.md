@@ -13,7 +13,7 @@ run takes about a minute. A run with nothing changed takes about 4 s, apart from
 everything every time, in about a minute.
 
 `llama` needs llama.cpp's source, which only `nix develop .#llama` has, so it skips in the default shell. Run it with
-`nix develop .#llama -c ctest --test-dir build -L llama`, which takes about 4 minutes with 6 Lean jobs.
+`nix develop .#llama -c ctest --test-dir build -L llama`, which takes under 3 minutes with 6 Lean jobs.
 
 | Test | What it checks |
 | --- | --- |
@@ -83,6 +83,7 @@ with 4 cores and 16 GB, and the jobs run at once:
 | Tests and proofs (`binding`) | `binding` |
 | Tests and proofs (`llvm`) | `llvm` |
 | Tests and proofs (`semantics`) | `verify_negative`, `replay_challenge`, `contracts`, `refine`, `undef_freeze`, `generic_rewrites` and `cpp_correspondence` |
+| Tests and proofs (`llama`) | `llama`, in `nix develop .#llama`, the only job that needs llama.cpp's source |
 | Tests and proofs (`rest`) | Every other test, apart from `zlib_slow` |
 | Slow zlib tests | `zlib_slow`, on pushes to `main` |
 

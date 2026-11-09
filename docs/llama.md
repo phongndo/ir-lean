@@ -89,8 +89,9 @@ and `leanchecker` replays it through the kernel.
 A wrong rewrite can't pass this way. `vnni.py --mutant` makes three: reading the weights as signed instead of the
 activations, leaving out the last `vpdpbusd`, and multiplying by the whole 32-bit lane of scales. For each, at every one
 of the 34 places, Lean proves the rewritten slice gives a different result from clang's on one input, with
-`decide +kernel`, which has the kernel work both out and adds no axiom. The theorems that they're the same don't check,
-and run out of heartbeats instead. And `tests/llama.py` changes clang's mask from `0x0F` to `0x1F` in each byte, which
+`decide +kernel`, which has the kernel work both out and adds no axiom. So the theorem that they're the same is false
+at every place, and `tests/llama.py` doesn't try it. Before these proofs, it did, and each ran out of heartbeats, which
+refutes nothing. And `tests/llama.py` changes clang's mask from `0x0F` to `0x1F` in each byte, which
 breaks the first fact: every theorem stops on it with an error of its own, though the input Lean tries doesn't tell the
 two apart.
 
@@ -183,10 +184,10 @@ tests/llama.py build/ir-lean --manifest build/llama-manifest.json
 ```
 
 `nix develop .#llama` is the default shell with llama.cpp's source, which the flake fetches by hash. The default shell
-leaves it out, as it's 185 MB that no binary cache has, and in it `ctest` skips the `llama` test. CI runs it in a job of
-its own, with `ctest -L llama`. That compiles the kernels from the pinned release, rewrites them, checks the 34
+leaves it out, as it's 185 MB that no binary cache has, and in it `ctest` skips the `llama` test. In CI, it's the
+`llama` test job, in `nix develop .#llama`. That compiles the kernels from the pinned release, rewrites them, checks the 34
 theorems, runs the native comparison if the processor has AVX-512 VNNI, and checks the four mutants. It needs no
-model, and takes about 4 minutes with 6 Lean jobs, or 6 with 4 and no native comparison.
+model, and takes under 3 minutes with 6 Lean jobs, or about 3 and a half with 4 and no native comparison.
 
 The manifest has the hashes of the source, IR and rewritten object, each theorem's statement and axioms, and what each
 mutant did. [`llama-manifest.json`](data/llama-manifest.json) is the one behind this page. Three runs on this machine,
