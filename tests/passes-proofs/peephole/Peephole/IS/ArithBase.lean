@@ -370,4 +370,59 @@ theorem ctz_le (y : BitVec w) : y.ctz.toNat ≤ w := by
   have := BitVec.clz_le (x := y.reverse)
   simpa [BitVec.le_def] using this
 
+/-! ### Magnitudes, for `isDivZero` -/
+
+/-- A signed remainder is smaller in magnitude than the divisor. -/
+theorem natAbs_srem_lt {x y : BitVec w} (hy : y ≠ 0#w) : (x.srem y).toInt.natAbs < y.toInt.natAbs := by
+  rw [BitVec.toInt_srem, Int.natAbs_tmod]
+  exact Nat.mod_lt _ (Int.natAbs_pos.2 (toInt_ne_zero hy))
+
+/-- `abs` of a value other than the minimum is its magnitude, and so is its negation's negation. -/
+theorem toInt_abs_of_ne_intMin {c : BitVec w} (hc : c ≠ BitVec.intMin w) :
+    c.abs.toInt = c.toInt.natAbs ∧ (-c.abs).toInt = -(c.toInt.natAbs : Int) := by
+  have ha := BitVec.toInt_abs_eq_natAbs_of_ne_intMin hc
+  refine ⟨ha, ?_⟩
+  have hw : 0 < w := by
+    rcases Nat.eq_zero_or_pos w with rfl | hw
+    · exact absurd (BitVec.eq_of_toNat_eq (by simp [BitVec.toNat_of_zero_length])) hc
+    · exact hw
+  have hne : c.abs ≠ BitVec.intMin w := by
+    intro h
+    have := congrArg BitVec.toInt h
+    rw [ha, BitVec.toInt_intMin_of_pos hw] at this
+    have : (0 : Int) < 2 ^ (w - 1) := Int.pow_pos (by decide)
+    omega
+  rw [BitVec.toInt_neg_of_ne_intMin hne, ha]
+
+/-- `y < -|c|`: `y` is bigger in magnitude than `c`. -/
+theorem natAbs_lt_of_slt_neg_abs {c y : BitVec w} (hc : c ≠ BitVec.intMin w) (h : y.slt (-c.abs) = true) :
+    c.toInt.natAbs < y.toInt.natAbs := by
+  rw [BitVec.slt_eq_decide, decide_eq_true_eq, (toInt_abs_of_ne_intMin hc).2] at h
+  omega
+
+/-- `y > |c|`: `y` is bigger in magnitude than `c`. -/
+theorem natAbs_lt_of_abs_slt {c y : BitVec w} (hc : c ≠ BitVec.intMin w) (h : c.abs.slt y = true) :
+    c.toInt.natAbs < y.toInt.natAbs := by
+  rw [BitVec.slt_eq_decide, decide_eq_true_eq, (toInt_abs_of_ne_intMin hc).1] at h
+  omega
+
+/-- `-|c| < x < |c|`: `x` is smaller in magnitude than `c`. -/
+theorem natAbs_lt_of_between {c x : BitVec w} (hc : c ≠ BitVec.intMin w) (h1 : (-c.abs).slt x = true)
+    (h2 : x.slt c.abs = true) : x.toInt.natAbs < c.toInt.natAbs := by
+  rw [BitVec.slt_eq_decide, decide_eq_true_eq, (toInt_abs_of_ne_intMin hc).2] at h1
+  rw [BitVec.slt_eq_decide, decide_eq_true_eq, (toInt_abs_of_ne_intMin hc).1] at h2
+  omega
+
+/-- Every value but the minimum is smaller in magnitude than it. -/
+theorem natAbs_lt_natAbs_intMin {x : BitVec w} (h : x ≠ BitVec.intMin w) :
+    x.toInt.natAbs < (BitVec.intMin w).toInt.natAbs := by
+  rcases Nat.eq_zero_or_pos w with rfl | hw
+  · exact absurd (BitVec.eq_of_toNat_eq (by simp [BitVec.toNat_of_zero_length])) h
+  rw [BitVec.toInt_intMin_of_pos hw]
+  have hne : x.toInt ≠ -2 ^ (w - 1) := by
+    intro he
+    exact h (BitVec.eq_of_toInt_eq (by rw [he, BitVec.toInt_intMin_of_pos hw]))
+  obtain ⟨lo, hi⟩ := toInt_range x
+  omega
+
 end Peephole.IS.Arith
