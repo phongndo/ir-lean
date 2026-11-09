@@ -11,12 +11,13 @@ import json
 import subprocess
 import sys
 import tempfile
-import tomllib
 import unittest
 from pathlib import Path
 from typing import Any
 
 ROOT = Path(__file__).resolve().parent.parent
+sys.path.append(str(ROOT / "tools"))
+from irlean import hashing, pins  # noqa: E402
 
 
 def load(name: str, path: Path) -> Any:
@@ -171,7 +172,7 @@ class Pin(unittest.TestCase):
 
 def unpinned() -> str | None:
     """Why the live tests can't run, or None when the repo's opt is on PATH."""
-    tag = tomllib.loads(capture.TARGETS.read_text())["project"]["tag"]
+    tag = pins.llvm()["tag"]
     try:
         r = subprocess.run(["opt", "--version"], capture_output=True, text=True, check=False)
     except FileNotFoundError:
@@ -198,13 +199,13 @@ class Live(unittest.TestCase):
             self.assertEqual(r.returncode, 0, r.stderr)
             record = json.loads((out / "sub_add_cancel" / "capture.json").read_text())
             self.assertEqual(record["status"], "captured")
-            self.assertEqual(record["input_sha256"], capture.sha256_bytes(seed.read_bytes()))
+            self.assertEqual(record["input_sha256"], hashing.sha256(seed.read_bytes()))
             self.assertIn("instcombine", [s["name"] for s in record["steps"]])
             for s in record["steps"]:
                 self.assertTrue(s["reproduced"], s)
                 for side in ("before", "after"):
                     data = (out / "sub_add_cancel" / s[side]).read_bytes()
-                    self.assertEqual(capture.sha256_bytes(data), s[f"{side}_sha256"])
+                    self.assertEqual(hashing.sha256(data), s[f"{side}_sha256"])
             # Each step follows the last, from the input as opt prints it to the output.
             for prev, s in zip(record["steps"], record["steps"][1:], strict=False):
                 self.assertEqual(prev["after_sha256"], s["before_sha256"])

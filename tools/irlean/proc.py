@@ -78,8 +78,20 @@ BUSY = 75
 # What `stdout` and `stderr` take to capture a stream, and `stderr` to send it to wherever stdout goes.
 CAPTURE = "capture"
 STDOUT = "stdout"
-# What `stdin` takes to give the command this process's own.
-INHERIT = "inherit"
+
+
+class _Inherit:
+    def __repr__(self) -> str:
+        return "proc.INHERIT"
+
+
+# What `stdin` takes to give the command this process's own: an object of its own, so no text can pass for it.
+INHERIT: Any = _Inherit()
+# For `spawn`, which takes Popen's arguments, and its callers, so nothing else imports subprocess.
+PIPE = subprocess.PIPE
+DEVNULL = subprocess.DEVNULL
+Popen = subprocess.Popen
+TimeoutExpired = subprocess.TimeoutExpired
 
 type Stream = str | Path | IO[Any] | int | None
 
@@ -489,6 +501,10 @@ class Sampler(threading.Thread):
             self.stop.wait(self.interval)
 
 
+def _text(data: bytes) -> str:
+    return data.decode(errors="replace").replace("\r\n", "\n").replace("\r", "\n")
+
+
 @dataclass
 class Ran:
     """How a command ended, and what it cost."""
@@ -514,11 +530,13 @@ class Ran:
 
     @property
     def out(self) -> str:
-        return self.stdout.decode(errors="replace")
+        """stdout as text, as `subprocess` gives it with `text=True`: newlines as `\\n`, and anything that
+        isn't UTF-8 replaced."""
+        return _text(self.stdout)
 
     @property
     def err(self) -> str:
-        return self.stderr.decode(errors="replace")
+        return _text(self.stderr)
 
     @property
     def output(self) -> str:
@@ -597,7 +615,7 @@ def run(
     stopped: list[str] = []
     with contextlib.ExitStack() as stack:
         given: Any = subprocess.DEVNULL if stdin is None else stdin
-        if stdin == INHERIT:
+        if stdin is INHERIT:
             given = None
         elif isinstance(stdin, str | bytes):
             given = stack.enter_context(tempfile.TemporaryFile())
@@ -689,7 +707,9 @@ def run(
 
 def spawn(argv: Sequence[str | os.PathLike[str]], **popen: Any) -> subprocess.Popen[Any]:
     """Starts a command that talks to this process while it runs, in a session of its own, for `stop` to end.
-    Takes Popen's other arguments."""
+    Takes Popen's other arguments, and STDOUT for `stderr`."""
+    if popen.get("stderr") == STDOUT:
+        popen["stderr"] = subprocess.STDOUT
     p = subprocess.Popen([os.fspath(a) for a in argv], start_new_session=True, **popen)
     with _LIVE_LOCK:
         _LIVE[p.pid] = None
@@ -698,7 +718,8 @@ def spawn(argv: Sequence[str | os.PathLike[str]], **popen: Any) -> subprocess.Po
 
 def stop(p: subprocess.Popen[Any], grace: float = 0) -> None:
     """Ends a command `spawn` started: waits `grace` seconds for it to exit, then kills it and everything it
-    started, and reaps it."""
+    started, reaps it, and closes its stdin. Whatever reads its output closes that, as a thread may still be
+    reading what it wrote."""
     if grace > 0:
         with contextlib.suppress(subprocess.TimeoutExpired):
             p.wait(timeout=grace)
@@ -706,12 +727,26 @@ def stop(p: subprocess.Popen[Any], grace: float = 0) -> None:
         kill_tree(p.pid)
     kill_group(p.pid)
     p.wait()
-    for stream in (p.stdin, p.stdout, p.stderr):
-        if stream is not None:
-            with contextlib.suppress(OSError):
-                stream.close()
+    if p.stdin is not None:
+        with contextlib.suppress(OSError):
+            p.stdin.close()
     with _LIVE_LOCK:
         _LIVE.pop(p.pid, None)
+
+
+def rss_mb(pid: int) -> float | None:
+    """A process's resident memory now, in MiB, or None if it can't be read."""
+    with contextlib.suppress(OSError, ValueError):
+        if sys.platform.startswith("linux"):
+            for line in Path(f"/proc/{pid}/status").read_text().splitlines():
+                if line.startswith("VmRSS:"):
+                    return int(line.split()[1]) / 1024
+            return None
+        out = subprocess.run(
+            ["ps", "-o", "rss=", "-p", str(pid)], capture_output=True, text=True, check=False
+        )
+        return int(out.stdout.strip()) / 1024 if out.stdout.strip() else None
+    return None
 
 
 # ------------------------------------------------------------------------------------------------------------

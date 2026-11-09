@@ -40,32 +40,26 @@ usage: tools/binding.py record --input FILE.ll --passes SPEC [--mtriple T] --fun
 
 import argparse
 import base64
-import contextlib
-import hashlib
 import json
 import os
 import re
 import secrets
 import shutil
-import signal
 import stat
-import subprocess
 import sys
-import tempfile
-import tomllib
-from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from typing import Any, NoReturn
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.append(str(ROOT / "tools"))
+from irlean import hashing, pins, proc, schemas  # noqa: E402
+from irlean import lean as leanlib  # noqa: E402
 from irlean import verdict as core  # noqa: E402
 
 LIBRARY = ROOT / ".lake" / "build" / "lib" / "lean"
 TOOL = ROOT / "build" / "ir-lean"
 CHECK = ROOT / "tools" / "binding_check.lean"
 AXIOMS = ROOT / "tests" / "check_axioms.lean"
-PIN = ROOT / "tests" / "llvm" / "targets.toml"
 RUNS = ROOT / "build" / "binding" / "runs"
 SELF = Path(__file__).resolve()
 # The shared library's Python, which decides the verdict with this file: irlean.verdict grants `bound`.
@@ -73,24 +67,18 @@ IRLEAN_PY = sorted((ROOT / "tools" / "irlean").glob("*.py"))
 # The files a verdict depends on that aren't in a tree tree_hash() covers. Each has to be a file, not a link.
 STANDALONE = [TOOL, AXIOMS, CHECK, SELF, *IRLEAN_PY]
 
-MANIFEST_SCHEMA = "ir-lean.binding.manifest/2"
-VERDICT_SCHEMA = "ir-lean.binding.verdict/1"
+MANIFEST_SCHEMA = schemas.BINDING_MANIFEST
+VERDICT_SCHEMA = schemas.BINDING_VERDICT
 EXIT = {"bound": 0, "refused": 1, "unsupported": 3, "unknown": 4, "error": 5}
 DEFAULT_TIMEOUT = 300
 DEFAULT_MEMORY_MB = 3000
-# Threads hashing a tree's files at once. Reading a file and hashing it both let other threads run.
-HASH_THREADS = min(8, os.cpu_count() or 1)
 # The directory a store path is directly in, which is the only place llvm_source_hash() asks Nix about.
 NIX_STORE = Path("/nix/store")
 # The Nix daemon's socket, root's in a store root owns, which llvm_source_hash() asks, not whatever store the
 # user's Nix configuration names: a certificate's code can rewrite that, to name a binary cache of its own.
 NIX_DAEMON_SOCKET = Path("/nix/var/nix/daemon-socket/socket")
 # Lean's errors for running out of something, as tests/llvm.py and tests/proofs.sh list them.
-LIMIT = re.compile(
-    r"maximum number of heartbeats|\(deterministic\) timeout|maximum recursion depth|deep recursion|"
-    r"stack overflow|excessive memory|out of memory|SAT solver timed out|maximum number of steps",
-    re.IGNORECASE,
-)
+LIMIT = leanlib.LIMIT
 
 # What each kind of claim says, as the Lean the checker builds. Only the first two can be checked: the others
 # are the obligations a per-instance certificate leaves open, and are refused as `unsupported` whatever the
@@ -168,110 +156,21 @@ def refused(reason: str, detail: str, **extra: Any) -> NoReturn:
     raise Verdict("refused", reason, detail, **extra)
 
 
-def sha256(data: bytes) -> str:
-    return hashlib.sha256(data).hexdigest()
-
-
-def sha256_file(path: Path) -> str:
-    """A file's SHA-256, read a piece at a time, so a large file isn't held in memory whole."""
-    with path.open("rb") as f:
-        return hashlib.file_digest(f, "sha256").hexdigest()
-
-
-def canonical(obj: Any) -> bytes:
-    return json.dumps(obj, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode()
-
-
-def walk(*roots: Path) -> list[Path]:
-    """Every file, directory and link under `roots`, or `roots` themselves if they're files, without following
-    links, in a fixed order."""
-    out = []
-    for root in roots:
-        if not root.is_dir() or root.is_symlink():
-            out.append(root)
-            continue
-        for d, subdirs, files in os.walk(root):
-            out += [Path(d) / name for name in subdirs + files]
-    return sorted(out)
-
-
-def kind(path: Path) -> bytes:
-    """What `path` is, without following a link."""
-    mode = path.lstat().st_mode
-    for test, name in ((stat.S_ISLNK, b"link"), (stat.S_ISREG, b"file"), (stat.S_ISDIR, b"dir")):
-        if test(mode):
-            return name
-    return b"other"
+sha256 = hashing.sha256
+sha256_file = hashing.sha256_file
+canonical = hashing.canonical
+stamp = hashing.stamp
+snapshot = hashing.snapshot
+files_hash = hashing.files_hash
 
 
 def tree_hash(base: Path, *roots: Path) -> str:
-    """Every file under `roots` by its path from `base` and its bytes, and every link by its target:
-    everything Lean could read there, its modules, their companion `.olean.server`, `.olean.private`, `.ir`
-    and `.ir.sig` files, its shared libraries and its executables. A link has to lead inside `roots`, whose
-    files are hashed themselves, or into the Nix store, which is read-only. One leading anywhere else could
-    reach a file nothing hashes, so it's an error. So a link has to be a bare file name, naming a sibling
-    that's hashed itself and isn't a directory, or an absolute path into the store that stays there. Nothing
-    is normalized: `..`, a root that's a link, and a link to a directory could each lead through something
-    only tracked as a link, and what it leads to could change unseen.
-
-    Each entry goes in as its path, a NUL, its kind and a NUL, and then a file's SHA-256, 32 bytes, or a
-    link's target and a NUL. A path or a target can't hold a NUL, so the bytes read back one way, and no two
-    trees give the same ones: a file can't pass for two, or a directory for an empty file. Files are hashed
-    on HASH_THREADS threads, each a piece at a time."""
-    entries = walk(*roots)
-    tracked = {str(p) for p in entries}
-    kinds = {path: kind(path) for path in entries}
-    files = [p for p in entries if kinds[p] == b"file"]
-    with ThreadPoolExecutor(HASH_THREADS) as pool:
-        contents = dict(zip(files, pool.map(sha256_file, files), strict=True))
-    digest = hashlib.sha256()
-    for path in entries:
-        digest.update(os.fsencode(path.relative_to(base)) + b"\0" + kinds[path] + b"\0")
-        if kinds[path] == b"link":
-            raw = os.readlink(path)
-            sibling = "/" not in raw and raw not in (".", "..") and str(path.parent / raw) in tracked
-            store = raw.startswith("/nix/store/") and Path(raw).resolve().is_relative_to("/nix/store")
-            if path in roots or path.is_dir() or not (sibling or store):
-                raise Verdict(
-                    "error", "toolchain_untrusted_link", f"{path} leads to {raw}, which isn't checked"
-                )
-            digest.update(os.fsencode(raw) + b"\0")
-        elif kinds[path] == b"file":
-            digest.update(bytes.fromhex(contents[path]))
-    return digest.hexdigest()
-
-
-def files_hash(base: Path, paths: list[Path]) -> str:
-    """Files by their paths from `base`, sorted, each as its path, a NUL and its SHA-256, which reads back one
-    way: a path can't hold a NUL, and a hash is 32 bytes."""
-    digest = hashlib.sha256()
-    for path in sorted(paths):
-        digest.update(os.fsencode(path.relative_to(base)) + b"\0" + bytes.fromhex(sha256_file(path)))
-    return digest.hexdigest()
-
-
-def stamp(*roots: Path) -> dict[str, tuple[int, ...]]:
-    """What `lstat` says of every entry under `roots`. Any write, replacement, new file or removal changes it:
-    a write moves the change time, which a process without root can't set back. It's what checks that nothing
-    changed while a certificate's code could run, as hashing it all again each time would take seconds."""
-    out = {}
-    for path in walk(*roots):
-        st = path.lstat()
-        out[str(path)] = (st.st_mode, st.st_ino, st.st_size, st.st_ctime_ns, st.st_mtime_ns)
-    return out
-
-
-def snapshot(*dirs: Path) -> dict[str, str]:
-    """Every entry under `dirs`, without following links: a file by its hash, a link by its target."""
-    out = {}
-    for d in dirs:
-        for root, subdirs, files in os.walk(d):
-            for name in subdirs + files:
-                p = Path(root) / name
-                out[str(p)] = (
-                    f"link {os.readlink(p)}" if p.is_symlink() else "dir" if p.is_dir() else sha256_file(p)
-                )
-    return out
+    """hashing.tree_hash, which refuses a link to anything it doesn't hash: an error, as nothing here can say
+    what's behind it."""
+    try:
+        return hashing.tree_hash(base, *roots)
+    except hashing.UntrustedLink as e:
+        raise Verdict("error", "toolchain_untrusted_link", str(e)) from e
 
 
 def irlean_entries() -> list[Path]:
@@ -284,16 +183,13 @@ def library_hash() -> str:
 
 
 class Runner:
-    """Runs one process at a time, under a time limit, Lean's own memory limit, and a cgroup capped at the
-    same, with no swap, when systemd can make one."""
+    """Runs one process at a time, under a time limit, Lean's own memory limit, and a systemd scope capped at
+    the same and 512 MB more, with no swap, where systemd can make one."""
 
     def __init__(self, timeout: int, memory_mb: int) -> None:
         self.timeout, self.memory_mb = timeout, memory_mb
-        self.capped = False
-        if sys.platform.startswith("linux") and shutil.which("systemd-run"):
-            probe = ["systemd-run", "--user", "--scope", "--quiet", "--", "true"]
-            self.capped = subprocess.run(probe, capture_output=True, check=False).returncode == 0
-        self.env = {**os.environ, "ELAN_TOOLCHAIN": (ROOT / "lean-toolchain").read_text().strip()}
+        self.capped = proc.scopes_work()
+        self.env = {**os.environ, "ELAN_TOOLCHAIN": leanlib.toolchain()}
         # The executables toolchain() hashed, by absolute path, so the ones that run are the ones hashed.
         self.bins: dict[str, str] = {}
 
@@ -305,69 +201,28 @@ class Runner:
         cwd: Path | None = None,
     ) -> tuple[int, str, bytes]:
         """(exit code, stderr, stdout). Raises `unknown` if a limit stopped it."""
-        command = argv
-        unit = f"ir-lean-binding-{os.getpid()}-{secrets.token_hex(4)}"
-        if self.capped:
-            properties = [f"MemoryMax={self.memory_mb + 512}M", "MemorySwapMax=0"]
-            command = [
-                "systemd-run",
-                "--user",
-                "--scope",
-                "--quiet",
-                f"--unit={unit}",
-                *(f"--property={p}" for p in properties),
-                "--",
-                *argv,
-            ]
-        # Its own process group and files for its output, so it's done when it exits, not when everything it
-        # started closes the output. Whatever it left running is then killed: bv_decide's solver after a
-        # timeout, and anything a certificate's code started while it compiled.
-        with tempfile.TemporaryFile() as i, tempfile.TemporaryFile() as o, tempfile.TemporaryFile() as e:
-            i.write(stdin or b"")
-            i.seek(0)
-            p = subprocess.Popen(
-                command,
-                stdin=i,
-                stdout=o,
-                stderr=e,
-                env={**self.env, **(env or {})},
-                cwd=cwd,
-                start_new_session=True,
-            )
-            try:
-                p.wait(timeout=self.timeout)
-            except subprocess.TimeoutExpired as ex:
-                self.kill(p, unit)
-                raise Verdict(
-                    "unknown", "time_limit", f"{Path(argv[0]).name} took more than {self.timeout} s"
-                ) from ex
-            finally:
-                self.kill(p, unit)
-            o.seek(0)
-            e.seek(0)
-            r = subprocess.CompletedProcess(command, p.returncode, o.read(), e.read())
-        err = r.stderr.decode(errors="replace")
-        # Lean prints its errors on stdout. A limit anywhere means the step might pass with more.
-        said = err + r.stdout.decode(errors="replace")
-        if r.returncode < 0 or r.returncode == 137 or (r.returncode != 0 and LIMIT.search(said)):
+        # A session of its own and files for its output, so it's done when it exits, not when everything it
+        # started closes the output. Whatever it left running is then killed, with its scope: bv_decide's
+        # solver after a timeout, and anything a certificate's code started while it compiled.
+        r = proc.run(
+            argv,
+            timeout=self.timeout,
+            scope=proc.Scope("ir-lean-binding", self.memory_mb + 512),
+            stdin=stdin or b"",
+            env={**self.env, **(env or {})},
+            cwd=cwd,
+        )
+        if r.limit == "time_limit":
+            raise Verdict("unknown", "time_limit", f"{Path(argv[0]).name} took more than {self.timeout} s")
+        # Lean prints its errors on stdout. A limit anywhere means the step might pass with more, and so does
+        # its scope running out of memory, which kills it.
+        said = r.err + r.out
+        if r.limit is not None or r.exit < 0 or r.exit == 137 or (r.exit != 0 and LIMIT.search(said)):
             raise Verdict("unknown", "resource_limit", f"{Path(argv[0]).name} hit a limit: {said[-400:]}")
-        return r.returncode, err, r.stdout
-
-    def kill(self, p: subprocess.Popen, unit: str) -> None:
-        """Kills a process, its process group, and its scope."""
-        if self.capped:
-            subprocess.run(
-                ["systemctl", "--user", "kill", "--signal=SIGKILL", f"{unit}.scope"],
-                capture_output=True,
-                check=False,
-            )
-        with contextlib.suppress(ProcessLookupError, PermissionError):
-            os.killpg(p.pid, signal.SIGKILL)
-        p.kill()
-        p.wait()
+        return r.exit, r.err, r.stdout
 
     def lean(self, *args: str) -> list[str]:
-        return [self.bins["lean"], "-j1", "-M", str(self.memory_mb), "-s", "65536", *args]
+        return leanlib.argv(self.memory_mb, *args, lean=self.bins["lean"], threads=1)
 
 
 def first_line(run: Runner, argv: list[str]) -> str:
@@ -378,10 +233,10 @@ def first_line(run: Runner, argv: list[str]) -> str:
 
 
 def which(program: str) -> Path:
-    found = shutil.which(program)
+    found = pins.which(program)
     if found is None:
         raise Verdict("error", "toolchain_missing", f"{program} isn't on PATH: run inside nix develop")
-    return Path(found).resolve()
+    return found
 
 
 def plain_files(*paths: Path) -> None:
@@ -431,10 +286,8 @@ def toolchain(run: Runner) -> dict[str, str]:
     }
 
 
-def llvm_pin() -> dict[str, str]:
-    """The llvm-project commit this repo proves things about, from tests/llvm/targets.toml."""
-    project = tomllib.loads(PIN.read_text())["project"]
-    return {k: project[k] for k in ("repository", "tag", "commit", "nix_hash")}
+# The llvm-project commit this repo proves things about, from tests/llvm/targets.toml.
+llvm_pin = pins.llvm
 
 
 def llvm_source_hash(run: Runner) -> str:

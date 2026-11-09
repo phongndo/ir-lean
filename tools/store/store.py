@@ -30,12 +30,10 @@ import argparse
 import concurrent.futures
 import contextlib
 import datetime
-import hashlib
 import json
 import os
 import re
 import shutil
-import subprocess
 import sys
 import tempfile
 import time
@@ -44,6 +42,8 @@ from typing import Any, NoReturn
 
 ROOT = Path(__file__).resolve().parent.parent.parent
 sys.path.append(str(ROOT / "tools"))
+from irlean import hashing, proc, schemas  # noqa: E402
+from irlean import lean as leanlib  # noqa: E402
 from irlean import verdict as core  # noqa: E402
 
 STORE = ROOT / "store"
@@ -54,10 +54,10 @@ LIB = ROOT / ".lake" / "build" / "lib" / "lean"
 WORK = ROOT / "build" / "store"
 CHECK_AXIOMS = ROOT / "tests" / "check_axioms.lean"
 
-SCHEMA = "ir-lean.store/1"
-LOOKUP_SCHEMA = "ir-lean.store.lookup/1"
-ADMISSION_SCHEMA = "ir-lean.store.admission/1"
-INDEX_SCHEMA = "ir-lean.store.index/1"
+SCHEMA = schemas.STORE
+LOOKUP_SCHEMA = schemas.STORE_LOOKUP
+ADMISSION_SCHEMA = schemas.STORE_ADMISSION
+INDEX_SCHEMA = schemas.STORE_INDEX
 COUNTER_PREFIX = "LemmaStore.Counter"
 STANDARD_AXIOMS = {"propext", "Classical.choice", "Quot.sound"}
 # A lemma the kernel takes longer than this to check again should be cut into smaller ones.
@@ -112,10 +112,7 @@ STATUSES = {
     "refused": "Fails a check. `reasons` says which",
 }
 # Lean errors that say it ran out of something, which never count as the lemma being wrong.
-RESOURCE = re.compile(
-    r"maximum number of heartbeats|\(deterministic\) timeout|maximum recursion depth|deep recursion|"
-    r"stack overflow|excessive memory|out of memory|maximum number of steps"
-)
+RESOURCE = leanlib.LIMIT
 
 
 class StoreError(Exception):
@@ -139,23 +136,14 @@ def lean_env(*paths: Path) -> dict[str, str]:
 
 def run(cmd: list[str], env: dict[str, str] | None = None, timeout: int = LEAN_TIMEOUT) -> tuple[int, str]:
     """Runs `cmd` from the repo's root, and returns its exit code and what it printed, both streams
-    together."""
+    together. Past `timeout`, it and everything it started are killed, and it says so as Lean would."""
     try:
-        p = subprocess.run(
-            cmd,
-            cwd=ROOT,
-            env=env,
-            capture_output=True,
-            text=True,
-            timeout=timeout,
-            check=False,
-        )
-    except subprocess.TimeoutExpired as e:
-        out = (e.stdout or b"").decode() if isinstance(e.stdout, bytes) else (e.stdout or "")
-        return 124, out + f"\n(deterministic) timeout: {cmd[0]} ran past {timeout} s"
+        r = proc.run(cmd, cwd=ROOT, env=env, timeout=timeout)
     except FileNotFoundError as e:
         raise StoreError("toolchain_missing", f"{cmd[0]} isn't on PATH") from e
-    return p.returncode, p.stdout + p.stderr
+    if r.limit is not None:
+        return 124, r.out + f"\n(deterministic) timeout: {cmd[0]} ran past {timeout} s"
+    return r.exit, r.out + r.err
 
 
 def lean(args: list[str], env: dict[str, str]) -> tuple[int, str]:
@@ -229,14 +217,13 @@ def closure(modules: list[str]) -> list[str]:
     return sorted(seen)
 
 
-def toolchain() -> str:
-    return (ROOT / "lean-toolchain").read_text().strip()
+toolchain = leanlib.toolchain
 
 
 def sources_hash(modules: list[str]) -> str:
     """What the store's validity depends on, as Mathlib's cache hashes it: the toolchain and the sources of
     every module the store imports from this repo."""
-    h = hashlib.sha256(toolchain().encode())
+    h = hashing.new(toolchain().encode())
     for m in closure(modules):
         f = module_file(m)
         assert f is not None
@@ -246,7 +233,7 @@ def sources_hash(modules: list[str]) -> str:
 
 
 def key_of(key_text: str) -> str:
-    return hashlib.sha256(key_text.encode()).hexdigest()[:20]
+    return hashing.sha256_text(key_text)[:20]
 
 
 def counter_modules() -> list[str]:
@@ -288,7 +275,7 @@ def build_consumers(index: dict[str, Any], work: Path) -> None:
     for c in consumers(index):
         f = ROOT / c["file"]
         olean, stamp = work / f"{c['module']}.olean", work / f"{c['module']}.key"
-        h = hashlib.sha256(f.read_bytes())
+        h = hashing.new(f.read_bytes())
         h.update(sources_hash(imports_of(f)).encode())
         key = h.hexdigest()
         if olean.exists() and stamp.exists() and stamp.read_text() == key:
