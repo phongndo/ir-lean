@@ -122,6 +122,12 @@ REASONS: dict[str, Reason] = {
         None,
         "A call to a function in the module that ir-lean translates, directly or through a pointer to one",
     ),
+    "outside call": Reason(
+        "modeled",
+        None,
+        "A call to a function the module only declares, answered by IRLean.World: an event in the run's "
+        "trace, or for one without effects, an answer at the run's choice (docs/calls.md)",
+    ),
     "aggregate": Reason("modeled", None, "A struct is a Lean tuple, field by field"),
     "float": Reason(
         "modeled",
@@ -915,11 +921,8 @@ FORM_RULES = [
     ),
     R("memory model", "store-of-i1 load-of-i1 freeze-of-a-pointer"),
     R("concurrency", "volatile-load volatile-store atomic-load atomic-store"),
-    R(
-        "external",
-        "call-to-a-declaration call-to-an-odr-definition variadic-call external-global "
-        "alias-the-linker-may-replace",
-    ),
+    R("outside call", "call-to-a-declaration"),
+    R("external", "call-to-an-odr-definition variadic-call external-global alias-the-linker-may-replace"),
     R("variadic", "variadic-function"),
     R("exceptions", "personality-function"),
     R("big-endian", "big-endian-bitcast"),
