@@ -13,8 +13,10 @@ both as it does over arguments: source and target face the same world.
 - A call that accesses no memory answers from `World.pure`, given only the call. Which of its possible answers a run
   gets is the run's choice, as for a `freeze`: `IRLean.Choice` numbers both. It goes in no trace, except the one a run
   that ends by unwinding from it ends with.
-- A run ends as an `Exit`: it returned, with its trace, or a call it made never came back, or unwound. Two runs refine
-  only with equal traces.
+- A run ends as an `Exit`: it returned, with its trace, or a call it made never came back, or unwound, or it was cut
+  off, watched for as many calls with effects as it had made. A function that calls outside the module returns
+  `Talks`: how its run ends for each way it chooses, watched for each number of calls. Two runs refine only with equal
+  traces, and `Refines` has the source pick one run that agrees with the target's however long it's watched.
 
 A promise a callee breaks is undefined behavior, `UB.outsideCall`, as LangRef says: a `noreturn` callee that returns, a
 `nounwind` one that unwinds, and one without effects that never comes back under `willreturn`. So is unwinding through
@@ -46,10 +48,11 @@ namespace Lanes
 
 end Lanes
 
-/-- A call outside the module: the callee's name, and each argument's lanes. -/
+/-- A call outside the module: the callee's name, and each argument's type, with the attributes that change what the
+callee receives, and its lanes. The type tells a variadic callee's arguments apart where their lanes are the same. -/
 structure Event where
   callee : String
-  args : List Lanes
+  args : List (String × Lanes)
   deriving DecidableEq, Repr, Inhabited
 
 /-- The calls with effects a run has made, newest first. -/
@@ -86,7 +89,13 @@ inductive Exit (α : Type) where
   | halted (t : Trace)
   /-- The call at the head of `t` unwound, and so did this function. -/
   | unwound (t : Trace)
+  /-- The run was watched for `t`'s calls with effects, and was about to make another. -/
+  | cut (t : Trace)
   deriving DecidableEq, Repr
+
+/-- What a function that calls outside the module does, after its arguments, the world and the trace before it: for
+each way its run chooses, and each number of calls with effects to watch it for, how it ends. -/
+def Talks (α : Type) : Type := Choice → Nat → Outcome (Exit α)
 
 /-- What the declaration and the call promise of a callee outside the module. Each is checked against its answer. -/
 structure Promises where
@@ -123,6 +132,7 @@ ends the run through `stop`, as the call did. Unwinding through a function marke
     | .done a t => k a t
     | .halted t => stop (.halted t)
     | .unwound t => if nounwind then Outcome.ub .outsideCall else stop (.unwound t)
+    | .cut t => stop (.cut t)
 
 /-- A run that makes no calls outside the module, as one that does: it returns the trace it was given. A refinement
 relating it to one that does lifts it with this. -/
@@ -130,12 +140,19 @@ relating it to one that does lifts it with this. -/
 
 end Exit
 
+/-- A run that makes no calls outside the module, and no choices, as one of a function that does. -/
+@[llvm] def Talks.lift (x : Outcome α) (t : Trace) : Talks α := fun _ _ => Exit.lift x t
+
+/-- A run that makes choices, and no calls outside the module, as one of a function that does. -/
+@[llvm] def Talks.liftChoosing (x : Outcomes α) (t : Trace) : Talks α := fun c _ => Exit.lift (x c) t
+
 /-- Two ends of a run: the same trace, and results that refine, or the same call not coming back the same way. -/
 instance [Refine α] : Refine (Exit α) where
   le a b := match a with
     | .done x t => ∃ y, b = .done y t ∧ Refine.le x y
     | .halted t => b = .halted t
     | .unwound t => b = .unwound t
+    | .cut t => b = .cut t
   trans {a b c} hab hbc := by
     match a, hab with
     | .done _ _, ⟨_, hb, hxy⟩ =>
@@ -144,12 +161,24 @@ instance [Refine α] : Refine (Exit α) where
       exact ⟨z, hc, Refine.trans hxy hyz⟩
     | .halted _, hb => subst hb; exact hbc
     | .unwound _, hb => subst hb; exact hbc
+    | .cut _, hb => subst hb; exact hbc
 
 instance [Refine α] [Refine.Reflexive α] : Refine.Reflexive (Exit α) where
   refl
     | .done x _ => ⟨x, rfl, Refine.Reflexive.refl x⟩
     | .halted _ => rfl
     | .unwound _ => rfl
+    | .cut _ => rfl
+
+/-- Runs of functions that call outside the module: however the target chooses, the source can choose one run that
+allows the target's however many calls with effects both are watched for. The source picks before the number, so it
+can't match each prefix of the target's trace with a different run of its own. See `docs/calls.md`. -/
+instance [Refine α] : Refine (Talks α) where
+  le a b := ∀ ct, ∃ cs, ∀ n, Refine.le (a cs n) (b ct n)
+  trans {a b c} hab hbc ct := by
+    obtain ⟨cm, h₂⟩ := hbc ct
+    obtain ⟨cs, h₁⟩ := hab cm
+    exact ⟨cs, fun n => Refine.trans (h₁ n) (h₂ n)⟩
 
 namespace Refine
 
@@ -165,6 +194,15 @@ theorem exit_halted [Refine α] (t : Trace) (b : Exit α) : Refine.le (Exit.halt
 
 theorem exit_unwound [Refine α] (t : Trace) (b : Exit α) :
     Refine.le (Exit.unwound t : Exit α) b ↔ b = .unwound t := Iff.rfl
+
+theorem exit_cut [Refine α] (t : Trace) (b : Exit α) : Refine.le (Exit.cut t : Exit α) b ↔ b = .cut t := Iff.rfl
+
+theorem talks_iff [Refine α] (a b : Talks α) :
+    Refine.le a b ↔ ∀ ct, ∃ cs, ∀ n, Refine.le (a cs n) (b ct n) := Iff.rfl
+
+/-- Choosing the same on both sides is enough, and often how a proof goes. -/
+theorem talks_of_same [Refine α] {a b : Talks α} (h : ∀ c n, Refine.le (a c n) (b c n)) : Refine.le a b :=
+  fun ct => ⟨ct, h ct⟩
 
 /-- Two runs that make no calls outside the module, lifted: refinement of the runs. -/
 theorem exit_lift [Refine α] (a b : Outcome α) (t : Trace) :
@@ -207,6 +245,7 @@ theorem monotone_exit_bind (nounwind : Bool) (x : γ' → Outcome (Exit α)) (st
     cases nounwind
     · exact hs g g' h _
     · exact FlatOrder.rel.refl
+  | cut t => exact hs g g' h _
 
 end Monotone
 

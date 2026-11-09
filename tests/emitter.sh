@@ -300,6 +300,21 @@ for attribute in speculatable nosync nofree norecurse nocallback convergent retu
 define i8 @f(i8 %x) { %r = call i8 @g(i8 %x)
   ret i8 %r }"
 done
+# A callee outside the module may call back into its caller, which `norecurse` rules out.
+refuses 'norecurse on a function that calls outside the module' 'declare i8 @g(i8) memory(none)
+define i8 @f(i8 %x) norecurse { %r = call i8 @g(i8 %x)
+  ret i8 %r }'
+# Mem.withFrame and Mem.call don't pass a run that didn't come back through yet.
+refuses 'stack frame or promises about memory' 'declare i8 @g(i8) memory(none)
+define i8 @f(i8 %x) { %p = alloca i8
+  store i8 %x, ptr %p
+  %v = load i8, ptr %p
+  %r = call i8 @g(i8 %v)
+  ret i8 %r }'
+refuses 'stack frame or promises about memory' 'declare i8 @g(i8) memory(none)
+define i8 @f(ptr %p) memory(read) { %v = load i8, ptr %p
+  %r = call i8 @g(i8 %v)
+  ret i8 %r }'
 refuses 'calling convention' 'declare fastcc i8 @g(i8) memory(none)
 define i8 @f(i8 %x) { %r = call i8 @g(i8 %x)
   ret i8 %r }'

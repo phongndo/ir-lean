@@ -71,7 +71,8 @@ def check(path, lean, work):
             f.write(side(text, keep, drop))
     r = proc.run(["alive-tv", "--disable-undef-input", "--smt-to=20000", *files], timeout=TIMEOUT_SECONDS)
     output = f"alive-tv didn't finish in {TIMEOUT_SECONDS} s" if r.limit == "time_limit" else r.out + r.err
-    got = alive.verdict(output)
+    # Alive2 also compares each other function the case defines with itself.
+    got = alive.verdict(output, functions=len(re.findall(r"^define ", side(text, "src", "tgt"), flags=re.M)))
     if got != alive2:
         return (
             f"Alive2 says {got}, and the case says it {'differs' if differs else 'agrees'}:\n{output[-1500:]}"

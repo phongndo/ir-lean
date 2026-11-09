@@ -8,16 +8,17 @@ import pure_added_wrong_ir
 import pure_argument_changed_wrong_ir
 import pure_duplicated_wrong_ir
 import pure_reordered_without_nounwind_wrong_ir
+import nounwind_call_added_wrong_ir
 
 /-! Calls outside the module, as ir-lean emits them: each rewrite in `tests/calls`, with a theorem of the case's name
 proving its verdict. A `_right` case refines, and a `_wrong` one provably doesn't, in the world, input and target
 choice given. `tests/calls.sh` builds this with warnings as errors, checks its axioms, replays it, and has Alive2 give
 each case its verdict. [`docs/calls.md`](../../docs/calls.md) has the design.
 
-A function that calls outside the module takes the world and the trace before it, and ends as an `Exit`. One that
-calls outside the module without effects also makes choices: which of the callee's answers each call gets. A claim
-relating a function that calls outside the module to one that doesn't lifts the second with `Exit.lift`, and one whose
-run makes choices to one that makes none with `Outcomes.det`. -/
+A function that calls outside the module takes the world and the trace before it, and returns `Talks`: how its run
+ends, as an `Exit`, for each way it chooses and each number of calls with effects it's watched for. A call without
+effects makes a choice: which of the callee's answers it gets. A claim relating a function that calls outside the
+module to one that doesn't lifts the second with `Talks.lift`. -/
 
 open IRLean
 
@@ -29,24 +30,24 @@ def answering (a : Event → Nat → Answer) : World := ⟨fun _ => .ret [], fun
 /-- An unused call that will return and can't unwind, dropped: every answer either returns or is undefined. -/
 theorem pure_dropped_right :
     Refines pure_dropped_right_ir.src
-      (fun x _ t => Outcomes.det (Exit.lift (pure_dropped_right_ir.tgt x) t)) := by
+      (fun x _ t => Talks.lift (pure_dropped_right_ir.tgt x) t) := by
   intro x w t ct
-  refine ⟨ct, ?_⟩
-  simp only [pure_dropped_right_ir.src, pure_dropped_right_ir.tgt, Outcomes.det]
+  refine ⟨ct, fun n => ?_⟩
+  simp only [pure_dropped_right_ir.src, pure_dropped_right_ir.tgt, Talks.lift]
   rw [run_ret pure_dropped_right_ir.tgt.step (by rfl), run.eq_1]
   simp only [pure_dropped_right_ir.src.step, World.callPure, World.quiet, Exit.bind]
-  cases w.pure ⟨"f", [Lanes.ofVal x]⟩ (ct.pick 1) <;> simp only [andThen, ret, Outcome.ok, Outcome.ub, Exit.lift] <;>
+  cases w.pure ⟨"f", [("i8", Lanes.ofVal x)]⟩ (ct.pick 1) <;> simp only [andThen, ret, Outcome.ok, Outcome.ub, Exit.lift] <;>
     first | trivial | exact ⟨_, rfl, Refine.Reflexive.refl _⟩
 
 /-- Two calls with the same argument, merged: the source picks the target's answer for both, so `a - b` is `a - a`. -/
 theorem pure_merged_right : Refines pure_merged_right_ir.src pure_merged_right_ir.tgt := by
   intro x w t ct
-  refine ⟨fun p => if p = [2] then ct [1] else ct p, ?_⟩
+  refine ⟨fun p => if p = [2] then ct [1] else ct p, fun n => ?_⟩
   simp only [pure_merged_right_ir.src, pure_merged_right_ir.tgt]
   rw [run.eq_1, run.eq_1]
   simp +decide only [pure_merged_right_ir.src.step, pure_merged_right_ir.tgt.step, World.callPure, World.quiet,
     Exit.bind, Choice.pick, ite_true, ite_false]
-  cases w.pure ⟨"f", [Lanes.ofVal x]⟩ (ct [1]) with
+  cases w.pure ⟨"f", [("i8", Lanes.ofVal x)]⟩ (ct [1]) with
   | ret v =>
     simp only [andThen, ret, Outcome.ok]
     refine ⟨_, rfl, ⟨_, rfl, ?_⟩⟩
@@ -61,7 +62,7 @@ theorem pure_merged_right : Refines pure_merged_right_ir.src pure_merged_right_i
 theorem pure_argument_simplified_right :
     Refines pure_argument_simplified_right_ir.src pure_argument_simplified_right_ir.tgt := by
   intro x w t ct
-  refine ⟨ct, ?_⟩
+  refine ⟨ct, fun n => ?_⟩
   have hz : Val.xor (Val.xor x (some 255#8)) (some 255#8) = x := by
     cases x with
     | none => rfl
@@ -70,7 +71,7 @@ theorem pure_argument_simplified_right :
   rw [run.eq_1, run.eq_1]
   simp only [pure_argument_simplified_right_ir.src.step, pure_argument_simplified_right_ir.tgt.step, World.callPure,
     World.quiet, Exit.bind, hz]
-  cases w.pure ⟨"f", [Lanes.ofVal x]⟩ (ct.pick 1) with
+  cases w.pure ⟨"f", [("i8", Lanes.ofVal x)]⟩ (ct.pick 1) with
   | ret v =>
     simp only [andThen, ret, Outcome.ok]
     refine ⟨_, rfl, ⟨_, rfl, ?_⟩⟩
@@ -85,12 +86,12 @@ theorem pure_argument_simplified_right :
 for it. -/
 theorem pure_reordered_right : Refines pure_reordered_right_ir.src pure_reordered_right_ir.tgt := by
   intro x w t ct
-  refine ⟨fun p => if p = [1] then ct [2] else if p = [2] then ct [1] else ct p, ?_⟩
+  refine ⟨fun p => if p = [1] then ct [2] else if p = [2] then ct [1] else ct p, fun n => ?_⟩
   simp only [pure_reordered_right_ir.src, pure_reordered_right_ir.tgt]
   rw [run.eq_1, run.eq_1]
   simp +decide only [pure_reordered_right_ir.src.step, pure_reordered_right_ir.tgt.step, World.callPure,
     World.quiet, Exit.bind, Choice.pick, ite_true, ite_false]
-  cases w.pure ⟨"f", [Lanes.ofVal x]⟩ (ct [2]) <;> cases w.pure ⟨"g", [Lanes.ofVal x]⟩ (ct [1]) <;>
+  cases w.pure ⟨"f", [("i8", Lanes.ofVal x)]⟩ (ct [2]) <;> cases w.pure ⟨"g", [("i8", Lanes.ofVal x)]⟩ (ct [1]) <;>
     simp only [andThen, ret, Outcome.ok, Outcome.ub] <;>
     first | trivial | exact ⟨_, rfl, Refine.Reflexive.refl _⟩
 
@@ -99,10 +100,11 @@ theorem pure_reordered_right : Refines pure_reordered_right_ir.src pure_reordere
 /-- Dropping a call that may never come back: where it doesn't, the source never finishes, and the target returns. -/
 theorem pure_dropped_without_willreturn_wrong :
     ¬ Refines pure_dropped_without_willreturn_wrong_ir.src
-      (fun x _ t => Outcomes.det (Exit.lift (pure_dropped_without_willreturn_wrong_ir.tgt x) t)) := fun h => by
+      (fun x _ t => Talks.lift (pure_dropped_without_willreturn_wrong_ir.tgt x) t) := fun h => by
   obtain ⟨cs, hcs⟩ := h none (answering fun _ _ => .stays) [] default
+  have hcs := hcs 0
   simp only [pure_dropped_without_willreturn_wrong_ir.src, pure_dropped_without_willreturn_wrong_ir.tgt,
-    Outcomes.det] at hcs
+    Talks.lift] at hcs
   rw [run_ret pure_dropped_without_willreturn_wrong_ir.tgt.step (by rfl), run.eq_1] at hcs
   simp [pure_dropped_without_willreturn_wrong_ir.src.step, answering, World.callPure, World.quiet, Exit.bind, andThen,
     Exit.lift, Outcome.ok, Refine.outcome_none] at hcs
@@ -110,10 +112,11 @@ theorem pure_dropped_without_willreturn_wrong :
 /-- Dropping a call that may unwind: where it does, the source unwinds, and the target returns. -/
 theorem pure_dropped_without_nounwind_wrong :
     ¬ Refines pure_dropped_without_nounwind_wrong_ir.src
-      (fun x _ t => Outcomes.det (Exit.lift (pure_dropped_without_nounwind_wrong_ir.tgt x) t)) := fun h => by
+      (fun x _ t => Talks.lift (pure_dropped_without_nounwind_wrong_ir.tgt x) t) := fun h => by
   obtain ⟨cs, hcs⟩ := h none (answering fun _ _ => .unwinds) [] default
+  have hcs := hcs 0
   simp only [pure_dropped_without_nounwind_wrong_ir.src, pure_dropped_without_nounwind_wrong_ir.tgt,
-    Outcomes.det] at hcs
+    Talks.lift] at hcs
   rw [run_ret pure_dropped_without_nounwind_wrong_ir.tgt.step (by rfl), run.eq_1] at hcs
   obtain ⟨_, hy, hle⟩ := (Refine.outcome_ok _ _).1 (by
     simpa [pure_dropped_without_nounwind_wrong_ir.src.step, answering, World.callPure, World.quiet, Exit.bind,
@@ -124,10 +127,11 @@ theorem pure_dropped_without_nounwind_wrong :
 
 /-- Adding a call that isn't `speculatable`: where it's undefined, the target is and the source isn't. -/
 theorem pure_added_wrong :
-    ¬ Refines (fun x _ t => Outcomes.det (Exit.lift (pure_added_wrong_ir.src x) t)) pure_added_wrong_ir.tgt :=
+    ¬ Refines (fun x _ t => Talks.lift (pure_added_wrong_ir.src x) t) pure_added_wrong_ir.tgt :=
   fun h => by
-  have hcs := (Refine.outcomes_det_left _ _).1 (h none (answering fun _ _ => .undefined) []) default
-  simp only [pure_added_wrong_ir.src, pure_added_wrong_ir.tgt] at hcs
+  obtain ⟨cs, hcs⟩ := h none (answering fun _ _ => .undefined) [] default
+  have hcs := hcs 0
+  simp only [pure_added_wrong_ir.src, pure_added_wrong_ir.tgt, Talks.lift] at hcs
   rw [run_ret pure_added_wrong_ir.src.step (by rfl), run.eq_1] at hcs
   obtain ⟨_, hy, _⟩ := (Refine.outcome_ok _ _).1 (by simpa [Exit.lift, andThen, Outcome.ok] using hcs)
   simp [pure_added_wrong_ir.tgt.step, answering, World.callPure, World.quiet, Exit.bind, andThen, Outcome.ub] at hy
@@ -137,7 +141,8 @@ at 0 the source returns 0 and the target 1. -/
 theorem pure_argument_changed_wrong :
     ¬ Refines pure_argument_changed_wrong_ir.src pure_argument_changed_wrong_ir.tgt := fun h => by
   obtain ⟨cs, hcs⟩ := h (some 0#8)
-    (answering fun e _ => .ret [some (if e = ⟨"f", [[some 0]]⟩ then 0 else 1)]) [] default
+    (answering fun e _ => .ret [some (if e = ⟨"f", [("i8", [some 0])]⟩ then 0 else 1)]) [] default
+  have hcs := hcs 0
   simp only [pure_argument_changed_wrong_ir.src, pure_argument_changed_wrong_ir.tgt] at hcs
   rw [run.eq_1, run.eq_1] at hcs
   simp [pure_argument_changed_wrong_ir.src.step, pure_argument_changed_wrong_ir.tgt.step, answering, World.callPure,
@@ -148,6 +153,7 @@ and 1 and gives 255, and the source gives 0 however it picks. LangRef's `memory(
 twice. -/
 theorem pure_duplicated_wrong : ¬ Refines pure_duplicated_wrong_ir.src pure_duplicated_wrong_ir.tgt := fun h => by
   obtain ⟨cs, hcs⟩ := h none (answering fun _ i => .ret [some i]) [] fun p => if p = [2] then 1 else 0
+  have hcs := hcs 0
   simp only [pure_duplicated_wrong_ir.src, pure_duplicated_wrong_ir.tgt] at hcs
   rw [run.eq_1, run.eq_1] at hcs
   simp [pure_duplicated_wrong_ir.src.step, pure_duplicated_wrong_ir.tgt.step, answering, World.callPure, World.quiet,
@@ -159,7 +165,22 @@ theorem pure_reordered_without_nounwind_wrong :
     ¬ Refines pure_reordered_without_nounwind_wrong_ir.src pure_reordered_without_nounwind_wrong_ir.tgt :=
   fun h => by
   obtain ⟨cs, hcs⟩ := h none (answering fun _ _ => .unwinds) [] default
+  have hcs := hcs 0
   simp only [pure_reordered_without_nounwind_wrong_ir.src, pure_reordered_without_nounwind_wrong_ir.tgt] at hcs
   rw [run.eq_1, run.eq_1] at hcs
   simp [pure_reordered_without_nounwind_wrong_ir.src.step, pure_reordered_without_nounwind_wrong_ir.tgt.step,
     answering, World.callPure, World.quiet, Exit.bind, andThen, ret, Outcome.ok, Refine.le] at hcs
+
+/-- Marking a call to a function that calls outside the module `nounwind`: in a world where the call outside unwinds,
+the source unwinds and the target is undefined. -/
+theorem nounwind_call_added_wrong :
+    ¬ Refines nounwind_call_added_wrong_ir.src nounwind_call_added_wrong_ir.tgt := fun h => by
+  obtain ⟨cs, hcs⟩ := h none (answering fun _ _ => .unwinds) [] default
+  have hcs := hcs 0
+  simp only [nounwind_call_added_wrong_ir.src, nounwind_call_added_wrong_ir.tgt] at hcs
+  rw [run.eq_1, run.eq_1] at hcs
+  simp only [nounwind_call_added_wrong_ir.src.step, nounwind_call_added_wrong_ir.tgt.step,
+    nounwind_call_added_wrong_ir.g] at hcs
+  rw [run.eq_1, run.eq_1] at hcs
+  simp [nounwind_call_added_wrong_ir.g.step, answering, World.callPure, World.quiet, Exit.bind, andThen, ret,
+    Outcome.ok, Outcome.ub, Refine.le] at hcs

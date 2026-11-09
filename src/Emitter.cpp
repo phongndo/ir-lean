@@ -862,6 +862,8 @@ struct Line {
   } K;
   std::string Name;
   std::string Expr;
+  // For `Exit`: whether unwinding through the call is undefined.
+  bool NoUnwind = false;
 };
 
 class FunctionEmitter {
@@ -927,10 +929,10 @@ private:
   void checkMetadata(const Instruction &I);
   std::string pointerAsInt(const Value *V);
   void observeAddress(const Value *V, bool NullCheck, std::vector<Line> &Out);
-  std::string resultType() const {
-    std::string T = UsesMemory ? RetType + " × Mem" : RetType;
-    return Talks ? "Exit (" + T + ")" : T;
-  }
+  // What the function returns, with its memory.
+  std::string valueType() const { return UsesMemory ? RetType + " × Mem" : RetType; }
+  // What a run returns: for a function that calls outside the module, how it ends.
+  std::string resultType() const { return Talks ? "Exit (" + valueType() + ")" : valueType(); }
   // The block's next chooser, as `IRLean.Choice` numbers them: a `freeze`, or a call to a function that
   // chooses.
   std::string nextChooser() { return std::to_string(NextChooser++); }
@@ -938,8 +940,9 @@ private:
   void emitOutsideCall(const CallBase &C, std::vector<Line> &Out);
   // How a call that may not come back is bound: what follows runs on its result, and if it didn't come back,
   // the run ends as the call did.
-  void addExit(std::vector<Line> &Out, std::string Name, std::string Expr) {
-    Out.push_back({Line::Exit, std::move(Name), std::move(Expr)});
+  // Unwinding through it is undefined if the function or the call is marked `nounwind`.
+  void addExit(const CallBase &C, std::vector<Line> &Out, std::string Name, std::string Expr) {
+    Out.push_back({Line::Exit, std::move(Name), std::move(Expr), F.doesNotThrow() || C.doesNotThrow()});
   }
   bool emitIntrinsic(const IntrinsicInst &C, std::vector<Line> &Out);
   void addLet(const Instruction &I, std::vector<Line> &Out, std::string Expr) {
@@ -1203,7 +1206,7 @@ std::string FunctionEmitter::target(const BasicBlock *From, const BasicBlock *To
   if (UsesMemory)
     Inner += " m";
   if (Talks)
-    Inner += " w' t'";
+    Inner += " w' t' n'";
   for (const PHINode &P : To->phis())
     Inner += " " + operand(P.getIncomingValueForBlock(From));
   for (unsigned V : LiveIn[BlockIndex.lookup(To)].set_bits())
@@ -1218,7 +1221,7 @@ std::string FunctionEmitter::emitConstructor(const BasicBlock *BB) {
   if (UsesMemory)
     Out += " (m : Mem)";
   if (Talks)
-    Out += " (w' : World) (t' : Trace)";
+    Out += " (w' : World) (t' : Trace) (n' : Nat)";
   std::vector<const Value *> Params = blockParams(BB);
   for (size_t I = 0; I != Params.size();) {
     std::string Type = leanType(Params[I]->getType());
@@ -1972,10 +1975,12 @@ void FunctionEmitter::emitCall(const CallBase &C, std::vector<Line> &Out) {
     std::string Expr = Callees.lookup(Callee) + Args + (Memory ? " m" : "") + (Talking ? " w' t'" : "");
     if (ChoosingFunctions.count(Callee))
       Expr += Chooser();
+    if (Talking)
+      Expr += " n'";
     std::string Name = Memory ? Bound : Void ? "_" : Names.at(&C);
     // A callee that calls outside the module may not come back, and the run then ends as it did.
     if (Talking)
-      addExit(Out, Name, promisedCall(Callee, Expr));
+      addExit(C, Out, Name, promisedCall(Callee, Expr));
     else
       Out.push_back({Line::Bind, Name, promisedCall(Callee, Expr)});
   } else {
@@ -2047,7 +2052,14 @@ void FunctionEmitter::emitOutsideCall(const CallBase &C, std::vector<Line> &Out)
   for (unsigned I = 0, E = C.arg_size(); I != E; ++I) {
     Type *T = C.getArgOperand(I)->getType();
     checkValueAttributes(Callee->getAttributes().getParamAttrs(I), T, Position::CallParameter);
-    Args += (I ? ", " : "") + lanes(T, callArgument(C, I, Out, /*WithDeclaration=*/true));
+    // Its type, and the attributes that change what the callee receives, are part of the event: a variadic
+    // callee can receive the same lanes as different types.
+    std::string Type = printedType(T);
+    for (auto [Kind, Word] : {std::pair{Attribute::SExt, " signext"}, std::pair{Attribute::ZExt, " zeroext"}})
+      if (C.paramHasAttr(I, Kind))
+        Type += Word;
+    Args += (I ? ", (" : "(") + leanString(Type) + ", " +
+            lanes(T, callArgument(C, I, Out, /*WithDeclaration=*/true)) + ")";
   }
   std::string Promises;
   for (auto [On, Field] :
@@ -2062,7 +2074,7 @@ void FunctionEmitter::emitOutsideCall(const CallBase &C, std::vector<Line> &Out)
   if (!Recursive && !F.willReturn() && Promised.count(Current) && C.hasFnAttr(Attribute::MustProgress) &&
       !C.hasFnAttr(Attribute::WillReturn))
     Expr = "promised (" + Expr + ") fun _ => Outcome.stop .progressUnsettled";
-  addExit(Out, "out'", Expr);
+  addExit(C, Out, "out'", Expr);
   if (auto *I = dyn_cast<IntegerType>(C.getType()))
     addLet(C, Out, "Lanes.toVal " + std::to_string(I->getBitWidth()) + " out'");
   else if (auto *V = dyn_cast<FixedVectorType>(C.getType()))
@@ -2132,7 +2144,7 @@ std::string FunctionEmitter::emitArm(const BasicBlock *BB) {
   if (UsesMemory)
     Out += " m";
   if (Talks)
-    Out += " w' t'";
+    Out += " w' t' n'";
   for (const Value *V : blockParams(BB))
     Out += " " + Names.at(V);
   Out += " =>\n";
@@ -2154,7 +2166,7 @@ std::string FunctionEmitter::emitArm(const BasicBlock *BB) {
       Out += "    " + L.Expr + " <|\n";
       break;
     case Line::Exit:
-      Out += std::string("    Exit.bind ") + (F.doesNotThrow() ? "true" : "false") + " (" + L.Expr + ") " +
+      Out += std::string("    Exit.bind ") + (L.NoUnwind ? "true" : "false") + " (" + L.Expr + ") " +
              (Recursive ? "Outcome.ok" : "ret") + " fun " + L.Name + " t' =>\n";
       break;
     }
@@ -2175,6 +2187,10 @@ void FunctionEmitter::prepare() {
   // Neither needs checking on each run: what's reachable shows they hold, or the function is refused.
   if (Recursive && F.hasFnAttribute(Attribute::NoRecurse))
     reject("function attribute norecurse on a function in a cycle");
+  // A callee outside the module may call back into this function, which `norecurse` rules out, and the model
+  // doesn't see it do so.
+  if (Talks && F.hasFnAttribute(Attribute::NoRecurse))
+    reject("function attribute norecurse on a function that calls outside the module");
   if (F.hasFnAttribute(Attribute::NoFree) && ReachesFree.count(&F))
     reject("function attribute nofree on a function that can reach free");
   collectBlocks();
@@ -2212,6 +2228,10 @@ void FunctionEmitter::prepare() {
     for (const Argument &A : F.args())
       if (!A.getType()->isPointerTy() && mentionsPointer(A.getType()))
         reject("parameter with pointers in it, in a function that promises something about memory");
+  // `Mem.withFrame` and `Mem.call` take a run that returns, and don't pass an `IRLean.Exit` through yet.
+  if (Talks && (HasAlloca || HasCall))
+    reject("call to external functions in a function with a stack frame or promises about memory, which "
+           "IRLean.World doesn't wrap yet");
 }
 
 std::string FunctionEmitter::emitBlocks() {
@@ -2276,7 +2296,7 @@ std::string FunctionEmitter::signature(const std::string &Name) {
   if (UsesMemory)
     Out += " (m : Mem)";
   if (Talks)
-    Out += " (w' : World) (t' : Trace)";
+    return Out + " (w' : World) (t' : Trace) : Talks (" + valueType() + ") := fun c' n' =>\n";
   if (Chooses)
     return Out + " : Outcomes (" + resultType() + ") := fun c' =>\n";
   return Out + " : Outcome (" + resultType() + ") :=\n";
@@ -2314,6 +2334,8 @@ std::string FunctionEmitter::emitPromisedCycleWrapper() {
     Args += " w' t'";
   if (Chooses)
     Args += " c'";
+  if (Talks)
+    Args += " n'";
   return signature(LeanName) + "  promised (" + LeanName + ".raw" + Args + ") fun _ => " +
          (F.willReturn() ? "Outcome.ub .noReturn" : "Outcome.stop .recursionUnsettled") + "\n";
 }
@@ -2369,7 +2391,7 @@ std::string FunctionEmitter::emitFunction() {
   if (UsesMemory)
     Entry += " m";
   if (Talks)
-    Entry += " w' t'";
+    Entry += " w' t' n'";
   for (const Value *V : blockParams(Blocks.front()))
     Entry += " " + Names.at(V);
   if (Recursive)
@@ -2657,6 +2679,8 @@ Emitted emitModule(Module &M, const std::string &Namespace, const std::string &S
             Talks |= TalkingFunctions.count(Target) != 0;
           }
         }
+    // A function that calls outside the module returns `IRLean.Talks`, which always takes a choice.
+    Chooses |= Talks;
     if (Chooses)
       ChoosingFunctions.insert(Component.begin(), Component.end());
     if (Talks)
