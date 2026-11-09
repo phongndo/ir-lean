@@ -155,9 +155,16 @@ def icmpEq? : {w : Nat} → Term w → Option (Bool × ((v : Nat) × Term v × T
   | w, .trunc (v := v) _ nuw _ a => if nuw && w == 1 then some (false, ⟨v, a, .const 0#v⟩) else none
   | _, _ => none
 
+/-- `APInt::isMask()`: a nonzero mask of low bits, `0+1+`. -/
+def isMask (c : BitVec w) : Bool := c != 0#w && c &&& (c + 1#w) == 0#w
+
 /-! ### What a match says about values -/
 
 variable {ρ : Env}
+
+theorem isMask_spec {c : BitVec w} (h : isMask c = true) : c &&& (c + 1#w) = 0#w := by
+  simp only [isMask, Bool.and_eq_true, bne_iff_ne, ne_eq, beq_iff_eq] at h
+  exact h.2
 
 /-- A matched `and`, `or` or `xor`'s value and operands. -/
 theorem and_denote {t a b : Term w} {f : Flags} (h : binop? .and t = some (f, a, b)) (hc : t.Consistent ρ) :

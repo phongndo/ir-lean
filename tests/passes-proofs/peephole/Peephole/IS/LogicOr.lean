@@ -138,9 +138,6 @@ def addOf? (s t : Term w) : Option (Term w) :=
   | some (_, p, q) => if specific s p then some q else if specific s q then some p else none
   | none => none
 
-/-- `APInt::isMask()`: a nonzero mask of low bits, `0+1+`. -/
-def isMask (c : BitVec w) : Bool := c != 0#w && c &&& (c + 1#w) == 0#w
-
 /-- `MaskedValueIsZero(V, M, Q)`: `M` is in the known zeros of `V`, `M.isSubsetOf(Known.Zero)`. -/
 def maskedValueIsZero (o : Oracle) (v : Term w) (m : BitVec w) : Bool := m &&& ~~~(o.knownZero v) == 0#w
 
@@ -527,10 +524,6 @@ theorem addOf?_spec {s t n : Term w} (h : addOf? s t = some n) (hc : t.Consisten
       · next hq => cases h; exact ⟨_, _, by rw [hd, specific_denote hq, Lemmas.add_comm]⟩
       · cases h
   · cases h
-
-theorem isMask_spec {c : BitVec w} (h : isMask c = true) : c &&& (c + 1#w) = 0#w := by
-  simp only [isMask, Bool.and_eq_true, bne_iff_ne, ne_eq, beq_iff_eq] at h
-  exact h.2
 
 theorem maskedValueIsZero_spec {o : Oracle} (ho : o.Sound ρ) {n : Term w} {m : BitVec w}
     (h : maskedValueIsZero o n m = true) : ∀ v, n.denote ρ = some v → v &&& m = 0#w := by
