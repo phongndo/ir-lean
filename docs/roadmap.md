@@ -71,8 +71,8 @@ These gates moved, or went:
 | When certified optimization starts | Phase 4 waited for contracts reused by three callers, after `inflate` | It's the goal. Each stage waits only on the fidelity work it needs, as [hard dependencies](#dependencies) | The old order put the foundation first, so certificates would rest on checked semantics. Integer code uses neither contracts nor `inflate`, and what loops and memory need, SEM-07, SEM-06 and the `undef` decision, stays a hard dependency |
 | Phase 4's memory stage | Needed Phase 2's frame reasoning | Needs SEM-06. The frame lemmas it needs go in the lemma store, and Phase 2 generalizes from them later | Superoptimizer v2 rewrites one function at a time, so it needs lemmas about what that function's writes leave alone, not contracts across calls. If that proves wrong, this gate comes back |
 | Reading Trivet and Lean-MLIR | Before stage 1 | Before superoptimizer v2's design, as a prior-art study in wave 1 | Stage 1 started with [#30](https://github.com/phongndo/ir-lean/pull/30), and no doc records reading Trivet. Doing it before the next design is the honest version |
-| `inflate` | The headline, **Now** | Whole-system work: its first statement in wave 2, and its first proof in wave 3 | Superoptimization doesn't need it. It still matters, because its safety proof is what the bridge would carry to optimized code |
-| Runtime memory model | Part of Phase 1 | [Phase 6](#phase-6-the-engine-and-the-lemma-store), in wave 2 | Every track that runs memory code needs it, not only `inflate` |
+| `inflate` | The headline, **Now** | Whole-system work: its first statement in wave 2, and its first proof in wave 3. Revised: the statement is light work, taken up when a lane frees ([wave 2](#wave-2-revised-on-2026-11-08)) | Superoptimization doesn't need it. It still matters, because its safety proof is what the bridge would carry to optimized code |
+| Runtime memory model | Part of Phase 1 | [Phase 6](#phase-6-the-engine-and-the-lemma-store), in wave 2. Revised: wave 3 ([wave 2](#wave-2-revised-on-2026-11-08)) | Every track that runs memory code needs it, not only `inflate` |
 | Milestones | M0 to M11 | Named by phase: F, S, E, T, C, G, B and A | The old M1 to M4, for `inflate`, are G2 to G5 |
 
 ### The flywheel
@@ -195,9 +195,9 @@ spend no effort on them until these work.
 
 | Horizon | Work | Why it's here |
 | --- | --- | --- |
-| **Now** | [Waves 0 and 1](#next-steps): land and clean up what's open, split CI, which [#53](https://github.com/phongndo/ir-lean/pull/53) did, bring the llama.cpp results to `main`, study prior art, and slim #52's tools, which #54 did | The best results aren't on `main`, CI was too slow to take more tests, and superoptimizer v2 shouldn't be designed without the prior art |
-| **Next** | Wave 2: lemma store v1, SEM-07, which has landed, the executable memory model, tier-1 proof tests, and `inflate_table`'s statement | Each starts a track, and each is the step the next one in that track waits on |
-| **Later** | Wave 3: superoptimizer v2, the safety bridge, proof-test tiers 2 and 3 with the unit-test milestone, and the `inflate_table` proof. Then MLIR, contracts, C++ and Rust, and adoption | Each needs something wave 2 builds |
+| **Now** | [Wave 2](#wave-2-revised-on-2026-11-08), as revised on 2026-11-08: lemma store v1, the stage-1 benchmark and soundness corpus, SEM-07, which has landed, tier-1 proof tests, and speed, round 2. Wave 1 is done: [#57](https://github.com/phongndo/ir-lean/pull/57) and [#58](https://github.com/phongndo/ir-lean/pull/58) brought the llama.cpp results to `main` | Each starts a track, and each is the step the next one in that track waits on |
+| **Next** | Wave 3: superoptimizer v2, the safety bridge, the executable memory model, proof-test tiers 2 and 3 with the unit-test milestone, and the `inflate_table` proof. `inflate_table`'s statement is light work, taken up when a lane frees | Each needs something wave 2 builds, or waits for a lane |
+| **Later** | MLIR, contracts, C++ and Rust, and adoption | Each needs a milestone from wave 3 |
 
 ## Next steps
 
@@ -214,19 +214,22 @@ flowchart LR
   end
   subgraph W2[Wave 2]
     STORE[Lemma store v1]
+    BENCH[Stage-1 benchmark]
     SEM07[SEM-07]
-    EXEC[Executable memory]
     PT1[Proof tests, tier 1]
-    STMT[inflate_table statement]
+    SPEED[Speed, round 2]
   end
   subgraph W3[Wave 3]
     SO2[Superoptimizer v2]
     BRIDGE[Safety bridge]
+    EXEC[Executable memory]
     PT3[Proof tests, tiers 2 and 3]
     PROOF[inflate_table proof]
   end
+  STMT[inflate_table statement, when a lane frees]
   PR48[Pull request 48, landed] --> STORE
   STUDY --> SO2
+  STUDY --> BENCH
   SEM07 --> BRIDGE
   STMT --> PROOF
   CI -.-> W2
@@ -254,35 +257,55 @@ SEM-06 holds up only superoptimizer v2's memory candidates, not the rest of it.
   - `tests/llvm_scope.py check` fails on macOS, because 12 of `llc`'s target pipelines depend on the host.
 - Delete merged branches.
 
-### Wave 1: now, all in parallel
+### Wave 1, all in parallel
 
-- This roadmap.
+- This roadmap. Done in [#55](https://github.com/phongndo/ir-lean/pull/55).
 - Split CI into parallel jobs. Done in [#53](https://github.com/phongndo/ir-lean/pull/53). [Phase 8](#phase-8-speed) has the
   target, which it doesn't reach yet.
-- Bring the two llama.cpp branches to `main` as pull requests. Each is 6 commits ahead of `main` and 19 behind, with no
-  pull request:
-  - `feat/prove-llvm-optimization-1`: the q4_K VNNI rewrite, proved at all 34 places, reads prompts 5.5% to 7.2%
-    faster.
-  - `feat/prove-llvm-optimization`: a Q5 rewrite, measured on real inference. Its `docs/llama.md` gives a median
-    inference speedup of 1.049 times on one thread, with a 95% interval of 1.029 to 1.057.
-- A prior-art study for superoptimization and proof tests. It gates superoptimizer v2's design.
+- Bring the two llama.cpp branches to `main` as pull requests. Done:
+  - `feat/prove-llvm-optimization-1`, in [#57](https://github.com/phongndo/ir-lean/pull/57) (`b59d862`): the q4_K
+    VNNI rewrite, proved at all 34 places, reads prompts 5.5% to 7.2% faster.
+  - `feat/prove-llvm-optimization`, in [#58](https://github.com/phongndo/ir-lean/pull/58): a Q5 rewrite, measured on
+    real inference. [Its page](llama-q5.md) gives a median inference speedup of 1.049 times on one thread, with a 95%
+    interval of 1.029 to 1.057.
+- A prior-art study for superoptimization and proof tests. It gates superoptimizer v2's design. Done in
+  [#56](https://github.com/phongndo/ir-lean/pull/56), as [prior art](prior-art.md), which also answers
+  [the Phase 4 gate](prior-art.md#the-gate).
 - The slim pull request of #52's capture and measurement tools. Done in #54.
 
-### Wave 2: after #48 and the CI split land
+### Wave 2, revised on 2026-11-08
 
-Both have landed, in #48 and #53.
+It waited on #48 and the CI split, which landed in #48 and #53. Five lanes:
 
-- Lemma store v1, [Phase 6](#phase-6-the-engine-and-the-lemma-store).
-- SEM-07: breaking `mustprogress` or `willreturn` is UB, as in LangRef, [Phase 0](#phase-0-semantic-fidelity-and-trust-infrastructure).
+- Lemma store v1, E1, slice 22, [Phase 6](#phase-6-the-engine-and-the-lemma-store).
+- The stage-1 benchmark and soundness corpus, S1, slice 29, [Phase 4](#phase-4-certified-translation-validation-and-superoptimization):
+  InstCombine's own rewrites certified with `bv_decide` at fixed widths, compared with Alive2, and a corpus of known
+  miscompilations, none of which may get a certificate.
+- SEM-07, F2, slice 23: breaking `mustprogress` or `willreturn` is UB, as in LangRef,
+  [Phase 0](#phase-0-semantic-fidelity-and-trust-infrastructure).
   Done in [#SEM07PR](https://github.com/phongndo/ir-lean/pull/SEM07PR).
-- The executable memory model, slice 15, [Phase 6](#phase-6-the-engine-and-the-lemma-store).
-- A tier-1 proof-test prototype on `tools/verify.py`, [Phase 7](#phase-7-proof-tests).
-- The statement of `inflate_table`'s theorem, for review, slice 13, [Phase 1](#phase-1-zlib-inflate-memory-safety).
+- Tier-1 proof tests on `tools/verify.py`, T1, slice 24, [Phase 7](#phase-7-proof-tests).
+- Speed, round 2, C1, slice 30, [Phase 8](#phase-8-speed).
+
+The statement of `inflate_table`'s theorem, G1, slice 13, isn't a lane. It's light work, taken up when one of these
+frees.
+
+**What changed.** On 2026-11-08 the maintainer approved this wave in place of the one #55 wrote, which was lemma store
+v1, SEM-07, the executable memory model, tier-1 proof tests, and `inflate_table`'s statement:
+
+| Item | Was | Now | Why |
+| --- | --- | --- | --- |
+| Stage-1 benchmark, S1 | In no wave | Wave 2 | [The gate's answer](prior-art.md#the-gate) made it actionable, and narrower: neither covers stage 1, so it goes ahead, as the four things nobody has shipped, and without an LLM proof pipeline or width-generic procedure of our own |
+| Speed, round 2, C1 | In no wave, after #53's split | Wave 2 | C1 is open: CI takes 13 to 16 minutes against its 10, and [Phase 8](#phase-8-speed) puts getting back under 10 before adding tests, which every lane in this wave does |
+| Executable memory model, E2 | Wave 2 | Wave 3 | Two [limits](#limits). Only one pull request at a time changes semantics in `IRLean/*.lean`, and in wave 2 SEM-07 holds it. And the five lanes above fill the cap of about 4 or 5 |
+| `inflate_table`'s statement, G1 | Wave 2 | Light work, when a lane frees | The five lanes fill the cap. It's a statement for review, with no proof |
 
 ### Wave 3
 
 - Superoptimizer v2: more arguments, `select`, memory, and real targets, [Phase 4](#phase-4-certified-translation-validation-and-superoptimization).
 - The safety bridge, [Phase 4](#phase-4-certified-translation-validation-and-superoptimization).
+- The executable memory model, E2, slice 15, [Phase 6](#phase-6-the-engine-and-the-lemma-store). Moved from wave 2 on
+  2026-11-08, [above](#wave-2-revised-on-2026-11-08).
 - Proof-test tiers 2 and 3, and the "replace one unit-test file" milestone, [Phase 7](#phase-7-proof-tests).
 - The `inflate_table` proof, slice 14, [Phase 1](#phase-1-zlib-inflate-memory-safety).
 
@@ -293,7 +316,7 @@ Both have landed, in #48 and #53.
 | First | Then | Why |
 | --- | --- | --- |
 | #48 | Seeding the lemma store | Its rewrites at every width are the seed. Met: #48 landed |
-| The prior-art study | Superoptimizer v2's design | The field is moving: [Trivet](https://arxiv.org/abs/2609.19583) already does LLM-assisted refinement proofs in Lean on integer code. This is the reading the old Phase 4 asked for before stage 1 |
+| The prior-art study | Superoptimizer v2's design | The field is moving: [Trivet](https://arxiv.org/abs/2609.19583) already does LLM-assisted refinement proofs in Lean on integer code. This is the reading the old Phase 4 asked for before stage 1. Met: #56 landed |
 | SEM-07 | The safety bridge | While `mustprogress` and `willreturn` are trusted, a target can claim a promise the certificate didn't check, and the bridge would carry safety to it. Met: SEM-07 landed in [#SEM07PR](https://github.com/phongndo/ir-lean/pull/SEM07PR) |
 | `inflate_table`'s statement, reviewed | Its proof | A proof of the wrong statement is wasted, and the statement is where a memory-safety claim is most likely to be wrong |
 
@@ -323,8 +346,7 @@ maintainer's call.
 
 - **One pull request at a time that changes semantics in `IRLean/*.lean`.** Every proof and certificate rests on those
   files, so two semantic changes at once can't each be reviewed against what's on `main`, and each one makes every
-  proof check again. In wave 2 that's SEM-07, so the executable memory model has to add a representation proved to
-  agree with `Mem` without changing what `Mem` means, or wait.
+  proof check again. In wave 2 that's SEM-07, which is one reason the executable memory model moved to wave 3.
 - **About 4 or 5 active lanes.** Runners are limited. Every lane registers its tests in `CMakeLists.txt`, where they
   conflict. And Lean takes 1.5 to 3.5 GB a process: one binding verify peaked at 1.5 GiB in #52's pilot, and
   `CMakeLists.txt` runs the `binding` test alone because each of its Lean processes takes up to 3.5 GB.
@@ -343,15 +365,17 @@ GEP flags ([#15](https://github.com/phongndo/ir-lean/pull/15)), attribute and li
 | # | Slice | Phase | Wave | Done when |
 | --- | --- | --- | --- | --- |
 | 17 | Split CI into parallel jobs | 8 | 1 | Done in #53. C1 below is still open |
-| 18 | The q4_K rewrite, from `feat/prove-llvm-optimization-1` | 4 | 1 | On `main`, its proofs checked in CI, and its benchmark reproducible from the repo |
-| 19 | The Q5 rewrite, from `feat/prove-llvm-optimization` | 4 | 1 | The same |
+| 18 | The q4_K rewrite, from `feat/prove-llvm-optimization-1` | 4 | 1 | Done in #57: on `main`, its proofs checked in CI, and its benchmark reproducible from the repo |
+| 19 | The Q5 rewrite, from `feat/prove-llvm-optimization` | 4 | 1 | Done in #58, the same way |
 | 20 | Prior-art study for superoptimization and proof tests | 4, 7 | 1 | A note in `docs/` covering at least the work in [prior art](#prior-art), which superoptimizer v2's design cites |
 | 21 | #52's capture and measurement tools, without its ledger | 4 | 1 | Done in #54: `tools/corpus/capture.py` and `tools/measure.py`. Reading the corpus is superoptimizer v2's |
 | 22 | Lemma store v1 | 6 | 2 | E1 below |
 | 23 | Promises as UB, SEM-07 | 0 | 2 | Done in [#SEM07PR](https://github.com/phongndo/ir-lean/pull/SEM07PR): a `loop-deletion` run under `mustprogress` is bound as a refinement, and adding the promise provably isn't one |
-| 15 | Executable memory representation, proved to agree with `Mem` | 6 | 2 | E2 below |
 | 24 | Tier-1 proof tests on `tools/verify.py` | 7 | 2 | T1 below |
-| 13 | Statement of `inflate_table`'s theorem, for review, with no proof | 1 | 2 | Someone other than the author has reviewed it |
+| 29 | Stage-1 benchmark and soundness corpus | 4 | 2 | S1 below |
+| 30 | Speed, round 2 | 8 | 2 | C1 below |
+| 13 | Statement of `inflate_table`'s theorem, for review, with no proof | 1 | When a lane frees | Someone other than the author has reviewed it |
+| 15 | Executable memory representation, proved to agree with `Mem` | 6 | 3 | E2 below |
 | 25 | Superoptimizer v2 | 4 | 3 | S3 below |
 | 26 | The safety bridge | 4 | 3 | S4 below |
 | 27 | Proof-test tiers 2 and 3 | 7 | 3 | T2 below |
@@ -376,7 +400,7 @@ Each is reached when its checks pass in CI, not on a date.
 | F4 | `Refines` for functions with memory, SEM-06 | 0 | F3 | Not started |
 | F5 | Phase 0B done: full inventory, semantic mutation, two-machine determinism | 0 | F1 | In progress: promises, model stops and Alive2 are done |
 | S1 | Stage 1: proved wins on integer code, and no known-wrong rewrite certified | 4 | | In part: 2 proved wins over `clang -O3` ([#30](https://github.com/phongndo/ir-lean/pull/30)). The comparison with Alive2 isn't done |
-| S2 | A proved win on real code, on `main` | 4 | | On two branches, with no pull request |
+| S2 | A proved win on real code, on `main` | 4 | | The q4_K rewrite landed in [#57](https://github.com/phongndo/ir-lean/pull/57) (`b59d862`), and the Q5 rewrite in [#58](https://github.com/phongndo/ir-lean/pull/58) |
 | S3 | Superoptimizer v2 | 4 | The study. E1, soft. F4, for memory | Not started |
 | S4 | The safety bridge proved | 4 | F2, F4 | Not started |
 | S5 | A proved win on LLVM IR exported from MLIR | 4 | S3 | Not started |
@@ -500,17 +524,19 @@ can't claim one the certificate didn't check, `mustprogress` and `willreturn` in
 - **Superoptimizer v1:** [`tests/superopt.py`](../tests/superopt.py) searches expressions of up to 3 integer
   instructions on 1 argument. It has 2 proved wins over `clang -O3`, `__clzsi2` and `__ctzsi2`, both compiler-rt
   fallback routines that real programs on x86-64 don't call ([LLVM's own code](llvm.md#beating-clang--o3)).
-- **The best result on real code isn't on `main`.** The q4_K VNNI rewrite of llama.cpp, proved at all 34 places, reads
-  prompts 5.5% to 7.2% faster ([lemma reuse](lemma-reuse.md)), on `feat/prove-llvm-optimization-1`. A Q5 rewrite,
-  measured on real inference, is on `feat/prove-llvm-optimization`. Neither has a pull request.
+- **The best results on real code are on `main`.** The q4_K VNNI rewrite of llama.cpp, proved at all 34 places, reads
+  prompts 5.5% to 7.2% faster ([llama.cpp](llama.md)), and landed in #57. A Q5 rewrite, measured on real inference
+  ([llama.cpp's Q5](llama-q5.md)), landed in #58.
 - **The tools on `main`** are in [what stays](#whats-parked-and-what-stays).
 
 **Stages,** each with its own prerequisites:
 
 1. **Pure, loop-free integer code.** Superoptimizer v1, with its certificates checked against Alive2 and the
-   [negative corpus](llvm-negative-verification.md).
+   [negative corpus](llvm-negative-verification.md). Narrowed by [the gate](prior-art.md#the-gate) to what nobody has
+   shipped: InstCombine's tests read through the emitter, certified with `bv_decide` at fixed widths, compared with
+   Alive2 over at least 500 pairs with each disagreement explained, and a corpus of known miscompilations.
 2. **Real code.** Proved rewrites of code real programs spend time in, on `main`, starting with the two llama.cpp
-   branches.
+   rewrites, #57 and #58.
 3. **Superoptimizer v2.** More arguments, `select`, memory, and real targets: functions chosen because real programs
    spend time in them, from the [corpus](corpus.md) and the projects stage 2 used. Designed after the prior-art study, and
    proving from the lemma store. Its memory candidates need SEM-06.
@@ -541,14 +567,19 @@ theorem carried across.
 
 **Risks:** this field is moving quickly. [Trivet](https://arxiv.org/abs/2609.19583), from September 2026,
 already does LLM-assisted refinement proofs in Lean on integer code, on top of Lean-MLIR. It has no memory
-model and no `undef`, and supports a restricted loop class. Stage 1 may simply duplicate it. Real wins over
+model and no `undef`, and supports a restricted loop class. The prior-art study found it doesn't cover stage 1
+([the gate](prior-art.md#the-gate)), but the overlap can grow. Real wins over
 `clang -O3` may be scarce, and the ones found so far needed proof work a person wrote: the q4_K proof rests on the 527
 lines of the branch's `Vnni.lean`.
 
 **Hold or pivot:**
 
 - If the prior-art study finds that Trivet, Lean-MLIR or others cover superoptimizer v2's design, contribute to them
-  or share a semantics, and put our effort where memory and whole real functions differ.
+  or share a semantics, and put our effort where memory and whole real functions differ. The study answered the
+  narrower question for stage 1 on 2026-11-08, [no](prior-art.md#the-gate): neither Trivet nor Lean-MLIR covers
+  integer stage 1, though between them they cover its core. So stage 1 goes ahead, narrowed as above, and `ir-lean`
+  builds no LLM proof pipeline or width-generic decision procedure for peepholes of its own. VeIR is the likeliest
+  partner for a shared semantics. The condition still applies to superoptimizer v2's design.
 - If proved wins stay on code no real program runs, such as compiler-rt's fallbacks, change how targets are chosen
   before making the search bigger.
 - If proving costs far more than finding, and the lemma store doesn't bring it down by E3, stop growing the search and
@@ -578,7 +609,7 @@ makes each proof cheaper than the last.
 
 - **Lemma store v1,** wave 2: in the build and CI, the bar enforced by a check, and seeded from #48. Versioned by Lean
   and `ir-lean` commit, so a lemma that stops checking is reported and not silently dropped.
-- **Executable memory model,** wave 2, slice 15: an executable representation of memory, proved to agree with `Mem`,
+- **Executable memory model,** wave 3, slice 15: an executable representation of memory, proved to agree with `Mem`,
   for the differential tests, the search's refuting step, and tier-1 proof tests on code with memory. `inflate`'s
   window is 32 KiB, so inputs under that never exercise its full distance range.
 
@@ -729,7 +760,7 @@ makes the proof harder, and it has to assume the allocator returns. It says noth
 **The order,** so each step tests the riskiest thing left:
 
 1. `inflate_table`: every entry it writes stays inside `codes`, and links stay in the table it built. Its statement is
-   in wave 2, and its proof in wave 3.
+   light work, taken up when a wave-2 lane frees, and its proof is in wave 3.
 2. `inflate_fast`, assuming tables with that property. This is where a memory bug would most likely be.
 3. The invariant across `inflate`'s modes, one mode at a time, starting with stored blocks.
 
@@ -937,27 +968,34 @@ These apply across phases. The ones specific to a phase are with that phase.
 ## Prior art
 
 Read these before starting the phase they apply to. This list isn't complete, and the field is moving, so
-check it again at each gate. The "someone else ships it" rule depends on that. The prior-art study in wave 1
-extends this list for superoptimization and proof tests.
+check it again at each gate. The "someone else ships it" rule depends on that. The [prior-art study](prior-art.md),
+[#56](https://github.com/phongndo/ir-lean/pull/56), extends it for superoptimization, the lemma store and proof tests,
+and the rows below take its changes, as of 2026-11-08.
 
 | Work | What it does | How it relates |
 | --- | --- | --- |
-| [Alive2](https://www-old.cs.utah.edu/~regehr/alive2-pldi21.pdf) ([code](https://github.com/AliveToolkit/alive2)) | Bounded, SMT-based translation validation for LLVM, avoiding false alarms | Our oracle for integer semantics now, a refuter in the engine, and the benchmark for Phase 4. It's bounded on loops and produces no proof object |
-| [Vellvm](https://www.cis.upenn.edu/~stevez/papers/ZB+21.pdf) | A large sequential subset of LLVM IR in Rocq, built on interaction trees | The closest formal semantics. Compare our choices with it in Phase 0, especially on memory |
+| [Alive2](https://www-old.cs.utah.edu/~regehr/alive2-pldi21.pdf) ([code](https://github.com/AliveToolkit/alive2)) | Bounded, SMT-based translation validation for LLVM, avoiding false alarms. Bounded on loops, at fixed widths. It counts an always-UB source as correct unless given `--fail-if-src-is-ub` | Our oracle for integer semantics now, a refuter in the engine, and the benchmark for Phase 4. It produces no proof object. Its [dashboard](https://web.ist.utl.pt/nuno.lopes/alive2/) of unsound LLVM tests, 137 on 2026-01-29, is a known-miscompilation source. Its open issues [#1213](https://github.com/AliveToolkit/alive2/issues/1213), [#1183](https://github.com/AliveToolkit/alive2/issues/1183) and [#1242](https://github.com/AliveToolkit/alive2/issues/1242) are in the promise attributes `ir-lean` checks |
+| [Vellvm](https://www.cis.upenn.edu/~stevez/papers/ZB+21.pdf) | A large sequential subset of LLVM IR in Rocq, built on interaction trees. 3.0, in July 2026, removed `undef`. Its `tests/ub` suite has 363 UB assertions quoting LangRef, and Vellvm agrees with 328. It reports less UB than LLVM by design, and doesn't check `memory(...)`, `captures` or `initializes` yet | The closest formal semantics. Compare our choices with it in Phase 0, especially on memory. Collaborate by adding `ir-lean` as a column of its UB suite |
 | [LangRef](https://llvm.org/docs/LangRef.html) and [the UB guide](https://llvm.org/docs/UndefinedBehavior.html) | LLVM's own semantics, in prose | The reference for every row of Known gaps |
-| [Crellvm](https://sf.snu.ac.kr/crellvm/) | LLVM passes emit proofs, checked by a verified checker in Coq, for `mem2reg` and GVN | The model for per-run certificates in Phase 4 |
-| [Lean-MLIR](https://github.com/opencompl/lean-mlir) ([paper](https://arxiv.org/abs/2407.03685)) | Peephole rewriting over SSA IRs, verified in Lean | The closest Lean work, and worth sharing with in Phase 4 |
-| [AliveInLean](https://link.springer.com/chapter/10.1007/978-3-030-25543-5_25) | A verified LLVM peephole verifier, in Lean | Earlier Lean work on the same problem |
-| [Trivet](https://arxiv.org/abs/2609.19583) | LLM-assisted refinement proofs and refutations in Lean. 147 of 148 cases, integer only, no memory, restricted loops | Directly overlaps Phase 4's stage 1, and gates superoptimizer v2's design |
-| [Souper](https://arxiv.org/abs/1711.04422) ([code](https://github.com/google/souper)), [Minotaur](https://arxiv.org/abs/2306.00229) | Synthesizing superoptimizers for LLVM IR, with Minotaur on SIMD | The nearest superoptimizers, and possible untrusted candidate sources for Phase 4 |
+| [Crellvm](https://sf.snu.ac.kr/crellvm/) | LLVM passes emit proofs, checked by a verified checker in Coq, for `mem2reg` and GVN. Dormant since 2018 | A precedent for hint certificates in Phase 4, not a dependency |
+| [Lean-MLIR](https://github.com/opencompl/lean-mlir) ([paper](https://arxiv.org/abs/2407.03685)) | Peephole rewriting over SSA IRs, verified in Lean. Its LLVM dialect makes UB poison, and its 4,556 InstCombine theorems all end in `sorry`. The group's active work is VeIR | The closest Lean work. Contribute the counterexamples [the study](prior-art.md#lean-mlir) found. Its `bv_automata` and Blase are the width-generic procedures to use, not rebuild |
+| [VeIR](https://github.com/opencompl/veir) | A compiler infrastructure in Lean, on Lean 4.35 and LLVM 23.1.3, with division UB as `ir-lean` has it | The likeliest partner for a shared semantics. Raise its `freeze`, which picks 0, and its interpreter giving up, which refines anything |
+| [AliveInLean](https://link.springer.com/chapter/10.1007/978-3-030-25543-5_25) | A verified LLVM peephole verifier, in Lean 3. Archived, never ported to Lean 4 | Earlier Lean work on the same problem |
+| [Trivet](https://arxiv.org/abs/2609.19583) | LLM-assisted refinement proofs and refutations in Lean. 147 of 148 cases, integer only, no memory, restricted loops. Built on an unreleased Lean-MLIR fork, reads IR through MLIR's lossy import, checks given pairs without searching, and uses the standard axioms only | Doesn't cover stage 1: see [the gate](prior-art.md#the-gate) |
+| [Minotaur](https://arxiv.org/abs/2306.00229) ([code](https://github.com/minotaur-toolkit/minotaur)) | A synthesizing superoptimizer for LLVM IR, including SIMD. Maintained on LLVM `main` | The nearest superoptimizer, and an untrusted candidate source for Phase 4, run offline |
+| [Souper](https://arxiv.org/abs/1711.04422) ([code](https://github.com/google/souper)) | A synthesizing superoptimizer for LLVM IR's integer DAGs. Archived: last pushed 2024-08-28, on LLVM 18 | Not a candidate source. Its path conditions and pruning are still worth borrowing |
+| [LPO](https://arxiv.org/abs/2508.16125), [Hydra](https://users.cs.utah.edu/~regehr/generalization-oopsla24.pdf), [LPG](https://arxiv.org/abs/2603.18477) | LPO: an LLM proposes better IR, checked by Alive2 (ASPLOS 2026). Hydra and LPG generalize an optimization, checking widths only up to 64 | LPO is the closest to stage 3's search. The generalizers end where `ir-lean` adds a proof for every width |
+| [Aqueduct](https://arxiv.org/abs/2610.30188) | Agents prove faster Lean code equal to the original, with the standard axioms only | Its acceptance rules are worth copying |
 | [STOKE](https://theory.stanford.edu/~aiken/publications/papers/asplos13.pdf) ([code](https://github.com/StanfordPL/stoke)) | Stochastic superoptimization of x86-64 code | A search strategy to compare with, for superoptimizer v2 |
-| [Hypothesis](https://hypothesis.works/), [QuickCheck](https://hackage.haskell.org/package/QuickCheck), [Plausible](https://github.com/leanprover-community/plausible) | Property-based testing, Plausible inside Lean | Tier 1 of proof tests, in Phase 7 |
-| [Kani](https://github.com/model-checking/kani), [CBMC](https://www.cprover.org/cbmc/) | Bounded model checking of Rust and C | Tier 2 of proof tests, and the comparison for Phase 7 |
+| [`llubi`](https://llvm.org/docs/CommandGuide/llubi.html), and [removing `undef`](https://web.ist.utl.pt/nuno.lopes/pubs/byte-type-pldi26.pdf) | LLVM's UB-aware interpreter, in the dev shell's LLVM 23.1.3. And a byte type and freezing load, so `undef` can go (PLDI 2026) | `llubi` is an oracle. LLVM is moving toward what `ir-lean` already does about `undef` |
+| [Hypothesis](https://hypothesis.works/), [QuickCheck](https://hackage.haskell.org/package/QuickCheck), [Plausible](https://github.com/leanprover-community/plausible) | Property-based testing, Plausible inside Lean | Tier 1 of proof tests, in Phase 7. Plausible needs fixing before it can serve as tier 1: it admits the goal on success, and samples `BitVec`s of at most 99 by default |
+| [Kani](https://github.com/model-checking/kani), [CBMC](https://www.cprover.org/cbmc/) | Bounded model checking of Rust and C | Tier 2 of proof tests, and the comparison for Phase 7. Their unwinding assertions are the model for tier 2 |
 | [Dafny](https://dafny.org/), [Verus](https://github.com/verus-lang/verus) | Verified programming with specs in the source language | Tier 3 of proof tests, and the comparison for Phase 7 |
-| [SAW](https://github.com/GaloisInc/saw-script) | Reasons about LLVM bitcode against Cryptol specs, used on s2n's HMAC | Closest in spirit for proving properties of compiled IR. A comparison in Phase 2 |
+| Lean's `LibrarySuggestions`, [LeanHammer](https://arxiv.org/abs/2506.07477) | Lean core's API for premise selectors, and premise selection with a prover | The retrieval hook for the lemma store |
+| [SAW](https://github.com/GaloisInc/saw-script), [crucible-llvm](https://github.com/GaloisInc/crucible/tree/master/crucible-llvm) | Reasons about LLVM bitcode against Cryptol specs, used on s2n's HMAC. crucible-llvm is its semantics | Closest in spirit for proving properties of compiled IR. A comparison in Phase 2. crucible-llvm is an oracle with the opposite UB polarity: poison asserts, and `freeze` returns its argument |
 | [Frama-C](https://frama-c.com/) | ACSL specs and weakest-precondition proofs on C source | Cost comparison in Phase 2, and a different scope |
 | [VST](https://vst.cs.princeton.edu/) | Separation logic for C, proved sound in Rocq | Cost comparison in Phase 2, and a model for frame reasoning |
-| [Aeneas](https://github.com/AeneasVerif/aeneas) ([recent report](https://arxiv.org/abs/2609.15648)) | Translates Rust to Lean, for proofs at the source level | Complements Phase 3: it covers Rust's meaning, and we cover compiled output |
+| [Aeneas](https://github.com/AeneasVerif/aeneas) ([recent report](https://arxiv.org/abs/2609.15648)) | Translates Rust to Lean, for proofs at the source level | Complements Phase 3: it covers Rust's meaning, and we cover compiled output. The SymCrypt report overlaps: Lean, `bv_decide`, agents, and shared `BitVec` libraries |
 | [lean-zip](https://github.com/kim-em/lean-zip) | A DEFLATE codec written in Lean, with a proved round trip | Doesn't prove anything about C zlib. Its spec might help a later functional proof of `inflate` |
 | [LNSym](https://github.com/leanprover/LNSym) | Symbolic simulation of Arm machine code in Lean | Where to look if machine-code correspondence ever gets taken up |
 

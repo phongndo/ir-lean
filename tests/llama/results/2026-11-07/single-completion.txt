@@ -1,0 +1,27 @@
+
+## The Art of Hash Tables
+
+Hash tables are a fundamental data structure used to store and retrieve data, which is often a set of key-value pairs, in a table-like structure. This article discusses how a hash table works, the concept of collisions, separate chaining, open addressing, resizing, and the tradeoffs between memory use and lookup speed. We'll also provide a small example to illustrate these concepts, and offer advice for choosing a hash table implementation.
+
+### What is a Hash Table?
+
+A hash table is a data structure that maps a key (a string or other data type) to an index in an array of buckets. The key is used to find the bucket in which the value is stored. This allows for efficient lookups, insertions, and deletions, as well as quick collisions resolution.
+
+### How Does Hashing Work?
+
+Hashing is a mathematical function that takes an input (key) and produces an output (hash value). The key is hashed using a hash function, which is a function that takes an input (key) and produces an output (hash value) that is unique to the input. The hash function is typically an array of bytes, and the key is converted to this hash using a hash algorithm.
+
+The goal of hashing is to produce a hash value that is unique to the input, such that it is possible to use the hash value to find the key in the array of buckets. If two keys have the same hash value, they will be stored in the same bucket, and collisions will occur.
+
+### Collisions
+
+Collisions occur when two keys have the same hash value, meaning that they are stored in the same bucket. This can lead to inefficient lookups and deletions, as the data must be spread across multiple buckets to find the correct key.
+
+#### Separate Chaining
+
+Separ chaining is a technique used to resolve collisions in hash tables. Instead of storing all keys in the same array of buckets, keys are stored in separate chaining buckets. When a key is inserted, its corresponding index is stored in a separate chaining bucket, and the key is stored in the array of buckets where the index is located. When a key is deleted, its index is deleted from the array of buckets, and the key is stored in the separate chaining bucket where the index was located.
+
+#### Open Addressing
+
+Open addressing is a technique used to resolve collisions in hash tables. Instead of storing all keys in the same array of buckets, keys are stored in open addressing buckets. When a key is inserted, a hash function
+

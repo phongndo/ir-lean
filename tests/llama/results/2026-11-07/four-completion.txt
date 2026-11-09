@@ -1,0 +1,27 @@
+
+## The Art of Hash Tables
+
+Hash tables are a fundamental data structure used to store and retrieve data, which is often a set of key-value pairs, in a table-like structure. This article discusses how a hash table works, the concept of collisions, separate chaining, open addressing, resizing, and the tradeoffs between memory use and lookup speed. We'll also provide a small example to illustrate these concepts, and offer advice for choosing a hash table implementation.
+
+### What is a Hash Table?
+
+A hash table is a data structure that maps a key (a string or other data type) to an index in an array of buckets. The key is used to find the bucket in which the value is stored. This allows for efficient lookups, insertions, and deletions, as well as quick updates to the data.
+
+### How a Hash Table Works
+
+A hash table is implemented using a hash function, which takes a key and maps it to an index in an array of buckets. The hash function is typically a simple mapping, such as a modulo operation, which maps a key to a bucket number. The hash function is chosen based on the size of the table and the number of keys to be stored. The resulting index is a unique identifier that can be used to access the data.
+
+The hash table stores data in a linked list structure, with each node containing a pointer to the next node and a key-value pair. This allows for efficient insertion, deletion, and updating of data, as well as quick lookups. The linked list structure is used to efficiently store and retrieve data.
+
+### Hashing, Collisions, Separate Chaining, Open Addressing, Resizing, and the Tradeoffs
+
+Hashing, collisions, separate chaining, open addressing, resizing, and the tradeoffs between memory use and lookup speed are all important concepts in the design and implementation of hash tables. We'll discuss each of these in detail.
+
+#### Hashing
+
+Hashing is the process of mapping a key to an index in an array of buckets. The process of mapping a key to an index is called hashing. The key is used to find the bucket in which the value is stored. This is a simple mapping, such as a modulo operation, which maps a key to a bucket number. The resulting index is a unique identifier that can be used to access the data.
+
+#### Collisions
+
+Collisions occur when two keys have the same hash value. In the hash table, each key has a unique hash value, which is used to find the corresponding index
+

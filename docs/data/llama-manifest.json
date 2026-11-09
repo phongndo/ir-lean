@@ -1,0 +1,516 @@
+{
+ "llama_cpp": "/nix/store/xyvikf9mlja3nb1pbql7s8iq2m8gql8h-source",
+ "source": "ggml/src/ggml-cpu/arch/x86/repack.cpp",
+ "source_sha256": "c69735f83caf854172cac78eed2cbc022ef81c077e5f6aca55a49d3404a02331",
+ "defines": [
+  "GGML_BACKEND_BUILD",
+  "GGML_BACKEND_SHARED",
+  "GGML_SCHED_MAX_COPIES=4",
+  "GGML_SHARED",
+  "GGML_USE_CPU_REPACK",
+  "GGML_USE_LLAMAFILE",
+  "_GNU_SOURCE",
+  "_XOPEN_SOURCE=600",
+  "ggml_cpu_EXPORTS"
+ ],
+ "flags": [
+  "-fomit-frame-pointer",
+  "-momit-leaf-frame-pointer",
+  "-O3",
+  "-DNDEBUG",
+  "-std=gnu++17",
+  "-fPIC",
+  "-march=znver5"
+ ],
+ "functions": [
+  "ggml_gemm_q4_K_8x8_q8_K",
+  "ggml_gemv_q4_K_8x8_q8_K"
+ ],
+ "clang": "clang version 23.1.3",
+ "lean": "Lean (version 4.35.0, x86_64-unknown-linux-gnu, commit eb6cafb7290e8bd5f2937522d8d804f58f02bafc, Release)",
+ "ir_sha256": "e4c001b87cf0b2ee4c893a2b85f6494707b2bd5bca0d9b95609fbe831c706ffc",
+ "rewritten_ir_sha256": "a64b006a98afa25c7255367e637811cfdce78cdbcfb8d28d65e75814ecb973eb",
+ "rewritten_object_sha256": "15b3c14b85b7deca077a17867e3bdd34249e9212ddfc7b2e2c599dcd800e2a87",
+ "slices_sha256": {
+  "s00.src.ll": "a9fbc824f263e34af19ec180ea4db258cc7e05879f3dda5df0b9da712bc244ab",
+  "s00.tgt.ll": "2c1d0fa23fd1267d0f6701bd414a0c9980198ad4dd11d72b0451976fa6eb01a5",
+  "s01.src.ll": "c5cad2ed3268297de1ab99e5064791ce1681490c406f01b0d7593a349dfdf47f",
+  "s01.tgt.ll": "f0d92c455fc3444db83901f07a9caf46ddd3bab931370a0abe9750a5f14efcee",
+  "s02.src.ll": "3f407fef07eb198817cb05040e604fa28ffedd5d41183ac10114d27c247aece8",
+  "s02.tgt.ll": "f576dd499915f4f4d7a8544f9808a679f322c7fb5d469865563413780717d307",
+  "s03.src.ll": "70aae0d4512919f0406fd812ec1b9fc8f326873feea451fe146cf85f646efacf",
+  "s03.tgt.ll": "870bf1c8b1ae2fad4fa6767022b2b37a341b14718c133c07fa62470adadc8ecf",
+  "s04.src.ll": "bb074eec42326b8c4825e51a8ee425ab4d014b11e3745675ca4355338a56232c",
+  "s04.tgt.ll": "f93444fb0b1b5694bc3aeaa97b67c7f984c29fd8cc15ba7bbd17e0822d7cbd9c",
+  "s05.src.ll": "cdbc7e689048655cfa4e9424854965f25627eea8c60adfd5eacbc50c90febee4",
+  "s05.tgt.ll": "2832a0a5aa555f1ceaeab261a33f7e19f2a7674695ad7f6d802631e77e10d55e",
+  "s06.src.ll": "d1902a2177d5c97b019893e8f3eeb2544099421eb3a9352e420d2bd1d6dbf450",
+  "s06.tgt.ll": "f7e9d20b8e3a888dd930d711c9b593f7be948240e2a0229fae582a3d411dbd79",
+  "s07.src.ll": "98d7f08437d4386ea16239bcd14347cec98ada1072e4b10f26fcde38a58f3361",
+  "s07.tgt.ll": "b5a9d6f5152960e8d3bd8201131a278aa0307c17a249e46990aa014d4471f860",
+  "s08.src.ll": "45c13e45a20ef4787889a0221f5f669d88703a07ea787fe117e1477710f43c4a",
+  "s08.tgt.ll": "3209271a88ef745dc6c708b4a75356e559d124044186959320d5e9b4cc6ab3e6",
+  "s09.src.ll": "cee80310e7fb6f30011a3bb7655e0e561514a1b1f3ca3d4740ea3e8fa0d330ea",
+  "s09.tgt.ll": "14bd8b1e602072e7cbc1af27d753bcee309534d64c92f9404c32ee6947633561",
+  "s10.src.ll": "3888d5724d804cc9483fa82548c71dba6f0d082027a507b453c7b31a85b77649",
+  "s10.tgt.ll": "777387f2854ca09620c5127a24785d7ab015b7c8c95a5df00b25b0e108951a39",
+  "s11.src.ll": "e71541623213fcd54af738e4e9e23f488f4cc7f1dd57cc1cd2fc9c2c32d8211f",
+  "s11.tgt.ll": "4d5ad9ea510acb1c2c8e980fb5d0dbd9442cafd3752658a01a7ad7b39e171bba",
+  "s12.src.ll": "e3f27e307ba361dc462a2e2e4b1f9dfd39415ae53344103a8807f355d724370b",
+  "s12.tgt.ll": "d180959bb88dd81706049245bf39d5a42ab25ccff8a589f433558811d76ad774",
+  "s13.src.ll": "05e3699ef07255fff56f5b5187f81f239fca40ced23b0f0cc2153fff6555f12e",
+  "s13.tgt.ll": "98cc2ecb59fa663682b824d8e4d99a6dc5ca0e5e0a3b43bce94de7d606042a39",
+  "s14.src.ll": "b2637761ff85cc811aacd132ec7e3734c8a984980a2b35783ca5cd9dc0198231",
+  "s14.tgt.ll": "e4a0f07ff0e69d4c291ebde0482fe1fc8638cf6cd6e49f7d71e6e7cdba499144",
+  "s15.src.ll": "c49027fa91438cdf4c22c81383a527b16671887405378ca509aa2ef3b4ea49ca",
+  "s15.tgt.ll": "7933630345da9f3ab8f51cf69f994151ed6ecf85e65b647cb86ec141ef5ba870",
+  "s16.src.ll": "307d5f78774c66dbe091eb10dab93ecfb2a9f97a3f4434f3a5a76816870c98c2",
+  "s16.tgt.ll": "63101568d0fd90a8350dd99f9368eeb042e9eb2d6f77785b8e8dc06a1a9404af",
+  "s17.src.ll": "eb979cf62e787e1701e95b06c76405b38d5ed3eb0557f2ccee3f8d17541d7113",
+  "s17.tgt.ll": "ebd0d871b23ee433aef7077b13c18591d40ca6b85c331f05ebea1229298e58be",
+  "s18.src.ll": "7c111e61a00213470123dcbdd6bfa58317c5f5cd39aaadb6a87f33e0ed7a6360",
+  "s18.tgt.ll": "1ec3ef35decc45f5187aa47ffa6226e245b7e758f2454326674b31201cedbf3f",
+  "s19.src.ll": "62afc925c170a63130a965d8d9a652417a570d1b0c35bb5d7cd310bc8a74b3f0",
+  "s19.tgt.ll": "f447f3bbb74332ee9254f9f6968373c94792eb83501bc0b85e60159c1833ffc0",
+  "s20.src.ll": "d232bac13e5c1157cb3c5d78acc5061844514d9889681bcae9dbfbc1a66a8d4f",
+  "s20.tgt.ll": "c3a9a9b36f68fca3b3333fa312bc027ce38e907fcf1a24413d2e033a686055bf",
+  "s21.src.ll": "89cee4f582c25a90a156b1e382ba165a1aa020a3a7be566180c4714733226f12",
+  "s21.tgt.ll": "a557b3adfc11de15e4a6baa27227d7c3d752ece97f17157065e481d36497b348",
+  "s22.src.ll": "fe888fd5aae95a31e5b406725f42589a45c06a54e80f92d33c7a5198e3366796",
+  "s22.tgt.ll": "d317fd7ee53649f012cf0ddebb7aca02c46abd8c3db8b5c191f4b0569a347e85",
+  "s23.src.ll": "d7a2040555f416a155a6e68bab628901b061cfac2ad2298d0f0ce7b7c2a06ee6",
+  "s23.tgt.ll": "4718c405f9414c8ec10ae96c5ff0b52f5e5dfac30fbc1365b513c693a86f77d5",
+  "s24.src.ll": "bf6a7acd318852da0385d98ac75ad0c4e33c699fe9f2510657e27babd1a415c3",
+  "s24.tgt.ll": "f35ccc2b85c1a901418b74224c8af7a2d722c30f128fb4af624e7ac796344db3",
+  "s25.src.ll": "b6287bd541c648a1cc3e3609b052f5dab6b6f2edab2ba22f1019e08ce68a3fdc",
+  "s25.tgt.ll": "c3493c854deaa0c72ca033cc6f216bc05063df5a0d5350b46fd95df0bb3b7ea5",
+  "s26.src.ll": "dc2195592492e3a1d84556aa3abd907ce218ea70b2116dfc9e06e2051b0d4a1b",
+  "s26.tgt.ll": "7b51a3413495d7de38de40f050495d082bb09fa54d4b58186306dcdb36385840",
+  "s27.src.ll": "af871f3067d09397ad87a8df18ab96ac6cc5c35f6e4dfd6f92ccdf7c3c3e0585",
+  "s27.tgt.ll": "b0704f78d930bcdd51f978220c106ae535d035159cecf94fd734b05886fcb3eb",
+  "s28.src.ll": "f835cb551fd3d7d0e21b46b1ac57a77264a3109bee3a20334b7fbb15213ad85c",
+  "s28.tgt.ll": "c4f3d4b93a812c1b47ddffe1cec7e6f0883fb1eb4cee3e0fb2d3f851b16149c1",
+  "s29.src.ll": "7a24e908398f29a7af919391f88de0bf15fca418459c62cf11787b0c06e36994",
+  "s29.tgt.ll": "424a0b7142aedb8f492747b6a5a76fb9dcd5a03bd725456e2fe91831cd9581f9",
+  "s30.src.ll": "e37105649ab325f37098c0f34167c4c0e0b9925f28c2b31c3a318aed6630a5d2",
+  "s30.tgt.ll": "974e7b9b36147cac70253d2c49085f4bca2932ec22d3b226c27e00d6501340cd",
+  "s31.src.ll": "74b40ee4c1fb3a335f0978e1cb08c7e610d2f8288c55bf42f7455116be1ef054",
+  "s31.tgt.ll": "d90776feed194e01f97cfa42c4081bb823085b67e23529ad9494d66e10666067",
+  "s32.src.ll": "46a0383852139614490eb20b616d1665e62d6400059a69b793d13b8c00fb9251",
+  "s32.tgt.ll": "05b6c69674962356de922126977ca9e32f5e455ad73f14c3ea6aea3abf48298e",
+  "s33.src.ll": "164113f92e858fed713208950910df570273e15dcdb02b713d62ab6769a05e05",
+  "s33.tgt.ll": "70f3ccf9716c2260b14cc659e30755c670cdaee03465670b06ed7a8f89f44f7d"
+ },
+ "theorems": {
+  "s00": {
+   "function": "ggml_gemv_q4_K_8x8_q8_K",
+   "value": "%250",
+   "axioms": "at most the standard three, and 5 from bv_decide",
+   "statement": "s00_same : \u2200 (v90 v92 : IRLean.Vec 4 64) (v176 v9 : IRLean.Vec 2 64) (v94 v96 v98 v100 : IRLean.Vec 4 64)\n  (v179 : IRLean.Vec 2 64) (v102 v104 : IRLean.Vec 4 64) (v123 v127 v125 : IRLean.Val 32),\n  S00Tgt.s00_tgt v90 v92 v176 v9 v94 v96 v98 v100 v179 v102 v104 v123 v127 v125 =\n    S00Src.s00_src v90 v92 v176 v9 v94 v96 v98 v100 v179 v102 v104 v123 v127 v125",
+   "lean_sha256": {
+    "S00Src": "b4f10e0305eb8a6933d9b98a17afb9339563cc1e02d62c15141d725d36148d8f",
+    "S00Tgt": "5539be243bc2ff6e8bcbbb766fbfa0e699094914af43afb1a879c071607112e7",
+    "Ts00": "1628ca462728e9bcffbe898526672a1ac61df13ed7a5396ff44826122ff2c020"
+   }
+  },
+  "s01": {
+   "function": "ggml_gemv_q4_K_8x8_q8_K",
+   "value": "%314",
+   "axioms": "at most the standard three, and 5 from bv_decide",
+   "statement": "s01_same : \u2200 (v90 v92 : IRLean.Vec 4 64) (v182 v9 : IRLean.Vec 2 64) (v94 v96 v98 v100 : IRLean.Vec 4 64)\n  (v185 : IRLean.Vec 2 64) (v102 v104 : IRLean.Vec 4 64) (v140 v144 v142 : IRLean.Val 32),\n  S01Tgt.s01_tgt v90 v92 v182 v9 v94 v96 v98 v100 v185 v102 v104 v140 v144 v142 =\n    S01Src.s01_src v90 v92 v182 v9 v94 v96 v98 v100 v185 v102 v104 v140 v144 v142",
+   "lean_sha256": {
+    "S01Src": "f04f492536f612f4d527195fb64ca0b02272db41d4cdbea3853c4feab91aad5a",
+    "S01Tgt": "268fa60ae8d271d9ad6c9f4bc867f47fefd66603847df90a4d1446056b16ef4c",
+    "Ts01": "249f79f1214935efb1f9a85314e8fab4f4d8260ebd14992aefad2b01cea6e43d"
+   }
+  },
+  "s02": {
+   "function": "ggml_gemm_q4_K_8x8_q8_K",
+   "value": "%646",
+   "axioms": "at most the standard three, and 6 from bv_decide",
+   "statement": "s02_same : \u2200\n  (v159 v161 v175 v177 v426 v163 v165 v179 v181 v431 v155 v157 v171 v173 v421 v151 v153 v167 v169 v416 :\n    IRLean.Vec 8 32)\n  (v247 : IRLean.Vec 2 32) (v242 v248 v249 : IRLean.Val 32) (v285 : IRLean.Vec 2 32) (v280 v286 v287 : IRLean.Val 32),\n  S02Tgt.s02_tgt v159 v161 v175 v177 v426 v163 v165 v179 v181 v431 v155 v157 v171 v173 v421 v151 v153 v167 v169 v416\n      v247 v242 v248 v249 v285 v280 v286 v287 =\n    S02Src.s02_src v159 v161 v175 v177 v426 v163 v165 v179 v181 v431 v155 v157 v171 v173 v421 v151 v153 v167 v169 v416\n      v247 v242 v248 v249 v285 v280 v286 v287",
+   "lean_sha256": {
+    "S02Src": "1bcae9edcdbdb86c24d4fab0ab0e8b99346e4a706a401204f41acbde7c4c44bb",
+    "S02Tgt": "64411617dee3028eb3358c86bffcab42b53b053f56c479249ad95cb5ad4384c2",
+    "Ts02": "f3caef43425726190e4de533422998492beda0b15aff21e503e0ce4af85b396a"
+   }
+  },
+  "s03": {
+   "function": "ggml_gemm_q4_K_8x8_q8_K",
+   "value": "%647",
+   "axioms": "at most the standard three, and 6 from bv_decide",
+   "statement": "s03_same : \u2200\n  (v159 v161 v175 v177 v426 v163 v165 v179 v181 v431 v155 v157 v171 v173 v421 v151 v153 v167 v169 v416 :\n    IRLean.Vec 8 32)\n  (v247 : IRLean.Vec 2 32) (v242 v248 v249 : IRLean.Val 32) (v285 : IRLean.Vec 2 32) (v280 v286 v287 : IRLean.Val 32),\n  S03Tgt.s03_tgt v159 v161 v175 v177 v426 v163 v165 v179 v181 v431 v155 v157 v171 v173 v421 v151 v153 v167 v169 v416\n      v247 v242 v248 v249 v285 v280 v286 v287 =\n    S03Src.s03_src v159 v161 v175 v177 v426 v163 v165 v179 v181 v431 v155 v157 v171 v173 v421 v151 v153 v167 v169 v416\n      v247 v242 v248 v249 v285 v280 v286 v287",
+   "lean_sha256": {
+    "S03Src": "48676b8a3959481eb776096250b24be3cc7930e1520ccda1409ba368f01617ad",
+    "S03Tgt": "20dd3143b1e45ec357edd652b0ca4676b3ba68bd87fa4d298a9c717c91610cd3",
+    "Ts03": "e5993aebd3a1ac886a576d45c8b7e31dcc7ef29907e2c3bbbd5d7fb74036fa69"
+   }
+  },
+  "s04": {
+   "function": "ggml_gemm_q4_K_8x8_q8_K",
+   "value": "%648",
+   "axioms": "at most the standard three, and 6 from bv_decide",
+   "statement": "s04_same : \u2200\n  (v159 v161 v175 v177 v426 v163 v165 v179 v181 v431 v155 v157 v171 v173 v421 v151 v153 v167 v169 v416 :\n    IRLean.Vec 8 32)\n  (v247 : IRLean.Vec 2 32) (v242 v248 v249 : IRLean.Val 32) (v285 : IRLean.Vec 2 32) (v280 v286 v287 : IRLean.Val 32),\n  S04Tgt.s04_tgt v159 v161 v175 v177 v426 v163 v165 v179 v181 v431 v155 v157 v171 v173 v421 v151 v153 v167 v169 v416\n      v247 v242 v248 v249 v285 v280 v286 v287 =\n    S04Src.s04_src v159 v161 v175 v177 v426 v163 v165 v179 v181 v431 v155 v157 v171 v173 v421 v151 v153 v167 v169 v416\n      v247 v242 v248 v249 v285 v280 v286 v287",
+   "lean_sha256": {
+    "S04Src": "2fb2ba663a26aae0a4e133502cb4964d9a45b1115a2b64664fa01053e4e7c212",
+    "S04Tgt": "1c2cf87c13c051a4b8003bb8c574f74a5e5e91da4a7afa871682b408a05e78a6",
+    "Ts04": "d19201ec76da802a9ce572c971e14d88165d30f7b33006490832d64987f72d5b"
+   }
+  },
+  "s05": {
+   "function": "ggml_gemm_q4_K_8x8_q8_K",
+   "value": "%649",
+   "axioms": "at most the standard three, and 6 from bv_decide",
+   "statement": "s05_same : \u2200\n  (v159 v161 v175 v177 v426 v163 v165 v179 v181 v431 v155 v157 v171 v173 v421 v151 v153 v167 v169 v416 :\n    IRLean.Vec 8 32)\n  (v247 : IRLean.Vec 2 32) (v242 v248 v249 : IRLean.Val 32) (v285 : IRLean.Vec 2 32) (v280 v286 v287 : IRLean.Val 32),\n  S05Tgt.s05_tgt v159 v161 v175 v177 v426 v163 v165 v179 v181 v431 v155 v157 v171 v173 v421 v151 v153 v167 v169 v416\n      v247 v242 v248 v249 v285 v280 v286 v287 =\n    S05Src.s05_src v159 v161 v175 v177 v426 v163 v165 v179 v181 v431 v155 v157 v171 v173 v421 v151 v153 v167 v169 v416\n      v247 v242 v248 v249 v285 v280 v286 v287",
+   "lean_sha256": {
+    "S05Src": "3d206b1416b0422273f3fcb14a4d58f39db0cab17a136ee79bfd2967ab74fffd",
+    "S05Tgt": "646a5c545c0bf128e7a7d48cac367a770da6fde4f2d1c69b0bb2c4bf7cec9ac1",
+    "Ts05": "bc0388bfcce2d80a462ba4ba0562d9aeb488fc1a0e999e945a9a83bfe6e7f109"
+   }
+  },
+  "s06": {
+   "function": "ggml_gemm_q4_K_8x8_q8_K",
+   "value": "%650",
+   "axioms": "at most the standard three, and 4 from bv_decide",
+   "statement": "s06_same : \u2200\n  (v159 v161 v175 v177 v446 v163 v165 v179 v181 v451 v155 v157 v171 v173 v441 v151 v153 v167 v169 v436 :\n    IRLean.Vec 8 32)\n  (v266 : IRLean.Vec 2 32) (v261 v267 v268 : IRLean.Val 32) (v304 : IRLean.Vec 2 32) (v299 v305 v306 : IRLean.Val 32),\n  S06Tgt.s06_tgt v159 v161 v175 v177 v446 v163 v165 v179 v181 v451 v155 v157 v171 v173 v441 v151 v153 v167 v169 v436\n      v266 v261 v267 v268 v304 v299 v305 v306 =\n    S06Src.s06_src v159 v161 v175 v177 v446 v163 v165 v179 v181 v451 v155 v157 v171 v173 v441 v151 v153 v167 v169 v436\n      v266 v261 v267 v268 v304 v299 v305 v306",
+   "lean_sha256": {
+    "S06Src": "02312a05127ec92a0f029a6842773f328c715166bcb6b4be0c406f906046e837",
+    "S06Tgt": "91d94330d9615fc41abad30c7f50e6b37c53503d67807cfcc3186e8d7b079fb0",
+    "Ts06": "c4ede43e212342ef775ebe7ac8bee10faab179faff3abe98e6eccc72aa3e84bc"
+   }
+  },
+  "s07": {
+   "function": "ggml_gemm_q4_K_8x8_q8_K",
+   "value": "%651",
+   "axioms": "at most the standard three, and 4 from bv_decide",
+   "statement": "s07_same : \u2200\n  (v159 v161 v175 v177 v446 v163 v165 v179 v181 v451 v155 v157 v171 v173 v441 v151 v153 v167 v169 v436 :\n    IRLean.Vec 8 32)\n  (v266 : IRLean.Vec 2 32) (v261 v267 v268 : IRLean.Val 32) (v304 : IRLean.Vec 2 32) (v299 v305 v306 : IRLean.Val 32),\n  S07Tgt.s07_tgt v159 v161 v175 v177 v446 v163 v165 v179 v181 v451 v155 v157 v171 v173 v441 v151 v153 v167 v169 v436\n      v266 v261 v267 v268 v304 v299 v305 v306 =\n    S07Src.s07_src v159 v161 v175 v177 v446 v163 v165 v179 v181 v451 v155 v157 v171 v173 v441 v151 v153 v167 v169 v436\n      v266 v261 v267 v268 v304 v299 v305 v306",
+   "lean_sha256": {
+    "S07Src": "77e04c5eccc50cf25b466de34b2ac63c527bd7195b6e292ebc113f1a0ed5ef4a",
+    "S07Tgt": "d9219b1b7c9d79997c48108672414606f7ad67eced6813fe465b41636727bad2",
+    "Ts07": "c7be9d520f966c7829f206049cedb3f60dcd7e68ccb9a42f205745bb08bc6bf4"
+   }
+  },
+  "s08": {
+   "function": "ggml_gemm_q4_K_8x8_q8_K",
+   "value": "%652",
+   "axioms": "at most the standard three, and 4 from bv_decide",
+   "statement": "s08_same : \u2200\n  (v159 v161 v175 v177 v446 v163 v165 v179 v181 v451 v155 v157 v171 v173 v441 v151 v153 v167 v169 v436 :\n    IRLean.Vec 8 32)\n  (v266 : IRLean.Vec 2 32) (v261 v267 v268 : IRLean.Val 32) (v304 : IRLean.Vec 2 32) (v299 v305 v306 : IRLean.Val 32),\n  S08Tgt.s08_tgt v159 v161 v175 v177 v446 v163 v165 v179 v181 v451 v155 v157 v171 v173 v441 v151 v153 v167 v169 v436\n      v266 v261 v267 v268 v304 v299 v305 v306 =\n    S08Src.s08_src v159 v161 v175 v177 v446 v163 v165 v179 v181 v451 v155 v157 v171 v173 v441 v151 v153 v167 v169 v436\n      v266 v261 v267 v268 v304 v299 v305 v306",
+   "lean_sha256": {
+    "S08Src": "1ba78458657c89b65f9c700dfc24f44810d94c33ab768c358960c866843b83e6",
+    "S08Tgt": "9b955b2c13706913b2ca979664525770c5ae6b1ccb692a9d90c27bdb0ad6759b",
+    "Ts08": "086deb84ed8d876d31bcac34eee3c8c225fbaadc755864f03bd94c7dcfe1f8bf"
+   }
+  },
+  "s09": {
+   "function": "ggml_gemm_q4_K_8x8_q8_K",
+   "value": "%653",
+   "axioms": "at most the standard three, and 4 from bv_decide",
+   "statement": "s09_same : \u2200\n  (v159 v161 v175 v177 v446 v163 v165 v179 v181 v451 v155 v157 v171 v173 v441 v151 v153 v167 v169 v436 :\n    IRLean.Vec 8 32)\n  (v266 : IRLean.Vec 2 32) (v261 v267 v268 : IRLean.Val 32) (v304 : IRLean.Vec 2 32) (v299 v305 v306 : IRLean.Val 32),\n  S09Tgt.s09_tgt v159 v161 v175 v177 v446 v163 v165 v179 v181 v451 v155 v157 v171 v173 v441 v151 v153 v167 v169 v436\n      v266 v261 v267 v268 v304 v299 v305 v306 =\n    S09Src.s09_src v159 v161 v175 v177 v446 v163 v165 v179 v181 v451 v155 v157 v171 v173 v441 v151 v153 v167 v169 v436\n      v266 v261 v267 v268 v304 v299 v305 v306",
+   "lean_sha256": {
+    "S09Src": "14ea9d217e25bbe4d58e8004a9c9497fd9eda4aba1f3e5bf1bf8103aa1f4c727",
+    "S09Tgt": "fd87313767801875c364b989d3f9df27bfb50427a1c1d2d5ea4e0c5415531d3f",
+    "Ts09": "08936fc2dc469ee69e4960e38768abe5c08868ae06aa62c5cb796b6a3d57a804"
+   }
+  },
+  "s10": {
+   "function": "ggml_gemm_q4_K_8x8_q8_K",
+   "value": "%1405",
+   "axioms": "at most the standard three, and 6 from bv_decide",
+   "statement": "s10_same : \u2200\n  (v938 v940 v954 v956 v1125 v942 v944 v958 v960 v1129 v934 v936 v950 v952 v1121 v930 v932 v946 v948 v1117 :\n    IRLean.Vec 8 32)\n  (v1026 : IRLean.Vec 2 32) (v1021 v1027 v1028 : IRLean.Val 32) (v1064 : IRLean.Vec 2 32)\n  (v1059 v1065 v1066 : IRLean.Val 32),\n  S10Tgt.s10_tgt v938 v940 v954 v956 v1125 v942 v944 v958 v960 v1129 v934 v936 v950 v952 v1121 v930 v932 v946 v948 v1117\n      v1026 v1021 v1027 v1028 v1064 v1059 v1065 v1066 =\n    S10Src.s10_src v938 v940 v954 v956 v1125 v942 v944 v958 v960 v1129 v934 v936 v950 v952 v1121 v930 v932 v946 v948\n      v1117 v1026 v1021 v1027 v1028 v1064 v1059 v1065 v1066",
+   "lean_sha256": {
+    "S10Src": "f60c6c048049ba3fb68791aa1f620227cca34e9b68949e31dbcb8cd62b3139ab",
+    "S10Tgt": "a013bfc88a1a234cfd5bd84f213fbf7704c45cc165a465f34bfe723bd1811f9c",
+    "Ts10": "5a128eb4defd812c67a684236f69368cf3b5db14d2429a541de8af5b3b3ab232"
+   }
+  },
+  "s11": {
+   "function": "ggml_gemm_q4_K_8x8_q8_K",
+   "value": "%1407",
+   "axioms": "at most the standard three, and 6 from bv_decide",
+   "statement": "s11_same : \u2200\n  (v938 v940 v954 v956 v1125 v942 v944 v958 v960 v1129 v934 v936 v950 v952 v1121 v930 v932 v946 v948 v1117 :\n    IRLean.Vec 8 32)\n  (v1026 : IRLean.Vec 2 32) (v1021 v1027 v1028 : IRLean.Val 32) (v1064 : IRLean.Vec 2 32)\n  (v1059 v1065 v1066 : IRLean.Val 32),\n  S11Tgt.s11_tgt v938 v940 v954 v956 v1125 v942 v944 v958 v960 v1129 v934 v936 v950 v952 v1121 v930 v932 v946 v948 v1117\n      v1026 v1021 v1027 v1028 v1064 v1059 v1065 v1066 =\n    S11Src.s11_src v938 v940 v954 v956 v1125 v942 v944 v958 v960 v1129 v934 v936 v950 v952 v1121 v930 v932 v946 v948\n      v1117 v1026 v1021 v1027 v1028 v1064 v1059 v1065 v1066",
+   "lean_sha256": {
+    "S11Src": "cdabe59917820e04e1c07d77bfa940130abc075d2bac103b19f7c6b2fbce2618",
+    "S11Tgt": "832894b19919b76cb7caeacfcb37b3bbb04e828d13dd45d1630aa779c6a9e3c4",
+    "Ts11": "31ceccfbdb275ec30dc01dbd1a95b43d4b8d027db6d6d0795c24898ec3fdfc4e"
+   }
+  },
+  "s12": {
+   "function": "ggml_gemm_q4_K_8x8_q8_K",
+   "value": "%1408",
+   "axioms": "at most the standard three, and 6 from bv_decide",
+   "statement": "s12_same : \u2200\n  (v938 v940 v954 v956 v1125 v942 v944 v958 v960 v1129 v934 v936 v950 v952 v1121 v930 v932 v946 v948 v1117 :\n    IRLean.Vec 8 32)\n  (v1026 : IRLean.Vec 2 32) (v1021 v1027 v1028 : IRLean.Val 32) (v1064 : IRLean.Vec 2 32)\n  (v1059 v1065 v1066 : IRLean.Val 32),\n  S12Tgt.s12_tgt v938 v940 v954 v956 v1125 v942 v944 v958 v960 v1129 v934 v936 v950 v952 v1121 v930 v932 v946 v948 v1117\n      v1026 v1021 v1027 v1028 v1064 v1059 v1065 v1066 =\n    S12Src.s12_src v938 v940 v954 v956 v1125 v942 v944 v958 v960 v1129 v934 v936 v950 v952 v1121 v930 v932 v946 v948\n      v1117 v1026 v1021 v1027 v1028 v1064 v1059 v1065 v1066",
+   "lean_sha256": {
+    "S12Src": "58d61d9f3c5dc80deca02605ff7543d9af0f840a6582eafec36bfd9f7b7580a1",
+    "S12Tgt": "93232129dbfe6dd6ea3f43f63eb2a1bb2908cce6bd8427cf9289dd76c00da045",
+    "Ts12": "3b39f8122033d3170d7b5ddf95f90c76dafdb95ac36fe71052dc49586e228c7b"
+   }
+  },
+  "s13": {
+   "function": "ggml_gemm_q4_K_8x8_q8_K",
+   "value": "%1409",
+   "axioms": "at most the standard three, and 6 from bv_decide",
+   "statement": "s13_same : \u2200\n  (v938 v940 v954 v956 v1125 v942 v944 v958 v960 v1129 v934 v936 v950 v952 v1121 v930 v932 v946 v948 v1117 :\n    IRLean.Vec 8 32)\n  (v1026 : IRLean.Vec 2 32) (v1021 v1027 v1028 : IRLean.Val 32) (v1064 : IRLean.Vec 2 32)\n  (v1059 v1065 v1066 : IRLean.Val 32),\n  S13Tgt.s13_tgt v938 v940 v954 v956 v1125 v942 v944 v958 v960 v1129 v934 v936 v950 v952 v1121 v930 v932 v946 v948 v1117\n      v1026 v1021 v1027 v1028 v1064 v1059 v1065 v1066 =\n    S13Src.s13_src v938 v940 v954 v956 v1125 v942 v944 v958 v960 v1129 v934 v936 v950 v952 v1121 v930 v932 v946 v948\n      v1117 v1026 v1021 v1027 v1028 v1064 v1059 v1065 v1066",
+   "lean_sha256": {
+    "S13Src": "c369ec9fafd964ca9a0ce295491c8a86e4bb90c2f569d4e2f37284748a163da7",
+    "S13Tgt": "74726a2a39582062f8a95f25ae279272519e3f3bb2da775765f8c4faad998440",
+    "Ts13": "43b1d291f92915f69f6a0f291ba61457e074ae622fc17bfa9499144e68770466"
+   }
+  },
+  "s14": {
+   "function": "ggml_gemm_q4_K_8x8_q8_K",
+   "value": "%1411",
+   "axioms": "at most the standard three, and 4 from bv_decide",
+   "statement": "s14_same : \u2200\n  (v938 v940 v954 v956 v1141 v942 v944 v958 v960 v1145 v934 v936 v950 v952 v1137 v930 v932 v946 v948 v1133 :\n    IRLean.Vec 8 32)\n  (v1045 : IRLean.Vec 2 32) (v1040 v1046 v1047 : IRLean.Val 32) (v1083 : IRLean.Vec 2 32)\n  (v1078 v1084 v1085 : IRLean.Val 32),\n  S14Tgt.s14_tgt v938 v940 v954 v956 v1141 v942 v944 v958 v960 v1145 v934 v936 v950 v952 v1137 v930 v932 v946 v948 v1133\n      v1045 v1040 v1046 v1047 v1083 v1078 v1084 v1085 =\n    S14Src.s14_src v938 v940 v954 v956 v1141 v942 v944 v958 v960 v1145 v934 v936 v950 v952 v1137 v930 v932 v946 v948\n      v1133 v1045 v1040 v1046 v1047 v1083 v1078 v1084 v1085",
+   "lean_sha256": {
+    "S14Src": "add3aec7799f3c885c0e08e3e65e00342eae8317a38a41c8cc027ef9382f005f",
+    "S14Tgt": "c86f27d3949601df8bf28cc89bb6b355d0748bb4ea9cfc11cb734231b655b1e9",
+    "Ts14": "86f2ceec4310b200004cd6f6f455073e85c55212317c0b4124f959455e8cc8b0"
+   }
+  },
+  "s15": {
+   "function": "ggml_gemm_q4_K_8x8_q8_K",
+   "value": "%1413",
+   "axioms": "at most the standard three, and 4 from bv_decide",
+   "statement": "s15_same : \u2200\n  (v938 v940 v954 v956 v1141 v942 v944 v958 v960 v1145 v934 v936 v950 v952 v1137 v930 v932 v946 v948 v1133 :\n    IRLean.Vec 8 32)\n  (v1045 : IRLean.Vec 2 32) (v1040 v1046 v1047 : IRLean.Val 32) (v1083 : IRLean.Vec 2 32)\n  (v1078 v1084 v1085 : IRLean.Val 32),\n  S15Tgt.s15_tgt v938 v940 v954 v956 v1141 v942 v944 v958 v960 v1145 v934 v936 v950 v952 v1137 v930 v932 v946 v948 v1133\n      v1045 v1040 v1046 v1047 v1083 v1078 v1084 v1085 =\n    S15Src.s15_src v938 v940 v954 v956 v1141 v942 v944 v958 v960 v1145 v934 v936 v950 v952 v1137 v930 v932 v946 v948\n      v1133 v1045 v1040 v1046 v1047 v1083 v1078 v1084 v1085",
+   "lean_sha256": {
+    "S15Src": "88b59724bcc8435264389e73322b33642fa3b084b48227c572f8953867263d50",
+    "S15Tgt": "a5a4b0077dea4dee6b48940ded02b98b29bf413b5aef52b2011c39bf41ef372d",
+    "Ts15": "665d5f278aa1c7f9e737dbc6dd21119068fbdef4935a6225b1037633f512a2de"
+   }
+  },
+  "s16": {
+   "function": "ggml_gemm_q4_K_8x8_q8_K",
+   "value": "%1414",
+   "axioms": "at most the standard three, and 4 from bv_decide",
+   "statement": "s16_same : \u2200\n  (v938 v940 v954 v956 v1141 v942 v944 v958 v960 v1145 v934 v936 v950 v952 v1137 v930 v932 v946 v948 v1133 :\n    IRLean.Vec 8 32)\n  (v1045 : IRLean.Vec 2 32) (v1040 v1046 v1047 : IRLean.Val 32) (v1083 : IRLean.Vec 2 32)\n  (v1078 v1084 v1085 : IRLean.Val 32),\n  S16Tgt.s16_tgt v938 v940 v954 v956 v1141 v942 v944 v958 v960 v1145 v934 v936 v950 v952 v1137 v930 v932 v946 v948 v1133\n      v1045 v1040 v1046 v1047 v1083 v1078 v1084 v1085 =\n    S16Src.s16_src v938 v940 v954 v956 v1141 v942 v944 v958 v960 v1145 v934 v936 v950 v952 v1137 v930 v932 v946 v948\n      v1133 v1045 v1040 v1046 v1047 v1083 v1078 v1084 v1085",
+   "lean_sha256": {
+    "S16Src": "4b1abb00c9a86707fd6f56966249a5fc471659561d62cb0764d15f2a0eb45a13",
+    "S16Tgt": "c97acd9294d9a248d17ffebaa24f039ef9e2545e3d8c4dc08c8a4b61d1ce1548",
+    "Ts16": "cb952e6cdcf33c57f226b7618e772343dbfe9ad6766d6c548c75e42805fec4f7"
+   }
+  },
+  "s17": {
+   "function": "ggml_gemm_q4_K_8x8_q8_K",
+   "value": "%1415",
+   "axioms": "at most the standard three, and 4 from bv_decide",
+   "statement": "s17_same : \u2200\n  (v938 v940 v954 v956 v1141 v942 v944 v958 v960 v1145 v934 v936 v950 v952 v1137 v930 v932 v946 v948 v1133 :\n    IRLean.Vec 8 32)\n  (v1045 : IRLean.Vec 2 32) (v1040 v1046 v1047 : IRLean.Val 32) (v1083 : IRLean.Vec 2 32)\n  (v1078 v1084 v1085 : IRLean.Val 32),\n  S17Tgt.s17_tgt v938 v940 v954 v956 v1141 v942 v944 v958 v960 v1145 v934 v936 v950 v952 v1137 v930 v932 v946 v948 v1133\n      v1045 v1040 v1046 v1047 v1083 v1078 v1084 v1085 =\n    S17Src.s17_src v938 v940 v954 v956 v1141 v942 v944 v958 v960 v1145 v934 v936 v950 v952 v1137 v930 v932 v946 v948\n      v1133 v1045 v1040 v1046 v1047 v1083 v1078 v1084 v1085",
+   "lean_sha256": {
+    "S17Src": "af24cac7cde64a7475fa97016a711544c57171a94a37879c4668d8a81c1aa95c",
+    "S17Tgt": "728547f8e161f8a33148dc0ee20c23996531474c85e11ac232648758a9034cc7",
+    "Ts17": "a092a64ba688be2a1423b66bdd5a182c13b8959c5c13d02600e60d495b25da80"
+   }
+  },
+  "s18": {
+   "function": "ggml_gemm_q4_K_8x8_q8_K",
+   "value": "%2087",
+   "axioms": "at most the standard three, and 6 from bv_decide",
+   "statement": "s18_same : \u2200 (v1688 v1690 v1879 v1692 v1694 v1882 v1684 v1686 v1876 v1680 v1682 v1873 : IRLean.Vec 8 32)\n  (v1737 v1741 v1739 : IRLean.Val 32),\n  S18Tgt.s18_tgt v1688 v1690 v1879 v1692 v1694 v1882 v1684 v1686 v1876 v1680 v1682 v1873 v1737 v1741 v1739 =\n    S18Src.s18_src v1688 v1690 v1879 v1692 v1694 v1882 v1684 v1686 v1876 v1680 v1682 v1873 v1737 v1741 v1739",
+   "lean_sha256": {
+    "S18Src": "a159a4954f4990a25c7637251a97ed3d1e92eff74d13b69f717c26a08e5eab52",
+    "S18Tgt": "0b9eef7c532704a56564e04156a3450ae7674299e2dc0e9532c5af4b56409cb6",
+    "Ts18": "50eef46e66acff94078388be4ec06c2cc207353c2fb6ce23a0def0172e45ab16"
+   }
+  },
+  "s19": {
+   "function": "ggml_gemm_q4_K_8x8_q8_K",
+   "value": "%2088",
+   "axioms": "at most the standard three, and 6 from bv_decide",
+   "statement": "s19_same : \u2200 (v1688 v1690 v1879 v1692 v1694 v1882 v1684 v1686 v1876 v1680 v1682 v1873 : IRLean.Vec 8 32)\n  (v1737 v1741 v1739 : IRLean.Val 32),\n  S19Tgt.s19_tgt v1688 v1690 v1879 v1692 v1694 v1882 v1684 v1686 v1876 v1680 v1682 v1873 v1737 v1741 v1739 =\n    S19Src.s19_src v1688 v1690 v1879 v1692 v1694 v1882 v1684 v1686 v1876 v1680 v1682 v1873 v1737 v1741 v1739",
+   "lean_sha256": {
+    "S19Src": "577f8dd763b2921c877881da4df94fc870e34158ac2dcf87a8735a482dd058df",
+    "S19Tgt": "a36e05c7573c625ef73e24daf0213965bc6ec8daf981e29214d6df4a24ff71c5",
+    "Ts19": "269212986199469c437979df41ef5e82110e388dd24faca3e2903a94936f02de"
+   }
+  },
+  "s20": {
+   "function": "ggml_gemm_q4_K_8x8_q8_K",
+   "value": "%2089",
+   "axioms": "at most the standard three, and 6 from bv_decide",
+   "statement": "s20_same : \u2200 (v1688 v1690 v1879 v1692 v1694 v1882 v1684 v1686 v1876 v1680 v1682 v1873 : IRLean.Vec 8 32)\n  (v1737 v1741 v1739 : IRLean.Val 32),\n  S20Tgt.s20_tgt v1688 v1690 v1879 v1692 v1694 v1882 v1684 v1686 v1876 v1680 v1682 v1873 v1737 v1741 v1739 =\n    S20Src.s20_src v1688 v1690 v1879 v1692 v1694 v1882 v1684 v1686 v1876 v1680 v1682 v1873 v1737 v1741 v1739",
+   "lean_sha256": {
+    "S20Src": "7e58733b6148027443daffcc55ae45ae10820aa532915e55e356b24f4f967f60",
+    "S20Tgt": "27f2801eb1b1ae4f6b9d21c571801dd59f3bcfc25d83f3e1d8c645f0fd807388",
+    "Ts20": "b76e5cf416aab4b57ff2d204623d1c86be4ca43e155f919d8b93187c5adf4711"
+   }
+  },
+  "s21": {
+   "function": "ggml_gemm_q4_K_8x8_q8_K",
+   "value": "%2090",
+   "axioms": "at most the standard three, and 6 from bv_decide",
+   "statement": "s21_same : \u2200 (v1688 v1690 v1879 v1692 v1694 v1882 v1684 v1686 v1876 v1680 v1682 v1873 : IRLean.Vec 8 32)\n  (v1737 v1741 v1739 : IRLean.Val 32),\n  S21Tgt.s21_tgt v1688 v1690 v1879 v1692 v1694 v1882 v1684 v1686 v1876 v1680 v1682 v1873 v1737 v1741 v1739 =\n    S21Src.s21_src v1688 v1690 v1879 v1692 v1694 v1882 v1684 v1686 v1876 v1680 v1682 v1873 v1737 v1741 v1739",
+   "lean_sha256": {
+    "S21Src": "697c4b8a991a8f61312575787af30c216bef67e30bd43a2cd6d77d9b7fde260f",
+    "S21Tgt": "3cbfb0b065af579c3b78d05df7c65f373f9472925b2f2e9f955b71229ba4eb57",
+    "Ts21": "e851707574b9ebfdce1285addff71ac09d9ef9f68d53b05790ccfb66792ae43d"
+   }
+  },
+  "s22": {
+   "function": "ggml_gemm_q4_K_8x8_q8_K",
+   "value": "%2091",
+   "axioms": "at most the standard three, and 4 from bv_decide",
+   "statement": "s22_same : \u2200 (v1688 v1690 v1891 v1692 v1694 v1894 v1684 v1686 v1888 v1680 v1682 v1885 : IRLean.Vec 8 32)\n  (v1754 v1758 v1756 : IRLean.Val 32),\n  S22Tgt.s22_tgt v1688 v1690 v1891 v1692 v1694 v1894 v1684 v1686 v1888 v1680 v1682 v1885 v1754 v1758 v1756 =\n    S22Src.s22_src v1688 v1690 v1891 v1692 v1694 v1894 v1684 v1686 v1888 v1680 v1682 v1885 v1754 v1758 v1756",
+   "lean_sha256": {
+    "S22Src": "416f8abced77fcca4aa6abca912d013ebd5e3b9a5393c6bbf1186741e57c6e72",
+    "S22Tgt": "a581d5db74ff531e0d17d49443975ffcd384c8770c9150d9758fc296e327c82e",
+    "Ts22": "934154bb66e9a063ccc39cb3f198b35fdbcb0b0556f0572d4116b62933c3aa34"
+   }
+  },
+  "s23": {
+   "function": "ggml_gemm_q4_K_8x8_q8_K",
+   "value": "%2092",
+   "axioms": "at most the standard three, and 4 from bv_decide",
+   "statement": "s23_same : \u2200 (v1688 v1690 v1891 v1692 v1694 v1894 v1684 v1686 v1888 v1680 v1682 v1885 : IRLean.Vec 8 32)\n  (v1754 v1758 v1756 : IRLean.Val 32),\n  S23Tgt.s23_tgt v1688 v1690 v1891 v1692 v1694 v1894 v1684 v1686 v1888 v1680 v1682 v1885 v1754 v1758 v1756 =\n    S23Src.s23_src v1688 v1690 v1891 v1692 v1694 v1894 v1684 v1686 v1888 v1680 v1682 v1885 v1754 v1758 v1756",
+   "lean_sha256": {
+    "S23Src": "ee13f9757330aebcd01cb31b9eebc7a3f35329ce9878df89e2031882e2c85632",
+    "S23Tgt": "2abe102c06c3ffbe0201e1c6ad4305491234c287c1323fd9ddf29e960dd5f008",
+    "Ts23": "33312c849642c4142f03a26f84843da7588e33d2b4b22839cbea45608d6d82df"
+   }
+  },
+  "s24": {
+   "function": "ggml_gemm_q4_K_8x8_q8_K",
+   "value": "%2093",
+   "axioms": "at most the standard three, and 4 from bv_decide",
+   "statement": "s24_same : \u2200 (v1688 v1690 v1891 v1692 v1694 v1894 v1684 v1686 v1888 v1680 v1682 v1885 : IRLean.Vec 8 32)\n  (v1754 v1758 v1756 : IRLean.Val 32),\n  S24Tgt.s24_tgt v1688 v1690 v1891 v1692 v1694 v1894 v1684 v1686 v1888 v1680 v1682 v1885 v1754 v1758 v1756 =\n    S24Src.s24_src v1688 v1690 v1891 v1692 v1694 v1894 v1684 v1686 v1888 v1680 v1682 v1885 v1754 v1758 v1756",
+   "lean_sha256": {
+    "S24Src": "2c5ee87b357c95c00a34817e92a2818a21654bb4987d23cac0a0ee5c92e78ff9",
+    "S24Tgt": "deebc3a3879e985b5af052ec0f768be1254138d4b6f768cc9220c84cd693f54b",
+    "Ts24": "c256e671c90b89cb8bd5c2c83429ba71b3732fd2f7b354570122390574035301"
+   }
+  },
+  "s25": {
+   "function": "ggml_gemm_q4_K_8x8_q8_K",
+   "value": "%2094",
+   "axioms": "at most the standard three, and 4 from bv_decide",
+   "statement": "s25_same : \u2200 (v1688 v1690 v1891 v1692 v1694 v1894 v1684 v1686 v1888 v1680 v1682 v1885 : IRLean.Vec 8 32)\n  (v1754 v1758 v1756 : IRLean.Val 32),\n  S25Tgt.s25_tgt v1688 v1690 v1891 v1692 v1694 v1894 v1684 v1686 v1888 v1680 v1682 v1885 v1754 v1758 v1756 =\n    S25Src.s25_src v1688 v1690 v1891 v1692 v1694 v1894 v1684 v1686 v1888 v1680 v1682 v1885 v1754 v1758 v1756",
+   "lean_sha256": {
+    "S25Src": "61902adb642872fdb708bf4d707e56ff52b71a8284430f3f86c7c71154776737",
+    "S25Tgt": "dca9d974d65cb312f08f5b7ff765c85bdfe8f4e469dad0817f4108610b5798a5",
+    "Ts25": "da8bcee7c3b033f65e5c42bdf30323d386a9610fa2a8a64b77bfdf5675d6f21d"
+   }
+  },
+  "s26": {
+   "function": "ggml_gemm_q4_K_8x8_q8_K",
+   "value": "%2732",
+   "axioms": "at most the standard three, and 6 from bv_decide",
+   "statement": "s26_same : \u2200 (v2353 v2355 v2464 v2357 v2359 v2466 v2349 v2351 v2462 v2345 v2347 v2460 : IRLean.Vec 8 32)\n  (v2402 v2406 v2404 : IRLean.Val 32),\n  S26Tgt.s26_tgt v2353 v2355 v2464 v2357 v2359 v2466 v2349 v2351 v2462 v2345 v2347 v2460 v2402 v2406 v2404 =\n    S26Src.s26_src v2353 v2355 v2464 v2357 v2359 v2466 v2349 v2351 v2462 v2345 v2347 v2460 v2402 v2406 v2404",
+   "lean_sha256": {
+    "S26Src": "8022c45c640aeeb5c1d38d0f15682ebe479acbd7402382cfd94e93b1380f918c",
+    "S26Tgt": "45dbdc74ca6306a7185f70febd8acfc2edd18a3dc1ed05be1ae1ad547c444b73",
+    "Ts26": "a09f59d99c7ea2f4f51cf06f3c47cdbe903d9684f6f3f089dc275b1ade439dc1"
+   }
+  },
+  "s27": {
+   "function": "ggml_gemm_q4_K_8x8_q8_K",
+   "value": "%2734",
+   "axioms": "at most the standard three, and 6 from bv_decide",
+   "statement": "s27_same : \u2200 (v2353 v2355 v2464 v2357 v2359 v2466 v2349 v2351 v2462 v2345 v2347 v2460 : IRLean.Vec 8 32)\n  (v2402 v2406 v2404 : IRLean.Val 32),\n  S27Tgt.s27_tgt v2353 v2355 v2464 v2357 v2359 v2466 v2349 v2351 v2462 v2345 v2347 v2460 v2402 v2406 v2404 =\n    S27Src.s27_src v2353 v2355 v2464 v2357 v2359 v2466 v2349 v2351 v2462 v2345 v2347 v2460 v2402 v2406 v2404",
+   "lean_sha256": {
+    "S27Src": "82a869b854138e6a910d123cbe1e845681507c54e4d9a9f7071a01e7b8d1340c",
+    "S27Tgt": "6f9ec43c58ca5313596b745b0ca32cc3b7b35373b79d6ff297c38f4e5a96c390",
+    "Ts27": "d2c6abb6bf5f61c0c882d755c82c26ef6f8908dc6124d4ea75ee067dddc9f285"
+   }
+  },
+  "s28": {
+   "function": "ggml_gemm_q4_K_8x8_q8_K",
+   "value": "%2735",
+   "axioms": "at most the standard three, and 6 from bv_decide",
+   "statement": "s28_same : \u2200 (v2353 v2355 v2464 v2357 v2359 v2466 v2349 v2351 v2462 v2345 v2347 v2460 : IRLean.Vec 8 32)\n  (v2402 v2406 v2404 : IRLean.Val 32),\n  S28Tgt.s28_tgt v2353 v2355 v2464 v2357 v2359 v2466 v2349 v2351 v2462 v2345 v2347 v2460 v2402 v2406 v2404 =\n    S28Src.s28_src v2353 v2355 v2464 v2357 v2359 v2466 v2349 v2351 v2462 v2345 v2347 v2460 v2402 v2406 v2404",
+   "lean_sha256": {
+    "S28Src": "a4165e93581cf0e9c8e6c7f50f830bafc71f1d5bace9a9cdf17d71aca725daa7",
+    "S28Tgt": "cc7be34a9b43b9bc118c86155a4df0dfb687f0571b71bc0dc2aee063ef73c752",
+    "Ts28": "e3dd9ab24569fc27afe0e458c259c59db30ad2c73512f5b499aa1883e8901463"
+   }
+  },
+  "s29": {
+   "function": "ggml_gemm_q4_K_8x8_q8_K",
+   "value": "%2736",
+   "axioms": "at most the standard three, and 6 from bv_decide",
+   "statement": "s29_same : \u2200 (v2353 v2355 v2464 v2357 v2359 v2466 v2349 v2351 v2462 v2345 v2347 v2460 : IRLean.Vec 8 32)\n  (v2402 v2406 v2404 : IRLean.Val 32),\n  S29Tgt.s29_tgt v2353 v2355 v2464 v2357 v2359 v2466 v2349 v2351 v2462 v2345 v2347 v2460 v2402 v2406 v2404 =\n    S29Src.s29_src v2353 v2355 v2464 v2357 v2359 v2466 v2349 v2351 v2462 v2345 v2347 v2460 v2402 v2406 v2404",
+   "lean_sha256": {
+    "S29Src": "ac33a1d3c1e4d761959b95e66cc09647cb13dae51f5d0ce5af33c49e030038ff",
+    "S29Tgt": "babaa5fd46ec86cb635c100edbff7764a1330fbfecb884e63ef2ce07b05ba254",
+    "Ts29": "e22fd4e15c941632046e377541392e82bc24666b528fc9586ec9661736f122a4"
+   }
+  },
+  "s30": {
+   "function": "ggml_gemm_q4_K_8x8_q8_K",
+   "value": "%2738",
+   "axioms": "at most the standard three, and 4 from bv_decide",
+   "statement": "s30_same : \u2200 (v2353 v2355 v2472 v2357 v2359 v2474 v2349 v2351 v2470 v2345 v2347 v2468 : IRLean.Vec 8 32)\n  (v2419 v2423 v2421 : IRLean.Val 32),\n  S30Tgt.s30_tgt v2353 v2355 v2472 v2357 v2359 v2474 v2349 v2351 v2470 v2345 v2347 v2468 v2419 v2423 v2421 =\n    S30Src.s30_src v2353 v2355 v2472 v2357 v2359 v2474 v2349 v2351 v2470 v2345 v2347 v2468 v2419 v2423 v2421",
+   "lean_sha256": {
+    "S30Src": "4a1b8f901676a74da1b856397bed2ff484554d6421afc1c6cb6857c8d1966224",
+    "S30Tgt": "98e0e41916026c08cfda01424f0c0ccffe2ee86fb1acbbbed4fbe084bfbde2e6",
+    "Ts30": "2487ccc878c5e0a6eeeebb577d60adfc552004b479571ab86a80cf716daac351"
+   }
+  },
+  "s31": {
+   "function": "ggml_gemm_q4_K_8x8_q8_K",
+   "value": "%2740",
+   "axioms": "at most the standard three, and 4 from bv_decide",
+   "statement": "s31_same : \u2200 (v2353 v2355 v2472 v2357 v2359 v2474 v2349 v2351 v2470 v2345 v2347 v2468 : IRLean.Vec 8 32)\n  (v2419 v2423 v2421 : IRLean.Val 32),\n  S31Tgt.s31_tgt v2353 v2355 v2472 v2357 v2359 v2474 v2349 v2351 v2470 v2345 v2347 v2468 v2419 v2423 v2421 =\n    S31Src.s31_src v2353 v2355 v2472 v2357 v2359 v2474 v2349 v2351 v2470 v2345 v2347 v2468 v2419 v2423 v2421",
+   "lean_sha256": {
+    "S31Src": "968f4b88dde44b86e30d3848e26fdf2cfc8fff46a31530bbfe24dc02b98da899",
+    "S31Tgt": "4f5d5d4b957f745bfdc1cbcdf3030ae6169874f7660340ab508896dcd78b0c3b",
+    "Ts31": "d9028cd05d64d91210596f6156cf490add80d743393a206974d93edfebcba8bf"
+   }
+  },
+  "s32": {
+   "function": "ggml_gemm_q4_K_8x8_q8_K",
+   "value": "%2741",
+   "axioms": "at most the standard three, and 4 from bv_decide",
+   "statement": "s32_same : \u2200 (v2353 v2355 v2472 v2357 v2359 v2474 v2349 v2351 v2470 v2345 v2347 v2468 : IRLean.Vec 8 32)\n  (v2419 v2423 v2421 : IRLean.Val 32),\n  S32Tgt.s32_tgt v2353 v2355 v2472 v2357 v2359 v2474 v2349 v2351 v2470 v2345 v2347 v2468 v2419 v2423 v2421 =\n    S32Src.s32_src v2353 v2355 v2472 v2357 v2359 v2474 v2349 v2351 v2470 v2345 v2347 v2468 v2419 v2423 v2421",
+   "lean_sha256": {
+    "S32Src": "b95ccea6fdeb9d21a9a0578063882f54b265d75abdbfb8678185b996916b6f63",
+    "S32Tgt": "270281add4ec9f41cf918e7ade352a3bf5181f203eea72e1107249ae4ced9f66",
+    "Ts32": "24aa9c1435d5b15cdf871c25940052e185ea836544aa3110de908dd17cab20c6"
+   }
+  },
+  "s33": {
+   "function": "ggml_gemm_q4_K_8x8_q8_K",
+   "value": "%2742",
+   "axioms": "at most the standard three, and 4 from bv_decide",
+   "statement": "s33_same : \u2200 (v2353 v2355 v2472 v2357 v2359 v2474 v2349 v2351 v2470 v2345 v2347 v2468 : IRLean.Vec 8 32)\n  (v2419 v2423 v2421 : IRLean.Val 32),\n  S33Tgt.s33_tgt v2353 v2355 v2472 v2357 v2359 v2474 v2349 v2351 v2470 v2345 v2347 v2468 v2419 v2423 v2421 =\n    S33Src.s33_src v2353 v2355 v2472 v2357 v2359 v2474 v2349 v2351 v2470 v2345 v2347 v2468 v2419 v2423 v2421",
+   "lean_sha256": {
+    "S33Src": "ec34baee8718adb704ef160e825d7ef41f2016f2ee2ec7858cfc8ebcf4025e62",
+    "S33Tgt": "1961adf7ccc30024b7b1ba62ce5e5c04a7693d3dfc766f46cc538783b8a2794e",
+    "Ts33": "56e36eca0224bdee83d6d508ec790edaac26c1e6a9cc0708301762ed7f0cbf7f"
+   }
+  }
+ },
+ "native": "0 of 34 slice pairs differ, 200000 inputs each",
+ "mutants": {
+  "signs": {
+   "refuted": 34,
+   "stopped": 0,
+   "unknown": 0,
+   "proved": 0,
+   "of": 34,
+   "native_caught": true
+  },
+  "seven": {
+   "refuted": 34,
+   "stopped": 0,
+   "unknown": 0,
+   "proved": 0,
+   "of": 34,
+   "native_caught": true
+  },
+  "scale": {
+   "refuted": 34,
+   "stopped": 0,
+   "unknown": 0,
+   "proved": 0,
+   "of": 34,
+   "native_caught": true
+  },
+  "mask": {
+   "refuted": 0,
+   "stopped": 34,
+   "unknown": 0,
+   "proved": 0,
+   "of": 34,
+   "native_caught": true
+  }
+ },
+ "failures": []
+}

@@ -25,6 +25,7 @@
 #include "llvm/IR/InstrTypes.h"
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/IntrinsicInst.h"
+#include "llvm/IR/IntrinsicsX86.h"
 #include "llvm/IR/LLVMContext.h"
 #include "llvm/IR/Operator.h"
 #include "llvm/Support/raw_ostream.h"
@@ -1438,6 +1439,40 @@ void FunctionEmitter::emitInstruction(const Instruction &I, std::vector<Line> &O
     Cast("Val.trunc", flag(T.hasNoUnsignedWrap(), "nuw") + flag(T.hasNoSignedWrap(), "nsw"));
     return;
   }
+  // Between integers and vectors of integers of the same size, where one lane width divides the other, so
+  // it's a split or a join, with a scalar as a vector of one lane. LangRef reads it as a store and a load,
+  // which puts lane 0 in the low bits only on a little-endian target, so a big-endian module is refused, even
+  // for a function that doesn't touch memory.
+  case Instruction::BitCast: {
+    Type *Src = I.getOperand(0)->getType();
+    Type *Dst = I.getType();
+    auto IntegerShape = [](Type *T) {
+      return T->isIntegerTy() || (isa<FixedVectorType>(T) && T->getScalarType()->isIntegerTy());
+    };
+    if (!IntegerShape(Src) || !IntegerShape(Dst))
+      reject("integer bitcast shape " + printed(I));
+    unsigned W = Src->getScalarSizeInBits(), V = Dst->getScalarSizeInBits();
+    unsigned SrcLanes = Src->isVectorTy() ? cast<FixedVectorType>(Src)->getNumElements() : 1;
+    unsigned DstLanes = IsVector ? cast<FixedVectorType>(Dst)->getNumElements() : 1;
+    if (uint64_t(W) * SrcLanes != uint64_t(V) * DstLanes)
+      reject("integer bitcast size " + printed(I));
+    if (W % V != 0 && V % W != 0)
+      reject("integer bitcast with nondividing lane widths " + printed(I));
+    if (!Context.DL.isLittleEndian())
+      reject("big-endian integer bitcast " + printed(I));
+    if (!Src->isVectorTy() && !IsVector) {
+      addLet(I, Out, Op(0));
+      return;
+    }
+    std::string In = Src->isVectorTy() ? Op(0) : "#v[" + Op(0) + "]";
+    std::string M = std::to_string(DstLanes), VS = std::to_string(V), Expr = In;
+    if (W > V)
+      Expr = "Vec.split " + M + " " + VS + " " + std::to_string(W / V) + " " + In;
+    else if (V > W)
+      Expr = "Vec.join " + M + " " + VS + " " + std::to_string(V / W) + " " + In;
+    addLet(I, Out, IsVector ? Expr : "Vec.lane (" + Expr + ") 0");
+    return;
+  }
   case Instruction::ExtractElement:
     addLet(I, Out, "Vec.extract " + Op(0) + " " + Op(1));
     return;
@@ -1607,6 +1642,7 @@ bool FunctionEmitter::emitIntrinsic(const IntrinsicInst &C, std::vector<Line> &O
     addLet(C, Out, std::string(Fn) + " " + Op(0) + " " + Op(1) + " " + Op(2));
     return true;
   };
+  auto Lanes = [&] { return std::to_string(cast<FixedVectorType>(C.getType())->getNumElements()); };
   switch (C.getIntrinsicID()) {
   case Intrinsic::assume:
     for (unsigned B = 0, E = C.getNumOperandBundles(); B != E; ++B) {
@@ -1705,6 +1741,22 @@ bool FunctionEmitter::emitIntrinsic(const IntrinsicInst &C, std::vector<Line> &O
     return Binary("Val.umulWithOverflow");
   case Intrinsic::smul_with_overflow:
     return Binary("Val.smulWithOverflow");
+  // x86's integer dot products, in IRLean/X86.lean. The first two need the number of lanes they produce.
+  case Intrinsic::x86_ssse3_pmadd_ub_sw_128:
+  case Intrinsic::x86_avx2_pmadd_ub_sw:
+  case Intrinsic::x86_avx512_pmaddubs_w_512:
+    addLet(C, Out, "X86.pmaddubsw " + Lanes() + " " + Op(0) + " " + Op(1));
+    return true;
+  case Intrinsic::x86_sse2_pmadd_wd:
+  case Intrinsic::x86_avx2_pmadd_wd:
+  case Intrinsic::x86_avx512_pmaddw_d_512:
+    addLet(C, Out, "X86.pmaddwd " + Lanes() + " " + Op(0) + " " + Op(1));
+    return true;
+  case Intrinsic::x86_avx512_vpdpbusd_128:
+  case Intrinsic::x86_avx512_vpdpbusd_256:
+  case Intrinsic::x86_avx512_vpdpbusd_512:
+    addLet(C, Out, "X86.vpdpbusd " + Op(0) + " " + Op(1) + " " + Op(2));
+    return true;
   case Intrinsic::ucmp:
   case Intrinsic::scmp:
     addLet(C, Out,

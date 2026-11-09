@@ -6,10 +6,10 @@ proof goes on from them and the next proof starts with some of them. This is a r
 nothing `ir-lean` claims: [status](status.md) and [trust](trust.md) still say what's true.
 
 It's tried on two proofs. The main one is this quarter's q4_K proof: that a VNNI rewrite of llama.cpp's q4_K matrix
-kernels computes what `clang -O3` does, at 34 places, which makes reading a prompt 5.5% to 7.2% faster. It's on the
-branch `feat/prove-llvm-optimization-1`, from commit `7636d7c`, which isn't merged, so the prototype runs against a
-checkout of it. The second is compiler-rt's population counts, where the rewrite is the one `tests/superopt.py`
-finds, and one `bv_decide` call can't finish the proof.
+kernels computes what `clang -O3` does, at 34 places, which makes reading a prompt 5.5% to 7.2% faster, in
+[llama.cpp](llama.md). What's measured below was measured on its branch, `feat/prove-llvm-optimization-1`. The second
+is compiler-rt's population counts, where the rewrite is the one `tests/superopt.py` finds, and one `bv_decide` call
+can't finish the proof.
 
 Measured on 2026-11-07 on top of `28c2364`, and of `531650a` for the q4_K branch, on an Apple M4 Max with 16 cores
 and 64 GB, with Lean 4.35.0, clang 23.1.3 and Alive2 built on the same LLVM, in the dev shell, while other work kept
@@ -49,18 +49,18 @@ and [`report.json`](../prototypes/lemma-reuse/report.json).
 
 ## llama.cpp's q4_K kernels
 
-What clang leaves and what the rewrite computes are in the branch's `docs/llama.md`. In short, at each place clang
+What clang leaves and what the rewrite computes are in [llama.cpp](llama.md). In short, at each place clang
 computes `pmaddwd(p0 + p1 + ... + p7, c)` with `p_k = pmaddubsw(a_k, b_k)`, and the rewrite computes a chain of eight
 `vpdpbusd` on the same `a_k` and `b_k`, times the low half of each lane of `c`. They only agree because clang masks the
-weights `a_k` to 4 bits and repeats each scale in both halves of `c`'s lanes. The branch's `tests/llama.py` cuts each
+weights `a_k` to 4 bits and repeats each scale in both halves of `c`'s lanes. [`tests/llama.py`](../tests/llama.py) cuts each
 place out of both kernels, back to loads and arguments, and proves the two slices equal with `vnni_slice`, a tactic
-over the 527 lines of its `tests/llama/Vnni.lean`. Alive2 gives no verdict on them: it timed out after 10 minutes on
-the first slice of `gemv`, the branch's doc says.
+over the 527 lines of [`tests/llama/Vnni.lean`](../tests/llama/Vnni.lean). Alive2 gives no verdict on them: it timed
+out after 10 minutes on the first slice of `gemv`, [llama.cpp](llama.md#checked-another-way) says.
 
 ### How it splits a place
 
-[`q4k.py`](../prototypes/lemma-reuse/q4k.py) compiles the kernels from the branch's pinned llama.cpp, rewrites them
-and cuts out the 34 places with the branch's own scripts, and checks each slice against the branch's manifest. Then,
+[`q4k.py`](../prototypes/lemma-reuse/q4k.py) compiles the kernels from the pinned llama.cpp, rewrites them and cuts
+out the 34 places with `tests/llama.py`'s own scripts, and checks each slice against its manifest. Then,
 for each place, it reads both slices' Lean, which is a list of `let`s:
 
 1. **The cut.** A `let` that both slices have, word for word, is how an operand is built. The ones that differ are the
@@ -310,11 +310,10 @@ For q4_K:
   changes, isn't found.
 - **Two cores, because two widths.** The 256-bit and 512-bit cores are the same argument on different numbers of
   lanes. Lemmas for every width would need statements with the width as a variable.
-- **It needs the branch.** Until `feat/prove-llvm-optimization-1` merges, `q4k.py` runs against a checkout of it,
-  and the store here is checked against that checkout's `Vnni.lean`.
+- **It needs llama.cpp's source,** which only `nix develop .#llama` has, as the default shell leaves it out.
 - **No speedup the first time.** From an empty store the split checks 7.5 s more than the original proofs.
-- **Only the 34 places.** Q5 and the other quantizations, on `feat/prove-llvm-optimization`, use another model and
-  other proofs, and nothing here was tried on them.
+- **Only the 34 places.** [Q5](llama-q5.md) and the other quantizations use other proofs, and nothing here was tried
+  on them.
 
 For the population counts:
 
@@ -345,17 +344,18 @@ For the population counts:
 
 ## Reproducing
 
-The q4_K proof needs a built checkout of its branch, and runs in that checkout's dev shell:
+The q4_K proof needs llama.cpp's source, which only `nix develop .#llama` has:
 
 ```console
-git worktree add --detach ../q4k origin/feat/prove-llvm-optimization-1
-cd ../q4k
 nix develop -c bash -c 'lake build && cmake -S . -B build -G Ninja && ninja -C build'
-nix develop -c /path/to/ir-lean/prototypes/lemma-reuse/check-q4k.sh .
+nix develop .#llama -c prototypes/lemma-reuse/check-q4k.sh .
 ```
 
 That proves the 34 places from an empty store, and again from what that saved, checking each lemma again, and
-compares what was saved with [`q4k/store`](../prototypes/lemma-reuse/q4k/store) and its proofs.
+compares what was saved with [`q4k/store`](../prototypes/lemma-reuse/q4k/store) and its proofs. On 2026-11-08, with
+the q4_K proof merged with `main` at `0330cd7`, on the Ryzen 9 9950X its measurements are from, it proved the 34
+places, matched all 68 slices to the manifest, and saved the same lemmas and proofs as the store here, in 1 minute 43
+seconds with 6 Lean jobs.
 
 The population counts, from this repo, in `nix develop`:
 

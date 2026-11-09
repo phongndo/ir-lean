@@ -1,0 +1,7 @@
+{
+  "disassembly_equal": true,
+  "allocated_sections_equal_except_build_id": true,
+  "different_sections": [],
+  "reference": "/home/dp/.t3/worktrees/ir-lean/t3-9787d39d/build/llama-search/variants/q5-bitspread/libggml-cpu.so.0",
+  "target": "/home/dp/.t3/worktrees/ir-lean/t3-9787d39d/build/llama-reproduce-check/variants/rewrite/libggml-cpu.so.0"
+}

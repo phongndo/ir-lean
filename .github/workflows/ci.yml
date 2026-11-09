@@ -38,14 +38,17 @@ jobs:
         # A job for each of these ctest labels, set in CMakeLists.txt, runs the tests with it, so the longest
         # tests don't wait for each other. `rest` runs every other test the `lint` and `slow` jobs don't, so a
         # test with no label still runs, and first checks that CI runs each test exactly once.
-        shard: &labels [passes, binding, llvm, semantics]
+        shard: &labels [passes, binding, llvm, semantics, llama]
         include:
           - shard: rest
             labels: *labels
+          # Only this shell has llama.cpp's source, which the llama tests need, and every other job does without.
+          - shard: llama
+            shell: .#llama
     steps:
       - uses: actions/checkout@v7
       - uses: ./.github/actions/setup
-      - run: nix develop -c .github/test-shard.sh ${{ matrix.shard }} ${{ join(matrix.labels, ' ') }}
+      - run: nix develop ${{ matrix.shell }} -c .github/test-shard.sh ${{ matrix.shard }} ${{ join(matrix.labels, ' ') }}
   slow:
     name: Slow zlib tests
     if: github.event_name != 'pull_request'

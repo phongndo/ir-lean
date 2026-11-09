@@ -4,6 +4,7 @@ import IRLean.Promise
 import IRLean.Int
 import IRLean.Mem
 import IRLean.Vec
+import IRLean.X86
 import IRLean.Lemmas
 import IRLean.Safety
 import IRLean.Refine
