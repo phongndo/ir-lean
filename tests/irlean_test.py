@@ -12,6 +12,7 @@ usage: tests/irlean_test.py
 import contextlib
 import fcntl
 import hashlib
+import importlib.util
 import json
 import os
 import re
@@ -21,16 +22,24 @@ import subprocess
 import sys
 import tempfile
 import time
+import tomllib
 import unittest
 from pathlib import Path
 from typing import Any, ClassVar
 from unittest import mock
 
 ROOT = Path(__file__).resolve().parent.parent
-sys.path.insert(0, str(ROOT / "tools"))
-from irlean import hashing, lean, pins, proc, schemas  # noqa: E402
+sys.path.append(str(ROOT / "tools"))
+from irlean import hashing, lean, model, pins, proc, schemas  # noqa: E402
 
 PY = sys.executable
+
+
+def independent(path: str) -> bool:
+    """Whether `path`, relative to the repo, is BIND-03's independent verifier, in
+    docs/llvm-verification-tasks.md, which shares no code with any scorer: it never imports irlean, so none
+    of the library's rules reach it."""
+    return path == "tools/verify_claims.py" or path.startswith("tools/verify_claims/")
 
 
 def alive(pid: int) -> bool:
@@ -647,6 +656,44 @@ class Lean(unittest.TestCase):
                 self.assertEqual(pattern, lean.LIMIT.pattern)
 
 
+class Ratchet(unittest.TestCase):
+    """What keeps the library the one place: ruff bans subprocess, hashlib and process killing everywhere
+    else, and these are the only exceptions, each with its reason in pyproject.toml."""
+
+    EXCEPTIONS: ClassVar[set[str]] = {
+        "tools/irlean/*.py",
+        "tests/irlean_test.py",
+        ".github/needs-tests.py",
+        "tests/alive.py",
+        "prototypes/**/*.py",
+        "tests/llama/rewrite.py",
+        "tests/verify.py",
+        "bench/instcombine/stage1.py",
+        "tools/verify_claims.py",
+        "tools/verify_claims/**/*.py",
+    }
+    # Every API the ban names, so dropping one fails here.
+    BANNED = (
+        "subprocess hashlib os.kill os.killpg os.wait4 os.waitpid os.waitid os.setsid os.setpgid "
+        "resource.setrlimit"
+    )
+
+    def test_the_exceptions_are_these(self) -> None:
+        lint = tomllib.loads((ROOT / "pyproject.toml").read_text())["tool"]["ruff"]["lint"]
+        self.assertIn("TID251", lint["extend-select"])
+        banned = set(lint["flake8-tidy-imports"]["banned-api"])
+        self.assertEqual(banned, set(self.BANNED.split()))
+        ignored = {path for path, rules in lint["per-file-ignores"].items() if "TID251" in rules}
+        self.assertEqual(ignored, self.EXCEPTIONS)
+
+    def test_tools_name_schemas_only_through_the_library(self) -> None:
+        literal = re.compile(r"""["']ir-lean\.[a-z0-9][a-z0-9_.-]*/\d+["']""")
+        for path in sorted((ROOT / "tools").rglob("*.py")):
+            name = path.relative_to(ROOT).as_posix()
+            if name != "tools/irlean/schemas.py" and not independent(name):
+                self.assertIsNone(literal.search(path.read_text()), path)
+
+
 class Schemas(unittest.TestCase):
     def test_names(self) -> None:
         self.assertGreaterEqual(len(schemas.ALL), 22)
@@ -666,6 +713,8 @@ class Schemas(unittest.TestCase):
         for name in tracked:
             path = ROOT / name
             if not path.exists() or name.endswith("_test.py") or name == "tools/irlean/schemas.py":
+                continue
+            if independent(name):
                 continue
             for found in literal.findall(path.read_text()):
                 # A test writes a version that isn't one, to check it's refused.
@@ -702,6 +751,90 @@ class Schemas(unittest.TestCase):
 def _umask() -> int:
     r = subprocess.run(["sh", "-c", "umask"], capture_output=True, text=True, check=True)
     return int(r.stdout.strip(), 8)
+
+
+def load(name: str, path: Path) -> Any:
+    spec = importlib.util.spec_from_file_location(name, path)
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[name] = module
+    spec.loader.exec_module(module)
+    return module
+
+
+class Model(unittest.TestCase):
+    """IRLean.UB and IRLean.ModelStop as every tool sees them: read once, here, and never copied."""
+
+    # Each tool or test that reads them, and what it makes of them.
+    CONSUMERS: ClassVar[dict[str, Any]] = {
+        "tests/verify_negative.py": lambda m: (m.UB_REASONS, m.REFINES),
+    }
+    # Files that may read them some other way, each with why.
+    EXCEPTIONS: ClassVar[dict[str, str]] = {
+        "tools/irlean/model.py": "it's where they're read",
+        "tests/irlean_test.py": "it checks them",
+        "bench/instcombine/stage1.py": "the stage-1 lane's, which reads IRLean/Basic.lean itself, and moves "
+        "onto irlean.model once it lands",
+    }
+
+    def test_lean_reads_them_the_same(self) -> None:
+        if not (lean.LIBRARY / "IRLean.olean").exists() or pins.which("lean") is None:
+            self.skipTest("IRLean isn't built: run lake build")
+        got = model.from_lean(model.UB, model.MODEL_STOP)
+        self.assertEqual(got, {model.UB: model.ub_reasons(), model.MODEL_STOP: model.model_stops()})
+        self.assertIn("noProgress", model.ub_reasons())
+        self.assertTrue(model.model_stops())
+
+    def test_comments_and_arguments(self) -> None:
+        with tempfile.TemporaryDirectory() as d:
+            source = Path(d) / "Basic.lean"
+            source.write_text(
+                "/-- a doc\n  | notOne -/\ninductive UB where\n  | a\n  /-- | notTwo\n  -/\n"
+                "  | b -- | notThree\n  | c (x : Nat)\n  deriving Repr\n\n"
+                "inductive Stop where\n  | undefined (reason : UB)\n"
+            )
+            self.assertEqual(model.constructors("IRLean.UB", source), ("a", "b", "c"))
+            self.assertEqual(model.constructors("IRLean.Stop", source), ("undefined",))
+            with self.assertRaises(ValueError):
+                model.constructors("IRLean.Missing", source)
+
+    def test_a_new_reason_reaches_every_tool(self) -> None:
+        with tempfile.TemporaryDirectory() as d:
+            source = Path(d) / "Basic.lean"
+            text = model.BASIC.read_text()
+            source.write_text(text.replace("  | noReturn\n", "  | noReturn\n  | addedForTheTest\n", 1))
+            before = {path: see(load(f"consumer_{i}_before", ROOT / path)) for i, (path, see) in self.views()}
+            try:
+                with mock.patch.object(model, "BASIC", source):
+                    model.ub_reasons.cache_clear()
+                    self.assertIn("addedForTheTest", model.ub_reasons())
+                    for i, (path, see) in self.views():
+                        after = see(load(f"consumer_{i}_after", ROOT / path))
+                        self.assertNotEqual(after, before[path], path)
+                        self.assertIn("addedForTheTest", repr(after), path)
+            finally:
+                model.ub_reasons.cache_clear()
+
+    def views(self) -> Any:
+        return enumerate(self.CONSUMERS.items())
+
+    def test_no_tool_keeps_its_own_copy(self) -> None:
+        names = set(model.ub_reasons()) | set(model.model_stops())
+        tracked = proc.run(
+            ["git", "ls-files", "--cached", "--others", "--exclude-standard", "*.py"], cwd=ROOT
+        ).out.split()
+        found = []
+        for name in tracked:
+            path = ROOT / name
+            if not path.exists() or name in self.CONSUMERS or name in self.EXCEPTIONS or independent(name):
+                continue
+            text = path.read_text()
+            named = {n for n in names if re.search(rf"\b{n}\b", text)}
+            if len(named) >= 2 or "Basic.lean" in text:
+                found.append((name, sorted(named)))
+        self.assertEqual(found, [], "these name IRLean.UB's or ModelStop's constructors: use irlean.model")
+        for path in self.CONSUMERS:
+            self.assertIn("model.ub_reasons()", (ROOT / path).read_text(), path)
 
 
 class Pins(unittest.TestCase):

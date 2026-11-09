@@ -17,7 +17,6 @@ Alive2's `undef` inputs off, since an argument of the model is a value or poison
 
 import os
 import re
-import subprocess
 import sys
 import tempfile
 
@@ -25,6 +24,9 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import alive
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.append(os.path.join(ROOT, "tools"))
+from irlean import proc  # noqa: E402
+
 CASES = os.path.join(ROOT, "tests", "undef_freeze", "alive2")
 FREEZE_CASES = os.path.join(ROOT, "tests", "freeze")
 TESTS = os.path.join(ROOT, "tests", "undef_freeze", "UndefFreezeTests.lean")
@@ -89,17 +91,8 @@ def check(path, lean, work, alive_options=()):
     for path, function in zip(paths, (source, target), strict=True):
         with open(path, "w") as f:
             f.write(function)
-    try:
-        r = subprocess.run(
-            ["alive-tv", "--smt-to=20000", *alive_options, *paths],
-            text=True,
-            capture_output=True,
-            timeout=TIMEOUT_SECONDS,
-            check=False,
-        )
-        output = r.stdout + r.stderr
-    except subprocess.TimeoutExpired:
-        output = f"alive-tv didn't finish in {TIMEOUT_SECONDS} s"
+    r = proc.run(["alive-tv", "--smt-to=20000", *alive_options, *paths], timeout=TIMEOUT_SECONDS)
+    output = f"alive-tv didn't finish in {TIMEOUT_SECONDS} s" if r.limit == "time_limit" else r.out + r.err
     got = alive.verdict(output)
     if got != expected:
         return f"Alive2 says {got}:\n{output[-1500:]}"

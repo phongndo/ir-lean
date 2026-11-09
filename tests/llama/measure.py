@@ -10,22 +10,18 @@ retained there, including both warmups.
 """
 
 import argparse
-import hashlib
 import json
 import os
 import random
 import re
 import resource
 import statistics
-import subprocess
 import sys
 import time
 from pathlib import Path
 
-
-def file_hash(path):
-    with path.open("rb") as handle:
-        return hashlib.file_digest(handle, "sha256").hexdigest()
+sys.path.append(str(Path(__file__).resolve().parents[2] / "tools"))
+from irlean import hashing, proc
 
 
 def write_json(path, value):
@@ -82,6 +78,15 @@ def completion_command(args, executable):
     ]
 
 
+def ldd(path, environment):
+    """What `ldd` says `path` loads, its errors going where this script's go. Raises RuntimeError if it
+    fails."""
+    r = proc.run(["ldd", str(path)], env=environment, stderr=None)
+    if r.exit != 0:
+        raise RuntimeError(f"ldd {path} failed with exit code {r.exit}")
+    return r.out
+
+
 def checked_environments(build_bin, variant_dir, executable, output):
     environments = {}
     for variant, directory in [("clang", build_bin), ("rewrite", variant_dir)]:
@@ -90,16 +95,16 @@ def checked_environments(build_bin, variant_dir, executable, output):
             raise ValueError(f"missing CPU library: {library}")
         environment = {**os.environ, "LD_LIBRARY_PATH": str(directory) + ":" + str(build_bin)}
         environments[variant] = environment
-        mapping = subprocess.check_output(["ldd", str(executable)], text=True, env=environment)
+        mapping = ldd(executable, environment)
         (output / (variant + "-ldd.txt")).write_text(mapping)
         # The completion launcher loads its implementation at runtime. Check that too.
         implementation = build_bin / "libllama-completion-impl.so"
-        mapping = subprocess.check_output(["ldd", str(implementation)], text=True, env=environment)
+        mapping = ldd(implementation, environment)
         (output / (variant + "-impl-ldd.txt")).write_text(mapping)
         match = re.search(r"^\s*libggml-cpu\.so\.0 => (.+) \(", mapping, re.MULTILINE)
         if match is None or Path(match[1]).resolve() != library.resolve():
             raise RuntimeError(f"{variant} implementation does not resolve to the requested CPU library")
-        (output / (variant + "-library.sha256")).write_text(file_hash(library) + "\n")
+        (output / (variant + "-library.sha256")).write_text(hashing.sha256_file(library) + "\n")
     return environments
 
 
@@ -107,13 +112,13 @@ def measure(command, environment, output, variant, pair, reference):
     stem = f"{pair:03d}-{variant}"
     usage_before = resource.getrusage(resource.RUSAGE_CHILDREN)
     started = time.perf_counter()
-    result = subprocess.run(command, capture_output=True, env=environment, check=False)
+    result = proc.run(command, env=environment)
     wall_ms = (time.perf_counter() - started) * 1000
     usage_after = resource.getrusage(resource.RUSAGE_CHILDREN)
     (output / (stem + ".txt")).write_bytes(result.stdout)
     (output / (stem + ".log")).write_bytes(result.stderr)
-    if result.returncode != 0:
-        raise RuntimeError(f"completion {stem} failed with exit code {result.returncode}; raw logs retained")
+    if result.exit != 0:
+        raise RuntimeError(f"completion {stem} failed with exit code {result.exit}; raw logs retained")
     if reference is not None and reference != result.stdout:
         raise RuntimeError(f"completion output differs: {stem}; raw outputs retained")
     log = result.stderr.decode()
@@ -121,7 +126,7 @@ def measure(command, environment, output, variant, pair, reference):
         "pair": pair,
         "variant": variant,
         "wall_ms": wall_ms,
-        "stdout_sha256": hashlib.sha256(result.stdout).hexdigest(),
+        "stdout_sha256": hashing.sha256(result.stdout),
         "cpu_user_ms": (usage_after.ru_utime - usage_before.ru_utime) * 1000,
         "cpu_system_ms": (usage_after.ru_stime - usage_before.ru_stime) * 1000,
         "involuntary_switches": usage_after.ru_nivcsw - usage_before.ru_nivcsw,
@@ -216,10 +221,10 @@ def main():
             "sampling_seed": 1234,
             "bootstrap_samples": 20000,
             "bootstrap_method": "percentile interval for the median of paired clang/rewrite duration ratios",
-            "model_sha256": file_hash(args.model),
-            "prompt_sha256": file_hash(args.prompt),
-            "executable_sha256": file_hash(executable),
-            "driver_sha256": file_hash(Path(__file__)),
+            "model_sha256": hashing.sha256_file(args.model),
+            "prompt_sha256": hashing.sha256_file(args.prompt),
+            "executable_sha256": hashing.sha256_file(executable),
+            "driver_sha256": hashing.sha256_file(Path(__file__)),
         },
     )
     environments = checked_environments(build_bin, args.variant_dir, executable, args.output)

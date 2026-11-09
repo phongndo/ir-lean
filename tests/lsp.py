@@ -14,16 +14,17 @@ usage: tests/lsp.py
 
 import concurrent.futures
 import glob
-import hashlib
 import json
 import os
 import queue
-import subprocess
 import sys
 import threading
 import time
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.append(os.path.join(ROOT, "tools"))
+from irlean import hashing, proc  # noqa: E402
+
 # CI doesn't keep this, so every server runs there.
 RESULTS = os.path.join(ROOT, "build", "result-cache")
 # How long a server may take on one file. Lean checks the whole file, and clangd parses LLVM's headers.
@@ -79,9 +80,7 @@ SERVERS = [
 
 class Server:
     def __init__(self, command):
-        self.process = subprocess.Popen(
-            command, cwd=ROOT, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL
-        )
+        self.process = proc.spawn(command, cwd=ROOT, stdin=proc.PIPE, stdout=proc.PIPE, stderr=proc.DEVNULL)
         self.next_id = 0
         self.pulls_diagnostics = False
         self.answers = {}
@@ -148,13 +147,15 @@ class Server:
         self.write({"method": method, "params": params})
 
     def stop(self):
+        """Asks the server to exit, waits a second if it answered, then kills it and everything it started."""
+        grace = 0
         try:
             self.request("shutdown", None)
             self.notify("exit", None)
-            self.process.wait(timeout=1)
-        except (RuntimeError, OSError, subprocess.TimeoutExpired):
+            grace = 1
+        except (RuntimeError, OSError):
             pass
-        self.process.kill()
+        proc.stop(self.process, grace=grace)
 
 
 def check_file(server, language, path):
@@ -229,7 +230,7 @@ def check_server(command, language, paths):
 def server_key(command, language, inputs):
     """A hash of what the server's answer depends on: its version, through its place in the Nix store, this
     script, and what it reads."""
-    key = hashlib.sha256(f"{os.environ.get('PATH')}\0{command}\0{language}\0".encode())
+    key = hashing.new(f"{os.environ.get('PATH')}\0{command}\0{language}\0".encode())
     paths = [os.path.abspath(__file__)]
     for pattern in inputs:
         paths += sorted(glob.glob(pattern, root_dir=ROOT))

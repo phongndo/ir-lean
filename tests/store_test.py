@@ -24,13 +24,15 @@ import concurrent.futures
 import json
 import os
 import re
-import subprocess
 import sys
 import tempfile
 import time
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
+sys.path.append(str(ROOT / "tools"))
+from irlean import proc  # noqa: E402
+
 STORE = [sys.executable, str(ROOT / "tools" / "store" / "store.py")]
 LIB = ROOT / ".lake" / "build" / "lib" / "lean"
 FIXTURES = ROOT / "tests" / "store"
@@ -47,20 +49,17 @@ def report(ok: bool, what: str, detail: str = "") -> None:
 
 
 def store(*args: str) -> tuple[int, dict]:
-    p = subprocess.run([*STORE, *args, "--json"], cwd=ROOT, capture_output=True, text=True, check=False)
+    p = proc.run([*STORE, *args, "--json"], cwd=ROOT)
     try:
-        return p.returncode, json.loads(p.stdout)
+        return p.exit, json.loads(p.out)
     except json.JSONDecodeError:
-        return p.returncode, {"status": "unparsed", "stdout": p.stdout[-3000:], "stderr": p.stderr[-3000:]}
+        return p.exit, {"status": "unparsed", "stdout": p.out[-3000:], "stderr": p.err[-3000:]}
 
 
 def lean(args: list[str], *paths: Path) -> tuple[int, str, float]:
     env = {**os.environ, "LEAN_PATH": os.pathsep.join(str(p) for p in (*paths, LIB))}
-    t = time.monotonic()
-    p = subprocess.run(
-        ["lean", "-M", MB, *args], cwd=ROOT, env=env, capture_output=True, text=True, check=False
-    )
-    return p.returncode, p.stdout + p.stderr, time.monotonic() - t
+    p = proc.run(["lean", "-M", MB, *args], cwd=ROOT, env=env)
+    return p.exit, p.output, p.seconds
 
 
 # ------------------------------------------------------------------------------------------------------------
@@ -259,20 +258,11 @@ def check_suggestions() -> None:
 
 def axioms(module: str, work: Path) -> str:
     env = {**os.environ, "LEAN_PATH": os.pathsep.join([str(work), str(LIB)]), "IRLEAN_CHECK_MODULE": module}
-    p = subprocess.run(
-        ["lean", "-M", MB, "tests/check_axioms.lean"],
-        cwd=ROOT,
-        env=env,
-        capture_output=True,
-        text=True,
-        check=False,
-    )
-    replay = subprocess.run(
-        ["leanchecker", module], cwd=ROOT, env=env, capture_output=True, text=True, check=False
-    )
-    if p.returncode != 0 or replay.returncode != 0:
-        return f"failed: {p.stdout}{p.stderr}{replay.stdout}{replay.stderr}"
-    return p.stdout.strip().splitlines()[-1]
+    p = proc.run(["lean", "-M", MB, "tests/check_axioms.lean"], cwd=ROOT, env=env)
+    replay = proc.run(["leanchecker", module], cwd=ROOT, env=env)
+    if p.exit != 0 or replay.exit != 0:
+        return f"failed: {p.output}{replay.output}"
+    return p.out.strip().splitlines()[-1]
 
 
 def check_reuse(tool: Path) -> None:
@@ -280,7 +270,7 @@ def check_reuse(tool: Path) -> None:
         work = Path(tmp)
         for w in (64, 256):
             for side, ns in (("src", "Src"), ("tgt", "Tgt")):
-                p = subprocess.run(
+                p = proc.run(
                     [
                         str(tool),
                         str(FIXTURES / "reuse" / f"{side}{w}.ll"),
@@ -288,13 +278,10 @@ def check_reuse(tool: Path) -> None:
                         f"{ns}{w}",
                         "-o",
                         str(work / f"{ns}{w}.lean"),
-                    ],
-                    capture_output=True,
-                    text=True,
-                    check=False,
+                    ]
                 )
-                if p.returncode != 0:
-                    report(False, f"ir-lean translates reuse/{side}{w}.ll", p.stderr)
+                if p.exit != 0:
+                    report(False, f"ir-lean translates reuse/{side}{w}.ll", p.err)
                     return
                 code, out, _ = lean(
                     ["-R", str(work), "-o", str(work / f"{ns}{w}.olean"), str(work / f"{ns}{w}.lean")], work

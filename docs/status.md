@@ -95,6 +95,9 @@ Evidence and not proof. A pass here means no disagreement was found on the input
   of at most about 800 bytes, because the semantics are slow to run: each memory access walks back through
   earlier writes. The harness reaches all but 5 of zlib's functions, counted without optimization so
   nothing is inlined away: two for big-endian machines, `crc32_combine_gen`, `_tr_align` and `_tr_tally`.
+- **What the emitter accepts:** all 17,033 items the pinned IR can contain are classified, 160 modeled, 170
+  assumed and 16,703 refused, and a probe of each shows the emitter does what its class says, with the Lean it
+  prints for each it translates elaborating ([IR features](ir-features.md)). Since 2026-11-09.
 - **Integer operations:** against LLVM's constant folder at many widths, and Alive2 for exact poison and
   UB at small widths: 265 variants proved exact, with none unchecked.
 - **`getelementptr` flags:** 1,194 cases against Alive2, on 644 layouts. 927 are proved exact, and 267 depend on
@@ -254,3 +257,7 @@ reads it. That difference is itself a thing [Phase 3](roadmap.md#phase-3-c-and-r
     side's choices, so inserting, removing and duplicating a `freeze` are judged as LangRef judges them, and four real
     `instcombine` runs on `freeze` are bound as refinements. `undef` stays out of the model. Done in
     [#72](https://github.com/phongndo/ir-lean/pull/72). See [refinement](refinement.md#runs-that-make-choices).
+14. Calls outside the module that access no memory: the run's world answers them, the same world for source and target,
+    and which of the callee's answers a call gets is the run's choice, so dropping, merging and reordering such calls
+    refine under the attributes that allow it, and adding, duplicating or changing an argument doesn't. Calls with
+    effects, and calls that pass or return a pointer, are still refused. See [calls](calls.md).

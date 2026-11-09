@@ -19,7 +19,6 @@ import os
 import random
 import re
 import statistics
-import subprocess
 import sys
 import tempfile
 import time
@@ -339,7 +338,7 @@ def main() -> int:
             print(f"ok    {symbol}: Alive2 agrees")
             pipeline.compile_lean(work, PROOFS / f"{proof}.lean", PROOFS)
             generated = work / f"Rw{proof}.lean"
-            subprocess.run(
+            run(
                 [
                     str(pipeline.tool),
                     str(rewrite),
@@ -348,9 +347,7 @@ def main() -> int:
                     "-o",
                     str(generated),
                     "--no-code",
-                ],
-                check=True,
-                capture_output=True,
+                ]
             )
             pipeline.lean(work, "-R", str(work), "-o", str(work / f"Rw{proof}.olean"), str(generated))
             report = run([str(pipeline.tool), str(rewrite), "--namespace", f"Rw{proof}", "--report"])
@@ -393,7 +390,7 @@ def main() -> int:
         wrong.mkdir()
         wrong_ir = wrong / "RwClzsi2.ll"
         wrong_ir.write_text((REWRITES / "Clzsi2.ll").read_text().replace("ctlz", "cttz"))
-        subprocess.run(
+        run(
             [
                 str(pipeline.tool),
                 str(wrong_ir),
@@ -402,9 +399,7 @@ def main() -> int:
                 "-o",
                 str(wrong / "RwClzsi2.lean"),
                 "--no-code",
-            ],
-            check=True,
-            capture_output=True,
+            ]
         )
         pipeline.lean(
             wrong, "-R", str(wrong), "-o", str(wrong / "RwClzsi2.olean"), str(wrong / "RwClzsi2.lean")

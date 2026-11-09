@@ -12,11 +12,13 @@ usage: tests/fuzz.py path/to/ir-lean [--seeds N] [--functions N] [--start S]
 import os
 import random
 import shutil
-import subprocess
 import sys
 import tempfile
 
 import differential
+
+sys.path.append(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "tools"))
+from irlean import proc
 
 WIDTHS = [8, 16, 32, 64]
 BINOPS = ["add", "sub", "mul", "and", "or", "xor", "shl", "lshr", "ashr"]
@@ -231,6 +233,13 @@ def function(name, rand, decls):
     return f"define i{ret} @{name}({params}) {{\nentry:\n" + "\n".join(g.lines) + "\n}\n"
 
 
+def opt(*args):
+    """Runs `opt`, its output going where this script's goes, and raises if it fails."""
+    r = proc.run(["opt", *args], stdout=None, stderr=None)
+    if r.exit != 0:
+        raise RuntimeError(f"opt {' '.join(args)} exited with {r.exit}")
+
+
 def main():
     args = sys.argv[1:]
 
@@ -258,11 +267,11 @@ def main():
             ll = os.path.join(work, f"s{seed}.ll")
             with open(ll, "w") as f:
                 f.write("\n".join(sorted(decls)) + "\n\n" + "\n".join(funcs))
-            subprocess.run(["opt", "-passes=verify", "-disable-output", ll], check=True)
+            opt("-passes=verify", "-disable-output", ll)
             level = levels[seed % len(levels)]
             if level:
                 optimized = ll + ".opt.ll"
-                subprocess.run(["opt", f"-passes={level}", "-S", ll, "-o", optimized], check=True)
+                opt(f"-passes={level}", "-S", ll, "-o", optimized)
                 ll = optimized
             differential.compare_ll(tool, ll, 12, rand, stats)
     finally:
