@@ -504,35 +504,266 @@ else
   fail 'dereferenceable results, the arguments of calls that never return, or huge allocas'
 fi
 
-# `mustprogress` is on the list on purpose, and this is what that means: a run LLVM calls undefined is
-# `none` here, not a stop. If the model ever starts to treat it as undefined, this has to change with it.
-cat >"$work/Spin.ll" <<'IR'
+# Promises to progress and to return, as the model checks them (IRLean/Promise.lean): a run that never finishes under
+# one is undefined, unless it's waiting on a call LangRef allows never to return, and where LangRef doesn't settle it
+# the model stops. Each is proved here of what ir-lean emits, so a change to the emitter or the model shows.
+cat >"$work/Promises.ll" <<'IR'
+; A function marked mustprogress that spins.
 define i32 @spin(i32 %x) mustprogress {
 entry:
   br label %again
 again:
   br label %again
 }
-IR
-"$tool" "$work/Spin.ll" -o "$work/Spin.lean" --namespace Spin --no-code
-cat >"$work/SpinProof.lean" <<'LEAN'
-import Spin
-open IRLean Spin Lean.Order
 
-theorem spin_never_finishes (x : Val 32) : spin x = none := by
-  have loop : run spin.step .again = none := by
-    refine run.fixpoint_induct spin.step (fun f => f .again = none) ?_ ?_
-    · exact admissible_apply (fun _ r => r = none) spin.Block.again (admissible_flatOrder _ rfl)
-    · intro f h
-      simpa [spin.step, jump, Outcome.ok] using h
-  rw [spin, run]
-  simpa [spin.step, jump, Outcome.ok] using loop
+; The same without the promise.
+define i32 @spin_free(i32 %x) {
+entry:
+  br label %again
+again:
+  br label %again
+}
+
+; A loop marked llvm.loop.mustprogress that steps by 2 from 0 until it reaches %n: it never does when %n is odd.
+define i32 @evens(i32 noundef %n) {
+entry:
+  br label %loop
+loop:
+  %i = phi i32 [ 0, %entry ], [ %next, %loop ]
+  %next = add i32 %i, 2
+  %done = icmp eq i32 %i, %n
+  br i1 %done, label %exit, label %loop, !llvm.loop !0
+exit:
+  ret i32 %i
+}
+
+; Waiting on a call that never returns, under a promise, to a callee without one: LangRef allows it.
+define i32 @calls_free(i32 %x) mustprogress {
+  %r = call i32 @spin_free(i32 %x)
+  ret i32 %r
+}
+
+; The callee promises to progress, and doesn't return because it waits on @spin_free: LangRef doesn't settle it.
+define i32 @calls_excused(i32 %x) mustprogress {
+  %r = call i32 @calls_free(i32 %x)
+  ret i32 %r
+}
+
+; The same call from a function without a promise: it just waits.
+define i32 @waits(i32 %x) {
+  %r = call i32 @calls_free(i32 %x)
+  ret i32 %r
+}
+
+; willreturn allows nothing that doesn't return.
+define i32 @returns(i32 %x) willreturn {
+  %r = call i32 @spin_free(i32 %x)
+  ret i32 %r
+}
+
+; A cycle of calls under a promise.
+define i32 @recurse(i32 %x) mustprogress {
+  %r = call i32 @recurse(i32 %x)
+  ret i32 %r
+}
+
+define i32 @recurse_wr(i32 %x) willreturn {
+  %r = call i32 @recurse_wr(i32 %x)
+  ret i32 %r
+}
+
+!0 = distinct !{!0, !1}
+!1 = !{!"llvm.loop.mustprogress"}
+IR
+cat >"$work/PromisesProof.lean" <<'LEAN'
+import Meta
+import Promises
+open IRLean Promises Lean.Order
+
+/-- A function marked `mustprogress` that spins breaks its promise. -/
+theorem spin_ub (x : Val 32) : spin x = Outcome.ub .noProgress := by
+  have loop : run spin.step .again = none :=
+    run_forever (fun b => b = .again) (fun b hb => ⟨.again, by subst hb; rfl, rfl⟩) rfl
+  have broken : runPromised (fun _ => true) spin.step .entry = Outcome.ub .noProgress :=
+    runPromised_forever (fun _ => True) (fun b _ => by cases b <;> exact ⟨.again, rfl, rfl, trivial⟩) trivial
+  rw [spin, run_jump _ (show spin.step .entry = jump .again from rfl), loop]
+  exact broken
+
+/-- Without the promise, it just never finishes. -/
+theorem spin_free_none (x : Val 32) : spin_free x = none := by
+  rw [spin_free, run_jump _ (show spin_free.step .entry = jump .again from rfl)]
+  exact run_forever (fun b => b = .again) (fun b hb => ⟨.again, by subst hb; rfl, rfl⟩) rfl
+
+/-- The loop's states for an odd `n`: `i` is always even, so it never reaches `n`. -/
+theorem evens_odd (n : BitVec 32) (hn : n.toNat % 2 = 1) : evens (some n) = Outcome.ub .noProgress := by
+  let I : evens.Block → Prop := fun b => ∃ i : BitVec 32, i.toNat % 2 = 0 ∧ b = .loop_1 (some i) (some n)
+  have hI : ∀ b, I b → ∃ b', evens.step b = jump b' ∧ evens.promise b' = true ∧ I b' := by
+    rintro b ⟨i, hi, rfl⟩
+    have hne : i ≠ n := by rintro rfl; omega
+    refine ⟨.loop_1 (some (i + 2#32)) (some n), ?_, rfl, i + 2#32, ?_, rfl⟩
+    · simp [evens.step, llvm_val, hne]
+    · simp only [BitVec.toNat_add, BitVec.toNat_ofNat]; omega
+  have h0 : I (.loop_1 (some 0#32) (some n)) := ⟨0#32, rfl, rfl⟩
+  have hrun : run evens.step (.entry (some n)) = none := by
+    rw [run_jump _ (show evens.step (.entry (some n)) = jump (.loop_1 (some 0#32) (some n)) from rfl)]
+    exact run_forever I (fun b hb => let ⟨b', h, _, h'⟩ := hI b hb; ⟨b', h, h'⟩) h0
+  simp only [evens, noundef_some, hrun, promised_none]
+  rw [runPromised_jump (show evens.step (.entry (some n)) = jump (.loop_1 (some 0#32) (some n)) from rfl)]
+  exact runPromised_forever I hI h0
+
+/-- For an even `n` it returns `n`: the promise holds there. -/
+theorem evens_even (n : BitVec 32) (hn : n.toNat % 2 = 0) : evens (some n) = Outcome.ok (some n) := by
+  have loop : ∀ k (i : BitVec 32), i.toNat % 2 = 0 → i.toNat ≤ n.toNat → n.toNat - i.toNat = 2 * k →
+      run evens.step (.loop_1 (some i) (some n)) = Outcome.ok (some n) := by
+    intro k
+    induction k with
+    | zero =>
+      intro i _ hle hk
+      have : i = n := BitVec.eq_of_toNat_eq (by omega)
+      subst this
+      rw [run_jump _ (show evens.step _ = jump (.exit (some i)) by simp [evens.step, llvm_val, br])]
+      exact run_ret _ rfl
+    | succ k ih =>
+      intro i hi hle hk
+      have hne : i ≠ n := by rintro rfl; omega
+      rw [run_jump _ (show evens.step _ = jump (.loop_1 (some (i + 2#32)) (some n)) by
+        simp [evens.step, llvm_val, hne])]
+      have hlt : (i + 2#32).toNat = i.toNat + 2 := by
+        simp only [BitVec.toNat_add, BitVec.toNat_ofNat]; have := n.isLt; omega
+      exact ih _ (by omega) (by omega) (by omega)
+  simp only [evens, noundef_some]
+  rw [run_jump _ (show evens.step (.entry (some n)) = jump (.loop_1 (some 0#32) (some n)) from rfl),
+    loop (n.toNat / 2) 0#32 rfl (by simp) (by simp; omega)]
+  rfl
+
+/-- Waiting, under a promise, on a callee without one that never returns: LangRef allows it. -/
+theorem calls_free_none (x : Val 32) : calls_free x = none := by
+  have stuck : calls_free.step (.bb1 x) = none := by simp [calls_free.step, spin_free_none, andThen]
+  rw [calls_free, show run calls_free.step (.bb1 x) = none by rw [run, stuck], promised_none]
+  exact runPromised_stuck stuck
+
+/-- Under a promise, waiting on a callee that also promised, and waits itself: LangRef doesn't settle it. -/
+theorem calls_excused_stop (x : Val 32) : calls_excused x = Outcome.stop .progressUnsettled := by
+  have h : calls_excused.step (.bb1 x) = Outcome.stop .progressUnsettled := by
+    simp [calls_excused.step, calls_free_none, promised_none, andThen, Outcome.stop]
+  rw [calls_excused, run, h]; rfl
+
+/-- Without a promise of its own, it just waits. -/
+theorem waits_none (x : Val 32) : waits x = none := by
+  rw [waits, run]; simp [waits.step, calls_free_none, andThen]
+
+/-- `willreturn` allows no run that doesn't return, whatever the reason. -/
+theorem returns_ub (x : Val 32) : returns x = Outcome.ub .noReturn := by
+  rw [returns, show run returns.step (.bb1 x) = none by rw [run]; simp [returns.step, spin_free_none, andThen]]
+  rfl
+
+/-- Calling itself forever: the raw function never finishes. -/
+theorem recurse_raw_none (x : Val 32) : recurse.raw x = none := by
+  have := recurse.raw.fixpoint_induct (fun f => ∀ b, f b = none) (fun f => ∀ x, f x = none)
+    (admissible_pi_apply (fun _ (r : Outcome (Val 32)) => r = none) fun _ => admissible_flatOrder _ rfl)
+    (admissible_pi_apply (fun _ (r : Outcome (Val 32)) => r = none) fun _ => admissible_flatOrder _ rfl)
+    (fun raw h b => by cases b; simp [h, andThen])
+    (fun loop h x => h _)
+  exact this x
+
+theorem recurse_stop (x : Val 32) : recurse x = Outcome.stop .recursionUnsettled := by
+  rw [recurse, recurse_raw_none]; rfl
+
+theorem recurse_wr_ub (x : Val 32) : recurse_wr x = Outcome.ub .noReturn := by
+  have := recurse_wr.raw.fixpoint_induct (fun f => ∀ b, f b = none) (fun f => ∀ x, f x = none)
+    (admissible_pi_apply (fun _ (r : Outcome (Val 32)) => r = none) fun _ => admissible_flatOrder _ rfl)
+    (admissible_pi_apply (fun _ (r : Outcome (Val 32)) => r = none) fun _ => admissible_flatOrder _ rfl)
+    (fun raw h b => by cases b; simp [h, andThen])
+    (fun loop h x => h _)
+  rw [recurse_wr, this x]; rfl
+
+-- Loop metadata off a latch, which a pass copied there, describes no loop: only the loop's own blocks are promised.
+example : Meta.stale.promise (.loop_1 none none) = true := rfl
+example : Meta.stale.promise (.split none) = false := rfl
 LEAN
-if lean -R "$work" -o "$work/Spin.olean" "$work/Spin.lean" && lean "$work/SpinProof.lean"; then
-  printf 'ok    a mustprogress function that spins never finishes in the model\n'
+cat >"$work/Meta.ll" <<'IR'
+define i32 @stale(i32 %n) {
+entry:
+  br label %loop
+loop:
+  %i = phi i32 [ 0, %entry ], [ %next, %loop ]
+  %next = add i32 %i, 1
+  %done = icmp eq i32 %next, %n
+  br i1 %done, label %split, label %loop, !llvm.loop !0
+split:
+  br label %exit, !llvm.loop !0
+exit:
+  ret i32 %i
+}
+!0 = distinct !{!0, !1}
+!1 = !{!"llvm.loop.mustprogress"}
+IR
+if "$tool" "$work/Promises.ll" -o "$work/Promises.lean" --namespace Promises --no-code &&
+  "$tool" "$work/Meta.ll" -o "$work/Meta.lean" --namespace Meta --no-code &&
+  lean -R "$work" -o "$work/Promises.olean" "$work/Promises.lean" && lean -R "$work" -o "$work/Meta.olean" "$work/Meta.lean" &&
+  lean "$work/PromisesProof.lean"; then
+  printf 'ok    a run that never finishes is undefined under a promise, and waiting on a call LangRef allows is not\n'
 else
-  fail 'the model no longer treats a mustprogress function that spins as never finishing'
+  fail 'what the model says of a run that never finishes under a promise'
 fi
+# `llvm.sideeffect` is observable progress, which the model has none of, so a loop calling it would be undefined under a
+# promise where LLVM defines it. It's refused, and so is anything calling a function that uses it.
+refuses 'llvm.sideeffect' 'declare void @llvm.sideeffect()
+define void @f() mustprogress {
+entry:
+  br label %again
+again:
+  call void @llvm.sideeffect()
+  br label %again
+}'
+refuses "call to @g, which isn't translated" 'declare void @llvm.sideeffect()
+define void @g() {
+  call void @llvm.sideeffect()
+  ret void
+}
+define void @f() mustprogress {
+entry:
+  br label %again
+again:
+  call void @g()
+  br label %again
+}'
+# What LangRef doesn't settle about loop metadata is refused: latches that don't all carry it, a copy off a latch where
+# control flow is irreducible, and a cycle through promised loops that leaves each of them, which only irreducible
+# control flow allows.
+promise_metadata='!0 = distinct !{!0, !1}
+!1 = !{!"llvm.loop.mustprogress"}
+!2 = distinct !{!2, !1}'
+refuses "latches don't all carry it" "define i32 @f(i32 %x) {
+entry:
+  br label %h
+h:
+  %c = icmp eq i32 %x, 0
+  br i1 %c, label %a, label %b
+a:
+  br label %h, !llvm.loop !0
+b:
+  br label %h
+}
+$promise_metadata"
+refuses 'irreducible control flow' "define i32 @f(i1 %c) {
+entry:
+  br i1 %c, label %a, label %b
+a:
+  br label %b, !llvm.loop !0
+b:
+  br label %a
+}
+$promise_metadata"
+refuses 'leaves each of them' "define i32 @f(i1 %c, i1 %d, i1 %e) {
+entry:
+  br i1 %c, label %h1, label %h2
+h1:
+  br i1 %d, label %h1, label %h2, !llvm.loop !0
+h2:
+  br i1 %e, label %h2, label %h1, !llvm.loop !2
+}
+$promise_metadata"
 
 # Two rules no real program can show, since the rest imply them on every layout LLVM allows. The first only
 # matters for an object that crosses the top of the address space, which LLVM rules out. The second says the
