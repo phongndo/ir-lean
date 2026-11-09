@@ -706,6 +706,28 @@ if "$tool" "$work/Promises.ll" -o "$work/Promises.lean" --namespace Promises --n
 else
   fail 'what the model says of a run that never finishes under a promise'
 fi
+# `llvm.sideeffect` is observable progress, which the model has none of, so a loop calling it would be undefined under a
+# promise where LLVM defines it. It's refused, and so is anything calling a function that uses it.
+refuses 'llvm.sideeffect' 'declare void @llvm.sideeffect()
+define void @f() mustprogress {
+entry:
+  br label %again
+again:
+  call void @llvm.sideeffect()
+  br label %again
+}'
+refuses "call to @g, which isn't translated" 'declare void @llvm.sideeffect()
+define void @g() {
+  call void @llvm.sideeffect()
+  ret void
+}
+define void @f() mustprogress {
+entry:
+  br label %again
+again:
+  call void @g()
+  br label %again
+}'
 # What LangRef doesn't settle about loop metadata is refused: latches that don't all carry it, a copy off a latch where
 # control flow is irreducible, and a cycle through promised loops that leaves each of them, which only irreducible
 # control flow allows.

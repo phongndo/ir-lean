@@ -1653,10 +1653,13 @@ bool FunctionEmitter::emitIntrinsic(const IntrinsicInst &C, std::vector<Line> &O
     }
     Out.push_back({Line::Guard, "", "assume " + Op(0)});
     return true;
-  // These say nothing about what the program computes.
+  // This says nothing about what the program computes.
   case Intrinsic::donothing:
-  case Intrinsic::sideeffect:
     return true;
+  // LangRef says optimizers "must assume that it has externally observable effects", so a loop calling it
+  // makes progress. The model has no observable effects, and would call that loop undefined under a promise.
+  case Intrinsic::sideeffect:
+    reject("intrinsic llvm.sideeffect, which LangRef makes observable progress, and the model has none");
   case Intrinsic::expect:
     addLet(C, Out, Op(0));
     return true;

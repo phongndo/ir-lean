@@ -133,7 +133,8 @@ LangRef, at the pinned LLVM 23.1.3, says three things about runs that don't end:
 
 Nothing in the model is observable from outside apart from a run's result: there's no I/O, `volatile`, atomics or
 synchronization, and the only calls outside a module are the C library's, which return, and ones that never return,
-which stop the model. So under a promise, a run that never finishes breaks it, unless it's waiting on a call LangRef
+which stop the model. `llvm.sideeffect`, which LangRef says optimizers "must assume" is observable, is refused, and so
+is anything that calls a function using it. So under a promise, a run that never finishes breaks it, unless it's waiting on a call LangRef
 allows never to return.
 
 `run`'s least fixed point gives `none` for a loop that spins and for a call that never returns alike, so
