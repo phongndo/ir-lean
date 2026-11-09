@@ -42,6 +42,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 HERE = ROOT / "tests" / "llama"
+
 SOURCE = "ggml/src/ggml-cpu/arch/x86/repack.cpp"
 FUNCTIONS = ["ggml_gemm_q4_K_8x8_q8_K", "ggml_gemv_q4_K_8x8_q8_K"]
 PLACES = 34
@@ -327,11 +328,25 @@ def checker_controls(ll: Path, rw: Path, report: Path, work: Path) -> list[str]:
     return missed
 
 
-def has_vnni() -> bool:
+# The flags in /proc/cpuinfo a processor needs to run what tests/llama/native_check.py builds: x86-64-v4's
+# AVX-512, and VNNI.
+NATIVE_FLAGS = {"avx512f", "avx512bw", "avx512cd", "avx512dq", "avx512vl", "avx512_vnni"}
+
+
+def can_run() -> bool:
+    """Whether this processor can run what tests/llama/native_check.py builds."""
     try:
-        return "avx512_vnni" in Path("/proc/cpuinfo").read_text()
+        text = Path("/proc/cpuinfo").read_text()
     except OSError:
         return False
+    return any(set(line.split()) >= NATIVE_FLAGS for line in text.splitlines() if line.startswith("flags"))
+
+
+def native(slices: Path, work: Path, *runs: str) -> tuple[bool | None, str]:
+    """Whether the slice pairs differ natively, or None if the check couldn't tell, and what it printed."""
+    r = run([sys.executable, HERE / "native_check.py", slices, work, *runs], check=False)
+    said = (r.stdout + r.stderr).strip()
+    return {0: False, 1: True}.get(r.returncode), said
 
 
 def main() -> int:
@@ -419,18 +434,15 @@ def main() -> int:
             failures.append("theorems")
         manifest["theorems"] = results
 
-        vnni = has_vnni() and not args.no_native
+        vnni = can_run() and not args.no_native
         if vnni:
-            native = run([sys.executable, HERE / "native_check.py", slices, work / "native"], check=False)
-            print(
-                f"{'ok  ' if native.returncode == 0 else 'FAIL'} natively: {native.stdout.strip()}",
-                flush=True,
-            )
-            manifest["native"] = native.stdout.strip()
-            if native.returncode != 0:
+            differ, said = native(slices, work / "native")
+            print(f"{'ok  ' if differ is False else 'FAIL'} natively: {said[-2000:]}", flush=True)
+            manifest["native"] = said
+            if differ is not False:
                 failures.append("native")
         else:
-            why = "--no-native" if args.no_native else "this processor has no AVX-512 VNNI"
+            why = "--no-native" if args.no_native else "this processor has no AVX-512 VNNI with VL and BW"
             print(f"skip native comparison: {why}", flush=True)
 
         if not args.no_mutants:
@@ -459,20 +471,14 @@ def main() -> int:
                 refuted = [n for n, x in r.items() if x.get("refuted")]
                 caught = None
                 if vnni:
-                    caught = (
-                        run(
-                            [
-                                sys.executable,
-                                HERE / "native_check.py",
-                                d / "slices",
-                                d / "native",
-                                "--runs",
-                                "20000",
-                            ],
-                            check=False,
-                        ).returncode
-                        != 0
-                    )
+                    # Only a pair that differs counts. A check that didn't build or crashed says nothing.
+                    caught, said = native(d / "slices", d / "native", "--runs", "20000")
+                    if caught is None:
+                        print(
+                            f"FAIL mutant {mutant}: the native check couldn't tell: {said[-1000:]}",
+                            flush=True,
+                        )
+                        failures.append(f"mutant {mutant} native")
                 # Refuted: Lean proves a rewritten slice differs from clang's on an input, or the native run
                 # finds one, or every theorem stops with an error of its own. One that only runs out of
                 # resources refutes nothing.

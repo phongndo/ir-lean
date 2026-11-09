@@ -3,6 +3,10 @@
 depend on the Lean model. Inputs are random bytes, with some runs where every byte is drawn from the extremes
 (0, 15, 16, 127, 128, 255), which is where saturation and wrapping would show.
 
+It builds for x86-64-v4 with AVX-512 VNNI, which is what the slices need, and not for Zen 5, so it runs on any
+processor with those, as CI's Intel ones are. It exits 0 if no pair differs, 1 if one does, and 2 if it
+couldn't tell, such as when it didn't build or crashed, which isn't a difference.
+
 usage: native_check.py SLICES_DIR WORK_DIR [--runs N]
 """
 
@@ -13,6 +17,10 @@ import sys
 from pathlib import Path
 
 TYPE = re.compile(r"(<(\d+) x i(\d+)>|i(\d+)) (%[\w.]+)")
+# What the slices need: AVX-512 with VL and BW, as x86-64-v4 has, and VNNI.
+LLC = ["-mcpu=x86-64-v4", "-mattr=+avx512vnni"]
+CLANG = ["-march=x86-64-v4", "-mavx512vnni"]
+DIFFER, UNKNOWN = 1, 2
 
 
 def found(m: re.Match[str] | None, what: str) -> re.Match[str]:
@@ -27,7 +35,7 @@ def size(t: str) -> int:
     return int(m.group(1)) * int(m.group(2)) // 8 if m else int(t[1:]) // 8
 
 
-def main() -> int:
+def check() -> int:
     slices, work = Path(sys.argv[1]).resolve(), Path(sys.argv[2]).resolve()
     runs = int(sys.argv[sys.argv.index("--runs") + 1]) if "--runs" in sys.argv else 200000
     work.mkdir(parents=True, exist_ok=True)
@@ -41,7 +49,7 @@ def main() -> int:
                 [
                     "llc",
                     "-O2",
-                    "-mcpu=znver5",
+                    *LLC,
                     "-filetype=obj",
                     str(slices / f"{name}.{kind}.ll"),
                     "-o",
@@ -77,7 +85,7 @@ def main() -> int:
         ll = work / f"check_{name}.ll"
         ll.write_text('target triple = "x86_64-unknown-linux-gnu"\n' + "\n".join(lines) + "\n")
         obj = work / f"check_{name}.o"
-        subprocess.run(["llc", "-O2", "-mcpu=znver5", "-filetype=obj", str(ll), "-o", str(obj)], check=True)
+        subprocess.run(["llc", "-O2", *LLC, "-filetype=obj", str(ll), "-o", str(obj)], check=True)
         objects.append(str(obj))
         checks.append((name, offset))
     driver = work / "driver.c"
@@ -100,8 +108,20 @@ def main() -> int:
         + "  return bad != 0;\n}\n"
     )
     exe = work / "check"
-    subprocess.run(["clang", "-O1", "-march=znver5", str(driver), *objects, "-o", str(exe)], check=True)
-    return subprocess.run([str(exe)], check=False).returncode
+    subprocess.run(["clang", "-O1", *CLANG, str(driver), *objects, "-o", str(exe)], check=True)
+    code = subprocess.run([str(exe)], check=False).returncode
+    if code not in (0, DIFFER):
+        print(f"the check exited with {code}, so it says nothing about the slices")
+        return UNKNOWN
+    return code
+
+
+def main() -> int:
+    try:
+        return check()
+    except (OSError, subprocess.CalledProcessError) as error:
+        print(f"the check didn't run: {error}")
+        return UNKNOWN
 
 
 if __name__ == "__main__":
