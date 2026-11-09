@@ -27,7 +27,6 @@
       "sound": "Peephole.IS.simplifyICmpInst.sound",
       "sites": [
         "IS.simplifyICmpInst.L3881",
-        "IS.simplifyICmpInst.L3887",
         "IS.simplifyICmpInst.L3892",
         "IS.simplifyICmpInst.L3910",
         "IS.simplifyICmpInst.L3913",
@@ -196,6 +195,7 @@
   },
   "unproved": {
     "IS.simplifyICmpInst.L3869": "needs calls: two constants go to ConstantFoldCompareInstOperands, the constant folder, which isn't modelled; the model delegates",
-    "IS.simplifyICmpWithConstant.L3120": "needs fp: it matches bitcast (uitofp X), and Term has no floating point, so the model's step never fires"
+    "IS.simplifyICmpWithConstant.L3120": "needs fp: it matches bitcast (uitofp X), and Term has no floating point, so the model's step never fires",
+    "IS.simplifyICmpInst.L3887": "undef-only: icmp eq/ne X, undef to undef. With no undef the step's operand can only be poison, which L3881 takes first, so only undef reaches it, and every theorem here assumes no operand reaches undef. Its theorem, Peephole.IS.simplifyICmpInst.L3887, is kept and is about poison only"
   }
 }
