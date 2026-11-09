@@ -1,0 +1,262 @@
+{
+  "schema": "ir-lean.peephole.folds/1",
+  "family": "is-icmp-b",
+  "pass": "instsimplify",
+  "modules": [
+    "Peephole.IS.ICmpB",
+    "Peephole.IS.ICmpBOnLHS",
+    "Peephole.IS.ICmpBBinOp",
+    "Peephole.IS.ICmpBMinMax",
+    "Peephole.IS.ICmpBAndOr",
+    "Peephole.IS.ICmpBSelect",
+    "Peephole.Lemmas.ICmpB"
+  ],
+  "entries": [],
+  "folds": {
+    "Peephole.IS.simplifyICmpWithBinOpOnLHS": {
+      "sound": "Peephole.IS.simplifyICmpWithBinOpOnLHS.sound",
+      "sites": [
+        "IS.simplifyICmpWithBinOpOnLHS.L3239",
+        "IS.simplifyICmpWithBinOpOnLHS.L3241",
+        "IS.simplifyICmpWithBinOpOnLHS.L3260",
+        "IS.simplifyICmpWithBinOpOnLHS.L3271",
+        "IS.simplifyICmpWithBinOpOnLHS.L3295",
+        "IS.simplifyICmpWithBinOpOnLHS.L3299",
+        "IS.simplifyICmpWithBinOpOnLHS.L3321",
+        "IS.simplifyICmpWithBinOpOnLHS.L3323",
+        "IS.simplifyICmpWithBinOpOnLHS.L3330"
+      ]
+    },
+    "Peephole.IS.simplifyICmpWithBinOp": {
+      "sound": "Peephole.IS.simplifyICmpWithBinOp.sound",
+      "sites": [
+        "IS.simplifyICmpWithBinOp.L3461",
+        "IS.simplifyICmpWithBinOp.L3463",
+        "IS.simplifyICmpWithBinOp.L3467",
+        "IS.simplifyICmpWithBinOp.L3469",
+        "IS.simplifyICmpWithBinOp.L3492",
+        "IS.simplifyICmpWithBinOp.L3494",
+        "IS.simplifyICmpWithBinOp.L3503",
+        "IS.simplifyICmpWithBinOp.L3505",
+        "IS.simplifyICmpWithBinOp.L3543",
+        "IS.simplifyICmpWithBinOp.L3545",
+        "IS.simplifyICmpWithBinOp.L3548",
+        "IS.simplifyICmpWithBinOp.L3550"
+      ]
+    },
+    "Peephole.IS.extractEquivalentCondition": {
+      "sound": "Peephole.IS.extractEquivalentCondition.sound",
+      "sites": [
+        "IS.extractEquivalentCondition.L2630",
+        "IS.extractEquivalentCondition.L2633"
+      ]
+    },
+    "Peephole.IS.simplifyICmpWithMinMax": {
+      "sound": "Peephole.IS.simplifyICmpWithMinMax.sound",
+      "sites": [
+        "IS.simplifyICmpWithMinMax.L3680",
+        "IS.simplifyICmpWithMinMax.L3683",
+        "IS.simplifyICmpWithMinMax.L3753",
+        "IS.simplifyICmpWithMinMax.L3755",
+        "IS.simplifyICmpWithMinMax.L3773",
+        "IS.simplifyICmpWithMinMax.L3776",
+        "IS.simplifyICmpWithMinMax.L3782",
+        "IS.simplifyICmpWithMinMax.L3785"
+      ]
+    },
+    "Peephole.IS.simplifyICmpWithIntrinsicOnLHS": {
+      "sound": "Peephole.IS.simplifyICmpWithIntrinsicOnLHS.sound",
+      "sites": [
+        "IS.simplifyICmpWithIntrinsicOnLHS.L3826",
+        "IS.simplifyICmpWithIntrinsicOnLHS.L3828",
+        "IS.simplifyICmpWithIntrinsicOnLHS.L3836",
+        "IS.simplifyICmpWithIntrinsicOnLHS.L3838"
+      ]
+    },
+    "Peephole.IS.simplifyAndOrOfICmpsWithConstants": {
+      "sound": "Peephole.IS.simplifyAndOrOfICmpsWithConstants.sound",
+      "sites": [
+        "IS.simplifyAndOrOfICmpsWithConstants.L1638",
+        "IS.simplifyAndOrOfICmpsWithConstants.L1643",
+        "IS.simplifyAndOrOfICmpsWithConstants.L1651",
+        "IS.simplifyAndOrOfICmpsWithConstants.L1653"
+      ]
+    },
+    "Peephole.IS.simplifyAndOfICmpsWithAdd": {
+      "sound": "Peephole.IS.simplifyAndOfICmpsWithAdd.sound",
+      "sites": [
+        "IS.simplifyAndOfICmpsWithAdd.L1682",
+        "IS.simplifyAndOfICmpsWithAdd.L1684",
+        "IS.simplifyAndOfICmpsWithAdd.L1688",
+        "IS.simplifyAndOfICmpsWithAdd.L1690",
+        "IS.simplifyAndOfICmpsWithAdd.L1696",
+        "IS.simplifyAndOfICmpsWithAdd.L1699"
+      ]
+    },
+    "Peephole.IS.simplifyOrOfICmpsWithAdd": {
+      "sound": "Peephole.IS.simplifyOrOfICmpsWithAdd.sound",
+      "sites": [
+        "IS.simplifyOrOfICmpsWithAdd.L1772",
+        "IS.simplifyOrOfICmpsWithAdd.L1774",
+        "IS.simplifyOrOfICmpsWithAdd.L1778",
+        "IS.simplifyOrOfICmpsWithAdd.L1780",
+        "IS.simplifyOrOfICmpsWithAdd.L1786",
+        "IS.simplifyOrOfICmpsWithAdd.L1789"
+      ]
+    },
+    "Peephole.IS.simplifyAndOrOfICmpsWithCtpop": {
+      "sound": "Peephole.IS.simplifyAndOrOfICmpsWithCtpop.sound",
+      "sites": [
+        "IS.simplifyAndOrOfICmpsWithCtpop.L1717",
+        "IS.simplifyAndOrOfICmpsWithCtpop.L1720"
+      ]
+    },
+    "Peephole.IS.simplifyAndOfICmps": {
+      "sound": "Peephole.IS.simplifyAndOfICmps.sound",
+      "sites": []
+    },
+    "Peephole.IS.simplifyOrOfICmps": {
+      "sound": "Peephole.IS.simplifyOrOfICmps.sound",
+      "sites": []
+    },
+    "Peephole.IS.simplifyAndOrOfCmps": {
+      "sound": "Peephole.IS.simplifyAndOrOfCmps.sound",
+      "sites": [
+        "IS.simplifyAndOrOfCmps.L1933"
+      ]
+    },
+    "Peephole.IS.simplifyCmpSelCase": {
+      "sound": "Peephole.IS.simplifyCmpSelCase.sound",
+      "sites": [
+        "IS.simplifyCmpSelCase.L121",
+        "IS.simplifyCmpSelCase.L125"
+      ]
+    },
+    "Peephole.IS.simplifyCmpSelTrueCase": {
+      "sound": "Peephole.IS.simplifyCmpSelTrueCase.sound",
+      "sites": []
+    },
+    "Peephole.IS.simplifyCmpSelFalseCase": {
+      "sound": "Peephole.IS.simplifyCmpSelFalseCase.sound",
+      "sites": []
+    },
+    "Peephole.IS.simplifyCmpSelOfMaxMin": {
+      "sound": "Peephole.IS.simplifyCmpSelOfMaxMin.sound",
+      "sites": [
+        "IS.simplifyCmpSelOfMaxMin.L4763",
+        "IS.simplifyCmpSelOfMaxMin.L4771",
+        "IS.simplifyCmpSelOfMaxMin.L4775",
+        "IS.simplifyCmpSelOfMaxMin.L4783"
+      ]
+    }
+  },
+  "lemmas": [
+    "Peephole.Lemmas.Peephole",
+    "Peephole.Lemmas.add_ule_uaddSat",
+    "Peephole.Lemmas.and_subset",
+    "Peephole.Lemmas.beq_smin",
+    "Peephole.Lemmas.beq_umin",
+    "Peephole.Lemmas.msb_false_of_and_eq_zero",
+    "Peephole.Lemmas.msb_true_of_and_eq",
+    "Peephole.Lemmas.mul_udiv_ule",
+    "Peephole.Lemmas.mul_ushiftRight_ule",
+    "Peephole.Lemmas.not_pow2_three",
+    "Peephole.Lemmas.not_pow2_zero",
+    "Peephole.Lemmas.or_subset",
+    "Peephole.Lemmas.setWidth_or",
+    "Peephole.Lemmas.shiftLeft_pow2",
+    "Peephole.Lemmas.shiftLeft_pow2_ne",
+    "Peephole.Lemmas.shiftLeft_pow2_ule_intMin",
+    "Peephole.Lemmas.shiftLeft_udiv_ule",
+    "Peephole.Lemmas.signExtend_or",
+    "Peephole.Lemmas.sle_add_one_and_sgt",
+    "Peephole.Lemmas.sle_eq_not_slt",
+    "Peephole.Lemmas.sle_eq_ule_of_msb_eq",
+    "Peephole.Lemmas.sle_or_right",
+    "Peephole.Lemmas.sle_smax",
+    "Peephole.Lemmas.sle_smin",
+    "Peephole.Lemmas.slt_add_two_and_sgt",
+    "Peephole.Lemmas.slt_eq_ult_of_msb_eq",
+    "Peephole.Lemmas.slt_of_msb",
+    "Peephole.Lemmas.smax_beq",
+    "Peephole.Lemmas.smax_of_sle",
+    "Peephole.Lemmas.smax_sle",
+    "Peephole.Lemmas.smin_of_sle",
+    "Peephole.Lemmas.smin_sle",
+    "Peephole.Lemmas.smin_sle_smax",
+    "Peephole.Lemmas.sub_ne_of_odd",
+    "Peephole.Lemmas.toInt_cases",
+    "Peephole.Lemmas.toInt_zero_sub_setWidth",
+    "Peephole.Lemmas.toNat_add_cases",
+    "Peephole.Lemmas.toNat_ofNat_small",
+    "Peephole.Lemmas.two_le_of_toInt_pos",
+    "Peephole.Lemmas.udiv_ult",
+    "Peephole.Lemmas.ule_add_one_and_sgt",
+    "Peephole.Lemmas.ule_add_one_and_ugt",
+    "Peephole.Lemmas.ule_eq_not_ult",
+    "Peephole.Lemmas.ule_of_subset",
+    "Peephole.Lemmas.ule_or_right",
+    "Peephole.Lemmas.ule_umax",
+    "Peephole.Lemmas.ule_umin",
+    "Peephole.Lemmas.ult_add_two_and_sgt",
+    "Peephole.Lemmas.ult_add_two_and_ugt",
+    "Peephole.Lemmas.umax_beq",
+    "Peephole.Lemmas.umax_of_ule",
+    "Peephole.Lemmas.umax_ule",
+    "Peephole.Lemmas.umin_of_ule",
+    "Peephole.Lemmas.umin_ule",
+    "Peephole.Lemmas.umin_ule_umax",
+    "Peephole.Lemmas.umod_lt",
+    "Peephole.Lemmas.umod_slt",
+    "Peephole.Lemmas.ushiftRight_ult",
+    "Peephole.Lemmas.usubSat_ule_sub",
+    "Peephole.Lemmas.zero_sub_setWidth_sle",
+    "Peephole.Lemmas.zero_sub_setWidth_slt"
+  ],
+  "rests_on": {
+    "IS.simplifyICmpWithBinOp.L3461": [
+      "Peephole.IS.ICmpB.WellTyped: the zext in 0 - zext X widens, as LLVM's verifier requires; Term doesn't say so"
+    ],
+    "IS.simplifyICmpWithBinOp.L3463": [
+      "Peephole.IS.ICmpB.WellTyped: the zext in 0 - zext X widens, as LLVM's verifier requires; Term doesn't say so"
+    ],
+    "IS.simplifyICmpWithBinOp.L3467": [
+      "Peephole.IS.ICmpB.WellTyped: the zext in 0 - zext X widens, as LLVM's verifier requires; Term doesn't say so"
+    ],
+    "IS.simplifyICmpWithBinOp.L3469": [
+      "Peephole.IS.ICmpB.WellTyped: the zext in 0 - zext X widens, as LLVM's verifier requires; Term doesn't say so"
+    ],
+    "IS.simplifyAndOrOfICmpsWithConstants.L1638": [
+      "Peephole.IS.ICmpB.CRQuery.Sound: LLVM's ConstantRange::makeExactICmpRegion, intersectWith, unionWith, contains, isEmptySet and isFullSet answer soundly; the model takes their answers from a CRQuery"
+    ],
+    "IS.simplifyAndOrOfICmpsWithConstants.L1643": [
+      "Peephole.IS.ICmpB.CRQuery.Sound: LLVM's ConstantRange::makeExactICmpRegion, intersectWith, unionWith, contains, isEmptySet and isFullSet answer soundly; the model takes their answers from a CRQuery"
+    ],
+    "IS.simplifyAndOrOfICmpsWithConstants.L1651": [
+      "Peephole.IS.ICmpB.CRQuery.Sound: LLVM's ConstantRange::makeExactICmpRegion, intersectWith, unionWith, contains, isEmptySet and isFullSet answer soundly; the model takes their answers from a CRQuery"
+    ],
+    "IS.simplifyAndOrOfICmpsWithConstants.L1653": [
+      "Peephole.IS.ICmpB.CRQuery.Sound: LLVM's ConstantRange::makeExactICmpRegion, intersectWith, unionWith, contains, isEmptySet and isFullSet answer soundly; the model takes their answers from a CRQuery"
+    ],
+    "IS.simplifyCmpSelCase.L121": [
+      "Peephole.IS.ICmpB.ICmpSimp.Sound: the recursive simplifyCmpInst (simplifyICmpInst) answers soundly",
+      "the select's condition Cond is TrueOrFalse, the case simplifyCmpSelCase answers for (threadCmpOverSelect's use)"
+    ],
+    "IS.simplifyCmpSelCase.L125": [
+      "the select's condition Cond is TrueOrFalse, the case simplifyCmpSelCase answers for (threadCmpOverSelect's use)"
+    ],
+    "IS.extractEquivalentCondition.L2630": [
+      "the select V isn't poison: Cmp may carry samesign; simplifyICmpWithMinMax discharges this, since V is an operand of the compare it replaces"
+    ],
+    "IS.extractEquivalentCondition.L2633": [
+      "the select V isn't poison: Cmp may carry samesign; simplifyICmpWithMinMax discharges this, since V is an operand of the compare it replaces"
+    ]
+  },
+  "unproved": {
+    "IS.simplifySelectWithICmpCond.L4857": "simplifySelectWithICmpCond isn't modelled yet",
+    "IS.simplifySelectWithICmpCond.L4876": "simplifySelectWithICmpCond isn't modelled yet",
+    "IS.simplifySelectWithICmpCond.L4890": "simplifySelectWithICmpCond isn't modelled yet",
+    "IS.simplifySelectWithICmpCond.L4896": "simplifySelectWithICmpCond isn't modelled yet",
+    "IS.simplifySelectWithICmpCond.L4900": "simplifySelectWithICmpCond isn't modelled yet"
+  }
+}
