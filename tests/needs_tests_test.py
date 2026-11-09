@@ -26,6 +26,7 @@ KNOWN_READERS = {
     "docs/llvm-verification-tasks.md": "tests/llvm_scope.py",
     "docs/llvm-cpp-correspondence.md": "tests/cpp_correspondence.py",
     "docs/verify.md": "tests/verify.py",
+    "docs/chunks.md": "tests/chunks_test.py",
 }
 
 # The scratch repo's first commit.
