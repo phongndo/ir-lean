@@ -51,7 +51,7 @@ standard axioms, and `leanchecker` replays the module and the example.
 - **The layout.** The offsets and IDs in `Layout` are read from the pinned headers.
   [`tests/llvm_heap/layout_probe.cpp`](../tests/llvm_heap/layout_probe.cpp) is built with the numbers Lean prints from
   `IRLean.LLVMHeap` itself, by [`Facts.lean`](../tests/llvm_heap/Facts.lean), so it checks the numbers the proofs use.
-  On objects the pinned `libLLVM` builds, at `i1`, `i8`, `i32` and `i64`, 312 facts hold, and a probe built with the
+  On objects the pinned `libLLVM` builds, at `i1`, `i8`, `i32` and `i64`, 316 facts hold, and a probe built with the
   `ConstantInt`'s word one field off fails. A wrong layout would make a theorem about the view say nothing about real
   heaps, rather than something false.
 - **What each constructor does.** `ConstantIntGet`, `PoisonGet` and `BinOpCreate` state what `ConstantInt::get`,
@@ -60,7 +60,13 @@ standard axioms, and `leanchecker` replays the module and the example.
   each on the pinned `libLLVM`, finitely: the bytes of what it makes, that the same constant comes back for the same
   type and word and another for another, that each operator's `Use`s hold its operands and the first operand's
   `UseList` and the old first `Use`'s `Prev` are written as `Use::addToList` says, and that what the view reads of
-  every value and type already made is unchanged. That's evidence for one build on one target, not proof.
+  every value and type already made is unchanged, across 5,000 more constants too, which grow the context's map of
+  them. That's evidence for one build on one target, not proof.
+- **The context's storage.** `ConstantInt::get` and `PoisonValue::get` may write any byte in `ctx`, the context's own
+  storage, and free an allocation wholly in it, such as a map's old buckets when the map grows. `ctx` is a set of
+  bytes, not allocations, since `LLVMContextImpl` holds both the maps and the common integer types, which the view
+  reads. A theorem using either needs that no byte the view reads is in `ctx`. `BinaryOperator::Create` is stated with
+  no place to insert the operator: inserting it also writes the block's list.
 - **`APInt`'s clean words.** `APInt` keeps the bits above its width 0, and the compiled matchers rely on it: `m_ZeroInt`
   compares the whole word with 0. The pinned release build doesn't keep it when a caller breaks
   `ConstantInt::get`'s precondition, as [#74](https://github.com/phongndo/ir-lean/pull/74) found: `ConstantInt::get(i1,

@@ -137,9 +137,9 @@ def sevenAlloc : Alloc :=
 
 def heap' : Mem := { heap with allocs := fun b => if b = 5 then some sevenAlloc else heap.allocs b, next := 6 }
 
-theorem get_seven : ConstantIntGet graph heap heap' (fun _ => False) (1, 0) 8 7#64 (5, 0) where
-  keeps := ⟨fun b a h => ⟨a, by simp [heap', show b ≠ 5 by rintro rfl; simp [heap] at h, h], rfl, fun _ _ => rfl⟩,
-    rfl, rfl⟩
+theorem get_seven : ConstantIntGet graph heap heap' (fun _ _ => False) (1, 0) 8 7#64 (5, 0) where
+  keeps := ⟨fun b a h _ => ⟨a, by simp [heap', show b ≠ 5 by rintro rfl; simp [heap] at h, h], rfl,
+    fun _ _ => rfl⟩, rfl, rfl⟩
   made := by
     refine ⟨sevenAlloc, ⟨by simp [heap'], by decide, ?_, ?_, ?_, by decide⟩, by decide, by simp [sevenAlloc],
       by simp [sevenAlloc], fun i hi => ?_, fun i hi => ?_, fun i hi => ?_⟩

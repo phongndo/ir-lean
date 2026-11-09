@@ -175,12 +175,20 @@ int main() {
              at<Type *>(P, LAYOUT_VALUE_TYPE) == Ty && PoisonValue::get(Ty) == P);
     Seen.push_back(P);
 
-    // BinaryOperator::Create, for each operator, with operands that already have uses, so each new Use goes
-    // on a list whose first Use it has to write.
+    // Enough new constants that the context's map of them grows, freeing its old buckets: what the view reads
+    // of everything made before stays as it was.
+    S = snap(Seen, Types);
+    for (uint64_t K = 0; K < 5000; ++K)
+      ConstantInt::get(IntegerType::get(Ctx, 64), 1000 + K + 100000 * W);
+    fact(Wd + "5000 more constants, growing the context's map, leave what the view reads alone", same(S));
+
+    // BinaryOperator::Create with no place to insert it, as the specification states it, for each operator,
+    // with operands that already have uses, so each new Use goes on a list whose first Use it has to write.
+    BinaryOperator::Create(Instruction::Add, A, B, "", BB);
     for (const Op &O : Ops) {
       Use *HeadA = A->use_empty() ? nullptr : &*A->use_begin();
       S = snap(Seen, Types);
-      BinaryOperator *I = BinaryOperator::Create(O.Opc, A, B, "", BB);
+      BinaryOperator *I = BinaryOperator::Create(O.Opc, A, B);
       const char *Obj = base(I);
       const void *Use0 = Obj - 2 * LAYOUT_USE_SIZE, *Use1 = Obj - LAYOUT_USE_SIZE;
       fact(Wd + "BinaryOperator::Create(" + O.Name +

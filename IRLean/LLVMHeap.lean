@@ -268,17 +268,19 @@ structure View (M : Mem) (G : Graph) : Prop where
 
 /-! ## Changes that keep the view -/
 
-/-- `M'` is `M` with no allocation gone or resized, every byte `S` names as it was, the same addresses, and the same
-calls running. New allocations can be anything. -/
+/-- `M'` is `M` with every byte `S` names as it was, in an allocation still there at the same size, the same
+addresses, and the same calls running. An allocation `S` names no byte of, such as a map's old buckets, can be freed,
+and new allocations can be anything. -/
 structure Keeps (M M' : Mem) (S : Nat → Nat → Prop) : Prop where
-  allocs : ∀ b a, M.allocs b = some a →
+  allocs : ∀ b a, M.allocs b = some a → (∃ i, i < a.size ∧ S b i) →
     ∃ a', M'.allocs b = some a' ∧ a'.size = a.size ∧ ∀ i, S b i → a'.bytes i = a.bytes i
   base : M'.base = M.base
   calls : M'.calls = M.calls
 
 theorem Placed.keep {M M' : Mem} {S : Nat → Nat → Prop} {b : Nat} {a : Alloc} (P : Placed M b a)
-    (K : Keeps M M' S) : ∃ a', Placed M' b a' ∧ a'.size = a.size ∧ ∀ i, S b i → a'.bytes i = a.bytes i := by
-  obtain ⟨a', h, hs, hb⟩ := K.allocs b a P.alloc
+    (K : Keeps M M' S) (hS : ∃ i, i < a.size ∧ S b i) :
+    ∃ a', Placed M' b a' ∧ a'.size = a.size ∧ ∀ i, S b i → a'.bytes i = a.bytes i := by
+  obtain ⟨a', h, hs, hb⟩ := K.allocs b a P.alloc hS
   refine ⟨a', ⟨h, P.ne, ?_, ?_, ?_, ?_⟩, hs, hb⟩
   · rw [K.base]; exact P.base_pos
   · rw [K.base]; exact P.base_align
@@ -313,7 +315,9 @@ theorem Obj.bytes_keep {a a' : Alloc} {o : Nat} {e : Obj} (h : e.bytes a o)
 theorem Holds.keep {M M' : Mem} {S : Nat → Nat → Prop} {l : Loc} {e : Obj × Loc} (H : Holds M l e)
     (K : Keeps M M' S) (hS : ∀ i, e.1.reads l.2 i → S l.1 i) : Holds M' l e := by
   obtain ⟨a, P, hal, hhi, hid, hty, hby⟩ := H
-  obtain ⟨a', P', hs, hb⟩ := P.keep K
+  have := Obj.hi_ge l.2 e.1
+  obtain ⟨a', P', hs, hb⟩ :=
+    P.keep K ⟨l.2, by llvm_layout; omega, hS _ (by cases e.1 <;> simp [Obj.reads])⟩
   have hb' : ∀ i, e.1.reads l.2 i → a'.bytes i = a.bytes i := fun i hi => hb i (hS i hi)
   refine ⟨a', P', hal, hs ▸ hhi, ?_, fun i hi => ?_, Obj.bytes_keep hby hb'⟩
   · rw [hb' _ (by cases e.1 <;> simp [Obj.reads])]; exact hid
@@ -322,7 +326,7 @@ theorem Holds.keep {M M' : Mem} {S : Nat → Nat → Prop} {l : Loc} {e : Obj ×
 theorem HoldsTy.keep {M M' : Mem} {S : Nat → Nat → Prop} {t : Loc} {ty : Ty} (H : HoldsTy M t ty)
     (K : Keeps M M' S) (hS : ∀ i, Ty.reads t.2 i → S t.1 i) : HoldsTy M' t ty := by
   obtain ⟨a, P, hal, hsz, hby⟩ := H
-  obtain ⟨a', P', hs, hb⟩ := P.keep K
+  obtain ⟨a', P', hs, hb⟩ := P.keep K ⟨t.2 + 8, by llvm_layout; omega, hS _ (by simp [Ty.reads])⟩
   refine ⟨a', P', hal, hs ▸ hsz, ?_⟩
   have hb' : ∀ i, Ty.reads t.2 i → a'.bytes i = a.bytes i := fun i hi => hb i (hS i hi)
   cases ty with
@@ -431,12 +435,13 @@ theorem View.allocated {M : Mem} {G : Graph} (V : View M G) {l : Loc} {lo hi : N
 
 /-- What `ConstantInt::get(Ty, X)` does, for the `IntegerType` at `t` of width `w`: it returns `r`, a `ConstantInt`
 of that type whose word is `X` as given, either the context's own for that word or a new one in an allocation of its
-own. It writes nothing outside `ctx`, the context's storage, such as the map it keeps its constants in, and new
-allocations. It gives the same object for the same type and word. `tests/llvm_heap/layout_probe.cpp` checks each
+own. It writes no byte outside `ctx`, the context's storage, such as the map it keeps its constants in, and new
+allocations, and frees only allocations wholly in `ctx`, such as the map's old buckets when it grows. `ctx` is bytes,
+not allocations: `LLVMContextImpl` holds the map and the common integer types, which the view reads, in one. It gives the same object for the same type and word. `tests/llvm_heap/layout_probe.cpp` checks each
 part on the pinned `libLLVM`. -/
-structure ConstantIntGet (G : Graph) (M M' : Mem) (ctx : Nat → Prop) (t : Loc) (w : Nat) (X : BitVec 64)
+structure ConstantIntGet (G : Graph) (M M' : Mem) (ctx : Nat → Nat → Prop) (t : Loc) (w : Nat) (X : BitVec 64)
     (r : Loc) : Prop where
-  keeps : Keeps M M' fun b _ => ¬ ctx b
+  keeps : Keeps M M' fun b i => ¬ ctx b i
   made : ∃ a, Placed M' r.1 a ∧ r.2 % 8 = 0 ∧ r.2 + Layout.constSize ≤ a.size ∧
     a.bytes (r.2 + Layout.valueID) = .val (BitVec.ofNat 8 Layout.constantIntVal) ∧
     PtrAt a (r.2 + Layout.valueType) (ptrOf t) ∧ IntAt a (r.2 + Layout.constWord) X 8 ∧
@@ -463,8 +468,8 @@ theorem setWidth_64_of_lt {w : Nat} {X : BitVec 64} (hX : X.toNat < 2 ^ w) : (X.
 /-- **`ConstantInt::get` keeps the view, and adds the constant it returns**, given its precondition: the value fits
 in the width, `hX`. That's #74's finding about `APInt`, as a hypothesis: the pinned release build doesn't check it,
 and a word with bits set above the width is no `ConstantInt` the view describes (`dirty_not_constInt`). -/
-theorem View.constantIntGet {M M' : Mem} {G : Graph} {ctx : Nat → Prop} {t r : Loc} {w : Nat} {X : BitVec 64}
-    (V : View M G) (h : ConstantIntGet G M M' ctx t w X r) (hctx : ∀ b i, G.Reads b i → ¬ ctx b)
+theorem View.constantIntGet {M M' : Mem} {G : Graph} {ctx : Nat → Nat → Prop} {t r : Loc} {w : Nat} {X : BitVec 64}
+    (V : View M G) (h : ConstantIntGet G M M' ctx t w X r) (hctx : ∀ b i, G.Reads b i → ¬ ctx b i)
     (ht : G.tys t = some (.int w)) (hw : 0 < w) (hw64 : w ≤ 64) (hX : X.toNat < 2 ^ w) :
     View M' (G.addObj r (.constInt w (X.setWidth w), t)) := by
   have V' := V.keep h.keeps hctx
@@ -490,9 +495,9 @@ theorem View.constantIntGet {M M' : Mem} {G : Graph} {ctx : Nat → Prop} {t r :
       (fun w' v he => by cases he; exact ht) (fun _ _ _ he => by cases he) alone (h.addr hnone)
 
 /-- What `PoisonValue::get(Ty)` does, for the type at `t`: it returns `r`, the context's `PoisonValue` of that type,
-either one it had or a new one in an allocation of its own, writing nothing outside `ctx` and new allocations. -/
-structure PoisonGet (G : Graph) (M M' : Mem) (ctx : Nat → Prop) (t r : Loc) : Prop where
-  keeps : Keeps M M' fun b _ => ¬ ctx b
+either one it had or a new one in an allocation of its own, writing no byte outside `ctx` and new allocations. -/
+structure PoisonGet (G : Graph) (M M' : Mem) (ctx : Nat → Nat → Prop) (t r : Loc) : Prop where
+  keeps : Keeps M M' fun b i => ¬ ctx b i
   made : ∃ a, Placed M' r.1 a ∧ r.2 % 8 = 0 ∧ r.2 + Layout.valueSize ≤ a.size ∧
     a.bytes (r.2 + Layout.valueID) = .val (BitVec.ofNat 8 Layout.poisonValueVal) ∧
     PtrAt a (r.2 + Layout.valueType) (ptrOf t)
@@ -500,8 +505,8 @@ structure PoisonGet (G : Graph) (M M' : Mem) (ctx : Nat → Prop) (t r : Loc) : 
   addr : G.objs r = none → ∀ l e, G.objs l = some e → M'.addr (ptrOf r) ≠ M'.addr (ptrOf l)
 
 /-- **`PoisonValue::get` keeps the view, and adds the poison it returns.** -/
-theorem View.poisonGet {M M' : Mem} {G : Graph} {ctx : Nat → Prop} {t r : Loc} (V : View M G)
-    (h : PoisonGet G M M' ctx t r) (hctx : ∀ b i, G.Reads b i → ¬ ctx b) (ht : G.tys t ≠ none) :
+theorem View.poisonGet {M M' : Mem} {G : Graph} {ctx : Nat → Nat → Prop} {t r : Loc} (V : View M G)
+    (h : PoisonGet G M M' ctx t r) (hctx : ∀ b i, G.Reads b i → ¬ ctx b i) (ht : G.tys t ≠ none) :
     View M' (G.addObj r (.poison, t)) := by
   have V' := V.keep h.keeps hctx
   rcases h.found_or_alone with hr | alone
@@ -522,7 +527,8 @@ theorem View.poisonGet {M M' : Mem} {G : Graph} {ctx : Nat → Prop} {t r : Loc}
     exact V'.add ⟨a, P, hal, by simpa [Obj.hi] using hsz, by simpa [Obj.id] using hid, hty, trivial⟩ ht
       (fun _ _ he => by cases he) (fun _ _ _ he => by cases he) alone (h.addr hnone)
 
-/-- What `BinaryOperator::Create(Op, S1, S2)` does, with `S1` at `x` and `S2` at `y`, both of the type at `t`: it
+/-- What `BinaryOperator::Create(Op, S1, S2)` does, with no place to insert it, with `S1` at `x` and `S2` at `y`, both
+of the type at `t`: it
 makes a new allocation, `r`'s, holding two `Use`s and then the object, whose ID is the operator's, whose type is
 `t`, and whose `Use`s hold `S1` and `S2`. Putting each `Use` on its operand's use list writes the operand's
 `UseList`, and the `Prev` field of the `Use` that was first on it, which are the 8 bytes at each of `prevs`. It

@@ -277,7 +277,7 @@ Each gate depends only on the ones before it, and its check is what passes it. N
 
 **B1 passed on 2026-11-09:** [LLVM's IR in memory](llvm-heap.md). `IRLean/LLVMHeap.lean`'s view of `Value`, `Use`,
 `ConstantInt`, `APInt` and `Type` is proved preserved by `ConstantInt::get`, `PoisonValue::get` and
-`BinaryOperator::Create`, each as a specification of what it does to memory, and 312 facts of the layout probe,
+`BinaryOperator::Create`, each as a specification of what it does to memory, and 316 facts of the layout probe,
 `tests/llvm_heap/layout_probe.cpp`, built with the numbers the proofs use, hold on the pinned `libLLVM`. It carries the
 `APInt` finding of #74 as a hypothesis of `ConstantInt::get`, and a theorem that a dirty word is no `ConstantInt` the
 view describes. That the C++ constructors do what the specifications say is the probe's evidence, not proof: proving
