@@ -23,21 +23,22 @@ library, the build and CI.
 each unit of the pass's C++, a Lean model like [#47's](llvm-cpp-correspondence.md) is proved right for every input,
 and the unit's IR, compiled by the pinned clang from the pinned source and translated by `ir-lean`, is proved to compute
 what the model computes on every heap that holds well-formed IR. The second proof replaces #47's trusted translation, so
-the pair is the only route here that meets the task list's rule as written.
+the pair meets the task list's rule as written. The one other route that could, a C++ semantics written here, needs the
+same proofs and trusts more.
 
 **The fallback, if that stops at a gate below:** keep the models and their all-input proofs, and tie them to the C++
 the way #47 does, with every line quoted at a pinned hash and the model compared with the pinned `opt`. That evidence
 is finite, so under the current rules `code-binding` can then never be complete, and no pass is ever done. Counting
 anything would need the end condition rewritten, as [below](#the-fallback-and-what-it-does-to-done).
 
-**Whether "100%" is reachable.** Under the rule, only the recommended route can reach it, and nothing measured here
-says it does at the pinned scale. The [prototype](#the-prototype) passes the first gate on one 30-line function, with
-three of its callees cut. InstCombine's 15 files, with InstSimplify and the two analysis files they lean on most, are
-404,004 IR instructions, of which the emitter translates 3.1% of functions today, and the inventory's 913 anchor files
-are 851,964 lines before their callees. At the proof costs this repo has measured, InstCombine alone would be several
-times the size of seL4's functional-correctness proof (*inferred*, [below](#what-it-would-cost)). *Inferred:* small
-passes, and the libraries every pass shares, are within the route's reach. Whether InstCombine is, the gates measure,
-and the [stop rules](#when-to-stop) say when to stop trying.
+**Whether "100%" is reachable.** Under the rule, only a route that proves the C++ itself can reach it, and nothing
+measured here says the recommended one does at the pinned scale. The [prototype](#the-prototype) passes the first gate
+on one 30-line function, with three of its callees cut. InstCombine's 15 files, with InstSimplify and the two analysis
+files they lean on most, are 404,004 IR instructions, of which the emitter translates 3.1% of functions today, and the
+inventory's 913 anchor files are 851,964 lines before their callees. At the proof costs this repo has measured,
+InstCombine alone would be several times the size of seL4's functional-correctness proof (*inferred*,
+[below](#what-it-would-cost)). *Inferred:* small passes, and the libraries every pass shares, are within the route's
+reach. Whether InstCombine is, the gates measure, and the [stop rules](#when-to-stop) say when to stop trying.
 
 ## What the rule asks
 
