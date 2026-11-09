@@ -1,0 +1,54 @@
+{
+  "all_equal": true,
+  "comparisons": {
+    "baseline-b": {
+      "bitwise_equal": true,
+      "metadata": {
+        "format": "llama-completion-exact-v1",
+        "endianness": "little",
+        "n_vocab": 151936,
+        "prompt_tokens": 98,
+        "sampled_tokens": 512,
+        "logit_rows": 512,
+        "logits_bytes": 311164928
+      },
+      "sha256": {
+        "logits.f32": "e509ad343b6de30010029c078d04dcf446103c62889db7fd6fb1ff64098296a3",
+        "tokens.i32": "2aa5d7873b03abe451dda5b28645d1d35bbb68d98165f536732589fd78959b8e",
+        "positions.i32": "c914b6331742315fb17a6afd34528e57ebc3518b4a4317726972ce8f3ff23678",
+        "prompt.i32": "9fff6c4b6c44f7c013aeb1429484207fdbed567e45b39d7bd2d42a4b59a18ccc"
+      }
+    },
+    "target": {
+      "bitwise_equal": true,
+      "metadata": {
+        "format": "llama-completion-exact-v1",
+        "endianness": "little",
+        "n_vocab": 151936,
+        "prompt_tokens": 98,
+        "sampled_tokens": 512,
+        "logit_rows": 512,
+        "logits_bytes": 311164928
+      },
+      "sha256": {
+        "logits.f32": "e509ad343b6de30010029c078d04dcf446103c62889db7fd6fb1ff64098296a3",
+        "tokens.i32": "2aa5d7873b03abe451dda5b28645d1d35bbb68d98165f536732589fd78959b8e",
+        "positions.i32": "c914b6331742315fb17a6afd34528e57ebc3518b4a4317726972ce8f3ff23678",
+        "prompt.i32": "9fff6c4b6c44f7c013aeb1429484207fdbed567e45b39d7bd2d42a4b59a18ccc"
+      }
+    }
+  },
+  "model_sha256": "74a4da8c9fdbcd15bd1f6d01d621410d31c6fc00986f5eb687824e7b93d7a9db",
+  "rewrite": {
+    "source_ir_sha256": "0e2e64070958a49362fa6aefa47c1813686f427a93fc3fa924f74c1e373d5a9a",
+    "target_ir_sha256": "0bc5b723a73fbfbcb6568f68511ec768f64859b2632b1e688bd8c40a706a6a75",
+    "helper_sha256": "d182476786f1590486787140e2fd6309949b138750dccfc4d6e6a516295b73ca",
+    "witness_sha256": "57078cfe1316f413328c609fba41291659b702f7ea8b77498c63ab5d138aeb4f",
+    "control_library_sha256": "ff5be7f8a552882e2c99dfef0f989e4ea063a3f08c848f24fc904362b60c1a4b",
+    "target_library_sha256": "989bae96c1a746ce0001934c918b8ace5374f9d6ab794363f9d95389ff9235be",
+    "baseline_library_sha256": "ff5be7f8a552882e2c99dfef0f989e4ea063a3f08c848f24fc904362b60c1a4b",
+    "replaced_objects": [
+      "ggml-cpu/arch/x86/quants.c.o"
+    ]
+  }
+}

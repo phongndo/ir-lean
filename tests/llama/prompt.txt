@@ -1,0 +1,5 @@
+<|im_start|>system
+You are a clear and careful technical writer.<|im_end|>
+<|im_start|>user
+Write a detailed tutorial of about 900 words explaining how a hash table works. Explain hashing, collisions, separate chaining, open addressing, resizing, and the tradeoffs between memory use and lookup speed. Use a small example of storing words and their counts, and finish with advice for choosing a hash table implementation. Keep the explanation accessible to someone who knows arrays and linked lists.<|im_end|>
+<|im_start|>assistant

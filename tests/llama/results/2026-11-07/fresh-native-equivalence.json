@@ -1,0 +1,22 @@
+{
+  "baseline": {
+    "disassembly_and_relocations_equal": true,
+    "allocated_sections_equal_except_build_id": false,
+    "different_sections": [
+      ".dynamic",
+      ".dynstr"
+    ],
+    "old": "/home/dp/.t3/worktrees/ir-lean/t3-9787d39d/build/llama-search/baseline/bin/libggml-cpu.so.0",
+    "fresh": "/home/dp/.t3/worktrees/ir-lean/t3-9787d39d/build/llama-reproduce-fresh/baseline/bin/libggml-cpu.so.0"
+  },
+  "target": {
+    "disassembly_and_relocations_equal": true,
+    "allocated_sections_equal_except_build_id": false,
+    "different_sections": [
+      ".dynamic",
+      ".dynstr"
+    ],
+    "old": "/home/dp/.t3/worktrees/ir-lean/t3-9787d39d/build/llama-search/variants/q5-bitspread/libggml-cpu.so.0",
+    "fresh": "/home/dp/.t3/worktrees/ir-lean/t3-9787d39d/build/llama-reproduce-fresh/variants/rewrite/libggml-cpu.so.0"
+  }
+}
