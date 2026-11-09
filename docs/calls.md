@@ -159,7 +159,7 @@ inductive Exit (α : Type) where
   | done (v : α) (t : Trace)   -- returned `v`
   | halted (t : Trace)         -- the call at the head of `t` never came back
   | unwound (t : Trace)        -- the call at the head of `t` unwound, and so did this function
-  | cut (t : Trace)            -- the run was watched for `t`'s calls, and made another
+  | cut (t : Trace)            -- the run was about to make the call at the head of `t`, past those it was watched for
 
 /-- What a function that calls outside the module does: for each way its run chooses, and each number of calls with
 effects to watch it for, how it ends. -/
@@ -197,7 +197,7 @@ How an answer becomes the call's outcome, given what the declaration and the cal
 | `unwinds` | Undefined under `nounwind`. Otherwise ends the run, `unwound`, with the trace ending in this call | The same, with the call added to the trace for the observation |
 
 Before a call with effects answers, the run checks how many calls it's watched for: one that would make the trace
-longer than that ends the run `cut`, with the trace so far. A run that ends `halted`, `unwound` or `cut` passes it up
+longer than that ends the run `cut`, with the trace so far and that call at its head, before it answers. A run that ends `halted`, `unwound` or `cut` passes it up
 through the module's own callers, the way `Mem` threads memory. Unwinding through a function or a call marked
 `nounwind` is undefined.
 
@@ -223,15 +223,24 @@ answers already say every call before it came back.
 
 **Why a run is watched for every number of calls.** A run that never finishes gives `none`, which says nothing of the
 calls it made. A target that calls `@use` before a loop that never ends, and a source that doesn't, both give `none`.
-Watched for no calls, the target ends `cut` with no calls, and the source still runs forever, so they differ. In
-general, watching for `n` calls shows the first `n` calls of the run, so every prefix of a run's trace, finite or not,
-is something the relation compares.
+Watched for no calls, the target ends `cut` at its call, and the source still runs forever, so they differ. In
+general, watching for `n` calls shows the first `n + 1` calls of the run, the last only by what it was, so every
+prefix of a run's trace, finite or not, is something the relation compares.
+
+**Why the cut shows the call it stops at.** Without it, the call after the `n` watched for would be seen only by
+what it answers, and a run that then spins silently shows nothing. A source that picks between `use(1); spin` and
+`use(2); return`, for a target that does `use(2); spin`, would agree at every `n` with one source run per world: cut
+off with no calls at `n = 0`, and past it, `use(1); spin` where `use(2)` returns, giving `none` like the target. No
+source run does what the target does when both calls return. Cut off with the call at its head, at `n = 0` the source
+shows `use(1)` and the target `use(2)`.
 
 **Why the watching comes after the source's choice.** The source has to pick one run that agrees with the target's at
-every `n`. A source that could pick per `n`, or per world, could match each prefix with a different run: one that
-spins silently where the target's `use(); spin` is watched past its call, and one that makes the call and returns where
-it's watched up to it. No single run of that source does what the target does, so that would certify a wrong rewrite.
-The world is an input, before the target's choice, and the cut is quantified last.
+every `n`. A source that could pick per `n` could match each prefix with a different run: one that spins silently where
+the target's `use(); spin` is watched past its call, and one that makes the call and returns where it's watched up to
+it. No single run of that source does what the target does, so that would certify a wrong rewrite. The world is an
+input, before the target's choice, and the cut is quantified last. The source's choice may depend on the world, as
+refinement between sets of runs allows: what matters is that some run of the source, with these answers, does what
+the target's does.
 
 **The price.** A source that reaches undefined behavior after a call with effects is defined when watched for fewer
 calls, so the call can't be dropped before the undefined behavior even under `willreturn nounwind`, which LLVM's
