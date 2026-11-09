@@ -21,7 +21,8 @@ on a Zen 5 machine, and then:
    one input, which needs no particular processor. Where that checks, the theorem that they're the same is
    false, so it isn't tried. Where it doesn't, the theorem is tried, and mustn't check. Each change has to be
    refuted: by Lean, by the native run, or by every theorem tried stopping with an error of its own. A theorem
-   that only runs out of time or memory is unknown, not refuted.
+   that only runs out of time or memory is unknown, not refuted, and so is one whose slices don't compile or
+   that checks and fails its audit.
 
 docs/llama.md has what this shows and what it assumes, and tests/llama_bench.py measures the speed.
 
@@ -263,7 +264,8 @@ def prove(tool: Path, slices: Path, work: Path, refute: str | None = None) -> di
             )
             r = lean("-o", work / f"{ns}.olean", work / f"{ns}.lean")
             if r.returncode != 0:
-                return name, {"failure": f"{ns}: {r.stdout[-2000:]}", "unknown": only_limits(r.stdout)}
+                # A slice that doesn't compile is a failure of the test, not of the theorem.
+                return name, {"failure": f"{ns}: {r.stdout[-2000:]}", "unknown": True}
         src = (work / f"{S}.lean").read_text()
         sig = found(
             re.search(rf"noncomputable def {name}_src (.*?) : Outcome .* :=\n", src), "signature"
@@ -284,7 +286,8 @@ def prove(tool: Path, slices: Path, work: Path, refute: str | None = None) -> di
             return name, {"failure": failure, "unknown": only_limits(r.stdout)}
         axioms, why = audit(theorem, name, f"{name}_same")
         if axioms is None:
-            return name, {"failure": why, "unknown": False}
+            # The theorem checked. Whatever stops its audit, the rewrite isn't refuted by it.
+            return name, {"failure": why, "unknown": True}
         statement = lean(
             "--stdin", stdin=f"import {theorem}\nset_option pp.fullNames true\n#check @{name}_same\n"
         )
@@ -348,7 +351,7 @@ def native(slices: Path, work: Path, *runs: str) -> tuple[bool | None, str]:
     """Whether the slice pairs differ natively, or None if the check couldn't tell, and what it printed."""
     r = run([sys.executable, HERE / "native_check.py", slices, work, *runs], check=False)
     said = (r.stdout + r.stderr).strip()
-    return {0: False, 1: True}.get(r.returncode), said
+    return {0: False, 3: True}.get(r.returncode), said
 
 
 def main() -> int:
@@ -493,7 +496,7 @@ def main() -> int:
                     f"{'ok  ' if ok else 'FAIL'} mutant {mutant}: Lean proves {len(refuted)}/{len(r)} "
                     f"rewritten slices differ from clang's on an input, so their theorems are false. Of the "
                     f"other {len(r) - len(refuted)}, {len(stopped)} stop with an error of their own, "
-                    f"{len(unknown)} are unknown after running out of resources, {len(proved)} still check"
+                    f"{len(unknown)} are unknown, {len(proved)} still check"
                     + (
                         ""
                         if caught is None

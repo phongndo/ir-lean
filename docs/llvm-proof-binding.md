@@ -257,8 +257,8 @@ Who can check a bundle, and how independent that is from whoever made it.
 
 ## What isn't bound yet
 
-The gap between a `bound` verdict and the [goal](roadmap.md) is the rest of the work. Each of these counts as
-unfinished.
+The gap between a `bound` verdict and the [goal of proving every optimization](llvm-verification-tasks.md), now
+parked, is the rest of that work. Each of these counts as unfinished.
 
 **Implementation correspondence.** No theorem here relates LLVM's C++ for any pass to the rewrites it makes. A `bound`
 verdict says one run of a binary gave output equal to its input, in the model. To tie a proof to the implementation,

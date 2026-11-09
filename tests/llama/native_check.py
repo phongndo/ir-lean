@@ -4,8 +4,9 @@ depend on the Lean model. Inputs are random bytes, with some runs where every by
 (0, 15, 16, 127, 128, 255), which is where saturation and wrapping would show.
 
 It builds for x86-64-v4 with AVX-512 VNNI, which is what the slices need, and not for Zen 5, so it runs on any
-processor with those, as CI's Intel ones are. It exits 0 if no pair differs, 1 if one does, and 2 if it
-couldn't tell, such as when it didn't build or crashed, which isn't a difference.
+processor with those, as CI's Intel ones are. It exits 0 if no pair differs, and 3 if one does and it printed
+which. Anything else, such as when it didn't build, or it or this script crashed, says nothing about the
+slices. Python exits 1 on its own when it fails, so a difference can't be 1.
 
 usage: native_check.py SLICES_DIR WORK_DIR [--runs N]
 """
@@ -20,7 +21,7 @@ TYPE = re.compile(r"(<(\d+) x i(\d+)>|i(\d+)) (%[\w.]+)")
 # What the slices need: AVX-512 with VL and BW, as x86-64-v4 has, and VNNI.
 LLC = ["-mcpu=x86-64-v4", "-mattr=+avx512vnni"]
 CLANG = ["-march=x86-64-v4", "-mavx512vnni"]
-DIFFER, UNKNOWN = 1, 2
+DIFFER, UNKNOWN = 3, 2
 
 
 def found(m: re.Match[str] | None, what: str) -> re.Match[str]:
@@ -109,11 +110,15 @@ def check() -> int:
     )
     exe = work / "check"
     subprocess.run(["clang", "-O1", *CLANG, str(driver), *objects, "-o", str(exe)], check=True)
-    code = subprocess.run([str(exe)], check=False).returncode
-    if code not in (0, DIFFER):
-        print(f"the check exited with {code}, so it says nothing about the slices")
-        return UNKNOWN
-    return code
+    r = subprocess.run([str(exe)], capture_output=True, text=True, check=False)
+    print(r.stdout, end="")
+    mismatch = "MISMATCH " in r.stdout
+    if (r.returncode, mismatch) == (0, False):
+        return 0
+    if (r.returncode, mismatch) == (1, True):
+        return DIFFER
+    print(f"the check exited with {r.returncode}, so it says nothing about the slices")
+    return UNKNOWN
 
 
 def main() -> int:

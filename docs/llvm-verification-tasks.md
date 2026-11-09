@@ -1,17 +1,43 @@
 # Proving every optimization in LLVM: tasks
 
-The end condition: every optimization in a pinned LLVM revision, across all optimization levels and supported targets,
-has machine-checked correctness proofs tied to its actual implementation, covering all permitted inputs and composition
-through optimization pipelines. Assumptions are explicit and justified. Timeouts, unsupported cases, admitted proofs and
-proof-to-code gaps count as unfinished.
+**Parked on 2026-11-08.** Proving every optimization in a pinned LLVM is no longer an end goal. The
+[roadmap](roadmap.md) says what is, proved superoptimization with proof tests as a second product, and
+[why it changed](roadmap.md#the-goal-changed-on-2026-11-08). This page stays as a reference: the inventory of the
+pinned LLVM's passes, the rules for what counts as done, and the tasks, with their statuses kept true and checked by
+`tests/llvm_scope.py`. Some tasks are tools the roadmap uses, and [what the roadmap keeps](#what-the-roadmap-keeps)
+lists them. The rest wait with the program, which comes back as a goal only by a change the roadmap writes down with
+its reason.
+
+The end condition, as it was set: every optimization in a pinned LLVM revision, across all optimization levels and
+supported targets, has machine-checked correctness proofs tied to its actual implementation, covering all permitted
+inputs and composition through optimization pipelines. Assumptions are explicit and justified. Timeouts, unsupported
+cases, admitted proofs and proof-to-code gaps count as unfinished.
 
 **None of it is done.** The inventory lists all 1162 names the pinned source registers a pass or codegen implementation under. That's registration
 coverage: it says what exists, not what's proved, and it isn't the number of semantically distinct optimizations,
 since some names share code, some code has several names, and each pass holds many rewrites. Proof coverage is 0:
-no name is verified done, and none is even claimed complete. This page is the plan: what the denominator is, how a
-pass gets counted, and the tasks between here and there, with what each depends on and owns. It sits beside the [roadmap](roadmap.md), whose
-Phase 4 is where certified optimization starts, and doesn't replace its order. For what any theorem means, see
-[trust](trust.md).
+no name is verified done, and none is even claimed complete. This page is the plan the program had: what the
+denominator is, how a pass gets counted, and the tasks between here and there, with what each depends on and owns. For
+what any theorem means, see [trust](trust.md).
+
+## What the roadmap keeps
+
+These tasks are tools for the roadmap's goal, or its fidelity work, and go on under it. Everything else here waits with
+the program, including binding proofs to LLVM's C++, BIND-02 to BIND-05, which the roadmap parks by name.
+
+| Task | Status | In the roadmap |
+| --- | --- | --- |
+| INV-01 to INV-03, NEG-01 | Complete | The inventory and its checks, kept as a reference and run in CI |
+| SEM-01 | Complete | `IRLean.Refines`, the statement every certificate proves, in [Phase 4](roadmap.md#phase-4-certified-translation-validation-and-superoptimization) |
+| SEM-07 | Not started | Milestone F2, in wave 2. The safety bridge waits on it |
+| SEM-02, SEM-03 | Not started | Milestone F3, after the `undef` decision, which is on the critical path |
+| SEM-06 | Not started | Milestone F4. Superoptimizer v2's memory candidates and the safety bridge need it |
+| SEM-04, SEM-08, SEM-10 | Not started | [Phase 0](roadmap.md#phase-0-semantic-fidelity-and-trust-infrastructure)'s fidelity work |
+| AUTO-01 | In progress | A tactic the engine can try for `Refines` |
+| AUTO-02 | Not started | The [lemma store](roadmap.md#phase-6-the-engine-and-the-lemma-store) |
+| AUTO-03 | In progress | Rewrites at every width, the lemma store's seed |
+| NEG-02, NEG-06 | Not started | The gates that keep wrong and unknown results from counting |
+| NEG-03, NEG-05, NEG-07 | Not started | Phase 0: mutation, which is the roadmap's slice 12, determinism, and the hermetic pin |
 
 ## How it's measured
 
@@ -87,16 +113,16 @@ inventory, so this section can't drift from it.
 
 Each lane owns its files. Two tasks being worked on at once can't own the same file, and `check` refuses that.
 
-| Lane | Covers | Files it owns | Can start now |
+| Lane | Covers | Files it owns | Now |
 | --- | --- | --- | --- |
-| INV | Inventory and plan | `tests/llvm_scope*`, `docs/llvm-verification-tasks.md` | INV-01 to INV-03 are in review. INV-04 to INV-06 and INV-09 once INV-01 lands |
-| SEM | Semantics contracts: poison, `undef`, `freeze`, integers, floating point, memory, UB | `IRLean/*.lean` apart from the refinement tactic, `docs/trust.md`, `tests/opcheck.py`, `tests/gepcheck.py` | SEM-01 is in review: [refinement](refinement.md). SEM-04 has no prerequisites |
-| BIND | Binding proofs to LLVM's C++, and an independent verifier | `tools/`, new binding checks, `src/Emitter.*` for C++ support | BIND-01 has no prerequisites. BIND-02 once INV-01 lands |
-| NEG | Negative tests, CI and honest reporting | `CMakeLists.txt`, `.github/`, `tests/lint.sh`, mutation scripts | NEG-03 has no prerequisites. NEG-01 once INV-01 and INV-02 land |
-| AUTO | Proof automation and lemma reuse | `IRLean/RefineTactic.lean`, lemma stores | AUTO-01 is drafted in another tree. AUTO-03 is in progress: [rewrites at every width](generic-rewrites.md). The rest wait on SEM-01 |
-| PASS | Analyses, scalar passes, composition | Per-pass proof directories | PASS-02 is drafted in another tree. The rest wait on SEM and BIND |
-| LOOP | Loops, vectorization, IPO and LTO | Per-pass proof directories | Waits on PASS-01 and SEM |
-| CG | Codegen, legalization, machine passes, per target | Per-target proof directories | Waits on CG-01 |
+| INV | Inventory and plan | `tests/llvm_scope*`, `docs/llvm-verification-tasks.md` | INV-01 to INV-03 are complete ([#43](https://github.com/phongndo/ir-lean/pull/43)). The rest wait with the program |
+| SEM | Semantics contracts: poison, `undef`, `freeze`, integers, floating point, memory, UB | `IRLean/*.lean` apart from the refinement tactic, `docs/trust.md`, `tests/opcheck.py`, `tests/gepcheck.py` | SEM-01 is complete ([#46](https://github.com/phongndo/ir-lean/pull/46)): [refinement](refinement.md). SEM-07 is in the roadmap's wave 2, and SEM-02, SEM-03 and SEM-06 follow the `undef` decision. SEM-04 has no prerequisites |
+| BIND | Binding proofs to LLVM's C++, and an independent verifier | `tools/`, new binding checks, `src/Emitter.*` for C++ support | Waits with the program. Certificate binding, from [#45](https://github.com/phongndo/ir-lean/pull/45), stays as a tool |
+| NEG | Negative tests, CI and honest reporting | `CMakeLists.txt`, `.github/`, `tests/lint.sh`, mutation scripts | NEG-01 is complete (#43). NEG-03 has no prerequisites |
+| AUTO | Proof automation and lemma reuse | `IRLean/RefineTactic.lean`, lemma stores | AUTO-01 is drafted in another tree. AUTO-03 is in progress: [rewrites at every width](generic-rewrites.md). AUTO-02 is the roadmap's lemma store |
+| PASS | Analyses, scalar passes, composition | Per-pass proof directories | PASS-02 is in progress: [`tests/passes.py`](passes.md). The rest wait with the program |
+| LOOP | Loops, vectorization, IPO and LTO | Per-pass proof directories | Waits with the program, and on PASS-01 and SEM |
+| CG | Codegen, legalization, machine passes, per target | Per-target proof directories | Waits with the program, and on CG-01 |
 
 The refinement scorer on `research/prove-llvm-optimizations` was drafted with its relation and tactic. The relation,
 `IRLean/Refine.lean`, is SEM-01, and is on `main` with [its own page](refinement.md). The scorer is rebuilt on `main`
@@ -152,8 +178,8 @@ when they land.
 - **Owns:** `tests/llvm_scope.py`, `tests/llvm_scope/inventory.json`, `tests/llvm_scope/probe-minimal.ll`, `tests/llvm_scope/probe-loop.ll`
 - **Acceptance:** `nix develop -c tests/llvm_scope.py check` derives a byte-identical inventory. It fails if a name `opt -print-passes` lists, or an implementation `llc --help-list-hidden` lists for an option, is missing, or if the source or tools aren't 23.1.3.
 - **Trust gaps:** Code anchors are entry files only. Pipeline membership comes from two small probes. The commit is recorded by hand, since the source tarball has no git metadata.
-- **Status:** in review
-- **Evidence:** Generated twice on z with identical bytes, and checked. Not merged.
+- **Status:** complete
+- **Evidence:** Merged in #43, as `9279459`. `tests/llvm_scope.py` generated `tests/llvm_scope/inventory.json` twice on z with identical bytes, and CI derives it again as `llvm_scope_check`.
 
 ### INV-02: Coverage manifest and its rules
 
@@ -163,8 +189,8 @@ when they land.
 - **Owns:** `tests/llvm_scope/coverage.json`, `tests/llvm_scope/coverage.schema.json`, `tests/llvm_scope_test.py`
 - **Acceptance:** `tests/llvm_scope_test.py` passes, including a positive control and a refusal for each rule.
 - **Trust gaps:** Evidence is checked by hash and kind, not by replaying it. Replaying it is BIND-03's.
-- **Status:** in review
-- **Evidence:** 32 tests pass on z, including a status and hashes left unverified without a verifier. Not merged.
+- **Status:** complete
+- **Evidence:** Merged in #43, as `9279459`. `tests/llvm_scope_test.py` runs in CI as `llvm_scope`, including a status and hashes left unverified without a verifier.
 
 ### INV-03: This task list, checked
 
@@ -174,8 +200,8 @@ when they land.
 - **Owns:** `docs/llvm-verification-tasks.md`
 - **Acceptance:** `check` finds no loops, no unknown dependencies, no missing fields, no file owned twice by active tasks, no completed task without evidence, and no started one with open prerequisites and no waiver.
 - **Trust gaps:** A person still has to read whether a task's acceptance check is the right one.
-- **Status:** in review
-- **Evidence:** `check --offline` passes on z. Not merged.
+- **Status:** complete
+- **Evidence:** Merged in #43, as `9279459`. `tests/llvm_scope.py` parses this page on every `check`, in CI as `llvm_scope_check`, and `tests/llvm_scope_test.py` checks it too.
 
 ### INV-04: Rewrite-level inventory
 
@@ -251,8 +277,8 @@ when they land.
 - **Owns:** `IRLean/Refine.lean`, `IRLean.lean`, `lakefile.toml`, `tests/check_axioms.lean`
 - **Acceptance:** The statement is reviewed by someone other than its author. Known-wrong rewrites (wrong constant, added `nuw`, `freeze` making a value of poison, added UB, swapped lanes, a loop that never ends) fail to certify, and a right one certifies.
 - **Trust gaps:** Memory and pointers have no instance yet, and the model's extra UB on the source side can hide a wrong target there.
-- **Status:** in review
-- **Evidence:** `IRLean/Refine.lean`, checked by `tests/refine.sh`: `tests/refine/RefineCases.lean` proves each known-wrong rewrite above isn't a refinement and right ones are, and `tests/binding.py` binds one real `instcombine` run as `ir_instance_refinement`. Review by someone other than its author is open. See [refinement](refinement.md).
+- **Status:** complete
+- **Evidence:** `IRLean/Refine.lean`, checked by `tests/refine.sh`: `tests/refine/RefineCases.lean` proves each known-wrong rewrite above isn't a refinement and right ones are, and `tests/binding.py` binds one real `instcombine` run as `ir_instance_refinement`. Merged in [#46](https://github.com/phongndo/ir-lean/pull/46), as `f62d1e6`, after an independent review approved it. See [refinement](refinement.md).
 
 ### SEM-02: Undef
 
@@ -452,7 +478,7 @@ when they land.
 - **Trust gaps:** None.
 - **Status:** in progress
 - **Gate waiver:** Proofs written by hand need neither AUTO-01's tactic nor SEM-04's table. Each is about the operations `IRLean/Int.lean` models today, and is re-checked when SEM-04 changes them.
-- **Evidence:** 33 InstSimplify and InstCombine rewrites, chosen by hand rather than from INV-04, proved for every width in `IRLean/Generic/Arith.lean` and `IRLean/Generic/Bitwise.lean` and checked by `tests/generic_rewrites.sh`. See [rewrites at every width](generic-rewrites.md).
+- **Evidence:** Started in [#48](https://github.com/phongndo/ir-lean/pull/48), merged as `0330cd7`: 33 InstSimplify and InstCombine rewrites, chosen by hand rather than from INV-04, proved for every width in `IRLean/Generic/Arith.lean` and `IRLean/Generic/Bitwise.lean` and checked by `tests/generic_rewrites.sh`. See [rewrites at every width](generic-rewrites.md).
 
 ### PASS-01: Analyses are sound
 
@@ -475,7 +501,7 @@ when they land.
 - **Trust gaps:** One pass at a time, outside its pipeline, on inputs chosen by LLVM's authors.
 - **Status:** in progress
 - **Gate waiver:** Drafted before SEM-01 was frozen. Its results are re-run when it is.
-- **Evidence:** [`tests/passes.py`](passes.md) counts an instance only when `tools/binding.py` binds its bundle in the same run, checked by `tests/passes_test.py` on three small tests. It proves equivalence, not refinement, though `IRLean.Refines` is on `main`, hasn't been run on the corpus, and writes no `translation-validation` claims yet. The research draft stays uncommitted on `research/prove-llvm-optimizations`.
+- **Evidence:** [`tests/passes.py`](passes.md), merged in [#51](https://github.com/phongndo/ir-lean/pull/51) as `fbb0165`, counts an instance only when `tools/binding.py` binds its bundle in the same run, checked by `tests/passes_test.py` on three small tests. It proves equivalence, not refinement, though `IRLean.Refines` is on `main`, hasn't been run on the corpus, and writes no `translation-validation` claims yet. The research draft stays uncommitted on `research/prove-llvm-optimizations`.
 
 ### PASS-03: Peephole rewrites for all inputs
 
@@ -617,9 +643,9 @@ when they land.
 - **Owns:** `CMakeLists.txt`, `docs/testing.md`, `tests/lint.sh`
 - **Acceptance:** CI fails on a changed inventory, a bad claim or a bad task.
 - **Trust gaps:** None.
-- **Status:** in review
+- **Status:** complete
 - **Gate waiver:** Lands in the same pull request as INV-01 and INV-02, so CI runs their checks from the start.
-- **Evidence:** Both pass through `ctest` on z. Not merged.
+- **Evidence:** Merged in #43, as `9279459`. `CMakeLists.txt` registers `llvm_scope` and `llvm_scope_check`, `docs/testing.md` lists them, and `tests/lint.sh` lints the probe modules.
 
 ### NEG-02: Known miscompilations
 
