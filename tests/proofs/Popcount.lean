@@ -61,6 +61,6 @@ theorem popcount_correct (x : BitVec 32) :
   · simp [popcount.step, llvm, h]
     have := popcount_loop x.toNat x 0#32 rfl
     simp [llvm] at this
-    simpa using this
+    simp [this]
 
 #print axioms popcount_correct

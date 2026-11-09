@@ -19,7 +19,7 @@ llvm-project, `tests/passes.py`:
 2. Finds the instances: the functions whose text changed, attribute groups included, and every function calling one.
 3. Rules out, as `unsupported`, what the model or a bundle can't judge, by the same tests `tools/binding.py` applies:
    a function the pass added or removed, one ir-lean leaves out, one using memory or pointers, an argument that isn't
-   `noundef` in the source, a target with `mustprogress` or `willreturn`, and a name a manifest can't hold.
+   `noundef` in the source, and a name a manifest can't hold.
 4. Writes a certificate for each of the rest, stating the claim `tools/binding_check.lean` builds for the claim kind,
    with a proof its own automation found: every argument split into poison and a value, both sides run a block at
    a time, each branch split, and each path closed with `bv_decide`. The automation is in the certificate, untrusted,
@@ -183,7 +183,9 @@ nix develop -c bash -c 'T=$LLVM_PROJECT_SRC/llvm/test/Transforms; tests/passes.p
 | `unsupported` | 9: 5 use memory, 2 have an argument that isn't `noundef`, and 2 have a target with `mustprogress` or `willreturn` somewhere in it |
 | `refused`, `failed`, `unknown`, `error` | 0 |
 
-It took 228 s, the self-check included, and the scorer's scope peaked at 2.9 GB of its 8 GB cap. Nothing else has
+It took 228 s, the self-check included, and the scorer's scope peaked at 2.9 GB of its 8 GB cap. That was before
+SEM-07: since 2026-11-08 a target with `mustprogress` or `willreturn` isn't ruled out, since the model checks both, and
+the 2 instances it ruled out haven't been scored since. Nothing else has
 been run with this version: not the 12,662 single-pass runs in the pinned tests.
 
 ## Assumptions
@@ -200,7 +202,7 @@ Everything [binding](llvm-proof-binding.md#what-a-bound-verdict-rests-on) rests 
 - Every claim kind but `ir_instance_equivalence`. Equivalence fails on rewrites that only refine, such as removing
   undefined behavior or poison, so those come back `failed`, not wrong.
 - Functions with memory or pointers, vectors (ir-lean refuses `noundef` on a vector argument), arguments that aren't
-  `noundef`, functions a pass adds or removes, and target IR with `mustprogress` or `willreturn`.
+  `noundef`, and functions a pass adds or removes.
 - Loops and recursion: the automation runs the blocks without an invariant, so a loop runs it out of heartbeats
   or recursion depth, which is `unknown`.
 - Any `opt` option but `-passes=` and `-mtriple`, pipelines, codegen, and `llc`.

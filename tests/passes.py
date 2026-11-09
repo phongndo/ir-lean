@@ -13,8 +13,8 @@ checks it with `tools/binding.py verify`. An instance counts only if that verdic
   bound        tools/binding.py verify said `bound` in this run, with exit code 0
   refused      it said `refused`: the evidence doesn't bind. Never a counterexample
   unsupported  the model or the bundle format can't state the claim: the function is left out, uses memory,
-               can take `undef`, the target IR makes a promise IRLean trusts, the pass added or removed the
-               function, or the RUN line has an option a bundle can't represent
+               can take `undef`, the pass added or removed the function, or the RUN line has an option a
+               bundle can't represent
   failed       the automation found no proof. Never a counterexample: nothing here finds one
   unknown      a time or memory limit stopped a step. More may help
   error        a tool failed, or a bug here
@@ -821,7 +821,6 @@ class Scorer:
         if not changed:
             return out
         (rs, stop_s), (rt, stop_t) = self.report(src, d, "Src"), self.report(tgt, d, "Tgt")
-        trusted = B.TRUSTED_PROMISES.search(tgt) is not None
         pending: dict[str, str] = {}
         for n in changed:
             if n in added_removed:
@@ -835,10 +834,6 @@ class Scorer:
                 out[n] = result("unsupported", "function_unsupported", f"ir-lean leaves it out: {why}")
             elif rs[n][-1] != "pure" or rt[n][-1] != "pure":
                 out[n] = result("unsupported", "memory_unsupported", "it uses memory or pointers")
-            elif trusted:
-                out[n] = result(
-                    "unsupported", "trusted_promise", "the target IR has mustprogress or willreturn"
-                )
             elif noundef_arguments(src, n):
                 out[n] = result("unsupported", "undef_argument", f"{noundef_arguments(src, n)}")
             elif rs[n][2] != rt[n][2]:

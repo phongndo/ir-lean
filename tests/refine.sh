@@ -22,19 +22,19 @@ fail() {
 # Resource limits say a proof might check with more, so they never count as a failure of its own.
 limit='maximum number of heartbeats|\(deterministic\) timeout|maximum recursion depth|deep recursion|stack overflow|'
 limit+='excessive memory|out of memory|maximum number of steps'
-model=(Attr Basic Int Mem Vec Refine)
+model=(Attr Basic Promise Int Mem Vec Lemmas Refine)
 
-# Copies the modules the cases import into DIR, with Int.lean from INT, and compiles them there. Lean finds every
+# Copies the modules the cases import into DIR, with MODULE.lean from FILE, and compiles them there. Lean finds every
 # IRLean module in the first directory on its path that has one, so DIR has its own.
-# usage: build_model DIR INT [LEAN_OPTION...]
+# usage: build_model DIR MODULE FILE [LEAN_OPTION...]
 build_model() {
-  local dir=$1 int=$2 module out
-  shift 2
+  local dir=$1 replaced=$2 file=$3 module out
+  shift 3
   mkdir -p "$dir/IRLean"
   for module in "${model[@]}"; do
     cp "IRLean/$module.lean" "$dir/IRLean/"
   done
-  cp "$int" "$dir/IRLean/Int.lean"
+  cp "$file" "$dir/IRLean/$replaced.lean"
   for module in "${model[@]}"; do
     if ! out=$(LEAN_PATH="$dir" lean "$@" -R "$dir" -o "$dir/IRLean/$module.olean" "$dir/IRLean/$module.lean" 2>&1); then
       printf '%s\n' "$out"
@@ -44,7 +44,7 @@ build_model() {
 }
 
 # The contract and the modules it's used with, with warnings as errors.
-if out=$(build_model "$work" IRLean/Int.lean -DwarningAsError=true 2>&1); then
+if out=$(build_model "$work" Int IRLean/Int.lean -DwarningAsError=true 2>&1); then
   printf 'ok    IRLean.Refine builds\n'
 else
   fail 'IRLean.Refine builds' "$out"
@@ -61,8 +61,8 @@ else
   fail 'tests/refine' "$out"
 fi
 
-# Both rest on the standard axioms only, read as data by the checker tests/proofs.sh uses, and replay in the kernel.
-for module in IRLean.Refine RefineCases; do
+# Each rests on the standard axioms only, read as data by the checker tests/proofs.sh uses, and replays in the kernel.
+for module in IRLean.Refine IRLean.Promise RefineCases; do
   if out=$(IRLEAN_CHECK_MODULE=$module lean tests/check_axioms.lean 2>&1) &&
     replay=$(timeout "$secs" leanchecker "$module" 2>&1); then
     printf 'ok    %s: %s, and leanchecker replays it\n' "$module" "$out"
@@ -95,40 +95,46 @@ theorems_with_errors() {
   done | sort -u
 }
 
-# Each mutant changes the model's own `IRLean/Int.lean` in a copy, the way a plausible edit could, so that a wrong
-# rewrite would refine. The cases have to stop on it, at the theorem guarding that rewrite, with an error of its own.
-# usage: model_mutant NAME SED_EXPRESSION THEOREM
+# Each mutant changes one of the model's own modules in a copy, the way a plausible edit could, so that a wrong rewrite
+# would refine, or a right one wouldn't. The cases have to stop on it, at the theorem guarding that rewrite, with an
+# error of its own.
+# usage: model_mutant NAME MODULE SED_EXPRESSION THEOREM
 model_mutant() {
-  local dir status=0 out errors hit
+  local name=$1 module=$2 edit=$3 theorem=$4 dir status=0 out errors hit
   dir=$(mktemp -d -p "$work")
-  sed "$2" IRLean/Int.lean >"$dir/Int.lean"
-  if cmp -s IRLean/Int.lean "$dir/Int.lean"; then
-    fail "model mutant $1 doesn't change IRLean/Int.lean"
+  sed "$edit" "IRLean/$module.lean" >"$dir/$module.lean"
+  if cmp -s "IRLean/$module.lean" "$dir/$module.lean"; then
+    fail "model mutant $name doesn't change IRLean/$module.lean"
     return
   fi
-  if ! out=$(build_model "$dir" "$dir/Int.lean" 2>&1); then
-    fail "model mutant $1 doesn't compile, so it can't show anything" "$out"
+  if ! out=$(build_model "$dir" "$module" "$dir/$module.lean" 2>&1); then
+    fail "model mutant $name doesn't compile, so it can't show anything" "$out"
     return
   fi
   cp tests/refine/RefineCases.lean "$dir/"
   out=$(LEAN_PATH="$dir" lean -R "$dir" "$dir/RefineCases.lean" 2>&1) || status=$?
   errors=$(grep -E "RefineCases.lean:[0-9]+:[0-9]+: error" <<<"$out" | grep -vE "$limit" || true)
   if [ "$status" = 0 ]; then
-    fail "model mutant $1 still meets every case"
+    fail "model mutant $name still meets every case"
   elif [ -z "$errors" ]; then
-    fail "model mutant $1 stops the cases only at a resource limit, or never says why" "$out"
-  elif ! hit=$(theorems_with_errors "$dir/RefineCases.lean" <<<"$errors" | grep -xF "$3"); then
-    fail "model mutant $1 doesn't stop $3 with an error of its own, only $(theorems_with_errors \
+    fail "model mutant $name stops the cases only at a resource limit, or never says why" "$out"
+  elif ! hit=$(theorems_with_errors "$dir/RefineCases.lean" <<<"$errors" | grep -xF "$theorem"); then
+    fail "model mutant $name doesn't stop $theorem with an error of its own, only $(theorems_with_errors \
       "$dir/RefineCases.lean" <<<"$errors" | tr '\n' ' ')" "$out"
   else
-    printf 'ok    model mutant %s stops %s: %s\n' "$1" "$hit" "$(head -1 <<<"$errors" | sed "s|$dir/||" | cut -c1-120)"
+    printf 'ok    model mutant %s stops %s: %s\n' "$name" "$hit" "$(head -1 <<<"$errors" | sed "s|$dir/||" | cut -c1-120)"
   fi
 }
 # `freeze` of poison gives poison instead of stopping the model. Freezing once and twice would then agree, though LLVM
 # may freeze poison to two different values.
-model_mutant 'freeze keeps poison' 's/^  | none => Outcome.stop .freezePoison$/  | none => Outcome.ok none/' \
+model_mutant 'freeze keeps poison' Int 's/^  | none => Outcome.stop .freezePoison$/  | none => Outcome.ok none/' \
   freezeDuplicated
 # `add` ignores `nuw`, so adding the flag would change nothing.
-model_mutant 'add ignores nuw' '/def add /,/some (x + y)/s/if (nuw \&\& x.uaddOverflow y) || /if /' addedNuw
+model_mutant 'add ignores nuw' Int '/def add /,/some (x + y)/s/if (nuw \&\& x.uaddOverflow y) || /if /' addedNuw
+# A run that stays in a promised loop for good never finishes, as it did before SEM-07, instead of being undefined, so
+# deleting the loop would be wrong. The laws that pin this choice in IRLean/Promise.lean would fail first, so the copy
+# leaves them out.
+model_mutant 'a broken promise never finishes' Promise \
+  's/^  | none => Outcome.ub .noProgress$/  | none => none/; /^section Laws$/,/^end Laws$/d' countPromised_odd
 
 exit "$failed"

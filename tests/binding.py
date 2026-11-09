@@ -6,7 +6,10 @@ One real rewrite, `instcombine` folding `add i8 %x, 0` in tests/binding/add_zero
 the functions ir-lean generates before and after are equal. Its bundle has to come back `bound`. Then each
 case breaks one thing, as someone handing over wrong evidence would, and the verdict has to be the status and
 reason given, never `bound`: a theorem of another type, a changed file, a changed configuration, a manifest
-from another toolchain, a cache entry that isn't for this evidence, and claims nothing here can check.
+from another toolchain, a cache entry that isn't for this evidence, and claims nothing here can check. Two
+more have to be bound: `loop-deletion` deleting a loop under `mustprogress`, which only the promise makes
+right, and a module whose intrinsic declaration carries `willreturn`, which this tool once refused for the
+whole module.
 
 It runs one process at a time, each capped by tools/binding.py, in build/binding/tests, and needs
 `nix develop`, build/ir-lean and `lake build`.
@@ -50,6 +53,9 @@ GOOD_LEMMA = GOOD.split("open IRLean\n", 1)[1].replace("theorem Fx.cert", "theor
 # The same rewrite, with a certificate of the refinement claim.
 REFINES = (HERE / "AddZeroRefines.lean").read_text()
 assert "theorem Fx.cert : IRLean.Refines Fx.Src.f Fx.Tgt.f :=" in REFINES
+# loop-deletion on loop_deleted.ll: the target refines the source because the source promised to progress.
+LOOP_DELETED = (HERE / "LoopDeletedRefines.lean").read_text()
+assert "theorem Fx.cert : IRLean.Refines Fx.Src.f Fx.Tgt.f :=" in LOOP_DELETED
 
 # The attack the adversarial lane found with tools/verify.py, on a real instcombine run: the two are equal in
 # the model, since both stop at a frozen poison, and Fx.stops shows the source does. Equality alone is all a
@@ -147,7 +153,11 @@ def sha(data: bytes) -> str:
 
 
 def record(
-    name: str, certificate: str, kind: str = "ir_instance_equivalence", input_ll: str = "add_zero.ll"
+    name: str,
+    certificate: str,
+    kind: str = "ir_instance_equivalence",
+    input_ll: str = "add_zero.ll",
+    passes: str = "instcombine",
 ) -> Path:
     """A fresh bundle for an input in tests/binding with this certificate, as `record` writes it."""
     out = WORK / name
@@ -161,7 +171,7 @@ def record(
             "--input",
             str(HERE / input_ll),
             "--passes",
-            "instcombine",
+            passes,
             "--mtriple",
             "x86_64-unknown-linux-gnu",
             "--function",
@@ -341,12 +351,17 @@ CASES: list[tuple[str, Callable[[str], Path], list[str], tuple[str, str]]] = [
         [],
         ("unsupported", "undef_argument"),
     ),
+    # Promises to progress and to return are checked by the model, not refused: a loop deleted under one is
+    # bound, and one on an intrinsic's declaration doesn't stand in the way of a function that makes none.
     (
-        "trusted_promise",
-        lambda n: record(n, GOOD, input_ll="willreturn.ll"),
+        "promise_checked",
+        lambda n: record(
+            n, LOOP_DELETED, kind="ir_instance_refinement", input_ll="loop_deleted.ll", passes="loop-deletion"
+        ),
         [],
-        ("unsupported", "trusted_promise"),
+        ("bound", "replayed"),
     ),
+    ("intrinsic_declared", lambda n: record(n, GOOD, input_ll="intrinsic.ll"), [], ("bound", "replayed")),
     # Limits make a verdict unknown, never bound or refused.
     ("time_limit", lambda n: record(n, SLOW), ["--timeout", "20"], ("unknown", "time_limit")),
     ("memory_limit", lambda n: record(n, GREEDY), ["--memory", "1500"], ("unknown", "resource_limit")),

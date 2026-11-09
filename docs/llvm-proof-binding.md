@@ -98,7 +98,7 @@ stdin, so neither names a path.
 
 | Kind | The claim, as Lean | Checkable now |
 | --- | --- | --- |
-| `ir_instance_equivalence` | `Fx.Src.f = Fx.Tgt.f ∧ ∀ (x : IRLean.Val 8) (s : IRLean.ModelStop), Fx.Src.f x ≠ some (.error (.model s))`, with a binder for each argument: on every input, poison included, both have the same outcome in IRLean's semantics, and the source never stops the model | Yes, for a function without memory, whose arguments are all `noundef` in the source, and whose target IR makes no promise IRLean trusts |
+| `ir_instance_equivalence` | `Fx.Src.f = Fx.Tgt.f ∧ ∀ (x : IRLean.Val 8) (s : IRLean.ModelStop), Fx.Src.f x ≠ some (.error (.model s))`, with a binder for each argument: on every input, poison included, both have the same outcome in IRLean's semantics, and the source never stops the model | Yes, for a function without memory, whose arguments are all `noundef` in the source |
 | `ir_instance_refinement` | `IRLean.Refines Fx.Src.f Fx.Tgt.f`, with the instance Lean finds where only `IRLean` and the generated modules are imported: on every input, poison included, the target only does what the source allows, and a model stop in the source allows nothing ([refinement](refinement.md)) | Yes, for the same functions as `ir_instance_equivalence` |
 | `rewrite_all_inputs` | The pass's rewrite is right for every input module (L3) | No. Always `unsupported` |
 | `pass_implementation` | The pass's compiled C++ makes only proved rewrites (L4) | No. Always `unsupported` |
@@ -111,12 +111,10 @@ implies `IRLean.Refines`, where a model stop in the source allows nothing, throu
 `Refines.self_iff` ([refinement](refinement.md)).
 
 It also holds only where the model has no more undefined behavior than LLVM in the source, and no less in the target.
-So three kinds of function are `unsupported`, before any proof is read:
+So two kinds of function are `unsupported`, before any proof is read:
 
 - one that uses memory or pointers, where the model has more undefined behavior than LLVM
   ([trust](trust.md#known-gaps-in-the-model)), so a source undefined in the model can be defined in LLVM;
-- any target IR with `mustprogress` or `willreturn`, which IRLean trusts instead of checking: a target that spins
-  under one is undefined in LLVM, and runs forever in the model, just as a source without one does;
 - one with an argument that isn't `noundef` in the source. IRLean's values are a value or poison, never `undef`, and
   the emitter refuses `undef` in the IR, but a caller can still pass one. An `undef` argument can be a different value
   at each use, so `and i8 %x, 0` and `xor i8 %x, %x` are equal in the model and differ in LLVM. `noundef` makes passing
@@ -142,9 +140,9 @@ Each one that runs is listed in the verdict's `checks`. The first that fails dec
 7. **`cache`**, if `--cache` is given: see [below](#the-cache).
 8. **`transform_replay`**: `opt` gives both IR files byte for byte.
 9. **`translation_replay`**: ir-lean gives both Lean modules byte for byte, and the same name for the function. It
-   has to translate the function, without memory, on both sides, and its arguments have to be `noundef`. Before this, a target IR with `mustprogress` or
-   `willreturn` is `unsupported`, and the verdict's `uncovered_changes` lists the other functions the run changed and
-   whether anything outside a function changed, none of which the claim covers.
+   has to translate the function, without memory, on both sides, and its arguments have to be `noundef`. Before this,
+   the verdict's `uncovered_changes` lists the other functions the run changed and whether anything outside a function
+   changed, none of which the claim covers.
 10. **`compile_generated`**, **`compile_certificate`**: Lean compiles them in a fresh directory, from source, with only
     `IRLean` on the path besides them. No `.olean` comes from the bundle. The certificate's code runs here, so every
     file and link where Lean finds modules is listed with its hash before and after, and only the certificate's
@@ -204,7 +202,6 @@ Only `bound` is a success. Every verdict, whatever its status, carries `does_not
 | `function_unsupported` | `unsupported` | ir-lean leaves the function out |
 | `memory_unsupported` | `unsupported` | The function uses memory or pointers |
 | `undef_argument` | `unsupported` | An argument isn't `noundef` in the source, so a caller can pass `undef` |
-| `trusted_promise` | `unsupported` | The target IR has `mustprogress` or `willreturn` |
 | `time_limit`, `resource_limit` | `unknown` | A step ran out of time, or Lean or a cgroup ran out of memory, heartbeats or stack |
 | `toolchain_untrusted_link` | `error` | A link in the toolchain or `IRLean`'s library isn't a bare file name naming a sibling that's hashed itself, or an absolute path into the Nix store that stays there. A root that's itself a link, a link to a directory, and `build/ir-lean`, `tests/check_axioms.lean`, `tools/binding_check.lean` or `tools/binding.py` being a link, are refused too |
 | `toolchain_missing`, `tool_failed`, `generated_module_failed`, `checker_error`, `invalid_request`, `internal_error` | `error` | Something here failed |
@@ -329,8 +326,7 @@ source, the first source equals the last target. The contract this needs first, 
 
 **Unsupported today.**
 
-- Functions that use memory or pointers, arguments that aren't `noundef`, and target IR with `mustprogress` or
-  `willreturn`.
+- Functions that use memory or pointers, and arguments that aren't `noundef`.
 - Rewrites whose source can stop the model, such as on a frozen poison. `ir_instance_refinement` says a model stop in
   the source allows nothing, so these can't be bound either, until `freeze` has a semantics that chooses (SEM-03).
 - Any `opt` option but `-passes=` and `-mtriple`.
@@ -368,7 +364,8 @@ each case breaks one thing and has to get the status and reason given:
 | What the model can't judge | A function reading memory | `unsupported`, `memory_unsupported` |
 | | A function ir-lean refuses, on floating point | `unsupported`, `function_unsupported` |
 | | An argument without `noundef`, and one named `%noundef` without it | `unsupported`, `undef_argument` |
-| | A target marked `willreturn` | `unsupported`, `trusted_promise` |
+| What the model checks | `loop-deletion` deleting a loop under `mustprogress`, with a refinement certificate that rests on the promise | `bound` |
+| | A function making no promise in a module whose intrinsic declaration carries `willreturn`, which this tool refused before SEM-07 | `bound` |
 | Limits | A certificate that sleeps past `--timeout 20`, and nothing of it left running | `unknown`, `time_limit` |
 | | A certificate that allocates past `--memory 1500` | `unknown`, `resource_limit` |
 | Uncovered changes | A run that also changes another function | `bound` about `f`, with `g` in `uncovered_changes` |
