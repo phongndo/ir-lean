@@ -544,4 +544,27 @@ theorem signExtend_or {v : Nat} (x y : BitVec v) :
   simp only [BitVec.getLsbD_signExtend, BitVec.getLsbD_or, BitVec.msb_or]
   by_cases h : i < v <;> simp only [h, ↓reduceIte] <;> cases decide (i < w) <;> rfl
 
+/-! ### A `select` against a min or max: what `simplifyCmpSelOfMaxMin` knows -/
+
+/-- `smax(x, y)` is `x` where `x >=s y`. `IS.simplifyCmpSelOfMaxMin.L4763`. -/
+theorem smax_of_sle {x y : BitVec w} (h : BitVec.sle y x = true) : (if x.sle y then y else x) = x := by
+  split
+  · next h' => apply BitVec.eq_of_toInt_eq; simp only [BitVec.sle, decide_eq_true_eq] at h h'; omega
+  · rfl
+
+/-- `smin(x, y)` is `x` where `x <=s y`. -/
+theorem smin_of_sle {x y : BitVec w} (h : BitVec.sle x y = true) : (if x.sle y then x else y) = x := by
+  simp [h]
+
+/-- `umax(x, y)` is `x` where `x >=u y`. -/
+theorem umax_of_ule {x y : BitVec w} (h : BitVec.ule y x = true) : (if x.ule y then y else x) = x := by
+  split
+  · next h' => apply BitVec.eq_of_toNat_eq; simp only [BitVec.ule, decide_eq_true_eq] at h h'; omega
+  · rfl
+
+/-- `umin(x, y)` is `x` where `x <=u y`. -/
+theorem umin_of_ule {x y : BitVec w} (h : BitVec.ule x y = true) : (if x.ule y then x else y) = x := by
+  simp [h]
+
 end Peephole.Lemmas
+
