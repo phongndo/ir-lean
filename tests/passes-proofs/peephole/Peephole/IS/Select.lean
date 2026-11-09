@@ -1,10 +1,9 @@
 import Peephole.IS.Cast
 
-/-! # Four of InstSimplify's helpers for `select` and `icmp`, and their rewrites for every input
+/-! # Three of InstSimplify's helpers for `select`, and their rewrites for every input
 
-`simplifySelectBitTest` (`llvm/lib/Analysis/InstructionSimplify.cpp:4675-4713`), `extractEquivalentCondition`
-(`2620-2635`), `simplifyWithOpsReplaced` (`4413-4649`) and `simplifySelectWithEquivalence` (`4801-4822`), at
-`llvmorg-23.1.3`. None is an entry: each answers its caller with a value, and is right under what its caller knows,
+`simplifySelectBitTest` (`llvm/lib/Analysis/InstructionSimplify.cpp:4675-4713`), `simplifyWithOpsReplaced`
+(`4413-4649`) and `simplifySelectWithEquivalence` (`4801-4822`), at `llvmorg-23.1.3`. None is an entry: each answers its caller with a value, and is right under what its caller knows,
 which each theorem here takes as a hypothesis, by name.
 
 | ID | Rewrite |
@@ -13,8 +12,6 @@ which each theorem here takes as a hypothesis, by name.
 | `IS.simplifySelectBitTest.L4689` | `(X & Y) == 0 ? X : X & ~Y` to `X & ~Y`, and with `!=` to `X` |
 | `IS.simplifySelectBitTest.L4699` | `(X & Y) == 0 ? X \| Y : X` to `X \| Y`, and with `!=` to `X`, for `Y` a power of two |
 | `IS.simplifySelectBitTest.L4709` | `(X & Y) == 0 ? X : X \| Y` to `X`, and with `!=` to `X \| Y`, for `Y` a power of two |
-| `IS.extractEquivalentCondition.L2630` | The condition of a `select` that's `LHS Pred RHS` |
-| `IS.extractEquivalentCondition.L2633` | The condition of a `select` that's `RHS Pred' LHS`, with `Pred'` the swapped `Pred` |
 | `IS.simplifyWithOpsReplaced.L4428` | `V` replaced with `RepOp`, where `V` is the `Op` of one of `Ops` |
 | `IS.simplifySelectWithEquivalence.L4819` | A `select` whose arms are the same value with `Replacements` made, to its false arm |
 
@@ -22,9 +19,6 @@ which each theorem here takes as a hypothesis, by name.
   `X` aren't poison, is `(X & Y) == 0` if `TrueWhenUnset` and `(X & Y) != 0` if not: `Select.BitTest`. Its callers,
   `simplifySelectWithBitTest` through `decomposeBitTest` and `simplifySelectWithICmpCond` from `icmp eq (and X, Y), 0`,
   owe that. Under it, each answer refines the `select`.
-- `extractEquivalentCondition(V, Pred, LHS, RHS)` answers the `icmp` that is `V`'s condition. Where that `icmp` isn't
-  poison, it's `LHS Pred RHS`; where it is, so is `V`. Its caller, `simplifyICmpWithMinMax`, replaces an `icmp` on `V`
-  with it, which is right by those two facts.
 - `simplifyWithOpsReplaced(V, Ops, ...)` is modelled as far as its first loop and the checks after it; the replacement
   through `V`'s operands, and what it calls, are `.delegate`d. Its answer is `V` wherever each `Op` is its `RepOp`,
   `Select.OpsHold`, which its callers know where the condition they took `Ops` from is true.
@@ -375,171 +369,6 @@ theorem simplifySelectBitTest.sound (ρ : Env) (cond : Term 1) (trueVal falseVal
     (cf : falseVal.Consistent ρ) {r : Repl w} (h : simplifySelectBitTest trueVal falseVal x y tw = .value r) :
     Refines ((Select.selSrc cond trueVal falseVal).eval ρ) (r.eval ρ) :=
   run_sound (simplifySelectBitTest.steps_sound ρ cond trueVal falseVal x y tw hbt ct cf) h
-
-/-! ### `extractEquivalentCondition` -/
-
-namespace Select
-
-/-- `CmpInst::getSwappedPredicate`: the predicate that holds with the operands swapped. -/
-def swapPred : Pred → Pred
-  | .eq => .eq
-  | .ne => .ne
-  | .ugt => .ult
-  | .uge => .ule
-  | .ult => .ugt
-  | .ule => .uge
-  | .sgt => .slt
-  | .sge => .sle
-  | .slt => .sgt
-  | .sle => .sge
-
-/-- `dyn_cast<CmpInst>(SI->getCondition())` of a `select`: whether its condition is a compare. -/
-def isCmpCond {v : Nat} : Term v → Bool
-  | .select _ (.icmp ..) _ _ => true
-  | _ => false
-
-/-- The condition of the `select` `V`, if it's an `icmp`, with its predicate, ignoring `samesign` as
-`Cmp->getPredicate()` does, and its operands, if they have `LHS`'s and `RHS`'s width `u`: operands of another type are
-other values, which `==` never matches. -/
-def cmpOf (u : Nat) {v : Nat} : Term v → Option (Term 1 × Pred × Term u × Term u)
-  | .select _ c _ _ =>
-    match c with
-    | .icmp _ p _ a b =>
-      match Cast.ofWidth u a, Cast.ofWidth u b with
-      | some a', some b' => some (c, p, a', b')
-      | _, _ => none
-    | _ => none
-  | _ => none
-
-end Select
-
-/-- `extractEquivalentCondition(V, Pred, LHS, RHS)`, step by step, for `LHS` and `RHS` of width `u`. -/
-def extractEquivalentCondition.steps (u : Nat) {v : Nat} (V : Term v) (pred : Pred) (lhs rhs : Term u) :
-    List (Step 1) :=
-  [ -- SelectInst *SI = dyn_cast<SelectInst>(V); if (!SI) return nullptr;
-    if Shift.isSelect V then .next else .decline,
-    -- CmpInst *Cmp = dyn_cast<CmpInst>(SI->getCondition()); if (!Cmp) return nullptr;
-    if Select.isCmpCond V then .next else .decline,
-    -- if (Pred == Cmp->getPredicate() && LHS == CmpLHS && RHS == CmpRHS) return Cmp;
-    match Select.cmpOf u V with
-    | some (c, p, a, b) =>
-      if pred = p ∧ specific a lhs ∧ specific b rhs then .fire "IS.extractEquivalentCondition.L2630" (.old c) else .next
-    | none => .next,
-    -- if (Pred == CmpInst::getSwappedPredicate(Cmp->getPredicate()) && LHS == CmpRHS && RHS == CmpLHS) return Cmp;
-    match Select.cmpOf u V with
-    | some (c, p, a, b) =>
-      if pred = Select.swapPred p ∧ specific b lhs ∧ specific a rhs then
-        .fire "IS.extractEquivalentCondition.L2633" (.old c)
-      else .next
-    | none => .next ]
-
-def extractEquivalentCondition (u : Nat) {v : Nat} (V : Term v) (pred : Pred) (lhs rhs : Term u) : Result 1 :=
-  run (extractEquivalentCondition.steps u V pred lhs rhs)
-
-namespace Select
-
-/-- An `icmp` with `samesign` is the one without, or poison. -/
-theorem icmp_refines_samesign {u : Nat} (f : BitVec u → BitVec u → Bool) (a b : Val u) (s : Bool) :
-    Refines (Val.icmp f a b s) (Val.icmp f a b false) := by
-  cases a <;> cases b <;> simp only [Val.icmp]
-  any_goals exact Refine.val_none _
-  split
-  · exact Refine.val_none _
-  · simp only [Bool.false_and, Bool.false_eq_true, ↓reduceIte]
-    exact Refine.refl_val _
-
-theorem eval_refines_samesign {u : Nat} (p : Pred) (a b : Val u) (s : Bool) :
-    Refines (p.eval a b s) (p.eval a b false) := by
-  cases p <;> exact icmp_refines_samesign _ a b s
-
-/-- Swapping the operands and the predicate gives the same `icmp`. -/
-theorem eval_swap {u : Nat} (p : Pred) (a b : Val u) : (swapPred p).eval b a false = p.eval a b false := by
-  cases a <;> cases b <;> cases p <;>
-    simp [swapPred, Pred.eval, Val.icmpEq, Val.icmpNe, Val.icmpUgt, Val.icmpUge, Val.icmpUlt, Val.icmpUle,
-      Val.icmpSgt, Val.icmpSge, Val.icmpSlt, Val.icmpSle, Val.icmp, BEq.comm, bne_comm]
-
-/-- What a `select` on an `icmp` says: the `icmp` is its predicate on its operands, with or without `samesign`, and
-where it's poison, so is the `select`. -/
-theorem cmpOf_spec {ρ : Env} {u v : Nat} {V : Term v} {c : Term 1} {p : Pred} {a b : Term u}
-    (h : cmpOf u V = some (c, p, a, b)) (cv : V.Consistent ρ) :
-    (∃ s, c.denote ρ = p.eval (a.denote ρ) (b.denote ρ) s) ∧ (c.denote ρ = none → V.denote ρ = none) := by
-  cases V with
-  | select id c' t e =>
-    simp only [cmpOf] at h
-    split at h
-    · next id' p' s a0 b0 =>
-      split at h
-      · next a' b' ha hb =>
-        simp only [Option.some.injEq, Prod.mk.injEq] at h
-        obtain ⟨rfl, rfl, rfl, rfl⟩ := h
-        obtain ⟨rfl, rfl⟩ := Cast.ofWidth_eq ha
-        obtain ⟨-, rfl⟩ := Cast.ofWidth_eq hb
-        obtain ⟨cc, -, -, hsel⟩ := cv
-        refine ⟨⟨s, cc.2.2.symm⟩, fun hn => ?_⟩
-        change ρ _ id = none
-        rw [← hsel, hn]
-        rfl
-      · cases h
-    · cases h
-  | _ => simp [cmpOf] at h
-
-end Select
-
-open Select in
-/-- `IS.extractEquivalentCondition.L2630`: the condition `Cmp` of the `select` `V`, where it's `LHS Pred RHS`. What it
-says: where `Cmp` isn't poison it's `LHS Pred RHS`, and where it is, so is `V`, so a caller's `icmp` on `V` refines
-it. -/
-theorem extractEquivalentCondition.L2630 (ρ : Env) {u v : Nat} (V : Term v) (pred : Pred) (lhs rhs : Term u)
-    (c : Term 1) (p : Pred) (a b : Term u) (cv : V.Consistent ρ) (hc : cmpOf u V = some (c, p, a, b))
-    (h : pred = p ∧ specific a lhs = true ∧ specific b rhs = true) :
-    Refines (c.denote ρ) (pred.eval (lhs.denote ρ) (rhs.denote ρ) false) ∧ (c.denote ρ = none → V.denote ρ = none) := by
-  obtain ⟨⟨s, hs⟩, hn⟩ := cmpOf_spec hc cv
-  obtain ⟨rfl, ha, hb⟩ := h
-  refine ⟨?_, hn⟩
-  rw [hs, specific_denote ha, specific_denote hb]
-  exact eval_refines_samesign _ _ _ _
-
-open Select in
-/-- `IS.extractEquivalentCondition.L2633`: the condition `Cmp` of the `select` `V`, where it's `RHS Pred' LHS` with
-`Pred'` the swapped `Pred`, which is `LHS Pred RHS`. -/
-theorem extractEquivalentCondition.L2633 (ρ : Env) {u v : Nat} (V : Term v) (pred : Pred) (lhs rhs : Term u)
-    (c : Term 1) (p : Pred) (a b : Term u) (cv : V.Consistent ρ) (hc : cmpOf u V = some (c, p, a, b))
-    (h : pred = swapPred p ∧ specific b lhs = true ∧ specific a rhs = true) :
-    Refines (c.denote ρ) (pred.eval (lhs.denote ρ) (rhs.denote ρ) false) ∧ (c.denote ρ = none → V.denote ρ = none) := by
-  obtain ⟨⟨s, hs⟩, hn⟩ := cmpOf_spec hc cv
-  obtain ⟨rfl, hb, ha⟩ := h
-  refine ⟨?_, hn⟩
-  rw [hs, specific_denote ha, specific_denote hb, eval_swap]
-  exact eval_refines_samesign _ _ _ _
-
-/-- Theorem 1 for `extractEquivalentCondition`: what it returns is an `icmp` already in the IR that, where it isn't
-poison, is `LHS Pred RHS`, and where it is, `V` is poison too, at every width, in every run `V` is consistent with. -/
-theorem extractEquivalentCondition.sound (ρ : Env) {u v : Nat} (V : Term v) (pred : Pred) (lhs rhs : Term u)
-    (cv : V.Consistent ρ) {r : Repl 1} (h : extractEquivalentCondition u V pred lhs rhs = .value r) :
-    ∃ c : Term 1, r = .old c ∧ Refines (c.denote ρ) (pred.eval (lhs.denote ρ) (rhs.denote ρ) false) ∧
-      (c.denote ρ = none → V.denote ρ = none) := by
-  refine run_sound (P := fun r => ∃ c : Term 1, r = .old c ∧
-    Refines (c.denote ρ) (pred.eval (lhs.denote ρ) (rhs.denote ρ) false) ∧ (c.denote ρ = none → V.denote ρ = none))
-    ?_ h
-  intro s r hmem
-  simp only [extractEquivalentCondition.steps, List.mem_cons, List.not_mem_nil, or_false] at hmem
-  rcases hmem with h | h | h | h
-  · split at h <;> simp only [reduceCtorEq] at h
-  · split at h <;> simp only [reduceCtorEq] at h
-  · split at h
-    · next c p a b hc =>
-      split at h <;> simp only [Step.fire.injEq, reduceCtorEq] at h
-      next hh =>
-      obtain ⟨-, rfl⟩ := h
-      exact ⟨c, rfl, extractEquivalentCondition.L2630 ρ V pred lhs rhs c p a b cv hc hh⟩
-    · simp only [reduceCtorEq] at h
-  · split at h
-    · next c p a b hc =>
-      split at h <;> simp only [Step.fire.injEq, reduceCtorEq] at h
-      next hh =>
-      obtain ⟨-, rfl⟩ := h
-      exact ⟨c, rfl, extractEquivalentCondition.L2633 ρ V pred lhs rhs c p a b cv hc hh⟩
-    · simp only [reduceCtorEq] at h
 
 /-! ### `simplifyWithOpsReplaced`, as far as its first loop, and `simplifySelectWithEquivalence` -/
 

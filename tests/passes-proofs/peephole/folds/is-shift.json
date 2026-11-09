@@ -115,13 +115,6 @@
         "IS.simplifySelectBitTest.L4709"
       ]
     },
-    "Peephole.IS.extractEquivalentCondition": {
-      "sound": "Peephole.IS.extractEquivalentCondition.sound",
-      "sites": [
-        "IS.extractEquivalentCondition.L2630",
-        "IS.extractEquivalentCondition.L2633"
-      ]
-    },
     "Peephole.IS.simplifyWithOpsReplaced": {
       "sound": "Peephole.IS.simplifyWithOpsReplaced.sound",
       "sites": [
@@ -194,12 +187,6 @@
     ],
     "IS.simplifySelectBitTest.L4709": [
       "Peephole.IS.Select.BitTest: the callers' contract, that where the select's condition and X aren't poison, the condition is (X & Y) == 0 if TrueWhenUnset and != 0 if not. simplifySelectWithBitTest owes it through decomposeBitTest, and simplifySelectWithICmpCond from icmp eq (and X, Y), 0"
-    ],
-    "IS.extractEquivalentCondition.L2630": [
-      "the theorem is the helper's contract, not a refinement of an instruction: where the icmp it returns isn't poison it's LHS Pred RHS without samesign, and where it is, V is poison too. Its caller, simplifyICmpWithMinMax, makes its refinement from that"
-    ],
-    "IS.extractEquivalentCondition.L2633": [
-      "the theorem is the helper's contract, not a refinement of an instruction: where the icmp it returns isn't poison it's LHS Pred RHS without samesign, and where it is, V is poison too. Its caller, simplifyICmpWithMinMax, makes its refinement from that"
     ],
     "IS.simplifyWithOpsReplaced.L4428": [
       "Peephole.IS.Select.OpsHold: in the run, each Op is its RepOp, which the callers know where the condition they took Ops from is true; the theorem says the answer is V there"
