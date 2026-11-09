@@ -3,6 +3,7 @@ import IRLean.Generic.Arith
 import IRLean.Generic.BitVec
 import IRLean.Generic.Bitwise
 import IRLean.Refine
+import Peephole.Lemmas.Add
 
 /-! # The lemma store
 
@@ -181,6 +182,17 @@ def catalog : Array Lean.Name := #[
   ``IRLean.Refines.self_iff,
   ``IRLean.Contract.freeze_none,
   ``IRLean.Contract.freeze_ne_none,
-  ``IRLean.Contract.freeze_none_any]
+  ``IRLean.Contract.freeze_none_any,
+  ``Peephole.Lemmas.add_comm,
+  ``Peephole.Lemmas.add_none_right,
+  ``Peephole.Lemmas.add_refines_of_sum,
+  ``Peephole.Lemmas.add_sub_cancel_refines,
+  ``Peephole.Lemmas.add_sub_sub_refines,
+  ``Peephole.Lemmas.add_not_left_refines,
+  ``Peephole.Lemmas.add_not_right_refines,
+  ``Peephole.Lemmas.add_intMin,
+  ``Peephole.Lemmas.add_xor_signMask_refines,
+  ``Peephole.Lemmas.eq_zero_of_not_uaddOverflow_allOnes,
+  ``Peephole.Lemmas.add_nuw_allOnes_refines]
 
 end LemmaStore
