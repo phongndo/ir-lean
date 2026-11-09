@@ -20,7 +20,12 @@ At `llvmorg-23.1.3`, in `llvm/lib/Analysis/InstructionSimplify.cpp`: `isSameComp
 `simplifyCmpSelCase` answers for the compare in one arm of a `select`: `TrueOrFalse` is right where the `select`'s
 condition is that constant, which is how `threadCmpOverSelect` uses it, so its theorem assumes so. It calls the
 recursive `simplifyCmpInst`, which for an integer predicate is `simplifyICmpInst`, and its theorem takes that call's
-soundness as a hypothesis, `ICmpSimp.Sound`. -/
+soundness as a hypothesis, `ICmpSimp.Sound`.
+
+`threadCmpOverSelect` is called from `simplifyFCmpInst` too, and from `simplifyICmpInst` on compares of pointers, and
+`Term` has neither floating point nor pointers, so the theorems of `simplifyCmpSelCase` prove the integer instance,
+not every input, and `folds/is-icmp-b.json` lists `L121` and `L125` unproved. `simplifyCmpSelOfMaxMin` needs a min or
+max intrinsic, an integer. -/
 
 namespace Peephole.IS.ICmpB
 

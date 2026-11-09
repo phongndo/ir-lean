@@ -157,10 +157,7 @@
     },
     "Peephole.IS.simplifyCmpSelCase": {
       "sound": "Peephole.IS.simplifyCmpSelCase.sound",
-      "sites": [
-        "IS.simplifyCmpSelCase.L121",
-        "IS.simplifyCmpSelCase.L125"
-      ]
+      "sites": []
     },
     "Peephole.IS.simplifyCmpSelTrueCase": {
       "sound": "Peephole.IS.simplifyCmpSelTrueCase.sound",
@@ -276,6 +273,8 @@
   },
   "unproved": {
     "IS.simplifyAndOrOfCmps.L1933": "tagged fp/generic: simplifyAndOrOfCmps also looks through casts to fcmps. The integer instance is proved for every input, by Peephole.IS.simplifyAndOrOfCmps.L1933, which Peephole.IS.simplifyAndOrOfCmps.sound uses; the floating-point instance waits for SEM-05",
+    "IS.simplifyCmpSelCase.L121": "integer instance proved, not claimed for every input: threadCmpOverSelect calls simplifyCmpSelCase from simplifyICmpInst on compares of pointers too, and from simplifyFCmpInst on fcmps, and the recursive simplifyCmpInst can answer with the select's condition there. Peephole.IS.simplifyCmpSelCase.L121, which Peephole.IS.simplifyCmpSelCase.sound uses, proves it for every scalar integer input; the pointer instance waits for pointers in the model (memory, F4), and the floating-point one for SEM-05",
+    "IS.simplifyCmpSelCase.L125": "integer instance proved, not claimed for every input: threadCmpOverSelect calls simplifyCmpSelCase from simplifyICmpInst on compares of pointers too, and from simplifyFCmpInst on fcmps, and isSameCompare reads any CmpInst. Peephole.IS.simplifyCmpSelCase.L125, which Peephole.IS.simplifyCmpSelCase.sound uses, proves it for every scalar integer input; the pointer instance waits for pointers in the model (memory, F4), and the floating-point one for SEM-05",
     "IS.simplifySelectWithICmpCond.L4857": "the C++ returns X where ValueTracking's matchDecomposedSelectPattern finds a min/max flavor whose predicate is Pred and whose other operand is the flavor's limit constant; that analysis (matchSelectPattern, matchClamp, matchMinMaxOfMinMax, getNotValue, the abs/nabs patterns) isn't modelled, so the model takes its answer as a parameter and delegates this step",
     "IS.simplifySelectWithICmpCond.L4876": "tagged fp/generic: simplifySelectWithICmpCond's path also handles floating point. The integer instance is proved for every input, by Peephole.IS.simplifySelectWithICmpCond.L4876, which Peephole.IS.simplifySelectWithICmpCond.sound uses; the floating-point instance waits for SEM-05",
     "IS.simplifySelectWithICmpCond.L4890": "tagged fp/generic: simplifySelectWithICmpCond's path also handles floating point. The integer instance is proved for every input, by Peephole.IS.simplifySelectWithICmpCond.L4890, which Peephole.IS.simplifySelectWithICmpCond.sound uses; the floating-point instance waits for SEM-05",
