@@ -67,8 +67,9 @@ def isBinOp : Term w → Bool
   | .bin .. => true
   | _ => false
 
-/-- What `m_SMax`, `m_SMin`, `m_UMax` and `m_UMin` can match: a min or max intrinsic, or a `select`, which
-`simplifyICmpWithMinMax` needs on one side. -/
+/-- A min or max intrinsic, what `m_SMax`, `m_SMin`, `m_UMax` and `m_UMin` match at this pin, which
+`simplifyICmpWithMinMax` needs on one side, or a `select`, where its `extractEquivalentCondition` looks: a `select`
+alone can't make it answer, so this errs toward delegating. -/
 def isMinMaxLike : Term w → Bool
   | .bi _ .smax .. | .bi _ .smin .. | .bi _ .umax .. | .bi _ .umin .. | .select .. => true
   | _ => false
