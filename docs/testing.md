@@ -86,8 +86,8 @@ there with nothing more to do. To give a long test a job of its own, label it, a
 `ci.yml`. Before it runs anything, `rest` checks that CI runs each test exactly once, and fails if a test would run
 in two jobs.
 
-Setting up takes each job about 2 minutes. `binding` and `passes` take longest after that, 8 to 11 minutes each, one
-Lean process at a time, so CI takes about 13 minutes, and the other test jobs about 8.
+Setting up takes each job about 2 minutes. `binding` and `passes` take longest after that, 8 to 14 minutes each,
+depending on the runner, one Lean process at a time, so CI takes 13 to 16 minutes, and the other test jobs 6 to 9.
 
 Every job restores one cache, of the Lean toolchain, uv's packages, `.lake` and `build/lean-cache`, from the latest
 commit that saved one. Only the lint job saves it, so the jobs don't race for its key.
