@@ -106,8 +106,12 @@
     }
   },
   "not_exercised": [],
+  "folds_run": {
+    "Peephole.IS.simplifyAddInst": "h0.0"
+  },
+  "folds_not_run": [],
   "untagged": [],
   "mismatches": [],
   "unexplained": [],
-  "seconds": 2.6
+  "seconds": 2.4
 }

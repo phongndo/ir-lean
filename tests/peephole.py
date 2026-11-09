@@ -163,9 +163,13 @@ def registry_problems(path: Path, data: dict[str, Any]) -> list[str]:
     for fold, f in data.get("folds", {}).items():
         if not isinstance(f.get("sound"), str) or not isinstance(f.get("sites"), list):
             problems.append(f"fold {fold} needs a `sound` theorem and a list of `sites`")
-    for key in ("unproved", "rests_on"):
+    for key in ("unproved", "rests_on", "covers"):
         if not isinstance(data.get(key, {}), dict):
             problems.append(f"`{key}` isn't an object")
+    # `covers`: for a site the inventory says needs more than integers, the types its proof covers too.
+    for site, types in data.get("covers", {}).items() if isinstance(data.get("covers", {}), dict) else []:
+        if not isinstance(types, list) or not set(types) <= {"int", *WAITS_FOR}:
+            problems.append(f"covers: {site}: {types!r} isn't a list of {', '.join(['int', *WAITS_FOR])}")
     if not isinstance(data.get("lemmas", []), list):
         problems.append("`lemmas` isn't a list")
     return problems
@@ -860,11 +864,20 @@ class Tally:
     mismatches: list[dict[str, Any]] = field(default_factory=list)
     unexplained_cases: list[dict[str, Any]] = field(default_factory=list)
     untagged: list[str] = field(default_factory=list)
+    # Each registered fold a compared case's run reached, with the first such case.
+    folds_run: dict[str, str] = field(default_factory=dict)
 
     def site(self, s: str) -> dict[str, Any]:
         return self.sites.setdefault(
             s, {"fired": 0, "matched": 0, "mismatched": 0, "analysis": 0, "files": set()}
         )
+
+
+def unchanged(before: list[str], after: list[str]) -> bool:
+    """Whether `opt` left every line of a case's function but the root and the `ret` as it was, so the fold
+    saw the operands the model did."""
+    keep = [x for x in before if not x.startswith(("  %r = ", "  ret "))]
+    return keep == [x for x in after if not x.startswith(("  %r = ", "  ret "))]
 
 
 def classify(
@@ -874,15 +887,15 @@ def classify(
     t.cases += 1
     t.harvested += bool(case.files)
     t.generated += not case.files
-    keep = [x for x in before if not x.startswith(("  %r = ", "  ret "))]
-    got = [x for x in after if not x.startswith(("  %r = ", "  ret "))]
     rets = [x.split()[-1] for x in after if x.startswith("  ret ")]
     root_after = [x for x in after if x.startswith("  %r = ")]
     root_before = [x for x in before if x.startswith("  %r = ")]
     result = answer["result"]
-    if keep != got:
+    if not unchanged(before, after):
         t.operand_changed += 1
         return
+    for f in answer.get("ran", []):
+        t.folds_run.setdefault(f, case.name)
     opt_changed = rets != ["%r"] or root_after != root_before
     ir = "\n".join(before)
     if "delegated" in result:
@@ -893,12 +906,21 @@ def classify(
         if not opt_changed:
             t.compared += 1
             t.agreed_no_fold += 1
-        elif "analysis" in answer:
-            t.analysis += 1
-            t.site(answer["analysis"].get("site") or "unknown")["analysis"] += 1
-        else:
-            t.unexplained += 1
-            t.unexplained_cases.append({"case": case.name, "where": case.where, "opt": rets, "ir": ir})
+            return
+        # An analysis explains it only if the model, with the oracle that made it fire, answers what opt does.
+        said = None
+        if "analysis" in answer:
+            value = answer["analysis"]["value"]
+            said = expected_text(value, names)
+            explained = rets == [said] if said is not None else compare_new_ir(case, value, after) is True
+            if explained:
+                t.analysis += 1
+                t.site(answer["analysis"].get("site") or "unknown")["analysis"] += 1
+                return
+        t.unexplained += 1
+        t.unexplained_cases.append(
+            {"case": case.name, "where": case.where, "opt": rets, "model_with_an_analysis": said, "ir": ir}
+        )
         return
     site = answer.get("site") or "unknown"
     s = t.site(site)
@@ -927,21 +949,25 @@ def classify(
 
 
 def run_models(
-    work: Path, regs: list[Registry], cases: list[Case]
+    work: Path, regs: list[Registry], cases: list[Case], watch: dict[str, bool]
 ) -> tuple[dict[str, dict[str, Any]], list[str]]:
     """Each case's answer from its entry point, in one Lean process, and the entry points whose sites can't be
-    told apart."""
+    told apart. Each answer also names the registered folds, of every registry, that its run reached."""
     entries = sorted({e["fold"] for r in regs for e in r.entries})
     modules = sorted({m for r in regs for m in r.modules})
-    table = ",\n    ".join(f'⟨"{e}", @{e}, @PeepholeHarness.Tagged.{e}⟩' for e in entries)
+    folds = sorted({f for r in registries() for f in r.folds})
+    names = lambda xs: ", ".join(f"``{x}" for x in xs)  # noqa: E731
     (work / "Driver.lean").write_text(
         "".join(f"import {m}\n" for m in ["PeepholeHarness", *modules])
-        + f"\nrun_meta PeepholeHarness.tagFolds #[{', '.join(f'``{e}' for e in entries)}]\n\n"
-        + f"def main (args : List String) : IO UInt32 :=\n  PeepholeHarness.runCases #[\n    {table}] args\n"
+        + f"\nrun_meta PeepholeHarness.prepare #[{names(entries)}] #[{names(folds)}]\n\n"
+        + "def main (args : List String) : IO UInt32 :=\n"
+        + "  PeepholeHarness.runCases PeepholeHarness.Driver.table args\n"
     )
     with (work / "cases.jsonl").open("w") as f:
         for c in cases:
-            f.write(json.dumps({"name": c.name, "entry": c.entry, "term": c.term}) + "\n")
+            f.write(
+                json.dumps({"name": c.name, "entry": c.entry, "term": c.term, "watch": watch[c.name]}) + "\n"
+            )
     r = run(leanlib.argv(LEAN_MB, "--run", work / "Driver.lean", work / "cases.jsonl"), lean_env(work))
     if r.exit != 0:
         raise HarnessError(f"the models' driver failed:\n{r.output[-4000:]}")
@@ -999,7 +1025,9 @@ def compare(args: argparse.Namespace) -> int:
             pre, post = opt_functions(verified.out), opt_functions(optimized.out)
             for n, c in items:
                 before[c.name], after[c.name] = pre[f"c{n}"], post[f"c{n}"]
-        answers, untagged = run_models(work, regs, cases)
+        # Which folds a run reaches is only looked for in cases whose operands opt left as they were.
+        watch = {c.name: unchanged(before[c.name], after[c.name]) for c in cases}
+        answers, untagged = run_models(work, regs, cases, watch)
     seconds = time.monotonic() - started
     failed = False
     reports = []
@@ -1012,7 +1040,7 @@ def compare(args: argparse.Namespace) -> int:
         report = comparison_record(reg, t, stats, version, seconds)
         reports.append(report)
         print_comparison(report)
-        failed |= report["status"] != "ok" or (args.strict and t.unexplained > 0)
+        failed |= report["status"] not in ("ok", "no entry points") or (args.strict and t.unexplained > 0)
         if args.write:
             schemas.write(COMPARED / f"{reg.family}.json", report, schemas.PEEPHOLE_COMPARISON, indent=2)
             print(f"      recorded in {rel(COMPARED / f'{reg.family}.json')}")
@@ -1029,6 +1057,18 @@ def comparison_record(
     sites = {
         s: {**v, "files": sorted(v["files"]), "registered": s in listed} for s, v in sorted(t.sites.items())
     }
+    # A fold ran if a compared case's run reached it, or one of its steps fired.
+    fold_of = {s: f for r in registries() for s, (f, _) in r.sites().items()}
+    ran = dict(t.folds_run)
+    for s, v in sorted(t.sites.items()):
+        if v["fired"] and s in fold_of:
+            ran.setdefault(fold_of[s], f"a case where {s} fired")
+    if not reg.entries:
+        status = "no entry points"
+    elif t.mismatched:
+        status = "mismatch"
+    else:
+        status = "ok" if t.compared > 0 else "nothing compared"
     return {
         "schema": schemas.PEEPHOLE_COMPARISON,
         "family": reg.family,
@@ -1036,11 +1076,7 @@ def comparison_record(
         "sources": model_hash(reg),
         "opt": (re.search(r"LLVM version (\S+)", version) or [None, "unknown"])[1],
         "date": today(),
-        "status": "ok"
-        if t.mismatched == 0 and t.compared > 0
-        else "mismatch"
-        if t.mismatched
-        else "nothing compared",
+        "status": status,
         "cases": {
             k: getattr(t, k)
             for k in (
@@ -1062,6 +1098,8 @@ def comparison_record(
         "regression_tests": {"read": stats["files"] - len(stats["unread"]), "unread": len(stats["unread"])},
         "sites": sites,
         "not_exercised": sorted(set(listed) - {s for s, v in t.sites.items() if v["fired"]}),
+        "folds_run": dict(sorted(ran.items())),
+        "folds_not_run": sorted(set(reg.folds) - set(ran)),
         "untagged": t.untagged,
         "mismatches": t.mismatches[:50],
         "unexplained": t.unexplained_cases[:50],
@@ -1071,7 +1109,7 @@ def comparison_record(
 
 def print_comparison(r: dict[str, Any]) -> None:
     c, t = r["cases"], r["regression_tests"]
-    mark = "ok  " if r["status"] == "ok" else "FAIL"
+    mark = "ok  " if r["status"] in ("ok", "no entry points") else "FAIL"
     lines = [
         f"{mark}  {r['family']}: {c['cases']} cases, {c['harvested']} from {t['read']} of LLVM's regression "
         f"tests ({t['unread']} opt can't read) and {c['generated']} generated",
@@ -1091,6 +1129,11 @@ def print_comparison(r: dict[str, Any]) -> None:
     if r["not_exercised"]:
         lines.append(f"never fired: {', '.join(r['not_exercised'])}")
     lines += [f"sites unknown for {u}" for u in r["untagged"]]
+    lines.append(f"folds a compared run reached: {', '.join(r['folds_run']) or 'none'}")
+    if r["folds_not_run"]:
+        lines.append(f"this family's folds no compared run reached: {', '.join(r['folds_not_run'])}")
+    if r["status"] == "no entry points":
+        lines.append("no entry points: its folds run only through other families' entry points")
     for m in r["mismatches"][:10]:
         where = m["where"] or "generated"
         lines.append(
@@ -1115,9 +1158,21 @@ def recorded(reg: Registry) -> tuple[dict[str, Any] | None, str]:
     rec = schemas.read(path, schemas.PEEPHOLE_COMPARISON)
     if rec.get("sources") != model_hash(reg):
         return rec, f"{rel(path)} compared other sources than the model's now: {again}"
-    if rec.get("status") != "ok":
+    if rec.get("status") not in ("ok", "no entry points"):
         return rec, f"{rel(path)} says {rec.get('status')}"
     return rec, ""
+
+
+def compared_runs(comparisons: dict[str, tuple[dict[str, Any] | None, str]]) -> tuple[set[str], set[str]]:
+    """From every comparison recorded for its sources now, with something compared and no mismatch: the folds
+    a compared run reached, and the sites that fired in a compared case and matched `opt`."""
+    folds, exercised = set(), set()
+    for rec, why_not in comparisons.values():
+        if rec is None or why_not or rec.get("status") != "ok":
+            continue
+        folds |= set(rec.get("folds_run", {}))
+        exercised |= {s for s, v in rec.get("sites", {}).items() if v.get("matched", 0) > 0}
+    return folds, exercised
 
 
 def module_checks(modules: list[str]) -> dict[str, dict[str, Any]]:
@@ -1150,10 +1205,20 @@ def counts(
     built: core.Step,
     ran: dict[str, Any],
     why_not: str,
-) -> core.Decision:
-    """Whether a rewrite counts as proved for every input: what Lean says of its theorem, `found`, and of
-    its fold's `sound` theorem, `snd`, its module's axiom audit and replay, `ran`, and why its comparison with
-    `opt` doesn't count, `why_not`, if it doesn't. irlean.verdict decides."""
+    compared: bool = True,
+    uncovered: frozenset[str] = frozenset(),
+) -> tuple[str, core.Decision]:
+    """Whether a rewrite counts toward G2, and if not, how far it got: what Lean says of its theorem, `found`,
+    and of its fold's `sound` theorem, `snd`, its module's axiom audit and replay, `ran`, why its family's
+    comparison with `opt` doesn't count, `why_not`, if it doesn't, whether a compared run reached its fold,
+    `compared`, and the types the inventory says it needs that its proof doesn't cover, `uncovered`.
+    irlean.verdict decides. One of:
+
+    - `counted`: every rule holds;
+    - `proved, model not compared with opt`: proved, but no compared run reached its fold;
+    - `integer instance proved`: proved and compared, for integers, and the inventory says it needs more;
+    - `not counted`: a rule about the proof or its family's comparison fails, and a registry listing it as
+      proved is wrong."""
     rules = {
         f"Peephole.{site} is a theorem": bool(found) and found["kind"] == "theorem",
         "it rests on the standard three axioms only": bool(found) and set(found["axioms"]) <= STANDARD_AXIOMS,
@@ -1161,12 +1226,27 @@ def counts(
         and set(snd.get("axioms", ["?"])) <= STANDARD_AXIOMS,
         f"{sound} uses it": f"Peephole.{site}" in snd.get("sites", []),
         "its module passes the axiom audit, with nothing from bv_decide": ran.get("bv_decide") == 0,
-        "its model's comparison with opt is recorded for its sources now, with no mismatch": not why_not,
+        "its family's comparison with opt is recorded for its sources now, with no mismatch": not why_not,
     }
-    evidence = core.Evidence(
-        lean=built, replay=ran.get("leanchecker"), axioms=ran.get("check_axioms"), checks=rules
-    )
-    return core.decide(core.Verdict.PROVED, evidence)
+
+    def decide(checks: dict[str, bool]) -> core.Decision:
+        evidence = core.Evidence(
+            lean=built, replay=ran.get("leanchecker"), axioms=ran.get("check_axioms"), checks=checks
+        )
+        return core.decide(core.Verdict.PROVED, evidence)
+
+    proof = decide(rules)
+    if not proof.granted:
+        return "not counted", proof
+    every = {
+        **rules,
+        "a compared run reached its fold, so its model was compared with opt": compared,
+        "its proof covers every type the inventory says it needs": not uncovered,
+    }
+    decision = decide(every)
+    if decision.granted:
+        return "counted", decision
+    return ("proved, model not compared with opt" if not compared else "integer instance proved"), decision
 
 
 def pct(n: int, d: int) -> float:
@@ -1201,38 +1281,50 @@ def score(args: argparse.Namespace) -> int:
     sounds = {f["name"]: f for f in found["sounds"]}
     checks = module_checks(sorted({sites[s]["module"] for s in listed if s in sites and sites[s]["module"]}))
     comparisons = {reg.family: recorded(reg) for reg in regs}
-    proved, not_counted = [], []
+    folds_run, exercised = compared_runs(comparisons)
+    outcome: dict[str, dict[str, Any]] = {}
     for s, (reg, fold, sound) in sorted(listed.items()):
         f = sites.get(s)
         why_not = comparisons[reg.family][1]
         ran = checks.get(f["module"], {}) if f else {}
-        decision = counts(s, f, sound, sounds.get(sound, {}), built, ran, why_not)
-        if decision.granted:
-            proved.append(
-                {"id": s, "family": reg.family, "fold": fold, "theorem": f"Peephole.{s}", "sound": sound}
-            )
-        else:
-            not_counted.append(
-                {"id": s, "family": reg.family, "why": decision.detail + (f"; {why_not}" if why_not else "")}
-            )
-    counted = {p["id"] for p in proved}
+        needs = set(ids[s][1]["needs"]) - {"int"} if s in ids else set()
+        uncovered = frozenset(needs - set(reg.data.get("covers", {}).get(s, [])))
+        status, decision = counts(
+            s, f, sound, sounds.get(sound, {}), built, ran, why_not, fold in folds_run, uncovered
+        )
+        outcome[s] = {
+            "id": s,
+            "family": reg.family,
+            "fold": fold,
+            "status": status,
+            "exercised": s in exercised,
+            "needs": sorted(ids[s][1]["needs"]) if s in ids else [],
+            "why": "" if status == "counted" else decision.detail + (f"; {why_not}" if why_not else ""),
+        }
+    counted = {s for s, o in outcome.items() if o["status"] == "counted"}
     passes = {}
     every = [r for rewrites in inv.values() for r in rewrites]
     for p, rs in [*inv.items(), ("all", every)]:
         ints = [r for r in rs if r["needs"] == ["int"]]
+        of = lambda status, rs=rs: sum(outcome.get(r["id"], {}).get("status") == status for r in rs)  # noqa: E731
         passes[p] = {
             "inventoried": len(rs),
             "proved": sum(r["id"] in counted for r in rs),
             "percent": pct(sum(r["id"] in counted for r in rs), len(rs)),
+            "exercised": sum(r["id"] in counted and r["id"] in exercised for r in rs),
             "int": len(ints),
             "int_proved": sum(r["id"] in counted for r in ints),
             "int_percent": pct(sum(r["id"] in counted for r in ints), len(ints)),
+            "not_compared": of("proved, model not compared with opt"),
+            "integer_instances": of("integer instance proved"),
             "blocked": {
                 k: {"waits_for": w, "count": len(b), "rewrites": b}
                 for k, w in WAITS_FOR.items()
                 for b in [sorted(r["id"] for r in rs if k in r["needs"])]
             },
         }
+    proved = [o for o in outcome.values() if o["status"] == "counted"]
+    not_counted = [o for o in outcome.values() if o["status"] == "not counted"]
     record = {
         "schema": schemas.PEEPHOLE_SCORE,
         "date": today(),
@@ -1243,12 +1335,25 @@ def score(args: argparse.Namespace) -> int:
                 "registry": rel(reg.path),
                 "sites": len(reg.sites()),
                 "proved": sum(s in counted for s in reg.sites()),
+                "exercised": sum(s in counted and s in exercised for s in reg.sites()),
+                "not_compared": sum(
+                    outcome[s]["status"] == "proved, model not compared with opt" for s in reg.sites()
+                ),
+                "integer_instances": sum(
+                    outcome[s]["status"] == "integer instance proved" for s in reg.sites()
+                ),
+                "not_counted": sum(outcome[s]["status"] == "not counted" for s in reg.sites()),
                 "unproved": len(reg.data.get("unproved", {})),
-                "comparison": comparisons[reg.family][1] or "current",
+                "comparison": comparisons[reg.family][1]
+                or (comparisons[reg.family][0] or {}).get("status", ""),
+                "folds_not_run": sorted(set(reg.folds) - folds_run),
             }
             for reg in regs
         },
+        "sites": list(outcome.values()),
         "proved": proved,
+        "not_compared": [o for o in outcome.values() if o["status"] == "proved, model not compared with opt"],
+        "integer_instances": [o for o in outcome.values() if o["status"] == "integer instance proved"],
         "not_counted": not_counted,
         "problems": problems,
         "unproved": {s: why for reg in regs for s, why in sorted(reg.data.get("unproved", {}).items())},
@@ -1264,6 +1369,8 @@ def score(args: argparse.Namespace) -> int:
         print(f"FAIL  {x}")
     for x in not_counted:
         print(f"FAIL  {x['family']}: {x['id']} is listed as proved, and doesn't count: {x['why']}")
+    for x in [*record["not_compared"], *record["integer_instances"]]:
+        print(f"      {x['family']}: {x['id']}: {x['status']}, not counted")
     if args.check:
         print(f"{'FAIL' if failed else 'ok  '}  every rewrite a registry lists as proved counts")
         return 1 if failed else 0
@@ -1281,24 +1388,30 @@ NAMES = {
 
 def markdown(record: dict[str, Any]) -> str:
     rows = [
-        "| Pass | Rewrites | Proved | % | Integers only | Proved of those | % "
-        "| Need fp (SEM-05) | Need memory (F4) | Need calls |",
-        "| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |",
+        "| Pass | Rewrites | Proved | % | Of those, exercised by opt | Integers only | Proved of those | % "
+        "| Proved, model not compared | Integer instance proved | Need fp (SEM-05) | Need memory (F4) "
+        "| Need calls |",
+        "| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |",
     ]
     for p, v in record["passes"].items():
         b = v["blocked"]
         rows.append(
-            f"| {NAMES[p]} | {v['inventoried']:,} | {v['proved']:,} | {v['percent']} | {v['int']:,} "
-            f"| {v['int_proved']:,} | {v['int_percent']} | {b['fp']['count']:,} | {b['memory']['count']:,} "
+            f"| {NAMES[p]} | {v['inventoried']:,} | {v['proved']:,} | {v['percent']} | {v['exercised']:,} "
+            f"| {v['int']:,} | {v['int_proved']:,} | {v['int_percent']} | {v['not_compared']:,} "
+            f"| {v['integer_instances']:,} | {b['fp']['count']:,} | {b['memory']['count']:,} "
             f"| {b['calls']['count']:,} |"
         )
     rows += [
         "",
-        "| Family | Sites listed | Proved | Listed unproved | Comparison |",
-        "| --- | --- | --- | --- | --- |",
+        "| Family | Sites listed | Proved | Exercised by opt | Proved, model not compared "
+        "| Integer instance proved | Not counting | Listed unproved | Comparison |",
+        "| --- | --- | --- | --- | --- | --- | --- | --- | --- |",
     ]
     for fam, v in record["families"].items():
-        rows.append(f"| `{fam}` | {v['sites']} | {v['proved']} | {v['unproved']} | {v['comparison']} |")
+        rows.append(
+            f"| `{fam}` | {v['sites']} | {v['proved']} | {v['exercised']} | {v['not_compared']} "
+            f"| {v['integer_instances']} | {v['not_counted']} | {v['unproved']} | {v['comparison']} |"
+        )
     return "\n".join(rows)
 
 
