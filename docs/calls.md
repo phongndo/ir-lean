@@ -348,7 +348,8 @@ theorem that needs it there says so, with its size from the declared type, as `M
   a refinement's source, so F4 has to settle it.
 - **Constant `getelementptr` expressions** over an external global are checked the way they are over one the module
   defines: refused unless every step plainly stays inside the declared type.
-- **Refused:** an external global whose type isn't sized, `extern_weak` ones, which may be null, and thread-local ones.
+- **Refused:** an external global whose type isn't sized, `extern_weak` ones, which may be null, thread-local ones,
+  and ones outside address space 0, which memory doesn't have.
 
 So the 394 InstCombine pairs refused for an external global would move to `memory`, the group stage 1 counts as
 translated without a claim, or to the next refusal each has.
@@ -404,7 +405,10 @@ Each is a pull request, merged when green, with this page updated to say what's 
    go on, which there are all of the target's.
    `tests/binding.py` binds a real `instcombine` run that rewrites around a call to `@use`, which stays, as
    `ir_instance_refinement`.
-3. **External globals,** and constant expressions over them, as above.
+3. **External globals,** and constant expressions over them, as above. **Built** on 2026-11-09: an external global
+   gets an address, and `initial` leaves its allocation out. Of the 394 InstCombine pairs refused first for one, 185
+   now translate as functions with memory, which stage 1 counts as `memory`, 151 reach a call that touches memory, and
+   the rest reach another refusal, such as `ptrtoint` in a constant.
 4. **Variadic calls** to functions outside the module, as above.
 
 ## Tests
