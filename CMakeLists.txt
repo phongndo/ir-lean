@@ -104,6 +104,10 @@ add_test(NAME llvm COMMAND ${CMAKE_SOURCE_DIR}/tests/llvm.py $<TARGET_FILE:ir-le
 add_test(NAME llvm_scope COMMAND ${CMAKE_SOURCE_DIR}/tests/llvm_scope_test.py)
 add_test(NAME llvm_scope_check COMMAND ${CMAKE_SOURCE_DIR}/tests/llvm_scope.py check)
 set_tests_properties(llvm_scope llvm_scope_check PROPERTIES TIMEOUT 600)
+# BIND-02's closure of simplifyAddInst: its files hashed, and its 64 files of llvm-project compiled again to
+# the same IR, with 4 clang processes at once. docs/llvm-closure.md.
+add_test(NAME llvm_closure COMMAND ${CMAKE_SOURCE_DIR}/tests/llvm_closure_test.py)
+set_tests_properties(llvm_closure PROPERTIES TIMEOUT 1800)
 # Which of the nine chunks of docs/chunks.md each of the inventory's passes is in, and the counts that page
 # gives: every pass in exactly one, against tests/llvm_scope/inventory.json. Under a second, and no Lean or
 # LLVM.
@@ -264,7 +268,7 @@ set_tests_properties(binding PROPERTIES LABELS binding)
 set_tests_properties(binding_2 PROPERTIES LABELS binding_2)
 # verify_negative runs alone, after proofs, in the same job, so semantics has only one test that runs alone.
 set_tests_properties(proofs verify_negative PROPERTIES LABELS proofs)
-set_tests_properties(llvm PROPERTIES LABELS llvm)
+set_tests_properties(llvm llvm_closure PROPERTIES LABELS llvm)
 set_tests_properties(
     replay_challenge
     contracts
