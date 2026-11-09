@@ -18,8 +18,9 @@ What each claim needs, besides every one of `checks` passing and every one of `f
   `cached`, a verdict this checker stored for exactly these files and tools; or `upstream` saying `bound` or
   `proved`.
 - refuted: a module, as for proved, of a theorem that the claim is false; `kernel`, the kernel accepting such
-  a theorem inside a Lean process; `evaluated`, the model's compiled code finding the claim false at an input;
-  or `upstream` saying `counterexample`.
+  a theorem inside the Lean process `lean`; `evaluated`, the model's compiled code, run by `lean`, finding the
+  claim false at an input; or `upstream` saying `counterexample`. For `kernel` and `evaluated`, `lean` has to
+  have ended cleanly too.
 - caught: `step`, a check that has to fail on wrong code, ending on its own with `found_exit`, and a `finding`
   of its own: what it found, which isn't a resource limit.
 
@@ -84,7 +85,7 @@ class Step:
 class Evidence:
     """What a verdict rests on. Each field is optional; `decide` says which a claim needs."""
 
-    # The Lean process that compiled the theorem, or for `kernel`, the one whose kernel checked it.
+    # The Lean process that compiled the theorem, or for `kernel` and `evaluated`, the one that answered.
     lean: Step | None = None
     # leanchecker, replaying the theorem's modules through the kernel.
     replay: Step | None = None
@@ -228,9 +229,13 @@ def decide(claim: Verdict | str, e: Evidence) -> Decision:
         return Decision(claim, "upstream", f"{step.name} says {record['status']}")
     if claim is Verdict.CERTIFIED and e.cached is True:
         return Decision(claim, "cached", "a stored verdict for exactly these files and tools")
-    if claim is Verdict.REFUTED and e.kernel is True:
-        return Decision(claim, "kernel_refuted", "the kernel checked that the claim is false")
-    if claim is Verdict.REFUTED and e.evaluated is True:
+    if claim is Verdict.REFUTED and (e.kernel is True or e.evaluated is True):
+        # What a process answered counts only if it then ended cleanly: one that crashed or was stopped after
+        # answering says nothing it can be held to.
+        if why := _ended(e.lean):
+            return Decision(Verdict.ERROR, "unconfirmed", f"the process that answered {why}")
+        if e.kernel is True:
+            return Decision(claim, "kernel_refuted", "the kernel checked that the claim is false")
         return Decision(claim, "evaluation_refuted", "the model's compiled code finds the claim false")
     if why := _module(e):
         return Decision(Verdict.ERROR, "no_evidence", why)

@@ -718,7 +718,9 @@ def contract_checks() -> list[str]:
             run.check(name, value)
         run.claim = {"theorem": {"found": True, "name": "t", "axioms": []}, "statement": None}
         # The Lean processes irlean.verdict rests a proof on, and the modules they wrote: this file stands in.
-        run.steps = {name: v.verdict.Step(name, 0) for name in ("compile_proof", "kernel_replay")}
+        run.steps = {
+            name: v.verdict.Step(name, 0) for name in ("compile_proof", "kernel_replay", "witnesses")
+        }
         run.outputs = {name: Path(__file__) for name in ("compile_generated", "compile_proof")}
         return run
 
@@ -755,6 +757,21 @@ def contract_checks() -> list[str]:
     witness.witnesses = [{"result": "fails", "assignment": {"x": "1"}}]
     if v.decide(witness)[1] != "evaluation_contradicts_proof":
         failures.append("a passing proof with a failing witness isn't a contradiction")
+    # A witness that fails counts only if what evaluated it ended cleanly.
+    for ended, status in (
+        (v.verdict.Step("witnesses", -11), "error"),
+        (v.verdict.Step("witnesses", -9, limit="time_limit"), "timeout"),
+        (v.verdict.Step("witnesses", 1, output="error: (deterministic) timeout"), "timeout"),
+        (v.verdict.Step("witnesses", 1), "error"),
+    ):
+        crashed = run_with()
+        crashed.request = {"input": {"ir": "x.ll"}, "statement": "True"}
+        crashed.witnesses = [{"result": "fails", "assignment": {"x": "1"}}]
+        crashed.steps["witnesses"] = ended
+        if v.decide(crashed)[0] != status:
+            failures.append(
+                f"a failing witness whose evaluation {ended} is {v.decide(crashed)}, not {status}"
+            )
     tampered = run_with(artifacts_unchanged="fail")
     tampered.witnesses = witness.witnesses
     if v.decide(tampered)[1] != "artifacts_modified":

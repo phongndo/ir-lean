@@ -1007,6 +1007,9 @@ def evaluate_witnesses(run: Run) -> None:
         # No time was left to start. That's the same as running out partway: the witnesses time out, and
         # whatever the proof showed stands.
         ran, answers = Ran([], -9, "", "", 0.0, True), []
+    run.steps["witnesses"] = verdict.Step(
+        "witnesses", ran.returncode, "time_limit" if ran.timed_out else None, ran.output
+    )
     results = {a["index"]: a for a in answers if a.get("kind") == "witness"}
     started = any(a.get("kind") == "witness_start" for a in answers)
     trouble = next((a["error"] for a in answers if a.get("kind") == "witness_error"), None)
@@ -1086,7 +1089,8 @@ def decide(run: Run) -> tuple[str, str, str]:
     1. A checked file that changed while the proof's code ran makes everything after it suspect.
     2. A run that stopped early answers with why it stopped.
     3. A witness that makes the claim false is a counterexample, unless the proof passed every check for
-       that same statement, when one of the two is wrong and neither can be reported.
+       that same statement, when one of the two is wrong and neither can be reported. It counts only if the
+       process that evaluated it ended cleanly: otherwise it's a timeout or an error.
     4. With a proof, the first check it failed. `proved` only comes after every required check passed.
     5. With only a statement, nothing can be proved: whatever the witnesses showed, short of a refutation.
     """
@@ -1097,6 +1101,20 @@ def decide(run: Run) -> tuple[str, str, str]:
     has_proof = "proof" in run.request
     falsified = [w for w in run.witnesses if w.get("result") == "fails"]
     if falsified:
+        # A witness only fails against a statement that names the target, which is all a refutation needs, and
+        # only counts if the process that evaluated it ended cleanly.
+        refuted = verdict.decide(
+            verdict.Verdict.REFUTED, verdict.Evidence(evaluated=True, lean=run.steps.get("witnesses"))
+        )
+        step = run.steps.get("witnesses")
+        if refuted.verdict is verdict.Verdict.UNKNOWN:
+            # Its time ran out, Lean said it ran out of something, or it was killed, as at a memory cap.
+            limit = "time_limit" if step is None or step.limit else limit_of(step.output) or "memory_limit"
+            why = f"a witness made the statement false, and its evaluation didn't finish: {refuted.detail}"
+            return "timeout", limit, why
+        if not refuted.granted:
+            why = f"a witness made the statement false, and its evaluation failed: {refuted.detail}"
+            return "error", "tool_failed", why
         proof_stands = has_proof and all(run.checks[c]["result"] == "pass" for c in REQUIRED)
         if proof_stands and run.checks["statement"]["result"] in ("pass", "skip"):
             return (
@@ -1106,10 +1124,6 @@ def decide(run: Run) -> tuple[str, str, str]:
                 f"{falsified[0]['assignment']}. Lean's compiler, an implemented_by or extern, or the kernel "
                 "is wrong",
             )
-        # A witness only fails against a statement that names the target, which is all a refutation needs.
-        refuted = verdict.decide(verdict.Verdict.REFUTED, verdict.Evidence(evaluated=True))
-        if not refuted.granted:
-            return "error", "internal_error", f"a falsified witness wasn't a refutation: {refuted.detail}"
         return (
             "counterexample",
             "witness_falsifies",

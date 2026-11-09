@@ -140,13 +140,18 @@ class Exhaustive(unittest.TestCase):
         self.assertGreater(count, 100000)
 
     def test_the_other_evidence(self) -> None:
-        """certified from a stored verdict, refuted by the kernel or compiled code, and each from a checker's
-        record, alone, with every file and check."""
+        """certified from a stored verdict, and refuted by the kernel or compiled code, which counts only if
+        the process that answered ended cleanly, with every file and check."""
         for claim in (Verdict.PROVED, Verdict.CERTIFIED, Verdict.REFUTED):
-            for kernel, evaluated, cached, files, checks in itertools.product(
-                FLAGS.values(), FLAGS.values(), FLAGS.values(), FILES.values(), CHECKS.values()
+            for kernel, evaluated, cached, (
+                _,
+                (lean, lean_clean, lean_limit),
+            ), files, checks in itertools.product(
+                FLAGS.values(), FLAGS.values(), FLAGS.values(), STEPS.items(), FILES.values(), CHECKS.values()
             ):
-                e = Evidence(kernel=kernel, evaluated=evaluated, cached=cached, files=files, checks=checks)
+                e = Evidence(
+                    kernel=kernel, evaluated=evaluated, cached=cached, lean=lean, files=files, checks=checks
+                )
                 files_ok = all(v is True for v in files.values()) and bool(
                     claim is not Verdict.CERTIFIED or files
                 )
@@ -154,9 +159,9 @@ class Exhaustive(unittest.TestCase):
                 by = {
                     Verdict.PROVED: False,
                     Verdict.CERTIFIED: cached is True,
-                    Verdict.REFUTED: kernel is True or evaluated is True,
+                    Verdict.REFUTED: (kernel is True or evaluated is True) and lean_clean,
                 }[claim]
-                self.check(claim, e, files_ok and checks_ok and by, False)
+                self.check(claim, e, not lean_limit and files_ok and checks_ok and by, lean_limit)
 
     def test_a_checkers_record(self) -> None:
         for claim in (Verdict.PROVED, Verdict.CERTIFIED, Verdict.REFUTED):
@@ -211,8 +216,8 @@ GRANTED: list[tuple[Verdict, Evidence]] = [
     for files in ({"cert.olean": True},)
 ] + [
     (Verdict.CERTIFIED, Evidence(cached=True, files={"Cert.lean": True}, checks={"artifacts": True})),
-    (Verdict.REFUTED, Evidence(kernel=True)),
-    (Verdict.REFUTED, Evidence(evaluated=True)),
+    (Verdict.REFUTED, Evidence(kernel=True, lean=Step("harness", 0))),
+    (Verdict.REFUTED, Evidence(evaluated=True, lean=Step("claim:witness", 0))),
     *(
         (claim, Evidence(upstream=good_record(claim), files={"a": True}))
         for claim in UPSTREAM
@@ -367,6 +372,14 @@ class PastBugs(unittest.TestCase):
         differs = text[text.index("    def differs(") : text.index("    def one(")]
         self.assertIn("core.Verdict.REFUTED", differs)
         self.assertIn("r.exit == 0", differs)
+
+    def test_an_answer_from_a_process_that_then_failed_refutes_nothing(self) -> None:
+        # Found in review: a kernel answer or a failing witness from a process that then crashed, timed out or
+        # failed, or one with no process at all, counted.
+        for kernel, evaluated in ((True, None), (None, True)):
+            for lean in (None, Step("lean", -11), Step("lean", 1), Step("lean", -9, limit="time_limit")):
+                e = Evidence(lean=lean, kernel=kernel, evaluated=evaluated)
+                self.assertFalse(decide(Verdict.REFUTED, e).granted, (kernel, evaluated, lean))
 
     def test_a_cached_result_whose_certificate_is_gone_is_not_certified(self) -> None:
         # #51: the scorer counted cached results whose certificates were gone.
