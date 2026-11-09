@@ -122,7 +122,8 @@ const std::set<std::string> &reservedNames() {
         "Block", "IRLean", "Next", "Outcome", "Val", "andThen", "assume", "br", "branch", "false", "jump",
         "loop", "none", "noundef", "ret", "run", "select", "some", "step", "sw", "true", "unreachable",
         "HasPoison", "Mem", "Ptr", "PtrVal", "initial", "m", "indirect", "Vec", "Vector", "a", "b", "Unit",
-        "Nat", "BitVec", "Array", "promised", "runPromised", "Choice", "Outcomes",
+        "Nat", "BitVec", "Array", "promised", "runPromised", "Choice", "Outcomes", "World", "Trace", "Exit",
+        "Lanes", "Event", "Answer", "Promises", "Talks",
         // Names Lean generates for every inductive type.
         "below", "binductionOn", "brecOn", "casesOn", "ctorElim", "ctorElimType", "ctorIdx", "ibelow",
         "injEq", "noConfusion", "noConfusionType", "rec", "recOn", "sizeOf", "toCtorIdx"};
@@ -318,8 +319,13 @@ public:
     if (auto *V = dyn_cast<FixedVectorType>(C->getType())) {
       leanType(V);
       std::string Out = "#v[";
-      for (unsigned I = 0, E = V->getNumElements(); I != E; ++I)
-        Out += (I ? ", " : "") + constant(C->getAggregateElement(I));
+      for (unsigned I = 0, E = V->getNumElements(); I != E; ++I) {
+        // A constant expression of vector type, such as a `bitcast` of a vector, has no elements to read.
+        const Constant *Element = C->getAggregateElement(I);
+        if (!Element)
+          reject("constant " + printed(*C));
+        Out += (I ? ", " : "") + constant(Element);
+      }
       return Out + "]";
     }
     if (auto *S = dyn_cast<ConstantStruct>(C)) {
@@ -468,6 +474,8 @@ private:
         bool Overflow = false;
         if (StructType *S = I.getStructTypeOrNull())
           Step = APInt(64, DL.getStructLayout(S)->getElementOffset(Index->getZExtValue()));
+        else if (DL.getTypeAllocSize(I.getIndexedType()).isScalable())
+          reject("constant " + printed(*C));
         else
           Step = Index->getValue().sextOrTrunc(64).smul_ov(APInt(64, I.getSequentialElementStride(DL)),
                                                            Overflow);
@@ -556,6 +564,35 @@ private:
 
 const char *libraryFunction(const Function &F);
 
+// A call to something outside the module that never returns, such as an abort, which stops the model. A
+// theorem saying `= Outcome.ok` shows it isn't reached, and nothing here claims what it does.
+bool givesUp(const CallBase &C) {
+  const Function *Callee = C.getCalledFunction();
+  return Callee && Callee->isDeclaration() && !Callee->isIntrinsic() && !libraryFunction(*Callee) &&
+         C.doesNotReturn() && !C.getFunctionType()->isVarArg() && !C.hasOperandBundles() &&
+         C.getType()->isVoidTy();
+}
+
+// A call to a function the module only declares, which the model answers from the world: not an intrinsic, a
+// C library function `Mem` defines, or one that gives up. See docs/calls.md.
+bool isOutsideCall(const CallBase &C) {
+  const Function *Callee = C.getCalledFunction();
+  return Callee && Callee->isDeclaration() && !Callee->isIntrinsic() && !libraryFunction(*Callee) &&
+         !givesUp(C);
+}
+
+// Whether a call outside the module accesses no memory, by what the call and the declaration say. With no
+// pointer argument, it can't access an argument's memory.
+bool accessesNoMemory(const CallBase &C) {
+  bool Pointers = false;
+  for (const Use &A : C.args())
+    Pointers |= A->getType()->isPtrOrPtrVectorTy();
+  MemoryEffects Effects = C.getMemoryEffects();
+  if (!Pointers)
+    Effects = Effects.getWithoutLoc(IRMemLocation::ArgMem);
+  return Effects.doesNotAccessMemory();
+}
+
 // Whether loop metadata carries `llvm.loop.mustprogress`, read as LLVM's `findOptionMDForLoopID` does.
 bool marksMustProgress(const MDNode *LoopID) {
   if (!LoopID)
@@ -596,12 +633,14 @@ void checkValueAttributes(AttributeSet Attrs, const Type *T, Position At, bool M
     if (A.isStringAttribute())
       continue;
     switch (A.getKindAsEnum()) {
+    // On a vector or a struct, `noundef` checks every lane and field, and `range` applies lane by lane.
     case Attribute::NoUndef:
     case Attribute::Range:
+      continue;
     case Attribute::NonNull:
     case Attribute::Alignment:
     case Attribute::Dereferenceable:
-      // The checks these emit only take one value, not a vector's lanes.
+      // The checks these emit only take one pointer, not a vector's lanes.
       if (T->isVectorTy())
         reject(std::string(Where) + " attribute " + A.getAsString() + " on a vector");
       continue;
@@ -683,16 +722,20 @@ std::string leanTag(AttributeSet Attrs) {
 // new attribute can't pass unnoticed.
 // `Library` is for the C library functions `Mem` defines, and `GivesUp` for a call to a function outside the
 // module that never returns, which stops the model.
+// Settings for the backend, and which allocator a C library function belongs to.
+bool allowedStringAttribute(const Attribute &A) {
+  static const std::set<std::string> Allowed = {
+      "alloc-family",     "frame-pointer", "min-legal-vector-width",      "no-builtins",
+      "no-trapping-math", "probe-stack",   "stack-protector-buffer-size", "target-cpu",
+      "target-features",  "tune-cpu",      "zero-call-used-regs"};
+  return Allowed.count(A.getKindAsString().str()) != 0;
+}
+
 void checkFunctionAttributes(AttributeSet Attrs, const std::string &Where, bool Library = false,
                              bool GivesUp = false) {
   for (Attribute A : Attrs) {
     if (A.isStringAttribute()) {
-      // Settings for the backend, and which allocator a C library function belongs to.
-      static const std::set<std::string> Allowed = {
-          "alloc-family",     "frame-pointer", "min-legal-vector-width",      "no-builtins",
-          "no-trapping-math", "probe-stack",   "stack-protector-buffer-size", "target-cpu",
-          "target-features",  "tune-cpu",      "zero-call-used-regs"};
-      if (!Allowed.count(A.getKindAsString().str()))
+      if (!allowedStringAttribute(A))
         reject(Where + " attribute " + A.getAsString());
       continue;
     }
@@ -744,18 +787,79 @@ void checkFunctionAttributes(AttributeSet Attrs, const std::string &Where, bool 
   }
 }
 
-// Wraps `Value` in what `range`, `nonnull` and `align` attributes imply.
-std::string withValueChecks(AttributeSet Attrs, const std::string &Value) {
+// Attributes on a function outside the module, or on a call to one. Each is a promise the model checks
+// against the call's answer, as IRLean/World.lean says, or only changes how code is optimized or lowered.
+// Anything else is refused: a target that added a promise the model doesn't check would be certified on a
+// callee that breaks it. See docs/calls.md.
+void checkOutsideAttributes(AttributeSet Attrs, const std::string &Where) {
+  for (Attribute A : Attrs) {
+    if (A.isStringAttribute()) {
+      if (!allowedStringAttribute(A))
+        reject("attribute " + A.getAsString() + " " + Where);
+      continue;
+    }
+    switch (A.getKindAsEnum()) {
+    case Attribute::AlwaysInline:
+    case Attribute::Cold:
+    case Attribute::Hot:
+    case Attribute::InlineHint:
+    case Attribute::MinSize:
+    case Attribute::NoInline:
+    case Attribute::NoMerge:
+    case Attribute::NoBuiltin:
+    case Attribute::NoRedZone:
+    case Attribute::OptimizeForSize:
+    case Attribute::OptimizeNone:
+    case Attribute::StackProtect:
+    case Attribute::StackProtectReq:
+    case Attribute::StackProtectStrong:
+    case Attribute::UWTable:
+    // Checked against the answer: `IRLean.Promises`, and `memory(...)`, which decides the kind of call.
+    case Attribute::Memory:
+    case Attribute::MustProgress:
+    case Attribute::NoReturn:
+    case Attribute::NoUnwind:
+    case Attribute::WillReturn:
+      continue;
+    default:
+      reject("attribute " + A.getAsString() + " " + Where);
+    }
+  }
+}
+
+// A Lean string literal for `S`, whatever bytes it has.
+std::string leanString(StringRef S) {
+  static const char Hex[] = "0123456789abcdef";
+  std::string Out = "\"";
+  for (unsigned char C : S) {
+    if (C == '"' || C == '\\')
+      Out += std::string("\\") + static_cast<char>(C);
+    else if (C >= 0x20 && C < 0x7f)
+      Out += static_cast<char>(C);
+    else
+      Out += std::string("\\x") + Hex[C / 16] + Hex[C % 16];
+  }
+  return Out + "\"";
+}
+
+// Wraps `Value`, of type `T`, in what `range`, `nonnull` and `align` attributes imply.
+std::string withValueChecks(AttributeSet Attrs, const Type *T, const std::string &Value) {
   std::string Out = Value;
   if (Attrs.hasAttribute(Attribute::Range)) {
     const ConstantRange &R = Attrs.getAttribute(Attribute::Range).getValueAsConstantRange();
-    Out = "(Val.range " + bitVec(R.getLower()) + " " + bitVec(R.getUpper()) + " " + Out + ")";
+    std::string Range = "Val.range " + bitVec(R.getLower()) + " " + bitVec(R.getUpper());
+    Out = T->isVectorTy() ? "(Vec.map (" + Range + ") " + Out + ")" : "(" + Range + " " + Out + ")";
   }
   if (Attrs.hasAttribute(Attribute::NonNull))
     Out = "(Mem.nonnull m " + Out + ")";
   if (MaybeAlign A = Attrs.getAlignment())
     Out = "(Mem.aligned m " + std::to_string(A->value()) + " " + Out + ")";
   return Out;
+}
+
+// The check `noundef` makes of a value of type `T`: on a vector or a struct, of every lane and field.
+std::string noundefCheck(const Type *T) {
+  return T->isVectorTy() || T->isStructTy() ? "noundefAll " : "noundef ";
 }
 
 bool hasValueChecks(AttributeSet Attrs) {
@@ -769,9 +873,12 @@ struct Line {
     Let,   // let Name := Expr
     Bind,  // andThen (Expr) fun Name =>
     Guard, // Expr <|
+    Exit,  // Exit.bind NoUnwind (Expr) Stop fun Name t' =>
   } K;
   std::string Name;
   std::string Expr;
+  // For `Exit`: whether unwinding through the call is undefined.
+  bool NoUnwind = false;
 };
 
 class FunctionEmitter {
@@ -779,14 +886,18 @@ public:
   // `PromisedCycle` is for a recursive function in a cycle where some function or loop promises to progress.
   // `Chooses` is for a function whose run can make a choice: one with a `freeze`, or a call to such a
   // function.
+  // `Talks` is for a function that calls outside the module, or calls one that does: it takes the world and
+  // the trace, and ends as an `IRLean.Exit`. See docs/calls.md.
   FunctionEmitter(Function &F, std::string LeanName, bool Recursive, bool PromisedCycle, bool UsesMemory,
-                  bool Chooses, const DenseMap<const Function *, std::string> &Callees,
+                  bool Chooses, bool Talks, const DenseMap<const Function *, std::string> &Callees,
                   const std::set<const Function *> &MemoryFunctions,
                   const std::set<const Function *> &ChoosingFunctions,
+                  const std::set<const Function *> &TalkingFunctions,
                   const std::set<const Function *> &ReachesFree, const ModuleContext &Context)
       : F(F), LeanName(std::move(LeanName)), Recursive(Recursive), PromisedCycle(PromisedCycle),
-        UsesMemory(UsesMemory), Chooses(Chooses), Callees(Callees), MemoryFunctions(MemoryFunctions),
-        ChoosingFunctions(ChoosingFunctions), ReachesFree(ReachesFree), Context(Context) {}
+        UsesMemory(UsesMemory), Chooses(Chooses), Talks(Talks), Callees(Callees),
+        MemoryFunctions(MemoryFunctions), ChoosingFunctions(ChoosingFunctions),
+        TalkingFunctions(TalkingFunctions), ReachesFree(ReachesFree), Context(Context) {}
 
   // Checks the function can be translated, and sets up names and liveness.
   void prepare();
@@ -815,6 +926,7 @@ private:
   std::string callArgument(const CallBase &C, unsigned N, std::vector<Line> &Out,
                            bool WithDeclaration = false);
   void checkCallResult(const CallBase &C, std::vector<Line> &Out);
+  void checkCallResult(const CallBase &C, AttributeSet Ret, std::vector<Line> &Out);
   std::string target(const BasicBlock *From, const BasicBlock *To);
   std::string goTo(const BasicBlock *From, const BasicBlock *To);
   unsigned blocksPerGroup() const {
@@ -832,11 +944,21 @@ private:
   void checkMetadata(const Instruction &I);
   std::string pointerAsInt(const Value *V);
   void observeAddress(const Value *V, bool NullCheck, std::vector<Line> &Out);
-  std::string resultType() const { return UsesMemory ? RetType + " × Mem" : RetType; }
+  // What the function returns, with its memory.
+  std::string valueType() const { return UsesMemory ? RetType + " × Mem" : RetType; }
+  // What a run returns: for a function that calls outside the module, how it ends.
+  std::string resultType() const { return Talks ? "Exit (" + valueType() + ")" : valueType(); }
   // The block's next chooser, as `IRLean.Choice` numbers them: a `freeze`, or a call to a function that
   // chooses.
   std::string nextChooser() { return std::to_string(NextChooser++); }
   void emitCall(const CallBase &C, std::vector<Line> &Out);
+  void emitOutsideCall(const CallBase &C, std::vector<Line> &Out);
+  // How a call that may not come back is bound: what follows runs on its result, and if it didn't come back,
+  // the run ends as the call did.
+  // Unwinding through it is undefined if the function or the call is marked `nounwind`.
+  void addExit(const CallBase &C, std::vector<Line> &Out, std::string Name, std::string Expr) {
+    Out.push_back({Line::Exit, std::move(Name), std::move(Expr), F.doesNotThrow() || C.doesNotThrow()});
+  }
   bool emitIntrinsic(const IntrinsicInst &C, std::vector<Line> &Out);
   void addLet(const Instruction &I, std::vector<Line> &Out, std::string Expr) {
     Out.push_back({Line::Let, Names.at(&I), std::move(Expr)});
@@ -857,6 +979,7 @@ private:
   bool PromisedCycle;
   bool UsesMemory;
   bool Chooses;
+  bool Talks;
   // Choosers in the block being emitted are numbered from 1. `c'.sub 0` is the next block's.
   unsigned NextChooser = 1;
   // Blocks under a promise to progress: every block of a function marked `mustprogress` or `willreturn`, and
@@ -869,6 +992,7 @@ private:
   const DenseMap<const Function *, std::string> &Callees;
   const std::set<const Function *> &MemoryFunctions;
   const std::set<const Function *> &ChoosingFunctions;
+  const std::set<const Function *> &TalkingFunctions;
   const std::set<const Function *> &ReachesFree;
   const ModuleContext &Context;
   std::string RetType;
@@ -1096,6 +1220,8 @@ std::string FunctionEmitter::target(const BasicBlock *From, const BasicBlock *To
     Inner += " (c'.sub 0)";
   if (UsesMemory)
     Inner += " m";
+  if (Talks)
+    Inner += " w' t' n'";
   for (const PHINode &P : To->phis())
     Inner += " " + operand(P.getIncomingValueForBlock(From));
   for (unsigned V : LiveIn[BlockIndex.lookup(To)].set_bits())
@@ -1109,6 +1235,8 @@ std::string FunctionEmitter::emitConstructor(const BasicBlock *BB) {
     Out += " (c' : Choice)";
   if (UsesMemory)
     Out += " (m : Mem)";
+  if (Talks)
+    Out += " (w' : World) (t' : Trace) (n' : Nat)";
   std::vector<const Value *> Params = blockParams(BB);
   for (size_t I = 0; I != Params.size();) {
     std::string Type = leanType(Params[I]->getType());
@@ -1219,6 +1347,9 @@ void FunctionEmitter::emitGep(const GetElementPtrInst &G, std::vector<Line> &Out
     // A wider index has its own rules about truncating, and no real code needs one.
     if (It.isVector() || Index->getType()->getIntegerBitWidth() > 64)
       reject("instruction " + printed(G));
+    // A scalable type's size is a multiple of `vscale`, which the model doesn't have.
+    if (DL.getTypeAllocSize(It.getIndexedType()).isScalable())
+      reject("instruction " + printed(G));
     uint64_t Stride = It.getSequentialElementStride(DL);
     if (auto *K = dyn_cast<ConstantInt>(Index)) {
       AddConstant(K->getValue().sext(64), Stride);
@@ -1308,10 +1439,12 @@ void FunctionEmitter::emitInstruction(const Instruction &I, std::vector<Line> &O
     else
       addLet(I, Out, Fn + " " + Width + " " + Op(0) + Flags);
   };
-  // Effects on one lane of a vector don't have a meaning here yet.
-  auto ScalarOnly = [&] {
+  // An operation that can be undefined. On vectors, it's undefined if any lane is, as IRLean/Lanes.lean says.
+  auto Undefinable = [&](const std::string &Fn, const std::string &Flags = "") {
     if (IsVector)
-      reject("instruction " + printed(I));
+      addBind(I, Out, "Vec.mapOutcome2 (fun a b => " + Fn + " a b" + Flags + ") " + Op(0) + " " + Op(1));
+    else
+      addBind(I, Out, Fn + " " + Op(0) + " " + Op(1) + Flags);
   };
   auto Wrap = [&] {
     std::string Flags;
@@ -1341,20 +1474,16 @@ void FunctionEmitter::emitInstruction(const Instruction &I, std::vector<Line> &O
     Binary("Val.ashr", flag(I.isExact(), "exact"));
     return;
   case Instruction::UDiv:
-    ScalarOnly();
-    addBind(I, Out, "Val.udiv " + Op(0) + " " + Op(1) + flag(I.isExact(), "exact"));
+    Undefinable("Val.udiv", flag(I.isExact(), "exact"));
     return;
   case Instruction::SDiv:
-    ScalarOnly();
-    addBind(I, Out, "Val.sdiv " + Op(0) + " " + Op(1) + flag(I.isExact(), "exact"));
+    Undefinable("Val.sdiv", flag(I.isExact(), "exact"));
     return;
   case Instruction::URem:
-    ScalarOnly();
-    addBind(I, Out, "Val.urem " + Op(0) + " " + Op(1));
+    Undefinable("Val.urem");
     return;
   case Instruction::SRem:
-    ScalarOnly();
-    addBind(I, Out, "Val.srem " + Op(0) + " " + Op(1));
+    Undefinable("Val.srem");
     return;
   case Instruction::And:
     Binary("Val.and");
@@ -1601,11 +1730,11 @@ std::string FunctionEmitter::callArgument(const CallBase &C, unsigned N, std::ve
   bool NoUndef = false;
   for (AttributeSet Set : Sets) {
     checkValueAttributes(Set, C.getArgOperand(N)->getType(), Position::CallParameter);
-    Arg = withValueChecks(Set, Arg);
+    Arg = withValueChecks(Set, C.getArgOperand(N)->getType(), Arg);
     NoUndef |= Set.hasAttribute(Attribute::NoUndef);
   }
   if (NoUndef)
-    Out.push_back({Line::Guard, "", "noundef " + Arg});
+    Out.push_back({Line::Guard, "", noundefCheck(C.getArgOperand(N)->getType()) + Arg});
   for (AttributeSet Set : Sets)
     if (Set.hasAttribute(Attribute::Dereferenceable))
       Out.push_back({Line::Guard, "",
@@ -1615,14 +1744,17 @@ std::string FunctionEmitter::callArgument(const CallBase &C, unsigned N, std::ve
 
 // The call-site return attributes apply to the value the call produced.
 void FunctionEmitter::checkCallResult(const CallBase &C, std::vector<Line> &Out) {
+  checkCallResult(C, C.getAttributes().getRetAttrs(), Out);
+}
+
+void FunctionEmitter::checkCallResult(const CallBase &C, AttributeSet Ret, std::vector<Line> &Out) {
   if (C.getType()->isVoidTy())
     return;
-  AttributeSet Ret = C.getAttributes().getRetAttrs();
   const std::string &Name = Names.at(&C);
   if (hasValueChecks(Ret))
-    Out.push_back({Line::Let, Name, withValueChecks(Ret, Name)});
+    Out.push_back({Line::Let, Name, withValueChecks(Ret, C.getType(), Name)});
   if (Ret.hasAttribute(Attribute::NoUndef))
-    Out.push_back({Line::Guard, "", "noundef " + Name});
+    Out.push_back({Line::Guard, "", noundefCheck(C.getType()) + Name});
   if (Ret.hasAttribute(Attribute::Dereferenceable))
     Out.push_back({Line::Guard, "",
                    "Mem.dereferenceable m " + Name + " " + std::to_string(Ret.getDereferenceableBytes())});
@@ -1634,6 +1766,22 @@ bool FunctionEmitter::emitIntrinsic(const IntrinsicInst &C, std::vector<Line> &O
   for (unsigned N = 0, E = C.arg_size(); N != E; ++N)
     Args.push_back(isa<MetadataAsValue>(C.getArgOperand(N)) ? "" : callArgument(C, N, Out));
   auto Op = [&](unsigned N) { return Args[N]; };
+  // On vectors, each of these is the scalar operation lane by lane, as IRLean/Lanes.lean says.
+  bool OnVectors = C.arg_size() && C.getArgOperand(0)->getType()->isVectorTy();
+  // `Fn` applied to the first `N` arguments, and `Extra` after them, such as ctlz's flag.
+  auto Lanewise = [&](const std::string &Fn, unsigned N, const std::string &Extra = "") {
+    std::string Operands;
+    for (unsigned I = 0; I != N; ++I)
+      Operands += " " + Op(I);
+    if (!OnVectors)
+      return Fn + Operands + Extra;
+    static const char *Names[] = {"a", "b", "c"};
+    static const char *Maps[] = {"Vec.map", "Vec.map2", "Vec.map3"};
+    std::string Params;
+    for (unsigned I = 0; I != N; ++I)
+      Params += std::string(" ") + Names[I];
+    return std::string(Maps[N - 1]) + " (fun" + Params + " => " + Fn + Params + Extra + ")" + Operands;
+  };
   auto BoolArg = [&](unsigned N) -> std::string {
     auto *K = dyn_cast<ConstantInt>(C.getArgOperand(N));
     if (!K)
@@ -1641,7 +1789,7 @@ bool FunctionEmitter::emitIntrinsic(const IntrinsicInst &C, std::vector<Line> &O
     return K->isOne() ? "true" : "false";
   };
   auto Unary = [&](const char *Fn) {
-    addLet(C, Out, std::string(Fn) + " " + Op(0));
+    addLet(C, Out, Lanewise(Fn, 1));
     return true;
   };
   auto Binary = [&](const char *Fn) {
@@ -1656,10 +1804,24 @@ bool FunctionEmitter::emitIntrinsic(const IntrinsicInst &C, std::vector<Line> &O
     return true;
   };
   auto Ternary = [&](const char *Fn) {
-    addLet(C, Out, std::string(Fn) + " " + Op(0) + " " + Op(1) + " " + Op(2));
+    addLet(C, Out, Lanewise(Fn, 3));
+    return true;
+  };
+  // An intrinsic with two results, such as `llvm.uadd.with.overflow`, whose vector form is a vector of each.
+  auto Overflow = [&](const char *Fn) {
+    addLet(C, Out,
+           OnVectors ? "Vec.map2Pair (fun a b => " + std::string(Fn) + " a b) " + Op(0) + " " + Op(1)
+                     : std::string(Fn) + " " + Op(0) + " " + Op(1));
     return true;
   };
   auto Lanes = [&] { return std::to_string(cast<FixedVectorType>(C.getType())->getNumElements()); };
+  // A length in bytes, which LangRef reads as unsigned, as the 64 bits `Mem` counts in.
+  auto Length = [&](unsigned N) {
+    unsigned Width = C.getArgOperand(N)->getType()->getIntegerBitWidth();
+    if (Width > 64)
+      reject("instruction " + printed(C));
+    return Width == 64 ? Op(N) : "(Val.zext 64 " + Op(N) + ")";
+  };
   switch (C.getIntrinsicID()) {
   case Intrinsic::assume:
     for (unsigned B = 0, E = C.getNumOperandBundles(); B != E; ++B) {
@@ -1689,12 +1851,12 @@ bool FunctionEmitter::emitIntrinsic(const IntrinsicInst &C, std::vector<Line> &O
   case Intrinsic::memset:
     if (BoolArg(3) != "false")
       reject("instruction " + printed(C));
-    addMemoryUpdate(Out, "Mem.memset m " + Op(0) + " " + Op(1) + " " + Op(2));
+    addMemoryUpdate(Out, "Mem.memset m " + Op(0) + " " + Op(1) + " " + Length(2));
     return true;
   case Intrinsic::memcpy:
     if (BoolArg(3) != "false")
       reject("instruction " + printed(C));
-    addMemoryUpdate(Out, "Mem.memcpy m " + Op(0) + " " + Op(1) + " " + Op(2));
+    addMemoryUpdate(Out, "Mem.memcpy m " + Op(0) + " " + Op(1) + " " + Length(2));
     return true;
   case Intrinsic::vector_reduce_add:
     return Reduce("Val.add");
@@ -1721,13 +1883,13 @@ bool FunctionEmitter::emitIntrinsic(const IntrinsicInst &C, std::vector<Line> &O
   case Intrinsic::bswap:
     return Unary("Val.bswap");
   case Intrinsic::ctlz:
-    addLet(C, Out, "Val.ctlz " + Op(0) + " " + BoolArg(1));
+    addLet(C, Out, Lanewise("Val.ctlz", 1, " " + BoolArg(1)));
     return true;
   case Intrinsic::cttz:
-    addLet(C, Out, "Val.cttz " + Op(0) + " " + BoolArg(1));
+    addLet(C, Out, Lanewise("Val.cttz", 1, " " + BoolArg(1)));
     return true;
   case Intrinsic::abs:
-    addLet(C, Out, "Val.abs " + Op(0) + " " + BoolArg(1));
+    addLet(C, Out, Lanewise("Val.abs", 1, " " + BoolArg(1)));
     return true;
   case Intrinsic::umin:
     return Binary("Val.umin");
@@ -1750,17 +1912,17 @@ bool FunctionEmitter::emitIntrinsic(const IntrinsicInst &C, std::vector<Line> &O
   case Intrinsic::ssub_sat:
     return Binary("Val.ssubSat");
   case Intrinsic::uadd_with_overflow:
-    return Binary("Val.uaddWithOverflow");
+    return Overflow("Val.uaddWithOverflow");
   case Intrinsic::sadd_with_overflow:
-    return Binary("Val.saddWithOverflow");
+    return Overflow("Val.saddWithOverflow");
   case Intrinsic::usub_with_overflow:
-    return Binary("Val.usubWithOverflow");
+    return Overflow("Val.usubWithOverflow");
   case Intrinsic::ssub_with_overflow:
-    return Binary("Val.ssubWithOverflow");
+    return Overflow("Val.ssubWithOverflow");
   case Intrinsic::umul_with_overflow:
-    return Binary("Val.umulWithOverflow");
+    return Overflow("Val.umulWithOverflow");
   case Intrinsic::smul_with_overflow:
-    return Binary("Val.smulWithOverflow");
+    return Overflow("Val.smulWithOverflow");
   // x86's integer dot products, in IRLean/X86.lean. The first two need the number of lanes they produce.
   case Intrinsic::x86_ssse3_pmadd_ub_sw_128:
   case Intrinsic::x86_avx2_pmadd_ub_sw:
@@ -1780,8 +1942,9 @@ bool FunctionEmitter::emitIntrinsic(const IntrinsicInst &C, std::vector<Line> &O
   case Intrinsic::ucmp:
   case Intrinsic::scmp:
     addLet(C, Out,
-           std::string(C.getIntrinsicID() == Intrinsic::ucmp ? "Val.ucmp " : "Val.scmp ") +
-               std::to_string(C.getType()->getIntegerBitWidth()) + " " + Op(0) + " " + Op(1));
+           Lanewise(std::string(C.getIntrinsicID() == Intrinsic::ucmp ? "Val.ucmp " : "Val.scmp ") +
+                        std::to_string(C.getType()->getScalarSizeInBits()),
+                    2));
     return true;
   default:
     return false;
@@ -1790,12 +1953,26 @@ bool FunctionEmitter::emitIntrinsic(const IntrinsicInst &C, std::vector<Line> &O
 
 void FunctionEmitter::emitCall(const CallBase &C, std::vector<Line> &Out) {
   const Function *Direct = C.getCalledFunction();
+  // LangRef: "The calling convention of any pair of dynamic caller/callee must match, or the behavior of the
+  // program is undefined." The model would run such a call, so it's refused, as is a call through a pointer
+  // that can reach a function with another.
+  auto SameConvention = [&](const Function *Callee) {
+    if (Callee->getCallingConv() != C.getCallingConv())
+      reject("call with calling convention " + std::to_string(C.getCallingConv()) + " to @" +
+             Callee->getName().str() + ", whose calling convention is " +
+             std::to_string(Callee->getCallingConv()));
+  };
+  if (Direct)
+    SameConvention(Direct);
+  else
+    for (const Function *Target : Context.candidates(C.getFunctionType()))
+      SameConvention(Target);
   bool Library = Direct && libraryFunction(*Direct);
-  // A call to something outside the module that never returns, such as an abort, stops the model. A
-  // theorem saying `= Outcome.ok` shows it isn't reached, and nothing here claims what it does.
-  bool GivesUp = Direct && Direct->isDeclaration() && !Direct->isIntrinsic() && !Library &&
-                 C.doesNotReturn() && !C.getFunctionType()->isVarArg() && !C.hasOperandBundles() &&
-                 C.getType()->isVoidTy();
+  bool GivesUp = givesUp(C);
+  if (isOutsideCall(C)) {
+    emitOutsideCall(C, Out);
+    return;
+  }
   checkFunctionAttributes(C.getAttributes().getFnAttrs(), "call", Library, GivesUp);
   // A function's own promises are checked, but a narrower one at a call isn't, so it's refused. What's known
   // of the C library is the exception: `Mem.strlen` only reads through its argument, and they all return.
@@ -1855,15 +2032,18 @@ void FunctionEmitter::emitCall(const CallBase &C, std::vector<Line> &Out) {
     return Choices;
   };
   if (Callee) {
-    std::string Expr = Callees.lookup(Callee) + Args;
+    bool Memory = MemoryFunctions.count(Callee), Talking = TalkingFunctions.count(Callee);
+    std::string Expr = Callees.lookup(Callee) + Args + (Memory ? " m" : "") + (Talking ? " w' t'" : "");
     if (ChoosingFunctions.count(Callee))
-      Expr += (MemoryFunctions.count(Callee) ? " m" : "") + Chooser();
-    if (ChoosingFunctions.count(Callee) && MemoryFunctions.count(Callee))
-      Out.push_back({Line::Bind, Bound, promisedCall(Callee, Expr)});
-    else if (MemoryFunctions.count(Callee))
-      Out.push_back({Line::Bind, Bound, promisedCall(Callee, Expr + " m")});
+      Expr += Chooser();
+    if (Talking)
+      Expr += " n'";
+    std::string Name = Memory ? Bound : Void ? "_" : Names.at(&C);
+    // A callee that calls outside the module may not come back, and the run then ends as it did.
+    if (Talking)
+      addExit(C, Out, Name, promisedCall(Callee, Expr));
     else
-      addBind(C, Out, promisedCall(Callee, Expr));
+      Out.push_back({Line::Bind, Name, promisedCall(Callee, Expr)});
   } else {
     // Try each function of this type whose address is taken. Anything else stops the model.
     std::string Expr = "(indirect " + operand(C.getCalledOperand()) + " fun q' =>";
@@ -1874,6 +2054,9 @@ void FunctionEmitter::emitCall(const CallBase &C, std::vector<Line> &Out) {
                ", whose definition may not be the one that runs");
       if (!Callees.count(Target))
         reject("indirect call that can reach @" + Target->getName().str() + ", which isn't translated");
+      if (TalkingFunctions.count(Target))
+        reject("indirect call that can reach @" + Target->getName().str() +
+               ", which calls outside the module");
       std::string Call = Callees.lookup(Target) + Args;
       if (MemoryFunctions.count(Target))
         Call += " m";
@@ -1891,18 +2074,97 @@ void FunctionEmitter::emitCall(const CallBase &C, std::vector<Line> &Out) {
   checkCallResult(C, Out);
 }
 
+// A call to a function the module only declares, as IRLean/World.lean says and docs/calls.md explains. One
+// that accesses no memory answers from the world, at the run's choice among the callee's answers. The rest
+// are refused for now: calls with effects or that only read, and calls that pass or return a pointer, which
+// touch memory and wait for F4.
+void FunctionEmitter::emitOutsideCall(const CallBase &C, std::vector<Line> &Out) {
+  const Function *Callee = C.getCalledFunction();
+  const std::string Name = "@" + Callee->getName().str();
+  if (C.getFunctionType()->isVarArg())
+    reject("variadic call");
+  if (C.hasOperandBundles())
+    reject("instruction " + printed(C));
+  bool Pointers = mentionsPointer(C.getType());
+  for (const Use &A : C.args())
+    Pointers |= mentionsPointer(A->getType());
+  if (Pointers)
+    reject("call to external " + Name + ", which touches memory: F4");
+  if (!accessesNoMemory(C))
+    reject("call to external " + Name);
+  // LangRef makes a call with another calling convention than its callee's undefined.
+  if (C.getCallingConv() != Callee->getCallingConv())
+    reject("call to external " + Name + " with a calling convention it isn't declared with");
+  checkOutsideAttributes(C.getAttributes().getFnAttrs(), "on " + printed(C));
+  checkOutsideAttributes(Callee->getAttributes().getFnAttrs(), "of external " + Name);
+  AttributeSet Declared = Callee->getAttributes().getRetAttrs();
+  checkValueAttributes(Declared, C.getType(), Position::CallReturn);
+  checkValueAttributes(C.getAttributes().getRetAttrs(), C.getType(), Position::CallReturn);
+
+  // Each argument, as lanes, after what the call and the declaration say of it is checked.
+  auto lanes = [&](Type *T, const std::string &V) {
+    if (T->isIntegerTy())
+      return "(Lanes.ofVal " + V + ")";
+    if (auto *Vec = dyn_cast<FixedVectorType>(T); Vec && Vec->getElementType()->isIntegerTy())
+      return "(Lanes.ofVec " + V + ")";
+    reject("call to external " + Name + " with a value of type " + printedType(T));
+  };
+  std::string Args;
+  for (unsigned I = 0, E = C.arg_size(); I != E; ++I) {
+    Type *T = C.getArgOperand(I)->getType();
+    checkValueAttributes(Callee->getAttributes().getParamAttrs(I), T, Position::CallParameter);
+    // Its type, and the attributes that change what the callee receives, are part of the event: a variadic
+    // callee can receive the same lanes as different types.
+    std::string Type = printedType(T);
+    for (auto [Kind, Word] : {std::pair{Attribute::SExt, " signext"}, std::pair{Attribute::ZExt, " zeroext"}})
+      if (C.paramHasAttr(I, Kind))
+        Type += Word;
+    Args += (I ? ", (" : "(") + leanString(Type) + ", " +
+            lanes(T, callArgument(C, I, Out, /*WithDeclaration=*/true)) + ")";
+  }
+  std::string Promises;
+  for (auto [On, Field] :
+       {std::pair{C.doesNotReturn(), "noreturn"}, std::pair{C.hasFnAttr(Attribute::WillReturn), "willreturn"},
+        std::pair{C.doesNotThrow(), "nounwind"}})
+    if (On)
+      Promises += std::string(Promises.empty() ? " " : ", ") + Field + " := true";
+  std::string Expr = "World.callPure w' t' ⟨" + leanString(Callee->getName()) + ", [" + Args +
+                     "]⟩ (c'.pick " + nextChooser() + ") {" + Promises + (Promises.empty() ? "" : " ") + "}";
+  // Under a promise to progress, a call to a function that promises to progress, and not to return, that
+  // never comes back is a run LangRef doesn't settle, as `promisedCall` says for the module's own functions.
+  if (!Recursive && !F.willReturn() && Promised.count(Current) && C.hasFnAttr(Attribute::MustProgress) &&
+      !C.hasFnAttr(Attribute::WillReturn))
+    Expr = "promised (" + Expr + ") fun _ => Outcome.stop .progressUnsettled";
+  addExit(C, Out, "out'", Expr);
+  if (auto *I = dyn_cast<IntegerType>(C.getType()))
+    addLet(C, Out, "Lanes.toVal " + std::to_string(I->getBitWidth()) + " out'");
+  else if (auto *V = dyn_cast<FixedVectorType>(C.getType()))
+    addLet(C, Out,
+           "Lanes.toVec " + std::to_string(V->getNumElements()) + " " +
+               std::to_string(V->getElementType()->getIntegerBitWidth()) + " out'");
+  else if (!C.getType()->isVoidTy())
+    lanes(C.getType(), "");
+  // What the declaration and the call say of the result, each on its own, as for an argument.
+  checkCallResult(C, Declared, Out);
+  checkCallResult(C, C.getAttributes().getRetAttrs(), Out);
+}
+
 std::string FunctionEmitter::emitTerminator(const BasicBlock *BB) {
   const Instruction *T = BB->getTerminator();
   const char *Ret = Recursive ? "Outcome.ok " : "ret ";
-  auto WithMemory = [&](const std::string &V) { return UsesMemory ? "(" + V + ", m)" : V; };
+  auto WithMemory = [&](const std::string &V) {
+    std::string R = UsesMemory ? "(" + V + ", m)" : V;
+    return Talks ? "(.done " + R + " t')" : R;
+  };
   if (const auto *R = dyn_cast<ReturnInst>(T)) {
     if (!R->getReturnValue())
       return std::string(Ret) + WithMemory("()");
     AttributeSet Attrs = F.getAttributes().getRetAttrs();
-    std::string V = withValueChecks(Attrs, operand(R->getReturnValue()));
+    Type *RT = R->getReturnValue()->getType();
+    std::string V = withValueChecks(Attrs, RT, operand(R->getReturnValue()));
     std::string Checks;
     if (Attrs.hasAttribute(Attribute::NoUndef))
-      Checks += "noundef " + V + " <| ";
+      Checks += noundefCheck(RT) + V + " <| ";
     if (Attrs.hasAttribute(Attribute::Dereferenceable))
       Checks += "Mem.dereferenceable m " + V + " " + std::to_string(Attrs.getDereferenceableBytes()) + " <| ";
     if (Attrs.hasAttribute(Attribute::NoAlias))
@@ -1943,6 +2205,8 @@ std::string FunctionEmitter::emitArm(const BasicBlock *BB) {
     Out += " c'";
   if (UsesMemory)
     Out += " m";
+  if (Talks)
+    Out += " w' t' n'";
   for (const Value *V : blockParams(BB))
     Out += " " + Names.at(V);
   Out += " =>\n";
@@ -1963,6 +2227,10 @@ std::string FunctionEmitter::emitArm(const BasicBlock *BB) {
     case Line::Guard:
       Out += "    " + L.Expr + " <|\n";
       break;
+    case Line::Exit:
+      Out += std::string("    Exit.bind ") + (L.NoUnwind ? "true" : "false") + " (" + L.Expr + ") " +
+             (Recursive ? "Outcome.ok" : "ret") + " fun " + L.Name + " t' =>\n";
+      break;
     }
   }
   return Out + "    " + emitTerminator(BB) + "\n";
@@ -1981,6 +2249,10 @@ void FunctionEmitter::prepare() {
   // Neither needs checking on each run: what's reachable shows they hold, or the function is refused.
   if (Recursive && F.hasFnAttribute(Attribute::NoRecurse))
     reject("function attribute norecurse on a function in a cycle");
+  // A callee outside the module may call back into this function, which `norecurse` rules out, and the model
+  // doesn't see it do so.
+  if (Talks && F.hasFnAttribute(Attribute::NoRecurse))
+    reject("function attribute norecurse on a function that calls outside the module");
   if (F.hasFnAttribute(Attribute::NoFree) && ReachesFree.count(&F))
     reject("function attribute nofree on a function that can reach free");
   collectBlocks();
@@ -2018,6 +2290,10 @@ void FunctionEmitter::prepare() {
     for (const Argument &A : F.args())
       if (!A.getType()->isPointerTy() && mentionsPointer(A.getType()))
         reject("parameter with pointers in it, in a function that promises something about memory");
+  // `Mem.withFrame` and `Mem.call` take a run that returns, and don't pass an `IRLean.Exit` through yet.
+  if (Talks && (HasAlloca || HasCall))
+    reject("call to external functions in a function with a stack frame or promises about memory, which "
+           "IRLean.World doesn't wrap yet");
 }
 
 std::string FunctionEmitter::emitBlocks() {
@@ -2081,6 +2357,8 @@ std::string FunctionEmitter::signature(const std::string &Name) {
     Out += " (" + Names.at(&A) + " : " + leanType(A.getType()) + ")";
   if (UsesMemory)
     Out += " (m : Mem)";
+  if (Talks)
+    return Out + " (w' : World) (t' : Trace) : Talks (" + valueType() + ") := fun c' n' =>\n";
   if (Chooses)
     return Out + " : Outcomes (" + resultType() + ") := fun c' =>\n";
   return Out + " : Outcome (" + resultType() + ") :=\n";
@@ -2114,8 +2392,12 @@ std::string FunctionEmitter::emitPromisedCycleWrapper() {
     Args += " " + Names.at(&A);
   if (UsesMemory)
     Args += " m";
+  if (Talks)
+    Args += " w' t'";
   if (Chooses)
     Args += " c'";
+  if (Talks)
+    Args += " n'";
   return signature(LeanName) + "  promised (" + LeanName + ".raw" + Args + ") fun _ => " +
          (F.willReturn() ? "Outcome.ub .noReturn" : "Outcome.stop .recursionUnsettled") + "\n";
 }
@@ -2128,9 +2410,9 @@ std::string FunctionEmitter::emitFunction() {
     checkValueAttributes(Param, A.getType(), Position::Parameter);
     const std::string &Name = Names.at(&A);
     if (hasValueChecks(Param))
-      Out += "  let " + Name + " := " + withValueChecks(Param, Name) + "\n";
+      Out += "  let " + Name + " := " + withValueChecks(Param, A.getType(), Name) + "\n";
     if (Param.hasAttribute(Attribute::NoUndef))
-      Out += "  noundef " + Name + " <|\n";
+      Out += "  " + noundefCheck(A.getType()) + Name + " <|\n";
     if (Param.hasAttribute(Attribute::Dereferenceable))
       Out +=
           "  Mem.dereferenceable m " + Name + " " + std::to_string(Param.getDereferenceableBytes()) + " <|\n";
@@ -2170,6 +2452,8 @@ std::string FunctionEmitter::emitFunction() {
     Entry += " c'";
   if (UsesMemory)
     Entry += " m";
+  if (Talks)
+    Entry += " w' t' n'";
   for (const Value *V : blockParams(Blocks.front()))
     Entry += " " + Names.at(V);
   if (Recursive)
@@ -2355,6 +2639,8 @@ Emitted emitModule(Module &M, const std::string &Namespace, const std::string &S
   std::set<const Function *> MemoryFunctions;
   // Functions whose run can make a choice, which take an `IRLean.Choice`: see `FunctionEmitter`.
   std::set<const Function *> ChoosingFunctions;
+  // Functions that call outside the module, which take an `IRLean.World` and an `IRLean.Trace`.
+  std::set<const Function *> TalkingFunctions;
 
   NameTable FunctionNames;
   DenseMap<const Function *, std::string> LeanNames, Translated;
@@ -2428,9 +2714,11 @@ Emitted emitModule(Module &M, const std::string &Namespace, const std::string &S
     if (UsesMemory)
       MemoryFunctions.insert(Component.begin(), Component.end());
 
-    // A function chooses if it has a `freeze`, or calls something that does, through a pointer too. Members
-    // of a cycle pass choices along for each other, so they share the answer.
-    bool Chooses = false;
+    // A function chooses if it has a `freeze` or a call outside the module that accesses no memory, or calls
+    // something that chooses, through a pointer too. It talks if it calls outside the module, or calls
+    // something that does. Members of a cycle pass choices, the world and the trace along for each other, so
+    // they share the answers.
+    bool Chooses = false, Talks = false;
     for (const Function *F : Component)
       for (const BasicBlock &BB : *F)
         for (const Instruction &I : BB) {
@@ -2438,22 +2726,34 @@ Emitted emitModule(Module &M, const std::string &Namespace, const std::string &S
           const auto *C = dyn_cast<CallBase>(&I);
           if (!C)
             continue;
-          if (const Function *Callee = C->getCalledFunction()) {
-            Chooses |= ChoosingFunctions.count(Callee) != 0;
+          if (isOutsideCall(*C)) {
+            Talks = true;
+            Chooses |= accessesNoMemory(*C);
             continue;
           }
-          for (const Function *Target : Context.candidates(C->getFunctionType()))
+          if (const Function *Callee = C->getCalledFunction()) {
+            Chooses |= ChoosingFunctions.count(Callee) != 0;
+            Talks |= TalkingFunctions.count(Callee) != 0;
+            continue;
+          }
+          for (const Function *Target : Context.candidates(C->getFunctionType())) {
             Chooses |= ChoosingFunctions.count(Target) != 0;
+            Talks |= TalkingFunctions.count(Target) != 0;
+          }
         }
+    // A function that calls outside the module returns `IRLean.Talks`, which always takes a choice.
+    Chooses |= Talks;
     if (Chooses)
       ChoosingFunctions.insert(Component.begin(), Component.end());
+    if (Talks)
+      TalkingFunctions.insert(Component.begin(), Component.end());
 
     std::vector<std::unique_ptr<FunctionEmitter>> Emitters;
     std::string Types, Loops, Functions, Wrappers, Failure;
     for (Function *F : Component) {
-      Emitters.push_back(std::make_unique<FunctionEmitter>(*F, LeanNames.lookup(F), Recursive, PromisedCycle,
-                                                           UsesMemory, Chooses, Translated, MemoryFunctions,
-                                                           ChoosingFunctions, ReachesFree, Context));
+      Emitters.push_back(std::make_unique<FunctionEmitter>(
+          *F, LeanNames.lookup(F), Recursive, PromisedCycle, UsesMemory, Chooses, Talks, Translated,
+          MemoryFunctions, ChoosingFunctions, TalkingFunctions, ReachesFree, Context));
       FunctionEmitter &E = *Emitters.back();
       try {
         E.prepare();

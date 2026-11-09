@@ -52,6 +52,9 @@ PASSES_SELFCHECK = "ir-lean.passes.selfcheck/1"
 STAGE1_PAIR = "ir-lean.stage1.pair/1"
 STAGE1_SUMMARY = "ir-lean.stage1.summary/1"
 STAGE1_KNOWN_WRONG = "ir-lean.stage1.known-wrong/1"
+# tests/ir_features.py: everything the pinned IR can contain, each item modeled, refused or assumed (SEM-08).
+# docs/ir-features.md.
+IR_FEATURES = "ir-lean.ir-features/1"
 # tests/llvm_rewrites.py: the inventory of chunk 1's rewrites, one file per pass. docs/rewrite-inventory.md.
 REWRITES = "ir-lean.rewrites/1"
 # tests/verify_negative.py: a case, the envelope around a checker's answer, and the report.

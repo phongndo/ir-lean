@@ -86,6 +86,13 @@ Evidence and not proof. A pass here means no disagreement was found on the input
   of at most about 800 bytes, because the semantics are slow to run: each memory access walks back through
   earlier writes. The harness reaches all but 5 of zlib's functions, counted without optimization so
   nothing is inlined away: two for big-endian machines, `crc32_combine_gen`, `_tr_align` and `_tr_tally`.
+- **What the emitter accepts:** all 17,035 items the pinned IR can contain are classified, 167 modeled, 170
+  assumed and 16,698 refused, and a probe of each shows the emitter does what its class says, with the Lean it
+  prints for each it translates elaborating ([IR features](ir-features.md)). Since 2026-11-09.
+- **Vector forms of integer operations:** the vector forms of 16 intrinsics, vector division and remainder, and
+  `noundef` and `range` on vectors and structs agree with Alive2 both ways, undefined behavior included, and with
+  LLVM's constant folder, on 1,452 inputs to 69 operations, with a wrong result for each refuted
+  ([`vecopcheck.py`](../tests/vecopcheck.py)). Checked on 2026-11-09.
 - **Integer operations:** against LLVM's constant folder at many widths, and Alive2 for exact poison and
   UB at small widths: 265 variants proved exact, with none unchecked.
 - **`getelementptr` flags:** 1,194 cases against Alive2, on 644 layouts. 927 are proved exact, and 267 depend on
@@ -245,6 +252,15 @@ reads it. That difference is itself a thing [Phase 3](roadmap.md#phase-3-c-and-r
     side's choices, so inserting, removing and duplicating a `freeze` are judged as LangRef judges them, and four real
     `instcombine` runs on `freeze` are bound as refinements. `undef` stays out of the model. Done in
     [#72](https://github.com/phongndo/ir-lean/pull/72). See [refinement](refinement.md#runs-that-make-choices).
-14. An inventory of chunk 1's rewrites, INV-04 for InstSimplify, InstCombine, AggressiveInstCombine and Reassociate:
+14. Calls outside the module that access no memory: the run's world answers them, the same world for source and target,
+    and which of the callee's answers a call gets is the run's choice, so dropping, merging and reordering such calls
+    refine under the attributes that allow it, and adding, duplicating or changing an argument doesn't. Calls with
+    effects, and calls that pass or return a pointer, are still refused. See [calls](calls.md).
+15. An independent verifier for claims about LLVM's passes, BIND-03, on 2026-11-09: `tools/verify_claims.py` replays
+    a claim's evidence from the pinned source, sharing no code with the scorer, and `tests/llvm_scope.py` counts a
+    claim only if it agrees. It replays every function in [LLVM's own code](#llvms-own-code) and refuses forged
+    claims, each for its own reason. It verifies no claim about a pass yet: none can be complete before INV-04,
+    BIND-02 and PASS-05 say what each dimension has to cover. See [verifying claims](verify-claims.md).
+16. An inventory of chunk 1's rewrites, INV-04 for InstSimplify, InstCombine, AggressiveInstCombine and Reassociate:
     3,174 at `llvmorg-23.1.3`, 1,837 of them on integers only, each with an ID and its line, derived from the pinned
     source and checked in CI. None is proved for every input yet. See [rewrite inventory](rewrite-inventory.md).
