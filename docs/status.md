@@ -104,7 +104,8 @@ Evidence and not proof. A pass here means no disagreement was found on the input
   the processor on 7,023,252, every operand of the one-operand operations of 16 bits among them, and Alive2 on 3,717,
   with none wrong. Where IEEE 754 gives a NaN, in 31,368 cases, each of the model's sixteen choices gives a NaN LangRef
   allows, and together they give all of them ([`fpcheck.py`](../tests/fpcheck.py)). On y on 2026-11-09, where the
-  processor can't run `fp128` or `i128`.
+  processor can't run `fp128` or `i128`. On z, x86-64 Linux, the same day, it runs them too: 7,496,747 cases agree,
+  none wrong.
 - **`getelementptr` flags:** 1,194 cases against Alive2, on 644 layouts. 927 are proved exact, and 267 depend on
   the layout as Alive2 confirms, with none unchecked or wrong.
 - **Random functions:** fuzzed integer functions at random optimization levels, against native code.
