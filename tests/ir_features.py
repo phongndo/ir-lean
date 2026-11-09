@@ -222,7 +222,8 @@ REASONS: dict[str, Reason] = {
     "target setting": Reason(
         "assumed",
         None,
-        "A setting for the backend or a sanitizer, with no meaning in LangRef for a run of this function",
+        "A setting for the backend, a sanitizer, a profile or a tool, with no meaning in LangRef for a run "
+        "of this function",
     ),
     "symbol metadata": Reason(
         "assumed",
@@ -232,6 +233,38 @@ REASONS: dict[str, Reason] = {
         "functions or globals. None says what a run does, apart from absolute_symbol, which "
         "narrows where a symbol is: a theorem holds for every address the model allows, "
         "which includes those",
+    ),
+    "hardening": Reason(
+        "assumed",
+        None,
+        "Hardening, instrumentation or patching that code generation or a later pass adds, such as a "
+        "sanitizer or a shadow call stack. The IR the emitter reads is what runs, before any of it",
+    ),
+    "one thread": Reason(
+        "assumed",
+        None,
+        "Says which transformations keep code right when many threads run it in step, as on a GPU. The model "
+        "runs one thread, which none of these constrains",
+    ),
+    "no callback": Reason(
+        "assumed",
+        None,
+        'LangRef: it "has no effect on functions defined in the current module". On a call the model answers '
+        "from the world, the calls' own check refuses it, and a call that never returns stops the model",
+    ),
+    "speculatable": Reason(
+        "assumed",
+        None,
+        "Promises the function has no effects and no undefined behavior. A run of the function itself is "
+        "the same with it or without, so the emitter accepts it on a function without memory, and refuses it "
+        "on one with memory, and every call to such a function, since LangRef makes a call undefined where "
+        "the function would be, even when the call doesn't run",
+    ),
+    "noreturn": Reason(
+        "modeled",
+        None,
+        'LangRef: it "produces undefined behavior at runtime if the function ever does dynamically return", '
+        "so the emitter makes each return undefined",
     ),
     "string on a value": Reason(
         "assumed",
@@ -313,8 +346,8 @@ REASONS: dict[str, Reason] = {
     "calling convention mismatch": Reason(
         "refused",
         "long tail",
-        "A call whose calling convention isn't the "
-        "callee's, which LangRef makes undefined, refused until modeled so",
+        "A call whose calling convention or ABI attributes, such as inreg or signext, aren't the callee's, "
+        "which LangRef makes undefined, refused until modeled so",
     ),
     "attribute review": Reason(
         "refused",
@@ -604,22 +637,31 @@ ATTRIBUTE_RULES = [
     ),
     R("coroutines", "coro_only_destroy_when_complete coro_elide_safe presplitcoroutine"),
     R(
-        "instrumentation",
+        "hardening",
         "sanitize_address sanitize_alloc_token sanitize_hwaddress sanitize_memtag sanitize_memory "
         "sanitize_numerical_stability sanitize_realtime sanitize_realtime_blocking sanitize_thread "
-        "sanitize_type "
-        "disable_sanitizer_instrumentation nosanitize_bounds nosanitize_coverage noprofile skipprofile "
-        "optforfuzzing",
+        "sanitize_type disable_sanitizer_instrumentation nosanitize_bounds nosanitize_coverage noprofile "
+        "skipprofile optforfuzzing nocf_check fn_ret_thunk_extern hybrid_patchable shadowcallstack safestack "
+        "speculative_load_hardening",
+        at="function, call",
     ),
+    R("hint", "flatten nooutline optdebug nonlazybind alignstack", at="function, call"),
+    R("hint", "noipa", at="call"),
+    # LLVM counts a `noipa` definition as one another module could replace, so the emitter refuses it with the
+    # rest, through `isInterposable()`.
+    R("external", "noipa", at="function"),
+    R("one thread", "convergent noduplicate nodivergencesource", at="function, call"),
+    R("no callback", "nocallback", at="function, call"),
+    R("abi", "inreg noext alignstack", at=VALUE),
+    R("noreturn", "noreturn", at="function"),
     R(
         "attribute review",
-        "nocallback speculatable convergent noduplicate nocreateundeforpoison nodivergencesource flatten "
-        "noipa "
-        "nooutline optdebug jumptable naked nonlazybind nocf_check fn_ret_thunk_extern hybrid_patchable "
-        "shadowcallstack safestack speculative_load_hardening alignstack builtin returns_twice noreturn "
-        "inreg "
-        "noext",
+        "nocreateundeforpoison jumptable naked builtin returns_twice",
+        at="function, call",
     ),
+    R("speculatable", "speculatable", at="function"),
+    R("attribute review", "speculatable", at="call"),
+    R("attribute review", "noreturn", at="call"),
     R("verifier", "immarg"),
 ]
 
@@ -633,18 +675,22 @@ STRING_ATTRIBUTE_RULES = [
     R("string on a value", "any", at="parameter, return, call parameter, call return"),
     R("floating point", "less-precise-fpmad no-signed-zeros-fp-math", at="function, call"),
     R(
-        "attribute review",
-        "no-jump-tables no-inline-line-tables profile-sample-accurate use-sample-profile loader-replaceable "
-        "allow_direct_access_in_hot_patch_function marked_for_windows_hot_patching any",
+        "target setting",
+        "no-jump-tables no-inline-line-tables profile-sample-accurate use-sample-profile "
+        "allow_direct_access_in_hot_patch_function marked_for_windows_hot_patching "
+        "instcombine-no-verify-fixpoint",
         at="function, call",
     ),
+    R("external", "loader-replaceable", at="function, call"),
+    R("attribute review", "any", at="function, call"),
 ]
 # Metadata kinds the emitter allows that FixedMetadataKinds.def doesn't fix: clang names them by string.
 EMITTER_METADATA = ("heapallocsite", "srcloc")
 # The string attributes the emitter allows on a function or a call, which aren't in Attributes.td.
 ALLOWED_STRINGS = (
     "alloc-family frame-pointer min-legal-vector-width no-builtins no-trapping-math probe-stack "
-    "stack-protector-buffer-size target-cpu target-features tune-cpu zero-call-used-regs".split()
+    "stack-protector-buffer-size target-cpu target-features tune-cpu zero-call-used-regs "
+    "instcombine-no-verify-fixpoint".split()
 )
 
 METADATA_RULES = [
@@ -806,7 +852,8 @@ FORM_RULES = [
     R("asm", "inline-asm-call"),
     R("gc", "function-with-gc"),
     R("machine", "prefix-or-prologue-data"),
-    R("calling convention mismatch", "calling-convention-mismatch"),
+    R("calling convention mismatch", "calling-convention-mismatch abi-attribute-mismatch"),
+    R("attribute review", "speculatable-with-memory call-to-a-speculatable-function"),
     R("call", "indirect-call"),
     R("tail call", "tail-call musttail-call"),
     R("hint", "notail-call"),
@@ -1131,6 +1178,11 @@ def attribute_probes(item: Item) -> list[str]:
                 f"define void @probe() {{\n  call void @callee() #0\n  ret void\n}}\n{group}\n"
             ]
         return value_probes(at, ["i32"], lambda ty: text)
+    if (a, at) == ("jumptable", "call"):
+        # LLVM's verifier checks `jumptable` with `cast<GlobalValue>(V)->hasGlobalUnnamedAddr()`, and at a
+        # call `V` is the call, so the bits it reads aren't the call's. Whether a probe passes the verifier
+        # can change from run to run, as on macOS, or from shape to shape, as on Linux, so no probe is built.
+        return []
     if at in ("function", "call"):
         # In an attribute group, alignstack is written with `=`.
         text = "alignstack=8" if a == "alignstack" else ATTRIBUTE_TEXT.get(a, a)
@@ -1156,13 +1208,22 @@ def attribute_probes(item: Item) -> list[str]:
                     f"define {ret} @probe({params}) {{\n  {call}\n  {body}\n}}\n{group}\n"
                 )
         return out
-    return value_probes(at, [*VALUE_TYPES, "<4 x i32>"], lambda ty: attribute_text(a, ty))
+    return value_probes(
+        at, [*VALUE_TYPES, "<4 x i32>"], lambda ty: attribute_text(a, ty), a in ABI_ATTRIBUTES
+    )
 
 
-def value_probes(at: str, types: list[str], text: Callable[[str], str]) -> list[str]:
+# Attributes that have to be the same at a call and on the callee, or LangRef says the behavior may be
+# undefined, so a probe at a call puts them on the callee too. The form abi-attribute-mismatch probes one that
+# isn't.
+ABI_ATTRIBUTES = {"signext", "zeroext", "noext", "inreg", "alignstack"}
+
+
+def value_probes(at: str, types: list[str], text: Callable[[str], str], abi: bool = False) -> list[str]:
     out = []
     for ty in types:
         t = text(ty)
+        on_callee = f"{t} " if abi else ""
         if at == "parameter":
             out.append(f"define void @probe({ty} {t} %x) {{\n  ret void\n}}\n")
             out.append(f"define {ty} @probe({ty} {t} %x) {{\n  ret {ty} %x\n}}\n")
@@ -1171,12 +1232,12 @@ def value_probes(at: str, types: list[str], text: Callable[[str], str]) -> list[
             out.append(f"define {t} {ty} @probe({ty} %x) {{\n  ret {ty} %x\n}}\n")
         elif at == "call parameter":
             out.append(
-                f"define void @callee({ty} %x) {{\n  ret void\n}}\n"
+                f"define void @callee({ty} {on_callee}%x) {{\n  ret void\n}}\n"
                 f"define void @probe({ty} %x) {{\n  call void @callee({ty} {t} %x)\n  ret void\n}}\n"
             )
         elif at == "call return":
             out.append(
-                f"define {ty} @callee({ty} %x) {{\n  ret {ty} %x\n}}\n"
+                f"define {on_callee}{ty} @callee({ty} %x) {{\n  ret {ty} %x\n}}\n"
                 f"define {ty} @probe({ty} %x) {{\n  %r = call {t} {ty} @callee({ty} %x)\n  ret {ty} %r\n}}\n"
             )
     return out
@@ -1573,6 +1634,12 @@ UNPROBEABLE = {
     ): "only on an intrinsic's declaration; LLVM's verifier rejects it here",
     ("attribute", "function", "builtin"): "only at a call; LLVM's verifier rejects it on a function",
     ("attribute", "call", "speculatable"): "only on a function; LLVM's verifier rejects it at a call",
+    (
+        "attribute",
+        "call",
+        "jumptable",
+    ): "LLVM's verifier reads memory that isn't the call's to check it, so no probe of it is the same "
+    "every run; checkFunctionAttributes has no case for it, so the emitter refuses it",
     ("attribute", "call", "denormal_fpenv"): "only on a function; LLVM's verifier rejects it at a call",
     (
         "attribute",

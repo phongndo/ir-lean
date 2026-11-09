@@ -709,6 +709,9 @@ void checkValueAttributes(AttributeSet Attrs, const Type *T, Position At, bool M
     // These only describe how a target passes the value, not what it is.
     case Attribute::SExt:
     case Attribute::ZExt:
+    case Attribute::InReg:
+    case Attribute::NoExt:
+    case Attribute::StackAlignment:
       continue;
     case Attribute::ReadOnly:
     case Attribute::WriteOnly:
@@ -782,29 +785,37 @@ std::string leanTag(AttributeSet Attrs) {
 
 // Attributes on a function or a call. Each one here has been reviewed, and anything else is refused, so a
 // new attribute can't pass unnoticed.
-// `Library` is for the C library functions `Mem` defines, and `GivesUp` for a call to a function outside the
-// module that never returns, which stops the model.
 // Settings for the backend, and which allocator a C library function belongs to.
 bool allowedStringAttribute(const Attribute &A) {
   static const std::set<std::string> Allowed = {
-      "alloc-family",     "frame-pointer", "min-legal-vector-width",      "no-builtins",
-      "no-trapping-math", "probe-stack",   "stack-protector-buffer-size", "target-cpu",
-      "target-features",  "tune-cpu",      "zero-call-used-regs"};
+      "alloc-family", "frame-pointer", "min-legal-vector-width", "no-builtins", "no-trapping-math",
+      "probe-stack", "stack-protector-buffer-size", "target-cpu", "target-features", "tune-cpu",
+      "zero-call-used-regs",
+      // Settings for code generation, profiles and tools, which Attributes.td defines.
+      "no-jump-tables", "no-inline-line-tables", "profile-sample-accurate", "use-sample-profile",
+      "allow_direct_access_in_hot_patch_function", "marked_for_windows_hot_patching",
+      // Tells InstCombine's own check not to expect a fixpoint after one run. Its regression tests use it.
+      "instcombine-no-verify-fixpoint"};
   return Allowed.count(A.getKindAsString().str()) != 0;
 }
 
+// `Library` is for the C library functions `Mem` defines, `GivesUp` for a call to a function outside the
+// module that never returns, which stops the model, and `Definition` for a function the module defines.
 void checkFunctionAttributes(AttributeSet Attrs, const std::string &Where, bool Library = false,
-                             bool GivesUp = false) {
+                             bool GivesUp = false, bool Definition = false) {
   for (Attribute A : Attrs) {
     if (A.isStringAttribute()) {
       if (!allowedStringAttribute(A))
         reject(Where + " attribute " + A.getAsString());
       continue;
     }
-    // `Mem`'s versions of the C library don't call back into the program.
-    if (Library && A.getKindAsEnum() == Attribute::NoCallback)
+    // Returning from a definition that promises not to is undefined, which `emitTerminator` gives it.
+    if ((GivesUp || Definition) && A.getKindAsEnum() == Attribute::NoReturn)
       continue;
-    if (GivesUp && A.getKindAsEnum() == Attribute::NoReturn)
+    // A run of the function itself is the same with `speculatable` or without. What it changes is its
+    // callers, which `emitCall` refuses, and `prepare` refuses it on a function with memory, whose effects it
+    // would rule out unchecked.
+    if (Definition && A.getKindAsEnum() == Attribute::Speculatable)
       continue;
     switch (A.getKindAsEnum()) {
     // These only change how the code is optimized or lowered.
@@ -824,6 +835,44 @@ void checkFunctionAttributes(AttributeSet Attrs, const std::string &Where, bool 
     case Attribute::StackProtectReq:
     case Attribute::StackProtectStrong:
     case Attribute::UWTable:
+    case Attribute::Flatten:
+    case Attribute::NoIPA:
+    case Attribute::NoOutline:
+    case Attribute::OptimizeForDebugging:
+    case Attribute::NonLazyBind:
+    case Attribute::StackAlignment:
+    // Hardening, instrumentation and patching that code generation or a later pass adds. The IR here is what
+    // runs, before any of it.
+    case Attribute::NoCfCheck:
+    case Attribute::FnRetThunkExtern:
+    case Attribute::HybridPatchable:
+    case Attribute::ShadowCallStack:
+    case Attribute::SafeStack:
+    case Attribute::SpeculativeLoadHardening:
+    case Attribute::SanitizeAddress:
+    case Attribute::SanitizeAllocToken:
+    case Attribute::SanitizeHWAddress:
+    case Attribute::SanitizeMemTag:
+    case Attribute::SanitizeMemory:
+    case Attribute::SanitizeNumericalStability:
+    case Attribute::SanitizeRealtime:
+    case Attribute::SanitizeRealtimeBlocking:
+    case Attribute::SanitizeThread:
+    case Attribute::SanitizeType:
+    case Attribute::DisableSanitizerInstrumentation:
+    case Attribute::NoSanitizeBounds:
+    case Attribute::NoSanitizeCoverage:
+    case Attribute::NoProfile:
+    case Attribute::SkipProfile:
+    case Attribute::OptForFuzzing:
+    // Say which transformations keep code correct for many threads running in step, which the model doesn't
+    // have: it runs one.
+    case Attribute::Convergent:
+    case Attribute::NoDuplicate:
+    case Attribute::NoDivergenceSource:
+    // LangRef: it "has no effect on functions defined in the current module". On a call the model answers
+    // from the world, `checkOutsideAttributes` refuses it, and a call that never returns stops the model.
+    case Attribute::NoCallback:
     // The model has no threads and no exceptions, so these always hold.
     case Attribute::NoSync:
     case Attribute::NoUnwind:
@@ -2098,12 +2147,49 @@ void FunctionEmitter::emitCall(const CallBase &C, std::vector<Line> &Out) {
   else
     for (const Function *Target : Context.candidates(C.getFunctionType()))
       SameConvention(Target);
+  // LangRef: "ABI attributes must be specified *both* at the function declaration/definition and call-site,
+  // otherwise the behavior may be undefined." These are the ones the model reads as only saying how a value
+  // is passed. A variadic call's arguments past the declared ones have nothing to match.
+  auto SameABI = [&](const Function *Callee) {
+    if (Callee->isIntrinsic())
+      return;
+    auto Differ = [](AttributeSet A, AttributeSet B) {
+      for (Attribute::AttrKind Kind : {Attribute::SExt, Attribute::ZExt, Attribute::NoExt, Attribute::InReg})
+        if (A.hasAttribute(Kind) != B.hasAttribute(Kind))
+          return true;
+      return A.getStackAlignment() != B.getStackAlignment();
+    };
+    const AttributeList &Declared = Callee->getAttributes();
+    bool Mismatch = Differ(C.getAttributes().getRetAttrs(), Declared.getRetAttrs());
+    for (unsigned I = 0, E = std::min<unsigned>(C.arg_size(), Callee->arg_size()); I != E; ++I)
+      Mismatch |= Differ(C.getAttributes().getParamAttrs(I), Declared.getParamAttrs(I));
+    if (Mismatch)
+      reject("call to @" + Callee->getName().str() + " whose ABI attributes aren't the callee's");
+  };
+  if (Direct)
+    SameABI(Direct);
+  else
+    for (const Function *Target : Context.candidates(C.getFunctionType()))
+      SameABI(Target);
   bool Library = Direct && libraryFunction(*Direct);
   bool GivesUp = givesUp(C);
   if (isOutsideCall(C)) {
     emitOutsideCall(C, Out);
     return;
   }
+  // LangRef: if a function marked `speculatable` "really does exhibit undefined behavior, the undefined
+  // behavior may be observed even if the call site is dead code". A run of the model only sees a call that
+  // runs. A call outside the module refuses it with the attributes it doesn't check.
+  auto NotSpeculatable = [&](const Function *Callee) {
+    if (!Callee->isIntrinsic() && Callee->hasFnAttribute(Attribute::Speculatable))
+      reject("call to @" + Callee->getName().str() +
+             ", which is speculatable, so undefined even where the call doesn't run, if the callee can be");
+  };
+  if (Direct)
+    NotSpeculatable(Direct);
+  else
+    for (const Function *Target : Context.candidates(C.getFunctionType()))
+      NotSpeculatable(Target);
   checkFunctionAttributes(C.getAttributes().getFnAttrs(), "call", Library, GivesUp);
   // A function's own promises are checked, but a narrower one at a call isn't, so it's refused. What's known
   // of the C library is the exception: `Mem.strlen` only reads through its argument, and they all return.
@@ -2288,6 +2374,10 @@ std::string FunctionEmitter::emitTerminator(const BasicBlock *BB) {
     return Talks ? "(.done " + R + " t')" : R;
   };
   if (const auto *R = dyn_cast<ReturnInst>(T)) {
+    // LangRef: `noreturn` "produces undefined behavior at runtime if the function ever does dynamically
+    // return".
+    if (F.doesNotReturn())
+      return "unreachable";
     if (!R->getReturnValue())
       return std::string(Ret) + WithMemory("()");
     AttributeSet Attrs = F.getAttributes().getRetAttrs();
@@ -2435,7 +2525,8 @@ void FunctionEmitter::prepare() {
     reject("linkage: this may not be the definition that runs");
   if (F.hasPrefixData() || F.hasPrologueData() || F.hasGC())
     reject("function with prefix data, prologue data or a garbage collector");
-  checkFunctionAttributes(F.getAttributes().getFnAttrs(), "function");
+  checkFunctionAttributes(F.getAttributes().getFnAttrs(), "function", /*Library=*/false, /*GivesUp=*/false,
+                          /*Definition=*/true);
   checkFloatTarget();
   for (const BasicBlock &BB : F)
     for (const Instruction &I : BB)
@@ -2448,6 +2539,8 @@ void FunctionEmitter::prepare() {
   // doesn't see it do so.
   if (Talks && F.hasFnAttribute(Attribute::NoRecurse))
     reject("function attribute norecurse on a function that calls outside the module");
+  if (F.hasFnAttribute(Attribute::Speculatable) && UsesMemory)
+    reject("function attribute speculatable on a function that uses memory");
   if (F.hasFnAttribute(Attribute::NoFree) && ReachesFree.count(&F))
     reject("function attribute nofree on a function that can reach free");
   collectBlocks();
