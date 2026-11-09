@@ -428,9 +428,11 @@ public:
       return poisonOf(C->getType());
     if (isa<UndefValue>(C))
       reject("undef");
-    // A splat that isn't written lane by lane: of a scalable vector, or a vector-typed `ConstantInt`.
+    // A splat that isn't written lane by lane: of a scalable vector, or a vector-typed `ConstantInt` or
+    // `ConstantFP`, which is how LLVM 23 holds a fixed-length splat of a float, `zeroinitializer` included.
     if (auto *V = dyn_cast<VectorType>(C->getType());
-        V && (isa<ScalableVectorType>(V) || isa<ConstantInt>(C)) && !isa<ConstantAggregateZero>(C)) {
+        V && (isa<ScalableVectorType>(V) || isa<ConstantInt>(C) || isa<ConstantFP>(C)) &&
+        !isa<ConstantAggregateZero>(C)) {
       const Constant *Splat = C->getSplatValue();
       if (!Splat)
         reject("constant " + printed(*C));
@@ -656,6 +658,23 @@ private:
       Out.insert(Out.end(), Size, 0);
       return;
     }
+    // A vector-typed `ConstantInt` or `ConstantFP` is a splat, and each lane has its value, laid out as a
+    // `ConstantDataVector`'s lanes are below.
+    if (auto *V = dyn_cast<FixedVectorType>(T); V && (isa<ConstantInt>(C) || isa<ConstantFP>(C))) {
+      leanType(V);
+      Type *E = V->getElementType();
+      // A vector's lanes are packed by their size in bits, so a lane that isn't a whole number of bytes, such
+      // as an `i1`, isn't laid out this way.
+      if (E->getPrimitiveSizeInBits() != 8 * DL.getTypeAllocSize(E))
+        reject("initializer " + printed(*C));
+      APInt Lane = isa<ConstantInt>(C) ? cast<ConstantInt>(C)->getValue()
+                                       : cast<ConstantFP>(C)->getValueAPF().bitcastToAPInt();
+      size_t Start = Out.size();
+      for (unsigned I = 0, N = V->getNumElements(); I != N; ++I)
+        appendInt(Lane, DL.getTypeAllocSize(E), Out);
+      Out.resize(Start + Size, 256);
+      return;
+    }
     if (auto *I = dyn_cast<ConstantInt>(C)) {
       appendInt(I->getValue(), Size, Out);
       return;
@@ -665,13 +684,17 @@ private:
       appendInt(F->getValueAPF().bitcastToAPInt(), Size, Out);
       return;
     }
+    // A vector's allocation can end in padding, as `<3 x float>`'s 16 bytes do after its 12, which an array
+    // of them steps over.
     if (auto *D = dyn_cast<ConstantDataSequential>(C)) {
       Type *E = D->getElementType();
       if (!E->isIntegerTy() && !isModeledFloat(E))
         reject("constant " + printed(*C));
+      size_t Start = Out.size();
       for (unsigned I = 0, N = D->getNumElements(); I != N; ++I)
         appendInt(E->isIntegerTy() ? D->getElementAsAPInt(I) : D->getElementAsAPFloat(I).bitcastToAPInt(),
                   DL.getTypeAllocSize(E), Out);
+      Out.resize(Start + Size, 256);
       return;
     }
     if (isa<ConstantArray>(C)) {
