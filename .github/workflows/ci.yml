@@ -28,8 +28,37 @@ jobs:
         with:
           path: ${{ steps.setup.outputs.cache-paths }}
           key: ${{ steps.setup.outputs.cache-key }}
+      - name: Save alive2
+        if: ${{ !cancelled() && steps.setup.outcome == 'success' && steps.setup.outputs.alive2-hit != 'true' }}
+        uses: actions/cache/save@v6
+        with:
+          path: ~/.cache/ir-lean-alive2
+          key: ${{ steps.setup.outputs.alive2-key }}
+  # Whether a pull request needs the tests: not when it only adds or edits Markdown that no file but Markdown
+  # names, which is how a test would read it. .github/needs-tests.py says why either way. Pushes and manual
+  # runs always need them. Lint runs whatever this says.
+  changes:
+    name: Which jobs the change needs
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    outputs:
+      tests: ${{ steps.decide.outputs.tests }}
+    steps:
+      - uses: actions/checkout@v7
+      - id: decide
+        env:
+          BASE: ${{ github.event.pull_request.base.sha }}
+        run: |
+          if [ "$GITHUB_EVENT_NAME" = pull_request ]; then
+            git fetch --quiet --depth=1 --no-tags origin "$BASE"
+            .github/needs-tests.py "$BASE" HEAD >>"$GITHUB_OUTPUT"
+          else
+            echo tests=true >>"$GITHUB_OUTPUT"
+          fi
   test:
     name: Tests and proofs (${{ matrix.shard }})
+    needs: changes
+    if: needs.changes.outputs.tests == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 60
     strategy:
@@ -48,6 +77,8 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - uses: ./.github/actions/setup
+        with:
+          shell: ${{ matrix.shell }}
       - run: nix develop ${{ matrix.shell }} -c .github/test-shard.sh ${{ matrix.shard }} ${{ join(matrix.labels, ' ') }}
   slow:
     name: Slow zlib tests
