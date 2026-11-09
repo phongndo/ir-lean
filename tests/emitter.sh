@@ -244,11 +244,25 @@ for linkage in '' internal private dso_local; do
 done
 
 # Function attributes: anything that isn't on the reviewed list.
-for attribute in noreturn naked returns_twice sanitize_address strictfp null_pointer_is_valid \
-  convergent nocf_check speculatable nocallback '"made-up"="1"'; do
+for attribute in naked returns_twice strictfp null_pointer_is_valid '"made-up"="1"'; do
   # The verifier rejects a naked function that reads its arguments.
   refuses "attribute" "define i32 @f(i32 %x) $attribute { ret i32 0 }"
 done
+# Accepted on review, with the reasons in docs/ir-features.md. `noreturn` makes the `ret` undefined, which
+# `noreturn_returns` in tests/real/ub.ll checks.
+for attribute in noreturn sanitize_address convergent nocf_check speculatable nocallback; do
+  accepts "define i32 @f(i32 %x) $attribute { ret i32 0 }"
+done
+# `speculatable` would rule out effects nothing checks, and makes a call undefined even where it doesn't run.
+refuses 'speculatable on a function that uses memory' 'define i32 @f(ptr %p) speculatable {
+  %v = load i32, ptr %p
+  ret i32 %v
+}'
+refuses 'which is speculatable' 'define internal i32 @g(i32 %x) speculatable { ret i32 %x }
+define i32 @f(i32 %x) {
+  %y = call i32 @g(i32 %x)
+  ret i32 %y
+}'
 refuses 'call attribute nobuiltin' 'declare ptr @malloc(i64)
 define ptr @f() {
   %p = call ptr @malloc(i64 8) nobuiltin

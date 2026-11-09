@@ -1492,3 +1492,18 @@ define ptr @probe(ptr %p, i64 %i) {
   %q = getelementptr <vscale x 4 x i32>, ptr %p, i64 %i
   ret ptr %q
 }
+
+; probe: form / speculatable-with-memory
+define i32 @probe(ptr %p) speculatable {
+  %v = load i32, ptr %p
+  ret i32 %v
+}
+
+; probe: form / call-to-a-speculatable-function
+define i32 @callee(i32 %a) speculatable {
+  ret i32 %a
+}
+define i32 @probe(i32 %a) {
+  %r = call i32 @callee(i32 %a)
+  ret i32 %r
+}

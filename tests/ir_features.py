@@ -216,7 +216,8 @@ REASONS: dict[str, Reason] = {
     "target setting": Reason(
         "assumed",
         None,
-        "A setting for the backend or a sanitizer, with no meaning in LangRef for a run of this function",
+        "A setting for the backend, a sanitizer, a profile or a tool, with no meaning in LangRef for a run "
+        "of this function",
     ),
     "symbol metadata": Reason(
         "assumed",
@@ -226,6 +227,38 @@ REASONS: dict[str, Reason] = {
         "functions or globals. None says what a run does, apart from absolute_symbol, which "
         "narrows where a symbol is: a theorem holds for every address the model allows, "
         "which includes those",
+    ),
+    "hardening": Reason(
+        "assumed",
+        None,
+        "Hardening, instrumentation or patching that code generation or a later pass adds, such as a "
+        "sanitizer or a shadow call stack. The IR the emitter reads is what runs, before any of it",
+    ),
+    "one thread": Reason(
+        "assumed",
+        None,
+        "Says which transformations keep code right when many threads run it in step, as on a GPU. The model "
+        "runs one thread, which none of these constrains",
+    ),
+    "no callback": Reason(
+        "assumed",
+        None,
+        'LangRef: it "has no effect on functions defined in the current module". On a call the model answers '
+        "from the world, the calls' own check refuses it, and a call that never returns stops the model",
+    ),
+    "speculatable": Reason(
+        "assumed",
+        None,
+        "Promises the function has no effects and no undefined behavior. A run of the function itself is "
+        "the same with it or without, so the emitter accepts it on a function without memory, and refuses it "
+        "on one with memory, and every call to such a function, since LangRef makes a call undefined where "
+        "the function would be, even when the call doesn't run",
+    ),
+    "noreturn": Reason(
+        "modeled",
+        None,
+        'LangRef: it "produces undefined behavior at runtime if the function ever does dynamically return", '
+        "so the emitter makes each return undefined",
     ),
     "string on a value": Reason(
         "assumed",
@@ -596,22 +629,31 @@ ATTRIBUTE_RULES = [
     ),
     R("coroutines", "coro_only_destroy_when_complete coro_elide_safe presplitcoroutine"),
     R(
-        "instrumentation",
+        "hardening",
         "sanitize_address sanitize_alloc_token sanitize_hwaddress sanitize_memtag sanitize_memory "
         "sanitize_numerical_stability sanitize_realtime sanitize_realtime_blocking sanitize_thread "
-        "sanitize_type "
-        "disable_sanitizer_instrumentation nosanitize_bounds nosanitize_coverage noprofile skipprofile "
-        "optforfuzzing",
+        "sanitize_type disable_sanitizer_instrumentation nosanitize_bounds nosanitize_coverage noprofile "
+        "skipprofile optforfuzzing nocf_check fn_ret_thunk_extern hybrid_patchable shadowcallstack safestack "
+        "speculative_load_hardening",
+        at="function, call",
     ),
+    R("hint", "flatten nooutline optdebug nonlazybind alignstack", at="function, call"),
+    R("hint", "noipa", at="call"),
+    # LLVM counts a `noipa` definition as one another module could replace, so the emitter refuses it with the
+    # rest, through `isInterposable()`.
+    R("external", "noipa", at="function"),
+    R("one thread", "convergent noduplicate nodivergencesource", at="function, call"),
+    R("no callback", "nocallback", at="function, call"),
+    R("abi", "inreg noext alignstack", at=VALUE),
+    R("noreturn", "noreturn", at="function"),
     R(
         "attribute review",
-        "nocallback speculatable convergent noduplicate nocreateundeforpoison nodivergencesource flatten "
-        "noipa "
-        "nooutline optdebug jumptable naked nonlazybind nocf_check fn_ret_thunk_extern hybrid_patchable "
-        "shadowcallstack safestack speculative_load_hardening alignstack builtin returns_twice noreturn "
-        "inreg "
-        "noext",
+        "nocreateundeforpoison jumptable naked builtin returns_twice",
+        at="function, call",
     ),
+    R("speculatable", "speculatable", at="function"),
+    R("attribute review", "speculatable", at="call"),
+    R("attribute review", "noreturn", at="call"),
     R("verifier", "immarg"),
 ]
 
@@ -625,18 +667,22 @@ STRING_ATTRIBUTE_RULES = [
     R("string on a value", "any", at="parameter, return, call parameter, call return"),
     R("floating point", "less-precise-fpmad no-signed-zeros-fp-math", at="function, call"),
     R(
-        "attribute review",
-        "no-jump-tables no-inline-line-tables profile-sample-accurate use-sample-profile loader-replaceable "
-        "allow_direct_access_in_hot_patch_function marked_for_windows_hot_patching any",
+        "target setting",
+        "no-jump-tables no-inline-line-tables profile-sample-accurate use-sample-profile "
+        "allow_direct_access_in_hot_patch_function marked_for_windows_hot_patching "
+        "instcombine-no-verify-fixpoint",
         at="function, call",
     ),
+    R("external", "loader-replaceable", at="function, call"),
+    R("attribute review", "any", at="function, call"),
 ]
 # Metadata kinds the emitter allows that FixedMetadataKinds.def doesn't fix: clang names them by string.
 EMITTER_METADATA = ("heapallocsite", "srcloc")
 # The string attributes the emitter allows on a function or a call, which aren't in Attributes.td.
 ALLOWED_STRINGS = (
     "alloc-family frame-pointer min-legal-vector-width no-builtins no-trapping-math probe-stack "
-    "stack-protector-buffer-size target-cpu target-features tune-cpu zero-call-used-regs".split()
+    "stack-protector-buffer-size target-cpu target-features tune-cpu zero-call-used-regs "
+    "instcombine-no-verify-fixpoint".split()
 )
 
 METADATA_RULES = [
@@ -797,6 +843,7 @@ FORM_RULES = [
     R("gc", "function-with-gc"),
     R("machine", "prefix-or-prologue-data"),
     R("calling convention mismatch", "calling-convention-mismatch"),
+    R("attribute review", "speculatable-with-memory call-to-a-speculatable-function"),
     R("call", "indirect-call"),
     R("tail call", "tail-call musttail-call"),
     R("hint", "notail-call"),
