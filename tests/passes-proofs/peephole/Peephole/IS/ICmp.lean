@@ -323,18 +323,33 @@ def body (o : Oracle) (e : Ext) : Nat → ICmp.Rec
   | 0, _, p, lhs, rhs => entry o e (fun _ _ _ => []) p lhs rhs 0
   | n + 1, _, p, lhs, rhs => entry o e (fun p a b => body o e n p a b) p lhs rhs (n + 1)
 
+/-! `body` at each `MaxRecurse` up to `RecursionLimit`, 3, written out: the same functions, as `body_three` says, but
+not recursive, so a copy of them can report which step fired. -/
+
+def body0 (o : Oracle) (e : Ext) : ICmp.Rec := fun p lhs rhs => entry o e (fun _ _ _ => []) p lhs rhs 0
+def body1 (o : Oracle) (e : Ext) : ICmp.Rec := fun p lhs rhs => entry o e (fun p a b => body0 o e p a b) p lhs rhs 1
+def body2 (o : Oracle) (e : Ext) : ICmp.Rec := fun p lhs rhs => entry o e (fun p a b => body1 o e p a b) p lhs rhs 2
+def body3 (o : Oracle) (e : Ext) : ICmp.Rec := fun p lhs rhs => entry o e (fun p a b => body2 o e p a b) p lhs rhs 3
+
+theorem body_three (o : Oracle) (e : Ext) (p : Pred) (lhs rhs : Term w) : body3 o e p lhs rhs = body o e 3 p lhs rhs :=
+  rfl
+
 end simplifyICmpInst
 
 /-- `simplifyICmpInst(Pred, LHS, RHS, Q, MaxRecurse)`. -/
 def simplifyICmpInst (o : Oracle) (e : Ext) (p : Pred) (lhs rhs : Term w) (n : Nat) : Result 1 :=
   run (simplifyICmpInst.body o e n p lhs rhs)
 
-/-- What InstSimplify does with an `icmp` it reaches: `simplifyInstructionWithOperands` calls `simplifyICmpInst` with
-the instruction's `CmpPredicate` and `MaxRecurse` at `RecursionLimit`, 3. The analyses the core `Oracle` lacks come
-from `e`, which knows nothing unless given. -/
-def simplifyICmpInst.onInst (o : Oracle) (e : Ext := Ext.none) : {w : Nat} → Term w → Result w
-  | _, .icmp _ p _ a b => simplifyICmpInst o e p a b 3
+/-- What InstSimplify does with an `icmp` it reaches, given the analyses the core `Oracle` lacks as `e`:
+`simplifyInstructionWithOperands` calls `simplifyICmpInst` with the instruction's `CmpPredicate` and `MaxRecurse` at
+`RecursionLimit`, 3, which is `body3`. -/
+def simplifyICmpInst.onInstWith (o : Oracle) (e : Ext) : {w : Nat} → Term w → Result w
+  | _, .icmp _ p _ a b => run (simplifyICmpInst.body3 o e p a b)
   | _, _ => .null
+
+/-- The entry point: `onInstWith` with the extension that knows nothing, as the comparison with `opt` runs it. -/
+def simplifyICmpInst.onInst (o : Oracle) : {w : Nat} → Term w → Result w :=
+  simplifyICmpInst.onInstWith o Ext.none
 
 /-! ### The rewrites, one theorem each -/
 
@@ -997,14 +1012,21 @@ theorem simplifyICmpInst.sound (ρ : Env) (o : Oracle) (ho : o.Sound ρ) (e : Ex
       c0 c1 u0 u1 h
 
 /-- What `simplifyICmpInst.onInst` returns for an `icmp` refines it: the instruction, as `Term.top` has it. -/
-theorem simplifyICmpInst.onInst_sound (ρ : Env) (o : Oracle) (ho : o.Sound ρ) (e : Ext) (he : e.Sound ρ)
+theorem simplifyICmpInst.onInstWith_sound (ρ : Env) (o : Oracle) (ho : o.Sound ρ) (e : Ext) (he : e.Sound ρ)
     {w : Nat} (t : Term w) (ct : t.Consistent ρ) (ut : t.hasUndef = false) {r : Repl w}
-    (h : simplifyICmpInst.onInst o e t = .value r) : Refines (t.top.eval ρ) (r.eval ρ) := by
+    (h : simplifyICmpInst.onInstWith o e t = .value r) : Refines (t.top.eval ρ) (r.eval ρ) := by
   cases t
   case icmp v id p s a b =>
     simp only [Term.Consistent] at ct
     simp only [Term.hasUndef, Bool.or_eq_false_iff] at ut
+    simp only [simplifyICmpInst.onInstWith, simplifyICmpInst.body_three] at h
     exact simplifyICmpInst.sound ρ o ho e he p s a b 3 ct.1 ct.2.1 ut.1 ut.2 h
-  all_goals simp [simplifyICmpInst.onInst] at h
+  all_goals simp [simplifyICmpInst.onInstWith] at h
+
+/-- What the entry point returns for an `icmp` refines it, given sound analyses. -/
+theorem simplifyICmpInst.onInst_sound (ρ : Env) (o : Oracle) (ho : o.Sound ρ) {w : Nat} (t : Term w)
+    (ct : t.Consistent ρ) (ut : t.hasUndef = false) {r : Repl w} (h : simplifyICmpInst.onInst o t = .value r) :
+    Refines (t.top.eval ρ) (r.eval ρ) :=
+  simplifyICmpInst.onInstWith_sound ρ o ho Ext.none (Ext.none_sound ρ) t ct ut h
 
 end Peephole.IS
