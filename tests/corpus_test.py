@@ -187,6 +187,14 @@ class Pipeline(unittest.TestCase):
             with self.assertRaises(ValueError):
                 [capture.parse_element(e) for e in capture.split_top(bad)]
 
+    def test_every_pipeline_in_the_inventory_is_read(self) -> None:
+        # Such as default<O0> and lto<O1>, whose coro-cond wraps passes of its own.
+        pipelines = json.loads(capture.INVENTORY.read_text())["pipelines"]["opt"]
+        texts = [p["pipeline"] for p in pipelines.values() if "pipeline" in p]
+        self.assertGreater(len(texts), 10)
+        for text in texts:
+            capture.flatten([capture.parse_element(e) for e in capture.split_top(text)])
+
 
 class Trace(unittest.TestCase):
     def test_steps_carry_the_ir_before_and_after(self) -> None:
@@ -205,6 +213,22 @@ class Trace(unittest.TestCase):
         b = "b:                ; preds = %y, %x\n  ret i32 0\n"
         self.assertEqual(capture.without_comments(a), capture.without_comments(b))
         self.assertNotEqual(capture.without_comments(a), capture.without_comments(a.replace("0", "1")))
+
+    def test_a_wrapper_is_not_a_step(self) -> None:
+        trace = "\n".join(
+            [
+                "*** IR Dump At Start ***",
+                "declare void @g()",
+                "Running pass: CoroConditionalWrapper on [module]",
+                "Running pass: GlobalDCEPass on [module]",
+                "*** IR Dump After GlobalDCEPass on [module] ***",
+                "; empty",
+                "*** IR Dump After CoroConditionalWrapper on [module] ***",
+                "; empty",
+            ]
+        )
+        found = capture.attribute(capture.parse_trace(trace), [leaf("1", "globaldce", "GlobalDCEPass")], {})
+        self.assertEqual([s["name"] for s in found["steps"]], ["globaldce"])
 
 
 class Pin(unittest.TestCase):

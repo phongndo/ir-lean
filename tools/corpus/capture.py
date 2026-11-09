@@ -47,10 +47,11 @@ MTRIPLE = "x86_64-unknown-linux-gnu"
 TIMEOUT_S = 120
 
 # Adaptors that run the passes inside them and aren't passes of their own.
-ADAPTOR_NAMES = {"function", "cgscc", "devirt", "loop", "loop-mssa", "module"}
-# What -debug-pass-manager reports as passes but the printed pipeline doesn't list as one: `devirt<4>` itself,
-# and the printer or writer opt adds for its output, which is part of the invocation.
-NOT_PASSES = {"DevirtSCCRepeatedPass", "PrintModulePass", "BitcodeWriterPass"}
+# `coro-cond` runs its passes only on a module that declares a coroutine intrinsic.
+ADAPTOR_NAMES = {"function", "cgscc", "devirt", "loop", "loop-mssa", "module", "coro-cond"}
+# What -debug-pass-manager reports as passes but the printed pipeline doesn't list as one: `devirt<4>` and
+# `coro-cond` themselves, and the printer or writer opt adds for its output, which is part of the invocation.
+NOT_PASSES = {"DevirtSCCRepeatedPass", "CoroConditionalWrapper", "PrintModulePass", "BitcodeWriterPass"}
 
 
 def read_json(path: Path) -> Any:
@@ -415,7 +416,8 @@ def attribute(events: list[dict], leaves: list[dict], names: dict[str, str]) -> 
                 # Where it ran: just before this position, such as the loop adaptor it canonicalizes for.
                 current["before_pos"] = leaves[cursor]["pos"] if cursor < len(leaves) else None
             current |= {"class": e["class"], "unit": e["unit"]}
-        elif e["kind"] == "dump" and e["changed"]:
+        # A wrapper's dump repeats the module after the last pass it ran, which is a step already.
+        elif e["kind"] == "dump" and e["changed"] and e["class"] not in NOT_PASSES:
             if current is None or current["class"] != e["class"]:
                 current = {"pos": None, "name": f"?{e['class']}", "spec": None, "again": False}
                 current |= {"replay": [], "implicit": True, "class": e["class"], "unit": e["unit"]}
