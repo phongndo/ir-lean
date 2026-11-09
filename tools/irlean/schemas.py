@@ -47,6 +47,11 @@ PASSES_INSTANCE = "ir-lean.passes.instance/1"
 PASSES_RUN = "ir-lean.passes.run/1"
 PASSES_SCORE = "ir-lean.passes.score/1"
 PASSES_SELFCHECK = "ir-lean.passes.selfcheck/1"
+# bench/instcombine/stage1.py: a pair, the summary, and the corpus of known miscompilations, from the stage-1
+# benchmark lane, which isn't on main on 2026-11-09. Named here first, so its schemas are known when it lands.
+STAGE1_PAIR = "ir-lean.stage1.pair/1"
+STAGE1_SUMMARY = "ir-lean.stage1.summary/1"
+STAGE1_KNOWN_WRONG = "ir-lean.stage1.known-wrong/1"
 # tests/verify_negative.py: a case, the envelope around a checker's answer, and the report.
 # docs/llvm-negative-verification.md.
 NEGATIVE_CASE = "ir-lean.verification-negative.case/1"
