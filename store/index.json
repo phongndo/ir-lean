@@ -3,7 +3,7 @@
   "version": {
     "lean": "leanprover/lean4:v4.35.0",
     "normalizer": 1,
-    "sources": "b50cab5fd3eea168623d0a17f4e21f81875479bbc5ade98af431efaf550ca520"
+    "sources": "d0042bf6b177eb3f6588b5a36d2c91807756b86a981651cb1d172253743f61b8"
   },
   "consumers": [
     {
@@ -2018,8 +2018,10 @@
         "RefineCases.addedNuw",
         "RefineCases.dropNuw",
         "RefineCases.inContext",
+        "RefineCases.loopDeletedUnderPromise",
         "RefineCases.poisonLane",
         "RefineCases.poisonToValue",
+        "RefineCases.promiseDropped",
         "RefineCases.swappedLanes",
         "RefineCases.undefArgument",
         "RefineCases.valueToPoison",
@@ -2040,6 +2042,8 @@
         "IRLean.Generic.sdiv_one_refines",
         "IRLean.Generic.srem_one_refines",
         "IRLean.Generic.urem_one_refines",
+        "RefineCases.loopDeletedUnderPromise",
+        "RefineCases.promiseDropped",
         "RefineCases.removeUB"
       ]
     },
@@ -2064,11 +2068,14 @@
       "family": "refinement",
       "provenance": "#46, IRLean/Refine.lean",
       "key": "e548a644642e7a2637ef",
-      "status": "candidate",
+      "status": "admitted",
       "widths": "every",
       "hypotheses": [],
       "witness": null,
-      "used_by": []
+      "used_by": [
+        "RefineCases.loopDeletedWithoutPromise",
+        "RefineCases.promiseAdded"
+      ]
     },
     {
       "name": "IRLean.Refine.fn",
@@ -2094,7 +2101,9 @@
       "witness": null,
       "used_by": [
         "RefineCases.dropNuw",
-        "RefineCases.poisonLane"
+        "RefineCases.loopDeletedUnderPromise",
+        "RefineCases.poisonLane",
+        "RefineCases.promiseDropped"
       ]
     },
     {
