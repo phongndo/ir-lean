@@ -148,7 +148,8 @@ add_test(NAME verdict COMMAND ${CMAKE_SOURCE_DIR}/tests/verdict_test.py)
 add_test(NAME alive COMMAND ${CMAKE_SOURCE_DIR}/tests/alive_test.py)
 # The stage-1 benchmark's harness on its fixture: InstCombine's rewrites of a few functions, certified, proved,
 # refuted or unsupported as bench/instcombine/fixture/expect.json says, and three known miscompilations never
-# certified. One Lean process at a time, alone. docs/stage1.md.
+# certified, and a certified pair whose target changes or whose latest proof failed is no longer certified. One
+# Lean process at a time, alone. docs/stage1.md.
 add_test(NAME stage1 COMMAND ${CMAKE_SOURCE_DIR}/bench/instcombine/stage1.py --work ${CMAKE_BINARY_DIR}/stage1-ci ci)
 set_tests_properties(stage1 PROPERTIES RUN_SERIAL TRUE TIMEOUT 900)
 add_test(NAME superopt COMMAND ${CMAKE_SOURCE_DIR}/tests/superopt.py $<TARGET_FILE:ir-lean>)
