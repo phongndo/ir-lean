@@ -529,3 +529,8 @@ yes:
 no:
   ret i32 %x
 }
+
+; LangRef: `noreturn` "produces undefined behavior at runtime if the function ever does dynamically return".
+define i32 @noreturn_returns(i32 %x) noreturn {
+  ret i32 %x
+}

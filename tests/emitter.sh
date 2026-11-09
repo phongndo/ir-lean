@@ -55,7 +55,7 @@ refuses 'nondividing lane widths' 'define <3 x i8> @f(<2 x i12> %x) { %r = bitca
   ret <3 x i8> %r }'
 refuses 'type' 'define <2 x i32> @f(<2 x float> %x) { %r = bitcast <2 x float> %x to <2 x i32>
   ret <2 x i32> %r }'
-refuses 'type' 'define <vscale x 4 x i8> @f(<vscale x 2 x i16> %x) { %r = bitcast <vscale x 2 x i16> %x to <vscale x 4 x i8>
+refuses 'integer bitcast shape' 'define <vscale x 4 x i8> @f(<vscale x 2 x i16> %x) { %r = bitcast <vscale x 2 x i16> %x to <vscale x 4 x i8>
   ret <vscale x 4 x i8> %r }'
 refuses 'integer bitcast shape' 'define ptr @f(ptr %x) { %r = bitcast ptr %x to ptr
   ret ptr %r }'
@@ -244,11 +244,46 @@ for linkage in '' internal private dso_local; do
 done
 
 # Function attributes: anything that isn't on the reviewed list.
-for attribute in noreturn naked returns_twice sanitize_address strictfp null_pointer_is_valid \
-  convergent nocf_check speculatable nocallback '"made-up"="1"'; do
+for attribute in naked returns_twice strictfp null_pointer_is_valid '"made-up"="1"'; do
   # The verifier rejects a naked function that reads its arguments.
   refuses "attribute" "define i32 @f(i32 %x) $attribute { ret i32 0 }"
 done
+# Accepted on review, with the reasons in docs/ir-features.md. `noreturn` makes the `ret` undefined, which
+# `noreturn_returns` in tests/real/ub.ll checks.
+for attribute in noreturn sanitize_address convergent nocf_check speculatable nocallback; do
+  accepts "define i32 @f(i32 %x) $attribute { ret i32 0 }"
+done
+# `speculatable` would rule out effects nothing checks, and makes a call undefined even where it doesn't run.
+refuses 'speculatable on a function that uses memory' 'define i32 @f(ptr %p) speculatable {
+  %v = load i32, ptr %p
+  ret i32 %v
+}'
+refuses 'which is speculatable' 'define internal i32 @g(i32 %x) speculatable { ret i32 %x }
+define i32 @f(i32 %x) {
+  %y = call i32 @g(i32 %x)
+  ret i32 %y
+}'
+# ABI attributes have to be the same at a call and on the callee, or LangRef says the behavior may be undefined.
+refuses 'ABI attributes' 'define internal i32 @g(i32 %x) { ret i32 %x }
+define i32 @f(i32 %x) {
+  %r = call i32 @g(i32 inreg %x)
+  ret i32 %r
+}'
+refuses 'ABI attributes' 'define internal signext i8 @g(i8 %x) { ret i8 %x }
+define i8 @f(i8 %x) {
+  %r = call i8 @g(i8 %x)
+  ret i8 %r
+}'
+refuses 'ABI attributes' 'declare i8 @g(i8 zeroext) memory(none)
+define i8 @f(i8 %x) {
+  %r = call i8 @g(i8 %x)
+  ret i8 %r
+}'
+accepts 'define internal i32 @g(i32 inreg %x) { ret i32 %x }
+define i32 @f(i32 %x) {
+  %r = call i32 @g(i32 inreg %x)
+  ret i32 %r
+}'
 refuses 'call attribute nobuiltin' 'declare ptr @malloc(i64)
 define ptr @f() {
   %p = call ptr @malloc(i64 8) nobuiltin
