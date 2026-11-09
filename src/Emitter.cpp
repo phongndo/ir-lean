@@ -1302,26 +1302,38 @@ void FunctionEmitter::emitInstruction(const Instruction &I, std::vector<Line> &O
     Cast("Val.trunc", flag(T.hasNoUnsignedWrap(), "nuw") + flag(T.hasNoSignedWrap(), "nsw"));
     return;
   }
-  // Between vectors of integers only. One lane width divides the other, so it's a split or a join. LangRef
-  // reads it as a store and a load, which puts lane 0 in the low bits only on a little-endian target, so a
-  // big-endian module is refused, even for a function that doesn't touch memory.
+  // Between integers and vectors of integers of the same size, where one lane width divides the other, so
+  // it's a split or a join, with a scalar as a vector of one lane. LangRef reads it as a store and a load,
+  // which puts lane 0 in the low bits only on a little-endian target, so a big-endian module is refused, even
+  // for a function that doesn't touch memory.
   case Instruction::BitCast: {
-    auto *From = dyn_cast<FixedVectorType>(I.getOperand(0)->getType());
-    auto *To = dyn_cast<FixedVectorType>(I.getType());
-    if (!From || !To || !From->getElementType()->isIntegerTy() || !To->getElementType()->isIntegerTy())
-      reject("instruction " + printed(I));
+    Type *Src = I.getOperand(0)->getType();
+    Type *Dst = I.getType();
+    auto IntegerShape = [](Type *T) {
+      return T->isIntegerTy() || (isa<FixedVectorType>(T) && T->getScalarType()->isIntegerTy());
+    };
+    if (!IntegerShape(Src) || !IntegerShape(Dst))
+      reject("integer bitcast shape " + printed(I));
+    unsigned W = Src->getScalarSizeInBits(), V = Dst->getScalarSizeInBits();
+    unsigned SrcLanes = Src->isVectorTy() ? cast<FixedVectorType>(Src)->getNumElements() : 1;
+    unsigned DstLanes = IsVector ? cast<FixedVectorType>(Dst)->getNumElements() : 1;
+    if (uint64_t(W) * SrcLanes != uint64_t(V) * DstLanes)
+      reject("integer bitcast size " + printed(I));
+    if (W % V != 0 && V % W != 0)
+      reject("integer bitcast with nondividing lane widths " + printed(I));
     if (!Context.DL.isLittleEndian())
       reject("big-endian integer bitcast " + printed(I));
-    unsigned W = From->getScalarSizeInBits(), V = To->getScalarSizeInBits();
-    std::string M = std::to_string(To->getNumElements()), VS = std::to_string(V);
-    if (W == V)
+    if (!Src->isVectorTy() && !IsVector) {
       addLet(I, Out, Op(0));
-    else if (W % V == 0)
-      addLet(I, Out, "Vec.split " + M + " " + VS + " " + std::to_string(W / V) + " " + Op(0));
-    else if (V % W == 0)
-      addLet(I, Out, "Vec.join " + M + " " + VS + " " + std::to_string(V / W) + " " + Op(0));
-    else
-      reject("integer bitcast with nondividing lane widths " + printed(I));
+      return;
+    }
+    std::string In = Src->isVectorTy() ? Op(0) : "#v[" + Op(0) + "]";
+    std::string M = std::to_string(DstLanes), VS = std::to_string(V), Expr = In;
+    if (W > V)
+      Expr = "Vec.split " + M + " " + VS + " " + std::to_string(W / V) + " " + In;
+    else if (V > W)
+      Expr = "Vec.join " + M + " " + VS + " " + std::to_string(V / W) + " " + In;
+    addLet(I, Out, IsVector ? Expr : "Vec.lane (" + Expr + ") 0");
     return;
   }
   case Instruction::ExtractElement:

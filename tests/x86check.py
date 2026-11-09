@@ -3,8 +3,8 @@
 # requires-python = ">=3.12"
 # dependencies = []
 # ///
-"""Checks the model's `bitcast` between integer vectors, and x86's PMADDUBSW and PMADDWD, through the emitter,
-against LLVM itself, poison included, on any processor.
+"""Checks the model's `bitcast` between integers and vectors of them, and x86's PMADDUBSW and PMADDWD,
+through the emitter, against LLVM itself, poison included, on any processor.
 
 tests/real/x86.ll runs these and VPDPBUSD natively, which needs AVX-512 VNNI and can't see poison. This asks
 two oracles that need neither, for each operation at every width the q4_K kernels use and more, on random
@@ -70,11 +70,25 @@ BITCASTS = [
     ((4, 2), (2, 4)),
     ((2, 4), (8, 1)),
     ((4, 32), (4, 32)),
+    # A scalar, as (0, width), is a vector of one lane to the model. The first is the Q5 rewrite's.
+    ((0, 32), (32, 1)),
+    ((32, 1), (0, 32)),
+    ((0, 8), (8, 1)),
+    ((0, 16), (2, 8)),
+    ((4, 8), (0, 32)),
+    ((0, 64), (2, 32)),
+    ((1, 32), (0, 32)),
+    ((0, 32), (1, 32)),
+    ((0, 32), (0, 32)),
 ]
 
 
 def ty(shape):
-    return f"<{shape[0]} x i{shape[1]}>"
+    return f"i{shape[1]}" if shape[0] == 0 else f"<{shape[0]} x i{shape[1]}>"
+
+
+def label(shape):
+    return f"i{shape[1]}" if shape[0] == 0 else f"{shape[0]}x{shape[1]}"
 
 
 def operations():
@@ -86,7 +100,7 @@ def operations():
     for src, dst in BITCASTS:
         ops.append(
             (
-                f"bitcast_{src[0]}x{src[1]}_{dst[0]}x{dst[1]}",
+                f"bitcast_{label(src)}_{label(dst)}",
                 dst,
                 [src],
                 f"bitcast {ty(src)} %a0 to {ty(dst)}",
@@ -110,6 +124,7 @@ def cases(name, args, rand):
     """Random inputs, inputs at the extremes and where the operation saturates or wraps, and inputs with
     poison lanes. Each is a list of lanes for each argument."""
     out = []
+    args = [(max(n, 1), w) for n, w in args]
     for _ in range(6):
         out.append([[rand.getrandbits(w) for _ in range(n)] for n, w in args])
     for _ in range(4):
@@ -138,10 +153,12 @@ def constant(shape, lanes):
 
     def one(x):
         if x == POISON:
-            return f"i{w} poison"
-        return f"i{w} {'true' if x else 'false'}" if w == 1 else f"i{w} {x}"
+            return "poison"
+        return ("true" if x else "false") if w == 1 else str(x)
 
-    return "<" + ", ".join(one(x) for x in lanes) + ">"
+    if shape[0] == 0:
+        return one(lanes[0])
+    return "<" + ", ".join(f"i{w} {one(x)}" for x in lanes) + ">"
 
 
 def eval_in_lean(tool, ops, all_cases, work):
@@ -167,20 +184,32 @@ def eval_in_lean(tool, ops, all_cases, work):
         "open IRLean",
         "def lanes {n w : Nat} (xs : List Int) : Vec n w :=",
         "  Vector.ofFn fun i => let x := xs.getD i 0; if x < 0 then none else some (BitVec.ofNat w x.toNat)",
+        "def val {w : Nat} : List Int → Val w",
+        "  | x :: _ => if x < 0 then none else some (BitVec.ofNat w x.toNat)",
+        "  | [] => none",
         "def showVal {w : Nat} : Val w → String",
         "  | some v => toString v.toNat",
         f'  | none => "{POISON}"',
-        "def show' {n w : Nat} : Outcome (Vec n w) → String",
-        '  | some (.ok v) => " ".intercalate (v.toList.map showVal)',
+        "def showStop {α : Type} : Outcome α → String",
         '  | some (.error (.undefined _)) => "ub"',
         '  | some (.error (.model _)) => "stop"',
-        '  | none => "diverged"',
+        '  | _ => "diverged"',
+        "def show' {n w : Nat} : Outcome (Vec n w) → String",
+        '  | some (.ok v) => " ".intercalate (v.toList.map showVal)',
+        "  | o => showStop o",
+        "def showOne {w : Nat} : Outcome (Val w) → String",
+        "  | some (.ok v) => showVal v",
+        "  | o => showStop o",
     ]
     runners = []
-    for k, ((name, _, args, _), cs) in enumerate(zip(ops, all_cases, strict=True)):
+    for k, ((name, ret, args, _), cs) in enumerate(zip(ops, all_cases, strict=True)):
         src.append(f"def cases{k} : List (List (List Int)) := {cs}")
-        call = " ".join(f"(lanes (n := {n}) (w := {w}) c[{i}]!)" for i, (n, w) in enumerate(args))
-        src.append(f"def r{k} : IO Unit := for c in cases{k} do IO.println (show' (Ops.{name} {call}))")
+        call = " ".join(
+            f"(val (w := {w}) c[{i}]!)" if n == 0 else f"(lanes (n := {n}) (w := {w}) c[{i}]!)"
+            for i, (n, w) in enumerate(args)
+        )
+        shows = "showOne" if ret[0] == 0 else "show'"
+        src.append(f"def r{k} : IO Unit := for c in cases{k} do IO.println ({shows} (Ops.{name} {call}))")
         runners.append(f"r{k}")
     src.append("def main : IO Unit := do\n  for r in [" + ", ".join(runners) + "] do r")
     path = os.path.join(work, "Drive.lean")
@@ -282,6 +311,8 @@ def folded(text):
         else:
             continue
         out[fn] = [lane_value(x, w) for x in lanes]
+    for m in re.finditer(r"define i(\d+) @(\w+)\(\) [^{]*\{\n\s*ret i\d+ (\S+)\n\}", text):
+        out[m.group(2)] = [lane_value(m.group(3), int(m.group(1)))]
     return out
 
 

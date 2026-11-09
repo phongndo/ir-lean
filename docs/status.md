@@ -66,6 +66,13 @@ which is a checked argument and not a theorem, and the measurements. CI checks i
 model. The proofs were checked on 2026-11-07 on top of `6293d34`, and again on 2026-11-08 merged with `main` at
 `0330cd7`, with the same hashes for the IR, every slice and every generated Lean file.
 
+A second rewrite, of the bit unpacking in llama.cpp's Q5 kernel, replaces six instructions with a `bitcast` and the
+`select` that ended them.
+[`LlamaBitspread.lean`](../tests/proofs/LlamaBitspread.lean) proves the exact slice and its replacement give the same
+result for every input, poison included, and that every byte is defined for a defined input. Extracting the slice and
+substituting its result are trusted, as for q4_K. [llama.cpp's Q5](llama-q5.md) has the details. Recorded on
+2026-11-07, and the proof checked again on 2026-11-08 with the q4_K rewrite and `main` at `0330cd7`.
+
 ## Tested
 
 Evidence and not proof. A pass here means no disagreement was found on the inputs tried.
@@ -93,10 +100,14 @@ Evidence and not proof. A pass here means no disagreement was found on the input
 - **x86 intrinsics and vector bitcasts:** PMADDUBSW, PMADDWD and VPDPBUSD at all three widths, and `bitcast` between
   vectors, agree with the processor on 8,800 results ([`x86.ll`](../tests/real/x86.ll)), which needs AVX-512 VNNI. On
   any processor, the bitcasts, PMADDUBSW and PMADDWD agree with Alive2 both ways and LLVM's constant folder, poison
-  included, on 473 inputs to 29 operations ([`x86check.py`](../tests/x86check.py)). Checked on 2026-11-08.
+  included, on 617 inputs to 38 operations, scalar bitcasts among them ([`x86check.py`](../tests/x86check.py)).
+  Checked on 2026-11-08.
 - **llama.cpp's rewrite natively:** each of the 34 pairs of slices gives the same results on the processor, on 200,000
   inputs each, and each wrong rewrite differs ([llama.cpp](llama.md#checked-another-way)). With the two libraries,
   `llama-perplexity` gives the same logits bit for bit on two models, on 2026-11-07.
+- **llama.cpp's Q5 rewrite natively:** both helpers match a byte formula on 1,000,066 inputs, and with the rewrite,
+  generating 512 tokens gives the same 77,791,232 FP32 logits bit for bit, with one thread and with eight
+  ([llama.cpp's Q5](llama-q5.md#what-is-proved-and-checked)), on 2026-11-07.
 - **Dependence on the code:** 16 bugs injected into the C each make a proof stop checking, three of them memory bugs in
   `updatewindow`.
 - **Dependence on the rules:** as a one-off, 114 rules for GEPs and promises were each broken in turn. 108 were
@@ -109,6 +120,11 @@ The q4_K rewrite makes reading a prompt with llama.cpp 5.5% to 7.2% faster on tw
 threads, in every round, and generating isn't faster with 8 threads. [llama.cpp](llama.md#measured) has the tables, the
 spread and the raw rows. Measured on 2026-11-07 on top of `6293d34`, and not since, as it needs models that aren't in
 the repo.
+
+The Q5 rewrite makes generating with one thread about 5% faster, on Qwen2.5-0.5B-Instruct `Q4_K_M`: a median
+inference speedup of 1.049x over 30 pairs, with a 95% interval of 1.029x to 1.057x. With eight threads it's
+inconclusive. [llama.cpp's Q5](llama-q5.md#performance-and-variance) has the sessions. Measured on 2026-11-07 against
+Clang 23.1.5, and not since. `llama_evidence` recomputes the pooled estimates from the committed rows.
 
 What the proofs cost, which is a result about the method and not about zlib. This table was measured before the
 promise model. The proofs have since grown by 36 and 58 lines, mostly threading tags through, so the totals are

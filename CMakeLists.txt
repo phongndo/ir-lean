@@ -188,6 +188,14 @@ add_test(NAME llama COMMAND ${CMAKE_SOURCE_DIR}/tests/llama.py $<TARGET_FILE:ir-
 set_tests_properties(x86 llama PROPERTIES SKIP_RETURN_CODE 77)
 set_tests_properties(x86 x86check llama PROPERTIES TIMEOUT 1800)
 set_tests_properties(llama PROPERTIES LABELS llama)
+# llama.cpp's Q5 rewrite: the exact bit-unpacking slice and its proof, the matcher, the logit comparison and
+# the retained timings. None needs a model or llama.cpp's source, so they run in the default shell.
+add_test(NAME llama_bitspread COMMAND ${CMAKE_SOURCE_DIR}/tests/llama-bitspread.sh $<TARGET_FILE:ir-lean>)
+add_test(NAME llama_rewrite COMMAND ${CMAKE_SOURCE_DIR}/tests/llama/test_rewrite.py)
+add_test(NAME llama_capture COMMAND ${CMAKE_SOURCE_DIR}/tests/llama/test_compare.py)
+add_test(NAME llama_evidence COMMAND ${CMAKE_SOURCE_DIR}/tests/llama/replay_results.py)
+set_tests_properties(llama_rewrite llama_capture llama_evidence PROPERTIES TIMEOUT 60)
+set_tests_properties(llama_bitspread PROPERTIES TIMEOUT 1800)
 # ctest has no limit of its own, and a Lean run that never ends would otherwise hang these.
 set_tests_properties(
     differential

@@ -312,8 +312,8 @@ For q4_K:
   lanes. Lemmas for every width would need statements with the width as a variable.
 - **It needs llama.cpp's source,** which only `nix develop .#llama` has, as the default shell leaves it out.
 - **No speedup the first time.** From an empty store the split checks 7.5 s more than the original proofs.
-- **Only the 34 places.** Q5 and the other quantizations, on `feat/prove-llvm-optimization`, use another model and
-  other proofs, and nothing here was tried on them.
+- **Only the 34 places.** [Q5](llama-q5.md) and the other quantizations use other proofs, and nothing here was tried
+  on them.
 
 For the population counts:
 

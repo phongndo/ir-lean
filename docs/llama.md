@@ -2,7 +2,7 @@
 
 A rewrite of the IR that `clang -O3` produces for llama.cpp's q4_K matrix kernels, proved in Lean to compute the
 same values on every input, which makes real inference faster. For what any theorem here means, read
-[trust](trust.md) first.
+[trust](trust.md) first. [llama.cpp's Q5](llama-q5.md) has a second rewrite, of the Q5 kernel's bit unpacking.
 
 Facts here were checked on 2026-11-07, with clang 23.1.3 and Lean 4.35.0, against llama.cpp's release
 [`b12189`](https://github.com/ggml-org/llama.cpp/tree/b12189) (commit `80d2c0c`), on an AMD Ryzen 9 9950X, on top of
@@ -101,7 +101,7 @@ VPDPBUSD, from Intel's pseudo-code, which it doesn't. [`x86.ll`](../tests/real/x
 processor: 22 functions at all three widths, 400 inputs each, with the saturating and wrapping extremes, and all 8,800
 results agree. That needs AVX-512 VNNI and can't see poison, so [`x86check.py`](../tests/x86check.py) also checks the
 bitcasts, PMADDUBSW and PMADDWD on any processor, against Alive2 both ways and LLVM's constant folder, poison included:
-29 operations, every shape the kernels use and more, on 473 inputs, all exact. Neither knows VPDPBUSD.
+38 operations, every shape the kernels use and more, on 617 inputs, all exact. Neither knows VPDPBUSD.
 
 ## Checked another way
 

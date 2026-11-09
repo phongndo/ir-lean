@@ -1,0 +1,117 @@
+{
+  "schema": "ir-lean-q5-bitspread-witness-v1",
+  "selected_functions": [
+    "ggml_vec_dot_q5_0_q8_0"
+  ],
+  "expected_sites": 3,
+  "actual_sites": 3,
+  "data_layout": "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-i128:128-f80:128-n8:16:32:64-S128",
+  "target_triple": "x86_64-unknown-linux-gnu",
+  "source_sha256": "99c3ab2fbdf9b54e4750c800d71d3294d5c23a175ed7308ce98912d065d9fb83",
+  "target_sha256": "7b9d1c539b90e79b03c4c45eaadf4f5eeb6c6cbcc1d337b4da4578b4383f2fd1",
+  "helper_sha256": "d182476786f1590486787140e2fd6309949b138750dccfc4d6e6a516295b73ca",
+  "helper_ir": "target datalayout = \"e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-i128:128-f80:128-n8:16:32:64-S128\"\ntarget triple = \"x86_64-unknown-linux-gnu\"\n\ndefine <32 x i8> @src(i32 %x) {\nentry:\n  %insert = insertelement <8 x i32> poison, i32 %x, i64 0\n  %bytes = bitcast <8 x i32> %insert to <32 x i8>\n  %shuffle = shufflevector <32 x i8> %bytes, <32 x i8> poison, <32 x i32> <i32 0, i32 0, i32 0, i32 0, i32 0, i32 0, i32 0, i32 0, i32 1, i32 1, i32 1, i32 1, i32 1, i32 1, i32 1, i32 1, i32 2, i32 2, i32 2, i32 2, i32 2, i32 2, i32 2, i32 2, i32 3, i32 3, i32 3, i32 3, i32 3, i32 3, i32 3, i32 3>\n  %or = or <32 x i8> %shuffle, <i8 -2, i8 -3, i8 -5, i8 -9, i8 -17, i8 -33, i8 -65, i8 127, i8 -2, i8 -3, i8 -5, i8 -9, i8 -17, i8 -33, i8 -65, i8 127, i8 -2, i8 -3, i8 -5, i8 -9, i8 -17, i8 -33, i8 -65, i8 127, i8 -2, i8 -3, i8 -5, i8 -9, i8 -17, i8 -33, i8 -65, i8 127>\n  %mask = icmp eq <32 x i8> %or, splat (i8 -1)\n  %out = select <32 x i1> %mask, <32 x i8> zeroinitializer, <32 x i8> splat (i8 -16)\n  ret <32 x i8> %out\n}\n\ndefine <32 x i8> @tgt(i32 %x) {\nentry:\n  %mask = bitcast i32 %x to <32 x i1>\n  %out = select <32 x i1> %mask, <32 x i8> zeroinitializer, <32 x i8> splat (i8 -16)\n  ret <32 x i8> %out\n}\n",
+  "normalized_source_sha256": "ff03fd2d72aca5462229f595476d45214504f462086a1ad3809821c1c02bdb76",
+  "normalized_target_sha256": "5b00b658bf6d3abb95b0a1a35dea20d2075dd5cd31da7a1e4b84ca1d4d05347a",
+  "sites": [
+    {
+      "function": "ggml_vec_dot_q5_0_q8_0",
+      "input": "%9",
+      "result": "%and.i.inner",
+      "helper": "q5_bitspread.ll",
+      "original": [
+        "  %vecinit.i.i = insertelement <8 x i32> poison, i32 %9, i64 0, !dbg !927",
+        "  %10 = bitcast <8 x i32> %vecinit.i.i to <32 x i8>, !dbg !928",
+        "  %11 = shufflevector <32 x i8> %10, <32 x i8> poison, <32 x i32> <i32 0, i32 0, i32 0, i32 0, i32 0, i32 0, i32 0, i32 0, i32 1, i32 1, i32 1, i32 1, i32 1, i32 1, i32 1, i32 1, i32 2, i32 2, i32 2, i32 2, i32 2, i32 2, i32 2, i32 2, i32 3, i32 3, i32 3, i32 3, i32 3, i32 3, i32 3, i32 3>, !dbg !928",
+        "  %12 = or <32 x i8> %11, <i8 -2, i8 -3, i8 -5, i8 -9, i8 -17, i8 -33, i8 -65, i8 127, i8 -2, i8 -3, i8 -5, i8 -9, i8 -17, i8 -33, i8 -65, i8 127, i8 -2, i8 -3, i8 -5, i8 -9, i8 -17, i8 -33, i8 -65, i8 127, i8 -2, i8 -3, i8 -5, i8 -9, i8 -17, i8 -33, i8 -65, i8 127>, !dbg !929",
+        "  %cmp.i.i.not = icmp eq <32 x i8> %12, splat (i8 -1), !dbg !929",
+        "  %and.i.inner = select <32 x i1> %cmp.i.i.not, <32 x i8> zeroinitializer, <32 x i8> splat (i8 -16), !dbg !930"
+      ],
+      "replacement": [
+        "  %irlean.bitspread.0.mask = bitcast i32 %9 to <32 x i1>, !dbg !930",
+        "  %and.i.inner = select <32 x i1> %irlean.bitspread.0.mask, <32 x i8> zeroinitializer, <32 x i8> splat (i8 -16), !dbg !930"
+      ],
+      "normalized_source": [
+        "  %insert = insertelement <8 x i32> poison, i32 %x, i64 0",
+        "  %bytes = bitcast <8 x i32> %insert to <32 x i8>",
+        "  %shuffle = shufflevector <32 x i8> %bytes, <32 x i8> poison, <32 x i32> <i32 0, i32 0, i32 0, i32 0, i32 0, i32 0, i32 0, i32 0, i32 1, i32 1, i32 1, i32 1, i32 1, i32 1, i32 1, i32 1, i32 2, i32 2, i32 2, i32 2, i32 2, i32 2, i32 2, i32 2, i32 3, i32 3, i32 3, i32 3, i32 3, i32 3, i32 3, i32 3>",
+        "  %or = or <32 x i8> %shuffle, <i8 -2, i8 -3, i8 -5, i8 -9, i8 -17, i8 -33, i8 -65, i8 127, i8 -2, i8 -3, i8 -5, i8 -9, i8 -17, i8 -33, i8 -65, i8 127, i8 -2, i8 -3, i8 -5, i8 -9, i8 -17, i8 -33, i8 -65, i8 127, i8 -2, i8 -3, i8 -5, i8 -9, i8 -17, i8 -33, i8 -65, i8 127>",
+        "  %mask = icmp eq <32 x i8> %or, splat (i8 -1)",
+        "  %out = select <32 x i1> %mask, <32 x i8> zeroinitializer, <32 x i8> splat (i8 -16)"
+      ],
+      "normalized_target": [
+        "  %mask = bitcast i32 %x to <32 x i1>",
+        "  %out = select <32 x i1> %mask, <32 x i8> zeroinitializer, <32 x i8> splat (i8 -16)"
+      ],
+      "dropped_uselistorders": []
+    },
+    {
+      "function": "ggml_vec_dot_q5_0_q8_0",
+      "input": "%29",
+      "result": "%and.i.inner.1",
+      "helper": "q5_bitspread.ll",
+      "original": [
+        "  %vecinit.i.i.1 = insertelement <8 x i32> poison, i32 %29, i64 0, !dbg !927",
+        "  %30 = bitcast <8 x i32> %vecinit.i.i.1 to <32 x i8>, !dbg !928",
+        "  %31 = shufflevector <32 x i8> %30, <32 x i8> poison, <32 x i32> <i32 0, i32 0, i32 0, i32 0, i32 0, i32 0, i32 0, i32 0, i32 1, i32 1, i32 1, i32 1, i32 1, i32 1, i32 1, i32 1, i32 2, i32 2, i32 2, i32 2, i32 2, i32 2, i32 2, i32 2, i32 3, i32 3, i32 3, i32 3, i32 3, i32 3, i32 3, i32 3>, !dbg !928",
+        "  %32 = or <32 x i8> %31, <i8 -2, i8 -3, i8 -5, i8 -9, i8 -17, i8 -33, i8 -65, i8 127, i8 -2, i8 -3, i8 -5, i8 -9, i8 -17, i8 -33, i8 -65, i8 127, i8 -2, i8 -3, i8 -5, i8 -9, i8 -17, i8 -33, i8 -65, i8 127, i8 -2, i8 -3, i8 -5, i8 -9, i8 -17, i8 -33, i8 -65, i8 127>, !dbg !929",
+        "  %cmp.i.i.not.1 = icmp eq <32 x i8> %32, splat (i8 -1), !dbg !929",
+        "  %and.i.inner.1 = select <32 x i1> %cmp.i.i.not.1, <32 x i8> zeroinitializer, <32 x i8> splat (i8 -16), !dbg !930"
+      ],
+      "replacement": [
+        "  %irlean.bitspread.1.mask = bitcast i32 %29 to <32 x i1>, !dbg !930",
+        "  %and.i.inner.1 = select <32 x i1> %irlean.bitspread.1.mask, <32 x i8> zeroinitializer, <32 x i8> splat (i8 -16), !dbg !930"
+      ],
+      "normalized_source": [
+        "  %insert = insertelement <8 x i32> poison, i32 %x, i64 0",
+        "  %bytes = bitcast <8 x i32> %insert to <32 x i8>",
+        "  %shuffle = shufflevector <32 x i8> %bytes, <32 x i8> poison, <32 x i32> <i32 0, i32 0, i32 0, i32 0, i32 0, i32 0, i32 0, i32 0, i32 1, i32 1, i32 1, i32 1, i32 1, i32 1, i32 1, i32 1, i32 2, i32 2, i32 2, i32 2, i32 2, i32 2, i32 2, i32 2, i32 3, i32 3, i32 3, i32 3, i32 3, i32 3, i32 3, i32 3>",
+        "  %or = or <32 x i8> %shuffle, <i8 -2, i8 -3, i8 -5, i8 -9, i8 -17, i8 -33, i8 -65, i8 127, i8 -2, i8 -3, i8 -5, i8 -9, i8 -17, i8 -33, i8 -65, i8 127, i8 -2, i8 -3, i8 -5, i8 -9, i8 -17, i8 -33, i8 -65, i8 127, i8 -2, i8 -3, i8 -5, i8 -9, i8 -17, i8 -33, i8 -65, i8 127>",
+        "  %mask = icmp eq <32 x i8> %or, splat (i8 -1)",
+        "  %out = select <32 x i1> %mask, <32 x i8> zeroinitializer, <32 x i8> splat (i8 -16)"
+      ],
+      "normalized_target": [
+        "  %mask = bitcast i32 %x to <32 x i1>",
+        "  %out = select <32 x i1> %mask, <32 x i8> zeroinitializer, <32 x i8> splat (i8 -16)"
+      ],
+      "dropped_uselistorders": []
+    },
+    {
+      "function": "ggml_vec_dot_q5_0_q8_0",
+      "input": "%49",
+      "result": "%and.i.inner.epil",
+      "helper": "q5_bitspread.ll",
+      "original": [
+        "  %vecinit.i.i.epil = insertelement <8 x i32> poison, i32 %49, i64 0, !dbg !927",
+        "  %50 = bitcast <8 x i32> %vecinit.i.i.epil to <32 x i8>, !dbg !928",
+        "  %51 = shufflevector <32 x i8> %50, <32 x i8> poison, <32 x i32> <i32 0, i32 0, i32 0, i32 0, i32 0, i32 0, i32 0, i32 0, i32 1, i32 1, i32 1, i32 1, i32 1, i32 1, i32 1, i32 1, i32 2, i32 2, i32 2, i32 2, i32 2, i32 2, i32 2, i32 2, i32 3, i32 3, i32 3, i32 3, i32 3, i32 3, i32 3, i32 3>, !dbg !928",
+        "  %52 = or <32 x i8> %51, <i8 -2, i8 -3, i8 -5, i8 -9, i8 -17, i8 -33, i8 -65, i8 127, i8 -2, i8 -3, i8 -5, i8 -9, i8 -17, i8 -33, i8 -65, i8 127, i8 -2, i8 -3, i8 -5, i8 -9, i8 -17, i8 -33, i8 -65, i8 127, i8 -2, i8 -3, i8 -5, i8 -9, i8 -17, i8 -33, i8 -65, i8 127>, !dbg !929",
+        "  %cmp.i.i.not.epil = icmp eq <32 x i8> %52, splat (i8 -1), !dbg !929",
+        "  %and.i.inner.epil = select <32 x i1> %cmp.i.i.not.epil, <32 x i8> zeroinitializer, <32 x i8> splat (i8 -16), !dbg !930"
+      ],
+      "replacement": [
+        "  %irlean.bitspread.2.mask = bitcast i32 %49 to <32 x i1>, !dbg !930",
+        "  %and.i.inner.epil = select <32 x i1> %irlean.bitspread.2.mask, <32 x i8> zeroinitializer, <32 x i8> splat (i8 -16), !dbg !930"
+      ],
+      "normalized_source": [
+        "  %insert = insertelement <8 x i32> poison, i32 %x, i64 0",
+        "  %bytes = bitcast <8 x i32> %insert to <32 x i8>",
+        "  %shuffle = shufflevector <32 x i8> %bytes, <32 x i8> poison, <32 x i32> <i32 0, i32 0, i32 0, i32 0, i32 0, i32 0, i32 0, i32 0, i32 1, i32 1, i32 1, i32 1, i32 1, i32 1, i32 1, i32 1, i32 2, i32 2, i32 2, i32 2, i32 2, i32 2, i32 2, i32 2, i32 3, i32 3, i32 3, i32 3, i32 3, i32 3, i32 3, i32 3>",
+        "  %or = or <32 x i8> %shuffle, <i8 -2, i8 -3, i8 -5, i8 -9, i8 -17, i8 -33, i8 -65, i8 127, i8 -2, i8 -3, i8 -5, i8 -9, i8 -17, i8 -33, i8 -65, i8 127, i8 -2, i8 -3, i8 -5, i8 -9, i8 -17, i8 -33, i8 -65, i8 127, i8 -2, i8 -3, i8 -5, i8 -9, i8 -17, i8 -33, i8 -65, i8 127>",
+        "  %mask = icmp eq <32 x i8> %or, splat (i8 -1)",
+        "  %out = select <32 x i1> %mask, <32 x i8> zeroinitializer, <32 x i8> splat (i8 -16)"
+      ],
+      "normalized_target": [
+        "  %mask = bitcast i32 %x to <32 x i1>",
+        "  %out = select <32 x i1> %mask, <32 x i8> zeroinitializer, <32 x i8> splat (i8 -16)"
+      ],
+      "dropped_uselistorders": []
+    }
+  ],
+  "source_path": "/home/dp/.t3/worktrees/ir-lean/t3-9787d39d/build/llama-reproduce-check/ir/quants-original.ll",
+  "target_path": "/home/dp/.t3/worktrees/ir-lean/t3-9787d39d/build/llama-reproduce-check/ir/quants-rewrite.ll",
+  "helper_path": "/home/dp/.t3/worktrees/ir-lean/t3-9787d39d/build/llama-reproduce-check/ir/q5_bitspread.ll",
+  "matcher_sha256": "6df584260281d5b5d2bb632773b08b9328340a933de84173c7b8e284357b9890",
+  "witness_hash_rule": "SHA-256 of canonical sorted compact JSON with witness_sha256 omitted",
+  "witness_sha256": "c50d12a07f7467dabe3bb072546b0aa7018f959f39cd440c2f00b102925156f9"
+}

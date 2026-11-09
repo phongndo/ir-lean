@@ -25,7 +25,8 @@ rewrites of `__clzsi2` and `__ctzsi2` that are faster than `clang -O3`'s output,
 
 And [a rewrite of llama.cpp's q4_K matrix kernels](docs/llama.md) uses AVX-512 VNNI where `clang -O3` doesn't. Lean
 proves each of the 34 places it changes computes what clang's IR does, on every input. On two real models it reads a
-prompt 5.5% to 7.2% faster, with the same logits bit for bit.
+prompt 5.5% to 7.2% faster, with the same logits bit for bit. [A second rewrite](docs/llama-q5.md), of its Q5 bit
+unpacking, is proved on the exact slice it changes, and makes generating with one thread about 5% faster on one model.
 
 zlib's `updatewindow`, which copies `inflate`'s output into its sliding window, is proved [memory-safe](docs/memory.md)
 once the window is allocated: for every state meeting its invariant, with room behind the output it copies, it returns,
@@ -63,7 +64,8 @@ theorem popcount_correct (x : BitVec 32) :
 | [Verify](docs/verify.md) | Checking a claim from a script or an agent, with a JSON answer: proved, counterexample, unsupported, timeout or error |
 | [Corpus](docs/corpus.md) | Real before-and-after IR from `opt`, one pass at a time, generated on demand for the superoptimizer and lemmas |
 | [LLVM's own code](docs/llvm.md) | What's proved about llvm-project, how to reproduce it, and what it assumes |
-| [llama.cpp](docs/llama.md) | A proved rewrite that `clang -O3` misses, and what it does to real inference |
+| [llama.cpp](docs/llama.md) | A proved rewrite of the q4_K kernels that `clang -O3` misses, and what it does to real inference |
+| [llama.cpp's Q5](docs/llama-q5.md) | A proved Q5 bit-unpacking rewrite, real CPU generation measurements, and the reproducer |
 | [Design](docs/design.md) | What gets emitted, what the model covers, and why |
 | [Testing](docs/testing.md) | How to run the tests and linters, and what each one checks |
 | [Roadmap](docs/roadmap.md) | Where this is going, in what order, and the [first pull requests](docs/roadmap.md#near-term-pull-requests) |

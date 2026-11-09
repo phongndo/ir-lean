@@ -1,0 +1,23 @@
+
+## The Art of Hash Tables
+
+Hash tables are a fundamental data structure used to store and retrieve data, which is often a set of key-value pairs, in a table-like structure. This article discusses how a hash table works, the concept of collisions, separate chaining, open addressing, resizing, and the tradeoffs between memory use and lookup speed. We'll also provide a small example to illustrate these concepts, and offer advice for choosing a hash table implementation.
+
+### What is a Hash Table?
+
+A hash table is a data structure that maps a key (a string or other data type) to an index in an array of buckets. The key is used to find the bucket in which the value is stored. This allows for efficient lookups, insertions, and deletions, as well as quick collisions resolution. Hash tables are commonly used in databases, file systems, and other applications that require fast data retrieval.
+
+### How a Hash Table Works
+
+The core of a hash table is the hash function, which maps the key to an index in an array of buckets. The hash function takes a key, which is a string or other data type, and generates an index in a table of buckets. The table is typically sorted in such a way that each bucket is linked to the next in the table. The hash function maps the key to the index in the table, and the index is used to locate the value in the table. The table is typically filled with a hash table index, and each bucket contains a linked list of key-value pairs.
+
+### Hashing, Collisions, Separate Chaining, Open Addressing, and Resizing
+
+#### Hashing
+
+Hashing is the process of mapping a key to an index in an array of buckets. There are several types of hash functions, including linear, quadratic, and logarithmic hash functions. Linear hash functions map the key to the index by adding the key to itself repeatedly until it reaches a hash value that is divisible by a constant. Quadratic hash functions map the key to the index by dividing the key by itself repeatedly until it reaches a hash value that is divisible by a constant. Logarithmic hash functions map the key to the index by taking the logarithm of the key and dividing it by a constant.
+
+#### Collisions
+
+Hash collisions occur when two keys map to the same index in the table. This can happen due to the hash function being non-uniform, or due to the keys being small. To resolve collisions, separate chaining is used. In separate chaining, the hash function
+

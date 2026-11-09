@@ -316,6 +316,8 @@ if [ "${2:-}" = --generate ]; then
     cp "$work/$module.lean" "$3"
     cp "$work/$module"/*.lean "$3/$module"
   done
+  "$tool" "$root/tests/real/llama_q5_bitspread.ll" --namespace LlamaBitspreadIR --no-code \
+    -o "$3/LlamaBitspreadIR.lean"
   exit 0
 fi
 

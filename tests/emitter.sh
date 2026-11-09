@@ -44,16 +44,90 @@ accepts() {
   fi
 }
 
-# A `bitcast` between vectors of integers puts lane 0 in the low bits only on a little-endian target, even in a
-# function that doesn't touch memory. Lane widths that don't divide each other, and anything but vectors of
-# integers, are refused too. tests/x86check.py checks what the accepted ones mean against Alive2.
+# A `bitcast` between integers and vectors of integers puts lane 0 in the low bits only on a little-endian
+# target, even in a function that doesn't touch memory. Lane widths that don't divide each other, floating-point
+# lanes, pointers and scalable vectors are refused too. tests/x86check.py checks what the accepted ones mean
+# against Alive2.
 refuses 'big-endian integer bitcast' 'target datalayout = "E"
 define <4 x i8> @f(<2 x i16> %x) { %r = bitcast <2 x i16> %x to <4 x i8>
   ret <4 x i8> %r }'
 refuses 'nondividing lane widths' 'define <3 x i8> @f(<2 x i12> %x) { %r = bitcast <2 x i12> %x to <3 x i8>
   ret <3 x i8> %r }'
-refuses 'instruction' 'define <4 x i8> @f(i32 %x) { %r = bitcast i32 %x to <4 x i8>
-  ret <4 x i8> %r }'
+refuses 'type' 'define <2 x i32> @f(<2 x float> %x) { %r = bitcast <2 x float> %x to <2 x i32>
+  ret <2 x i32> %r }'
+refuses 'type' 'define <vscale x 4 x i8> @f(<vscale x 2 x i16> %x) { %r = bitcast <vscale x 2 x i16> %x to <vscale x 4 x i8>
+  ret <vscale x 4 x i8> %r }'
+refuses 'integer bitcast shape' 'define ptr @f(ptr %x) { %r = bitcast ptr %x to ptr
+  ret ptr %r }'
+
+# Native comparisons cannot observe poison. Check the generated code's lane boundaries directly,
+# including the poison spread from joining and then splitting again.
+cat >"$work/Bitcasts.ll" <<'IR'
+target datalayout = "e"
+define <4 x i8> @split(<2 x i16> %x) {
+  %r = bitcast <2 x i16> %x to <4 x i8>
+  ret <4 x i8> %r
+}
+define <2 x i16> @join(<4 x i8> %x) {
+  %r = bitcast <4 x i8> %x to <2 x i16>
+  ret <2 x i16> %r
+}
+define <8 x i1> @bits(i8 %x) {
+  %r = bitcast i8 %x to <8 x i1>
+  ret <8 x i1> %r
+}
+define i8 @scalar(<8 x i1> %x) {
+  %r = bitcast <8 x i1> %x to i8
+  ret i8 %r
+}
+IR
+"$tool" "$work/Bitcasts.ll" -o "$work/Bitcasts.lean" --namespace Bitcasts --no-code
+cat >"$work/BitcastsProof.lean" <<'LEAN'
+import Bitcasts
+open IRLean
+
+example : Bitcasts.split #v[some 0x1234#16, none] =
+    Outcome.ok #v[some 0x34#8, some 0x12#8, none, none] := by
+  rw [Bitcasts.split, run]
+  rfl
+
+example : Bitcasts.join #v[some 0x34#8, some 0x12#8, none, some 0x56#8] =
+    Outcome.ok #v[some 0x1234#16, none] := by
+  rw [Bitcasts.join, run]
+  rfl
+
+example : Bitcasts.join #v[none, some 0x56#8, some 0x34#8, some 0x12#8] =
+    Outcome.ok #v[none, some 0x1234#16] := by
+  rw [Bitcasts.join, run]
+  rfl
+
+example : Vec.split 4 8 2 (Vec.join 2 16 2 #v[some 7#8, none, some 9#8, some 10#8]) =
+    #v[none, none, some 9#8, some 10#8] := rfl
+
+example : Bitcasts.bits (some 0x81#8) =
+    Outcome.ok #v[some 1#1, some 0#1, some 0#1, some 0#1, some 0#1, some 0#1, some 0#1, some 1#1] := by
+  rw [Bitcasts.bits, run]
+  rfl
+
+example : Bitcasts.bits none = Outcome.ok (Vector.replicate 8 none) := by
+  rw [Bitcasts.bits, run]
+  rfl
+
+example : Bitcasts.scalar #v[some 1#1, some 0#1, some 0#1, some 0#1, some 0#1, some 0#1, some 0#1, some 1#1] =
+    Outcome.ok (some 0x81#8) := by
+  rw [Bitcasts.scalar, run]
+  rfl
+
+example : Bitcasts.scalar #v[some 1#1, some 0#1, some 0#1, some 0#1, none, some 0#1, some 0#1, some 1#1] =
+    Outcome.ok none := by
+  rw [Bitcasts.scalar, run]
+  rfl
+LEAN
+if lean -R "$work" -o "$work/Bitcasts.olean" "$work/Bitcasts.lean" && lean "$work/BitcastsProof.lean"; then
+  printf 'ok    integer bitcasts preserve lane order and propagate poison at lane boundaries\n'
+else
+  fail 'integer bitcast lane order or poison propagation'
+fi
 accepts 'target datalayout = "e"
 define <4 x i8> @f(<2 x i16> %x) { %r = bitcast <2 x i16> %x to <4 x i8>
   ret <4 x i8> %r }'
