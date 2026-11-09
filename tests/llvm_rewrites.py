@@ -456,6 +456,19 @@ CHANGES = re.compile(
     r"removeParamAttr|addRetAttr|setDoesNotThrow|setHasNoNaNs|setHasNoInfs|setHasNoSignedZeros|"
     r"setHasAllowReassoc|setNoWrapFlags|setIsInBounds|setNoWrap)$"
 )
+# Calls that change IR that's already there. One with no return or flag after it in its block is a site of its
+# own.
+MUTATES = re.compile(
+    r"^(replaceOperand|replaceUse|setOperand|replaceAllUsesWith|replaceUsesWithIf|replaceUsesOfWith|"
+    r"replaceInstUsesWith|swapOperands|setPredicate|setHasNoSignedWrap|setHasNoUnsignedWrap|setIsExact|"
+    r"setIsDisjoint|setNonNeg|setSameSign|dropPoisonGeneratingFlags|dropPoisonGeneratingAnnotations|"
+    r"dropUBImplyingAttrsAndMetadata|copyIRFlags|andIRFlags|setCondition|setArgOperand|setCalledFunction|"
+    r"setCalledOperand|setIncomingValue|addIncoming|removeIncomingValue|eraseInstFromFunction|eraseFromParent|"
+    r"removeFromParent|moveBefore|moveAfter|insertBefore|insertAfter|setFastMathFlags|copyFastMathFlags|"
+    r"setHasNoNaNs|setHasNoInfs|setHasNoSignedZeros|setHasAllowReassoc|setNoWrapFlags|setIsInBounds|"
+    r"setVolatile|setOrdering|setAlignment|setTailCall|addParamAttr|removeParamAttr|addRetAttr|"
+    r"setDoesNotThrow|setCannotMerge|setSyncScopeID|setMetadata)$"
+)
 SELF = re.compile(r"^(& [A-Za-z_][A-Za-z0-9_]*|true)$")
 
 
@@ -587,6 +600,22 @@ class Site:
     path: tuple[Stmt, ...]
 
 
+def cond_binding(fn: Function, name: str, path: tuple[Stmt, ...]) -> list[Tok] | None:
+    """What an enclosing `if (T *name = ...)` binds `name` to, innermost first, if one does."""
+    for st in reversed(path):
+        if st.kind != "if" or st.cond is None:
+            continue
+        cond = fn.toks[st.cond[0] : st.cond[1]]
+        eq = skip_expr(cond, 0, len(cond), ("=",))
+        if (
+            2 <= eq < len(cond)
+            and cond[eq - 1].text == name
+            and (cond[eq - 2].text in ("*", "&") or cond[eq - 2].kind == "id")
+        ):
+            return cond[eq + 1 :]
+    return None
+
+
 def all_functions(fns: list[Function]) -> list[Function]:
     out = []
     for f in fns:
@@ -622,6 +651,7 @@ class Scanner:
                 self.by_name.setdefault(f.name, []).append(f)
         self.info: dict[int, dict[str, Any]] = {}
         every = [f for fns in self.functions.values() for f in fns]
+        self.uncertain: dict[int, set[str]] = {id(f): self.uncertain_names(f) for f in every}
         for f in every:
             self.info[id(f)] = {"declines": self.declines(f), "changes": self.changes(f)}
         # A function that returns what a declining function returns declines too. To a fixpoint.
@@ -632,7 +662,13 @@ class Scanner:
                 if self.info[id(f)]["declines"] or f.result not in ("pointer", "bool"):
                     continue
                 binds = self.bindings(f)
-                if any(self.classify(f, r.expr, binds)[1] for r in returns_of(f)):
+                inner = lambda_ranges(f)
+                rets = [
+                    (r, path)
+                    for r, path in walk(body_of(f))
+                    if r.kind == "return" and not any(x <= r.start <= y for x, y in inner)
+                ]
+                if any(self.classify(f, r.expr, binds, path=path)[1] for r, path in rets):
                     self.info[id(f)]["declines"] = True
                     grew = True
 
@@ -686,14 +722,47 @@ class Scanner:
         return found
 
     def bindings(self, fn: Function) -> dict[str, list[list[Tok]]]:
-        """For each name, every expression assigned to it in the function."""
+        """For each name, every expression assigned to it in the function, but for a declaration in an `if`'s
+        condition, which binds only inside that `if`: `cond_binding` finds those."""
         toks = fn.toks
         a, b = fn.body
         out: dict[str, list[list[Tok]]] = {}
+        conds = [s.cond for s, _ in walk(body_of(fn)) if s.kind == "if" and s.cond is not None]
         for i in range(a + 1, b):
+            if (
+                toks[i].text == "="
+                and toks[i - 1].kind == "id"
+                and (toks[i - 2].text in ("*", "&") or toks[i - 2].kind == "id")
+                and any(x <= i < y for x, y in conds)
+            ):
+                continue
             if toks[i].text == "=" and toks[i - 1].kind == "id" and toks[i - 2].text not in (".", "->", "::"):
                 end = skip_expr(toks, i + 1, b, (";", ",", ")"))
                 out.setdefault(toks[i - 1].text, []).append(toks[i + 1 : end])
+        return out
+
+    def uncertain_names(self, fn: Function) -> set[str]:
+        """Names a matcher binds, such as `X` in `m_Value(X)`: a return of one may hold the site's own value,
+        whatever else is assigned to it."""
+        toks = fn.toks
+        a, b = fn.body
+        out: set[str] = set()
+        for i in range(a + 1, b):
+            t = toks[i]
+            if t.text == "(" and toks[i - 1].kind == "id" and toks[i - 1].text.startswith("m_"):
+                if toks[i - 1].text.startswith(("m_Specific", "m_Deferred")):
+                    continue
+                close = match_close(toks, i)
+                depth = 0
+                for k in range(i + 1, close):
+                    depth += {"(": 1, "[": 1, "{": 1, ")": -1, "]": -1, "}": -1}.get(toks[k].text, 0)
+                    if (
+                        depth == 0
+                        and toks[k].kind == "id"
+                        and toks[k - 1].text in ("(", ",")
+                        and toks[k + 1].text in (")", ",")
+                    ):
+                        out.add(toks[k].text)
         return out
 
     def classify(
@@ -702,6 +771,7 @@ class Scanner:
         expr: list[Tok],
         binds: dict[str, list[list[Tok]]],
         seen: frozenset[str] = frozenset(),
+        path: tuple[Stmt, ...] = (),
     ) -> tuple[bool, list[Function]]:
         """Whether returning `expr` makes a change of the function's own, and the folds whose results it
         forwards."""
@@ -710,24 +780,35 @@ class Scanner:
             return False, []
         tern = ternary(expr)
         if tern:
-            s1, e1 = self.classify(fn, tern[1], binds, seen)
-            s2, e2 = self.classify(fn, tern[2], binds, seen)
+            s1, e1 = self.classify(fn, tern[1], binds, seen, path)
+            s2, e2 = self.classify(fn, tern[2], binds, seen, path)
             return s1 or s2, e1 + e2
         # `fold1(...) || fold2(...)`, in a bool fold: each fold's change is its own.
         parts = split_top(expr, "||")
         if len(parts) > 1 and fn.result == "bool":
             site, edges = False, []
             for part in parts:
-                s1, e1 = self.classify(fn, part, binds, seen)
+                s1, e1 = self.classify(fn, part, binds, seen, path)
                 site, edges = site or s1, edges + e1
             return site, edges
         call = call_of(expr)
         if call:
             c, args = call
             if c.name in INSTALL and c.qual in ("", ".", "->") and len(args) > INSTALL[c.name]:
-                return self.classify(fn, args[INSTALL[c.name]], binds, seen)
+                return self.classify(fn, args[INSTALL[c.name]], binds, seen, path)
             targets = [t for t in self.resolve(c, fn) if self.candidate(t)]
             return (False, targets) if targets else (True, [])
+        if len(expr) == 1 and expr[0].kind == "id" and path:
+            rhs = cond_binding(fn, expr[0].text, path)
+            if rhs is not None:
+                return self.classify(fn, rhs, binds, seen | {expr[0].text})
+        if len(expr) == 1 and expr[0].kind == "id" and expr[0].text in self.uncertain.get(id(fn), set()):
+            # Bound by a matcher: what it holds may be the site's own value. Any fold it may hold is still
+            # reached.
+            edges = []
+            for rhs in binds.get(expr[0].text, []) if expr[0].text not in seen else []:
+                edges += self.classify(fn, rhs, binds, seen | {expr[0].text})[1]
+            return True, edges
         if len(expr) == 1 and expr[0].kind == "id" and expr[0].text in binds and expr[0].text not in seen:
             # A name assigned only null, or nothing a fold returns, is bound by a matcher: what it holds is
             # the site's.
@@ -789,6 +870,58 @@ class Scanner:
             return folds if installed else []
         return []
 
+    def unclaimed_change(self, fn: Function, stmt: Stmt, path: tuple[Stmt, ...]) -> bool:
+        """Whether `stmt` changes IR in place, with no site after it in its block to commit it: a return or
+        a changed flag that's a site of its own, not a forward. `replaceUse(U, V);` alone in a lambda is one,
+        and so is a change to a value a lookup returned before `return` forwards it. Then the statement is the
+        site."""
+        toks = fn.toks
+        inner = lambda_ranges(fn)
+        if not any(
+            toks[k].kind == "id"
+            and MUTATES.match(toks[k].text)
+            and toks[k + 1].text == "("
+            and not any(x <= k <= y for x, y in inner)
+            for k in range(stmt.start, stmt.end - 1)
+        ):
+            return False
+        block = path[-1] if path else None
+        if block is not None and block.kind != "block":
+            return True
+        siblings = block.children if block is not None else body_of(fn)
+        binds = self.bindings(fn)
+        after = False
+        for c in siblings:
+            if c.start == stmt.start:
+                after = True
+                continue
+            if not after:
+                continue
+            for x, sub in walk([c]):
+                full = (*path, *sub)
+                if x.kind == "return" and fn.result in ("pointer", "bool"):
+                    e = text(strip(x.expr))
+                    if e in NULL_RESULTS:
+                        continue
+                    if SELF.match(e):
+                        if not (self.guard_call(fn, x, full) or self.installs(fn, x, full, binds)):
+                            return False
+                        continue
+                    if fn.result == "bool" and len(x.expr) == 1 and x.expr[0].kind == "id":
+                        continue  # a flag returned isn't a site: the sites are where it's set to true
+                    if self.classify(fn, x.expr, binds, path=full)[0]:
+                        return False
+                if x.kind == "simple":
+                    xs = toks[x.start : x.end - 1]
+                    if (
+                        len(xs) >= 3
+                        and FLAG.match(xs[0].text)
+                        and xs[1].text in ("=", "|=")
+                        and text(xs[2:]) == "true"
+                    ):
+                        return False
+        return True
+
     def analyse(self, fn: Function) -> tuple[list[Site], list[Function]]:
         """The sites in `fn`, and the folds it forwards to."""
         sites: list[Site] = []
@@ -815,7 +948,7 @@ class Scanner:
                 tern = ternary(strip(s.expr))
                 if tern and len(strip(tern[0])) == 1 and FLAG.match(strip(tern[0])[0].text):
                     continue  # `Changed ? &I : nullptr`: the sites are where the flag is set
-                site, e2 = self.classify(fn, s.expr, binds)
+                site, e2 = self.classify(fn, s.expr, binds, path=path)
                 edges.extend(e2)
                 if site:
                     sites.append(Site(fn, "return", s, path))
@@ -839,6 +972,19 @@ class Scanner:
                         if call:
                             edges.extend(t for t in self.resolve(call[0], fn) if self.candidate(t))
                     continue
+                # Installing a fold's result, `I->replaceAllUsesWith(V)`, is a forward, not a change of its
+                # own.
+                installed = call_of(st)
+                forwards = False
+                if (
+                    installed
+                    and installed[0].name in INSTALL
+                    and len(installed[1]) > INSTALL[installed[0].name]
+                ):
+                    own, folds = self.classify(fn, installed[1][INSTALL[installed[0].name]], binds, path=path)
+                    forwards = not own and bool(folds)
+                if not forwards and self.unclaimed_change(fn, s, path):
+                    sites.append(Site(fn, "change", s, path))
                 # A call made for what it changes, `foo(I);`, or that installs a fold's result,
                 # `I->replaceAllUsesWith(V);`.
                 if len(st) > 3 and st[0].text == "(" and st[1].text == "void":
@@ -847,7 +993,7 @@ class Scanner:
                 if call:
                     c, args = call
                     if c.name in INSTALL and len(args) > INSTALL[c.name]:
-                        edges.extend(self.classify(fn, args[INSTALL[c.name]], binds)[1])
+                        edges.extend(self.classify(fn, args[INSTALL[c.name]], binds, path=path)[1])
                     else:
                         edges.extend(t for t in self.resolve(c, fn) if t.result in ("void", "bool"))
             elif s.kind == "if" and s.cond is not None:
@@ -966,11 +1112,13 @@ MEM_IDS = re.compile(
 MEM_MATCHERS = re.compile(
     r"^m_(PtrToInt|PtrToIntSameSize|IntToPtr|PtrToAddr|GEP|PtrAdd|Load|Store|AddrSpaceCast)$"
 )
+# The classes of intrinsics the model has, `MinMaxIntrinsic`, `SaturatingInst`, `WithOverflowInst`,
+# `BinaryOpIntrinsic` and `CmpIntrinsic`, aren't calls here.
 CALL_IDS = re.compile(
     r"^(CallInst|CallBase|InvokeInst|CallBrInst|IntrinsicInst|getIntrinsicID|getCalledFunction|getCalledOperand|"
     r"LibFunc|TargetLibraryInfo|TLI|isLibFuncEmittable|emitUnaryFloatFnCall|CreateCall|CreateIntrinsic|"
     r"CreateUnaryIntrinsic|CreateBinaryIntrinsic|getOrInsertDeclaration|Function|isa_Call|"
-    r"MinMaxIntrinsic|SaturatingInst|WithOverflowInst|BinaryOpIntrinsic|CmpIntrinsic|"
+    r""
     r"m_Intrinsic|m_Call|isInstructionTriviallyDead|wouldInstructionBeTriviallyDead)$"
 )
 VECTOR_IDS = re.compile(
@@ -1022,6 +1170,12 @@ def tokens_of(fn: Function, site: Site) -> list[Tok]:
     if toks[j].text == ")":
         out.extend(toks[match_open(toks, j) : j + 1])
     enclosing = (*site.path, site.stmt)
+    # The function's own body is a block too: the plain statements before the site's outermost statement.
+    for c in body_of(fn):
+        if c.start >= enclosing[0].start:
+            break
+        if c.kind == "simple":
+            out.extend(toks[c.start : c.end])
     for k, s in enumerate(enclosing):
         if s.cond is not None:
             out.extend(toks[s.cond[0] : s.cond[1]])
@@ -1054,6 +1208,45 @@ def tokens_of(fn: Function, site: Site) -> list[Tok]:
                     out.extend(toks[c.cond[0] : c.cond[1]] if c.cond else [])
     out.extend(toks[site.stmt.start : site.stmt.end])
     return out
+
+
+# Folds of an opcode that's only ever on integers.
+INT_ONLY_NAME = re.compile(
+    r"^(visit|simplify|fold)?(Add|Sub|Mul|And|Or|Xor|Shl|LShr|AShr|UDiv|SDiv|URem|SRem|ICmp|ZExt|SExt|Trunc)"
+    r"(Inst)?$|ICmp"
+)
+# What on a site's path says its values are integers.
+INT_GUARD = re.compile(
+    r"^(isIntOrIntVectorTy|isIntegerTy|ConstantInt|APInt|m_APInt[A-Za-z]*|m_ConstantInt|IntegerType|"
+    r"getIntegerBitWidth|ICmpInst|m_ICmp|m_c_ICmp|m_SpecificICmp|ICMP_[A-Z]+|m_(c_)?(Add|Sub|Mul|And|Or|Xor)|"
+    r"m_(NSW|NUW)[A-Za-z]+|m_(Shl|LShr|AShr|UDiv|SDiv|URem|SRem|Not|Neg|ZExt|SExt|Trunc|ZExtOrSExt|Power2|"
+    r"AllOnes|SignMask|LowBitMask|LogicalAnd|LogicalOr)|getScalarSizeInBits)$"
+)
+# Files whose folds serve floating point as well as integers throughout, whatever each function mentions.
+FP_GENERIC_FILES = {"lib/Transforms/Scalar/Reassociate.cpp"}
+INT_OPCODES = {"Add", "Sub", "Mul", "And", "Or", "Xor", "Shl", "LShr", "AShr", "UDiv", "SDiv", "URem", "SRem"}
+
+
+def root_of(fn: Function) -> Function:
+    while fn.parent is not None:
+        fn = fn.parent
+    return fn
+
+
+def int_guarded(toks: list[Tok]) -> bool:
+    """Whether the path says the site's values are integers: a matcher or type test only integers pass, or an
+    integer opcode, `Instruction::Add` and the like."""
+    for k, t in enumerate(toks):
+        if t.kind == "id" and INT_GUARD.match(t.text):
+            return True
+        if (
+            t.text == "Instruction"
+            and k + 2 < len(toks)
+            and toks[k + 1].text == "::"
+            and toks[k + 2].text in INT_OPCODES
+        ):
+            return True
+    return False
 
 
 def needs(fn: Function, site: Site) -> dict[str, Any]:
@@ -1096,8 +1289,20 @@ def needs(fn: Function, site: Site) -> dict[str, Any]:
     )
     if call_ids and not (intrinsics and intrinsics <= INT_INTRINSICS):
         calls = True
+    # A function that rewrites floating point as well as integers, such as Reassociate's `RewriteExprTree`,
+    # rewrites both at a site whose path doesn't say the type is an integer.
+    generic = False
+    if not fp and not INT_ONLY_NAME.search(fn.name if fn.parent is None else root_of(fn).name):
+        root = root_of(fn)
+        body = {t.text for t in root.toks[root.body[0] : root.body[1]] if t.kind == "id"}
+        # Reassociate's every function serves integer and fast-math floating-point reassociation alike, from
+        # `OptimizeInst`, so its sites are generic whatever their own function mentions.
+        handles_fp = fn.file in FP_GENERIC_FILES or any(FP_IDS.match(x) or FP_MATCHERS.match(x) for x in body)
+        if handles_fp and not int_guarded(toks):
+            fp = generic = True
     blocked = [k for k, v in (("fp", fp), ("memory", mem), ("calls", calls)) if v]
     also = [k for k, v in (
+        ("generic", generic),
         ("vector", any(VECTOR_IDS.match(x) for x in ids_set)),
         ("cfg", any(CFG_IDS.match(x) for x in ids_set)),
         ("undef", any(UNDEF_IDS.match(x) for x in ids_set)),
