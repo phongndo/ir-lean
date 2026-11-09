@@ -12,10 +12,11 @@ Facts here were checked on top of `dbfd710` on 2026-11-09, on x86-64 Linux in th
 `llvmorg-23.1.3` and Lean 4.35.0.
 
 **Today it verifies no claim, because none can be complete yet.** `coverage.json` has no claims. Of the dimensions
-a pass needs, all-input waits on [INV-04](llvm-verification-tasks.md#inv-04-rewrite-level-inventory)'s list of
-rewrites, code-binding on [BIND-02](llvm-verification-tasks.md#bind-02-implementation-closure)'s closure of each pass,
-and composition on [PASS-05](llvm-verification-tasks.md#pass-05-composition-through-pipelines)'s contract. The
-verifier refuses each until that exists, naming what's missing. What it can do now is replay the evidence those claims
+a pass needs, all-input waits on the verifier reading [INV-04](llvm-verification-tasks.md#inv-04-rewrite-level-inventory)'s
+lists of rewrites, which exist for chunk 1's four passes since #79 and which it doesn't read yet, code-binding on
+[BIND-02](llvm-verification-tasks.md#bind-02-implementation-closure)'s complete closure of each pass, and composition
+on [PASS-05](llvm-verification-tasks.md#pass-05-composition-through-pipelines)'s contract. The verifier refuses each
+until it can decide it, naming what's missing. What it can do now is replay the evidence those claims
 will be made of, theorems about functions compiled from the pinned source, and refuse evidence that isn't what it
 says.
 
@@ -100,7 +101,7 @@ Then, by dimension:
 | Dimension | Needs before any evidence can cover it | Then |
 | --- | --- | --- |
 | `code-binding` | The claim's anchors are the inventory's, and BIND-02's closure for the pass, `tests/llvm_scope/closure/PASS.json`, is complete | Every evidence file replays, with contexts `"all"`. The evidence reads every file of the closure at its hash, compiles every source the closure's functions come from, and has a theorem about every function in it, as compiled from that function's own file |
-| `all-input`, `analysis-soundness` | INV-04's list of the pass's rewrites, or PASS-01's facts | Refused: the verifier doesn't read those lists yet, since they don't exist |
+| `all-input`, `analysis-soundness` | INV-04's list of the pass's rewrites, or PASS-01's facts | Refused: the verifier doesn't read those lists yet. INV-04's exist for chunk 1's passes since #79, and PASS-01's don't |
 | `composition` | PASS-05's contract for pipelines | Refused, for the same reason |
 
 `tests/llvm_scope.py` asks it, through `VERIFIERS`, about each complete claim. It decides from the claim and the repo

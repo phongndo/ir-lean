@@ -81,8 +81,9 @@ Even a claim that passes all of that is only **unverified**. Its status and hash
 claim, so they can't make a pass done by themselves. A dimension is complete only when an independent verifier for its
 evidence kind replays the evidence and decides it covers every context the pass runs in. Since 2026-11-09 that's
 [`tools/verify_claims.py`](verify-claims.md), [BIND-03](#bind-03-an-independent-verifier)'s, which `check` asks about
-every complete claim. It refuses any claim whose coverage nothing can decide yet: all-input until INV-04 lists the
-rewrites, code-binding until BIND-02 gives the pass's closure, and composition until PASS-05's contract exists. So
+every complete claim. It refuses any claim whose coverage it can't decide yet: all-input until it reads INV-04's lists of
+rewrites, which exist for chunk 1's passes, code-binding until BIND-02 gives the pass's complete closure, and
+composition until PASS-05's contract exists. So
 `verified_done` stays 0, and the summary counts claims as complete only under `claimed_complete`.
 
 ## The measured scope
