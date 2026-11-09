@@ -248,3 +248,7 @@ reads it. That difference is itself a thing [Phase 3](roadmap.md#phase-3-c-and-r
     side's choices, so inserting, removing and duplicating a `freeze` are judged as LangRef judges them, and four real
     `instcombine` runs on `freeze` are bound as refinements. `undef` stays out of the model. Done in
     [#72](https://github.com/phongndo/ir-lean/pull/72). See [refinement](refinement.md#runs-that-make-choices).
+14. Calls outside the module that access no memory: the run's world answers them, the same world for source and target,
+    and which of the callee's answers a call gets is the run's choice, so dropping, merging and reordering such calls
+    refine under the attributes that allow it, and adding, duplicating or changing an argument doesn't. Calls with
+    effects, and calls that pass or return a pointer, are still refused. See [calls](calls.md).
