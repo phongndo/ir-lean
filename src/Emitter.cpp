@@ -160,9 +160,60 @@ private:
   std::set<std::string> Used;
 };
 
+// The floating-point formats IRLean/Float.lean has, as the exponent and significand widths every operation
+// there takes first: `half` is "5 10". `x86_fp80` and `ppc_fp128` aren't IEEE binary formats, and are
+// refused. A float is its bits, so its Lean type is an integer's of the same width. docs/float.md has the
+// design.
+bool isModeledFloat(const Type *T) {
+  return T->isHalfTy() || T->isBFloatTy() || T->isFloatTy() || T->isDoubleTy() || T->isFP128Ty();
+}
+
+std::string fpFormat(const Type *T) {
+  switch (T->getScalarType()->getTypeID()) {
+  case Type::HalfTyID:
+    return "5 10";
+  case Type::BFloatTyID:
+    return "8 7";
+  case Type::FloatTyID:
+    return "8 23";
+  case Type::DoubleTyID:
+    return "11 52";
+  case Type::FP128TyID:
+    return "15 112";
+  default:
+    reject("type " + printedType(const_cast<Type *>(T)));
+  }
+}
+
+// The first floating-point type in `T`, or null if it has none.
+Type *firstFloat(Type *T) {
+  if (T->isFPOrFPVectorTy())
+    return T;
+  for (Type *E : T->subtypes())
+    if (Type *F = firstFloat(E))
+      return F;
+  return nullptr;
+}
+
+// The name every function in a module with scalable vectors takes `vscale` as, IRLean/Scalable.lean's
+// `VScale`. Primed, so no value's name can be the same.
+const char *const VScaleName = "vs'";
+
+// How many lanes a vector of type `T` has, as Lean: a number, or for a scalable vector, a multiple of
+// `vscale`.
+std::string lanesOf(const VectorType *T) {
+  if (const auto *S = dyn_cast<ScalableVectorType>(T))
+    return "(" + std::string(VScaleName) + ".val * " + std::to_string(S->getMinNumElements()) + ")";
+  return std::to_string(cast<FixedVectorType>(T)->getNumElements());
+}
+
 std::string leanType(Type *T) {
   if (auto *I = dyn_cast<IntegerType>(T))
     return "Val " + std::to_string(I->getBitWidth());
+  if (T->isFloatingPointTy()) {
+    fpFormat(T);
+    return "Val " + std::to_string(T->getPrimitiveSizeInBits().getFixedValue());
+  }
   if (auto *P = dyn_cast<PointerType>(T)) {
     if (P->getAddressSpace() != 0)
       reject("type " + printedType(T));
@@ -170,11 +221,10 @@ std::string leanType(Type *T) {
   }
   if (T->isVoidTy())
     return "Unit";
-  if (auto *V = dyn_cast<FixedVectorType>(T)) {
-    if (!V->getElementType()->isIntegerTy())
+  if (auto *V = dyn_cast<VectorType>(T)) {
+    if (!V->getElementType()->isIntegerTy() && !isModeledFloat(V->getElementType()))
       reject("type " + printedType(T));
-    return "(Vec " + std::to_string(V->getNumElements()) + " " +
-           std::to_string(V->getElementType()->getIntegerBitWidth()) + ")";
+    return "(Vec " + lanesOf(V) + " " + std::to_string(V->getScalarSizeInBits()) + ")";
   }
   if (auto *S = dyn_cast<StructType>(T)) {
     if (S->isOpaque() || S->getNumElements() == 0)
@@ -185,6 +235,13 @@ std::string leanType(Type *T) {
     return Out + ")";
   }
   reject("type " + printedType(T));
+}
+
+// Whether a type holds a pointer outside address space 0, whose size and null `Mem` doesn't know.
+bool mentionsOtherAddressSpace(Type *T) {
+  if (auto *P = dyn_cast<PointerType>(T))
+    return P->getAddressSpace() != 0;
+  return any_of(T->subtypes(), [](Type *S) { return mentionsOtherAddressSpace(S); });
 }
 
 bool mentionsPointer(Type *T) {
@@ -200,7 +257,7 @@ bool mentionsPointer(Type *T) {
 std::string bitVec(const APInt &V) { return toString(V, 10, false) + "#" + std::to_string(V.getBitWidth()); }
 
 std::string poisonOf(Type *T) {
-  if (T->isIntegerTy() || T->isPointerTy())
+  if (T->isIntegerTy() || T->isPointerTy() || T->isFloatingPointTy())
     return "(none : " + leanType(T) + ")";
   return "(HasPoison.poison : " + leanType(T) + ")";
 }
@@ -208,12 +265,16 @@ std::string poisonOf(Type *T) {
 std::string zeroOf(Type *T) {
   if (auto *I = dyn_cast<IntegerType>(T))
     return "(some 0#" + std::to_string(I->getBitWidth()) + ")";
+  // `0.0` is all zeros in every format the model has.
+  if (T->isFloatingPointTy()) {
+    leanType(T);
+    return "(some 0#" + std::to_string(T->getPrimitiveSizeInBits().getFixedValue()) + ")";
+  }
   if (T->isPointerTy())
     return "(some Ptr.null)";
-  if (auto *V = dyn_cast<FixedVectorType>(T)) {
+  if (auto *V = dyn_cast<VectorType>(T)) {
     leanType(T);
-    return "(Vector.replicate " + std::to_string(V->getNumElements()) + " " + zeroOf(V->getElementType()) +
-           ")";
+    return "(Vector.replicate " + lanesOf(V) + " " + zeroOf(V->getElementType()) + ")";
   }
   if (auto *S = dyn_cast<StructType>(T)) {
     std::string Out = "(";
@@ -233,15 +294,55 @@ bool hasExactLinkage(const GlobalValue &G) {
   return (G.hasExternalLinkage() || G.hasInternalLinkage() || G.hasPrivateLinkage()) && !G.isInterposable();
 }
 
+// Whether the module's data layout says what `Mem` assumes of pointers in address space 0 and of memory: a
+// pointer is 64 bits, all of them address, as LangRef's "The index size also specifies the width of addresses
+// in this address space" makes it when the index size is 64, null is all zeros, which a `p` with the `o` flag
+// changes, and bytes are stored little-endian. LLVM's parser refuses the `u` and `e` flags on address space
+// 0.
+bool memoryLayoutFits(const DataLayout &DL) {
+  return DL.getPointerSizeInBits(0) == 64 && DL.getAddressSizeInBits(0U) == 64 &&
+         DL.getNullPtrValue(0).isZero() && DL.isLittleEndian();
+}
+
 // A `linkonce_odr` or `weak_odr` definition, as C++ gives inline functions and templates. Its IR is still
 // this translation's copy of it, so a theorem about that copy means what any other does. What calls it is
 // another matter, since the copy a call runs may be another translation's: `emitCall` refuses those calls.
 bool hasODRLinkage(const GlobalValue &G) { return G.hasLinkOnceODRLinkage() || G.hasWeakODRLinkage(); }
 
+bool mentionsScalable(Type *T) {
+  if (isa<ScalableVectorType>(T))
+    return true;
+  return any_of(T->subtypes(), [](Type *S) { return mentionsScalable(S); });
+}
+
+// Whether anything in a definition depends on `vscale`: a scalable type, `llvm.vscale`, or `vscale_range`. If
+// anything in the module does, every function in it takes `vscale`, so each can pass it to what it calls.
+bool dependsOnVScale(const Function &F) {
+  if (F.isDeclaration())
+    return false;
+  if (F.hasFnAttribute(Attribute::VScaleRange) || mentionsScalable(F.getFunctionType()))
+    return true;
+  for (const BasicBlock &BB : F)
+    for (const Instruction &I : BB) {
+      if (mentionsScalable(I.getType()) ||
+          any_of(I.operands(), [](const Use &U) { return mentionsScalable(U->getType()); }))
+        return true;
+      if (const auto *G = dyn_cast<GetElementPtrInst>(&I); G && mentionsScalable(G->getSourceElementType()))
+        return true;
+      if (const auto *A = dyn_cast<AllocaInst>(&I); A && mentionsScalable(A->getAllocatedType()))
+        return true;
+      if (const auto *C = dyn_cast<IntrinsicInst>(&I); C && C->getIntrinsicID() == Intrinsic::vscale)
+        return true;
+    }
+  return false;
+}
+
 // The module-wide things functions refer to: its globals and data layout.
 class ModuleContext {
 public:
-  ModuleContext(Module &M, bool NoCode) : DL(M.getDataLayout()), Def(NoCode ? "noncomputable def " : "def ") {
+  ModuleContext(Module &M, bool NoCode)
+      : DL(M.getDataLayout()), Def(NoCode ? "noncomputable def " : "def "),
+        Scalable(any_of(M, [](const Function &F) { return dependsOnVScale(F); })) {
     NameTable GlobalNames;
     unsigned Block = 1;
     // Every global gets its allocation before any initializer is read, since initializers can point
@@ -258,8 +359,15 @@ public:
         Rejected[&G] = "external global @" + G.getName().str() + ", which may be null";
         continue;
       }
-      if (External && (!G.getValueType()->isSized() || DL.getTypeAllocSize(G.getValueType()).isScalable())) {
+      if (External && !G.getValueType()->isSized()) {
         Rejected[&G] = "external global @" + G.getName().str() + ", whose size isn't known";
+        continue;
+      }
+      // Memory has address space 0 only, and a constant operand's address space isn't checked where it's
+      // used.
+      if (External && G.getAddressSpace() != 0) {
+        Rejected[&G] = "external global @" + G.getName().str() + " in address space " +
+                       std::to_string(G.getAddressSpace());
         continue;
       }
       if (!External && (!hasExactLinkage(G) || G.isExternallyInitialized())) {
@@ -314,14 +422,30 @@ public:
   const DataLayout &DL;
   // What starts a definition in the output.
   const std::string Def;
+  // Whether every function takes `vscale`, IRLean/Scalable.lean's `VScale`, first.
+  const bool Scalable;
 
   std::string constant(const Constant *C) const {
     if (isa<PoisonValue>(C))
       return poisonOf(C->getType());
     if (isa<UndefValue>(C))
       reject("undef");
+    // A splat that isn't written lane by lane: of a scalable vector, or a vector-typed `ConstantInt`.
+    if (auto *V = dyn_cast<VectorType>(C->getType());
+        V && (isa<ScalableVectorType>(V) || isa<ConstantInt>(C)) && !isa<ConstantAggregateZero>(C)) {
+      const Constant *Splat = C->getSplatValue();
+      if (!Splat)
+        reject("constant " + printed(*C));
+      leanType(V);
+      return "(Vector.replicate " + lanesOf(V) + " " + constant(Splat) + ")";
+    }
     if (auto *I = dyn_cast<ConstantInt>(C))
       return "(some " + bitVec(I->getValue()) + ")";
+    // A float constant is its bits, NaN payloads and the sign of zero included.
+    if (auto *F = dyn_cast<ConstantFP>(C)) {
+      leanType(F->getType());
+      return "(some " + bitVec(F->getValueAPF().bitcastToAPInt()) + ")";
+    }
     if (isa<ConstantPointerNull>(C)) {
       leanType(C->getType());
       return "(some Ptr.null)";
@@ -331,8 +455,13 @@ public:
     if (auto *V = dyn_cast<FixedVectorType>(C->getType())) {
       leanType(V);
       std::string Out = "#v[";
-      for (unsigned I = 0, E = V->getNumElements(); I != E; ++I)
-        Out += (I ? ", " : "") + constant(C->getAggregateElement(I));
+      for (unsigned I = 0, E = V->getNumElements(); I != E; ++I) {
+        // A constant expression of vector type, such as a `bitcast` of a vector, has no elements to read.
+        const Constant *Element = C->getAggregateElement(I);
+        if (!Element)
+          reject("constant " + printed(*C));
+        Out += (I ? ", " : "") + constant(Element);
+      }
       return Out + "]";
     }
     if (auto *S = dyn_cast<ConstantStruct>(C)) {
@@ -486,6 +615,8 @@ private:
         bool Overflow = false;
         if (StructType *S = I.getStructTypeOrNull())
           Step = APInt(64, DL.getStructLayout(S)->getElementOffset(Index->getZExtValue()));
+        else if (DL.getTypeAllocSize(I.getIndexedType()).isScalable())
+          reject("constant " + printed(*C));
         else
           Step = Index->getValue().sextOrTrunc(64).smul_ov(APInt(64, I.getSequentialElementStride(DL)),
                                                            Overflow);
@@ -501,6 +632,9 @@ private:
     if (!DL.isLittleEndian())
       reject("big-endian data");
     Type *T = C->getType();
+    // Its null may not be all zeros, and its size may not be 64 bits.
+    if (mentionsOtherAddressSpace(T))
+      reject("initializer with a pointer in another address space");
     uint64_t Size = DL.getTypeAllocSize(T);
     if (isa<UndefValue>(C)) {
       Out.insert(Out.end(), Size, 256);
@@ -533,11 +667,18 @@ private:
       appendInt(I->getValue(), Size, Out);
       return;
     }
+    if (auto *F = dyn_cast<ConstantFP>(C)) {
+      leanType(T);
+      appendInt(F->getValueAPF().bitcastToAPInt(), Size, Out);
+      return;
+    }
     if (auto *D = dyn_cast<ConstantDataSequential>(C)) {
-      if (!D->getElementType()->isIntegerTy())
+      Type *E = D->getElementType();
+      if (!E->isIntegerTy() && !isModeledFloat(E))
         reject("constant " + printed(*C));
-      for (unsigned I = 0, E = D->getNumElements(); I != E; ++I)
-        appendInt(D->getElementAsAPInt(I), DL.getTypeAllocSize(D->getElementType()), Out);
+      for (unsigned I = 0, N = D->getNumElements(); I != N; ++I)
+        appendInt(E->isIntegerTy() ? D->getElementAsAPInt(I) : D->getElementAsAPFloat(I).bitcastToAPInt(),
+                  DL.getTypeAllocSize(E), Out);
       return;
     }
     if (isa<ConstantArray>(C)) {
@@ -655,18 +796,29 @@ void checkValueAttributes(AttributeSet Attrs, const Type *T, Position At, bool M
     if (A.isStringAttribute())
       continue;
     switch (A.getKindAsEnum()) {
+    // On a vector or a struct, `noundef` checks every lane and field, and `range` applies lane by lane.
     case Attribute::NoUndef:
     case Attribute::Range:
+      continue;
+    // Poison where the value is in a class the mask names, lane by lane on a vector: `FP.nofpclass`. LangRef
+    // also allows it on aggregates of floats, which aren't modeled.
+    case Attribute::NoFPClass:
+      if (T->isAggregateType())
+        reject(std::string(Where) + " attribute " + A.getAsString() + " on an aggregate");
+      continue;
     case Attribute::NonNull:
     case Attribute::Alignment:
     case Attribute::Dereferenceable:
-      // The checks these emit only take one value, not a vector's lanes.
+      // The checks these emit only take one pointer, not a vector's lanes.
       if (T->isVectorTy())
         reject(std::string(Where) + " attribute " + A.getAsString() + " on a vector");
       continue;
     // These only describe how a target passes the value, not what it is.
     case Attribute::SExt:
     case Attribute::ZExt:
+    case Attribute::InReg:
+    case Attribute::NoExt:
+    case Attribute::StackAlignment:
       continue;
     case Attribute::ReadOnly:
     case Attribute::WriteOnly:
@@ -740,29 +892,40 @@ std::string leanTag(AttributeSet Attrs) {
 
 // Attributes on a function or a call. Each one here has been reviewed, and anything else is refused, so a
 // new attribute can't pass unnoticed.
-// `Library` is for the C library functions `Mem` defines, and `GivesUp` for a call to a function outside the
-// module that never returns, which stops the model.
 // Settings for the backend, and which allocator a C library function belongs to.
 bool allowedStringAttribute(const Attribute &A) {
   static const std::set<std::string> Allowed = {
-      "alloc-family",     "frame-pointer", "min-legal-vector-width",      "no-builtins",
-      "no-trapping-math", "probe-stack",   "stack-protector-buffer-size", "target-cpu",
-      "target-features",  "tune-cpu",      "zero-call-used-regs"};
+      "alloc-family", "frame-pointer", "min-legal-vector-width", "no-builtins", "no-trapping-math",
+      "probe-stack", "stack-protector-buffer-size", "target-cpu", "target-features", "tune-cpu",
+      "zero-call-used-regs",
+      // Settings for code generation, profiles and tools, which Attributes.td defines.
+      "no-jump-tables", "no-inline-line-tables", "profile-sample-accurate", "use-sample-profile",
+      "allow_direct_access_in_hot_patch_function", "marked_for_windows_hot_patching",
+      // Tells InstCombine's own check not to expect a fixpoint after one run. Its regression tests use it.
+      "instcombine-no-verify-fixpoint"};
   return Allowed.count(A.getKindAsString().str()) != 0;
 }
 
+// `Library` is for the C library functions `Mem` defines, `GivesUp` for a call to a function outside the
+// module that never returns, which stops the model, and `Definition` for a function the module defines.
 void checkFunctionAttributes(AttributeSet Attrs, const std::string &Where, bool Library = false,
-                             bool GivesUp = false) {
+                             bool GivesUp = false, bool Definition = false) {
   for (Attribute A : Attrs) {
     if (A.isStringAttribute()) {
       if (!allowedStringAttribute(A))
         reject(Where + " attribute " + A.getAsString());
       continue;
     }
-    // `Mem`'s versions of the C library don't call back into the program.
-    if (Library && A.getKindAsEnum() == Attribute::NoCallback)
+    // Returning from a definition that promises not to is undefined, which `emitTerminator` gives it.
+    if ((GivesUp || Definition) && A.getKindAsEnum() == Attribute::NoReturn)
       continue;
-    if (GivesUp && A.getKindAsEnum() == Attribute::NoReturn)
+    // Checked at the definition's entry, by `emitFunction`.
+    if (Definition && A.getKindAsEnum() == Attribute::VScaleRange)
+      continue;
+    // A run of the function itself is the same with `speculatable` or without. What it changes is its
+    // callers, which `emitCall` refuses, and `prepare` refuses it on a function with memory, whose effects it
+    // would rule out unchecked.
+    if (Definition && A.getKindAsEnum() == Attribute::Speculatable)
       continue;
     switch (A.getKindAsEnum()) {
     // These only change how the code is optimized or lowered.
@@ -782,6 +945,44 @@ void checkFunctionAttributes(AttributeSet Attrs, const std::string &Where, bool 
     case Attribute::StackProtectReq:
     case Attribute::StackProtectStrong:
     case Attribute::UWTable:
+    case Attribute::Flatten:
+    case Attribute::NoIPA:
+    case Attribute::NoOutline:
+    case Attribute::OptimizeForDebugging:
+    case Attribute::NonLazyBind:
+    case Attribute::StackAlignment:
+    // Hardening, instrumentation and patching that code generation or a later pass adds. The IR here is what
+    // runs, before any of it.
+    case Attribute::NoCfCheck:
+    case Attribute::FnRetThunkExtern:
+    case Attribute::HybridPatchable:
+    case Attribute::ShadowCallStack:
+    case Attribute::SafeStack:
+    case Attribute::SpeculativeLoadHardening:
+    case Attribute::SanitizeAddress:
+    case Attribute::SanitizeAllocToken:
+    case Attribute::SanitizeHWAddress:
+    case Attribute::SanitizeMemTag:
+    case Attribute::SanitizeMemory:
+    case Attribute::SanitizeNumericalStability:
+    case Attribute::SanitizeRealtime:
+    case Attribute::SanitizeRealtimeBlocking:
+    case Attribute::SanitizeThread:
+    case Attribute::SanitizeType:
+    case Attribute::DisableSanitizerInstrumentation:
+    case Attribute::NoSanitizeBounds:
+    case Attribute::NoSanitizeCoverage:
+    case Attribute::NoProfile:
+    case Attribute::SkipProfile:
+    case Attribute::OptForFuzzing:
+    // Say which transformations keep code correct for many threads running in step, which the model doesn't
+    // have: it runs one.
+    case Attribute::Convergent:
+    case Attribute::NoDuplicate:
+    case Attribute::NoDivergenceSource:
+    // LangRef: it "has no effect on functions defined in the current module". On a call the model answers
+    // from the world, `checkOutsideAttributes` refuses it, and a call that never returns stops the model.
+    case Attribute::NoCallback:
     // The model has no threads and no exceptions, so these always hold.
     case Attribute::NoSync:
     case Attribute::NoUnwind:
@@ -793,6 +994,13 @@ void checkFunctionAttributes(AttributeSet Attrs, const std::string &Where, bool 
     // `FunctionEmitter::findPromises` and IRLean/Promise.lean say. At a call they're refused, in `emitCall`.
     case Attribute::MustProgress:
     case Attribute::WillReturn:
+      continue;
+    // The default floating-point environment, `ieee|ieee` for every type, is the only one the model has.
+    // LangRef: under the others "denormal outputs may be flushed to zero", and under `dynamic` the mode is
+    // the environment's when it runs.
+    case Attribute::DenormalFPEnv:
+      if (A.getDenormalFPEnv() != DenormalFPEnv::getDefault())
+        reject(Where + " attribute " + A.getAsString());
       continue;
     // What makes `malloc` and `free` the functions `Mem` defines, and nothing else: on anything but those,
     // they'd be promises the model doesn't check.
@@ -862,12 +1070,17 @@ std::string leanString(StringRef S) {
   return Out + "\"";
 }
 
-// Wraps `Value` in what `range`, `nonnull` and `align` attributes imply.
-std::string withValueChecks(AttributeSet Attrs, const std::string &Value) {
+// Wraps `Value`, of type `T`, in what `range`, `nofpclass`, `nonnull` and `align` attributes imply.
+std::string withValueChecks(AttributeSet Attrs, const Type *T, const std::string &Value) {
   std::string Out = Value;
+  if (FPClassTest Mask = Attrs.getNoFPClass()) {
+    std::string Check = "FP.nofpclass " + fpFormat(T) + " " + std::to_string(unsigned(Mask));
+    Out = T->isVectorTy() ? "(Vec.map (" + Check + ") " + Out + ")" : "(" + Check + " " + Out + ")";
+  }
   if (Attrs.hasAttribute(Attribute::Range)) {
     const ConstantRange &R = Attrs.getAttribute(Attribute::Range).getValueAsConstantRange();
-    Out = "(Val.range " + bitVec(R.getLower()) + " " + bitVec(R.getUpper()) + " " + Out + ")";
+    std::string Range = "Val.range " + bitVec(R.getLower()) + " " + bitVec(R.getUpper());
+    Out = T->isVectorTy() ? "(Vec.map (" + Range + ") " + Out + ")" : "(" + Range + " " + Out + ")";
   }
   if (Attrs.hasAttribute(Attribute::NonNull))
     Out = "(Mem.nonnull m " + Out + ")";
@@ -876,9 +1089,14 @@ std::string withValueChecks(AttributeSet Attrs, const std::string &Value) {
   return Out;
 }
 
+// The check `noundef` makes of a value of type `T`: on a vector or a struct, of every lane and field.
+std::string noundefCheck(const Type *T) {
+  return T->isVectorTy() || T->isStructTy() ? "noundefAll " : "noundef ";
+}
+
 bool hasValueChecks(AttributeSet Attrs) {
   return Attrs.hasAttribute(Attribute::Range) || Attrs.hasAttribute(Attribute::NonNull) ||
-         Attrs.hasAttribute(Attribute::Alignment);
+         Attrs.hasAttribute(Attribute::Alignment) || Attrs.hasAttribute(Attribute::NoFPClass);
 }
 
 // One line of a block's body.
@@ -909,12 +1127,14 @@ public:
                   const std::set<const Function *> &TalkingFunctions,
                   const std::set<const Function *> &EffectFunctions,
                   const std::set<const Function *> &AccessFunctions,
+                  const std::set<const Function *> &ReachFunctions,
                   const std::set<const Function *> &ReachesFree, const ModuleContext &Context)
       : F(F), LeanName(std::move(LeanName)), Recursive(Recursive), PromisedCycle(PromisedCycle),
         UsesMemory(UsesMemory), Chooses(Chooses), Talks(Talks), Callees(Callees),
         MemoryFunctions(MemoryFunctions), ChoosingFunctions(ChoosingFunctions),
         TalkingFunctions(TalkingFunctions), EffectFunctions(EffectFunctions),
-        AccessFunctions(AccessFunctions), ReachesFree(ReachesFree), Context(Context) {}
+        AccessFunctions(AccessFunctions), ReachFunctions(ReachFunctions), ReachesFree(ReachesFree),
+        Context(Context) {}
 
   // Checks the function can be translated, and sets up names and liveness.
   void prepare();
@@ -936,10 +1156,22 @@ private:
   void findPromises();
   std::string promisedRun(const std::string &Entry);
   std::string promisedCall(const Function *Callee, const std::string &Call);
+  // Whether the block being emitted is under a promise to progress or to return: its own, a loop's, or, in a
+  // cycle of calls where something promises to progress, the cycle's.
+  bool underPromise() const { return F.willReturn() || Promised.count(Current) || PromisedCycle; }
   std::string signature(const std::string &Name);
 
   std::string operand(const Value *V);
   std::string flag(bool On, const char *Name) { return On ? std::string(" (") + Name + " := true)" : ""; }
+  // The fast-math flags IRLean/Float.lean's operations take: `nnan` and `ninf`.
+  std::string fpFlags(const Instruction &I) {
+    if (!isa<FPMathOperator>(I))
+      return "";
+    FastMathFlags F = I.getFastMathFlags();
+    return flag(F.noNaNs(), "nnan") + flag(F.noInfs(), "ninf");
+  }
+  void checkFastMath(const Instruction &I);
+  void checkFloatTarget();
   std::string callArgument(const CallBase &C, unsigned N, std::vector<Line> &Out,
                            bool WithDeclaration = false);
   void checkCallResult(const CallBase &C, std::vector<Line> &Out);
@@ -965,6 +1197,9 @@ private:
   std::string valueType() const { return UsesMemory ? RetType + " × Mem" : RetType; }
   // What a run returns: for a function that calls outside the module, how it ends.
   std::string resultType() const { return Talks ? "Exit (" + valueType() + ")" : valueType(); }
+  // `vscale`, after the name of something that takes it: the blocks' type, `step`, `promise`, and the
+  // module's functions. Empty in a module without scalable vectors.
+  std::string vs() const { return Context.Scalable ? std::string(" ") + VScaleName : ""; }
   // The block's next chooser, as `IRLean.Choice` numbers them: a `freeze`, or a call to a function that
   // chooses.
   std::string nextChooser() { return std::to_string(NextChooser++); }
@@ -1014,6 +1249,9 @@ private:
   const std::set<const Function *> &EffectFunctions;
   // Functions that make a call outside the module that accesses memory, or call one that does.
   const std::set<const Function *> &AccessFunctions;
+  // Functions that make a call outside the module that may access memory a function with memory can reach, or
+  // call one that does.
+  const std::set<const Function *> &ReachFunctions;
   const std::set<const Function *> &ReachesFree;
   const ModuleContext &Context;
   std::string RetType;
@@ -1292,6 +1530,12 @@ void FunctionEmitter::checkMetadata(const Instruction &I) {
 static void checkMemoryType(Type *T, const Instruction &I) {
   if (T->isPointerTy())
     return;
+  // Memory counts bytes, and a scalable vector's are a multiple of `vscale`, which `Mem` doesn't take.
+  if (isa<ScalableVectorType>(T))
+    reject("instruction " + printed(I));
+  // A float is stored as its bits, which LangRef says a load and a store don't change.
+  if (isModeledFloat(T->getScalarType()) && (T->isFloatingPointTy() || isa<FixedVectorType>(T)))
+    return;
   if (T->isIntOrIntVectorTy() && T->getScalarSizeInBits() % 8 == 0)
     return;
   reject("instruction " + printed(I));
@@ -1313,7 +1557,7 @@ void FunctionEmitter::emitLoad(const LoadInst &L, std::vector<Line> &Out) {
                 std::to_string(V->getScalarSizeInBits()) + " m " + P + " " + Align);
   } else
     addBind(L, Out,
-            "Mem.loadInt " + std::to_string(L.getType()->getIntegerBitWidth()) + " m " + P + " " + Align);
+            "Mem.loadInt " + std::to_string(L.getType()->getScalarSizeInBits()) + " m " + P + " " + Align);
   if (L.hasMetadata(LLVMContext::MD_noundef))
     Out.push_back({Line::Guard, "", "noundef " + Names.at(&L)});
 }
@@ -1367,6 +1611,9 @@ void FunctionEmitter::emitGep(const GetElementPtrInst &G, std::vector<Line> &Out
     }
     // A wider index has its own rules about truncating, and no real code needs one.
     if (It.isVector() || Index->getType()->getIntegerBitWidth() > 64)
+      reject("instruction " + printed(G));
+    // A scalable type's size is a multiple of `vscale`, which the model doesn't have.
+    if (DL.getTypeAllocSize(It.getIndexedType()).isScalable())
       reject("instruction " + printed(G));
     uint64_t Stride = It.getSequentialElementStride(DL);
     if (auto *K = dyn_cast<ConstantInt>(Index)) {
@@ -1457,10 +1704,12 @@ void FunctionEmitter::emitInstruction(const Instruction &I, std::vector<Line> &O
     else
       addLet(I, Out, Fn + " " + Width + " " + Op(0) + Flags);
   };
-  // Effects on one lane of a vector don't have a meaning here yet.
-  auto ScalarOnly = [&] {
+  // An operation that can be undefined. On vectors, it's undefined if any lane is, as IRLean/Lanes.lean says.
+  auto Undefinable = [&](const std::string &Fn, const std::string &Flags = "") {
     if (IsVector)
-      reject("instruction " + printed(I));
+      addBind(I, Out, "Vec.mapOutcome2 (fun a b => " + Fn + " a b" + Flags + ") " + Op(0) + " " + Op(1));
+    else
+      addBind(I, Out, Fn + " " + Op(0) + " " + Op(1) + Flags);
   };
   auto Wrap = [&] {
     std::string Flags;
@@ -1490,20 +1739,16 @@ void FunctionEmitter::emitInstruction(const Instruction &I, std::vector<Line> &O
     Binary("Val.ashr", flag(I.isExact(), "exact"));
     return;
   case Instruction::UDiv:
-    ScalarOnly();
-    addBind(I, Out, "Val.udiv " + Op(0) + " " + Op(1) + flag(I.isExact(), "exact"));
+    Undefinable("Val.udiv", flag(I.isExact(), "exact"));
     return;
   case Instruction::SDiv:
-    ScalarOnly();
-    addBind(I, Out, "Val.sdiv " + Op(0) + " " + Op(1) + flag(I.isExact(), "exact"));
+    Undefinable("Val.sdiv", flag(I.isExact(), "exact"));
     return;
   case Instruction::URem:
-    ScalarOnly();
-    addBind(I, Out, "Val.urem " + Op(0) + " " + Op(1));
+    Undefinable("Val.urem");
     return;
   case Instruction::SRem:
-    ScalarOnly();
-    addBind(I, Out, "Val.srem " + Op(0) + " " + Op(1));
+    Undefinable("Val.srem");
     return;
   case Instruction::And:
     Binary("Val.and");
@@ -1514,6 +1759,24 @@ void FunctionEmitter::emitInstruction(const Instruction &I, std::vector<Line> &O
   case Instruction::Xor:
     Binary("Val.xor");
     return;
+  // Floating point, in IRLean/Float.lean: a float is its bits, and the format is the operation's first
+  // arguments.
+  case Instruction::FNeg: {
+    std::string Fn = "FP.fneg " + fpFormat(I.getType());
+    if (IsVector)
+      addLet(I, Out, "Vec.map (fun a => " + Fn + " a" + fpFlags(I) + ") " + Op(0));
+    else
+      addLet(I, Out, Fn + " " + Op(0) + fpFlags(I));
+    return;
+  }
+  case Instruction::FCmp: {
+    const auto &C = cast<FCmpInst>(I);
+    // LLVM numbers the predicates from `false`, 0, to `true`, 15, as `FP.fcmp` reads them.
+    Binary("FP.fcmp " + fpFormat(C.getOperand(0)->getType()) + " " +
+               std::to_string(unsigned(C.getPredicate())),
+           fpFlags(I));
+    return;
+  }
   case Instruction::ICmp: {
     const auto &C = cast<ICmpInst>(I);
     const char *Fn;
@@ -1602,15 +1865,17 @@ void FunctionEmitter::emitInstruction(const Instruction &I, std::vector<Line> &O
     Cast("Val.trunc", flag(T.hasNoUnsignedWrap(), "nuw") + flag(T.hasNoSignedWrap(), "nsw"));
     return;
   }
-  // Between integers and vectors of integers of the same size, where one lane width divides the other, so
-  // it's a split or a join, with a scalar as a vector of one lane. LangRef reads it as a store and a load,
-  // which puts lane 0 in the low bits only on a little-endian target, so a big-endian module is refused, even
-  // for a function that doesn't touch memory.
+  // Between integers, floats and vectors of them of the same size, where one lane width divides the other, so
+  // it's a split or a join, with a scalar as a vector of one lane. A float is its bits, so it's the same as
+  // an integer of its width: LangRef says `bitcast` doesn't change a NaN. LangRef reads it as a store and a
+  // load, which puts lane 0 in the low bits only on a little-endian target, so a big-endian module is
+  // refused, even for a function that doesn't touch memory.
   case Instruction::BitCast: {
     Type *Src = I.getOperand(0)->getType();
     Type *Dst = I.getType();
     auto IntegerShape = [](Type *T) {
-      return T->isIntegerTy() || (isa<FixedVectorType>(T) && T->getScalarType()->isIntegerTy());
+      Type *E = T->getScalarType();
+      return (E->isIntegerTy() || isModeledFloat(E)) && (E == T || isa<FixedVectorType>(T));
     };
     if (!IntegerShape(Src) || !IntegerShape(Dst))
       reject("integer bitcast shape " + printed(I));
@@ -1644,6 +1909,17 @@ void FunctionEmitter::emitInstruction(const Instruction &I, std::vector<Line> &O
     return;
   case Instruction::ShuffleVector: {
     const auto &V = cast<ShuffleVectorInst>(I);
+    // Of a scalable vector, LLVM allows only an all-zero mask, lane 0 everywhere, and a poison one.
+    if (auto *S = dyn_cast<ScalableVectorType>(V.getType())) {
+      ArrayRef<int> M = V.getShuffleMask();
+      if (all_of(M, [](int L) { return L == 0; }))
+        addLet(I, Out, "Vec.splat0 " + lanesOf(S) + " " + Op(0));
+      else if (all_of(M, [](int L) { return L < 0; }))
+        addLet(I, Out, poisonOf(S));
+      else
+        reject("instruction " + printed(I));
+      return;
+    }
     auto *Result = dyn_cast<FixedVectorType>(V.getType());
     if (!Result)
       reject("instruction " + printed(I));
@@ -1660,8 +1936,8 @@ void FunctionEmitter::emitInstruction(const Instruction &I, std::vector<Line> &O
   }
   case Instruction::Freeze:
     // Of a vector, LangRef freezes each lane, and of a pointer it gives one with no provenance: neither is
-    // modeled.
-    if (!I.getType()->isIntegerTy())
+    // modeled. A float is its bits, so it freezes to any of them, NaNs of every kind included.
+    if (!I.getType()->isIntegerTy() && !isModeledFloat(I.getType()))
       reject("instruction " + printed(I));
     addLet(I, Out, "Val.freeze (c'.pick " + nextChooser() + ") " + Op(0));
     return;
@@ -1750,11 +2026,11 @@ std::string FunctionEmitter::callArgument(const CallBase &C, unsigned N, std::ve
   bool NoUndef = false;
   for (AttributeSet Set : Sets) {
     checkValueAttributes(Set, C.getArgOperand(N)->getType(), Position::CallParameter);
-    Arg = withValueChecks(Set, Arg);
+    Arg = withValueChecks(Set, C.getArgOperand(N)->getType(), Arg);
     NoUndef |= Set.hasAttribute(Attribute::NoUndef);
   }
   if (NoUndef)
-    Out.push_back({Line::Guard, "", "noundef " + Arg});
+    Out.push_back({Line::Guard, "", noundefCheck(C.getArgOperand(N)->getType()) + Arg});
   for (AttributeSet Set : Sets)
     if (Set.hasAttribute(Attribute::Dereferenceable))
       Out.push_back({Line::Guard, "",
@@ -1772,9 +2048,9 @@ void FunctionEmitter::checkCallResult(const CallBase &C, AttributeSet Ret, std::
     return;
   const std::string &Name = Names.at(&C);
   if (hasValueChecks(Ret))
-    Out.push_back({Line::Let, Name, withValueChecks(Ret, Name)});
+    Out.push_back({Line::Let, Name, withValueChecks(Ret, C.getType(), Name)});
   if (Ret.hasAttribute(Attribute::NoUndef))
-    Out.push_back({Line::Guard, "", "noundef " + Name});
+    Out.push_back({Line::Guard, "", noundefCheck(C.getType()) + Name});
   if (Ret.hasAttribute(Attribute::Dereferenceable))
     Out.push_back({Line::Guard, "",
                    "Mem.dereferenceable m " + Name + " " + std::to_string(Ret.getDereferenceableBytes())});
@@ -1786,6 +2062,22 @@ bool FunctionEmitter::emitIntrinsic(const IntrinsicInst &C, std::vector<Line> &O
   for (unsigned N = 0, E = C.arg_size(); N != E; ++N)
     Args.push_back(isa<MetadataAsValue>(C.getArgOperand(N)) ? "" : callArgument(C, N, Out));
   auto Op = [&](unsigned N) { return Args[N]; };
+  // On vectors, each of these is the scalar operation lane by lane, as IRLean/Lanes.lean says.
+  bool OnVectors = C.arg_size() && C.getArgOperand(0)->getType()->isVectorTy();
+  // `Fn` applied to the first `N` arguments, and `Extra` after them, such as ctlz's flag.
+  auto Lanewise = [&](const std::string &Fn, unsigned N, const std::string &Extra = "") {
+    std::string Operands;
+    for (unsigned I = 0; I != N; ++I)
+      Operands += " " + Op(I);
+    if (!OnVectors)
+      return Fn + Operands + Extra;
+    static const char *Names[] = {"a", "b", "c"};
+    static const char *Maps[] = {"Vec.map", "Vec.map2", "Vec.map3"};
+    std::string Params;
+    for (unsigned I = 0; I != N; ++I)
+      Params += std::string(" ") + Names[I];
+    return std::string(Maps[N - 1]) + " (fun" + Params + " => " + Fn + Params + Extra + ")" + Operands;
+  };
   auto BoolArg = [&](unsigned N) -> std::string {
     auto *K = dyn_cast<ConstantInt>(C.getArgOperand(N));
     if (!K)
@@ -1793,7 +2085,7 @@ bool FunctionEmitter::emitIntrinsic(const IntrinsicInst &C, std::vector<Line> &O
     return K->isOne() ? "true" : "false";
   };
   auto Unary = [&](const char *Fn) {
-    addLet(C, Out, std::string(Fn) + " " + Op(0));
+    addLet(C, Out, Lanewise(Fn, 1));
     return true;
   };
   auto Binary = [&](const char *Fn) {
@@ -1808,10 +2100,24 @@ bool FunctionEmitter::emitIntrinsic(const IntrinsicInst &C, std::vector<Line> &O
     return true;
   };
   auto Ternary = [&](const char *Fn) {
-    addLet(C, Out, std::string(Fn) + " " + Op(0) + " " + Op(1) + " " + Op(2));
+    addLet(C, Out, Lanewise(Fn, 3));
+    return true;
+  };
+  // An intrinsic with two results, such as `llvm.uadd.with.overflow`, whose vector form is a vector of each.
+  auto Overflow = [&](const char *Fn) {
+    addLet(C, Out,
+           OnVectors ? "Vec.map2Pair (fun a b => " + std::string(Fn) + " a b) " + Op(0) + " " + Op(1)
+                     : std::string(Fn) + " " + Op(0) + " " + Op(1));
     return true;
   };
   auto Lanes = [&] { return std::to_string(cast<FixedVectorType>(C.getType())->getNumElements()); };
+  // A length in bytes, which LangRef reads as unsigned, as the 64 bits `Mem` counts in.
+  auto Length = [&](unsigned N) {
+    unsigned Width = C.getArgOperand(N)->getType()->getIntegerBitWidth();
+    if (Width > 64)
+      reject("instruction " + printed(C));
+    return Width == 64 ? Op(N) : "(Val.zext 64 " + Op(N) + ")";
+  };
   switch (C.getIntrinsicID()) {
   case Intrinsic::assume:
     for (unsigned B = 0, E = C.getNumOperandBundles(); B != E; ++B) {
@@ -1829,6 +2135,36 @@ bool FunctionEmitter::emitIntrinsic(const IntrinsicInst &C, std::vector<Line> &O
   // makes progress. The model has no observable effects, and would call that loop undefined under a promise.
   case Intrinsic::sideeffect:
     reject("intrinsic llvm.sideeffect, which LangRef makes observable progress, and the model has none");
+  case Intrinsic::vscale:
+    addLet(C, Out, "VScale.value " + std::to_string(C.getType()->getIntegerBitWidth()) + vs());
+    return true;
+  case Intrinsic::stepvector:
+    addLet(C, Out,
+           "Vec.stepvector " + lanesOf(cast<VectorType>(C.getType())) + " " +
+               std::to_string(C.getType()->getScalarSizeInBits()));
+    return true;
+  // The index is a constant, times `vscale` when the part inserted or extracted is scalable.
+  case Intrinsic::vector_insert:
+  case Intrinsic::vector_extract: {
+    bool Insert = C.getIntrinsicID() == Intrinsic::vector_insert;
+    auto *Part = cast<VectorType>(Insert ? C.getArgOperand(1)->getType() : C.getType());
+    const auto *Index = dyn_cast<ConstantInt>(C.getArgOperand(Insert ? 2 : 1));
+    // A float moves as its bits.
+    if (!Index || !(Part->getElementType()->isIntegerTy() || isModeledFloat(Part->getElementType())))
+      reject("intrinsic " + C.getCalledFunction()->getName().str());
+    std::string Start = std::to_string(Index->getZExtValue());
+    if (isa<ScalableVectorType>(Part))
+      Start = "(" + std::string(VScaleName) + ".val * " + Start + ")";
+    addLet(C, Out,
+           Insert ? "Vec.insertSub " + Start + " " + Op(0) + " " + Op(1)
+                  : "Vec.extractSub " + lanesOf(Part) + " " + Start + " " + Op(0));
+    return true;
+  }
+  case Intrinsic::vector_reverse:
+    if (!C.getType()->getScalarType()->isIntegerTy() && !isModeledFloat(C.getType()->getScalarType()))
+      reject("intrinsic " + C.getCalledFunction()->getName().str());
+    addLet(C, Out, "Vec.reverse " + Op(0));
+    return true;
   case Intrinsic::expect:
     addLet(C, Out, Op(0));
     return true;
@@ -1841,12 +2177,12 @@ bool FunctionEmitter::emitIntrinsic(const IntrinsicInst &C, std::vector<Line> &O
   case Intrinsic::memset:
     if (BoolArg(3) != "false")
       reject("instruction " + printed(C));
-    addMemoryUpdate(Out, "Mem.memset m " + Op(0) + " " + Op(1) + " " + Op(2));
+    addMemoryUpdate(Out, "Mem.memset m " + Op(0) + " " + Op(1) + " " + Length(2));
     return true;
   case Intrinsic::memcpy:
     if (BoolArg(3) != "false")
       reject("instruction " + printed(C));
-    addMemoryUpdate(Out, "Mem.memcpy m " + Op(0) + " " + Op(1) + " " + Op(2));
+    addMemoryUpdate(Out, "Mem.memcpy m " + Op(0) + " " + Op(1) + " " + Length(2));
     return true;
   case Intrinsic::vector_reduce_add:
     return Reduce("Val.add");
@@ -1873,13 +2209,13 @@ bool FunctionEmitter::emitIntrinsic(const IntrinsicInst &C, std::vector<Line> &O
   case Intrinsic::bswap:
     return Unary("Val.bswap");
   case Intrinsic::ctlz:
-    addLet(C, Out, "Val.ctlz " + Op(0) + " " + BoolArg(1));
+    addLet(C, Out, Lanewise("Val.ctlz", 1, " " + BoolArg(1)));
     return true;
   case Intrinsic::cttz:
-    addLet(C, Out, "Val.cttz " + Op(0) + " " + BoolArg(1));
+    addLet(C, Out, Lanewise("Val.cttz", 1, " " + BoolArg(1)));
     return true;
   case Intrinsic::abs:
-    addLet(C, Out, "Val.abs " + Op(0) + " " + BoolArg(1));
+    addLet(C, Out, Lanewise("Val.abs", 1, " " + BoolArg(1)));
     return true;
   case Intrinsic::umin:
     return Binary("Val.umin");
@@ -1902,17 +2238,17 @@ bool FunctionEmitter::emitIntrinsic(const IntrinsicInst &C, std::vector<Line> &O
   case Intrinsic::ssub_sat:
     return Binary("Val.ssubSat");
   case Intrinsic::uadd_with_overflow:
-    return Binary("Val.uaddWithOverflow");
+    return Overflow("Val.uaddWithOverflow");
   case Intrinsic::sadd_with_overflow:
-    return Binary("Val.saddWithOverflow");
+    return Overflow("Val.saddWithOverflow");
   case Intrinsic::usub_with_overflow:
-    return Binary("Val.usubWithOverflow");
+    return Overflow("Val.usubWithOverflow");
   case Intrinsic::ssub_with_overflow:
-    return Binary("Val.ssubWithOverflow");
+    return Overflow("Val.ssubWithOverflow");
   case Intrinsic::umul_with_overflow:
-    return Binary("Val.umulWithOverflow");
+    return Overflow("Val.umulWithOverflow");
   case Intrinsic::smul_with_overflow:
-    return Binary("Val.smulWithOverflow");
+    return Overflow("Val.smulWithOverflow");
   // x86's integer dot products, in IRLean/X86.lean. The first two need the number of lanes they produce.
   case Intrinsic::x86_ssse3_pmadd_ub_sw_128:
   case Intrinsic::x86_avx2_pmadd_ub_sw:
@@ -1929,11 +2265,144 @@ bool FunctionEmitter::emitIntrinsic(const IntrinsicInst &C, std::vector<Line> &O
   case Intrinsic::x86_avx512_vpdpbusd_512:
     addLet(C, Out, "X86.vpdpbusd " + Op(0) + " " + Op(1) + " " + Op(2));
     return true;
+  // x86's pure bit functions, IRLean/X86Bits.lean, each of which Alive2 knows.
+  case Intrinsic::x86_avx512_pternlog_d_128:
+  case Intrinsic::x86_avx512_pternlog_d_256:
+  case Intrinsic::x86_avx512_pternlog_d_512:
+  case Intrinsic::x86_avx512_pternlog_q_128:
+  case Intrinsic::x86_avx512_pternlog_q_256:
+  case Intrinsic::x86_avx512_pternlog_q_512:
+    addLet(C, Out,
+           "X86.pternlog " + std::to_string(cast<ConstantInt>(C.getArgOperand(3))->getZExtValue() & 0xFFU) +
+               " " + Op(0) + " " + Op(1) + " " + Op(2));
+    return true;
+  case Intrinsic::x86_avx2_pshuf_b:
+  case Intrinsic::x86_avx512_pshuf_b_512:
+  case Intrinsic::x86_ssse3_pshuf_b_128:
+    addLet(C, Out, "X86.pshufb " + Op(0) + " " + Op(1));
+    return true;
+  case Intrinsic::x86_avx2_psll_d:
+  case Intrinsic::x86_avx2_psll_q:
+  case Intrinsic::x86_avx2_psll_w:
+  case Intrinsic::x86_avx2_pslli_d:
+  case Intrinsic::x86_avx2_pslli_q:
+  case Intrinsic::x86_avx2_pslli_w:
+  case Intrinsic::x86_avx2_psllv_d:
+  case Intrinsic::x86_avx2_psllv_d_256:
+  case Intrinsic::x86_avx2_psllv_q:
+  case Intrinsic::x86_avx2_psllv_q_256:
+  case Intrinsic::x86_avx2_psra_d:
+  case Intrinsic::x86_avx2_psra_w:
+  case Intrinsic::x86_avx2_psrai_d:
+  case Intrinsic::x86_avx2_psrai_w:
+  case Intrinsic::x86_avx2_psrav_d:
+  case Intrinsic::x86_avx2_psrav_d_256:
+  case Intrinsic::x86_avx2_psrl_d:
+  case Intrinsic::x86_avx2_psrl_q:
+  case Intrinsic::x86_avx2_psrl_w:
+  case Intrinsic::x86_avx2_psrli_d:
+  case Intrinsic::x86_avx2_psrli_q:
+  case Intrinsic::x86_avx2_psrli_w:
+  case Intrinsic::x86_avx2_psrlv_d:
+  case Intrinsic::x86_avx2_psrlv_d_256:
+  case Intrinsic::x86_avx2_psrlv_q:
+  case Intrinsic::x86_avx2_psrlv_q_256:
+  case Intrinsic::x86_avx512_psll_d_512:
+  case Intrinsic::x86_avx512_psll_q_512:
+  case Intrinsic::x86_avx512_psll_w_512:
+  case Intrinsic::x86_avx512_pslli_d_512:
+  case Intrinsic::x86_avx512_pslli_q_512:
+  case Intrinsic::x86_avx512_pslli_w_512:
+  case Intrinsic::x86_avx512_psllv_d_512:
+  case Intrinsic::x86_avx512_psllv_q_512:
+  case Intrinsic::x86_avx512_psllv_w_128:
+  case Intrinsic::x86_avx512_psllv_w_256:
+  case Intrinsic::x86_avx512_psllv_w_512:
+  case Intrinsic::x86_avx512_psra_d_512:
+  case Intrinsic::x86_avx512_psra_q_128:
+  case Intrinsic::x86_avx512_psra_q_256:
+  case Intrinsic::x86_avx512_psra_q_512:
+  case Intrinsic::x86_avx512_psra_w_512:
+  case Intrinsic::x86_avx512_psrai_d_512:
+  case Intrinsic::x86_avx512_psrai_q_128:
+  case Intrinsic::x86_avx512_psrai_q_256:
+  case Intrinsic::x86_avx512_psrai_q_512:
+  case Intrinsic::x86_avx512_psrai_w_512:
+  case Intrinsic::x86_avx512_psrav_d_512:
+  case Intrinsic::x86_avx512_psrav_q_128:
+  case Intrinsic::x86_avx512_psrav_q_256:
+  case Intrinsic::x86_avx512_psrav_q_512:
+  case Intrinsic::x86_avx512_psrav_w_128:
+  case Intrinsic::x86_avx512_psrav_w_256:
+  case Intrinsic::x86_avx512_psrav_w_512:
+  case Intrinsic::x86_avx512_psrl_d_512:
+  case Intrinsic::x86_avx512_psrl_q_512:
+  case Intrinsic::x86_avx512_psrl_w_512:
+  case Intrinsic::x86_avx512_psrli_d_512:
+  case Intrinsic::x86_avx512_psrli_q_512:
+  case Intrinsic::x86_avx512_psrli_w_512:
+  case Intrinsic::x86_avx512_psrlv_d_512:
+  case Intrinsic::x86_avx512_psrlv_q_512:
+  case Intrinsic::x86_avx512_psrlv_w_128:
+  case Intrinsic::x86_avx512_psrlv_w_256:
+  case Intrinsic::x86_avx512_psrlv_w_512:
+  case Intrinsic::x86_sse2_psll_d:
+  case Intrinsic::x86_sse2_psll_q:
+  case Intrinsic::x86_sse2_psll_w:
+  case Intrinsic::x86_sse2_pslli_d:
+  case Intrinsic::x86_sse2_pslli_q:
+  case Intrinsic::x86_sse2_pslli_w:
+  case Intrinsic::x86_sse2_psra_d:
+  case Intrinsic::x86_sse2_psra_w:
+  case Intrinsic::x86_sse2_psrai_d:
+  case Intrinsic::x86_sse2_psrai_w:
+  case Intrinsic::x86_sse2_psrl_d:
+  case Intrinsic::x86_sse2_psrl_q:
+  case Intrinsic::x86_sse2_psrl_w:
+  case Intrinsic::x86_sse2_psrli_d:
+  case Intrinsic::x86_sse2_psrli_q:
+  case Intrinsic::x86_sse2_psrli_w: {
+    // After `ps`: `ll`, `rl` or `ra`, then `i` for an immediate count, `v` for a count in each lane, or
+    // nothing for a count in a vector's low 64 bits.
+    StringRef Shift = C.getCalledFunction()->getName().split(".ps").second;
+    std::string Kind = Shift.starts_with("ll") ? ".shl" : Shift.starts_with("rl") ? ".lshr" : ".ashr";
+    char Form = Shift.size() > 2 ? Shift[2] : '.';
+    std::string Fn = Form == 'i' ? "X86.shiftImm " : Form == 'v' ? "X86.shiftLanes " : "X86.shiftVec ";
+    addLet(C, Out, Fn + Kind + " " + Op(0) + " " + Op(1));
+    return true;
+  }
+  // Floating point, in IRLean/Float.lean, on each lane of a vector.
+  case Intrinsic::fabs:
+  case Intrinsic::copysign: {
+    std::string Fn = std::string(C.getIntrinsicID() == Intrinsic::fabs ? "FP.fabs " : "FP.copysign ") +
+                     fpFormat(C.getType());
+    bool Two = C.getIntrinsicID() == Intrinsic::copysign;
+    if (C.getType()->isVectorTy())
+      addLet(C, Out,
+             std::string(Two ? "Vec.map2 (fun a b => " : "Vec.map (fun a => ") + Fn + (Two ? " a b" : " a") +
+                 fpFlags(C) + ") " + Op(0) + (Two ? " " + Op(1) : ""));
+    else
+      addLet(C, Out, Fn + " " + Op(0) + (Two ? " " + Op(1) : "") + fpFlags(C));
+    return true;
+  }
+  case Intrinsic::is_fpclass: {
+    auto *Mask = dyn_cast<ConstantInt>(C.getArgOperand(1));
+    if (!Mask)
+      reject("instruction " + printed(C));
+    std::string Fn = "FP.isFPClass " + fpFormat(C.getArgOperand(0)->getType());
+    std::string K = std::to_string(Mask->getZExtValue());
+    if (C.getType()->isVectorTy())
+      addLet(C, Out, "Vec.map (fun a => " + Fn + " a " + K + ") " + Op(0));
+    else
+      addLet(C, Out, Fn + " " + Op(0) + " " + K);
+    return true;
+  }
   case Intrinsic::ucmp:
   case Intrinsic::scmp:
     addLet(C, Out,
-           std::string(C.getIntrinsicID() == Intrinsic::ucmp ? "Val.ucmp " : "Val.scmp ") +
-               std::to_string(C.getType()->getIntegerBitWidth()) + " " + Op(0) + " " + Op(1));
+           Lanewise(std::string(C.getIntrinsicID() == Intrinsic::ucmp ? "Val.ucmp " : "Val.scmp ") +
+                        std::to_string(C.getType()->getScalarSizeInBits()),
+                    2));
     return true;
   default:
     return false;
@@ -1942,12 +2411,63 @@ bool FunctionEmitter::emitIntrinsic(const IntrinsicInst &C, std::vector<Line> &O
 
 void FunctionEmitter::emitCall(const CallBase &C, std::vector<Line> &Out) {
   const Function *Direct = C.getCalledFunction();
+  // LangRef: "The calling convention of any pair of dynamic caller/callee must match, or the behavior of the
+  // program is undefined." The model would run such a call, so it's refused, as is a call through a pointer
+  // that can reach a function with another.
+  auto SameConvention = [&](const Function *Callee) {
+    if (Callee->getCallingConv() != C.getCallingConv())
+      reject("call with calling convention " + std::to_string(C.getCallingConv()) + " to @" +
+             Callee->getName().str() + ", whose calling convention is " +
+             std::to_string(Callee->getCallingConv()));
+  };
+  if (Direct)
+    SameConvention(Direct);
+  else
+    for (const Function *Target : Context.candidates(C.getFunctionType()))
+      SameConvention(Target);
+  // LangRef: "ABI attributes must be specified *both* at the function declaration/definition and call-site,
+  // otherwise the behavior may be undefined." These are the ones the model reads as only saying how a value
+  // is passed. A variadic call's arguments past the declared ones have nothing to match.
+  auto SameABI = [&](const Function *Callee) {
+    if (Callee->isIntrinsic())
+      return;
+    auto Differ = [](AttributeSet A, AttributeSet B) {
+      for (Attribute::AttrKind Kind : {Attribute::SExt, Attribute::ZExt, Attribute::NoExt, Attribute::InReg})
+        if (A.hasAttribute(Kind) != B.hasAttribute(Kind))
+          return true;
+      return A.getStackAlignment() != B.getStackAlignment();
+    };
+    const AttributeList &Declared = Callee->getAttributes();
+    bool Mismatch = Differ(C.getAttributes().getRetAttrs(), Declared.getRetAttrs());
+    for (unsigned I = 0, E = std::min<unsigned>(C.arg_size(), Callee->arg_size()); I != E; ++I)
+      Mismatch |= Differ(C.getAttributes().getParamAttrs(I), Declared.getParamAttrs(I));
+    if (Mismatch)
+      reject("call to @" + Callee->getName().str() + " whose ABI attributes aren't the callee's");
+  };
+  if (Direct)
+    SameABI(Direct);
+  else
+    for (const Function *Target : Context.candidates(C.getFunctionType()))
+      SameABI(Target);
   bool Library = Direct && libraryFunction(*Direct);
   bool GivesUp = givesUp(C);
   if (isOutsideCall(C)) {
     emitOutsideCall(C, Out);
     return;
   }
+  // LangRef: if a function marked `speculatable` "really does exhibit undefined behavior, the undefined
+  // behavior may be observed even if the call site is dead code". A run of the model only sees a call that
+  // runs. A call outside the module refuses it with the attributes it doesn't check.
+  auto NotSpeculatable = [&](const Function *Callee) {
+    if (!Callee->isIntrinsic() && Callee->hasFnAttribute(Attribute::Speculatable))
+      reject("call to @" + Callee->getName().str() +
+             ", which is speculatable, so undefined even where the call doesn't run, if the callee can be");
+  };
+  if (Direct)
+    NotSpeculatable(Direct);
+  else
+    for (const Function *Target : Context.candidates(C.getFunctionType()))
+      NotSpeculatable(Target);
   checkFunctionAttributes(C.getAttributes().getFnAttrs(), "call", Library, GivesUp);
   // A function's own promises are checked, but a narrower one at a call isn't, so it's refused. What's known
   // of the C library is the exception: `Mem.strlen` only reads through its argument, and they all return.
@@ -2008,7 +2528,8 @@ void FunctionEmitter::emitCall(const CallBase &C, std::vector<Line> &Out) {
   };
   if (Callee) {
     bool Memory = MemoryFunctions.count(Callee), Talking = TalkingFunctions.count(Callee);
-    std::string Expr = Callees.lookup(Callee) + Args + (Memory ? " m" : "") + (Talking ? " w' t'" : "");
+    std::string Expr = Callees.lookup(Callee) + (Callee->isDeclaration() ? "" : vs()) + Args +
+                       (Memory ? " m" : "") + (Talking ? " w' t'" : "");
     if (ChoosingFunctions.count(Callee))
       Expr += Chooser();
     if (Talking)
@@ -2016,9 +2537,17 @@ void FunctionEmitter::emitCall(const CallBase &C, std::vector<Line> &Out) {
     std::string Name = Memory ? Bound : Void ? "_" : Names.at(&C);
     // A callee that calls outside the module may not come back, and the run then ends as it did. One whose
     // calls have effects is refused under a promise, as such a call is.
-    if (EffectFunctions.count(Callee) && (F.willReturn() || Promised.count(Current)))
+    if (EffectFunctions.count(Callee) && underPromise())
       reject("call to @" + Callee->getName().str() +
              ", which calls outside the module with effects, under a promise to progress");
+    // The model doesn't see what such a callee's calls do to this function's memory, or what they read of it.
+    if (UsesMemory && ReachFunctions.count(Callee))
+      reject("call to @" + Callee->getName().str() +
+             ", whose calls outside the module may access this function's memory, which touches memory: F4");
+    // A callee outside the module may synchronize, which `nosync` at this call rules out.
+    if (AccessFunctions.count(Callee) && C.getAttributes().getFnAttrs().hasAttribute(Attribute::NoSync))
+      reject("call attribute nosync on a call to @" + Callee->getName().str() +
+             ", whose calls outside the module access memory");
     if (Talking)
       addExit(C, Out, Name, promisedCall(Callee, Expr));
     else
@@ -2036,7 +2565,7 @@ void FunctionEmitter::emitCall(const CallBase &C, std::vector<Line> &Out) {
       if (TalkingFunctions.count(Target))
         reject("indirect call that can reach @" + Target->getName().str() +
                ", which calls outside the module");
-      std::string Call = Callees.lookup(Target) + Args;
+      std::string Call = Callees.lookup(Target) + vs() + Args;
       if (MemoryFunctions.count(Target))
         Call += " m";
       if (ChoosingFunctions.count(Target))
@@ -2064,6 +2593,9 @@ void FunctionEmitter::emitOutsideCall(const CallBase &C, std::vector<Line> &Out)
   // A variadic call is an event like any other, each argument after the fixed ones in it: docs/calls.md.
   if (C.hasOperandBundles())
     reject("instruction " + printed(C));
+  // An `extern_weak` function may not be there at all, and its address null.
+  if (Callee->hasExternalWeakLinkage())
+    reject("call to external " + Name + ", which may be null");
   bool Pointers = mentionsPointer(C.getType());
   for (const Use &A : C.args())
     Pointers |= mentionsPointer(A->getType());
@@ -2072,7 +2604,7 @@ void FunctionEmitter::emitOutsideCall(const CallBase &C, std::vector<Line> &Out)
   // Under a promise to progress, interacting with the environment is progress, which IRLean.runPromised can't
   // see, and under `willreturn` a call that never comes back is undefined, which `halted` isn't.
   bool Effects = !hasNoEffects(C);
-  if (Effects && (F.willReturn() || Promised.count(Current)))
+  if (Effects && underPromise())
     reject("call to external " + Name + " with effects, under a promise to progress");
   // LangRef makes a call with another calling convention than its callee's undefined.
   if (C.getCallingConv() != Callee->getCallingConv())
@@ -2098,7 +2630,8 @@ void FunctionEmitter::emitOutsideCall(const CallBase &C, std::vector<Line> &Out)
     // Its type, and the attributes that change what the callee receives, are part of the event: a variadic
     // callee can receive the same lanes as different types.
     std::string Type = printedType(T);
-    for (auto [Kind, Word] : {std::pair{Attribute::SExt, " signext"}, std::pair{Attribute::ZExt, " zeroext"}})
+    for (auto [Kind, Word] : {std::pair{Attribute::SExt, " signext"}, std::pair{Attribute::ZExt, " zeroext"},
+                              std::pair{Attribute::NoExt, " noext"}, std::pair{Attribute::InReg, " inreg"}})
       if (C.paramHasAttr(I, Kind))
         Type += Word;
     Args += (I ? ", (" : "(") + leanString(Type) + ", " +
@@ -2146,13 +2679,18 @@ std::string FunctionEmitter::emitTerminator(const BasicBlock *BB) {
     return Talks ? "(.done " + R + " t')" : R;
   };
   if (const auto *R = dyn_cast<ReturnInst>(T)) {
+    // LangRef: `noreturn` "produces undefined behavior at runtime if the function ever does dynamically
+    // return".
+    if (F.doesNotReturn())
+      return "unreachable";
     if (!R->getReturnValue())
       return std::string(Ret) + WithMemory("()");
     AttributeSet Attrs = F.getAttributes().getRetAttrs();
-    std::string V = withValueChecks(Attrs, operand(R->getReturnValue()));
+    Type *RT = R->getReturnValue()->getType();
+    std::string V = withValueChecks(Attrs, RT, operand(R->getReturnValue()));
     std::string Checks;
     if (Attrs.hasAttribute(Attribute::NoUndef))
-      Checks += "noundef " + V + " <| ";
+      Checks += noundefCheck(RT) + V + " <| ";
     if (Attrs.hasAttribute(Attribute::Dereferenceable))
       Checks += "Mem.dereferenceable m " + V + " " + std::to_string(Attrs.getDereferenceableBytes()) + " <| ";
     if (Attrs.hasAttribute(Attribute::NoAlias))
@@ -2224,6 +2762,65 @@ std::string FunctionEmitter::emitArm(const BasicBlock *BB) {
   return Out + "    " + emitTerminator(BB) + "\n";
 }
 
+// Fast-math flags. `nnan` and `ninf` make a result poison, as IRLean/Float.lean's operations take them.
+// LangRef gives `arcp`, `contract`, `afn` and `reassoc` "rewrite-based semantics", over expressions of
+// several instructions, which no one instruction's meaning can say, so they're refused, as `fast` is, and so
+// is `nsz`, which is a choice the model doesn't make yet. On `fcmp`, LangRef says "the only flags that have
+// any effect on its semantics are ... `nnan`, `ninf`, and `reassoc`", so the others mean nothing there. The
+// operations that take flags are `fneg`, `fcmp`, `llvm.fabs` and `llvm.copysign`: on anything else, any flag
+// is refused. docs/float.md has the design.
+void FunctionEmitter::checkFastMath(const Instruction &I) {
+  FastMathFlags F = I.getFastMathFlags();
+  bool Takes = isa<UnaryOperator>(I) || isa<FCmpInst>(I);
+  if (const auto *C = dyn_cast<IntrinsicInst>(&I))
+    Takes = C->getIntrinsicID() == Intrinsic::fabs || C->getIntrinsicID() == Intrinsic::copysign;
+  bool Compare = isa<FCmpInst>(I);
+  auto Refuse = [&](bool On, bool Meaningless, const char *Name) {
+    if (On && !Meaningless)
+      reject(std::string("fast-math flag ") + Name + " on " + printed(I));
+  };
+  Refuse(F.noNaNs(), Takes, "nnan");
+  Refuse(F.noInfs(), Takes, "ninf");
+  Refuse(F.noSignedZeros(), Compare, "nsz");
+  Refuse(F.allowReciprocal(), Compare, "arcp");
+  Refuse(F.allowContract(), Compare, "contract");
+  Refuse(F.approxFunc(), Compare, "afn");
+  Refuse(F.allowReassoc(), false, "reassoc");
+}
+
+// LangRef lets a NaN result take a payload from a "target-specific set of 'extra' possible NaN payloads",
+// which "is empty on x86 and ARM, but can be non-empty on other architectures", and says x86-32 "may convert
+// floating-point values to x86_fp80 and back". The model's set is empty, so floating point is refused for any
+// other target. A module with no target is taken as one of these, as docs/float.md and docs/trust.md say.
+void FunctionEmitter::checkFloatTarget() {
+  Type *Float = firstFloat(F.getFunctionType());
+  for (const BasicBlock &BB : F)
+    for (const Instruction &I : BB) {
+      if (!Float)
+        Float = firstFloat(I.getType());
+      for (const Use &U : I.operands())
+        if (!Float)
+          Float = firstFloat(U->getType());
+    }
+  if (!Float)
+    return;
+  const Triple &T = F.getParent()->getTargetTriple();
+  switch (T.getArch()) {
+  case Triple::UnknownArch:
+  case Triple::x86_64:
+  case Triple::aarch64:
+  case Triple::aarch64_be:
+  case Triple::aarch64_32:
+  case Triple::arm:
+  case Triple::armeb:
+  case Triple::thumb:
+  case Triple::thumbeb:
+    return;
+  default:
+    reject("type " + printedType(Float) + " for target " + T.str());
+  }
+}
+
 void FunctionEmitter::prepare() {
   if (F.isVarArg())
     reject("variadic function");
@@ -2233,7 +2830,13 @@ void FunctionEmitter::prepare() {
     reject("linkage: this may not be the definition that runs");
   if (F.hasPrefixData() || F.hasPrologueData() || F.hasGC())
     reject("function with prefix data, prologue data or a garbage collector");
-  checkFunctionAttributes(F.getAttributes().getFnAttrs(), "function");
+  checkFunctionAttributes(F.getAttributes().getFnAttrs(), "function", /*Library=*/false, /*GivesUp=*/false,
+                          /*Definition=*/true);
+  checkFloatTarget();
+  for (const BasicBlock &BB : F)
+    for (const Instruction &I : BB)
+      if (isa<FPMathOperator>(I))
+        checkFastMath(I);
   // Neither needs checking on each run: what's reachable shows they hold, or the function is refused.
   if (Recursive && F.hasFnAttribute(Attribute::NoRecurse))
     reject("function attribute norecurse on a function in a cycle");
@@ -2249,19 +2852,29 @@ void FunctionEmitter::prepare() {
     reject("function attribute nofree on a function whose calls outside the module have effects");
   if (AccessFunctions.count(&F) && F.getMemoryEffects() != MemoryEffects::unknown())
     reject("function attribute memory on a function whose calls outside the module access memory");
+  if (F.hasFnAttribute(Attribute::Speculatable) && UsesMemory)
+    reject("function attribute speculatable on a function that uses memory");
+  // A call outside the module with effects is an effect of this function's too, which `speculatable` rules
+  // out.
+  if (F.hasFnAttribute(Attribute::Speculatable) && EffectFunctions.count(&F))
+    reject("function attribute speculatable on a function whose calls outside the module have effects");
   if (F.hasFnAttribute(Attribute::NoFree) && ReachesFree.count(&F))
     reject("function attribute nofree on a function that can reach free");
   collectBlocks();
   nameValues();
   computeLiveness();
   findPromises();
+  // Only `step` and the flat blocks take `vscale` so far.
+  if (Context.Scalable && (Recursive || Blocks.size() > MaxFlatBlocks))
+    reject("scalable vectors or vscale in a recursive function or one with more than " +
+           std::to_string(MaxFlatBlocks) + " blocks");
   if (Recursive && Blocks.size() > MaxRecursiveBlocks)
     reject("recursive function with more than " + std::to_string(MaxRecursiveBlocks) + " blocks");
   RetType = leanType(F.getReturnType());
   checkValueAttributes(F.getAttributes().getRetAttrs(), F.getReturnType(), Position::Return);
   for (const Value *V : Values)
     leanType(V->getType());
-  if (UsesMemory && (Context.DL.getPointerSizeInBits() != 64 || !Context.DL.isLittleEndian()))
+  if (UsesMemory && !memoryLayoutFits(Context.DL))
     reject("data layout " + F.getParent()->getDataLayoutStr());
   for (const BasicBlock *BB : Blocks)
     for (const Instruction &I : *BB)
@@ -2293,14 +2906,18 @@ void FunctionEmitter::prepare() {
 }
 
 std::string FunctionEmitter::emitBlocks() {
-  std::string NextType = "Outcome (Next Block (" + resultType() + "))";
+  // With `vscale`, the blocks' type and `step` take it, since a block's arguments and the result can be
+  // scalable.
+  std::string Param = Context.Scalable ? " (" + std::string(VScaleName) + " : VScale)" : "";
+  std::string BlockType = Context.Scalable ? "(Block" + vs() + ")" : "Block";
+  std::string NextType = "Outcome (Next " + BlockType + " (" + resultType() + "))";
   std::string Out = "namespace " + LeanName + "\n\n";
   if (Recursive || Blocks.size() <= MaxFlatBlocks) {
-    Out += "inductive Block where\n";
+    Out += "inductive Block" + Param + " where\n";
     for (const BasicBlock *BB : Blocks)
       Out += emitConstructor(BB);
     if (!Recursive) {
-      Out += "\n" + Context.Def + "step : Block → " + NextType + "\n";
+      Out += "\n" + Context.Def + "step" + Param + " : " + BlockType + " → " + NextType + "\n";
       for (const BasicBlock *BB : Blocks)
         Out += emitArm(BB);
     }
@@ -2329,8 +2946,8 @@ std::string FunctionEmitter::emitBlocks() {
   }
   // The blocks under a promise, when they aren't all of them. The entry block is never in a loop.
   if (!Recursive && !F.willReturn() && !Promised.empty() && Promised.size() != Blocks.size()) {
-    Out += "\n/-- The blocks of loops marked `llvm.loop.mustprogress`. -/\n" + Context.Def +
-           "promise : Block → Bool\n";
+    Out += "\n/-- The blocks of loops marked `llvm.loop.mustprogress`. -/\n" + Context.Def + "promise" +
+           Param + " : " + BlockType + " → Bool\n";
     for (const BasicBlock *BB : Blocks)
       if (Promised.count(BB))
         Out += "  | " + constructorPath(BB, BlockNames.lookup(BB) + " ..") + " => true\n";
@@ -2349,6 +2966,8 @@ std::string FunctionEmitter::emitLoop() {
 
 std::string FunctionEmitter::signature(const std::string &Name) {
   std::string Out = Context.Def + Name;
+  if (Context.Scalable)
+    Out += " (" + std::string(VScaleName) + " : VScale)";
   for (const Argument &A : F.args())
     Out += " (" + Names.at(&A) + " : " + leanType(A.getType()) + ")";
   if (UsesMemory)
@@ -2362,13 +2981,15 @@ std::string FunctionEmitter::signature(const std::string &Name) {
 
 // A run from the entry block, judged by the function's promises.
 std::string FunctionEmitter::promisedRun(const std::string &Entry) {
-  std::string Run = "run " + LeanName + ".step " + Entry;
+  std::string Run = "run (" + LeanName + ".step" + vs() + ") " + Entry;
   if (F.willReturn())
     return "promised (" + Run + ") fun _ => Outcome.ub .noReturn";
   if (Promised.empty())
     return Run;
-  std::string Which = Promised.size() == Blocks.size() ? "(fun _ => true)" : LeanName + ".promise";
-  return "promised (" + Run + ") fun _ => runPromised " + Which + " " + LeanName + ".step " + Entry;
+  std::string Which =
+      Promised.size() == Blocks.size() ? "(fun _ => true)" : "(" + LeanName + ".promise" + vs() + ")";
+  return "promised (" + Run + ") fun _ => runPromised " + Which + " (" + LeanName + ".step" + vs() + ") " +
+         Entry;
 }
 
 // Under a promise, a call to a function that promises to progress, and not to return, that never returns is a
@@ -2401,14 +3022,18 @@ std::string FunctionEmitter::emitPromisedCycleWrapper() {
 std::string FunctionEmitter::emitFunction() {
   std::string Out = signature(PromisedCycle ? LeanName + ".raw" : LeanName);
   AttributeList Attrs = F.getAttributes();
+  // A run with `vscale` outside the function's `vscale_range` is undefined, IRLean/Scalable.lean says why.
+  if (Attribute R = F.getFnAttribute(Attribute::VScaleRange); R.isValid())
+    Out += "  VScale.range " + std::to_string(R.getVScaleRangeMin()) + " " +
+           std::to_string(R.getVScaleRangeMax().value_or(0)) + vs() + " <|\n";
   for (const Argument &A : F.args()) {
     AttributeSet Param = Attrs.getParamAttrs(A.getArgNo());
     checkValueAttributes(Param, A.getType(), Position::Parameter);
     const std::string &Name = Names.at(&A);
     if (hasValueChecks(Param))
-      Out += "  let " + Name + " := " + withValueChecks(Param, Name) + "\n";
+      Out += "  let " + Name + " := " + withValueChecks(Param, A.getType(), Name) + "\n";
     if (Param.hasAttribute(Attribute::NoUndef))
-      Out += "  noundef " + Name + " <|\n";
+      Out += "  " + noundefCheck(A.getType()) + Name + " <|\n";
     if (Param.hasAttribute(Attribute::Dereferenceable))
       Out +=
           "  Mem.dereferenceable m " + Name + " " + std::to_string(Param.getDereferenceableBytes()) + " <|\n";
@@ -2637,7 +3262,7 @@ Emitted emitModule(Module &M, const std::string &Namespace, const std::string &S
   std::set<const Function *> ChoosingFunctions;
   // Functions that call outside the module, which take an `IRLean.World` and an `IRLean.Trace`, and those
   // whose calls have effects.
-  std::set<const Function *> TalkingFunctions, EffectFunctions, AccessFunctions;
+  std::set<const Function *> TalkingFunctions, EffectFunctions, AccessFunctions, ReachFunctions;
 
   NameTable FunctionNames;
   DenseMap<const Function *, std::string> LeanNames, Translated;
@@ -2715,7 +3340,7 @@ Emitted emitModule(Module &M, const std::string &Namespace, const std::string &S
     // something that chooses, through a pointer too. It talks if it calls outside the module, or calls
     // something that does. Members of a cycle pass choices, the world and the trace along for each other, so
     // they share the answers.
-    bool Chooses = false, Talks = false, Effects = false, Accesses = false;
+    bool Chooses = false, Talks = false, Effects = false, Accesses = false, Reaches = false;
     for (const Function *F : Component)
       for (const BasicBlock &BB : *F)
         for (const Instruction &I : BB) {
@@ -2728,6 +3353,7 @@ Emitted emitModule(Module &M, const std::string &Namespace, const std::string &S
             Chooses |= hasNoEffects(*C);
             Effects |= !hasNoEffects(*C);
             Accesses |= !outsideEffects(*C).doesNotAccessMemory();
+            Reaches |= !touchesOnlyInaccessible(*C);
             continue;
           }
           if (const Function *Callee = C->getCalledFunction()) {
@@ -2735,6 +3361,7 @@ Emitted emitModule(Module &M, const std::string &Namespace, const std::string &S
             Talks |= TalkingFunctions.count(Callee) != 0;
             Effects |= EffectFunctions.count(Callee) != 0;
             Accesses |= AccessFunctions.count(Callee) != 0;
+            Reaches |= ReachFunctions.count(Callee) != 0;
             continue;
           }
           for (const Function *Target : Context.candidates(C->getFunctionType())) {
@@ -2752,14 +3379,16 @@ Emitted emitModule(Module &M, const std::string &Namespace, const std::string &S
       EffectFunctions.insert(Component.begin(), Component.end());
     if (Accesses)
       AccessFunctions.insert(Component.begin(), Component.end());
+    if (Reaches)
+      ReachFunctions.insert(Component.begin(), Component.end());
 
     std::vector<std::unique_ptr<FunctionEmitter>> Emitters;
     std::string Types, Loops, Functions, Wrappers, Failure;
     for (Function *F : Component) {
       Emitters.push_back(std::make_unique<FunctionEmitter>(
           *F, LeanNames.lookup(F), Recursive, PromisedCycle, UsesMemory, Chooses, Talks, Translated,
-          MemoryFunctions, ChoosingFunctions, TalkingFunctions, EffectFunctions, AccessFunctions, ReachesFree,
-          Context));
+          MemoryFunctions, ChoosingFunctions, TalkingFunctions, EffectFunctions, AccessFunctions,
+          ReachFunctions, ReachesFree, Context));
       FunctionEmitter &E = *Emitters.back();
       try {
         E.prepare();

@@ -626,9 +626,16 @@ def required(item: dict[str, Any]) -> list[str]:
 # check, and decides whether it covers every context the pass runs in, given the claim, the pass, the
 # contexts the inventory saw it in, and the repo. It returns None to accept, or why not. A status and a hash
 # are written by whoever makes the claim, so without a verifier a complete claim stays unverified, and the
-# pass isn't done. None exists yet: that's BIND-03 in docs/llvm-verification-tasks.md.
+# pass isn't done. tools/verify_claims.py is BIND-03's, in docs/llvm-verification-tasks.md: it decides every
+# kind of evidence, and refuses what nothing can decide yet, such as all-input claims before INV-04 lists the
+# rewrites they have to cover.
 Verifier = Callable[[dict[str, Any], dict[str, Any], set[str], Path], "str | None"]
-VERIFIERS: dict[str, Verifier] = {}
+sys.path.insert(0, str(ROOT / "tools"))
+import verify_claims  # noqa: E402
+
+VERIFIERS: dict[str, Verifier] = dict.fromkeys(
+    ("lean-proof", "binding-check", "composition-proof"), verify_claims.check_claim
+)
 
 
 def evaluate(

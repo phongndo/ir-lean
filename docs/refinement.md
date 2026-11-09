@@ -34,6 +34,7 @@ code without memory:
 | `Exit α`, how a run that calls outside the module ends | `src` returned `x` with trace `t`: `tgt` returned some `y` that `x` allows, with trace `t`. `src` ended in a call that never came back, or unwound, or was cut off: `tgt` ended the same way, with the same trace. See [calls](calls.md) |
 | `Talks α`, a run of a function that calls outside the module | For every way `tgt` chooses, some way `src` chooses gives a run that allows `tgt`'s, watched for any number of calls with effects. The number comes after the source's choice, so one run of `src` has to agree with every prefix of `tgt`'s trace. See [calls](calls.md#refinement) |
 | `α → β`, a function | For every input, the same input to both, the results are related. A `Val` input is a value or poison. For a function that calls outside the module, the `World` and the trace before it are inputs too, so both sides face the same world |
+| `(vs : VScale) → β vs`, a function in a module with scalable vectors | For every `vscale`, the same on both sides, by `IRLean.Scalable`'s instance. It's a parameter, not a choice: see [scalable vectors](scalable-vectors.md) |
 
 There's no instance for `Mem`, `Ptr` or `PtrVal`. The emitter gives every function that mentions a pointer or touches
 memory a `Mem` argument and a `Mem` in its result, so such a function has no `Refines` claim at all, rather than one
@@ -182,7 +183,8 @@ These have no claim, or a claim that says nothing about LLVM, and stay that way 
 - `undef`, as a constant, which ir-lean refuses, or as an argument (SEM-02), which stays out of the model by the
   decision of 2026-11-09;
 - `freeze` of a vector, a pointer or a struct, which ir-lean refuses (the rest of SEM-03);
-- floating point, which ir-lean refuses (SEM-05);
+- floating-point arithmetic, conversions and most intrinsics, which ir-lean refuses until SEM-05's later
+  [slices](float.md#the-slices). A float is its bits, so `Refines` on one is bit for bit, as LLVM's is;
 - a run under a promise to progress that LangRef doesn't settle, which stops the model: a recursive function's, so
   deleting infinite recursion can't be certified, and one waiting on a promised callee that waits itself
   ([trust](trust.md#promises-to-progress)).

@@ -36,7 +36,8 @@ table is that record, and what it says each task does is still true.*
 | SEM-03 | Complete | Milestone F3, `freeze` in the model, with `undef` kept out, as the maintainer [decided](roadmap.md#three-decisions-of-2026-11-09) on 2026-11-09. Done in [#72](https://github.com/phongndo/ir-lean/pull/72) |
 | SEM-02 | Blocked | Kept out of the model by the same decision: `undef` constants stay refused, and uninitialized memory reads as poison |
 | SEM-06 | Not started | Milestone F4, after F3. Superoptimizer v2's memory candidates and the safety bridge need it |
-| SEM-04, SEM-08, SEM-10 | Not started | [Phase 0](roadmap.md#phase-0-semantic-fidelity-and-trust-infrastructure)'s fidelity work |
+| SEM-08 | Complete | [Phase 0](roadmap.md#phase-0-semantic-fidelity-and-trust-infrastructure)'s classification of everything the pinned IR can contain, [IR features](ir-features.md) |
+| SEM-04, SEM-10 | Not started | [Phase 0](roadmap.md#phase-0-semantic-fidelity-and-trust-infrastructure)'s fidelity work |
 | AUTO-01 | In progress | A tactic the engine can try for `Refines` |
 | AUTO-02 | Not started | The [lemma store](roadmap.md#phase-6-the-engine-and-the-lemma-store) |
 | AUTO-03 | In progress | Rewrites at every width, the lemma store's seed |
@@ -78,9 +79,11 @@ listed, or with only finite evidence for an all-input dimension. A claim coverin
 
 Even a claim that passes all of that is only **unverified**. Its status and hashes are written by whoever makes the
 claim, so they can't make a pass done by themselves. A dimension is complete only when an independent verifier for its
-evidence kind replays the evidence and decides it covers every context the pass runs in. No verifier exists yet:
-[BIND-03](#bind-03-an-independent-verifier) is to write them. Until then the summary counts claims as complete only
-under `claimed_complete`, and `verified_done` stays 0.
+evidence kind replays the evidence and decides it covers every context the pass runs in. Since 2026-11-09 that's
+[`tools/verify_claims.py`](verify-claims.md), [BIND-03](#bind-03-an-independent-verifier)'s, which `check` asks about
+every complete claim. It refuses any claim whose coverage nothing can decide yet: all-input until INV-04 lists the
+rewrites, code-binding until BIND-02 gives the pass's closure, and composition until PASS-05's contract exists. So
+`verified_done` stays 0, and the summary counts claims as complete only under `claimed_complete`.
 
 ## The measured scope
 
@@ -111,7 +114,7 @@ inventory, so this section can't drift from it.
 | A pass's code is the files defining its `run` or registering it | It's the entry point, found mechanically | Most passes call far more. InstCombine's entry file is one of its many. [BIND-02](#bind-02-implementation-closure) replaces this with the whole call graph |
 | Pipeline membership is a lower bound | `llc` and `opt` only list what one input, CPU and set of options built | Nothing: membership is never used to leave a pass out |
 | Optimization levels are `O0` to `O3`, with `Os` and `Oz` as attributes | That's what the pinned source does, as cited above | A later LLVM bringing them back, which `check` would catch, since the `opt` pipelines are recorded |
-| Every supported configuration is covered only when a verifier says so | The contexts in the inventory are a lower bound, so `"contexts": "all"` in a claim is the claimant's word | Nothing, while no verifier exists. A verifier has to check "all" against INV-05's inputs and INV-06's configurations |
+| Every supported configuration is covered only when a verifier says so | The contexts in the inventory are a lower bound, so `"contexts": "all"` in a claim is the claimant's word | [`tools/verify_claims.py`](verify-claims.md) accepts only `"all"`, with evidence covering every function of a pass's closure. It doesn't check "all" against INV-05's inputs and INV-06's configurations, which don't exist yet |
 
 ## Lanes, and what runs in parallel
 
@@ -121,7 +124,7 @@ Each lane owns its files. Two tasks being worked on at once can't own the same f
 | --- | --- | --- | --- |
 | INV | Inventory and plan | `tests/llvm_scope*`, `docs/llvm-verification-tasks.md` | INV-01 to INV-03 are complete ([#43](https://github.com/phongndo/ir-lean/pull/43)). INV-04 is chunk 1's work now, for its G2. INV-09 is chunk 9's |
 | SEM | Semantics contracts: poison, `undef`, `freeze`, integers, floating point, memory, UB | `IRLean/*.lean` apart from the refinement tactic, `docs/trust.md`, `tests/opcheck.py`, `tests/gepcheck.py` | SEM-01 is complete ([#46](https://github.com/phongndo/ir-lean/pull/46)): [refinement](refinement.md). So are SEM-07: [promises to progress](trust.md#promises-to-progress), and SEM-03, F3: [`freeze`](refinement.md#runs-that-make-choices). SEM-02 is blocked: `undef` stays out of the model, as decided on 2026-11-09. SEM-06 follows SEM-03. SEM-04 has no prerequisites |
-| BIND | Binding proofs to LLVM's C++, and an independent verifier | `tools/`, new binding checks, `src/Emitter.*` for C++ support | BIND-01 is complete: [binding a proof to LLVM's C++](binding-approach.md). BIND-03, with gate B1, and BIND-02, toward gate B2, are the platform track's binding work now. Certificate binding, from [#45](https://github.com/phongndo/ir-lean/pull/45), stays as a tool |
+| BIND | Binding proofs to LLVM's C++, and an independent verifier | `tools/`, new binding checks, `src/Emitter.*` for C++ support | BIND-01 is complete: [binding a proof to LLVM's C++](binding-approach.md). So is BIND-03: [verifying claims](verify-claims.md). Gate B1, BIND-04 for reading IR, passed: [LLVM's IR in memory](llvm-heap.md). BIND-02, toward gate B2, is the platform track's binding work now. Certificate binding, from [#45](https://github.com/phongndo/ir-lean/pull/45), stays as a tool |
 | NEG | Negative tests, CI and honest reporting | `CMakeLists.txt`, `.github/`, `tests/lint.sh`, mutation scripts | NEG-01 is complete (#43). NEG-03 has no prerequisites |
 | AUTO | Proof automation and lemma reuse | `IRLean/RefineTactic.lean`, lemma stores | AUTO-01 is drafted in another tree. AUTO-03 is in progress: [rewrites at every width](generic-rewrites.md). AUTO-02 is the roadmap's lemma store |
 | PASS | Analyses, scalar passes, composition | Per-pass proof directories | PASS-02 is in progress: [`tests/passes.py`](passes.md). The rest are the chunks' work: PASS-03 is chunk 1's G2, PASS-01 chunks 2 to 4's analyses, PASS-04 chunks 2 and 3, and PASS-05 chunk 7 and every chunk's G4 |
@@ -212,11 +215,11 @@ when they land.
 - **Lane:** INV
 - **Scope:** The units inside passes: InstCombine's and InstSimplify's rewrites, DAGCombiner and GlobalISel combiner rules, and TableGen selection and legalization patterns for each built target.
 - **Depends on:** INV-01
-- **Owns:** `tests/llvm_scope/rewrites/`
+- **Owns:** `tests/llvm_scope/rewrites/`, `tests/llvm_rewrites.py`, `tests/llvm_rewrites_test.py`, `docs/rewrite-inventory.md`
 - **Acceptance:** Each unit has a stable ID and a source location, generated from the pinned source, and a test fails if one appears or disappears without the inventory changing.
-- **Trust gaps:** Rewrites written as C++ control flow rather than patterns have no natural boundary. The split has to be stated, and reviewed.
-- **Status:** not started
-- **Evidence:** None.
+- **Trust gaps:** Rewrites written as C++ control flow rather than patterns have no natural boundary. The split has to be stated, and reviewed. For chunk 1's passes, [the rule](rewrite-inventory.md#the-rule) states it, and [what it doesn't see](rewrite-inventory.md#what-the-rule-doesnt-see) lists where it can be wrong.
+- **Status:** in progress
+- **Evidence:** Chunk 1's four passes, InstSimplify, InstCombine, AggressiveInstCombine and Reassociate: 3,174 rewrites in `tests/llvm_scope/rewrites/`, derived by `tests/llvm_rewrites.py` and checked in CI as `llvm_rewrites_check`. DAGCombiner, GlobalISel's combiners and TableGen's patterns aren't started.
 
 ### INV-05: Permitted inputs and options
 
@@ -314,7 +317,7 @@ when they land.
 - **Owns:** `IRLean/Int.lean`, `tests/opcheck.py`
 - **Acceptance:** A table of the pinned LangRef's integer and vector operations, each classified. The modeled ones are checked against Alive2 and the constant folder.
 - **Trust gaps:** `opcheck` checks finitely many widths and values. That's evidence about the model, not a proof that it's LangRef.
-- **Status:** not started (existing partial evidence: `tests/opcheck.py`)
+- **Status:** not started (existing partial evidence: `tests/opcheck.py`, and `tests/vecopcheck.py` for vector forms)
 - **Evidence:** None for this task.
 
 ### SEM-05: Floating point
@@ -325,8 +328,8 @@ when they land.
 - **Owns:** `IRLean/Float.lean`
 - **Acceptance:** Each floating-point instruction and intrinsic is modeled or refused, checked against Alive2 and native code.
 - **Trust gaps:** LangRef leaves NaN payloads open, so the model has to keep that choice.
-- **Status:** not started
-- **Evidence:** None.
+- **Status:** in progress: [floating point](float.md) is the design, in five slices, and the first, the bit-level operations, is in the model. Arithmetic, conversions, `nsz`, the intrinsics and the rest of the vectors are still refused
+- **Evidence:** `IRLean/Float.lean`, with `fneg`, `fabs`, `copysign`, `fcmp`, `llvm.is.fpclass` and `nofpclass` on every format the model has, `nnan` and `ninf` where they apply, and floats as bits through `bitcast`, `select`, `phi`, `freeze`, vectors and memory. `tests/fpcheck.py` checks each against the constant folder, the processor and Alive2, and `tests/float.sh` proves the verdicts of 18 rewrites on what ir-lean emits, Alive2 agreeing.
 
 ### SEM-06: Memory for refinement
 
@@ -355,11 +358,11 @@ when they land.
 - **Lane:** SEM
 - **Scope:** The roadmap's 0B exit criterion, at this pin: everything the pinned IR can contain is modeled, refused or assumed.
 - **Depends on:** INV-01
-- **Owns:** `tests/llvm_scope/ir-features.json`
+- **Owns:** `tests/llvm_scope/ir-features.json`, `tests/ir_features.py`, `tests/ir_features_test.py`, `tests/ir_features/probes.ll`, `src/Probe.cpp`
 - **Acceptance:** Generated from the pinned `Intrinsics*.td`, `Attributes.td` and `FixedMetadataKinds.def`, and a test fails when one is unclassified.
-- **Trust gaps:** None beyond INV-01's.
-- **Status:** not started
-- **Evidence:** None.
+- **Trust gaps:** A probe shows what the emitter does with one use of an item, not every use, and 133 items have no probe, each listed with why, all refused but `immarg` and the `metadata` type. An assumed item's reason is a reading of LangRef by a person. See [IR features](ir-features.md#what-it-doesnt-show).
+- **Status:** complete
+- **Evidence:** `tests/llvm_scope/ir-features.json`, every item from the pinned `Intrinsics*.td`, `Attributes.td`, `FixedMetadataKinds.def`, `Instruction.def`, `Type.h`, `GlobalValue.h`, `CallingConv.h`, `Value.def` and the bundle tags, generated by `tests/ir_features.py`, which CI runs as `ir_features`: it fails on an unclassified item, on a file that differs from what the pin gives, and on any item whose probe the emitter treats otherwise than its class says. `tests/ir_features_test.py`, as `ir_features_rules`, checks the rules. [IR features](ir-features.md).
 
 ### SEM-09: Concurrency, exceptions and the rest
 
@@ -410,22 +413,23 @@ when they land.
 - **Lane:** BIND
 - **Scope:** A checker that shares no code with any scorer, which replays each claim's evidence: the theorem names the generated function for the pinned anchors, rests only on allowed axioms, `leanchecker` replays it, and it covers every context. It plugs in as `VERIFIERS` in `tests/llvm_scope.py`, which is empty until then, so no claim is verified.
 - **Depends on:** BIND-01, INV-02
-- **Owns:** `tools/verify_claims.py`
+- **Owns:** `tools/verify_claims.py`, `tools/verify_claims_check.lean`, `tests/verify_claims_test.py`, `docs/verify-claims.md`
 - **Acceptance:** It accepts every claim the scorer accepts, and refuses a set of forged claims: wrong statement, stale anchors, extra axioms, `sorry`, and a kernel check skipped.
-- **Trust gaps:** It trusts Lean's kernel and the theorem statement's reader.
-- **Status:** not started
-- **Evidence:** None.
+- **Trust gaps:** It trusts Lean's kernel and the theorem statement's reader. A statement is pinned by the hash of its `Expr` and read by a person, with the model definitions it names: theorem 2's statement isn't built from BIND-04's abstraction yet, and nothing checks that a pass's theorems compose into the claim. It refuses all-input, analysis and composition claims until INV-04, PASS-01 and PASS-05 say what they have to cover.
+- **Status:** complete
+- **Evidence:** [`tools/verify_claims.py`](verify-claims.md), with `tools/verify_claims_check.lean`, shares no code with the scorer and plugs in as `VERIFIERS` in `tests/llvm_scope.py`. `tests/verify_claims_test.py`, in CI as `verify_claims_static` and `verify_claims`, has it replay all 87 functions `tests/llvm.py` proves and the five controls `tools/verify.py` certifies in `tests/verification_negative`, verify a code-binding claim for a test pass whose closure is one proved function, and refuse forged claims, each for its own reason: a wrong statement, stale anchors, an extra axiom, `sorry`, a theorem added past the kernel, and fifteen more.
 
 ### BIND-04: LLVM's IR in memory, in Lean
 
 - **Lane:** BIND
 - **Scope:** What `Value`, `User`, use lists, `BasicBlock`, `Instruction` and `APInt` mean in memory, as an abstraction from the C++ heap to IR syntax, so that a theorem about a compiled pass is a theorem about an IR transformation.
 - **Depends on:** BIND-01, SEM-06
-- **Owns:** `IRLean/LLVMHeap.lean`
+- **Owns:** `IRLean/LLVMHeap.lean`, `tests/llvm_heap/`, `tests/llvm_heap.sh`, `docs/llvm-heap.md`
 - **Acceptance:** The abstraction is proved preserved by the IR-building API calls a small pass makes.
-- **Trust gaps:** The C++ object layout comes from the compiled pass's IR, for one target. Some of what the code relies on is only asserted in the C++: in a release build, `ConstantInt::get(i1, 7)` keeps the word 7, breaking APInt's invariant that the bits above the width are 0 ([binding approach](binding-approach.md#what-this-means-for-the-other-tasks)).
-- **Status:** not started
-- **Evidence:** None.
+- **Trust gaps:** The C++ object layout comes from the compiled pass's IR, for one target, and a probe checks it on the pinned `libLLVM`. What each constructor does to memory is a specification the probe checks finitely, not a translation of its C++. Some of what the code relies on is only asserted in the C++: in a release build, `ConstantInt::get(i1, 7)` keeps the word 7, breaking APInt's invariant that the bits above the width are 0 ([binding approach](binding-approach.md#what-this-means-for-the-other-tasks)), so clean words are a hypothesis of `ConstantInt::get`. Use lists aren't in the view yet, so `BinaryOperator::Create` takes where its writes to them land as a hypothesis.
+- **Status:** in progress: gate B1, reading IR, passed on 2026-11-09. Writing IR, use lists, `BasicBlock` and `Instruction`'s other fields are gate B4's
+- **Gate waiver:** B1 reads `Value`, `Use`, `ConstantInt`, `APInt` and `Type`, which hold no pointer made from an integer, so it needs nothing of SEM-06's provenance rules. The rest of BIND-04 waits for SEM-06, and B1's view is checked again when SEM-06 changes `IRLean/Mem.lean`.
+- **Evidence:** [`IRLean/LLVMHeap.lean`](llvm-heap.md) proves its view of the IR kept by `ConstantInt::get`, `PoisonValue::get` and `BinaryOperator::Create`, with an example heap meeting it, and `tests/llvm_heap.sh`, in CI as `llvm_heap`, checks it with warnings as errors, on the standard axioms, with `leanchecker`, and runs the layout probe, 316 facts on the pinned `libLLVM`.
 
 ### BIND-05: Translating LLVM's own C++
 

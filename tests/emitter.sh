@@ -45,17 +45,66 @@ accepts() {
 }
 
 # A `bitcast` between integers and vectors of integers puts lane 0 in the low bits only on a little-endian
-# target, even in a function that doesn't touch memory. Lane widths that don't divide each other, floating-point
-# lanes, pointers and scalable vectors are refused too. tests/x86check.py checks what the accepted ones mean
+# target, even in a function that doesn't touch memory. Lane widths that don't divide each other, formats the model
+# doesn't have, pointers and scalable vectors are refused too. tests/x86check.py checks what the accepted ones mean
 # against Alive2.
 refuses 'big-endian integer bitcast' 'target datalayout = "E"
 define <4 x i8> @f(<2 x i16> %x) { %r = bitcast <2 x i16> %x to <4 x i8>
   ret <4 x i8> %r }'
 refuses 'nondividing lane widths' 'define <3 x i8> @f(<2 x i12> %x) { %r = bitcast <2 x i12> %x to <3 x i8>
   ret <3 x i8> %r }'
-refuses 'type' 'define <2 x i32> @f(<2 x float> %x) { %r = bitcast <2 x float> %x to <2 x i32>
+refuses 'type ppc_fp128' 'define i128 @f(ppc_fp128 %x) { %r = bitcast ppc_fp128 %x to i128
+  ret i128 %r }'
+
+# Floating point, in IRLean/Float.lean: a float is its bits. What it doesn't model yet, or ever, is refused by name,
+# as docs/float.md says, and tests/fpcheck.py and tests/float.sh check what it accepts.
+accepts 'define <2 x i32> @f(<2 x float> %x) { %r = bitcast <2 x float> %x to <2 x i32>
   ret <2 x i32> %r }'
-refuses 'type' 'define <vscale x 4 x i8> @f(<vscale x 2 x i16> %x) { %r = bitcast <vscale x 2 x i16> %x to <vscale x 4 x i8>
+accepts 'target triple = "x86_64-unknown-linux-gnu"
+define i1 @f(double %x) { %r = fcmp nnan nsz arcp contract afn olt double %x, 1.0
+  ret i1 %r }'
+accepts 'define float @f(float %x) denormal_fpenv(ieee|ieee) { ret float %x }'
+refuses 'type x86_fp80' 'define x86_fp80 @f(x86_fp80 %x) { ret x86_fp80 %x }'
+refuses 'instruction %r = fadd' 'define float @f(float %x) { %r = fadd float %x, 1.0
+  ret float %r }'
+refuses 'fast-math flag reassoc on %r = fcmp' 'define i1 @f(float %x) { %r = fcmp reassoc olt float %x, 1.0
+  ret i1 %r }'
+refuses 'fast-math flag nsz on %r = fneg' 'define float @f(float %x) { %r = fneg nsz float %x
+  ret float %r }'
+refuses 'fast-math flag nnan on %r = select' 'define float @f(i1 %c, float %x) { %r = select nnan i1 %c, float %x, float 1.0
+  ret float %r }'
+refuses 'function attribute denormal_fpenv(preservesign)' 'define float @f(float %x) denormal_fpenv(preservesign) {
+  ret float %x }'
+refuses 'function attribute strictfp' 'define float @f(float %x) strictfp { ret float %x }'
+refuses 'type float for target i386' 'target triple = "i386-unknown-linux-gnu"
+define float @f(float %x) { ret float %x }'
+refuses 'type float for target wasm32' 'target triple = "wasm32-unknown-unknown"
+define i32 @f(float %x) { %r = bitcast float %x to i32
+  ret i32 %r }'
+accepts 'define <2 x float> @f(<2 x float> nofpclass(nan) %x) { ret <2 x float> %x }'
+refuses 'parameter attribute nofpclass(nan) on an aggregate' 'define { float, float } @f({ float, float } nofpclass(nan) %x) {
+  ret { float, float } %x }'
+
+# `nofpclass` on a vector makes only the lanes in a class it names poison, as `range` on a vector does.
+cat >"$work/FClass.ll" <<'IR'
+define <2 x float> @f(<2 x float> nofpclass(nan) %x) {
+  ret <2 x float> %x
+}
+IR
+cat >"$work/FClassCheck.lean" <<'LEAN'
+import FClass
+open IRLean
+#guard (match FClass.f #v[some 0x7FC00000#32, some 0x3F800000#32] with
+  | some (.ok v) => (v[0], v[1]) == (none, some 0x3F800000#32)
+  | _ => false)
+LEAN
+if "$tool" "$work/FClass.ll" -o "$work/FClass.lean" --namespace FClass &&
+  lean -R "$work" -o "$work/FClass.olean" "$work/FClass.lean" && lean "$work/FClassCheck.lean"; then
+  printf 'ok    nofpclass on a vector makes a lane poison on its own\n'
+else
+  fail 'nofpclass on a vector'
+fi
+refuses 'integer bitcast shape' 'define <vscale x 4 x i8> @f(<vscale x 2 x i16> %x) { %r = bitcast <vscale x 2 x i16> %x to <vscale x 4 x i8>
   ret <vscale x 4 x i8> %r }'
 refuses 'integer bitcast shape' 'define ptr @f(ptr %x) { %r = bitcast ptr %x to ptr
   ret ptr %r }'
@@ -131,6 +180,22 @@ fi
 accepts 'target datalayout = "e"
 define <4 x i8> @f(<2 x i16> %x) { %r = bitcast <2 x i16> %x to <4 x i8>
   ret <4 x i8> %r }'
+
+# What `Mem` assumes of pointers is read from the data layout: 64 bits, all of them address, null all zeros, and
+# little-endian bytes. A function with memory under any other is refused.
+for layout in e-p:32:32 E-p:64:64 e-p:64:64:64:32 e-po:64:64; do
+  refuses "data layout $layout" "target datalayout = \"$layout\"
+define i1 @f(ptr %p) { %c = icmp eq ptr %p, null
+  ret i1 %c }"
+done
+# A global holding a pointer in another address space, whose null `po1` makes all ones, is refused too.
+refuses 'pointer in another address space' 'target datalayout = "e-po1:64:64"
+@g = global ptr addrspace(1) null
+define i64 @f() { %v = load i64, ptr @g
+  ret i64 %v }'
+accepts 'target datalayout = "e-pz:64:64-i64:64"
+define i1 @f(ptr %p) { %c = icmp eq ptr %p, null
+  ret i1 %c }'
 
 # A function of N blocks that calls itself, which keeps it from nesting its blocks.
 recursive_blocks() {
@@ -244,11 +309,46 @@ for linkage in '' internal private dso_local; do
 done
 
 # Function attributes: anything that isn't on the reviewed list.
-for attribute in noreturn naked returns_twice sanitize_address strictfp null_pointer_is_valid \
-  convergent nocf_check speculatable nocallback '"made-up"="1"'; do
+for attribute in naked returns_twice strictfp null_pointer_is_valid '"made-up"="1"'; do
   # The verifier rejects a naked function that reads its arguments.
   refuses "attribute" "define i32 @f(i32 %x) $attribute { ret i32 0 }"
 done
+# Accepted on review, with the reasons in docs/ir-features.md. `noreturn` makes the `ret` undefined, which
+# `noreturn_returns` in tests/real/ub.ll checks.
+for attribute in noreturn sanitize_address convergent nocf_check speculatable nocallback; do
+  accepts "define i32 @f(i32 %x) $attribute { ret i32 0 }"
+done
+# `speculatable` would rule out effects nothing checks, and makes a call undefined even where it doesn't run.
+refuses 'speculatable on a function that uses memory' 'define i32 @f(ptr %p) speculatable {
+  %v = load i32, ptr %p
+  ret i32 %v
+}'
+refuses 'which is speculatable' 'define internal i32 @g(i32 %x) speculatable { ret i32 %x }
+define i32 @f(i32 %x) {
+  %y = call i32 @g(i32 %x)
+  ret i32 %y
+}'
+# ABI attributes have to be the same at a call and on the callee, or LangRef says the behavior may be undefined.
+refuses 'ABI attributes' 'define internal i32 @g(i32 %x) { ret i32 %x }
+define i32 @f(i32 %x) {
+  %r = call i32 @g(i32 inreg %x)
+  ret i32 %r
+}'
+refuses 'ABI attributes' 'define internal signext i8 @g(i8 %x) { ret i8 %x }
+define i8 @f(i8 %x) {
+  %r = call i8 @g(i8 %x)
+  ret i8 %r
+}'
+refuses 'ABI attributes' 'declare i8 @g(i8 zeroext) memory(none)
+define i8 @f(i8 %x) {
+  %r = call i8 @g(i8 %x)
+  ret i8 %r
+}'
+accepts 'define internal i32 @g(i32 inreg %x) { ret i32 %x }
+define i32 @f(i32 %x) {
+  %r = call i32 @g(i32 inreg %x)
+  ret i32 %r
+}'
 refuses 'call attribute nobuiltin' 'declare ptr @malloc(i64)
 define ptr @f() {
   %p = call ptr @malloc(i64 8) nobuiltin
@@ -321,6 +421,9 @@ define i32 @f() { %v = load i32, ptr @g
   ret i32 %v }'
 refuses 'external global @g, which may be null' '@g = extern_weak global i32
 define ptr @f() { ret ptr @g }'
+refuses 'external global @g in address space 1' '@g = external addrspace(1) global i32
+define i32 @f() { %v = load i32, ptr addrspace(1) @g
+  ret i32 %v }'
 refuses "external global @g, whose size isn't known" '%T = type opaque
 @g = external global %T
 define ptr @f() { ret ptr @g }'
@@ -358,6 +461,54 @@ define void @f(i8 %x) mustprogress { call void @h(i8 %x)
 accepts 'declare i8 @g(i8) memory(read)
 define i8 @f(i8 %x) mustprogress { %r = call i8 @g(i8 %x)
   ret i8 %r }'
+# A recursive function's promise is its cycle's, and covers a call with effects in it the same way.
+refuses 'with effects, under a promise to progress' 'declare void @e()
+define void @f(i1 %c) {
+entry:
+  br i1 %c, label %rec, label %loop
+rec:
+  call void @f(i1 false)
+  ret void
+loop:
+  call void @e()
+  br label %loop, !llvm.loop !0
+}
+!0 = distinct !{!0, !1}
+!1 = !{!"llvm.loop.mustprogress"}'
+# A function with memory can't reach a call outside the module that may touch it through one without memory.
+for memory in '' ' memory(read)'; do
+  refuses 'whose calls outside the module may access' "declare i32 @e()$memory
+define internal i32 @g() { %r = call i32 @e()
+  ret i32 %r }
+define i32 @f(ptr %p) { %a = load i32, ptr %p
+  %c = call i32 @g()
+  %b = load i32, ptr %p
+  ret i32 %b }"
+done
+accepts 'declare i32 @e() memory(inaccessiblemem: readwrite)
+define internal i32 @g() { %r = call i32 @e()
+  ret i32 %r }
+define i32 @f(ptr %p) { %a = load i32, ptr %p
+  %c = call i32 @g()
+  ret i32 %a }'
+# `speculatable` promises no effects, which a call outside the module with effects has, directly or through another.
+refuses 'speculatable on a function whose calls outside the module have effects' 'declare void @e(i8)
+define void @f(i8 %x) speculatable { call void @e(i8 %x)
+  ret void }'
+refuses 'speculatable on a function whose calls outside the module have effects' 'declare void @e(i8)
+define internal void @g(i8 %x) { call void @e(i8 %x)
+  ret void }
+define void @f(i8 %x) speculatable { call void @g(i8 %x)
+  ret void }'
+accepts 'declare i8 @e(i8) memory(none) willreturn nounwind
+define i8 @f(i8 %x) speculatable { %r = call i8 @e(i8 %x)
+  ret i8 %r }'
+# `nosync` at a call promises the callee's calls outside the module don't synchronize.
+refuses 'call attribute nosync on a call to @g' 'declare void @e(i8)
+define internal void @g(i8 %x) { call void @e(i8 %x)
+  ret void }
+define void @f(i8 %x) { call void @g(i8 %x) nosync
+  ret void }'
 # A callee that accesses memory may synchronize, free, or access what its caller promised not to.
 refuses 'nosync on a function whose calls outside the module access memory' 'declare i8 @g(i8) memory(read)
 define i8 @f(i8 %x) nosync { %r = call i8 @g(i8 %x)
@@ -397,6 +548,9 @@ refuses 'stack frame or promises about memory' 'declare i8 @g(i8) memory(none)
 define i8 @f(ptr %p) memory(read) { %v = load i8, ptr %p
   %r = call i8 @g(i8 %v)
   ret i8 %r }'
+refuses 'call to external @g, which may be null' 'declare extern_weak void @g(i8)
+define void @f(i8 %x) { call void @g(i8 %x)
+  ret void }'
 refuses 'calling convention' 'declare fastcc i8 @g(i8) memory(none)
 define i8 @f(i8 %x) { %r = call i8 @g(i8 %x)
   ret i8 %r }'
