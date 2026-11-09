@@ -43,7 +43,7 @@ add_test(
         ${CMAKE_SOURCE_DIR}/tests/differential.py $<TARGET_FILE:ir-lean>
         ${CMAKE_SOURCE_DIR}/tests/real/pointers.c ${CMAKE_SOURCE_DIR}/tests/real/vectors.ll
         ${CMAKE_SOURCE_DIR}/tests/real/heap.ll ${CMAKE_SOURCE_DIR}/tests/real/gep.ll
-        ${CMAKE_SOURCE_DIR}/tests/real/promises.ll --strict
+        ${CMAKE_SOURCE_DIR}/tests/real/promises.ll ${CMAKE_SOURCE_DIR}/tests/real/lanes.ll --strict
 )
 add_test(
     NAME undefined
@@ -261,7 +261,11 @@ add_test(NAME x86check COMMAND ${CMAKE_SOURCE_DIR}/tests/x86check.py $<TARGET_FI
 # noundef and range on vectors and structs, against Alive2, both ways, and LLVM's constant folder, poison
 # lanes and undefined behavior included, with a wrong result for each that Alive2 has to refuse. About 6 s.
 add_test(NAME vecopcheck COMMAND ${CMAKE_SOURCE_DIR}/tests/vecopcheck.py $<TARGET_FILE:ir-lean>)
-set_tests_properties(vecopcheck PROPERTIES TIMEOUT 900)
+# Scalable vectors, IRLean/Scalable.lean, which Alive2 can't read: each operation at vscale 1, 2 and 4 against
+# the same operation on fixed-width vectors, which the tests above check, splats against LLVM's constant
+# folder, and llvm.vscale and vscale_range against LangRef. About 25 s.
+add_test(NAME scalablecheck COMMAND ${CMAKE_SOURCE_DIR}/tests/scalablecheck.py $<TARGET_FILE:ir-lean>)
+set_tests_properties(vecopcheck scalablecheck PROPERTIES TIMEOUT 900)
 # Refuting the three wrong rewrites takes about as long as everything else, so it's a test of its own, labeled
 # for a CI job of its own. `llama` refutes the change to the mask.
 add_test(NAME llama COMMAND ${CMAKE_SOURCE_DIR}/tests/llama.py $<TARGET_FILE:ir-lean> --mutants mask)
