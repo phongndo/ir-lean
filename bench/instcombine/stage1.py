@@ -39,6 +39,7 @@ import os
 import random
 import re
 import shlex
+import shutil
 import sys
 import tempfile
 import time
@@ -611,6 +612,44 @@ def prove_pair(pair: dict, work: Path, timeout: int, memory: int, versions: dict
     return {**out, "lean": "error", "reason": result.get("reason") or ",".join(denials)}
 
 
+@functools.cache
+def fingerprint() -> str:
+    """What every stage's record rests on besides its pair: the emitter, IRLean's library, Lean, the checkers
+    tools/verify.py and tools/binding.py run, the gate, and alive-tv. A record made with anything else is
+    stale."""
+    v = VN.load_verify()
+    versions = VN.current_versions(v, TOOL)
+    alive = Path(os.path.realpath(shutil.which("alive-tv") or "alive-tv"))
+    parts = {
+        "ir_lean": versions["ir_lean_binary_sha256"],
+        "irlean_library": versions["irlean_library_sha256"],
+        "lean": versions["lean"],
+        "checkers": VN.checker_hashes(),
+        "binding": hashing.sha256_file(BINDING_PY),
+        "gate": hashing.sha256_file(ROOT / "tests" / "verify_negative.py"),
+        "alive_tv": hashing.sha256_file(alive) if alive.is_file() else "missing",
+    }
+    return sha(json.dumps(parts, sort_keys=True))
+
+
+def pair_key(pair: dict) -> str:
+    """A record's key: the pair, by its id and the hashes of its input, source and target IR, and the
+    toolchain. A record whose key isn't this is about another pair or other tools, and never counts."""
+    ir = [pair.get(k) or "" for k in ("input_sha256", "src_sha256", "tgt_sha256")]
+    return sha("\0".join([pair["id"], *ir, fingerprint()]))
+
+
+def records(work: Path, stage: str, pairs: dict[str, dict]) -> dict[str, dict]:
+    """A stage's records for the pairs as they are now, made with this toolchain. A stale one is ignored, so
+    the stage does that pair again, and the report never counts it."""
+    out = {}
+    for r in read_jsonl(work / f"{stage}.jsonl"):
+        p = pairs.get(r.get("id", ""))
+        if p is not None and r.get("key") == pair_key(p):
+            out[r["id"]] = r
+    return out
+
+
 def read_jsonl(path: Path) -> list[dict]:
     return (
         [json.loads(line) for line in path.read_text().splitlines() if line.strip()] if path.exists() else []
@@ -632,7 +671,8 @@ def sample(work: Path, upto: int | None) -> set[str] | None:
 def cmd_prove(args: argparse.Namespace) -> int:
     work: Path = args.work
     pairs = [p for p in read_jsonl(work / "pairs.jsonl") if p["status"] == "candidate"]
-    done = {r["id"]: r for r in read_jsonl(work / "prove.jsonl")} if not args.again else {}
+    by_id = {p["id"]: p for p in pairs}
+    done = records(work, "prove", by_id) if not args.again else {}
     keep = sample(work, getattr(args, "upto", None))
     # Only pairs tools/binding.py can bind: with `certify`, every certificate there can be, which gives G1.
     only = eligible if getattr(args, "eligible_only", False) else (lambda p: True)
@@ -652,11 +692,11 @@ def cmd_prove(args: argparse.Namespace) -> int:
         ]
         for n, fut in enumerate(concurrent.futures.as_completed(futures), 1):
             r = fut.result()
-            f.write(json.dumps(r) + "\n")
+            f.write(json.dumps({**r, "key": pair_key(by_id[r["id"]])}) + "\n")
             f.flush()
             if n % 25 == 0:
                 print(f"{n}/{len(todo)} pairs, {time.time() - t0:.0f} s", file=sys.stderr)
-    rows = list(done.values()) + read_jsonl(work / "prove.jsonl")[len(done) :]
+    rows = list(records(work, "prove", by_id).values())
     counts: dict[str, int] = {}
     for r in rows:
         counts[f"{r['lean']}:{r['reason']}"] = counts.get(f"{r['lean']}:{r['reason']}", 0) + 1
@@ -783,8 +823,8 @@ def eligible(pair: dict) -> bool:
 def cmd_certify(args: argparse.Namespace) -> int:
     work: Path = args.work
     pairs = {p["id"]: p for p in read_jsonl(work / "pairs.jsonl")}
-    proved = {r["id"]: r for r in read_jsonl(work / "prove.jsonl") if r["lean"] == "proved"}
-    done = {r["id"] for r in read_jsonl(work / "certify.jsonl")}
+    proved = {i: r for i, r in records(work, "prove", pairs).items() if r["lean"] == "proved"}
+    done = set(records(work, "certify", pairs))
     keep = sample(work, getattr(args, "upto", None))
     todo = [
         pairs[i]
@@ -800,12 +840,13 @@ def cmd_certify(args: argparse.Namespace) -> int:
             pool.submit(certify_pair, p, proved[p["id"]], work, args.timeout, args.lean_memory) for p in todo
         ]
         for n, fut in enumerate(concurrent.futures.as_completed(futures), 1):
-            f.write(json.dumps(fut.result()) + "\n")
+            r = fut.result()
+            f.write(json.dumps({**r, "key": pair_key(pairs[r["id"]])}) + "\n")
             f.flush()
             if n % 10 == 0:
                 print(f"{n}/{len(todo)} bundles, {time.time() - t0:.0f} s", file=sys.stderr)
     counts: dict[str, int] = {}
-    for r in read_jsonl(work / "certify.jsonl"):
+    for r in records(work, "certify", pairs).values():
         counts[f"{r['gate']}:{r['reason']}"] = counts.get(f"{r['gate']}:{r['reason']}", 0) + 1
     print(json.dumps({"seconds": round(time.time() - t0, 1), "counts": counts}, indent=1))
     return 0
@@ -880,7 +921,8 @@ def cmd_alive(args: argparse.Namespace) -> int:
     work: Path = args.work
     wanted = ("candidate",) if getattr(args, "candidates_only", False) else ("candidate", "unsupported")
     pairs = [p for p in read_jsonl(work / "pairs.jsonl") if p["status"] in wanted]
-    done = {r["id"] for r in read_jsonl(work / "alive.jsonl")}
+    by_id = {p["id"]: p for p in pairs}
+    done = set(records(work, "alive", by_id))
     keep = sample(work, getattr(args, "upto", None))
     todo = sorted(
         (p for p in pairs if p["id"] not in done and (keep is None or p["id"] in keep)), key=lambda p: p["id"]
@@ -891,12 +933,12 @@ def cmd_alive(args: argparse.Namespace) -> int:
         concurrent.futures.ThreadPoolExecutor(max_workers=args.jobs) as pool,
     ):
         for n, r in enumerate(pool.map(lambda p: alive_pair(p, work, args.timeout), todo), 1):
-            f.write(json.dumps(r) + "\n")
+            f.write(json.dumps({**r, "key": pair_key(by_id[r["id"]])}) + "\n")
             f.flush()
             if n % 100 == 0:
                 print(f"{n}/{len(todo)} pairs, {time.time() - t0:.0f} s", file=sys.stderr)
     counts: dict[str, int] = {}
-    for r in read_jsonl(work / "alive.jsonl"):
+    for r in records(work, "alive", by_id).values():
         k = f"{r['alive']}:{r['reason'] if r['alive'] == 'unknown' else ''}"
         counts[k] = counts.get(k, 0) + 1
     print(json.dumps({"seconds": round(time.time() - t0, 1), "counts": counts}, indent=1))
@@ -1128,9 +1170,9 @@ def cmd_refute(args: argparse.Namespace) -> int:
             f"can't read IRLean.UB or IRLean.ModelStop from IRLean/Basic.lean: {UB_REASONS} {MODEL_STOPS}"
         )
     pairs = {p["id"]: p for p in read_jsonl(work / "pairs.jsonl")}
-    prove = {r["id"]: r for r in read_jsonl(work / "prove.jsonl")}
-    alive = {r["id"]: r for r in read_jsonl(work / "alive.jsonl")}
-    done = {r["id"] for r in read_jsonl(work / "refute.jsonl")}
+    prove = records(work, "prove", pairs)
+    alive = records(work, "alive", pairs)
+    done = set(records(work, "refute", pairs))
     todo = [
         i
         for i, r in prove.items()
@@ -1158,12 +1200,13 @@ def cmd_refute(args: argparse.Namespace) -> int:
             for i in todo
         ]
         for n, fut in enumerate(concurrent.futures.as_completed(futures), 1):
-            f.write(json.dumps(fut.result()) + "\n")
+            r = fut.result()
+            f.write(json.dumps({**r, "key": pair_key(pairs[r["id"]])}) + "\n")
             f.flush()
             if n % 25 == 0:
                 print(f"{n}/{len(todo)} pairs, {time.time() - t0:.0f} s", file=sys.stderr)
     counts: dict[str, int] = {}
-    for r in read_jsonl(work / "refute.jsonl"):
+    for r in records(work, "refute", pairs).values():
         counts[f"{r['refute']}:{r['reason']}"] = counts.get(f"{r['refute']}:{r['reason']}", 0) + 1
     print(json.dumps({"seconds": round(time.time() - t0, 1), "counts": counts}, indent=1))
     return 0
@@ -1185,7 +1228,8 @@ def lean_verdict(pair: dict, prove: dict | None, cert: dict | None, refute: dict
         return "unsupported", pair["reason"]
     if pair["status"] != "candidate" or prove is None:
         return "error", pair.get("reason") or "not_run"
-    if cert is not None and cert["gate"] == "bound":
+    # A certificate counts only beside the current proof, of the same pair, with the same tools.
+    if cert is not None and cert["gate"] == "bound" and prove["lean"] == "proved":
         return "certified", "bound"
     if prove["lean"] == "proved":
         return "proved", "kernel_checked"
@@ -1392,11 +1436,26 @@ def summarize(work: Path, upto: int | None = None) -> dict:
     pairs = read_jsonl(work / "pairs.jsonl")
     keep = sample(work, upto)
 
-    def kept(path: Path) -> dict[str, dict]:
-        return {r["id"]: r for r in read_jsonl(path) if keep is None or r["id"] in keep}
+    by_id = {p["id"]: p for p in pairs}
 
-    prove, cert = kept(work / "prove.jsonl"), kept(work / "certify.jsonl")
-    alive, refute = kept(work / "alive.jsonl"), kept(work / "refute.jsonl")
+    def kept(stage: str) -> dict[str, dict]:
+        return {i: r for i, r in records(work, stage, by_id).items() if keep is None or i in keep}
+
+    prove, cert, alive, refute = kept("prove"), kept("certify"), kept("alive"), kept("refute")
+    # Chunk 1's G0 and G1 for this pass, as docs/chunks.md defines them: over every pair, sample or not.
+    translated = sum(1 for p in pairs if p["status"] == "candidate" or p["reason"] == "memory")
+    proved_all = {i for i, r in records(work, "prove", by_id).items() if r["lean"] == "proved"}
+    bound = sum(
+        1 for i, r in records(work, "certify", by_id).items() if r["gate"] == "bound" and i in proved_all
+    )
+    gates = {
+        "pairs": len(pairs),
+        "translated": translated,
+        "G0": round(translated / len(pairs), 4) if pairs else None,
+        "bindable": sum(1 for p in pairs if eligible(p)),
+        "certified": bound,
+        "G1": round(bound / len(pairs), 4) if pairs else None,
+    }
 
     def count(items: Any) -> dict:
         out: dict[str, int] = {}
@@ -1452,6 +1511,7 @@ def summarize(work: Path, upto: int | None = None) -> dict:
             "candidates": sum(1 for p in pairs if p["id"] in keep and p["status"] == "candidate"),
             "how": "the first pairs by id, a SHA-256 of test and function: a uniform sample",
         },
+        "gates": gates,
         "emitter_refusals": refusals(work, pairs),
         "pairs": {
             "status": count(f"{p['status']}:{p['reason']}" for p in pairs),
@@ -1941,6 +2001,7 @@ def cmd_ci(args: argparse.Namespace) -> int:
     if len(rows) != len(expect["pairs"]):
         print(f"FAIL  {len(rows)} pairs, and expect.json lists {len(expect['pairs'])}")
         failed += 1
+    failed += stale_records_ignored(work, [r for r in rows.values() if r["lean"] == "certified"])
     seen = {k: {c: n for c, n in v.items() if n} for k, v in summary["matrix"].items() if any(v.values())}
     print(
         f"{'FAIL' if failed else 'ok'}    {len(rows)} pairs in {time.time() - t0:.0f} s; "
@@ -1949,12 +2010,46 @@ def cmd_ci(args: argparse.Namespace) -> int:
     return 1 if failed else 0
 
 
+def stale_records_ignored(work: Path, certified: list[dict]) -> int:
+    """On copies of the run's records: a certified pair whose target changes since loses its verdict, and one
+    whose latest proof failed isn't certified, though its certificate is still about it. Returns the
+    failures."""
+    import shutil
+
+    if len(certified) < 2:
+        print("FAIL  the fixture has fewer than two certified pairs to check stale records with")
+        return 1
+    changed, unproved = certified[0]["id"], certified[1]["id"]
+    failed = 0
+    with tempfile.TemporaryDirectory(dir=work) as tmp:
+        copy = Path(tmp)
+        for name in ("pairs", "prove", "certify", "alive", "refute"):
+            shutil.copy(work / f"{name}.jsonl", copy / f"{name}.jsonl")
+        pairs = read_jsonl(copy / "pairs.jsonl")
+        with open(copy / "pairs.jsonl", "w") as f:
+            for p in pairs:
+                f.write(json.dumps({**p, "tgt_sha256": "0" * 64} if p["id"] == changed else p) + "\n")
+        last = next(
+            r for r in records(work, "prove", {p["id"]: p for p in pairs}).values() if r["id"] == unproved
+        )
+        with open(copy / "prove.jsonl", "a") as f:
+            f.write(json.dumps({**last, "lean": "failed", "reason": "proof_not_found"}) + "\n")
+        after = {r["id"]: r for r in rows_of(copy)}
+        for pid, why in ((changed, "its target changed"), (unproved, "its latest proof failed")):
+            if after[pid]["lean"] in ("certified", "proved"):
+                print(f"FAIL  {after[pid]['function']} is still {after[pid]['lean']} after {why}")
+                failed += 1
+            else:
+                print(f"ok    {after[pid]['function']}: {after[pid]['lean']} once {why}")
+    return failed
+
+
 def rows_of(work: Path) -> list[dict]:
+    """Each pair's verdicts, from stage records about the pair as it is now, made with this toolchain."""
     pairs = read_jsonl(work / "pairs.jsonl")
-    prove = {r["id"]: r for r in read_jsonl(work / "prove.jsonl")}
-    cert = {r["id"]: r for r in read_jsonl(work / "certify.jsonl")}
-    alive = {r["id"]: r for r in read_jsonl(work / "alive.jsonl")}
-    refute = {r["id"]: r for r in read_jsonl(work / "refute.jsonl")}
+    by_id = {p["id"]: p for p in pairs}
+    prove, cert = records(work, "prove", by_id), records(work, "certify", by_id)
+    alive, refute = records(work, "alive", by_id), records(work, "refute", by_id)
     out = []
     for p in pairs:
         if p["status"] == "skipped":
@@ -1993,14 +2088,16 @@ RESULTS = Path(__file__).resolve().parent / "results" / "summary.json"
 
 
 def cmd_publish(args: argparse.Namespace) -> int:
-    """Writes results/summary.json, the committed summary: InstCombine's sample, from `report --upto`, and the
-    known miscompilations, from `report` on their WORK, each with the toolchain it ran on."""
+    """Writes results/summary.json, the committed summary: InstCombine's sample, from `report --upto`, the
+    known miscompilations, from `report` on their WORK, and InstCombine's G0 and G1, from `report` on a run of
+    `pairs`, `prove --eligible-only` and `certify`, each with the toolchain it ran on."""
     sample = json.loads(Path(args.sample).read_text())
     known = json.loads(Path(args.known).read_text())
-    for s in (sample, known):
+    gates = json.loads(Path(args.gates).read_text())
+    for s in (sample, known, gates):
         schemas.check(s, SUMMARY_SCHEMA)
     RESULTS.parent.mkdir(parents=True, exist_ok=True)
-    out = {"schema": SUMMARY_SCHEMA, "instcombine": sample, "known_wrong": known}
+    out = {"schema": SUMMARY_SCHEMA, "instcombine": sample, "known_wrong": known, "instcombine_gates": gates}
     RESULTS.write_text(json.dumps(out, indent=1, ensure_ascii=False) + "\n")
     print(f"wrote {RESULTS.relative_to(ROOT)}, {RESULTS.stat().st_size // 1024} KiB")
     return 0
@@ -2063,6 +2160,7 @@ def main() -> int:
     p = sub.add_parser("publish")
     p.add_argument("--sample", type=Path, default=WORK / "summary-4000.json")
     p.add_argument("--known", type=Path, default=ROOT / "build" / "stage1-known" / "summary.json")
+    p.add_argument("--gates", type=Path, default=ROOT / "build" / "stage1-head" / "summary.json")
     p = sub.add_parser("report")
     p.add_argument("--upto", type=int, help="only the first N changed pairs by id: a uniform sample")
     p.add_argument("--out", type=Path)
