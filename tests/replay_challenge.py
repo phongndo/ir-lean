@@ -25,16 +25,12 @@ stopped it, or there wasn't enough memory free. 3 is never a pass.
 
 import argparse
 import contextlib
-import functools
 import importlib.util
 import json
 import os
 import re
-import resource
 import secrets
 import shutil
-import signal
-import subprocess
 import sys
 import tempfile
 from collections.abc import Callable
@@ -43,11 +39,15 @@ from types import ModuleType
 from typing import Any, NamedTuple
 
 ROOT = Path(__file__).resolve().parent.parent
+sys.path.append(str(ROOT / "tools"))
+from irlean import lean as leanlib  # noqa: E402
+from irlean import proc  # noqa: E402
+
 HERE = ROOT / "tests" / "replay_challenge"
 CORPUS = ROOT / "tests" / "verification_negative" / "cases"
 BINDING = ROOT / "tools" / "binding.py"
 TOOL = ROOT / "build" / "ir-lean"
-LIBRARY = ROOT / ".lake" / "build" / "lib" / "lean"
+LIBRARY = leanlib.LIBRARY
 WORK = ROOT / "build" / "replay-challenge"
 
 # One alive-tv run: its solver's time per query, and the process's wall time and memory.
@@ -148,14 +148,7 @@ class Ran(NamedTuple):
     out: str
 
 
-@functools.cache
-def scope_works() -> bool:
-    probe = ["systemd-run", "--user", "--scope", "--quiet", "--", "true"]
-    return (
-        sys.platform.startswith("linux")
-        and shutil.which("systemd-run") is not None
-        and subprocess.run(probe, capture_output=True, check=False).returncode == 0
-    )
+scope_works = proc.scopes_work
 
 
 def contained(
@@ -166,63 +159,24 @@ def contained(
     env: dict[str, str] | None = None,
     address_limit: bool = False,
 ) -> Ran:
-    """Runs `argv` in a process group of its own, and in a scope capped at `memory_mb` with no swap where
-    systemd can make one. Without one, `address_limit` caps its address space instead, which Lean can't run
-    under, so a Lean process relies on its own `-M`. Running out of time, or dying by a signal, is a limit,
-    never an answer. Whatever it leaves running is killed."""
-    unit = f"ir-lean-replay-challenge-{os.getpid()}-{secrets.token_hex(4)}"
-    command = argv
-    preexec: Callable[[], None] | None = None
-    if scope_works():
-        command = [
-            "systemd-run",
-            "--user",
-            "--scope",
-            "--quiet",
-            f"--unit={unit}",
-            f"--property=MemoryMax={memory_mb}M",
-            "--property=MemorySwapMax=0",
-            "--",
-            *argv,
-        ]
-    elif address_limit:
-
-        def preexec() -> None:
-            resource.setrlimit(resource.RLIMIT_AS, (memory_mb << 20, memory_mb << 20))
-
-    with tempfile.TemporaryFile() as out:
-        p = subprocess.Popen(
-            command,
-            stdin=subprocess.DEVNULL,
-            stdout=out,
-            stderr=subprocess.STDOUT,
-            cwd=cwd,
-            env={**os.environ, **(env or {})},
-            start_new_session=True,
-            # This process starts no threads, so nothing holds a lock across the fork.
-            preexec_fn=preexec,  # noqa: PLW1509
-        )
-        limit = None
-        try:
-            p.wait(timeout=seconds)
-        except subprocess.TimeoutExpired:
-            limit = "time_limit"
-        finally:
-            if scope_works():
-                subprocess.run(
-                    ["systemctl", "--user", "kill", "--signal=SIGKILL", f"{unit}.scope"],
-                    capture_output=True,
-                    check=False,
-                )
-            with contextlib.suppress(ProcessLookupError, PermissionError):
-                os.killpg(p.pid, signal.SIGKILL)
-            p.kill()
-            p.wait()
-        out.seek(0)
-        text = out.read().decode(errors="replace")
-    if limit is None and (p.returncode < 0 or p.returncode == 137):
+    """Runs `argv` in a session of its own, and in a scope capped at `memory_mb` with no swap where systemd
+    can make one. Without one, `address_limit` caps its address space instead, which Lean can't run under,
+    so a Lean process relies on its own `-M`. Running out of time, or dying by a signal, is a limit, never an
+    answer. Whatever it leaves running is killed."""
+    r = proc.run(
+        argv,
+        timeout=seconds,
+        scope=proc.Scope("ir-lean-replay-challenge", memory_mb),
+        address_mb=memory_mb if address_limit and not scope_works() else None,
+        cwd=cwd,
+        env={**os.environ, **(env or {})},
+        stderr=proc.STDOUT,
+    )
+    # A scope that runs out of memory kills it, as resource_limit.
+    limit = r.limit
+    if limit is None and (r.exit < 0 or r.exit == 137):
         limit = "resource_limit"
-    return Ran(limit, p.returncode, text)
+    return Ran(limit, r.exit, r.out)
 
 
 def running(marker: str) -> list[int]:
@@ -442,21 +396,11 @@ def binding(*args: str, seconds: int = 3600) -> tuple[int, str, str]:
     """tools/binding.py: (exit code, stdout, stderr). It limits each process it runs, and this limits it, past
     what its steps take at their limits. If this one stops it, the scopes it made are killed too, as they're
     outside its process group."""
-    with subprocess.Popen(
-        [sys.executable, str(BINDING), *args], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True
-    ) as p:
-        try:
-            out, err = p.communicate(timeout=seconds)
-        except subprocess.TimeoutExpired:
-            p.kill()
-            p.communicate()
-            subprocess.run(
-                ["systemctl", "--user", "kill", "--signal=SIGKILL", f"ir-lean-binding-{p.pid}-*.scope"],
-                capture_output=True,
-                check=False,
-            )
-            return -1, "", f"tools/binding.py {args[0]} took more than {seconds} s"
-    return p.returncode, out, err
+    r = proc.run([sys.executable, str(BINDING), *args], timeout=seconds)
+    if r.limit is not None:
+        proc.kill_scope(f"ir-lean-binding-{r.pid}-*")
+        return -1, "", f"tools/binding.py {args[0]} took more than {seconds} s"
+    return r.exit, r.out, r.err
 
 
 def verify(manifest: Path) -> tuple[dict[str, Any] | str, int]:
@@ -637,8 +581,7 @@ def runner_cases(report: Report) -> None:
             report.add(case, "ok", f"{got[0]}/{got[1]}" + (", nothing left running" if left else ""))
         else:
             for pid in stray:
-                with contextlib.suppress(ProcessLookupError):
-                    os.kill(pid, signal.SIGKILL)
+                proc.kill_tree(pid)
             report.add(case, "fail", f"{got}, not {want}" + (f", and {stray} left running" if stray else ""))
     case = "static/runner/memory"
     if report.wanted(case):
@@ -887,14 +830,14 @@ def model_pairs(report: Report) -> None:
     d = WORK / "model"
     shutil.rmtree(d, ignore_errors=True)
     d.mkdir(parents=True)
-    env = {"LEAN_PATH": f"{d}:{LIBRARY}", "ELAN_TOOLCHAIN": (ROOT / "lean-toolchain").read_text().strip()}
+    env = {"LEAN_PATH": f"{d}:{LIBRARY}", "ELAN_TOOLCHAIN": leanlib.toolchain()}
     r = contained(
         [str(TOOL), str(HERE / "pairs.ll"), "--namespace", "RC", "-o", str(d / "RC.lean")], 120, 2048
     )
     steps = [r]
     if r.code == 0 and not r.limit:
         r = contained(
-            ["lean", "-j1", "-M", str(LEAN_MB), "-o", "RC.olean", "RC.lean"],
+            leanlib.argv(LEAN_MB, "-o", "RC.olean", "RC.lean", threads=1, stack_kb=None),
             LEAN_SECONDS,
             LEAN_MB + 512,
             d,
@@ -911,7 +854,11 @@ def model_pairs(report: Report) -> None:
             + "\n"
         )
         r = contained(
-            ["lean", "-j1", "-M", str(LEAN_MB), "Evaluate.lean"], LEAN_SECONDS, LEAN_MB + 512, d, env
+            leanlib.argv(LEAN_MB, "Evaluate.lean", threads=1, stack_kb=None),
+            LEAN_SECONDS,
+            LEAN_MB + 512,
+            d,
+            env,
         )
         steps.append(r)
     if any(s.limit for s in steps):

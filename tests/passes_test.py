@@ -19,7 +19,6 @@ import argparse
 import importlib.util
 import json
 import shutil
-import subprocess
 import sys
 import tempfile
 import threading
@@ -28,6 +27,9 @@ from pathlib import Path
 from typing import Any
 
 ROOT = Path(__file__).resolve().parent.parent
+sys.path.append(str(ROOT / "tools"))
+from irlean import hashing, proc  # noqa: E402
+
 HERE = ROOT / "tests" / "passes"
 WORK = ROOT / "build" / "passes-test"
 SCORER = [sys.executable, str(ROOT / "tests" / "passes.py")]
@@ -226,7 +228,7 @@ def static(f: Failures) -> None:
             m = {
                 "claim": {"kind": "ir_instance_equivalence", "function": function},
                 "transform": {"passes": passes, "mtriple": None},
-                "artifacts": {"input": {"path": "input.ll", "sha256": P.hashlib.sha256(data).hexdigest()}},
+                "artifacts": {"input": {"path": "input.ll", "sha256": hashing.sha256(data)}},
             }
             manifest.write_text(json.dumps(m))
             (manifest.parent / "input.ll").write_bytes(data)
@@ -369,16 +371,13 @@ def static(f: Failures) -> None:
             P.run = real_run
 
     scopes(f)
-    r = subprocess.run(
-        [*SCORER, "--kind", "ir_instance_refinement", "--work", str(Path(tempfile.gettempdir()) / "unused")],
-        capture_output=True,
-        text=True,
-        check=False,
+    r = proc.run(
+        [*SCORER, "--kind", "ir_instance_refinement", "--work", str(Path(tempfile.gettempdir()) / "unused")]
     )
     f.check(
-        r.returncode == 1 and "proves only ir_instance_equivalence" in r.stderr,
+        r.exit == 1 and "proves only ir_instance_equivalence" in r.err,
         "a full run with a claim kind the automation can't prove is refused before it starts",
-        (r.returncode, r.stderr[-300:]),
+        (r.exit, r.err[-300:]),
     )
 
 
@@ -388,19 +387,19 @@ def scopes(f: Failures) -> None:
     with tempfile.TemporaryDirectory() as tmp:
         root = Path(tmp)
         procs = {
-            name: subprocess.Popen(["sleep", "60"], env={**P.os.environ, P.OWNER_ENV: token})
+            name: proc.spawn(["sleep", "60"], env={**P.os.environ, P.OWNER_ENV: token})
             for name, token in (("mine", "tok"), ("other", "someone-else"))
         }
         try:
             made = {}
-            for name, pid, proc in (
+            for name, pid, owner in (
                 ("mine", 123, "mine"),
                 ("other", 123, "other"),
                 ("elsewhere", 124, "mine"),
             ):
                 d = root / "app.slice" / f"ir-lean-binding-{pid}-{name}.scope"
                 d.mkdir(parents=True)
-                (d / "cgroup.procs").write_text(f"{procs[proc].pid}\n")
+                (d / "cgroup.procs").write_text(f"{procs[owner].pid}\n")
                 made[name] = d
             killed = P.kill_binding_scopes(123, "tok", root)
             f.check(
@@ -413,8 +412,7 @@ def scopes(f: Failures) -> None:
             )
         finally:
             for p in procs.values():
-                p.kill()
-                p.wait()
+                proc.stop(p)
 
 
 # ------------------------------------------------------------------------------------------------------------
@@ -423,19 +421,16 @@ def scopes(f: Failures) -> None:
 
 def score(work: Path, *extra: str) -> tuple[int, dict, list[dict], str]:
     """Runs the scorer on the fixtures. Its exit code, score.json, the instance records, and what it said."""
-    r = subprocess.run(
-        [*SCORER, "--files", *FIXTURES, "--only", "instcombine", "--work", str(work), *LIMITS, *extra],
-        capture_output=True,
-        text=True,
-        check=False,
+    r = proc.run(
+        [*SCORER, "--files", *FIXTURES, "--only", "instcombine", "--work", str(work), *LIMITS, *extra]
     )
     path = work / "score.json"
-    if r.returncode != 0 or not path.exists():
-        return r.returncode, {}, [], r.stdout + r.stderr
+    if r.exit != 0 or not path.exists():
+        return r.exit, {}, [], r.out + r.err
     s = json.loads(path.read_text())
     records = json.loads(Path(s["instance_records"]).read_text())
     path.unlink()
-    return r.returncode, s, records, r.stdout + r.stderr
+    return r.exit, s, records, r.out + r.err
 
 
 def by_function(records: list[dict]) -> dict[str, dict]:
@@ -493,12 +488,12 @@ def live(f: Failures, keep: bool) -> None:
         return
     manifest = work / got["guarded"]["bundle"]
 
-    r = subprocess.run([*BINDING, "verify", str(manifest)], capture_output=True, text=True, check=False)
-    verdict = json.loads(r.stdout) if r.stdout.startswith("{") else {}
+    r = proc.run([*BINDING, "verify", str(manifest)])
+    verdict = json.loads(r.out) if r.out.startswith("{") else {}
     f.check(
-        r.returncode == 0 and verdict.get("status") == "bound" and verdict.get("cache") == "disabled",
+        r.exit == 0 and verdict.get("status") == "bound" and verdict.get("cache") == "disabled",
         "the bundle is bound again by tools/binding.py alone, without any cache",
-        r.stdout[-1500:] + r.stderr,
+        r.out[-1500:] + r.err,
     )
     f.check("guarded" in verdict.get("statement", ""), "the statement is about the function", verdict)
 
@@ -572,23 +567,16 @@ def live(f: Failures, keep: bool) -> None:
     )
 
     refinement = ["--work", str(WORK / "refinement"), "--memory", "6000", "--kind", "ir_instance_refinement"]
-    r = subprocess.run(
-        [*SCORER, "--debug", FIXTURES[0], "instcombine", "", *refinement],
-        capture_output=True,
-        text=True,
-        check=False,
-    )
+    r = proc.run([*SCORER, "--debug", FIXTURES[0], "instcombine", "", *refinement])
     try:
-        judged = {
-            n: v for n, v in json.loads(r.stdout)["instances"].items() if n in ("guarded", "round_trip")
-        }
+        judged = {n: v for n, v in json.loads(r.out)["instances"].items() if n in ("guarded", "round_trip")}
     except (ValueError, KeyError):
         judged = {}
     f.check(
         len(judged) == 2
         and all((v["status"], v["reason"]) == ("failed", "no_automation") for v in judged.values()),
         "with IRLean.Refines on main, a refinement instance nothing here proves is failed, never bound",
-        (judged, r.stderr[-500:]),
+        (judged, r.err[-500:]),
     )
 
     stopped(f, WORK / "limits", SLOW, ["--timeout", "5"], {"distributes"}, "time_limit", "a 5 s wall clock")
@@ -628,16 +616,13 @@ def stopped(
 ) -> None:
     """With a limit too small to finish, every instance in `judge` is unknown for that reason, never failed,
     refused or bound."""
-    r = subprocess.run(
-        [*SCORER, "--debug", test, "instcombine", "", "--work", str(work), "--memory", "6000", *limits],
-        capture_output=True,
-        text=True,
-        check=False,
+    r = proc.run(
+        [*SCORER, "--debug", test, "instcombine", "", "--work", str(work), "--memory", "6000", *limits]
     )
     try:
-        found = json.loads(r.stdout)["instances"]
+        found = json.loads(r.out)["instances"]
     except (ValueError, KeyError):
-        f.check(False, f"{what} stops a step as unknown", r.stdout[-800:] + r.stderr[-800:])
+        f.check(False, f"{what} stops a step as unknown", r.out[-800:] + r.err[-800:])
         return
     judged = {n: v for n, v in found.items() if n in judge}
     f.check(

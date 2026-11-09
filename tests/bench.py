@@ -24,22 +24,24 @@ import json
 import os
 import resource
 import shutil
-import subprocess
 import sys
 import tempfile
 import time
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.append(os.path.join(ROOT, "tools"))
+from irlean import proc  # noqa: E402
+
 TESTS = ["ctest", "--test-dir", "build", "-LE", "slow", "--output-on-failure"]
 BUILD_LIBRARY = ["lake", "build", "--no-ansi"]
 BUILD_TOOL = ["ninja", "-C", "build"]
 
 
 def run(args, **kw):
-    r = subprocess.run(args, cwd=ROOT, text=True, capture_output=True, check=False, **kw)
-    if r.returncode != 0:
-        sys.exit(f"{' '.join(args)} failed:\n{r.stdout[-8000:]}{r.stderr[-2000:]}")
-    return r.stdout
+    r = proc.run(args, cwd=ROOT, **kw)
+    if r.exit != 0:
+        sys.exit(f"{' '.join(args)} failed:\n{r.out[-8000:]}{r.err[-2000:]}")
+    return r.out
 
 
 class Edit:

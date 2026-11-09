@@ -12,12 +12,10 @@ usage: tests/llvm.py path/to/ir-lean [--only NAME ...] [--no-mutants] [--manifes
 """
 
 import argparse
-import hashlib
 import json
 import os
 import re
 import shutil
-import subprocess
 import sys
 import tempfile
 import threading
@@ -29,28 +27,24 @@ from typing import Any
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.append(str(ROOT / "tools"))
-from irlean import proc  # noqa: E402
+from irlean import hashing, proc  # noqa: E402
+from irlean import lean as leanlib  # noqa: E402
 from irlean import verdict as core  # noqa: E402
 
 PROOFS = ROOT / "tests" / "llvm"
-LEAN_ERROR = re.compile(r"^.*?:(\d+):(\d+): error")
+LEAN_ERROR = leanlib.ERROR
 # A line that starts a command, or the doc comment of one.
 COMMAND = re.compile(r"(/--|theorem |def |end |namespace |section )")
 IMPORT = re.compile(r"^import (\S+)", re.MULTILINE)
 # Lean's errors for running out of time, memory or stack, in a tactic or the kernel. A proof that stops at one
 # of these might check with more, so it says nothing about whether the code changed. tests/proofs.sh has the
 # same list.
-LIMIT = re.compile(
-    r"maximum number of heartbeats|\(deterministic\) timeout|maximum recursion depth|deep recursion|"
-    r"stack overflow|excessive memory|out of memory|SAT solver timed out|maximum number of steps",
-    re.IGNORECASE,
-)
+LIMIT = leanlib.LIMIT
 # A proof that runs away fails. It shouldn't take this long.
 TIMEOUT_SECONDS = 600
 
 
-def sha256(path: Path) -> str:
-    return hashlib.sha256(path.read_bytes()).hexdigest()
+sha256 = hashing.sha256_file
 
 
 def checked(r: proc.Ran) -> str:
@@ -184,24 +178,14 @@ class Pipeline:
         generated = directory / f"{name}.lean"
         run(self.clang_command(target, overlay, ll))
         # Exit code 3 means some function was left out. Which ones is checked against the theorems.
-        result = subprocess.run(
-            [str(self.tool), str(ll), "--namespace", name, "-o", str(generated), "--no-code"],
-            capture_output=True,
-            text=True,
-            check=False,
-        )
-        if result.returncode not in (0, 3):
-            raise RuntimeError(f"ir-lean {ll}: {result.stderr[:4000]}")
-        report = subprocess.run(
-            [str(self.tool), str(ll), "--namespace", name, "--report"],
-            capture_output=True,
-            text=True,
-            check=False,
-        )
-        if report.returncode not in (0, 3):
-            raise RuntimeError(f"ir-lean --report {ll}: {report.stderr[:4000]}")
+        result = proc.run([self.tool, ll, "--namespace", name, "-o", generated, "--no-code"])
+        if result.exit not in (0, 3):
+            raise RuntimeError(f"ir-lean {ll}: {result.err[:4000]}")
+        report = proc.run([self.tool, ll, "--namespace", name, "--report"])
+        if report.exit not in (0, 3):
+            raise RuntimeError(f"ir-lean --report {ll}: {report.err[:4000]}")
         functions = {}
-        for line in report.stdout.splitlines():
+        for line in report.out.splitlines():
             fields = line.split("\t")
             if fields[0] in ("ok", "unsupported") and len(fields) >= 3:
                 functions[fields[1]] = (fields[0] == "ok", fields[2])
