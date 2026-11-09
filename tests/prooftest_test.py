@@ -4,9 +4,10 @@ a counterexample counts only once it's confirmed, and nothing that wasn't decide
 
 The first group needs only Python: the generators, shrinking, the store, the decision and the contract, and
 that docs/proof-tests.md names every status and reason. The second runs the tool on the functions in
-tests/prooftest/Cases.ll, as a developer would: a wrong spec, a buggy loop, poison inputs, a call the kernel
-can't follow, a run that never ends, memory, floating point, a vacuous hypothesis, too few inputs meeting one,
-a statement about another function, a memory limit and a stored failure tried first.
+tests/prooftest/Cases.ll, as a developer would: a wrong spec, a spec stated with `∃`, a buggy loop with and
+without a promise to progress, poison inputs, a call the kernel can't follow, a run that never ends with and
+without a promise, memory, floating point, a vacuous hypothesis, too few inputs meeting one, a statement about
+another function, a memory limit and a stored failure tried first.
 
 usage: tests/prooftest_test.py path/to/ir-lean [--only NAME ...] [--static]
 """
@@ -265,6 +266,19 @@ def cases() -> list[Case]:
             ),
         ),
         Case(
+            "loop_under_a_promise",
+            "count_promised",
+            "∀ (x : BitVec 32), Cases.count_promised (some x) = "
+            "IRLean.Outcome.ok (some (x.cpop.setWidth 32))",
+            "counterexample",
+            "kernel_refuted",
+            extra={"store": None},
+            check=lambda r: expect(
+                shown(r) == {"x": "0x2#32"} and r["counterexample"]["kernel"]["calls_rewritten"] == 1,
+                f"the kernel follows `promised (run ...)` through runFuel too, at x = 2: {shown(r)}",
+            ),
+        ),
+        Case(
             "poison_input",
             "ident",
             "∀ (x : IRLean.Val 8), Cases.ident x = IRLean.Outcome.ok x",
@@ -334,6 +348,18 @@ def cases() -> list[Case]:
             check=lambda r: expect(
                 len(r["inputs"]["undecided"]) == 3 and r["counterexample"] is None,
                 "three inputs that never finish, then it stops, and none is a counterexample",
+            ),
+        ),
+        Case(
+            "never_ends_under_a_promise",
+            "spin_promised",
+            "∀ (x : BitVec 8), Cases.spin_promised (some x) = IRLean.Outcome.ok (some x)",
+            "unknown",
+            "input_timeout",
+            extra={"store": None, "limits": {"input_timeout_seconds": 0.5}},
+            check=lambda r: expect(
+                r["counterexample"] is None and r["status"] != "passed_tier1",
+                "breaking a promise to progress is undefined, which running can't show, so it's unknown",
             ),
         ),
         Case(

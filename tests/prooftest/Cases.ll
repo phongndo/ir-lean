@@ -33,6 +33,35 @@ exit:
   ret i32 %r
 }
 
+; The same loop, under the promises clang leaves on it: `promised (run ...)` in the model, which the kernel follows too.
+define i32 @count_promised(i32 %x) mustprogress willreturn {
+entry:
+  %zero = icmp eq i32 %x, 0
+  br i1 %zero, label %exit, label %loop
+
+loop:
+  %v = phi i32 [ %x, %entry ], [ %v2, %loop ]
+  %c = phi i32 [ 0, %entry ], [ %c2, %loop ]
+  %b = and i32 %v, 1
+  %c2 = add i32 %c, %b
+  %v2 = lshr i32 %v, 2
+  %done = icmp eq i32 %v2, 0
+  br i1 %done, label %exit, label %loop
+
+exit:
+  %r = phi i32 [ 0, %entry ], [ %c2, %loop ]
+  ret i32 %r
+}
+
+; Never returns, under a promise to progress, which makes that undefined. Running it can't show that.
+define i8 @spin_promised(i8 %x) mustprogress {
+entry:
+  br label %loop
+
+loop:
+  br label %loop
+}
+
 ; Returns its argument, which `noundef` makes undefined for poison.
 define i8 @ident(i8 noundef %x) {
   ret i8 %x

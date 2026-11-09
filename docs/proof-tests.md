@@ -8,7 +8,7 @@ proved superoptimization, and [Phase 7](roadmap.md#phase-7-proof-tests) has its 
 This page has tier 1, which is built, in [`tools/prooftest/`](../tools/prooftest), what it measured against milestone
 T1, and the design of tiers 2 and 3, which aren't built. For what any result here means, see [trust](trust.md).
 
-Facts here were checked on 2026-11-08, on top of commit `c0c4e0b`, with Lean 4.35.0 and clang 23.1.3, on x86-64 Linux
+Facts here were checked on 2026-11-08, on top of commit `9d13699`, with Lean 4.35.0 and clang 23.1.3, on x86-64 Linux
 with 32 cores, in the dev shell.
 
 ## An example
@@ -41,8 +41,8 @@ That prints, shortened here:
     "shrink_steps": 20
   },
   "inputs": {"tried": 3, "satisfied": 3, "discarded": 0, "seed": 0, "max_inputs": 10000},
-  "timing": {"verify_setup_seconds": 1.01, "harness_start_seconds": 0.75, "search_ms": 0.17, "shrink_ms": 2.59,
-             "kernel_ms": 3.12, "to_counterexample_ms": 6.23, "total_seconds": 1.86}
+  "timing": {"verify_setup_seconds": 1.01, "harness_start_seconds": 0.74, "search_ms": 0.15, "shrink_ms": 2.3,
+             "kernel_ms": 2.95, "to_counterexample_ms": 5.71, "total_seconds": 1.84}
 }
 ```
 
@@ -50,7 +50,7 @@ The third input it tried, all ones, failed. Shrinking took it to `0x10000`, the 
 checked a theorem that the statement is false there. The next run of the same property tries `0x10000` first.
 
 Give it a right statement, with `x &&& 0xFFFF#32`, and it answers `passed_tier1`, with `proved: false`, after
-10,000 inputs, which took Lean 62 ms. That's a test, not a proof.
+10,000 inputs, which took Lean 61 ms. That's a test, not a proof.
 
 ## Tier 1
 
@@ -126,8 +126,9 @@ Four statuses, each with an exit code. None of them is `proved`: tier 1 proves n
 In order of precedence: a confirmed counterexample, then what stopped the run, then a failure nothing confirmed,
 then an input that didn't finish, then a limit, and only then what the inputs that ran say. So a run that hit a limit,
 or had an input that never finished, is never a pass, even if every other input passed: a run that never ends is how
-the model says `none`, which makes a claim of `= Outcome.ok` false. A counterexample found after an input that hung
-still counts, since it's decisive.
+the model says `none`, or, under a promise to progress, undefined behavior, and either makes a claim of
+`= Outcome.ok` false. Running can't show a run never ends, so such an input is `unknown`, never a counterexample. A
+counterexample found after an input that hung still counts, since it's decisive.
 
 A second function, `assert_contract`, turns any result that breaks these rules into `unknown/internal_error` before
 it's printed: a pass with `proved` true, a pass or `vacuous` with an input that didn't run, a counterexample with no
@@ -193,9 +194,14 @@ theorem run_eq_runFuel (step : β → Outcome (Next β ρ)) (n : Nat) (b : β)
     (h : (runFuel step n b).isSome = true) : run step b = runFuel step n b
 ```
 
-For each call of a generated function in the instance, it unfolds the call to `run step b`, proves it equal to
-`runFuel step 1000000 b` with `h` by `rfl`, rewrites the instance with that, and proves what's left false by
-`decide`. Then it applies that to the statement at the input. The kernel checks all of it: the fuel run finishing,
+A function under a promise to progress, `mustprogress`, `willreturn` or a loop marked `llvm.loop.mustprogress`,
+runs as `promised (run step b) d` since [#62](https://github.com/phongndo/ir-lean/pull/62), where `d` says what a run
+that never finishes does: it's undefined. A run that finishes is the run whatever `d` says, so a second lemma,
+`promised_run_eq_runFuel`, gives `promised (run step b) d = runFuel step n b` from the same `h`.
+
+For each call of a generated function in the instance, it unfolds the call to `run step b`, or to
+`promised (run step b) d`, proves it equal to `runFuel step 1000000 b` with `h` by `rfl`, rewrites the instance with
+that, and proves what's left false by `decide`. Then it applies that to the statement at the input. The kernel checks all of it: the fuel run finishing,
 every block it took, and the conclusion. The answer lists the theorem's axioms. Every one in the measurements below
 rested on `propext`, `Classical.choice` and `Quot.sound` only.
 
@@ -236,13 +242,13 @@ stop checking, and the negative corpus's wrong rewrites, tier 1 finds a countere
 under 100 ms, each one it can't run comes back unknown, and a test shows a timeout, an unsupported function and a
 resource limit each come back unknown, never as a pass.
 
-Measured on 2026-11-08 on this branch, on top of `c0c4e0b`, with
+Measured on 2026-11-08 on this branch, on top of `9d13699`, which has [#62](https://github.com/phongndo/ir-lean/pull/62)'s promises, with
 
 ```console
 tools/prooftest/bench.py --workers 4 --verify-confirm always --check-equivalent --deep 1000000 --check-t1
 ```
 
-under `tools/measure.py run --heavy`, four properties at a time, in 626 s. Every property ran with the defaults:
+under `tools/measure.py run --heavy`, four properties at a time, in 628 s. Every property ran with the defaults:
 10,000 inputs, seed 0. It writes every result to `build/prooftest/bench/results.json`, which isn't committed. The bugs
 are of four kinds:
 
@@ -253,7 +259,7 @@ are of four kinds:
   body that changes its IR, each to IR no other one gives, sampled with a recorded seed;
 - the 16 that [`tests/proofs.sh`](../tests/proofs.sh) injects, which are T1's own set, in
   [`tools/prooftest/t1.toml`](../tools/prooftest/t1.toml);
-- the 23 cases of [the negative corpus](llvm-negative-verification.md), with the claim each pins.
+- the 24 cases of [the negative corpus](llvm-negative-verification.md), with the claim each pins.
 
 Each property is the statement of the theorem the bug stops, read from its header.
 
@@ -278,7 +284,7 @@ tier 1, 78 after 10,000 inputs and one exhaustively, and 8 came back unknown, fo
 | `wrong_mul2_to_shl2`, `poison_add_nsw_introduced`, `freeze_removed`, `freeze_duplicated`, `precondition_insufficient` | `counterexample`, at `x` = 1, 127, poison, poison and 128 |
 | `freeze_added_unmodeled`, right in LLVM, but not in the model, where `freeze` of poison stops | `counterexample`, at poison |
 | `proof_for_other_target`, whose claim is about a wrong rewrite, `tgt_bad` | `counterexample`, at 1 |
-| `wrong_loop_deleted`, refuted only by a run that never ends | `unknown/input_timeout` |
+| `wrong_loop_deleted`, and `wrong_promise_added`, which adds `mustprogress` to a loop that never ends at 0, each refuted only by a run that never ends | `unknown/input_timeout` |
 | `undef_in_target`, `float_fadd_zero_removed` | `unknown/function_unsupported` |
 | `freeze_duplicated_equality_pin`, wrong in LLVM, but pinning an equality that holds in the model | `passed_tier1/exhaustive` |
 | `precondition_vacuous` | `vacuous` |
@@ -290,23 +296,23 @@ From the first input sent to Lean to a shrunk counterexample the kernel has chec
 
 | | Median | 90th percentile |
 | --- | --- | --- |
-| All | 9.5 ms | 57.2 ms |
-| T1's set: `tests/proofs.sh` and the negative corpus, 8 | 10.4 ms | 11.6 ms |
-| Compiler-rt, from `targets.toml` and the variants, 167 | 10.7 ms | 68.5 ms |
-| The search alone, as Lean timed it | 0.2 ms | 0.5 ms |
-| Shrinking | 0.1 ms | 23.4 ms |
-| The kernel's check | 5.6 ms | 11.7 ms |
+| All | 9.1 ms | 46.8 ms |
+| T1's set: `tests/proofs.sh` and the negative corpus, 8 | 10.4 ms | 11.3 ms |
+| Compiler-rt, from `targets.toml` and the variants, 167 | 9.9 ms | 51.1 ms |
+| The search alone, as Lean timed it | 0.3 ms | 0.5 ms |
+| Shrinking | 0.1 ms | 28.0 ms |
+| The kernel's check | 5.7 ms | 10.4 ms |
 
 So T1's threshold, a median under 100 ms, holds with room, and most of the time is the kernel's check. 61 of the 199
 bugs refuted in `targets.toml` and the variants failed on the first input tried, 156 within 10, 195 within 100, and all
 within 1,000. 186 failed on an edge, 11 on a bit pattern, one on a byte and one in an exhaustive run.
 
-**Setup isn't in those times,** and it's most of what a person waits for: a median of 1.9 s a property, for
+**Setup isn't in those times,** and it's most of what a person waits for: a median of 2.0 s a property, for
 `tools/verify.py` to compile and check the module and for the harness to start. A property that passes takes about
-2.2 s in all. With `verify_confirm: always`, verify's confirmation adds a median of 1.9 s.
+2.3 s in all. With `verify_confirm: always`, verify's confirmation adds a median of 2.0 s.
 
-The slowest, 115 s, was `llvm::isUIntN`'s bug: its spec computes `2 ^ n.toNat` for a 32-bit `n`, which takes about
-0.3 s an input, and the 365th input failed. The same spec without the bug ran out of its 300 s after 1,261 inputs,
+The slowest, 117 s, was `llvm::isUIntN`'s bug: its spec computes `2 ^ n.toNat` for a 32-bit `n`, which takes about
+0.3 s an input, and the 365th input failed. The same spec without the bug ran out of its 300 s after 1,262 inputs,
 so it's `unknown/time_limit`. That's the spec's cost, not the model's.
 
 ### What it can't run
@@ -335,13 +341,13 @@ All 8 misses are compiler-rt variants. Each passed 10,000 inputs, and again 1,00
 
 The first full run, on the same bugs, missed one more and timed out on five: `isblank`'s bug differs from the original
 only at `c = 9`, a tab, which no generator reached, and five `MathExtras` specs are stated as `∃ r, …`. The byte phase
-and the handling of `∃` came from those, so they were added after seeing this set, and the numbers above are the second
-run's.
+and the handling of `∃` came from those, so they were added after seeing this set, and the numbers above are from a
+later run, with both.
 
 ### Where the model's speed limits inputs
 
-Running the model on integer code is cheap: over the 79 properties that passed, a median of 9.3 µs an input, and at
-most 35.2 µs, for `__ffsti2` on 128 bits, which is why the default is 10,000 inputs. What limits input size
+Running the model on integer code is cheap: over the 79 properties that passed, a median of 9.9 µs an input, and at
+most 35.7 µs, for `__ffsti2` on 128 bits, which is why the default is 10,000 inputs. What limits input size
 is memory. Tier 1 doesn't generate memory at all yet, and when it does, `Mem` as a chain of closures makes each access
 walk back through earlier writes, which kept the zlib differential test to about 800 bytes. The executable memory
 model, E2, is the fix.

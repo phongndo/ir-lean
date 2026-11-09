@@ -410,7 +410,7 @@ Each is reached when its checks pass in CI, not on a date.
 | E1 | Lemma store v1 | 6 | #48 | Done in [#60](https://github.com/phongndo/ir-lean/pull/60): 163 lemmas in `lake build` and CI, each meeting rules 1 to 3, and 16 all four ([lemma store](lemma-store.md)) |
 | E2 | Executable memory model | 6 | | Not started |
 | E3 | The store makes proofs cheaper, measured | 6 | E1 | Not started |
-| T1 | Tier-1 proof tests | 7 | | Done in [#66](https://github.com/phongndo/ir-lean/pull/66): every injected bug it can run refuted, at a median of 9.5 ms to a counterexample the kernel checked, and `prooftest_t1` checks T1's set in CI ([proof tests](proof-tests.md#t1-measured)) |
+| T1 | Tier-1 proof tests | 7 | | Done in [#66](https://github.com/phongndo/ir-lean/pull/66): every injected bug it can run refuted, at a median of 9.1 ms to a counterexample the kernel checked, and `prooftest_t1` checks T1's set in CI ([proof tests](proof-tests.md#t1-measured)) |
 | T2 | Tiers 2 and 3 | 7 | T1. E1, soft, for tier 3 | Not started |
 | T3 | One real project's unit-test file replaced | 7 | T2 | Not started |
 | C1 | Pull request CI in at most 10 minutes | 8 | | In progress: after #53's split, CI takes 13 to 16 minutes ([testing](testing.md#ci)) |

@@ -56,6 +56,15 @@ theorem run_eq_runFuel {β ρ : Type} (step : β → Outcome (Next β ρ)) (n : 
           simp only [hs] at h
           exact ih b' h
 
+/-- A run under a promise to progress that finishes within its fuel is the run: the promise only says what a run
+that never finishes does. -/
+theorem promised_run_eq_runFuel {β ρ : Type} (step : β → Outcome (Next β ρ)) (n : Nat) (b : β)
+    (d : Unit → Outcome ρ) (h : (runFuel step n b).isSome = true) : promised (run step b) d = runFuel step n b := by
+  rw [run_eq_runFuel step n b h]
+  cases hr : runFuel step n b with
+  | none => rw [hr] at h; cases h
+  | some x => rfl
+
 /-! ### Results stated as `∃ r, f x = Outcome.ok (some r) ∧ q r`
 
 Lean decides an `∃` over `BitVec 64` by trying every value, which never ends. The equation pins `r`, so these decide
@@ -295,16 +304,23 @@ and the axioms it rests on. -/
 def refute (stmt : Expr) (generated : Name) (kinds : Array Kind) (values : Array Nat) (fuel heartbeats : Nat) :
     M (String × Array Name × Nat) := do
   let p ← instantiateWith stmt kinds values 0
-  -- Each call that reaches `run` becomes `runFuel`, with a proof that the two are equal.
+  -- Each call that reaches `run`, under a promise or not, becomes `runFuel`, with a proof that the two are equal.
   let mut rewrites : Array (Expr × Expr × Expr) := #[]
   for call in ← generatedCalls generated p do
-    let some r ← whnfUntil call ``IRLean.run | continue
-    unless r.isAppOfArity ``IRLean.run 4 do continue
-    let args := r.getAppArgs
+    -- A function under a promise to progress runs as `promised (run step b) d`, which a run that finishes is.
+    let r ← whnfHeadPred call fun e => return !(e.isAppOf ``IRLean.run || e.isAppOf ``IRLean.promised)
+    let promise := r.isAppOfArity ``IRLean.promised 3
+    let inner := if promise then r.appFn!.appArg! else r
+    unless inner.isAppOfArity ``IRLean.run 4 do continue
+    let args := inner.getAppArgs
     let fueled := mkAppN (mkConst ``runFuel) #[args[0]!, args[1]!, args[2]!, mkNatLit fuel, args[3]!]
     let finished ← mkEq (← mkAppM ``Option.isSome #[fueled]) (mkConst ``Bool.true)
     let h := mkExpectedPropHint (← mkEqRefl (mkConst ``Bool.true)) finished
-    let eq := mkAppN (mkConst ``run_eq_runFuel) #[args[0]!, args[1]!, args[2]!, mkNatLit fuel, args[3]!, h]
+    let eq :=
+      if promise then
+        mkAppN (mkConst ``promised_run_eq_runFuel)
+          #[args[0]!, args[1]!, args[2]!, mkNatLit fuel, args[3]!, r.appArg!, h]
+      else mkAppN (mkConst ``run_eq_runFuel) #[args[0]!, args[1]!, args[2]!, mkNatLit fuel, args[3]!, h]
     rewrites := rewrites.push (call, fueled, mkExpectedPropHint eq (← mkEq call fueled))
   -- ¬ p with every call replaced, by evaluation in the kernel, then back to ¬ p one call at a time.
   let mut steps : Array (Expr × Expr) := #[]
