@@ -1293,6 +1293,20 @@ define i32 @probe(ptr %p) {
   ret i32 %v
 }
 
+; probe: form / data-layout-32-bit-addresses-with-memory
+target datalayout = "e-p:64:64:64:32"
+define i32 @probe(ptr %p) {
+  %v = load i32, ptr %p
+  ret i32 %v
+}
+
+; probe: form / data-layout-null-all-ones-with-memory
+target datalayout = "e-po:64:64"
+define i32 @probe(ptr %p) {
+  %v = load i32, ptr %p
+  ret i32 %v
+}
+
 ; probe: form / data-layout-explicit-64-bit
 target datalayout = "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-i128:128-f80:128-n8:16:32:64-S128"
 define i32 @probe(ptr %p) {
