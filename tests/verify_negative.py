@@ -54,6 +54,8 @@ PROBE_CASE = "control_precondition_sufficient"
 RUNS = ROOT / "build" / "verify-negative"
 RUNS_KEPT = 5
 VERIFY = ROOT / "tools" / "verify.py"
+# How memory is read on macOS and Linux, which count it differently.
+MEASURE = ROOT / "tools" / "measure.py"
 # What decides a verdict besides the inputs. A stored result checked by other versions of these is stale.
 CHECKER_FILES = ["tools/verify.py", "tools/verify_check.lean", "tests/check_axioms.lean"]
 
@@ -163,12 +165,19 @@ def checker_hashes() -> dict[str, str]:
     return {name: sha256_file(ROOT / name) for name in CHECKER_FILES}
 
 
-def load_verify() -> Any:
-    spec = importlib.util.spec_from_file_location("verify_tool", VERIFY)
+def load_tool(name: str, path: Path) -> Any:
+    spec = importlib.util.spec_from_file_location(name, path)
     assert spec is not None and spec.loader is not None
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     return module
+
+
+def load_verify() -> Any:
+    return load_tool("verify_tool", VERIFY)
+
+
+M = load_tool("measure_tool", MEASURE)
 
 
 # Cases
@@ -312,7 +321,7 @@ def run_checker(argv: list[str], timeout: float, logs: Path) -> Harness:
         signal=-code if code < 0 else None,
         timed_out=fired.is_set(),
         seconds=round(time.monotonic() - started, 2),
-        peak_rss_mb=usage.ru_maxrss // 1024,
+        peak_rss_mb=int(M.maxrss_mib(usage.ru_maxrss)),
         stdout=out_path.read_text(errors="replace"),
         stderr=err_path.read_text(errors="replace"),
     )
@@ -628,16 +637,6 @@ class Live:
     min_available_mb: int
 
 
-def available_mb() -> int | None:
-    try:
-        for line in Path("/proc/meminfo").read_text().splitlines():
-            if line.startswith("MemAvailable:"):
-                return int(line.split()[1]) // 1024
-    except OSError:
-        return None
-    return None
-
-
 def live_prerequisites(tool: Path, v: Any) -> list[str]:
     missing = [f"{p} on PATH" for p in ("lean", "opt", "leanchecker") if shutil.which(p) is None]
     if not os.access(tool, os.X_OK):
@@ -671,10 +670,11 @@ def check_request(
 
 def run_live(case: Case, live: Live) -> Outcome:
     outcome = Outcome(case.id, "live", case.manifest["category"], "fail")
-    free = available_mb()
-    if free is not None and free < live.min_available_mb:
+    # tools/measure.py reads what's free as each kernel counts it, and on macOS its memory pressure too.
+    busy = M.too_busy(live.min_available_mb)
+    if busy:
         outcome.outcome = "not_run"
-        outcome.note = f"{free} MB available, under --min-available-mb {live.min_available_mb}"
+        outcome.note = f"{busy}, from --min-available-mb"
         return outcome
     directory = live.out / "cases" / case.id
     files = directory / "files"
@@ -1094,6 +1094,23 @@ def denials_covered(cases: list[Case]) -> Outcome:
     return outcome
 
 
+def memory_readings(out: Path) -> list[Outcome]:
+    """The runner reads memory in MB on this platform: a checker that holds 200 MiB peaks near 200, where
+    macOS's `ru_maxrss` in bytes read as KiB gave 1024 times as much, and the guard on free memory gets a
+    number, where reading only /proc/meminfo gave none on macOS and the guard never ran."""
+    holds = run_checker([sys.executable, "-c", "x = b'x' * (200 << 20)"], 60, out / "stubs" / "peak_memory")
+    peak = Outcome("peak_memory_in_mb", "static", "runner", "pass", note=f"{holds.peak_rss_mb} MB")
+    if holds.exit != 0 or not 180 <= holds.peak_rss_mb <= 600:
+        peak.outcome = "fail"
+        peak.problems.append(f"a checker holding 200 MiB peaked at {holds.peak_rss_mb} MB, exit {holds.exit}")
+    free = M.memory()["available_mb"]
+    guard = Outcome("free_memory_read", "static", "runner", "pass", note=f"{free} MB available")
+    if not free > 0:
+        guard.outcome = "fail"
+        guard.problems.append(f"read {free} MB available, so the guard can't tell")
+    return [peak, guard]
+
+
 def run_static(item: Static, ctx: StaticContext) -> Outcome:
     outcome = Outcome(item.id, "static", "gate", "fail", note=item.note)
     envelope, expected = item.run(ctx)
@@ -1226,6 +1243,10 @@ def main() -> int:
             outcome = run_static(item, ctx)
             print(outcome.line(), flush=True)
             outcomes.append(outcome)
+        if not args.only:
+            for outcome in memory_readings(out):
+                print(outcome.line(), flush=True)
+                outcomes.append(outcome)
 
     if not args.only:
         outcomes.append(denials_covered(cases))
