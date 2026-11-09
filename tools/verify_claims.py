@@ -64,6 +64,13 @@ CLOSURES = ROOT / "tests" / "llvm_scope" / "closure"
 REWRITES = ROOT / "tests" / "llvm_scope" / "rewrites"
 EXIT = {"replayed": 0, "verified": 0, "refused": 1, "partial": 2, "unknown": 4, "error": 5}
 HEX = re.compile(r"[0-9a-f]{64}")
+FLAG = re.compile(
+    r"-(O[0-3sz]|D[A-Za-z_]\w*(=[\w.+-]*)?|U[A-Za-z_]\w*|std=[\w+]+|f[a-z][\w=.+-]*|W[\w=-]*|m[\w=.-]+)"
+)
+UNSAFE_FLAGS = (
+    "-fplugin", "-fpass-plugin", "-fmodule", "-fprofile", "-fcrash", "-fdebug-prefix", "-ffile-prefix",
+    "-fmacro-prefix", "-fcoverage-prefix", "-fsanitize", "-mllvm",
+)  # fmt: skip
 MODULE = re.compile(r"[A-Za-z_][A-Za-z0-9_]*(\.[A-Za-z_][A-Za-z0-9_]*)*")
 # Lean's messages for running out of time, memory, stack, heartbeats or the solver's time. Hitting one says
 # nothing about the evidence, so it's unknown, never refused.
@@ -241,6 +248,12 @@ def validate(ev: Any, record: bool) -> None:
         relative(u["source"], f"unit {n}'s source")
         for k in ("flags", "include", "local_include", "extract", "translate"):
             strings(u[k], f"unit {n}'s {k}")
+        for f in u["flags"]:
+            # Only flags that say how to compile: nothing that loads code into clang or names a file.
+            if not FLAG.fullmatch(f) or f.startswith(UNSAFE_FLAGS):
+                raise refuse(
+                    "evidence_invalid", f"unit {n}'s flag {f!r} isn't one this verifier passes to clang"
+                )
         for k in ("include", "local_include"):
             for i in u[k]:
                 relative(i, f"unit {n}'s {k}")
@@ -286,8 +299,13 @@ def validate(ev: Any, record: bool) -> None:
             raise refuse("evidence_invalid", f"lean.model names {m}, which isn't in lean.files")
     if not isinstance(ev["theorems"], list) or not ev["theorems"]:
         raise refuse("evidence_invalid", "theorems has to be a non-empty list")
+    theorem_names: set[str] = set()
     for n, t in enumerate(ev["theorems"]):
         exact(t, THEOREM_KEYS, f"theorem {n}")
+        # Each theorem is checked once, and its answer can't stand for another entry's.
+        if t["name"] in theorem_names:
+            raise refuse("evidence_invalid", f"theorem {n}, {t['name']}, is listed twice")
+        theorem_names.add(t["name"])
         if t["module"] not in lean["files"]:
             raise refuse("evidence_invalid", f"theorem {n}'s module has to be one of lean.files")
         if not strings(t["about"], f"theorem {n}'s about"):
@@ -375,6 +393,8 @@ class Replay:
         self.ev, self.t, self.work, self.jobs, self.memory, self.timeout = ev, t, work, jobs, memory, timeout
         self.record = record
         self.checks: list[dict[str, str]] = []
+        # For each theorem, which unit's function each symbol it's about is.
+        self.covers: dict[str, list[dict[str, str]]] = {}
         # LEAN_SYSROOT, so leanchecker finds the stamped toolchain rather than asking elan.
         self.lean_env = {
             **os.environ,
@@ -520,6 +540,8 @@ class Replay:
 
     def replay(self) -> list[dict[str, Any]]:
         ev = self.ev
+        # Stamped before anything the evidence names runs, clang included, and compared at the end.
+        before = stamp([self.t.irlean_lib, self.t.toolchain, HERE, CHECKER, self.t.irlean_tool])
         with self.pool() as pool:
             list(pool.map(self.build, ev["units"]))
         self.passed(
@@ -547,7 +569,6 @@ class Replay:
             dest.parent.mkdir(parents=True, exist_ok=True)
             shutil.copyfile(f, dest)
         before_files = self.hashes()
-        before = stamp([self.t.irlean_lib, self.t.toolchain, HERE, CHECKER, self.t.irlean_tool])
         for wave in self.waves(ev["lean"]["files"]):
             with self.pool() as pool:
                 list(pool.map(lambda m: self.compile(m, "proof_compile_failed"), wave))
@@ -587,31 +608,41 @@ class Replay:
 
     def statements(self) -> list[dict[str, Any]]:
         ev = self.ev
-        names: dict[str, str] = {}
+        defined: dict[str, list[tuple[dict[str, Any], str]]] = {}
         for u in ev["units"]:
             for symbol, (ok, name) in u["_functions"].items():
-                names.setdefault(symbol, f"{u['namespace']}.{name}" if ok else "")
+                defined.setdefault(symbol, []).append((u, f"{u['namespace']}.{name}" if ok else ""))
         theorems: list[dict[str, Any]] = []
         for t in ev["theorems"]:
             about = []
             for symbol in t["about"]:
-                if symbol not in names:
+                if symbol not in defined:
                     raise refuse("not_about_target", f"no unit's IR defines @{symbol}")
-                if not names[symbol]:
+                if len(defined[symbol]) > 1:
+                    # Which unit's function a theorem is about has to be plain, or a stand-in could cover
+                    # another.
+                    where = [u["source"] for u, _ in defined[symbol]]
+                    raise refuse("evidence_invalid", f"@{symbol} is defined in more than one unit: {where}")
+                u, name = defined[symbol][0]
+                if not name:
                     raise refuse("function_unsupported", f"ir-lean leaves @{symbol} out")
-                about.append(names[symbol])
+                about.append(name)
+                self.covers.setdefault(t["name"], []).append(
+                    {"symbol": symbol, "source": u["source"], "source_in": u["source_in"]}
+                )
             theorems.append({"module": t["module"], "name": t["name"], "about": about})
         by_module: dict[str, list[dict[str, Any]]] = {}
         for t in theorems:
             by_module.setdefault(t["module"], []).append(t)
         # One process for each module, since two modules can each define the same auxiliary constant, as
         # bv_decide's enum handling does, and then no environment can hold both.
+        modules = sorted(by_module)
         with self.pool() as pool:
-            answers = list(pool.map(lambda m: self.ask(m, by_module[m]), sorted(by_module)))
-        got = {a["theorem"]: a for batch in answers for a in batch}
+            answers = list(pool.map(lambda m: self.ask(m, by_module[m]), modules))
+        got = {(m, a["theorem"]): a for m, batch in zip(modules, answers, strict=True) for a in batch}
         out = []
         for t in ev["theorems"]:
-            a = got.get(t["name"])
+            a = got.get((t["module"], t["name"]))
             if a is None:
                 raise Stop("error", "checker_failed", f"no answer about {t['name']}")
             if not a["ok"]:
@@ -628,7 +659,8 @@ class Replay:
                     f"{t['name']} prints as {a['statement']!r}, not as the evidence says",
                 )
             out.append({"name": t["name"], "statement": a["statement"], "statement_sha256": digest,
-                        "axioms": a["axioms"], "model_constants": a["names"]})  # fmt: skip
+                        "axioms": a["axioms"], "model_constants": a["names"],
+                        "covers": self.covers[t["name"]]})  # fmt: skip
         self.passed(
             "statements",
             f"{len(out)} theorems state what the evidence records, about the generated functions",
@@ -811,7 +843,7 @@ def _decide_claim(claim: dict[str, Any], root: Path, inventory: Path, closures: 
     evidence = [e for e in claim["evidence"] if isinstance(e, dict) and e.get("kind") == kind]
     if not evidence:
         raise refuse("claim_invalid", f"a complete {dim} claim needs {kind} evidence")
-    covered: set[str] = set()
+    covered: set[tuple[str, str]] = set()
     anchors: dict[str, str] = {}
     compiled: set[str] = set()
     results = []
@@ -833,8 +865,9 @@ def _decide_claim(claim: dict[str, Any], root: Path, inventory: Path, closures: 
             anchors.update(u["anchors"])
             if u["source_in"] == "llvm-project":
                 compiled.add(u["source"])
-        for t in ev["theorems"]:
-            covered |= set(t["about"])
+        # A closure's function is covered by a theorem about it as compiled from its own file.
+        for t in v["theorems"]:
+            covered |= {(c["source"], c["symbol"]) for c in t["covers"] if c["source_in"] == "llvm-project"}
     if closure is not None:
         for f, h in closure["files"].items():
             if anchors.get(f) != h:
@@ -843,7 +876,7 @@ def _decide_claim(claim: dict[str, Any], root: Path, inventory: Path, closures: 
             raise refuse(
                 "closure_uncovered", f"the evidence doesn't compile {f}, which the closure's code comes from"
             )
-        missing = [fn["symbol"] for fn in closure["functions"] if fn["symbol"] not in covered]
+        missing = [fn["symbol"] for fn in closure["functions"] if (fn["file"], fn["symbol"]) not in covered]
         if missing:
             why = f"no theorem is about {len(missing)} functions of the closure, such as {missing[:3]}"
             raise refuse("closure_uncovered", why)

@@ -22,7 +22,6 @@ from __future__ import annotations
 
 import argparse
 import copy
-import hashlib
 import json
 import os
 import re
@@ -38,14 +37,14 @@ from typing import Any
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "tools"))
 import verify_claims as vc  # noqa: E402
-from irlean import proc  # noqa: E402
+from irlean import hashing, proc  # noqa: E402
 
 TARGETS = ROOT / "tests" / "llvm" / "targets.toml"
 WORK = ROOT / "build" / "verify-claims-test"
 
 
 def sha(path: Path) -> str:
-    return hashlib.sha256(path.read_bytes()).hexdigest()
+    return hashing.sha256_file(path)
 
 
 def unit(config: dict[str, Any], target: dict[str, Any]) -> dict[str, Any]:
@@ -261,7 +260,7 @@ def edited_lean(ev: dict[str, Any]) -> None:
 
 
 def other_statement(ev: dict[str, Any]) -> None:
-    ev["theorems"][0]["statement_sha256"] = hashlib.sha256(b"(c 1:_ [])").hexdigest()
+    ev["theorems"][0]["statement_sha256"] = hashing.sha256(b"(c 1:_ [])")
 
 
 def reworded(ev: dict[str, Any]) -> None:
@@ -274,6 +273,31 @@ def extra_field(ev: dict[str, Any]) -> None:
 
 def cut(ev: dict[str, Any]) -> None:
     ev["cuts"] = ["__ashlti3"]
+
+
+def listed_twice(ev: dict[str, Any]) -> None:
+    ev["theorems"].append(copy.deepcopy(ev["theorems"][0]) | {"about": ["__ashlti3"]})
+
+
+def plugin(ev: dict[str, Any]) -> None:
+    ev["units"][0]["flags"].append("-fplugin=/tmp/anything.so")
+
+
+def stand_in(ev: dict[str, Any], lean_dir: Path) -> None:
+    """A unit of hand-written IR defining the same symbol, listed first, so it could stand in for the compiled
+    function in a closure's coverage."""
+    ll = lean_dir / "StandIn.ll"
+    layout = "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-i128:128-f80:128-n8:16:32:64-S128"
+    ll.write_text(
+        f'target datalayout = "{layout}"\ntarget triple = "x86_64-unknown-linux-gnu"\n\n'
+        "define i64 @__ashldi3(i64 noundef %a, i32 noundef %b) {\n  ret i64 %a\n}\n"
+    )
+    ir = copy.deepcopy(ev["units"][0]) | {
+        "source": str(ll.relative_to(ROOT)), "source_in": "repo", "language": "ir", "flags": [],
+        "include": [], "local_include": [], "llvm_config": False, "namespace": "StandIn", "translate": [],
+        "anchors": {}, "repo_files": {str(ll.relative_to(ROOT)): sha(ll)},
+    }  # fmt: skip
+    ev["units"].insert(0, ir)
 
 
 # name, how the good evidence is changed, the status and reason it has to get.
@@ -310,6 +334,14 @@ CASES: list[tuple[str, Callable[[dict[str, Any], Path], None], str, str]] = [
     ("proof rewrites a generated module", edit_proof(REWRITES_GENERATED), "refused", "artifacts_modified"),
     ("proof adds a module where Lean looks", edit_proof(MAKES_INIT), "refused", "artifacts_modified"),
     ("a call cut out", edit_evidence(cut), "partial", "cut"),
+    (
+        "a theorem listed twice, about another function",
+        edit_evidence(listed_twice),
+        "refused",
+        "evidence_invalid",
+    ),
+    ("a flag that loads a plugin into clang", edit_evidence(plugin), "refused", "evidence_invalid"),
+    ("the function also defined by hand-written IR", stand_in, "refused", "evidence_invalid"),
 ]
 
 
