@@ -34,7 +34,7 @@ gaps below.
 hits undefined behavior on an input, any `tgt` refines it on that input, so a refinement certificate
 alone shows nothing about whether either program is safe.
 
-**A local rewrite certificate covers its slice.** The q5_0
+**A local rewrite certificate covers its slice.** So do [the q4_K theorems](llama.md#what-it-assumes). The q5_0
 [bit-spreading proof](../tests/proofs/LlamaBitspread.lean) checks the exact pure integer helper in
 [`llama_q5_bitspread.ll`](../tests/real/llama_q5_bitspread.ll). It proves that both helpers return the same
 successful result for all integer inputs, including poison, and states every defined output byte for
@@ -47,7 +47,8 @@ divides the other. It uses little-endian bit order; even pure big-endian functio
 a poison lane poisons all its pieces. Joining poisons only the destination lane containing a poison
 piece, so joining then splitting can spread poison. Floating-point, pointer, scalable-vector and
 nondividing-width casts remain refused. These rules are part of the trusted semantic model, tested by
-the native vector comparisons and the explicit lane-order and poison cases in `tests/emitter.sh`.
+the native vector comparisons, the explicit lane-order and poison cases in `tests/emitter.sh`, and
+`tests/x86check.py`, against Alive2 in both directions and LLVM's constant folder, poison included.
 
 ## Trust boundaries
 
@@ -83,7 +84,7 @@ in the model on a run LLVM calls undefined.
 | Provenance is an allocation and the tags of promises it came through. `inttoptr` is refused, reading a stored pointer as an integer stops, and `ptrtoint` gives an address with no notion of exposure | Conservative, and it refuses real code | Document it. Extend only when a demonstration needs it |
 | Stack and `alloca` never fail, and recursion depth is unbounded | A "safe" function can still overflow a real stack | Document it as a native-level caveat |
 | An `alloca` whose size in bytes doesn't fit in 64 bits would wrap to a smaller one. A constant one is refused, and a computed one is poison, which `alloca` takes as undefined. LangRef doesn't say what such an `alloca` does | More UB, for a computed size. Fine for safety proofs | Keep it, unless a refinement needs it |
-| Floating point, atomics, volatile, exceptions, variadics, most external calls, and anything but 64-bit little-endian memory are refused, and so is a `bitcast` between vectors in a big-endian module, even where nothing touches memory | Refused, so sound | Keep refusing until a phase needs one |
+| Floating point, atomics, volatile, exceptions, variadics, most external calls, and anything but 64-bit little-endian memory are refused, and so is a `bitcast` between integers or vectors in a big-endian module, even where nothing touches memory | Refused, so sound | Keep refusing until a phase needs one |
 | LangRef doesn't say what poison does to a target intrinsic. The model makes a result lane poison when a lane it's computed from is, as LLVM's constant folds of PMADDWD and PMADDUBSW do, and Alive2 | Unsettled. [The llama.cpp rewrite](llama.md) is proved equal to clang's IR under this choice. If poison spread to the whole result instead, [an argument, not checked](llama.md#what-it-assumes) says it would still refine it | Ask upstream, or prove refinement under both |
 
 ### Closed

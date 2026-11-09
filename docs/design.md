@@ -85,8 +85,9 @@ not run, can use `--no-code`, so Lean doesn't generate code for it: `inflate` ch
   a library function, and `Mem` does that for `malloc`, `free` and `strlen`.
 - **Vectors are a `Val` per lane**, so one lane can be poison, and an operation on a vector is the scalar
   operation on each lane.
-- **`bitcast` between integer vectors** splits or joins lanes, the first lowest, as LangRef says a little-endian
-  target lays them out, so a big-endian module is refused. A result lane is poison if any lane it takes bits from is.
+- **`bitcast` between integers and integer vectors** of the same size, where one lane width divides the other,
+  splits or joins lanes, the first lowest, as LangRef says a little-endian target lays them out, so a big-endian
+  module is refused. A scalar is a vector of one lane. A result lane is poison if any lane it takes bits from is.
   Other bitcasts are refused. [`x86check.py`](../tests/x86check.py) checks this against Alive2.
 - **x86's integer dot products are modeled, and nothing else of x86's.** PMADDUBSW, PMADDWD and VPDPBUSD, as
   `llvm.x86.*` intrinsics at 128, 256 and 512 bits, follow Intel's pseudo-code in [`X86.lean`](../IRLean/X86.lean).

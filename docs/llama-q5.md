@@ -1,4 +1,6 @@
-# A proved LLVM rewrite in llama.cpp
+# A proved LLVM rewrite in llama.cpp's Q5 kernel
+
+This is the second of two rewrites of llama.cpp. [The first](llama.md) uses AVX-512 VNNI in the q4_K kernels.
 
 On an AMD Ryzen 9 9950X, a local rewrite of Q5 bit unpacking improves real **single-thread CPU
 generation** by about **1.05x** against Clang 23.1.5 `-O3`. Both confirmation sessions have positive
@@ -85,13 +87,18 @@ targets have identical disassembly and allocated ELF contents, apart from the bu
 - `defined_certificate` states the exact defined result for every 32-bit word: lane `j` is `0` when
   bit `j` is set, and `240` otherwise. All 32 output lanes are defined.
 - The axiom audit permits the standard three Lean axioms and **32 recomputed `bv_decide` axioms**.
-  Changing output lane zero to read bit one makes the unchanged equivalence proof fail with a
-  counterexample, rather than a timeout.
+  It reads the proof and its imports as data, checks that `same` is about both helpers as ir-lean
+  generated them, and `leanchecker` replays the proof. Changing output lane zero to read bit one makes
+  the unchanged equivalence proof fail with a counterexample, rather than a timeout. These held again on
+  2026-11-08, merged with `main` at `0330cd7` and the q4_K rewrite.
 
 The necessary integer bitcast support models little-endian splitting and joining, with poison tracked
-per contributing lane. Scalar/fixed-vector casts of equal total size are accepted when one lane width
-divides the other. Big-endian, floating-point, pointer, scalable-vector and nondividing-width casts are
-refused. Native comparisons and explicit ordering/poison tests cover the extension.
+per contributing lane, as `Vec.split` and `Vec.join`, which the q4_K rewrite uses too. Scalar/fixed-vector
+casts of equal total size are accepted when one lane width divides the other. Big-endian, floating-point,
+pointer, scalable-vector and nondividing-width casts are refused. Native comparisons and explicit
+ordering/poison tests cover the extension, and [`x86check.py`](../tests/x86check.py) checks it against
+Alive2 in both directions and LLVM's constant folder, poison included, at 32 shapes, this rewrite's
+`bitcast i32 %x to <32 x i1>` among them.
 
 Independent checks completed:
 

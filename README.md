@@ -25,7 +25,8 @@ rewrites of `__clzsi2` and `__ctzsi2` that are faster than `clang -O3`'s output,
 
 And [a rewrite of llama.cpp's q4_K matrix kernels](docs/llama.md) uses AVX-512 VNNI where `clang -O3` doesn't. Lean
 proves each of the 34 places it changes computes what clang's IR does, on every input. On two real models it reads a
-prompt 5.5% to 7.2% faster, with the same logits bit for bit.
+prompt 5.5% to 7.2% faster, with the same logits bit for bit. [A second rewrite](docs/llama-q5.md), of its Q5 bit
+unpacking, is proved on the exact slice it changes, and makes generating with one thread about 5% faster on one model.
 
 zlib's `updatewindow`, which copies `inflate`'s output into its sliding window, is proved [memory-safe](docs/memory.md)
 once the window is allocated: for every state meeting its invariant, with room behind the output it copies, it returns,
