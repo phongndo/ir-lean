@@ -173,6 +173,14 @@
    "class": "assumed",
    "says": "Only an operand of an intrinsic, whose own class covers it"
   },
+  "scalable vector": {
+   "class": "modeled",
+   "says": "A scalable vector of integers, a Vec (vscale * N) M, with vscale a parameter every function in the module takes, in IRLean/Scalable.lean. Checked against the fixed-width forms and LLVM's constant folder by tests/scalablecheck.py, and decided in docs/scalable-vectors.md"
+  },
+  "vscale range": {
+   "class": "modeled",
+   "says": "A run with vscale outside the function's vscale_range is undefined, checked at its entry, IRLean/Scalable.lean"
+  },
   "data layout": {
    "class": "modeled",
    "says": "A data layout the model reads the facts it uses from: 64-bit pointers and indices, and little-endian"
@@ -336,29 +344,29 @@
   }
  },
  "totals": {
-  "items": 17040,
-  "modeled": 168,
+  "items": 17042,
+  "modeled": 175,
   "assumed": 260,
-  "refused": 16612,
+  "refused": 16607,
   "by_kind": {
    "instruction": {
     "modeled": 38,
     "refused": 31
    },
    "type": {
-    "modeled": 7,
+    "modeled": 8,
     "assumed": 1,
-    "refused": 14
+    "refused": 13
    },
    "intrinsic": {
-    "modeled": 55,
+    "modeled": 60,
     "assumed": 4,
-    "refused": 16364
+    "refused": 16359
    },
    "attribute": {
-    "modeled": 38,
+    "modeled": 39,
     "assumed": 116,
-    "refused": 90
+    "refused": 89
    },
    "string attribute": {
     "assumed": 40,
@@ -387,14 +395,14 @@
    "form": {
     "modeled": 10,
     "assumed": 3,
-    "refused": 34
+    "refused": 36
    }
   },
   "refused_by_lane": {
    "external calls and globals": 65,
    "floating point": 154,
-   "long tail": 1912,
-   "memory": 114
+   "long tail": 1906,
+   "memory": 115
   }
  },
  "items": [
@@ -486,7 +494,7 @@
   {"kind": "type", "name": "Struct", "class": "modeled", "reason": "aggregate"},
   {"kind": "type", "name": "Array", "class": "refused", "lane": "long tail", "reason": "vector gap"},
   {"kind": "type", "name": "FixedVector", "class": "modeled", "reason": "vector"},
-  {"kind": "type", "name": "ScalableVector", "class": "refused", "lane": "long tail", "reason": "scalable"},
+  {"kind": "type", "name": "ScalableVector", "class": "modeled", "reason": "scalable vector"},
   {"kind": "type", "name": "TypedPointer", "class": "refused", "reason": "not in IR"},
   {"kind": "type", "name": "TargetExt", "class": "refused", "reason": "other target"},
   {"kind": "intrinsic", "name": "llvm.aarch64.addg", "class": "refused", "reason": "other target"},
@@ -13670,7 +13678,7 @@
   {"kind": "intrinsic", "name": "llvm.stackrestore", "class": "refused", "reason": "machine"},
   {"kind": "intrinsic", "name": "llvm.stacksave", "class": "refused", "reason": "machine"},
   {"kind": "intrinsic", "name": "llvm.start.loop.iterations", "class": "refused", "reason": "machine"},
-  {"kind": "intrinsic", "name": "llvm.stepvector", "class": "refused", "lane": "long tail", "reason": "scalable"},
+  {"kind": "intrinsic", "name": "llvm.stepvector", "class": "modeled", "reason": "scalable vector"},
   {"kind": "intrinsic", "name": "llvm.strip.invariant.group", "class": "refused", "lane": "memory", "reason": "memory model"},
   {"kind": "intrinsic", "name": "llvm.structured.alloca", "class": "refused", "lane": "memory", "reason": "memory model"},
   {"kind": "intrinsic", "name": "llvm.structured.gep", "class": "refused", "lane": "memory", "reason": "memory model"},
@@ -14974,8 +14982,8 @@
   {"kind": "intrinsic", "name": "llvm.vector.deinterleave6", "class": "refused", "lane": "long tail", "reason": "vector gap"},
   {"kind": "intrinsic", "name": "llvm.vector.deinterleave7", "class": "refused", "lane": "long tail", "reason": "vector gap"},
   {"kind": "intrinsic", "name": "llvm.vector.deinterleave8", "class": "refused", "lane": "long tail", "reason": "vector gap"},
-  {"kind": "intrinsic", "name": "llvm.vector.extract", "class": "refused", "lane": "long tail", "reason": "vector gap"},
-  {"kind": "intrinsic", "name": "llvm.vector.insert", "class": "refused", "lane": "long tail", "reason": "vector gap"},
+  {"kind": "intrinsic", "name": "llvm.vector.extract", "class": "modeled", "reason": "scalable vector"},
+  {"kind": "intrinsic", "name": "llvm.vector.insert", "class": "modeled", "reason": "scalable vector"},
   {"kind": "intrinsic", "name": "llvm.vector.interleave2", "class": "refused", "lane": "long tail", "reason": "vector gap"},
   {"kind": "intrinsic", "name": "llvm.vector.interleave3", "class": "refused", "lane": "long tail", "reason": "vector gap"},
   {"kind": "intrinsic", "name": "llvm.vector.interleave4", "class": "refused", "lane": "long tail", "reason": "vector gap"},
@@ -15000,7 +15008,7 @@
   {"kind": "intrinsic", "name": "llvm.vector.reduce.umax", "class": "modeled", "reason": "vector"},
   {"kind": "intrinsic", "name": "llvm.vector.reduce.umin", "class": "modeled", "reason": "vector"},
   {"kind": "intrinsic", "name": "llvm.vector.reduce.xor", "class": "modeled", "reason": "vector"},
-  {"kind": "intrinsic", "name": "llvm.vector.reverse", "class": "refused", "lane": "long tail", "reason": "vector gap"},
+  {"kind": "intrinsic", "name": "llvm.vector.reverse", "class": "modeled", "reason": "scalable vector"},
   {"kind": "intrinsic", "name": "llvm.vector.splice.left", "class": "refused", "lane": "long tail", "reason": "vector gap"},
   {"kind": "intrinsic", "name": "llvm.vector.splice.right", "class": "refused", "lane": "long tail", "reason": "vector gap"},
   {"kind": "intrinsic", "name": "llvm.vp.abs", "class": "refused", "lane": "long tail", "reason": "scalable"},
@@ -15093,7 +15101,7 @@
   {"kind": "intrinsic", "name": "llvm.vp.usub.sat", "class": "refused", "lane": "long tail", "reason": "scalable"},
   {"kind": "intrinsic", "name": "llvm.vp.xor", "class": "refused", "lane": "long tail", "reason": "scalable"},
   {"kind": "intrinsic", "name": "llvm.vp.zext", "class": "refused", "lane": "long tail", "reason": "scalable"},
-  {"kind": "intrinsic", "name": "llvm.vscale", "class": "refused", "lane": "long tail", "reason": "scalable"},
+  {"kind": "intrinsic", "name": "llvm.vscale", "class": "modeled", "reason": "scalable vector"},
   {"kind": "intrinsic", "name": "llvm.wasm.alltrue", "class": "refused", "reason": "other target"},
   {"kind": "intrinsic", "name": "llvm.wasm.anytrue", "class": "refused", "reason": "other target"},
   {"kind": "intrinsic", "name": "llvm.wasm.avgr.unsigned", "class": "refused", "reason": "other target"},
@@ -17132,7 +17140,7 @@
   {"kind": "attribute", "at": "call return", "name": "alignstack", "class": "assumed", "reason": "abi"},
   {"kind": "attribute", "at": "function", "name": "uwtable", "class": "assumed", "reason": "hint"},
   {"kind": "attribute", "at": "call", "name": "uwtable", "class": "assumed", "reason": "hint"},
-  {"kind": "attribute", "at": "function", "name": "vscale_range", "class": "refused", "lane": "long tail", "reason": "scalable"},
+  {"kind": "attribute", "at": "function", "name": "vscale_range", "class": "modeled", "reason": "vscale range"},
   {"kind": "attribute", "at": "call", "name": "vscale_range", "class": "refused", "lane": "long tail", "reason": "scalable"},
   {"kind": "attribute", "at": "parameter", "name": "byref", "class": "refused", "lane": "memory", "reason": "memory model"},
   {"kind": "attribute", "at": "call parameter", "name": "byref", "class": "refused", "lane": "memory", "reason": "memory model"},
@@ -17399,6 +17407,8 @@
   {"kind": "form", "name": "integer-bitcast-nondividing", "class": "refused", "lane": "long tail", "reason": "vector gap"},
   {"kind": "form", "name": "vector-constant-expression", "class": "refused", "lane": "long tail", "reason": "vector gap"},
   {"kind": "form", "name": "getelementptr-over-a-scalable-type", "class": "refused", "lane": "long tail", "reason": "scalable"},
+  {"kind": "form", "name": "scalable-vector-in-a-recursive-function", "class": "refused", "lane": "long tail", "reason": "scalable"},
+  {"kind": "form", "name": "load-of-a-scalable-vector", "class": "refused", "lane": "memory", "reason": "memory model"},
   {"kind": "form", "name": "array-value", "class": "refused", "lane": "long tail", "reason": "aggregate gap"},
   {"kind": "form", "name": "freeze-of-a-struct", "class": "refused", "lane": "long tail", "reason": "aggregate gap"},
   {"kind": "form", "name": "insertvalue-nested", "class": "refused", "lane": "long tail", "reason": "aggregate gap"},
