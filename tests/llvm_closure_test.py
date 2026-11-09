@@ -48,6 +48,29 @@ def ir_hash(tmp: Path, a: int = 0, attrs: str = "nounwind", m: int = 0, hi: int 
     return closure.parse(ll)["defs"]["f"]["ir_sha256"]
 
 
+# Two distinct alias scopes with the same contents, and an access whose `!noalias` names the scope the other
+# accesses are in, or the other one. LLVM tells them apart: GVN folds the load to 7 only when it's the same.
+SCOPES = """define i32 @g(ptr %p, ptr %q) {{
+  store i32 7, ptr %p, align 4, !alias.scope !{s}
+  store i32 1, ptr %q, align 4, !noalias !{n}
+  %v = load i32, ptr %p, align 4, !alias.scope !{s}
+  ret i32 %v
+}}
+
+!{d} = distinct !{{!{d}, !"domain"}}
+!{a} = distinct !{{!{a}, !{d}, !"scope"}}
+!{b} = distinct !{{!{b}, !{d}, !"scope"}}
+!{s} = !{{!{a}}}
+!{n} = !{{!{other}}}
+"""
+
+
+def scopes_hash(tmp: Path, other: str, d: int = 0, a: int = 1, b: int = 2, s: int = 3, n: int = 4) -> str:
+    ll = tmp / "g.ll"
+    ll.write_text(SCOPES.format(d=d, a=a, b=b, s=s, n=n, other=a if other == "same" else b))
+    return closure.parse(ll)["defs"]["g"]["ir_sha256"]
+
+
 def hashing_cases(tmp: Path) -> list[str]:
     """A function's IR hash covers the attribute groups and metadata it refers to, and not their numbers."""
     base = ir_hash(tmp)
@@ -58,6 +81,16 @@ def hashing_cases(tmp: Path) -> list[str]:
         ("the attribute group and metadata renumbered", ir_hash(tmp, a=3, m=7), True),
     ]:
         ok = (got == base) == same
+        print(f"{'ok  ' if ok else 'FAIL'} {name}: the IR hash {'stays' if same else 'changes'}")
+        if not ok:
+            failures.append(f"{name}: the IR hash {'changed' if same else 'stayed the same'}")
+    shared = scopes_hash(tmp, "same")
+    for name, got, same in [
+        ("!noalias naming another distinct scope with the same contents", scopes_hash(tmp, "other"), False),
+        ("the scopes renumbered", scopes_hash(tmp, "same", d=9, a=5, b=7, s=2, n=11), True),
+    ]:
+        got_same = got == shared
+        ok = got_same == same
         print(f"{'ok  ' if ok else 'FAIL'} {name}: the IR hash {'stays' if same else 'changes'}")
         if not ok:
             failures.append(f"{name}: the IR hash {'changed' if same else 'stayed the same'}")

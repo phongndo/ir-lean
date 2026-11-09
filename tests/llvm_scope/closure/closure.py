@@ -43,7 +43,7 @@ from irlean import hashing, pins, proc  # noqa: E402
 
 SCHEMA = "ir-lean.closure/1"
 # Changes when what `parse` reads of a module does, so cached readings are redone.
-PARSER = 3
+PARSER = 4
 TARGETS = ROOT / "tests" / "llvm" / "targets.toml"
 INDEX = [
     "llvm/lib/IR",
@@ -215,25 +215,38 @@ ATTR_REF = re.compile(r"#(\d+)\b")
 MD_REF = re.compile(r"!(\d+)\b")
 
 
-def expand_metadata(md: dict[str, str], ref: str, seen: frozenset[str] = frozenset()) -> str:
-    """A metadata node's text with every node it refers to written out in place, so the text doesn't depend on
-    how the module numbered them. A node met again inside itself, as a loop's ID is, is `!self`."""
-    if ref in seen:
-        return "!self"
-    text = md.get(ref, "!missing")
-    return MD_REF.sub(lambda m: "!{" + expand_metadata(md, m.group(1), seen | {ref}) + "}", text)
-
-
 def canonical_ir(body: str, attrs: dict[str, str], md: dict[str, str]) -> str:
-    """A function's IR as its hash covers it: with the attribute groups and metadata it refers to written out
-    in place, so a change to either changes the hash and their numbering doesn't, and without comments, which
-    carry numbers that move with unrelated code."""
-    lines = []
-    for raw in body.split("\n"):
-        line = re.sub(r"\s*;.*$", "", raw)
-        line = ATTR_REF.sub(lambda m: "#{" + attrs.get(m.group(1), "missing") + "}", line)
-        lines.append(MD_REF.sub(lambda m: "!{" + expand_metadata(md, m.group(1)) + "}", line))
-    return "\n".join(lines)
+    """A function's IR as its hash covers it, without comments, which carry numbers that move with unrelated
+    code. Its attribute groups are written out in place, since a group is only its contents. The metadata it
+    refers to is numbered again, in the order the function first reaches each node, through other nodes too,
+    and each node is written out once under its new number. So a change to an attribute or a node changes the
+    hash, which nodes are shared, which are distinct and which refer back to themselves is kept, and how the
+    module numbered them isn't."""
+    lines = [re.sub(r"\s*;.*$", "", raw) for raw in body.split("\n")]
+    ids: dict[str, int] = {}
+    order: list[str] = []
+
+    def visit(ref: str) -> None:
+        if ref in ids:
+            return
+        ids[ref] = len(ids)
+        order.append(ref)
+        for r in MD_REF.findall(md.get(ref, "")):
+            visit(r)
+
+    for line in lines:
+        for r in MD_REF.findall(line):
+            visit(r)
+
+    def renumber(text: str) -> str:
+        return MD_REF.sub(lambda m: f"!m{ids[m.group(1)]}", text)
+
+    out = [
+        renumber(ATTR_REF.sub(lambda m: "#{" + attrs.get(m.group(1), "missing") + "}", line))
+        for line in lines
+    ]
+    out += [f"!m{ids[r]} = {renumber(md[r]) if r in md else '!missing'}" for r in order]
+    return "\n".join(out)
 
 
 def parse(ll: Path) -> dict[str, Any]:

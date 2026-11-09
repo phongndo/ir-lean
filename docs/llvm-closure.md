@@ -17,8 +17,10 @@ Facts here were checked on top of `2c9e6df` on 2026-11-09, on x86-64 Linux in th
 include directory upstream's CMake adds for `Support`. Then from the root symbol it follows each direct call: to the
 same file's copy for an inline function or template (`linkonce_odr`), through aliases such as a complete-object
 constructor's, and otherwise to the one file that defines the function. It records each function with its file,
-linkage, instruction count and the SHA-256 of its IR, with the attribute groups and metadata it refers to written out in
-place, so a change to either changes the hash and their numbering doesn't. And it records every file of llvm-project
+linkage, instruction count and the SHA-256 of its IR. The hash covers the attribute groups the function refers to,
+written out in place, and the metadata, numbered again in the order the function reaches each node, so a change to
+either changes the hash, which metadata nodes are shared or distinct is kept, as distinct alias scopes need, and how the
+module numbered them isn't. And it records every file of llvm-project
 the closure's files read, headers included, from clang's `-MD`, with its SHA-256. Those files are the closure's
 anchors. The linker keeps one copy of an
 inline function, from any file that has one, and copies can call different functions after `-O3` inlined different
@@ -58,7 +60,7 @@ its static type, and each `function_ref`'s callbacks from where it's made, is wh
 doesn't carry the static types, so that needs clang's type metadata, which the shipped build isn't compiled with.
 
 **The one-definition rule.** Of the closure's 904 inline functions, 160 have copies in other indexed files whose IR
-differs from the copy the closure reached, with attribute groups and metadata written out. The linker keeps one copy, and which one isn't recorded. Following only the
+differs from the copy the closure reached, as the hash above sees them. The linker keeps one copy, and which one isn't recorded. Following only the
 reached copy's calls left out three functions another copy calls, which LLVM's own call graph over the linked files
 found, such as `detail::scalbn`.
 
@@ -141,7 +143,8 @@ the shipped `libLLVM` has several times as many. It's the maintainer's to accept
 recorded, clang is the one it was derived with, and its 154 files compile again to the same IR for its 2,070 functions
 and the 693 other copies of its inline ones. A closure with one file's hash changed fails, and so does one with one
 function's IR changed, or one other copy's. A function's IR hash changes when an attribute group or a `!range` it refers
-to does, and stays when they're renumbered. `closure.py check simplifyAddInst` alone hashes the files and checks clang,
+to does, or when its `!noalias` names another distinct scope with the same contents, and stays when they're
+renumbered. `closure.py check simplifyAddInst` alone hashes the files and checks clang,
 in about a second.
 
 ## Reproduce
