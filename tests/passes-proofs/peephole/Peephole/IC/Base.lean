@@ -67,6 +67,37 @@ def isSelect : Term w → Bool
 /-- `isa<BinaryOperator>(V)` with this opcode. -/
 def isBin (op : BinOp) (t : Term w) : Bool := (binop? op t).isSome
 
+theorem binop1?_eq {c : Ctx} {op : BinOp} {t : Term w} {f : Flags} {a b : Term w}
+    (h : binop1? c op t = some (f, a, b)) : binop? op t = some (f, a, b) := by
+  unfold binop1? at h
+  split at h
+  · exact h
+  · cases h
+
+/-! ### Running a replacement -/
+
+@[simp] theorem andThen_ok {α β : Type} (x : α) (k : α → Outcome β) : andThen (Outcome.ok x) k = k x := rfl
+
+theorem eval_bin (ρ : Env) (op : BinOp) (f : Flags) (a b : Repl w) :
+    (Repl.bin op f a b).eval ρ = andThen (a.eval ρ) fun x => andThen (b.eval ρ) fun y => op.eval f x y := rfl
+
+theorem eval_select (ρ : Env) (c : Repl 1) (t e : Repl w) :
+    (Repl.select c t e).eval ρ =
+      andThen (c.eval ρ) fun x => andThen (t.eval ρ) fun y => andThen (e.eval ρ) fun z =>
+        Outcome.ok (IRLean.select x y z) := rfl
+
+theorem eval_zext {v : Nat} (ρ : Env) (nneg : Bool) (a : Repl v) :
+    (Repl.zext (w := w) nneg a).eval ρ = andThen (a.eval ρ) fun x => Outcome.ok (Val.zext w x nneg) := rfl
+
+theorem eval_sext {v : Nat} (ρ : Env) (a : Repl v) :
+    (Repl.sext (w := w) a).eval ρ = andThen (a.eval ρ) fun x => Outcome.ok (Val.sext w x) := rfl
+
+/-- A rewrite is right when the instruction's value, as a run, is `a`, the replacement's `b`, and `b` refines `a`. -/
+theorem refines_of_eval {src tgt : Repl w} {ρ : Env} {a b : Val w} (hs : src.eval ρ = Outcome.ok a)
+    (ht : tgt.eval ρ = Outcome.ok b) (h : Refines a b) : Refines (src.eval ρ) (tgt.eval ρ) := by
+  rw [hs, ht]
+  exact (Refine.outcome_ok_ok a b).2 h
+
 /-! ### Forwarding to a fold modelled here -/
 
 /-- `if (Value *V = g(...)) return replaceInstUsesWith(I, V);`, for a `g` modelled as a function answering a

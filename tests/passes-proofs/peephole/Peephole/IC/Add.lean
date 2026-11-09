@@ -126,4 +126,69 @@ def visitAdd.onInst (c : Ctx) (o : Oracle) : {w : Nat} → Term w → Result w
   | _, .bin _ .add f a b => visitAdd c o a b f
   | _, _ => .null
 
+/-! ### The fold's theorem -/
+
+theorem run_cons_ne_null {s : Step w} {rest : List (Step w)} (hs : s = .next ∨ ∃ site r, s = .fire site r)
+    (h : run rest ≠ .null) : run (s :: rest) ≠ .null := by
+  rcases hs with rfl | ⟨site, r, rfl⟩
+  · exact h
+  · simp [run]
+
+/-- `simplifyAddInst` answers for every `i1` `add`: with `MaxRecurse` at 3, a step that rewrites fires, or it hands
+the `add` to `simplifyXorInst`, which the model delegates. It never answers `nullptr`. -/
+theorem simplifyAddInst_ne_null_i1 (a b : Term 1) (nsw nuw : Bool) : IS.simplifyAddInst a b nsw nuw 3 ≠ .null := by
+  have steps (x y : Term 1) : run (IS.simplifyAddInst.steps x y nsw nuw 3) ≠ .null := by
+    simp only [IS.simplifyAddInst.steps]
+    refine run_cons_ne_null (by split <;> simp) ?_
+    refine run_cons_ne_null (by split <;> simp) ?_
+    refine run_cons_ne_null (by split <;> simp) ?_
+    refine run_cons_ne_null (by split <;> simp) ?_
+    refine run_cons_ne_null (by split <;> simp) ?_
+    refine run_cons_ne_null (by split <;> simp) ?_
+    refine run_cons_ne_null (by split <;> (try split) <;> simp) ?_
+    refine run_cons_ne_null (by split <;> simp) ?_
+    simp [run]
+  unfold IS.simplifyAddInst
+  split
+  · split
+    · simp
+    · exact steps _ _
+  · exact steps _ _
+
+/-- Theorem 1 for `visitAdd`: every value the model answers refines the `add` it replaces, at every width, for every
+flag, every `Ctx` and every sound `Oracle`, in every run its operands are consistent with, poison included. It says
+nothing about operands that reach an `undef`. -/
+theorem visitAdd.sound (ρ : Env) (c : Ctx) (o : Oracle) (ho : o.Sound ρ) (op0 op1 : Term w) (f : Flags)
+    (c0 : op0.Consistent ρ) (c1 : op1.Consistent ρ) (u0 : op0.hasUndef = false) (u1 : op1.hasUndef = false)
+    {r : Repl w} (h : visitAdd c o op0 op1 f = .value r) :
+    Refines ((IS.addSrc op0 op1 f.nsw f.nuw).eval ρ) (r.eval ρ) := by
+  unfold visitAdd visitAdd.steps at h
+  simp only [List.cons_append] at h
+  cases hs : IS.simplifyAddInst op0 op1 f.nsw f.nuw 3 with
+  | value r' =>
+    rw [hs] at h
+    simp only [forward, run, Result.value.injEq] at h
+    subst h
+    exact IS.simplifyAddInst.sound ρ op0 op1 f.nsw f.nuw 3 c0 c1 u0 u1 hs
+  | delegated callee =>
+    rw [hs] at h
+    simp [forward, run] at h
+  | null =>
+    rw [hs] at h
+    simp only [forward, run] at h
+    have hw : w ≠ 1 := by
+      rintro rfl
+      exact simplifyAddInst_ne_null_i1 op0 op1 f.nsw f.nuw hs
+    refine run_sound (P := fun r => Refines ((IS.addSrc op0 op1 f.nsw f.nuw).eval ρ) (r.eval ρ)) (fun s r hmem => ?_) h
+    simp only [List.nil_append, List.mem_append, List.mem_cons, List.not_mem_nil, or_false, or_assoc] at hmem
+    rcases hmem with h | h | h | h | h | h | h | h
+    · split at h <;> simp at h
+    · simp at h
+    · split at h <;> simp at h
+    · split at h <;> simp at h
+    · split at h <;> simp at h
+    · split at h <;> simp at h
+    · exact foldAddWithConstant.sound ρ c o ho op0 op1 f.nsw f.nuw c0 c1 u0 u1 (Or.inl hw) s r h
+    · split at h <;> simp at h
+
 end Peephole.IC

@@ -90,6 +90,182 @@ theorem sshiftRight_width_sub_one (x : BitVec w) (hw : 0 < w) :
     cases x.getLsbD (w - 1) <;> simp [hi] <;> omega
   · cases hm : x.msb <;> simp [hi] <;> omega
 
+/-- The bits of `-2^k`: those at `k` and above. -/
+theorem getLsbD_neg_twoPow {k i : Nat} (hk : k < w) :
+    (-BitVec.twoPow w k).getLsbD i = (decide (k ≤ i) && decide (i < w)) := by
+  rw [BitVec.getLsbD_neg, BitVec.getLsbD_twoPow]
+  by_cases hi : i < w
+  · have : (∃ j < i, (BitVec.twoPow w k).getLsbD j = true) ↔ k < i := by
+      simp only [BitVec.getLsbD_twoPow, Bool.and_eq_true, decide_eq_true_eq]
+      constructor
+      · rintro ⟨j, hj, -, rfl⟩; exact hj
+      · intro h; exact ⟨k, h, hk, rfl⟩
+    simp only [this, hk, hi, decide_true, Bool.true_and, Bool.and_true]
+    by_cases hki : k = i
+    · subst hki; simp
+    · by_cases hlt : k < i <;> simp [hki, hlt] <;> omega
+  · have : ¬ (k = i) := by omega
+    simp [hi, this]
+
+/-- The bits of `2^k`, for `k` inside the width. -/
+theorem getLsbD_twoPow_of_lt {k : Nat} (hk : k < w) (i : Nat) :
+    (BitVec.twoPow w k).getLsbD i = decide (i = k) := by
+  rw [BitVec.getLsbD_twoPow]
+  by_cases h : i = k
+  · subst h; simp [hk]
+  · have : ¬ k = i := fun e => h e.symm
+    simp [h, this]
+
+/-- Two bit vectors with no bit in common add to their `or`. -/
+theorem add_eq_or {x y : BitVec w} (h : ∀ i, x.getLsbD i = true → y.getLsbD i = false) : x + y = x ||| y := by
+  refine (Generic.add_of_and_eq_zero ?_).2.2
+  apply BitVec.eq_of_getLsbD_eq; intro i hi
+  simp only [BitVec.getLsbD_and, BitVec.getLsbD_zero]
+  cases hx : x.getLsbD i
+  · rfl
+  · simp [h i hx]
+
+/-- Shifting `x` left by `s` and arithmetically back extends its bit `w - 1 - s` over those above it. -/
+theorem sshiftRight_shiftLeft_getLsbD (x : BitVec w) {s i : Nat} (hs : s < w) (hi : i < w) :
+    ((x <<< s).sshiftRight s).getLsbD i = if i < w - s then x.getLsbD i else x.getLsbD (w - 1 - s) := by
+  rw [BitVec.getLsbD_sshiftRight, BitVec.msb_eq_getLsbD_last, BitVec.getLsbD_shiftLeft, BitVec.getLsbD_shiftLeft]
+  have hw : ¬ (w ≤ i) := by omega
+  have hw1 : w - 1 < w := by omega
+  have hw2 : ¬ (w - 1 < s) := by omega
+  by_cases h : i < w - s
+  · have h1 : s + i < w := by omega
+    have h2 : ¬ (s + i < s) := by omega
+    simp only [hw, h1, h2, h, decide_false, decide_true, Bool.not_false, Bool.not_true, Bool.true_and, ite_true,
+      show s + i - s = i by omega]
+  · have h1 : ¬ (s + i < w) := by omega
+    simp only [hw, h1, h, hw1, hw2, decide_false, decide_true, Bool.not_false, Bool.true_and, ite_false]
+
+/-- `(x ^ c2) + c`, where `x` has no bit above `k` and one of `c` and `c2` is `2^k` and the other its negation, is
+`x` extended from bit `k`: the sign extension in a register. -/
+theorem xor_add_sext {x : BitVec w} {k : Nat} (hk : k + 1 < w) (hx : ∀ i, k < i → x.getLsbD i = false)
+    {c c2 : BitVec w} (hc : (c = BitVec.twoPow w k ∧ c2 = -c) ∨ (c2 = BitVec.twoPow w k ∧ c = -c2)) :
+    (x ^^^ c2) + c = (x <<< (w - 1 - k)).sshiftRight (w - 1 - k) := by
+  have hs : w - 1 - k < w := by omega
+  have hws : w - (w - 1 - k) = k + 1 := by omega
+  have ht := getLsbD_twoPow_of_lt (w := w) (k := k) (by omega)
+  have hn : ∀ i, (-BitVec.twoPow w k).getLsbD i = (decide (k ≤ i) && decide (i < w)) :=
+    fun i => getLsbD_neg_twoPow (by omega)
+  have hn1 : ∀ i, (-BitVec.twoPow w (k + 1)).getLsbD i = (decide (k + 1 ≤ i) && decide (i < w)) :=
+    fun i => getLsbD_neg_twoPow hk
+  -- Both sides are `x` with bit `k` copied over every bit above it.
+  have hE : ∀ i, i < w → ((x <<< (w - 1 - k)).sshiftRight (w - 1 - k)).getLsbD i =
+      if i ≤ k then x.getLsbD i else x.getLsbD k := by
+    intro i hi
+    rw [sshiftRight_shiftLeft_getLsbD x hs hi, hws, show w - 1 - (w - 1 - k) = k by omega]
+    by_cases h : i ≤ k
+    · simp [h, show i < k + 1 by omega]
+    · simp [h, show ¬ i < k + 1 by omega]
+  -- The value with bit `k` clear is `x`, and with it set is `x - 2^(k+1)`, which sets every bit above `k`.
+  have hclear : x.getLsbD k = false → x = (x <<< (w - 1 - k)).sshiftRight (w - 1 - k) := by
+    intro hxk
+    apply BitVec.eq_of_getLsbD_eq; intro i hi
+    rw [hE i hi]
+    by_cases hik : i ≤ k
+    · simp [hik]
+    · simp only [hik, ite_false, hxk]; exact hx i (by omega)
+  have hset : x.getLsbD k = true →
+      x + -BitVec.twoPow w (k + 1) = (x <<< (w - 1 - k)).sshiftRight (w - 1 - k) := by
+    intro hxk
+    rw [add_eq_or]
+    · apply BitVec.eq_of_getLsbD_eq; intro i hi
+      rw [hE i hi, BitVec.getLsbD_or, hn1]
+      by_cases hik : i ≤ k
+      · have : ¬ (k + 1 ≤ i) := by omega
+        simp [hik, this]
+      · have : k + 1 ≤ i := by omega
+        simp [hik, this, hi, hxk]
+    · intro j hj; rw [hn1]
+      by_cases hjk : k + 1 ≤ j
+      · rw [hx j (by omega)] at hj; cases hj
+      · simp [hjk]
+  have h2 : BitVec.twoPow w k + BitVec.twoPow w k = BitVec.twoPow w (k + 1) := by
+    apply BitVec.eq_of_toNat_eq
+    have hlt := Nat.pow_lt_pow_right (a := 2) (by omega) hk
+    rw [BitVec.toNat_add, BitVec.toNat_twoPow_of_lt (by omega), BitVec.toNat_twoPow_of_lt (by omega)]
+    rw [Nat.pow_succ] at hlt ⊢
+    rw [Nat.mod_eq_of_lt (by omega)]
+    omega
+  rcases hc with ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩
+  · -- `(x ^ -2^k) + 2^k`
+    cases hxk : x.getLsbD k
+    · -- `x ^ -2^k` is `x + -2^k`, with no carry.
+      have hor : x ^^^ -BitVec.twoPow w k = x + -BitVec.twoPow w k := by
+        rw [add_eq_or]
+        · apply BitVec.eq_of_getLsbD_eq; intro j hj
+          rw [BitVec.getLsbD_xor, BitVec.getLsbD_or, hn]
+          by_cases hjk : k ≤ j
+          · have : x.getLsbD j = false := by
+              rcases Nat.eq_or_lt_of_le hjk with rfl | hlt
+              · exact hxk
+              · exact hx j hlt
+            simp [this]
+          · simp [hjk]
+        · intro j hj; rw [hn]
+          by_cases hjk : k ≤ j
+          · rcases Nat.eq_or_lt_of_le hjk with rfl | hlt
+            · rw [hxk] at hj; cases hj
+            · rw [hx j hlt] at hj; cases hj
+          · simp [hjk]
+      rw [hor, BitVec.add_assoc, BitVec.add_left_neg, BitVec.add_zero]
+      exact hclear hxk
+    · -- `x ^ -2^k` has bit `k` clear, so adding `2^k` sets it with no carry, which is `x - 2^(k+1)`.
+      have hval : (x ^^^ -BitVec.twoPow w k) + BitVec.twoPow w k = x + -BitVec.twoPow w (k + 1) := by
+        rw [add_eq_or, add_eq_or]
+        · apply BitVec.eq_of_getLsbD_eq; intro i hi
+          rw [BitVec.getLsbD_or, BitVec.getLsbD_or, BitVec.getLsbD_xor, hn, hn1, ht]
+          by_cases hik : i = k
+          · subst hik; simp [hxk]
+          · by_cases hlt : k < i
+            · have : k + 1 ≤ i := hlt
+              have hxi := hx i hlt
+              simp only [hik, Nat.le_of_lt hlt, this, hi, hxi, decide_true, decide_false, Bool.true_and,
+                Bool.false_xor, Bool.false_or, Bool.and_self, Bool.true_xor, Bool.not_true, Bool.or_false]
+            · have h1 : ¬ k ≤ i := by omega
+              have h2' : ¬ k + 1 ≤ i := by omega
+              simp [hik, h1, h2']
+        · intro j hj; rw [hn1]
+          by_cases hjk : k + 1 ≤ j
+          · rw [hx j (by omega)] at hj; cases hj
+          · simp [hjk]
+        · intro j hj; rw [ht]
+          by_cases hjk : j = k
+          · subst hjk; rw [BitVec.getLsbD_xor, hn, hxk] at hj; simp at hj; omega
+          · simp [hjk]
+      rw [hval]
+      exact hset hxk
+  · -- `(x ^ 2^k) + -2^k`
+    cases hxk : x.getLsbD k
+    · -- `x ^ 2^k` is `x + 2^k`.
+      have hor : x ^^^ BitVec.twoPow w k = x + BitVec.twoPow w k := by
+        rw [add_eq_or]
+        · apply BitVec.eq_of_getLsbD_eq; intro j hj
+          rw [BitVec.getLsbD_xor, BitVec.getLsbD_or, ht]
+          by_cases hjk : j = k
+          · subst hjk; simp [hxk]
+          · simp [hjk]
+        · intro j hj; rw [ht]; by_cases hjk : j = k
+          · subst hjk; rw [hxk] at hj; cases hj
+          · simp [hjk]
+      rw [hor, BitVec.add_assoc, BitVec.add_right_neg, BitVec.add_zero]
+      exact hclear hxk
+    · -- `x ^ 2^k` is `x - 2^k`, and taking `2^k` again leaves `x - 2^(k+1)`.
+      have hsub : x ^^^ BitVec.twoPow w k = x - BitVec.twoPow w k := by
+        refine (sub_eq_xor_of_and_eq ?_).symm
+        apply BitVec.eq_of_getLsbD_eq; intro j hj
+        rw [BitVec.getLsbD_and, ht]
+        by_cases hjk : j = k
+        · subst hjk; simp [hxk]
+        · simp [hjk]
+      have hval : (x ^^^ BitVec.twoPow w k) + -BitVec.twoPow w k = x + -BitVec.twoPow w (k + 1) := by
+        rw [hsub, ← h2]; grind
+      rw [hval]
+      exact hset hxk
+
 /-! ### The rewrites -/
 
 /-- `(c - x) + b` refines `(c + b) - x`, with no flags on either. `IC.AddSub.foldAddWithConstant.L874`. -/
@@ -188,7 +364,7 @@ theorem add_sext_bool_refines (b : Val 1) (c : Val w) (nuw nsw : Bool) :
 
 /-- `~x + c` refines `(c - 1) - x`, with `nsw` if the `add` has it and `c - 1` doesn't overflow, except at `i1`, where
 `1` is `-1`: there `add nsw (xor x, 1), 1` is 1 for `x = 1`, and `sub nsw 0, x` is poison. `IC.AddSub.foldAddWithConstant.L902`. -/
-theorem add_not_refines (x : Val w) (c : BitVec w) (nuw nsw : Bool) (hw : w ≠ 1) :
+theorem add_not_refines (x : Val w) (c : BitVec w) (nuw nsw : Bool) (hw : w ≠ 1 ∨ nsw = false) :
     Refines (Val.add (Val.xor x (some (BitVec.allOnes w))) (some c) nuw nsw)
       (Val.sub (some (c - 1#w)) x false (nsw && !c.ssubOverflow 1#w)) := by
   cases x with
@@ -204,6 +380,7 @@ theorem add_not_refines (x : Val w) (c : BitVec w) (nuw nsw : Bool) (hw : w ≠ 
     intro ht
     simp only [Bool.and_eq_true, Bool.not_eq_true'] at ht
     obtain ⟨⟨rfl, h1⟩, h2⟩ := ht
+    have hw : w ≠ 1 := hw.resolve_right (by simp)
     have hs : ¬ (~~~p).saddOverflow c = true := by intro h; apply hsrc; simp [h]
     rcases Nat.lt_or_ge w 2 with hw2 | hw2
     · -- `w = 0`: every value is 0.
@@ -496,5 +673,76 @@ theorem add_zext_add_neg_refines {x n : BitVec v} (h : n.toNat ≤ x.toNat) (f1 
     rw [← BitVec.sub_eq_add_neg, BitVec.toNat_sub_of_le (by simpa [BitVec.le_def] using h)]
   simp only [BitVec.toNat_add, BitVec.toNat_setWidth, hsub]
   rw [Nat.mod_add_mod, Nat.add_mod_mod, Nat.sub_add_cancel h]
+
+/-- `zext (x ^ signmask) + sext signmask` is `sext x`, at any widths: flipping the sign bit and taking it back off
+the wider value extends it. -/
+theorem zext_xor_intMin_add (x : BitVec v) (w : Nat) :
+    (x ^^^ BitVec.intMin v).setWidth w + (BitVec.intMin v).signExtend w = x.signExtend w := by
+  rcases Nat.lt_or_ge w v with hwv | hvw
+  · rw [BitVec.signExtend_eq_setWidth_of_le _ (Nat.le_of_lt hwv), BitVec.signExtend_eq_setWidth_of_le _ (Nat.le_of_lt hwv)]
+    have hm : (BitVec.intMin v).setWidth w = 0#w := by
+      apply BitVec.eq_of_getLsbD_eq; intro i hi
+      rw [BitVec.getLsbD_setWidth, BitVec.getLsbD_intMin, BitVec.getLsbD_zero]
+      have : ¬ (i + 1 = v) := by omega
+      simp [this]
+    rw [hm, BitVec.add_zero, BitVec.setWidth_xor, hm, BitVec.xor_zero]
+  · rcases Nat.eq_zero_or_pos v with rfl | hv
+    · rw [BitVec.of_length_zero (x := x)]
+      apply BitVec.eq_of_toNat_eq
+      simp [BitVec.toNat_signExtend, BitVec.msb_intMin]
+    · apply BitVec.eq_of_toNat_eq
+      have hpow : 2 ^ v = 2 * 2 ^ (v - 1) := by rw [← Nat.pow_succ']; congr 1; omega
+      have hvw' : 2 ^ v ≤ 2 ^ w := Nat.pow_le_pow_right (by omega) hvw
+      have hx := x.isLt
+      have hm : (BitVec.intMin v).toNat = 2 ^ (v - 1) := by
+        rw [BitVec.toNat_intMin, Nat.mod_eq_of_lt (by omega)]
+      have hmsb : (BitVec.intMin v).msb = true := by simp [BitVec.msb_intMin, hv]
+      have h1 : ((x ^^^ BitVec.intMin v).setWidth w).toNat =
+          if 2 ^ (v - 1) ≤ x.toNat then x.toNat + 2 ^ (v - 1) - 2 ^ v else x.toNat + 2 ^ (v - 1) := by
+        have hxor : (x ^^^ BitVec.intMin v).toNat = (x.toNat + 2 ^ (v - 1)) % 2 ^ v := by
+          rw [← add_intMin, BitVec.toNat_add, hm]
+        rw [BitVec.toNat_setWidth, hxor, Nat.mod_eq_of_lt (a := (x.toNat + 2 ^ (v - 1)) % 2 ^ v)
+          (Nat.lt_of_lt_of_le (Nat.mod_lt _ (by omega)) hvw')]
+        split
+        · rw [Nat.mod_eq_sub_mod (by omega), Nat.mod_eq_of_lt (by omega)]
+        · rw [Nat.mod_eq_of_lt (by omega)]
+      have h2 : ((BitVec.intMin v).signExtend w).toNat = 2 ^ (v - 1) + (2 ^ w - 2 ^ v) := by
+        rw [BitVec.toNat_signExtend, BitVec.toNat_setWidth, hm, hmsb, if_pos rfl, Nat.mod_eq_of_lt (by omega)]
+      have h3 : (x.signExtend w).toNat = x.toNat + if 2 ^ (v - 1) ≤ x.toNat then 2 ^ w - 2 ^ v else 0 := by
+        rw [BitVec.toNat_signExtend, BitVec.toNat_setWidth, BitVec.msb_eq_decide, Nat.mod_eq_of_lt (by omega)]
+        by_cases h : 2 ^ (v - 1) ≤ x.toNat <;> simp [h]
+      rw [BitVec.toNat_add, h1, h2, h3]
+      split
+      · rw [Nat.mod_eq_of_lt (by omega)]; omega
+      · rw [show x.toNat + 2 ^ (v - 1) + (2 ^ (v - 1) + (2 ^ w - 2 ^ v)) = x.toNat + 2 ^ w by omega,
+          Nat.add_mod_right, Nat.mod_eq_of_lt (by omega)]
+        simp
+
+/-- `zext (x ^ signmask) + sext signmask` refines `sext x`. `IC.AddSub.foldAddWithConstant.L947`. -/
+theorem add_zext_xor_intMin_refines (x : Val v) (nneg nuw nsw : Bool) :
+    Refines (Val.add (Val.zext w (Val.xor x (some (BitVec.intMin v))) nneg)
+        (some ((BitVec.intMin v).signExtend w)) nuw nsw) (Val.sext w x) := by
+  cases x with
+  | none => exact Refine.val_none _
+  | some p =>
+  simp only [Val.xor, Val.map₂, Val.zext, Val.sext, Val.map₁]
+  split
+  · exact Refine.val_none _
+  · exact add_refines_of_sum (zext_xor_intMin_add p w)
+
+/-- `(x ^ c2) + c` refines `ashr (shl x, s), s` for `s = w - 1 - k`, where `x` has no bit above `k`, `k + 1 < w`, and one
+of `c` and `c2` is `2^k` and the other its negation. `IC.AddSub.foldAddWithConstant.L976`. -/
+theorem add_xor_sext_refines {x : BitVec w} {k : Nat} (hk : k + 1 < w) (hx : ∀ i, k < i → x.getLsbD i = false)
+    {c c2 : BitVec w} (hc : (c = BitVec.twoPow w k ∧ c2 = -c) ∨ (c2 = BitVec.twoPow w k ∧ c = -c2)) (nuw nsw : Bool) :
+    Refines (Val.add (some (x ^^^ c2)) (some c) nuw nsw)
+      (Val.ashr (Val.shl (some x) (some (BitVec.ofNat w (w - 1 - k)))) (some (BitVec.ofNat w (w - 1 - k)))) := by
+  have hs : (BitVec.ofNat w (w - 1 - k)).toNat = w - 1 - k := by
+    rw [BitVec.toNat_ofNat]; exact Nat.mod_eq_of_lt (by have := @Nat.lt_two_pow_self w; omega)
+  have hok : Val.shiftOk (BitVec.ofNat w (w - 1 - k)) = true := by
+    rw [Generic.shiftOk_iff, hs]; simp; omega
+  simp only [Val.shl, Val.ashr, hok, Bool.not_true, Bool.false_eq_true, ite_false, Bool.false_and]
+  refine add_refines_of_sum ?_
+  rw [BitVec.shiftLeft_eq', BitVec.sshiftRight_eq', hs]
+  exact xor_add_sext hk hx hc
 
 end Peephole.Lemmas
