@@ -106,7 +106,7 @@ check 'Whitespace, in every language' editorconfig-checker -disable-indent-size
 # The Lean lint needs the modules this writes.
 check 'Lean generated modules' tests/proofs.sh build/ir-lean --generate build/generated
 wait "$!"
-check 'Lean lint' lake build --wfail IRLean Proofs
+check 'Lean lint' lake build --wfail IRLean Proofs Peephole
 
 wait
 for ((i = 1; i <= checks; i++)); do

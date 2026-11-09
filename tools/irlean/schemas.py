@@ -54,6 +54,12 @@ STAGE1_SUMMARY = "ir-lean.stage1.summary/1"
 STAGE1_KNOWN_WRONG = "ir-lean.stage1.known-wrong/1"
 # tests/llvm_rewrites.py: the inventory of chunk 1's rewrites, one file per pass. docs/rewrite-inventory.md.
 REWRITES = "ir-lean.rewrites/1"
+# tests/peephole.py: a family's registry of folds, a model's comparison with opt, the scoreboard, and E3's
+# measure. docs/rewrite-proofs.md.
+PEEPHOLE_FOLDS = "ir-lean.peephole.folds/1"
+PEEPHOLE_COMPARISON = "ir-lean.peephole.comparison/1"
+PEEPHOLE_SCORE = "ir-lean.peephole.score/1"
+PEEPHOLE_MEASURE = "ir-lean.peephole.measure/1"
 # tests/verify_negative.py: a case, the envelope around a checker's answer, and the report.
 # docs/llvm-negative-verification.md.
 NEGATIVE_CASE = "ir-lean.verification-negative.case/1"
