@@ -43,6 +43,8 @@ from pathlib import Path
 from typing import Any, NoReturn
 
 ROOT = Path(__file__).resolve().parent.parent.parent
+sys.path.append(str(ROOT / "tools"))
+from irlean import verdict as core  # noqa: E402
 
 
 def load_verify() -> Any:
@@ -583,10 +585,13 @@ class Harness:
         self.over_memory = threading.Event()
         self.other: list[str] = []
         self.starts = 0
+        # How the last harness process ended, once stop() ended it: what its answers rest on.
+        self.ended: core.Step | None = None
 
     def start(self) -> dict[str, Any]:
         run = self.run
         self.starts += 1
+        self.ended = None
         self.over_memory = threading.Event()
         self.answers = queue.Queue()
         directory = run.work / "harness"
@@ -753,13 +758,20 @@ class Harness:
     def stop(self) -> None:
         if self.process is None:
             return
+        # Asked to quit, it returns, and exits 0. Its answers count only if it does.
+        killed = False
         if self.process.poll() is None:
             self.send({"op": "quit"})
-            with contextlib.suppress(subprocess.TimeoutExpired):
-                self.process.wait(timeout=0.5)
+            try:
+                self.process.wait(timeout=5)
+            except subprocess.TimeoutExpired:
+                killed = True
         verify.kill_group(self.process.pid)
         with contextlib.suppress(subprocess.TimeoutExpired):
             self.process.wait(timeout=5)
+        code = self.process.returncode
+        limit = self.limit() or ("stopped" if killed else None)
+        self.ended = core.Step("harness", code, limit, "".join(self.other[-50:]))
         if self.process.stdin:
             with contextlib.suppress(OSError):
                 self.process.stdin.close()
@@ -791,6 +803,9 @@ class Run:
     undecided: list[dict[str, Any]] = field(default_factory=list)
     failing: dict[str, Any] | None = None
     counterexample: dict[str, Any] | None = None
+    # How the processes that confirmed it ended: the harness that asked the kernel, and tools/verify.py's
+    # evaluation of the witness.
+    confirmed_by: dict[str, core.Step] = field(default_factory=dict)
     disagreement: str | None = None
     store_added: bool = False
     timing: dict[str, float] = field(default_factory=dict)
@@ -1003,8 +1018,18 @@ def assignment(binders: list[dict[str, Any]], values: tuple) -> dict[str, str]:
     }
 
 
-def confirm_with_verify(run: Run, values: tuple) -> dict[str, Any]:
-    """Asks tools/verify.py, which elaborates the statement again on its own, to decide it at the input."""
+def witness_step(result: dict[str, Any]) -> core.Step | None:
+    """How the process that evaluated a witness ended, as a tools/verify.py result records it, or None."""
+    commands = (result.get("reproduce") or {}).get("commands") or []
+    ran = [c for c in commands if isinstance(c, dict) and c.get("step") == "claim:witness"]
+    if not ran:
+        return None
+    return core.Step("claim:witness", ran[-1].get("exit"), "time_limit" if ran[-1].get("timed_out") else None)
+
+
+def confirm_with_verify(run: Run, values: tuple) -> tuple[dict[str, Any], core.Step | None]:
+    """Asks tools/verify.py, which elaborates the statement again on its own, to decide it at the input.
+    Returns what it said, and how the process that evaluated the witness ended, as it recorded it."""
     started = time.monotonic()
     witness = assignment(run.binders, values)
     raw = {
@@ -1021,6 +1046,7 @@ def confirm_with_verify(run: Run, values: tuple) -> dict[str, Any]:
     result = verify.verify(raw, ROOT, run.tool, run.work / "confirm")
     run.timing["verify_confirm_seconds"] = round(time.monotonic() - started, 3)
     witnesses = result.get("witnesses") or [{}]
+    step = witness_step(result)
     return {
         "status": result["status"],
         "reason": result["reason"],
@@ -1029,7 +1055,15 @@ def confirm_with_verify(run: Run, values: tuple) -> dict[str, Any]:
         "witness": witness,
         "result_json": str(run.work / "confirm" / "result.json"),
         "reproduce": [str(ROOT / "tools" / "verify.py"), "check", str(run.work / "confirm" / "request.json")],
-    }
+    }, step
+
+
+def refutes(run: Run, how: str, said: bool) -> bool:
+    """Whether irlean.verdict grants a refutation on what confirmed a failing input, `how`, the kernel or
+    compiled evaluation: that it `said` the input fails, and how the process that said it ended."""
+    kernel, evaluated = (said, False) if how == "kernel" else (False, said)
+    evidence = core.Evidence(lean=run.confirmed_by.get(how), kernel=kernel, evaluated=evaluated)
+    return core.decide(core.Verdict.REFUTED, evidence).granted
 
 
 def confirm(run: Run, harness: Harness, values: tuple) -> None:
@@ -1042,16 +1076,22 @@ def confirm(run: Run, harness: Harness, values: tuple) -> None:
         else {"ok": False, "reason": "harness_stopped"}
     )
     run.timing["kernel_ms"] = round((time.monotonic() - started) * 1000, 3)
-    # Nothing more is asked of the harness. Stopping it keeps one Lean process at a time.
+    # Nothing more is asked of the harness. Stopping it keeps one Lean process at a time, and says how it
+    # ended, which its answer rests on.
     harness.stop()
     evidence: list[str] = []
-    if kernel.get("ok"):
+    if harness.ended is not None:
+        run.confirmed_by["kernel"] = harness.ended
+    if refutes(run, "kernel", kernel.get("ok") is True):
         evidence.append("kernel")
     checked: dict[str, Any] | None = None
     mode = run.request["verify_confirm"]
     if mode == "always" or (mode == "auto" and not evidence):
-        checked = confirm_with_verify(run, values)
-        if checked["status"] == "counterexample" and checked["result"] == "fails":
+        checked, step = confirm_with_verify(run, values)
+        if step is not None:
+            run.confirmed_by["compiled_evaluation"] = step
+        failed = checked["status"] == "counterexample" and checked["result"] == "fails"
+        if refutes(run, "compiled_evaluation", failed):
             evidence.append("compiled_evaluation")
         elif checked["result"] == "holds":
             run.disagreement = "tools/verify.py found the statement true at the input"
@@ -1142,7 +1182,15 @@ def decide(run: Run) -> tuple[str, str, str]:
     inputs that ran say."""
     counterexample = run.counterexample
     if counterexample and counterexample["evidence"]:
-        reason = "kernel_refuted" if "kernel" in counterexample["evidence"] else "compiled_evaluation"
+        # Each kind of evidence, as irlean.verdict grants it: the kernel first.
+        granted = [how for how in counterexample["evidence"] if refutes(run, how, True)]
+        if not granted:
+            return (
+                "unknown",
+                "internal_error",
+                "the evidence recorded isn't a refutation irlean.verdict grants",
+            )
+        reason = "kernel_refuted" if "kernel" in granted else "compiled_evaluation"
         return "counterexample", reason, f"the statement is false at {counterexample['shown']}"
     if run.stop is not None:
         return "unknown", run.stop.reason, run.stop.detail

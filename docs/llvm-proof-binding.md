@@ -74,7 +74,11 @@ $ tools/binding.py record --input tests/binding/add_zero.ll --passes instcombine
 $ tools/binding.py verify build/binding/add_zero/manifest.json
 ```
 
-### The manifest, `ir-lean.binding.manifest/1`
+### The manifest, `ir-lean.binding.manifest/2`
+
+Version 2, since 2026-11-09, adds `toolchain.irlean_py_sha256`, as `tools/binding.py` now asks the shared library's
+[verdict core](trust.md#where-python-decides-a-verdict) whether a replay is `bound`. A version 1 manifest is
+`manifest_invalid`: record the bundle again.
 
 Every object has exactly these keys. Any other key, or a missing one, is `manifest_invalid`, so a field nothing checks
 can't ride along.
@@ -89,7 +93,7 @@ can't ride along.
 | `transform.passes`, `.mtriple` | The `opt -passes=` spec, and `-mtriple` or `null` | Rerunning `opt` |
 | `target.triple`, `.datalayout` | What both IR files say | Reading them |
 | `artifacts.ROLE.path`, `.sha256` | `input`, `src_ir`, `tgt_ir`, `src_lean`, `tgt_lean`, `certificate`: a plain file directly in the bundle, by name, and its hash | Hashing it |
-| `toolchain` | The version and SHA-256 of `lean`, `leanchecker` and `opt`, and the SHA-256 of every file in the Lean toolchain, `build/ir-lean`, every file of `IRLean`'s library, `tests/check_axioms.lean`, `tools/binding_check.lean` and `tools/binding.py` | Recomputing each, with paths from the toolchain's or the library's own directory, so a moved checkout hashes the same. A link has to be a bare file name naming a sibling that's hashed itself, or an absolute path into the Nix store, and never a directory: nothing in a link's target is normalized, so nothing it passes through goes unchecked. The pinned toolchain's 14 links are all of these kinds. `build/ir-lean`, `tests/check_axioms.lean`, `tools/binding_check.lean` and `tools/binding.py` have to be files, not links, since only a link itself would be compared afterward. `lean` and `leanchecker` are the ones in the toolchain `lean --print-prefix` names, and `opt` the one on PATH, and each runs by that absolute path, so what runs is what was hashed |
+| `toolchain` | The version and SHA-256 of `lean`, `leanchecker` and `opt`, and the SHA-256 of every file in the Lean toolchain, `build/ir-lean`, every file of `IRLean`'s library, `tests/check_axioms.lean`, `tools/binding_check.lean`, `tools/binding.py`, and `tools/irlean`'s Python files, by path and hash | Recomputing each, with paths from the toolchain's or the library's own directory, so a moved checkout hashes the same. A link has to be a bare file name naming a sibling that's hashed itself, or an absolute path into the Nix store, and never a directory: nothing in a link's target is normalized, so nothing it passes through goes unchecked. The pinned toolchain's 14 links are all of these kinds. `build/ir-lean`, `tests/check_axioms.lean`, `tools/binding_check.lean`, `tools/binding.py` and `tools/irlean`'s Python files have to be files, not links, since only a link itself would be compared afterward. `lean` and `leanchecker` are the ones in the toolchain `lean --print-prefix` names, and `opt` the one on PATH, and each runs by that absolute path, so what runs is what was hashed |
 
 The source IR is `opt -S -passes=verify` of the input, and the target is `opt -S -passes=SPEC` of it. Both read it from
 stdin, so neither names a path.

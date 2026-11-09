@@ -198,6 +198,10 @@ proof or its support modules would run the proof's own code, so a witness for a 
   with result `unsupported`.
 - **A run that never ends** shows up as `timeout`, never as a counterexample, though the model says `none` there,
   which does make a claim of `= Outcome.ok` false.
+- **A witness counts only if the Lean process that evaluated it ended cleanly.** All of a request's witnesses are
+  evaluated in one process, so if it then runs out of time or memory, a witness it found false is `timeout`, and if
+  it crashes or fails, `tool_failed`, never a counterexample. That holds since 2026-11-09, when
+  [`irlean.verdict`](trust.md#where-python-decides-a-verdict) began deciding it.
 - **A proof that passes** and a witness that fails means Lean's compiler, an `implemented_by` or `extern` in
   Lean or `IRLean`, or the kernel is wrong. That's `evaluation_contradicts_proof`, never `proved`.
 - **What can be decided:** functions without memory, in practice, whose results have `DecidableEq`. Memory

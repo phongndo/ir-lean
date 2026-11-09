@@ -65,6 +65,9 @@ from pathlib import Path
 from typing import Any
 
 ROOT = Path(__file__).resolve().parent.parent
+sys.path.append(str(ROOT / "tools"))
+from irlean import verdict as core  # noqa: E402
+
 SELF = Path(__file__).resolve()
 BINDING_PY = ROOT / "tools" / "binding.py"
 INVENTORY = ROOT / "tests" / "llvm_scope" / "inventory.json"
@@ -1098,6 +1101,19 @@ class Scorer:
             why = self.mismatch(claimed, verdict, r, input_ll, function)
             if why is not None:
                 return result("refused", "instance_mismatch", why, bundle=rel)
+            # Bound, by irlean.verdict, on tools/binding.py's verdict and the bundle as it is now.
+            artifacts = (claimed or {}).get("artifacts") or {}
+            files = {str(manifest): manifest.is_file()} | {
+                str(manifest.parent / a.get("path", "")): (manifest.parent / a.get("path", "")).is_file()
+                for a in artifacts.values()
+                if isinstance(a, dict)
+            }
+            step = core.Step("tools/binding.py verify", ran.code, None, ran.out + ran.err)
+            certified = core.decide(
+                core.Verdict.CERTIFIED, core.Evidence(upstream=(step, verdict), files=files)
+            )
+            if not certified.granted:
+                return result("error", "verdict_unreadable", certified.detail, bundle=rel)
         verdict_path = self.verdicts / f"{manifest.parent.name}.json"
         verdict_path.write_text(json.dumps(verdict, indent=1, ensure_ascii=False))
         return result(

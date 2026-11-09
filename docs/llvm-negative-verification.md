@@ -172,7 +172,7 @@ certified only if the gate finds no reason to refuse it, and any field it can't 
 | `stale_emitter` | The emitter's commit isn't the one checked out now |
 | `dirty_emitter` | The emitter had uncommitted changes, so no commit says what it was |
 | `stale_lean` | The Lean it used isn't the one on `PATH` now |
-| `stale_checker` | `tools/verify.py`, `tools/verify_check.lean` or `tests/check_axioms.lean` changed since |
+| `stale_checker` | `tools/verify.py`, `tools/verify_check.lean`, `tests/check_axioms.lean` or `tools/irlean`'s Python changed since |
 
 ## Blocked integration cases
 

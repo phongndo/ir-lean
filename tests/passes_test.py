@@ -226,9 +226,10 @@ def static(f: Failures) -> None:
             m = {
                 "claim": {"kind": "ir_instance_equivalence", "function": function},
                 "transform": {"passes": passes, "mtriple": None},
-                "artifacts": {"input": {"sha256": P.hashlib.sha256(data).hexdigest()}},
+                "artifacts": {"input": {"path": "input.ll", "sha256": P.hashlib.sha256(data).hexdigest()}},
             }
             manifest.write_text(json.dumps(m))
+            (manifest.parent / "input.ll").write_bytes(data)
             return m
 
         def key(m: dict) -> str:
@@ -323,6 +324,14 @@ def static(f: Failures) -> None:
                 answer(code, out, limit)
                 got = s.verify(manifest, test, input_ll, "f")
                 f.check(got["status"] == want, f"{what} is {want}", got)
+            # As the old scorer counted cached results whose certificates were gone (#51): a bound verdict on
+            # a bundle whose files are gone by the time it's read counts for nothing.
+            (manifest.parent / "input.ll").unlink()
+            answer(0, verdict)
+            got = s.verify(manifest, test, input_ll, "f")
+            gone = "a bound verdict on a bundle whose files are gone is error"
+            f.check(got["status"] == "error", gone, got)
+            bundle()
             others: list[tuple[str, Callable[[], dict]]] = [
                 ("another function", lambda: bundle(function="g")),
                 ("another input", lambda: bundle(data=b"; another test\n")),

@@ -39,6 +39,9 @@ from pathlib import Path
 from typing import Any, NoReturn
 
 ROOT = Path(__file__).resolve().parent.parent
+sys.path.append(str(ROOT / "tools"))
+from irlean import verdict  # noqa: E402
+
 LIBRARY = ROOT / ".lake" / "build" / "lib" / "lean"
 DYLIB = (
     ROOT / ".lake" / "build" / "lib" / f"libir_x2dlean_IRLean.{'dylib' if sys.platform == 'darwin' else 'so'}"
@@ -245,6 +248,9 @@ class Run:
     input_path: Path = Path()
     # Hashes from before the proof's code ran, compared at the end.
     before: dict[str, str] | None = None
+    # How the processes a verdict rests on ended, and the modules they wrote, for irlean.verdict.
+    steps: dict[str, verdict.Step] = field(default_factory=dict)
+    outputs: dict[str, Path] = field(default_factory=dict)
 
     def check(self, name: str, result: str, detail: Any = None, seconds: float | None = None) -> None:
         entry = self.checks[name]
@@ -754,6 +760,10 @@ def compile_module(run: Run, source: Path, check: str, failure: str) -> bool:
     ran = run.run(
         lean_argv(run, "-R", str(run.work / "lean"), "-o", str(olean), str(source)), lean_env(run), step=check
     )
+    run.steps[check] = verdict.Step(
+        check, ran.returncode, "time_limit" if ran.timed_out else None, ran.output
+    )
+    run.outputs[check] = olean
     messages = lean_messages(run, ran.output, "lean")
     for message in messages:
         if len(run.diagnostics) < DIAGNOSTICS_KEPT:
@@ -943,6 +953,9 @@ def kernel_replay(run: Run) -> None:
     without the kernel checking it, with `debug.skipKernelTC`, and nothing else here would notice."""
     modules = [run.request["namespace"], *run.artifacts["support_modules"], run.artifacts["proof_module"]]
     ran = run.run(["leanchecker", *modules], lean_env(run), step="kernel_replay")
+    run.steps["kernel_replay"] = verdict.Step(
+        "kernel_replay", ran.returncode, "time_limit" if ran.timed_out else None, ran.output
+    )
     if ran.timed_out:
         raise Stop("time_limit", "leanchecker didn't finish in time", "kernel_replay")
     if ran.returncode != 0:
@@ -994,6 +1007,9 @@ def evaluate_witnesses(run: Run) -> None:
         # No time was left to start. That's the same as running out partway: the witnesses time out, and
         # whatever the proof showed stands.
         ran, answers = Ran([], -9, "", "", 0.0, True), []
+    run.steps["witnesses"] = verdict.Step(
+        "witnesses", ran.returncode, "time_limit" if ran.timed_out else None, ran.output
+    )
     results = {a["index"]: a for a in answers if a.get("kind") == "witness"}
     started = any(a.get("kind") == "witness_start" for a in answers)
     trouble = next((a["error"] for a in answers if a.get("kind") == "witness_error"), None)
@@ -1073,7 +1089,8 @@ def decide(run: Run) -> tuple[str, str, str]:
     1. A checked file that changed while the proof's code ran makes everything after it suspect.
     2. A run that stopped early answers with why it stopped.
     3. A witness that makes the claim false is a counterexample, unless the proof passed every check for
-       that same statement, when one of the two is wrong and neither can be reported.
+       that same statement, when one of the two is wrong and neither can be reported. It counts only if the
+       process that evaluated it ended cleanly: otherwise it's a timeout or an error.
     4. With a proof, the first check it failed. `proved` only comes after every required check passed.
     5. With only a statement, nothing can be proved: whatever the witnesses showed, short of a refutation.
     """
@@ -1084,6 +1101,20 @@ def decide(run: Run) -> tuple[str, str, str]:
     has_proof = "proof" in run.request
     falsified = [w for w in run.witnesses if w.get("result") == "fails"]
     if falsified:
+        # A witness only fails against a statement that names the target, which is all a refutation needs, and
+        # only counts if the process that evaluated it ended cleanly.
+        refuted = verdict.decide(
+            verdict.Verdict.REFUTED, verdict.Evidence(evaluated=True, lean=run.steps.get("witnesses"))
+        )
+        step = run.steps.get("witnesses")
+        if refuted.verdict is verdict.Verdict.UNKNOWN:
+            # Its time ran out, Lean said it ran out of something, or it was killed, as at a memory cap.
+            limit = "time_limit" if step is None or step.limit else limit_of(step.output) or "memory_limit"
+            why = f"a witness made the statement false, and its evaluation didn't finish: {refuted.detail}"
+            return "timeout", limit, why
+        if not refuted.granted:
+            why = f"a witness made the statement false, and its evaluation failed: {refuted.detail}"
+            return "error", "tool_failed", why
         proof_stands = has_proof and all(run.checks[c]["result"] == "pass" for c in REQUIRED)
         if proof_stands and run.checks["statement"]["result"] in ("pass", "skip"):
             return (
@@ -1122,6 +1153,23 @@ def decide(run: Run) -> tuple[str, str, str]:
         broken = [c for c in OPTIONAL if run.checks[c]["result"] == "fail"]
         if unmet or broken:
             return "error", "internal_error", f"checks didn't pass: {', '.join(unmet + broken)}"
+        proved = verdict.decide(
+            verdict.Verdict.PROVED,
+            verdict.Evidence(
+                lean=run.steps.get("compile_proof"),
+                replay=run.steps.get("kernel_replay"),
+                axioms=run.checks["axioms"]["result"] == "pass",
+                files={
+                    str(run.outputs[c]) if c in run.outputs else c: c in run.outputs
+                    and run.outputs[c].exists()
+                    for c in ("compile_generated", "compile_proof")
+                },
+                checks={c: run.checks[c]["result"] == "pass" for c in REQUIRED}
+                | {c: run.checks[c]["result"] != "fail" for c in OPTIONAL},
+            ),
+        )
+        if not proved.granted:
+            return "error", "internal_error", f"every check passed, and still: {proved.detail}"
         return "proved", "kernel_checked", f"{theorem['name']} is a kernel-checked theorem"
 
     statement = run.claim.get("statement") or {}
