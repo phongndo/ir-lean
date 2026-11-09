@@ -141,7 +141,7 @@ What set each job's time before, in runs A to C unless it says otherwise, and wh
 | `passes` | 473 to 839 s, the scorer's self-check trying seven mutants one at a time, three of them to Lean's heartbeat limit | Those three at once, in #65 |
 | `llama` | 420 to 635 s, 190 of its 231 s locally refuting four mutants | Three of them in a job of their own, in #65 |
 | `rest` | 419 to 495 s, with `proofs` at 357 s in A next to three others | `proofs` in a job of its own, in #65 |
-| `semantics` | 304 to 396 s, two tests that run alone after five others, and 402 s in 42570803347 once #60 added `store` | `verify_negative` in the `proofs` job, in #65 |
+| `semantics` | 314 to 396 s, two tests that run alone after five others, and 402 s in 42570803347 once #60 added `store` | `verify_negative` in the `proofs` job, in #65 |
 
 ### Proposals, not done
 
