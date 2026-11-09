@@ -1,0 +1,325 @@
+{
+  "schema": "ir-lean.peephole.comparison/1",
+  "family": "is-arith",
+  "registry": "tests/passes-proofs/peephole/folds/is-arith.json",
+  "sources": "71ced18ffa4dc5bf7b8d7e937fa87ec38b0ec44973a569363100830ebf5284e4",
+  "opt": "23.1.3",
+  "date": "2026-11-09",
+  "status": "ok",
+  "cases": {
+    "cases": 34572,
+    "harvested": 314,
+    "generated": 34258,
+    "compared": 16593,
+    "matched": 7314,
+    "agreed_no_fold": 9279,
+    "fired_new_ir": 0,
+    "mismatched": 0,
+    "delegated": 13085,
+    "analysis": 90,
+    "unexplained": 2,
+    "operand_changed": 4802
+  },
+  "delegated_to": {
+    "ConstantFoldBinaryOpOperands": 2032,
+    "simplifyAndInst": 616,
+    "simplifyBinOp": 2877,
+    "simplifyICmpInst": 4997,
+    "simplifyXorInst": 859,
+    "threadBinOpOverPHI": 1704
+  },
+  "regression_tests": {
+    "read": 190,
+    "unread": 0
+  },
+  "sites": {
+    "IS.simplifyDivRem.L1057": {
+      "fired": 553,
+      "matched": 553,
+      "mismatched": 0,
+      "analysis": 0,
+      "files": [
+        "undef.ll"
+      ],
+      "registered": true
+    },
+    "IS.simplifyDivRem.L1063": {
+      "fired": 278,
+      "matched": 278,
+      "mismatched": 0,
+      "analysis": 0,
+      "files": [
+        "undef.ll"
+      ],
+      "registered": true
+    },
+    "IS.simplifyDivRem.L1068": {
+      "fired": 276,
+      "matched": 276,
+      "mismatched": 0,
+      "analysis": 0,
+      "files": [],
+      "registered": true
+    },
+    "IS.simplifyDivRem.L1073": {
+      "fired": 276,
+      "matched": 276,
+      "mismatched": 0,
+      "analysis": 0,
+      "files": [],
+      "registered": true
+    },
+    "IS.simplifyDivRem.L1078": {
+      "fired": 278,
+      "matched": 278,
+      "mismatched": 0,
+      "analysis": 0,
+      "files": [
+        "div.ll",
+        "rem.ll"
+      ],
+      "registered": true
+    },
+    "IS.simplifyDivRem.L1083": {
+      "fired": 276,
+      "matched": 276,
+      "mismatched": 0,
+      "analysis": 0,
+      "files": [],
+      "registered": true
+    },
+    "IS.simplifyDivRem.L1092": {
+      "fired": 0,
+      "matched": 0,
+      "mismatched": 0,
+      "analysis": 90,
+      "files": [],
+      "registered": true
+    },
+    "IS.simplifyDivRem.L1100": {
+      "fired": 1904,
+      "matched": 1904,
+      "mismatched": 0,
+      "analysis": 0,
+      "files": [],
+      "registered": true
+    },
+    "IS.simplifyDivRem.L1114": {
+      "fired": 9,
+      "matched": 9,
+      "mismatched": 0,
+      "analysis": 0,
+      "files": [
+        "reassociate.ll",
+        "rem.ll"
+      ],
+      "registered": true
+    },
+    "IS.simplifyDivRem.L1119": {
+      "fired": 2,
+      "matched": 2,
+      "mismatched": 0,
+      "analysis": 0,
+      "files": [
+        "reassociate.ll",
+        "rem.ll"
+      ],
+      "registered": true
+    },
+    "IS.simplifyMulInst.L906": {
+      "fired": 369,
+      "matched": 369,
+      "mismatched": 0,
+      "analysis": 0,
+      "files": [
+        "mul.ll"
+      ],
+      "registered": true
+    },
+    "IS.simplifyMulInst.L911": {
+      "fired": 739,
+      "matched": 739,
+      "mismatched": 0,
+      "analysis": 0,
+      "files": [
+        "icmp-constant.ll",
+        "mul.ll"
+      ],
+      "registered": true
+    },
+    "IS.simplifyMulInst.L915": {
+      "fired": 369,
+      "matched": 369,
+      "mismatched": 0,
+      "analysis": 0,
+      "files": [
+        "mul.ll"
+      ],
+      "registered": true
+    },
+    "IS.simplifyMulInst.L923": {
+      "fired": 4,
+      "matched": 4,
+      "mismatched": 0,
+      "analysis": 0,
+      "files": [
+        "reassociate.ll"
+      ],
+      "registered": true
+    },
+    "IS.simplifyMulInst.L929": {
+      "fired": 614,
+      "matched": 614,
+      "mismatched": 0,
+      "analysis": 0,
+      "files": [
+        "mul.ll"
+      ],
+      "registered": true
+    },
+    "IS.simplifySDivInst.L1216": {
+      "fired": 60,
+      "matched": 60,
+      "mismatched": 0,
+      "analysis": 0,
+      "files": [
+        "sdiv.ll"
+      ],
+      "registered": true
+    },
+    "IS.simplifySRemInst.L1246": {
+      "fired": 1,
+      "matched": 1,
+      "mismatched": 0,
+      "analysis": 0,
+      "files": [
+        "rem.ll"
+      ],
+      "registered": true
+    },
+    "IS.simplifySRemInst.L1250": {
+      "fired": 75,
+      "matched": 75,
+      "mismatched": 0,
+      "analysis": 0,
+      "files": [
+        "srem.ll"
+      ],
+      "registered": true
+    },
+    "IS.simplifySubInst.L754": {
+      "fired": 370,
+      "matched": 370,
+      "mismatched": 0,
+      "analysis": 0,
+      "files": [
+        "sub.ll"
+      ],
+      "registered": true
+    },
+    "IS.simplifySubInst.L759": {
+      "fired": 368,
+      "matched": 368,
+      "mismatched": 0,
+      "analysis": 0,
+      "files": [],
+      "registered": true
+    },
+    "IS.simplifySubInst.L763": {
+      "fired": 185,
+      "matched": 185,
+      "mismatched": 0,
+      "analysis": 0,
+      "files": [
+        "sub.ll"
+      ],
+      "registered": true
+    },
+    "IS.simplifySubInst.L767": {
+      "fired": 185,
+      "matched": 185,
+      "mismatched": 0,
+      "analysis": 0,
+      "files": [
+        "sub.ll"
+      ],
+      "registered": true
+    },
+    "IS.simplifySubInst.L773": {
+      "fired": 93,
+      "matched": 93,
+      "mismatched": 0,
+      "analysis": 0,
+      "files": [
+        "AndOrXor.ll",
+        "negate.ll"
+      ],
+      "registered": true
+    },
+    "IS.simplifySubInst.L780": {
+      "fired": 12,
+      "matched": 12,
+      "mismatched": 0,
+      "analysis": 0,
+      "files": [],
+      "registered": true
+    },
+    "IS.simplifySubInst.L783": {
+      "fired": 13,
+      "matched": 13,
+      "mismatched": 0,
+      "analysis": 0,
+      "files": [
+        "2010-12-20-Boolean.ll"
+      ],
+      "registered": true
+    },
+    "IS.simplifySubInst.L886": {
+      "fired": 5,
+      "matched": 5,
+      "mismatched": 0,
+      "analysis": 0,
+      "files": [
+        "subnuw-with-xor.ll"
+      ],
+      "registered": true
+    }
+  },
+  "not_exercised": [
+    "IS.expandBinOp.L218",
+    "IS.simplifyAssociativeBinOp.L274",
+    "IS.simplifyAssociativeBinOp.L294",
+    "IS.simplifyAssociativeBinOp.L318",
+    "IS.simplifyAssociativeBinOp.L338",
+    "IS.simplifyByDomEq.L727",
+    "IS.simplifyByDomEq.L731",
+    "IS.simplifyByDomEq.L736",
+    "IS.simplifyDiv.L1157",
+    "IS.simplifyDiv.L1168",
+    "IS.simplifyDivRem.L1092",
+    "IS.simplifyRem.L1189",
+    "IS.simplifyRem.L1204",
+    "IS.threadBinOpOverSelect.L394"
+  ],
+  "untagged": [],
+  "mismatches": [],
+  "unexplained": [
+    {
+      "case": "h37.37",
+      "where": "negate.ll:@negate_zero_or_minsigned_nsw:%neg",
+      "opt": [
+        "0"
+      ],
+      "ir": "  %n1 = and i8 %v2, -128\n  call void (...) @use(i8 0, i8 %n1)\n  %r = sub nsw i8 0, %n1\n  ret i8 %r"
+    },
+    {
+      "case": "h38.38",
+      "where": "negate.ll:@negate_zero_or_minsigned:%neg",
+      "opt": [
+        "%n1"
+      ],
+      "ir": "  %n1 = shl i8 %v2, 7\n  call void (...) @use(i8 0, i8 %n1)\n  %r = sub i8 0, %n1\n  ret i8 %r"
+    }
+  ],
+  "seconds": 3.9
+}

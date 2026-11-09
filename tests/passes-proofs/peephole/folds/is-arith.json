@@ -165,29 +165,57 @@
     }
   },
   "delegates": {
-    "Peephole.IS.simplifySubInst": [
-      "ConstantFoldBinaryOpOperands",
-      "simplifyCastInst",
-      "simplifyXorInst",
-      "simplifyBinOp, recursively, where Recur doesn't say"
-    ],
-    "Peephole.IS.simplifyMulInst": [
-      "ConstantFoldBinaryOpOperands",
-      "simplifyAndInst",
-      "threadBinOpOverPHI",
-      "simplifyBinOp, recursively, where Recur doesn't say"
-    ],
-    "Peephole.IS.simplifyDivRem": [
-      "simplifyICmpInst, recursively in isICmpTrue, where Recur doesn't say",
-      "threadBinOpOverPHI",
-      "simplifyBinOp, recursively, where Recur doesn't say"
-    ],
-    "Peephole.IS.simplifyDiv": [
-      "ConstantFoldBinaryOpOperands"
-    ],
-    "Peephole.IS.simplifyRem": [
-      "ConstantFoldBinaryOpOperands"
-    ]
+    "ConstantFoldBinaryOpOperands": {
+      "folds": [
+        "Peephole.IS.simplifySubInst",
+        "Peephole.IS.simplifyMulInst",
+        "Peephole.IS.simplifyDiv",
+        "Peephole.IS.simplifyRem"
+      ],
+      "why": "foldOrCommuteConstant with two constants: the constant folder, which isn't modelled"
+    },
+    "simplifyBinOp": {
+      "folds": [
+        "Peephole.IS.simplifySubInst",
+        "Peephole.IS.simplifyMulInst",
+        "Peephole.IS.simplifyDivRem",
+        "Peephole.IS.simplifyAssociativeBinOp",
+        "Peephole.IS.expandBinOp",
+        "Peephole.IS.threadBinOpOverSelect"
+      ],
+      "why": "a recursive call where the Recur doesn't say what it answers; onInst runs with Recur.unknown, so every recursive call delegates in the comparison with opt"
+    },
+    "simplifyICmpInst": {
+      "folds": [
+        "Peephole.IS.simplifyDivRem"
+      ],
+      "why": "isDivZero's isICmpTrue, a recursive call into the icmp family's fold, where the Recur doesn't say what it answers"
+    },
+    "simplifyXorInst": {
+      "folds": [
+        "Peephole.IS.simplifySubInst"
+      ],
+      "why": "i1 sub as xor: the logic family's fold, not modelled here"
+    },
+    "simplifyAndInst": {
+      "folds": [
+        "Peephole.IS.simplifyMulInst"
+      ],
+      "why": "i1 mul as and: the logic family's fold, not modelled here"
+    },
+    "simplifyCastInst": {
+      "folds": [
+        "Peephole.IS.simplifySubInst"
+      ],
+      "why": "trunc(X) - trunc(Y) as trunc(X - Y): the cast family's fold, not modelled here"
+    },
+    "threadBinOpOverPHI": {
+      "folds": [
+        "Peephole.IS.simplifyMulInst",
+        "Peephole.IS.simplifyDivRem"
+      ],
+      "why": "not modelled; a Term sees a phi as var, as it sees an argument, so this delegates for every var operand once MaxRecurse allows it"
+    }
   },
   "lemmas": [
     "Peephole.Lemmas.sub_zero_left_nuw_refines",
