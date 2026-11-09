@@ -47,6 +47,10 @@ from irlean import lean as leanlib  # noqa: E402
 from irlean import verdict as core  # noqa: E402
 
 STORE = ROOT / "store"
+# The `Peephole` library, whose theorems prove chunk 1's rewrites, each named `Peephole.<ID>` after the
+# inventory's ID: its proofs count as uses, and its family lemma files hold their own counterexamples.
+PEEPHOLE = ROOT / "tests" / "passes-proofs" / "peephole"
+REWRITES = ROOT / "tests" / "llvm_scope" / "rewrites"
 INDEX = STORE / "index.json"
 ROOT_MODULE = STORE / "LemmaStore.lean"
 OWNED = STORE / "LemmaStore" / "Lemmas"
@@ -196,7 +200,43 @@ def module_file(module: str) -> Path | None:
         return STORE.joinpath(*parts).with_suffix(".lean")
     if parts[0] == "StoreTool":
         return ROOT / "tools" / "store" / "StoreTool.lean"
+    if parts[0] == "Peephole":
+        return PEEPHOLE.joinpath(*parts).with_suffix(".lean")
     return None
+
+
+def peephole_modules(src: Path = PEEPHOLE) -> list[str]:
+    """Every module of the `Peephole` library, as `lake build Peephole` builds them."""
+    return sorted(
+        ".".join(p.relative_to(src).with_suffix("").parts) for p in (src / "Peephole").rglob("*.lean")
+    )
+
+
+def peephole_cycles(src: Path = PEEPHOLE) -> list[str]:
+    """Each module of the `Peephole` library that imports the store. `LemmaStore` imports the library's lemma
+    files once their lemmas are stored, so one that imported it back would make a cycle."""
+    return [
+        f"{m} imports {i}"
+        for m in peephole_modules(src)
+        for i in imports_of(src.joinpath(*m.split(".")).with_suffix(".lean"))
+        if i == "LemmaStore" or i.startswith("LemmaStore.")
+    ]
+
+
+def site_theorems() -> list[str]:
+    """The name a theorem proving each rewrite in the inventory has: `Peephole.<ID>`."""
+    return sorted(
+        f"Peephole.{r['id']}"
+        for f in sorted(REWRITES.glob("*.json"))
+        for r in schemas.read(f, schemas.REWRITES)["rewrites"]
+    )
+
+
+def peephole_imports() -> list[str]:
+    """The `Peephole` library's modules, for counting uses, once it's checked not to import the store."""
+    if cycles := peephole_cycles():
+        raise StoreError("import_cycle", "the Peephole library can't import the store: " + "; ".join(cycles))
+    return peephole_modules()
 
 
 def imports_of(path: Path) -> list[str]:
@@ -380,9 +420,11 @@ def lean_facts(
     paths: list[Path],
     modules: list[str] | None = None,
     catalog_keys: bool = False,
+    sites: list[str] | None = None,
 ) -> dict[str, Any]:
     """What `StoreTool.check` finds about each lemma, in a Lean process that imports `imports`: `lemmas`, the
-    facts about each, and `catalog`, each stored lemma's key, if asked for."""
+    facts about each, with the theorems among `sites` that use it, and `catalog`, each stored lemma's key, if
+    asked for."""
     WORK.mkdir(parents=True, exist_ok=True)
     with tempfile.TemporaryDirectory(dir=WORK) as tmp:
         req = Path(tmp) / "request.json"
@@ -396,6 +438,7 @@ def lean_facts(
                     "heartbeats": TRIVIALITY_HEARTBEATS,
                     "triviality": True,
                     "catalogKeys": catalog_keys,
+                    "sites": sites or [],
                 }
             )
         )
@@ -489,6 +532,8 @@ def verdict(fact: dict[str, Any], entry: dict[str, Any], keys: dict[str, str]) -
         "witness": (fact["witness"] or {}).get("name"),
         "widths": "fixed" if wide else "every",
         "used_by": users,
+        # The rewrites, by the inventory's ID, whose theorems in the `Peephole` library use it.
+        "rewrites": sorted(t.removeprefix("Peephole.") for t in fact.get("rewrites", [])),
         "replay_ms": fact["replay_ms"],
         "axioms": fact["axioms"],
     }
@@ -521,9 +566,10 @@ def check(write: bool) -> tuple[dict[str, Any], int]:
     started = time.monotonic()
     index = read_index()
     timings: dict[str, float] = {}
+    peephole = peephole_imports()
     if write:
         ROOT_MODULE.write_text(generated_root(index))
-        code, out = run(["lake", "build", "LemmaStore", "StoreTool"])
+        code, out = run(["lake", "build", "LemmaStore", "StoreTool", "Peephole"])
         if code != 0:
             raise StoreError("does_not_check", f"lake build failed:\n{out[-4000:]}")
     elif ROOT_MODULE.read_text() != generated_root(index):
@@ -531,7 +577,7 @@ def check(write: bool) -> tuple[dict[str, Any], int]:
             "index_invalid",
             f"{ROOT_MODULE} doesn't list what {INDEX} does: run `tools/store/store.py check --write`",
         )
-    built = lake_built(["LemmaStore", "StoreTool"])
+    built = lake_built(["LemmaStore", "StoreTool", "Peephole"])
     timings["build_seconds"] = time.monotonic() - started
 
     t = time.monotonic()
@@ -552,8 +598,9 @@ def check(write: bool) -> tuple[dict[str, Any], int]:
     facts = lean_facts(
         names,
         names,
-        ["LemmaStore", "LemmaStore.Counter", *[c["module"] for c in consumers(index)]],
+        ["LemmaStore", "LemmaStore.Counter", *[c["module"] for c in consumers(index)], *peephole],
         [consumer_dir],
+        sites=site_theorems(),
     )["lemmas"]
     timings["facts_seconds"] = time.monotonic() - t
 
@@ -594,6 +641,7 @@ def check(write: bool) -> tuple[dict[str, Any], int]:
                     "used_by": r["used_by"],
                 }
             )
+            set_rewrites(entry, r["rewrites"])
         index["version"] = version
         write_index(index)
         drift = []
@@ -616,6 +664,14 @@ def check(write: bool) -> tuple[dict[str, Any], int]:
     WORK.mkdir(parents=True, exist_ok=True)
     (WORK / "report.json").write_text(json.dumps(report, indent=2, ensure_ascii=False) + "\n")
     return report, EXIT["refused"] if refused or drift else EXIT["ok"]
+
+
+def set_rewrites(entry: dict[str, Any], rewrites: list[str]) -> None:
+    """An entry's optional `rewrites`: the rewrites whose theorems use the lemma, only when there are some."""
+    if rewrites:
+        entry["rewrites"] = rewrites
+    else:
+        entry.pop("rewrites", None)
 
 
 def counts(results: list[dict[str, Any]]) -> dict[str, Any]:
@@ -687,7 +743,8 @@ def add(
 ) -> tuple[dict[str, Any], int]:
     """Judges new lemmas against the store, and adds them if they're admitted or candidates."""
     started = time.monotonic()
-    built = lake_built(["LemmaStore", "StoreTool"])
+    peephole = peephole_imports()
+    built = lake_built(["LemmaStore", "StoreTool", "Peephole"])
     index = read_index()
     catalog = [e["name"] for e in index["lemmas"]]
     WORK.mkdir(parents=True, exist_ok=True)
@@ -700,6 +757,7 @@ def add(
             "LemmaStore",
             "LemmaStore.Counter",
             *[c["module"] for c in consumers(index)],
+            *peephole,
             *(extra_imports or []),
         ]
         modules: list[str] = []
@@ -739,7 +797,9 @@ def add(
                 return result, EXIT["refused"]
             modules = ["StoreCandidate"]
             imports.append("StoreCandidate")
-        found = lean_facts(existing, catalog, imports, paths, modules=modules, catalog_keys=True)
+        found = lean_facts(
+            existing, catalog, imports, paths, modules=modules, catalog_keys=True, sites=site_theorems()
+        )
         # Each new lemma's module, read as data and replayed, as `check` does for every stored lemma's.
         held = sorted(
             {
@@ -816,6 +876,7 @@ def store_lemmas(
                 "used_by": r["used_by"],
             }
         )
+        set_rewrites(index["lemmas"][-1], r["rewrites"])
     write_index(index)
     ROOT_MODULE.write_text(generated_root(index))
     code, out = run(["lake", "build", "LemmaStore", "StoreTool"])

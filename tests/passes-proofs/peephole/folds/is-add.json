@@ -1,0 +1,40 @@
+{
+  "schema": "ir-lean.peephole.folds/1",
+  "family": "is-add",
+  "pass": "instsimplify",
+  "modules": ["Peephole.IS.Add"],
+  "entries": [
+    {"fold": "Peephole.IS.simplifyAddInst.onInst", "opcodes": ["add"], "opt": "instsimplify"}
+  ],
+  "folds": {
+    "Peephole.IS.simplifyAddInst": {
+      "sound": "Peephole.IS.simplifyAddInst.sound",
+      "sites": [
+        "IS.simplifyAddInst.L601",
+        "IS.simplifyAddInst.L609",
+        "IS.simplifyAddInst.L613",
+        "IS.simplifyAddInst.L621",
+        "IS.simplifyAddInst.L626",
+        "IS.simplifyAddInst.L633",
+        "IS.simplifyAddInst.L637"
+      ]
+    }
+  },
+  "lemmas": [
+    "Peephole.Lemmas.add_comm",
+    "Peephole.Lemmas.add_none_right",
+    "Peephole.Lemmas.add_refines_of_sum",
+    "Peephole.Lemmas.add_sub_cancel_refines",
+    "Peephole.Lemmas.add_sub_sub_refines",
+    "Peephole.Lemmas.add_not_left_refines",
+    "Peephole.Lemmas.add_not_right_refines",
+    "Peephole.Lemmas.add_intMin",
+    "Peephole.Lemmas.add_xor_signMask_refines",
+    "Peephole.Lemmas.eq_zero_of_not_uaddOverflow_allOnes",
+    "Peephole.Lemmas.add_nuw_allOnes_refines"
+  ],
+  "rests_on": {},
+  "unproved": {
+    "IS.simplifyAddInst.L605": "only undef reaches it, and the model has no undef; its poison case is L601's. Peephole.IS.simplifyAddInst.L605 is kept, but says nothing past what L601's does"
+  }
+}

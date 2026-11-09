@@ -3,7 +3,8 @@
 
 - `tools/store/store.py check` passes: every stored lemma meets the first three rules of the bar and the other
   admission checks, and each module's axioms and kernel replay are checked again, so every lemma is admitted
-  or a candidate, and the index says which.
+  or a candidate, and the index says which. The Peephole library's proofs count as uses, and a lemma one of
+  its rewrite theorems uses names that rewrite. A module of the library that imports the store is refused.
 - Lookup finds a stored lemma under a restatement, by key: variables renamed and reordered, hypotheses
   reordered, `>` for `<`, `not =` for `!=`, the operands of `and` and `or` swapped, and an equation the
   other way round. It finds a lemma whose conclusion becomes a goal at a real width, with its side
@@ -21,6 +22,7 @@ usage: tests/store_test.py build/ir-lean
 """
 
 import concurrent.futures
+import importlib.util
 import json
 import os
 import re
@@ -79,6 +81,36 @@ def check_store() -> None:
         c["refused"] == 0 and c["admitted"] + c["candidate"] == c["lemmas"],
         f"the store checks: {c['lemmas']} lemmas, {c['admitted']} admitted and {c['candidate']} candidates, "
         f"{c['hypotheses_witnessed']} hypotheses each shown needed, in {r['timings']['total_seconds']} s",
+    )
+    # The Peephole library's proofs count as uses, and each lemma names the rewrites whose theorems use it.
+    by_name = {x["name"]: x for x in r["lemmas"]}
+    zero = by_name.get("IRLean.Generic.add_zero", {})
+    report(
+        "IS.simplifyAddInst.L609" in zero.get("rewrites", [])
+        and "Peephole.IS.simplifyAddInst.L609" in zero.get("used_by", []),
+        "IRLean.Generic.add_zero is used by the theorem of IS.simplifyAddInst.L609, and names that rewrite",
+        json.dumps(zero)[:2000],
+    )
+
+
+def check_peephole_cycle() -> None:
+    """The store imports the Peephole library's lemma files, so a module of the library that imports the store
+    is refused before anything is built."""
+    spec = importlib.util.spec_from_file_location("store_tool", STORE[1])
+    assert spec is not None and spec.loader is not None
+    tool = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(tool)
+    with tempfile.TemporaryDirectory() as tmp:
+        (Path(tmp) / "Peephole" / "IS").mkdir(parents=True)
+        (Path(tmp) / "Peephole" / "IS" / "Fine.lean").write_text("import Peephole.Term\n")
+        (Path(tmp) / "Peephole" / "IS" / "Back.lean").write_text(
+            "import Peephole.Term\nimport LemmaStore.Select\n"
+        )
+        found = tool.peephole_cycles(Path(tmp))
+    report(
+        found == ["Peephole.IS.Back imports LemmaStore.Select"] and tool.peephole_cycles() == [],
+        "a Peephole module that imports the store is refused, and none does",
+        str(found),
     )
 
 
@@ -328,6 +360,7 @@ def main() -> None:
     tool = Path(sys.argv[1]).resolve()
     started = time.monotonic()
     check_store()
+    check_peephole_cycle()
     with concurrent.futures.ThreadPoolExecutor(max_workers=2) as pool:
         jobs = [pool.submit(check_lookup, *case) for case in RESTATED]
         jobs += [pool.submit(check_instance, *case) for case in INSTANCES]
