@@ -261,6 +261,22 @@ def marker (fold : Name) : MetaM (Option Expr) := do
         (toExpr (ranTag ++ fold.toString))))
     | _, _ => return none
 
+/-- What to watch for a registered fold, and what to put in its place: the fold itself, if it answers a `Result`,
+or else `<fold>.steps`, the list of steps its callers run as theirs, as a single step that delegates. `run` passes that
+on only where every step before it fell through, as the C++ reaches the fold. -/
+def watched (fold : Name) : MetaM (Option (Name × Expr)) := do
+  if let some m ← marker fold then return some (fold, m)
+  let steps := fold ++ `steps
+  let some (.defnInfo info) := (← getEnv).find? steps | return none
+  forallTelescope info.type fun xs body => do
+    let body ← whnf body
+    let stepTy := body.appArg!
+    match body.getAppFn, stepTy.getAppFn, stepTy.getAppArgs with
+    | .const ``List _, .const ``Peephole.Step _, #[w] =>
+      let one := mkApp2 (.const ``Peephole.Step.delegate []) w (toExpr (ranTag ++ fold.toString))
+      return some (steps, ← mkLambdaFVars xs (← mkListLit stepTy [one]))
+    | _, _, _ => return none
+
 structure Entry where
   name : String
   fold : Oracle → {w : Nat} → Term w → Result w
@@ -272,6 +288,13 @@ structure Entry where
 `folds` are the registered folds to watch for. -/
 def prepare (entries folds : Array Name) : MetaM Unit :=
   withOptions (Elab.async.set · false) do
+    let mut targets := #[]
+    for f in folds do
+      match ← watched f with
+      | some (t, m) => targets := targets.push (f, t, m)
+      | none =>
+        -- Neither the fold nor `<fold>.steps` is a definition here that answers a `Result` or steps.
+        IO.eprintln s!"HARNESS-UNWATCHABLE {f}"
     let mut table := #[]
     for e in entries do
       let some info := (← getEnv).find? e | throwError "no entry point {e}"
@@ -284,12 +307,11 @@ def prepare (entries folds : Array Name) : MetaM Unit :=
           name := taggedName e, levelParams := [], type := info.type, value := .const ``noSites [],
           hints := .opaque, safety := .safe, all := [taggedName e] })
       let mut ran := #[]
-      for f in folds do
-        let path := toward (← getEnv) e f
+      for (f, target, m) in targets do
+        let path := toward (← getEnv) e target
         if path.isEmpty then continue
         try
-          let some m ← marker f | throwError "it doesn't answer a Peephole.Result"
-          copyReplacing path (ranName f) f fun _ => m
+          copyReplacing path (ranName f) target fun _ => m
           ran := ran.push (← mkAppM ``Prod.mk #[toExpr f.toString, .const (ranName f e) []])
         catch ex =>
           IO.eprintln s!"HARNESS-UNWATCHED {e} {f}: {← ex.toMessageData.toString}"

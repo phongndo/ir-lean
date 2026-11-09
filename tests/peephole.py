@@ -950,16 +950,17 @@ def classify(
 
 def run_models(
     work: Path, regs: list[Registry], cases: list[Case], watch: dict[str, bool]
-) -> tuple[dict[str, dict[str, Any]], list[str]]:
+) -> tuple[dict[str, dict[str, Any]], list[str], set[str]]:
     """Each case's answer from its entry point, in one Lean process, and the entry points whose sites can't be
     told apart. Each answer also names the registered folds, of every registry, that its run reached."""
     entries = sorted({e["fold"] for r in regs for e in r.entries})
     modules = sorted({m for r in regs for m in r.modules})
     folds = sorted({f for r in registries() for f in r.folds})
-    names = lambda xs: ", ".join(f"``{x}" for x in xs)  # noqa: E731
+    # Entry points have to exist. A registered fold that isn't a constant here is only never seen to run.
+    names = lambda xs, q="``": ", ".join(f"{q}{x}" for x in xs)  # noqa: E731
     (work / "Driver.lean").write_text(
         "".join(f"import {m}\n" for m in ["PeepholeHarness", *modules])
-        + f"\nrun_meta PeepholeHarness.prepare #[{names(entries)}] #[{names(folds)}]\n\n"
+        + f"\nrun_meta PeepholeHarness.prepare #[{names(entries)}] #[{names(folds, '`')}]\n\n"
         + "def main (args : List String) : IO UInt32 :=\n"
         + "  PeepholeHarness.runCases PeepholeHarness.Driver.table args\n"
     )
@@ -971,8 +972,18 @@ def run_models(
     r = run(leanlib.argv(LEAN_MB, "--run", work / "Driver.lean", work / "cases.jsonl"), lean_env(work))
     if r.exit != 0:
         raise HarnessError(f"the models' driver failed:\n{r.output[-4000:]}")
-    untagged = [line.split(" ", 1)[1] for line in r.err.splitlines() if line.startswith("HARNESS-UNTAGGED ")]
-    return {j["name"]: j for j in map(json.loads, r.out.splitlines()) if j}, untagged
+    untagged = [
+        line.split(" ", 1)[1] for line in r.output.splitlines() if line.startswith("HARNESS-UNTAGGED ")
+    ]
+    missing = {
+        line.split(" ", 1)[1] for line in r.output.splitlines() if line.startswith("HARNESS-UNWATCHABLE ")
+    }
+    # Lean prints its messages about the driver on the same stream, before the answers.
+    said = [line for line in r.out.splitlines() if line.strip() and not line.startswith(("{", "HARNESS-"))]
+    if said:
+        print("the driver said:\n  " + "\n  ".join(said[:20]), file=sys.stderr)
+    answers = [json.loads(line) for line in r.out.splitlines() if line.startswith("{")]
+    return {j["name"]: j for j in answers}, untagged, missing
 
 
 def comparison_cases(regs: list[Registry], src: Path) -> tuple[list[Case], dict[str, Any]]:
@@ -1027,7 +1038,7 @@ def compare(args: argparse.Namespace) -> int:
                 before[c.name], after[c.name] = pre[f"c{n}"], post[f"c{n}"]
         # Which folds a run reaches is only looked for in cases whose operands opt left as they were.
         watch = {c.name: unchanged(before[c.name], after[c.name]) for c in cases}
-        answers, untagged = run_models(work, regs, cases, watch)
+        answers, untagged, missing = run_models(work, regs, cases, watch)
     seconds = time.monotonic() - started
     failed = False
     reports = []
@@ -1038,6 +1049,7 @@ def compare(args: argparse.Namespace) -> int:
             if c.entry in folds:
                 classify(c, answers[c.name], before[c.name], after[c.name], names[c.name], t)
         report = comparison_record(reg, t, stats, version, seconds)
+        report["folds_unwatchable"] = sorted(set(reg.folds) & missing)
         reports.append(report)
         print_comparison(report)
         failed |= report["status"] not in ("ok", "no entry points") or (args.strict and t.unexplained > 0)
@@ -1132,6 +1144,11 @@ def print_comparison(r: dict[str, Any]) -> None:
     lines.append(f"folds a compared run reached: {', '.join(r['folds_run']) or 'none'}")
     if r["folds_not_run"]:
         lines.append(f"this family's folds no compared run reached: {', '.join(r['folds_not_run'])}")
+    if r.get("folds_unwatchable"):
+        lines.append(
+            "folds that can't be watched, as neither the fold nor <fold>.steps defines a result or steps: "
+            + ", ".join(r["folds_unwatchable"])
+        )
     if r["status"] == "no entry points":
         lines.append("no entry points: its folds run only through other families' entry points")
     for m in r["mismatches"][:10]:
