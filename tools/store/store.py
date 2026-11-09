@@ -713,7 +713,13 @@ def add(
             imports.append("StoreCandidate")
         found = lean_facts(existing, catalog, imports, paths, modules=modules, catalog_keys=True)
         # Each new lemma's module, read as data and replayed, as `check` does for every stored lemma's.
-        held = sorted({f["module"] for f in found["lemmas"] if f.get("found") and f["name"] not in catalog})
+        held = sorted(
+            {
+                f["module"]
+                for f in found["lemmas"]
+                if f.get("module") and not f.get("limit") and f["name"] not in catalog
+            }
+        )
         module_reasons = trust_checks(held, lean_env(*paths))
         keys: dict[str, str] = {}
         for p in found["catalog"]:
