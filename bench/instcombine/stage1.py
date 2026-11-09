@@ -39,7 +39,6 @@ import os
 import random
 import re
 import shlex
-import subprocess
 import sys
 import tempfile
 import time
@@ -1571,11 +1570,11 @@ FAMILY = r'"?(instcombine|instsimplify|aggressive-instcombine)(<[^>]*>)?"?'
 
 
 def fetch(url: str) -> bytes:
-    code = subprocess.run(["curl", "-sS", "-f", "-m", "60", url], capture_output=True, check=False)
-    if code.returncode != 0:
-        raise RuntimeError(f"{url}: {code.stderr.decode(errors='replace')[-200:]}")
+    ran = proc.run(["curl", "-sS", "-f", "-m", "60", url], timeout=90)
+    if not ran.ok:
+        raise RuntimeError(f"{url}: {ran.err[-200:]}")
     time.sleep(0.3)
-    return code.stdout
+    return ran.stdout
 
 
 def without_function(ll: str, name: str) -> str:
@@ -1592,30 +1591,12 @@ def cmd_known_fetch(args: argparse.Namespace) -> int:
     raw = args.work / "known" / "raw"
     (raw / "links").mkdir(parents=True, exist_ok=True)
     (raw / "dashboard").mkdir(parents=True, exist_ok=True)
-    issues = json.loads(
-        subprocess.run(
-            [
-                "gh",
-                "issue",
-                "list",
-                "-R",
-                "llvm/llvm-project",
-                "--label",
-                "miscompilation",
-                "--label",
-                "llvm:instcombine",
-                "--state",
-                "all",
-                "--limit",
-                "1000",
-                "--json",
-                "number,title,body,url,state,createdAt",
-            ],
-            capture_output=True,
-            text=True,
-            check=True,
-        ).stdout
-    )
+    argv = ["gh", "issue", "list", "-R", "llvm/llvm-project", "--label", "miscompilation", "--label"]
+    argv += ["llvm:instcombine", "--state", "all", "--limit", "1000"]
+    listed = proc.run([*argv, "--json", "number,title,body,url,state,createdAt"], timeout=300)
+    if not listed.ok:
+        sys.exit(f"gh issue list failed: {listed.err[-300:]}")
+    issues = json.loads(listed.out)
     (raw / "issues.json").write_text(json.dumps(issues, indent=0))
     for issue in issues:
         for link in sorted(set(re.findall(r"alive2\.llvm\.org/ce/z/([A-Za-z0-9_-]+)", issue["body"]))):
@@ -2012,6 +1993,23 @@ def rows_of(work: Path) -> list[dict]:
     return out
 
 
+RESULTS = Path(__file__).resolve().parent / "results" / "summary.json"
+
+
+def cmd_publish(args: argparse.Namespace) -> int:
+    """Writes results/summary.json, the committed summary: InstCombine's sample, from `report --upto`, and the
+    known miscompilations, from `report` on their WORK, each with the toolchain it ran on."""
+    sample = json.loads(Path(args.sample).read_text())
+    known = json.loads(Path(args.known).read_text())
+    for s in (sample, known):
+        schemas.check(s, SUMMARY_SCHEMA)
+    RESULTS.parent.mkdir(parents=True, exist_ok=True)
+    out = {"schema": SUMMARY_SCHEMA, "instcombine": sample, "known_wrong": known}
+    RESULTS.write_text(json.dumps(out, indent=1, ensure_ascii=False) + "\n")
+    print(f"wrote {RESULTS.relative_to(ROOT)}, {RESULTS.stat().st_size // 1024} KiB")
+    return 0
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     ap.add_argument("--work", type=Path, default=WORK)
@@ -2065,6 +2063,9 @@ def main() -> int:
     p.add_argument("--corpus", type=Path)
     p.add_argument("--append", action="store_true")
     p = sub.add_parser("ci")
+    p = sub.add_parser("publish")
+    p.add_argument("--sample", type=Path, default=WORK / "summary-4000.json")
+    p.add_argument("--known", type=Path, default=ROOT / "build" / "stage1-known" / "summary.json")
     p = sub.add_parser("report")
     p.add_argument("--upto", type=int, help="only the first N changed pairs by id: a uniform sample")
     p.add_argument("--out", type=Path)
@@ -2081,6 +2082,7 @@ def main() -> int:
         "known-fetch": cmd_known_fetch,
         "known-build": cmd_known_build,
         "known-pairs": cmd_known_pairs,
+        "publish": cmd_publish,
         "ci": cmd_ci,
     }[args.command](args)
 

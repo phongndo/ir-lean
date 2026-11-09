@@ -18,9 +18,9 @@ from `ir-lean`, from the gates only, and one from Alive2.
 
 | `ir-lean` verdict | Means | From |
 | --- | --- | --- |
-| `certified` | A bound certificate: `IRLean.Refines Src.f Tgt.f`, kernel-checked, bound to the input, the `opt` run and the toolchain, and replayed from scratch | [`tools/binding.py`](llvm-proof-binding.md) `verify` said `bound`, with exit code 0, about this pair's input, function, pass spec and claim kind `ir_instance_refinement` |
-| `proved` | The same theorem, kernel-checked, for every input that's a value or poison. Not a certificate: an argument without `noundef` can be `undef`, which this doesn't cover | [`tools/verify.py`](verify.md) said `proved` with the statement pinned, and the [negative-verification gate](llvm-negative-verification.md#the-gate) found no reason to refuse it |
-| `refuted` | The model's counterexample: on some input, the target does what the source doesn't allow, and neither side stops the model there | `tools/verify.py` decided a witness false by running the model, and a second run on that witness found no model stop |
+| `certified` | A bound certificate: `IRLean.Refines Src.f Tgt.f`, kernel-checked, bound to the input, the `opt` run and the toolchain, and replayed from scratch | [`tools/binding.py`](llvm-proof-binding.md) `verify` said `bound` about this pair's input, function, pass spec and claim kind `ir_instance_refinement`, and [`irlean.verdict`](trust.md#where-python-decides-a-verdict) granted `certified` on its run and record |
+| `proved` | The same theorem, kernel-checked, for every input that's a value or poison. Not a certificate: an argument without `noundef` can be `undef`, which this doesn't cover | [`tools/verify.py`](verify.md) said `proved` with the statement pinned, the [negative-verification gate](llvm-negative-verification.md#the-gate) found no reason to refuse it, and `irlean.verdict` granted `proved` |
+| `refuted` | The model's counterexample: on some input, and for a target that chooses, some way of choosing, the target does what the source doesn't allow, and neither side stops the model there | `tools/verify.py` decided a witness false by running the model, `irlean.verdict` granted `refuted`, and a second run on that witness found no model stop |
 | `no_verdict` | The automation found no proof, and no witness tried refutes it. Never a counterexample | `tools/verify.py` said `proof_failed` |
 | `unknown` | A limit stopped it: time, memory, heartbeats or recursion depth. More may help | `tools/verify.py` said `timeout` |
 | `unsupported` | The model can't state the claim: the emitter refuses a side, the function uses memory, or a refutation goes through a model stop | The emitter's report, or the refutation's probe |
@@ -69,13 +69,24 @@ argument, and each lane of a vector argument, split into poison and a value, bot
 each branch and each case of the relation split, and each path closed with `bv_decide`. The proof is untrusted, and
 imports only Lean, `IRLean` and the generated module. `certify` sends each proved pair that `tools/binding.py` can bind
 through `record` and `verify`, with the same automation stated for the bundle's modules. `tools/binding.py` binds a pair
-only when every argument is `noundef` in the source and the target IR has no `mustprogress` or `willreturn`.
+only when every argument is `noundef` in the source. Since SEM-07, [#62](https://github.com/phongndo/ir-lean/pull/62),
+the model checks `mustprogress` and `willreturn`, so a target with either can be bound.
 
-`refute` runs the model, through `tools/verify.py`, on each pair the automation didn't prove, with scalar arguments and
-result: Alive2's counterexample first, if it has one, then up to 64 edge values, poison among them. The statement is the
-decidable form of refinement the [negative-verification gate](llvm-negative-verification.md#the-claim) uses. A witness
-that makes it false is then run once more, to ask whether either side stops the model there. A counterexample through a
-model stop is `unsupported`, never `refuted`, since a model stop says nothing about LLVM.
+**Runs that choose.** Since F3, [#72](https://github.com/phongndo/ir-lean/pull/72), a function with a `freeze` returns
+`IRLean.Outcomes`, an outcome for each way it chooses ([refinement](refinement.md#runs-that-make-choices)). Where only one
+side chooses, which a rewrite adding or removing a `freeze` gives, the claim lifts the other with `IRLean.Outcomes.det`,
+exactly as `tools/binding_check.lean` builds it, and the pinned statement says the same. The proof takes every way the
+target chooses, and has the source choose the same, or, choosing alone, choose 0 everywhere, which can fail where
+another choice would do.
+
+`refute` runs the model, through `tools/verify.py`, on each pair the automation didn't prove, whose arguments and result
+are integers or vectors of them: Alive2's counterexample first, if it has one, then up to 64 edge values for each
+argument or lane, poison among them. A target that chooses gets two ways of choosing, 0 and 1 everywhere, as another
+binder. A source that chooses isn't refuted, since that needs every way it chooses to fail. For an integer result, the
+statement is the decidable form of refinement the [negative-verification gate](llvm-negative-verification.md#the-claim)
+uses, over every reason `IRLean.UB` has, read from `IRLean/Basic.lean`. For a vector, it's the same lane by lane, with
+`IRLean.Vec.lane`. A witness that makes it false is then run once more, to ask whether either side stops the model there.
+A counterexample through a model stop is `unsupported`, never `refuted`, since a model stop says nothing about LLVM.
 
 ## The known miscompilations
 
@@ -100,6 +111,19 @@ A pair wrong only with an `undef` argument can be `proved`, since `proved` doesn
 isn't a certificate. It can't be `certified`: `tools/binding.py` requires `noundef` arguments, and with one, passing
 `undef` is undefined.
 
+## Found along the way
+
+None is a soundness bug: each makes the model or a tool say less, never prove a wrong rewrite.
+
+| Finding | Where | Effect | Next |
+| --- | --- | --- | --- |
+| The emitter writes a vector `llvm.sadd.with.overflow` or `llvm.ssub.with.overflow` as the scalar operation, `Val.saddWithOverflow` on a `Vec`, and Lean rejects the module | `src/Emitter.cpp` | Fails closed: `tools/verify.py` says `generated_module_failed`, an `error` here. 3 pairs in the 50-test sample and 2 in the corpus | An issue for the emitter |
+| `ir-lean --report` crashes, with a segmentation fault, on a constant `bitcast` of one vector type to another inside an instruction, such as `and <2 x i64> bitcast (<4 x i32> ... to <2 x i64>), ...` from `x86-muldq-inseltpoison.ll` | `src/Emitter.cpp` | Fails closed: the function gets no report and counts as refused. 34 changed functions | An issue for the emitter |
+| `tools/binding.py` binds only a source whose arguments are all `noundef`, since an `undef` argument can be a different value at each use and `IRLean`'s values never are. 91 of the 12,002 candidates are | `tools/binding.py`, by design | Certificates are rare. The rest can be `proved` for every value or poison, the same scope as Alive2's `--disable-undef-input`, but aren't certificates | Modeling `undef` arguments, which F3 kept out, is what would let most of InstCombine's tests be certified |
+| `tests/verify_negative.py`'s list of `IRLean.UB` missed `noProgress` and `noReturn` after SEM-07 added them, so its decidable claim was stricter than refinement where a source spins | `tests/verify_negative.py` | A spurious counterexample where a source breaks a promise; never a false certificate | Fixed by [#77](https://github.com/phongndo/ir-lean/pull/77), which reads the list from the model. This harness reads it from `IRLean/Basic.lean` too |
+| Alive2 calls the source of issue 91127 always undefined, a loop of three trips that returns 1. By default it drops paths around a loop. With `--src-unroll=4 --tgt-unroll=4` it finds the value mismatch the model finds | Alive2's defaults | Its `src_always_ub` there is its bound on loops, not the source's behavior | Kept as Alive2 is configured in `tests/alive.py`, and explained [below](#disagreements) |
+| The pinned `alive-tv` spells the flag `--fail-src-ub`, not `--fail-if-src-is-ub` as the study's reading of `tools/transform.cpp` had it | `tests/alive.py` | None now: `tests/alive.py` passes `--fail-src-ub`, and `tests/alive_test.py` fails without it | |
+
 ## What it rests on
 
 Everything in [trust](trust.md), [verify](verify.md#what-proved-rests-on) and
@@ -109,7 +133,8 @@ Everything in [trust](trust.md), [verify](verify.md#what-proved-rests-on) and
 | --- | --- | --- |
 | `llvm-extract` keeps what InstCombine's rewrite of one function depends on | InstCombine is a function pass, and the module keeps the declarations the function uses. A pair the cut changes is checked against the cut module, which is what a certificate binds | A rewrite that reads another function's body. The pair is then still a real `opt` run, but not the one the whole test made |
 | `llvm-link` and renaming to `@src` and `@tgt` don't change what either side means | Each side has one definition, renamed with its uses | A name clash `llvm-link` resolves by renaming a declaration |
-| The decidable claim in `refute` is refinement on scalar functions | It's the negative-verification gate's, which its controls prove and its wrong cases refute | A difference from `IRLean.Refines` on some case. A `refuted` verdict is the model's counterexample, decided by running compiled code, as [verify](verify.md#counterexamples) says |
+| The decidable claim in `refute` is refinement on integer and vector functions | It's the negative-verification gate's, lane by lane for a vector, which its controls prove and its wrong cases refute | A difference from `IRLean.Refines` on some case. A `refuted` verdict is the model's counterexample, decided by running compiled code, as [verify](verify.md#counterexamples) says |
+| The harness asks for the right claim, file and theorem | Every proved, certified and refuted here is granted by `irlean.verdict`, which checks that nothing it rests on crashed, ran out or failed. Choosing what to ask it is this harness's, about 1,900 lines of Python nothing proves, and `stage1 ci` tests | A bug choosing the claim, the file or the theorem |
 | Alive2's verdicts, at its pinned commit on the shell's LLVM | It's the reference this compares with, not a gate | An Alive2 bug, which a disagreement may show |
 
 ## Reproducing it
@@ -117,22 +142,26 @@ Everything in [trust](trust.md), [verify](verify.md#what-proved-rests-on) and
 In `nix develop`, after `lake build` and building `build/ir-lean`:
 
 ```sh
-bench/instcombine/stage1.py all --sample 50 --seed 1   # a sample, into build/stage1
-bench/instcombine/stage1.py all                        # every test
-bench/instcombine/stage1.py --work build/stage1-known known-pairs
-bench/instcombine/stage1.py --work build/stage1-known prove   # then certify, alive, refute, report
+S=bench/instcombine/stage1.py
+$S pairs                                   # every test, into build/stage1
+$S prove --upto 4000                       # then certify, alive and refute, each with --upto 4000
+$S report --upto 4000 --out build/stage1/summary-4000.json
+$S --work build/stage1-known known-pairs   # the known miscompilations
+$S --work build/stage1-known prove         # then certify, alive, refute and report
 ```
 
-Each stage skips pairs it has done, so a long run can stop and go on. Run the heavy stages through
-`tools/measure.py run --heavy`, as [the corpus](corpus.md#measuring-a-heavy-job) says. `report` writes
-`summary.json`, with every count and the toolchain's hashes.
+`--upto N` keeps a stage to the first `N` changed pairs in the order of their ids. An id is a SHA-256 of the test and the
+function, so that's a uniform sample, the same every run, and each larger one holds the smaller. Without it, a stage
+takes every pair. Each stage skips pairs it has done, so a long run can stop and go on. Run the heavy stages through
+`tools/measure.py run --heavy`, as [the corpus](corpus.md#measuring-a-heavy-job) says. `report` writes `summary.json`,
+with every count and the toolchain's hashes.
 
 The raw results, the generated Lean and the bundles stay in `build/`, which git ignores.
 [`bench/instcombine/results/summary.json`](../bench/instcombine/results/summary.json) is the summary of the run below.
 
 ## The test
 
-`ctest`'s `stage1` runs `stage1.py ci` on [`bench/instcombine/fixture/`](../bench/instcombine/fixture/): four functions
-from an InstCombine-style test and three known miscompilations, through every stage, against `expect.json`. It fails if
+`ctest`'s `stage1` runs `stage1.py ci` on [`bench/instcombine/fixture/`](../bench/instcombine/fixture/): five functions
+from an InstCombine-style test, one of them a dropped `freeze`, and three known miscompilations, through every stage, against `expect.json`. It fails if
 any pair's verdict differs, or if a known-wrong pair is proved or certified, whatever `expect.json` says. It runs in
 CI's `binding` job, alone, one Lean process at a time.
