@@ -12,7 +12,7 @@ inputs, each bound to the exact IR before and after it. That evidence is finite.
 input, so it never counts toward any of those three kinds of proof, and `complete` stays false in
 [`ledger.json`](../campaign/o1/ledger.json) whatever it holds.
 
-<!-- o1-summary: {"level": "O1", "positions": 100, "passes": 76, "families": 14, "adaptors": 13, "cases": 10, "steps": 79, "verdicts": {"bound": 24, "bound_stale": 0, "bound_unlinked": 0, "bound_unreplayed": 0, "error": 0, "not_attempted": 51, "refused": 4, "unknown": 0, "unsupported": 0}, "whole_run": {"refused:certificate_compile_failed": 2, "unsupported:trusted_promise": 8}, "discharged": 0, "complete": false, "evidence_sources": "e2f0d05b5ba701ebeb5f31a5033dd683d4d9e2414a0d007811a9ee6d7200211b"} -->
+<!-- o1-summary: {"level": "O1", "positions": 100, "passes": 76, "families": 14, "adaptors": 13, "cases": 10, "steps": 79, "verdicts": {"bound": 24, "bound_stale": 0, "bound_unlinked": 0, "bound_unreplayed": 0, "error": 0, "not_attempted": 51, "refused": 4, "unknown": 0, "unsupported": 0}, "whole_run": {"refused:certificate_compile_failed": 2, "unsupported:trusted_promise": 8}, "discharged": 0, "complete": false, "evidence_sources": "3316530479f01c916c792d2c8acacf245bc563964632d58595e0c0d5af5a7161"} -->
 
 ## The pin
 
@@ -202,7 +202,9 @@ Every run is measured by [`measure.py`](../campaign/o1/measure.py), and the reco
 after. Each record keeps two peaks. The peak process is exact, from `wait4()`, with macOS's bytes and Linux's KiB both
 turned into MiB. The peak tree is the sampled sum over the process group and its descendants.
 
-Measured on y: an M4 Max with 16 cores and 64 GB, under normal memory pressure, with no swap.
+Measured on y: an M4 Max with 16 cores and 64 GB, under normal memory pressure, with no swap. The evidence now
+committed was verified on `main` at `a26abb3` with #48 at `f6fc339` merged. The low-memory sweep and the single-run
+rows are from the first pilot, on `4cd91e5`.
 
 | Run | Workers | Wall | Peak process | Peak tree |
 | --- | --- | --- | --- | --- |
@@ -211,9 +213,10 @@ Measured on y: an M4 Max with 16 cores and 64 GB, under normal memory pressure, 
 | `capture` of all 10 inputs, with every replay | 1 | 10 s | 34 MiB, for one `opt` | |
 | One `tools/binding.py verify` that binds | 1 | 10.3 to 11.1 s | 1523 MiB | 1836 MiB |
 | One `verify` that stops at `trusted_promise`, before Lean | 1 | 6.3 s | 447 MiB | 440 MiB |
-| `bind` of all 38 bundles, each replayed in full | 3 | 173 s | 1676 MiB | 5671 MiB |
+| `bind` of all 38 bundles, each replayed in full, with `lake build` and `ninja` first | 3 | 181 s | 1668 MiB | 5695 MiB |
 
-Verifying with 3 at once took 12.8 s each at the median, against 10.8 s alone.
+Verifying with 3 at once took 13.0 s each at the median, against 10.8 s alone. Before this, on `4cd91e5`, the same
+`bind` took 173 s and peaked at 5671 MiB.
 
 Most of a verify's memory is three processes:
 
@@ -235,12 +238,12 @@ where Lean's `-M` stops a step:
 | 700 | unknown, resource_limit, in the certificate | 8.6 s | 1495 MiB | 1791 MiB |
 | 500 | unknown, resource_limit, in the generated module | 6.6 s | 659 MiB | 1010 MiB |
 
-So one verify needs `-M 1500` and about 1.9 GiB in all. A limit too low comes back `unknown` and never as evidence.
-For workers, leave room for the OS and other work, and give each about 2 GiB:
-
-- On 32 GB, 4 to 6 at once.
-- On 16 GB, 2.
-- On 8 GB, 1, at `-M 1500`.
+So for this workload one verify needed `-M 1500`, and its tree peaked at about 1.9 GiB of sampled RSS. A limit too
+low comes back `unknown` and never as evidence. These figures are specific to this corpus: ten small functions,
+one-block certificates, and this toolchain. They're sampled, so a spike shorter than 0.25 s can be missed. The only
+concurrency tested is 3 workers on 64 GB, which peaked at 5.7 GiB in all. How many workers fit on a 32 GB or smaller
+machine hasn't been measured. Start there with one worker, under a `--max-tree-rss-mb` cap, and measure before adding
+more.
 
 To reproduce the sweep on another machine:
 
@@ -275,7 +278,7 @@ are, and changes none of them. Each of these belongs to another lane, and here i
 
 | Needed for | Owned by |
 | --- | --- |
-| `IRLean.Refines`, so a step that only refines can be bound, and so steps compose | SEM-01, refinement core |
+| `IRLean.Refines` is on `main` since #46, with transitivity, and `tools/binding.py` binds `ir_instance_refinement` claims. The campaign still certifies equality only. Using refinement for steps that only refine, and chaining bound steps of one run, are its next uses. A chain would still be one run on one input, not O1 | SEM-01, refinement core |
 | Promises as UB, so a target with `willreturn` can be bound | SEM-07 |
 | `undef`, `freeze` and poison, for rewrites that introduce them | SEM-02, SEM-03 |
 | Memory refinement, for `sroa`, `mem2reg` and `memcpyopt` | SEM-06 |

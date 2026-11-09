@@ -45,10 +45,10 @@
   },
   "toolchain": {
     "binding_check_sha256": "f1370304937db82ec9b6be5d6d559ad468f949d0d7c8af638e3bf0ea3b280ffe",
-    "binding_py_sha256": "0e090d8a867aa1044904b9178254006a46477cc90cf9289def6d5624d360167d",
+    "binding_py_sha256": "04949f8f97fb9fc277cf821bd6ee2e222ffee20acc37032ef10f326802688c4d",
     "check_axioms_sha256": "c731e1e303372e190387e74b4285a8221abbbb539599bae61ef116afa641747b",
     "ir_lean_sha256": "4ae6f49d14eb014ca3f917d8bb49d2ae3d8e036595ffa4bdda9c6212d151fe3f",
-    "irlean_library_sha256": "9474c7c9acd1bf7519f8c5fea3f90d4160c0aa580ce6ce0d7464b9441f33c007",
+    "irlean_library_sha256": "b76d4fff5d216cabfa6b1e6ed0cc53e70d896f46380c9660007dc961ebb407d4",
     "lean_sha256": "d1d9c26a539f54fe839d2aa7760bf1ac1dd76a30b26e2c9684bebf2900038fcf",
     "lean_toolchain_sha256": "33fe9095ea557c7acd1af6585012eab247549ca5074e46998ca68f61e8194fe6",
     "lean_version": "Lean (version 4.35.0, arm64-apple-darwin24.6.0, commit eb6cafb7290e8bd5f2937522d8d804f58f02bafc, Release)",

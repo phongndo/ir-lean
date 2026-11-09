@@ -38,9 +38,9 @@
     "timeout_s": 2400
    },
    "outcome": "failed",
-   "peak_process_mb": 445.3,
-   "peak_tree_mb": 438.2,
-   "wall_s": 6.52
+   "peak_process_mb": 446.5,
+   "peak_tree_mb": 443.7,
+   "wall_s": 6.36
   },
   "detail": "the target IR has mustprogress or willreturn, which IRLean trusts instead of checking",
   "label": "o1",
@@ -48,7 +48,7 @@
   "namespace": "O1SubAddCancelO1",
   "passes": "default<O1>",
   "reason": "trusted_promise",
-  "sources": "e2f0d05b5ba701ebeb5f31a5033dd683d4d9e2414a0d007811a9ee6d7200211b",
+  "sources": "3316530479f01c916c792d2c8acacf245bc563964632d58595e0c0d5af5a7161",
   "status": "unsupported",
   "step": null
  },
@@ -119,18 +119,18 @@
     "timeout_s": 2400
    },
    "outcome": "ok",
-   "peak_process_mb": 1496.5,
-   "peak_tree_mb": 1871.5,
-   "wall_s": 12.68
+   "peak_process_mb": 1495.9,
+   "peak_tree_mb": 1833.2,
+   "wall_s": 13.48
   },
   "detail": "every check passed",
-  "key": "20729497f816fc31112209e5b1167fecd063ac303b1f98f0cc25a06af052dced",
+  "key": "89a5175683ce5a1b0cb96f6793e4a5ba677117a7402f549fcfbb1ddd5a112b4d",
   "label": "s01",
   "memory_capped": false,
   "namespace": "O1SubAddCancelS01",
   "passes": "function(early-cse<>)",
   "reason": "replayed",
-  "sources": "e2f0d05b5ba701ebeb5f31a5033dd683d4d9e2414a0d007811a9ee6d7200211b",
+  "sources": "3316530479f01c916c792d2c8acacf245bc563964632d58595e0c0d5af5a7161",
   "statement": "O1SubAddCancelS01.Src.f = O1SubAddCancelS01.Tgt.f ∧\n  ∀ (x y : IRLean.Val 8) (s : IRLean.ModelStop),\n    O1SubAddCancelS01.Src.f x y ≠ Option.some (Except.error (IRLean.Stop.model s))",
   "status": "bound",
   "step": 1,
@@ -206,18 +206,18 @@
     "timeout_s": 2400
    },
    "outcome": "ok",
-   "peak_process_mb": 1543.8,
-   "peak_tree_mb": 1942.6,
-   "wall_s": 11.89
+   "peak_process_mb": 1539.2,
+   "peak_tree_mb": 1946.3,
+   "wall_s": 12.85
   },
   "detail": "every check passed",
-  "key": "af52280d5192daebaf22d1a19623e98e6f63117616649a7cfb3216e274f9189b",
+  "key": "e25f48ccec23f6cfbeeb0d2e2381f3a1b02fd9fb30c29d9c934de01848c7d588",
   "label": "s02",
   "memory_capped": false,
   "namespace": "O1SubAddCancelS02",
   "passes": "globalopt",
   "reason": "replayed",
-  "sources": "e2f0d05b5ba701ebeb5f31a5033dd683d4d9e2414a0d007811a9ee6d7200211b",
+  "sources": "3316530479f01c916c792d2c8acacf245bc563964632d58595e0c0d5af5a7161",
   "statement": "O1SubAddCancelS02.Src.f = O1SubAddCancelS02.Tgt.f ∧\n  ∀ (x y : IRLean.Val 8) (s : IRLean.ModelStop),\n    O1SubAddCancelS02.Src.f x y ≠ Option.some (Except.error (IRLean.Stop.model s))",
   "status": "bound",
   "step": 2,
@@ -293,18 +293,18 @@
     "timeout_s": 2400
    },
    "outcome": "ok",
-   "peak_process_mb": 1487.0,
-   "peak_tree_mb": 1840.2,
-   "wall_s": 11.5
+   "peak_process_mb": 1519.9,
+   "peak_tree_mb": 1894.1,
+   "wall_s": 11.57
   },
   "detail": "every check passed",
-  "key": "9bf1487cea9a6d7428bdaff8957c8f2e3b4f664af1baac11db5b70c5f607a495",
+  "key": "7a1a9f11ab363004415f2cd5bc008789575f4c81f0311d5d51ea0a77896e2908",
   "label": "s03",
   "memory_capped": false,
   "namespace": "O1SubAddCancelS03",
   "passes": "function(instcombine<max-iterations=1;no-verify-fixpoint>)",
   "reason": "replayed",
-  "sources": "e2f0d05b5ba701ebeb5f31a5033dd683d4d9e2414a0d007811a9ee6d7200211b",
+  "sources": "3316530479f01c916c792d2c8acacf245bc563964632d58595e0c0d5af5a7161",
   "statement": "O1SubAddCancelS03.Src.f = O1SubAddCancelS03.Tgt.f ∧\n  ∀ (x y : IRLean.Val 8) (s : IRLean.ModelStop),\n    O1SubAddCancelS03.Src.f x y ≠ Option.some (Except.error (IRLean.Stop.model s))",
   "status": "bound",
   "step": 3,

@@ -51,17 +51,17 @@
    },
    "outcome": "failed",
    "peak_process_mb": 673.1,
-   "peak_tree_mb": 1049.4,
-   "wall_s": 7.95
+   "peak_tree_mb": 1010.3,
+   "wall_s": 7.76
   },
-  "detail": "Lean rejects the certificate: e in the supported BitVec fragment after applying preprocessing.\nThere are three potential reasons for this:\n1. If you are using custom BitVec constructs simplify them to built-in ones.\n2. If your problem is using only built-in ones it might currently be out of reach.\n   Consider expressing it in terms of different operations that are better supported.\n3. The original goal was reduced to False and is thus invalid.\n/Users/dp/.t3/worktrees/ir-lean/campaign-mac-o1-20261108/build/binding/runs/637d186c271eca43-cf738b5bacacbda4/lean/O1LoopInvariantO1/Cert.lean:16:2: error: unsolved goals\ncase refine_2.some.some.some\ns : ModelStop\nval✝² val✝¹ val✝ : BitVec 32\n⊢ ¬run Src.f.step (Src.f.Block.h (some 0#32) (some 0#32) (some val✝²) (some val✝¹) (some val✝)) =\n      some (Except.error (Stop.model s))\n",
-  "key": "637d186c271eca4339dce3a13abb0cf8b6b7d27e73d9847798a641f3fc798968",
+  "detail": "Lean rejects the certificate: e in the supported BitVec fragment after applying preprocessing.\nThere are three potential reasons for this:\n1. If you are using custom BitVec constructs simplify them to built-in ones.\n2. If your problem is using only built-in ones it might currently be out of reach.\n   Consider expressing it in terms of different operations that are better supported.\n3. The original goal was reduced to False and is thus invalid.\n/Users/dp/.t3/worktrees/ir-lean/campaign-mac-o1-20261108/build/binding/runs/a68e81d5c1e31d65-af404255a9a90bf9/lean/O1LoopInvariantO1/Cert.lean:16:2: error: unsolved goals\ncase refine_2.some.some.some\ns : ModelStop\nval✝² val✝¹ val✝ : BitVec 32\n⊢ ¬run Src.f.step (Src.f.Block.h (some 0#32) (some 0#32) (some val✝²) (some val✝¹) (some val✝)) =\n      some (Except.error (Stop.model s))\n",
+  "key": "a68e81d5c1e31d655dd5bf14b582ad3b24faa3389700659cb281292ddc3088c1",
   "label": "o1",
   "memory_capped": false,
   "namespace": "O1LoopInvariantO1",
   "passes": "default<O1>",
   "reason": "certificate_compile_failed",
-  "sources": "e2f0d05b5ba701ebeb5f31a5033dd683d4d9e2414a0d007811a9ee6d7200211b",
+  "sources": "3316530479f01c916c792d2c8acacf245bc563964632d58595e0c0d5af5a7161",
   "status": "refused",
   "step": null,
   "uncovered_changes": {
