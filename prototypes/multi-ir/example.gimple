@@ -1,0 +1,58 @@
+Removing basic block 5
+Removing basic block 6
+Removing basic block 7
+Removing basic block 8
+unsigned int __GIMPLE (ssa,guessed_local(118111600))
+popcount (unsigned int x)
+{
+  unsigned int c;
+  unsigned int _1;
+
+  __BB(2,guessed_local(118111600)):
+  if (x_4(D) != 0u)
+    goto __BB3(guessed(119453778));
+  else
+    goto __BB4(guessed(14763950));
+
+  __BB(3,loop_header(1),guessed_local(955630224)):
+  x_10 = __PHI (__BB3: x_7, __BB2: x_4(D));
+  c_11 = __PHI (__BB3: c_6, __BB2: 0u);
+  _1 = x_10 & 1u;
+  c_6 = _1 + c_11;
+  x_7 = x_10 >> 1;
+  if (x_7 != 0u)
+    goto __BB3(guessed(119453778));
+  else
+    goto __BB4(guessed(14763950));
+
+  __BB(4,guessed_local(118111600)):
+  c_12 = __PHI (__BB3: c_6, __BB2: x_4(D));
+  return c_12;
+
+}
+
+
+Removing basic block 5
+int __GIMPLE (ssa,guessed_local(1073741824))
+pick (int c, int a, int b)
+{
+  int _1;
+  int _5;
+
+  __BB(2,guessed_local(1073741824)):
+  if (c_2(D) != 0)
+    goto __BB3(guessed(67108864));
+  else
+    goto __BB4(guessed(67108864));
+
+  __BB(3,guessed_local(536870912)):
+  _5 = a_3(D) + b_4(D);
+  goto __BB4(precise(134217728));
+
+  __BB(4,guessed_local(1073741824)):
+  _1 = __PHI (__BB2: c_2(D), __BB3: _5);
+  return _1;
+
+}
+
+

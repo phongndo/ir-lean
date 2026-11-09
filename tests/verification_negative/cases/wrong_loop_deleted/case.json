@@ -1,0 +1,42 @@
+{
+  "schema": "ir-lean.verification-negative.case/1",
+  "category": "resource",
+  "summary": "Deleting a loop that never ends, refuted only by a run that never ends",
+  "llvm_verdict": "invalid",
+  "why": "Without mustprogress, src at x = 0 never returns, and tgt does. Deciding the witness means running src, which doesn't finish, so the answer is a timeout: unknown, never proved.",
+  "claim": {
+    "binders": "(x : IRLean.Val 8)",
+    "hypotheses": [],
+    "src": "Opt.src x",
+    "tgt": "Opt.tgt x"
+  },
+  "names": [
+    "Opt.src",
+    "Opt.tgt"
+  ],
+  "request": {
+    "input": {
+      "ir": "Opt.ll"
+    },
+    "namespace": "Opt",
+    "function": "tgt",
+    "witnesses": [
+      {
+        "x": "some 0#8"
+      }
+    ],
+    "limits": {
+      "timeout_seconds": 25,
+      "memory_mb": 4000
+    }
+  },
+  "expect": {
+    "certified": false,
+    "verify": [
+      "timeout/time_limit"
+    ],
+    "gate": [
+      "not_proved"
+    ]
+  }
+}

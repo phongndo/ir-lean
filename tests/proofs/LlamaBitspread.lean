@@ -30,8 +30,8 @@ theorem same (x : Val 32) : LlamaBitspreadIR.src x = LlamaBitspreadIR.tgt x := b
   rcases hidx with h | h | h | h | h | h | h | h | h | h | h | h | h | h | h | h |
     h | h | h | h | h | h | h | h | h | h | h | h | h | h | h | h <;> subst i <;>
     cases x <;>
-      simp [Vec.map2, Vec.bitcast, Vec.lane, Vec.insert, Vec.shuffle, Vec.select,
-        IRLean.select, Val.map₁, Val.or, Val.icmpEq, Val.icmp, HasPoison.poison,
+      simp [Vec.map2, Vec.split, Vec.lane, Vec.insert, Vec.shuffle, Vec.select,
+        IRLean.select, Val.or, Val.icmpEq, Val.icmp, HasPoison.poison,
         Vector.getElem_set] <;> congr 1 <;> bv_decide
 
 /-- Both executions return successfully, with identical values in all lanes. -/
@@ -44,20 +44,21 @@ theorem same_successful (x : Val 32) :
   obtain ⟨r, hr⟩ := hs
   exact ⟨r, hr, (same x).symm.trans hr⟩
 
-private theorem bit_lane (x : BitVec 32) (i : Nat) :
-    (x >>> i).setWidth 1 = BitVec.ofBool (x.getLsbD i) := by
-  simp [BitVec.setWidth_one]
-
 private theorem select_byte (b : Bool) : IRLean.select (some (BitVec.ofBool b)) (some 0#8) (some 240#8) =
     some (if b then 0#8 else 240#8) := by
   cases b <;> rfl
 
 private theorem cast_lane (x : BitVec 32) (i : Nat) (hi : i < 32) :
-    (Vec.bitcast 32 1 #v[some x])[i] = some (BitVec.ofBool (x.getLsbD i)) := by
-  simp [Vec.bitcast, Vec.lane, Val.map₁, Nat.mod_eq_of_lt hi, bit_lane]
+    (Vec.split 32 1 32 #v[some x])[i] = some (BitVec.ofBool (x.getLsbD i)) := by
+  simp [Vec.split, Vec.lane, Nat.mod_eq_of_lt hi]
+  apply BitVec.eq_of_getLsbD_eq
+  intro j hj
+  have : j = 0 := by omega
+  subst this
+  simp
 
 private theorem target_result (x : Val 32) : LlamaBitspreadIR.tgt x =
-    Outcome.ok (Vec.select (Vec.bitcast 32 1 #v[x])
+    Outcome.ok (Vec.select (Vec.split 32 1 32 #v[x])
       (Vector.replicate 32 (some 0#8)) (Vector.replicate 32 (some 240#8))) := by
   unfold LlamaBitspreadIR.tgt
   rw [run]

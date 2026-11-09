@@ -44,8 +44,10 @@ accepts() {
   fi
 }
 
-# Bitcast's lane order depends on endianness even in a pure function. Nondividing widths,
-# floating-point lanes, pointers and scalable vectors remain outside the integer model.
+# A `bitcast` between integers and vectors of integers puts lane 0 in the low bits only on a little-endian
+# target, even in a function that doesn't touch memory. Lane widths that don't divide each other, floating-point
+# lanes, pointers and scalable vectors are refused too. tests/x86check.py checks what the accepted ones mean
+# against Alive2.
 refuses 'big-endian integer bitcast' 'target datalayout = "E"
 define <4 x i8> @f(<2 x i16> %x) { %r = bitcast <2 x i16> %x to <4 x i8>
   ret <4 x i8> %r }'
@@ -99,7 +101,7 @@ example : Bitcasts.join #v[none, some 0x56#8, some 0x34#8, some 0x12#8] =
   rw [Bitcasts.join, run]
   rfl
 
-example : Vec.bitcast 4 8 (Vec.bitcast 2 16 #v[some 7#8, none, some 9#8, some 10#8]) =
+example : Vec.split 4 8 2 (Vec.join 2 16 2 #v[some 7#8, none, some 9#8, some 10#8]) =
     #v[none, none, some 9#8, some 10#8] := rfl
 
 example : Bitcasts.bits (some 0x81#8) =
@@ -126,6 +128,9 @@ if lean -R "$work" -o "$work/Bitcasts.olean" "$work/Bitcasts.lean" && lean "$wor
 else
   fail 'integer bitcast lane order or poison propagation'
 fi
+accepts 'target datalayout = "e"
+define <4 x i8> @f(<2 x i16> %x) { %r = bitcast <2 x i16> %x to <4 x i8>
+  ret <4 x i8> %r }'
 
 # A function of N blocks that calls itself, which keeps it from nesting its blocks.
 recursive_blocks() {
@@ -170,13 +175,61 @@ if [ "$groups" -gt 244 ]; then
   fail "a Lean type holds at most 244 constructors, and this has $groups"
 fi
 
-# Linkage: only a definition that's certainly the one a run uses can be proved about.
-for linkage in weak weak_odr linkonce linkonce_odr available_externally; do
+# Linkage: a definition can be proved about if it's certainly the one a run uses, or if it's this translation's copy
+# of an `_odr` one. Only the first can be called, since a call runs whichever copy the linker keeps.
+for linkage in weak linkonce available_externally; do
   refuses linkage "define $linkage i32 @f(i32 %x) { ret i32 %x }"
 done
-refuses "isn't translated" 'define weak i32 @g() { ret i32 0 }
+for linkage in weak_odr linkonce_odr; do
+  accepts "define $linkage i32 @f(i32 %x) { ret i32 %x }"
+  refuses 'call to @g, whose definition may not be the one that runs' "define $linkage i32 @g() { ret i32 0 }
+define i32 @f() { %r = call i32 @g()
+  ret i32 %r }"
+done
+refuses 'call to @g, whose definition may not be the one that runs' 'define weak i32 @g() { ret i32 0 }
 define i32 @f() { %r = call i32 @g()
   ret i32 %r }'
+refuses 'indirect call that can reach @g, whose definition may not be the one that runs' 'define linkonce_odr i32 @g() { ret i32 0 }
+@h = global ptr @g
+define i32 @f() { %t = load ptr, ptr @h
+  %r = call i32 %t()
+  ret i32 %r }'
+refuses 'indirect call that can reach @g, whose definition may not be the one that runs' 'define linkonce_odr i32 @g() { ret i32 0 }
+@a = alias i32 (), ptr @g
+define i32 @f() { %r = call i32 @a()
+  ret i32 %r }'
+# Calling itself is calling whichever copy the linker keeps, too.
+refuses 'call to @f, whose definition may not be the one that runs' 'define linkonce_odr i32 @f(i32 %x) {
+entry:
+  %c = icmp eq i32 %x, 0
+  br i1 %c, label %done, label %again
+again:
+  %y = sub i32 %x, 1
+  %r = call i32 @f(i32 %y)
+  ret i32 %r
+done:
+  ret i32 0
+}'
+# What an `_odr` copy calls is another matter: an exact definition is the one that runs, whoever calls it.
+accepts 'define i32 @g(i32 %x) { ret i32 %x }
+define linkonce_odr i32 @f(i32 %x) { %r = call i32 @g(i32 %x)
+  ret i32 %r }'
+# Being `_odr` changes what can call a definition, and nothing about what it means.
+odr_body='i32 @f(ptr %p, i32 %x) {
+  %v = load i32, ptr %p, align 4
+  %s = add nsw i32 %v, %x
+  store i32 %s, ptr %p, align 4
+  ret i32 %s
+}'
+printf 'define %s\n' "$odr_body" >"$work/Exact.ll"
+printf 'define linkonce_odr %s\n' "$odr_body" >"$work/Odr.ll"
+if "$tool" "$work/Exact.ll" --namespace Same -o "$work/Exact.lean" &&
+  "$tool" "$work/Odr.ll" --namespace Same -o "$work/Odr.lean" &&
+  diff <(tail -n +2 "$work/Exact.lean") <(tail -n +2 "$work/Odr.lean") >/dev/null; then
+  printf 'ok    an _odr definition translates as the same definition with external linkage does\n'
+else
+  fail 'an _odr definition should translate as the same definition with external linkage does'
+fi
 for linkage in weak weak_odr linkonce linkonce_odr common; do
   refuses 'initial value' "@g = $linkage global i32 0
 define ptr @f() { ret ptr @g }"
@@ -193,7 +246,8 @@ done
 # Function attributes: anything that isn't on the reviewed list.
 for attribute in noreturn naked returns_twice sanitize_address strictfp null_pointer_is_valid \
   convergent nocf_check speculatable nocallback '"made-up"="1"'; do
-  refuses "attribute" "define i32 @f(i32 %x) $attribute { ret i32 %x }"
+  # The verifier rejects a naked function that reads its arguments.
+  refuses "attribute" "define i32 @f(i32 %x) $attribute { ret i32 0 }"
 done
 refuses 'call attribute nobuiltin' 'declare ptr @malloc(i64)
 define ptr @f() {
@@ -316,6 +370,139 @@ refuses 'metadata !alias.scope' 'define i32 @f(ptr %p) { %v = load i32, ptr %p, 
 refuses 'instruction' 'declare void @llvm.assume(i1)
 define void @f(ptr %p) { call void @llvm.assume(i1 true) [ "align"(ptr %p, i64 8) ]
   ret void }'
+
+# `allocsize` and `allockind` make a function `malloc` or `free` to the optimizer. The model only knows the C library's.
+refuses 'function attribute allocsize' 'define ptr @f(i64 %n) allocsize(0) { ret ptr null }'
+refuses 'function attribute allockind' 'define ptr @f(i64 %n) allockind("alloc") { ret ptr null }'
+refuses 'call attribute allocsize' 'define ptr @g(i64 %n) { ret ptr null }
+define ptr @f() { %p = call ptr @g(i64 4) allocsize(0)
+  ret ptr %p }'
+accepts 'declare noalias noundef ptr @malloc(i64 noundef) nounwind allockind("alloc,uninitialized") allocsize(0) memory(inaccessiblemem: readwrite, errnomem: write)
+define ptr @f() { %r = call noalias ptr @malloc(i64 1) allocsize(0)
+  ret ptr %r }'
+# An allocation whose size in bytes doesn't fit in 64 bits would wrap to a small one.
+refuses 'alloca of more bytes than 64 bits can count' 'define i32 @f() { %a = alloca i32, i64 4611686018427387905
+  store i32 1, ptr %a
+  ret i32 0 }'
+refuses 'alloca of more bytes than 64 bits can count' 'define i32 @f() { %a = alloca i8, i128 18446744073709551617
+  store i8 1, ptr %a
+  ret i32 0 }'
+refuses 'alloca with a count wider than 64 bits' 'define i32 @f(i128 %n) { %a = alloca i8, i128 %n
+  store i8 1, ptr %a
+  ret i32 0 }'
+# Another module can replace a definition when it's loaded, unless it's local to this one.
+refuses linkage 'define i32 @f(i32 %x) { ret i32 %x }
+!llvm.module.flags = !{!0}
+!0 = !{i32 1, !"SemanticInterposition", i32 1}'
+accepts 'define dso_local i32 @f(i32 %x) { ret i32 %x }
+!llvm.module.flags = !{!0}
+!0 = !{i32 1, !"SemanticInterposition", i32 1}'
+
+# What LLVM's verifier rejects isn't translated, since the model would give it a meaning LLVM doesn't.
+printf '%s\n' '@g = constant i32 0
+declare void @llvm.lifetime.start.p0(ptr)
+define void @f() { call void @llvm.lifetime.start.p0(ptr @g)
+  store i32 1, ptr @g
+  ret void }' >"$work/Invalid.ll"
+output=$("$tool" "$work/Invalid.ll" --report 2>&1)
+status=$?
+if [ "$status" -eq 1 ] && [[ $output == *"doesn't pass LLVM's verifier"* ]]; then
+  printf 'ok    IR that fails the verifier is refused\n'
+else
+  fail "IR that fails the verifier: exit $status, $output"
+fi
+
+# Emitted code binds names of its own, which no value's name can be. A `switch` once bound its selector as `sel`,
+# so here a parameter named `%sel` read in a case was replaced by the selector: pick 5 2 gave 6.
+cat >"$work/Pick.ll" <<'IR'
+define i32 @pick(i32 noundef %sel, i32 noundef %op) {
+entry:
+  switch i32 %op, label %return [
+    i32 0, label %zero
+    i32 2, label %two
+  ]
+zero:
+  %add = add i32 %sel, 1
+  br label %return
+two:
+  %mul = mul i32 %sel, 3
+  br label %return
+return:
+  %r = phi i32 [ %add, %zero ], [ %mul, %two ], [ %sel, %entry ]
+  ret i32 %r
+}
+IR
+cat >"$work/PickProof.lean" <<'LEAN'
+import Pick
+open IRLean Pick
+
+theorem pick_two (s : BitVec 32) : pick (some s) (some 2#32) = Outcome.ok (some (s * 3#32)) := by
+  simp only [pick, noundef]
+  rw [run_jump _ (by rfl), run_jump _ (by rfl), run_ret _ (by rfl)]
+  simp [Val.mul]
+LEAN
+if "$tool" "$work/Pick.ll" -o "$work/Pick.lean" --namespace Pick --no-code && lean -R "$work" -o "$work/Pick.olean" "$work/Pick.lean" &&
+  lean "$work/PickProof.lean"; then
+  printf 'ok    a value named like a binder the emitter uses keeps its own value\n'
+else
+  fail 'a value named %sel read inside a switch'
+fi
+
+# Checks that are only seen by running: a `dereferenceable` result where the call returns, the arguments of a call
+# that never returns before it stops, and an `alloca` whose size in bytes doesn't fit.
+cat >"$work/Runs.ll" <<'IR'
+define dereferenceable(8) ptr @past() {
+  %a = alloca i32
+  %p = getelementptr i8, ptr %a, i64 100
+  ret ptr %p
+}
+define i32 @deref() {
+  %p = call dereferenceable(8) ptr @past()
+  ret i32 0
+}
+declare void @gives_up(i32 noundef) noreturn
+define void @poison_to_abort() {
+  call void @gives_up(i32 poison) noreturn
+  unreachable
+}
+define void @abort() {
+  call void @gives_up(i32 1) noreturn
+  unreachable
+}
+declare void @dies(i32 noundef range(i32 0, 10)) noreturn
+define void @narrower() {
+  call void @dies(i32 range(i32 0, 100) 50) noreturn
+  unreachable
+}
+define i32 @array(i64 %n) {
+  %a = alloca i32, i64 %n
+  store i32 1, ptr %a
+  ret i32 0
+}
+IR
+cat >"$work/RunsCheck.lean" <<'LEAN'
+import Runs
+open IRLean Runs
+
+def show' : Outcome α → String
+  | none => "none"
+  | some (.error (.undefined e)) => s!"ub {repr e}"
+  | some (.error (.model e)) => s!"stop {repr e}"
+  | some (.ok _) => "ok"
+
+#guard show' (deref initial) == "ub IRLean.UB.badAccess"
+#guard show' poison_to_abort == "ub IRLean.UB.noundefPoison"
+#guard show' abort == "stop IRLean.ModelStop.noReturnCall"
+#guard show' narrower == "ub IRLean.UB.noundefPoison"
+#guard show' (array (some 4611686018427387905#64) initial) == "ub IRLean.UB.poisonPointer"
+#guard show' (array (some 4#64) initial) == "ok"
+LEAN
+if "$tool" "$work/Runs.ll" -o "$work/Runs.lean" --namespace Runs && lean -R "$work" -o "$work/Runs.olean" "$work/Runs.lean" &&
+  lean "$work/RunsCheck.lean"; then
+  printf 'ok    dereferenceable results, the arguments of calls that never return, and huge allocas are checked\n'
+else
+  fail 'dereferenceable results, the arguments of calls that never return, or huge allocas'
+fi
 
 # `mustprogress` is on the list on purpose, and this is what that means: a run LLVM calls undefined is
 # `none` here, not a stop. If the model ever starts to treat it as undefined, this has to change with it.

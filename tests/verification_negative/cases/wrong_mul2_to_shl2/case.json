@@ -1,0 +1,45 @@
+{
+  "schema": "ir-lean.verification-negative.case/1",
+  "category": "wrong_transformation",
+  "summary": "mul X, 2 -> shl X, 2, with a proof attempt and a witness",
+  "llvm_verdict": "invalid",
+  "why": "At X = 1, src returns 2 and tgt returns 4.",
+  "claim": {
+    "binders": "(x : IRLean.Val 8)",
+    "hypotheses": [],
+    "src": "Opt.src x",
+    "tgt": "Opt.tgt x"
+  },
+  "names": [
+    "Opt.src",
+    "Opt.tgt"
+  ],
+  "request": {
+    "input": {
+      "ir": "Opt.ll"
+    },
+    "namespace": "Opt",
+    "function": "tgt",
+    "proof": "Proof.lean",
+    "theorem": "tgt_refines_src",
+    "witnesses": [
+      {
+        "x": "some 1#8"
+      }
+    ],
+    "limits": {
+      "timeout_seconds": 120,
+      "memory_mb": 4000
+    }
+  },
+  "expect": {
+    "certified": false,
+    "verify": [
+      "counterexample/witness_falsifies"
+    ],
+    "gate": [
+      "not_proved",
+      "witness_failed"
+    ]
+  }
+}

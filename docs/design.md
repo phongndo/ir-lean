@@ -35,8 +35,9 @@ def popcount (x : Val 32) : Outcome (Val 32) :=
 
 ## What the model covers
 
-The model covers integers, pointers, structs, vectors of integers, memory, globals, function pointers,
-recursion, and `malloc`, `free` and `strlen`. It doesn't cover floating point, atomics, volatile,
+The model covers integers, pointers, structs, vectors of integers and the bitcasts between them, x86's integer
+dot-product intrinsics, memory, globals, function pointers, recursion, and `malloc`, `free` and `strlen`. [Memory
+safety](memory.md) says what of memory it covers, exactly. It doesn't cover floating point, atomics, volatile,
 exceptions, or calls to anything else outside the module, and the emitter leaves those functions out
 and says why.
 
@@ -73,12 +74,25 @@ not run, can use `--no-code`, so Lean doesn't generate code for it: `inflate` ch
   `malloc` fails. A theorem that holds for every `Mem` holds whatever those choices are.
 - **Function addresses are allocations that hold nothing.** A call through a pointer tries each function in the
   module with that signature whose address is taken. Anything else stops the model.
+- **An `_odr` definition is proved about as this copy.** C++ gives inline functions and templates `linkonce_odr` or
+  `weak_odr` linkage, and the linker keeps one copy of each. The one-definition rule says the copies come from the same
+  source, not that their IR does the same where that source is undefined, which is why LLVM treats them as possibly less
+  refined. So one translates like any other definition, and its theorem is about the copy in this IR, while a call to
+  it, directly, through a pointer or an alias, or from itself, is refused, since it may run another copy.
 - **A call that doesn't return stops the model.** Calling something outside the module with `noreturn` is
   `ModelStop.noReturnCall`, without saying what it does. A theorem saying `= Outcome.ok` shows it isn't reached.
 - **`nobuiltin` on a call is allowed unless the callee is the C library's**, since it only says not to treat a callee as
   a library function, and `Mem` does that for `malloc`, `free` and `strlen`.
 - **Vectors are a `Val` per lane**, so one lane can be poison, and an operation on a vector is the scalar
   operation on each lane.
+- **`bitcast` between integer vectors** splits or joins lanes, the first lowest, as LangRef says a little-endian
+  target lays them out, so a big-endian module is refused. A result lane is poison if any lane it takes bits from is.
+  Other bitcasts are refused. [`x86check.py`](../tests/x86check.py) checks this against Alive2.
+- **x86's integer dot products are modeled, and nothing else of x86's.** PMADDUBSW, PMADDWD and VPDPBUSD, as
+  `llvm.x86.*` intrinsics at 128, 256 and 512 bits, follow Intel's pseudo-code in [`X86.lean`](../IRLean/X86.lean).
+  LangRef says nothing about poison in target intrinsics, so a result lane is poison when a lane it's computed from
+  is, as for every other vector operation, and as LLVM's constant folds do. [`x86.ll`](../tests/real/x86.ll) runs each
+  against the processor, and [`x86check.py`](../tests/x86check.py) the first two against Alive2.
 
 ## IR and Lean, both ways
 

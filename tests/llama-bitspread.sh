@@ -42,7 +42,7 @@ Path(sys.argv[2]).write_text(head + "define <32 x i8> @tgt" + tail)
 # Check the unchanged equivalence proof. The later target-specific simplification lemmas do not
 # need to be rechecked after the prover has already exhibited a wrong result.
 proof = Path(sys.argv[3]).read_text()
-prefix, _ = proof.split("\nprivate theorem bit_lane", 1)
+prefix, _ = proof.split("\nprivate theorem select_byte", 1)
 Path(sys.argv[4]).write_text(prefix + "\nend LlamaBitspread\n")
 PY
 opt -passes=verify -disable-output "$work/mutant/input.ll"

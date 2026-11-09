@@ -18,10 +18,18 @@ x86-64 Linux, are proved correct for every input, with no undefined behavior, po
 | [`Adler32.lean`](tests/proofs/Adler32.lean) | zlib's `adler32_z` | RFC 1950 |
 | [`Crc32.lean`](tests/proofs/Crc32.lean) | zlib's `crc32_z` | RFC 1952 |
 
-So are [86 functions from LLVM itself](docs/llvm.md), at the flags upstream builds them with as far as the emitter allows:
-46 from `compiler-rt`, 29 from LLVM Support and 11 from `llvm-libc`, including `__udivmoddi4`, `llvm::crc32`,
+So are [87 functions from LLVM itself](docs/llvm.md), at the flags upstream builds them with as far as the emitter allows:
+46 from `compiler-rt`, 29 from LLVM Support and 12 from `llvm-libc`, including `__udivmoddi4`, `llvm::crc32`,
 `llvm::decodeULEB128`, `llvm::APInt::tcAdd`, and `llvm::xxh3_64bits` for inputs of at most 16 bytes. A search found
 rewrites of `__clzsi2` and `__ctzsi2` that are faster than `clang -O3`'s output, and Lean proves they do the same.
+
+And [a rewrite of llama.cpp's q4_K matrix kernels](docs/llama.md) uses AVX-512 VNNI where `clang -O3` doesn't. Lean
+proves each of the 34 places it changes computes what clang's IR does, on every input. On two real models it reads a
+prompt 5.5% to 7.2% faster, with the same logits bit for bit.
+
+zlib's `updatewindow`, which copies `inflate`'s output into its sliding window, is proved [memory-safe](docs/memory.md)
+once the window is allocated: for every state meeting its invariant, with room behind the output it copies, it returns,
+changes nothing but the window and three fields, and leaves the invariant holding for the next call.
 
 These are theorems about the LLVM IR, in this project's model of it. They aren't about source programs or
 machine code, and they rest on an unverified emitter. [Trust](docs/trust.md) has the details, and the known gaps.
@@ -50,8 +58,12 @@ theorem popcount_correct (x : BitVec 32) :
 | --- | --- |
 | [Status](docs/status.md) | What's proved, what's tested, what's measured |
 | [Trust](docs/trust.md) | What a theorem means, what it rests on, and the known gaps |
+| [Refinement](docs/refinement.md) | What `IRLean.Refines` says, its laws, and what a refinement certificate says about LLVM |
+| [Memory safety](docs/memory.md) | What a memory-safety theorem claims, the model of memory, and what it leaves out |
+| [Verify](docs/verify.md) | Checking a claim from a script or an agent, with a JSON answer: proved, counterexample, unsupported, timeout or error |
 | [LLVM's own code](docs/llvm.md) | What's proved about llvm-project, how to reproduce it, and what it assumes |
-| [llama.cpp rewrite](docs/llama.md) | A proved Q5 bit-unpacking rewrite, real CPU generation measurements, and the reproducer |
+| [llama.cpp](docs/llama.md) | A proved rewrite of the q4_K kernels that `clang -O3` misses, and what it does to real inference |
+| [llama.cpp's Q5](docs/llama-q5.md) | A proved Q5 bit-unpacking rewrite, real CPU generation measurements, and the reproducer |
 | [Design](docs/design.md) | What gets emitted, what the model covers, and why |
 | [Testing](docs/testing.md) | How to run the tests and linters, and what each one checks |
 | [Roadmap](docs/roadmap.md) | Where this is going, in what order, and the [first pull requests](docs/roadmap.md#near-term-pull-requests) |

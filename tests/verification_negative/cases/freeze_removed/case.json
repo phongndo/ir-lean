@@ -1,0 +1,45 @@
+{
+  "schema": "ir-lean.verification-negative.case/1",
+  "category": "freeze",
+  "summary": "freeze X -> X, for an X that can be poison, refuted at X = poison",
+  "llvm_verdict": "invalid",
+  "why": "LLVM's src returns some value for a poison X and tgt returns poison. The model's src stops there (ModelStop.freezePoison), which allows nothing, so the counterexample is the model's. LLVM agrees here.",
+  "claim": {
+    "binders": "(x : IRLean.Val 8)",
+    "hypotheses": [],
+    "src": "Opt.src x",
+    "tgt": "Opt.tgt x"
+  },
+  "names": [
+    "Opt.src",
+    "Opt.tgt"
+  ],
+  "request": {
+    "input": {
+      "ir": "Opt.ll"
+    },
+    "namespace": "Opt",
+    "function": "tgt",
+    "witnesses": [
+      {
+        "x": "none"
+      },
+      {
+        "x": "some 3#8"
+      }
+    ],
+    "limits": {
+      "timeout_seconds": 120,
+      "memory_mb": 4000
+    }
+  },
+  "expect": {
+    "certified": false,
+    "verify": [
+      "counterexample/witness_falsifies"
+    ],
+    "gate": [
+      "not_proved"
+    ]
+  }
+}

@@ -1,0 +1,42 @@
+{
+  "schema": "ir-lean.verification-negative.case/1",
+  "category": "freeze",
+  "summary": "The same wrong rewrite, claimed as equality, which Lean proves",
+  "llvm_verdict": "invalid",
+  "why": "Both functions stop at a frozen poison, so tgt x = src x holds in the model, and tools/verify.py proves it. Equality treats a model stop as an answer, so it isn't refinement, and the gate only takes the refinement claim.",
+  "claim": {
+    "binders": "(x : IRLean.Val 8)",
+    "hypotheses": [],
+    "src": "Opt.src x",
+    "tgt": "Opt.tgt x"
+  },
+  "pin_override": {
+    "statement": "∀ (x : IRLean.Val 8), Opt.tgt x = Opt.src x"
+  },
+  "names": [
+    "Opt.src",
+    "Opt.tgt"
+  ],
+  "request": {
+    "input": {
+      "ir": "Opt.ll"
+    },
+    "namespace": "Opt",
+    "function": "tgt",
+    "proof": "Proof.lean",
+    "theorem": "tgt_refines_src",
+    "limits": {
+      "timeout_seconds": 120,
+      "memory_mb": 4000
+    }
+  },
+  "expect": {
+    "certified": false,
+    "verify": [
+      "proved/kernel_checked"
+    ],
+    "gate": [
+      "pin_mismatch"
+    ]
+  }
+}

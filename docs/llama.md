@@ -1,286 +1,251 @@
-# A proved LLVM rewrite in llama.cpp
+# llama.cpp's q4_K kernels
 
-On an AMD Ryzen 9 9950X, a local rewrite of Q5 bit unpacking improves real **single-thread CPU
-generation** by about **1.05x** against Clang 23.1.5 `-O3`. Both confirmation sessions have positive
-95% paired-bootstrap intervals for full process time. Across their 30 pairs, the median inference-time
-speedup is **1.049x**, with a **1.029x–1.057x** interval. The eight-thread trial is inconclusive.
+A rewrite of the IR that `clang -O3` produces for llama.cpp's q4_K matrix kernels, proved in Lean to compute the
+same values on every input, which makes real inference faster. For what any theorem here means, read
+[trust](trust.md) first.
 
-Lean checks the exact integer fragments removed and inserted. It does not prove the surrounding
-floating-point inference program or the native executable. Full generation checks independently
-compare every FP32 logit used for sampling, not just the resulting text.
+Facts here were checked on 2026-11-07, with clang 23.1.3 and Lean 4.35.0, against llama.cpp's release
+[`b12189`](https://github.com/ggml-org/llama.cpp/tree/b12189) (commit `80d2c0c`), on an AMD Ryzen 9 9950X, on top of
+commit `6293d34`. `tests/llama.py`, its proofs, native comparison and mutants, ran again on 2026-11-08, merged with
+`main` at `0330cd7`, with its stricter axiom check, and gave the same hashes for everything in the manifest. What needs
+models, the measurements and the logits check, didn't.
 
-## Workload and baseline
+## What `clang -O3` misses
 
-Measured on 2026-11-07, using this repository's pinned Nix environment and Lean 4.35.0.
+Most weights in a `Q4_K_M` model, the quantization most GGUF models ship in, are `Q4_K`: 4-bit values in blocks of
+256, with a 6-bit scale for each 32. On x86 with AVX2, llama.cpp repacks them, eight rows interleaved, and multiplies
+them with [`ggml_gemm_q4_K_8x8_q8_K`](https://github.com/ggml-org/llama.cpp/blob/b12189/ggml/src/ggml-cpu/arch/x86/repack.cpp#L2042)
+when it reads a prompt and [`ggml_gemv_q4_K_8x8_q8_K`](https://github.com/ggml-org/llama.cpp/blob/b12189/ggml/src/ggml-cpu/arch/x86/repack.cpp#L1464)
+when it generates. With `perf`, on Qwen2.5-1.5B-Instruct `Q4_K_M` with 8 threads, the first was 46% of the time spent
+reading 512 tokens, and the second 54% of the time spent generating.
 
-| Component | Pinned configuration |
-| --- | --- |
-| llama.cpp | [`80d2c0c2c56e4a1bbf74be98f64b99927bf230bc`](https://github.com/ggml-org/llama.cpp/tree/80d2c0c2c56e4a1bbf74be98f64b99927bf230bc), unmodified source |
-| Compiler and backend | Clang and `llc` **23.1.5**; `-O3 -DNDEBUG -gline-tables-only`; native target verified as `znver5`, including AVX512BW/VL |
-| Compiler environment | The flake's Clang 23.1.3 Nix wrapper and resource headers, with its compiler executable replaced by 23.1.5; both variants use the same environment |
-| CPU backend | Native ISA, weight repacking and llamafile enabled; GPU, BLAS and dynamic backend loading disabled; OpenMP unavailable in the original build, explicitly disabled in the reproducer |
-| Model | Official [Qwen2.5-0.5B-Instruct-GGUF](https://huggingface.co/Qwen/Qwen2.5-0.5B-Instruct-GGUF/tree/9217f5db79a29953eb74d5343926648285ec7e67), `qwen2.5-0.5b-instruct-q4_k_m.gguf` |
-| Input | A [real tutorial request](../tests/llama/prompt.txt), 98 prompt tokens, followed by 512 sampled tokens; the last emitted token is not decoded, so there are 511 decode steps |
-| Sampling | Seed 1234, temperature 0.7, top-k 20, top-p 0.8, min-p 0; context 4096, batch and microbatch 512 |
-| Primary configuration | One inference thread and one prompt-processing thread, both pinned to physical CPU 8 |
+For each block of 32 weights and each row, both compute this, written with AVX2 intrinsics:
 
-The model SHA256 is `74a4da8c9fdbcd15bd1f6d01d621410d31c6fc00986f5eb687824e7b93d7a9db`.
-The filename does not identify every executed tensor type: the single-thread hardware profile places
-**45.14%** of sampled user cycles in `ggml_vec_dot_q5_0_q8_0`. The initial eight-thread profile placed
-35.78% there. This is the function containing the three rewritten sites.
+```c
+iacc = _mm256_add_epi16(iacc, _mm256_maddubs_epi16(weights_0, activations_0));  // eight of these
+...
+iacc = _mm256_madd_epi16(iacc, scales);
+```
 
-The timed executable is stock `llama-completion`, with real tokenization, prompt evaluation, sampling,
-KV-cache updates and generated text. `llama-bench` is not used for the performance claim: its token
-sequences are synthetic and do not include next-token sampling.
+`maddubs` multiplies unsigned bytes by signed ones and adds pairs into 16 bits, saturating. `madd` multiplies 16-bit
+lanes and adds pairs into 32 bits. On a processor with AVX-512 VNNI, `vpdpbusd` does a `maddubs` and the 16-bit sum in
+one instruction, adding four products straight into 32 bits. llama.cpp's `q4_0` and `q8_0` kernels use it, by hand.
+These don't, and with `-march=native` on Zen 5 clang doesn't either: it keeps 8 `vpmaddubsw` and 7 `vpaddw` for each
+block, at every width, which is 256 and 224 of them in `gemm`. It does use VNNI's 16-bit `vpdpwssd`, for a `madd` and
+the add after it, in `gemv`. After the rewrite, each block is 8 `vpdpbusd` and a `vpmulld`.
 
-## What changes
+The two are only the same because of three facts about this code, which LLVM doesn't track through x86 intrinsics:
 
-The Q5 kernel loads a 32-bit word containing one high bit for each of 32 quantized values. Clang's
-optimized IR inserts the word into a vector, reinterprets its bytes, repeats each byte eight times,
-ORs in complementary bit masks, compares against `0xff`, and selects either `0` or `0xf0` per lane.
+- The weights are masked to 4 bits, so a `maddubs` sum is at most 2 × 15 × 128 = 3,840, and never saturates.
+- Eight of those fit in 16 bits, so the `add` never wraps.
+- Each scale is repeated in both 16-bit halves of a 32-bit lane, so `madd` multiplies the sum of the two halves by one
+  scale.
 
-The same byte vector can be produced by exposing the bits directly:
+So [`tests/llama/vnni.py`](../tests/llama/vnni.py) rewrites clang's IR, at each place it finds this shape:
 
 ```llvm
-%mask = bitcast i32 %x to <32 x i1>
-%out = select <32 x i1> %mask, <32 x i8> zeroinitializer, <32 x i8> splat (i8 -16)
+; clang -O3                                             ; rewritten
+%p0 = call @llvm.x86.avx2.pmadd.ub.sw(%a0, %b0)         %d0 = call @llvm.x86.avx512.vpdpbusd.256(zeroinitializer, %a0, %b0)
+...                                                     ...
+%p7 = call @llvm.x86.avx2.pmadd.ub.sw(%a7, %b7)         %d7 = call @llvm.x86.avx512.vpdpbusd.256(%d6, %a7, %b7)
+%s  = add <16 x i16> (an add tree over %p0 to %p7)      %c  = bitcast <16 x i16> %scales to <8 x i32>
+%r  = call @llvm.x86.avx2.pmadd.wd(%s, %scales)         %r  = mul %d7, ashr (shl %c, 16), 16
 ```
 
-In the actual hot loop, the original mask calculation lowers to `vpbroadcastd`, `vpshufb`, `vpor`
-and `vpcmpeqb`. The replacement uses a memory-to-mask-register `kmovd`. The following byte selection
-and dot product remain. The rewrite is generic LLVM IR; it does not insert an x86 intrinsic.
+It keeps the name `%r`, so the rest of the kernel is untouched. That's 34 places: 2 in `gemv`, and 32 in `gemm`, at 256
+and 512 bits. No other function's machine code changes.
 
-The [matcher](../tests/llama/rewrite.py) accepts the exact six-instruction DAG at three sites in
-`ggml_vec_dot_q5_0_q8_0`: two unrolled iterations and the epilogue. It requires an explicit
-little-endian layout, exact masks and types, and no unrecognized instruction metadata. It preserves
-the original producers and their other users, all loads, control flow, flags, and floating-point
-instructions. The backend removes producers only when they become dead. Use-list directives for
-values whose users changed are omitted; every omission is recorded.
+## What's proved
 
-The source and replacement helpers are generated by renaming the **matched instructions**. All three
-sites must normalize identically, and the resulting helper must match the
-[committed proof fixture](../tests/real/llama_q5_bitspread.ll) byte-for-byte. The witness records the
-module, helper, matcher, normalized fragments and their hashes. This is an experimental matcher for
-the pinned workload, not a general LLVM optimization pass.
+For each of the 34 places, a theorem that the rewritten IR computes exactly what clang's does, for every input, poison
+included:
 
-### Keeping the baseline identical
+```lean
+theorem s00_same (v90 v92 : Vec 4 64) (v176 v9 : Vec 2 64) (v94 v96 v98 v100 : Vec 4 64) (v179 : Vec 2 64)
+    (v102 v104 : Vec 4 64) (v123 v127 v125 : Val 32) :
+    S00Tgt.s00_tgt v90 v92 v176 v9 v94 v96 v98 v100 v179 v102 v104 v123 v127 v125 =
+      S00Src.s00_src v90 v92 v176 v9 v94 v96 v98 v100 v179 v102 v104 v123 v127 v125
+```
 
-Serializing optimized IR without use-list order changed register allocation even before applying a
-rewrite. The reproducer therefore emits with `-mllvm -preserve-ll-uselistorder`, then uses direct
-`llc -O3` lowering. It rejects the build unless the unchanged control object matches ordinary Clang
-in disassembly, relocations and allocated ELF section bytes.
+`s00_src` and `s00_tgt` are a slice of the kernel, before and after, cut out by
+[`tests/llama/slices.py`](../tests/llama/slices.py): everything the rewritten value is a pure function of, back to
+loads, phis and arguments. Those become the parameters, so the theorem holds whatever they are. The slices include how
+clang computed the operands, the masking with `0x0F0F0F0F` and the shuffles that repeat each scale, so the three facts
+above are proved from clang's own instructions, and aren't hypotheses. Every line of a slice is a line of the kernel,
+and the script lines the two kernels up as a diff, and checks that every line that differs is in a slice and every other
+line is where it was: 32 removed and 24 added in `gemv`, and 512 removed and 384 added in `gemm`. Which lines each has
+isn't enough, since a store moved into another block keeps every line and changes what the kernel does. `tests/llama.py`
+moves one, and edits a comparison outside every slice, and the script has to refuse both.
 
-Only the rewritten `quants.c` object is replaced when relinking the CPU library. Every other baseline
-object is reused. `LD_LIBRARY_PATH` selects the library for the same stock executable, and the driver
-checks the implementation library's actual dependency resolution. The initial measurement build also
-relowered unchanged repack IR as a control; the packaged target reuses that original object. The two
-targets have identical disassembly and allocated ELF contents, apart from the build ID.
+[`Vnni.lean`](../tests/llama/Vnni.lean) has the proof, which is the same for every place: an invariant that holds after
+each `maddubs` and `vpdpbusd` pair, that each 16-bit sum is the exact integer sum and at most 3,840 in size for each
+`maddubs` in it, and that the 32-bit accumulator is the total of the two 16-bit sums under it. After eight, nothing has
+saturated or wrapped, and `madd` with paired scales is the multiply. The facts about operands go through shuffles and
+bitcasts with lemmas about each lane, so the 512-bit kernels need nothing more. Each theorem rests on the standard three
+axioms and five from `bv_decide`, which the project's [axiom check](../tests/check_axioms.lean) works out again, reading
+the theorem and what it imports as data. It also checks the theorem is about both slices, as `ir-lean` generated them,
+and `leanchecker` replays it through the kernel.
 
-## What is proved and checked
+A wrong rewrite can't pass this way. `vnni.py --mutant` makes three: reading the weights as signed instead of the
+activations, leaving out the last `vpdpbusd`, and multiplying by the whole 32-bit lane of scales. For each, at every one
+of the 34 places, Lean proves the rewritten slice gives a different result from clang's on one input, with
+`decide +kernel`, which has the kernel work both out and adds no axiom. The theorems that they're the same don't check,
+and run out of heartbeats instead. And `tests/llama.py` changes clang's mask from `0x0F` to `0x1F` in each byte, which
+breaks the first fact: every theorem stops on it with an error of its own, though the input Lean tries doesn't tell the
+two apart.
 
-[`LlamaBitspread.lean`](../tests/proofs/LlamaBitspread.lean) checks the helper generated by ir-lean:
+To translate the kernels, the model learned four things, in [`X86.lean`](../IRLean/X86.lean) and
+[`Vec.lean`](../IRLean/Vec.lean): `bitcast` between integer vectors, which LangRef defines, and PMADDUBSW, PMADDWD and
+VPDPBUSD, from Intel's pseudo-code, which it doesn't. [`x86.ll`](../tests/real/x86.ll) runs each against the
+processor: 22 functions at all three widths, 400 inputs each, with the saturating and wrapping extremes, and all 8,800
+results agree. That needs AVX-512 VNNI and can't see poison, so [`x86check.py`](../tests/x86check.py) also checks the
+bitcasts, PMADDUBSW and PMADDWD on any processor, against Alive2 both ways and LLVM's constant folder, poison included:
+29 operations, every shape the kernels use and more, on 473 inputs, all exact. Neither knows VPDPBUSD.
 
-- `same_successful` proves that both helpers return the same `Outcome.ok` vector for every `Val 32`,
-  including poison input.
-- `defined_certificate` states the exact defined result for every 32-bit word: lane `j` is `0` when
-  bit `j` is set, and `240` otherwise. All 32 output lanes are defined.
-- The axiom audit permits the standard three Lean axioms and **32 recomputed `bv_decide` axioms**.
-  Changing output lane zero to read bit one makes the unchanged equivalence proof fail with a
-  counterexample, rather than a timeout.
+## Checked another way
 
-The necessary integer bitcast support models little-endian splitting and joining, with poison tracked
-per contributing lane. Scalar/fixed-vector casts of equal total size are accepted when one lane width
-divides the other. Big-endian, floating-point, pointer, scalable-vector and nondividing-width casts are
-refused. Native comparisons and explicit ordering/poison tests cover the extension.
+None of these depend on the Lean model.
 
-Independent checks completed:
+- **Natively.** [`native_check.py`](../tests/llama/native_check.py) runs each pair of slices on the processor against
+  each other, on 200,000 inputs each, a quarter of them from bytes at the extremes. None of the 34 differ.
+- **Wrong rewrites.** On 20,000 inputs, the native run catches each of the three wrong rewrites and the mask change
+  above.
+- **Whole programs.** `llama-perplexity`, with the two libraries, gives the same logits bit for bit, on both models in
+  the table below, for 16 chunks of 512 tokens of WikiText-2. Before the reproducer existed, a run of 60 chunks on the
+  first model did too: 4.6 GB of logits each, and a perplexity of 10.0878 both times.
+- **Alive2** doesn't know VPDPBUSD. With each call replaced by its definition in plain IR, by a one-off script that
+  isn't in the repo, it timed out after 10 minutes on the first slice of `gemv`, so it gives no verdict here.
 
-- Alive2 checks refinement in **both directions**, with `--disable-undef-input`. A separate attempt
-  allowing `undef` timed out and is not counted as validation. ir-lean does not model `undef` here.
-- Both exact helper lowerings match an independent byte formula on **1,000,066** native inputs,
-  checking every lane, including single-set-bit and single-cleared-bit cases.
-- In each of the one-thread and eight-thread configurations, baseline, repeated baseline and target
-  match **77,791,232 FP32 values** bit-for-bit across 512 next-token samples. Prompt IDs, sampled IDs,
-  positions and generated text also match. Capture happens before sampling can modify the logits.
-- The capture comparator rejects a changed bit and a truncated file. Capture instrumentation is
-  confined to a private copy of the stock completion driver and is excluded from timing.
+## Measured
 
-The proof covers the pure integer slice. Extraction and substitution, LLVM's parser, the emitter,
-the semantic model, backend, linker and hardware retain the [documented trust boundaries](trust.md).
-The surrounding memory operations, target intrinsics and floating-point program are not translated
-or claimed to be proved. Inference checks supply empirical evidence for that integration.
+`tests/llama_bench.py` builds the pinned llama.cpp with its own CMake, as its README says: Release, and `GGML_NATIVE`
+on, its default. From that build's compile command it takes the kernels' IR, checks that `llc -O3` gives the machine
+code the build has, and that the functions are the ones the theorems are about. Then it links a second
+`libggml-cpu.so` from the rewritten IR with the build's own link command. Both variants run the same binaries, with only
+that library swapped through `LD_LIBRARY_PATH`. Each round runs each workload with each, alternating which goes first,
+pinned to one CCD of the processor with 8 threads.
 
-## Performance and variance
+10 rounds with 8 threads on CPUs 8 to 15, on 2026-11-07, with a load average of 7 to 10.7 from other work on the
+machine. `pp512` is `llama-bench` reading a 512-token prompt, and `tg128` generating 128 tokens, each the average of its
+3 repetitions in that round. Perplexity is `llama-perplexity` on 24 chunks of 512 tokens of WikiText-2's test set,
+timed from start to exit, model loading included. The speedup is the rewritten library's over clang's, in each round:
 
-Each session warms both variants once, then runs randomized adjacent baseline/target pairs. The
-sampling seed and workload stay fixed; order seeds are 20261108 and 20261109. No timed pair is removed.
-The machine is shared, and substantial outliers remain in the data. Intervals below are percentile
-bootstrap intervals from 20,000 resamples of paired ratios, measuring variation in these runs.
+| Model | Workload | `clang -O3`, median | Rewritten, median | Speedup, median | Least and most | Rounds faster |
+| --- | --- | --- | --- | --- | --- | --- |
+| Qwen2.5-1.5B-Instruct `Q4_K_M` | `pp512` | 1,117 tokens/s | 1,189 tokens/s | 1.064 | 1.059 to 1.069 | 10 of 10 |
+| | Perplexity | 13.52 s | 12.82 s | 1.055 | 1.051 to 1.060 | 10 of 10 |
+| | `tg128` | 53.97 tokens/s | 53.96 tokens/s | 1.000 | 0.997 to 1.016 | 6 of 10 |
+| Llama-3.2-3B-Instruct `Q4_K_M` | `pp512` | 574 tokens/s | 614 tokens/s | 1.072 | 1.061 to 1.082 | 10 of 10 |
+| | Perplexity | 24.43 s | 22.95 s | 1.064 | 1.062 to 1.075 | 10 of 10 |
+| | `tg128` | 26.74 tokens/s | 26.74 tokens/s | 0.999 | 0.995 to 1.002 | 3 of 10 |
 
-| One-thread session | Pairs | Full process speedup, median [95% interval] | Inference speedup, median [95% interval] |
-| --- | --- | --- | --- |
-| Confirmation 1 | 12 | **1.050x** [1.033, 1.054] | **1.045x** [0.983, 1.055] |
-| Confirmation 2 | 18 | **1.049x** [1.013, 1.097] | **1.051x** [1.022, 1.098] |
-| Both sessions | 30 | **1.050x** [1.033, 1.055] | **1.049x** [1.029, 1.057] |
+Perplexity was 10.3476 and 11.1036 in every run of each variant. `perf stat` counts fewer cycles too, by the same
+amount: a median of 4.86 × 10¹¹ against 5.14 × 10¹¹ for the first model's perplexity run, and 8.85 × 10¹¹ against 9.43 ×
+10¹¹ for the second's.
 
-Full process time includes loading and startup. Inference time is stock llama.cpp's internal total
-after model loading, including prompt processing and sampling. Decode-only pooled speedup is 1.051x
-[1.035, 1.062]. A speedup of 1.049x corresponds to about 4.7% less time for the same work.
+So reading a prompt, or a document as perplexity does, is 5.5% to 7.2% faster, in every round. Generating isn't faster
+with 8 threads, where it waits on memory: the rewrite takes out instructions, and that doesn't help a kernel that isn't
+waiting on them.
 
-The individual inference ratios span **0.771x–1.748x**; 23 of 30 favor the rewrite. The first session's
-inference interval crosses 1, although its full process interval and both pooled intervals do not.
-These medians describe the measured workload under variable load; they are not a guarantee for every
-request or machine. A separate hardware-counter run records 192,003,357,750 baseline instructions
-versus 179,505,338,220 with the rewrite, about **6.5% fewer retired user instructions**. Counter runs
-and sampling profiles are separate from the timed pairs.
+Then 6 rounds with 1 thread on CPU 12, the same day, with a load average of 1 to 4.6, for the kernels alone, since a
+single thread has no other threads to wait on:
 
-The exploratory four-thread trial favored the rewrite in all six pairs, with a median inference
-speedup of 1.012x [1.006, 1.034]. The eight-thread trial was inconclusive, 1.004x [0.979, 1.351].
-The performance claim is deliberately scoped to one thread; the results do not establish an
-eight-thread speedup. Different thread counts can produce different floating-point results and token
-sequences, so comparisons and exact-output checks are made within a fixed configuration.
+| Model | Workload | `clang -O3`, median | Rewritten, median | Speedup, median | Least and most | Rounds faster |
+| --- | --- | --- | --- | --- | --- | --- |
+| Qwen2.5-1.5B-Instruct `Q4_K_M` | `pp512` | 172.3 tokens/s | 182.3 tokens/s | 1.058 | 1.054 to 1.061 | 6 of 6 |
+| | `tg128` | 24.53 tokens/s | 24.63 tokens/s | 1.002 | 0.976 to 1.006 | 4 of 6 |
+| Llama-3.2-3B-Instruct `Q4_K_M` | `pp512` | 82.4 tokens/s | 87.8 tokens/s | 1.067 | 1.062 to 1.071 | 6 of 6 |
+| | `tg128` | 11.47 tokens/s | 12.63 tokens/s | 1.104 | 1.059 to 1.152 | 6 of 6 |
 
-Two other candidates remain negative or inconclusive: a nibble shift/mask rewrite lowered to fewer
-instructions without a measured gain, and a proved Q8 fallback-guard simplification reduced code size
-without establishing an inference improvement. Neither is included in the measured Q5 target.
+On one core, generating with the second model is faster too, in every round. Clang's library gave 11.41 to 11.48
+tokens/s each time, while the rewritten one gave either about 12.2 or about 13.1, three rounds each, which isn't
+explained. The first model's generation isn't faster even on one core. With 8 threads, `perf` put 31% of its generating
+in the `Q6_K` tensors that `Q4_K_M` keeps, which this doesn't touch. The second model wasn't profiled, so why they
+differ isn't known.
 
-## Reproduce
+The raw rows are in [`llama-8-threads.csv`](data/llama-8-threads.csv) and
+[`llama-1-thread.csv`](data/llama-1-thread.csv), and each run's whole output, with its build checks, model hashes and
+logits check, in [`llama-8-threads.log`](data/llama-8-threads.log) and [`llama-1-thread.log`](data/llama-1-thread.log).
+The single-thread run skipped the logits check, which the 8-thread run had just done. Its summary lines are in an
+earlier format of `--summary`, with the same numbers.
 
-The lightweight checks need no model download:
+Earlier runs on this machine, under a load average of 10 to 16 from other sessions, varied far more, up to a factor of 7
+in generation, and a run of the prompt workload came out at 1.002. They were stopped and replaced by the reproducer, and
+aren't in the table.
+
+## Reproducing it
 
 ```console
-nix develop
-lake build --wfail
-cmake -S . -B build -G Ninja
-ninja -C build
-ctest --test-dir build -R '^llama_' --output-on-failure
+nix develop .#llama
+lake build
+cmake -S . -B build -G Ninja && ninja -C build
+tests/llama.py build/ir-lean --manifest build/llama-manifest.json
 ```
 
-For the full experiment, use Linux on a Zen 5 CPU and install the official
-[LLVM 23.1.5 Linux X64 archive](https://github.com/llvm/llvm-project/releases/download/llvmorg-23.1.5/LLVM-23.1.5-Linux-X64.tar.zst).
-Its SHA256 is `c3107384835f788768f614db610e87fba7077f125ca950eb02a78bab0a308065`.
-The binaries need a working ELF loader; this NixOS host supplies `nix-ld`. Run inside the same Nix shell:
+`nix develop .#llama` is the default shell with llama.cpp's source, which the flake fetches by hash. The default shell
+leaves it out, as it's 185 MB that no binary cache has, and in it `ctest` skips the `llama` test. CI runs it in a job of
+its own, with `ctest -L llama`. That compiles the kernels from the pinned release, rewrites them, checks the 34
+theorems, runs the native comparison if the processor has AVX-512 VNNI, and checks the four mutants. It needs no
+model, and takes about 4 minutes with 6 Lean jobs, or 6 with 4 and no native comparison.
+
+The manifest has the hashes of the source, IR and rewritten object, each theorem's statement and axioms, and what each
+mutant did. [`llama-manifest.json`](data/llama-manifest.json) is the one behind this page. Three runs on this machine,
+two of them hours apart and the third a day later on the merged tree, gave the same hashes for everything in it: the
+source, IR, rewritten IR and object, all 68 slices, and every generated Lean file. Another machine with the same flake
+should too: on an Apple M4 Max, [lemma reuse](lemma-reuse.md) got the same IR and all 68 slices, and the rest hasn't
+been tried. On a processor without AVX-512 VNNI, the native comparison is skipped, and Lean's proofs that each wrong
+rewrite differs from clang's are what refute them, as in CI. `--no-native` does the same on any processor.
+
+The measurement needs models and text, which aren't in the repo, and runs in `nix develop .#llama` too:
+
+| File | Where | SHA-256 |
+| --- | --- | --- |
+| `qwen2.5-1.5b-instruct-q4_k_m.gguf` | [Qwen/Qwen2.5-1.5B-Instruct-GGUF](https://huggingface.co/Qwen/Qwen2.5-1.5B-Instruct-GGUF) | `6a1a2eb6d15622bf3c96857206351ba97e1af16c30d7a74ee38970e434e9407e` |
+| `Llama-3.2-3B-Instruct-Q4_K_M.gguf` | [bartowski/Llama-3.2-3B-Instruct-GGUF](https://huggingface.co/bartowski/Llama-3.2-3B-Instruct-GGUF) | `6c1a2b41161032677be168d354123594c0e6e67d2b9227c84f296ad037c728ff` |
+| `wikitext-2-raw-v1.zip`, for `wiki.test.raw` | [ggml-org/ci](https://huggingface.co/datasets/ggml-org/ci/resolve/main/wikitext-2-raw-v1.zip), as llama.cpp's `scripts/get-wikitext-2.sh` fetches it | `ef7edb566e3e2b2d31b29c1fdb0c89a4cc683597484c3dc2517919c615435a11` |
 
 ```console
-python3 tests/llama/reproduce.py all \
-  --llvm-bin /absolute/path/LLVM-23.1.5-Linux-X64/bin \
-  --work-dir build/llama-demo \
-  --threads 1 --first-cpu 8 --tokens 512 --pairs 12 --seed 20261108
-
-python3 tests/llama/reproduce.py bench \
-  --llvm-bin /absolute/path/LLVM-23.1.5-Linux-X64/bin \
-  --work-dir build/llama-demo \
-  --threads 1 --first-cpu 8 --tokens 512 --pairs 18 --seed 20261109
+tests/llama_bench.py qwen2.5-1.5b-instruct-q4_k_m.gguf Llama-3.2-3B-Instruct-Q4_K_M.gguf \
+  --text wikitext-2-raw/wiki.test.raw --rounds 10 --cpus 8-15 --threads 8 --csv bench.csv
+tests/llama_bench.py --summary bench.csv
 ```
 
-Choose an available physical core if CPU 8 is unsuitable. Changing the prompt, thread count, CPU
-assignment or token cap requires rerunning `check` before `bench`. `prepare`, `build`, `rewrite`,
-`check` and `bench` can also run separately. `--source-dir`, `--model`, `--build-dir` and
-`--reuse-build` allow validated existing inputs; the driver refuses mismatched revisions, hashes,
-compiler settings, helper text, library selection or correctness receipts. Model and source downloads
-are pinned; no compiler is downloaded or silently substituted.
+## What it assumes
 
-The [retained evidence](../tests/llama/results/2026-11-07/manifest.json) includes
-[every timing row](../tests/llama/results/2026-11-07/sessions.json),
-[pooled calculations](../tests/llama/results/2026-11-07/pooled-confirmation.json),
-[raw measurement logs](../tests/llama/results/2026-11-07/raw-measurements.tar.gz),
-[the rewrite witness](../tests/llama/results/2026-11-07/rewrite-witness.json),
-[exact-comparison receipts](../tests/llama/results/2026-11-07/exact-comparisons.json),
-[Alive2 output](../tests/llama/results/2026-11-07/alive2.log) and representative generated text.
-The source checkout, model, native builds and full raw-logit captures remain build artifacts rather
-than repository inputs. The earlier zlib search is preserved separately in the original worktree.
+Everything in [trust](trust.md) applies: these are theorems about LLVM IR in this project's model. They aren't about the
+C++ source or the machine code. On top of that:
 
-The packaged pipeline was also run from a fresh 147-step native build using the pinned, already
-downloaded source and model. Build validation, rewrite, proof, mutation, Alive2, native reference and
-full generation checks passed. Its machine code matches the measured build; fresh loader metadata
-contains the new build directory. The final packaged `bench` phase passed a one-pair integration run,
-which is kept separate from the 30-pair performance claim.
+- **From the slices to the kernel is an argument, not a theorem.** Each theorem is about a slice, and the kernel uses
+  floating point, which the model doesn't have, so there's no theorem about the whole kernel. A script checks that each
+  slice is the kernel's own lines, that every changed line is in a slice and every other line is where it was, and that
+  the rewritten value keeps its name.
+  The instructions the rewrite adds or takes out are `vpdpbusd`, `pmaddubsw`, `pmaddwd`, `add`, `mul`, `shl`, `ashr`
+  and `bitcast`, which don't touch memory and aren't undefined on any input. Replacing such a value with an equal one
+  doesn't change a program, but no proof says that here.
+- **x86's intrinsics are as Intel describes them**, and as `X86.lean` writes them. The processor agrees on every input
+  tried, and so do Alive2 and LLVM's constant folder for PMADDUBSW and PMADDWD, which isn't a proof. Only the processor
+  checks VPDPBUSD, and LLVM's own reading of it, in `createVPDPBUSD`, is the same sum.
+- **Poison in a target intrinsic is per lane.** LangRef doesn't say. LLVM's constant folds of PMADDWD and PMADDUBSW,
+  and Alive2, are per lane too. If poison in any lane made the whole result poison instead, the rewrite would still
+  refine clang's IR: clang's result is all poison whenever any operand lane is, while the rewrite's only loses the lanes
+  whose scale is poison. That argument isn't checked. And these operands come from loads of quantized weights and
+  activations, which are initialized.
+- **The proofs compile for `-march=znver5`.** On the machine measured, `-march=native` gives the same function bodies,
+  and only spells the target features differently. `tests/llama_bench.py` checks that for the build it measures.
+- **The rewritten code needs AVX-512 VNNI with AVX-512VL**, which Zen 4 and Zen 5, and Intel's server processors since
+  Cascade Lake, have.
+  It's a rewrite for a build that targets those, as `-march=native` does on them, and isn't for other processors.
+- **Stock clang.** The dev shell's compiler wrapper adds hardening and frame pointers, and drops `-march=native`, and
+  Nix sets `SOURCE_DATE_EPOCH`, which turns `GGML_NATIVE` off. Both scripts undo all of that, so the build is what clang
+  does by default. OpenMP isn't in the shell, so llama.cpp uses its own thread pool, the same way for both variants.
+- **One machine, shared.** Other sessions were running on it, a single-threaded process sat on one core of the other
+  CCD for hours, and timings vary with that. The rounds alternate, and the table gives every round's spread.
 
-## Independent verification
+## What's next
 
-Start at the pushed branch tip in a fresh worktree. The commands below build the translator and run
-the same non-slow tests as branch CI, including formatters, linters and language servers:
-
-```console
-nix develop
-cmake -S . -B build -G Ninja
-cmake --build build
-lake build --wfail
-ctest --test-dir build -LE slow --output-on-failure
-python3 tests/llama/replay_results.py
-```
-
-The portable proof, matcher and capture-comparator tests need no model. The evidence replay reads the
-committed archive without extracting it, checks its rows against raw stdout and inference timing logs,
-and recomputes the paired ratios and pooled bootstrap intervals. Full process elapsed time comes
-from the recorded timing rows; it cannot be independently reconstructed from llama.cpp's stderr.
-Replaying recorded evidence checks consistency, not the provenance of a historical measurement.
-The replay checks individual-session intervals against their archived copies but does not recompute
-them: their seeds were documented separately, not recorded in the archive. The exploratory nibble
-trial retains its original `ir-baseline` label; the Q5 confirmation sessions use `clang`.
-
-The original machine, `z`, also retains these reusable inputs outside Git. They are conveniences for
-the verifier; upstream URLs, revisions and SHA256 values above remain the portable source of inputs.
-The common prefix in this table is
-`/home/dp/.t3/worktrees/ir-lean/t3-9787d39d/`.
-
-| Path relative to the original worktree | Use |
-| --- | --- |
-| `build/current-llvm/LLVM-23.1.5-Linux-X64/bin` | Verified Clang/LLVM executables |
-| `build/current-llvm/llvm.tar.zst` | Original official compiler archive |
-| `build/llama-search/llama.cpp` | Clean pinned upstream checkout, usable read-only |
-| `build/llama-search/models/qwen2.5-0.5b-instruct-q4_k_m.gguf` | Model matching the recorded SHA256 |
-| `build/llama-search/ir-preserved/quants.ll` | Original full optimized module |
-| `build/llama-search/candidates/quants-preserved-bitspread.ll` | Original rewritten full module |
-| `build/llama-search/correctness/q5-single-full` | Original complete one-thread logit captures |
-| `build/llama-search/correctness/q5-full` | Original complete eight-thread logit captures |
-| `build/llama-reproduce-fresh/correctness/0001` | Complete captures from the fresh reproducer check |
-
-From the verifier's own worktree, after the build above, reuse only the downloaded inputs and build
-new native objects and correctness captures locally:
-
-```console
-input_root=/home/dp/.t3/worktrees/ir-lean/t3-9787d39d/build
-python3 tests/llama/reproduce.py all \
-  --llvm-bin "$input_root/current-llvm/LLVM-23.1.5-Linux-X64/bin" \
-  --source-dir "$input_root/llama-search/llama.cpp" \
-  --model "$input_root/llama-search/models/qwen2.5-0.5b-instruct-q4_k_m.gguf" \
-  --work-dir build/llama-verify \
-  --threads 1 --first-cpu 8 --tokens 512 --pairs 12 --seed 20261108
-python3 tests/llama/reproduce.py bench \
-  --llvm-bin "$input_root/current-llvm/LLVM-23.1.5-Linux-X64/bin" \
-  --source-dir "$input_root/llama-search/llama.cpp" \
-  --model "$input_root/llama-search/models/qwen2.5-0.5b-instruct-q4_k_m.gguf" \
-  --work-dir build/llama-verify \
-  --threads 1 --first-cpu 8 --tokens 512 --pairs 18 --seed 20261109
-```
-
-These commands do not use `--reuse-build`. The `all` phase checks the exact generated helper against
-the proof fixture and the unchanged object against ordinary Clang before running correctness checks
-and measurements. Run timing sessions without simultaneous builds or other inference benchmarks on
-the selected core. Preserve every pair, including outliers. Changing the hardware, CPU affinity,
-thread count, prompt or token cap makes a new experiment; do not pool it with the retained result.
-
-The model, compiler distribution, third-party checkout, full native builds and multi-gigabyte logit
-captures are intentionally absent from Git. The committed receipts contain hashes and comparison
-results; the commands regenerate the large evidence. Paths inside historical receipts identify the
-original run and are not portable paths for replay. The earlier zlib checkpoint and unfinished zlib
-driver remain outside the llama commits in the original worktree.
-
-### Verification improvements to evaluate
-
-This example exposes useful next steps for a general optimization-checking tool. They are proposals,
-not additional guarantees of this experiment:
-
-1. Accept source/target IR plus explicit assumptions as a small input bundle, and generate a proof
-   scaffold and a machine-readable result distinguishing proved, disproved, unsupported and unknown.
-   A timeout or unsupported operation must never count as a proof.
-2. Tie each certificate to canonical IR, target layout, semantic-model version and extracted
-   assumptions. Recheck those identities before substitution; eventually verify extraction,
-   dominance, external users and replacement mechanically instead of trusting a text matcher.
-3. Generate negative tests alongside each candidate: wrong constants, swapped lanes, boundary
-   inputs, poison, flags and metadata. Extend independent semantic comparisons before supporting
-   more bitcast shapes, `undef`, floating point or target intrinsics.
-4. Keep proof, whole-workload correctness and profitability as separate results. Preserve the
-   unchanged-lowering control, loader checks, complete logits, paired measurements and raw logs,
-   while making their execution and receipts reusable across candidates.
+- `ggml_vec_dot_q6_K_q8_K` was 31% of generating with this model, for the `Q6_K` tensors `Q4_K_M` keeps, and isn't
+  rewritten.
+- Generating is limited by memory at 8 threads, so this rewrite doesn't change it there. On one core it's faster for
+  one model, and the two speeds the rewritten library settles at aren't explained.
+- The same rewrite could go into llama.cpp's source, or into LLVM as a combine on x86 intrinsics, if it knew the
+  range of each lane.

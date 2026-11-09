@@ -21,6 +21,7 @@
 #include "llvm/IR/InstrTypes.h"
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/IntrinsicInst.h"
+#include "llvm/IR/IntrinsicsX86.h"
 #include "llvm/IR/LLVMContext.h"
 #include "llvm/IR/Operator.h"
 #include "llvm/Support/raw_ostream.h"
@@ -115,7 +116,8 @@ const std::set<std::string> &reservedNames() {
         // Names emitted code uses.
         "Block", "IRLean", "Next", "Outcome", "Val", "andThen", "assume", "br", "branch", "false", "jump",
         "loop", "none", "noundef", "ret", "run", "select", "some", "step", "sw", "true", "unreachable",
-        "HasPoison", "Mem", "Ptr", "PtrVal", "initial", "m", "indirect", "Vec", "Vector", "a", "b",
+        "HasPoison", "Mem", "Ptr", "PtrVal", "initial", "m", "indirect", "Vec", "Vector", "a", "b", "Unit",
+        "Nat", "BitVec", "Array",
         // Names Lean generates for every inductive type.
         "below", "binductionOn", "brecOn", "casesOn", "ctorElim", "ctorElimType", "ctorIdx", "ibelow",
         "injEq", "noConfusion", "noConfusionType", "rec", "recOn", "sizeOf", "toCtorIdx"};
@@ -219,9 +221,16 @@ std::string zeroOf(Type *T) {
 // Whether this definition is certainly the one a program uses. `weak`, `linkonce` and `common` definitions
 // can be replaced at link time, `_odr` ones by another translation of the same source that needn't behave
 // the same where that source is undefined, and `available_externally` ones by the real one elsewhere.
+// A definition another module can replace when it's loaded, as with the `SemanticInterposition` module flag,
+// isn't certainly the one either.
 bool hasExactLinkage(const GlobalValue &G) {
-  return G.hasExternalLinkage() || G.hasInternalLinkage() || G.hasPrivateLinkage();
+  return (G.hasExternalLinkage() || G.hasInternalLinkage() || G.hasPrivateLinkage()) && !G.isInterposable();
 }
+
+// A `linkonce_odr` or `weak_odr` definition, as C++ gives inline functions and templates. Its IR is still
+// this translation's copy of it, so a theorem about that copy means what any other does. What calls it is
+// another matter, since the copy a call runs may be another translation's: `emitCall` refuses those calls.
+bool hasODRLinkage(const GlobalValue &G) { return G.hasLinkOnceODRLinkage() || G.hasWeakODRLinkage(); }
 
 // The module-wide things functions refer to: its globals and data layout.
 class ModuleContext {
@@ -641,7 +650,10 @@ std::string leanTag(AttributeSet Attrs) {
 
 // Attributes on a function or a call. Each one here has been reviewed, and anything else is refused, so a
 // new attribute can't pass unnoticed.
-void checkFunctionAttributes(AttributeSet Attrs, const std::string &Where, bool Library = false) {
+// `Library` is for the C library functions `Mem` defines, and `GivesUp` for a call to a function outside the
+// module that never returns, which stops the model.
+void checkFunctionAttributes(AttributeSet Attrs, const std::string &Where, bool Library = false,
+                             bool GivesUp = false) {
   for (Attribute A : Attrs) {
     if (A.isStringAttribute()) {
       // Settings for the backend, and which allocator a C library function belongs to.
@@ -655,6 +667,8 @@ void checkFunctionAttributes(AttributeSet Attrs, const std::string &Where, bool 
     }
     // `Mem`'s versions of the C library don't call back into the program.
     if (Library && A.getKindAsEnum() == Attribute::NoCallback)
+      continue;
+    if (GivesUp && A.getKindAsEnum() == Attribute::NoReturn)
       continue;
     switch (A.getKindAsEnum()) {
     // These only change how the code is optimized or lowered.
@@ -681,15 +695,19 @@ void checkFunctionAttributes(AttributeSet Attrs, const std::string &Where, bool 
     case Attribute::Memory:
     case Attribute::NoFree:
     case Attribute::NoRecurse:
-    // What makes `malloc` and `free` the functions `Mem` defines. Calls to others are refused.
-    case Attribute::AllocKind:
-    case Attribute::AllocSize:
     // A run of this function that never finishes is undefined in LLVM, as with `llvm.loop.mustprogress` on
     // a loop, and in the model it's `none`. So a theorem that allows `none` assumes that doesn't happen,
     // and a theorem that says `= Outcome.ok` isn't affected. Refusing them would refuse most of zlib, and
     // telling a spinning loop from a callee that never returns isn't something `none` can do.
     case Attribute::MustProgress:
     case Attribute::WillReturn:
+      continue;
+    // What makes `malloc` and `free` the functions `Mem` defines, and nothing else: on anything but those,
+    // they'd be promises the model doesn't check.
+    case Attribute::AllocKind:
+    case Attribute::AllocSize:
+      if (!Library)
+        reject(Where + " attribute " + A.getAsString());
       continue;
     default:
       reject(Where + " attribute " + A.getAsString());
@@ -754,7 +772,8 @@ private:
 
   std::string operand(const Value *V);
   std::string flag(bool On, const char *Name) { return On ? std::string(" (") + Name + " := true)" : ""; }
-  std::string callArgument(const CallBase &C, unsigned N, std::vector<Line> &Out);
+  std::string callArgument(const CallBase &C, unsigned N, std::vector<Line> &Out,
+                           bool WithDeclaration = false);
   void checkCallResult(const CallBase &C, std::vector<Line> &Out);
   std::string target(const BasicBlock *From, const BasicBlock *To);
   std::string goTo(const BasicBlock *From, const BasicBlock *To);
@@ -1077,18 +1096,30 @@ void FunctionEmitter::emitGep(const GetElementPtrInst &G, std::vector<Line> &Out
 }
 
 void FunctionEmitter::emitAlloca(const AllocaInst &A, std::vector<Line> &Out) {
-  std::optional<TypeSize> Size = A.getAllocationSize(Context.DL);
+  TypeSize EachSize = Context.DL.getTypeAllocSize(A.getAllocatedType());
+  if (EachSize.isScalable())
+    reject("instruction " + printed(A));
+  uint64_t Each = EachSize.getFixedValue();
+  const Value *Count = A.getArraySize();
+  unsigned Width = Count->getType()->getIntegerBitWidth();
   std::string Bytes;
-  if (Size && !Size->isScalable()) {
-    Bytes = "(some " + std::to_string(Size->getFixedValue()) + "#64)";
+  // An allocation's size in bytes has to fit in 64 bits, and wrapping it would make a smaller one than was
+  // asked for. LangRef doesn't say what a larger one does, so a constant one is refused.
+  if (const auto *K = dyn_cast<ConstantInt>(Count)) {
+    bool Overflow = K->getValue().getActiveBits() > 64;
+    APInt Total = Overflow ? APInt(64, 0) : K->getValue().zextOrTrunc(64).umul_ov(APInt(64, Each), Overflow);
+    if (Overflow)
+      reject("alloca of more bytes than 64 bits can count: " + printed(A));
+    Bytes = "(some " + bitVec(Total) + ")";
   } else {
-    const Value *Count = A.getArraySize();
-    unsigned Width = Count->getType()->getIntegerBitWidth();
+    // Counted the same way as a constant one, so one that doesn't fit is poison, and `Mem.alloca` of poison
+    // is undefined.
+    if (Width > 64)
+      reject("alloca with a count wider than 64 bits: " + printed(A));
     std::string C = operand(Count);
     if (Width != 64)
-      C = (Width < 64 ? "(Val.zext 64 " : "(Val.trunc 64 ") + C + ")";
-    uint64_t Each = Context.DL.getTypeAllocSize(A.getAllocatedType());
-    Bytes = "(Val.mul " + C + " (some " + std::to_string(Each) + "#64))";
+      C = "(Val.zext 64 " + C + ")";
+    Bytes = "(Val.mul " + C + " (some " + std::to_string(Each) + "#64) (nuw := true))";
   }
   // An alloca with `lifetime.start` is dead until that runs.
   bool Dead = any_of(A.users(), [](const User *U) {
@@ -1271,6 +1302,10 @@ void FunctionEmitter::emitInstruction(const Instruction &I, std::vector<Line> &O
     Cast("Val.trunc", flag(T.hasNoUnsignedWrap(), "nuw") + flag(T.hasNoSignedWrap(), "nsw"));
     return;
   }
+  // Between integers and vectors of integers of the same size, where one lane width divides the other, so
+  // it's a split or a join, with a scalar as a vector of one lane. LangRef reads it as a store and a load,
+  // which puts lane 0 in the low bits only on a little-endian target, so a big-endian module is refused, even
+  // for a function that doesn't touch memory.
   case Instruction::BitCast: {
     Type *Src = I.getOperand(0)->getType();
     Type *Dst = I.getType();
@@ -1279,20 +1314,25 @@ void FunctionEmitter::emitInstruction(const Instruction &I, std::vector<Line> &O
     };
     if (!IntegerShape(Src) || !IntegerShape(Dst))
       reject("integer bitcast shape " + printed(I));
-    unsigned SrcWidth = Src->getScalarSizeInBits();
-    unsigned DstWidth = Dst->getScalarSizeInBits();
+    unsigned W = Src->getScalarSizeInBits(), V = Dst->getScalarSizeInBits();
     unsigned SrcLanes = Src->isVectorTy() ? cast<FixedVectorType>(Src)->getNumElements() : 1;
     unsigned DstLanes = IsVector ? cast<FixedVectorType>(Dst)->getNumElements() : 1;
-    if (uint64_t(SrcWidth) * SrcLanes != uint64_t(DstWidth) * DstLanes)
+    if (uint64_t(W) * SrcLanes != uint64_t(V) * DstLanes)
       reject("integer bitcast size " + printed(I));
-    if (SrcWidth % DstWidth != 0 && DstWidth % SrcWidth != 0)
+    if (W % V != 0 && V % W != 0)
       reject("integer bitcast with nondividing lane widths " + printed(I));
-    // Pure functions need this check too: lane zero occupies the low bits only on little-endian targets.
     if (!Context.DL.isLittleEndian())
       reject("big-endian integer bitcast " + printed(I));
-    std::string Input = Src->isVectorTy() ? Op(0) : "#v[" + Op(0) + "]";
-    std::string Expr =
-        "Vec.bitcast " + std::to_string(DstLanes) + " " + std::to_string(DstWidth) + " " + Input;
+    if (!Src->isVectorTy() && !IsVector) {
+      addLet(I, Out, Op(0));
+      return;
+    }
+    std::string In = Src->isVectorTy() ? Op(0) : "#v[" + Op(0) + "]";
+    std::string M = std::to_string(DstLanes), VS = std::to_string(V), Expr = In;
+    if (W > V)
+      Expr = "Vec.split " + M + " " + VS + " " + std::to_string(W / V) + " " + In;
+    else if (V > W)
+      Expr = "Vec.join " + M + " " + VS + " " + std::to_string(V / W) + " " + In;
     addLet(I, Out, IsVector ? Expr : "Vec.lane (" + Expr + ") 0");
     return;
   }
@@ -1366,16 +1406,56 @@ void FunctionEmitter::emitInstruction(const Instruction &I, std::vector<Line> &O
   }
 }
 
-// An argument with what its attributes imply, and the checks they require before the call.
-std::string FunctionEmitter::callArgument(const CallBase &C, unsigned N, std::vector<Line> &Out) {
-  AttributeSet Param = C.getAttributes().getParamAttrs(N);
-  checkValueAttributes(Param, C.getArgOperand(N)->getType(), Position::CallParameter);
-  std::string Arg = withValueChecks(Param, operand(C.getArgOperand(N)));
-  if (Param.hasAttribute(Attribute::NoUndef))
+// An argument with what its attributes imply, and the checks they require before the call. `WithDeclaration`
+// adds what the callee's declaration says of the argument's value, for a callee nothing else checks it in.
+// Both have to hold, so each is checked on its own: a call's `range` doesn't replace the declaration's.
+std::string FunctionEmitter::callArgument(const CallBase &C, unsigned N, std::vector<Line> &Out,
+                                          bool WithDeclaration) {
+  std::vector<AttributeSet> Sets = {C.getAttributes().getParamAttrs(N)};
+  if (const Function *Callee = C.getCalledFunction(); WithDeclaration && Callee) {
+    AttributeSet Declared = Callee->getAttributes().getParamAttrs(N);
+    AttrBuilder B(C.getContext());
+    for (Attribute::AttrKind K : {Attribute::NoUndef, Attribute::NonNull, Attribute::Alignment,
+                                  Attribute::Range, Attribute::Dereferenceable})
+      if (Declared.hasAttribute(K))
+        B.addAttribute(Declared.getAttribute(K));
+    Sets.push_back(AttributeSet::get(C.getContext(), B));
+    // A global's address is what makes these hold, and LLVM fixes what they say of one: it isn't null, and
+    // it's as aligned and as large as it's declared. So they're settled here, and a function that passes only
+    // constants needn't have memory to check them in. One that can't be shown to hold is refused.
+    const auto *Global = dyn_cast<GlobalVariable>(C.getArgOperand(N));
+    for (AttributeSet &Set : Sets) {
+      AttrBuilder S(C.getContext(), Set);
+      if (Global && !Global->hasExternalWeakLinkage() && Global->getValueType()->isSized()) {
+        MaybeAlign Wanted = S.getAlignment();
+        bool Holds = (!Wanted || Global->getPointerAlignment(Context.DL) >= *Wanted) &&
+                     (!S.contains(Attribute::Dereferenceable) ||
+                      Context.DL.getTypeStoreSize(Global->getValueType()).getFixedValue() >=
+                          S.getDereferenceableBytes());
+        if (!Holds)
+          reject("call argument attributes that don't plainly hold of @" + Global->getName().str());
+        S.removeAttribute(Attribute::NonNull).removeAttribute(Attribute::Alignment);
+        S.removeAttribute(Attribute::Dereferenceable);
+      } else if (!UsesMemory && (S.contains(Attribute::NonNull) || S.contains(Attribute::Alignment) ||
+                                 S.contains(Attribute::Dereferenceable))) {
+        reject("call argument attributes that don't plainly hold of " + printed(*C.getArgOperand(N)));
+      }
+      Set = AttributeSet::get(C.getContext(), S);
+    }
+  }
+  std::string Arg = operand(C.getArgOperand(N));
+  bool NoUndef = false;
+  for (AttributeSet Set : Sets) {
+    checkValueAttributes(Set, C.getArgOperand(N)->getType(), Position::CallParameter);
+    Arg = withValueChecks(Set, Arg);
+    NoUndef |= Set.hasAttribute(Attribute::NoUndef);
+  }
+  if (NoUndef)
     Out.push_back({Line::Guard, "", "noundef " + Arg});
-  if (Param.hasAttribute(Attribute::Dereferenceable))
-    Out.push_back({Line::Guard, "",
-                   "Mem.dereferenceable m " + Arg + " " + std::to_string(Param.getDereferenceableBytes())});
+  for (AttributeSet Set : Sets)
+    if (Set.hasAttribute(Attribute::Dereferenceable))
+      Out.push_back({Line::Guard, "",
+                     "Mem.dereferenceable m " + Arg + " " + std::to_string(Set.getDereferenceableBytes())});
   return Arg;
 }
 
@@ -1389,6 +1469,9 @@ void FunctionEmitter::checkCallResult(const CallBase &C, std::vector<Line> &Out)
     Out.push_back({Line::Let, Name, withValueChecks(Ret, Name)});
   if (Ret.hasAttribute(Attribute::NoUndef))
     Out.push_back({Line::Guard, "", "noundef " + Name});
+  if (Ret.hasAttribute(Attribute::Dereferenceable))
+    Out.push_back({Line::Guard, "",
+                   "Mem.dereferenceable m " + Name + " " + std::to_string(Ret.getDereferenceableBytes())});
 }
 
 bool FunctionEmitter::emitIntrinsic(const IntrinsicInst &C, std::vector<Line> &Out) {
@@ -1422,6 +1505,7 @@ bool FunctionEmitter::emitIntrinsic(const IntrinsicInst &C, std::vector<Line> &O
     addLet(C, Out, std::string(Fn) + " " + Op(0) + " " + Op(1) + " " + Op(2));
     return true;
   };
+  auto Lanes = [&] { return std::to_string(cast<FixedVectorType>(C.getType())->getNumElements()); };
   switch (C.getIntrinsicID()) {
   case Intrinsic::assume:
     for (unsigned B = 0, E = C.getNumOperandBundles(); B != E; ++B) {
@@ -1520,6 +1604,22 @@ bool FunctionEmitter::emitIntrinsic(const IntrinsicInst &C, std::vector<Line> &O
     return Binary("Val.umulWithOverflow");
   case Intrinsic::smul_with_overflow:
     return Binary("Val.smulWithOverflow");
+  // x86's integer dot products, in IRLean/X86.lean. The first two need the number of lanes they produce.
+  case Intrinsic::x86_ssse3_pmadd_ub_sw_128:
+  case Intrinsic::x86_avx2_pmadd_ub_sw:
+  case Intrinsic::x86_avx512_pmaddubs_w_512:
+    addLet(C, Out, "X86.pmaddubsw " + Lanes() + " " + Op(0) + " " + Op(1));
+    return true;
+  case Intrinsic::x86_sse2_pmadd_wd:
+  case Intrinsic::x86_avx2_pmadd_wd:
+  case Intrinsic::x86_avx512_pmaddw_d_512:
+    addLet(C, Out, "X86.pmaddwd " + Lanes() + " " + Op(0) + " " + Op(1));
+    return true;
+  case Intrinsic::x86_avx512_vpdpbusd_128:
+  case Intrinsic::x86_avx512_vpdpbusd_256:
+  case Intrinsic::x86_avx512_vpdpbusd_512:
+    addLet(C, Out, "X86.vpdpbusd " + Op(0) + " " + Op(1) + " " + Op(2));
+    return true;
   case Intrinsic::ucmp:
   case Intrinsic::scmp:
     addLet(C, Out,
@@ -1533,19 +1633,16 @@ bool FunctionEmitter::emitIntrinsic(const IntrinsicInst &C, std::vector<Line> &O
 
 void FunctionEmitter::emitCall(const CallBase &C, std::vector<Line> &Out) {
   const Function *Direct = C.getCalledFunction();
+  bool Library = Direct && libraryFunction(*Direct);
   // A call to something outside the module that never returns, such as an abort, stops the model. A
   // theorem saying `= Outcome.ok` shows it isn't reached, and nothing here claims what it does.
-  if (Direct && Direct->isDeclaration() && !Direct->isIntrinsic() && !libraryFunction(*Direct) &&
-      C.doesNotReturn() && !C.getFunctionType()->isVarArg() && !C.hasOperandBundles() &&
-      C.getType()->isVoidTy()) {
-    Out.push_back({Line::Bind, "_", "(Outcome.stop .noReturnCall : Outcome Unit)"});
-    return;
-  }
-  checkFunctionAttributes(C.getAttributes().getFnAttrs(), "call");
+  bool GivesUp = Direct && Direct->isDeclaration() && !Direct->isIntrinsic() && !Library &&
+                 C.doesNotReturn() && !C.getFunctionType()->isVarArg() && !C.hasOperandBundles() &&
+                 C.getType()->isVoidTy();
+  checkFunctionAttributes(C.getAttributes().getFnAttrs(), "call", Library, GivesUp);
   // A function's own promises are checked, but a narrower one at a call isn't, so it's refused. What's known
   // of the C library is the exception: `Mem.strlen` only reads through its argument, and they all return.
   AttributeSet CallAttrs = C.getAttributes().getFnAttrs();
-  bool Library = Direct && libraryFunction(*Direct);
   if (Library && CallAttrs.hasAttribute(Attribute::NoBuiltin))
     reject("call attribute nobuiltin on " + printed(C));
   if (CallAttrs.hasAttribute(Attribute::Memory) &&
@@ -1561,6 +1658,14 @@ void FunctionEmitter::emitCall(const CallBase &C, std::vector<Line> &Out) {
   // A `noalias` result is what `Mem.malloc` gives, and a function declaring it is checked at its return.
   bool NoAliasResult = Direct && ((Library && Direct->getName() == "malloc") || Direct->returnDoesNotAlias());
   checkValueAttributes(C.getAttributes().getRetAttrs(), C.getType(), Position::CallReturn, NoAliasResult);
+  if (GivesUp) {
+    // The arguments are passed before the callee runs, so what their attributes and the declaration say of
+    // them is checked first: a poison `noundef` argument is undefined, even to a call that never returns.
+    for (unsigned I = 0, E = C.arg_size(); I != E; ++I)
+      callArgument(C, I, Out, /*WithDeclaration=*/true);
+    Out.push_back({Line::Bind, "_", "(Outcome.stop .noReturnCall : Outcome Unit)"});
+    return;
+  }
   if (const auto *Intr = dyn_cast<IntrinsicInst>(&C)) {
     if (!emitIntrinsic(*Intr, Out))
       reject("intrinsic " + Intr->getCalledFunction()->getName().str());
@@ -1572,6 +1677,10 @@ void FunctionEmitter::emitCall(const CallBase &C, std::vector<Line> &Out) {
   if (C.hasOperandBundles())
     reject("instruction " + printed(C));
   const Function *Callee = C.getCalledFunction();
+  // A call runs whichever copy the linker keeps, and only an exact definition is certainly this one. This
+  // module's copy of an `_odr` one can't stand in for it.
+  if (Callee && !Callee->isDeclaration() && !hasExactLinkage(*Callee))
+    reject("call to @" + Callee->getName().str() + ", whose definition may not be the one that runs");
   if (Callee && !Callees.count(Callee))
     reject(Callee->isDeclaration() ? "call to external @" + Callee->getName().str()
                                    : "call to @" + Callee->getName().str() + ", which isn't translated");
@@ -1591,6 +1700,10 @@ void FunctionEmitter::emitCall(const CallBase &C, std::vector<Line> &Out) {
     // Try each function of this type whose address is taken. Anything else stops the model.
     std::string Expr = "(indirect " + operand(C.getCalledOperand()) + " fun q' =>";
     for (const Function *Target : Context.candidates(C.getFunctionType())) {
+      // As for a direct call, this module's copy of an `_odr` function needn't be what the pointer holds.
+      if (!hasExactLinkage(*Target))
+        reject("indirect call that can reach @" + Target->getName().str() +
+               ", whose definition may not be the one that runs");
       if (!Callees.count(Target))
         reject("indirect call that can reach @" + Target->getName().str() + ", which isn't translated");
       std::string Call = Callees.lookup(Target) + Args;
@@ -1618,6 +1731,8 @@ std::string FunctionEmitter::emitTerminator(const BasicBlock *BB) {
     std::string Checks;
     if (Attrs.hasAttribute(Attribute::NoUndef))
       Checks += "noundef " + V + " <| ";
+    if (Attrs.hasAttribute(Attribute::Dereferenceable))
+      Checks += "Mem.dereferenceable m " + V + " " + std::to_string(Attrs.getDereferenceableBytes()) + " <| ";
     if (Attrs.hasAttribute(Attribute::NoAlias))
       Checks += "Mem.noaliasResult m " + V + " <| ";
     for (const Argument &A : F.args())
@@ -1636,9 +1751,10 @@ std::string FunctionEmitter::emitTerminator(const BasicBlock *BB) {
            target(BB, B->getSuccessor(1));
   }
   if (const auto *S = dyn_cast<SwitchInst>(T)) {
-    std::string Out = "sw " + operand(S->getCondition()) + " fun sel =>";
+    // The binder is primed so no value's name can be the same: NameTable only makes letters, digits and `_`.
+    std::string Out = "sw " + operand(S->getCondition()) + " fun sel' =>";
     for (const auto &Case : S->cases())
-      Out += "\n      if sel == " + bitVec(Case.getCaseValue()->getValue()) + " then " +
+      Out += "\n      if sel' == " + bitVec(Case.getCaseValue()->getValue()) + " then " +
              goTo(BB, Case.getCaseSuccessor()) + " else";
     return Out + "\n      " + goTo(BB, S->getDefaultDest());
   }
@@ -1681,7 +1797,7 @@ void FunctionEmitter::prepare() {
     reject("variadic function");
   if (F.hasPersonalityFn())
     reject("exception handling");
-  if (!hasExactLinkage(F))
+  if (!hasExactLinkage(F) && !hasODRLinkage(F))
     reject("linkage: this may not be the definition that runs");
   if (F.hasPrefixData() || F.hasPrologueData() || F.hasGC())
     reject("function with prefix data, prologue data or a garbage collector");

@@ -5,18 +5,19 @@ reproduce it, and what each result rests on. For what any theorem here means, re
 
 Facts here were checked on 2026-11-06, with clang 23.1.3 and Lean 4.35.0, against `llvmorg-23.1.3`, on top of commit
 `c389ecc`. All 60 source files proved about were compared with GitHub's copy at that tag, and are byte-identical. That
-comparison was a one-off. `tests/llvm.py` records their hashes on each run.
+comparison was a one-off. `tests/llvm.py` records their hashes on each run. `internal::isalnum` was added on 2026-11-07,
+on top of `6293d34`, and its file, `isalnum.cpp`, wasn't in that comparison.
 
 ## What's proved
 
-86 functions, each with a Lean theorem saying what it returns for every input meeting the theorem's hypotheses, with no
+87 functions, each with a Lean theorem saying what it returns for every input meeting the theorem's hypotheses, with no
 undefined behavior or poison in the model, and no promise from its attributes broken.
 
 | Subproject | Functions | What's there |
 | --- | --- | --- |
 | `compiler-rt` builtins | 46 | Shifts, `bswap`, `clz`, `ctz`, `ffs`, parity, `popcount`, comparisons and negation at 32, 64 and 128 bits, the abort-on-overflow `addv`, `subv`, `negv` and `absv`, and unsigned division |
 | LLVM Support | 29 | 23 from `MathExtras.h`, `decodeULEB128`, `crc32`, `xxh3_64bits`, and `APInt::tcAdd`, `tcCompare` and `tcIsZero` |
-| `llvm-libc` | 11 | `abs`, `labs`, `llabs`, and 8 of the `ctype.h` functions |
+| `llvm-libc` | 12 | `abs`, `labs`, `llabs`, 8 of the `ctype.h` functions, and the inline `internal::isalnum` that `isalnum` calls |
 
 Ten have loops, and seven read or write memory. These are the five hardest:
 
@@ -56,12 +57,22 @@ The flake pins the monorepo, by its hash, and the shell's clang is built from th
 disagree. For each function it does the following, and a function only counts if all of it passes:
 
 1. Compiles the source with upstream's flags, from [`targets.toml`](../tests/llvm/targets.toml), at `-O3`.
-2. Translates the IR to Lean, and checks the proof against that, with warnings as errors.
-3. Allows only the standard axioms and what `bv_decide` adds, as [the proofs](testing.md#tests) do.
-4. Injects at least one bug into the source, which has to change the IR and stop that function's own proof.
+2. Translates the IR to Lean, and checks the proof against that, with warnings as errors. The function has to be
+   translated: `targets.toml` names each by its symbol in the IR, or in `symbol` where its name is one for people.
+3. Checks that the theorem names that function, as ir-lean generated it, and nothing of the proof's own with a name like
+   the generated module's.
+4. Allows only the standard axioms and what `bv_decide` adds, as [the proofs](testing.md#tests) do, reading the proof and
+   its support modules as data, and refuses `implemented_by` and `extern`. Then `leanchecker` replays the proof and support
+   modules through the kernel.
+5. Injects at least one bug into the source, which has to change the IR and stop that function's own proof with an error
+   of its own. A proof that only runs out of time, memory, stack or recursion depth might check with more, so whether the
+   bug breaks it is unknown, and that fails.
+
+In a file proving several functions, only errors in that function's theorem count, so a bug is checked against the file
+up to the end of that theorem. Lean reads a file in order, so what comes after can't change those errors.
 
 The manifest it writes has, for each function, the theorem statement as Lean prints it, and hashes of the source, IR, Lean
-and proof, along with the flags and tool versions.
+and proof, along with the flags and tool versions, and the error that stopped the proof for each bug.
 
 ## What it assumes
 
@@ -79,9 +90,14 @@ programs or machine code, and the emitter and the model are trusted. On top of t
   also approximate: only those that change the IR are in `targets.toml`.
 - **Wrappers.** Inline functions need a symbol to compile, so [`MathExtras.cpp`](../tests/llvm/wrappers/MathExtras.cpp) and
   [`LEB128.cpp`](../tests/llvm/wrappers/LEB128.cpp) each give some a name. Each only calls one function, which clang inlines.
+- **One copy of an inline function.** `internal::isalnum` is `linkonce_odr`, so its theorem is about the copy
+  `isalnum.cpp` compiles, and the public `isalnum`, which calls it, is left out, since the call may run another copy. See
+  [trust](trust.md#known-gaps-in-the-model).
 - **x86-64 Linux.** As with the zlib proofs, this is the one target checked.
 - **What happens at an abort isn't claimed.** A call to something outside the module that doesn't return stops the model
-  with `noReturnCall`. So `__addvsi3`'s theorem says it reaches that call exactly on overflow, not what the call does.
+  with `noReturnCall`, once its arguments are checked against what the call and the declaration say of them. So
+  `__addvsi3`'s theorem says it reaches that call exactly on overflow, not what the call does. A global passed there is
+  `nonnull`, aligned and as large as it's declared, as LLVM says any global is, so those are settled when it's translated.
 
 ## What the proofs turned up
 
@@ -141,4 +157,5 @@ Don't overread this:
 
 - `decodeULEB128` with its other arguments, `encodeULEB128`, and the rest of `xxh3_64bits`.
 - The rest of `APInt`'s word routines, then `KnownBits`, which is LLVM's own reasoning about values.
-- Rewrites of functions real programs call on x86-64, with benchmarks that aren't micro-benchmarks.
+- More rewrites of functions real programs call on x86-64. [llama.cpp](llama.md) has the first, measured on real
+  inference.

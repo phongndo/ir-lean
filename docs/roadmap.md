@@ -202,7 +202,8 @@ allocator returns. It says nothing about decompressing correctly, which could co
 3. The invariant across `inflate`'s modes, one mode at a time, starting with stored blocks.
 
 `inflate` also calls `updatewindow` and the proved `adler32` and `crc32`, so this phase writes its own
-contracts by hand. That's on purpose: Phase 2 generalizes from what they turned out to need.
+contracts by hand. That's on purpose: Phase 2 generalizes from what they turned out to need. `updatewindow`'s
+is [proved](memory.md) for calls after the window is allocated, through a `strm` that carries no promises.
 
 **Runtime memory model:** alongside the proof, make the semantics fast enough to run. Memory is currently
 a chain of closures, which is why inputs stop at about 800 bytes. Add an executable representation, prove
@@ -301,7 +302,7 @@ functions, with the flags and versions recorded.
 | **Runtime and calls** | `operator new` and `delete`, `__cxa_*` through contracts | `__rust_alloc`, and panics through contracts |
 | **Unwinding** | `invoke` and `landingpad` refused, so exceptions are out of scope at first | The same for `panic=unwind` |
 | **Layout and ABI** | Itanium ABI and vtables come from the front end, and are read as bytes and addresses in the IR | `repr(Rust)` is unstable and niche-optimized, so a theorem holds for that compiled layout only |
-| **Linkage** | `linkonce_odr` is refused today. Decide whether the one-definition rule is an assumption of the theorem | Generics are monomorphized in, and `core` may or may not be inlined |
+| **Linkage** | `linkonce_odr` definitions translate as this translation's copy, and calls to them are refused, so no theorem assumes the one-definition rule. Decide whether a caller's theorem may assume it | Generics are monomorphized in, and `core` may or may not be inlined |
 | **Promises** | Fewer than Rust. TBAA is left out with `-fno-strict-aliasing` | `noalias` on arguments, refused today, and `dereferenceable` and `range` everywhere, so Phase 0's decisions matter most here |
 | **Gaps in the probes** | External `operator delete`, exceptions | `undef` in `phi`, external panics |
 | **Version skew** | Same compiler as the emitter | `rustc`'s LLVM differs, and the emitter upgrades its IR on reading. Pin it, or use a matching LLVM |
@@ -360,6 +361,9 @@ claim one the certificate didn't check, apart from `mustprogress` and `willretur
 1. **Pure, loop-free integer code.** Using shallow generated functions and `bv_decide` where widths are fixed. Benchmark against Alive2 on LLVM's InstCombine tests and a set of known miscompilations.
 2. **Loops and memory,** with real function pairs from `opt` passes. Prove the bridge between safety and refinement: `Safe src → Refines src tgt → Safe tgt`, so a safety proof carries to optimized code.
 3. **Real search.** Candidates from LLVM itself, Souper, Minotaur or an LLM, all untrusted, represented through [Lean to IR](design.md#ir-and-lean-both-ways). Benchmark against what `opt -O2` already produces.
+
+[Lemma reuse](lemma-reuse.md) is a prototype for stage 1: it splits the q4_K proof's 34 theorems into 27 lemmas they
+share, and cuts two rewrite proofs that neither Alive2 nor one `bv_decide` call finishes into lemmas it keeps.
 
 **Demo:** a candidate from an untrusted source, certified, on a block of real zlib, with its safety theorem
 carried across.
