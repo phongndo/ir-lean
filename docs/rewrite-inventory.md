@@ -16,10 +16,10 @@ source files, so it gives the same bytes on any host.
 | Pass | Rewrites | Integers only | Need floating point | Need memory | Need calls | Folds | Files |
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | InstSimplify | 541 | 300 | 198 | 31 | 111 | 150 | 2 |
-| InstCombine | 2,596 | 1,606 | 603 | 241 | 421 | 514 | 15 |
-| AggressiveInstCombine | 51 | 24 | 8 | 20 | 12 | 33 | 2 |
-| Reassociate | 59 | 22 | 36 | 0 | 1 | 23 | 1 |
-| All | 3,247 | 1,952 | 845 | 292 | 545 | 720 | 20 |
+| InstCombine | 2,535 | 1,574 | 591 | 229 | 413 | 514 | 15 |
+| AggressiveInstCombine | 37 | 21 | 6 | 11 | 6 | 33 | 2 |
+| Reassociate | 60 | 15 | 45 | 0 | 1 | 23 | 1 |
+| All | 3,173 | 1,910 | 840 | 271 | 531 | 720 | 20 |
 
 A rewrite can need more than one of floating point, memory and calls, so those columns overlap. "Integers only" is
 the rest, which needs none of them. `tests/llvm_rewrites.py summary` prints these from the files.
@@ -46,10 +46,12 @@ A **rewrite** is a *site*: a statement in the pinned C++ where a fold function c
   inference and in-place canonicalization commit, as in `visitAdd`'s `nsw` inference and Reassociate's
   `OptimizeInst`.
 - **A change**: a statement that changes IR in place, such as `replaceUse`, `setOperand`, `swapOperands`, a flag
-  setter or an eraser, with no return of a change and no flag set after it in its block to commit it. InstCombine's
-  `MaybeSimplifyHint` lambda in `visitCallInst` is one: it calls `replaceUse` and returns nothing. `MUTATES` in the
-  script lists the calls. A change followed in its block by a return or flag site is part of that site, as
-  `replaceOperand(I, 0, X); return &I;` is one rewrite.
+  setter or an eraser, with no site after it in its block, a return or a flag that's a site of its own, to commit it.
+  InstCombine's `MaybeSimplifyHint` lambda in `visitCallInst` is one: it calls `replaceUse` and returns nothing.
+  Reassociate's `NegateValue` has three: it changes an instruction a lookup found, and its `return I` forwards the
+  lookup's result, which isn't a site. `MUTATES` in the script lists the calls. A change followed in its block by a
+  site is part of that site, as `replaceOperand(I, 0, X); return &I;` is one rewrite. A function's own body counts as
+  its block.
 
 A site's obligation for G2 is that whatever reaches it is right for every input. That's the path from the function's
 entry to the site, with every condition on it, and the value built there.
@@ -127,8 +129,10 @@ Each rewrite has:
 - `needs`: `int`, or any of `fp`, `memory` and `calls`, from the identifiers on its path. The path is the function's
   name and parameters, the conditions of the statements around the site, the plain statements before it in each
   enclosing block, the case labels it's under, and the site itself. A function that handles floating point as well
-  as integers, such as Reassociate's `RewriteExprTree`, rewrites both, so a site in it needs `fp` too unless its path
-  says its values are integers: an integer opcode, an integer matcher such as `m_APInt` or `m_Add`, or a type test
+  as integers rewrites both, so a site in it needs `fp` too unless its path says its values are integers. A function
+  handles floating point if it names it, or if it's in Reassociate, whose every function serves integer and fast-math
+  floating-point reassociation alike from `OptimizeInst`, as `canonicalizeOperands` does. Its path says its values
+  are integers with an integer opcode, an integer matcher such as `m_APInt` or `m_Add`, or a type test
   such as `isIntOrIntVectorTy`. Those sites are also tagged `generic`. A generic rewrite proved for integers isn't
   proved for every input until its floating-point instance is;
 - `also`: `vector` for shuffles, extracts, inserts and vector types, `cfg` for phis, branches and blocks, and `undef`
@@ -159,20 +163,22 @@ For the reviewer, the places the rule can be wrong:
   finds is part of the site that uses it. A helper that's really a fold, because its caller installs its result in a
   way the forward rules don't name, would be missed. The `helpers` lists are short for that reason: 2 in InstSimplify,
   40 in InstCombine, 1 in AggressiveInstCombine and none in Reassociate.
-- **Changes counted with a later site.** A change followed in its block by a return of a change or a flag set is
-  counted as part of that site, even when the two are unrelated. Changes in helpers and builders, which aren't folds,
+- **Changes counted with a later site.** A change followed in its block by a site is counted as part of that site,
+  even when the two are unrelated. Changes in helpers and builders, which aren't folds,
   are part of the sites that call them.
 - **Names rebound inside an `if`.** A name an `if`'s condition binds to a fold's result, then rebound by a matcher
   inside that `if`, reads as the fold's result there.
 - **Other counts measure other things.** InstCombine's `.cpp` files have 2,308 calls to `match(`: patterns tried, of
   which several can guard one site and one can guard several. The 514 folds include lambdas and helpers that build,
   so they're more than the functions named `fold*` or `visit*`.
+- **A generic function that never names floating point,** outside Reassociate, is read as integers only. Which of
+  InstCombine's opcode-generic helpers also see floating point isn't derived from their callers.
 - **Preprocessor conditionals are read as code.** At the pin no site is inside `#ifndef NDEBUG` or
   `#if LLVM_ENABLE_STATS`, which the release `opt` leaves out. A site there would be counted.
 
 [`tests/llvm_rewrites_test.py`](../tests/llvm_rewrites_test.py) checks the rule on small C++ files, a positive case
 for each kind of site and forward, a helper and a builder, a name an `if` binds shadowing a matcher's, a change in a
-lambda, and a generic function's tags. On a copy of the pinned source, it checks that a rewrite removed, added or
+lambda, a change before a forward and one before a site, and a generic function's tags, in Reassociate too. On a copy of the pinned source, it checks that a rewrite removed, added or
 changed is each reported by its ID.
 
 ## Reproducing

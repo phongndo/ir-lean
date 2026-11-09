@@ -104,6 +104,27 @@ Value *visitGeneric(Instruction &I) {
   return nullptr;
 }
 
+static Instruction *lookupJ(Value *V) {
+  if (auto *J = dyn_cast<Instruction>(V))
+    return J;
+  return nullptr;
+}
+
+Value *visitNegate(Instruction &I) {
+  if (Instruction *J = lookupJ(I.getOperand(0))) {
+    J->setOperand(0, I.getOperand(1));
+    return J;
+  }
+  return nullptr;
+}
+
+static bool foldTop(Instruction &I) {
+  if (!match(I.getOperand(0), m_Zero()))
+    return false;
+  I.setOperand(0, I.getOperand(1));
+  return true;
+}
+
 bool runToy(Function &F) {
   bool Changed = false;
   for (Instruction &I : F) {
@@ -125,7 +146,7 @@ TOY_PASSES = {
     "toy": {
         "prefix": "T",
         "files": ["lib/Toy.cpp"],
-        "entries": ["runToy", "visitToy", "visitShadow", "visitGeneric"],
+        "entries": ["runToy", "visitToy", "visitShadow", "visitGeneric", "visitNegate"],
     }
 }
 
@@ -165,6 +186,11 @@ def test_rule(failures: list[str]) -> None:
         ("visitShadow::Hint", line_of(TOY, "replaceUse(U, X);")),
         ("visitGeneric", line_of(TOY, "return I.getOperand(0);")),
         ("visitGeneric", line_of(TOY, "return I.getOperand(1);")),
+        # A change to what a lookup found, before `return` forwards it: the change is the site.
+        ("visitNegate", line_of(TOY, "J->setOperand(0, I.getOperand(1));")),
+        ("lookupJ", line_of(TOY, "return J;")),
+        # A change at the top of a function, committed by the `return true` after it: one site.
+        ("foldTop", line_of(TOY, "return true;", 2)),
     }
     for w in sorted(want - sites):
         failures.append(f"rule: expected a site at {w}")
@@ -196,6 +222,43 @@ def test_rule(failures: list[str]) -> None:
     ids = [r["id"] for r in inv["rewrites"]]
     if len(set(ids)) != len(ids):
         failures.append(f"rule: IDs aren't unique: {ids}")
+
+
+REASSOCIATE = """
+namespace llvm {
+void ReassociatePass::canonicalizeOperands(Instruction *I) {
+  Value *LHS = I->getOperand(0);
+  Value *RHS = I->getOperand(1);
+  if (LHS == RHS || isa<Constant>(RHS))
+    return;
+  if (isa<Constant>(LHS) || getRank(RHS) < getRank(LHS)) {
+    cast<BinaryOperator>(I)->swapOperands();
+    MadeChange = true;
+  }
+}
+
+PreservedAnalyses ReassociatePass::run(Function &F) {
+  for (Instruction &I : F)
+    if (I.isCommutative())
+      canonicalizeOperands(&I);
+  return PreservedAnalyses::none();
+}
+}
+"""
+
+
+def test_generic_pass(failures: list[str]) -> None:
+    """Reassociate serves floating point as well as integers throughout, so a site in it with no integer guard
+    needs floating point, though its own function never mentions it."""
+    rel = "lib/Transforms/Scalar/Reassociate.cpp"
+    passes = {"ra": {"prefix": "RA", "files": [rel], "entries": ["ReassociatePass::run"]}}
+    with tempfile.TemporaryDirectory() as d:
+        (Path(d) / rel).parent.mkdir(parents=True)
+        (Path(d) / rel).write_text(REASSOCIATE)
+        rows = lr.inventory(Path(d), passes)["ra"]["rewrites"]
+    got = [(r["function"], r["needs"]) for r in rows]
+    if got != [("ReassociatePass::canonicalizeOperands", ["fp"])]:
+        failures.append(f"generic pass: canonicalizeOperands should need fp, got {got}")
 
 
 def mutate(src: Path, tmp: Path, rel: str, old: str, new: str) -> Path:
@@ -273,6 +336,7 @@ def test_check(failures: list[str]) -> None:
 def main() -> int:
     failures: list[str] = []
     test_rule(failures)
+    test_generic_pass(failures)
     test_check(failures)
     for f in failures:
         print(f"FAIL {f}")

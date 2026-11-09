@@ -871,8 +871,10 @@ class Scanner:
         return []
 
     def unclaimed_change(self, fn: Function, stmt: Stmt, path: tuple[Stmt, ...]) -> bool:
-        """Whether `stmt` changes IR in place, with no return of a change or changed flag after it in its
-        block to commit it, as `replaceUse(U, V);` alone in a lambda does. Then the statement is the site."""
+        """Whether `stmt` changes IR in place, with no site after it in its block to commit it: a return or
+        a changed flag that's a site of its own, not a forward. `replaceUse(U, V);` alone in a lambda is one,
+        and so is a change to a value a lookup returned before `return` forwards it. Then the statement is the
+        site."""
         toks = fn.toks
         inner = lambda_ranges(fn)
         if not any(
@@ -884,18 +886,31 @@ class Scanner:
         ):
             return False
         block = path[-1] if path else None
-        if block is None or block.kind != "block":
+        if block is not None and block.kind != "block":
             return True
+        siblings = block.children if block is not None else body_of(fn)
+        binds = self.bindings(fn)
         after = False
-        for c in block.children:
-            if c is stmt:
+        for c in siblings:
+            if c.start == stmt.start:
                 after = True
                 continue
             if not after:
                 continue
-            for x, _ in walk([c]):
-                if x.kind == "return" and text(strip(x.expr)) not in NULL_RESULTS:
-                    return False
+            for x, sub in walk([c]):
+                full = (*path, *sub)
+                if x.kind == "return" and fn.result in ("pointer", "bool"):
+                    e = text(strip(x.expr))
+                    if e in NULL_RESULTS:
+                        continue
+                    if SELF.match(e):
+                        if not (self.guard_call(fn, x, full) or self.installs(fn, x, full, binds)):
+                            return False
+                        continue
+                    if fn.result == "bool" and len(x.expr) == 1 and x.expr[0].kind == "id":
+                        return False  # a flag returned: the change it records is this one
+                    if self.classify(fn, x.expr, binds, path=full)[0]:
+                        return False
                 if x.kind == "simple":
                     xs = toks[x.start : x.end - 1]
                     if (
@@ -1199,6 +1214,8 @@ INT_GUARD = re.compile(
     r"m_(NSW|NUW)[A-Za-z]+|m_(Shl|LShr|AShr|UDiv|SDiv|URem|SRem|Not|Neg|ZExt|SExt|Trunc|ZExtOrSExt|Power2|"
     r"AllOnes|SignMask|LowBitMask|LogicalAnd|LogicalOr)|getScalarSizeInBits)$"
 )
+# Files whose folds serve floating point as well as integers throughout, whatever each function mentions.
+FP_GENERIC_FILES = {"lib/Transforms/Scalar/Reassociate.cpp"}
 INT_OPCODES = {"Add", "Sub", "Mul", "And", "Or", "Xor", "Shl", "LShr", "AShr", "UDiv", "SDiv", "URem", "SRem"}
 
 
@@ -1270,7 +1287,10 @@ def needs(fn: Function, site: Site) -> dict[str, Any]:
     if not fp and not INT_ONLY_NAME.search(fn.name if fn.parent is None else root_of(fn).name):
         root = root_of(fn)
         body = {t.text for t in root.toks[root.body[0] : root.body[1]] if t.kind == "id"}
-        if any(FP_IDS.match(x) or FP_MATCHERS.match(x) for x in body) and not int_guarded(toks):
+        # Reassociate's every function serves integer and fast-math floating-point reassociation alike, from
+        # `OptimizeInst`, so its sites are generic whatever their own function mentions.
+        handles_fp = fn.file in FP_GENERIC_FILES or any(FP_IDS.match(x) or FP_MATCHERS.match(x) for x in body)
+        if handles_fp and not int_guarded(toks):
             fp = generic = True
     blocked = [k for k, v in (("fp", fp), ("memory", mem), ("calls", calls)) if v]
     also = [k for k, v in (
