@@ -12,7 +12,6 @@ usage: tests/needs_tests_test.py BUILD_DIR
 import importlib.util
 import json
 import os
-import subprocess
 import sys
 import tempfile
 from collections.abc import Mapping
@@ -20,6 +19,9 @@ from pathlib import Path
 from typing import Any
 
 ROOT = Path(__file__).resolve().parent.parent
+sys.path.append(str(ROOT / "tools"))
+from irlean import proc  # noqa: E402
+
 SCRIPT = ROOT / ".github" / "needs-tests.py"
 # Documents tests read, and what reads each.
 KNOWN_READERS = {
@@ -73,12 +75,18 @@ def load_script() -> Any:
     return module
 
 
+def checked(argv: list[str], **kw: Any) -> str:
+    """What `argv` prints. Raises RuntimeError if it fails."""
+    r = proc.run(argv, **kw)
+    if r.exit != 0:
+        raise RuntimeError(f"{' '.join(argv)} exited with {r.exit}: {r.err}")
+    return r.out
+
+
 def git(repo: Path, *args: str) -> str:
     env = {**os.environ, "GIT_AUTHOR_NAME": "t", "GIT_AUTHOR_EMAIL": "t@t", "GIT_COMMITTER_NAME": "t"}
     env["GIT_COMMITTER_EMAIL"] = "t@t"
-    return subprocess.run(
-        ["git", "-C", str(repo), *args], capture_output=True, text=True, check=True, env=env
-    ).stdout.strip()
+    return checked(["git", "-C", str(repo), *args], env=env).strip()
 
 
 def write(repo: Path, files: Mapping[str, str | None]) -> None:
@@ -103,20 +111,12 @@ def scratch(failures: list[str]) -> int:
             write(repo, files)
             git(repo, "add", "-A")
             git(repo, "commit", "--quiet", "--allow-empty", "-m", name)
-            r = subprocess.run(
-                [sys.executable, str(SCRIPT), base, "HEAD"],
-                cwd=repo,
-                capture_output=True,
-                text=True,
-                check=False,
-            )
+            r = proc.run([sys.executable, str(SCRIPT), base, "HEAD"], cwd=repo)
             want = f"tests={'true' if expected else 'false'}"
-            if r.returncode != 0 or r.stdout.strip() != want:
-                failures.append(
-                    f"{name}: expected {want}, got {r.stdout.strip()!r}, exit {r.returncode}: {r.stderr}"
-                )
+            if r.exit != 0 or r.out.strip() != want:
+                failures.append(f"{name}: expected {want}, got {r.out.strip()!r}, exit {r.exit}: {r.err}")
             else:
-                print(f"ok    {name}: {want}. {r.stderr.strip()}")
+                print(f"ok    {name}: {want}. {r.err.strip()}")
     return len(CASES)
 
 
@@ -129,12 +129,7 @@ def this_repo(build: Path, failures: list[str]) -> int:
             failures.append(f"{doc}: {reader} reads it, and the rule finds only {found}")
         else:
             print(f"ok    {doc}: a change to it runs the tests, as {reader} reads it")
-    shown = subprocess.run(
-        ["ctest", "--test-dir", str(build), "--show-only=json-v1", "-L", "^lint$"],
-        capture_output=True,
-        text=True,
-        check=True,
-    ).stdout
+    shown = checked(["ctest", "--test-dir", str(build), "--show-only=json-v1", "-L", "^lint$"])
     commands = {str(Path(t["command"][0]).relative_to(ROOT)) for t in json.loads(shown)["tests"]}
     if commands != set(script.LINT):
         failures.append(

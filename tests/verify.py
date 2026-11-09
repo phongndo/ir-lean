@@ -27,6 +27,9 @@ from pathlib import Path
 from typing import Any
 
 ROOT = Path(__file__).resolve().parent.parent
+sys.path.append(str(ROOT / "tools"))
+from irlean import proc, schemas  # noqa: E402
+
 VERIFY = ROOT / "tools" / "verify.py"
 
 SMALL_LL = """\
@@ -246,10 +249,8 @@ def check_check(name: str, value: str) -> Callable[[dict[str, Any], Path], str |
 
 def check_nothing_left(result: dict[str, Any], directory: Path) -> str | None:
     """Nothing the run started is still running."""
-    left = subprocess.run(
-        ["pgrep", "-f", str(directory / "work")], capture_output=True, text=True, check=False
-    )
-    return expect(not left.stdout.strip(), f"still running: {left.stdout.strip()}")
+    left = proc.run(["pgrep", "-f", str(directory / "work")])
+    return expect(not left.out.strip(), f"still running: {left.out.strip()}")
 
 
 def check_all(
@@ -643,6 +644,8 @@ def cases() -> list[Case]:
 
 
 def run_verify(args: list[str]) -> dict[str, Any]:
+    # Not irlean.proc.run, which kills the command's process group when it exits: that would kill anything
+    # tools/verify.py left running in its own group before check_nothing_left could see it.
     result = subprocess.run([str(VERIFY), *args], capture_output=True, text=True, check=False, cwd=ROOT)
     try:
         answer = json.loads(result.stdout)
@@ -801,7 +804,7 @@ def main() -> int:
     if not failed:
         print("ok    contract: no required check can be missing from a proved result")
     capabilities = run_verify(["capabilities"])
-    if capabilities.get("schema") != "ir-lean.verify/1" or capabilities["_exit"] != 0:
+    if capabilities.get("schema") != schemas.VERIFY or capabilities["_exit"] != 0:
         print("FAIL  capabilities")
         failed = True
 

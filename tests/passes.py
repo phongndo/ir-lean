@@ -46,7 +46,6 @@ from __future__ import annotations
 import argparse
 import concurrent.futures
 import contextlib
-import hashlib
 import importlib.util
 import itertools
 import json
@@ -55,7 +54,6 @@ import re
 import shlex
 import shutil
 import signal
-import subprocess
 import sys
 import threading
 import time
@@ -66,6 +64,8 @@ from typing import Any
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.append(str(ROOT / "tools"))
+from irlean import hashing, proc  # noqa: E402
+from irlean import lean as leanlib  # noqa: E402
 from irlean import verdict as core  # noqa: E402
 
 SELF = Path(__file__).resolve()
@@ -128,12 +128,7 @@ SIGNATURE = re.compile(
 )
 
 
-def sha(*parts: str | bytes) -> str:
-    h = hashlib.sha256()
-    for p in parts:
-        h.update(p if isinstance(p, bytes) else p.encode())
-        h.update(b"\0")
-    return h.hexdigest()
+sha = hashing.sha256_parts
 
 
 def canonical(obj: Any) -> str:
@@ -169,9 +164,9 @@ def enter_scope(budget: int) -> None:
     if os.environ.get(SCOPE_ENV) or not sys.platform.startswith("linux") or not shutil.which("systemd-run"):
         return
     probe = ["systemd-run", "--user", "--scope", "--quiet", "--", "true"]
-    r = subprocess.run(probe, capture_output=True, text=True, check=False)
-    if r.returncode != 0:
-        print(f"warning: no systemd scope, so nothing caps memory: {r.stderr.strip()}", file=sys.stderr)
+    r = proc.run(probe)
+    if r.exit != 0:
+        print(f"warning: no systemd scope, so nothing caps memory: {r.err.strip()}", file=sys.stderr)
         return
     os.environ[SCOPE_ENV] = str(budget)
     properties = [f"MemoryMax={budget}M", "MemorySwapMax=0", "OOMPolicy=continue", "Delegate=yes"]
@@ -306,21 +301,15 @@ def kill_binding_scopes(pid: int, token: str, root: Path = USER_CGROUPS) -> list
         except OSError:
             continue
         mine = False
-        for proc in procs:
+        for member in procs:
             with contextlib.suppress(OSError):
-                mine |= f"{OWNER_ENV}={token}".encode() in Path(f"/proc/{proc}/environ").read_bytes().split(
-                    b"\0"
-                )
+                environ = Path(f"/proc/{member}/environ").read_bytes().split(b"\0")
+                mine |= f"{OWNER_ENV}={token}".encode() in environ
         if mine:
             with contextlib.suppress(OSError):
                 (scope / "cgroup.kill").write_text("1")
                 killed.append(scope)
     return killed
-
-
-def kill_group(pid: int) -> None:
-    with contextlib.suppress(ProcessLookupError, PermissionError):
-        os.killpg(pid, signal.SIGKILL)
 
 
 @dataclass
@@ -341,62 +330,59 @@ def run(
     cwd: Path | None = None,
     kind: str = "",
 ) -> Ran:
-    """Runs a command in a cgroup of its own, if there are cgroups, and its own process group, under a wall
-    clock. Whatever it leaves running is killed when it exits. `limit` says if a limit stopped it."""
+    """Runs a command in a cgroup of its own, if there are cgroups, and its own session, under a wall clock.
+    Whatever it leaves running is killed when it exits. `limit` says if a limit stopped it."""
     cg = CGROUPS.make()
     start = time.monotonic()
-    timed_out = False
     token = uuid.uuid4().hex if kind == "binding" else None
     if token is not None:
         env = {**(env or os.environ), OWNER_ENV: token}
-    p = subprocess.Popen(
-        ["/bin/sh", "-c", WRAP, "sh", str(cg or ""), *command],
-        stdin=subprocess.PIPE,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        env=env,
-        cwd=cwd,
-        start_new_session=True,
-    )
-    with LIVE_LOCK:
-        LIVE[p.pid] = token
+    started: list[int] = []
+
+    def register(pid: int) -> None:
+        started.append(pid)
+        with LIVE_LOCK:
+            LIVE[pid] = token
+
+    r = None
     try:
-        try:
-            out, err = p.communicate(stdin, timeout=timeout)
-        except subprocess.TimeoutExpired:
-            timed_out = True
-            kill_group(p.pid)
-            out, err = p.communicate()
+        r = proc.run(
+            ["/bin/sh", "-c", WRAP, "sh", str(cg or ""), *command],
+            timeout=timeout,
+            stdin=stdin,
+            env=env,
+            cwd=cwd,
+            on_start=register,
+        )
     finally:
-        kill_group(p.pid)
         why = CGROUPS.finish(cg, Path(command[0]).name, time.monotonic() - start) if cg else None
         # tools/binding.py kills its own scopes when it exits normally, and can't when it's killed.
-        if token is not None and (timed_out or why or p.returncode is None or p.returncode < 0):
-            kill_binding_scopes(p.pid, token)
+        if started and token is not None and (r is None or r.limit or why or r.exit < 0):
+            kill_binding_scopes(started[0], token)
         with LIVE_LOCK:
-            LIVE.pop(p.pid, None)
-    text_err = err.decode(errors="replace")
-    if p.returncode == 125 and "passes.py: no cgroup" in text_err:
-        raise RuntimeError(f"couldn't cap {command[0]}: {text_err[-300:]}")
+            for pid in started:
+                LIVE.pop(pid, None)
+    if r.exit == 125 and "passes.py: no cgroup" in r.err:
+        raise RuntimeError(f"couldn't cap {command[0]}: {r.err[-300:]}")
     limit = None
-    if timed_out:
+    if r.limit == "time_limit":
         limit = f"took more than {timeout} s"
+    elif r.limit is not None:
+        limit = r.limit
     elif why:
         limit = why
-    elif p.returncode < 0 or p.returncode == 137:
-        last = next((x.strip() for x in reversed(text_err.splitlines()) if x.strip()), "")
-        limit = f"signal {-p.returncode if p.returncode < 0 else 9}" + (
-            f", after: {last[:120]}" if last else ""
-        )
-    return Ran(p.returncode, out.decode(errors="replace"), text_err, limit)
+    elif r.exit < 0 or r.exit == 137:
+        last = next((x.strip() for x in reversed(r.err.splitlines()) if x.strip()), "")
+        limit = f"signal {-r.exit if r.exit < 0 else 9}" + (f", after: {last[:120]}" if last else "")
+    return Ran(r.exit, r.out, r.err, limit)
 
 
 def stop_everything(signum: int, _frame: Any) -> None:
     """A signal to the scorer stops everything it started, and nothing is reported."""
     with LIVE_LOCK:
         live = dict(LIVE)
+    proc.kill_live()
     for pid, token in live.items():
-        kill_group(pid)
         if token is not None:
             kill_binding_scopes(pid, token)
     CGROUPS.kill_all()
@@ -686,7 +672,7 @@ class Scorer:
             # A cap that's enforced can stop a proof that would otherwise finish.
             repr(CGROUPS.root is not None),
         )
-        self.env = {**os.environ, "ELAN_TOOLCHAIN": (ROOT / "lean-toolchain").read_text().strip()}
+        self.env = {**os.environ, "ELAN_TOOLCHAIN": leanlib.toolchain()}
         # IRLean alone, as tools/binding.py links it, made again each run so it's the library built now.
         library = work / "library"
         shutil.rmtree(library, ignore_errors=True)
@@ -703,7 +689,7 @@ class Scorer:
             self.stats[key] += 1
 
     def lean(self, *args: str) -> list[str]:
-        return [self.bins["lean"], "-j1", "-M", str(self.lean_mb), "-s", "65536", *args]
+        return leanlib.argv(self.lean_mb, *args, lean=self.bins["lean"], threads=1)
 
     def opt(self, input_ll: bytes, spec: str, mtriple: str | None) -> tuple[str | None, str, str | None]:
         """What tools/binding.py's opt gives for this input, so the bundle's IR is the IR scored, what it
@@ -758,7 +744,7 @@ class Scorer:
             "schema": RUN_SCHEMA,
             "key": key,
             "salt": self.salt,
-            "test_sha256": hashlib.sha256(input_ll).hexdigest(),
+            "test_sha256": hashing.sha256(input_ll),
             "spec": r.spec,
             "mtriple": r.mtriple,
             "options": list(r.options),
@@ -1041,7 +1027,7 @@ class Scorer:
         if verdict.get("key") != key:
             return "the verdict is about another manifest or toolchain than the one read here"
         want = {
-            "input_sha256": hashlib.sha256(input_ll).hexdigest(),
+            "input_sha256": hashing.sha256(input_ll),
             "transform": {"passes": r.spec, "mtriple": r.mtriple},
             "function": function,
             "kind": self.kind,
