@@ -207,10 +207,10 @@ intrinsic folds' tags corrected:
 | Pass | Rewrites | Proved | % | Of those, exercised by `opt` | Integers only | Proved of those | % | Proved, model not compared | Undef only | Integer instance proved | Need fp (SEM-05) | Need memory (F4) | Need calls |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | InstSimplify | 541 | 7 | 1.29 | 7 | 335 | 7 | 2.09 | 0 | 0 | 0 | 165 | 31 | 64 |
-| InstCombine | 2,536 | 0 | 0.0 | 0 | 1,576 | 0 | 0.0 | 0 | 0 | 0 | 581 | 281 | 428 |
+| InstCombine | 2,536 | 0 | 0.0 | 0 | 1,571 | 0 | 0.0 | 0 | 0 | 0 | 581 | 284 | 441 |
 | AggressiveInstCombine | 37 | 0 | 0.0 | 0 | 21 | 0 | 0.0 | 0 | 0 | 0 | 6 | 11 | 7 |
 | Reassociate | 60 | 0 | 0.0 | 0 | 18 | 0 | 0.0 | 0 | 0 | 0 | 42 | 0 | 3 |
-| All | 3,174 | 7 | 0.22 | 7 | 1,950 | 7 | 0.36 | 0 | 0 | 0 | 794 | 323 | 502 |
+| All | 3,174 | 7 | 0.22 | 7 | 1,945 | 7 | 0.36 | 0 | 0 | 0 | 794 | 326 | 515 |
 
 "Need calls" waits for the external-calls lane. The three overlap, as in [the inventory](rewrite-inventory.md#totals).
 A site proved by `sorry` keeps every site of its fold from counting, since the fold's `sound` theorem then rests on

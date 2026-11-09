@@ -16,10 +16,10 @@ source files, so it gives the same bytes on any host.
 | Pass | Rewrites | Integers only | Need floating point | Need memory | Need calls | Folds | Files |
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | InstSimplify | 541 | 335 | 165 | 31 | 64 | 150 | 2 |
-| InstCombine | 2,536 | 1,576 | 581 | 281 | 428 | 514 | 15 |
+| InstCombine | 2,536 | 1,571 | 581 | 284 | 441 | 514 | 15 |
 | AggressiveInstCombine | 37 | 21 | 6 | 11 | 7 | 33 | 2 |
 | Reassociate | 60 | 18 | 42 | 0 | 3 | 23 | 1 |
-| All | 3,174 | 1,950 | 794 | 323 | 502 | 720 | 20 |
+| All | 3,174 | 1,945 | 794 | 326 | 515 | 720 | 20 |
 
 A rewrite can need more than one of floating point, memory and calls, so those columns overlap. "Integers only" is
 the rest, which needs none of them. `tests/llvm_rewrites.py summary` prints these from the files.
@@ -137,10 +137,12 @@ Each rewrite has:
   intrinsics. The sites that need `fp` only this way are also tagged `generic`. A generic rewrite proved for integers
   isn't proved for every input until its floating-point instance is. Case labels such as `case Intrinsic::umax:` say
   the call a site is about is one of them, so its values are integers, if every `case Intrinsic::X:` label it's
-  under names an integer intrinsic, and so does every case that falls through into it with `[[fallthrough]]`. Then a
-  floating-point type among the function's parameters doesn't make the site need `fp` either:
-  `simplifyBinaryIntrinsic` takes `FastMathFlags` for its floating-point intrinsics, and its `umax` sites don't read
-  them;
+  under names an integer intrinsic, and so does every case that falls through into it with `[[fallthrough]]`, and no
+  `default` label reaches it. Then a floating-point type among the function's parameters doesn't make the site need
+  `fp` either: `simplifyBinaryIntrinsic` takes `FastMathFlags` for its floating-point intrinsics, and its `umax` sites
+  don't read them. A site whose path walks, removes or builds a call's operand bundles, as `llvm.assume`'s "align",
+  "nonnull" and "noundef" are, needs `calls` whatever intrinsic it's under, since the model has no bundles and they
+  carry values of any type, and one whose bundle holds a pointer needs `memory` too;
 - `also`: `vector` for shuffles, extracts, inserts and vector types, `cfg` for phis, branches and blocks, and `undef`
   for folds that test for `undef`. These don't block G2: the model has fixed-width vectors and control flow, and it has
   no `undef`, so a proof covers poison and says nothing about `undef`, as #47's does. Scalable vectors aren't in the

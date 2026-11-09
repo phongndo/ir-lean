@@ -1107,10 +1107,11 @@ MEM_IDS = re.compile(
     r"getGEPIndicesForOffset|EmitGEPOffset|isAllocSiteRemovable|isAllocLikeFn|isFreeCall|getAllocAlignment|"
     r"isRemovableAlloc|isNonEscapingLocalObject|PointerMayBeCaptured|isIdentifiedObject|DataLayout_ptr|"
     r"isKnownNonNull|getPointerElementType|ConstantPointerNull|isa_GEP|PHINode_ptr|SimplifyQuery_ptr|"
-    r"isOnlyCopiedFromConstantMemory|canReplacePointersIfEqual|canReplacePointersInUseIfEqual)$"
+    r"isOnlyCopiedFromConstantMemory|canReplacePointersIfEqual|canReplacePointersInUseIfEqual|getAssumeAlignInfo|"
+    r"getAssumeNonNullInfo|CreateNonnullAssumption|CreateAlignmentAssumption)$"
 )
 MEM_MATCHERS = re.compile(
-    r"^m_(PtrToInt|PtrToIntSameSize|IntToPtr|PtrToAddr|GEP|PtrAdd|Load|Store|AddrSpaceCast)$"
+    r"^m_(PtrToInt|PtrToIntSameSize|PtrToIntOrAddr|IntToPtr|PtrToAddr|GEP|PtrAdd|Load|Store|AddrSpaceCast)$"
 )
 # The classes of intrinsics the model has, `MinMaxIntrinsic`, `SaturatingInst`, `WithOverflowInst`,
 # `BinaryOpIntrinsic` and `CmpIntrinsic`, aren't calls here.
@@ -1120,6 +1121,13 @@ CALL_IDS = re.compile(
     r"CreateUnaryIntrinsic|CreateBinaryIntrinsic|getOrInsertDeclaration|Function|isa_Call|"
     r""
     r"m_Intrinsic|m_Call|isInstructionTriviallyDead|wouldInstructionBeTriviallyDead)$"
+)
+# What walks, removes or builds a call's operand bundles. A test for one bundle, as `getOperandBundle` is,
+# says nothing about a site that follows it.
+BUNDLE_IDS = re.compile(
+    r"^(operand_bundles|getNumOperandBundles|removeOperandBundleAt|"
+    r"OperandBundleUse|OperandBundleDef|BundleAttr|getBundleAttrFromOBU|getAssumeAlignInfo|getAssumeNonNullInfo|"
+    r"getAssumeNoUndefInfo|CreateNonnullAssumption|CreateAlignmentAssumption)$"
 )
 VECTOR_IDS = re.compile(
     r"^(ShuffleVectorInst|ExtractElementInst|InsertElementInst|VectorType|FixedVectorType|ScalableVectorType|"
@@ -1302,13 +1310,11 @@ def int_intrinsic_case(fn: Function, site: Site) -> bool:
     """Whether the site is under `case Intrinsic::X:` labels, each X an integer intrinsic, as is each case
     that falls through into it: then the call it's about is one of those, so its values are integers, whatever
     else the function handles."""
-    named = [
-        intrinsics_in(fn.toks[c.cond[0] : c.cond[1]])
-        for s in site.path
-        if s.kind == "switch"
-        for c in cases_reaching(fn, s, site)
-        if c.cond
-    ]
+    labels = [c for s in site.path if s.kind == "switch" for c in cases_reaching(fn, s, site)]
+    # A `default` among them reaches the site with any intrinsic.
+    if any(fn.toks[c.start].text == "default" for c in labels):
+        return False
+    named = [intrinsics_in(fn.toks[c.cond[0] : c.cond[1]]) for c in labels if c.cond]
     named = [n for n in named if n]
     return bool(named) and all(len(n) == 1 and n[0] in INT_INTRINSICS for n in named)
 
@@ -1353,6 +1359,10 @@ def needs(fn: Function, site: Site) -> dict[str, Any]:
         re.search(r"Call|Invoke|LibFunc|Intrinsic|StrNCmp|MemChr|Sqrt", name) and not intrinsics
     )
     if call_ids and not (intrinsics and intrinsics <= INT_INTRINSICS):
+        calls = True
+    # Operand bundles, such as `llvm.assume`'s "align", "nonnull" and "noundef", aren't in the model, and
+    # carry values of any type, whatever intrinsic they're on.
+    if any(BUNDLE_IDS.match(x) for x in ids_set):
         calls = True
     # A function that rewrites floating point as well as integers, such as Reassociate's `RewriteExprTree`,
     # rewrites both at a site whose path doesn't say the type is an integer.
