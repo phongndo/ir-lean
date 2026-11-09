@@ -45,9 +45,9 @@ Of the 12,002 candidates, 2,696 have vector arguments, and 91 have every argumen
 ### Chunk 1's gates, for InstCombine
 
 [Chunks](chunks.md#how-each-is-measured) defines G0 and G1 over these pairs, and S1's metric is G1 for InstCombine.
-They're measured on this branch's head, `d497e06`, with `main` at `62d2463` merged in, after the run above: `pairs` on
+They're measured on this branch's head, `44cfcc2`, with `main` at `b9446de` merged in, after the run above: `pairs` on
 every test, then `prove --eligible-only` and `certify`, which give every certificate there can be, since only a pair
-whose arguments are all `noundef` can be bound. [`results/summary.json`](../bench/instcombine/results/summary.json)'s
+whose arguments are all `noundef` can be bound, and `alive --eligible-only`, which compares each of them with Alive2. [`results/summary.json`](../bench/instcombine/results/summary.json)'s
 `instcombine_gates` has the counts and the toolchain.
 
 - **G0, 40.2%:** 12,547 of the 31,240 pairs translate on both sides, the 11,753 candidates and the 794 with memory. On
@@ -56,6 +56,10 @@ whose arguments are all `noundef` can be bound. [`results/summary.json`](../benc
   counts a pair with memory.
 - **G1, 0.11%:** 34 of the 31,240 pairs are certified. 75 can be bound: 34 proved and all 34 bound, 28 found no proof,
   10 ran out of heartbeats, the emitter left 2 out of the module `prove` writes, and Lean rejected what it wrote for 1.
+- **Alive2 on the 75:** it calls none incorrect, and 67 correct, 33 of the 34 certified among them. It calls 8 sources
+  undefined on every input. One is certified, `pt62607` in `div-i1.ll`, and is: its loop's first trip divides by
+  `false`, so the certificate is vacuous. The other 7 the automation doesn't prove: 6 loops out of heartbeats, and
+  one with no proof.
 
 ### A uniform sample
 
@@ -317,12 +321,14 @@ $S report --upto 4000 --out build/stage1/summary-4000.json
 $S --work build/stage1-known known-pairs   # the known miscompilations
 $S --work build/stage1-known prove         # then certify, alive, refute and report
 $S --work build/stage1-head pairs          # G0 and G1, on a fresh WORK
-$S --work build/stage1-head prove --eligible-only   # then certify and report
+$S --work build/stage1-head prove --eligible-only   # then certify, alive --eligible-only and report
 $S publish                                 # results/summary.json, from the three summaries
 ```
 
 Each stage's record carries a key: the pair's id, the hashes of its input, source and target IR, and the toolchain's,
-the emitter, `IRLean`'s library, Lean, the checkers, the gate and `alive-tv`. A record whose key isn't the pair's now is
+the emitter, `IRLean`'s library, Lean, the checkers, everything `tools/binding.py`'s verdict rests on by its own
+account, its checker, `opt`, `leanchecker` and Lean's toolchain among them, the gate and `alive-tv`. A record whose key
+isn't the pair's now is
 ignored: the stage does the pair again, and the report never counts it. A certificate counts only beside the current
 proof of the same pair. `--upto N` keeps a stage to the first `N` changed pairs in the order of their ids. An id is a SHA-256 of the test and the
 function, so that's a uniform sample, the same every run, and each larger one holds the smaller. Without it, a stage
@@ -339,5 +345,5 @@ The raw results, the generated Lean and the bundles stay in `build/`, which git 
 from an InstCombine-style test, one of them a dropped `freeze`, and three known miscompilations, through every stage, against `expect.json`. It fails if
 any pair's verdict differs, or if a known-wrong pair is proved or certified, whatever `expect.json` says. On copies of the
 run's records, it also changes one certified pair's target hash, and has another's latest proof fail, and each has to
-lose its certificate. It runs in
-CI's `binding` job, alone, one Lean process at a time.
+lose its certificate, and with `tools/binding_check.lean` changed, none may keep one. It runs in CI's `binding` job,
+alone, one Lean process at a time.

@@ -987,7 +987,10 @@
    "bound:replayed": 34
   },
   "refute": {},
-  "alive": {},
+  "alive": {
+   "correct:": 67,
+   "unknown:src_always_ub": 8
+  },
   "verdicts": {
    "lean": {
     "unsupported": 19407,
@@ -997,18 +1000,20 @@
     "unknown": 10
    },
    "alive": {
-    "not_run": 31163
+    "not_run": 31088,
+    "correct": 67,
+    "src_always_ub": 8
    }
   },
   "matrix": {
    "certified": {
-    "correct": 0,
+    "correct": 33,
     "incorrect": 0,
-    "src_always_ub": 0,
+    "src_always_ub": 1,
     "timeout": 0,
     "incomplete": 0,
     "unsupported": 0,
-    "not_run": 34
+    "not_run": 0
    },
    "proved": {
     "correct": 0,
@@ -1029,63 +1034,71 @@
     "not_run": 0
    },
    "no_verdict": {
-    "correct": 0,
+    "correct": 27,
     "incorrect": 0,
-    "src_always_ub": 0,
+    "src_always_ub": 1,
     "timeout": 0,
     "incomplete": 0,
     "unsupported": 0,
-    "not_run": 28
+    "not_run": 0
    },
    "unknown": {
-    "correct": 0,
+    "correct": 4,
     "incorrect": 0,
-    "src_always_ub": 0,
+    "src_always_ub": 6,
     "timeout": 0,
     "incomplete": 0,
     "unsupported": 0,
-    "not_run": 10
+    "not_run": 0
    },
    "unsupported": {
-    "correct": 0,
+    "correct": 2,
     "incorrect": 0,
     "src_always_ub": 0,
     "timeout": 0,
     "incomplete": 0,
     "unsupported": 0,
-    "not_run": 19407
+    "not_run": 19405
    },
    "error": {
-    "correct": 0,
+    "correct": 1,
     "incorrect": 0,
     "src_always_ub": 0,
     "timeout": 0,
     "incomplete": 0,
     "unsupported": 0,
-    "not_run": 11684
+    "not_run": 11683
    }
   },
   "soundness": null,
-  "compared": 0,
-  "disagreements": {},
+  "compared": 74,
+  "disagreements": {
+   "lean_no_proof": 31,
+   "unsupported": 2,
+   "source_always_ub": 1
+  },
   "to_investigate": [],
   "cost": {
    "prove": {
     "n": 73,
-    "total_s": 1201.1,
-    "median_s": 4.24,
-    "p90_s": 84.78,
-    "max_s": 95.47
+    "total_s": 1067.4,
+    "median_s": 3.79,
+    "p90_s": 78.11,
+    "max_s": 82.93
    },
    "certify": {
     "n": 34,
-    "total_s": 290.9,
-    "median_s": 8.1,
-    "p90_s": 10.6,
-    "max_s": 10.7
+    "total_s": 245.9,
+    "median_s": 7.2,
+    "p90_s": 7.5,
+    "max_s": 8.1
    },
    "alive": {
-    "n": 0
+    "n": 75,
+    "total_s": 5.0,
+    "median_s": 0.02,
+    "p90_s": 0.16,
+    "max_s": 1.03
    },
    "refute": {
     "n": 0
@@ -1093,7 +1106,7 @@
    "stages": []
   },
   "toolchain": {
-   "repo_commit": "d497e06a752504cf628cf72520edea54d042a2e1",
+   "repo_commit": "44cfcc2e8fce81df3a5d86e0c295d902893b1715",
    "repo_dirty": false,
    "llvm_project": {
     "repository": "https://github.com/llvm/llvm-project",
@@ -1137,7 +1150,7 @@
     "tools/binding.py": "ef5663bd091f1a0e17001bd267de754c6d94bec2cf73b3dd968f17ecab9ef6a0",
     "tests/verify_negative.py": "96fddda03b24e00ee7d76589b59a42bcd9964629a2bc360680223765847b36b2",
     "tests/alive.py": "d0743dfeb6683a487c01b5dc08457c7f5c163274771033d95dee7551e537bf44",
-    "bench/instcombine/stage1.py": "e87bb1dd5924f12fedf6a495b61b52dede51cc2763e21b5a700e0547b6c0ef2f"
+    "bench/instcombine/stage1.py": "62e9f1176617a8a7967b5efe3f5b6d2db2341fcdd3c5959d00c1dbe5c3ecc3d9"
    }
   }
  }

@@ -148,7 +148,7 @@ Where it stands:
 | `aggressive-instcombine` | Not measured | Not measured | Not measured | Not measured | Not done |
 | `reassociate` | Not measured | Not measured | Not measured | Not measured | Not done |
 
-InstCombine's G0 and G1 are from S1's run on 2026-11-09, with `main` at `62d2463`
+InstCombine's G0 and G1 are from S1's run on 2026-11-09, with `main` at `b9446de`
 ([stage 1](stage1.md#chunk-1s-gates-for-instcombine)). Its G0 was recorded as 38.4% before, counting only the pairs
 without memory. G0 and G1 across chunk 1's other three passes come next.
 
