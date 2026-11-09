@@ -446,12 +446,25 @@ def llc_archs() -> list[str]:
     return sorted(m.group(1) for m in re.finditer(r"^\s+(\S+)\s+-", section, re.M))
 
 
+# The triple llc starts from before -march sets the architecture. The probes name none, so without this llc
+# takes the host's, and 12 targets' pipelines depended on the host's OS: macOS's differed from Linux's, which
+# the inventory has. This is Linux's default, so the inventory is the same.
+LLC_TRIPLE = "x86_64-unknown-linux-gnu"
+
+
 def llc_passes(arch: str, level: str) -> dict[str, Any]:
     names: set[str] = set()
     errors = []
     for probe in PROBES:
         r = tool(
-            "llc", f"-march={arch}", f"-{level}", "-debug-pass=Arguments", "-o", os.devnull, str(HERE / probe)
+            "llc",
+            f"-mtriple={LLC_TRIPLE}",
+            f"-march={arch}",
+            f"-{level}",
+            "-debug-pass=Arguments",
+            "-o",
+            os.devnull,
+            str(HERE / probe),
         )
         args = [line for line in r.stderr.splitlines() if line.startswith("Pass Arguments:")]
         if r.returncode != 0:
