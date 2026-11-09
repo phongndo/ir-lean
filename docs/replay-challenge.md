@@ -11,7 +11,7 @@ derivation from LangRef. For what any theorem here means, see [trust](trust.md).
 evidence from a second semantics, not a proof. Evaluating a pair on every input in Lean's interpreter is a
 cross-check of the model, which trusts Lean's compiler, not its kernel.
 
-Facts here were checked on top of commit `4cd91e5` on 2026-11-08, on x86-64 Linux in the dev shell: LLVM and `opt`
+Facts here were checked on top of commit `f62d1e6` on 2026-11-08, on x86-64 Linux in the dev shell: LLVM and `opt`
 23.1.3, Alive2 at `a68009c9e81575bdcc249d3cc534514a76112221` built on that LLVM, as
 [`nix/shell.nix`](../nix/shell.nix) pins it, and Lean 4.35.0.
 
@@ -126,7 +126,7 @@ counterexample has to be in the set. If Alive2 doesn't decide, the case doesn't 
 So three independent answers agree on every input of every pair: the hand derivation, IRLean's model, and Alive2,
 where Alive2 gives one counterexample and the other two give the whole set. 6 of the 9 right pairs are
 refinements that aren't equal, which an `ir_instance_equivalence` certificate can't bind and an
-`ir_instance_refinement` one could, once `IRLean.Refines` is on `main`.
+`ir_instance_refinement` one, stating [`IRLean.Refines`](refinement.md), could.
 
 ### Live: `tools/binding.py` on real `opt` runs
 
@@ -178,11 +178,10 @@ Found on the way, in the tools rather than `tools/binding.py`:
   is therefore put in two files of its own, with one function `f` each, and counts only if the summary is exactly one
   transformation.
 - **Alive2's "correct" doesn't cover a loop.** See `wrong_loop_deleted` above.
-- **The binding doc swaps a direction.** [Binding](llvm-proof-binding.md#claim-kinds) says equivalence implies
+- **The binding doc swapped a direction.** [Binding](llvm-proof-binding.md#claim-kinds) said equivalence implies
   refinement only where "the model has no less undefined behavior than LLVM in the source, and no more in the
   target". Soundness needs the reverse: no more in the source, so a source the model calls undefined is undefined
-  in LLVM, and no less in the target, so a target LLVM calls undefined is undefined in the model. The three
-  `unsupported` kinds that follow it are each the right way round.
+  in LLVM, and no less in the target, so a target LLVM calls undefined is undefined in the model. #46 fixed it.
 
 ## What this trusts and leaves out
 
@@ -192,10 +191,12 @@ Found on the way, in the tools rather than `tools/binding.py`:
 - **Lean's compiler and interpreter**, for the model's answers on the pairs. Nothing here is a kernel-checked proof,
   apart from what `tools/binding.py` checks for a `bound` bundle.
 - Only `i8` arguments. 257 inputs is every input of one, and says nothing about other widths.
-- Nothing here runs a pass scorer. Lane 2's scorer contract (`ir-lean.passes.run/1` and `ir-lean.passes.instance/1`,
-  verdicts through `tools/binding.py`) isn't on `main` yet, and challenges to its cache, verdict reading and
-  `unknown` handling come when it is.
-- `ir_instance_refinement` isn't challenged: `IRLean.Refines` isn't on `main` yet.
+- Nothing here runs a pass scorer, which isn't on `main` yet. Challenged by hand in its draft, the scorer counted a
+  bundle whose certificate was replaced with garbage as `bound`, after a forged entry in `tools/binding.py`'s
+  cache, which never compiles a certificate on a hit. It now verifies without that cache, and the same forgery comes
+  back `refused`, `theorem_not_found`. Tests of its cache, verdict reading and `unknown` handling come when it lands.
+- `ir_instance_refinement` isn't challenged here yet. [`IRLean.Refines`](refinement.md) is on `main`, and
+  `tests/binding.py` binds one run with it. Adversarial refinement bundles come later.
 - Memory, pointers, vectors, floating point and `undef` arguments stay unsupported, as [binding](llvm-proof-binding.md)
   says. These tests only check that they're refused.
 
