@@ -615,7 +615,8 @@ def prove_pair(pair: dict, work: Path, timeout: int, memory: int, versions: dict
 @functools.cache
 def fingerprint() -> str:
     """What every stage's record rests on besides its pair: the emitter, IRLean's library, Lean, the checkers
-    tools/verify.py and tools/binding.py run, the gate, and alive-tv. A record made with anything else is
+    tools/verify.py runs, everything tools/binding.py's verdict rests on by its own account (its checker, `opt`,
+    `leanchecker` and Lean's toolchain among them), the gate, and alive-tv. A record made with anything else is
     stale."""
     v = VN.load_verify()
     versions = VN.current_versions(v, TOOL)
@@ -625,7 +626,7 @@ def fingerprint() -> str:
         "irlean_library": versions["irlean_library_sha256"],
         "lean": versions["lean"],
         "checkers": VN.checker_hashes(),
-        "binding": hashing.sha256_file(BINDING_PY),
+        "binding": B.toolchain(B.Runner(60, 1000)),
         "gate": hashing.sha256_file(ROOT / "tests" / "verify_negative.py"),
         "alive_tv": hashing.sha256_file(alive) if alive.is_file() else "missing",
     }
@@ -924,8 +925,11 @@ def cmd_alive(args: argparse.Namespace) -> int:
     by_id = {p["id"]: p for p in pairs}
     done = set(records(work, "alive", by_id))
     keep = sample(work, getattr(args, "upto", None))
+    # With `prove --eligible-only` and `certify`, every pair G1 tried is compared with Alive2.
+    only = eligible if getattr(args, "eligible_only", False) else (lambda p: True)
     todo = sorted(
-        (p for p in pairs if p["id"] not in done and (keep is None or p["id"] in keep)), key=lambda p: p["id"]
+        (p for p in pairs if p["id"] not in done and (keep is None or p["id"] in keep) and only(p)),
+        key=lambda p: p["id"],
     )[: args.limit]
     t0 = time.time()
     with (
@@ -2011,9 +2015,9 @@ def cmd_ci(args: argparse.Namespace) -> int:
 
 
 def stale_records_ignored(work: Path, certified: list[dict]) -> int:
-    """On copies of the run's records: a certified pair whose target changes since loses its verdict, and one
-    whose latest proof failed isn't certified, though its certificate is still about it. Returns the
-    failures."""
+    """On copies of the run's records: a certified pair whose target changes since loses its verdict, one whose
+    latest proof failed isn't certified, though its certificate is still about it, and with tools/binding.py's
+    checker changed, no pair is. Returns the failures."""
     import shutil
 
     if len(certified) < 2:
@@ -2041,6 +2045,21 @@ def stale_records_ignored(work: Path, certified: list[dict]) -> int:
                 failed += 1
             else:
                 print(f"ok    {after[pid]['function']}: {after[pid]['lean']} once {why}")
+        # tools/binding.py's checker changed since: no certificate made with the old one counts.
+        check = copy / "binding_check.lean"
+        check.write_text(B.CHECK.read_text() + "\n-- changed\n")
+        saved, B.CHECK = B.CHECK, check
+        fingerprint.cache_clear()
+        try:
+            still = [r["function"] for r in rows_of(work) if r["lean"] == "certified"]
+        finally:
+            B.CHECK = saved
+            fingerprint.cache_clear()
+        if still:
+            print(f"FAIL  {', '.join(still)} still certified once tools/binding_check.lean changed")
+            failed += 1
+        else:
+            print(f"ok    none of {len(certified)} certified once tools/binding_check.lean changed")
     return failed
 
 
@@ -2130,6 +2149,7 @@ def main() -> int:
     p.add_argument("--upto", type=int, help="only the first N changed pairs by id: a uniform sample")
     p.add_argument("--jobs", type=int, default=8)
     p.add_argument("--candidates-only", action="store_true")
+    p.add_argument("--eligible-only", action="store_true", help="only pairs tools/binding.py can bind")
     p.add_argument("--timeout", type=int, default=120)
     p.add_argument("--limit", type=int)
     p = sub.add_parser("refute")
