@@ -1018,6 +1018,15 @@ def assignment(binders: list[dict[str, Any]], values: tuple) -> dict[str, str]:
     }
 
 
+def witness_step(result: dict[str, Any]) -> core.Step | None:
+    """How the process that evaluated a witness ended, as a tools/verify.py result records it, or None."""
+    commands = (result.get("reproduce") or {}).get("commands") or []
+    ran = [c for c in commands if isinstance(c, dict) and c.get("step") == "claim:witness"]
+    if not ran:
+        return None
+    return core.Step("claim:witness", ran[-1].get("exit"), "time_limit" if ran[-1].get("timed_out") else None)
+
+
 def confirm_with_verify(run: Run, values: tuple) -> tuple[dict[str, Any], core.Step | None]:
     """Asks tools/verify.py, which elaborates the statement again on its own, to decide it at the input.
     Returns what it said, and how the process that evaluated the witness ended, as it recorded it."""
@@ -1037,12 +1046,7 @@ def confirm_with_verify(run: Run, values: tuple) -> tuple[dict[str, Any], core.S
     result = verify.verify(raw, ROOT, run.tool, run.work / "confirm")
     run.timing["verify_confirm_seconds"] = round(time.monotonic() - started, 3)
     witnesses = result.get("witnesses") or [{}]
-    ran = [c for c in result.get("commands") or [] if c.get("step") == "claim:witness"]
-    step = (
-        core.Step("claim:witness", ran[-1].get("exit"), "time_limit" if ran[-1].get("timed_out") else None)
-        if ran
-        else None
-    )
+    step = witness_step(result)
     return {
         "status": result["status"],
         "reason": result["reason"],
