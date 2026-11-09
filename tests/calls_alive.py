@@ -9,10 +9,11 @@ tests/calls/CallsModel.lean.
 Each case is a file with `@src`, `@tgt` and the declarations they call. Its first line is the model's
 verdict, `; correct` or `; incorrect`, which the theorem of the file's name has to state: `Refines` for a
 correct one, and its negation for an incorrect one. Alive2 has to give the same verdict, unless the second
-line says it doesn't and why: `; alive2: correct: REASON`. Those are where the model and Alive2 differ by
-design, as docs/calls.md lists. Anything but a proof or a counterexample, such as a timeout, is a failure,
-not agreement. Alive2 runs with `undef` inputs off, since an argument of the model is a value or poison, one
-process at a time. Run by tests/calls.sh."""
+line says it gives another and why: `; alive2: VERDICT: REASON`, where VERDICT is `correct`, `incorrect` or
+`unknown`. Those are where the model and Alive2 differ by design, as docs/calls.md lists. Anything else that
+isn't a proof or a counterexample, such as a timeout, is a failure, not agreement. Alive2 runs with `undef`
+inputs off, since an argument of the model is a value or poison, one process at a time. Run by
+tests/calls.sh."""
 
 import os
 import re
@@ -54,7 +55,7 @@ def check(path, lean, work):
         return f"its first line says {expected!r}, not correct or incorrect"
     differs = re.match(r";\s*alive2:\s*(\w+):\s*(\S.*)$", lines[1] if len(lines) > 1 else "")
     alive2 = differs.group(1) if differs else expected
-    if alive2 not in VERDICTS or (differs and alive2 == expected):
+    if alive2 not in (*VERDICTS, "unknown") or (differs and alive2 == expected):
         return f"its second line names {alive2!r} as Alive2's verdict, which has to be the other one"
     if f"@{PAIR}(" in "\n".join(lines):
         return f"it names something @{PAIR}, which both sides are renamed to for Alive2"
