@@ -2,15 +2,17 @@
 
 How a proof about an LLVM pass would be tied to the C++ that implements it: the options, the evidence for each, and one
 choice. This is [BIND-01](llvm-verification-tasks.md#bind-01-what-binding-to-the-implementation-means). It changes
-nothing `ir-lean` claims. Proving every optimization in LLVM is [parked](roadmap.md#whats-parked-and-what-stays) as an
-end goal, and this note doesn't bring it back: it says what a `code-binding` claim's evidence would be if it comes back,
-and whether "every pass, done" is reachable on that evidence. For binding a certificate to one run of a pass, which is
-a different thing, see [binding](llvm-proof-binding.md). For what any theorem means, see [trust](trust.md).
+nothing `ir-lean` claims. It says what a `code-binding` claim's evidence is, and whether "every pass, done" is reachable
+on that evidence. When it was written, proving every optimization in LLVM was
+[parked](roadmap.md#whats-parked-and-what-stays) as an end goal. Since 2026-11-09 it's the main program, in
+[chunks](chunks.md), and this note's gates are its binding track: a chunk's G3 is binding by the rule below. For
+binding a certificate to one run of a pass, which is a different thing, see [binding](llvm-proof-binding.md). For what
+any theorem means, see [trust](trust.md).
 
-Since [2026-11-09](roadmap.md#whats-parked-and-what-stays), the parked goal's progress metric is the share of
-InstCombine's own test transformations `ir-lean` can certify, which S1 measures. That's translation validation, the
-kind of evidence [candidate 2](#2-certifying-passes) gives: it measures progress, and under the rule below it never
-makes a pass done. This note is about what would.
+The share of InstCombine's own test transformations `ir-lean` can certify, which S1 measures, was the parked goal's
+progress metric, and is chunk 1's G1 since [2026-11-09](roadmap.md#six-decisions-of-2026-11-09-after-69). That's
+translation validation, the kind of evidence [candidate 2](#2-certifying-passes) gives: it measures progress, and under
+the rule below it never makes a pass done. This note is about what would.
 
 Facts here were checked on top of commit `3d7bffb` on 2026-11-09, on x86-64 Linux in the dev shell, with LLVM 23.1.3 at
 `llvmorg-23.1.3`, its clang, and Lean 4.35.0. Claims marked *inferred* are this note's reading, not a measurement or a

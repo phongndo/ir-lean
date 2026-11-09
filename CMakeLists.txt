@@ -104,6 +104,10 @@ add_test(NAME llvm COMMAND ${CMAKE_SOURCE_DIR}/tests/llvm.py $<TARGET_FILE:ir-le
 add_test(NAME llvm_scope COMMAND ${CMAKE_SOURCE_DIR}/tests/llvm_scope_test.py)
 add_test(NAME llvm_scope_check COMMAND ${CMAKE_SOURCE_DIR}/tests/llvm_scope.py check)
 set_tests_properties(llvm_scope llvm_scope_check PROPERTIES TIMEOUT 600)
+# Which of the nine chunks of docs/chunks.md each of the inventory's passes is in, and the counts that page
+# gives: every pass in exactly one, against tests/llvm_scope/inventory.json. Under a second, and no Lean or
+# LLVM.
+add_test(NAME chunks COMMAND ${CMAKE_SOURCE_DIR}/tests/chunks_test.py)
 # tools/corpus/capture.py, in Python, with one seed through opt when the pinned one is on PATH: under a
 # second, and no Lean. docs/corpus.md.
 add_test(NAME corpus COMMAND ${CMAKE_SOURCE_DIR}/tests/corpus_test.py)
