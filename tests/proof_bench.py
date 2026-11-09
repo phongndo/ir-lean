@@ -26,15 +26,16 @@ import os
 import platform
 import re
 import statistics
-import subprocess
 import sys
 import tempfile
-import time
 import tomllib
 from pathlib import Path
 from typing import Any
 
 ROOT = Path(__file__).resolve().parent.parent
+sys.path.append(str(ROOT / "tools"))
+from irlean import proc  # noqa: E402
+
 LIBRARY = ROOT / ".lake" / "build" / "lib" / "lean"
 # The zlib proofs, after what they import from each other.
 ZLIB_PROOFS = ["Popcount", "Adler32", "CrcTables", "CrcSpec", "Crc32", "MemoryModel", "UpdateWindow"]
@@ -42,10 +43,10 @@ MEMORY_MB = os.environ.get("LEAN_MAX_MB", "4000")
 
 
 def run(command: list[str], env: dict[str, str] | None = None) -> str:
-    result = subprocess.run(command, env=env, capture_output=True, text=True, check=False)
-    if result.returncode != 0:
-        sys.exit(f"{' '.join(command)} failed:\n{result.stdout[-4000:]}{result.stderr[-4000:]}")
-    return result.stdout
+    result = proc.run(command, env=env)
+    if result.exit != 0:
+        sys.exit(f"{' '.join(command)} failed:\n{result.out[-4000:]}{result.err[-4000:]}")
+    return result.out
 
 
 def lean_env(path: list[Path]) -> dict[str, str]:
@@ -90,23 +91,10 @@ class Proof:
 
     def check(self, output: Path) -> dict[str, float]:
         """Checks the proof once, and returns its wall, user and system seconds and peak resident memory."""
-        started = time.monotonic()
-        process = subprocess.Popen(
-            self.command(output),
-            env=lean_env(self.path),
-            stdout=subprocess.PIPE,
-            stderr=subprocess.STDOUT,
-        )
-        assert process.stdout is not None
-        log = process.stdout.read()
-        _, status, usage = os.wait4(process.pid, 0)
-        wall = time.monotonic() - started
-        process.returncode = os.waitstatus_to_exitcode(status)
-        if process.returncode != 0:
-            sys.exit(f"{self.name} failed:\n{log.decode(errors='replace')[-4000:]}")
-        # Linux counts it in KiB, and macOS in bytes.
-        rss = usage.ru_maxrss * (1 if sys.platform == "darwin" else 1024)
-        return {"wall": wall, "user": usage.ru_utime, "system": usage.ru_stime, "rss_mb": rss / 2**20}
+        r = proc.run(self.command(output), env=lean_env(self.path), stderr=proc.STDOUT)
+        if r.exit != 0:
+            sys.exit(f"{self.name} failed:\n{r.out[-4000:]}")
+        return {"wall": r.seconds, "user": r.user_s, "system": r.sys_s, "rss_mb": r.peak_process_mb}
 
 
 def zlib_proofs(tool: Path, work: Path, overrides: dict[str, Path]) -> list[Proof]:

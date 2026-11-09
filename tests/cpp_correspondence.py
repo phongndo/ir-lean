@@ -26,15 +26,10 @@ usage: tests/cpp_correspondence.py [--timeout SECONDS] [--memory MB] [--keep]
 """
 
 import argparse
-import contextlib
-import hashlib
 import json
 import os
 import re
-import secrets
 import shutil
-import signal
-import subprocess
 import sys
 import tempfile
 import time
@@ -43,16 +38,14 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.append(str(ROOT / "tools"))
-from irlean import lean as lean_  # noqa: E402
+from irlean import hashing, proc  # noqa: E402
+from irlean import lean as leanlib  # noqa: E402
 from irlean import verdict as core  # noqa: E402
 
 HERE = ROOT / "tests" / "cpp_correspondence"
 LEAN_FILES = ["SimplifyAddModel.lean", "SimplifyAddSound.lean"]
 DOC = ROOT / "docs" / "llvm-cpp-correspondence.md"
-LIMIT = re.compile(
-    r"maximum number of heartbeats|\(deterministic\) timeout|maximum recursion depth|deep recursion|"
-    r"stack overflow|excessive memory|out of memory|maximum number of steps"
-)
+LIMIT = leanlib.LIMIT
 TAG = re.compile(r"\[cpp:([A-Za-z][A-Za-z0-9_.]*)\]")
 
 
@@ -63,65 +56,31 @@ class Unknown(Exception):
 class Runner:
     def __init__(self, timeout: int, memory_mb: int) -> None:
         self.timeout, self.memory_mb = timeout, memory_mb
-        probe = ["systemd-run", "--user", "--scope", "--quiet", "--", "true"]
-        self.capped = bool(shutil.which("systemd-run")) and (
-            subprocess.run(probe, capture_output=True, check=False).returncode == 0
-        )
-        self.env = {**os.environ, "ELAN_TOOLCHAIN": (ROOT / "lean-toolchain").read_text().strip()}
+        self.capped = proc.scopes_work()
+        self.env = {**os.environ, "ELAN_TOOLCHAIN": leanlib.toolchain()}
 
-    def __call__(self, argv: list[str], env: dict[str, str] | None = None) -> subprocess.CompletedProcess:
-        unit = f"ir-lean-correspondence-{os.getpid()}-{secrets.token_hex(4)}"
-        command = argv
-        if self.capped:
-            command = [
-                "systemd-run",
-                "--user",
-                "--scope",
-                "--quiet",
-                f"--unit={unit}",
-                f"--property=MemoryMax={self.memory_mb + 512}M",
-                "--property=MemorySwapMax=0",
-                "--",
-                *argv,
-            ]
-        with tempfile.TemporaryFile() as out, tempfile.TemporaryFile() as err:
-            p = subprocess.Popen(
-                command,
-                stdin=subprocess.DEVNULL,
-                stdout=out,
-                stderr=err,
-                env={**self.env, **(env or {})},
-                start_new_session=True,
-            )
-            try:
-                p.wait(timeout=self.timeout)
-            except subprocess.TimeoutExpired as e:
-                raise Unknown(f"{Path(argv[0]).name} took more than {self.timeout} s") from e
-            finally:
-                # Whatever it left running goes too.
-                if self.capped:
-                    subprocess.run(
-                        ["systemctl", "--user", "kill", "--signal=SIGKILL", f"{unit}.scope"],
-                        capture_output=True,
-                        check=False,
-                    )
-                with contextlib.suppress(ProcessLookupError, PermissionError):
-                    os.killpg(p.pid, signal.SIGKILL)
-                p.wait()
-            out.seek(0)
-            err.seek(0)
-            r = subprocess.CompletedProcess(argv, p.returncode, out.read().decode(), err.read().decode())
-        said = r.stdout + r.stderr
-        if r.returncode < 0 or r.returncode == 137 or (r.returncode != 0 and LIMIT.search(said)):
+    def __call__(self, argv: list[str], env: dict[str, str] | None = None) -> proc.Ran:
+        # In a scope of its own where systemd can make one, and whatever it left running goes too.
+        r = proc.run(
+            argv,
+            timeout=self.timeout,
+            scope=proc.Scope("ir-lean-correspondence", self.memory_mb + 512),
+            env={**self.env, **(env or {})},
+        )
+        if r.limit == "time_limit":
+            raise Unknown(f"{Path(argv[0]).name} took more than {self.timeout} s")
+        if r.limit is not None:
+            raise Unknown(f"{Path(argv[0]).name} ran out of memory: {r.limit}")
+        said = r.output
+        if r.exit < 0 or r.exit == 137 or (r.exit != 0 and LIMIT.search(said)):
             raise Unknown(f"{Path(argv[0]).name} hit a limit: {said[-400:]}")
         return r
 
     def lean(self, *args: str) -> list[str]:
-        return ["lean", "-j1", "-M", str(self.memory_mb), *args]
+        return leanlib.argv(self.memory_mb, *args, threads=1, stack_kb=None)
 
 
-def sha256(path: Path) -> str:
-    return hashlib.sha256(path.read_bytes()).hexdigest()
+sha256 = hashing.sha256_file
 
 
 # ### Anchors
@@ -163,12 +122,12 @@ def check_pin(run: Runner, anchors: dict, src: Path) -> list[str]:
     if anchors["llvm"] != pin:
         problems.append(f"anchors.json names {anchors['llvm']}, but tests/llvm/targets.toml pins {pin}")
     nar = run(["nix", "hash", "path", str(src)])
-    if nar.returncode != 0 or nar.stdout.strip() != pin["nix_hash"]:
-        problems.append(f"LLVM_PROJECT_SRC has NAR hash {nar.stdout.strip()}, not {pin['nix_hash']}")
+    if nar.exit != 0 or nar.out.strip() != pin["nix_hash"]:
+        problems.append(f"LLVM_PROJECT_SRC has NAR hash {nar.out.strip()}, not {pin['nix_hash']}")
     version = pin["tag"].removeprefix("llvmorg-")
     opt = run(["opt", "--version"])
-    if f"LLVM version {version}\n" not in opt.stdout:
-        problems.append(f"opt isn't LLVM {version}: {opt.stdout.strip()}")
+    if f"LLVM version {version}\n" not in opt.out:
+        problems.append(f"opt isn't LLVM {version}: {opt.out.strip()}")
     inventory = json.loads((ROOT / "tests" / "llvm_scope" / "inventory.json").read_text())
     item = next(i for i in inventory["items"] if i["id"] == "pass:instsimplify")
     for name, digest in item["anchors"].items():
@@ -430,13 +389,11 @@ def compare(all_cases: list[dict], answers: dict[str, object], before: str, afte
 # ### Lean
 
 
-def step(name: str, r: subprocess.CompletedProcess) -> core.Step:
-    return core.Step(name, r.returncode, None, r.stdout + r.stderr)
+def step(name: str, r: proc.Ran) -> core.Step:
+    return core.Step.of(name, r)
 
 
-def build(
-    run: Runner, work: Path, model: str, strict: bool = True
-) -> tuple[str | None, subprocess.CompletedProcess | None]:
+def build(run: Runner, work: Path, model: str, strict: bool = True) -> tuple[str | None, proc.Ran | None]:
     """Compiles IRLean's integer modules, `model` as the model, then the theorem, into `work`, with warnings
     as errors if `strict`. The module that failed, with Lean's errors, or None, and the last Lean process."""
     (work / "IRLean").mkdir(parents=True, exist_ok=True)
@@ -452,8 +409,8 @@ def build(
     for path, options in steps:
         olean, source = str(work / f"{path}.olean"), str(work / f"{path}.lean")
         r = run(run.lean(*options, "-R", str(work), "-o", olean, source), {"LEAN_PATH": str(work)})
-        if r.returncode != 0:
-            return f"{path}: {r.stdout}{r.stderr}", r
+        if r.exit != 0:
+            return f"{path}: {r.out}{r.err}", r
     return None, r
 
 
@@ -465,9 +422,9 @@ def answers(run: Runner, work: Path, all_cases: list[dict]) -> dict[str, object]
             j |= {"op0": operand_json(c["op0"]), "op1": operand_json(c["op1"])}
             f.write(json.dumps(j) + "\n")
     r = run(run.lean("--run", str(work / "Driver.lean"), str(path)), {"LEAN_PATH": str(work)})
-    if r.returncode != 0:
-        raise RuntimeError(f"the driver failed: {r.stdout[-2000:]}{r.stderr[-2000:]}")
-    return {j["name"]: j["result"] for j in map(json.loads, r.stdout.splitlines())}
+    if r.exit != 0:
+        raise RuntimeError(f"the driver failed: {r.out[-2000:]}{r.err[-2000:]}")
+    return {j["name"]: j["result"] for j in map(json.loads, r.out.splitlines())}
 
 
 MUTANTS = [
@@ -537,8 +494,8 @@ def main() -> int:
             env = {"LEAN_PATH": str(work / "model"), "IRLEAN_CHECK_MODULE": "SimplifyAddSound"}
             ax = run(run.lean(str(ROOT / "tests" / "check_axioms.lean")), env)
             replay = run(["leanchecker", "SimplifyAddSound"], {"LEAN_PATH": str(work / "model")})
-            problems = [] if ax.returncode == 0 else [ax.stdout + ax.stderr]
-            problems += [] if replay.returncode == 0 else [replay.stdout + replay.stderr]
+            problems = [] if ax.exit == 0 else [ax.out + ax.err]
+            problems += [] if replay.exit == 0 else [replay.out + replay.err]
             olean = work / "model" / "SimplifyAddSound.olean"
             proved = core.decide(
                 core.Verdict.PROVED,
@@ -551,17 +508,17 @@ def main() -> int:
             )
             if not problems and not proved.granted:
                 problems.append(f"simplifyAddInst_sound isn't proved: {proved.detail}")
-            report(f"lean: axioms {ax.stdout.strip()}, and leanchecker replays it", problems)
+            report(f"lean: axioms {ax.out.strip()}, and leanchecker replays it", problems)
 
         all_cases = cases()
         (work / "cases.ll").write_text(module(all_cases))
         before = run(["opt", "-S", "-passes=verify", str(work / "cases.ll")])
         after = run(["opt", "-S", "-passes=instsimplify", str(work / "cases.ll")])
-        if before.returncode != 0 or after.returncode != 0:
-            report("differential: opt runs", [before.stderr[-2000:], after.stderr[-2000:]])
+        if before.exit != 0 or after.exit != 0:
+            report("differential: opt runs", [before.err[-2000:], after.err[-2000:]])
             return 1
         if ok:
-            r = compare(all_cases, answers(run, work / "model", all_cases), before.stdout, after.stdout)
+            r = compare(all_cases, answers(run, work / "model", all_cases), before.out, after.out)
             report(
                 f"differential: {r['compared']} of {len(all_cases)} cases match opt -passes=instsimplify, "
                 f"{r['delegated']} delegated, {r['operand_changed']} left out since an operand changed first",
@@ -578,7 +535,7 @@ def main() -> int:
                 report(f"mutant: {name}", [f"the model doesn't compile: {error[-1500:]}"])
                 continue
             # Caught: the theorem itself stops, with an error of its own.
-            own = [e for e in lean_.errors(error or "") if not LIMIT.search(e)]
+            own = [e for e in leanlib.errors(error or "") if not LIMIT.search(e)]
             caught = core.decide(
                 core.Verdict.CAUGHT,
                 core.Evidence(
@@ -593,7 +550,7 @@ def main() -> int:
                 problems.append(f"the theorem fails: {error[-1500:]}")
             elif not proves and not caught.granted:
                 problems.append(f"the theorem doesn't fail with an error of its own: {(error or '')[-1500:]}")
-            r = compare(all_cases, answers(run, work / "mutant", all_cases), before.stdout, after.stdout)
+            r = compare(all_cases, answers(run, work / "mutant", all_cases), before.out, after.out)
             if not any(m.startswith(f"{catches}:") for m in r["mismatches"]):
                 problems.append(f"opt doesn't disagree on {catches}: {r['mismatches'][:5]}")
             verdict = "still proves" if proves else "fails to prove"

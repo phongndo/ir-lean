@@ -8,6 +8,7 @@ place:
 - `lean`: `lean`, `lake` and `leanchecker` with their limits, Lean's messages and limits, and the axiom audit.
 - `schemas`: every versioned JSON schema the repo writes, and reading and writing them.
 - `pins`: the toolchain the repo pins, and the identity of the binaries on PATH.
+- `model`: what IRLean declares that Python needs, such as `IRLean.UB`'s constructors.
 - `verdict`: the one place Python decides that something is proved, certified, refuted or caught.
 
 docs/python.md says what goes here and what doesn't. A script reaches it with

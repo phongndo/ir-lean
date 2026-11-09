@@ -20,7 +20,6 @@ import dataclasses
 import importlib.util
 import itertools
 import re
-import subprocess
 import sys
 import unittest
 from pathlib import Path
@@ -29,7 +28,7 @@ from unittest import mock
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.append(str(ROOT / "tools"))
-from irlean import schemas  # noqa: E402
+from irlean import proc, schemas  # noqa: E402
 from irlean.verdict import CLAIMS, UPSTREAM, Decision, Evidence, Step, Verdict, decide  # noqa: E402
 
 LIMIT_TEXT = "x.lean:3:2: error: (deterministic) timeout at `whnf`, maximum number of heartbeats (200000)"
@@ -351,7 +350,7 @@ class PastBugs(unittest.TestCase):
             (0, "all pairs agree", False),
             (3, "pair 4 differs at lane 2", True),
         ):
-            done = subprocess.CompletedProcess([], code, out, "")
+            done = proc.Ran([], code, out.encode(), b"", 0.0)
             with mock.patch.object(llama, "run", return_value=done):
                 self.assertEqual(llama.native(Path("/s"), Path("/w"))[0], want, (code, out))
 
@@ -440,13 +439,10 @@ class Routed(unittest.TestCase):
         # that's tools/verify.py, tools/binding.py and tools/prooftest/prooftest.py.
         word = r"""["'](proved|bound|certified|refuted|caught|counterexample)["']"""
         said = re.compile(rf"""return\s*\(?\s*{word}|["']status["']\s*:\s*{word}|status\s*=\s*{word}""")
-        files = subprocess.run(
+        files = proc.run(
             ["git", "ls-files", "--cached", "--others", "--exclude-standard", "tools/*.py", "tests/*.py"],
             cwd=ROOT,
-            capture_output=True,
-            text=True,
-            check=True,
-        ).stdout.split()
+        ).out.split()
         found = sorted(
             f
             for f in files

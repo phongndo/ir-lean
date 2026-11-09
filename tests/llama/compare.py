@@ -2,10 +2,12 @@
 """Require complete captures and compare every raw FP32 bit, token ID and position."""
 
 import argparse
-import hashlib
 import json
 import sys
 from pathlib import Path
+
+sys.path.append(str(Path(__file__).resolve().parents[2] / "tools"))
+from irlean import hashing
 
 
 def capture_path(prefix, suffix):
@@ -44,7 +46,7 @@ def compare(left, right):
         raise ValueError(f"capture manifests differ: {left_meta} != {right_meta}")
     hashes = {}
     for suffix, expected in sizes.items():
-        digest = hashlib.sha256()
+        digest = hashing.new()
         with capture_path(left, suffix).open("rb") as a, capture_path(right, suffix).open("rb") as b:
             offset = 0
             while True:

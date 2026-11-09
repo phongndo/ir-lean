@@ -6,15 +6,16 @@ The JSON on stdout names the binary and build receipt. Capture I/O makes this bi
 """
 
 import argparse
-import hashlib
 import json
 import shlex
 import shutil
-import subprocess
 import sys
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
+sys.path.append(str(HERE.parents[1] / "tools"))
+from irlean import hashing, proc  # noqa: E402
+
 EDITS = [
     ('#include "chat.h"', '#include "chat.h"\n#include "capture.h"'),
     (
@@ -30,10 +31,6 @@ EDITS = [
     ),
     ("    llama_backend_free();", "    capture.finish();\n\n    llama_backend_free();"),
 ]
-
-
-def sha256(path):
-    return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
 def resolved(path, directory):
@@ -109,27 +106,27 @@ def build(source_dir, build_dir, output_dir):
         for command, cwd in ((compile_args, directory), (link_args, output_dir)):
             log.write(shlex.join(command) + "\n")
             log.flush()
-            result = subprocess.run(command, cwd=cwd, stdout=log, stderr=subprocess.STDOUT, check=False)
-            if result.returncode:
-                raise RuntimeError(f"capture build failed with exit {result.returncode}; see {build_log}")
+            result = proc.run(command, cwd=cwd, stdout=log, stderr=proc.STDOUT)
+            if result.exit:
+                raise RuntimeError(f"capture build failed with exit {result.exit}; see {build_log}")
 
     receipt = output_dir / "capture-build.json"
     receipt.write_text(
         json.dumps(
             {
                 "binary": str(binary),
-                "binary_sha256": sha256(binary),
+                "binary_sha256": hashing.sha256_file(binary),
                 "source": str(source),
-                "source_sha256": sha256(source),
+                "source_sha256": hashing.sha256_file(source),
                 "instrumented_source": str(copy),
-                "instrumented_sha256": sha256(copy),
-                "capture_sha256": sha256(output_dir / "capture.h"),
-                "main_sha256": sha256(output_dir / "capture_main.cpp"),
+                "instrumented_sha256": hashing.sha256_file(copy),
+                "capture_sha256": hashing.sha256_file(output_dir / "capture.h"),
+                "main_sha256": hashing.sha256_file(output_dir / "capture_main.cpp"),
                 "compile_args": compile_args,
                 "compile_cwd": str(directory),
                 "link_args": link_args,
                 "link_cwd": str(output_dir),
-                "libraries": {str(path): sha256(path) for path in [*shared, archive]},
+                "libraries": {str(path): hashing.sha256_file(path) for path in [*shared, archive]},
                 "edits": EDITS,
                 "log": str(build_log),
             },
