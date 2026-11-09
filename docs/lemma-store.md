@@ -99,7 +99,7 @@ The key includes the normalizer's version, so a change to the normalizer changes
 as `statement_changed` until the index is written again.
 
 Two statements with the same key are the same up to the reorderings above. Two with different keys may still be
-equivalent: the normalizer doesn't know `Val`'s operations commute, since they aren't registered as commutative, or
+equivalent: the normalizer doesn't know which of `Val`'s operations commute, since none is registered as commutative, or
 that `a + 1 < b` is `a < b - 1`.
 
 ## Finding a lemma
