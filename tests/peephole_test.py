@@ -27,12 +27,13 @@ from unittest import mock
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.append(str(ROOT / "tools"))
-sys.path.insert(0, str(ROOT / "tests"))
-import peephole  # noqa: E402
-
 from irlean import lean as leanlib  # noqa: E402
 from irlean import proc  # noqa: E402
 from irlean import verdict as core  # noqa: E402
+
+# tests/peephole.py, in an import block of its own, which sorts the same however isort classifies it.
+sys.path.insert(0, str(ROOT / "tests"))
+import peephole  # noqa: E402
 
 ADD = peephole.PEEPHOLE / "Peephole" / "IS" / "Add.lean"
 
@@ -162,6 +163,8 @@ BEFORE = [
     "  %r = add i8 %v0, %n5",
     "  ret i8 %r",
 ]
+# The root BEFORE computes.
+ROOT_TERM = bin_("add", V0, bin_("sub", V1, V0, 5), 9)
 
 
 def after(ret: str, changed: bool = False) -> list[str]:
@@ -171,9 +174,16 @@ def after(ret: str, changed: bool = False) -> list[str]:
 
 
 class Classify(unittest.TestCase):
-    def outcome(self, answer: dict, opt_after: list[str], files: list[str] | None = None) -> peephole.Tally:
-        t = peephole.Tally()
-        case = peephole.Case("c", "F", "instsimplify", "add", {}, files or [])
+    def outcome(
+        self,
+        answer: dict,
+        opt_after: list[str],
+        files: list[str] | None = None,
+        t: peephole.Tally | None = None,
+        term: dict | None = None,
+    ) -> peephole.Tally:
+        t = t or peephole.Tally()
+        case = peephole.Case(f"c{t.cases}", "F", "instsimplify", "add", term or ROOT_TERM, files or [])
         peephole.classify(case, answer, BEFORE, opt_after, {0: "%v0", 1: "%v1", 5: "%n5", 9: "%r"}, t)
         return t
 
@@ -218,8 +228,45 @@ class Classify(unittest.TestCase):
 
     def test_folds_run_only_count_in_compared_cases(self) -> None:
         reached = {"result": {"null": True}, "ran": ["Peephole.IS.g"]}
-        self.assertEqual(self.outcome(reached, after("%r")).folds_run, {"Peephole.IS.g": "c"})
+        self.assertEqual(self.outcome(reached, after("%r")).folds_run, {"Peephole.IS.g": "c0"})
         self.assertEqual(self.outcome(reached, after("%r", changed=True)).folds_run, {})
+        # Matched: compared and agreed.
+        fires = {"result": {"value": {"k": "old", "w": 8, "t": {"node": 1}}}, "site": "IS.f.L1", "ran": ["G"]}
+        self.assertEqual(self.outcome(fires, after("%v1")).folds_run, {"G": "c0"})
+        # Delegated, only opt folding, and a mismatch: none is a compared case that agreed.
+        for answer, ret in (
+            ({"result": {"delegated": "x"}, "ran": ["G"]}, "%r"),
+            ({"result": {"null": True}, "ran": ["G"]}, "0"),
+            (fires, "%v0"),
+        ):
+            with self.subTest(answer=answer, ret=ret):
+                self.assertEqual(self.outcome(answer, after(ret)).folds_run, {})
+
+    def test_a_delegated_case_doesnt_show_a_fold_ran(self) -> None:
+        """Found in review: one compared case, and a delegated case that reached `F`, made a comparison `ok`
+        whose `folds_run` had `F`, so `score` counted `F`'s sites though no compared case reached it."""
+        t = self.outcome({"result": {"null": True}}, after("%r"))
+        self.outcome({"result": {"delegated": "simplifyXorInst"}, "ran": ["F"]}, after("%r"), t=t)
+        self.assertEqual((t.compared, t.delegated, t.folds_run), (1, 1, {}))
+        reg = peephole.registries("is-add")[0]
+        record = peephole.comparison_record(reg, t, {"files": 0, "unread": {}}, "LLVM version 23.1.3", 0.0)
+        self.assertEqual((record["status"], record["folds_run"]), ("ok", {}))
+
+    def test_a_step_only_undef_reaches_isnt_exercised(self) -> None:
+        """`IS.simplifyAddInst.L605`, `X + undef` to `undef`: its theorem assumes no `undef`, so only poison
+        reaches it there, which L601 takes first. Its step fires only on cases with an `undef`, which say
+        nothing about a proof that assumes there's none."""
+        undef = {**ROOT_TERM, "b": {"k": "undef", "w": 8}}
+        fires = {"result": {"value": {"k": "old", "w": 8, "t": "undef"}}, "site": "IS.f.L5"}
+        t = self.outcome(fires, after("undef"), term=undef)
+        s = t.sites["IS.f.L5"]
+        self.assertEqual((s["fired"], s["matched"]), (1, 1))
+        self.assertEqual((s["fired_without_undef"], s["matched_without_undef"]), (0, 0))
+        clean = {"result": {"value": {"k": "old", "w": 8, "t": {"node": 1}}}, "site": "IS.f.L1"}
+        self.outcome(clean, after("%v1"), t=t)
+        record = {"status": "ok", "folds_run": {}, "sites": t.sites}
+        _, exercised, undef_only = peephole.compared_runs({"a": (record, "")})
+        self.assertEqual((exercised, undef_only), ({"IS.f.L1"}, {"IS.f.L5"}))
 
 
 def step(name: str, exit_: int = 0, limit: str | None = None, output: str = "") -> core.Step:
@@ -257,6 +304,7 @@ class Counts(unittest.TestCase):
             "why_not": "",
             "compared": True,
             "uncovered": frozenset(),
+            "undef_only": False,
         } | change
         return peephole.counts(
             "IS.f.L1",
@@ -268,6 +316,7 @@ class Counts(unittest.TestCase):
             a["why_not"],
             a["compared"],
             a["uncovered"],
+            a["undef_only"],
         )
 
     def decide(self, **change: Any) -> core.Decision:
@@ -306,6 +355,14 @@ class Counts(unittest.TestCase):
         self.assertEqual((status, decision.granted), ("integer instance proved", False))
         # A broken proof is broken first, whatever else holds.
         self.assertEqual(self.judge(found=None, compared=False)[0], "not counted")
+        # A step only `undef` reached in compared cases.
+        status, decision = self.judge(undef_only=True)
+        self.assertEqual((status, decision.granted), ("undef-only", False))
+
+    def test_the_worked_example_lists_no_site_only_undef_reaches(self) -> None:
+        reg = peephole.registries("is-add")[0]
+        self.assertNotIn("IS.simplifyAddInst.L605", reg.sites())
+        self.assertIn("IS.simplifyAddInst.L605", reg.data["unproved"])
 
 
 class Records(unittest.TestCase):
@@ -326,15 +383,19 @@ class Records(unittest.TestCase):
         good = {
             "status": "ok",
             "folds_run": {"F": "c1"},
-            "sites": {"S1": {"matched": 2}, "S2": {"matched": 0}},
+            "sites": {
+                "S1": {"fired": 2, "matched": 2, "fired_without_undef": 2, "matched_without_undef": 2},
+                "S2": {"fired": 1, "matched": 0, "fired_without_undef": 1, "matched_without_undef": 0},
+            },
         }
-        stale = {"status": "ok", "folds_run": {"G": "c2"}, "sites": {"S3": {"matched": 1}}}
-        bad = {"status": "mismatch", "folds_run": {"H": "c3"}, "sites": {"S4": {"matched": 1}}}
+        one = {"fired": 1, "matched": 1, "fired_without_undef": 1, "matched_without_undef": 1}
+        stale = {"status": "ok", "folds_run": {"G": "c2"}, "sites": {"S3": one}}
+        bad = {"status": "mismatch", "folds_run": {"H": "c3"}, "sites": {"S4": one}}
         helper = {"status": "no entry points", "folds_run": {}, "sites": {}}
-        folds, exercised = peephole.compared_runs(
+        folds, exercised, undef_only = peephole.compared_runs(
             {"a": (good, ""), "b": (stale, "other sources"), "c": (bad, "says mismatch"), "d": (helper, "")}
         )
-        self.assertEqual((folds, exercised), ({"F"}, {"S1"}))
+        self.assertEqual((folds, exercised, undef_only), ({"F"}, {"S1"}, set()))
 
     def test_the_hash_covers_the_model_and_what_it_imports(self) -> None:
         reg = peephole.registries("is-add")[0]

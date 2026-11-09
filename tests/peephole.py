@@ -869,8 +869,30 @@ class Tally:
 
     def site(self, s: str) -> dict[str, Any]:
         return self.sites.setdefault(
-            s, {"fired": 0, "matched": 0, "mismatched": 0, "analysis": 0, "files": set()}
+            s,
+            {
+                "fired": 0,
+                "matched": 0,
+                "mismatched": 0,
+                "analysis": 0,
+                # The same, in cases with no `undef` anywhere, which is all a proof covers.
+                "fired_without_undef": 0,
+                "matched_without_undef": 0,
+                "files": set(),
+            },
         )
+
+
+def has_undef(t: dict[str, Any]) -> bool:
+    """Whether an `undef` is anywhere in the operand."""
+    return t["k"] == "undef" or any(has_undef(t[key]) for key in OPERANDS.get(t["k"], ()))
+
+
+def folded(before: list[str], after: list[str]) -> bool:
+    """Whether `opt` replaced the root or changed it in place."""
+    root = [x for x in before if x.startswith("  %r = ")]
+    rets = [x.split()[-1] for x in after if x.startswith("  ret ")]
+    return rets != ["%r"] or [x for x in after if x.startswith("  %r = ")] != root
 
 
 def unchanged(before: list[str], after: list[str]) -> bool:
@@ -894,8 +916,12 @@ def classify(
     if not unchanged(before, after):
         t.operand_changed += 1
         return
-    for f in answer.get("ran", []):
-        t.folds_run.setdefault(f, case.name)
+
+    def ran() -> None:
+        # A fold ran only where the case was compared and agreed: a delegated case says nothing about it.
+        for f in answer.get("ran", []):
+            t.folds_run.setdefault(f, case.name)
+
     opt_changed = rets != ["%r"] or root_after != root_before
     ir = "\n".join(before)
     if "delegated" in result:
@@ -906,6 +932,7 @@ def classify(
         if not opt_changed:
             t.compared += 1
             t.agreed_no_fold += 1
+            ran()
             return
         # An analysis explains it only if the model, with the oracle that made it fire, answers what opt does.
         said = None
@@ -925,6 +952,8 @@ def classify(
     site = answer.get("site") or "unknown"
     s = t.site(site)
     s["fired"] += 1
+    clean = not has_undef(case.term)
+    s["fired_without_undef"] += clean
     s["files"].update(case.files)
     t.compared += 1
     expect = expected_text(result["value"], names)
@@ -939,6 +968,8 @@ def classify(
     if ok:
         t.matched += 1
         s["matched"] += 1
+        s["matched_without_undef"] += clean
+        ran()
     else:
         t.mismatched += 1
         s["mismatched"] += 1
@@ -949,7 +980,7 @@ def classify(
 
 
 def run_models(
-    work: Path, regs: list[Registry], cases: list[Case], watch: dict[str, bool]
+    work: Path, regs: list[Registry], cases: list[Case], watch: dict[str, dict[str, bool]]
 ) -> tuple[dict[str, dict[str, Any]], list[str], set[str]]:
     """Each case's answer from its entry point, in one Lean process, and the entry points whose sites can't be
     told apart. Each answer also names the registered folds, of every registry, that its run reached."""
@@ -966,9 +997,7 @@ def run_models(
     )
     with (work / "cases.jsonl").open("w") as f:
         for c in cases:
-            f.write(
-                json.dumps({"name": c.name, "entry": c.entry, "term": c.term, "watch": watch[c.name]}) + "\n"
-            )
+            f.write(json.dumps({"name": c.name, "entry": c.entry, "term": c.term, **watch[c.name]}) + "\n")
     r = run(leanlib.argv(LEAN_MB, "--run", work / "Driver.lean", work / "cases.jsonl"), lean_env(work))
     if r.exit != 0:
         raise HarnessError(f"the models' driver failed:\n{r.output[-4000:]}")
@@ -1036,8 +1065,15 @@ def compare(args: argparse.Namespace) -> int:
             pre, post = opt_functions(verified.out), opt_functions(optimized.out)
             for n, c in items:
                 before[c.name], after[c.name] = pre[f"c{n}"], post[f"c{n}"]
-        # Which folds a run reaches is only looked for in cases whose operands opt left as they were.
-        watch = {c.name: unchanged(before[c.name], after[c.name]) for c in cases}
+        # Which folds a run reaches is only looked for in cases whose operands opt left as they were, and the
+        # driver needs to know where opt folded the root, to tell which of those are compared.
+        watch = {
+            c.name: {
+                "watch": unchanged(before[c.name], after[c.name]),
+                "opt_folded": folded(before[c.name], after[c.name]),
+            }
+            for c in cases
+        }
         answers, untagged, missing = run_models(work, regs, cases, watch)
     seconds = time.monotonic() - started
     failed = False
@@ -1069,11 +1105,11 @@ def comparison_record(
     sites = {
         s: {**v, "files": sorted(v["files"]), "registered": s in listed} for s, v in sorted(t.sites.items())
     }
-    # A fold ran if a compared case's run reached it, or one of its steps fired.
+    # A fold ran if a compared case's run reached it, or one of its steps fired and matched opt.
     fold_of = {s: f for r in registries() for s, (f, _) in r.sites().items()}
     ran = dict(t.folds_run)
     for s, v in sorted(t.sites.items()):
-        if v["fired"] and s in fold_of:
+        if v["matched"] and s in fold_of:
             ran.setdefault(fold_of[s], f"a case where {s} fired")
     if not reg.entries:
         status = "no entry points"
@@ -1135,8 +1171,9 @@ def print_comparison(r: dict[str, Any]) -> None:
     for s, v in r["sites"].items():
         more = f" and {len(v['files']) - 6} more" if len(v["files"]) > 6 else ""
         lines.append(
-            f"{s}: fired {v['fired']}, matched {v['matched']}, mismatched {v['mismatched']}, analysis "
-            f"{v['analysis']}; tests: {', '.join(v['files'][:6]) + more or 'none'}"
+            f"{s}: fired {v['fired']} ({v['fired_without_undef']} with no undef), matched {v['matched']}, "
+            f"mismatched {v['mismatched']}, analysis {v['analysis']}; "
+            f"tests: {', '.join(v['files'][:6]) + more or 'none'}"
         )
     if r["not_exercised"]:
         lines.append(f"never fired: {', '.join(r['not_exercised'])}")
@@ -1180,16 +1217,24 @@ def recorded(reg: Registry) -> tuple[dict[str, Any] | None, str]:
     return rec, ""
 
 
-def compared_runs(comparisons: dict[str, tuple[dict[str, Any] | None, str]]) -> tuple[set[str], set[str]]:
+def compared_runs(
+    comparisons: dict[str, tuple[dict[str, Any] | None, str]],
+) -> tuple[set[str], set[str], set[str]]:
     """From every comparison recorded for its sources now, with something compared and no mismatch: the folds
-    a compared run reached, and the sites that fired in a compared case and matched `opt`."""
+    a compared run reached; the sites that fired and matched `opt` in a compared case with no `undef` in it,
+    which `opt` exercised; and the sites that fired in compared cases, but only in ones with an `undef`."""
     folds, exercised = set(), set()
+    fired: Counter[str] = Counter()
+    clean: Counter[str] = Counter()
     for rec, why_not in comparisons.values():
         if rec is None or why_not or rec.get("status") != "ok":
             continue
         folds |= set(rec.get("folds_run", {}))
-        exercised |= {s for s, v in rec.get("sites", {}).items() if v.get("matched", 0) > 0}
-    return folds, exercised
+        for s, v in rec.get("sites", {}).items():
+            exercised |= {s} if v.get("matched_without_undef", 0) > 0 else set()
+            fired[s] += v.get("fired", 0)
+            clean[s] += v.get("fired_without_undef", 0)
+    return folds, exercised, {s for s, n in fired.items() if n and not clean[s]}
 
 
 def module_checks(modules: list[str]) -> dict[str, dict[str, Any]]:
@@ -1224,15 +1269,18 @@ def counts(
     why_not: str,
     compared: bool = True,
     uncovered: frozenset[str] = frozenset(),
+    undef_only: bool = False,
 ) -> tuple[str, core.Decision]:
     """Whether a rewrite counts toward G2, and if not, how far it got: what Lean says of its theorem, `found`,
     and of its fold's `sound` theorem, `snd`, its module's axiom audit and replay, `ran`, why its family's
     comparison with `opt` doesn't count, `why_not`, if it doesn't, whether a compared run reached its fold,
-    `compared`, and the types the inventory says it needs that its proof doesn't cover, `uncovered`.
-    irlean.verdict decides. One of:
+    `compared`, the types the inventory says it needs that its proof doesn't cover, `uncovered`, and whether
+    its step fired in compared cases only where an operand reaches `undef`, `undef_only`. irlean.verdict
+    decides. One of:
 
     - `counted`: every rule holds;
     - `proved, model not compared with opt`: proved, but no compared run reached its fold;
+    - `undef-only`: proved and compared, but only `undef` reaches its step, which the proof doesn't cover;
     - `integer instance proved`: proved and compared, for integers, and the inventory says it needs more;
     - `not counted`: a rule about the proof or its family's comparison fails, and a registry listing it as
       proved is wrong."""
@@ -1258,12 +1306,15 @@ def counts(
     every = {
         **rules,
         "a compared run reached its fold, so its model was compared with opt": compared,
+        "it fired in a compared case with no undef, if it fired at all": not undef_only,
         "its proof covers every type the inventory says it needs": not uncovered,
     }
     decision = decide(every)
     if decision.granted:
         return "counted", decision
-    return ("proved, model not compared with opt" if not compared else "integer instance proved"), decision
+    if not compared:
+        return "proved, model not compared with opt", decision
+    return ("undef-only" if undef_only else "integer instance proved"), decision
 
 
 def pct(n: int, d: int) -> float:
@@ -1298,7 +1349,7 @@ def score(args: argparse.Namespace) -> int:
     sounds = {f["name"]: f for f in found["sounds"]}
     checks = module_checks(sorted({sites[s]["module"] for s in listed if s in sites and sites[s]["module"]}))
     comparisons = {reg.family: recorded(reg) for reg in regs}
-    folds_run, exercised = compared_runs(comparisons)
+    folds_run, exercised, undef_only = compared_runs(comparisons)
     outcome: dict[str, dict[str, Any]] = {}
     for s, (reg, fold, sound) in sorted(listed.items()):
         f = sites.get(s)
@@ -1307,7 +1358,16 @@ def score(args: argparse.Namespace) -> int:
         needs = set(ids[s][1]["needs"]) - {"int"} if s in ids else set()
         uncovered = frozenset(needs - set(reg.data.get("covers", {}).get(s, [])))
         status, decision = counts(
-            s, f, sound, sounds.get(sound, {}), built, ran, why_not, fold in folds_run, uncovered
+            s,
+            f,
+            sound,
+            sounds.get(sound, {}),
+            built,
+            ran,
+            why_not,
+            fold in folds_run,
+            uncovered,
+            s in undef_only,
         )
         outcome[s] = {
             "id": s,
@@ -1334,6 +1394,7 @@ def score(args: argparse.Namespace) -> int:
             "int_percent": pct(sum(r["id"] in counted for r in ints), len(ints)),
             "not_compared": of("proved, model not compared with opt"),
             "integer_instances": of("integer instance proved"),
+            "undef_only": of("undef-only"),
             "blocked": {
                 k: {"waits_for": w, "count": len(b), "rewrites": b}
                 for k, w in WAITS_FOR.items()
@@ -1359,6 +1420,7 @@ def score(args: argparse.Namespace) -> int:
                 "integer_instances": sum(
                     outcome[s]["status"] == "integer instance proved" for s in reg.sites()
                 ),
+                "undef_only": sum(outcome[s]["status"] == "undef-only" for s in reg.sites()),
                 "not_counted": sum(outcome[s]["status"] == "not counted" for s in reg.sites()),
                 "unproved": len(reg.data.get("unproved", {})),
                 "comparison": comparisons[reg.family][1]
@@ -1371,6 +1433,7 @@ def score(args: argparse.Namespace) -> int:
         "proved": proved,
         "not_compared": [o for o in outcome.values() if o["status"] == "proved, model not compared with opt"],
         "integer_instances": [o for o in outcome.values() if o["status"] == "integer instance proved"],
+        "undef_only": [o for o in outcome.values() if o["status"] == "undef-only"],
         "not_counted": not_counted,
         "problems": problems,
         "unproved": {s: why for reg in regs for s, why in sorted(reg.data.get("unproved", {}).items())},
@@ -1386,7 +1449,7 @@ def score(args: argparse.Namespace) -> int:
         print(f"FAIL  {x}")
     for x in not_counted:
         print(f"FAIL  {x['family']}: {x['id']} is listed as proved, and doesn't count: {x['why']}")
-    for x in [*record["not_compared"], *record["integer_instances"]]:
+    for x in [*record["not_compared"], *record["undef_only"], *record["integer_instances"]]:
         print(f"      {x['family']}: {x['id']}: {x['status']}, not counted")
     if args.check:
         print(f"{'FAIL' if failed else 'ok  '}  every rewrite a registry lists as proved counts")
@@ -1406,28 +1469,29 @@ NAMES = {
 def markdown(record: dict[str, Any]) -> str:
     rows = [
         "| Pass | Rewrites | Proved | % | Of those, exercised by opt | Integers only | Proved of those | % "
-        "| Proved, model not compared | Integer instance proved | Need fp (SEM-05) | Need memory (F4) "
-        "| Need calls |",
-        "| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |",
+        "| Proved, model not compared | Undef only | Integer instance proved | Need fp (SEM-05) "
+        "| Need memory (F4) | Need calls |",
+        "| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |",
     ]
     for p, v in record["passes"].items():
         b = v["blocked"]
         rows.append(
             f"| {NAMES[p]} | {v['inventoried']:,} | {v['proved']:,} | {v['percent']} | {v['exercised']:,} "
             f"| {v['int']:,} | {v['int_proved']:,} | {v['int_percent']} | {v['not_compared']:,} "
-            f"| {v['integer_instances']:,} | {b['fp']['count']:,} | {b['memory']['count']:,} "
-            f"| {b['calls']['count']:,} |"
+            f"| {v['undef_only']:,} | {v['integer_instances']:,} | {b['fp']['count']:,} "
+            f"| {b['memory']['count']:,} | {b['calls']['count']:,} |"
         )
     rows += [
         "",
-        "| Family | Sites listed | Proved | Exercised by opt | Proved, model not compared "
+        "| Family | Sites listed | Proved | Exercised by opt | Proved, model not compared | Undef only "
         "| Integer instance proved | Not counting | Listed unproved | Comparison |",
-        "| --- | --- | --- | --- | --- | --- | --- | --- | --- |",
+        "| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |",
     ]
     for fam, v in record["families"].items():
         rows.append(
             f"| `{fam}` | {v['sites']} | {v['proved']} | {v['exercised']} | {v['not_compared']} "
-            f"| {v['integer_instances']} | {v['not_counted']} | {v['unproved']} | {v['comparison']} |"
+            f"| {v['undef_only']} | {v['integer_instances']} | {v['not_counted']} | {v['unproved']} "
+            f"| {v['comparison']} |"
         )
     return "\n".join(rows)
 

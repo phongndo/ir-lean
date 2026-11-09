@@ -76,7 +76,8 @@ MODULE = re.compile(r"[A-Za-z_][A-Za-z0-9_]*(\.[A-Za-z_][A-Za-z0-9_]*)*")
 # nothing about the evidence, so it's unknown, never refused.
 LIMIT = re.compile(
     r"maximum number of heartbeats|\(deterministic\) timeout|maximum recursion depth|deep recursion|"
-    r"stack overflow|out of memory|excessive memory|memory limit|SAT solver timed out|"
+    r"stack overflow|out of memory|excessive memory|memory limit|SAT solver timed out|resource exhausted|"
+    r"not enough memory|cannot allocate memory|"
     r"maximum number of steps",
     re.IGNORECASE,
 )
@@ -393,6 +394,10 @@ class Replay:
         self.ev, self.t, self.work, self.jobs, self.memory, self.timeout = ev, t, work, jobs, memory, timeout
         self.record = record
         self.checks: list[dict[str, str]] = []
+        # Lean's memory limit, and a thread stack of 64 MB, as tests/llvm.py gives it: Lean commits about
+        # 1 GiB of stack for each thread, and bv_decide forks Lean to start its solver, which fails with
+        # ENOMEM on a machine with less memory than that commit, such as a CI runner.
+        self.limits = ["-M", str(memory), "-s", "65536"]
         # For each theorem, which unit's function each symbol it's about is.
         self.covers: dict[str, list[dict[str, str]]] = {}
         # LEAN_SYSROOT, so leanchecker finds the stamped toolchain rather than asking elan.
@@ -508,7 +513,7 @@ class Replay:
 
     def lean(self, *args: str) -> Ran:
         return run(
-            [self.t.lean, "-M", str(self.memory), *args],
+            [self.t.lean, *self.limits, *args],
             cwd=self.work,
             env=self.lean_env,
             timeout=self.timeout,
@@ -679,7 +684,7 @@ class Replay:
             "irlean_dir": str(self.t.irlean_lib), "toolchain_dir": str(self.t.toolchain / "lib" / "lean"),
         }))  # fmt: skip
         r = run(
-            [self.t.lean, "-M", str(self.memory), str(CHECKER)],
+            [self.t.lean, *self.limits, str(CHECKER)],
             cwd=self.work.parent,
             env={**self.lean_env, "VERIFY_CLAIMS_CONFIG": str(config)},
             timeout=self.timeout,
