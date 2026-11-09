@@ -125,6 +125,20 @@ static bool foldTop(Instruction &I) {
   return true;
 }
 
+static bool setFlags(Instruction &I) {
+  bool Changed = I.getOperand(0) == I.getOperand(1);
+  I.setIsExact(Changed);
+  return Changed;
+}
+
+static Instruction *foldPtr(Instruction &I) {
+  auto *P = dyn_cast<IntToPtrInst>(I.getOperand(0));
+  if (!P)
+    return nullptr;
+  I.setOperand(0, P->getOperand(0));
+  return &I;
+}
+
 bool runToy(Function &F) {
   bool Changed = false;
   for (Instruction &I : F) {
@@ -191,6 +205,10 @@ def test_rule(failures: list[str]) -> None:
         ("lookupJ", line_of(TOY, "return J;")),
         # A change at the top of a function, committed by the `return true` after it: one site.
         ("foldTop", line_of(TOY, "return true;", 2)),
+        # A returned flag isn't a site, so it doesn't commit the change before it.
+        ("setFlags", line_of(TOY, "I.setIsExact(Changed);")),
+        # The change and the return after it are one site, which needs what the statements before them read.
+        ("foldPtr", line_of(TOY, "return &I;", 2)),
     }
     for w in sorted(want - sites):
         failures.append(f"rule: expected a site at {w}")
@@ -216,6 +234,10 @@ def test_rule(failures: list[str]) -> None:
         )
     if needs.get(line_of(TOY, "return I.getOperand(1);")) != ["int"]:
         failures.append("rule: a site behind m_APInt is integers only")
+    if needs.get(line_of(TOY, "return &I;", 2)) != ["memory"]:
+        failures.append(
+            f"rule: a site after an inttoptr should need memory: {needs.get(line_of(TOY, 'return &I;', 3))}"
+        )
     kinds = {r["line"]: r["kind"] for r in inv["rewrites"]}
     if kinds.get(line_of(TOY, "replaceUse(U, X);")) != "change":
         failures.append("rule: a lone replaceUse should be a change site")

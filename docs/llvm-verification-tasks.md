@@ -213,7 +213,7 @@ when they land.
 - **Acceptance:** Each unit has a stable ID and a source location, generated from the pinned source, and a test fails if one appears or disappears without the inventory changing.
 - **Trust gaps:** Rewrites written as C++ control flow rather than patterns have no natural boundary. The split has to be stated, and reviewed. For chunk 1's passes, [the rule](rewrite-inventory.md#the-rule) states it, and [what it doesn't see](rewrite-inventory.md#what-the-rule-doesnt-see) lists where it can be wrong.
 - **Status:** in progress
-- **Evidence:** Chunk 1's four passes, InstSimplify, InstCombine, AggressiveInstCombine and Reassociate: 3,173 rewrites in `tests/llvm_scope/rewrites/`, derived by `tests/llvm_rewrites.py` and checked in CI as `llvm_rewrites_check`. DAGCombiner, GlobalISel's combiners and TableGen's patterns aren't started.
+- **Evidence:** Chunk 1's four passes, InstSimplify, InstCombine, AggressiveInstCombine and Reassociate: 3,174 rewrites in `tests/llvm_scope/rewrites/`, derived by `tests/llvm_rewrites.py` and checked in CI as `llvm_rewrites_check`. DAGCombiner, GlobalISel's combiners and TableGen's patterns aren't started.
 
 ### INV-05: Permitted inputs and options
 

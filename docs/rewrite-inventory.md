@@ -15,11 +15,11 @@ source files, so it gives the same bytes on any host.
 
 | Pass | Rewrites | Integers only | Need floating point | Need memory | Need calls | Folds | Files |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| InstSimplify | 541 | 300 | 198 | 31 | 111 | 150 | 2 |
-| InstCombine | 2,535 | 1,574 | 591 | 229 | 413 | 514 | 15 |
-| AggressiveInstCombine | 37 | 21 | 6 | 11 | 6 | 33 | 2 |
-| Reassociate | 60 | 15 | 45 | 0 | 1 | 23 | 1 |
-| All | 3,173 | 1,910 | 840 | 271 | 531 | 720 | 20 |
+| InstSimplify | 541 | 300 | 200 | 31 | 115 | 150 | 2 |
+| InstCombine | 2,536 | 1,499 | 607 | 281 | 515 | 514 | 15 |
+| AggressiveInstCombine | 37 | 20 | 6 | 11 | 8 | 33 | 2 |
+| Reassociate | 60 | 18 | 42 | 0 | 3 | 23 | 1 |
+| All | 3,174 | 1,837 | 855 | 323 | 641 | 720 | 20 |
 
 A rewrite can need more than one of floating point, memory and calls, so those columns overlap. "Integers only" is
 the rest, which needs none of them. `tests/llvm_rewrites.py summary` prints these from the files.
@@ -128,7 +128,7 @@ Each rewrite has:
 
 - `needs`: `int`, or any of `fp`, `memory` and `calls`, from the identifiers on its path. The path is the function's
   name and parameters, the conditions of the statements around the site, the plain statements before it in each
-  enclosing block, the case labels it's under, and the site itself. A function that handles floating point as well
+  enclosing block and in the function's own body, the case labels it's under, and the site itself. A function that handles floating point as well
   as integers rewrites both, so a site in it needs `fp` too unless its path says its values are integers. A function
   handles floating point if it names it, or if it's in Reassociate, whose every function serves integer and fast-math
   floating-point reassociation alike from `OptimizeInst`, as `canonicalizeOperands` does. Its path says its values
@@ -178,7 +178,8 @@ For the reviewer, the places the rule can be wrong:
 
 [`tests/llvm_rewrites_test.py`](../tests/llvm_rewrites_test.py) checks the rule on small C++ files, a positive case
 for each kind of site and forward, a helper and a builder, a name an `if` binds shadowing a matcher's, a change in a
-lambda, a change before a forward and one before a site, and a generic function's tags, in Reassociate too. On a copy of the pinned source, it checks that a rewrite removed, added or
+lambda, a change before a forward, a returned flag or a site, and the tags of a generic function, in Reassociate
+too, and of a site whose function starts by reading a pointer. On a copy of the pinned source, it checks that a rewrite removed, added or
 changed is each reported by its ID.
 
 ## Reproducing

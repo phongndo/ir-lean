@@ -908,7 +908,7 @@ class Scanner:
                             return False
                         continue
                     if fn.result == "bool" and len(x.expr) == 1 and x.expr[0].kind == "id":
-                        return False  # a flag returned: the change it records is this one
+                        continue  # a flag returned isn't a site: the sites are where it's set to true
                     if self.classify(fn, x.expr, binds, path=full)[0]:
                         return False
                 if x.kind == "simple":
@@ -1112,11 +1112,13 @@ MEM_IDS = re.compile(
 MEM_MATCHERS = re.compile(
     r"^m_(PtrToInt|PtrToIntSameSize|IntToPtr|PtrToAddr|GEP|PtrAdd|Load|Store|AddrSpaceCast)$"
 )
+# The classes of intrinsics the model has, `MinMaxIntrinsic`, `SaturatingInst`, `WithOverflowInst`,
+# `BinaryOpIntrinsic` and `CmpIntrinsic`, aren't calls here.
 CALL_IDS = re.compile(
     r"^(CallInst|CallBase|InvokeInst|CallBrInst|IntrinsicInst|getIntrinsicID|getCalledFunction|getCalledOperand|"
     r"LibFunc|TargetLibraryInfo|TLI|isLibFuncEmittable|emitUnaryFloatFnCall|CreateCall|CreateIntrinsic|"
     r"CreateUnaryIntrinsic|CreateBinaryIntrinsic|getOrInsertDeclaration|Function|isa_Call|"
-    r"MinMaxIntrinsic|SaturatingInst|WithOverflowInst|BinaryOpIntrinsic|CmpIntrinsic|"
+    r""
     r"m_Intrinsic|m_Call|isInstructionTriviallyDead|wouldInstructionBeTriviallyDead)$"
 )
 VECTOR_IDS = re.compile(
@@ -1168,6 +1170,12 @@ def tokens_of(fn: Function, site: Site) -> list[Tok]:
     if toks[j].text == ")":
         out.extend(toks[match_open(toks, j) : j + 1])
     enclosing = (*site.path, site.stmt)
+    # The function's own body is a block too: the plain statements before the site's outermost statement.
+    for c in body_of(fn):
+        if c.start >= enclosing[0].start:
+            break
+        if c.kind == "simple":
+            out.extend(toks[c.start : c.end])
     for k, s in enumerate(enclosing):
         if s.cond is not None:
             out.extend(toks[s.cond[0] : s.cond[1]])
