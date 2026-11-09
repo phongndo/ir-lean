@@ -233,10 +233,10 @@ set_tests_properties(zlib_slow PROPERTIES LABELS slow)
 set_tests_properties(passes PROPERTIES LABELS passes)
 set_tests_properties(binding PROPERTIES LABELS binding)
 set_tests_properties(binding_2 PROPERTIES LABELS binding_2)
-set_tests_properties(proofs PROPERTIES LABELS proofs)
+# verify_negative runs alone, after proofs, in the same job, so semantics has only one test that runs alone.
+set_tests_properties(proofs verify_negative PROPERTIES LABELS proofs)
 set_tests_properties(llvm PROPERTIES LABELS llvm)
 set_tests_properties(
-    verify_negative
     replay_challenge
     contracts
     refine

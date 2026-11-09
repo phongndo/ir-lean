@@ -1171,7 +1171,7 @@ def mutants_passed(scorer: Scorer) -> dict | None:
 def self_check(scorer: Scorer, jobs: int = 1) -> dict:
     """Each mutant's result and the control's. `ok` is false if a mutant was proved, or didn't reach the
     proof, or the control isn't bound. The control is scored and verified every time. The mutants are tried
-    `jobs` at a time, as test runs are, each in a directory of its own."""
+    `jobs` at a time, each in a directory of its own."""
     out: dict = {"mutants": {}, "ok": True, "problems": [], "mutants_from_cache": False}
     cached = mutants_passed(scorer)
     if cached is not None:
@@ -1369,7 +1369,10 @@ def main() -> int:
         r = Run(single_pass(spec) or spec, Path(f).resolve(), spec, triple or None, ())
         print(json.dumps(scorer.score(r), indent=1))
         return 0
-    check = self_check(scorer, args.jobs)
+    # The mutants never reach tools/binding.py, so they all run in the scorer's own scope, and as many can run
+    # at once as its memory holds. Three of them run until Lean's heartbeat limit, which only running them at
+    # once shortens.
+    check = self_check(scorer, max(args.jobs, min(len(MUTANTS), (budget - SCORER_MB) // process_mb)))
     if not check["ok"]:
         print(f"UNSOUND or broken, so nothing is scored: {check['problems']}", file=sys.stderr)
         return 1
