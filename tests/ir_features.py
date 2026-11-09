@@ -321,8 +321,8 @@ REASONS: dict[str, Reason] = {
     "data layout": Reason(
         "modeled",
         None,
-        "A data layout the model reads the facts it uses from: 64-bit pointers "
-        "and indices, and little-endian",
+        "A data layout that says what Mem assumes, read from it: 64-bit pointers in address space 0, all of "
+        "them address, null all zeros, and little-endian",
     ),
     # Refused, with the lane working on it.
     "floating point": Reason("refused", "floating point", "Floating point"),
@@ -355,11 +355,22 @@ REASONS: dict[str, Reason] = {
     ),
     "layout": Reason(
         "refused",
+        "memory",
+        "Pointers Mem doesn't have yet: in another address space, in a vector, or, in a function with "
+        "memory, narrower than 64 bits, with fewer address bits, or with a null that isn't all zeros",
+    ),
+    "big-endian": Reason(
+        "refused",
         "long tail",
-        "A data layout, an address space or a vector of pointers the model doesn't have yet",
+        "A bitcast between integers and vectors in a big-endian module, whose lane order the model "
+        "doesn't have",
     ),
     "exceptions": Reason(
-        "refused", "long tail", "Exception handling: invoke, landingpad, resume and the funclet instructions"
+        "refused",
+        "long tail",
+        "Exception handling: invoke, landingpad, resume and the funclet instructions. Refused on review: a "
+        "landing pad's value is a pointer to the exception and a selector the personality function, outside "
+        "the module, chooses, so it waits on memory and on calls. docs/ir-features.md",
     ),
     "aggregate gap": Reason("refused", "long tail", "An aggregate form the emitter doesn't translate yet"),
     "calling convention mismatch": Reason(
@@ -893,7 +904,8 @@ FORM_RULES = [
     R(
         "layout",
         "pointer-in-address-space vector-of-pointers getelementptr-of-vectors "
-        "data-layout-32-bit-pointers-with-memory big-endian-bitcast",
+        "data-layout-32-bit-pointers-with-memory data-layout-32-bit-addresses-with-memory "
+        "data-layout-null-all-ones-with-memory",
     ),
     R("memory model", "store-of-i1 load-of-i1 freeze-of-a-pointer"),
     R("concurrency", "volatile-load volatile-store atomic-load atomic-store"),
@@ -904,6 +916,7 @@ FORM_RULES = [
     ),
     R("variadic", "variadic-function"),
     R("exceptions", "personality-function"),
+    R("big-endian", "big-endian-bitcast"),
     R("asm", "inline-asm-call"),
     R("gc", "function-with-gc"),
     R("machine", "prefix-or-prologue-data"),

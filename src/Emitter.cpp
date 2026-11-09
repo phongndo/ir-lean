@@ -287,6 +287,16 @@ bool hasExactLinkage(const GlobalValue &G) {
   return (G.hasExternalLinkage() || G.hasInternalLinkage() || G.hasPrivateLinkage()) && !G.isInterposable();
 }
 
+// Whether the module's data layout says what `Mem` assumes of pointers in address space 0 and of memory: a
+// pointer is 64 bits, all of them address, as LangRef's "The index size also specifies the width of addresses
+// in this address space" makes it when the index size is 64, null is all zeros, which a `p` with the `o` flag
+// changes, and bytes are stored little-endian. LLVM's parser refuses the `u` and `e` flags on address space
+// 0.
+bool memoryLayoutFits(const DataLayout &DL) {
+  return DL.getPointerSizeInBits(0) == 64 && DL.getAddressSizeInBits(0U) == 64 &&
+         DL.getNullPtrValue(0).isZero() && DL.isLittleEndian();
+}
+
 // A `linkonce_odr` or `weak_odr` definition, as C++ gives inline functions and templates. Its IR is still
 // this translation's copy of it, so a theorem about that copy means what any other does. What calls it is
 // another matter, since the copy a call runs may be another translation's: `emitCall` refuses those calls.
@@ -2765,7 +2775,7 @@ void FunctionEmitter::prepare() {
   checkValueAttributes(F.getAttributes().getRetAttrs(), F.getReturnType(), Position::Return);
   for (const Value *V : Values)
     leanType(V->getType());
-  if (UsesMemory && (Context.DL.getPointerSizeInBits() != 64 || !Context.DL.isLittleEndian()))
+  if (UsesMemory && !memoryLayoutFits(Context.DL))
     reject("data layout " + F.getParent()->getDataLayoutStr());
   for (const BasicBlock *BB : Blocks)
     for (const Instruction &I : *BB)
