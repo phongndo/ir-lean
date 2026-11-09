@@ -86,7 +86,7 @@ KINDS = {
     "included, the two functions as ir-lean generated them have the same outcome in IRLean's semantics, "
     "and it's one the model knows LLVM gives",
     "ir_instance_refinement": "IRLean.Refines Src.f Tgt.f: on every input, the target only does what the "
-    "source allows, in IRLean's semantics. Needs an IRLean with IRLean.Refines",
+    "source allows, in IRLean's semantics, where a model stop in the source allows nothing",
     "rewrite_all_inputs": "The pass's rewrite is correct on every input module it applies to (L3)",
     "pass_implementation": "The pass's compiled C++ makes only proved rewrites, for every input module (L4)",
     "pipeline_composition": "A pipeline of passes, at an optimization level and target, preserves meaning",

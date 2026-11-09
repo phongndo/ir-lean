@@ -90,7 +90,7 @@ Each lane owns its files. Two tasks being worked on at once can't own the same f
 | Lane | Covers | Files it owns | Can start now |
 | --- | --- | --- | --- |
 | INV | Inventory and plan | `tests/llvm_scope*`, `docs/llvm-verification-tasks.md` | INV-01 to INV-03 are in review. INV-04 to INV-06 and INV-09 once INV-01 lands |
-| SEM | Semantics contracts: poison, `undef`, `freeze`, integers, floating point, memory, UB | `IRLean/*.lean` apart from the refinement tactic, `docs/trust.md`, `tests/opcheck.py`, `tests/gepcheck.py` | SEM-01 is drafted in another tree. SEM-04 has no prerequisites |
+| SEM | Semantics contracts: poison, `undef`, `freeze`, integers, floating point, memory, UB | `IRLean/*.lean` apart from the refinement tactic, `docs/trust.md`, `tests/opcheck.py`, `tests/gepcheck.py` | SEM-01 is in review: [refinement](refinement.md). SEM-04 has no prerequisites |
 | BIND | Binding proofs to LLVM's C++, and an independent verifier | `tools/`, new binding checks, `src/Emitter.*` for C++ support | BIND-01 has no prerequisites. BIND-02 once INV-01 lands |
 | NEG | Negative tests, CI and honest reporting | `CMakeLists.txt`, `.github/`, `tests/lint.sh`, mutation scripts | NEG-03 has no prerequisites. NEG-01 once INV-01 and INV-02 land |
 | AUTO | Proof automation and lemma reuse | `IRLean/RefineTactic.lean`, lemma stores | AUTO-01 is drafted in another tree. The rest wait on SEM-01 |
@@ -98,9 +98,9 @@ Each lane owns its files. Two tasks being worked on at once can't own the same f
 | LOOP | Loops, vectorization, IPO and LTO | Per-pass proof directories | Waits on PASS-01 and SEM |
 | CG | Codegen, legalization, machine passes, per target | Per-target proof directories | Waits on CG-01 |
 
-The refinement scorer on `research/prove-llvm-optimizations` (`IRLean/Refine.lean`, `IRLean/RefineTactic.lean`,
-`tests/passes.py`, `tests/passes/`, `docs/passes.md`) isn't on `main`. It's SEM-01, AUTO-01 and PASS-02 below, and this
-lane doesn't touch its files.
+The refinement scorer on `research/prove-llvm-optimizations` (`IRLean/RefineTactic.lean`, `tests/passes.py`,
+`tests/passes/`, `docs/passes.md`) isn't on `main`. It's AUTO-01 and PASS-02 below, and this lane doesn't touch its
+files. Its relation, `IRLean/Refine.lean`, is SEM-01, and is on `main` with [its own page](refinement.md).
 
 ```mermaid
 flowchart LR
@@ -250,8 +250,8 @@ when they land.
 - **Owns:** `IRLean/Refine.lean`, `IRLean.lean`, `lakefile.toml`, `tests/check_axioms.lean`
 - **Acceptance:** The statement is reviewed by someone other than its author. Known-wrong rewrites (wrong constant, added `nuw`, `freeze` making a value of poison, added UB, swapped lanes, a loop that never ends) fail to certify, and a right one certifies.
 - **Trust gaps:** Memory and pointers have no instance yet, and the model's extra UB on the source side can hide a wrong target there.
-- **Status:** in progress
-- **Evidence:** A draft is uncommitted on `research/prove-llvm-optimizations`. Nothing landed.
+- **Status:** in review
+- **Evidence:** `IRLean/Refine.lean`, checked by `tests/refine.sh`: `tests/refine/RefineCases.lean` proves each known-wrong rewrite above isn't a refinement and right ones are, and `tests/binding.py` binds one real `instcombine` run as `ir_instance_refinement`. Review by someone other than its author is open. See [refinement](refinement.md).
 
 ### SEM-02: Undef
 
