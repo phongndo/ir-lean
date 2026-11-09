@@ -136,7 +136,8 @@ set_tests_properties(replay_challenge PROPERTIES RUN_SERIAL TRUE TIMEOUT 1800)
 # match: one instcombine rewrite, and the cases of mismatched evidence, one capped Lean process at a time.
 add_test(NAME binding COMMAND ${CMAKE_SOURCE_DIR}/tests/binding.py)
 # Alone, since each of its Lean processes takes up to 3.5 GB. It hashes the Lean toolchain on every check,
-# so it gets more time than it takes on a fast disk, about 5 minutes.
+# so it gets more time than it takes: about 3 minutes on 32 cores, and 10 on CI's 4 before that hashing got
+# faster.
 set_tests_properties(binding PROPERTIES RUN_SERIAL TRUE TIMEOUT 1800)
 # The scorer, on two small tests rather than llvm-project: an instance counts only when tools/binding.py
 # binds its bundle in the same run. The rules in Python first, then the scorer itself, alone, since it runs

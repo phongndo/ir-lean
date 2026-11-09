@@ -40,6 +40,7 @@ usage: tools/binding.py record --input FILE.ll --passes SPEC [--mtriple T] --fun
 """
 
 import argparse
+import base64
 import contextlib
 import hashlib
 import json
@@ -48,10 +49,12 @@ import re
 import secrets
 import shutil
 import signal
+import stat
 import subprocess
 import sys
 import tempfile
 import tomllib
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from typing import Any, NoReturn
 
@@ -71,6 +74,10 @@ VERDICT_SCHEMA = "ir-lean.binding.verdict/1"
 EXIT = {"bound": 0, "refused": 1, "unsupported": 3, "unknown": 4, "error": 5}
 DEFAULT_TIMEOUT = 300
 DEFAULT_MEMORY_MB = 3000
+# Threads hashing a tree's files at once. Reading a file and hashing it both let other threads run.
+HASH_THREADS = min(8, os.cpu_count() or 1)
+# The directory a store path is directly in, which is the only place llvm_source_hash() asks Nix about.
+NIX_STORE = Path("/nix/store")
 # Lean's errors for running out of something, as tests/llvm.py and tests/proofs.sh list them.
 LIMIT = re.compile(
     r"maximum number of heartbeats|\(deterministic\) timeout|maximum recursion depth|deep recursion|"
@@ -116,7 +123,8 @@ TRUSTED = [
     "The ir-lean emitter, unverified, and IRLean's semantics (docs/trust.md)",
     "opt and LLVM's IR parser, for what they printed. Rerunning them shows they do it again, not that it's "
     "right",
-    "Nix, for the opt binary coming from the pinned source, and SHA-256",
+    "Nix, for the opt binary coming from the pinned source, and, when root owns the store, for the NAR hash "
+    "it recorded for LLVM_PROJECT_SRC. And SHA-256",
     "The certificate's own code runs while Lean compiles it, unsandboxed. Files it could change are rehashed "
     "after",
 ]
@@ -158,7 +166,9 @@ def sha256(data: bytes) -> str:
 
 
 def sha256_file(path: Path) -> str:
-    return sha256(path.read_bytes())
+    """A file's SHA-256, read a piece at a time, so a large file isn't held in memory whole."""
+    with path.open("rb") as f:
+        return hashlib.file_digest(f, "sha256").hexdigest()
 
 
 def canonical(obj: Any) -> bytes:
@@ -178,6 +188,15 @@ def walk(*roots: Path) -> list[Path]:
     return sorted(out)
 
 
+def kind(path: Path) -> bytes:
+    """What `path` is, without following a link."""
+    mode = path.lstat().st_mode
+    for test, name in ((stat.S_ISLNK, b"link"), (stat.S_ISREG, b"file"), (stat.S_ISDIR, b"dir")):
+        if test(mode):
+            return name
+    return b"other"
+
+
 def tree_hash(base: Path, *roots: Path) -> str:
     """Every file under `roots` by its path from `base` and its bytes, and every link by its target:
     everything Lean could read there, its modules, their companion `.olean.server`, `.olean.private`, `.ir`
@@ -186,13 +205,22 @@ def tree_hash(base: Path, *roots: Path) -> str:
     reach a file nothing hashes, so it's an error. So a link has to be a bare file name, naming a sibling
     that's hashed itself and isn't a directory, or an absolute path into the store that stays there. Nothing
     is normalized: `..`, a root that's a link, and a link to a directory could each lead through something
-    only tracked as a link, and what it leads to could change unseen."""
+    only tracked as a link, and what it leads to could change unseen.
+
+    Each entry goes in as its path, a NUL, its kind and a NUL, and then a file's SHA-256, 32 bytes, or a
+    link's target and a NUL. A path or a target can't hold a NUL, so the bytes read back one way, and no two
+    trees give the same ones: a file can't pass for two, or a directory for an empty file. Files are hashed
+    on HASH_THREADS threads, each a piece at a time."""
     entries = walk(*roots)
     tracked = {str(p) for p in entries}
+    kinds = {path: kind(path) for path in entries}
+    files = [p for p in entries if kinds[p] == b"file"]
+    with ThreadPoolExecutor(HASH_THREADS) as pool:
+        contents = dict(zip(files, pool.map(sha256_file, files), strict=True))
     digest = hashlib.sha256()
     for path in entries:
-        digest.update(str(path.relative_to(base)).encode() + b"\0")
-        if path.is_symlink():
+        digest.update(os.fsencode(path.relative_to(base)) + b"\0" + kinds[path] + b"\0")
+        if kinds[path] == b"link":
             raw = os.readlink(path)
             sibling = "/" not in raw and raw not in (".", "..") and str(path.parent / raw) in tracked
             store = raw.startswith("/nix/store/") and Path(raw).resolve().is_relative_to("/nix/store")
@@ -200,10 +228,9 @@ def tree_hash(base: Path, *roots: Path) -> str:
                 raise Verdict(
                     "error", "toolchain_untrusted_link", f"{path} leads to {raw}, which isn't checked"
                 )
-            digest.update(b"link " + os.readlink(path).encode())
-        elif path.is_file():
-            digest.update(path.read_bytes())
-        digest.update(b"\0")
+            digest.update(os.fsencode(raw) + b"\0")
+        elif kinds[path] == b"file":
+            digest.update(bytes.fromhex(contents[path]))
     return digest.hexdigest()
 
 
@@ -394,14 +421,67 @@ def llvm_pin() -> dict[str, str]:
 
 
 def llvm_source_hash(run: Runner) -> str:
-    """The NAR hash of the dev shell's llvm-project source, which Nix fetched for the pinned tag."""
+    """The NAR hash of the dev shell's llvm-project source, which Nix fetched for the pinned tag: the one Nix
+    recorded for it, when only root could have changed it since, or else its files hashed again, which takes
+    seconds for its 2.3 GB."""
     source = os.environ.get("LLVM_PROJECT_SRC")
     if not source:
         raise Verdict("error", "toolchain_missing", "LLVM_PROJECT_SRC isn't set: run inside nix develop")
+    recorded = recorded_nar_hash(run, Path(source))
+    if recorded is not None:
+        return recorded
     code, err, out = run(["nix", "hash", "path", source])
     if code != 0:
         raise Verdict("error", "toolchain_missing", f"nix can't hash {source}: {err[-300:]}")
     return out.decode().strip()
+
+
+def recorded_nar_hash(run: Runner, path: Path) -> str | None:
+    """The NAR hash Nix recorded when it added `path` to its store, if that's still the hash of what's there,
+    or None. Nix hashes what it adds, whether it built, downloaded or imported it, and refuses it if the hash
+    isn't the one it was given, so what it recorded is the hash of what it added. It's still the hash of
+    what's there if no one could change it since. That holds when `path` is a path directly in /nix/store,
+    owned by root, and this process isn't root: Nix makes everything in a path root's and read-only when the
+    store is root's, as it is with a daemon, and nothing without root can change it then. A store a user
+    owns, which a single-user install makes, gets None, as does anything else."""
+    if path.parent != NIX_STORE or os.geteuid() == 0:
+        return None
+    try:
+        if path.lstat().st_uid != 0:
+            return None
+    except OSError:
+        return None
+    code, _, out = run(["nix-store", "--query", "--hash", str(path)])
+    if code != 0:
+        return None
+    algorithm, _, digest = out.decode().strip().partition(":")
+    if algorithm != "sha256":
+        return None
+    try:
+        return "sha256-" + base64.b64encode(nix32_decode(digest, 32)).decode()
+    except ValueError:
+        return None
+
+
+NIX32 = "0123456789abcdfghijklmnpqrsvwxyz"
+
+
+def nix32_decode(text: str, size: int) -> bytes:
+    """Nix's base-32, as `nix-store --query --hash` prints a hash: its digits read from the last, 5 bits
+    each, from the lowest bit of the first byte up."""
+    if len(text) != (size * 8 + 4) // 5:
+        raise ValueError(f"{text!r} isn't {size} bytes in Nix's base-32")
+    out = bytearray(size)
+    for n, c in enumerate(reversed(text)):
+        digit = NIX32.index(c)
+        byte, bit = divmod(n * 5, 8)
+        out[byte] |= (digit << bit) & 0xFF
+        carry = digit >> (8 - bit)
+        if byte + 1 < size:
+            out[byte + 1] |= carry
+        elif carry:
+            raise ValueError(f"{text!r} has bits past {size} bytes")
+    return bytes(out)
 
 
 def ir_target(ll: str) -> dict[str, str | None]:
