@@ -130,9 +130,10 @@ written by the calls with effects in `t`, so its answers depend on them. -/
 
 /-- A call with effects, in a run watched for `n` calls with effects. It goes in the trace before it answers, and its
 answer depends on every call with effects before it. One that would make the trace longer than `n` ends the run `cut`,
-with the trace so far. One that never comes back ends the run `halted`, unless it promised to return. -/
+with the trace so far and itself at its head, before it answers, so the run shows which call it was cut off at. One
+that never comes back ends the run `halted`, unless it promised to return. -/
 @[llvm] def callEffect (w : World) (t : Trace) (n : Nat) (e : Event) (p : Promises) : Outcome (Exit Lanes) :=
-  if n ≤ t.length then Outcome.ok (.cut t) else
+  if n ≤ t.length then Outcome.ok (.cut (e :: t)) else
   match w.effect (e :: t) with
   | .ret v => if p.noreturn then Outcome.ub .outsideCall else Outcome.ok (.done v (e :: t))
   | .undefined => Outcome.ub .outsideCall
