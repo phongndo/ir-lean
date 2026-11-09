@@ -245,3 +245,8 @@ reads it. That difference is itself a thing [Phase 3](roadmap.md#phase-3-c-and-r
     side's choices, so inserting, removing and duplicating a `freeze` are judged as LangRef judges them, and four real
     `instcombine` runs on `freeze` are bound as refinements. `undef` stays out of the model. Done in
     [#72](https://github.com/phongndo/ir-lean/pull/72). See [refinement](refinement.md#runs-that-make-choices).
+14. An independent verifier for claims about LLVM's passes, BIND-03, on 2026-11-09: `tools/verify_claims.py` replays
+    a claim's evidence from the pinned source, sharing no code with the scorer, and `tests/llvm_scope.py` counts a
+    claim only if it agrees. It replays every function in [LLVM's own code](#llvms-own-code) and refuses forged
+    claims, each for its own reason. It verifies no claim about a pass yet: none can be complete before INV-04,
+    BIND-02 and PASS-05 say what each dimension has to cover. See [verifying claims](verify-claims.md).

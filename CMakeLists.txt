@@ -104,6 +104,13 @@ add_test(NAME llvm COMMAND ${CMAKE_SOURCE_DIR}/tests/llvm.py $<TARGET_FILE:ir-le
 add_test(NAME llvm_scope COMMAND ${CMAKE_SOURCE_DIR}/tests/llvm_scope_test.py)
 add_test(NAME llvm_scope_check COMMAND ${CMAKE_SOURCE_DIR}/tests/llvm_scope.py check)
 set_tests_properties(llvm_scope llvm_scope_check PROPERTIES TIMEOUT 600)
+# BIND-03's verifier, tools/verify_claims.py: claims refused before any replay, in Python, then every function
+# tests/llvm.py proves replayed as one piece of evidence, tools/verify.py's controls, and forged claims, each
+# refused for its own reason. docs/verify-claims.md.
+add_test(NAME verify_claims_static COMMAND ${CMAKE_SOURCE_DIR}/tests/verify_claims_test.py --tier static)
+add_test(NAME verify_claims COMMAND ${CMAKE_SOURCE_DIR}/tests/verify_claims_test.py --tier live)
+set_tests_properties(verify_claims_static PROPERTIES TIMEOUT 600)
+set_tests_properties(verify_claims PROPERTIES RUN_SERIAL TRUE TIMEOUT 1800)
 # tools/corpus/capture.py, in Python, with one seed through opt when the pinned one is on PATH: under a
 # second, and no Lean. docs/corpus.md.
 add_test(NAME corpus COMMAND ${CMAKE_SOURCE_DIR}/tests/corpus_test.py)
@@ -261,6 +268,7 @@ set_tests_properties(binding_2 PROPERTIES LABELS binding_2)
 # verify_negative runs alone, after proofs, in the same job, so semantics has only one test that runs alone.
 set_tests_properties(proofs verify_negative PROPERTIES LABELS proofs)
 set_tests_properties(llvm PROPERTIES LABELS llvm)
+set_tests_properties(verify_claims PROPERTIES LABELS verify_claims)
 set_tests_properties(
     replay_challenge
     contracts
