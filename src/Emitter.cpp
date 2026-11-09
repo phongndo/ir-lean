@@ -1302,9 +1302,9 @@ void FunctionEmitter::emitInstruction(const Instruction &I, std::vector<Line> &O
     Cast("Val.trunc", flag(T.hasNoUnsignedWrap(), "nuw") + flag(T.hasNoSignedWrap(), "nsw"));
     return;
   }
-  // Between vectors of integers only. One lane width divides the other, so it's a split or a join. LangRef reads
-  // it as a store and a load, which puts lane 0 in the low bits only on a little-endian target, so a big-endian
-  // module is refused, even for a function that doesn't touch memory.
+  // Between vectors of integers only. One lane width divides the other, so it's a split or a join. LangRef
+  // reads it as a store and a load, which puts lane 0 in the low bits only on a little-endian target, so a
+  // big-endian module is refused, even for a function that doesn't touch memory.
   case Instruction::BitCast: {
     auto *From = dyn_cast<FixedVectorType>(I.getOperand(0)->getType());
     auto *To = dyn_cast<FixedVectorType>(I.getType());
