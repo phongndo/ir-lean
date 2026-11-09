@@ -615,9 +615,9 @@ def prove_pair(pair: dict, work: Path, timeout: int, memory: int, versions: dict
 @functools.cache
 def fingerprint() -> str:
     """What every stage's record rests on besides its pair: the emitter, IRLean's library, Lean, the checkers
-    tools/verify.py runs, everything tools/binding.py's verdict rests on by its own account (its checker, `opt`,
-    `leanchecker` and Lean's toolchain among them), the gate, and alive-tv. A record made with anything else is
-    stale."""
+    tools/verify.py runs, everything tools/binding.py's verdict rests on by its own account (its checker,
+    `opt`, `leanchecker` and Lean's toolchain among them), the gate, and alive-tv. A record made with anything
+    else is stale."""
     v = VN.load_verify()
     versions = VN.current_versions(v, TOOL)
     alive = Path(os.path.realpath(shutil.which("alive-tv") or "alive-tv"))
@@ -2015,9 +2015,9 @@ def cmd_ci(args: argparse.Namespace) -> int:
 
 
 def stale_records_ignored(work: Path, certified: list[dict]) -> int:
-    """On copies of the run's records: a certified pair whose target changes since loses its verdict, one whose
-    latest proof failed isn't certified, though its certificate is still about it, and with tools/binding.py's
-    checker changed, no pair is. Returns the failures."""
+    """On copies of the run's records: a certified pair whose target changes since loses its verdict, one
+    whose latest proof failed isn't certified, though its certificate is still about it, and with
+    tools/binding.py's checker changed, no pair is. Returns the failures."""
     import shutil
 
     if len(certified) < 2:

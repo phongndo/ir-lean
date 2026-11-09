@@ -342,7 +342,8 @@ def check_alive(ops, all_cases, results):
     try:
         pairs = [pair for _, _, src, tgt in jobs for pair in ((src, tgt), (tgt, src))]
         pairs += [pair for src, tgt in controls.values() for pair in ((src, tgt), (tgt, src))]
-        outputs = alive.refinements(declarations(ops), pairs, work)
+        # Both ways round, so an input the operation is undefined on is checked without --fail-src-ub.
+        outputs = alive.refinements(declarations(ops), pairs, work, alive.BOTH_WAYS)
     finally:
         shutil.rmtree(work, ignore_errors=True)
     for j, name in enumerate(controls):
