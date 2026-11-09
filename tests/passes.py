@@ -64,7 +64,7 @@ from typing import Any
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.append(str(ROOT / "tools"))
-from irlean import hashing, proc  # noqa: E402
+from irlean import hashing, proc, schemas  # noqa: E402
 from irlean import lean as leanlib  # noqa: E402
 from irlean import verdict as core  # noqa: E402
 
@@ -85,10 +85,10 @@ def load_binding() -> Any:
 
 B = load_binding()
 
-INSTANCE_SCHEMA = "ir-lean.passes.instance/1"
-RUN_SCHEMA = "ir-lean.passes.run/1"
-SCORE_SCHEMA = "ir-lean.passes.score/1"
-SELFCHECK_SCHEMA = "ir-lean.passes.selfcheck/1"
+INSTANCE_SCHEMA = schemas.PASSES_INSTANCE
+RUN_SCHEMA = schemas.PASSES_RUN
+SCORE_SCHEMA = schemas.PASSES_SCORE
+SELFCHECK_SCHEMA = schemas.PASSES_SELFCHECK
 # Bump when what a result means changes. The research scorer's results were version 2.
 VERSION = "3"
 STATUSES = ("bound", "refused", "unsupported", "failed", "unknown", "error")

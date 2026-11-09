@@ -31,7 +31,10 @@ code without memory:
 | `Unit`, for `void` | Always |
 | `Outcome α`, a run | `src` is undefined: always. `src` stops the model: never. `src` never finishes: `tgt` never finishes. `src` returns `x`: `tgt` returns some `y` that `x` allows |
 | `Outcomes α`, a run that makes choices | For every way `tgt` chooses, some way `src` chooses gives a run that allows `tgt`'s. See [choices](#runs-that-make-choices) |
-| `α → β`, a function | For every input, the same input to both, the results are related. A `Val` input is a value or poison |
+| `Exit α`, how a run that calls outside the module ends | `src` returned `x` with trace `t`: `tgt` returned some `y` that `x` allows, with trace `t`. `src` ended in a call that never came back, or unwound, or was cut off: `tgt` ended the same way, with the same trace. See [calls](calls.md) |
+| `Talks α`, a run of a function that calls outside the module | For every way `tgt` chooses, some way `src` chooses gives a run that allows `tgt`'s, watched for any number of calls with effects. The number comes after the source's choice, so one run of `src` has to agree with every prefix of `tgt`'s trace. See [calls](calls.md#refinement) |
+| `α → β`, a function | For every input, the same input to both, the results are related. A `Val` input is a value or poison. For a function that calls outside the module, the `World` and the trace before it are inputs too, so both sides face the same world |
+| `(vs : VScale) → β vs`, a function in a module with scalable vectors | For every `vscale`, the same on both sides, by `IRLean.Scalable`'s instance. It's a parameter, not a choice: see [scalable vectors](scalable-vectors.md) |
 
 There's no instance for `Mem`, `Ptr` or `PtrVal`. The emitter gives every function that mentions a pointer or touches
 memory a `Mem` argument and a `Mem` in its result, so such a function has no `Refines` claim at all, rather than one
@@ -139,6 +142,7 @@ What other code may rely on. These names are stable. A change to any of them is 
 | `Refine.outcome_le_self_iff`, `Refines.self_iff` | A run, or a function of one argument, refines itself exactly when it never stops the model |
 | `Refine.outcomes_iff`, `outcomes_det`, `outcomes_det_left`, `outcomes_det_right` | Runs that make choices, unfolded, and with one side lifted from a run that makes none |
 | `Refine.outcomes_of_same`, `outcomes_le_self` | Choosing the same on both sides is enough, and a run that never stops the model refines itself |
+| `Refine.exit_done`, `exit_done_done`, `exit_halted`, `exit_unwound`, `exit_cut`, `exit_lift`, `talks_iff`, `talks_of_same` | How a run that calls outside the module ends, unfolded, with both sides lifted from runs that don't by `Exit.lift`, and runs of functions that do, unfolded, and with the same choice on both sides. In [`IRLean/World.lean`](../IRLean/World.lean) |
 | `Refines.trans` | Refinements compose |
 | `Refines.of_eq` | Equal functions refine each other where the source refines itself. With `self_iff`, `tools/binding.py`'s `ir_instance_equivalence` claim implies `ir_instance_refinement`'s |
 | `Refine.andThen_mono` | Replacing a run by one it allows, before a continuation that keeps refinement, keeps refinement |
