@@ -86,8 +86,8 @@ Evidence and not proof. A pass here means no disagreement was found on the input
   of at most about 800 bytes, because the semantics are slow to run: each memory access walks back through
   earlier writes. The harness reaches all but 5 of zlib's functions, counted without optimization so
   nothing is inlined away: two for big-endian machines, `crc32_combine_gen`, `_tr_align` and `_tr_tally`.
-- **What the emitter accepts:** all 17,042 items the pinned IR can contain are classified, 280 modeled, 260
-  assumed and 16,502 refused, and a probe of each shows the emitter does what its class says, with the Lean it
+- **What the emitter accepts:** all 17,044 items the pinned IR can contain are classified, 280 modeled, 260
+  assumed and 16,504 refused, and a probe of each shows the emitter does what its class says, with the Lean it
   prints for each it translates elaborating ([IR features](ir-features.md)). Since 2026-11-09.
 - **Vector forms of integer operations:** the vector forms of 16 intrinsics, vector division and remainder,
   `noundef` and `range` on vectors and structs, and x86's VPTERNLOG, PSHUFB and shifts agree with Alive2 both ways,
