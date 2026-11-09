@@ -60,8 +60,11 @@ measurably beat `clang -O3`, proved to do the same. Those results are from 2026-
 
 A rewrite of the IR clang `-O3` gives llama.cpp's q4_K matrix kernels, at release `b12189`, so they use AVX-512 VNNI.
 Lean proves each of the 34 places it changes gives the same result as clang's IR on every input, from slices of the
-kernels that include how clang computed their operands. [llama.cpp](llama.md) has the details, what connects the slices
-to the kernels, which is a checked argument and not a theorem, and the measurements. Those results are from 2026-11-07.
+kernels that include how clang computed their operands. For each of three wrong rewrites, it proves the rewritten slice
+differs from clang's at every place. [llama.cpp](llama.md) has the details, what connects the slices to the kernels,
+which is a checked argument and not a theorem, and the measurements. CI checks it in a job of its own, which needs no
+model. The proofs were checked on 2026-11-07 on top of `6293d34`, and again on 2026-11-08 merged with `main` at
+`0330cd7`, with the same hashes for the IR, every slice and every generated Lean file.
 
 ## Tested
 
@@ -87,6 +90,13 @@ Evidence and not proof. A pass here means no disagreement was found on the input
   ([`stops.ll`](../tests/real/stops.ll)).
 - **Promises kept:** 25 functions that keep their promises match native code with no input skipped
   ([`promises.ll`](../tests/real/promises.ll)).
+- **x86 intrinsics and vector bitcasts:** PMADDUBSW, PMADDWD and VPDPBUSD at all three widths, and `bitcast` between
+  vectors, agree with the processor on 8,800 results ([`x86.ll`](../tests/real/x86.ll)), which needs AVX-512 VNNI. On
+  any processor, the bitcasts, PMADDUBSW and PMADDWD agree with Alive2 both ways and LLVM's constant folder, poison
+  included, on 473 inputs to 29 operations ([`x86check.py`](../tests/x86check.py)). Checked on 2026-11-08.
+- **llama.cpp's rewrite natively:** each of the 34 pairs of slices gives the same results on the processor, on 200,000
+  inputs each, and each wrong rewrite differs ([llama.cpp](llama.md#checked-another-way)). With the two libraries,
+  `llama-perplexity` gives the same logits bit for bit on two models, on 2026-11-07.
 - **Dependence on the code:** 16 bugs injected into the C each make a proof stop checking, three of them memory bugs in
   `updatewindow`.
 - **Dependence on the rules:** as a one-off, 114 rules for GEPs and promises were each broken in turn. 108 were
@@ -94,6 +104,11 @@ Evidence and not proof. A pass here means no disagreement was found on the input
   checked directly in Lean, and 1 is implied by the others, with a proof.
 
 ## Measured
+
+The q4_K rewrite makes reading a prompt with llama.cpp 5.5% to 7.2% faster on two models, on a Ryzen 9 9950X with 8
+threads, in every round, and generating isn't faster with 8 threads. [llama.cpp](llama.md#measured) has the tables, the
+spread and the raw rows. Measured on 2026-11-07 on top of `6293d34`, and not since, as it needs models that aren't in
+the repo.
 
 What the proofs cost, which is a result about the method and not about zlib. This table was measured before the
 promise model. The proofs have since grown by 36 and 58 lines, mostly threading tags through, so the totals are

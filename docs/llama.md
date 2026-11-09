@@ -6,7 +6,9 @@ same values on every input, which makes real inference faster. For what any theo
 
 Facts here were checked on 2026-11-07, with clang 23.1.3 and Lean 4.35.0, against llama.cpp's release
 [`b12189`](https://github.com/ggml-org/llama.cpp/tree/b12189) (commit `80d2c0c`), on an AMD Ryzen 9 9950X, on top of
-commit `6293d34`.
+commit `6293d34`. `tests/llama.py`, its proofs, native comparison and mutants, ran again on 2026-11-08, merged with
+`main` at `0330cd7`, with its stricter axiom check, and gave the same hashes for everything in the manifest. What needs
+models, the measurements and the logits check, didn't.
 
 ## What `clang -O3` misses
 
@@ -80,12 +82,25 @@ each `maddubs` and `vpdpbusd` pair, that each 16-bit sum is the exact integer su
 `maddubs` in it, and that the 32-bit accumulator is the total of the two 16-bit sums under it. After eight, nothing has
 saturated or wrapped, and `madd` with paired scales is the multiply. The facts about operands go through shuffles and
 bitcasts with lemmas about each lane, so the 512-bit kernels need nothing more. Each theorem rests on the standard three
-axioms and five from `bv_decide`, which the project's [axiom check](../tests/check_axioms.lean) works out again.
+axioms and five from `bv_decide`, which the project's [axiom check](../tests/check_axioms.lean) works out again, reading
+the theorem and what it imports as data. It also checks the theorem is about both slices, as `ir-lean` generated them,
+and `leanchecker` replays it through the kernel.
+
+A wrong rewrite can't pass this way. `vnni.py --mutant` makes three: reading the weights as signed instead of the
+activations, leaving out the last `vpdpbusd`, and multiplying by the whole 32-bit lane of scales. For each, at every one
+of the 34 places, Lean proves the rewritten slice gives a different result from clang's on one input, with
+`decide +kernel`, which has the kernel work both out and adds no axiom. The theorems that they're the same don't check,
+and run out of heartbeats instead. And `tests/llama.py` changes clang's mask from `0x0F` to `0x1F` in each byte, which
+breaks the first fact: every theorem stops on it with an error of its own, though the input Lean tries doesn't tell the
+two apart.
 
 To translate the kernels, the model learned four things, in [`X86.lean`](../IRLean/X86.lean) and
-[`Vec.lean`](../IRLean/Vec.lean): `bitcast` between integer vectors, and PMADDUBSW, PMADDWD and VPDPBUSD, from Intel's
-pseudo-code. [`x86.ll`](../tests/real/x86.ll) runs each against the processor: 22 functions at all three widths, 400
-inputs each, with the saturating and wrapping extremes, and all 8,800 results agree.
+[`Vec.lean`](../IRLean/Vec.lean): `bitcast` between integer vectors, which LangRef defines, and PMADDUBSW, PMADDWD and
+VPDPBUSD, from Intel's pseudo-code, which it doesn't. [`x86.ll`](../tests/real/x86.ll) runs each against the
+processor: 22 functions at all three widths, 400 inputs each, with the saturating and wrapping extremes, and all 8,800
+results agree. That needs AVX-512 VNNI and can't see poison, so [`x86check.py`](../tests/x86check.py) also checks the
+bitcasts, PMADDUBSW and PMADDWD on any processor, against Alive2 both ways and LLVM's constant folder, poison included:
+29 operations, every shape the kernels use and more, on 473 inputs, all exact. Neither knows VPDPBUSD.
 
 ## Checked another way
 
@@ -93,12 +108,8 @@ None of these depend on the Lean model.
 
 - **Natively.** [`native_check.py`](../tests/llama/native_check.py) runs each pair of slices on the processor against
   each other, on 200,000 inputs each, a quarter of them from bytes at the extremes. None of the 34 differ.
-- **Wrong rewrites.** `vnni.py --mutant` makes three: reading the weights as signed instead of the activations, leaving
-  out the last `vpdpbusd`, and multiplying by the whole 32-bit lane of scales. And `tests/llama.py` changes clang's mask
-  from `0x0F` to `0x1F` in each byte, which breaks the first fact. None of the 34 theorems checks for any of them, and
-  the native run catches each. Only the mask change stops every theorem with an error of its own. For the three wrong
-  rewrites, every theorem runs out of resources instead, which refutes nothing, since more might let it check. So the
-  native run is what refutes those, and on a processor without AVX-512 VNNI they fail as unknown.
+- **Wrong rewrites.** On 20,000 inputs, the native run catches each of the three wrong rewrites and the mask change
+  above.
 - **Whole programs.** `llama-perplexity`, with the two libraries, gives the same logits bit for bit, on both models in
   the table below, for 16 chunks of 512 tokens of WikiText-2. Before the reproducer existed, a run of 60 chunks on the
   first model did too: 4.6 GB of logits each, and a perplexity of 10.0878 both times.
@@ -165,22 +176,27 @@ aren't in the table.
 ## Reproducing it
 
 ```console
-nix develop
+nix develop .#llama
 lake build
 cmake -S . -B build -G Ninja && ninja -C build
 tests/llama.py build/ir-lean --manifest build/llama-manifest.json
 ```
 
-That compiles the kernels from the pinned release, which the flake fetches by hash, rewrites them, checks the 34
+`nix develop .#llama` is the default shell with llama.cpp's source, which the flake fetches by hash. The default shell
+leaves it out, as it's 185 MB that no binary cache has, and in it `ctest` skips the `llama` test. CI runs it in a job of
+its own, with `ctest -L llama`. That compiles the kernels from the pinned release, rewrites them, checks the 34
 theorems, runs the native comparison if the processor has AVX-512 VNNI, and checks the four mutants. It needs no
-model, and takes about 3 minutes with 6 Lean jobs. The manifest has the hashes of the source, IR and rewritten object,
-each theorem's statement and axioms, and what each mutant did. [`llama-manifest.json`](data/llama-manifest.json) is the
-one behind this page. Two runs on this machine, hours apart, gave the same hashes for everything in it: the source, IR,
-rewritten IR and object, all 68 slices, and every generated Lean file. Another machine with the same flake should too,
-which hasn't been tried. On a processor without AVX-512 VNNI, the native comparison is skipped, and so the three wrong
-rewrites, which only the native run refutes, fail as unknown.
+model, and takes about 4 minutes with 6 Lean jobs, or 6 with 4 and no native comparison.
 
-The measurement needs models and text, which aren't in the repo:
+The manifest has the hashes of the source, IR and rewritten object, each theorem's statement and axioms, and what each
+mutant did. [`llama-manifest.json`](data/llama-manifest.json) is the one behind this page. Three runs on this machine,
+two of them hours apart and the third a day later on the merged tree, gave the same hashes for everything in it: the
+source, IR, rewritten IR and object, all 68 slices, and every generated Lean file. Another machine with the same flake
+should too: on an Apple M4 Max, [lemma reuse](lemma-reuse.md) got the same IR and all 68 slices, and the rest hasn't
+been tried. On a processor without AVX-512 VNNI, the native comparison is skipped, and Lean's proofs that each wrong
+rewrite differs from clang's are what refute them, as in CI. `--no-native` does the same on any processor.
+
+The measurement needs models and text, which aren't in the repo, and runs in `nix develop .#llama` too:
 
 | File | Where | SHA-256 |
 | --- | --- | --- |
@@ -207,11 +223,13 @@ C++ source or the machine code. On top of that:
   and `bitcast`, which don't touch memory and aren't undefined on any input. Replacing such a value with an equal one
   doesn't change a program, but no proof says that here.
 - **x86's intrinsics are as Intel describes them**, and as `X86.lean` writes them. The processor agrees on every input
-  tried, which isn't a proof.
-- **Poison in a target intrinsic is per lane.** LangRef doesn't say. If poison in any lane made the whole result poison
-  instead, the rewrite would still refine clang's IR: clang's result is all poison whenever any operand lane is, while
-  the rewrite's only loses the lanes whose scale is poison. That argument isn't checked. And these operands come from
-  loads of quantized weights and activations, which are initialized.
+  tried, and so do Alive2 and LLVM's constant folder for PMADDUBSW and PMADDWD, which isn't a proof. Only the processor
+  checks VPDPBUSD, and LLVM's own reading of it, in `createVPDPBUSD`, is the same sum.
+- **Poison in a target intrinsic is per lane.** LangRef doesn't say. LLVM's constant folds of PMADDWD and PMADDUBSW,
+  and Alive2, are per lane too. If poison in any lane made the whole result poison instead, the rewrite would still
+  refine clang's IR: clang's result is all poison whenever any operand lane is, while the rewrite's only loses the lanes
+  whose scale is poison. That argument isn't checked. And these operands come from loads of quantized weights and
+  activations, which are initialized.
 - **The proofs compile for `-march=znver5`.** On the machine measured, `-march=native` gives the same function bodies,
   and only spells the target features differently. `tests/llama_bench.py` checks that for the build it measures.
 - **The rewritten code needs AVX-512 VNNI with AVX-512VL**, which Zen 4 and Zen 5, and Intel's server processors since
