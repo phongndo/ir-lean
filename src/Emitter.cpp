@@ -202,6 +202,20 @@ bool choosesNaN(const Instruction &I) {
   }
 }
 
+// Whether an instruction is a chooser for floating point's sake: it can give a NaN, or `nsz` lets a zero's
+// sign flip, as on `fneg`, `llvm.copysign`, `uitofp`, `sitofp` and `select`, which choose nothing else.
+// `llvm.fabs` clears the sign whatever it was, so `nsz` makes it no chooser. docs/float.md.
+bool choosesFloat(const Instruction &I) {
+  if (choosesNaN(I))
+    return true;
+  if (!isa<FPMathOperator>(I) || !I.getFastMathFlags().noSignedZeros())
+    return false;
+  if (isa<UnaryOperator>(I) || isa<UIToFPInst>(I) || isa<SIToFPInst>(I) || isa<SelectInst>(I))
+    return true;
+  const auto *C = dyn_cast<IntrinsicInst>(&I);
+  return C && C->getIntrinsicID() == Intrinsic::copysign;
+}
+
 // The first floating-point type in `T`, or null if it has none.
 Type *firstFloat(Type *T) {
   if (T->isFPOrFPVectorTy())
@@ -428,9 +442,11 @@ public:
       return poisonOf(C->getType());
     if (isa<UndefValue>(C))
       reject("undef");
-    // A splat that isn't written lane by lane: of a scalable vector, or a vector-typed `ConstantInt`.
+    // A splat that isn't written lane by lane: of a scalable vector, or a vector-typed `ConstantInt` or
+    // `ConstantFP`, which is how LLVM 23 holds a fixed-length splat of a float, `zeroinitializer` included.
     if (auto *V = dyn_cast<VectorType>(C->getType());
-        V && (isa<ScalableVectorType>(V) || isa<ConstantInt>(C)) && !isa<ConstantAggregateZero>(C)) {
+        V && (isa<ScalableVectorType>(V) || isa<ConstantInt>(C) || isa<ConstantFP>(C)) &&
+        !isa<ConstantAggregateZero>(C)) {
       const Constant *Splat = C->getSplatValue();
       if (!Splat)
         reject("constant " + printed(*C));
@@ -656,6 +672,23 @@ private:
       Out.insert(Out.end(), Size, 0);
       return;
     }
+    // A vector-typed `ConstantInt` or `ConstantFP` is a splat, and each lane has its value, laid out as a
+    // `ConstantDataVector`'s lanes are below.
+    if (auto *V = dyn_cast<FixedVectorType>(T); V && (isa<ConstantInt>(C) || isa<ConstantFP>(C))) {
+      leanType(V);
+      Type *E = V->getElementType();
+      // A vector's lanes are packed by their size in bits, so a lane that isn't a whole number of bytes, such
+      // as an `i1`, isn't laid out this way.
+      if (E->getPrimitiveSizeInBits() != 8 * DL.getTypeAllocSize(E))
+        reject("initializer " + printed(*C));
+      APInt Lane = isa<ConstantInt>(C) ? cast<ConstantInt>(C)->getValue()
+                                       : cast<ConstantFP>(C)->getValueAPF().bitcastToAPInt();
+      size_t Start = Out.size();
+      for (unsigned I = 0, N = V->getNumElements(); I != N; ++I)
+        appendInt(Lane, DL.getTypeAllocSize(E), Out);
+      Out.resize(Start + Size, 256);
+      return;
+    }
     if (auto *I = dyn_cast<ConstantInt>(C)) {
       appendInt(I->getValue(), Size, Out);
       return;
@@ -665,13 +698,17 @@ private:
       appendInt(F->getValueAPF().bitcastToAPInt(), Size, Out);
       return;
     }
+    // A vector's allocation can end in padding, as `<3 x float>`'s 16 bytes do after its 12, which an array
+    // of them steps over.
     if (auto *D = dyn_cast<ConstantDataSequential>(C)) {
       Type *E = D->getElementType();
       if (!E->isIntegerTy() && !isModeledFloat(E))
         reject("constant " + printed(*C));
+      size_t Start = Out.size();
       for (unsigned I = 0, N = D->getNumElements(); I != N; ++I)
         appendInt(E->isIntegerTy() ? D->getElementAsAPInt(I) : D->getElementAsAPFloat(I).bitcastToAPInt(),
                   DL.getTypeAllocSize(E), Out);
+      Out.resize(Start + Size, 256);
       return;
     }
     if (isa<ConstantArray>(C)) {
@@ -1156,12 +1193,48 @@ private:
 
   std::string operand(const Value *V);
   std::string flag(bool On, const char *Name) { return On ? std::string(" (") + Name + " := true)" : ""; }
-  // The fast-math flags IRLean/Float.lean's operations take: `nnan` and `ninf`.
+  // The fast-math flags IRLean/Float.lean's operations take: `nnan`, `ninf`, and `nsz` where it can change
+  // the result, which isn't on `fcmp` or `llvm.fabs`.
   std::string fpFlags(const Instruction &I) {
     if (!isa<FPMathOperator>(I))
       return "";
     FastMathFlags F = I.getFastMathFlags();
-    return flag(F.noNaNs(), "nnan") + flag(F.noInfs(), "ninf");
+    const auto *C = dyn_cast<IntrinsicInst>(&I);
+    bool Nsz = F.noSignedZeros() && !isa<FCmpInst>(I) && !(C && C->getIntrinsicID() == Intrinsic::fabs);
+    return flag(F.noNaNs(), "nnan") + flag(F.noInfs(), "ninf") + flag(Nsz, "nsz");
+  }
+  // A floating-point operation of `N` operands on values, or on each lane of vectors, `Fn` applied to `Args`
+  // with `Flags` and the fast-math flags. It's a chooser where `nsz` makes it one, and lane `i` of a vector
+  // then reads
+  // `(c'.sub k).pick i`, as the arithmetic does.
+  void floatLanes(const Instruction &I, std::vector<Line> &Out, const std::string &Fn, unsigned N,
+                  const std::vector<std::string> &Args, bool IsVector, std::string Flags = "") {
+    static const char *const Names[] = {"a", "b", "c"};
+    Flags += fpFlags(I);
+    std::string Params, Applied;
+    for (unsigned K = 0; K != N; ++K) {
+      Params += std::string(" ") + Names[K];
+      Applied += std::string(" ") + Names[K];
+    }
+    std::string Operands;
+    for (const std::string &A : Args)
+      Operands += " " + A;
+    if (!choosesFloat(I)) {
+      if (!IsVector)
+        addLet(I, Out, Fn + Operands + Flags);
+      else
+        addLet(I, Out,
+               std::string(N == 1 ? "Vec.map" : "Vec.map2") + " (fun" + Params + " => " + Fn + Applied +
+                   Flags + ")" + Operands);
+      return;
+    }
+    std::string K = nextChooser();
+    if (!IsVector)
+      addLet(I, Out, Fn + Operands + Flags + " (pick := c'.pick " + K + ")");
+    else
+      addLet(I, Out,
+             std::string(N == 1 ? "FP.lanes1" : "FP.lanes2") + " (c'.sub " + K + ") (fun p" + Params +
+                 " => " + Fn + Applied + Flags + " (pick := p))" + Operands);
   }
   void checkFastMath(const Instruction &I);
   void checkFloatTarget();
@@ -1754,14 +1827,9 @@ void FunctionEmitter::emitInstruction(const Instruction &I, std::vector<Line> &O
     return;
   // Floating point, in IRLean/Float.lean: a float is its bits, and the format is the operation's first
   // arguments.
-  case Instruction::FNeg: {
-    std::string Fn = "FP.fneg " + fpFormat(I.getType());
-    if (IsVector)
-      addLet(I, Out, "Vec.map (fun a => " + Fn + " a" + fpFlags(I) + ") " + Op(0));
-    else
-      addLet(I, Out, Fn + " " + Op(0) + fpFlags(I));
+  case Instruction::FNeg:
+    floatLanes(I, Out, "FP.fneg " + fpFormat(I.getType()), 1, {Op(0)}, IsVector);
     return;
-  }
   // The arithmetic, which chooses a NaN result: on a vector, lane `i` reads `(c'.sub k).pick i`.
   case Instruction::FAdd:
   case Instruction::FSub:
@@ -1805,10 +1873,8 @@ void FunctionEmitter::emitInstruction(const Instruction &I, std::vector<Line> &O
   case Instruction::SIToFP: {
     std::string Fn = std::string(I.getOpcode() == Instruction::UIToFP ? "FP.uitofp " : "FP.sitofp ") +
                      fpFormat(I.getType());
-    std::string Flags =
-        (I.getOpcode() == Instruction::UIToFP ? flag(I.hasNonNeg(), "nneg") : "") + fpFlags(I);
-    addLet(I, Out,
-           IsVector ? "Vec.map (fun a => " + Fn + " a" + Flags + ") " + Op(0) : Fn + " " + Op(0) + Flags);
+    floatLanes(I, Out, Fn, 1, {Op(0)}, IsVector,
+               I.getOpcode() == Instruction::UIToFP ? flag(I.hasNonNeg(), "nneg") : "");
     return;
   }
   case Instruction::FCmp: {
@@ -1891,11 +1957,17 @@ void FunctionEmitter::emitInstruction(const Instruction &I, std::vector<Line> &O
     addLet(I, Out, Width == 64 ? V : "Val.trunc " + std::to_string(Width) + " " + V);
     return;
   }
-  case Instruction::Select:
-    addLet(I, Out,
-           std::string(I.getOperand(0)->getType()->isVectorTy() ? "Vec.select " : "select ") + Op(0) + " " +
-               Op(1) + " " + Op(2));
+  case Instruction::Select: {
+    std::string Selected = std::string(I.getOperand(0)->getType()->isVectorTy() ? "Vec.select " : "select ") +
+                           Op(0) + " " + Op(1) + " " + Op(2);
+    // Fast-math flags apply to the selected value, LangRef says, "not both arms". checkFastMath allows them
+    // only on a float or a vector of floats.
+    if (isa<FPMathOperator>(I) && I.getFastMathFlags().any())
+      floatLanes(I, Out, "FP.selected " + fpFormat(I.getType()), 1, {"(" + Selected + ")"}, IsVector);
+    else
+      addLet(I, Out, Selected);
     return;
+  }
   case Instruction::ZExt:
     Cast("Val.zext", flag(I.hasNonNeg(), "nneg"));
     return;
@@ -2418,13 +2490,10 @@ bool FunctionEmitter::emitIntrinsic(const IntrinsicInst &C, std::vector<Line> &O
   case Intrinsic::copysign: {
     std::string Fn = std::string(C.getIntrinsicID() == Intrinsic::fabs ? "FP.fabs " : "FP.copysign ") +
                      fpFormat(C.getType());
-    bool Two = C.getIntrinsicID() == Intrinsic::copysign;
-    if (C.getType()->isVectorTy())
-      addLet(C, Out,
-             std::string(Two ? "Vec.map2 (fun a b => " : "Vec.map (fun a => ") + Fn + (Two ? " a b" : " a") +
-                 fpFlags(C) + ") " + Op(0) + (Two ? " " + Op(1) : ""));
+    if (C.getIntrinsicID() == Intrinsic::copysign)
+      floatLanes(C, Out, Fn, 2, {Op(0), Op(1)}, C.getType()->isVectorTy());
     else
-      addLet(C, Out, Fn + " " + Op(0) + (Two ? " " + Op(1) : "") + fpFlags(C));
+      floatLanes(C, Out, Fn, 1, {Op(0)}, C.getType()->isVectorTy());
     return true;
   }
   case Intrinsic::fptoui_sat:
@@ -2820,17 +2889,18 @@ std::string FunctionEmitter::emitArm(const BasicBlock *BB) {
   return Out + "    " + emitTerminator(BB) + "\n";
 }
 
-// Fast-math flags. `nnan` and `ninf` make a result poison, as IRLean/Float.lean's operations take them.
-// LangRef gives `arcp`, `contract`, `afn` and `reassoc` "rewrite-based semantics", over expressions of
-// several instructions, which no one instruction's meaning can say, so they're refused, as `fast` is, and so
-// is `nsz`, which is a choice the model doesn't make yet. On `fcmp`, LangRef says "the only flags that have
-// any effect on its semantics are ... `nnan`, `ninf`, and `reassoc`", so the others mean nothing there. The
-// operations that take flags are `fneg`, `fcmp`, `llvm.fabs`, `llvm.copysign`, the arithmetic and the
-// conversions to floats: on anything else, any flag is refused. docs/float.md has the design.
+// Fast-math flags. `nnan` and `ninf` make a result poison, and `nsz` lets a zero operand's sign flip, as a
+// choice, as IRLean/Float.lean's operations take them. LangRef gives `arcp`, `contract`, `afn` and `reassoc`
+// "rewrite-based semantics", over expressions of several instructions, which no one instruction's meaning can
+// say, so they're refused, as `fast` is. On `fcmp`, LangRef says "the only flags that have any effect on its
+// semantics are ... `nnan`, `ninf`, and `reassoc`", so the others mean nothing there. The operations that
+// take flags are `fneg`, `fcmp`, `llvm.fabs`, `llvm.copysign`, the arithmetic, the conversions to floats, and
+// `select` of a float or a vector of floats: on anything else, `phi` and calls among them, any flag is
+// refused. docs/float.md has the design.
 void FunctionEmitter::checkFastMath(const Instruction &I) {
   FastMathFlags F = I.getFastMathFlags();
-  bool Takes =
-      isa<UnaryOperator>(I) || isa<FCmpInst>(I) || choosesNaN(I) || isa<UIToFPInst>(I) || isa<SIToFPInst>(I);
+  bool Takes = isa<UnaryOperator>(I) || isa<FCmpInst>(I) || choosesNaN(I) || isa<UIToFPInst>(I) ||
+               isa<SIToFPInst>(I) || (isa<SelectInst>(I) && I.getType()->isFPOrFPVectorTy());
   if (const auto *C = dyn_cast<IntrinsicInst>(&I))
     Takes = C->getIntrinsicID() == Intrinsic::fabs || C->getIntrinsicID() == Intrinsic::copysign;
   bool Compare = isa<FCmpInst>(I);
@@ -2840,7 +2910,7 @@ void FunctionEmitter::checkFastMath(const Instruction &I) {
   };
   Refuse(F.noNaNs(), Takes, "nnan");
   Refuse(F.noInfs(), Takes, "ninf");
-  Refuse(F.noSignedZeros(), Compare, "nsz");
+  Refuse(F.noSignedZeros(), Takes, "nsz");
   Refuse(F.allowReciprocal(), Compare, "arcp");
   Refuse(F.allowContract(), Compare, "contract");
   Refuse(F.approxFunc(), Compare, "afn");
@@ -3403,7 +3473,7 @@ Emitted emitModule(Module &M, const std::string &Namespace, const std::string &S
     for (const Function *F : Component)
       for (const BasicBlock &BB : *F)
         for (const Instruction &I : BB) {
-          Chooses |= isa<FreezeInst>(I) || choosesNaN(I);
+          Chooses |= isa<FreezeInst>(I) || choosesFloat(I);
           const auto *C = dyn_cast<CallBase>(&I);
           if (!C)
             continue;

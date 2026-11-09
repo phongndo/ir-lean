@@ -65,18 +65,36 @@ define i1 @f(double %x) { %r = fcmp nnan nsz arcp contract afn olt double %x, 1.
   ret i1 %r }'
 accepts 'define float @f(float %x) denormal_fpenv(ieee|ieee) { ret float %x }'
 refuses 'type x86_fp80' 'define x86_fp80 @f(x86_fp80 %x) { ret x86_fp80 %x }'
-refuses 'fast-math flag nsz on %r = fadd' 'define float @f(float %x) { %r = fadd nsz float %x, 1.0
+accepts 'define float @f(float %x) { %r = fadd nsz float %x, 1.0
   ret float %r }'
-refuses 'fast-math flag nsz on %r = sitofp' 'define float @f(i32 %x) { %r = sitofp nsz i32 %x to float
+accepts 'define <2 x float> @f(<2 x i32> %x) { %r = sitofp nsz <2 x i32> %x to <2 x float>
+  ret <2 x float> %r }'
+refuses 'fast-math flag arcp on %r = fmul' 'define float @f(float %x) { %r = fmul fast float %x, 2.0
   ret float %r }'
 accepts 'define <2 x double> @f(<2 x double> %x, <2 x float> %y) { %e = fpext <2 x float> %y to <2 x double>
   %r = fmul nnan ninf <2 x double> %x, %e
   ret <2 x double> %r }'
 refuses 'fast-math flag reassoc on %r = fcmp' 'define i1 @f(float %x) { %r = fcmp reassoc olt float %x, 1.0
   ret i1 %r }'
-refuses 'fast-math flag nsz on %r = fneg' 'define float @f(float %x) { %r = fneg nsz float %x
+accepts 'define float @f(float %x) { %r = fneg nsz float %x
   ret float %r }'
-refuses 'fast-math flag nnan on %r = select' 'define float @f(i1 %c, float %x) { %r = select nnan i1 %c, float %x, float 1.0
+accepts 'define float @f(i1 %c, float %x) { %r = select nnan nsz i1 %c, float %x, float 1.0
+  ret float %r }'
+accepts 'define <2 x float> @f(<2 x i1> %c, <2 x float> %x) { %r = select ninf <2 x i1> %c, <2 x float> %x, <2 x float> zeroinitializer
+  ret <2 x float> %r }'
+refuses 'fast-math flag nnan on %r = select' 'define { float, float } @f(i1 %c, { float, float } %x, { float, float } %y) {
+  %r = select nnan i1 %c, { float, float } %x, { float, float } %y
+  ret { float, float } %r }'
+refuses 'fast-math flag nnan on %r = phi' 'define float @f(i1 %c, float %x) {
+entry:
+  br i1 %c, label %a, label %b
+a:
+  br label %b
+b:
+  %r = phi nnan float [ %x, %entry ], [ 1.0, %a ]
+  ret float %r }'
+refuses 'fast-math flag nsz on %r = call' 'define float @g(float %x) { ret float %x }
+define float @f(float %x) { %r = call nsz float @g(float %x)
   ret float %r }'
 refuses 'function attribute denormal_fpenv(preservesign)' 'define float @f(float %x) denormal_fpenv(preservesign) {
   ret float %x }'
@@ -108,6 +126,72 @@ if "$tool" "$work/FClass.ll" -o "$work/FClass.lean" --namespace FClass &&
   printf 'ok    nofpclass on a vector makes a lane poison on its own\n'
 else
   fail 'nofpclass on a vector'
+fi
+
+# LLVM 23 holds a fixed-length splat of a float, `zeroinitializer` included, as a `ConstantFP` of vector type. Every
+# lane has its value, in a function and in a global's bytes, where before 2026-11-09 the emitter printed one lane where
+# a vector goes, and wrote only lane 0 of a global. A vector in a global takes its whole allocation, padding included,
+# which before then an array of them didn't.
+cat >"$work/FSplat.ll" <<'IR'
+target datalayout = "e-m:e-i64:64-n8:16:32:64-S128"
+@g = global <2 x float> splat (float 1.0)
+@a = global [2 x <3 x float>] [<3 x float> splat (float 1.0), <3 x float> splat (float 2.0)]
+@b = global [2 x <3 x float>] [<3 x float> <float 1.0, float 2.0, float 3.0>, <3 x float> <float 4.0, float 5.0, float 6.0>]
+define <2 x float> @ones(<2 x float> %x) {
+  %r = call <2 x float> @llvm.copysign.v2f32(<2 x float> splat (float 1.0), <2 x float> %x)
+  ret <2 x float> %r
+}
+define <2 x float> @zeros(<2 x i1> %c, <2 x float> %x) {
+  %r = select <2 x i1> %c, <2 x float> %x, <2 x float> zeroinitializer
+  ret <2 x float> %r
+}
+define i32 @lane1() {
+  %p = getelementptr i8, ptr @g, i64 4
+  %v = load i32, ptr %p
+  ret i32 %v
+}
+define i32 @second(ptr %a) {
+  %p = getelementptr i8, ptr %a, i64 16
+  %v = load i32, ptr %p
+  ret i32 %v
+}
+define i32 @splats() {
+  %v = call i32 @second(ptr @a)
+  ret i32 %v
+}
+define i32 @lanes() {
+  %v = call i32 @second(ptr @b)
+  ret i32 %v
+}
+declare <2 x float> @llvm.copysign.v2f32(<2 x float>, <2 x float>)
+IR
+cat >"$work/FSplatCheck.lean" <<'LEAN'
+import FSplat
+open IRLean FSplat
+-- 1.0 is 1065353216, and -1.0 3212836864.
+#guard (match ones #v[some 0x80000000#32, some 0#32] with
+  | some (.ok v) => (v[0], v[1]) == (some 3212836864#32, some 1065353216#32)
+  | _ => false)
+#guard (match zeros #v[some 0#1, some 1#1] #v[some 7#32, some 7#32] with
+  | some (.ok v) => (v[0], v[1]) == (some 0#32, some 7#32)
+  | _ => false)
+#guard (match lane1 initial with
+  | some (.ok (v, _)) => v == some 1065353216#32
+  | _ => false)
+-- A `<3 x float>` takes 16 bytes, so the second of an array of them starts at 16: 2.0 is 1073741824, and 4.0
+-- 1082130432.
+#guard (match splats initial with
+  | some (.ok (v, _)) => v == some 1073741824#32
+  | _ => false)
+#guard (match lanes initial with
+  | some (.ok (v, _)) => v == some 1082130432#32
+  | _ => false)
+LEAN
+if "$tool" "$work/FSplat.ll" -o "$work/FSplat.lean" --namespace FSplat &&
+  lean -R "$work" -o "$work/FSplat.olean" "$work/FSplat.lean" && lean "$work/FSplatCheck.lean"; then
+  printf 'ok    a splat of a float has its value in every lane, in a function and in a global, and vectors their size\n'
+else
+  fail 'a splat of a float'
 fi
 refuses 'integer bitcast shape' 'define <vscale x 4 x i8> @f(<vscale x 2 x i16> %x) { %r = bitcast <vscale x 2 x i16> %x to <vscale x 4 x i8>
   ret <vscale x 4 x i8> %r }'
@@ -929,6 +1013,16 @@ define <2 x float> @lanes(<2 x float> %x) {
   %r = fdiv <2 x float> %x, %x
   ret <2 x float> %r
 }
+define float @negz(float %x) {
+  %a = fneg nsz float %x
+  %r = call nsz float @llvm.copysign.f32(float 1.0, float %a)
+  ret float %r
+}
+define <2 x float> @selz(<2 x i1> %c, <2 x float> %x) {
+  %r = select nsz <2 x i1> %c, <2 x float> %x, <2 x float> zeroinitializer
+  ret <2 x float> %r
+}
+declare float @llvm.copysign.f32(float, float)
 IR
 cat >"$work/FChoicesCheck.lean" <<'LEAN'
 import FChoices
@@ -952,10 +1046,18 @@ def only (p : List Nat) (n : Nat) : Choice := fun q => if q = p then n else 0
 -- Each lane of the vector `fdiv` reads its own place.
 #guard showV (lanes #v[some 0#32, some 0#32] (only [1, 0] 1)) == "4290772992 2143289344"
 #guard showV (lanes #v[some 0#32, some 0#32] (only [1, 1] 1)) == "2143289344 4290772992"
+-- Under `nsz`, `fneg` and `copysign` are choosers too, and bit 4 of the first operand's choice, bit 5 of the second's,
+-- flips a zero's sign. 1.0 is 1065353216, and -1.0 3212836864.
+#guard show' (negz (some 0#32) (fun _ => 0)) == "3212836864"
+#guard show' (negz (some 0#32) (only [1] 16)) == "1065353216"
+#guard show' (negz (some 0#32) (only [2] 32)) == "1065353216"
+#guard show' (negz (some 0#32) (only [2] 16)) == "3212836864"
+-- A vector `select nsz` flips each lane's zero result by its own choice.
+#guard showV (selz #v[some 0#1, some 0#1] #v[some 0#32, some 0#32] (only [1, 1] 16)) == "0 2147483648"
 LEAN
 if "$tool" "$work/FChoices.ll" -o "$work/FChoices.lean" --namespace FChoices &&
   lean -R "$work" -o "$work/FChoices.olean" "$work/FChoices.lean" && lean "$work/FChoicesCheck.lean"; then
-  printf 'ok    each floating-point operation, and each lane of one, chooses its NaN for itself\n'
+  printf 'ok    each floating-point operation, and each lane of one, chooses its NaN, and under nsz its zeros, for itself\n'
 else
   fail 'what a floating-point operation chooses, by where it runs'
 fi

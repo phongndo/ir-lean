@@ -108,13 +108,15 @@ Evidence and not proof. A pass here means no disagreement was found on the input
 - **Integer operations:** against LLVM's constant folder at many widths, and Alive2 for exact poison and
   UB at small widths: 265 variants proved exact, with none unchecked.
 - **Floating point:** `fneg`, `fabs`, `copysign`, `fcmp`, `llvm.is.fpclass`, `nofpclass`, the arithmetic, `frem`
-  included, and the conversions between formats and with integers, `.sat` ones included, with `nnan`, `ninf` and
-  `nneg`, at `half`, `bfloat`, `float`, `double` and `fp128`: 546 variants, against the constant folder on 215,445 cases,
-  the processor on 7,023,252, every operand of the one-operand operations of 16 bits among them, and Alive2 on 3,717,
-  with none wrong. Where IEEE 754 gives a NaN, in 31,368 cases, each of the model's sixteen choices gives a NaN LangRef
-  allows, and together they give all of them ([`fpcheck.py`](../tests/fpcheck.py)). On y on 2026-11-09, where the
-  processor can't run `fp128` or `i128`. On z, x86-64 Linux, the same day, it runs them too: 7,496,747 cases agree,
-  none wrong.
+  included, the conversions between formats and with integers, `.sat` ones included, and `select`, with `nnan`, `ninf`,
+  `nsz` and `nneg`, at `half`, `bfloat`, `float`, `double` and `fp128`: 684 variants, against the constant folder on
+  272,516 cases, the processor on 8,410,233, every operand of the one-operand operations of 16 bits among them, and
+  Alive2 on 4,704, with none wrong. Where IEEE 754 gives a NaN, in 62,728 cases, each of the model's sixteen choices
+  gives a NaN LangRef allows, and together they give all of them. Under `nsz`, in 14,568 cases, 8,668 with a zero, the
+  model's 64 choices give exactly what the operation gives with its zeros' signs flipped every way. The constant
+  folder's one fold of `fabs nsz -0.0` to `-0.0`, which LangRef's `nsz` doesn't allow, is counted apart
+  ([`fpcheck.py`](../tests/fpcheck.py), [floating point](float.md#fast-math-flags)). On z, x86-64 Linux, on 2026-11-09,
+  where the processor runs `fp128` and `i128` too.
 - **`getelementptr` flags:** 1,194 cases against Alive2, on 644 layouts. 927 are proved exact, and 267 depend on
   the layout as Alive2 confirms, with none unchecked or wrong.
 - **Random functions:** fuzzed integer functions at random optimization levels, against native code.
