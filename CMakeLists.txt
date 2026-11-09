@@ -251,6 +251,11 @@ add_test(
         --strict --runs 400
 )
 add_test(NAME x86check COMMAND ${CMAKE_SOURCE_DIR}/tests/x86check.py $<TARGET_FILE:ir-lean>)
+# The lane-by-lane forms of integer operations, IRLean/Lanes.lean: vector intrinsics, vector division, and
+# noundef and range on vectors and structs, against Alive2, both ways, and LLVM's constant folder, poison
+# lanes and undefined behavior included, with a wrong result for each that Alive2 has to refuse. About 6 s.
+add_test(NAME vecopcheck COMMAND ${CMAKE_SOURCE_DIR}/tests/vecopcheck.py $<TARGET_FILE:ir-lean>)
+set_tests_properties(vecopcheck PROPERTIES TIMEOUT 900)
 # Refuting the three wrong rewrites takes about as long as everything else, so it's a test of its own, labeled
 # for a CI job of its own. `llama` refutes the change to the mask.
 add_test(NAME llama COMMAND ${CMAKE_SOURCE_DIR}/tests/llama.py $<TARGET_FILE:ir-lean> --mutants mask)

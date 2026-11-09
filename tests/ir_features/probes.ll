@@ -1264,13 +1264,6 @@ define { { i32, i8 }, i8 } @probe({ { i32, i8 }, i8 } %s, i32 %a) {
   ret { { i32, i8 }, i8 } %r
 }
 
-; probe: form / scalar-intrinsic-on-vectors
-declare <4 x i32> @llvm.ctpop.v4i32(<4 x i32>)
-define <4 x i32> @probe(<4 x i32> %a) {
-  %r = call <4 x i32> @llvm.ctpop.v4i32(<4 x i32> %a)
-  ret <4 x i32> %r
-}
-
 ; probe: form / integer-bitcast-nondividing
 define <2 x i24> @probe(<3 x i16> %a) {
   %r = bitcast <3 x i16> %a to <2 x i24>
@@ -1482,4 +1475,20 @@ define <2 x i32> @probe() {
 @g = global [4 x i32] zeroinitializer
 define ptr @probe() {
   ret ptr getelementptr inbounds ([4 x i32], ptr @g, i64 0, i64 1)
+}
+
+; probe: form / noundef-on-a-struct
+define { i32, i8 } @probe({ i32, i8 } noundef %s) {
+  ret { i32, i8 } %s
+}
+
+; probe: form / vector-constant-expression
+define <2 x i64> @probe() {
+  ret <2 x i64> bitcast (<4 x i32> <i32 1, i32 2, i32 3, i32 4> to <2 x i64>)
+}
+
+; probe: form / getelementptr-over-a-scalable-type
+define ptr @probe(ptr %p, i64 %i) {
+  %q = getelementptr <vscale x 4 x i32>, ptr %p, i64 %i
+  ret ptr %q
 }
