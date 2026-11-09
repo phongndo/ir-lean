@@ -111,6 +111,42 @@ A pair wrong only with an `undef` argument can be `proved`, since `proved` doesn
 isn't a certificate. It can't be `certified`: `tools/binding.py` requires `noundef` arguments, and with one, passing
 `undef` is undefined.
 
+## Why the emitter refuses a function
+
+Of the 31,240 functions InstCombine changes, the emitter refuses 18,361 on one side or both, and 795 more use memory,
+which the model translates but has no refinement for. This is every pair, not the sample, from `report`'s
+`emitter_refusals`.
+
+The emitter names one reason per function, the first it meets, so these are exclusive. A reason counts in the first
+group that matches it, in this order:
+
+| Group | Functions | Commonest reasons in it |
+| --- | ---: | --- |
+| Floating point | 9,035 | `float` 4,074, `double` 1,862, `<N x float>` 1,245, `half` 824, `<N x double>` 435, and floating-point attributes such as `denormal_fpenv` and `strictfp` |
+| Calls outside the module | 2,936 | `call to external @F` 2,787, mostly the tests' `@use` helpers, and variadic calls |
+| Target intrinsics | 1,815 | `llvm.x86.*`, most often `avx512.pternlog`, `pshuf.b` and the AVX-512 shifts, and `llvm.amdgcn.*` |
+| Scalable vectors | 977 | `<vscale x N x ...>` types and `vscale_range` |
+| Pointers: address spaces, `inttoptr`, external globals | 887 | `ptr addrspace(N)` 440, external globals 394 |
+| `undef` | 691 | An `undef` constant, which the emitter refuses |
+| Data layouts | 491 | A test's own data layout the model doesn't take, such as big-endian or 32-bit pointers |
+| Division or remainder on vectors | 289 | `sdiv`, `udiv`, `srem` or `urem` of a vector |
+| Other instructions | 258 | `store` 90 and `load` 27 of shapes the model doesn't take, calls 46, scalar `sdiv` and `udiv` 49, `freeze` 30, `getelementptr` 13 |
+| Other intrinsics | 228 | Such as `llvm.ptrmask` |
+| Other attributes | 157 | Such as `nocallback`, `null_pointer_is_valid` and `builtin` |
+| Vector casts and pointer vectors | 148 | `bitcast` between vector shapes, `<N x ptr>` |
+| Attributes on vectors | 112 | `range` or `noundef` on a vector argument or result |
+| Metadata | 94 | `!range` and `!nonnull` on loads and calls |
+| Atomics | 70 | |
+| Constant expressions | 66 | `ptrtoint` of a global in a constant |
+| Exceptions | 41 | |
+| The emitter crashed | 34 | `ir-lean --report` gave no row: a segmentation fault, [below](#found-along-the-way) |
+| Other | 32 | Prefix data, prologue data or a garbage collector 14, array types 8, variadic functions 4 |
+
+Counted instead by what the source contains, a function can count in several: floating point in 9,576 of the 18,361,
+vectors in 7,131, calls to a declared function in 5,264, target intrinsics in 4,656, pointers in 3,918, memory
+instructions in 2,913, `undef` in 1,222, and scalable vectors in 906. So floating point alone blocks about half of what
+the emitter refuses, and vectors run through every group.
+
 ## Found along the way
 
 None is a soundness bug: each makes the model or a tool say less, never prove a wrong rewrite.
