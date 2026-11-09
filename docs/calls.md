@@ -395,7 +395,9 @@ Each is a pull request, merged when green, with this page updated to say what's 
    gets an address, and `initial` leaves its allocation out. Of the 394 InstCombine pairs refused first for one, 185
    now translate as functions with memory, which stage 1 counts as `memory`, 151 reach a call that touches memory, and
    the rest reach another refusal, such as `ptrtoint` in a constant.
-4. **Variadic calls** to functions outside the module, as above.
+4. **Variadic calls** to functions outside the module, as above. **Built** on 2026-11-09, with a right and two wrong
+   rewrites in `tests/calls`, one of them `(i64 1, i64 2)` to `(i128 1, i64 2)`, the same lanes as other types. Of the 75 InstCombine pairs refused first for one once slice 3 is in, the one with no
+   pointer translates, and the other 74 pass a pointer, so they're refused as touching memory.
 
 ## Tests
 

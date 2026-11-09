@@ -304,6 +304,14 @@ define void @f(ptr %p) { call void @g(i8 1)
 refuses 'touches memory: F4' 'declare i8 @g(i8) memory(read)
 define i8 @f(ptr %p) { %r = call i8 @g(i8 1)
   ret i8 %r }'
+# A variadic call outside the module is an event like any other, with every argument in it.
+accepts 'declare void @g(i32, ...)
+define void @f(i8 %x) { call void (i32, ...) @g(i32 1, i8 %x, i64 2)
+  ret void }'
+refuses 'touches memory: F4' '@s = constant [3 x i8] c"%d\00"
+declare i32 @printf(ptr, ...)
+define i32 @f(i32 %x) { %r = call i32 (ptr, ...) @printf(ptr @s, i32 %x)
+  ret i32 %r }'
 # A global another module defines is an allocation this module doesn't create: its address translates, and what it
 # holds is the memory's, which `initial` leaves out. One that may be null, or of no known size, is refused.
 accepts '@g = external global [4 x i32]

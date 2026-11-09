@@ -23,6 +23,9 @@ import read_moved_across_effect_wrong_ir
 import effect_dropped_before_undefined_wrong_ir
 import effect_dropped_before_loop_wrong_ir
 import effect_then_spin_for_spin_or_return_wrong_ir
+import variadic_kept_right_ir
+import variadic_reordered_wrong_ir
+import variadic_argument_type_changed_wrong_ir
 
 /-! Calls outside the module, as ir-lean emits them: each rewrite in `tests/calls`, with a theorem of the case's name
 proving its verdict. A `_right` case refines, and a `_wrong` one provably doesn't, in the world, input and target
@@ -419,3 +422,44 @@ theorem effect_then_spin_for_spin_or_return_wrong :
         andThen]; rfl), tgt_spins] at h1
     simp [effect_then_spin_for_spin_or_return_wrong_ir.src.step, effecting, World.callEffect, Exit.bind, andThen, ret,
       Outcome.ok, Refine.le] at h1
+
+/-! ### Variadic calls -/
+
+/-- `x + 0` to `x` in an argument after the fixed one of a variadic call with effects: the same call, so the same
+trace. -/
+theorem variadic_kept_right : Refines variadic_kept_right_ir.src variadic_kept_right_ir.tgt := by
+  intro x w t ct
+  refine ⟨ct, fun n => ?_⟩
+  have hy : Val.add x (some 0#8) = x := by cases x <;> simp [Val.add]
+  simp only [variadic_kept_right_ir.src, variadic_kept_right_ir.tgt]
+  rw [run.eq_1, run.eq_1]
+  simp only [variadic_kept_right_ir.src.step, variadic_kept_right_ir.tgt.step, World.callEffect, Exit.bind, hy]
+  by_cases hn : n ≤ t.length
+  · simp only [hn, ite_true, andThen, ret, Outcome.ok]
+    exact ⟨_, rfl, rfl⟩
+  · simp only [hn, ite_false]
+    cases w.effect (⟨"log", [("i32", Lanes.ofVal (some 1#32)), ("i8", Lanes.ofVal x)]⟩ :: t) <;>
+      simp only [andThen, ret, Outcome.ok, Outcome.ub, Bool.false_eq_true, ite_false] <;>
+      first | trivial | exact ⟨_, rfl, Refine.Reflexive.refl _⟩
+
+/-- Swapping the arguments after the fixed one of a variadic call with effects: at 0 and 1, the traces differ in
+them. -/
+theorem variadic_reordered_wrong : ¬ Refines variadic_reordered_wrong_ir.src variadic_reordered_wrong_ir.tgt :=
+  fun h => by
+  obtain ⟨cs, hcs⟩ := h (some 0#8) (some 1#8) (effecting fun _ => .ret []) [] default
+  have hcs := hcs 1
+  simp only [variadic_reordered_wrong_ir.src, variadic_reordered_wrong_ir.tgt] at hcs
+  rw [run.eq_1, run.eq_1] at hcs
+  simp [variadic_reordered_wrong_ir.src.step, variadic_reordered_wrong_ir.tgt.step, effecting, World.callEffect,
+    Exit.bind, andThen, ret, Outcome.ok, Lanes.ofVal, Refine.le] at hcs
+
+/-- Passing a variadic callee `(i128 1, i64 2)` where the source passes `(i64 1, i64 2)`: the lanes are the same, and the
+types, which tell the callee how to read them, differ, so the traces do. -/
+theorem variadic_argument_type_changed_wrong :
+    ¬ Refines variadic_argument_type_changed_wrong_ir.src variadic_argument_type_changed_wrong_ir.tgt := fun h => by
+  obtain ⟨cs, hcs⟩ := h (effecting fun _ => .ret []) [] default
+  have hcs := hcs 1
+  simp only [variadic_argument_type_changed_wrong_ir.src, variadic_argument_type_changed_wrong_ir.tgt] at hcs
+  rw [run.eq_1, run.eq_1] at hcs
+  simp [variadic_argument_type_changed_wrong_ir.src.step, variadic_argument_type_changed_wrong_ir.tgt.step, effecting,
+    World.callEffect, Exit.bind, andThen, ret, Outcome.ok, Lanes.ofVal, Refine.le] at hcs

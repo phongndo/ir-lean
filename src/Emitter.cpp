@@ -2061,8 +2061,7 @@ void FunctionEmitter::emitCall(const CallBase &C, std::vector<Line> &Out) {
 void FunctionEmitter::emitOutsideCall(const CallBase &C, std::vector<Line> &Out) {
   const Function *Callee = C.getCalledFunction();
   const std::string Name = "@" + Callee->getName().str();
-  if (C.getFunctionType()->isVarArg())
-    reject("variadic call");
+  // A variadic call is an event like any other, each argument after the fixed ones in it: docs/calls.md.
   if (C.hasOperandBundles())
     reject("instruction " + printed(C));
   bool Pointers = mentionsPointer(C.getType());
