@@ -1,11 +1,14 @@
-import IRLean.Int
-import IRLean.Refine
+import Peephole.Lemmas.ICmp
 
 /-! # Facts about values, at every width, that the `icmp-b` family's rewrites rest on
 
 Each is about `BitVec w` or `Val w`, not about LLVM's code: a candidate for the lemma store. The rewrite each one was
 cut from is named in its docstring. Every hypothesis has a counterexample at the end of the file, in
-`LemmaStore.Counter`, showing the lemma is false without it. -/
+`LemmaStore.Counter`, showing the lemma is false without it.
+
+Statements the `icmp` family proves first are used from `Peephole.Lemmas.ICmp`, not proved again:
+`msb_false_of_and_eq_zero` and `msb_true_of_and_eq`, the sign of a value from known bits, and `ule_or_self_right`,
+`y <=u x | y`. -/
 
 namespace Peephole.Lemmas
 
@@ -44,29 +47,11 @@ theorem slt_of_msb {x y : BitVec w} (hx : x.msb = true) (hy : y.msb = false) : B
   have := x.isLt
   omega
 
-/-! ### Known bits -/
-
-/-- A value with no bit where `k` has one, where `k` has the sign bit, is non-negative. -/
-theorem msb_false_of_and_eq_zero {x k : BitVec w} (h : x &&& k = 0#w) (hk : k.msb = true) : x.msb = false := by
-  have := congrArg BitVec.msb h
-  simp only [BitVec.msb_and, hk, Bool.and_true, BitVec.msb_zero] at this
-  exact this
-
-/-- A value with every bit `k` has, where `k` has the sign bit, is negative. -/
-theorem msb_true_of_and_eq {x k : BitVec w} (h : x &&& k = k) (hk : k.msb = true) : x.msb = true := by
-  have := congrArg BitVec.msb h
-  simp only [BitVec.msb_and, hk, Bool.and_true] at this
-  exact this
-
 /-! ### `or`, `urem`, `lshr`, `udiv`: what `simplifyICmpWithBinOpOnLHS` knows -/
-
-theorem ule_or_right (x y : BitVec w) : BitVec.ule y (x ||| y) = true := by
-  simp only [BitVec.ule, decide_eq_true_eq, BitVec.toNat_or]
-  exact Nat.right_le_or
 
 /-- `(x | y) >=s y` where `y` is negative or `x` isn't. `IS.simplifyICmpWithBinOpOnLHS.L3241`. -/
 theorem sle_or_right {x y : BitVec w} (h : y.msb = true ∨ x.msb = false) : BitVec.sle y (x ||| y) = true := by
-  rw [sle_eq_ule_of_msb_eq, ule_or_right]
+  rw [sle_eq_ule_of_msb_eq, ule_or_self_right]
   rw [BitVec.msb_or]
   rcases h with h | h <;> simp [h]
 
@@ -624,31 +609,6 @@ theorem Peephole.Lemmas.slt_of_msb.drop_hy :
 
 theorem Peephole.Lemmas.slt_of_msb.sat : ∃ (w : Nat) (x y : BitVec w), x.msb = true ∧ y.msb = false :=
   ⟨8, 255#8, 0#8, by decide, by decide⟩
-
-/-! ### Known bits -/
-
-theorem Peephole.Lemmas.msb_false_of_and_eq_zero.drop_h :
-    ¬ ∀ {w : Nat} {x k : BitVec w}, k.msb = true → x.msb = false :=
-  fun h => absurd (@h 8 128#8 128#8 (by decide)) (by decide)
-
-theorem Peephole.Lemmas.msb_false_of_and_eq_zero.drop_hk :
-    ¬ ∀ {w : Nat} {x k : BitVec w}, x &&& k = 0#w → x.msb = false :=
-  fun h => absurd (@h 8 128#8 0#8 (by decide)) (by decide)
-
-theorem Peephole.Lemmas.msb_false_of_and_eq_zero.sat :
-    ∃ (w : Nat) (x k : BitVec w), x &&& k = 0#w ∧ k.msb = true :=
-  ⟨8, 0#8, 128#8, by decide, by decide⟩
-
-theorem Peephole.Lemmas.msb_true_of_and_eq.drop_h :
-    ¬ ∀ {w : Nat} {x k : BitVec w}, k.msb = true → x.msb = true :=
-  fun h => absurd (@h 8 0#8 128#8 (by decide)) (by decide)
-
-theorem Peephole.Lemmas.msb_true_of_and_eq.drop_hk :
-    ¬ ∀ {w : Nat} {x k : BitVec w}, x &&& k = k → x.msb = true :=
-  fun h => absurd (@h 8 0#8 0#8 (by decide)) (by decide)
-
-theorem Peephole.Lemmas.msb_true_of_and_eq.sat : ∃ (w : Nat) (x k : BitVec w), x &&& k = k ∧ k.msb = true :=
-  ⟨8, 128#8, 128#8, by decide, by decide⟩
 
 /-! ### `or`, `urem`, `lshr`, `udiv` -/
 

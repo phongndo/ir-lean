@@ -17,8 +17,6 @@ Each `onInst` here follows its dispatcher's function to the folds:
   call, `simplifyUnsignedRangeCheck` delegates where its first compare is `icmp eq/ne Y, 0` and declines elsewhere,
   as the C++ does, and `matchDecomposedSelectPattern`'s limit test may fire for every relational predicate, since it
   answers for no equality.
-- `simplifyAndOrOfICmpsWithConstants` asks `ConstantRange`: `CRQuery.llvm` computes its answers as
-  `llvm/lib/IR/ConstantRange.cpp` does. Nothing proves it sound; the folds' theorems hold for every sound `CRQuery`.
 
 `Term` carries no metadata and no attributes, so `simplifyICmpInst`'s step on `!range` and `range` finds none, as the
 comparison's cases, which have none, don't either. -/
@@ -28,110 +26,6 @@ namespace Peephole.IS.ICmpB
 open IRLean
 
 variable {w : Nat}
-
-/-! ### `ConstantRange`, computed -/
-
-/-- LLVM's `ConstantRange` on `BitVec w`: `[lo, hi)`, wrapping, and `lo == hi` the full set at the maximum value and
-the empty set at zero. -/
-structure CR (w : Nat) where
-  lo : BitVec w
-  hi : BitVec w
-
-namespace CR
-
-def full (w : Nat) : CR w := ⟨BitVec.allOnes w, BitVec.allOnes w⟩
-def empty (w : Nat) : CR w := ⟨0#w, 0#w⟩
-def isFull (c : CR w) : Bool := c.lo == c.hi && c.lo == BitVec.allOnes w
-def isEmpty (c : CR w) : Bool := c.lo == c.hi && c.lo == 0#w
-/-- `isUpperWrapped`: `Lower.ugt(Upper)`. -/
-def wrapped (c : CR w) : Bool := BitVec.ult c.hi c.lo
-/-- `getNonEmpty`. -/
-def nonEmpty (lo hi : BitVec w) : CR w := if lo == hi then full w else ⟨lo, hi⟩
-/-- `isSizeStrictlySmallerThan`. -/
-def smaller (a b : CR w) : Bool :=
-  if a.isFull then false else if b.isFull then true else BitVec.ult (a.hi - a.lo) (b.hi - b.lo)
-/-- `getPreferredRange` with `Smallest`, the default. -/
-def preferred (a b : CR w) : CR w := if a.smaller b then a else b
-
-/-- `makeExactICmpRegion(Pred, C)`: `makeAllowedICmpRegion` of the single element `C`, whose unsigned and signed
-minimum and maximum are all `C`. -/
-def exactICmp (p : Pred) (c : BitVec w) : CR w :=
-  match p with
-  | .eq => ⟨c, c + 1#w⟩
-  | .ne => ⟨c + 1#w, c⟩
-  | .ult => if c == 0#w then empty w else ⟨0#w, c⟩
-  | .slt => if c == BitVec.intMin w then empty w else ⟨BitVec.intMin w, c⟩
-  | .ule => nonEmpty 0#w (c + 1#w)
-  | .sle => nonEmpty (BitVec.intMin w) (c + 1#w)
-  | .ugt => if c == BitVec.allOnes w then empty w else ⟨c + 1#w, 0#w⟩
-  | .sgt => if c == BitVec.intMax w then empty w else ⟨c + 1#w, BitVec.intMin w⟩
-  | .uge => nonEmpty c 0#w
-  | .sge => nonEmpty c (BitVec.intMin w)
-
-/-- `intersectWith`, once neither is empty or full and `a` is wrapped where `b` is. -/
-def intersectCore (a b : CR w) : CR w :=
-  if !a.wrapped && !b.wrapped then
-    if BitVec.ult a.lo b.lo then
-      if BitVec.ule a.hi b.lo then empty w else if BitVec.ult a.hi b.hi then ⟨b.lo, a.hi⟩ else b
-    else if BitVec.ult a.hi b.hi then a else if BitVec.ult a.lo b.hi then ⟨a.lo, b.hi⟩ else empty w
-  else if a.wrapped && !b.wrapped then
-    if BitVec.ult b.lo a.hi then
-      if BitVec.ult b.hi a.hi then b else if BitVec.ule b.hi a.lo then ⟨b.lo, a.hi⟩ else preferred a b
-    else if BitVec.ult b.lo a.lo then
-      if BitVec.ule b.hi a.lo then empty w else ⟨a.lo, b.hi⟩
-    else b
-  else if BitVec.ult b.hi a.hi then
-    if BitVec.ult b.lo a.hi then preferred a b else if BitVec.ult b.lo a.lo then ⟨a.lo, b.hi⟩ else b
-  else if BitVec.ule b.hi a.lo then
-    if BitVec.ult b.lo a.lo then a else ⟨b.lo, a.hi⟩
-  else preferred a b
-
-/-- `intersectWith(CR, Smallest)`. -/
-def intersect (a b : CR w) : CR w :=
-  if a.isEmpty || b.isFull then a
-  else if b.isEmpty || a.isFull then b
-  else if !a.wrapped && b.wrapped then intersectCore b a
-  else intersectCore a b
-
-/-- `unionWith`, once neither is empty or full and `a` is wrapped where `b` is. -/
-def unionCore (a b : CR w) : CR w :=
-  if !a.wrapped && !b.wrapped then
-    if BitVec.ult b.hi a.lo || BitVec.ult a.hi b.lo then preferred ⟨a.lo, b.hi⟩ ⟨b.lo, a.hi⟩
-    else
-      let l := if BitVec.ult b.lo a.lo then b.lo else a.lo
-      let u := if BitVec.ult (a.hi - 1#w) (b.hi - 1#w) then b.hi else a.hi
-      if l == 0#w && u == 0#w then full w else ⟨l, u⟩
-  else if !b.wrapped then
-    if BitVec.ule b.hi a.hi || BitVec.ule a.lo b.lo then a
-    else if BitVec.ule b.lo a.hi && BitVec.ule a.lo b.hi then full w
-    else if BitVec.ult a.hi b.lo && BitVec.ult b.hi a.lo then preferred ⟨a.lo, b.hi⟩ ⟨b.lo, a.hi⟩
-    else if BitVec.ult a.hi b.lo && BitVec.ule a.lo b.hi then ⟨b.lo, a.hi⟩
-    else ⟨a.lo, b.hi⟩
-  else if BitVec.ule b.lo a.hi || BitVec.ule a.lo b.hi then full w
-  else ⟨if BitVec.ult b.lo a.lo then b.lo else a.lo, if BitVec.ult a.hi b.hi then b.hi else a.hi⟩
-
-/-- `unionWith(CR, Smallest)`. -/
-def union (a b : CR w) : CR w :=
-  if a.isFull || b.isEmpty then a
-  else if b.isFull || a.isEmpty then b
-  else if !a.wrapped && b.wrapped then unionCore b a
-  else unionCore a b
-
-/-- `contains(Other)`. -/
-def contains (a b : CR w) : Bool :=
-  if a.isFull || b.isEmpty then true
-  else if a.isEmpty || b.isFull then false
-  else if !a.wrapped then !b.wrapped && BitVec.ule a.lo b.lo && BitVec.ule b.hi a.hi
-  else if !b.wrapped then BitVec.ule b.hi a.hi || BitVec.ule a.lo b.lo
-  else BitVec.ule b.hi a.hi && BitVec.ule a.lo b.lo
-
-end CR
-
-/-- `ConstantRange`'s answers as LLVM computes them. Nothing here proves them sound. -/
-def CRQuery.llvm : CRQuery where
-  emptyAnd p0 c0 p1 c1 := ((CR.exactICmp p0 c0).intersect (CR.exactICmp p1 c1)).isEmpty
-  fullOr p0 c0 p1 c1 := ((CR.exactICmp p0 c0).union (CR.exactICmp p1 c1)).isFull
-  contains p0 c0 p1 c1 := (CR.exactICmp p0 c0).contains (CR.exactICmp p1 c1)
 
 /-! ### What the folds take, where they're reached from an instruction -/
 
@@ -232,7 +126,7 @@ def logicEarlier (a b : Term w) : Bool :=
 
 def logicEntry.steps (isAnd : Bool) (a b : Term w) : List (Step w) :=
   [ if logicEarlier a b then .delegate "simplifyAndInst/simplifyOrInst: a step before simplifyAndOrOfCmps" else .next,
-    fwd "IS.simplifyAndOrOfCmps" (simplifyAndOrOfCmps URC.delegating CRQuery.llvm a b isAnd),
+    fwd "IS.simplifyAndOrOfCmps" (simplifyAndOrOfCmps URC.delegating a b isAnd),
     .delegate "simplifyAndInst/simplifyOrInst: a step after simplifyAndOrOfCmps" ]
 
 /-- What InstSimplify does with an `and`, as far as it reaches this family's folds. -/

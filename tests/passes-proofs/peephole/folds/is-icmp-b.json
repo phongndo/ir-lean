@@ -7,6 +7,7 @@
     "Peephole.IS.ICmpBOnLHS",
     "Peephole.IS.ICmpBBinOp",
     "Peephole.IS.ICmpBMinMax",
+    "Peephole.IS.ICmpBConstantRange",
     "Peephole.IS.ICmpBAndOr",
     "Peephole.IS.ICmpBSelect",
     "Peephole.IS.ICmpBSelectCond",
@@ -188,8 +189,6 @@
     "Peephole.Lemmas.and_subset",
     "Peephole.Lemmas.beq_smin",
     "Peephole.Lemmas.beq_umin",
-    "Peephole.Lemmas.msb_false_of_and_eq_zero",
-    "Peephole.Lemmas.msb_true_of_and_eq",
     "Peephole.Lemmas.mul_udiv_ule",
     "Peephole.Lemmas.mul_ushiftRight_ule",
     "Peephole.Lemmas.or_subset",
@@ -225,7 +224,6 @@
     "Peephole.Lemmas.ule_add_one_and_ugt",
     "Peephole.Lemmas.ule_eq_not_ult",
     "Peephole.Lemmas.ule_of_subset",
-    "Peephole.Lemmas.ule_or_right",
     "Peephole.Lemmas.ule_umax",
     "Peephole.Lemmas.ule_umin",
     "Peephole.Lemmas.ult_add_two_and_sgt",
@@ -255,18 +253,6 @@
     ],
     "IS.simplifyICmpWithBinOp.L3469": [
       "Peephole.IS.ICmpB.WellTyped: the zext in 0 - zext X widens, as LLVM's verifier requires; Term doesn't say so"
-    ],
-    "IS.simplifyAndOrOfICmpsWithConstants.L1638": [
-      "Peephole.IS.ICmpB.CRQuery.Sound: LLVM's ConstantRange::makeExactICmpRegion, intersectWith, unionWith, contains, isEmptySet and isFullSet answer soundly; the model takes their answers from a CRQuery"
-    ],
-    "IS.simplifyAndOrOfICmpsWithConstants.L1643": [
-      "Peephole.IS.ICmpB.CRQuery.Sound: LLVM's ConstantRange::makeExactICmpRegion, intersectWith, unionWith, contains, isEmptySet and isFullSet answer soundly; the model takes their answers from a CRQuery"
-    ],
-    "IS.simplifyAndOrOfICmpsWithConstants.L1651": [
-      "Peephole.IS.ICmpB.CRQuery.Sound: LLVM's ConstantRange::makeExactICmpRegion, intersectWith, unionWith, contains, isEmptySet and isFullSet answer soundly; the model takes their answers from a CRQuery"
-    ],
-    "IS.simplifyAndOrOfICmpsWithConstants.L1653": [
-      "Peephole.IS.ICmpB.CRQuery.Sound: LLVM's ConstantRange::makeExactICmpRegion, intersectWith, unionWith, contains, isEmptySet and isFullSet answer soundly; the model takes their answers from a CRQuery"
     ],
     "IS.simplifyCmpSelCase.L121": [
       "Peephole.IS.ICmpB.ICmpSimp.Sound: the recursive simplifyCmpInst (simplifyICmpInst) answers soundly",

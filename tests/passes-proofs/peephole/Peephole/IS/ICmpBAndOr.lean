@@ -1,4 +1,5 @@
 import Peephole.IS.ICmpB
+import Peephole.IS.ICmpBConstantRange
 
 /-! # InstSimplify's folds of an `and` or `or` of two compares, and their rewrites for every input
 
@@ -21,11 +22,13 @@ At `llvmorg-23.1.3`, in `llvm/lib/Analysis/InstructionSimplify.cpp`: `simplifyAn
 | `IS.simplifyAndOrOfCmps.L1933` | `cast(A) op cast(B)` to the constant `cast(V)`, where `A op B` simplified to `V` |
 
 `simplifyAndOrOfICmpsWithConstants` asks `ConstantRange` whether the exact regions of the two compares meet, cover
-everything, or contain one another. The model doesn't compute `ConstantRange`'s answers: it takes them from a
-`CRQuery`, and its theorems hold for every `CRQuery` that's `Sound`, each answer true of the compares. That
-`ConstantRange::makeExactICmpRegion`, `intersectWith`, `unionWith`, `contains`, `isEmptySet` and `isFullSet` give
-sound answers is this family's one hypothesis beyond the standard ones. `simplifyAndOfICmps` and `simplifyOrOfICmps`
-also call `simplifyUnsignedRangeCheck`, which this family doesn't model: it's a parameter, whose answers are delegated.
+everything, or contain one another. The model computes the answers as `llvm/lib/IR/ConstantRange.cpp` does: the
+`icmp` family's `makeExactICmpRegion`, `contains`, `isEmptySet` and `isFullSet`, and `intersectWith` and `unionWith`
+from `Peephole.IS.ICmpBConstantRange`. What each answer says about values is proved there and in
+`Peephole.IS.ICmpConstantRange`, so the rewrites rest on no hypothesis about `ConstantRange`. The model reads a range
+only at a positive width: LLVM has no `i0`, and at width 0 the full and the empty range are the same pair.
+`simplifyAndOfICmps` and `simplifyOrOfICmps` also call `simplifyUnsignedRangeCheck`, which is a parameter here, whose
+answers are delegated.
 
 Each fold's theorem is about the `and`, or the `or` with or without `disjoint`, of the two compares it's given. -/
 
@@ -153,27 +156,54 @@ theorem ofBool_or (a b : Bool) : BitVec.ofBool a ||| BitVec.ofBool b = BitVec.of
 
 /-! ### `simplifyAndOrOfICmpsWithConstants` -/
 
-/-- What `simplifyAndOrOfICmpsWithConstants` asks `ConstantRange` of the compares `X P0 C0` and `X P1 C1`:
-`emptyAnd`, whether `makeExactICmpRegion(P0, C0).intersectWith(makeExactICmpRegion(P1, C1)).isEmptySet()`; `fullOr`,
-whether their `unionWith` `isFullSet()`; and `contains`, whether the first region `contains` the second. -/
-structure CRQuery where
-  emptyAnd : {w : Nat} → Pred → BitVec w → Pred → BitVec w → Bool
-  fullOr : {w : Nat} → Pred → BitVec w → Pred → BitVec w → Bool
-  contains : {w : Nat} → Pred → BitVec w → Pred → BitVec w → Bool
+theorem test_eq (p : Pred) (x y : BitVec w) : test p x y = ICmp.test p x y := by
+  cases p <;> rfl
 
-/-- `ConstantRange`'s answers are right: an empty intersection has no value satisfying both compares, a full union
-none satisfying neither, and a region containing another every value the other has. This is a fact about LLVM's
-`ConstantRange`, not about a run. -/
-structure CRQuery.Sound (q : CRQuery) : Prop where
-  emptyAnd : ∀ {w : Nat} (p0 : Pred) (c0 : BitVec w) (p1 : Pred) (c1 : BitVec w), q.emptyAnd p0 c0 p1 c1 = true →
-    ∀ x, (test p0 x c0 && test p1 x c1) = false
-  fullOr : ∀ {w : Nat} (p0 : Pred) (c0 : BitVec w) (p1 : Pred) (c1 : BitVec w), q.fullOr p0 c0 p1 c1 = true →
-    ∀ x, (test p0 x c0 || test p1 x c1) = true
-  contains : ∀ {w : Nat} (p0 : Pred) (c0 : BitVec w) (p1 : Pred) (c1 : BitVec w), q.contains p0 c0 p1 c1 = true →
-    ∀ x, test p1 x c1 = true → test p0 x c0 = true
+/-- `makeExactICmpRegion(P0, C0).intersectWith(makeExactICmpRegion(P1, C1)).isEmptySet()`, at a positive width. -/
+def crEmptyAnd (p0 : Pred) (c0 : BitVec w) (p1 : Pred) (c1 : BitVec w) : Bool :=
+  decide (0 < w) &&
+    (Range.intersectWith (ICmp.CR.makeExactICmpRegion p0 c0) (ICmp.CR.makeExactICmpRegion p1 c1)).isEmptySet
+
+/-- `makeExactICmpRegion(P0, C0).unionWith(makeExactICmpRegion(P1, C1)).isFullSet()`, at a positive width. -/
+def crFullOr (p0 : Pred) (c0 : BitVec w) (p1 : Pred) (c1 : BitVec w) : Bool :=
+  decide (0 < w) &&
+    (Range.unionWith (ICmp.CR.makeExactICmpRegion p0 c0) (ICmp.CR.makeExactICmpRegion p1 c1)).isFullSet
+
+/-- `makeExactICmpRegion(P0, C0).contains(makeExactICmpRegion(P1, C1))`, at a positive width. -/
+def crContains (p0 : Pred) (c0 : BitVec w) (p1 : Pred) (c1 : BitVec w) : Bool :=
+  decide (0 < w) && (ICmp.CR.makeExactICmpRegion p0 c0).containsRange (ICmp.CR.makeExactICmpRegion p1 c1)
+
+/-- Where the intersection of the exact regions is empty, no value satisfies both compares. -/
+theorem crEmptyAnd_sound {p0 p1 : Pred} {c0 c1 : BitVec w} (h : crEmptyAnd p0 c0 p1 c1 = true) (x : BitVec w) :
+    (test p0 x c0 && test p1 x c1) = false := by
+  simp only [crEmptyAnd, Bool.and_eq_true, decide_eq_true_eq] at h
+  obtain ⟨hw, he⟩ := h
+  rw [test_eq, test_eq, ← ICmp.CR.makeExact_contains hw, ← ICmp.CR.makeExact_contains hw]
+  apply Bool.eq_false_iff.2
+  intro hb
+  rw [Bool.and_eq_true] at hb
+  have hi := Range.intersectWith_contains hb.1 hb.2
+  rw [ICmp.CR.isEmptySet_contains hw he] at hi
+  cases hi
+
+/-- Where the union of the exact regions is full, every value satisfies one of the compares. -/
+theorem crFullOr_sound {p0 p1 : Pred} {c0 c1 : BitVec w} (h : crFullOr p0 c0 p1 c1 = true) (x : BitVec w) :
+    (test p0 x c0 || test p1 x c1) = true := by
+  simp only [crFullOr, Bool.and_eq_true, decide_eq_true_eq] at h
+  obtain ⟨hw, hf⟩ := h
+  rw [test_eq, test_eq, ← ICmp.CR.makeExact_contains hw, ← ICmp.CR.makeExact_contains hw, Bool.or_eq_true]
+  exact Range.unionWith_isFullSet hf x
+
+/-- Where the first exact region contains the second, every value satisfying the second compare satisfies the first. -/
+theorem crContains_sound {p0 p1 : Pred} {c0 c1 : BitVec w} (h : crContains p0 c0 p1 c1 = true) (x : BitVec w)
+    (h1 : test p1 x c1 = true) : test p0 x c0 = true := by
+  simp only [crContains, Bool.and_eq_true, decide_eq_true_eq] at h
+  obtain ⟨hw, hc⟩ := h
+  rw [test_eq, ← ICmp.CR.makeExact_contains hw] at h1 ⊢
+  exact ICmp.CR.containsRange_sound hw hc h1
 
 /-- The steps once both compares have one width: `Cmp0`, `Cmp1`, their predicates and operands. -/
-def crSteps (q : CRQuery) (cmp0 cmp1 : Term 1) (p0 p1 : Pred) (x0 x1 k0 k1 : Term u) (isAnd : Bool) :
+def crSteps (cmp0 cmp1 : Term 1) (p0 p1 : Pred) (x0 x1 k0 k1 : Term u) (isAnd : Bool) :
     List (Step 1) :=
   -- Look for this pattern: {and/or} (icmp X, C0), (icmp X, C1)).
   if specific x0 x1 then
@@ -181,17 +211,17 @@ def crSteps (q : CRQuery) (cmp0 cmp1 : Term 1) (p0 p1 : Pred) (x0 x1 k0 k1 : Ter
     | some c0, some c1 =>
       [ -- For and-of-compares, check if the intersection is empty:
         -- (icmp X, C0) && (icmp X, C1) --> empty set --> false
-        if isAnd && q.emptyAnd p0 c0 p1 c1 then .fire "IS.simplifyAndOrOfICmpsWithConstants.L1638" (boolR false)
+        if isAnd && crEmptyAnd p0 c0 p1 c1 then .fire "IS.simplifyAndOrOfICmpsWithConstants.L1638" (boolR false)
         else .next,
         -- For or-of-compares, check if the union is full:
         -- (icmp X, C0) || (icmp X, C1) --> full set --> true
-        if !isAnd && q.fullOr p0 c0 p1 c1 then .fire "IS.simplifyAndOrOfICmpsWithConstants.L1643" (boolR true)
+        if !isAnd && crFullOr p0 c0 p1 c1 then .fire "IS.simplifyAndOrOfICmpsWithConstants.L1643" (boolR true)
         else .next,
         -- Is one range a superset of the other?
-        if q.contains p0 c0 p1 c1 then
+        if crContains p0 c0 p1 c1 then
           .fire "IS.simplifyAndOrOfICmpsWithConstants.L1651" (.old (if isAnd then cmp1 else cmp0))
         else .next,
-        if q.contains p1 c1 p0 c0 then
+        if crContains p1 c1 p0 c0 then
           .fire "IS.simplifyAndOrOfICmpsWithConstants.L1653" (.old (if isAnd then cmp0 else cmp1))
         else .next ]
     | _, _ => []
@@ -199,15 +229,15 @@ def crSteps (q : CRQuery) (cmp0 cmp1 : Term 1) (p0 p1 : Pred) (x0 x1 k0 k1 : Ter
 
 /-- `simplifyAndOrOfICmpsWithConstants(Cmp0, Cmp1, IsAnd)`, step by step. Operands of different widths are different
 pointers, so it declines. -/
-def _root_.Peephole.IS.simplifyAndOrOfICmpsWithConstants.steps (q : CRQuery) (cmp0 cmp1 : Term 1) (isAnd : Bool) : List (Step 1) :=
+def _root_.Peephole.IS.simplifyAndOrOfICmpsWithConstants.steps (cmp0 cmp1 : Term 1) (isAnd : Bool) : List (Step 1) :=
   match cmp0, cmp1 with
   | .icmp (w := u) id0 p0 s0 x0 k0, .icmp (w := u') id1 p1 s1 x1 k1 =>
-    if h : u' = u then crSteps q (.icmp id0 p0 s0 x0 k0) (.icmp id1 p1 s1 x1 k1) p0 p1 x0 (h ▸ x1) k0 (h ▸ k1) isAnd
+    if h : u' = u then crSteps (.icmp id0 p0 s0 x0 k0) (.icmp id1 p1 s1 x1 k1) p0 p1 x0 (h ▸ x1) k0 (h ▸ k1) isAnd
     else []
   | _, _ => []
 
-def _root_.Peephole.IS.simplifyAndOrOfICmpsWithConstants (q : CRQuery) (cmp0 cmp1 : Term 1) (isAnd : Bool) : Result 1 :=
-  run (simplifyAndOrOfICmpsWithConstants.steps q cmp0 cmp1 isAnd)
+def _root_.Peephole.IS.simplifyAndOrOfICmpsWithConstants (cmp0 cmp1 : Term 1) (isAnd : Bool) : Result 1 :=
+  run (simplifyAndOrOfICmpsWithConstants.steps cmp0 cmp1 isAnd)
 
 theorem cr_vals {ρ : Env} {id0 id1 : Nat} {p0 p1 : Pred} {s0 s1 : Bool} {x0 x1 k0 k1 : Term u} {c0 c1 : BitVec u}
     (cc0 : (Term.icmp id0 p0 s0 x0 k0).Consistent ρ) (cc1 : (Term.icmp id1 p1 s1 x1 k1).Consistent ρ)
@@ -224,42 +254,42 @@ theorem cr_vals {ρ : Env} {id0 id1 : Nat} {p0 p1 : Pred} {s0 s1 : Bool} {x0 x1 
   exact ⟨l0, rfl, rfl⟩
 
 /-- `IS.simplifyAndOrOfICmpsWithConstants.L1638`: `(X P0 C0) & (X P1 C1)` to false where no `X` satisfies both. -/
-theorem _root_.Peephole.IS.simplifyAndOrOfICmpsWithConstants.L1638 (ρ : Env) (q : CRQuery) (hq : q.Sound) (d : Bool)
+theorem _root_.Peephole.IS.simplifyAndOrOfICmpsWithConstants.L1638 (ρ : Env) (d : Bool)
     (id0 id1 : Nat) (p0 p1 : Pred) (s0 s1 : Bool) (x0 x1 k0 k1 : Term u) (c0 c1 : BitVec u) (isAnd : Bool)
     (cc0 : (Term.icmp id0 p0 s0 x0 k0).Consistent ρ) (cc1 : (Term.icmp id1 p1 s1 x1 k1).Consistent ρ)
     (hx : specific x0 x1 = true) (hk0 : apint k0 = some c0) (hk1 : apint k1 = some c1)
-    (h : (isAnd && q.emptyAnd p0 c0 p1 c1) = true) :
+    (h : (isAnd && crEmptyAnd p0 c0 p1 c1) = true) :
     Refines ((logicSrc isAnd d (.icmp id0 p0 s0 x0 k0) (.icmp id1 p1 s1 x1 k1)).eval ρ) ((boolR false).eval ρ) := by
   rw [Bool.and_eq_true] at h
   obtain ⟨rfl, he⟩ := h
   refine logic_refines (boolR_eval ρ false) fun a b ha hb => ?_
   obtain ⟨xv, rfl, rfl⟩ := cr_vals cc0 cc1 hx hk0 hk1 a b ha hb
-  simp only [ite_true, ofBool_and, hq.emptyAnd p0 c0 p1 c1 he xv]
+  simp only [ite_true, ofBool_and, crEmptyAnd_sound he xv]
 
 /-- `IS.simplifyAndOrOfICmpsWithConstants.L1643`: `(X P0 C0) | (X P1 C1)` to true where every `X` satisfies one. -/
-theorem _root_.Peephole.IS.simplifyAndOrOfICmpsWithConstants.L1643 (ρ : Env) (q : CRQuery) (hq : q.Sound) (d : Bool)
+theorem _root_.Peephole.IS.simplifyAndOrOfICmpsWithConstants.L1643 (ρ : Env) (d : Bool)
     (id0 id1 : Nat) (p0 p1 : Pred) (s0 s1 : Bool) (x0 x1 k0 k1 : Term u) (c0 c1 : BitVec u) (isAnd : Bool)
     (cc0 : (Term.icmp id0 p0 s0 x0 k0).Consistent ρ) (cc1 : (Term.icmp id1 p1 s1 x1 k1).Consistent ρ)
     (hx : specific x0 x1 = true) (hk0 : apint k0 = some c0) (hk1 : apint k1 = some c1)
-    (h : (!isAnd && q.fullOr p0 c0 p1 c1) = true) :
+    (h : (!isAnd && crFullOr p0 c0 p1 c1) = true) :
     Refines ((logicSrc isAnd d (.icmp id0 p0 s0 x0 k0) (.icmp id1 p1 s1 x1 k1)).eval ρ) ((boolR true).eval ρ) := by
   rw [Bool.and_eq_true, Bool.not_eq_true'] at h
   obtain ⟨rfl, he⟩ := h
   refine logic_refines (boolR_eval ρ true) fun a b ha hb => ?_
   obtain ⟨xv, rfl, rfl⟩ := cr_vals cc0 cc1 hx hk0 hk1 a b ha hb
-  simp only [Bool.false_eq_true, ite_false, ofBool_or, hq.fullOr p0 c0 p1 c1 he xv]
+  simp only [Bool.false_eq_true, ite_false, ofBool_or, crFullOr_sound he xv]
 
 /-- `IS.simplifyAndOrOfICmpsWithConstants.L1651`: where the first region contains the second, the `and` to the second
 compare and the `or` to the first. -/
-theorem _root_.Peephole.IS.simplifyAndOrOfICmpsWithConstants.L1651 (ρ : Env) (q : CRQuery) (hq : q.Sound) (d : Bool)
+theorem _root_.Peephole.IS.simplifyAndOrOfICmpsWithConstants.L1651 (ρ : Env) (d : Bool)
     (id0 id1 : Nat) (p0 p1 : Pred) (s0 s1 : Bool) (x0 x1 k0 k1 : Term u) (c0 c1 : BitVec u) (isAnd : Bool)
     (cc0 : (Term.icmp id0 p0 s0 x0 k0).Consistent ρ) (cc1 : (Term.icmp id1 p1 s1 x1 k1).Consistent ρ)
     (hx : specific x0 x1 = true) (hk0 : apint k0 = some c0) (hk1 : apint k1 = some c1)
-    (h : q.contains p0 c0 p1 c1 = true) :
+    (h : crContains p0 c0 p1 c1 = true) :
     Refines ((logicSrc isAnd d (.icmp id0 p0 s0 x0 k0) (.icmp id1 p1 s1 x1 k1)).eval ρ)
       ((Repl.old (if isAnd then Term.icmp id1 p1 s1 x1 k1 else .icmp id0 p0 s0 x0 k0)).eval ρ) := by
   have hv := cr_vals cc0 cc1 hx hk0 hk1
-  have hc := hq.contains p0 c0 p1 c1 h
+  have hc := crContains_sound h
   cases isAnd
   · simp only [Bool.false_eq_true, ite_false]
     refine logic_refines_left fun a b ha hb => ?_
@@ -278,15 +308,15 @@ theorem _root_.Peephole.IS.simplifyAndOrOfICmpsWithConstants.L1651 (ρ : Env) (q
 
 /-- `IS.simplifyAndOrOfICmpsWithConstants.L1653`: where the second region contains the first, the `and` to the first
 compare and the `or` to the second. -/
-theorem _root_.Peephole.IS.simplifyAndOrOfICmpsWithConstants.L1653 (ρ : Env) (q : CRQuery) (hq : q.Sound) (d : Bool)
+theorem _root_.Peephole.IS.simplifyAndOrOfICmpsWithConstants.L1653 (ρ : Env) (d : Bool)
     (id0 id1 : Nat) (p0 p1 : Pred) (s0 s1 : Bool) (x0 x1 k0 k1 : Term u) (c0 c1 : BitVec u) (isAnd : Bool)
     (cc0 : (Term.icmp id0 p0 s0 x0 k0).Consistent ρ) (cc1 : (Term.icmp id1 p1 s1 x1 k1).Consistent ρ)
     (hx : specific x0 x1 = true) (hk0 : apint k0 = some c0) (hk1 : apint k1 = some c1)
-    (h : q.contains p1 c1 p0 c0 = true) :
+    (h : crContains p1 c1 p0 c0 = true) :
     Refines ((logicSrc isAnd d (.icmp id0 p0 s0 x0 k0) (.icmp id1 p1 s1 x1 k1)).eval ρ)
       ((Repl.old (if isAnd then Term.icmp id0 p0 s0 x0 k0 else .icmp id1 p1 s1 x1 k1)).eval ρ) := by
   have hv := cr_vals cc0 cc1 hx hk0 hk1
-  have hc := hq.contains p1 c1 p0 c0 h
+  have hc := crContains_sound h
   cases isAnd
   · simp only [Bool.false_eq_true, ite_false]
     refine logic_refines_right fun a b ha hb => ?_
@@ -303,10 +333,10 @@ theorem _root_.Peephole.IS.simplifyAndOrOfICmpsWithConstants.L1653 (ρ : Env) (q
     · simp
     · simp [hc xv h0]
 
-theorem crSteps_sound (ρ : Env) (q : CRQuery) (hq : q.Sound) (d : Bool) (id0 id1 : Nat) (p0 p1 : Pred)
+theorem crSteps_sound (ρ : Env) (d : Bool) (id0 id1 : Nat) (p0 p1 : Pred)
     (s0 s1 : Bool) (x0 x1 k0 k1 : Term u) (isAnd : Bool)
     (cc0 : (Term.icmp id0 p0 s0 x0 k0).Consistent ρ) (cc1 : (Term.icmp id1 p1 s1 x1 k1).Consistent ρ) :
-    ∀ site r, Step.fire site r ∈ crSteps q (.icmp id0 p0 s0 x0 k0) (.icmp id1 p1 s1 x1 k1) p0 p1 x0 x1 k0 k1 isAnd →
+    ∀ site r, Step.fire site r ∈ crSteps (.icmp id0 p0 s0 x0 k0) (.icmp id1 p1 s1 x1 k1) p0 p1 x0 x1 k0 k1 isAnd →
       Refines ((logicSrc isAnd d (.icmp id0 p0 s0 x0 k0) (.icmp id1 p1 s1 x1 k1)).eval ρ) (r.eval ρ) := by
   intro site r hmem
   unfold crSteps at hmem
@@ -317,24 +347,24 @@ theorem crSteps_sound (ρ : Env) (q : CRQuery) (hq : q.Sound) (d : Bool) (id0 id
       simp only [List.mem_cons, List.not_mem_nil, or_false] at hmem
       rcases hmem with h | h | h | h <;> split at h <;> simp only [Step.fire.injEq, reduceCtorEq] at h <;>
         obtain ⟨-, rfl⟩ := h
-      · exact simplifyAndOrOfICmpsWithConstants.L1638 ρ q hq d _ _ _ _ _ _ _ _ _ _ _ _ isAnd cc0 cc1 hx hk0 hk1
+      · exact simplifyAndOrOfICmpsWithConstants.L1638 ρ d _ _ _ _ _ _ _ _ _ _ _ _ isAnd cc0 cc1 hx hk0 hk1
           (by assumption)
-      · exact simplifyAndOrOfICmpsWithConstants.L1643 ρ q hq d _ _ _ _ _ _ _ _ _ _ _ _ isAnd cc0 cc1 hx hk0 hk1
+      · exact simplifyAndOrOfICmpsWithConstants.L1643 ρ d _ _ _ _ _ _ _ _ _ _ _ _ isAnd cc0 cc1 hx hk0 hk1
           (by assumption)
-      · exact simplifyAndOrOfICmpsWithConstants.L1651 ρ q hq d _ _ _ _ _ _ _ _ _ _ _ _ isAnd cc0 cc1 hx hk0 hk1
+      · exact simplifyAndOrOfICmpsWithConstants.L1651 ρ d _ _ _ _ _ _ _ _ _ _ _ _ isAnd cc0 cc1 hx hk0 hk1
           (by assumption)
-      · exact simplifyAndOrOfICmpsWithConstants.L1653 ρ q hq d _ _ _ _ _ _ _ _ _ _ _ _ isAnd cc0 cc1 hx hk0 hk1
+      · exact simplifyAndOrOfICmpsWithConstants.L1653 ρ d _ _ _ _ _ _ _ _ _ _ _ _ isAnd cc0 cc1 hx hk0 hk1
           (by assumption)
     · simp at hmem
   · simp at hmem
 
 /-- Theorem 1 for `simplifyAndOrOfICmpsWithConstants`: every value the model returns refines `and Cmp0, Cmp1` or
-`or [disjoint] Cmp0, Cmp1`, at every width and `samesign` flag, poison included, for every sound `CRQuery`. -/
-theorem _root_.Peephole.IS.simplifyAndOrOfICmpsWithConstants.sound (ρ : Env) (q : CRQuery) (hq : q.Sound) (d : Bool)
+`or [disjoint] Cmp0, Cmp1`, at every width and `samesign` flag, poison included. -/
+theorem _root_.Peephole.IS.simplifyAndOrOfICmpsWithConstants.sound (ρ : Env) (d : Bool)
     (cmp0 cmp1 : Term 1) (isAnd : Bool) (c0 : cmp0.Consistent ρ) (c1 : cmp1.Consistent ρ) {r : Repl 1}
-    (h : simplifyAndOrOfICmpsWithConstants q cmp0 cmp1 isAnd = .value r) :
+    (h : simplifyAndOrOfICmpsWithConstants cmp0 cmp1 isAnd = .value r) :
     Refines ((logicSrc isAnd d cmp0 cmp1).eval ρ) (r.eval ρ) := by
-  suffices hs : ∀ site r, Step.fire site r ∈ simplifyAndOrOfICmpsWithConstants.steps q cmp0 cmp1 isAnd →
+  suffices hs : ∀ site r, Step.fire site r ∈ simplifyAndOrOfICmpsWithConstants.steps cmp0 cmp1 isAnd →
       Refines ((logicSrc isAnd d cmp0 cmp1).eval ρ) (r.eval ρ) from run_sound hs h
   intro site r hmem
   unfold simplifyAndOrOfICmpsWithConstants.steps at hmem
@@ -343,7 +373,7 @@ theorem _root_.Peephole.IS.simplifyAndOrOfICmpsWithConstants.sound (ρ : Env) (q
     split at hmem
     · next hu =>
       subst hu
-      exact crSteps_sound ρ q hq d id0 id1 p0 p1 s0 s1 x0 x1 k0 k1 isAnd c0 c1 site r hmem
+      exact crSteps_sound ρ d id0 id1 p0 p1 s0 s1 x0 x1 k0 k1 isAnd c0 c1 site r hmem
     · simp at hmem
   · simp at hmem
 
@@ -881,62 +911,62 @@ delegated. -/
 abbrev URC := Term 1 → Term 1 → Bool → Result 1
 
 /-- `simplifyAndOfICmps(Op0, Op1, Q)`, step by step. -/
-def _root_.Peephole.IS.simplifyAndOfICmps.steps (urc : URC) (q : CRQuery) (op0 op1 : Term 1) : List (Step 1) :=
+def _root_.Peephole.IS.simplifyAndOfICmps.steps (urc : URC) (op0 op1 : Term 1) : List (Step 1) :=
   [ delegUnlessNull "simplifyUnsignedRangeCheck" (urc op0 op1 true),
     delegUnlessNull "simplifyUnsignedRangeCheck" (urc op1 op0 true),
-    fwd "IS.simplifyAndOrOfICmpsWithConstants" (simplifyAndOrOfICmpsWithConstants q op0 op1 true),
+    fwd "IS.simplifyAndOrOfICmpsWithConstants" (simplifyAndOrOfICmpsWithConstants op0 op1 true),
     fwd "IS.simplifyAndOrOfICmpsWithCtpop" (simplifyAndOrOfICmpsWithCtpop op0 op1 true),
     fwd "IS.simplifyAndOrOfICmpsWithCtpop" (simplifyAndOrOfICmpsWithCtpop op1 op0 true),
     fwd "IS.simplifyAndOfICmpsWithAdd" (simplifyAndOfICmpsWithAdd op0 op1),
     fwd "IS.simplifyAndOfICmpsWithAdd" (simplifyAndOfICmpsWithAdd op1 op0) ]
 
-def _root_.Peephole.IS.simplifyAndOfICmps (urc : URC) (q : CRQuery) (op0 op1 : Term 1) : Result 1 :=
-  run (simplifyAndOfICmps.steps urc q op0 op1)
+def _root_.Peephole.IS.simplifyAndOfICmps (urc : URC) (op0 op1 : Term 1) : Result 1 :=
+  run (simplifyAndOfICmps.steps urc op0 op1)
 
 /-- `simplifyOrOfICmps(Op0, Op1, Q)`, step by step. -/
-def _root_.Peephole.IS.simplifyOrOfICmps.steps (urc : URC) (q : CRQuery) (op0 op1 : Term 1) : List (Step 1) :=
+def _root_.Peephole.IS.simplifyOrOfICmps.steps (urc : URC) (op0 op1 : Term 1) : List (Step 1) :=
   [ delegUnlessNull "simplifyUnsignedRangeCheck" (urc op0 op1 false),
     delegUnlessNull "simplifyUnsignedRangeCheck" (urc op1 op0 false),
-    fwd "IS.simplifyAndOrOfICmpsWithConstants" (simplifyAndOrOfICmpsWithConstants q op0 op1 false),
+    fwd "IS.simplifyAndOrOfICmpsWithConstants" (simplifyAndOrOfICmpsWithConstants op0 op1 false),
     fwd "IS.simplifyAndOrOfICmpsWithCtpop" (simplifyAndOrOfICmpsWithCtpop op0 op1 false),
     fwd "IS.simplifyAndOrOfICmpsWithCtpop" (simplifyAndOrOfICmpsWithCtpop op1 op0 false),
     fwd "IS.simplifyOrOfICmpsWithAdd" (simplifyOrOfICmpsWithAdd op0 op1),
     fwd "IS.simplifyOrOfICmpsWithAdd" (simplifyOrOfICmpsWithAdd op1 op0) ]
 
-def _root_.Peephole.IS.simplifyOrOfICmps (urc : URC) (q : CRQuery) (op0 op1 : Term 1) : Result 1 :=
-  run (simplifyOrOfICmps.steps urc q op0 op1)
+def _root_.Peephole.IS.simplifyOrOfICmps (urc : URC) (op0 op1 : Term 1) : Result 1 :=
+  run (simplifyOrOfICmps.steps urc op0 op1)
 
 /-- Theorem 1 for `simplifyAndOfICmps`: every value the model returns refines `and Op0, Op1`, for every
-`simplifyUnsignedRangeCheck`, whose answers it delegates, and every sound `CRQuery`. -/
-theorem _root_.Peephole.IS.simplifyAndOfICmps.sound (ρ : Env) (urc : URC) (q : CRQuery) (hq : q.Sound) (d : Bool) (op0 op1 : Term 1)
-    (c0 : op0.Consistent ρ) (c1 : op1.Consistent ρ) {r : Repl 1} (h : simplifyAndOfICmps urc q op0 op1 = .value r) :
+`simplifyUnsignedRangeCheck`, whose answers it delegates. -/
+theorem _root_.Peephole.IS.simplifyAndOfICmps.sound (ρ : Env) (urc : URC) (d : Bool) (op0 op1 : Term 1)
+    (c0 : op0.Consistent ρ) (c1 : op1.Consistent ρ) {r : Repl 1} (h : simplifyAndOfICmps urc op0 op1 = .value r) :
     Refines ((logicSrc true d op0 op1).eval ρ) (r.eval ρ) := by
-  suffices hs : ∀ site r, Step.fire site r ∈ simplifyAndOfICmps.steps urc q op0 op1 →
+  suffices hs : ∀ site r, Step.fire site r ∈ simplifyAndOfICmps.steps urc op0 op1 →
       Refines ((logicSrc true d op0 op1).eval ρ) (r.eval ρ) from run_sound hs h
   intro site r hmem
   simp only [simplifyAndOfICmps.steps, List.mem_cons, List.not_mem_nil, or_false] at hmem
   rcases hmem with h | h | h | h | h | h | h
   · exact absurd h.symm delegUnlessNull_ne_fire
   · exact absurd h.symm delegUnlessNull_ne_fire
-  · exact simplifyAndOrOfICmpsWithConstants.sound ρ q hq d op0 op1 true c0 c1 (fwd_fire h.symm)
+  · exact simplifyAndOrOfICmpsWithConstants.sound ρ d op0 op1 true c0 c1 (fwd_fire h.symm)
   · exact simplifyAndOrOfICmpsWithCtpop.sound ρ d op0 op1 true c0 c1 (fwd_fire h.symm)
   · rw [logicSrc_comm]; exact simplifyAndOrOfICmpsWithCtpop.sound ρ d op1 op0 true c1 c0 (fwd_fire h.symm)
   · exact simplifyAndOfICmpsWithAdd.sound ρ d op0 op1 c0 c1 (fwd_fire h.symm)
   · rw [logicSrc_comm]; exact simplifyAndOfICmpsWithAdd.sound ρ d op1 op0 c1 c0 (fwd_fire h.symm)
 
 /-- Theorem 1 for `simplifyOrOfICmps`: every value the model returns refines `or [disjoint] Op0, Op1`, for every
-`simplifyUnsignedRangeCheck` and every sound `CRQuery`. -/
-theorem _root_.Peephole.IS.simplifyOrOfICmps.sound (ρ : Env) (urc : URC) (q : CRQuery) (hq : q.Sound) (d : Bool) (op0 op1 : Term 1)
-    (c0 : op0.Consistent ρ) (c1 : op1.Consistent ρ) {r : Repl 1} (h : simplifyOrOfICmps urc q op0 op1 = .value r) :
+`simplifyUnsignedRangeCheck`. -/
+theorem _root_.Peephole.IS.simplifyOrOfICmps.sound (ρ : Env) (urc : URC) (d : Bool) (op0 op1 : Term 1)
+    (c0 : op0.Consistent ρ) (c1 : op1.Consistent ρ) {r : Repl 1} (h : simplifyOrOfICmps urc op0 op1 = .value r) :
     Refines ((logicSrc false d op0 op1).eval ρ) (r.eval ρ) := by
-  suffices hs : ∀ site r, Step.fire site r ∈ simplifyOrOfICmps.steps urc q op0 op1 →
+  suffices hs : ∀ site r, Step.fire site r ∈ simplifyOrOfICmps.steps urc op0 op1 →
       Refines ((logicSrc false d op0 op1).eval ρ) (r.eval ρ) from run_sound hs h
   intro site r hmem
   simp only [simplifyOrOfICmps.steps, List.mem_cons, List.not_mem_nil, or_false] at hmem
   rcases hmem with h | h | h | h | h | h | h
   · exact absurd h.symm delegUnlessNull_ne_fire
   · exact absurd h.symm delegUnlessNull_ne_fire
-  · exact simplifyAndOrOfICmpsWithConstants.sound ρ q hq d op0 op1 false c0 c1 (fwd_fire h.symm)
+  · exact simplifyAndOrOfICmpsWithConstants.sound ρ d op0 op1 false c0 c1 (fwd_fire h.symm)
   · exact simplifyAndOrOfICmpsWithCtpop.sound ρ d op0 op1 false c0 c1 (fwd_fire h.symm)
   · rw [logicSrc_comm]; exact simplifyAndOrOfICmpsWithCtpop.sound ρ d op1 op0 false c1 c0 (fwd_fire h.symm)
   · exact simplifyOrOfICmpsWithAdd.sound ρ d op0 op1 c0 c1 (fwd_fire h.symm)
@@ -945,16 +975,16 @@ theorem _root_.Peephole.IS.simplifyOrOfICmps.sound (ρ : Env) (urc : URC) (q : C
 /-! ### `simplifyAndOrOfCmps` -/
 
 /-- `IsAnd ? simplifyAndOfICmps(ICmp0, ICmp1, Q) : simplifyOrOfICmps(ICmp0, ICmp1, Q)`. -/
-def andOrOfICmps (urc : URC) (q : CRQuery) (a b : Term 1) (isAnd : Bool) : Result 1 :=
-  if isAnd then simplifyAndOfICmps urc q a b else simplifyOrOfICmps urc q a b
+def andOrOfICmps (urc : URC) (a b : Term 1) (isAnd : Bool) : Result 1 :=
+  if isAnd then simplifyAndOfICmps urc a b else simplifyOrOfICmps urc a b
 
-theorem andOrOfICmps_sound (ρ : Env) (urc : URC) (q : CRQuery) (hq : q.Sound) (d : Bool) (a b : Term 1)
+theorem andOrOfICmps_sound (ρ : Env) (urc : URC) (d : Bool) (a b : Term 1)
     (isAnd : Bool) (ca : a.Consistent ρ) (cb : b.Consistent ρ) {r : Repl 1}
-    (h : andOrOfICmps urc q a b isAnd = .value r) : Refines ((logicSrc isAnd d a b).eval ρ) (r.eval ρ) := by
+    (h : andOrOfICmps urc a b isAnd = .value r) : Refines ((logicSrc isAnd d a b).eval ρ) (r.eval ρ) := by
   unfold andOrOfICmps at h
   cases isAnd
-  · exact simplifyOrOfICmps.sound ρ urc q hq d a b ca cb h
-  · exact simplifyAndOfICmps.sound ρ urc q hq d a b ca cb h
+  · exact simplifyOrOfICmps.sound ρ urc d a b ca cb h
+  · exact simplifyAndOfICmps.sound ρ urc d a b ca cb h
 
 /-- After looking through two casts of one kind: `if (!V) return nullptr;`, and then, since `Cast0` isn't null,
 `ConstantFoldCastOperand` of `V` where it's a `Constant`. `fold` is the cast on an `i1` constant. -/
@@ -969,20 +999,20 @@ def castSteps (fold : BitVec 1 → BitVec w) : Result 1 → List (Step w)
 /-- `simplifyAndOrOfCmps(Q, Op0, Op1, IsAnd)`, step by step: two compares, or two casts of one kind from `i1`
 compares, looked through. Anything else isn't a pair of `ICmpInst`s, after the look through or without it, and
 declines. -/
-def _root_.Peephole.IS.simplifyAndOrOfCmps.steps (urc : URC) (q : CRQuery) : {w : Nat} → Term w → Term w → Bool → List (Step w)
+def _root_.Peephole.IS.simplifyAndOrOfCmps.steps (urc : URC) : {w : Nat} → Term w → Term w → Bool → List (Step w)
   | _, .icmp id0 p0 s0 a0 b0, .icmp id1 p1 s1 a1 b1, isAnd =>
     [fwd (if isAnd then "IS.simplifyAndOfICmps" else "IS.simplifyOrOfICmps")
-      (andOrOfICmps urc q (.icmp id0 p0 s0 a0 b0) (.icmp id1 p1 s1 a1 b1) isAnd)]
+      (andOrOfICmps urc (.icmp id0 p0 s0 a0 b0) (.icmp id1 p1 s1 a1 b1) isAnd)]
   | w, .zext _ _ (.icmp id0 p0 s0 a0 b0), .zext _ _ (.icmp id1 p1 s1 a1 b1), isAnd =>
-    castSteps (fun c => c.setWidth w) (andOrOfICmps urc q (.icmp id0 p0 s0 a0 b0) (.icmp id1 p1 s1 a1 b1) isAnd)
+    castSteps (fun c => c.setWidth w) (andOrOfICmps urc (.icmp id0 p0 s0 a0 b0) (.icmp id1 p1 s1 a1 b1) isAnd)
   | w, .sext _ (.icmp id0 p0 s0 a0 b0), .sext _ (.icmp id1 p1 s1 a1 b1), isAnd =>
-    castSteps (fun c => c.signExtend w) (andOrOfICmps urc q (.icmp id0 p0 s0 a0 b0) (.icmp id1 p1 s1 a1 b1) isAnd)
+    castSteps (fun c => c.signExtend w) (andOrOfICmps urc (.icmp id0 p0 s0 a0 b0) (.icmp id1 p1 s1 a1 b1) isAnd)
   | w, .trunc _ _ _ (.icmp id0 p0 s0 a0 b0), .trunc _ _ _ (.icmp id1 p1 s1 a1 b1), isAnd =>
-    castSteps (fun c => c.setWidth w) (andOrOfICmps urc q (.icmp id0 p0 s0 a0 b0) (.icmp id1 p1 s1 a1 b1) isAnd)
+    castSteps (fun c => c.setWidth w) (andOrOfICmps urc (.icmp id0 p0 s0 a0 b0) (.icmp id1 p1 s1 a1 b1) isAnd)
   | _, _, _, _ => []
 
-def _root_.Peephole.IS.simplifyAndOrOfCmps (urc : URC) (q : CRQuery) (op0 op1 : Term w) (isAnd : Bool) : Result w :=
-  run (simplifyAndOrOfCmps.steps urc q op0 op1 isAnd)
+def _root_.Peephole.IS.simplifyAndOrOfCmps (urc : URC) (op0 op1 : Term w) (isAnd : Bool) : Result w :=
+  run (simplifyAndOrOfCmps.steps urc op0 op1 isAnd)
 
 /-- A cast of an `i1` value: poison for poison, and for a value either poison, as `zext nneg` and `trunc nuw` can be,
 or the cast of the value, which commutes with `and` and `or`. -/
@@ -1077,55 +1107,55 @@ theorem castSteps_sound {ρ : Env} {isAnd d : Bool} {a b : Term 1} {op0 op1 : Te
   · split at hmem <;> simp at hmem
   · simp at hmem
 
-theorem zextCase_sound (ρ : Env) (urc : URC) (q : CRQuery) (hq : q.Sound) (d isAnd : Bool) (id0 id1 : Nat)
+theorem zextCase_sound (ρ : Env) (urc : URC) (d isAnd : Bool) (id0 id1 : Nat)
     (n0 n1 : Bool) (a b : Term 1) (ca : a.Consistent ρ) (cb : b.Consistent ρ)
     (ha : Val.zext w (a.denote ρ) n0 = ρ w id0) (hb : Val.zext w (b.denote ρ) n1 = ρ w id1) :
-    ∀ site r, Step.fire site r ∈ castSteps (fun c => c.setWidth w) (andOrOfICmps urc q a b isAnd) →
+    ∀ site r, Step.fire site r ∈ castSteps (fun c => c.setWidth w) (andOrOfICmps urc a b isAnd) →
       Refines ((logicSrc isAnd d (.zext id0 n0 a) (.zext id1 n1 b)).eval ρ) (r.eval ρ) :=
   castSteps_sound (w := w) (ρ := ρ) (a := a) (b := b) (op0 := .zext id0 n0 a) (op1 := .zext id1 n1 b) (zext_ok n0)
     (zext_ok n1) ha.symm hb.symm
-    (fun _ h => andOrOfICmps_sound ρ urc q hq false a b isAnd ca cb h)
+    (fun _ h => andOrOfICmps_sound ρ urc false a b isAnd ca cb h)
 
-theorem sextCase_sound (ρ : Env) (urc : URC) (q : CRQuery) (hq : q.Sound) (d isAnd : Bool) (id0 id1 : Nat)
+theorem sextCase_sound (ρ : Env) (urc : URC) (d isAnd : Bool) (id0 id1 : Nat)
     (a b : Term 1) (ca : a.Consistent ρ) (cb : b.Consistent ρ)
     (ha : Val.sext w (a.denote ρ) = ρ w id0) (hb : Val.sext w (b.denote ρ) = ρ w id1) :
-    ∀ site r, Step.fire site r ∈ castSteps (fun c => c.signExtend w) (andOrOfICmps urc q a b isAnd) →
+    ∀ site r, Step.fire site r ∈ castSteps (fun c => c.signExtend w) (andOrOfICmps urc a b isAnd) →
       Refines ((logicSrc isAnd d (.sext id0 a) (.sext id1 b)).eval ρ) (r.eval ρ) :=
   castSteps_sound (w := w) (ρ := ρ) (a := a) (b := b) (op0 := .sext id0 a) (op1 := .sext id1 b) sext_ok sext_ok ha.symm
     hb.symm
-    (fun _ h => andOrOfICmps_sound ρ urc q hq false a b isAnd ca cb h)
+    (fun _ h => andOrOfICmps_sound ρ urc false a b isAnd ca cb h)
 
-theorem truncCase_sound (ρ : Env) (urc : URC) (q : CRQuery) (hq : q.Sound) (d isAnd : Bool) (id0 id1 : Nat)
+theorem truncCase_sound (ρ : Env) (urc : URC) (d isAnd : Bool) (id0 id1 : Nat)
     (u0 s0 u1 s1 : Bool) (a b : Term 1) (ca : a.Consistent ρ) (cb : b.Consistent ρ)
     (ha : Val.trunc w (a.denote ρ) u0 s0 = ρ w id0) (hb : Val.trunc w (b.denote ρ) u1 s1 = ρ w id1) :
-    ∀ site r, Step.fire site r ∈ castSteps (fun c => c.setWidth w) (andOrOfICmps urc q a b isAnd) →
+    ∀ site r, Step.fire site r ∈ castSteps (fun c => c.setWidth w) (andOrOfICmps urc a b isAnd) →
       Refines ((logicSrc isAnd d (.trunc id0 u0 s0 a) (.trunc id1 u1 s1 b)).eval ρ) (r.eval ρ) :=
   castSteps_sound (w := w) (ρ := ρ) (a := a) (b := b) (op0 := .trunc id0 u0 s0 a) (op1 := .trunc id1 u1 s1 b)
     (trunc_ok u0 s0) (trunc_ok u1 s1) ha.symm hb.symm
-    (fun _ h => andOrOfICmps_sound ρ urc q hq false a b isAnd ca cb h)
+    (fun _ h => andOrOfICmps_sound ρ urc false a b isAnd ca cb h)
 
 /-- Theorem 1 for `simplifyAndOrOfCmps`: every value the model returns refines `and Op0, Op1` or `or [disjoint] Op0,
-Op1`, at every width, poison included, for every `simplifyUnsignedRangeCheck` and every sound `CRQuery`. -/
-theorem _root_.Peephole.IS.simplifyAndOrOfCmps.sound (ρ : Env) (urc : URC) (q : CRQuery) (hq : q.Sound) (d : Bool) (op0 op1 : Term w)
+Op1`, at every width, poison included, for every `simplifyUnsignedRangeCheck`. -/
+theorem _root_.Peephole.IS.simplifyAndOrOfCmps.sound (ρ : Env) (urc : URC) (d : Bool) (op0 op1 : Term w)
     (isAnd : Bool) (c0 : op0.Consistent ρ) (c1 : op1.Consistent ρ) {r : Repl w}
-    (h : simplifyAndOrOfCmps urc q op0 op1 isAnd = .value r) :
+    (h : simplifyAndOrOfCmps urc op0 op1 isAnd = .value r) :
     Refines ((logicSrc isAnd d op0 op1).eval ρ) (r.eval ρ) := by
-  suffices hs : ∀ site r, Step.fire site r ∈ simplifyAndOrOfCmps.steps urc q op0 op1 isAnd →
+  suffices hs : ∀ site r, Step.fire site r ∈ simplifyAndOrOfCmps.steps urc op0 op1 isAnd →
       Refines ((logicSrc isAnd d op0 op1).eval ρ) (r.eval ρ) from run_sound hs h
   intro site r hmem
   unfold simplifyAndOrOfCmps.steps at hmem
   split at hmem
   · simp only [List.mem_cons, List.not_mem_nil, or_false] at hmem
-    exact andOrOfICmps_sound ρ urc q hq d _ _ isAnd c0 c1 (fwd_fire hmem.symm)
+    exact andOrOfICmps_sound ρ urc d _ _ isAnd c0 c1 (fwd_fire hmem.symm)
   · obtain ⟨ca, ha⟩ := c0
     obtain ⟨cb, hb⟩ := c1
-    exact zextCase_sound ρ urc q hq d isAnd _ _ _ _ _ _ ca cb ha hb site r hmem
+    exact zextCase_sound ρ urc d isAnd _ _ _ _ _ _ ca cb ha hb site r hmem
   · obtain ⟨ca, ha⟩ := c0
     obtain ⟨cb, hb⟩ := c1
-    exact sextCase_sound ρ urc q hq d isAnd _ _ _ _ ca cb ha hb site r hmem
+    exact sextCase_sound ρ urc d isAnd _ _ _ _ ca cb ha hb site r hmem
   · obtain ⟨ca, ha⟩ := c0
     obtain ⟨cb, hb⟩ := c1
-    exact truncCase_sound ρ urc q hq d isAnd _ _ _ _ _ _ _ _ ca cb ha hb site r hmem
+    exact truncCase_sound ρ urc d isAnd _ _ _ _ _ _ _ _ ca cb ha hb site r hmem
   · simp at hmem
 
 end Peephole.IS.ICmpB
