@@ -275,7 +275,7 @@ Both have landed, in #48 and #53.
 - Lemma store v1, [Phase 6](#phase-6-the-engine-and-the-lemma-store).
 - SEM-07: breaking `mustprogress` or `willreturn` is UB, as in LangRef, [Phase 0](#phase-0-semantic-fidelity-and-trust-infrastructure).
 - The executable memory model, slice 15, [Phase 6](#phase-6-the-engine-and-the-lemma-store).
-- A tier-1 proof-test prototype on `tools/verify.py`, [Phase 7](#phase-7-proof-tests). Done in [#PRNUM](https://github.com/phongndo/ir-lean/pull/PRNUM).
+- A tier-1 proof-test prototype on `tools/verify.py`, [Phase 7](#phase-7-proof-tests). Done in [#66](https://github.com/phongndo/ir-lean/pull/66).
 - The statement of `inflate_table`'s theorem, for review, slice 13, [Phase 1](#phase-1-zlib-inflate-memory-safety).
 
 ### Wave 3
@@ -349,7 +349,7 @@ GEP flags ([#15](https://github.com/phongndo/ir-lean/pull/15)), attribute and li
 | 22 | Lemma store v1 | 6 | 2 | E1 below |
 | 23 | Promises as UB, SEM-07 | 0 | 2 | A pass that deletes a loop under `mustprogress` certifies, and one that adds the promise doesn't |
 | 15 | Executable memory representation, proved to agree with `Mem` | 6 | 2 | E2 below |
-| 24 | Tier-1 proof tests on `tools/verify.py` | 7 | 2 | Done in [#PRNUM](https://github.com/phongndo/ir-lean/pull/PRNUM): T1 below |
+| 24 | Tier-1 proof tests on `tools/verify.py` | 7 | 2 | Done in [#66](https://github.com/phongndo/ir-lean/pull/66): T1 below |
 | 13 | Statement of `inflate_table`'s theorem, for review, with no proof | 1 | 2 | Someone other than the author has reviewed it |
 | 25 | Superoptimizer v2 | 4 | 3 | S3 below |
 | 26 | The safety bridge | 4 | 3 | S4 below |
@@ -383,7 +383,7 @@ Each is reached when its checks pass in CI, not on a date.
 | E1 | Lemma store v1 | 6 | #48 | A [prototype](lemma-reuse.md) outside the build and CI |
 | E2 | Executable memory model | 6 | | Not started |
 | E3 | The store makes proofs cheaper, measured | 6 | E1 | Not started |
-| T1 | Tier-1 proof tests | 7 | | Done in [#PRNUM](https://github.com/phongndo/ir-lean/pull/PRNUM): every injected bug it can run refuted, at a median of 9.5 ms to a counterexample the kernel checked, and `prooftest_t1` checks T1's set in CI ([proof tests](proof-tests.md#t1-measured)) |
+| T1 | Tier-1 proof tests | 7 | | Done in [#66](https://github.com/phongndo/ir-lean/pull/66): every injected bug it can run refuted, at a median of 9.5 ms to a counterexample the kernel checked, and `prooftest_t1` checks T1's set in CI ([proof tests](proof-tests.md#t1-measured)) |
 | T2 | Tiers 2 and 3 | 7 | T1. E1, soft, for tier 3 | Not started |
 | T3 | One real project's unit-test file replaced | 7 | T2 | Not started |
 | C1 | Pull request CI in at most 10 minutes | 8 | | In progress: after #53's split, CI takes 13 to 16 minutes ([testing](testing.md#ci)) |
