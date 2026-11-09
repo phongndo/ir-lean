@@ -304,6 +304,28 @@ define void @f(ptr %p) { call void @g(i8 1)
 refuses 'touches memory: F4' 'declare i8 @g(i8) memory(read)
 define i8 @f(ptr %p) { %r = call i8 @g(i8 1)
   ret i8 %r }'
+# A global another module defines is an allocation this module doesn't create: its address translates, and what it
+# holds is the memory's, which `initial` leaves out. One that may be null, or of no known size, is refused.
+accepts '@g = external global [4 x i32]
+define ptr @f() { ret ptr getelementptr inbounds ([4 x i32], ptr @g, i64 0, i64 2) }'
+accepts '@g = external constant i32
+define i32 @f() { %v = load i32, ptr @g
+  ret i32 %v }'
+refuses 'external global @g, which may be null' '@g = extern_weak global i32
+define ptr @f() { ret ptr @g }'
+refuses "external global @g, whose size isn't known" '%T = type opaque
+@g = external global %T
+define ptr @f() { ret ptr @g }'
+refuses "flags that don't plainly hold" '@g = external global i32
+define ptr @f() { ret ptr getelementptr inbounds (i8, ptr @g, i64 8) }'
+printf '%s\n' '@g = external global i32
+@h = global i32 0
+define ptr @f() { ret ptr @g }' >"$work/input.ll"
+if out=$("$tool" "$work/input.ll") && grep -q 'addGlobal 2 4' <<<"$out" && ! grep -q 'addGlobal 1 ' <<<"$out"; then
+  printf 'ok    a global another module defines has an address and no allocation in initial\n'
+else
+  fail "a global another module defines should have an address and no allocation in initial: $out"
+fi
 # Under a promise to progress, a call with effects is progress, which the model can't count yet.
 for attribute in mustprogress willreturn; do
   refuses 'with effects, under a promise to progress' "declare void @g(i8)

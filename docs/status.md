@@ -250,4 +250,4 @@ reads it. That difference is itself a thing [Phase 3](roadmap.md#phase-3-c-and-r
     For a call without effects, which of the callee's answers it gets is the run's choice, so dropping, merging and
     reordering such calls refine under the attributes that allow it, and adding, duplicating or changing an argument
     doesn't. Calls that pass or return a pointer, or may touch memory the function can reach, are still refused, for
-    F4. See [calls](calls.md).
+    F4. A global another module defines has an address, and no allocation in `initial`. See [calls](calls.md).

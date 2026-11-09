@@ -391,7 +391,10 @@ Each is a pull request, merged when green, with this page updated to say what's 
    a loop a fixed number of times, and drops the runs that go on, which there are all of the target's.
    `tests/binding.py` binds a real `instcombine` run that rewrites around a call to `@use`, which stays, as
    `ir_instance_refinement`.
-3. **External globals,** and constant expressions over them, as above.
+3. **External globals,** and constant expressions over them, as above. **Built** on 2026-11-09: an external global
+   gets an address, and `initial` leaves its allocation out. Of the 394 InstCombine pairs refused first for one, 185
+   now translate as functions with memory, which stage 1 counts as `memory`, 151 reach a call that touches memory, and
+   the rest reach another refusal, such as `ptrtoint` in a constant.
 4. **Variadic calls** to functions outside the module, as above.
 
 ## Tests

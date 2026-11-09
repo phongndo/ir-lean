@@ -247,15 +247,22 @@ public:
     // Every global gets its allocation before any initializer is read, since initializers can point
     // at each other.
     for (const GlobalVariable &G : M.globals()) {
-      if (!G.hasInitializer()) {
-        Rejected[&G] = "external global @" + G.getName().str();
-        continue;
-      }
       if (G.isThreadLocal()) {
         Rejected[&G] = "thread-local global @" + G.getName().str();
         continue;
       }
-      if (!hasExactLinkage(G) || G.isExternallyInitialized()) {
+      // A global another module defines is an allocation this module doesn't create, which `initial` leaves
+      // out: its address is all the module knows, and what it holds is the memory's. See docs/calls.md.
+      bool External = !G.hasInitializer();
+      if (External && G.hasExternalWeakLinkage()) {
+        Rejected[&G] = "external global @" + G.getName().str() + ", which may be null";
+        continue;
+      }
+      if (External && (!G.getValueType()->isSized() || DL.getTypeAllocSize(G.getValueType()).isScalable())) {
+        Rejected[&G] = "external global @" + G.getName().str() + ", whose size isn't known";
+        continue;
+      }
+      if (!External && (!hasExactLinkage(G) || G.isExternallyInitialized())) {
         Rejected[&G] = "global @" + G.getName().str() + ", whose initial value may not be this one";
         continue;
       }
@@ -265,6 +272,7 @@ public:
       Info.Block = Block++;
       Info.Size = DL.getTypeAllocSize(G.getValueType());
       Info.ReadOnly = G.isConstant();
+      Info.External = External;
       Globals[&G] = std::move(Info);
     }
     for (const Function &F : M) {
@@ -282,6 +290,10 @@ public:
       for (auto It = Globals.begin(); It != Globals.end();) {
         const GlobalVariable *G = It->first;
         Global &Info = It->second;
+        if (Info.External) {
+          ++It;
+          continue;
+        }
         Info.Init.clear();
         Info.Relocs.clear();
         try {
@@ -382,6 +394,8 @@ public:
     if (!Ordered.empty() || !Addresses.empty())
       Out += '\n';
     for (const Global *G : Ordered) {
+      if (G->External)
+        continue;
       Out += Def + G->Name + "_init : Array Nat := #[";
       for (size_t I = 0; I != G->Init.size(); ++I)
         Out += (I ? "," : "") + std::to_string(G->Init[I]);
@@ -392,8 +406,9 @@ public:
     Out += "/-- Memory holding this module's globals. -/\n" + Def +
            "initial (base : Nat → BitVec 64 := Mem.spacedOut) : Mem :=\n  Mem.empty base";
     for (const Global *G : Ordered)
-      Out += "\n  |>.addGlobal " + std::to_string(G->Block) + " " + std::to_string(G->Size) + " " +
-             (G->ReadOnly ? "true" : "false") + " " + G->Name + "_init";
+      if (!G->External)
+        Out += "\n  |>.addGlobal " + std::to_string(G->Block) + " " + std::to_string(G->Size) + " " +
+               (G->ReadOnly ? "true" : "false") + " " + G->Name + "_init";
     for (const Global *G : Ordered)
       for (const Reloc &R : G->Relocs)
         Out += "\n  |>.addReloc " + std::to_string(G->Block) + " " + std::to_string(R.Offset) + " ⟨" +
@@ -414,6 +429,8 @@ private:
     unsigned Block = 0;
     uint64_t Size = 0;
     bool ReadOnly = false;
+    // Defined in another module: it has no initial contents here, and isn't in `initial`.
+    bool External = false;
     std::vector<unsigned> Init;
     std::vector<Reloc> Relocs;
   };
