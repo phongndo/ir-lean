@@ -2,6 +2,8 @@ import Peephole.IS.ICmpOfBools
 import Peephole.IS.ICmpWithZero
 import Peephole.IS.ICmpWithConstant
 import Peephole.IS.ICmpMonotonic
+import Peephole.IS.ICmpBBinOp
+import Peephole.IS.ICmpBMinMax
 
 /-! # InstSimplify's `simplifyICmpInst`, its integer half, and its rewrites for every input
 
@@ -33,15 +35,21 @@ on `Peephole.Term`, step by step in the C++'s order.
 | `IS.simplifyICmpInst.L4148` | `icmp X, Y` to what a dominating condition says it is |
 | `IS.simplifyICmpInst.L4154` | pointers: `computePointerICmp`, not modelled |
 
-`simplifyICmpOfBools`, `simplifyICmpWithZero`, `simplifyICmpWithConstant` and `simplifyICmpUsingMonotonicValues`
-are forwards to their models, and each step that forwards fires with the site its callee fired. `simplifyICmpInst`'s
-own recursive calls, on the operands of two casts and on a constant brought to the operand's width, are forwards to
-the model one level of `MaxRecurse` down: `simplifyICmpInst.body` recurses on it. The forwards to
-`simplifyICmpWithBinOp`, `simplifyICmpWithMinMax`, `simplifyICmpWithIntrinsicOnLHS`,
-`simplifyICmpWithDominatingAssume`, `threadCmpOverSelect` and `threadCmpOverPHI` are `.delegate`s, which claim
-nothing: another family models the first three. Each is a `.delegate` only where the C++ can answer: the first needs
-a binary operator on one side, the second a min, a max or a `select`, the third a `uadd.sat` or `usub.sat` on its
-left, so elsewhere the step falls through, as the call returns `nullptr`.
+`simplifyICmpOfBools`, `simplifyICmpWithZero`, `simplifyICmpWithConstant` and `simplifyICmpUsingMonotonicValues`,
+and the `icmp-b` family's `simplifyICmpWithBinOp`, `simplifyICmpWithMinMax` and `simplifyICmpWithIntrinsicOnLHS`, are
+forwards to their models, with the arguments the C++ passes, and each step that forwards fires with the site its
+callee fired: its theorem is the callee's `sound`. `simplifyICmpInst`'s own recursive calls, on the operands of two
+casts and on a constant brought to the operand's width, are forwards to the model one level of `MaxRecurse` down:
+`simplifyICmpInst.body` recurses on it. The calls to `simplifyICmpWithDominatingAssume`, `threadCmpOverSelect` and
+`threadCmpOverPHI` are `.delegate`s, which claim nothing.
+
+`simplifyICmpWithBinOp` and `simplifyICmpWithMinMax` take their own recursive calls into `simplifyICmpInst`, with
+`MaxRecurse - 1`, as a parameter. The model passes `ICmpB.ICmpSimp.delegating`, so each of those calls delegates, as
+it does where the `icmp-b` family's models are run on their own. `CmpPredicate`'s `samesign` flag reaches only those
+calls, through `simplifyICmpWithBinOp`, which reads nothing else of it: the model passes `false` there, and the
+answer is the same. `simplifyICmpWithBinOp.sound` assumes the `zext` in `0 - zext X` widens, as LLVM's verifier
+requires and `Term` doesn't say (`ICmpB.WellTyped`), so `simplifyICmpInst.sound` assumes every cast in its operands is
+well typed.
 
 The recursive calls on the operands of two zero or two sign extensions, or of one against a constant that's an
 extension, are only right where the cast widens, as LLVM's verifier requires of `zext` and `sext`; `Term` can hold a
@@ -61,23 +69,6 @@ variable {w v : Nat}
 /-! ### Helpers -/
 
 namespace ICmp
-
-/-- `dyn_cast<BinaryOperator>(V)`: what `simplifyICmpWithBinOp` needs on one side. -/
-def isBinOp : Term w → Bool
-  | .bin .. => true
-  | _ => false
-
-/-- A min or max intrinsic, what `m_SMax`, `m_SMin`, `m_UMax` and `m_UMin` match at this pin, which
-`simplifyICmpWithMinMax` needs on one side, or a `select`, where its `extractEquivalentCondition` looks: a `select`
-alone can't make it answer, so this errs toward delegating. -/
-def isMinMaxLike : Term w → Bool
-  | .bi _ .smax .. | .bi _ .smin .. | .bi _ .umax .. | .bi _ .umin .. | .select .. => true
-  | _ => false
-
-/-- `uadd.sat` or `usub.sat`: the intrinsics `simplifyICmpWithIntrinsicOnLHS` answers for on its left. -/
-def isSatAddSub : Term w → Bool
-  | .bi _ .uaddSat .. | .bi _ .usubSat .. => true
-  | _ => false
 
 /-- `SrcOp == RI->getOperand(0)`: the same `Value *`, so of one type. -/
 def sameSrc {v v' : Nat} (x : Term v) (y : Term v') : Bool :=
@@ -313,14 +304,11 @@ def steps (o : Oracle) (e : Ext) (rec : ICmp.Rec) (p : Pred) (lhs rhs : Term w) 
     if isEquality p && !zero rhs && o.nonEqual lhs rhs then
       .fire "IS.simplifyICmpInst.L4122" (if p == .ne then getTrue else getFalse)
     else .next,
-    -- simplifyICmpWithBinOp: every statement of it that can answer needs an operand that's a `BinaryOperator`.
-    if isBinOp lhs || isBinOp rhs then .delegate "simplifyICmpWithBinOp" else .next,
-    -- simplifyICmpWithMinMax: every statement of it that can answer needs a min or a max on one side.
-    if isMinMaxLike lhs || isMinMaxLike rhs then .delegate "simplifyICmpWithMinMax" else .next,
-    -- simplifyICmpWithIntrinsicOnLHS(Pred, LHS, RHS), and with them swapped: it only answers for `uadd.sat` and
-    -- `usub.sat` on its left.
-    if isSatAddSub lhs then .delegate "simplifyICmpWithIntrinsicOnLHS" else .next,
-    if isSatAddSub rhs then .delegate "simplifyICmpWithIntrinsicOnLHS" else .next,
+    -- simplifyICmpWithBinOp(Pred, LHS, RHS, Q, MaxRecurse): `samesign` only reaches its recursive calls, delegated.
+    fwdR "IS.simplifyICmpWithBinOp" (simplifyICmpWithBinOp o ICmpB.ICmpSimp.delegating p false lhs rhs n),
+    fwdR "IS.simplifyICmpWithMinMax" (simplifyICmpWithMinMax ICmpB.ICmpSimp.delegating p lhs rhs n),
+    fwdR "IS.simplifyICmpWithIntrinsicOnLHS" (simplifyICmpWithIntrinsicOnLHS p lhs rhs),
+    fwdR "IS.simplifyICmpWithIntrinsicOnLHS" (simplifyICmpWithIntrinsicOnLHS (swap p) rhs lhs),
     fwdR "IS.simplifyICmpUsingMonotonicValues" (simplifyICmpUsingMonotonicValues o p lhs rhs),
     fwdR "IS.simplifyICmpUsingMonotonicValues" (simplifyICmpUsingMonotonicValues o (swap p) rhs lhs),
     .delegate "simplifyICmpWithDominatingAssume",
@@ -666,18 +654,20 @@ open IRLean ICmp
 variable {w : Nat}
 
 /-- What `simplifyICmpInst`'s steps assume of the model one level of `MaxRecurse` down: each value it returns
-refines its `icmp`. `body_sound` discharges it by induction on `MaxRecurse`. -/
+refines its `icmp`, for operands whose casts are well typed. `body_sound` discharges it by induction on
+`MaxRecurse`. -/
 def RecSound (ρ : Env) (rec : ICmp.Rec) : Prop :=
   ∀ {v : Nat} (p : Pred) (a b : Term v) (r : Repl 1), a.Consistent ρ → b.Consistent ρ → a.hasUndef = false →
-    b.hasUndef = false → run (rec p a b) = .value r → Refines ((src p false a b).eval ρ) (r.eval ρ)
+    b.hasUndef = false → ICmpB.WellTyped a → ICmpB.WellTyped b → run (rec p a b) = .value r →
+      Refines ((src p false a b).eval ρ) (r.eval ρ)
 
 section steps
 
 variable {ρ : Env} {rec : ICmp.Rec} (hrec : RecSound ρ rec) {p : Pred} {s : Bool} {lhs rhs : Term w} {n : Nat}
   (c0 : lhs.Consistent ρ) (c1 : rhs.Consistent ρ) (u0 : lhs.hasUndef = false) (u1 : rhs.hasUndef = false)
-  {site : String} {r : Repl 1}
+  (wt0 : ICmpB.WellTyped lhs) (wt1 : ICmpB.WellTyped rhs) {site : String} {r : Repl 1}
 
-include hrec c0 c1 u0 u1 in
+include hrec c0 c1 u0 u1 wt0 wt1 in
 theorem zextZext_sound (h : zextZext rec p lhs rhs n = .fire site r) :
     Refines ((src p s lhs rhs).eval ρ) (r.eval ρ) := by
   unfold zextZext at h
@@ -694,7 +684,8 @@ theorem zextZext_sound (h : zextZext rec p lhs rhs n = .fire site r) :
         have c1' := c1
         simp only [Term.Consistent] at c0' c1'
         simp only [Term.hasUndef] at u0 u1
-        refine src_refines_via (fun a b ha hb => ?_) (hrec (unsigned p) x y r c0'.1 c1'.1 u0 u1 (fwd_fire h))
+        simp only [ICmpB.WellTyped] at wt0 wt1
+        refine src_refines_via (fun a b ha hb => ?_) (hrec (unsigned p) x y r c0'.1 c1'.1 u0 u1 wt0.2 wt1.2 (fwd_fire h))
         obtain ⟨xv, hx, rfl⟩ := zext_denote c0 ha
         obtain ⟨yv, hy, rfl⟩ := zext_denote c1 hb
         exact ⟨xv, yv, hx, hy, test_setWidth p xv yv hc.2⟩
@@ -728,7 +719,7 @@ theorem zextSextFalse_sound (h : zextSextFalse p lhs rhs = .fire site r) :
     exact L3961 ρ p s x y c0 c1 hc.1 hc.2
   · cases h
 
-include hrec c0 u0 in
+include hrec c0 u0 wt0 in
 theorem zextConstRec_sound (h : zextConstRec rec p lhs rhs n = .fire site r) :
     Refines ((src p s lhs rhs).eval ρ) (r.eval ρ) := by
   unfold zextConstRec at h
@@ -741,8 +732,9 @@ theorem zextConstRec_sound (h : zextConstRec rec p lhs rhs n = .fire site r) :
       have c0' := c0
       simp only [Term.Consistent] at c0'
       simp only [Term.hasUndef] at u0
+      simp only [ICmpB.WellTyped] at wt0
       refine src_refines_via (fun a b ha hb => ?_)
-        (hrec (unsigned p) x (.const (c.setWidth v)) r c0'.1 trivial u0 rfl (fwd_fire h))
+        (hrec (unsigned p) x (.const (c.setWidth v)) r c0'.1 trivial u0 rfl wt0.2 trivial (fwd_fire h))
       obtain ⟨xv, hx, rfl⟩ := zext_denote c0 ha
       cases hb
       refine ⟨xv, c.setWidth v, hx, rfl, ?_⟩
@@ -774,7 +766,7 @@ theorem zextConstNull_sound (h : zextConstNull p lhs rhs = .fire site r) :
     · cases h
   · cases h
 
-include hrec c0 c1 u0 u1 in
+include hrec c0 c1 u0 u1 wt0 wt1 in
 theorem sextSext_sound (h : sextSext rec p lhs rhs n = .fire site r) :
     Refines ((src p s lhs rhs).eval ρ) (r.eval ρ) := by
   unfold sextSext at h
@@ -791,7 +783,8 @@ theorem sextSext_sound (h : sextSext rec p lhs rhs n = .fire site r) :
         have c1' := c1
         simp only [Term.Consistent] at c0' c1'
         simp only [Term.hasUndef] at u0 u1
-        refine src_refines_via (fun a b ha hb => ?_) (hrec p x y r c0'.1 c1'.1 u0 u1 (fwd_fire h))
+        simp only [ICmpB.WellTyped] at wt0 wt1
+        refine src_refines_via (fun a b ha hb => ?_) (hrec p x y r c0'.1 c1'.1 u0 u1 wt0.2 wt1.2 (fwd_fire h))
         obtain ⟨xv, hx, rfl⟩ := sext_denote c0 ha
         obtain ⟨yv, hy, rfl⟩ := sext_denote c1 hb
         exact ⟨xv, yv, hx, hy, test_signExtend p xv yv (Nat.le_of_lt hc.2)⟩
@@ -825,7 +818,7 @@ theorem sextZextFalse_sound (h : sextZextFalse p lhs rhs = .fire site r) :
     exact L4040 ρ p s x y c0 c1 hc.1 hc.2
   · cases h
 
-include hrec c0 u0 in
+include hrec c0 u0 wt0 in
 theorem sextConstRec_sound (h : sextConstRec rec p lhs rhs n = .fire site r) :
     Refines ((src p s lhs rhs).eval ρ) (r.eval ρ) := by
   unfold sextConstRec at h
@@ -838,8 +831,9 @@ theorem sextConstRec_sound (h : sextConstRec rec p lhs rhs n = .fire site r) :
       have c0' := c0
       simp only [Term.Consistent] at c0'
       simp only [Term.hasUndef] at u0
+      simp only [ICmpB.WellTyped] at wt0
       refine src_refines_via (fun a b ha hb => ?_)
-        (hrec p x (.const (c.setWidth v)) r c0'.1 trivial u0 rfl (fwd_fire h))
+        (hrec p x (.const (c.setWidth v)) r c0'.1 trivial u0 rfl wt0.2 trivial (fwd_fire h))
       obtain ⟨xv, hx, rfl⟩ := sext_denote c0 ha
       cases hb
       refine ⟨xv, c.setWidth v, hx, rfl, ?_⟩
@@ -867,7 +861,7 @@ theorem sextConstNull_sound (h : sextConstNull p lhs rhs = .fire site r) :
     · cases h
   · cases h
 
-include hrec c0 u0 in
+include hrec c0 u0 wt0 in
 theorem sextConstSign_sound (h : sextConstSign rec p lhs rhs n = .fire site r) :
     Refines ((src p s lhs rhs).eval ρ) (r.eval ρ) := by
   unfold sextConstSign at h
@@ -880,23 +874,24 @@ theorem sextConstSign_sound (h : sextConstSign rec p lhs rhs n = .fire site r) :
       have c0' := c0
       simp only [Term.Consistent] at c0'
       simp only [Term.hasUndef] at u0
+      simp only [ICmpB.WellTyped] at wt0
       split at h
       · -- Comparison is true iff the LHS <s 0.
         refine src_refines_via (fun a b ha hb => ?_)
-          (hrec .slt x (.const 0#v) r c0'.1 trivial u0 rfl (fwd_fire h))
+          (hrec .slt x (.const 0#v) r c0'.1 trivial u0 rfl wt0.2 trivial (fwd_fire h))
         obtain ⟨xv, hx, rfl⟩ := sext_denote c0 ha
         cases hb
         refine ⟨xv, 0#v, hx, rfl, ?_⟩
         simp only [test, BitVec.slt_zero_eq_msb, Lemmas.ult_signExtend_of_ne xv hne]
       · refine src_refines_via (fun a b ha hb => ?_)
-          (hrec .slt x (.const 0#v) r c0'.1 trivial u0 rfl (fwd_fire h))
+          (hrec .slt x (.const 0#v) r c0'.1 trivial u0 rfl wt0.2 trivial (fwd_fire h))
         obtain ⟨xv, hx, rfl⟩ := sext_denote c0 ha
         cases hb
         refine ⟨xv, 0#v, hx, rfl, ?_⟩
         simp only [test, BitVec.slt_zero_eq_msb, Lemmas.ule_signExtend_of_ne xv hne]
       · -- Comparison is true iff the LHS >=s 0.
         refine src_refines_via (fun a b ha hb => ?_)
-          (hrec .sge x (.const 0#v) r c0'.1 trivial u0 rfl (fwd_fire h))
+          (hrec .sge x (.const 0#v) r c0'.1 trivial u0 rfl wt0.2 trivial (fwd_fire h))
         obtain ⟨xv, hx, rfl⟩ := sext_denote c0 ha
         cases hb
         refine ⟨xv, 0#v, hx, rfl, ?_⟩
@@ -904,7 +899,7 @@ theorem sextConstSign_sound (h : sextConstSign rec p lhs rhs n = .fire site r) :
         rw [← Lemmas.ule_signExtend_of_ne xv hne, BitVec.ule_eq_decide]
         simp only [← decide_not, Nat.not_le]
       · refine src_refines_via (fun a b ha hb => ?_)
-          (hrec .sge x (.const 0#v) r c0'.1 trivial u0 rfl (fwd_fire h))
+          (hrec .sge x (.const 0#v) r c0'.1 trivial u0 rfl wt0.2 trivial (fwd_fire h))
         obtain ⟨xv, hx, rfl⟩ := sext_denote c0 ha
         cases hb
         refine ⟨xv, 0#v, hx, rfl, ?_⟩
@@ -922,7 +917,8 @@ end steps
 /-- Every step of `simplifyICmpInst` that fires is right, given that the model one level down is. -/
 theorem steps_sound (ρ : Env) (o : Oracle) (ho : o.Sound ρ) (e : Ext) (he : e.Sound ρ) {rec : ICmp.Rec}
     (hrec : RecSound ρ rec) (p : Pred) (s : Bool) (lhs rhs : Term w) (n : Nat) (c0 : lhs.Consistent ρ)
-    (c1 : rhs.Consistent ρ) (u0 : lhs.hasUndef = false) (u1 : rhs.hasUndef = false) :
+    (c1 : rhs.Consistent ρ) (u0 : lhs.hasUndef = false) (u1 : rhs.hasUndef = false) (wt0 : ICmpB.WellTyped lhs)
+    (wt1 : ICmpB.WellTyped rhs) :
     ∀ site r, Step.fire site r ∈ steps o e rec p lhs rhs n → Refines ((src p s lhs rhs).eval ρ) (r.eval ρ) := by
   intro site r hmem
   simp only [steps, List.mem_cons, List.not_mem_nil, or_false] at hmem
@@ -959,26 +955,29 @@ theorem steps_sound (ρ : Env) (o : Oracle) (ho : o.Sound ρ) (e : Ext) (he : e.
       simp only [Bool.and_eq_true, bne_iff_ne, ne_eq] at hc
       exact L3913 ρ e he p s lhs rhs rc lc (Nat.pos_of_ne_zero hc.1) hr hl hc.2
     · cases h
-  · exact zextZext_sound hrec c0 c1 u0 u1 h.symm
+  · exact zextZext_sound hrec c0 c1 u0 u1 wt0 wt1 h.symm
   · exact zextSextTrue_sound c0 c1 h.symm
   · exact zextSextFalse_sound c0 c1 h.symm
-  · exact zextConstRec_sound hrec c0 u0 h.symm
+  · exact zextConstRec_sound hrec c0 u0 wt0 h.symm
   · exact zextConstNull_sound c0 h.symm
-  · exact sextSext_sound hrec c0 c1 u0 u1 h.symm
+  · exact sextSext_sound hrec c0 c1 u0 u1 wt0 wt1 h.symm
   · exact sextZextTrue_sound c0 c1 h.symm
   · exact sextZextFalse_sound c0 c1 h.symm
-  · exact sextConstRec_sound hrec c0 u0 h.symm
+  · exact sextConstRec_sound hrec c0 u0 wt0 h.symm
   · exact sextConstNull_sound c0 h.symm
-  · exact sextConstSign_sound hrec c0 u0 h.symm
+  · exact sextConstSign_sound hrec c0 u0 wt0 h.symm
   · split at h <;> simp only [Step.fire.injEq, reduceCtorEq] at h
     next hc =>
     obtain ⟨-, rfl⟩ := h
     simp only [Bool.and_eq_true] at hc
     exact L4122 ρ o ho p s lhs rhs hc.1.1 hc.2
-  · split at h <;> simp only [reduceCtorEq] at h
-  · split at h <;> simp only [reduceCtorEq] at h
-  · split at h <;> simp only [reduceCtorEq] at h
-  · split at h <;> simp only [reduceCtorEq] at h
+  · exact ICmpB.refines_of_plain
+      (simplifyICmpWithBinOp.sound ρ o ho _ p false lhs rhs n c0 c1 wt0 (fwdR_fire h.symm))
+  · exact simplifyICmpWithMinMax.sound ρ _ (ICmpB.ICmpSimp.delegating_sound ρ) p s lhs rhs n c0 c1 u0 u1
+      (fwdR_fire h.symm)
+  · exact simplifyICmpWithIntrinsicOnLHS.sound ρ p s lhs rhs c0 c1 (fwdR_fire h.symm)
+  · rw [← src_swap]
+    exact simplifyICmpWithIntrinsicOnLHS.sound ρ (swap p) s rhs lhs c1 c0 (fwdR_fire h.symm)
   · exact simplifyICmpUsingMonotonicValues.sound ρ o ho p s lhs rhs c0 c1 (fwdR_fire h.symm)
   · rw [← src_swap]
     exact simplifyICmpUsingMonotonicValues.sound ρ o ho (swap p) s rhs lhs c1 c0 (fwdR_fire h.symm)
@@ -994,26 +993,27 @@ theorem steps_sound (ρ : Env) (o : Oracle) (ho : o.Sound ρ) (e : Ext) (he : e.
 predicate swapped, which compares the same values. -/
 theorem entry_sound (ρ : Env) (o : Oracle) (ho : o.Sound ρ) (e : Ext) (he : e.Sound ρ) {rec : ICmp.Rec}
     (hrec : RecSound ρ rec) (p : Pred) (s : Bool) (lhs rhs : Term w) (n : Nat) (c0 : lhs.Consistent ρ)
-    (c1 : rhs.Consistent ρ) (u0 : lhs.hasUndef = false) (u1 : rhs.hasUndef = false) {r : Repl 1}
-    (h : run (entry o e rec p lhs rhs n) = .value r) : Refines ((src p s lhs rhs).eval ρ) (r.eval ρ) := by
+    (c1 : rhs.Consistent ρ) (u0 : lhs.hasUndef = false) (u1 : rhs.hasUndef = false) (wt0 : ICmpB.WellTyped lhs)
+    (wt1 : ICmpB.WellTyped rhs) {r : Repl 1} (h : run (entry o e rec p lhs rhs n) = .value r) :
+    Refines ((src p s lhs rhs).eval ρ) (r.eval ρ) := by
   unfold entry at h
   split at h
   · split at h
     · simp [run] at h
     · rw [← src_swap]
-      exact run_sound (steps_sound ρ o ho e he hrec (swap p) s rhs lhs n c1 c0 u1 u0) h
-  · exact run_sound (steps_sound ρ o ho e he hrec p s lhs rhs n c0 c1 u0 u1) h
+      exact run_sound (steps_sound ρ o ho e he hrec (swap p) s rhs lhs n c1 c0 u1 u0 wt1 wt0) h
+  · exact run_sound (steps_sound ρ o ho e he hrec p s lhs rhs n c0 c1 u0 u1 wt0 wt1) h
 
 /-- The model at every `MaxRecurse` is right: by induction, each level's recursive calls are. -/
 theorem body_sound (ρ : Env) (o : Oracle) (ho : o.Sound ρ) (e : Ext) (he : e.Sound ρ) :
     ∀ (n : Nat), RecSound ρ (body o e n)
-  | 0 => fun p a b r ca cb ua ub h => by
+  | 0 => fun p a b r ca cb ua ub wa wb h => by
     simp only [body] at h
-    exact entry_sound ρ o ho e he (rec := fun _ _ _ => []) (fun _ _ _ _ _ _ _ _ h' => by simp [run] at h')
-      p false a b 0 ca cb ua ub h
-  | n + 1 => fun p a b r ca cb ua ub h => by
+    exact entry_sound ρ o ho e he (rec := fun _ _ _ => []) (fun _ _ _ _ _ _ _ _ _ _ h' => by simp [run] at h')
+      p false a b 0 ca cb ua ub wa wb h
+  | n + 1 => fun p a b r ca cb ua ub wa wb h => by
     simp only [body] at h
-    exact entry_sound ρ o ho e he (body_sound ρ o ho e he n) p false a b (n + 1) ca cb ua ub h
+    exact entry_sound ρ o ho e he (body_sound ρ o ho e he n) p false a b (n + 1) ca cb ua ub wa wb h
 
 end Peephole.IS.simplifyICmpInst
 
@@ -1023,38 +1023,42 @@ open IRLean ICmp
 
 /-- Theorem 1 for `simplifyICmpInst`: every value the model returns refines the `icmp` it replaces, with or without
 `samesign`, at every width and every `MaxRecurse`, in every run its operands are consistent with, poison included,
-given sound analyses, the extension's among them. It says nothing about operands that reach an `undef`. -/
+given sound analyses, the extension's among them, and operands whose casts are well typed, as LLVM's verifier
+requires. It says nothing about operands that reach an `undef`. -/
 theorem simplifyICmpInst.sound (ρ : Env) (o : Oracle) (ho : o.Sound ρ) (e : Ext) (he : e.Sound ρ) {w : Nat}
     (p : Pred) (s : Bool) (lhs rhs : Term w) (n : Nat) (c0 : lhs.Consistent ρ) (c1 : rhs.Consistent ρ)
-    (u0 : lhs.hasUndef = false) (u1 : rhs.hasUndef = false) {r : Repl 1}
-    (h : simplifyICmpInst o e p lhs rhs n = .value r) : Refines ((src p s lhs rhs).eval ρ) (r.eval ρ) := by
+    (u0 : lhs.hasUndef = false) (u1 : rhs.hasUndef = false) (wt0 : ICmpB.WellTyped lhs)
+    (wt1 : ICmpB.WellTyped rhs) {r : Repl 1} (h : simplifyICmpInst o e p lhs rhs n = .value r) :
+    Refines ((src p s lhs rhs).eval ρ) (r.eval ρ) := by
   unfold simplifyICmpInst at h
   cases n with
   | zero =>
     simp only [simplifyICmpInst.body] at h
     exact simplifyICmpInst.entry_sound ρ o ho e he (rec := fun _ _ _ => [])
-      (fun _ _ _ _ _ _ _ _ h' => by simp [run] at h') p s lhs rhs 0 c0 c1 u0 u1 h
+      (fun _ _ _ _ _ _ _ _ _ _ h' => by simp [run] at h') p s lhs rhs 0 c0 c1 u0 u1 wt0 wt1 h
   | succ n =>
     simp only [simplifyICmpInst.body] at h
     exact simplifyICmpInst.entry_sound ρ o ho e he (simplifyICmpInst.body_sound ρ o ho e he n) p s lhs rhs (n + 1)
-      c0 c1 u0 u1 h
+      c0 c1 u0 u1 wt0 wt1 h
 
-/-- What `simplifyICmpInst.onInst` returns for an `icmp` refines it: the instruction, as `Term.top` has it. -/
+/-- What `simplifyICmpInst.onInst` returns for an `icmp` refines it: the instruction, as `Term.top` has it, where its
+casts are well typed. -/
 theorem simplifyICmpInst.onInstWith_sound (ρ : Env) (o : Oracle) (ho : o.Sound ρ) (e : Ext) (he : e.Sound ρ)
-    {w : Nat} (t : Term w) (ct : t.Consistent ρ) (ut : t.hasUndef = false) {r : Repl w}
+    {w : Nat} (t : Term w) (ct : t.Consistent ρ) (ut : t.hasUndef = false) (wt : ICmpB.WellTyped t) {r : Repl w}
     (h : simplifyICmpInst.onInstWith o e t = .value r) : Refines (t.top.eval ρ) (r.eval ρ) := by
   cases t
   case icmp v id p s a b =>
     simp only [Term.Consistent] at ct
     simp only [Term.hasUndef, Bool.or_eq_false_iff] at ut
+    simp only [ICmpB.WellTyped] at wt
     simp only [simplifyICmpInst.onInstWith, simplifyICmpInst.body_three] at h
-    exact simplifyICmpInst.sound ρ o ho e he p s a b 3 ct.1 ct.2.1 ut.1 ut.2 h
+    exact simplifyICmpInst.sound ρ o ho e he p s a b 3 ct.1 ct.2.1 ut.1 ut.2 wt.1 wt.2 h
   all_goals simp [simplifyICmpInst.onInstWith] at h
 
-/-- What the entry point returns for an `icmp` refines it, given sound analyses. -/
+/-- What the entry point returns for an `icmp` refines it, given sound analyses and well-typed casts. -/
 theorem simplifyICmpInst.onInst_sound (ρ : Env) (o : Oracle) (ho : o.Sound ρ) {w : Nat} (t : Term w)
-    (ct : t.Consistent ρ) (ut : t.hasUndef = false) {r : Repl w} (h : simplifyICmpInst.onInst o t = .value r) :
-    Refines (t.top.eval ρ) (r.eval ρ) :=
-  simplifyICmpInst.onInstWith_sound ρ o ho Ext.none (Ext.none_sound ρ) t ct ut h
+    (ct : t.Consistent ρ) (ut : t.hasUndef = false) (wt : ICmpB.WellTyped t) {r : Repl w}
+    (h : simplifyICmpInst.onInst o t = .value r) : Refines (t.top.eval ρ) (r.eval ρ) :=
+  simplifyICmpInst.onInstWith_sound ρ o ho Ext.none (Ext.none_sound ρ) t ct ut wt h
 
 end Peephole.IS

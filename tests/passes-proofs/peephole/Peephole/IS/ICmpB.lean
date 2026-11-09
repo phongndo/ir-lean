@@ -192,6 +192,14 @@ def ICmpSimp.Sound (simp : ICmpSimp) (ρ : Env) : Prop :=
     a.hasUndef = false → b.hasUndef = false → simp p s a b n = .value r →
       Refines ((icmpSrc p s a b).eval ρ) (r.eval ρ)
 
+/-- The recursive `simplifyICmpInst`, handed on: every call delegated, which claims nothing. `simplifyICmpInst`'s model
+passes it to the folds here it forwards to. -/
+def ICmpSimp.delegating : ICmpSimp := fun _ _ {_} _ _ _ => .delegated "simplifyICmpInst"
+
+theorem ICmpSimp.delegating_sound (ρ : Env) : ICmpSimp.delegating.Sound ρ := by
+  intro _ _ _ _ _ _ _ _ _ _ _ h
+  simp [ICmpSimp.delegating] at h
+
 /-! ### Pointers of different types -/
 
 /-- `A == B` for two `Value *` of possibly different types: a pointer has one type, so they're the same pointer only at
