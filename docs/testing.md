@@ -105,11 +105,69 @@ there with nothing more to do. To give a long test a job of its own, label it, a
 `ci.yml`. Before it runs anything, `rest` checks that CI runs each test exactly once, and fails if a test would run
 in two jobs.
 
-Setting up takes each job about 2 minutes. `binding` and `passes` take longest after that, 8 to 14 minutes each,
-depending on the runner, one Lean process at a time, so CI takes 13 to 16 minutes, and the other test jobs 6 to 9.
+[Run 42572895262](https://github.com/phongndo/ir-lean/actions/runs/42572895262), on 2026-11-09, was the first pull request run with #61, #63, #64 and #65, and
+took 8.0 minutes:
+
+| Job | Setting up | ctest | The job |
+| --- | --- | --- | --- |
+| Which jobs the change needs | | | 5 s |
+| Formatters, linters and language servers | 93 s | 94 s | 3.4 min |
+| Tests and proofs (`passes`) | 87 s | 300 s | 6.5 min |
+| Tests and proofs (`binding`) | 86 s | 126 s | 3.6 min |
+| Tests and proofs (`binding_2`) | 89 s | 273 s | 6.1 min |
+| Tests and proofs (`llvm`) | 102 s | 291 s | 6.6 min |
+| Tests and proofs (`semantics`) | 98 s | 319 s | 7.0 min |
+| Tests and proofs (`llama`) | 91 s | 277 s | 6.2 min |
+| Tests and proofs (`llama_mutants`) | 96 s | 350 s | 7.5 min |
+| Tests and proofs (`proofs`) | 77 s | 287 s | 6.1 min |
+| Tests and proofs (`rest`) | 90 s | 357 s | 7.5 min |
+
+Earlier that day, before #65 and with some of the others, pull request runs took 11.0 to 16.6 minutes, as runs
+[42568552495](https://github.com/phongndo/ir-lean/actions/runs/42568552495), [42566328921](https://github.com/phongndo/ir-lean/actions/runs/42566328921), [42566758308](https://github.com/phongndo/ir-lean/actions/runs/42566758308) and
+[42567711827](https://github.com/phongndo/ir-lean/actions/runs/42567711827) did, each ending with `passes`, `binding` or `llama`. After #53 and before any of these,
+they took 12.8 to 15.9. Times vary with the runner: `passes` took 473 to 839 s of ctest in those four runs. C1 asks for
+the median of 20 consecutive pull requests, so one run doesn't reach it.
+
+What set each job's time before, and what changed it:
+
+| Job | Before | What changed |
+| --- | --- | --- |
+| Setting up | 101 to 132 s, alive2 built from source in every job | alive2 from a cache of its own, in #61: 63 to 102 s |
+| `binding` | 451 to 643 s of ctest, 59 cases one at a time, each hashing the toolchain and llvm-project | Less hashing, in #63, and two jobs, in #65 |
+| `passes` | 473 to 839 s, the scorer's self-check trying seven mutants one at a time, three of them to Lean's heartbeat limit | Those three at once, in #65 |
+| `llama` | 420 to 635 s, 190 of its 231 s locally refuting four mutants | Three of them in a job of their own, in #65 |
+| `rest` | 419 to 495 s, with `proofs` at 357 s next to three others | `proofs` in a job of its own, in #65 |
+| `semantics` | 304 to 402 s, two tests that run alone after five or six others | `verify_negative` in the `proofs` job, in #65 |
 
 Every job restores one cache, of the Lean toolchain, uv's packages, `.lake` and `build/lean-cache`, from the latest
 commit that saved one. Only the lint job saves it, so the jobs don't race for its key.
+
+### Proposals, not done
+
+These change how merging and `main` work, so they're the maintainer's to decide. As of 2026-11-09:
+
+- **A merge queue, or branch protection.** `main` has no protection rules: a pull request can merge with a red check,
+  and one green against an older `main` can merge without a run against the newer one. Requiring the test jobs and
+  lint stops the first, and since a skipped job counts as passed, a pull request that skips the tests still merges.
+  Requiring branches to be up to date stops the second, but every merge to `main` then sends each open pull request
+  back for another run, one at a time. A merge queue stops both with less waiting: it runs CI on each queued pull
+  request merged onto `main` and the ones ahead of it, and merges it when that's green. It catches two pull requests
+  that each pass alone and break together, which happened on 2026-11-09 and was caught by hand: #63 added a local
+  variable `zlib` to `tests/binding.py`'s `main()`, where #65 called `zlib.crc32`. The cost: `ci.yml` needs
+  `merge_group` as a trigger, every merge waits for one run, about 8 minutes, and merges go one at a time.
+- **Moving tiers to nightly runs.** C1 doesn't need it now: the longest job took 7.5 minutes. If the median passes 10
+  minutes again, the candidates are the longest single tests, such as `llama_mutants`, `passes` or `binding_2`, each
+  moved with its reason written down, as [Phase 8](roadmap.md#phase-8-speed) asks, and still run on `main` and
+  nightly. The cost: a regression in a moved test shows on `main` after the merge, not on the pull request, when the
+  lane that caused it may have moved on.
+- **Testing every commit on `main`.** `ci.yml`'s `concurrency` groups runs by branch, and cancels a running pull
+  request run when its branch gets a new push. On `main` it lets the running one finish, but GitHub keeps one pending
+  run per group, and a newer push replaces it. Of the 25 commits on `main` from `2bf52f0` to `a216ce1`, 2 never had a
+  run finish: `de2825e` and `a26abb3`, each cancelled by a later push within minutes. A group of its own for each push
+  to `main`, such as `${{ github.workflow }}-${{ github.ref }}-${{ github.event_name == 'push' && github.sha || '' }}`,
+  runs every commit. The cost is runners: each run on `main` has 12 jobs, the slow zlib one included, which compete
+  with pull requests' runs for the account's concurrent jobs. On 2026-11-09 about 25 jobs at once waited at most 3 s
+  for a runner. A merge queue would make this unneeded, since every commit to `main` would then be one CI ran on.
 
 ### Setting up
 
