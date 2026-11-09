@@ -29,6 +29,7 @@ processor.
 """
 
 import os
+import platform
 import random
 import re
 import shutil
@@ -364,12 +365,28 @@ int main(void) {
 """
 
 
+def x86_quiets(op, case):
+    """Whether x86-64's backend, at the pin, gets this case wrong: it passes a `bfloat` through `float` and
+    back, with `__truncsfbf2`, before `llvm.is.fpclass` classifies it, which quiets a signaling NaN. LangRef
+    says the intrinsic "does not canonicalize its input value", and the constant folder and Alive2 agree with
+    the model. AArch64 classifies the bits as they are."""
+    e, m = op["fmt"][2], op["fmt"][3]
+    x = case[0]
+    snan = (x >> m) & ((1 << e) - 1) == (1 << e) - 1 and x & ((1 << m) - 1) != 0 and not x >> (m - 1) & 1
+    return (
+        platform.machine() in ("x86_64", "AMD64")
+        and op["fmt"][0] == "bfloat"
+        and op["id"].startswith("is.fpclass")
+        and snan
+    )
+
+
 def check_native(table, results, work):
     """The model's value has to be the processor's, on every case whose operands aren't poison, unless the
     model's is poison, which the processor can't show. A format the processor can't run, which clang or the
     linker refuses, is skipped and said so."""
     ctype = {16: "uint16_t", 32: "uint32_t", 64: "uint64_t", 128: "u128"}
-    agreed, poison, bad, skipped = 0, 0, [], []
+    agreed, poison, quieted, bad, skipped = 0, 0, 0, [], []
     for fmt in FORMATS:
         ops = [op for op in table if op["fmt"] == fmt]
         decls, calls, cases = [], [], []
@@ -426,13 +443,15 @@ def check_native(table, results, work):
                     continue
                 model, got = results[op["name"]][ci], out[pos]
                 pos += 1
-                if model == POISON:
+                if x86_quiets(op, c):
+                    quieted += 1
+                elif model == POISON:
                     poison += 1
                 elif model == got:
                     agreed += 1
                 else:
                     bad.append((op["name"], c, model, got))
-    return agreed, poison, bad, skipped
+    return agreed, poison, quieted, bad, skipped
 
 
 def check_alive(table, results, work, rand):
@@ -500,8 +519,13 @@ def main():
             print("  WRONG", b)
         failed = bool(bad) or not agreed
         if use_native:
-            agreed, poison, nbad, skipped = check_native(table, results, work)
+            agreed, poison, quieted, nbad, skipped = check_native(table, results, work)
             print(f"processor: {agreed} agree, {poison} where the model is poison, {len(nbad)} wrong")
+            if quieted:
+                print(
+                    f"  processor: {quieted} signaling NaNs in bfloat not compared for llvm.is.fpclass, "
+                    "which x86-64's backend quiets before classifying them"
+                )
             for fmt, why in skipped:
                 print(f"  processor: skipped {fmt}, which this host can't build: {why}")
             for b in nbad[:20]:
