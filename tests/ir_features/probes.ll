@@ -1516,3 +1516,22 @@ define i32 @probe(i32 %a) {
   %r = call i32 @callee(i32 %a)
   ret i32 %r
 }
+
+; probe: form / scalable-vector-in-a-recursive-function
+define <vscale x 4 x i32> @probe(<vscale x 4 x i32> %a, i32 %n) {
+entry:
+  %z = icmp eq i32 %n, 0
+  br i1 %z, label %done, label %again
+again:
+  %m = sub i32 %n, 1
+  %r = call <vscale x 4 x i32> @probe(<vscale x 4 x i32> %a, i32 %m)
+  ret <vscale x 4 x i32> %r
+done:
+  ret <vscale x 4 x i32> %a
+}
+
+; probe: form / load-of-a-scalable-vector
+define <vscale x 4 x i32> @probe(ptr %p) {
+  %v = load <vscale x 4 x i32>, ptr %p
+  ret <vscale x 4 x i32> %v
+}
