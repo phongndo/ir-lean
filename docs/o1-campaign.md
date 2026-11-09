@@ -203,7 +203,8 @@ after. Each record keeps two peaks. The peak process is exact, from `wait4()`, w
 turned into MiB. The peak tree is the sampled sum over the process group and its descendants.
 
 Measured on y: an M4 Max with 16 cores and 64 GB, under normal memory pressure, with no swap. The evidence now
-committed was verified on `main` at `a26abb3` with #48 at `f6fc339` merged. The low-memory sweep and the single-run
+committed was verified on `main` at `a26abb3` with #48 at `f6fc339` merged. `main` at `0330cd7`, with #48 and #51
+landed, has the same tracked sources, by the fingerprint, so it holds there too. The low-memory sweep and the single-run
 rows are from the first pilot, on `4cd91e5`.
 
 | Run | Workers | Wall | Peak process | Peak tree |
