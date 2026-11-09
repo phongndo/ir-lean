@@ -23,7 +23,8 @@ What the model reads:
 - `CastInst::isEliminableCastPair` is modelled for the integer casts, from its table. An extension then a `trunc` back
   to the source's type is a `bitcast`: the one answer `simplifyCastInst` takes.
 - `isGuaranteedNotToBeUndefOrPoison` is `Shift.Ext.notUndefOrPoison`, since the core `Oracle`'s `notPoison` is
-  `isGuaranteedNotToBePoison`, which holds of `undef` too.
+  `isGuaranteedNotToBePoison`, which holds of `undef` too. `onInst` reads it as the oracle answers `notPoison`, which a
+  sound oracle can't answer yes of `undef`, which reads as poison here: `Shift.Ext.ofOracle`.
 - The `bitcast` and `ptrtoint` steps don't apply to `trunc`, `zext` or `sext`: `Term` has no `bitcast` or pointers. -/
 
 namespace Peephole.IS
@@ -166,8 +167,8 @@ def simplifyFreezeInst (e : Shift.Ext) (op0 : Term w) : Result w := run (simplif
 
 /-- What InstSimplify does with a `freeze` it reaches: `simplifyInstructionWithOperands` calls `simplifyFreezeInst` on
 its operand. -/
-def simplifyFreezeInst.onInst (_o : Oracle) (e : Shift.Ext := .none) : {w : Nat} → Term w → Result w
-  | _, .freeze _ a => simplifyFreezeInst e a
+def simplifyFreezeInst.onInst (o : Oracle) : {w : Nat} → Term w → Result w
+  | _, .freeze _ a => simplifyFreezeInst (Shift.Ext.ofOracle o) a
   | _, _ => .null
 
 /-! ### The rewrites, one theorem each -/
@@ -383,12 +384,12 @@ theorem simplifyFreezeInst.sound (e : Shift.Ext) (ρ : Env) (he : e.Sound ρ) (i
   exact simplifyFreezeInst.L7631 e ρ he id op0 c (by assumption)
 
 /-- What `simplifyFreezeInst.onInst` returns refines the instruction it's given. -/
-theorem simplifyFreezeInst.onInst_sound (o : Oracle) (e : Shift.Ext) (ρ : Env) (he : e.Sound ρ) (t : Term w)
-    (ct : t.Consistent ρ) {r : Repl w} (h : simplifyFreezeInst.onInst o e t = .value r) :
+theorem simplifyFreezeInst.onInst_sound (o : Oracle) (ρ : Env) (ho : o.Sound ρ) (t : Term w)
+    (ct : t.Consistent ρ) {r : Repl w} (h : simplifyFreezeInst.onInst o t = .value r) :
     Refines (t.top.eval ρ) (r.eval ρ) := by
   unfold simplifyFreezeInst.onInst at h
   split at h
-  · exact simplifyFreezeInst.sound e ρ he _ _ ct h
+  · exact simplifyFreezeInst.sound _ ρ (Shift.Ext.ofOracle_sound ho) _ _ ct h
   · cases h
 
 end Peephole.IS

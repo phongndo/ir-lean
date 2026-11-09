@@ -117,9 +117,7 @@
     },
     "Peephole.IS.simplifyWithOpsReplaced": {
       "sound": "Peephole.IS.simplifyWithOpsReplaced.sound",
-      "sites": [
-        "IS.simplifyWithOpsReplaced.L4428"
-      ]
+      "sites": []
     },
     "Peephole.IS.simplifySelectWithEquivalence": {
       "sound": "Peephole.IS.simplifySelectWithEquivalence.sound",
@@ -174,7 +172,7 @@
       "Peephole.IS.Cast.Widens: the zext or sext operand is valid IR, its result no narrower than its operand, as LLVM's verifier has it"
     ],
     "IS.simplifyFreezeInst.L7631": [
-      "Peephole.IS.Shift.Ext.Sound: isGuaranteedNotToBeUndefOrPoison is sound, PASS-01's, as Oracle.Sound is for the core's analyses"
+      "Peephole.IS.Shift.Ext.Sound: isGuaranteedNotToBeUndefOrPoison is sound, PASS-01's. onInst reads it from the oracle's notPoison, Shift.Ext.ofOracle, so there Oracle.Sound gives it: Shift.Ext.ofOracle_sound"
     ],
     "IS.simplifySelectBitTest.L4683": [
       "Peephole.IS.Select.BitTest: the callers' contract, that where the select's condition and X aren't poison, the condition is (X & Y) == 0 if TrueWhenUnset and != 0 if not. simplifySelectWithBitTest owes it through decomposeBitTest, and simplifySelectWithICmpCond from icmp eq (and X, Y), 0"
@@ -207,6 +205,7 @@
     "IS.simplifyWithOpsReplaced.L4566": "inventoried as calls: min and max intrinsics with their identity, past the delegated replacement",
     "IS.simplifyWithOpsReplaced.L4575": "inventoried as memory: getelementptr x, 0",
     "IS.simplifyWithOpsReplaced.L4644": "inventoried as calls: simplifyInstructionWithOperands on the replaced operands, a recursive call into InstSimplify, under PreventSelfSimplify",
-    "IS.simplifyWithOpsReplaced.L4647": "inventoried as calls: ConstantFoldInstOperands, the constant folder, on the replaced operands"
+    "IS.simplifyWithOpsReplaced.L4647": "inventoried as calls: ConstantFoldInstOperands, the constant folder, on the replaced operands",
+    "IS.simplifyWithOpsReplaced.L4428": "integer instance proved, not claimed for every input: simplifyWithOpsReplaced also handles floating point, and the revised inventory tags this site fp. Peephole.IS.simplifyWithOpsReplaced.L4428, which Peephole.IS.simplifyWithOpsReplaced.sound uses, proves it for every scalar integer input; the floating-point instance waits for SEM-05"
   }
 }

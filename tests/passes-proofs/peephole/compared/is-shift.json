@@ -1,0 +1,234 @@
+{
+  "schema": "ir-lean.peephole.comparison/1",
+  "family": "is-shift",
+  "registry": "tests/passes-proofs/peephole/folds/is-shift.json",
+  "sources": "c4eb7c5d353c3500627116b7d746004a02cb8c0df4b72bbdaf76c3fd642f399c",
+  "opt": "23.1.3",
+  "date": "2026-11-09",
+  "status": "ok",
+  "cases": {
+    "cases": 20320,
+    "harvested": 273,
+    "generated": 20047,
+    "compared": 16176,
+    "matched": 6224,
+    "agreed_no_fold": 9952,
+    "fired_new_ir": 0,
+    "mismatched": 0,
+    "delegated": 1163,
+    "analysis": 212,
+    "unexplained": 0,
+    "operand_changed": 2769
+  },
+  "delegated_to": {
+    "ConstantFoldBinaryOpOperands": 1162,
+    "threadBinOpOverSelect": 1
+  },
+  "regression_tests": {
+    "read": 190,
+    "unread": 0
+  },
+  "sites": {
+    "IS.simplifyAShrInst.L1490": {
+      "fired": 73,
+      "matched": 73,
+      "mismatched": 0,
+      "analysis": 0,
+      "files": [
+        "compare.ll",
+        "shift.ll",
+        "shr-nop.ll"
+      ],
+      "registered": true
+    },
+    "IS.simplifyAShrInst.L1495": {
+      "fired": 1,
+      "matched": 1,
+      "mismatched": 0,
+      "analysis": 0,
+      "files": [
+        "exact-nsw-nuw.ll"
+      ],
+      "registered": true
+    },
+    "IS.simplifyCastInst.L5641": {
+      "fired": 146,
+      "matched": 146,
+      "mismatched": 0,
+      "analysis": 0,
+      "files": [
+        "compare.ll"
+      ],
+      "registered": true
+    },
+    "IS.simplifyCastInst.L5653": {
+      "fired": 25,
+      "matched": 25,
+      "mismatched": 0,
+      "analysis": 0,
+      "files": [
+        "cast.ll"
+      ],
+      "registered": true
+    },
+    "IS.simplifyCastInst.L5678": {
+      "fired": 2,
+      "matched": 2,
+      "mismatched": 0,
+      "analysis": 0,
+      "files": [
+        "cast.ll"
+      ],
+      "registered": true
+    },
+    "IS.simplifyFreezeInst.L7631": {
+      "fired": 0,
+      "matched": 0,
+      "mismatched": 0,
+      "analysis": 29,
+      "files": [],
+      "registered": true
+    },
+    "IS.simplifyLShrInst.L1451": {
+      "fired": 1,
+      "matched": 1,
+      "mismatched": 0,
+      "analysis": 0,
+      "files": [
+        "exact-nsw-nuw.ll"
+      ],
+      "registered": true
+    },
+    "IS.simplifyRightShift.L1381": {
+      "fired": 138,
+      "matched": 138,
+      "mismatched": 0,
+      "analysis": 0,
+      "files": [
+        "compare.ll"
+      ],
+      "registered": true
+    },
+    "IS.simplifyRightShift.L1386": {
+      "fired": 139,
+      "matched": 139,
+      "mismatched": 0,
+      "analysis": 0,
+      "files": [
+        "shift.ll",
+        "undef.ll"
+      ],
+      "registered": true
+    },
+    "IS.simplifyShift.L1310": {
+      "fired": 371,
+      "matched": 371,
+      "mismatched": 0,
+      "analysis": 0,
+      "files": [
+        "shift.ll"
+      ],
+      "registered": true
+    },
+    "IS.simplifyShift.L1314": {
+      "fired": 375,
+      "matched": 375,
+      "mismatched": 0,
+      "analysis": 0,
+      "files": [
+        "shift.ll",
+        "shr-nop.ll"
+      ],
+      "registered": true
+    },
+    "IS.simplifyShift.L1322": {
+      "fired": 374,
+      "matched": 374,
+      "mismatched": 0,
+      "analysis": 0,
+      "files": [
+        "shift.ll",
+        "shr-scalar-vector-consistency.ll"
+      ],
+      "registered": true
+    },
+    "IS.simplifyShift.L1326": {
+      "fired": 1656,
+      "matched": 1656,
+      "mismatched": 0,
+      "analysis": 0,
+      "files": [
+        "shift.ll",
+        "undef.ll"
+      ],
+      "registered": true
+    },
+    "IS.simplifyShift.L1350": {
+      "fired": 2641,
+      "matched": 2641,
+      "mismatched": 0,
+      "analysis": 183,
+      "files": [
+        "shift-knownbits.ll"
+      ],
+      "registered": true
+    },
+    "IS.simplifyShlInst.L1411": {
+      "fired": 140,
+      "matched": 140,
+      "mismatched": 0,
+      "analysis": 0,
+      "files": [
+        "undef.ll"
+      ],
+      "registered": true
+    },
+    "IS.simplifyShlInst.L1417": {
+      "fired": 2,
+      "matched": 2,
+      "mismatched": 0,
+      "analysis": 0,
+      "files": [
+        "exact-nsw-nuw.ll"
+      ],
+      "registered": true
+    },
+    "IS.simplifyShlInst.L1421": {
+      "fired": 139,
+      "matched": 139,
+      "mismatched": 0,
+      "analysis": 0,
+      "files": [
+        "constantfold-shl-nuw-C-to-C.ll"
+      ],
+      "registered": true
+    },
+    "IS.simplifyShlInst.L1430": {
+      "fired": 1,
+      "matched": 1,
+      "mismatched": 0,
+      "analysis": 0,
+      "files": [
+        "shift.ll"
+      ],
+      "registered": true
+    }
+  },
+  "not_exercised": [
+    "IS.simplifyAShrInst.L1500",
+    "IS.simplifyFreezeInst.L7631",
+    "IS.simplifyLShrInst.L1466",
+    "IS.simplifyRightShift.L1393",
+    "IS.simplifySelectBitTest.L4683",
+    "IS.simplifySelectBitTest.L4689",
+    "IS.simplifySelectBitTest.L4699",
+    "IS.simplifySelectBitTest.L4709",
+    "IS.simplifySelectWithEquivalence.L4819",
+    "IS.simplifyShift.L1344",
+    "IS.simplifyShift.L1364"
+  ],
+  "untagged": [],
+  "mismatches": [],
+  "unexplained": [],
+  "seconds": 3.0
+}

@@ -41,7 +41,8 @@ What the model reads:
 - `computeKnownBits` and `ComputeNumSignBits` are the core `Oracle`'s, and `KnownBits::shl` is modelled in
   `Peephole.IS.ShiftKnownBits`.
 - `isa<PHINode>` can't be read off a `Term`, which shows a `phi` as `var`, as it does an argument. `Shift.Ext.phi` says
-  which `var`s are `phi`s. It says nothing about values, so no theorem rests on it, and `onInst` takes none by default.
+  which `var`s are `phi`s. It says nothing about values, so no theorem rests on it. `onInst` takes none: every `var`
+  the comparison with `opt` builds is an argument.
 - `Q.IIQ.UseInstrInfo` is true, as it is in the InstSimplify pass, so the flags of operand instructions are read.
 - `threadBinOpOverSelect` and `threadBinOpOverPHI` call InstSimplify again, on the select's arms or the phi's incoming
   values: they're `.delegate`d, which claims nothing, unless `MaxRecurse` is 0, where they decline at once.
@@ -69,13 +70,15 @@ structure Ext where
 structure Ext.Sound (e : Ext) (ρ : Env) : Prop where
   notUndefOrPoison : ∀ {w} (t : Term w), e.notUndefOrPoison t = true → t.denote ρ ≠ none
 
-/-- No `phi`s, and nothing known: what `onInst` assumes unless it's told more. -/
-def Ext.none : Ext where
+/-- What `onInst` reads: no `phi`s, and `isGuaranteedNotToBeUndefOrPoison` as the oracle answers
+`isGuaranteedNotToBePoison`. The two differ on `undef`, which reads as poison here, so a sound answer of the one is
+a sound answer of the other: `Ext.ofOracle_sound`. -/
+def Ext.ofOracle (o : Oracle) : Ext where
   phi _ := false
-  notUndefOrPoison _ := false
+  notUndefOrPoison t := o.notPoison t
 
-theorem Ext.none_sound (ρ : Env) : Ext.none.Sound ρ where
-  notUndefOrPoison _ h := by simp [Ext.none] at h
+theorem Ext.ofOracle_sound {o : Oracle} {ρ : Env} (ho : o.Sound ρ) : (Ext.ofOracle o).Sound ρ where
+  notUndefOrPoison t h := ho.notPoison t h
 
 /-! ### Matchers -/
 
@@ -277,18 +280,18 @@ def simplifyAShrInst (o : Oracle) (e : Shift.Ext) (op0 op1 : Term w) (isExact : 
 
 /-- What InstSimplify does with a `shl` it reaches: `simplifyInstructionWithOperands` calls `simplifyShlInst` with the
 instruction's flags and `MaxRecurse` at `RecursionLimit`, 3. -/
-def simplifyShlInst.onInst (o : Oracle) (e : Shift.Ext := .none) : {w : Nat} → Term w → Result w
-  | _, .bin _ .shl f a b => simplifyShlInst o e a b f.nsw f.nuw 3
+def simplifyShlInst.onInst (o : Oracle) : {w : Nat} → Term w → Result w
+  | _, .bin _ .shl f a b => simplifyShlInst o (Shift.Ext.ofOracle o) a b f.nsw f.nuw 3
   | _, _ => .null
 
 /-- What InstSimplify does with an `lshr` it reaches. -/
-def simplifyLShrInst.onInst (o : Oracle) (e : Shift.Ext := .none) : {w : Nat} → Term w → Result w
-  | _, .bin _ .lshr f a b => simplifyLShrInst o e a b f.exact 3
+def simplifyLShrInst.onInst (o : Oracle) : {w : Nat} → Term w → Result w
+  | _, .bin _ .lshr f a b => simplifyLShrInst o (Shift.Ext.ofOracle o) a b f.exact 3
   | _, _ => .null
 
 /-- What InstSimplify does with an `ashr` it reaches. -/
-def simplifyAShrInst.onInst (o : Oracle) (e : Shift.Ext := .none) : {w : Nat} → Term w → Result w
-  | _, .bin _ .ashr f a b => simplifyAShrInst o e a b f.exact 3
+def simplifyAShrInst.onInst (o : Oracle) : {w : Nat} → Term w → Result w
+  | _, .bin _ .ashr f a b => simplifyAShrInst o (Shift.Ext.ofOracle o) a b f.exact 3
   | _, _ => .null
 
 /-! ### Forwarding: a callee's steps, then the caller's -/
@@ -1138,42 +1141,40 @@ theorem simplifyAShrInst.sound (o : Oracle) (e : Shift.Ext) (ρ : Env) (op0 op1 
 
 /-- What `simplifyShlInst.onInst` returns refines the instruction it's given, in every run the instruction is
 consistent with and the oracle is sound in. -/
-theorem simplifyShlInst.onInst_sound (o : Oracle) (e : Shift.Ext) (ρ : Env) (ho : o.Sound ρ) (t : Term w)
-    (ct : t.Consistent ρ) (ut : t.hasUndef = false) {r : Repl w} (h : simplifyShlInst.onInst o e t = .value r) :
+theorem simplifyShlInst.onInst_sound (o : Oracle) (ρ : Env) (ho : o.Sound ρ) (t : Term w)
+    (ct : t.Consistent ρ) (ut : t.hasUndef = false) {r : Repl w} (h : simplifyShlInst.onInst o t = .value r) :
     Refines (t.top.eval ρ) (r.eval ρ) := by
   unfold simplifyShlInst.onInst at h
   split at h
   · next id f a b =>
     simp only [Term.Consistent] at ct
     simp only [Term.hasUndef, Bool.or_eq_false_iff] at ut
-    exact simplifyShlInst.sound o e ρ a b f.nsw f.nuw 3 ho ct.1 ct.2.1 ut.1 ut.2 h
+    exact simplifyShlInst.sound o _ ρ a b f.nsw f.nuw 3 ho ct.1 ct.2.1 ut.1 ut.2 h
   · cases h
 
 /-- What `simplifyLShrInst.onInst` returns refines the instruction it's given. -/
-theorem simplifyLShrInst.onInst_sound (o : Oracle) (e : Shift.Ext) (ρ : Env) (ho : o.Sound ρ) (t : Term w)
-    (ct : t.Consistent ρ) (ut : t.hasUndef = false) {r : Repl w} (h : simplifyLShrInst.onInst o e t = .value r) :
+theorem simplifyLShrInst.onInst_sound (o : Oracle) (ρ : Env) (ho : o.Sound ρ) (t : Term w)
+    (ct : t.Consistent ρ) (ut : t.hasUndef = false) {r : Repl w} (h : simplifyLShrInst.onInst o t = .value r) :
     Refines (t.top.eval ρ) (r.eval ρ) := by
   unfold simplifyLShrInst.onInst at h
   split at h
   · next id f a b =>
     simp only [Term.Consistent] at ct
     simp only [Term.hasUndef, Bool.or_eq_false_iff] at ut
-    exact simplifyLShrInst.sound o e ρ a b f.exact 3 ho ct.1 ct.2.1 ut.1 ut.2 h
+    exact simplifyLShrInst.sound o _ ρ a b f.exact 3 ho ct.1 ct.2.1 ut.1 ut.2 h
   · cases h
 
 /-- What `simplifyAShrInst.onInst` returns refines the instruction it's given. -/
-theorem simplifyAShrInst.onInst_sound (o : Oracle) (e : Shift.Ext) (ρ : Env) (ho : o.Sound ρ) (t : Term w)
-    (ct : t.Consistent ρ) (ut : t.hasUndef = false) {r : Repl w} (h : simplifyAShrInst.onInst o e t = .value r) :
+theorem simplifyAShrInst.onInst_sound (o : Oracle) (ρ : Env) (ho : o.Sound ρ) (t : Term w)
+    (ct : t.Consistent ρ) (ut : t.hasUndef = false) {r : Repl w} (h : simplifyAShrInst.onInst o t = .value r) :
     Refines (t.top.eval ρ) (r.eval ρ) := by
   unfold simplifyAShrInst.onInst at h
   split at h
   · next id f a b =>
     simp only [Term.Consistent] at ct
     simp only [Term.hasUndef, Bool.or_eq_false_iff] at ut
-    exact simplifyAShrInst.sound o e ρ a b f.exact 3 ho ct.1 ct.2.1 ut.1 ut.2 h
+    exact simplifyAShrInst.sound o _ ρ a b f.exact 3 ho ct.1 ct.2.1 ut.1 ut.2 h
   · cases h
 
-/-- Told nothing more, `onInst` has the type the comparison with `opt` runs. -/
-example (o : Oracle) : {w : Nat} → Term w → Result w := simplifyShlInst.onInst o
 
 end Peephole.IS
