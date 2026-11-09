@@ -44,7 +44,7 @@ missing one, is `evidence_invalid`.
 | `lean_version` | What `lean --version` printed when it was recorded |
 | `units[]` | Each compiled source: `source`, in `llvm-project` or the `repo`, with `language` `c`, `c++` or `ir`; the build's `flags`, `include` directories in llvm-project, `local_include` directories in the repo and whether to add `llvm-config --includedir`; functions to `extract` with `llvm-extract`, if any; the Lean `namespace` and `ir-lean`'s `translate` options; and what replaying gives: `anchors`, every file of llvm-project clang read, `repo_files`, every file of the repo it read, and the SHA-256 of the IR and of the generated Lean |
 | `lean` | `root`, a directory in the repo, `files`, its Lean modules with their SHA-256s, and `model`, the modules whose definitions a statement may use. A theorem's own module can be one, as each of `tests/llvm`'s is: then the definitions it states with are part of what the reader reads, and the verdict lists each constant a statement takes from the model, with its module |
-| `theorems[]` | Each theorem's `module` and `name`, the symbols of the generated functions it's `about`, and its `statement`, as the verifier prints it, with `statement_sha256`, a hash of its `Expr` |
+| `theorems[]` | Each theorem's `module` and `name`, listed once, the symbols of the generated functions it's `about`, each defined in exactly one unit, and its `statement`, as the verifier prints it, with `statement_sha256`, a hash of its `Expr` |
 | `cuts` | Calls out of the code a theorem rules out by stopping the model, as the [prototype](binding-approach.md#where-it-stops) does. Any cut makes the evidence `partial` |
 | `contexts` | `"all"`, or the contexts it covers |
 
@@ -55,19 +55,23 @@ evidence only if every other check passes. A statement copied from a recording a
 
 For evidence, the first that fails decides:
 
-1. **Shape.** Exactly the schema's keys.
+1. **Shape.** Exactly the schema's keys, and a unit's `flags` only ones that say how to compile: `-O`, `-D`, `-U`,
+   `-std=`, `-f`, `-W` and `-m` flags, and none that loads code into clang or names a file, such as `-fplugin` or
+   `-mllvm`.
 2. **Cuts.** Any is `partial`, and nothing more is replayed.
 3. **Pin.** The evidence's llvm-project is the pin, and `nix hash path $LLVM_PROJECT_SRC` gives its NAR hash.
-4. **Anchors.** clang compiles each unit from its own tree, with the source named relative to it, so the IR names no
+4. **Anchors.** Before anything the evidence names runs, the toolchain, `IRLean`'s library, `ir-lean` and the
+   verifier's own files are stamped with what `lstat` says of each entry, and compared at the end. clang compiles
+   each unit from its own tree, with the source named relative to it, so the IR names no
    machine's path, and with `-MD`. The files of llvm-project it read are the unit's anchors, and they have to be
    exactly the recorded ones, each with its recorded SHA-256. A changed header is stale, and so is one left out.
 5. **IR.** The IR, after `llvm-extract` if the unit names functions, is the recorded bytes.
 6. **Translation.** `ir-lean` gives the recorded Lean, byte for byte, and its `--report` says which function is which
-   Lean constant.
+   Lean constant. A symbol a theorem is about has to be defined in exactly one unit, so which function it covers is
+   plain.
 7. **Lean.** Lean compiles the generated modules, then the evidence's own modules, copied from the repo with their
    recorded hashes, in the order their imports need. Their code runs while they compile, so first the run's directory
-   is hashed, and the toolchain, `IRLean`'s library, `ir-lean` and the verifier's own files are stamped with what
-   `lstat` says of each entry.
+   is hashed.
 8. **Statements.** `tools/verify_claims_check.lean` reads each theorem's module and its imports as data, with
    `importModules (loadExts := false)`, one module to a process, so none of their code runs there. Each theorem has to
    be declared in its module, as a theorem. Every module has to be read from where it should be: Lean's from the
@@ -93,7 +97,7 @@ Then, by dimension:
 
 | Dimension | Needs before any evidence can cover it | Then |
 | --- | --- | --- |
-| `code-binding` | The claim's anchors are the inventory's, and BIND-02's closure for the pass, `tests/llvm_scope/closure/PASS.json`, is complete | Every evidence file replays, with contexts `"all"`. The evidence reads every file of the closure at its hash, compiles every source the closure's functions come from, and has a theorem about every function in it |
+| `code-binding` | The claim's anchors are the inventory's, and BIND-02's closure for the pass, `tests/llvm_scope/closure/PASS.json`, is complete | Every evidence file replays, with contexts `"all"`. The evidence reads every file of the closure at its hash, compiles every source the closure's functions come from, and has a theorem about every function in it, as compiled from that function's own file |
 | `all-input`, `analysis-soundness` | INV-04's list of the pass's rewrites, or PASS-01's facts | Refused: the verifier doesn't read those lists yet, since they don't exist |
 | `composition` | PASS-05's contract for pipelines | Refused, for the same reason |
 
@@ -135,6 +139,7 @@ And each forged claim, a good one with one thing broken:
 | `sorry` | `refused`, `sorry` |
 | A false theorem added with `debug.skipKernelTC` | `refused`, `kernel_replay_failed` |
 | Other flags, an edited translation, an extra field | `refused`, `ir_replay_mismatch`, `translation_replay_mismatch`, `evidence_invalid` |
+| A theorem listed twice, a flag loading a plugin into clang, and the function a closure needs also defined by hand-written IR, which could stand in for it | `refused`, `evidence_invalid` |
 | A proof whose code rewrites a generated module, or adds a module where Lean looks, while it compiles | `refused`, `artifacts_modified` |
 | A call cut out | `partial` |
 

@@ -65,7 +65,7 @@ REWRITES = ROOT / "tests" / "llvm_scope" / "rewrites"
 EXIT = {"replayed": 0, "verified": 0, "refused": 1, "partial": 2, "unknown": 4, "error": 5}
 HEX = re.compile(r"[0-9a-f]{64}")
 FLAG = re.compile(
-    r"-(O[0-3sz]|D[A-Za-z_]\w*(=[\w.+-]*)?|U[A-Za-z_]\w*|std=[\w+]+|f[a-z][\w=.+-]*|W[\w=-]*|m[\w=.-]+)"
+    r"-(O[0-3sz]|D[A-Za-z_]\w*(=[\w.+-]*)?|U[A-Za-z_]\w*|std=[\w+]+|f[A-Za-z][\w=.+-]*|W[\w=-]*|m[\w=.-]+)"
 )
 UNSAFE_FLAGS = (
     "-fplugin", "-fpass-plugin", "-fmodule", "-fprofile", "-fcrash", "-fdebug-prefix", "-ffile-prefix",

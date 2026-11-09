@@ -295,8 +295,14 @@ def stand_in(ev: dict[str, Any], lean_dir: Path) -> None:
     ir = copy.deepcopy(ev["units"][0]) | {
         "source": str(ll.relative_to(ROOT)), "source_in": "repo", "language": "ir", "flags": [],
         "include": [], "local_include": [], "llvm_config": False, "namespace": "StandIn", "translate": [],
-        "anchors": {}, "repo_files": {str(ll.relative_to(ROOT)): sha(ll)},
+        "anchors": {}, "repo_files": {str(ll.relative_to(ROOT)): sha(ll)}, "ir_sha256": sha(ll),
     }  # fmt: skip
+    # Its own translation's hash, recorded as a forger would, so only the symbol defined twice is wrong.
+    argv = [str(ROOT / "build" / "ir-lean"), "StandIn.ll", "--namespace", "StandIn", "-o", "StandIn.lean"]
+    r = proc.run(argv, cwd=lean_dir, timeout=300)
+    if r.exit != 0:
+        raise SystemExit(f"FAIL ir-lean on the stand-in: {r.stderr.decode(errors='replace')}")
+    ir["lean_sha256"] = sha(lean_dir / "StandIn.lean")
     ev["units"].insert(0, ir)
 
 
