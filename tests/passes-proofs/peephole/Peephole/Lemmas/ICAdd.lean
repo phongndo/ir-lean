@@ -50,12 +50,6 @@ theorem le_of_and_eq {x k : BitVec w} (h : x &&& k = k) : k.toNat ≤ x.toNat :=
 theorem xor_comm (a b : Val w) : Val.xor a b = Val.xor b a := by
   cases a <;> cases b <;> simp [Val.xor, Val.map₂, BitVec.xor_comm]
 
-/-- An `add` that isn't poison is the sum. -/
-theorem add_eq_some {x y r : BitVec w} {nuw nsw : Bool} (h : Val.add (some x) (some y) nuw nsw = some r) :
-    r = x + y := by
-  simp only [Val.add] at h
-  split at h <;> simp_all
-
 /-- `i1`'s two values. -/
 theorem bv1_cases (b : BitVec 1) : b = 0#1 ∨ b = 1#1 := by
   rcases b with ⟨⟨n, hn⟩⟩
@@ -75,8 +69,10 @@ theorem toInt_not_eq (p : BitVec w) (hw : 0 < w) : (~~~p).toInt = -p.toInt - 1 :
     generalize 2 ^ w = K at * <;> omega
 
 /-- Shifting right arithmetically by `w - 1` leaves only copies of the sign bit. -/
-theorem sshiftRight_width_sub_one (x : BitVec w) (hw : 0 < w) :
+theorem sshiftRight_width_sub_one (x : BitVec w) :
     x.sshiftRight' (BitVec.ofNat w (w - 1)) = if x.msb then BitVec.allOnes w else 0#w := by
+  rcases Nat.eq_zero_or_pos w with rfl | hw
+  · exact Subsingleton.elim _ _
   apply BitVec.eq_of_getLsbD_eq
   intro i hi
   have hk : (BitVec.ofNat w (w - 1)).toNat = w - 1 := by
@@ -91,8 +87,16 @@ theorem sshiftRight_width_sub_one (x : BitVec w) (hw : 0 < w) :
   · cases hm : x.msb <;> simp [hi] <;> omega
 
 /-- The bits of `-2^k`: those at `k` and above. -/
-theorem getLsbD_neg_twoPow {k i : Nat} (hk : k < w) :
+theorem getLsbD_neg_twoPow {k i : Nat} :
     (-BitVec.twoPow w k).getLsbD i = (decide (k ≤ i) && decide (i < w)) := by
+  by_cases hk : w ≤ k
+  · have : BitVec.twoPow w k = 0#w := BitVec.eq_of_toNat_eq (by simp [BitVec.toNat_twoPow_of_le hk])
+    rw [this, BitVec.neg_zero]
+    by_cases h : k ≤ i
+    · have : ¬ i < w := by omega
+      simp [this]
+    · simp [h]
+  have hk : k < w := by omega
   rw [BitVec.getLsbD_neg, BitVec.getLsbD_twoPow]
   by_cases hi : i < w
   · have : (∃ j < i, (BitVec.twoPow w k).getLsbD j = true) ↔ k < i := by
@@ -135,23 +139,40 @@ theorem sshiftRight_shiftLeft_getLsbD (x : BitVec w) {s i : Nat} (hs : s < w) (h
   by_cases h : i < w - s
   · have h1 : s + i < w := by omega
     have h2 : ¬ (s + i < s) := by omega
-    simp only [hw, h1, h2, h, decide_false, decide_true, Bool.not_false, Bool.not_true, Bool.true_and, ite_true,
+    simp only [hw, h1, h2, h, decide_false, decide_true, Bool.not_false, Bool.true_and, ite_true,
       show s + i - s = i by omega]
   · have h1 : ¬ (s + i < w) := by omega
     simp only [hw, h1, h, hw1, hw2, decide_false, decide_true, Bool.not_false, Bool.true_and, ite_false]
 
 /-- `(x ^ c2) + c`, where `x` has no bit above `k` and one of `c` and `c2` is `2^k` and the other its negation, is
 `x` extended from bit `k`: the sign extension in a register. -/
-theorem xor_add_sext {x : BitVec w} {k : Nat} (hk : k + 1 < w) (hx : ∀ i, k < i → x.getLsbD i = false)
+theorem xor_add_sext {x : BitVec w} {k : Nat} (hx : ∀ i, k < i → x.getLsbD i = false)
     {c c2 : BitVec w} (hc : (c = BitVec.twoPow w k ∧ c2 = -c) ∨ (c2 = BitVec.twoPow w k ∧ c = -c2)) :
     (x ^^^ c2) + c = (x <<< (w - 1 - k)).sshiftRight (w - 1 - k) := by
+  by_cases hk : w ≤ k + 1
+  · -- No shift: `2^k` is the sign bit, its own negation, or past the width, and 0.
+    rw [show w - 1 - k = 0 by omega, BitVec.shiftLeft_zero, BitVec.sshiftRight_zero]
+    have hadd : -BitVec.twoPow w k = BitVec.twoPow w k ∧
+        ∀ y : BitVec w, (y ^^^ BitVec.twoPow w k) + BitVec.twoPow w k = y := by
+      rcases Nat.lt_or_ge k w with hkw | hkw
+      · obtain rfl : k = w - 1 := by omega
+        refine ⟨BitVec.neg_intMin, fun y => ?_⟩
+        show (y ^^^ BitVec.intMin w) + BitVec.intMin w = y
+        rw [add_intMin, BitVec.xor_assoc, BitVec.xor_self, BitVec.xor_zero]
+      · have h0 : BitVec.twoPow w k = 0#w := BitVec.eq_of_toNat_eq (by simp [BitVec.toNat_twoPow_of_le hkw])
+        rw [h0]
+        exact ⟨BitVec.neg_zero w, fun y => by simp⟩
+    rcases hc with ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩
+    · rw [hadd.1]; exact hadd.2 x
+    · rw [hadd.1]; exact hadd.2 x
+  have hk : k + 1 < w := by omega
   have hs : w - 1 - k < w := by omega
   have hws : w - (w - 1 - k) = k + 1 := by omega
   have ht := getLsbD_twoPow_of_lt (w := w) (k := k) (by omega)
   have hn : ∀ i, (-BitVec.twoPow w k).getLsbD i = (decide (k ≤ i) && decide (i < w)) :=
-    fun i => getLsbD_neg_twoPow (by omega)
+    fun i => getLsbD_neg_twoPow
   have hn1 : ∀ i, (-BitVec.twoPow w (k + 1)).getLsbD i = (decide (k + 1 ≤ i) && decide (i < w)) :=
-    fun i => getLsbD_neg_twoPow hk
+    fun i => getLsbD_neg_twoPow
   -- Both sides are `x` with bit `k` copied over every bit above it.
   have hE : ∀ i, i < w → ((x <<< (w - 1 - k)).sshiftRight (w - 1 - k)).getLsbD i =
       if i ≤ k then x.getLsbD i else x.getLsbD k := by
@@ -223,8 +244,8 @@ theorem xor_add_sext {x : BitVec w} {k : Nat} (hk : k + 1 < w) (hx : ∀ i, k < 
           · by_cases hlt : k < i
             · have : k + 1 ≤ i := hlt
               have hxi := hx i hlt
-              simp only [hik, Nat.le_of_lt hlt, this, hi, hxi, decide_true, decide_false, Bool.true_and,
-                Bool.false_xor, Bool.false_or, Bool.and_self, Bool.true_xor, Bool.not_true, Bool.or_false]
+              simp only [hik, Nat.le_of_lt hlt, this, hi, hxi, decide_true, decide_false,
+                Bool.false_xor, Bool.false_or, Bool.and_self, Bool.or_false]
             · have h1 : ¬ k ≤ i := by omega
               have h2' : ¬ k + 1 ≤ i := by omega
               simp [hik, h1, h2']
@@ -376,7 +397,7 @@ theorem add_not_refines (x : Val w) (c : BitVec w) (nuw nsw : Bool) (hw : w ≠ 
   · exact Refine.val_none _
   · next hsrc =>
     refine (Refine.val_iff _ _).2 (Or.inr ?_)
-    rw [if_neg, heq]
+    rw [ite_eq_right, heq]
     intro ht
     simp only [Bool.and_eq_true, Bool.not_eq_true'] at ht
     obtain ⟨⟨rfl, h1⟩, h2⟩ := ht
@@ -396,9 +417,11 @@ theorem add_not_refines (x : Val w) (c : BitVec w) (nuw nsw : Bool) (hw : w ≠ 
       omega
 
 /-- `ashr y, w - 1` plus 1 refines 1 for a non-negative `y`, and 0 for a negative one. -/
-theorem add_ashr_sign_one (y : BitVec w) (exact nuw nsw : Bool) (hw : 0 < w) :
+theorem add_ashr_sign_one (y : BitVec w) (exact nuw nsw : Bool) :
     Refines (Val.add (Val.ashr (some y) (some (BitVec.ofNat w (w - 1))) exact) (some 1#w) nuw nsw)
       (some (if y.msb then 0#w else 1#w)) := by
+  rcases Nat.eq_zero_or_pos w with rfl | hw
+  · simp [Refines, Val.ashr, Val.shiftOk, Val.add, Refine.le]
   have hk : (BitVec.ofNat w (w - 1)).toNat = w - 1 := by
     rw [BitVec.toNat_ofNat]; exact Nat.mod_eq_of_lt (by have := @Nat.lt_two_pow_self w; omega)
   have hok : Val.shiftOk (BitVec.ofNat w (w - 1)) = true := by
@@ -407,7 +430,7 @@ theorem add_ashr_sign_one (y : BitVec w) (exact nuw nsw : Bool) (hw : 0 < w) :
   split
   · exact Refine.val_none _
   · refine add_refines_of_sum ?_
-    rw [sshiftRight_width_sub_one y hw]
+    rw [sshiftRight_width_sub_one y]
     cases y.msb
     · simp
     · simp only [ite_true]; rw [← BitVec.neg_one_eq_allOnes, BitVec.add_left_neg]
@@ -425,7 +448,7 @@ theorem add_ashr_sign_one_refines (x : Val w) (exact nuw nsw : Bool) :
       some (if p.msb then 0#w else 1#w) := by
     simp only [Val.icmpSgt, Val.icmp, Bool.false_and, Bool.false_eq_true, ite_false, Val.zext,
       Option.some.injEq]
-    rw [BitVec.slt_eq_decide, BitVec.toInt_allOnes, if_pos hw]
+    rw [BitVec.slt_eq_decide, BitVec.toInt_allOnes, ite_eq_left hw]
     have hm := BitVec.toInt_eq_msb_cond p
     have := p.isLt
     cases hp : p.msb
@@ -436,7 +459,7 @@ theorem add_ashr_sign_one_refines (x : Val w) (exact nuw nsw : Bool) :
       simp only [this, decide_false, BitVec.ofBool_false, ite_true]
       exact BitVec.eq_of_toNat_eq (by simp)
   rw [ht]
-  exact add_ashr_sign_one p exact nuw nsw hw
+  exact add_ashr_sign_one p exact nuw nsw
 
 /-- An `or disjoint` with a constant, plus a constant, refines one `add` of the sum of the constants, `nuw` if the
 `add` had it, and `nsw` if it had it and the constants' sum doesn't overflow. `IC.AddSub.foldAddWithConstant.L924`. -/
@@ -458,7 +481,7 @@ theorem add_or_disjoint_refines (x : Val w) (c1 c : BitVec w) (nuw nsw : Bool) :
     · exact Refine.val_none _
     · next hsrc =>
       refine (Refine.val_iff _ _).2 (Or.inr ?_)
-      rw [if_neg, BitVec.add_assoc]
+      rw [ite_eq_right, BitVec.add_assoc]
       intro ht
       simp only [Bool.or_eq_true, Bool.and_eq_true, Bool.not_eq_true'] at hsrc ht
       have hnat : (p + c1).toNat = p.toNat + c1.toNat := by
@@ -499,7 +522,7 @@ sign bit. `IC.AddSub.foldAddWithConstant.L936`. -/
 theorem add_signMask_disjoint_refines (x : Val w) (nuw nsw : Bool) (h : (nuw || nsw) = true) :
     Refines (Val.add x (some (BitVec.intMin w)) nuw nsw) (Val.or x (some (BitVec.intMin w)) true) := by
   cases x with
-  | none => simp [Refines, Val.or, Val.add, Refine.le]
+  | none => simp [Refines, Val.add, Refine.le]
   | some p =>
   simp only [Val.add]
   split
@@ -541,7 +564,7 @@ theorem add_signMask_disjoint_refines (x : Val w) (nuw nsw : Bool) (h : (nuw || 
 theorem add_signMask_xor_refines (x : Val w) (nuw nsw : Bool) :
     Refines (Val.add x (some (BitVec.intMin w)) nuw nsw) (Val.xor x (some (BitVec.intMin w))) := by
   cases x with
-  | none => simp [Refines, Val.xor, Val.add, Refine.le]
+  | none => simp [Refines, Val.add, Refine.le]
   | some p =>
   simp only [Val.xor, Val.map₂]
   exact add_refines_of_sum (add_intMin p)
@@ -626,7 +649,7 @@ theorem add_ashr_shl_sign_one_refines (x : Val w) (f1 f2 exact nuw nsw : Bool) :
   · exact Refine.val_none _
   split
   · exact Refine.val_none _
-  · have := add_ashr_sign_one (p <<< BitVec.ofNat w (w - 1)) exact nuw nsw hw
+  · have := add_ashr_sign_one (p <<< BitVec.ofNat w (w - 1)) exact nuw nsw
     rwa [hmsb] at this
 
 /-- `umax(x, -c) + c` refines `usub.sat(x, -c)`: the `umax` is at least `-c`. `IC.AddSub.foldAddWithConstant.L1003`. -/
@@ -639,7 +662,7 @@ theorem add_umax_refines (x : Val w) (c : BitVec w) (nuw nsw : Bool) :
   refine add_refines_of_sum ?_
   by_cases h : p.toNat ≤ (-c).toNat
   · have h1 : BitVec.ule p (-c) = true := by simp only [BitVec.ule, decide_eq_true_eq]; exact h
-    rw [if_pos h1, BitVec.add_left_neg]
+    rw [ite_eq_left h1, BitVec.add_left_neg]
     by_cases he : p = -c
     · subst he
       have : BitVec.ult (-c) (-c) = false := by simp [BitVec.ult]
@@ -707,7 +730,7 @@ theorem zext_xor_intMin_add (x : BitVec v) (w : Nat) :
         · rw [Nat.mod_eq_sub_mod (by omega), Nat.mod_eq_of_lt (by omega)]
         · rw [Nat.mod_eq_of_lt (by omega)]
       have h2 : ((BitVec.intMin v).signExtend w).toNat = 2 ^ (v - 1) + (2 ^ w - 2 ^ v) := by
-        rw [BitVec.toNat_signExtend, BitVec.toNat_setWidth, hm, hmsb, if_pos rfl, Nat.mod_eq_of_lt (by omega)]
+        rw [BitVec.toNat_signExtend, BitVec.toNat_setWidth, hm, hmsb, ite_eq_left rfl, Nat.mod_eq_of_lt (by omega)]
       have h3 : (x.signExtend w).toNat = x.toNat + if 2 ^ (v - 1) ≤ x.toNat then 2 ^ w - 2 ^ v else 0 := by
         rw [BitVec.toNat_signExtend, BitVec.toNat_setWidth, BitVec.msb_eq_decide, Nat.mod_eq_of_lt (by omega)]
         by_cases h : 2 ^ (v - 1) ≤ x.toNat <;> simp [h]
@@ -743,6 +766,174 @@ theorem add_xor_sext_refines {x : BitVec w} {k : Nat} (hk : k + 1 < w) (hx : ∀
   simp only [Val.shl, Val.ashr, hok, Bool.not_true, Bool.false_eq_true, ite_false, Bool.false_and]
   refine add_refines_of_sum ?_
   rw [BitVec.shiftLeft_eq', BitVec.sshiftRight_eq', hs]
-  exact xor_add_sext hk hx hc
+  exact xor_add_sext hx hc
 
 end Peephole.Lemmas
+
+/-! ### Counterexamples, for the lemma store
+
+For each hypothesis `h` of a lemma above, `drop_h` says the lemma without it is false, and `sat` that its hypotheses
+can all hold, by the names and in the form `tools/store/store.py` looks for. -/
+
+namespace Peephole.Lemmas.Counter
+
+/-- A source that's the value `x` only allows `x`. -/
+theorem not_refines_of {w : Nat} {a b : IRLean.Val w} (x : BitVec w) (ha : a = some x) (hb : b ≠ some x) :
+    ¬ IRLean.Refines a b := by
+  subst ha; exact fun r => hb ((IRLean.Refine.val_some x b).1 r)
+
+end Peephole.Lemmas.Counter
+
+open IRLean Peephole.Lemmas.Counter
+
+/-- In `i2`, `0 - 1` is `3`, and `0 ^ 1` is `1`. -/
+theorem LemmaStore.Counter.Peephole.Lemmas.sub_eq_xor_of_and_eq.drop_h :
+    ¬ ∀ {w : Nat} {x y : BitVec w}, x - y = x ^^^ y :=
+  fun h => absurd (@h 2 0#2 1#2) (by decide)
+
+theorem LemmaStore.Counter.Peephole.Lemmas.sub_eq_xor_of_and_eq.sat :
+    ∃ (w : Nat) (x y : BitVec w), x &&& y = y :=
+  ⟨0, 0#0, 0#0, by decide⟩
+
+/-- In `i1`, `0` has no bit of `1`, and is less. -/
+theorem LemmaStore.Counter.Peephole.Lemmas.le_of_and_eq.drop_h :
+    ¬ ∀ {w : Nat} {x k : BitVec w}, k.toNat ≤ x.toNat :=
+  fun h => absurd (@h 1 0#1 1#1) (by decide)
+
+theorem LemmaStore.Counter.Peephole.Lemmas.le_of_and_eq.sat :
+    ∃ (w : Nat) (x k : BitVec w), x &&& k = k :=
+  ⟨0, 0#0, 0#0, by decide⟩
+
+/-- At width 0 every value is 0, its `not` too, and `-0 - 1` isn't 0. -/
+theorem LemmaStore.Counter.Peephole.Lemmas.toInt_not_eq.drop_hw :
+    ¬ ∀ {w : Nat} (p : BitVec w), (~~~p).toInt = -p.toInt - 1 :=
+  fun h => absurd (@h 0 0#0) (by decide)
+
+theorem LemmaStore.Counter.Peephole.Lemmas.toInt_not_eq.sat : ∃ (w : Nat) (_ : BitVec w), 0 < w :=
+  ⟨1, 0#1, Nat.one_pos⟩
+
+/-- Past the width, `2^0` at width 0 is 0, with no bit 0. -/
+theorem LemmaStore.Counter.Peephole.Lemmas.getLsbD_twoPow_of_lt.drop_hk :
+    ¬ ∀ {w k : Nat} (i : Nat), (BitVec.twoPow w k).getLsbD i = decide (i = k) :=
+  fun h => absurd (@h 0 0 0) (by decide)
+
+theorem LemmaStore.Counter.Peephole.Lemmas.getLsbD_twoPow_of_lt.sat : ∃ (w k : Nat) (_ : Nat), k < w :=
+  ⟨1, 0, 0, Nat.one_pos⟩
+
+/-- In `i2`, `1 + 1` is `2`, and `1 | 1` is `1`. -/
+theorem LemmaStore.Counter.Peephole.Lemmas.add_eq_or.drop_h :
+    ¬ ∀ {w : Nat} {x y : BitVec w}, x + y = x ||| y :=
+  fun h => absurd (@h 2 1#2 1#2) (by decide)
+
+theorem LemmaStore.Counter.Peephole.Lemmas.add_eq_or.sat :
+    ∃ (w : Nat) (x y : BitVec w), ∀ i, x.getLsbD i = true → y.getLsbD i = false :=
+  ⟨0, 0#0, 0#0, fun _ h => by simp at h⟩
+
+/-- In `i1`, shifting `1` by the width loses it, where bit `0` is still read as `1`. -/
+theorem LemmaStore.Counter.Peephole.Lemmas.sshiftRight_shiftLeft_getLsbD.drop_hs :
+    ¬ ∀ {w : Nat} (x : BitVec w) {s i : Nat}, i < w →
+      ((x <<< s).sshiftRight s).getLsbD i = if i < w - s then x.getLsbD i else x.getLsbD (w - 1 - s) :=
+  fun h => absurd (@h 1 1#1 1 0 (by decide)) (by decide)
+
+/-- In `i1`, bit `1` is past the width, and read as bit `0`, which is `1`. -/
+theorem LemmaStore.Counter.Peephole.Lemmas.sshiftRight_shiftLeft_getLsbD.drop_hi :
+    ¬ ∀ {w : Nat} (x : BitVec w) {s i : Nat}, s < w →
+      ((x <<< s).sshiftRight s).getLsbD i = if i < w - s then x.getLsbD i else x.getLsbD (w - 1 - s) :=
+  fun h => absurd (@h 1 1#1 0 1 (by decide)) (by decide)
+
+theorem LemmaStore.Counter.Peephole.Lemmas.sshiftRight_shiftLeft_getLsbD.sat :
+    ∃ (w : Nat) (_ : BitVec w) (s i : Nat), s < w ∧ i < w :=
+  ⟨1, 0#1, 0, 0, by decide, by decide⟩
+
+/-- In `i3`, `2` has bit 1 above `k = 0`: `(2 ^ -1) + 1` is `6`, and extending from bit 0 gives `0`. -/
+theorem LemmaStore.Counter.Peephole.Lemmas.xor_add_sext.drop_hx :
+    ¬ ∀ {w : Nat} {x : BitVec w} {k : Nat} {c c2 : BitVec w},
+      (c = BitVec.twoPow w k ∧ c2 = -c) ∨ (c2 = BitVec.twoPow w k ∧ c = -c2) →
+      (x ^^^ c2) + c = (x <<< (w - 1 - k)).sshiftRight (w - 1 - k) :=
+  fun h => absurd (@h 3 2#3 0 1#3 7#3 (.inl ⟨by decide, by decide⟩)) (by decide)
+
+/-- In `i3`, with both constants 0, `1` stays `1`, and extending from bit 0 gives `-1`. -/
+theorem LemmaStore.Counter.Peephole.Lemmas.xor_add_sext.drop_hc :
+    ¬ ∀ {w : Nat} {x : BitVec w} {k : Nat}, (∀ i, k < i → x.getLsbD i = false) → ∀ {c c2 : BitVec w},
+      (x ^^^ c2) + c = (x <<< (w - 1 - k)).sshiftRight (w - 1 - k) :=
+  fun h => absurd (@h 3 1#3 0 (fun i hi => by simp [BitVec.getLsbD_one]; omega) 0#3 0#3) (by decide)
+
+theorem LemmaStore.Counter.Peephole.Lemmas.xor_add_sext.sat :
+    ∃ (w : Nat) (x : BitVec w) (k : Nat) (c c2 : BitVec w),
+      (∀ i, k < i → x.getLsbD i = false) ∧ ((c = BitVec.twoPow w k ∧ c2 = -c) ∨ (c2 = BitVec.twoPow w k ∧ c = -c2)) :=
+  ⟨1, 0#1, 0, BitVec.twoPow 1 0, -BitVec.twoPow 1 0, fun _ _ => by simp, .inl ⟨rfl, rfl⟩⟩
+
+/-- In `i1`, `add nsw (xor 1, 1), 1` is `1`, and `sub nsw 0, 1` is poison: `0 - -1` doesn't fit. -/
+theorem LemmaStore.Counter.Peephole.Lemmas.add_not_refines.drop_hw :
+    ¬ ∀ {w : Nat} (x : Val w) (c : BitVec w) (nuw nsw : Bool),
+      Refines (Val.add (Val.xor x (some (BitVec.allOnes w))) (some c) nuw nsw)
+        (Val.sub (some (c - 1#w)) x false (nsw && !c.ssubOverflow 1#w)) :=
+  fun h => not_refines_of 1#1 (by decide) (by decide) (@h 1 (some 1#1) 1#1 false true)
+
+theorem LemmaStore.Counter.Peephole.Lemmas.add_not_refines.sat :
+    ∃ (w : Nat) (_ : Val w) (_ : BitVec w) (_ nsw : Bool), w ≠ 1 ∨ nsw = false :=
+  ⟨0, none, 0#0, false, false, .inl (by decide)⟩
+
+/-- In `i1`, `add 1, 1` is `0`, and `or disjoint 1, 1` is poison. -/
+theorem LemmaStore.Counter.Peephole.Lemmas.add_signMask_disjoint_refines.drop_h :
+    ¬ ∀ {w : Nat} (x : Val w) (nuw nsw : Bool),
+      Refines (Val.add x (some (BitVec.intMin w)) nuw nsw) (Val.or x (some (BitVec.intMin w)) true) :=
+  fun h => not_refines_of 0#1 (by decide) (by decide) (@h 1 (some 1#1) false false)
+
+theorem LemmaStore.Counter.Peephole.Lemmas.add_signMask_disjoint_refines.sat :
+    ∃ (w : Nat) (_ : Val w) (nuw nsw : Bool), (nuw || nsw) = true :=
+  ⟨0, none, true, false, rfl⟩
+
+/-- In `i2`, `1` has a bit outside `0`: `(1 ^ 0) + 0` is `1`, and `(0 + 0) - 1` is `3`. -/
+theorem LemmaStore.Counter.Peephole.Lemmas.add_xor_mask_refines.drop_h :
+    ¬ ∀ {w : Nat} {x c2 : BitVec w} (c : BitVec w) (nuw nsw : Bool),
+      Refines (Val.add (some (x ^^^ c2)) (some c) nuw nsw) (Val.sub (some (c2 + c)) (some x)) :=
+  fun h => not_refines_of 1#2 (by decide) (by decide) (@h 2 1#2 0#2 0#2 false false)
+
+theorem LemmaStore.Counter.Peephole.Lemmas.add_xor_mask_refines.sat :
+    ∃ (w : Nat) (x c2 : BitVec w) (_ : BitVec w) (_ _ : Bool), x &&& ~~~c2 = 0#w :=
+  ⟨0, 0#0, 0#0, 0#0, false, false, by decide⟩
+
+/-- From `i1` to `i2`, `0 - 1` wraps to `1`: `zext 1 + 1` is `2`, and `zext 0` is `0`. -/
+theorem LemmaStore.Counter.Peephole.Lemmas.add_zext_add_neg_refines.drop_h :
+    ¬ ∀ {w v : Nat} {x n : BitVec v} (f1 f2 nneg nuw nsw : Bool),
+      Refines (Val.add (Val.zext w (Val.add (some x) (some (-n)) f1 f2) nneg) (some (n.setWidth w)) nuw nsw)
+        (Val.zext w (some x) false) :=
+  fun h => not_refines_of 2#2 (by decide) (by decide) (@h 2 1 0#1 1#1 false false false false false)
+
+theorem LemmaStore.Counter.Peephole.Lemmas.add_zext_add_neg_refines.sat :
+    ∃ (_ v : Nat) (x n : BitVec v) (_ _ _ _ _ : Bool), n.toNat ≤ x.toNat :=
+  ⟨0, 0, 0#0, 0#0, false, false, false, false, false, Nat.le_refl _⟩
+
+/-- At width 0 the shift by `w - 1 - k`, 0, is out of range, so the shifts are poison, where the `add` is 0. -/
+theorem LemmaStore.Counter.Peephole.Lemmas.add_xor_sext_refines.drop_hk :
+    ¬ ∀ {w : Nat} {x : BitVec w} {k : Nat}, (∀ i, k < i → x.getLsbD i = false) → ∀ {c c2 : BitVec w},
+      (c = BitVec.twoPow w k ∧ c2 = -c) ∨ (c2 = BitVec.twoPow w k ∧ c = -c2) → ∀ (nuw nsw : Bool),
+      Refines (Val.add (some (x ^^^ c2)) (some c) nuw nsw)
+        (Val.ashr (Val.shl (some x) (some (BitVec.ofNat w (w - 1 - k)))) (some (BitVec.ofNat w (w - 1 - k)))) :=
+  fun h => not_refines_of 0#0 (by decide) (by decide)
+    (@h 0 0#0 0 (fun _ _ => by simp) (BitVec.twoPow 0 0) (-BitVec.twoPow 0 0) (.inl ⟨rfl, rfl⟩) false false)
+
+/-- In `i3`, `2` has bit 1 above `k = 0`: `(2 ^ -1) + 1` is `6`, and extending from bit 0 gives `0`. -/
+theorem LemmaStore.Counter.Peephole.Lemmas.add_xor_sext_refines.drop_hx :
+    ¬ ∀ {w : Nat} {x : BitVec w} {k : Nat}, k + 1 < w → ∀ {c c2 : BitVec w},
+      (c = BitVec.twoPow w k ∧ c2 = -c) ∨ (c2 = BitVec.twoPow w k ∧ c = -c2) → ∀ (nuw nsw : Bool),
+      Refines (Val.add (some (x ^^^ c2)) (some c) nuw nsw)
+        (Val.ashr (Val.shl (some x) (some (BitVec.ofNat w (w - 1 - k)))) (some (BitVec.ofNat w (w - 1 - k)))) :=
+  fun h => not_refines_of 6#3 (by decide) (by decide)
+    (@h 3 2#3 0 (by decide) 1#3 7#3 (.inl ⟨by decide, by decide⟩) false false)
+
+/-- In `i3`, with both constants 0, `1` stays `1`, and extending from bit 0 gives `-1`. -/
+theorem LemmaStore.Counter.Peephole.Lemmas.add_xor_sext_refines.drop_hc :
+    ¬ ∀ {w : Nat} {x : BitVec w} {k : Nat}, k + 1 < w → (∀ i, k < i → x.getLsbD i = false) →
+      ∀ {c c2 : BitVec w} (nuw nsw : Bool),
+      Refines (Val.add (some (x ^^^ c2)) (some c) nuw nsw)
+        (Val.ashr (Val.shl (some x) (some (BitVec.ofNat w (w - 1 - k)))) (some (BitVec.ofNat w (w - 1 - k)))) :=
+  fun h => not_refines_of 1#3 (by decide) (by decide)
+    (@h 3 1#3 0 (by decide) (fun i hi => by simp [BitVec.getLsbD_one]; omega) 0#3 0#3 false false)
+
+theorem LemmaStore.Counter.Peephole.Lemmas.add_xor_sext_refines.sat :
+    ∃ (w : Nat) (x : BitVec w) (k : Nat) (c c2 : BitVec w) (_ _ : Bool),
+      k + 1 < w ∧ (∀ i, k < i → x.getLsbD i = false) ∧
+        ((c = BitVec.twoPow w k ∧ c2 = -c) ∨ (c2 = BitVec.twoPow w k ∧ c = -c2)) :=
+  ⟨2, 0#2, 0, BitVec.twoPow 2 0, -BitVec.twoPow 2 0, false, false, by decide, fun _ _ => by simp, .inl ⟨rfl, rfl⟩⟩

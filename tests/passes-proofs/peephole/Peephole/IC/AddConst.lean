@@ -422,7 +422,7 @@ theorem foldAddWithConstant.L924 (ρ : Env) (op0 op1 x c01 : Term w) (f : Flags)
   rcases isConstant_cases hc uc with ⟨c1, rfl⟩ | rfl
   · refine refines_of_eval (IS.addSrc_eval ρ op0 _ nsw nuw) (by rw [eval_bin, constAdd_eval]; rfl) ?_
     rw [← ok_inj he]
-    simp only [Term.denote, BinOp.eval, hd]
+    simp only [Term.denote, hd]
     exact Lemmas.add_or_disjoint_refines _ c1 k nuw nsw
   · refine refines_of_eval (IS.addSrc_eval ρ op0 _ nsw nuw) (by rw [eval_bin, constAdd_eval]; rfl) ?_
     rw [← ok_inj he]
@@ -816,8 +816,8 @@ theorem foldAddWithConstant.apSteps_sound (ρ : Env) (c : Ctx) (o : Oracle) (ho 
 `Ctx` and sound `Oracle`, in every run its operands are consistent with, poison included, with no `undef`. With `nsw`
 at `i1` its `L902` is wrong, so it assumes the `add` isn't an `i1` or has no `nsw`, which `visitAdd` makes sure of. -/
 theorem foldAddWithConstant.sound (ρ : Env) (c : Ctx) (o : Oracle) (ho : o.Sound ρ) (op0 op1 : Term w)
-    (nsw nuw : Bool) (c0 : op0.Consistent ρ) (c1 : op1.Consistent ρ) (u0 : op0.hasUndef = false)
-    (u1 : op1.hasUndef = false) (hw : w ≠ 1 ∨ nsw = false) :
+    (nsw nuw : Bool) (c0 : op0.Consistent ρ) (u0 : op0.hasUndef = false) (u1 : op1.hasUndef = false)
+    (hw : w ≠ 1 ∨ nsw = false) :
     ∀ s r, Step.fire s r ∈ foldAddWithConstant.steps c o op0 op1 nsw nuw →
       Refines ((IS.addSrc op0 op1 nsw nuw).eval ρ) (r.eval ρ) := by
   intro s r hmem

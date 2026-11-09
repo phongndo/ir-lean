@@ -180,7 +180,7 @@ theorem visitAdd.sound (ρ : Env) (c : Ctx) (o : Oracle) (ho : o.Sound ρ) (op0 
       rintro rfl
       exact simplifyAddInst_ne_null_i1 op0 op1 f.nsw f.nuw hs
     refine run_sound (P := fun r => Refines ((IS.addSrc op0 op1 f.nsw f.nuw).eval ρ) (r.eval ρ)) (fun s r hmem => ?_) h
-    simp only [List.nil_append, List.mem_append, List.mem_cons, List.not_mem_nil, or_false, or_assoc] at hmem
+    simp only [List.nil_append, List.mem_append, List.mem_cons, List.not_mem_nil, or_false] at hmem
     rcases hmem with h | h | h | h | h | h | h | h
     · split at h <;> simp at h
     · simp at h
@@ -188,7 +188,7 @@ theorem visitAdd.sound (ρ : Env) (c : Ctx) (o : Oracle) (ho : o.Sound ρ) (op0 
     · split at h <;> simp at h
     · split at h <;> simp at h
     · split at h <;> simp at h
-    · exact foldAddWithConstant.sound ρ c o ho op0 op1 f.nsw f.nuw c0 c1 u0 u1 (Or.inl hw) s r h
+    · exact foldAddWithConstant.sound ρ c o ho op0 op1 f.nsw f.nuw c0 u0 u1 (Or.inl hw) s r h
     · split at h <;> simp at h
 
 end Peephole.IC
