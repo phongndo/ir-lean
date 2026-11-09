@@ -95,13 +95,13 @@ theorem ushiftRight_ult {x c : BitVec w} (hx : x ≠ 0#w) (hc : c.toNat ≠ 0) :
   apply Nat.div_lt_self (by omega)
   exact Nat.one_lt_two_pow hc
 
-/-- `x udiv c <u x` for `x ≠ 0` and `c` not 0 or 1. `IS.simplifyICmpWithBinOpOnLHS.L3295`. -/
-theorem udiv_ult {x c : BitVec w} (hx : x ≠ 0#w) (hc0 : c ≠ 0#w) (hc : c.toNat ≠ 1) :
-    BitVec.ult (x / c) x = true := by
+/-- `x udiv c <u x` for `x ≠ 0` and `c` not 1 (`BitVec`'s division by 0 is 0). `IS.simplifyICmpWithBinOpOnLHS.L3295`. -/
+theorem udiv_ult {x c : BitVec w} (hx : x ≠ 0#w) (hc : c.toNat ≠ 1) : BitVec.ult (x / c) x = true := by
   simp only [BitVec.ult, decide_eq_true_eq, BitVec.toNat_udiv]
   have h0 : x.toNat ≠ 0 := fun h => hx (BitVec.eq_of_toNat_eq (by simpa using h))
-  have h1 : c.toNat ≠ 0 := fun h => hc0 (BitVec.eq_of_toNat_eq (by simpa using h))
-  exact Nat.div_lt_self (by omega) (by omega)
+  by_cases h1 : c.toNat = 0
+  · rw [h1, Nat.div_zero]; omega
+  · exact Nat.div_lt_self (by omega) (by omega)
 
 /-- `(x * c1) udiv c2 <=u x` for `c1 <=u c2`, even if the product wraps. `IS.simplifyICmpWithBinOpOnLHS.L3321`. -/
 theorem mul_udiv_ule {x c1 c2 : BitVec w} (hc : BitVec.ule c1 c2 = true) :
@@ -112,12 +112,19 @@ theorem mul_udiv_ule {x c1 c2 : BitVec w} (hc : BitVec.ule c1 c2 = true) :
     _ ≤ x.toNat * c2.toNat := Nat.mul_le_mul_left _ hc
     _ = c2.toNat * x.toNat := Nat.mul_comm _ _
 
-/-- `(x * c1) >>u c2 <=u x` for `c1 <=u 1 << c2` and `c2 < w`. `IS.simplifyICmpWithBinOpOnLHS.L3321`. -/
-theorem mul_ushiftRight_ule {x c1 c2 : BitVec w} (h2 : c2.toNat < w)
-    (hc : BitVec.ule c1 (1#w <<< c2) = true) : BitVec.ule ((x * c1) >>> c2) x = true := by
+/-- `(x * c1) >>u c2 <=u x` for `c1 <=u 1 << c2` (`APInt`'s and `BitVec`'s `<<` past the width give 0).
+`IS.simplifyICmpWithBinOpOnLHS.L3321`. -/
+theorem mul_ushiftRight_ule {x c1 c2 : BitVec w} (hc : BitVec.ule c1 (1#w <<< c2) = true) :
+    BitVec.ule ((x * c1) >>> c2) x = true := by
   simp only [BitVec.ule, decide_eq_true_eq, BitVec.ushiftRight_eq', BitVec.toNat_ushiftRight,
     Nat.shiftRight_eq_div_pow, BitVec.toNat_mul, BitVec.shiftLeft_eq', BitVec.toNat_shiftLeft,
     Nat.shiftLeft_eq] at hc ⊢
+  by_cases h2 : c2.toNat < w
+  case neg =>
+    rw [Nat.mod_eq_zero_of_dvd (Nat.dvd_mul_left_of_dvd (Nat.pow_dvd_pow 2 (by omega)) _)] at hc
+    have : c1.toNat = 0 := by omega
+    rw [this, Nat.mul_zero, Nat.zero_mod, Nat.zero_div]
+    omega
   have hw : 0 < w := by omega
   have h1 : (1#w).toNat = 1 := by simp [Nat.one_mod_two_pow hw]
   rw [h1, Nat.one_mul, Nat.mod_eq_of_lt (Nat.pow_lt_pow_right (by decide) h2)] at hc
@@ -126,11 +133,15 @@ theorem mul_ushiftRight_ule {x c1 c2 : BitVec w} (h2 : c2.toNat < w)
     _ ≤ x.toNat * 2 ^ c2.toNat := Nat.mul_le_mul_left _ hc
     _ = 2 ^ c2.toNat * x.toNat := Nat.mul_comm _ _
 
-/-- `(x << c1) udiv c2 <=u x` for `1 << c1 <=u c2` and `c1 < w`. `IS.simplifyICmpWithBinOpOnLHS.L3321`. -/
-theorem shiftLeft_udiv_ule {x c1 c2 : BitVec w} (h1 : c1.toNat < w)
-    (hc : BitVec.ule (1#w <<< c1) c2 = true) : BitVec.ule ((x <<< c1) / c2) x = true := by
+/-- `(x << c1) udiv c2 <=u x` for `1 << c1 <=u c2`. `IS.simplifyICmpWithBinOpOnLHS.L3321`. -/
+theorem shiftLeft_udiv_ule {x c1 c2 : BitVec w} (hc : BitVec.ule (1#w <<< c1) c2 = true) :
+    BitVec.ule ((x <<< c1) / c2) x = true := by
   simp only [BitVec.ule, decide_eq_true_eq, BitVec.toNat_udiv, BitVec.shiftLeft_eq', BitVec.toNat_shiftLeft,
     Nat.shiftLeft_eq] at hc ⊢
+  by_cases h1 : c1.toNat < w
+  case neg =>
+    rw [Nat.mod_eq_zero_of_dvd (Nat.dvd_mul_left_of_dvd (Nat.pow_dvd_pow 2 (by omega)) _), Nat.zero_div]
+    omega
   have hw : 0 < w := by omega
   have h1' : (1#w).toNat = 1 := by simp [Nat.one_mod_two_pow hw]
   rw [h1', Nat.one_mul, Nat.mod_eq_of_lt (Nat.pow_lt_pow_right (by decide) h1)] at hc
@@ -270,8 +281,6 @@ theorem or_subset {x c1 c2 : BitVec w} (h : c1 &&& ~~~c2 = 0#w) : (x ||| c1) &&&
   cases a <;> cases b <;> cases c <;> decide
 
 /-! ### Min and max: what `simplifyICmpWithMinMax` knows -/
-
-theorem toInt_inj' {a b : BitVec w} : a.toInt = b.toInt ↔ a = b := BitVec.toInt_inj
 
 /-- `smax(a, b) >=s a`. `IS.simplifyICmpWithMinMax.L3680`. -/
 theorem sle_smax (a b : BitVec w) : BitVec.sle a (if a.sle b then b else a) = true := by
@@ -523,12 +532,6 @@ theorem ule_add_one_and_ugt {v c0 : BitVec w} (hc : c0 ≠ 0#w) (hn : v.uaddOver
 
 /-! ### `ctpop`: what `simplifyAndOrOfICmpsWithCtpop` knows -/
 
-/-- `ctpop(x) == c` for a non-zero `c` makes `x` non-zero. `IS.simplifyAndOrOfICmpsWithCtpop.L1717`. -/
-theorem cpop_eq_ne_zero {x c : BitVec w} (hc : c ≠ 0#w) (h : x.cpop = c) : x ≠ 0#w := by
-  intro hx
-  rw [hx, BitVec.cpop_zero] at h
-  exact hc h.symm
-
 /-! ### Casts of `i1`: what `simplifyAndOrOfCmps` knows -/
 
 theorem setWidth_or {v : Nat} (x y : BitVec v) : (x ||| y).setWidth w = x.setWidth w ||| y.setWidth w := by
@@ -568,3 +571,400 @@ theorem umin_of_ule {x y : BitVec w} (h : BitVec.ule x y = true) : (if x.ule y t
 
 end Peephole.Lemmas
 
+
+/-! ## Counterexamples for the lemmas above
+
+For each hypothesis of a lemma above, the lemma without it is false: `drop_<hypothesis>` gives one input where it
+fails. For each lemma with hypotheses, `sat` gives one input where they all hold. `tools/store/store.py check` checks
+each states exactly what it has to. -/
+
+namespace LemmaStore.Counter
+
+open IRLean
+
+theorem not_pow2_three : ¬ Nat.isPowerOfTwo 3 := by
+  rintro ⟨k, hk⟩
+  rcases k with _ | _ | k
+  · simp at hk
+  · simp at hk
+  · have : 4 ≤ 2 ^ (k + 2) := by
+      calc 4 = 2 ^ 2 := rfl
+        _ ≤ 2 ^ (k + 2) := Nat.pow_le_pow_right (by decide) (by omega)
+    omega
+
+theorem not_pow2_zero : ¬ Nat.isPowerOfTwo 0 := by
+  rintro ⟨k, hk⟩
+  have := Nat.two_pow_pos k
+  omega
+
+/-! ### Orders -/
+
+/-- `-1 <=s 0`, and `255 <=u 0` isn't. -/
+theorem Peephole.Lemmas.sle_eq_ule_of_msb_eq.drop_h :
+    ¬ ∀ {w : Nat} {x y : BitVec w}, BitVec.sle x y = BitVec.ule x y :=
+  fun h => absurd (@h 8 255#8 0#8) (by decide)
+
+theorem Peephole.Lemmas.sle_eq_ule_of_msb_eq.sat : ∃ (w : Nat) (x y : BitVec w), x.msb = y.msb :=
+  ⟨8, 0#8, 0#8, rfl⟩
+
+theorem Peephole.Lemmas.slt_eq_ult_of_msb_eq.drop_h :
+    ¬ ∀ {w : Nat} {x y : BitVec w}, BitVec.slt x y = BitVec.ult x y :=
+  fun h => absurd (@h 8 255#8 0#8) (by decide)
+
+theorem Peephole.Lemmas.slt_eq_ult_of_msb_eq.sat : ∃ (w : Nat) (x y : BitVec w), x.msb = y.msb :=
+  ⟨8, 0#8, 0#8, rfl⟩
+
+theorem Peephole.Lemmas.slt_of_msb.drop_hx :
+    ¬ ∀ {w : Nat} {x y : BitVec w}, y.msb = false → BitVec.slt x y = true :=
+  fun h => absurd (@h 8 0#8 0#8 (by decide)) (by decide)
+
+theorem Peephole.Lemmas.slt_of_msb.drop_hy :
+    ¬ ∀ {w : Nat} {x y : BitVec w}, x.msb = true → BitVec.slt x y = true :=
+  fun h => absurd (@h 8 255#8 255#8 (by decide)) (by decide)
+
+theorem Peephole.Lemmas.slt_of_msb.sat : ∃ (w : Nat) (x y : BitVec w), x.msb = true ∧ y.msb = false :=
+  ⟨8, 255#8, 0#8, by decide, by decide⟩
+
+/-! ### Known bits -/
+
+theorem Peephole.Lemmas.msb_false_of_and_eq_zero.drop_h :
+    ¬ ∀ {w : Nat} {x k : BitVec w}, k.msb = true → x.msb = false :=
+  fun h => absurd (@h 8 128#8 128#8 (by decide)) (by decide)
+
+theorem Peephole.Lemmas.msb_false_of_and_eq_zero.drop_hk :
+    ¬ ∀ {w : Nat} {x k : BitVec w}, x &&& k = 0#w → x.msb = false :=
+  fun h => absurd (@h 8 128#8 0#8 (by decide)) (by decide)
+
+theorem Peephole.Lemmas.msb_false_of_and_eq_zero.sat :
+    ∃ (w : Nat) (x k : BitVec w), x &&& k = 0#w ∧ k.msb = true :=
+  ⟨8, 0#8, 128#8, by decide, by decide⟩
+
+theorem Peephole.Lemmas.msb_true_of_and_eq.drop_h :
+    ¬ ∀ {w : Nat} {x k : BitVec w}, k.msb = true → x.msb = true :=
+  fun h => absurd (@h 8 0#8 128#8 (by decide)) (by decide)
+
+theorem Peephole.Lemmas.msb_true_of_and_eq.drop_hk :
+    ¬ ∀ {w : Nat} {x k : BitVec w}, x &&& k = k → x.msb = true :=
+  fun h => absurd (@h 8 0#8 0#8 (by decide)) (by decide)
+
+theorem Peephole.Lemmas.msb_true_of_and_eq.sat : ∃ (w : Nat) (x k : BitVec w), x &&& k = k ∧ k.msb = true :=
+  ⟨8, 128#8, 128#8, by decide, by decide⟩
+
+/-! ### `or`, `urem`, `lshr`, `udiv` -/
+
+/-- `0 <=s (-128 | 0)` doesn't hold. -/
+theorem Peephole.Lemmas.sle_or_right.drop_h :
+    ¬ ∀ {w : Nat} {x y : BitVec w}, BitVec.sle y (x ||| y) = true :=
+  fun h => absurd (@h 8 128#8 0#8) (by decide)
+
+theorem Peephole.Lemmas.sle_or_right.sat : ∃ (w : Nat) (x y : BitVec w), y.msb = true ∨ x.msb = false :=
+  ⟨8, 0#8, 0#8, Or.inr rfl⟩
+
+/-- `BitVec`'s `1 % 0` is `1`, not below `0`. -/
+theorem Peephole.Lemmas.umod_lt.drop_hy : ¬ ∀ {w : Nat} {x y : BitVec w}, BitVec.ult (x % y) y = true :=
+  fun h => absurd (@h 8 1#8 0#8) (by decide)
+
+theorem Peephole.Lemmas.umod_lt.sat : ∃ (w : Nat) (_ y : BitVec w), y ≠ 0#w := ⟨8, 0#8, 1#8, by decide⟩
+
+theorem Peephole.Lemmas.umod_slt.drop_hy :
+    ¬ ∀ {w : Nat} {x y : BitVec w}, y.msb = false → BitVec.slt (x % y) y = true :=
+  fun h => absurd (@h 8 0#8 0#8 (by decide)) (by decide)
+
+/-- `0 % -128` is `0`, not below `-128`. -/
+theorem Peephole.Lemmas.umod_slt.drop_hm :
+    ¬ ∀ {w : Nat} {x y : BitVec w}, y ≠ 0#w → BitVec.slt (x % y) y = true :=
+  fun h => absurd (@h 8 0#8 128#8 (by decide)) (by decide)
+
+theorem Peephole.Lemmas.umod_slt.sat : ∃ (w : Nat) (_ y : BitVec w), y ≠ 0#w ∧ y.msb = false :=
+  ⟨8, 0#8, 1#8, by decide, by decide⟩
+
+theorem Peephole.Lemmas.ushiftRight_ult.drop_hx :
+    ¬ ∀ {w : Nat} {x c : BitVec w}, c.toNat ≠ 0 → BitVec.ult (x >>> c) x = true :=
+  fun h => absurd (@h 8 0#8 1#8 (by decide)) (by decide)
+
+theorem Peephole.Lemmas.ushiftRight_ult.drop_hc :
+    ¬ ∀ {w : Nat} {x c : BitVec w}, x ≠ 0#w → BitVec.ult (x >>> c) x = true :=
+  fun h => absurd (@h 8 1#8 0#8 (by decide)) (by decide)
+
+theorem Peephole.Lemmas.ushiftRight_ult.sat : ∃ (w : Nat) (x c : BitVec w), x ≠ 0#w ∧ c.toNat ≠ 0 :=
+  ⟨8, 1#8, 1#8, by decide, by decide⟩
+
+theorem Peephole.Lemmas.udiv_ult.drop_hx :
+    ¬ ∀ {w : Nat} {x c : BitVec w}, c.toNat ≠ 1 → BitVec.ult (x / c) x = true :=
+  fun h => absurd (@h 8 0#8 2#8 (by decide)) (by decide)
+
+theorem Peephole.Lemmas.udiv_ult.drop_hc :
+    ¬ ∀ {w : Nat} {x c : BitVec w}, x ≠ 0#w → BitVec.ult (x / c) x = true :=
+  fun h => absurd (@h 8 1#8 1#8 (by decide)) (by decide)
+
+theorem Peephole.Lemmas.udiv_ult.sat : ∃ (w : Nat) (x c : BitVec w), x ≠ 0#w ∧ c.toNat ≠ 1 :=
+  ⟨8, 1#8, 2#8, by decide, by decide⟩
+
+/-- `(1 * 2) udiv 1` is `2`. -/
+theorem Peephole.Lemmas.mul_udiv_ule.drop_hc :
+    ¬ ∀ {w : Nat} {x c1 c2 : BitVec w}, BitVec.ule (x * c1 / c2) x = true :=
+  fun h => absurd (@h 8 1#8 2#8 1#8) (by decide)
+
+theorem Peephole.Lemmas.mul_udiv_ule.sat : ∃ (w : Nat) (_ c1 c2 : BitVec w), BitVec.ule c1 c2 = true :=
+  ⟨8, 0#8, 0#8, 0#8, by decide⟩
+
+theorem Peephole.Lemmas.mul_ushiftRight_ule.drop_hc :
+    ¬ ∀ {w : Nat} {x c1 c2 : BitVec w}, BitVec.ule ((x * c1) >>> c2) x = true :=
+  fun h => absurd (@h 8 1#8 2#8 0#8) (by decide)
+
+theorem Peephole.Lemmas.mul_ushiftRight_ule.sat :
+    ∃ (w : Nat) (_ c1 c2 : BitVec w), BitVec.ule c1 (1#w <<< c2) = true :=
+  ⟨8, 0#8, 0#8, 0#8, by decide⟩
+
+theorem Peephole.Lemmas.shiftLeft_udiv_ule.drop_hc :
+    ¬ ∀ {w : Nat} {x c1 c2 : BitVec w}, BitVec.ule ((x <<< c1) / c2) x = true :=
+  fun h => absurd (@h 8 1#8 1#8 1#8) (by decide)
+
+theorem Peephole.Lemmas.shiftLeft_udiv_ule.sat :
+    ∃ (w : Nat) (_ c1 c2 : BitVec w), BitVec.ule (1#w <<< c1) c2 = true :=
+  ⟨8, 0#8, 0#8, 1#8, by decide⟩
+
+/-- `2 - 1` is `1`. -/
+theorem Peephole.Lemmas.sub_ne_of_odd.drop_hc : ¬ ∀ {w : Nat} {c x : BitVec w}, (c - x == x) = false :=
+  fun h => absurd (@h 8 2#8 1#8) (by decide)
+
+theorem Peephole.Lemmas.sub_ne_of_odd.sat : ∃ (w : Nat) (c _ : BitVec w), (c &&& 1#w).toNat = 1 :=
+  ⟨8, 1#8, 0#8, by decide⟩
+
+/-! ### `simplifyICmpWithBinOp` -/
+
+/-- A "zext" that doesn't widen: `0 - 200` is `56` in `i8`. -/
+theorem Peephole.Lemmas.toInt_zero_sub_setWidth.drop_h :
+    ¬ ∀ {w v : Nat} (x : BitVec v), (0#w - x.setWidth w).toInt = -(x.toNat : Int) :=
+  fun h => absurd (@h 8 8 200#8) (by decide)
+
+theorem Peephole.Lemmas.toInt_zero_sub_setWidth.sat : ∃ (w v : Nat) (_ : BitVec v), v < w :=
+  ⟨8, 1, 0#1, by decide⟩
+
+theorem Peephole.Lemmas.zero_sub_setWidth_sle.drop_h :
+    ¬ ∀ {w v : Nat} (x : BitVec v) {c : BitVec w}, c.msb = false → BitVec.sle (0#w - x.setWidth w) c = true :=
+  fun h => absurd (@h 8 8 200#8 0#8 (by decide)) (by decide)
+
+theorem Peephole.Lemmas.zero_sub_setWidth_sle.drop_hc :
+    ¬ ∀ {w v : Nat} (x : BitVec v), v < w → ∀ {c : BitVec w}, BitVec.sle (0#w - x.setWidth w) c = true :=
+  fun h => absurd (@h 8 1 0#1 (by decide) 128#8) (by decide)
+
+theorem Peephole.Lemmas.zero_sub_setWidth_sle.sat :
+    ∃ (w v : Nat) (_ : BitVec v) (c : BitVec w), v < w ∧ c.msb = false :=
+  ⟨8, 1, 0#1, 0#8, by decide, by decide⟩
+
+theorem Peephole.Lemmas.zero_sub_setWidth_slt.drop_h :
+    ¬ ∀ {w v : Nat} (x : BitVec v) {c : BitVec w}, c.msb = false → c.toNat ≠ 0 →
+      BitVec.slt (0#w - x.setWidth w) c = true :=
+  fun h => absurd (@h 8 8 200#8 1#8 (by decide) (by decide)) (by decide)
+
+theorem Peephole.Lemmas.zero_sub_setWidth_slt.drop_hc :
+    ¬ ∀ {w v : Nat} (x : BitVec v), v < w → ∀ {c : BitVec w}, c.toNat ≠ 0 →
+      BitVec.slt (0#w - x.setWidth w) c = true :=
+  fun h => absurd (@h 8 1 0#1 (by decide) 128#8 (by decide)) (by decide)
+
+theorem Peephole.Lemmas.zero_sub_setWidth_slt.drop_hc0 :
+    ¬ ∀ {w v : Nat} (x : BitVec v), v < w → ∀ {c : BitVec w}, c.msb = false →
+      BitVec.slt (0#w - x.setWidth w) c = true :=
+  fun h => absurd (@h 8 1 0#1 (by decide) 0#8 (by decide)) (by decide)
+
+theorem Peephole.Lemmas.zero_sub_setWidth_slt.sat :
+    ∃ (w v : Nat) (_ : BitVec v) (c : BitVec w), v < w ∧ c.msb = false ∧ c.toNat ≠ 0 :=
+  ⟨8, 1, 0#1, 1#8, by decide, by decide, by decide⟩
+
+/-- `3 << 0` is `3`, which is neither a power of two nor zero, and more than half of `256`. -/
+theorem Peephole.Lemmas.shiftLeft_pow2.drop_hc :
+    ¬ ∀ {w : Nat} {c : BitVec w} (s : Nat),
+      ((c <<< s).toNat = 0 ∨ (c <<< s).toNat.isPowerOfTwo) ∧ 2 * (c <<< s).toNat ≤ 2 ^ w :=
+  fun h => absurd (@h 8 255#8 0).2 (by decide)
+
+theorem Peephole.Lemmas.shiftLeft_pow2.sat : ∃ (w : Nat) (c : BitVec w) (_ : Nat), c.toNat.isPowerOfTwo :=
+  ⟨8, 1#8, 0, ⟨0, rfl⟩⟩
+
+theorem Peephole.Lemmas.shiftLeft_pow2_ne.drop_h2 :
+    ¬ ∀ {w : Nat} {c2 c : BitVec w} (s : Nat), ¬ c.toNat.isPowerOfTwo → (c2 <<< s ≠ 0#w ∨ c ≠ 0#w) →
+      (c2 <<< s == c) = false :=
+  fun h => absurd (@h 8 3#8 3#8 0 not_pow2_three (Or.inr (by decide))) (by decide)
+
+theorem Peephole.Lemmas.shiftLeft_pow2_ne.drop_hc :
+    ¬ ∀ {w : Nat} {c2 c : BitVec w} (s : Nat), c2.toNat.isPowerOfTwo → (c2 <<< s ≠ 0#w ∨ c ≠ 0#w) →
+      (c2 <<< s == c) = false :=
+  fun h => absurd (@h 8 1#8 1#8 0 ⟨0, rfl⟩ (Or.inl (by decide))) (by decide)
+
+/-- `128 << 1` is `0` in `i8`, and so is `c`. -/
+theorem Peephole.Lemmas.shiftLeft_pow2_ne.drop_hz :
+    ¬ ∀ {w : Nat} {c2 c : BitVec w} (s : Nat), c2.toNat.isPowerOfTwo → ¬ c.toNat.isPowerOfTwo →
+      (c2 <<< s == c) = false :=
+  fun h => absurd (@h 8 128#8 0#8 1 ⟨7, rfl⟩ not_pow2_zero) (by decide)
+
+theorem Peephole.Lemmas.shiftLeft_pow2_ne.sat :
+    ∃ (w : Nat) (c2 c : BitVec w) (s : Nat),
+      c2.toNat.isPowerOfTwo ∧ ¬ c.toNat.isPowerOfTwo ∧ (c2 <<< s ≠ 0#w ∨ c ≠ 0#w) :=
+  ⟨8, 1#8, 3#8, 0, ⟨0, rfl⟩, not_pow2_three, Or.inl (by decide)⟩
+
+theorem Peephole.Lemmas.shiftLeft_pow2_ule_intMin.drop_hc :
+    ¬ ∀ {w : Nat} {c : BitVec w} (s : Nat), BitVec.ule (c <<< s) (BitVec.intMin w) = true :=
+  fun h => absurd (@h 8 255#8 0) (by decide)
+
+theorem Peephole.Lemmas.shiftLeft_pow2_ule_intMin.sat :
+    ∃ (w : Nat) (c : BitVec w) (_ : Nat), c.toNat.isPowerOfTwo :=
+  ⟨8, 1#8, 0, ⟨0, rfl⟩⟩
+
+theorem Peephole.Lemmas.ule_of_subset.drop_h : ¬ ∀ {w : Nat} {a b : BitVec w}, BitVec.ule a b = true :=
+  fun h => absurd (@h 8 1#8 0#8) (by decide)
+
+theorem Peephole.Lemmas.ule_of_subset.sat : ∃ (w : Nat) (a b : BitVec w), a &&& ~~~b = 0#w :=
+  ⟨8, 0#8, 0#8, by decide⟩
+
+theorem Peephole.Lemmas.and_subset.drop_h :
+    ¬ ∀ {w : Nat} {x c1 c2 : BitVec w}, (x &&& c1) &&& ~~~(x &&& c2) = 0#w :=
+  fun h => absurd (@h 8 1#8 1#8 0#8) (by decide)
+
+theorem Peephole.Lemmas.and_subset.sat : ∃ (w : Nat) (_ c1 c2 : BitVec w), c1 &&& ~~~c2 = 0#w :=
+  ⟨8, 0#8, 0#8, 0#8, by decide⟩
+
+theorem Peephole.Lemmas.or_subset.drop_h :
+    ¬ ∀ {w : Nat} {x c1 c2 : BitVec w}, (x ||| c1) &&& ~~~(x ||| c2) = 0#w :=
+  fun h => absurd (@h 8 0#8 1#8 0#8) (by decide)
+
+theorem Peephole.Lemmas.or_subset.sat : ∃ (w : Nat) (_ c1 c2 : BitVec w), c1 &&& ~~~c2 = 0#w :=
+  ⟨8, 0#8, 0#8, 0#8, by decide⟩
+
+/-! ### Min and max -/
+
+/-- `smin(1, 1)` is above `smax(0, 0)`. -/
+theorem Peephole.Lemmas.smin_sle_smax.drop_h :
+    ¬ ∀ {w : Nat} {a b c d : BitVec w},
+      BitVec.sle (if c.sle d then c else d) (if a.sle b then b else a) = true :=
+  fun h => absurd (@h 8 0#8 0#8 1#8 1#8) (by decide)
+
+theorem Peephole.Lemmas.smin_sle_smax.sat :
+    ∃ (w : Nat) (a b c d : BitVec w), c = a ∨ d = a ∨ c = b ∨ d = b :=
+  ⟨8, 0#8, 0#8, 0#8, 0#8, Or.inl rfl⟩
+
+theorem Peephole.Lemmas.umin_ule_umax.drop_h :
+    ¬ ∀ {w : Nat} {a b c d : BitVec w},
+      BitVec.ule (if c.ule d then c else d) (if a.ule b then b else a) = true :=
+  fun h => absurd (@h 8 0#8 0#8 1#8 1#8) (by decide)
+
+theorem Peephole.Lemmas.umin_ule_umax.sat :
+    ∃ (w : Nat) (a b c d : BitVec w), c = a ∨ d = a ∨ c = b ∨ d = b :=
+  ⟨8, 0#8, 0#8, 0#8, 0#8, Or.inl rfl⟩
+
+/-! ### Compares of `X + C0` and `X` -/
+
+theorem Peephole.Lemmas.toNat_ofNat_small.drop_hw :
+    ¬ ∀ {w k : Nat}, k ≤ 2 → (BitVec.ofNat w k).toNat = k :=
+  fun h => absurd (@h 1 2 (by decide)) (by decide)
+
+theorem Peephole.Lemmas.toNat_ofNat_small.drop_hk :
+    ¬ ∀ {w k : Nat}, 2 ≤ w → (BitVec.ofNat w k).toNat = k :=
+  fun h => absurd (@h 2 4 (by decide)) (by decide)
+
+theorem Peephole.Lemmas.toNat_ofNat_small.sat : ∃ (w k : Nat), 2 ≤ w ∧ k ≤ 2 := ⟨2, 0, by decide, by decide⟩
+
+theorem Peephole.Lemmas.two_le_of_toInt_pos.drop_h : ¬ ∀ {w : Nat} {_ : BitVec w}, 2 ≤ w :=
+  fun h => absurd (@h 0 0#0) (by decide)
+
+theorem Peephole.Lemmas.two_le_of_toInt_pos.sat : ∃ (w : Nat) (c : BitVec w), 0 < c.toInt := ⟨8, 1#8, by decide⟩
+
+/-- `c0 = 0` and `v = 1`: `1 <u 2` and `0 <s 1`. -/
+theorem Peephole.Lemmas.ult_add_two_and_sgt.drop_hc :
+    ¬ ∀ {w : Nat} {v c0 : BitVec w}, (BitVec.ult (v + c0) (c0 + 2#w) && BitVec.slt c0 v) = false :=
+  fun h => absurd (@h 8 1#8 0#8) (by decide)
+
+theorem Peephole.Lemmas.ult_add_two_and_sgt.sat : ∃ (w : Nat) (_ c0 : BitVec w), 0 < c0.toInt :=
+  ⟨8, 0#8, 1#8, by decide⟩
+
+theorem Peephole.Lemmas.slt_add_two_and_sgt.drop_hc :
+    ¬ ∀ {w : Nat} {v c0 : BitVec w}, v.saddOverflow c0 = false →
+      (BitVec.slt (v + c0) (c0 + 2#w) && BitVec.slt c0 v) = false :=
+  fun h => absurd (@h 8 1#8 0#8 (by decide)) (by decide)
+
+/-- `127 + 1` wraps to `-128`, below `3`. -/
+theorem Peephole.Lemmas.slt_add_two_and_sgt.drop_hn :
+    ¬ ∀ {w : Nat} {v c0 : BitVec w}, 0 < c0.toInt →
+      (BitVec.slt (v + c0) (c0 + 2#w) && BitVec.slt c0 v) = false :=
+  fun h => absurd (@h 8 127#8 1#8 (by decide)) (by decide)
+
+theorem Peephole.Lemmas.slt_add_two_and_sgt.sat :
+    ∃ (w : Nat) (v c0 : BitVec w), 0 < c0.toInt ∧ v.saddOverflow c0 = false :=
+  ⟨8, 0#8, 1#8, by decide, by decide⟩
+
+theorem Peephole.Lemmas.ule_add_one_and_sgt.drop_hc :
+    ¬ ∀ {w : Nat} {v c0 : BitVec w}, (BitVec.ule (v + c0) (c0 + 1#w) && BitVec.slt c0 v) = false :=
+  fun h => absurd (@h 8 1#8 0#8) (by decide)
+
+theorem Peephole.Lemmas.ule_add_one_and_sgt.sat : ∃ (w : Nat) (_ c0 : BitVec w), 0 < c0.toInt :=
+  ⟨8, 0#8, 1#8, by decide⟩
+
+theorem Peephole.Lemmas.sle_add_one_and_sgt.drop_hc :
+    ¬ ∀ {w : Nat} {v c0 : BitVec w}, v.saddOverflow c0 = false →
+      (BitVec.sle (v + c0) (c0 + 1#w) && BitVec.slt c0 v) = false :=
+  fun h => absurd (@h 8 1#8 0#8 (by decide)) (by decide)
+
+theorem Peephole.Lemmas.sle_add_one_and_sgt.drop_hn :
+    ¬ ∀ {w : Nat} {v c0 : BitVec w}, 0 < c0.toInt →
+      (BitVec.sle (v + c0) (c0 + 1#w) && BitVec.slt c0 v) = false :=
+  fun h => absurd (@h 8 127#8 1#8 (by decide)) (by decide)
+
+theorem Peephole.Lemmas.sle_add_one_and_sgt.sat :
+    ∃ (w : Nat) (v c0 : BitVec w), 0 < c0.toInt ∧ v.saddOverflow c0 = false :=
+  ⟨8, 0#8, 1#8, by decide, by decide⟩
+
+theorem Peephole.Lemmas.ult_add_two_and_ugt.drop_hc :
+    ¬ ∀ {w : Nat} {v c0 : BitVec w}, v.uaddOverflow c0 = false →
+      (BitVec.ult (v + c0) (c0 + 2#w) && BitVec.ult c0 v) = false :=
+  fun h => absurd (@h 8 1#8 0#8 (by decide)) (by decide)
+
+/-- `255 + 1` wraps to `0`, below `3`. -/
+theorem Peephole.Lemmas.ult_add_two_and_ugt.drop_hn :
+    ¬ ∀ {w : Nat} {v c0 : BitVec w}, c0 ≠ 0#w →
+      (BitVec.ult (v + c0) (c0 + 2#w) && BitVec.ult c0 v) = false :=
+  fun h => absurd (@h 8 255#8 1#8 (by decide)) (by decide)
+
+theorem Peephole.Lemmas.ult_add_two_and_ugt.sat :
+    ∃ (w : Nat) (v c0 : BitVec w), c0 ≠ 0#w ∧ v.uaddOverflow c0 = false :=
+  ⟨8, 0#8, 1#8, by decide, by decide⟩
+
+theorem Peephole.Lemmas.ule_add_one_and_ugt.drop_hc :
+    ¬ ∀ {w : Nat} {v c0 : BitVec w}, v.uaddOverflow c0 = false →
+      (BitVec.ule (v + c0) (c0 + 1#w) && BitVec.ult c0 v) = false :=
+  fun h => absurd (@h 8 1#8 0#8 (by decide)) (by decide)
+
+theorem Peephole.Lemmas.ule_add_one_and_ugt.drop_hn :
+    ¬ ∀ {w : Nat} {v c0 : BitVec w}, c0 ≠ 0#w →
+      (BitVec.ule (v + c0) (c0 + 1#w) && BitVec.ult c0 v) = false :=
+  fun h => absurd (@h 8 255#8 1#8 (by decide)) (by decide)
+
+theorem Peephole.Lemmas.ule_add_one_and_ugt.sat :
+    ∃ (w : Nat) (v c0 : BitVec w), c0 ≠ 0#w ∧ v.uaddOverflow c0 = false :=
+  ⟨8, 0#8, 1#8, by decide, by decide⟩
+
+/-! ### A `select` against a min or max -/
+
+theorem Peephole.Lemmas.smax_of_sle.drop_h : ¬ ∀ {w : Nat} {x y : BitVec w}, (if x.sle y then y else x) = x :=
+  fun h => absurd (@h 8 0#8 1#8) (by decide)
+
+theorem Peephole.Lemmas.smax_of_sle.sat : ∃ (w : Nat) (x y : BitVec w), BitVec.sle y x = true :=
+  ⟨8, 0#8, 0#8, by decide⟩
+
+theorem Peephole.Lemmas.smin_of_sle.drop_h : ¬ ∀ {w : Nat} {x y : BitVec w}, (if x.sle y then x else y) = x :=
+  fun h => absurd (@h 8 1#8 0#8) (by decide)
+
+theorem Peephole.Lemmas.smin_of_sle.sat : ∃ (w : Nat) (x y : BitVec w), BitVec.sle x y = true :=
+  ⟨8, 0#8, 0#8, by decide⟩
+
+theorem Peephole.Lemmas.umax_of_ule.drop_h : ¬ ∀ {w : Nat} {x y : BitVec w}, (if x.ule y then y else x) = x :=
+  fun h => absurd (@h 8 0#8 1#8) (by decide)
+
+theorem Peephole.Lemmas.umax_of_ule.sat : ∃ (w : Nat) (x y : BitVec w), BitVec.ule y x = true :=
+  ⟨8, 0#8, 0#8, by decide⟩
+
+theorem Peephole.Lemmas.umin_of_ule.drop_h : ¬ ∀ {w : Nat} {x y : BitVec w}, (if x.ule y then x else y) = x :=
+  fun h => absurd (@h 8 1#8 0#8) (by decide)
+
+theorem Peephole.Lemmas.umin_of_ule.sat : ∃ (w : Nat) (x y : BitVec w), BitVec.ule x y = true :=
+  ⟨8, 0#8, 0#8, by decide⟩
+
+end LemmaStore.Counter

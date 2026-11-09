@@ -322,7 +322,7 @@ theorem shrDiv_val {ρ : Env} {v s : Term w} (h : (lshrOf v s || udivOf v s) = t
         obtain ⟨pa, hpa, rfl⟩ := hv x hx
         rw [specific_denote ha, hz] at hpa
         cases hpa
-        exact Lemmas.udiv_ult hz0 hq0 (by simpa using hcst)
+        exact Lemmas.udiv_ult hz0 (by simpa using hcst)
       · cases hcst
     · cases h
 
@@ -419,7 +419,7 @@ theorem mulDiv_val {ρ : Env} {v s : Term w} (h : (mulUDiv v s || mulLShr v s ||
           cases hpm
           rw [apint_denote hc1] at hpc
           cases hpc
-          exact Lemmas.mul_ushiftRight_ule hlt hcst
+          exact Lemmas.mul_ushiftRight_ule hcst
         · cases hcst
       · cases h
     · cases h
@@ -444,7 +444,7 @@ theorem mulDiv_val {ρ : Env} {v s : Term w} (h : (mulUDiv v s || mulLShr v s ||
           cases hpm
           rw [apint_denote hc1] at hpc
           cases hpc
-          exact Lemmas.shiftLeft_udiv_ule hlt hcst
+          exact Lemmas.shiftLeft_udiv_ule hcst
         · cases hcst
       · cases h
     · cases h
