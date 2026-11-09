@@ -245,3 +245,7 @@ reads it. That difference is itself a thing [Phase 3](roadmap.md#phase-3-c-and-r
     side's choices, so inserting, removing and duplicating a `freeze` are judged as LangRef judges them, and four real
     `instcombine` runs on `freeze` are bound as refinements. `undef` stays out of the model. Done in
     [#72](https://github.com/phongndo/ir-lean/pull/72). See [refinement](refinement.md#runs-that-make-choices).
+14. Gate B1 of binding proofs to LLVM's C++, on 2026-11-09: `IRLean/LLVMHeap.lean` says what bytes in memory mean as
+    LLVM's `Value`, `Use`, `ConstantInt`, `APInt` and `Type`, as the matchers read them, proved kept by
+    `ConstantInt::get`, `PoisonValue::get` and `BinaryOperator::Create` as specifications of what each does to memory,
+    and a layout probe agrees with it on the pinned `libLLVM`. See [LLVM's IR in memory](llvm-heap.md).

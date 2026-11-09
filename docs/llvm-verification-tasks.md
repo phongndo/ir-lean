@@ -421,11 +421,12 @@ when they land.
 - **Lane:** BIND
 - **Scope:** What `Value`, `User`, use lists, `BasicBlock`, `Instruction` and `APInt` mean in memory, as an abstraction from the C++ heap to IR syntax, so that a theorem about a compiled pass is a theorem about an IR transformation.
 - **Depends on:** BIND-01, SEM-06
-- **Owns:** `IRLean/LLVMHeap.lean`
+- **Owns:** `IRLean/LLVMHeap.lean`, `tests/llvm_heap/`, `tests/llvm_heap.sh`, `docs/llvm-heap.md`
 - **Acceptance:** The abstraction is proved preserved by the IR-building API calls a small pass makes.
-- **Trust gaps:** The C++ object layout comes from the compiled pass's IR, for one target. Some of what the code relies on is only asserted in the C++: in a release build, `ConstantInt::get(i1, 7)` keeps the word 7, breaking APInt's invariant that the bits above the width are 0 ([binding approach](binding-approach.md#what-this-means-for-the-other-tasks)).
-- **Status:** not started
-- **Evidence:** None.
+- **Trust gaps:** The C++ object layout comes from the compiled pass's IR, for one target, and a probe checks it on the pinned `libLLVM`. What each constructor does to memory is a specification the probe checks finitely, not a translation of its C++. Some of what the code relies on is only asserted in the C++: in a release build, `ConstantInt::get(i1, 7)` keeps the word 7, breaking APInt's invariant that the bits above the width are 0 ([binding approach](binding-approach.md#what-this-means-for-the-other-tasks)), so clean words are a hypothesis of `ConstantInt::get`. Use lists aren't in the view yet, so `BinaryOperator::Create` takes where its writes to them land as a hypothesis.
+- **Status:** in progress: gate B1, reading IR, passed on 2026-11-09. Writing IR, use lists, `BasicBlock` and `Instruction`'s other fields are gate B4's
+- **Gate waiver:** B1 reads `Value`, `Use`, `ConstantInt`, `APInt` and `Type`, which hold no pointer made from an integer, so it needs nothing of SEM-06's provenance rules. The rest of BIND-04 waits for SEM-06, and B1's view is checked again when SEM-06 changes `IRLean/Mem.lean`.
+- **Evidence:** [`IRLean/LLVMHeap.lean`](llvm-heap.md) proves its view of the IR kept by `ConstantInt::get`, `PoisonValue::get` and `BinaryOperator::Create`, with an example heap meeting it, and `tests/llvm_heap.sh`, in CI as `llvm_heap`, checks it with warnings as errors, on the standard axioms, with `leanchecker`, and runs the layout probe, 312 facts on the pinned `libLLVM`.
 
 ### BIND-05: Translating LLVM's own C++
 
