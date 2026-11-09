@@ -13,15 +13,28 @@ usage: native_check.py SLICES_DIR WORK_DIR [--runs N]
 
 import json
 import re
-import subprocess
 import sys
 from pathlib import Path
+
+sys.path.append(str(Path(__file__).resolve().parents[2] / "tools"))
+from irlean import proc
 
 TYPE = re.compile(r"(<(\d+) x i(\d+)>|i(\d+)) (%[\w.]+)")
 # What the slices need: AVX-512 with VL and BW, as x86-64-v4 has, and VNNI.
 LLC = ["-mcpu=x86-64-v4", "-mattr=+avx512vnni"]
 CLANG = ["-march=x86-64-v4", "-mavx512vnni"]
 DIFFER, UNKNOWN = 3, 2
+
+
+class Failed(Exception):
+    """A step the check needs exited with an error."""
+
+
+def step(argv: list[str]) -> None:
+    """Runs a step the check needs, its output going where this script's goes. Raises Failed if it fails."""
+    r = proc.run(argv, stdout=None, stderr=None)
+    if r.exit != 0:
+        raise Failed(f"Command '{argv}' returned non-zero exit status {r.exit}.")
 
 
 def found(m: re.Match[str] | None, what: str) -> re.Match[str]:
@@ -46,18 +59,7 @@ def check() -> int:
         name = entry["name"]
         for kind in ("src", "tgt"):
             obj = work / f"{name}.{kind}.o"
-            subprocess.run(
-                [
-                    "llc",
-                    "-O2",
-                    *LLC,
-                    "-filetype=obj",
-                    str(slices / f"{name}.{kind}.ll"),
-                    "-o",
-                    str(obj),
-                ],
-                check=True,
-            )
+            step(["llc", "-O2", *LLC, "-filetype=obj", str(slices / f"{name}.{kind}.ll"), "-o", str(obj)])
             objects.append(str(obj))
         lines = (slices / f"{name}.src.ll").read_text().splitlines()
         define = next(line for line in lines if line.startswith("define"))
@@ -86,7 +88,7 @@ def check() -> int:
         ll = work / f"check_{name}.ll"
         ll.write_text('target triple = "x86_64-unknown-linux-gnu"\n' + "\n".join(lines) + "\n")
         obj = work / f"check_{name}.o"
-        subprocess.run(["llc", "-O2", *LLC, "-filetype=obj", str(ll), "-o", str(obj)], check=True)
+        step(["llc", "-O2", *LLC, "-filetype=obj", str(ll), "-o", str(obj)])
         objects.append(str(obj))
         checks.append((name, offset))
     driver = work / "driver.c"
@@ -109,22 +111,22 @@ def check() -> int:
         + "  return bad != 0;\n}\n"
     )
     exe = work / "check"
-    subprocess.run(["clang", "-O1", *CLANG, str(driver), *objects, "-o", str(exe)], check=True)
-    r = subprocess.run([str(exe)], capture_output=True, text=True, check=False)
-    print(r.stdout, end="")
-    mismatch = "MISMATCH " in r.stdout
-    if (r.returncode, mismatch) == (0, False):
+    step(["clang", "-O1", *CLANG, str(driver), *objects, "-o", str(exe)])
+    r = proc.run([exe])
+    print(r.out, end="")
+    mismatch = "MISMATCH " in r.out
+    if (r.exit, mismatch) == (0, False):
         return 0
-    if (r.returncode, mismatch) == (1, True):
+    if (r.exit, mismatch) == (1, True):
         return DIFFER
-    print(f"the check exited with {r.returncode}, so it says nothing about the slices")
+    print(f"the check exited with {r.exit}, so it says nothing about the slices")
     return UNKNOWN
 
 
 def main() -> int:
     try:
         return check()
-    except (OSError, subprocess.CalledProcessError) as error:
+    except (OSError, Failed) as error:
         print(f"the check didn't run: {error}")
         return UNKNOWN
 

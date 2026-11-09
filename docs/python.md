@@ -42,6 +42,7 @@ as [`pyproject.toml`](../pyproject.toml) requires.
 | [`hashing`](../tools/irlean/hashing.py) | SHA-256 of bytes, text and files, a piece at a time, and of trees, on several threads, read back one way, refusing links to anything unhashed, as [binding](llvm-proof-binding.md) needs |
 | [`lean`](../tools/irlean/lean.py) | `lean` with `-M` and 64 MB thread stacks, `leanchecker`, `LEAN_PATH`, the pinned toolchain, Lean's messages, the limits it reports, and the axiom audit through [`tests/check_axioms.lean`](../tests/check_axioms.lean) |
 | [`schemas`](../tools/irlean/schemas.py) | Every versioned JSON schema the repo writes, named once, and reading, writing and checking records of them |
+| [`model`](../tools/irlean/model.py) | What the model declares that Python needs: `IRLean.UB`'s and `IRLean.ModelStop`'s constructors, read from `IRLean/Basic.lean` and checked against what Lean reads, so no tool keeps a copy that goes stale |
 | [`pins`](../tools/irlean/pins.py) | The toolchain the repo pins, in `tests/llvm/targets.toml`, `lean-toolchain` and `nix/shell.nix`, and the binaries on `PATH`, each by resolved path, SHA-256 and version |
 
 A script reaches it by putting `tools/` on its path first, as Python looks only next to the script:

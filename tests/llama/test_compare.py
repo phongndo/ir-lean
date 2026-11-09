@@ -1,17 +1,18 @@
 #!/usr/bin/env python3
 """Portable mutation checks for the exact-logit comparator; no model or native build is needed."""
 
-import hashlib
 import json
 import re
 import struct
-import subprocess
 import sys
 import tempfile
 import unittest
 from pathlib import Path
 
 import compare as comparator
+
+sys.path.append(str(Path(__file__).resolve().parents[2] / "tools"))
+from irlean import hashing, proc
 
 
 class CaptureComparisonTests(unittest.TestCase):
@@ -59,7 +60,7 @@ class CaptureComparisonTests(unittest.TestCase):
         self.assertEqual(result["metadata"], self.metadata)
         self.assertEqual(
             result["sha256"],
-            {suffix: hashlib.sha256(content).hexdigest() for suffix, content in self.payloads.items()},
+            {suffix: hashing.sha256(content) for suffix, content in self.payloads.items()},
         )
 
     def test_one_bit_fp32_change_is_rejected(self):
@@ -121,14 +122,14 @@ class CaptureComparisonTests(unittest.TestCase):
 
     def test_cli_reports_success_and_fails_closed_on_corruption(self):
         command = [sys.executable, str(Path(comparator.__file__)), str(self.left), str(self.right)]
-        success = subprocess.run(command, text=True, capture_output=True, check=False)
-        self.assertEqual(success.returncode, 0, success.stderr)
-        self.assertTrue(json.loads(success.stdout)["bitwise_equal"])
+        success = proc.run(command)
+        self.assertEqual(success.exit, 0, success.err)
+        self.assertTrue(json.loads(success.out)["bitwise_equal"])
         self.flip_bit("logits.f32", 8)
-        failure = subprocess.run(command, text=True, capture_output=True, check=False)
-        self.assertEqual(failure.returncode, 1)
-        self.assertEqual(failure.stdout, "")
-        self.assertIn("logits.f32 mismatch at byte 8", failure.stderr)
+        failure = proc.run(command)
+        self.assertEqual(failure.exit, 1)
+        self.assertEqual(failure.out, "")
+        self.assertIn("logits.f32 mismatch at byte 8", failure.err)
 
 
 if __name__ == "__main__":

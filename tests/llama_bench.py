@@ -21,14 +21,12 @@ usage: tests/llama_bench.py MODEL.gguf... [--rounds N] [--cpus 0-7] [--threads 8
 
 import argparse
 import csv
-import hashlib
 import json
 import os
 import re
 import shlex
 import shutil
 import statistics
-import subprocess
 import sys
 import tempfile
 import time
@@ -37,6 +35,9 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "tests"))
 import llama  # noqa: E402
+
+sys.path.append(str(ROOT / "tools"))
+from irlean import hashing, proc  # noqa: E402
 
 ENV = {
     **os.environ,
@@ -54,21 +55,11 @@ OBJECT = "ggml/src/CMakeFiles/ggml-cpu.dir/ggml-cpu/arch/x86/repack.cpp.o"
 LIBRARY = "bin/libggml-cpu.so.0"
 
 
-def sh(args, cwd=None, env=ENV, check=True, **kw) -> subprocess.CompletedProcess:
-    r = subprocess.run(
-        [str(a) for a in args], cwd=cwd, env=env, capture_output=True, text=True, check=False, **kw
-    )
-    if check and r.returncode != 0:
-        raise SystemExit(f"{' '.join(map(str, args))}\n{r.stdout[-3000:]}{r.stderr[-3000:]}")
+def sh(args, cwd=None, env=ENV, check=True, **kw) -> proc.Ran:
+    r = proc.run([str(a) for a in args], cwd=cwd, env=env, **kw)
+    if check and r.exit != 0:
+        raise SystemExit(f"{' '.join(map(str, args))}\n{r.out[-3000:]}{r.err[-3000:]}")
     return r
-
-
-def sha256(path: Path) -> str:
-    h = hashlib.sha256()
-    with open(path, "rb") as f:
-        for block in iter(lambda: f.read(1 << 20), b""):
-            h.update(block)
-    return h.hexdigest()
 
 
 def bodies(ll: Path) -> str:
@@ -128,7 +119,7 @@ def build(work: Path) -> tuple[Path, Path, Path]:
     sh(["llc", "-O3", "-relocation-model=pic", "-filetype=obj", rw, "-o", rw_obj])
     link = (
         sh(["ninja", "-C", b, "-t", "commands", "bin/" + os.readlink(b / LIBRARY)])
-        .stdout.strip()
+        .out.strip()
         .splitlines()[-1]
     )
     if OBJECT not in link:
@@ -172,7 +163,7 @@ def logits_match(b: Path, libs: dict, model: Path, text: Path, work: Path, cpus:
             ],
             env={**ENV, "LD_LIBRARY_PATH": lib},
         )
-    same = sh(["cmp", files["base"], files["rw"]], check=False).returncode == 0
+    same = sh(["cmp", files["base"], files["rw"]], check=False).exit == 0
     size = files["base"].stat().st_size
     for f in files.values():
         f.unlink()
@@ -221,7 +212,7 @@ def timed(
                 "csv",
             ],
             env=env,
-        ).stdout
+        ).out
         metric = float(list(csv.DictReader(out.splitlines()))[-1]["avg_ts"])
     else:
         out = sh(
@@ -240,7 +231,7 @@ def timed(
                 "24",
             ],
             env=env,
-        ).stderr
+        ).err
         metric = float(re.findall(r"PPL = ([0-9.]+)", out)[-1])
     wall = time.monotonic() - t0
     p = perf(stat)
@@ -313,7 +304,7 @@ def main() -> int:
     b, base, rw = build(work)
     libs = {"base": base, "rw": rw}
     for m in args.models:
-        print(f"     {m.name}: sha256 {sha256(m)}", flush=True)
+        print(f"     {m.name}: sha256 {hashing.sha256_file(m)}", flush=True)
     workloads = args.workloads.split(",")
     if "ppl" in workloads and not args.text:
         raise SystemExit("perplexity needs --text")

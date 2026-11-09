@@ -12,6 +12,7 @@ usage: tests/irlean_test.py
 import contextlib
 import fcntl
 import hashlib
+import importlib.util
 import json
 import os
 import re
@@ -28,7 +29,7 @@ from unittest import mock
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "tools"))
-from irlean import hashing, lean, pins, proc, schemas  # noqa: E402
+from irlean import hashing, lean, model, pins, proc, schemas  # noqa: E402
 
 PY = sys.executable
 
@@ -702,6 +703,90 @@ class Schemas(unittest.TestCase):
 def _umask() -> int:
     r = subprocess.run(["sh", "-c", "umask"], capture_output=True, text=True, check=True)
     return int(r.stdout.strip(), 8)
+
+
+def load(name: str, path: Path) -> Any:
+    spec = importlib.util.spec_from_file_location(name, path)
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[name] = module
+    spec.loader.exec_module(module)
+    return module
+
+
+class Model(unittest.TestCase):
+    """IRLean.UB and IRLean.ModelStop as every tool sees them: read once, here, and never copied."""
+
+    # Each tool or test that reads them, and what it makes of them.
+    CONSUMERS: ClassVar[dict[str, Any]] = {
+        "tests/verify_negative.py": lambda m: (m.UB_REASONS, m.REFINES),
+    }
+    # Files that may read them some other way, each with why.
+    EXCEPTIONS: ClassVar[dict[str, str]] = {
+        "tools/irlean/model.py": "it's where they're read",
+        "tests/irlean_test.py": "it checks them",
+        "bench/instcombine/stage1.py": "the stage-1 lane's, which reads IRLean/Basic.lean itself, and moves "
+        "onto irlean.model once it lands",
+    }
+
+    def test_lean_reads_them_the_same(self) -> None:
+        if not (lean.LIBRARY / "IRLean.olean").exists() or pins.which("lean") is None:
+            self.skipTest("IRLean isn't built: run lake build")
+        got = model.from_lean(model.UB, model.MODEL_STOP)
+        self.assertEqual(got, {model.UB: model.ub_reasons(), model.MODEL_STOP: model.model_stops()})
+        self.assertIn("noProgress", model.ub_reasons())
+        self.assertTrue(model.model_stops())
+
+    def test_comments_and_arguments(self) -> None:
+        with tempfile.TemporaryDirectory() as d:
+            source = Path(d) / "Basic.lean"
+            source.write_text(
+                "/-- a doc\n  | notOne -/\ninductive UB where\n  | a\n  /-- | notTwo\n  -/\n"
+                "  | b -- | notThree\n  | c (x : Nat)\n  deriving Repr\n\n"
+                "inductive Stop where\n  | undefined (reason : UB)\n"
+            )
+            self.assertEqual(model.constructors("IRLean.UB", source), ("a", "b", "c"))
+            self.assertEqual(model.constructors("IRLean.Stop", source), ("undefined",))
+            with self.assertRaises(ValueError):
+                model.constructors("IRLean.Missing", source)
+
+    def test_a_new_reason_reaches_every_tool(self) -> None:
+        with tempfile.TemporaryDirectory() as d:
+            source = Path(d) / "Basic.lean"
+            text = model.BASIC.read_text()
+            source.write_text(text.replace("  | noReturn\n", "  | noReturn\n  | addedForTheTest\n", 1))
+            before = {path: see(load(f"consumer_{i}_before", ROOT / path)) for i, (path, see) in self.views()}
+            try:
+                with mock.patch.object(model, "BASIC", source):
+                    model.ub_reasons.cache_clear()
+                    self.assertIn("addedForTheTest", model.ub_reasons())
+                    for i, (path, see) in self.views():
+                        after = see(load(f"consumer_{i}_after", ROOT / path))
+                        self.assertNotEqual(after, before[path], path)
+                        self.assertIn("addedForTheTest", repr(after), path)
+            finally:
+                model.ub_reasons.cache_clear()
+
+    def views(self) -> Any:
+        return enumerate(self.CONSUMERS.items())
+
+    def test_no_tool_keeps_its_own_copy(self) -> None:
+        names = set(model.ub_reasons()) | set(model.model_stops())
+        tracked = proc.run(
+            ["git", "ls-files", "--cached", "--others", "--exclude-standard", "*.py"], cwd=ROOT
+        ).out.split()
+        found = []
+        for name in tracked:
+            path = ROOT / name
+            if not path.exists() or name in self.CONSUMERS or name in self.EXCEPTIONS:
+                continue
+            text = path.read_text()
+            named = {n for n in names if re.search(rf"\b{n}\b", text)}
+            if len(named) >= 2 or "Basic.lean" in text:
+                found.append((name, sorted(named)))
+        self.assertEqual(found, [], "these name IRLean.UB's or ModelStop's constructors: use irlean.model")
+        for path in self.CONSUMERS:
+            self.assertIn("model.ub_reasons()", (ROOT / path).read_text(), path)
 
 
 class Pins(unittest.TestCase):
