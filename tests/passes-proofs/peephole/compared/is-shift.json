@@ -1,0 +1,401 @@
+{
+  "schema": "ir-lean.peephole.comparison/1",
+  "family": "is-shift",
+  "registry": "tests/passes-proofs/peephole/folds/is-shift.json",
+  "sources": "80844b3d4f34eccaaf1672c9131bb33a705b9983004bbd370a9ff2861e7df4dc",
+  "opt": "23.1.3",
+  "date": "2026-11-09",
+  "status": "ok",
+  "cases": {
+    "cases": 28146,
+    "harvested": 719,
+    "generated": 27427,
+    "compared": 16187,
+    "matched": 6235,
+    "agreed_no_fold": 9952,
+    "fired_new_ir": 0,
+    "mismatched": 0,
+    "delegated": 8219,
+    "analysis": 205,
+    "unexplained": 7,
+    "operand_changed": 3528
+  },
+  "delegated_to": {
+    "ConstantFoldBinaryOpOperands": 1162,
+    "matchDecomposedSelectPattern": 856,
+    "simplifyCmpSelOfMaxMin": 165,
+    "simplifySelectInst: a step after simplifySelectWithICmpCond": 1061,
+    "simplifySelectInst: a step before simplifySelectWithICmpCond": 4053,
+    "simplifySelectWithICmpCond: a funnel shift or abs step": 31,
+    "simplifyWithOpsReplaced": 890,
+    "threadBinOpOverSelect": 1
+  },
+  "regression_tests": {
+    "read": 190,
+    "unread": 0
+  },
+  "sites": {
+    "IS.simplifyAShrInst.L1490": {
+      "fired": 73,
+      "matched": 73,
+      "mismatched": 0,
+      "analysis": 0,
+      "fired_without_undef": 73,
+      "matched_without_undef": 73,
+      "files": [
+        "compare.ll",
+        "shift.ll",
+        "shr-nop.ll"
+      ],
+      "registered": true
+    },
+    "IS.simplifyAShrInst.L1495": {
+      "fired": 1,
+      "matched": 1,
+      "mismatched": 0,
+      "analysis": 0,
+      "fired_without_undef": 1,
+      "matched_without_undef": 1,
+      "files": [
+        "exact-nsw-nuw.ll"
+      ],
+      "registered": true
+    },
+    "IS.simplifyCastInst.L5641": {
+      "fired": 146,
+      "matched": 146,
+      "mismatched": 0,
+      "analysis": 0,
+      "fired_without_undef": 125,
+      "matched_without_undef": 125,
+      "files": [
+        "compare.ll"
+      ],
+      "registered": false
+    },
+    "IS.simplifyCastInst.L5653": {
+      "fired": 25,
+      "matched": 25,
+      "mismatched": 0,
+      "analysis": 0,
+      "fired_without_undef": 25,
+      "matched_without_undef": 25,
+      "files": [
+        "cast.ll"
+      ],
+      "registered": false
+    },
+    "IS.simplifyCastInst.L5678": {
+      "fired": 2,
+      "matched": 2,
+      "mismatched": 0,
+      "analysis": 0,
+      "fired_without_undef": 2,
+      "matched_without_undef": 2,
+      "files": [
+        "cast.ll"
+      ],
+      "registered": true
+    },
+    "IS.simplifyFreezeInst.L7631": {
+      "fired": 0,
+      "matched": 0,
+      "mismatched": 0,
+      "analysis": 29,
+      "fired_without_undef": 0,
+      "matched_without_undef": 0,
+      "files": [],
+      "registered": false
+    },
+    "IS.simplifyLShrInst.L1451": {
+      "fired": 1,
+      "matched": 1,
+      "mismatched": 0,
+      "analysis": 0,
+      "fired_without_undef": 1,
+      "matched_without_undef": 1,
+      "files": [
+        "exact-nsw-nuw.ll"
+      ],
+      "registered": true
+    },
+    "IS.simplifyRightShift.L1381": {
+      "fired": 138,
+      "matched": 138,
+      "mismatched": 0,
+      "analysis": 0,
+      "fired_without_undef": 138,
+      "matched_without_undef": 138,
+      "files": [
+        "compare.ll"
+      ],
+      "registered": true
+    },
+    "IS.simplifyRightShift.L1386": {
+      "fired": 139,
+      "matched": 139,
+      "mismatched": 0,
+      "analysis": 0,
+      "fired_without_undef": 0,
+      "matched_without_undef": 0,
+      "files": [
+        "shift.ll",
+        "undef.ll"
+      ],
+      "registered": false
+    },
+    "IS.simplifySelectBitTest.L4683": {
+      "fired": 4,
+      "matched": 4,
+      "mismatched": 0,
+      "analysis": 0,
+      "fired_without_undef": 4,
+      "matched_without_undef": 4,
+      "files": [
+        "select-inseltpoison.ll",
+        "select.ll"
+      ],
+      "registered": true
+    },
+    "IS.simplifySelectBitTest.L4689": {
+      "fired": 3,
+      "matched": 3,
+      "mismatched": 0,
+      "analysis": 0,
+      "fired_without_undef": 3,
+      "matched_without_undef": 3,
+      "files": [
+        "select-inseltpoison.ll",
+        "select.ll"
+      ],
+      "registered": true
+    },
+    "IS.simplifySelectBitTest.L4699": {
+      "fired": 2,
+      "matched": 2,
+      "mismatched": 0,
+      "analysis": 0,
+      "fired_without_undef": 2,
+      "matched_without_undef": 2,
+      "files": [
+        "select-inseltpoison.ll",
+        "select.ll"
+      ],
+      "registered": true
+    },
+    "IS.simplifySelectBitTest.L4709": {
+      "fired": 2,
+      "matched": 2,
+      "mismatched": 0,
+      "analysis": 0,
+      "fired_without_undef": 2,
+      "matched_without_undef": 2,
+      "files": [
+        "select-inseltpoison.ll",
+        "select.ll"
+      ],
+      "registered": true
+    },
+    "IS.simplifyShift.L1310": {
+      "fired": 371,
+      "matched": 371,
+      "mismatched": 0,
+      "analysis": 0,
+      "fired_without_undef": 371,
+      "matched_without_undef": 371,
+      "files": [
+        "shift.ll"
+      ],
+      "registered": true
+    },
+    "IS.simplifyShift.L1314": {
+      "fired": 375,
+      "matched": 375,
+      "mismatched": 0,
+      "analysis": 0,
+      "fired_without_undef": 375,
+      "matched_without_undef": 375,
+      "files": [
+        "shift.ll",
+        "shr-nop.ll"
+      ],
+      "registered": true
+    },
+    "IS.simplifyShift.L1322": {
+      "fired": 374,
+      "matched": 374,
+      "mismatched": 0,
+      "analysis": 0,
+      "fired_without_undef": 373,
+      "matched_without_undef": 373,
+      "files": [
+        "shift.ll",
+        "shr-scalar-vector-consistency.ll"
+      ],
+      "registered": true
+    },
+    "IS.simplifyShift.L1326": {
+      "fired": 1656,
+      "matched": 1656,
+      "mismatched": 0,
+      "analysis": 0,
+      "fired_without_undef": 1285,
+      "matched_without_undef": 1285,
+      "files": [
+        "shift.ll",
+        "undef.ll"
+      ],
+      "registered": true
+    },
+    "IS.simplifyShift.L1350": {
+      "fired": 2641,
+      "matched": 2641,
+      "mismatched": 0,
+      "analysis": 176,
+      "fired_without_undef": 2545,
+      "matched_without_undef": 2545,
+      "files": [
+        "shift-knownbits.ll"
+      ],
+      "registered": true
+    },
+    "IS.simplifyShlInst.L1411": {
+      "fired": 140,
+      "matched": 140,
+      "mismatched": 0,
+      "analysis": 0,
+      "fired_without_undef": 0,
+      "matched_without_undef": 0,
+      "files": [
+        "undef.ll"
+      ],
+      "registered": false
+    },
+    "IS.simplifyShlInst.L1417": {
+      "fired": 2,
+      "matched": 2,
+      "mismatched": 0,
+      "analysis": 0,
+      "fired_without_undef": 2,
+      "matched_without_undef": 2,
+      "files": [
+        "exact-nsw-nuw.ll"
+      ],
+      "registered": true
+    },
+    "IS.simplifyShlInst.L1421": {
+      "fired": 139,
+      "matched": 139,
+      "mismatched": 0,
+      "analysis": 0,
+      "fired_without_undef": 139,
+      "matched_without_undef": 139,
+      "files": [
+        "constantfold-shl-nuw-C-to-C.ll"
+      ],
+      "registered": true
+    },
+    "IS.simplifyShlInst.L1430": {
+      "fired": 1,
+      "matched": 1,
+      "mismatched": 0,
+      "analysis": 0,
+      "fired_without_undef": 1,
+      "matched_without_undef": 1,
+      "files": [
+        "shift.ll"
+      ],
+      "registered": true
+    }
+  },
+  "not_exercised": [
+    "IS.simplifyAShrInst.L1500",
+    "IS.simplifyLShrInst.L1466",
+    "IS.simplifyRightShift.L1393",
+    "IS.simplifyShift.L1344",
+    "IS.simplifyShift.L1364"
+  ],
+  "folds_run": {
+    "Peephole.IS.simplifyAShrInst": "h0.148",
+    "Peephole.IS.simplifyCastInst": "h0.195",
+    "Peephole.IS.simplifyFreezeInst": "h0.256",
+    "Peephole.IS.simplifyLShrInst": "h1.97",
+    "Peephole.IS.simplifyRightShift": "a case where IS.simplifyRightShift.L1381 fired",
+    "Peephole.IS.simplifySelectBitTest": "h122.395",
+    "Peephole.IS.simplifyShift": "a case where IS.simplifyShift.L1310 fired",
+    "Peephole.IS.simplifyShlInst": "h0.0"
+  },
+  "folds_not_run": [
+    "Peephole.IS.simplifySelectWithEquivalence",
+    "Peephole.IS.simplifyWithOpsReplaced"
+  ],
+  "untagged": [],
+  "mismatches": [],
+  "unexplained": [
+    {
+      "case": "h52.52",
+      "where": "icmp-constant.ll:@ne_shl_by_constant_produces_poison:%poison",
+      "opt": [
+        "poison"
+      ],
+      "model_with_an_analysis": "%n1",
+      "ir": "  %n2 = zext i8 %v3 to i16\n  %n4 = xor i16 %n2, 32767\n  %n1 = sub nsw i16 %n2, %n4\n  call void (...) @use(i16 %n1, i16 2)\n  %r = shl nsw i16 %n1, 2\n  ret i16 %r"
+    },
+    {
+      "case": "h53.53",
+      "where": "icmp-constant.ll:@eq_shl_by_constant_produces_poison:%poison",
+      "opt": [
+        "poison"
+      ],
+      "model_with_an_analysis": "%n1",
+      "ir": "  %n2 = and i8 %v3, 127\n  %n1 = or i8 %n2, 112\n  call void (...) @use(i8 %n1, i8 3)\n  %r = shl nsw i8 %n1, 3\n  ret i8 %r"
+    },
+    {
+      "case": "h54.54",
+      "where": "icmp-constant.ll:@eq_shl_by_variable_produces_poison:%poison",
+      "opt": [
+        "poison"
+      ],
+      "model_with_an_analysis": "%n1",
+      "ir": "  %n2 = and i8 %v3, 127\n  %n1 = or i8 %n2, 112\n  %n5 = and i8 %v3, 3\n  %n4 = or i8 %n5, 1\n  call void (...) @use(i8 %n1, i8 %n4)\n  %r = shl nsw i8 %n1, %n4\n  ret i8 %r"
+    },
+    {
+      "case": "h69.69",
+      "where": "shift-knownbits.ll:@shl_amount_is_known_bogus:%shl",
+      "opt": [
+        "poison"
+      ],
+      "model_with_an_analysis": "%v1",
+      "ir": "  %n2 = or i32 %v3, 32\n  call void (...) @use(i32 %v1, i32 %n2)\n  %r = shl i32 %v1, %n2\n  ret i32 %r"
+    },
+    {
+      "case": "h28.124",
+      "where": "shift-knownbits.ll:@lshr_amount_is_known_bogus:%shr",
+      "opt": [
+        "poison"
+      ],
+      "model_with_an_analysis": "%v1",
+      "ir": "  %n2 = or i31 %v3, 31\n  call void (...) @use(i31 %v1, i31 %n2)\n  %r = lshr i31 %v1, %n2\n  ret i31 %r"
+    },
+    {
+      "case": "h34.130",
+      "where": "shift.ll:@shl_or_shr:%t5",
+      "opt": [
+        "%n5"
+      ],
+      "model_with_an_analysis": "%n1",
+      "ir": "  %n2 = zext i32 %v3 to i64\n  %n5 = zext i32 %v6 to i64\n  %n4 = shl nuw i64 %n5, 32\n  %n1 = or i64 %n2, %n4\n  call void (...) @use(i64 %n1, i64 32)\n  %r = lshr i64 %n1, 32\n  ret i64 %r"
+    },
+    {
+      "case": "h15.163",
+      "where": "shift-knownbits.ll:@ashr_amount_is_known_bogus:%shr",
+      "opt": [
+        "poison"
+      ],
+      "model_with_an_analysis": "%v1",
+      "ir": "  %n2 = or i33 %v3, 33\n  call void (...) @use(i33 %v1, i33 %n2)\n  %r = ashr i33 %v1, %n2\n  ret i33 %r"
+    }
+  ],
+  "seconds": 4.3,
+  "folds_unwatchable": []
+}
