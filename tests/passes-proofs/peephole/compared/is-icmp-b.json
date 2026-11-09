@@ -44,6 +44,8 @@
       "matched": 1,
       "mismatched": 0,
       "analysis": 0,
+      "fired_without_undef": 1,
+      "matched_without_undef": 1,
       "files": [
         "AndOrXor.ll"
       ],
@@ -54,6 +56,8 @@
       "matched": 1,
       "mismatched": 0,
       "analysis": 0,
+      "fired_without_undef": 1,
+      "matched_without_undef": 1,
       "files": [
         "AndOrXor.ll"
       ],
@@ -64,6 +68,8 @@
       "matched": 1,
       "mismatched": 0,
       "analysis": 0,
+      "fired_without_undef": 1,
+      "matched_without_undef": 1,
       "files": [
         "AndOrXor.ll"
       ],
@@ -74,6 +80,8 @@
       "matched": 1,
       "mismatched": 0,
       "analysis": 0,
+      "fired_without_undef": 1,
+      "matched_without_undef": 1,
       "files": [
         "AndOrXor.ll"
       ],
@@ -84,6 +92,8 @@
       "matched": 1,
       "mismatched": 0,
       "analysis": 0,
+      "fired_without_undef": 1,
+      "matched_without_undef": 1,
       "files": [
         "AndOrXor.ll"
       ],
@@ -94,6 +104,8 @@
       "matched": 1,
       "mismatched": 0,
       "analysis": 0,
+      "fired_without_undef": 1,
+      "matched_without_undef": 1,
       "files": [
         "AndOrXor.ll"
       ],
@@ -104,6 +116,8 @@
       "matched": 25,
       "mismatched": 0,
       "analysis": 0,
+      "fired_without_undef": 25,
+      "matched_without_undef": 25,
       "files": [
         "icmp-ranges.ll"
       ],
@@ -114,6 +128,8 @@
       "matched": 24,
       "mismatched": 0,
       "analysis": 0,
+      "fired_without_undef": 24,
+      "matched_without_undef": 24,
       "files": [
         "icmp-ranges.ll"
       ],
@@ -124,6 +140,8 @@
       "matched": 48,
       "mismatched": 0,
       "analysis": 0,
+      "fired_without_undef": 48,
+      "matched_without_undef": 48,
       "files": [
         "icmp-ranges.ll"
       ],
@@ -134,6 +152,8 @@
       "matched": 48,
       "mismatched": 0,
       "analysis": 0,
+      "fired_without_undef": 48,
+      "matched_without_undef": 48,
       "files": [
         "icmp-ranges.ll"
       ],
@@ -144,6 +164,8 @@
       "matched": 32,
       "mismatched": 0,
       "analysis": 0,
+      "fired_without_undef": 32,
+      "matched_without_undef": 32,
       "files": [
         "select-maxmin.ll"
       ],
@@ -154,6 +176,8 @@
       "matched": 16,
       "mismatched": 0,
       "analysis": 0,
+      "fired_without_undef": 16,
+      "matched_without_undef": 16,
       "files": [
         "select-maxmin.ll"
       ],
@@ -164,6 +188,8 @@
       "matched": 16,
       "mismatched": 0,
       "analysis": 0,
+      "fired_without_undef": 16,
+      "matched_without_undef": 16,
       "files": [
         "select-maxmin.ll"
       ],
@@ -174,6 +200,8 @@
       "matched": 32,
       "mismatched": 0,
       "analysis": 0,
+      "fired_without_undef": 32,
+      "matched_without_undef": 32,
       "files": [
         "select-maxmin.ll"
       ],
@@ -184,6 +212,8 @@
       "matched": 4,
       "mismatched": 0,
       "analysis": 0,
+      "fired_without_undef": 4,
+      "matched_without_undef": 4,
       "files": [
         "compare.ll"
       ],
@@ -194,6 +224,8 @@
       "matched": 4,
       "mismatched": 0,
       "analysis": 0,
+      "fired_without_undef": 4,
+      "matched_without_undef": 4,
       "files": [
         "compare.ll"
       ],
@@ -204,6 +236,8 @@
       "matched": 2,
       "mismatched": 0,
       "analysis": 0,
+      "fired_without_undef": 2,
+      "matched_without_undef": 2,
       "files": [
         "compare.ll"
       ],
@@ -214,6 +248,8 @@
       "matched": 3,
       "mismatched": 0,
       "analysis": 0,
+      "fired_without_undef": 3,
+      "matched_without_undef": 3,
       "files": [
         "compare.ll"
       ],
@@ -224,6 +260,8 @@
       "matched": 1,
       "mismatched": 0,
       "analysis": 0,
+      "fired_without_undef": 1,
+      "matched_without_undef": 1,
       "files": [
         "compare.ll"
       ],
@@ -234,6 +272,8 @@
       "matched": 2,
       "mismatched": 0,
       "analysis": 0,
+      "fired_without_undef": 2,
+      "matched_without_undef": 2,
       "files": [
         "compare.ll"
       ],
@@ -244,6 +284,8 @@
       "matched": 1,
       "mismatched": 0,
       "analysis": 0,
+      "fired_without_undef": 1,
+      "matched_without_undef": 1,
       "files": [
         "icmp.ll"
       ],
@@ -254,6 +296,8 @@
       "matched": 6,
       "mismatched": 0,
       "analysis": 0,
+      "fired_without_undef": 6,
+      "matched_without_undef": 6,
       "files": [
         "icmp.ll"
       ],
@@ -264,6 +308,8 @@
       "matched": 2,
       "mismatched": 0,
       "analysis": 0,
+      "fired_without_undef": 2,
+      "matched_without_undef": 2,
       "files": [
         "icmp.ll"
       ],
@@ -274,6 +320,8 @@
       "matched": 1,
       "mismatched": 0,
       "analysis": 0,
+      "fired_without_undef": 1,
+      "matched_without_undef": 1,
       "files": [
         "saturating-add-sub.ll"
       ],
@@ -284,6 +332,8 @@
       "matched": 3,
       "mismatched": 0,
       "analysis": 0,
+      "fired_without_undef": 3,
+      "matched_without_undef": 3,
       "files": [
         "saturating-add-sub.ll"
       ],
@@ -294,6 +344,8 @@
       "matched": 1,
       "mismatched": 0,
       "analysis": 0,
+      "fired_without_undef": 1,
+      "matched_without_undef": 1,
       "files": [
         "saturating-add-sub.ll"
       ],
@@ -304,6 +356,8 @@
       "matched": 1,
       "mismatched": 0,
       "analysis": 0,
+      "fired_without_undef": 1,
+      "matched_without_undef": 1,
       "files": [
         "saturating-add-sub.ll"
       ],
@@ -314,6 +368,8 @@
       "matched": 4,
       "mismatched": 0,
       "analysis": 0,
+      "fired_without_undef": 4,
+      "matched_without_undef": 4,
       "files": [
         "maxmin_intrinsics.ll"
       ],
@@ -324,6 +380,8 @@
       "matched": 4,
       "mismatched": 0,
       "analysis": 0,
+      "fired_without_undef": 4,
+      "matched_without_undef": 4,
       "files": [
         "maxmin_intrinsics.ll"
       ],
@@ -334,6 +392,8 @@
       "matched": 4,
       "mismatched": 0,
       "analysis": 0,
+      "fired_without_undef": 4,
+      "matched_without_undef": 4,
       "files": [
         "maxmin_intrinsics.ll"
       ],
@@ -344,6 +404,8 @@
       "matched": 4,
       "mismatched": 0,
       "analysis": 0,
+      "fired_without_undef": 4,
+      "matched_without_undef": 4,
       "files": [
         "maxmin_intrinsics.ll"
       ],
@@ -354,6 +416,8 @@
       "matched": 2,
       "mismatched": 0,
       "analysis": 0,
+      "fired_without_undef": 2,
+      "matched_without_undef": 2,
       "files": [
         "maxmin_intrinsics.ll"
       ],
@@ -364,6 +428,8 @@
       "matched": 2,
       "mismatched": 0,
       "analysis": 0,
+      "fired_without_undef": 2,
+      "matched_without_undef": 2,
       "files": [
         "maxmin_intrinsics.ll"
       ],
@@ -374,6 +440,8 @@
       "matched": 2,
       "mismatched": 0,
       "analysis": 0,
+      "fired_without_undef": 2,
+      "matched_without_undef": 2,
       "files": [
         "maxmin_intrinsics.ll"
       ],
@@ -384,6 +452,8 @@
       "matched": 2,
       "mismatched": 0,
       "analysis": 0,
+      "fired_without_undef": 2,
+      "matched_without_undef": 2,
       "files": [
         "maxmin_intrinsics.ll"
       ],
@@ -394,6 +464,8 @@
       "matched": 1,
       "mismatched": 0,
       "analysis": 0,
+      "fired_without_undef": 1,
+      "matched_without_undef": 1,
       "files": [
         "AndOrXor.ll"
       ],
@@ -404,6 +476,8 @@
       "matched": 1,
       "mismatched": 0,
       "analysis": 0,
+      "fired_without_undef": 1,
+      "matched_without_undef": 1,
       "files": [
         "AndOrXor.ll"
       ],
@@ -414,6 +488,8 @@
       "matched": 1,
       "mismatched": 0,
       "analysis": 0,
+      "fired_without_undef": 1,
+      "matched_without_undef": 1,
       "files": [
         "AndOrXor.ll"
       ],
@@ -424,6 +500,8 @@
       "matched": 1,
       "mismatched": 0,
       "analysis": 0,
+      "fired_without_undef": 1,
+      "matched_without_undef": 1,
       "files": [
         "AndOrXor.ll"
       ],
@@ -434,6 +512,8 @@
       "matched": 1,
       "mismatched": 0,
       "analysis": 0,
+      "fired_without_undef": 1,
+      "matched_without_undef": 1,
       "files": [
         "AndOrXor.ll"
       ],
@@ -444,6 +524,8 @@
       "matched": 1,
       "mismatched": 0,
       "analysis": 0,
+      "fired_without_undef": 1,
+      "matched_without_undef": 1,
       "files": [
         "AndOrXor.ll"
       ],
@@ -454,6 +536,8 @@
       "matched": 8,
       "mismatched": 0,
       "analysis": 0,
+      "fired_without_undef": 8,
+      "matched_without_undef": 8,
       "files": [
         "call.ll"
       ],
@@ -464,6 +548,8 @@
       "matched": 4,
       "mismatched": 0,
       "analysis": 0,
+      "fired_without_undef": 4,
+      "matched_without_undef": 4,
       "files": [
         "call.ll"
       ],
@@ -474,6 +560,8 @@
       "matched": 2,
       "mismatched": 0,
       "analysis": 0,
+      "fired_without_undef": 2,
+      "matched_without_undef": 2,
       "files": [
         "abs_intrinsic.ll"
       ],
@@ -484,6 +572,8 @@
       "matched": 2,
       "mismatched": 0,
       "analysis": 0,
+      "fired_without_undef": 2,
+      "matched_without_undef": 2,
       "files": [
         "abs_intrinsic.ll"
       ],
@@ -511,22 +601,22 @@
     "IS.simplifyICmpWithBinOpOnLHS.L3299"
   ],
   "folds_run": {
-    "Peephole.IS.extractEquivalentCondition": "h792.792",
     "Peephole.IS.simplifyAndOfICmps": "h7.1408",
     "Peephole.IS.simplifyAndOfICmpsWithAdd": "h7.1408",
     "Peephole.IS.simplifyAndOrOfCmps": "h7.1408",
     "Peephole.IS.simplifyAndOrOfICmpsWithConstants": "h7.1408",
     "Peephole.IS.simplifyAndOrOfICmpsWithCtpop": "h7.1408",
     "Peephole.IS.simplifyCmpSelOfMaxMin": "h1.956",
-    "Peephole.IS.simplifyICmpWithBinOp": "h47.47",
-    "Peephole.IS.simplifyICmpWithBinOpOnLHS": "h71.71",
-    "Peephole.IS.simplifyICmpWithIntrinsicOnLHS": "h47.47",
-    "Peephole.IS.simplifyICmpWithMinMax": "h47.47",
+    "Peephole.IS.simplifyICmpWithBinOp": "h237.237",
+    "Peephole.IS.simplifyICmpWithBinOpOnLHS": "h237.237",
+    "Peephole.IS.simplifyICmpWithIntrinsicOnLHS": "h864.864",
+    "Peephole.IS.simplifyICmpWithMinMax": "h768.768",
     "Peephole.IS.simplifyOrOfICmps": "h1.1995",
     "Peephole.IS.simplifyOrOfICmpsWithAdd": "h1.1995",
-    "Peephole.IS.simplifySelectWithICmpCond": "h0.955"
+    "Peephole.IS.simplifySelectWithICmpCond": "h1.956"
   },
   "folds_not_run": [
+    "Peephole.IS.extractEquivalentCondition",
     "Peephole.IS.simplifyCmpSelCase",
     "Peephole.IS.simplifyCmpSelFalseCase",
     "Peephole.IS.simplifyCmpSelTrueCase"
@@ -534,6 +624,6 @@
   "untagged": [],
   "mismatches": [],
   "unexplained": [],
-  "seconds": 4.8,
+  "seconds": 5.5,
   "folds_unwatchable": []
 }
