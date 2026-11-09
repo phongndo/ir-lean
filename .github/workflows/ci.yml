@@ -36,7 +36,8 @@ jobs:
           key: ${{ steps.setup.outputs.alive2-key }}
   # Whether a pull request needs the tests: not when it only adds or edits Markdown that no file but Markdown
   # names, which is how a test would read it. .github/needs-tests.py says why either way. Pushes and manual
-  # runs always need them. Lint runs whatever this says.
+  # runs always need them. Lint runs whatever this says, and the tests run unless this said they needn't, so
+  # this job failing runs them rather than skipping them.
   changes:
     name: Which jobs the change needs
     runs-on: ubuntu-latest
@@ -58,7 +59,7 @@ jobs:
   test:
     name: Tests and proofs (${{ matrix.shard }})
     needs: changes
-    if: needs.changes.outputs.tests == 'true'
+    if: ${{ !cancelled() && needs.changes.outputs.tests != 'false' }}
     runs-on: ubuntu-latest
     timeout-minutes: 60
     strategy:

@@ -144,7 +144,8 @@ A name in a comment counts too, so as of 2026-11-08 only `docs/llama-q5.md`, `do
 new documents can skip the tests. Removing or renaming a file always runs them, since a test can check that a file it
 was told about exists. The rule only sees names: a test that read every document by a pattern would have to be added to
 it. Lint runs either way, and pushes to `main` and manual runs run everything. A skipped job counts as passed for a
-required check. `needs_tests` tests the rule, and fails if the documents above stop having readers it finds.
+required check, so the tests are skipped only when that job says so: if it fails, they run. `needs_tests` tests the
+rule, and fails if the documents above stop having readers it finds.
 
 ## Formatters, linters and language servers
 
