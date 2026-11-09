@@ -61,7 +61,6 @@
       "sound": "Peephole.IS.simplifySubInst.sound",
       "sites": [
         "IS.simplifySubInst.L754",
-        "IS.simplifySubInst.L759",
         "IS.simplifySubInst.L763",
         "IS.simplifySubInst.L767",
         "IS.simplifySubInst.L773",
@@ -119,7 +118,6 @@
         "IS.simplifyDivRem.L1057",
         "IS.simplifyDivRem.L1063",
         "IS.simplifyDivRem.L1068",
-        "IS.simplifyDivRem.L1073",
         "IS.simplifyDivRem.L1078",
         "IS.simplifyDivRem.L1083",
         "IS.simplifyDivRem.L1092",
@@ -319,6 +317,8 @@
     ]
   },
   "unproved": {
+    "IS.simplifyDivRem.L1073": "undef-only: `undef / X` and `undef % X` to 0. Q.isUndefValue also holds of poison, but L1068 takes a poison dividend first, so only `undef` reaches this step, and the model has no `undef`. Peephole.IS.simplifyDivRem.L1073 proves the poison reading, which nothing reaches",
+    "IS.simplifySubInst.L759": "undef-only: `X - undef` and `undef - X` to `undef`. Q.isUndefValue also holds of poison, but L754 takes poison first, so only `undef` reaches this step, and the model has no `undef`. Peephole.IS.simplifySubInst.L759 proves the poison reading, which nothing reaches",
     "IS.simplifySubInst.L860": "needs memory: ptrtoint/ptrtoaddr of two pointers off one base, folded to the constant difference of their offsets; no Term is a ptrtoint, so the model's step for it never matches"
   }
 }
