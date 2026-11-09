@@ -1,0 +1,289 @@
+{
+  "schema": "ir-lean.peephole.folds/1",
+  "family": "is-icmp-b",
+  "pass": "instsimplify",
+  "modules": [
+    "Peephole.IS.ICmpB",
+    "Peephole.IS.ICmpBOnLHS",
+    "Peephole.IS.ICmpBBinOp",
+    "Peephole.IS.ICmpBMinMax",
+    "Peephole.IS.ICmpBConstantRange",
+    "Peephole.IS.ICmpBAndOr",
+    "Peephole.IS.ICmpBSelect",
+    "Peephole.IS.ICmpBSelectCond",
+    "Peephole.IS.ICmpBEntry",
+    "Peephole.Lemmas.ICmpB"
+  ],
+  "entries": [
+    {
+      "fold": "Peephole.IS.ICmpB.selectOnInst",
+      "opcodes": [
+        "select"
+      ],
+      "opt": "instsimplify"
+    },
+    {
+      "fold": "Peephole.IS.ICmpB.andOnInst",
+      "opcodes": [
+        "and"
+      ],
+      "opt": "instsimplify"
+    },
+    {
+      "fold": "Peephole.IS.ICmpB.orOnInst",
+      "opcodes": [
+        "or"
+      ],
+      "opt": "instsimplify"
+    }
+  ],
+  "folds": {
+    "Peephole.IS.simplifyICmpWithBinOpOnLHS": {
+      "sound": "Peephole.IS.simplifyICmpWithBinOpOnLHS.sound",
+      "sites": [
+        "IS.simplifyICmpWithBinOpOnLHS.L3239",
+        "IS.simplifyICmpWithBinOpOnLHS.L3241",
+        "IS.simplifyICmpWithBinOpOnLHS.L3260",
+        "IS.simplifyICmpWithBinOpOnLHS.L3271",
+        "IS.simplifyICmpWithBinOpOnLHS.L3295",
+        "IS.simplifyICmpWithBinOpOnLHS.L3299",
+        "IS.simplifyICmpWithBinOpOnLHS.L3321",
+        "IS.simplifyICmpWithBinOpOnLHS.L3323",
+        "IS.simplifyICmpWithBinOpOnLHS.L3330"
+      ]
+    },
+    "Peephole.IS.simplifyICmpWithBinOp": {
+      "sound": "Peephole.IS.simplifyICmpWithBinOp.sound",
+      "sites": [
+        "IS.simplifyICmpWithBinOp.L3461",
+        "IS.simplifyICmpWithBinOp.L3463",
+        "IS.simplifyICmpWithBinOp.L3467",
+        "IS.simplifyICmpWithBinOp.L3469",
+        "IS.simplifyICmpWithBinOp.L3492",
+        "IS.simplifyICmpWithBinOp.L3494",
+        "IS.simplifyICmpWithBinOp.L3503",
+        "IS.simplifyICmpWithBinOp.L3505",
+        "IS.simplifyICmpWithBinOp.L3543",
+        "IS.simplifyICmpWithBinOp.L3545",
+        "IS.simplifyICmpWithBinOp.L3548",
+        "IS.simplifyICmpWithBinOp.L3550"
+      ]
+    },
+    "Peephole.IS.extractEquivalentCondition": {
+      "sound": "Peephole.IS.extractEquivalentCondition.sound",
+      "sites": [
+        "IS.extractEquivalentCondition.L2630",
+        "IS.extractEquivalentCondition.L2633"
+      ]
+    },
+    "Peephole.IS.simplifyICmpWithMinMax": {
+      "sound": "Peephole.IS.simplifyICmpWithMinMax.sound",
+      "sites": [
+        "IS.simplifyICmpWithMinMax.L3680",
+        "IS.simplifyICmpWithMinMax.L3683",
+        "IS.simplifyICmpWithMinMax.L3753",
+        "IS.simplifyICmpWithMinMax.L3755",
+        "IS.simplifyICmpWithMinMax.L3773",
+        "IS.simplifyICmpWithMinMax.L3776",
+        "IS.simplifyICmpWithMinMax.L3782",
+        "IS.simplifyICmpWithMinMax.L3785"
+      ]
+    },
+    "Peephole.IS.simplifyICmpWithIntrinsicOnLHS": {
+      "sound": "Peephole.IS.simplifyICmpWithIntrinsicOnLHS.sound",
+      "sites": [
+        "IS.simplifyICmpWithIntrinsicOnLHS.L3826",
+        "IS.simplifyICmpWithIntrinsicOnLHS.L3828",
+        "IS.simplifyICmpWithIntrinsicOnLHS.L3836",
+        "IS.simplifyICmpWithIntrinsicOnLHS.L3838"
+      ]
+    },
+    "Peephole.IS.simplifyAndOrOfICmpsWithConstants": {
+      "sound": "Peephole.IS.simplifyAndOrOfICmpsWithConstants.sound",
+      "sites": [
+        "IS.simplifyAndOrOfICmpsWithConstants.L1638",
+        "IS.simplifyAndOrOfICmpsWithConstants.L1643",
+        "IS.simplifyAndOrOfICmpsWithConstants.L1651",
+        "IS.simplifyAndOrOfICmpsWithConstants.L1653"
+      ]
+    },
+    "Peephole.IS.simplifyAndOfICmpsWithAdd": {
+      "sound": "Peephole.IS.simplifyAndOfICmpsWithAdd.sound",
+      "sites": [
+        "IS.simplifyAndOfICmpsWithAdd.L1682",
+        "IS.simplifyAndOfICmpsWithAdd.L1684",
+        "IS.simplifyAndOfICmpsWithAdd.L1688",
+        "IS.simplifyAndOfICmpsWithAdd.L1690",
+        "IS.simplifyAndOfICmpsWithAdd.L1696",
+        "IS.simplifyAndOfICmpsWithAdd.L1699"
+      ]
+    },
+    "Peephole.IS.simplifyOrOfICmpsWithAdd": {
+      "sound": "Peephole.IS.simplifyOrOfICmpsWithAdd.sound",
+      "sites": [
+        "IS.simplifyOrOfICmpsWithAdd.L1772",
+        "IS.simplifyOrOfICmpsWithAdd.L1774",
+        "IS.simplifyOrOfICmpsWithAdd.L1778",
+        "IS.simplifyOrOfICmpsWithAdd.L1780",
+        "IS.simplifyOrOfICmpsWithAdd.L1786",
+        "IS.simplifyOrOfICmpsWithAdd.L1789"
+      ]
+    },
+    "Peephole.IS.simplifyAndOrOfICmpsWithCtpop": {
+      "sound": "Peephole.IS.simplifyAndOrOfICmpsWithCtpop.sound",
+      "sites": [
+        "IS.simplifyAndOrOfICmpsWithCtpop.L1717",
+        "IS.simplifyAndOrOfICmpsWithCtpop.L1720"
+      ]
+    },
+    "Peephole.IS.simplifyAndOfICmps": {
+      "sound": "Peephole.IS.simplifyAndOfICmps.sound",
+      "sites": []
+    },
+    "Peephole.IS.simplifyOrOfICmps": {
+      "sound": "Peephole.IS.simplifyOrOfICmps.sound",
+      "sites": []
+    },
+    "Peephole.IS.simplifyAndOrOfCmps": {
+      "sound": "Peephole.IS.simplifyAndOrOfCmps.sound",
+      "sites": []
+    },
+    "Peephole.IS.simplifyCmpSelCase": {
+      "sound": "Peephole.IS.simplifyCmpSelCase.sound",
+      "sites": []
+    },
+    "Peephole.IS.simplifyCmpSelTrueCase": {
+      "sound": "Peephole.IS.simplifyCmpSelTrueCase.sound",
+      "sites": []
+    },
+    "Peephole.IS.simplifyCmpSelFalseCase": {
+      "sound": "Peephole.IS.simplifyCmpSelFalseCase.sound",
+      "sites": []
+    },
+    "Peephole.IS.simplifyCmpSelOfMaxMin": {
+      "sound": "Peephole.IS.simplifyCmpSelOfMaxMin.sound",
+      "sites": [
+        "IS.simplifyCmpSelOfMaxMin.L4763",
+        "IS.simplifyCmpSelOfMaxMin.L4771",
+        "IS.simplifyCmpSelOfMaxMin.L4775",
+        "IS.simplifyCmpSelOfMaxMin.L4783"
+      ]
+    },
+    "Peephole.IS.simplifySelectWithICmpCond": {
+      "sound": "Peephole.IS.simplifySelectWithICmpCond.sound",
+      "sites": []
+    }
+  },
+  "delegates": {
+    "Peephole.IS.simplifyICmpWithBinOp": {
+      "simplifyICmpInst": "its recursive calls with MaxRecurse - 1, for icmp (X + Y), X and the like, delegated where they don't decline: they pass Pred on with its samesign flag, which says something about the original operands and not about the new ones, so a sound answer to them isn't one to this compare. The icmp family's simplifyICmpInst, the caller, passes ICmpSimp.delegating, so each delegates"
+    },
+    "Peephole.IS.simplifyICmpWithMinMax": {
+      "simplifyICmpInst": "its recursive call on A EqP B, with MaxRecurse - 1, a parameter whose soundness its theorem assumes (ICmpSimp.Sound); the icmp family's simplifyICmpInst, the caller, passes ICmpSimp.delegating, so each such call delegates"
+    },
+    "Peephole.IS.ICmpB.selectOnInst": {
+      "simplifySelectInst: a step before simplifySelectWithICmpCond": "a constant condition, the i1 logic folds, select ?, X, X, and a poison or undef arm",
+      "simplifySelectInst: a step after simplifySelectWithICmpCond": "the rest of simplifySelectInst"
+    },
+    "Peephole.IS.ICmpB.andOnInst and orOnInst": {
+      "simplifyAndInst/simplifyOrInst: a step before simplifyAndOrOfCmps": "any pair of operands simplifyAndOrOfCmps can't answer for, a constant operand, X op X, and simplifyAndOrWithICmpEq on an equality compare",
+      "simplifyAndInst/simplifyOrInst: a step after simplifyAndOrOfCmps": "the rest of simplifyAndInst and simplifyOrInst"
+    },
+    "Peephole.IS.simplifyAndOrOfCmps": {
+      "ConstantFoldCastOperand": "the cast of a constant V that isn't an i1 the model can fold"
+    },
+    "Peephole.IS.simplifyCmpSelCase": {
+      "simplifyICmpInst": "the recursive simplifyCmpInst, delegated at every call from the entry points"
+    },
+    "Peephole.IS.simplifySelectWithICmpCond": {
+      "matchDecomposedSelectPattern": "ValueTracking's select-pattern analysis, not modelled: its answer is a parameter, which may fire for any relational predicate",
+      "simplifySelectBitTest": "modelled by the is-shift family; here only whether it answers is modelled, and delegated where it does",
+      "simplifySelectWithEquivalence": "modelled by the is-shift family, through simplifyWithOpsReplaced; delegated here for an equality"
+    }
+  },
+  "lemmas": [
+    "Peephole.Lemmas.add_ule_uaddSat",
+    "Peephole.Lemmas.beq_umin",
+    "Peephole.Lemmas.mul_udiv_ule",
+    "Peephole.Lemmas.mul_ushiftRight_ule",
+    "Peephole.Lemmas.shiftLeft_pow2",
+    "Peephole.Lemmas.shiftLeft_pow2_ne",
+    "Peephole.Lemmas.shiftLeft_pow2_ule_intMin",
+    "Peephole.Lemmas.shiftLeft_udiv_ule",
+    "Peephole.Lemmas.sle_add_one_and_sgt",
+    "Peephole.Lemmas.sle_eq_not_slt",
+    "Peephole.Lemmas.sle_or_right",
+    "Peephole.Lemmas.sle_smax",
+    "Peephole.Lemmas.sle_smin",
+    "Peephole.Lemmas.slt_of_msb",
+    "Peephole.Lemmas.smax_beq",
+    "Peephole.Lemmas.smax_of_sle",
+    "Peephole.Lemmas.smax_sle",
+    "Peephole.Lemmas.smin_sle",
+    "Peephole.Lemmas.smin_sle_smax",
+    "Peephole.Lemmas.sub_ne_of_odd",
+    "Peephole.Lemmas.toInt_zero_sub_setWidth",
+    "Peephole.Lemmas.toNat_ofNat_small",
+    "Peephole.Lemmas.two_le_of_toInt_pos",
+    "Peephole.Lemmas.udiv_ult",
+    "Peephole.Lemmas.ule_add_one_and_sgt",
+    "Peephole.Lemmas.ule_add_one_and_ugt",
+    "Peephole.Lemmas.ule_of_subset",
+    "Peephole.Lemmas.ule_umax",
+    "Peephole.Lemmas.ule_umin",
+    "Peephole.Lemmas.umax_beq",
+    "Peephole.Lemmas.umax_of_ule",
+    "Peephole.Lemmas.umax_ule",
+    "Peephole.Lemmas.umin_ule",
+    "Peephole.Lemmas.umin_ule_umax",
+    "Peephole.Lemmas.umod_lt",
+    "Peephole.Lemmas.umod_slt",
+    "Peephole.Lemmas.ushiftRight_ult",
+    "Peephole.Lemmas.usubSat_ule_sub",
+    "Peephole.Lemmas.zero_sub_setWidth_sle",
+    "Peephole.Lemmas.zero_sub_setWidth_slt"
+  ],
+  "rests_on": {
+    "IS.simplifyICmpWithBinOp.L3461": [
+      "Peephole.IS.ICmpB.WellTyped: the zext in 0 - zext X widens, as LLVM's verifier requires; Term doesn't say so"
+    ],
+    "IS.simplifyICmpWithBinOp.L3463": [
+      "Peephole.IS.ICmpB.WellTyped: the zext in 0 - zext X widens, as LLVM's verifier requires; Term doesn't say so"
+    ],
+    "IS.simplifyICmpWithBinOp.L3467": [
+      "Peephole.IS.ICmpB.WellTyped: the zext in 0 - zext X widens, as LLVM's verifier requires; Term doesn't say so"
+    ],
+    "IS.simplifyICmpWithBinOp.L3469": [
+      "Peephole.IS.ICmpB.WellTyped: the zext in 0 - zext X widens, as LLVM's verifier requires; Term doesn't say so"
+    ],
+    "IS.simplifyCmpSelCase.L121": [
+      "Peephole.IS.ICmpB.ICmpSimp.Sound: the recursive simplifyCmpInst (simplifyICmpInst) answers soundly",
+      "the select's condition Cond is TrueOrFalse, the case simplifyCmpSelCase answers for (threadCmpOverSelect's use)"
+    ],
+    "IS.simplifyCmpSelCase.L125": [
+      "the select's condition Cond is TrueOrFalse, the case simplifyCmpSelCase answers for (threadCmpOverSelect's use)"
+    ],
+    "IS.extractEquivalentCondition.L2630": [
+      "the select V isn't poison: Cmp may carry samesign; simplifyICmpWithMinMax discharges this, since V is an operand of the compare it replaces"
+    ],
+    "IS.extractEquivalentCondition.L2633": [
+      "the select V isn't poison: Cmp may carry samesign; simplifyICmpWithMinMax discharges this, since V is an operand of the compare it replaces"
+    ],
+    "IS.simplifySelectWithICmpCond.L4896": [
+      "0 < w: at width 0 abs(0) with int_min_poison is poison (intMin 0 = 0); LLVM has no i0"
+    ],
+    "IS.simplifySelectWithICmpCond.L4900": [
+      "0 < w: at width 0 abs(0) with int_min_poison is poison (intMin 0 = 0); LLVM has no i0"
+    ]
+  },
+  "unproved": {
+    "IS.simplifyAndOrOfCmps.L1933": "tagged fp/generic: simplifyAndOrOfCmps also looks through casts to fcmps. The integer instance is proved for every input, by Peephole.IS.simplifyAndOrOfCmps.L1933, which Peephole.IS.simplifyAndOrOfCmps.sound uses; the floating-point instance waits for SEM-05",
+    "IS.simplifyCmpSelCase.L121": "integer instance proved, not claimed for every input: threadCmpOverSelect calls simplifyCmpSelCase from simplifyICmpInst on compares of pointers too, and from simplifyFCmpInst on fcmps, and the recursive simplifyCmpInst can answer with the select's condition there. Peephole.IS.simplifyCmpSelCase.L121, which Peephole.IS.simplifyCmpSelCase.sound uses, proves it for every scalar integer input; the pointer instance waits for pointers in the model (memory, F4), and the floating-point one for SEM-05",
+    "IS.simplifyCmpSelCase.L125": "integer instance proved, not claimed for every input: threadCmpOverSelect calls simplifyCmpSelCase from simplifyICmpInst on compares of pointers too, and from simplifyFCmpInst on fcmps, and isSameCompare reads any CmpInst. Peephole.IS.simplifyCmpSelCase.L125, which Peephole.IS.simplifyCmpSelCase.sound uses, proves it for every scalar integer input; the pointer instance waits for pointers in the model (memory, F4), and the floating-point one for SEM-05",
+    "IS.simplifySelectWithICmpCond.L4857": "the C++ returns X where ValueTracking's matchDecomposedSelectPattern finds a min/max flavor whose predicate is Pred and whose other operand is the flavor's limit constant; that analysis (matchSelectPattern, matchClamp, matchMinMaxOfMinMax, getNotValue, the abs/nabs patterns) isn't modelled, so the model takes its answer as a parameter and delegates this step",
+    "IS.simplifySelectWithICmpCond.L4876": "integer instance proved, and the C++ has no other: the inventory tags it fp, since simplifySelectWithICmpCond handles floating point elsewhere, but this step needs TrueVal to be fshl or fshr, integer intrinsics, so no floating-point or pointer select reaches it. Peephole.IS.simplifySelectWithICmpCond.L4876, which Peephole.IS.simplifySelectWithICmpCond.sound uses, proves it for every scalar integer input. With no floating-point instance, it would count with `covers` naming fp, which the scoring rules don't give a proof about Term today",
+    "IS.simplifySelectWithICmpCond.L4890": "integer instance proved, and the C++ has no other: the inventory tags it fp, since simplifySelectWithICmpCond handles floating point elsewhere, but this step needs FalseVal to be a rotate, fshl or fshr of X with itself, integer intrinsics, so no floating-point or pointer select reaches it. Peephole.IS.simplifySelectWithICmpCond.L4890, which Peephole.IS.simplifySelectWithICmpCond.sound uses, proves it for every scalar integer input. With no floating-point instance, it would count with `covers` naming fp, which the scoring rules don't give a proof about Term today",
+    "IS.simplifySelectWithICmpCond.L4896": "integer instance proved, and the C++ has no other: the inventory tags it fp, since simplifySelectWithICmpCond handles floating point elsewhere, but this step needs the arms to be abs of the compared value and its negation, an integer intrinsic, so no floating-point or pointer select reaches it. Peephole.IS.simplifySelectWithICmpCond.L4896, which Peephole.IS.simplifySelectWithICmpCond.sound uses, proves it for every scalar integer input. With no floating-point instance, it would count with `covers` naming fp, which the scoring rules don't give a proof about Term today",
+    "IS.simplifySelectWithICmpCond.L4900": "integer instance proved, and the C++ has no other: the inventory tags it fp, since simplifySelectWithICmpCond handles floating point elsewhere, but this step needs the arms to be abs of the compared value and its negation, an integer intrinsic, so no floating-point or pointer select reaches it. Peephole.IS.simplifySelectWithICmpCond.L4900, which Peephole.IS.simplifySelectWithICmpCond.sound uses, proves it for every scalar integer input. With no floating-point instance, it would count with `covers` naming fp, which the scoring rules don't give a proof about Term today"
+  }
+}

@@ -1,0 +1,416 @@
+{
+  "schema": "ir-lean.peephole.comparison/1",
+  "family": "is-icmp-b",
+  "registry": "tests/passes-proofs/peephole/folds/is-icmp-b.json",
+  "sources": "f912adde48833142b0232c0b8e65b42b4482624e2f432410134f6d3356551ab6",
+  "opt": "23.1.3",
+  "date": "2026-11-09",
+  "status": "ok",
+  "cases": {
+    "cases": 16410,
+    "harvested": 1689,
+    "generated": 14721,
+    "compared": 272,
+    "matched": 272,
+    "agreed_no_fold": 0,
+    "fired_new_ir": 0,
+    "mismatched": 0,
+    "delegated": 14343,
+    "analysis": 0,
+    "unexplained": 0,
+    "operand_changed": 1795
+  },
+  "delegated_to": {
+    "matchDecomposedSelectPattern": 920,
+    "simplifyAndInst/simplifyOrInst: a step after simplifyAndOrOfCmps": 255,
+    "simplifyAndInst/simplifyOrInst: a step before simplifyAndOrOfCmps": 7133,
+    "simplifySelectBitTest": 11,
+    "simplifySelectInst: a step after simplifySelectWithICmpCond": 815,
+    "simplifySelectInst: a step before simplifySelectWithICmpCond": 4053,
+    "simplifySelectWithEquivalence": 1156
+  },
+  "regression_tests": {
+    "read": 190,
+    "unread": 0
+  },
+  "sites": {
+    "IS.simplifyAndOfICmpsWithAdd.L1682": {
+      "fired": 1,
+      "matched": 1,
+      "mismatched": 0,
+      "analysis": 0,
+      "fired_without_undef": 1,
+      "matched_without_undef": 1,
+      "files": [
+        "AndOrXor.ll"
+      ],
+      "registered": true
+    },
+    "IS.simplifyAndOfICmpsWithAdd.L1684": {
+      "fired": 1,
+      "matched": 1,
+      "mismatched": 0,
+      "analysis": 0,
+      "fired_without_undef": 1,
+      "matched_without_undef": 1,
+      "files": [
+        "AndOrXor.ll"
+      ],
+      "registered": true
+    },
+    "IS.simplifyAndOfICmpsWithAdd.L1688": {
+      "fired": 1,
+      "matched": 1,
+      "mismatched": 0,
+      "analysis": 0,
+      "fired_without_undef": 1,
+      "matched_without_undef": 1,
+      "files": [
+        "AndOrXor.ll"
+      ],
+      "registered": true
+    },
+    "IS.simplifyAndOfICmpsWithAdd.L1690": {
+      "fired": 1,
+      "matched": 1,
+      "mismatched": 0,
+      "analysis": 0,
+      "fired_without_undef": 1,
+      "matched_without_undef": 1,
+      "files": [
+        "AndOrXor.ll"
+      ],
+      "registered": true
+    },
+    "IS.simplifyAndOfICmpsWithAdd.L1696": {
+      "fired": 1,
+      "matched": 1,
+      "mismatched": 0,
+      "analysis": 0,
+      "fired_without_undef": 1,
+      "matched_without_undef": 1,
+      "files": [
+        "AndOrXor.ll"
+      ],
+      "registered": true
+    },
+    "IS.simplifyAndOfICmpsWithAdd.L1699": {
+      "fired": 1,
+      "matched": 1,
+      "mismatched": 0,
+      "analysis": 0,
+      "fired_without_undef": 1,
+      "matched_without_undef": 1,
+      "files": [
+        "AndOrXor.ll"
+      ],
+      "registered": true
+    },
+    "IS.simplifyAndOrOfICmpsWithConstants.L1638": {
+      "fired": 25,
+      "matched": 25,
+      "mismatched": 0,
+      "analysis": 0,
+      "fired_without_undef": 25,
+      "matched_without_undef": 25,
+      "files": [
+        "icmp-ranges.ll"
+      ],
+      "registered": true
+    },
+    "IS.simplifyAndOrOfICmpsWithConstants.L1643": {
+      "fired": 24,
+      "matched": 24,
+      "mismatched": 0,
+      "analysis": 0,
+      "fired_without_undef": 24,
+      "matched_without_undef": 24,
+      "files": [
+        "icmp-ranges.ll"
+      ],
+      "registered": true
+    },
+    "IS.simplifyAndOrOfICmpsWithConstants.L1651": {
+      "fired": 48,
+      "matched": 48,
+      "mismatched": 0,
+      "analysis": 0,
+      "fired_without_undef": 48,
+      "matched_without_undef": 48,
+      "files": [
+        "icmp-ranges.ll"
+      ],
+      "registered": true
+    },
+    "IS.simplifyAndOrOfICmpsWithConstants.L1653": {
+      "fired": 48,
+      "matched": 48,
+      "mismatched": 0,
+      "analysis": 0,
+      "fired_without_undef": 48,
+      "matched_without_undef": 48,
+      "files": [
+        "icmp-ranges.ll"
+      ],
+      "registered": true
+    },
+    "IS.simplifyCmpSelOfMaxMin.L4763": {
+      "fired": 32,
+      "matched": 32,
+      "mismatched": 0,
+      "analysis": 0,
+      "fired_without_undef": 32,
+      "matched_without_undef": 32,
+      "files": [
+        "select-maxmin.ll"
+      ],
+      "registered": true
+    },
+    "IS.simplifyCmpSelOfMaxMin.L4771": {
+      "fired": 16,
+      "matched": 16,
+      "mismatched": 0,
+      "analysis": 0,
+      "fired_without_undef": 16,
+      "matched_without_undef": 16,
+      "files": [
+        "select-maxmin.ll"
+      ],
+      "registered": true
+    },
+    "IS.simplifyCmpSelOfMaxMin.L4775": {
+      "fired": 16,
+      "matched": 16,
+      "mismatched": 0,
+      "analysis": 0,
+      "fired_without_undef": 16,
+      "matched_without_undef": 16,
+      "files": [
+        "select-maxmin.ll"
+      ],
+      "registered": true
+    },
+    "IS.simplifyCmpSelOfMaxMin.L4783": {
+      "fired": 32,
+      "matched": 32,
+      "mismatched": 0,
+      "analysis": 0,
+      "fired_without_undef": 32,
+      "matched_without_undef": 32,
+      "files": [
+        "select-maxmin.ll"
+      ],
+      "registered": true
+    },
+    "IS.simplifyOrOfICmpsWithAdd.L1772": {
+      "fired": 1,
+      "matched": 1,
+      "mismatched": 0,
+      "analysis": 0,
+      "fired_without_undef": 1,
+      "matched_without_undef": 1,
+      "files": [
+        "AndOrXor.ll"
+      ],
+      "registered": true
+    },
+    "IS.simplifyOrOfICmpsWithAdd.L1774": {
+      "fired": 1,
+      "matched": 1,
+      "mismatched": 0,
+      "analysis": 0,
+      "fired_without_undef": 1,
+      "matched_without_undef": 1,
+      "files": [
+        "AndOrXor.ll"
+      ],
+      "registered": true
+    },
+    "IS.simplifyOrOfICmpsWithAdd.L1778": {
+      "fired": 1,
+      "matched": 1,
+      "mismatched": 0,
+      "analysis": 0,
+      "fired_without_undef": 1,
+      "matched_without_undef": 1,
+      "files": [
+        "AndOrXor.ll"
+      ],
+      "registered": true
+    },
+    "IS.simplifyOrOfICmpsWithAdd.L1780": {
+      "fired": 1,
+      "matched": 1,
+      "mismatched": 0,
+      "analysis": 0,
+      "fired_without_undef": 1,
+      "matched_without_undef": 1,
+      "files": [
+        "AndOrXor.ll"
+      ],
+      "registered": true
+    },
+    "IS.simplifyOrOfICmpsWithAdd.L1786": {
+      "fired": 1,
+      "matched": 1,
+      "mismatched": 0,
+      "analysis": 0,
+      "fired_without_undef": 1,
+      "matched_without_undef": 1,
+      "files": [
+        "AndOrXor.ll"
+      ],
+      "registered": true
+    },
+    "IS.simplifyOrOfICmpsWithAdd.L1789": {
+      "fired": 1,
+      "matched": 1,
+      "mismatched": 0,
+      "analysis": 0,
+      "fired_without_undef": 1,
+      "matched_without_undef": 1,
+      "files": [
+        "AndOrXor.ll"
+      ],
+      "registered": true
+    },
+    "IS.simplifySelectWithICmpCond.L4876": {
+      "fired": 8,
+      "matched": 8,
+      "mismatched": 0,
+      "analysis": 0,
+      "fired_without_undef": 8,
+      "matched_without_undef": 8,
+      "files": [
+        "call.ll"
+      ],
+      "registered": false
+    },
+    "IS.simplifySelectWithICmpCond.L4890": {
+      "fired": 4,
+      "matched": 4,
+      "mismatched": 0,
+      "analysis": 0,
+      "fired_without_undef": 4,
+      "matched_without_undef": 4,
+      "files": [
+        "call.ll"
+      ],
+      "registered": false
+    },
+    "IS.simplifySelectWithICmpCond.L4896": {
+      "fired": 2,
+      "matched": 2,
+      "mismatched": 0,
+      "analysis": 0,
+      "fired_without_undef": 2,
+      "matched_without_undef": 2,
+      "files": [
+        "abs_intrinsic.ll"
+      ],
+      "registered": false
+    },
+    "IS.simplifySelectWithICmpCond.L4900": {
+      "fired": 2,
+      "matched": 2,
+      "mismatched": 0,
+      "analysis": 0,
+      "fired_without_undef": 2,
+      "matched_without_undef": 2,
+      "files": [
+        "abs_intrinsic.ll"
+      ],
+      "registered": false
+    },
+    "IS.simplifyUnsignedRangeCheck.L1608": {
+      "fired": 2,
+      "matched": 2,
+      "mismatched": 0,
+      "analysis": 0,
+      "fired_without_undef": 2,
+      "matched_without_undef": 2,
+      "files": [
+        "AndOrXor.ll"
+      ],
+      "registered": false
+    },
+    "IS.simplifyUnsignedRangeCheck.L1613": {
+      "fired": 1,
+      "matched": 1,
+      "mismatched": 0,
+      "analysis": 0,
+      "fired_without_undef": 1,
+      "matched_without_undef": 1,
+      "files": [
+        "AndOrXor.ll"
+      ],
+      "registered": false
+    }
+  },
+  "not_exercised": [
+    "IS.extractEquivalentCondition.L2630",
+    "IS.extractEquivalentCondition.L2633",
+    "IS.simplifyAndOrOfICmpsWithCtpop.L1717",
+    "IS.simplifyAndOrOfICmpsWithCtpop.L1720",
+    "IS.simplifyICmpWithBinOp.L3461",
+    "IS.simplifyICmpWithBinOp.L3463",
+    "IS.simplifyICmpWithBinOp.L3467",
+    "IS.simplifyICmpWithBinOp.L3469",
+    "IS.simplifyICmpWithBinOp.L3492",
+    "IS.simplifyICmpWithBinOp.L3494",
+    "IS.simplifyICmpWithBinOp.L3503",
+    "IS.simplifyICmpWithBinOp.L3505",
+    "IS.simplifyICmpWithBinOp.L3543",
+    "IS.simplifyICmpWithBinOp.L3545",
+    "IS.simplifyICmpWithBinOp.L3548",
+    "IS.simplifyICmpWithBinOp.L3550",
+    "IS.simplifyICmpWithBinOpOnLHS.L3239",
+    "IS.simplifyICmpWithBinOpOnLHS.L3241",
+    "IS.simplifyICmpWithBinOpOnLHS.L3260",
+    "IS.simplifyICmpWithBinOpOnLHS.L3271",
+    "IS.simplifyICmpWithBinOpOnLHS.L3295",
+    "IS.simplifyICmpWithBinOpOnLHS.L3299",
+    "IS.simplifyICmpWithBinOpOnLHS.L3321",
+    "IS.simplifyICmpWithBinOpOnLHS.L3323",
+    "IS.simplifyICmpWithBinOpOnLHS.L3330",
+    "IS.simplifyICmpWithIntrinsicOnLHS.L3826",
+    "IS.simplifyICmpWithIntrinsicOnLHS.L3828",
+    "IS.simplifyICmpWithIntrinsicOnLHS.L3836",
+    "IS.simplifyICmpWithIntrinsicOnLHS.L3838",
+    "IS.simplifyICmpWithMinMax.L3680",
+    "IS.simplifyICmpWithMinMax.L3683",
+    "IS.simplifyICmpWithMinMax.L3753",
+    "IS.simplifyICmpWithMinMax.L3755",
+    "IS.simplifyICmpWithMinMax.L3773",
+    "IS.simplifyICmpWithMinMax.L3776",
+    "IS.simplifyICmpWithMinMax.L3782",
+    "IS.simplifyICmpWithMinMax.L3785"
+  ],
+  "folds_run": {
+    "Peephole.IS.simplifyAndOfICmps": "h7.453",
+    "Peephole.IS.simplifyAndOfICmpsWithAdd": "h7.453",
+    "Peephole.IS.simplifyAndOrOfCmps": "h7.453",
+    "Peephole.IS.simplifyAndOrOfICmpsWithConstants": "h7.453",
+    "Peephole.IS.simplifyAndOrOfICmpsWithCtpop": "h7.453",
+    "Peephole.IS.simplifyCmpSelOfMaxMin": "h1.1",
+    "Peephole.IS.simplifyOrOfICmps": "h1.1040",
+    "Peephole.IS.simplifyOrOfICmpsWithAdd": "h1.1040",
+    "Peephole.IS.simplifySelectWithICmpCond": "h1.1",
+    "Peephole.IS.simplifyUnsignedRangeCheck": "h7.453"
+  },
+  "folds_not_run": [
+    "Peephole.IS.extractEquivalentCondition",
+    "Peephole.IS.simplifyCmpSelCase",
+    "Peephole.IS.simplifyCmpSelFalseCase",
+    "Peephole.IS.simplifyCmpSelTrueCase",
+    "Peephole.IS.simplifyICmpWithBinOp",
+    "Peephole.IS.simplifyICmpWithBinOpOnLHS",
+    "Peephole.IS.simplifyICmpWithIntrinsicOnLHS",
+    "Peephole.IS.simplifyICmpWithMinMax"
+  ],
+  "untagged": [],
+  "mismatches": [],
+  "unexplained": [],
+  "seconds": 2.9,
+  "folds_unwatchable": []
+}
