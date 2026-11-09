@@ -46,8 +46,8 @@ from pathlib import Path
 from typing import Any
 
 ROOT = Path(__file__).resolve().parents[2]
-sys.path.insert(0, str(ROOT / "tools"))
-from irlean import hashing, proc, schemas  # noqa: E402
+sys.path.append(str(ROOT / "tools"))
+from irlean import hashing, model, proc, schemas  # noqa: E402
 from irlean import verdict as core  # noqa: E402
 
 TOOL = ROOT / "build" / "ir-lean"
@@ -634,8 +634,11 @@ def cmd_prove(args: argparse.Namespace) -> int:
     pairs = [p for p in read_jsonl(work / "pairs.jsonl") if p["status"] == "candidate"]
     done = {r["id"]: r for r in read_jsonl(work / "prove.jsonl")} if not args.again else {}
     keep = sample(work, getattr(args, "upto", None))
+    # Only pairs tools/binding.py can bind: with `certify`, every certificate there can be, which gives G1.
+    only = eligible if getattr(args, "eligible_only", False) else (lambda p: True)
     todo = sorted(
-        (p for p in pairs if p["id"] not in done and (keep is None or p["id"] in keep)), key=lambda p: p["id"]
+        (p for p in pairs if p["id"] not in done and (keep is None or p["id"] in keep) and only(p)),
+        key=lambda p: p["id"],
     )[: args.limit]
     v = VN.load_verify()
     versions = VN.current_versions(v, TOOL)
@@ -904,16 +907,9 @@ def cmd_alive(args: argparse.Namespace) -> int:
 # Refutations: the model run on inputs, through tools/verify.py
 
 
-def constructors(kind: str) -> list[str]:
-    """The constructors of `IRLean.UB` or `IRLean.ModelStop`, read from IRLean/Basic.lean, so a reason or a
-    stop added there is never left out here."""
-    text = (ROOT / "IRLean" / "Basic.lean").read_text()
-    body = text.split(f"inductive {kind} where", 1)[1].split("deriving", 1)[0]
-    return re.findall(r"^  \| (\w+)", body, re.M)
-
-
-MODEL_STOPS = constructors("ModelStop")
-UB_REASONS = constructors("UB")
+# Read from the model by irlean.model, so a reason or a stop added to IRLean is never left out here.
+MODEL_STOPS = model.model_stops()
+UB_REASONS = model.ub_reasons()
 RETURNS = "IRLean.andThen ({0}) (fun _ => IRLean.Outcome.ok ()) = IRLean.Outcome.ok ()"
 # The decidable claim of tests/verify_negative.py, over every reason IRLean.UB has: undefined behavior in the
 # source allows anything, a run that never ends only another, a poison result any result, and a value itself.
@@ -2020,6 +2016,7 @@ def main() -> int:
     p.add_argument("--seed", type=int, default=1)
     p.add_argument("--jobs", type=int, default=8)
     p = sub.add_parser("prove")
+    p.add_argument("--eligible-only", action="store_true", help="only pairs tools/binding.py can bind")
     p.add_argument("--upto", type=int, help="only the first N changed pairs by id: a uniform sample")
     p.add_argument("--jobs", type=int, default=4)
     p.add_argument("--timeout", type=int, default=120)

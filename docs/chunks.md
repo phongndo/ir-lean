@@ -49,7 +49,7 @@ Under that, each chunk's percentage at each gate:
   again on that alone, so the pair is a run a certificate can bind. Functions the pass leaves unchanged aren't pairs.
   The share is the pairs where `ir-lean --report` refuses neither side, over every pair. A function with memory or
   pointers translates, and counts here, but `IRLean.Refines` can't state its claim until F4, so it can't count at G1
-  until then. S1's harness, `bench/instcombine/stage1.py`, makes InstCombine's pairs this way. It isn't on `main` yet.
+  until then. S1's harness, [`bench/instcombine/stage1.py`](../bench/instcombine/stage1.py), makes InstCombine's pairs this way.
 - **G1.** The same pairs as G0, so a chunk's G1 is never above its G0. The share is the pairs whose verdict is
   `certified`: `tools/binding.py verify` said `bound` about the pair's `ir_instance_refinement` claim, as
   [binding](llvm-proof-binding.md) defines it. A pair Lean proves and nothing binds doesn't count. S1's metric, the
@@ -141,14 +141,14 @@ Where it stands:
 
 | Pass | G0 | G1 | G2 | G3 | G4 |
 | --- | --- | --- | --- | --- | --- |
-| `instcombine` | 38.4%: 12,002 of 31,240 pairs translate | Not measured | Not measured | Not measured | Not done |
+| `instcombine` | 41.0%: 12,797 of 31,240 pairs translate | 0.11%: 34 of 31,240 pairs certified | Not measured | Not measured | Not done |
 | `instsimplify` | Not measured | Not measured | Not measured | Not measured | Not done |
 | `aggressive-instcombine` | Not measured | Not measured | Not measured | Not measured | Not done |
 | `reassociate` | Not measured | Not measured | Not measured | Not measured | Not done |
 
-InstCombine's G0 is from S1's run before F3 landed, as recorded with the decision of 2026-11-09. That run's summary
-isn't on `main` yet, and nor is S1's harness. S1 is finishing, with G1 for InstCombine. Then G0 and G1 are measured
-across chunk 1's other three passes.
+InstCombine's G0 and G1 are from S1's run on 2026-11-09, on `main` at `dbfd710`, after F3
+([stage 1](stage1.md#chunk-1s-gates-for-instcombine)). Its G0 was recorded as 38.4% before, counting only the 12,002
+pairs without memory. G0 and G1 across chunk 1's other three passes come next.
 
 What exists and doesn't count yet:
 

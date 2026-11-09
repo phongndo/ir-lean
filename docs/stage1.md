@@ -42,6 +42,16 @@ summaries were written at `362c0f6`, which changes no stage.
 
 Of the 12,002 candidates, 2,696 have vector arguments, and 91 have every argument `noundef`.
 
+### Chunk 1's gates, for InstCombine
+
+[Chunks](chunks.md#how-each-is-measured) defines G0 and G1 over these pairs, and S1's metric is G1 for InstCombine:
+
+- **G0, 41.0%:** 12,797 of the 31,240 pairs translate on both sides, the 12,002 candidates and the 795 with memory.
+  The 38.4% chunks recorded before counted only the 12,002, though its definition counts a pair with memory.
+- **G1, 0.11%:** 34 of the 31,240 pairs are certified. A pair can be certified only if `tools/binding.py` can bind it,
+  and 91 can. `prove --eligible-only` and `certify` ran on all 91, on the same `main`: 34 proved and all 34 bound, 29
+  found no proof, Lean rejected what the emitter wrote for 18, and 10 ran out of heartbeats.
+
 ### A uniform sample
 
 `--upto 4000` takes the first 4,000 of the 31,158 candidates and refused pairs by id, a SHA-256 of the test and
