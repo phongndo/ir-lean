@@ -123,6 +123,12 @@ REASONS: dict[str, Reason] = {
         "A call to a function in the module that ir-lean translates, directly or through a pointer to one",
     ),
     "aggregate": Reason("modeled", None, "A struct is a Lean tuple, field by field"),
+    "float": Reason(
+        "modeled",
+        None,
+        "Floating point in IRLean/Float.lean: a float is its bits, and each operation is checked by "
+        "tests/fpcheck.py against LLVM's constant folder, the processor and Alive2 (SEM-05, docs/float.md)",
+    ),
     "freeze": Reason(
         "modeled",
         None,
@@ -496,13 +502,14 @@ INTRINSIC_RULES = [
         "llvm.x86.avx512.broadcastmw.128 llvm.x86.avx512.broadcastmw.256 llvm.x86.avx512.broadcastmw.512",
     ),
     R("progress effect", "llvm.sideeffect"),
+    R("float", "llvm.copysign llvm.fabs llvm.is.fpclass"),
     R(
         "floating point",
         "llvm.acos llvm.asin llvm.atan llvm.atan2 llvm.arithmetic.fence llvm.canonicalize llvm.ceil "
-        "llvm.convert.from.arbitrary.fp llvm.convert.to.arbitrary.fp llvm.copysign llvm.cos llvm.cosh "
+        "llvm.convert.from.arbitrary.fp llvm.convert.to.arbitrary.fp llvm.cos llvm.cosh "
         "llvm.exp "
-        "llvm.exp10 llvm.exp2 llvm.fabs llvm.floor llvm.fma llvm.fmuladd llvm.fptosi.sat llvm.fptoui.sat "
-        "llvm.fptrunc.round llvm.frexp llvm.get.fpenv llvm.get.fpmode llvm.get.rounding llvm.is.fpclass "
+        "llvm.exp10 llvm.exp2 llvm.floor llvm.fma llvm.fmuladd llvm.fptosi.sat llvm.fptoui.sat "
+        "llvm.fptrunc.round llvm.frexp llvm.get.fpenv llvm.get.fpmode llvm.get.rounding "
         "llvm.ldexp llvm.llrint llvm.llround llvm.log llvm.log10 llvm.log2 llvm.lrint llvm.lround "
         "llvm.maximum "
         "llvm.maximumnum llvm.maxnum llvm.minimum llvm.minimumnum llvm.minnum llvm.modf llvm.nearbyint "
@@ -635,7 +642,8 @@ ATTRIBUTE_RULES = [
     R("memory promise", "noalias", at="return"),
     R("external", "noalias", at="call return"),
     R("memory model", "noalias", at="parameter, call parameter"),
-    R("floating point", "nofpclass denormal_fpenv strictfp noimplicitfloat"),
+    R("float", "nofpclass", at=VALUE),
+    R("floating point", "denormal_fpenv strictfp noimplicitfloat"),
     R("vscale range", "vscale_range", at="function"),
     R("scalable", "vscale_range", at="call"),
     R(
@@ -745,7 +753,8 @@ INSTRUCTION_RULES = [
     R("freeze", "Freeze"),
     R("call", "Call"),
     R("memory", "Alloca Load Store GetElementPtr PtrToInt PtrToAddr"),
-    R("floating point", "FNeg FAdd FSub FMul FDiv FRem FPToUI FPToSI UIToFP SIToFP FPTrunc FPExt FCmp"),
+    R("float", "FNeg FCmp"),
+    R("floating point", "FAdd FSub FMul FDiv FRem FPToUI FPToSI UIToFP SIToFP FPTrunc FPExt"),
     R("memory model", "IntToPtr"),
     R("layout", "AddrSpaceCast"),
     R("concurrency", "Fence AtomicCmpXchg AtomicRMW"),
@@ -763,7 +772,8 @@ TYPE_RULES = [
     R("aggregate", "Struct"),
     R("call", "Function"),
     R("memory", "Pointer"),
-    R("floating point", "Half BFloat Float Double X86_FP80 FP128 PPC_FP128"),
+    R("float", "Half BFloat Float Double FP128"),
+    R("floating point", "X86_FP80 PPC_FP128"),
     R("scalable vector", "ScalableVector"),
     R("vector gap", "Array"),
     R("memory model", "Byte"),
@@ -810,7 +820,7 @@ CONSTANT_RULES = [
     R("global", "GlobalVariable ConstantDataArray ConstantArray"),
     R("call", "Function"),
     R("undef", "UndefValue"),
-    R("floating point", "ConstantFP"),
+    R("float", "ConstantFP"),
     R("memory model", "ConstantByte"),
     R("external", "ConstantExpr GlobalIFunc DSOLocalEquivalent NoCFIValue"),
     R("alias", "GlobalAlias"),
@@ -1614,10 +1624,9 @@ def run_probes(
 # Why a modeled item's probe may be refused at some shapes: the emitter's reason, and the refused item it's
 # about.
 PARTIAL = [
-    (r"^type <vscale x \d+ x (half|bfloat|float|double|fp128|x86_fp80|ppc_fp128)>$", ("type", "", "Float")),
+    (r"^type (<(vscale x )?\d+ x )?x86_fp80>?$", ("type", "", "X86_FP80")),
+    (r"^type (<(vscale x )?\d+ x )?ppc_fp128>?$", ("type", "", "PPC_FP128")),
     (r"^type <vscale x \d+ x ptr", ("form", "", "vector-of-pointers")),
-    (r"^type (half|bfloat|float|double|fp128|x86_fp80|ppc_fp128)$", ("type", "", "Float")),
-    (r"^type <\d+ x (half|bfloat|float|double|fp128|x86_fp80|ppc_fp128)>$", ("type", "", "Float")),
     (r"^type <\d+ x ptr", ("form", "", "vector-of-pointers")),
     (r"^type ptr addrspace", ("form", "", "pointer-in-address-space")),
 ]
