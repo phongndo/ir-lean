@@ -285,7 +285,8 @@ It waited on #48 and the CI split, which landed in #48 and #53. Five lanes:
 - SEM-07, F2, slice 23: breaking `mustprogress` or `willreturn` is UB, as in LangRef,
   [Phase 0](#phase-0-semantic-fidelity-and-trust-infrastructure).
   Done in [#62](https://github.com/phongndo/ir-lean/pull/62).
-- Tier-1 proof tests on `tools/verify.py`, T1, slice 24, [Phase 7](#phase-7-proof-tests).
+- Tier-1 proof tests on `tools/verify.py`, T1, slice 24, [Phase 7](#phase-7-proof-tests). Done in
+  [#66](https://github.com/phongndo/ir-lean/pull/66).
 - Speed, round 2, C1, slice 30, [Phase 8](#phase-8-speed). [#61](https://github.com/phongndo/ir-lean/pull/61),
   [#63](https://github.com/phongndo/ir-lean/pull/63), [#64](https://github.com/phongndo/ir-lean/pull/64) and
   [#65](https://github.com/phongndo/ir-lean/pull/65) landed, and #65's last pull request run, with the other three
@@ -412,7 +413,7 @@ Each is reached when its checks pass in CI, not on a date.
 | E1 | Lemma store v1 | 6 | #48 | Done in [#60](https://github.com/phongndo/ir-lean/pull/60): 163 lemmas in `lake build` and CI, each meeting rules 1 to 3, and 16 all four ([lemma store](lemma-store.md)) |
 | E2 | Executable memory model | 6 | | Not started |
 | E3 | The store makes proofs cheaper, measured | 6 | E1 | Not started |
-| T1 | Tier-1 proof tests | 7 | | Not started |
+| T1 | Tier-1 proof tests | 7 | | Done in [#66](https://github.com/phongndo/ir-lean/pull/66): every injected bug it can run refuted, at a median of 9.1 ms to a counterexample the kernel checked, and `prooftest_t1` checks T1's set in CI ([proof tests](proof-tests.md#t1-measured)) |
 | T2 | Tiers 2 and 3 | 7 | T1. E1, soft, for tier 3 | Not started |
 | T3 | One real project's unit-test file replaced | 7 | T2 | Not started |
 | C1 | Pull request CI in at most 10 minutes | 8 | | In progress: on 2026-11-09, #65's last pull request run, with #61, #63 and #64 merged in, took 8.0 minutes, against 11.7 to 16.6 in three runs before #65 that day ([testing](testing.md#ci)). Reached when the median of 20 consecutive pull requests is at most 10 |
@@ -646,8 +647,11 @@ tier 3, as a [soft dependency](#dependencies).
 
 **Where it stands:** [`tools/verify.py`](verify.md) checks one claim about one function and answers `proved`,
 `counterexample`, `unsupported`, `timeout` or `error`, in JSON. It tries the witnesses it's given, and doesn't
-generate any. The [tests](testing.md) already include differential tests against native code, fuzzing, the Alive2
-checks `opcheck` and `gepcheck`, and the negative corpus.
+generate any. Tier 1 is built on it, in [`tools/prooftest/`](../tools/prooftest): it runs a property on generated
+inputs, shrinks a counterexample, has the kernel check that the statement is false there, and stores it, and it
+answers `passed_tier1`, `counterexample`, `vacuous` or `unknown` ([proof tests](proof-tests.md)). Tiers 2 and 3 are
+designed there, and not built. The [tests](testing.md) already include differential tests against native code,
+fuzzing, the Alive2 checks `opcheck` and `gepcheck`, and the negative corpus.
 
 **Where it sits,** to be checked by the prior-art study:
 

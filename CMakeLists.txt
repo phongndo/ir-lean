@@ -113,6 +113,19 @@ add_test(NAME names COMMAND ${CMAKE_SOURCE_DIR}/tests/names.sh)
 add_test(NAME undef_freeze COMMAND ${CMAKE_SOURCE_DIR}/tests/undef_freeze.sh)
 set_tests_properties(undef_freeze PROPERTIES TIMEOUT 900)
 add_test(NAME verify COMMAND ${CMAKE_SOURCE_DIR}/tests/verify.py $<TARGET_FILE:ir-lean>)
+# Tier-1 proof tests: the contract in Python, then tools/prooftest/prooftest.py on
+# tests/prooftest/Cases.ll, at most four cases at a time, each with at most one Lean process running.
+add_test(NAME prooftest COMMAND ${CMAKE_SOURCE_DIR}/tests/prooftest_test.py $<TARGET_FILE:ir-lean>)
+set_tests_properties(prooftest PROPERTIES TIMEOUT 600)
+# Milestone T1: tier 1 on the 16 bugs tests/proofs.sh injects and the negative corpus. Each one it can run
+# refuted, each one it can't unknown, at a median under 100 ms. Two cases at a time.
+add_test(
+    NAME prooftest_t1
+    COMMAND
+        ${CMAKE_SOURCE_DIR}/tools/prooftest/bench.py --tool $<TARGET_FILE:ir-lean> --sets proofs_sh,negative
+        --check-t1 --workers 2 --out ${CMAKE_BINARY_DIR}/prooftest-t1
+)
+set_tests_properties(prooftest_t1 PROPERTIES TIMEOUT 900)
 # What counts as a certificate: the gate on stored and broken results, in Python, and then a corpus of
 # wrong and right rewrites through tools/verify.py, one Lean process at a time.
 add_test(NAME verify_negative_static COMMAND ${CMAKE_SOURCE_DIR}/tests/verify_negative.py --tier static)
@@ -244,6 +257,8 @@ set_tests_properties(
     generic_rewrites
     cpp_correspondence
     store
+    prooftest
+    prooftest_t1
     PROPERTIES LABELS semantics
 )
 # These compile the same modules, and the second finds them in the cache.

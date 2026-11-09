@@ -239,3 +239,5 @@ reads it. That difference is itself a thing [Phase 3](roadmap.md#phase-3-c-and-r
 10. `inflate`: [measured](#measured). Its next step is [its invariant](roadmap.md#phase-1-zlib-inflate-memory-safety).
 11. A [lemma store](lemma-store.md): 163 checked lemmas from #42, #46 and #48 that later proofs can find, in `lake build`
     and CI, 16 of them used by two proofs. Done in [#60](https://github.com/phongndo/ir-lean/pull/60).
+12. Tier-1 proof tests, which run a property on generated inputs and have the kernel check each counterexample. Done,
+    for functions without memory: [proof tests](proof-tests.md) has what they refute, and what they can't run.
