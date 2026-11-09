@@ -892,12 +892,14 @@ public:
                   const std::set<const Function *> &TalkingFunctions,
                   const std::set<const Function *> &EffectFunctions,
                   const std::set<const Function *> &AccessFunctions,
+                  const std::set<const Function *> &ReachFunctions,
                   const std::set<const Function *> &ReachesFree, const ModuleContext &Context)
       : F(F), LeanName(std::move(LeanName)), Recursive(Recursive), PromisedCycle(PromisedCycle),
         UsesMemory(UsesMemory), Chooses(Chooses), Talks(Talks), Callees(Callees),
         MemoryFunctions(MemoryFunctions), ChoosingFunctions(ChoosingFunctions),
         TalkingFunctions(TalkingFunctions), EffectFunctions(EffectFunctions),
-        AccessFunctions(AccessFunctions), ReachesFree(ReachesFree), Context(Context) {}
+        AccessFunctions(AccessFunctions), ReachFunctions(ReachFunctions), ReachesFree(ReachesFree),
+        Context(Context) {}
 
   // Checks the function can be translated, and sets up names and liveness.
   void prepare();
@@ -919,6 +921,9 @@ private:
   void findPromises();
   std::string promisedRun(const std::string &Entry);
   std::string promisedCall(const Function *Callee, const std::string &Call);
+  // Whether the block being emitted is under a promise to progress or to return: its own, a loop's, or, in a
+  // cycle of calls where something promises to progress, the cycle's.
+  bool underPromise() const { return F.willReturn() || Promised.count(Current) || PromisedCycle; }
   std::string signature(const std::string &Name);
 
   std::string operand(const Value *V);
@@ -997,6 +1002,9 @@ private:
   const std::set<const Function *> &EffectFunctions;
   // Functions that make a call outside the module that accesses memory, or call one that does.
   const std::set<const Function *> &AccessFunctions;
+  // Functions that make a call outside the module that may access memory a function with memory can reach, or
+  // call one that does.
+  const std::set<const Function *> &ReachFunctions;
   const std::set<const Function *> &ReachesFree;
   const ModuleContext &Context;
   std::string RetType;
@@ -2048,9 +2056,17 @@ void FunctionEmitter::emitCall(const CallBase &C, std::vector<Line> &Out) {
     std::string Name = Memory ? Bound : Void ? "_" : Names.at(&C);
     // A callee that calls outside the module may not come back, and the run then ends as it did. One whose
     // calls have effects is refused under a promise, as such a call is.
-    if (EffectFunctions.count(Callee) && (F.willReturn() || Promised.count(Current)))
+    if (EffectFunctions.count(Callee) && underPromise())
       reject("call to @" + Callee->getName().str() +
              ", which calls outside the module with effects, under a promise to progress");
+    // The model doesn't see what such a callee's calls do to this function's memory, or what they read of it.
+    if (UsesMemory && ReachFunctions.count(Callee))
+      reject("call to @" + Callee->getName().str() +
+             ", whose calls outside the module may access this function's memory, which touches memory: F4");
+    // A callee outside the module may synchronize, which `nosync` at this call rules out.
+    if (AccessFunctions.count(Callee) && C.getAttributes().getFnAttrs().hasAttribute(Attribute::NoSync))
+      reject("call attribute nosync on a call to @" + Callee->getName().str() +
+             ", whose calls outside the module access memory");
     if (Talking)
       addExit(C, Out, Name, promisedCall(Callee, Expr));
     else
@@ -2108,7 +2124,7 @@ void FunctionEmitter::emitOutsideCall(const CallBase &C, std::vector<Line> &Out)
   // Under a promise to progress, interacting with the environment is progress, which IRLean.runPromised can't
   // see, and under `willreturn` a call that never comes back is undefined, which `halted` isn't.
   bool Effects = !hasNoEffects(C);
-  if (Effects && (F.willReturn() || Promised.count(Current)))
+  if (Effects && underPromise())
     reject("call to external " + Name + " with effects, under a promise to progress");
   // LangRef makes a call with another calling convention than its callee's undefined.
   if (C.getCallingConv() != Callee->getCallingConv())
@@ -2673,7 +2689,7 @@ Emitted emitModule(Module &M, const std::string &Namespace, const std::string &S
   std::set<const Function *> ChoosingFunctions;
   // Functions that call outside the module, which take an `IRLean.World` and an `IRLean.Trace`, and those
   // whose calls have effects.
-  std::set<const Function *> TalkingFunctions, EffectFunctions, AccessFunctions;
+  std::set<const Function *> TalkingFunctions, EffectFunctions, AccessFunctions, ReachFunctions;
 
   NameTable FunctionNames;
   DenseMap<const Function *, std::string> LeanNames, Translated;
@@ -2751,7 +2767,7 @@ Emitted emitModule(Module &M, const std::string &Namespace, const std::string &S
     // something that chooses, through a pointer too. It talks if it calls outside the module, or calls
     // something that does. Members of a cycle pass choices, the world and the trace along for each other, so
     // they share the answers.
-    bool Chooses = false, Talks = false, Effects = false, Accesses = false;
+    bool Chooses = false, Talks = false, Effects = false, Accesses = false, Reaches = false;
     for (const Function *F : Component)
       for (const BasicBlock &BB : *F)
         for (const Instruction &I : BB) {
@@ -2764,6 +2780,7 @@ Emitted emitModule(Module &M, const std::string &Namespace, const std::string &S
             Chooses |= hasNoEffects(*C);
             Effects |= !hasNoEffects(*C);
             Accesses |= !outsideEffects(*C).doesNotAccessMemory();
+            Reaches |= !touchesOnlyInaccessible(*C);
             continue;
           }
           if (const Function *Callee = C->getCalledFunction()) {
@@ -2771,6 +2788,7 @@ Emitted emitModule(Module &M, const std::string &Namespace, const std::string &S
             Talks |= TalkingFunctions.count(Callee) != 0;
             Effects |= EffectFunctions.count(Callee) != 0;
             Accesses |= AccessFunctions.count(Callee) != 0;
+            Reaches |= ReachFunctions.count(Callee) != 0;
             continue;
           }
           for (const Function *Target : Context.candidates(C->getFunctionType())) {
@@ -2788,14 +2806,16 @@ Emitted emitModule(Module &M, const std::string &Namespace, const std::string &S
       EffectFunctions.insert(Component.begin(), Component.end());
     if (Accesses)
       AccessFunctions.insert(Component.begin(), Component.end());
+    if (Reaches)
+      ReachFunctions.insert(Component.begin(), Component.end());
 
     std::vector<std::unique_ptr<FunctionEmitter>> Emitters;
     std::string Types, Loops, Functions, Wrappers, Failure;
     for (Function *F : Component) {
       Emitters.push_back(std::make_unique<FunctionEmitter>(
           *F, LeanNames.lookup(F), Recursive, PromisedCycle, UsesMemory, Chooses, Talks, Translated,
-          MemoryFunctions, ChoosingFunctions, TalkingFunctions, EffectFunctions, AccessFunctions, ReachesFree,
-          Context));
+          MemoryFunctions, ChoosingFunctions, TalkingFunctions, EffectFunctions, AccessFunctions,
+          ReachFunctions, ReachesFree, Context));
       FunctionEmitter &E = *Emitters.back();
       try {
         E.prepare();
