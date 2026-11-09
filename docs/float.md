@@ -1,8 +1,9 @@
 # Floating point: the design
 
 How `ir-lean` will model LLVM's floating point, SEM-05 in the [task list](llvm-verification-tasks.md#sem-05-floating-point).
-This page is the design, decided on 2026-11-09. Its first two slices, the bit-level operations and the arithmetic and
-conversions, are in the model, and [the slices](#the-slices) say what each has done and what's still refused. [Trust](trust.md) and [status](status.md)
+This page is the design, decided on 2026-11-09. Its first three slices, the bit-level operations, the arithmetic and
+conversions, and the fast-math flags, are in the model, and [the slices](#the-slices) say what each has done and what's
+still refused. [Trust](trust.md) and [status](status.md)
 say what's true now. For what any theorem means, read [trust](trust.md) first.
 
 **Why now.** Floating point is the largest gap in stage 1's coverage. Of InstCombine's 31,240 changed pairs at
@@ -140,7 +141,7 @@ reads `(c'.sub k).pick i`, as a call's choices do. Where IEEE 754 gives a NaN, t
 | 0 | The sign |
 | 1 | Unchanged, or quieted |
 | 2 and 3 | Which: the preferred NaN, or operand 1, 2 or 3 |
-| 4 to 6 | Under `nsz`, whether each operand that's a zero has its sign flipped, below |
+| 4 and 5 | Under `nsz`, whether operand 1 or 2, where it's a zero, has its sign flipped, [below](#fast-math-flags). On `uitofp`, `sitofp` and `select`, bit 4 flips a zero result's sign instead. Bit 6 is kept for a third operand |
 
 An operand that isn't a NaN gives the preferred NaN. So every choice is a result LangRef allows, and every result it
 allows is some choice: the preferred NaN with either sign, and each NaN operand, quieted or as it was, with either sign.
@@ -175,7 +176,7 @@ intrinsics and attributes are refused too, 92 for x86-32 and 67 for `unknown`.
 | --- | --- | --- |
 | `nnan` | Poison if an operand is a NaN, or the result would be | The same |
 | `ninf` | Poison if an operand is an infinity, or the result would be | The same |
-| `nsz` | A choice: each operand that's a zero may have its sign flipped, before the operation. One more bit of the choice per operand. On `uitofp` and `sitofp`, whose operand is an integer with no sign, LangRef says instead "if the input value is 0, the sign bit of the result is non-deterministic": one bit of the choice, for the result | The same, `any_fp_zero` on each input |
+| `nsz` | A choice: each operand that's a zero may have its sign flipped, before the operation. One more bit of the choice per operand. On `uitofp` and `sitofp`, whose operand is an integer with no sign, LangRef says instead "if the input value is 0, the sign bit of the result is non-deterministic": one bit of the choice, for the result | The same, `any_fp_zero` on each input. At the pin it asserts that `uitofp` and `sitofp` have no flags at all, and stops |
 | `arcp`, `contract`, `afn`, `reassoc`, and `fast` | Refused by name, on the source and target alike | An uninterpreted function and an approximation, so it never says a rewrite with one is correct |
 
 The four refused flags give permission to rewrite an expression, LangRef says, and they hold only where every
@@ -185,8 +186,24 @@ behaviors away from the source, but the emitter doesn't know which side it's tra
 both. Of the 9,222 refused pairs whose reason names floating point, 1,191 have one of them on either side.
 
 `fcmp`, `select`, `phi` and calls returning floats take flags too. On `fcmp` only `nnan`, `ninf` and `reassoc` have
-an effect, LangRef says, and on the others `nnan` and `ninf` make the result poison, and `nsz` lets a zero result's
-sign flip.
+an effect, LangRef says. On `select`, "they are only applied to the result, not both arms", so `nnan` and `ninf` make
+the result poison where the selected value is a NaN or an infinity, whatever the other arm is, and `nsz` lets a zero
+result's sign flip. Alive2 reads it the same way. `phi` and calls keep their flags refused.
+
+Which operations `nsz` changes:
+
+- **The arithmetic, `fptrunc` and `fpext`:** each zero operand's sign, by bits 4 and 5 of the choice the operation
+  already makes for a NaN.
+- **`fneg` and `llvm.copysign`:** a zero operand's sign, so `fneg` of a zero, and `copysign` with a zero second
+  operand, may give either zero. Each becomes a chooser, but only with `nsz`.
+- **`llvm.fabs`:** nothing, since it clears the sign whatever the operand's was. It doesn't choose.
+- **`uitofp`, `sitofp` and `select`:** a zero result's sign, by bit 4. Each becomes a chooser with `nsz`.
+
+**Where LLVM reads `nsz` differently.** InstSimplify folds `fabs nsz x` to `x` where `x` is never a NaN and never below
+zero (`simplifyUnaryIntrinsic`, in `InstructionSimplify.cpp` at the pin), so `fabs nsz -0.0` becomes `-0.0`. That
+reads `nsz` as reaching the result's sign. LangRef 23.1.3's text lets it flip only an operand's, and `fabs` of either
+zero is `0.0`, so the model refutes the fold, and Alive2 does too. It shows only where the constant folder leaves the
+`fabs`, as it does for `fp128`. `tests/float` has it as a wrong rewrite, and `tests/fpcheck.py` counts the folds apart.
 
 ## The environment
 
@@ -361,7 +378,15 @@ every existing proof still passing, its coverage reported, and [trust](trust.md)
    rewrites, among them `fadd x, -0.0` to `x` and `fadd x, y` to `fadd y, x`, whose proofs name the source's choice.
    On the same pairs, it makes 1,175 of those the emitter refused at `45a55e7` translatable, and moves 29 to a refusal
    for memory.
-3. **Fast-math flags:** `nnan`, `ninf` and `nsz` on everything, as above.
+3. **Fast-math flags:** `nsz` as a choice, as [above](#fast-math-flags), and `nnan`, `ninf` and `nsz` on `select`,
+   scalar and vector, applied to the selected value.
+   **In the model** since 2026-11-09. Checked by `tests/fpcheck.py`: each operation with `nsz`, under every choice,
+   gives exactly what the operation without it gives on its operands with their zeros' signs flipped every way, or its
+   result with either sign where that's a zero, and against the constant folder, the processor and Alive2 one way. By
+   `tests/float.sh` on 8 more rewrites, among them `fadd nsz x, 0.0` to `x` and `fsub nsz 0.0, x` to `fneg x`, whose
+   proofs name the flip, and InstSimplify's `fabs nsz -0.0` to `-0.0`, refuted. `phi` and calls with flags stay
+   refused. On the same pairs, against the emitter at `2879b18`, it makes 210 of those the emitter refused
+   translatable, 133 refused first for `nsz`, 60 for `nnan` and 17 for `ninf`, and moves 6 to a refusal for memory.
 4. **Intrinsics,** by how often InstCombine's tests use them: `fma` and `fmuladd`; `minnum`, `maxnum`, `minimum`,
    `maximum`, `minimumnum` and `maximumnum`; `sqrt` and the rounding family; `ldexp` and `frexp`; then the rest.
 5. **Vectors of floats,** lane by lane, as each operation lands.

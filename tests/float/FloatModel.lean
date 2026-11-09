@@ -31,6 +31,15 @@ import fdiv_self_wrong_ir
 import fadd_fsub_wrong_ir
 import fptosi_narrowed_wrong_ir
 import uitofp_nneg_added_wrong_ir
+
+import fadd_nsz_zero_right_ir
+import fsub_nsz_zero_to_fneg_right_ir
+import fneg_nsz_dropped_right_ir
+import select_nsz_zero_right_ir
+import fneg_nsz_added_wrong_ir
+import select_nnan_arm_wrong_ir
+import select_nnan_added_wrong_ir
+import fabs_nsz_negzero_wrong_ir
 /-! Floating point's bit-level operations in the model, SEM-05's first slice: each rewrite in `tests/float`, as ir-lean
 emits it, with a theorem of the case's name proving its verdict. A `_right` case refines, for every input, poison
 included, and a `_wrong` one provably doesn't, at the input given. `tests/float.sh` builds this with warnings as
@@ -86,6 +95,39 @@ theorem ofNat_flipSecond (v : BitVec w) :
 
 theorem ofNat_swapPick (n : Nat) : BitVec.ofNat 8 (swapPick n) = swapBV (BitVec.ofNat 8 n) := by
   simp [swapPick]
+
+/-! Under `nsz`, bit `4 + i` of the choice flips operand `i`'s sign where it's a zero, and on `select` bit 4 the
+result's. -/
+
+/-- `keep`, with the second operand's sign flipped where it's a zero. -/
+def keepNsz (x : Val w) : Nat :=
+  match x with
+  | some v => ((BitVec.ofBool v.msb).setWidth 8 ||| 38#8).toNat
+  | none => 0
+
+/-- `flipSecond`, with the first operand's sign flipped where it's a zero. -/
+def flipSecondNsz (x : Val w) : Nat :=
+  match x with
+  | some v => ((BitVec.ofBool !v.msb).setWidth 8 ||| 26#8).toNat
+  | none => 0
+
+/-- A zero result with `x`'s sign. -/
+def zeroSign (x : Val w) : Nat :=
+  match x with
+  | some v => ((BitVec.ofBool v.msb).setWidth 8 <<< 4).toNat
+  | none => 0
+
+theorem ofNat_keepNsz (v : BitVec w) :
+    BitVec.ofNat 8 (keepNsz (some v)) = (BitVec.ofBool v.msb).setWidth 8 ||| 38#8 := by
+  simp only [keepNsz]; cases v.msb <;> decide
+
+theorem ofNat_flipSecondNsz (v : BitVec w) :
+    BitVec.ofNat 8 (flipSecondNsz (some v)) = (BitVec.ofBool !v.msb).setWidth 8 ||| 26#8 := by
+  simp only [flipSecondNsz]; cases v.msb <;> decide
+
+theorem ofNat_zeroSign (v : BitVec w) :
+    BitVec.ofNat 8 (zeroSign (some v)) = (BitVec.ofBool v.msb).setWidth 8 <<< 4 := by
+  simp only [zeroSign]; cases v.msb <;> decide
 
 /-! ### Right -/
 
@@ -184,7 +226,8 @@ theorem fmul_one_right : Refines fmul_one_right_ir.src
   rw [run_ret _ (by rfl), run_ret _ (by rfl), Refine.outcome_ok_ok, Refine.val_iff]
   cases x <;> simp [llvm, ite_some, HasPoison.poison, Choice.pick, ofNat_keep, ofNat_flipSecond, ofNat_swapPick, swapBV] <;> bv_decide
 
-/-- `fsub -0.0, x` to `fneg x`, as InstCombine folds it: where x is a NaN, the source may return it unchanged with -/
+/-- `fsub -0.0, x` to `fneg x`, as InstCombine folds it: where x is a NaN, the source may return it unchanged with its
+sign flipped. -/
 theorem fsub_negzero_to_fneg_right : Refines fsub_negzero_to_fneg_right_ir.src
     (fun x => Outcomes.det (fsub_negzero_to_fneg_right_ir.tgt x)) := by
   intro x
@@ -224,6 +267,44 @@ theorem sitofp_fptosi_right : Refines sitofp_fptosi_right_ir.src sitofp_fptosi_r
   simp only [sitofp_fptosi_right_ir.src, sitofp_fptosi_right_ir.tgt]
   rw [run_ret _ (by rfl), run_ret _ (by rfl), Refine.outcome_ok_ok, Refine.val_iff]
   cases x <;> simp [llvm, ite_some, HasPoison.poison, Choice.pick, ofNat_keep, ofNat_flipSecond, ofNat_swapPick, swapBV] <;> bv_decide
+
+/-! #### Fast-math flags -/
+
+/-- `fadd nsz x, 0.0` to `x`: the source may flip the 0.0 to -0.0, and keep a NaN x as it is. -/
+theorem fadd_nsz_zero_right : Refines fadd_nsz_zero_right_ir.src
+    (fun x => Outcomes.det (fadd_nsz_zero_right_ir.tgt x)) := by
+  intro x
+  refine (Refine.outcomes_det_right _ _).2 ⟨fun _ => keepNsz x, ?_⟩
+  simp only [fadd_nsz_zero_right_ir.src, fadd_nsz_zero_right_ir.tgt]
+  rw [run_ret _ (by rfl), run_ret _ (by rfl), Refine.outcome_ok_ok, Refine.val_iff]
+  cases x <;> simp [llvm, ite_some, HasPoison.poison, Choice.pick, ofNat_keepNsz] <;> bv_decide
+
+/-- `fsub nsz 0.0, x` to `fneg x`: the source may flip the 0.0 to -0.0, and return a NaN x with its sign flipped. -/
+theorem fsub_nsz_zero_to_fneg_right : Refines fsub_nsz_zero_to_fneg_right_ir.src
+    (fun x => Outcomes.det (fsub_nsz_zero_to_fneg_right_ir.tgt x)) := by
+  intro x
+  refine (Refine.outcomes_det_right _ _).2 ⟨fun _ => flipSecondNsz x, ?_⟩
+  simp only [fsub_nsz_zero_to_fneg_right_ir.src, fsub_nsz_zero_to_fneg_right_ir.tgt]
+  rw [run_ret _ (by rfl), run_ret _ (by rfl), Refine.outcome_ok_ok, Refine.val_iff]
+  cases x <;> simp [llvm, ite_some, HasPoison.poison, Choice.pick, ofNat_flipSecondNsz] <;> bv_decide
+
+/-- `fneg nsz x` to `fneg x`: the source may leave every zero's sign as it is. -/
+theorem fneg_nsz_dropped_right : Refines fneg_nsz_dropped_right_ir.src
+    (fun x => Outcomes.det (fneg_nsz_dropped_right_ir.tgt x)) := by
+  intro x
+  refine (Refine.outcomes_det_right _ _).2 ⟨fun _ => 0, ?_⟩
+  simp only [fneg_nsz_dropped_right_ir.src, fneg_nsz_dropped_right_ir.tgt]
+  rw [run_ret _ (by rfl), run_ret _ (by rfl), Refine.outcome_ok_ok, Refine.val_iff]
+  cases x <;> simp [llvm, ite_some, HasPoison.poison, Choice.pick] <;> bv_decide
+
+/-- `select nsz (fcmp oeq x, 0.0), 0.0, x` to `x`: where x is -0.0, the source may give -0.0. -/
+theorem select_nsz_zero_right : Refines select_nsz_zero_right_ir.src
+    (fun x => Outcomes.det (select_nsz_zero_right_ir.tgt x)) := by
+  intro x
+  refine (Refine.outcomes_det_right _ _).2 ⟨fun _ => zeroSign x, ?_⟩
+  simp only [select_nsz_zero_right_ir.src, select_nsz_zero_right_ir.tgt]
+  rw [run_ret _ (by rfl), run_ret _ (by rfl), Refine.outcome_ok_ok, Refine.val_iff]
+  cases x <;> simp [llvm, ite_some, HasPoison.poison, Choice.pick, ofNat_zeroSign] <;> bv_decide
 
 /-! ### Wrong -/
 
@@ -343,3 +424,39 @@ theorem uitofp_nneg_added_wrong : ¬ Refines uitofp_nneg_added_wrong_ir.src uito
   rw [run_ret _ (by rfl), run_ret _ (by rfl), Refine.outcome_ok_ok, Refine.val_iff] at hc
   simp [llvm, ite_some, HasPoison.poison, Choice.pick, ofNat_keep, ofNat_flipSecond, ofNat_swapPick, swapBV] at hc
   all_goals bv_decide
+
+/-! #### Fast-math flags -/
+
+/-- `fneg x` to `fneg nsz x`: at 0.0 the target may give 0.0, where the source gives -0.0. -/
+theorem fneg_nsz_added_wrong : ¬ Refines (fun x0 => Outcomes.det (fneg_nsz_added_wrong_ir.src x0))
+    fneg_nsz_added_wrong_ir.tgt := fun h => by
+  have hc := (Refine.outcomes_det_left _ _).1 (h (some 0#32)) (fun _ => 16)
+  simp only [fneg_nsz_added_wrong_ir.src, fneg_nsz_added_wrong_ir.tgt] at hc
+  rw [run_ret _ (by rfl), run_ret _ (by rfl), Refine.outcome_ok_ok, Refine.val_iff] at hc
+  simp [llvm, ite_some, HasPoison.poison, Choice.pick] at hc
+  all_goals (revert hc; decide)
+
+/-- `select nnan c, x, NaN` to poison: where c is true and x is 1.0, the source gives 1.0. -/
+theorem select_nnan_arm_wrong : ¬ Refines select_nnan_arm_wrong_ir.src select_nnan_arm_wrong_ir.tgt := fun h => by
+  have hc := h (some 1#1) (some 0x3F800000#32)
+  simp only [select_nnan_arm_wrong_ir.src, select_nnan_arm_wrong_ir.tgt] at hc
+  rw [run_ret _ (by rfl), run_ret _ (by rfl), Refine.outcome_ok_ok, Refine.val_iff] at hc
+  simp [llvm, ite_some, HasPoison.poison] at hc
+  all_goals (revert hc; decide)
+
+/-- `select c, x, y` to `select nnan c, x, y`: where it selects a NaN, the target is poison and the source isn't. -/
+theorem select_nnan_added_wrong : ¬ Refines select_nnan_added_wrong_ir.src select_nnan_added_wrong_ir.tgt :=
+    fun h => by
+  have hc := h (some 1#1) (some 0x7FC00000#32) (some 0#32)
+  simp only [select_nnan_added_wrong_ir.src, select_nnan_added_wrong_ir.tgt] at hc
+  rw [run_ret _ (by rfl), run_ret _ (by rfl), Refine.outcome_ok_ok, Refine.val_iff] at hc
+  simp [llvm, ite_some, HasPoison.poison] at hc
+  all_goals (revert hc; decide)
+
+/-- `fabs nsz -0.0` to `-0.0`, as InstSimplify folds it for `fp128`, reading `nsz` as reaching the result's sign:
+LangRef lets it flip only the operand's, and `fabs` of either zero is 0.0. Alive2 agrees. -/
+theorem fabs_nsz_negzero_wrong : ¬ Refines fabs_nsz_negzero_wrong_ir.src fabs_nsz_negzero_wrong_ir.tgt := fun h => by
+  simp only [Refines, fabs_nsz_negzero_wrong_ir.src, fabs_nsz_negzero_wrong_ir.tgt] at h
+  rw [run_ret _ (by rfl), run_ret _ (by rfl), Refine.outcome_ok_ok, Refine.val_iff] at h
+  simp [llvm, ite_some, HasPoison.poison] at h
+  all_goals (revert h; decide)
