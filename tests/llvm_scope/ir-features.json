@@ -194,6 +194,11 @@
    "lane": "floating point",
    "says": "Floating point"
   },
+  "float shape": {
+   "class": "refused",
+   "lane": "floating point",
+   "says": "A conversion intrinsic whose result has another number of lanes than its argument, which LangRef rules out and LLVM's verifier allows"
+  },
   "external": {
    "class": "refused",
    "lane": "external calls and globals",
@@ -348,14 +353,14 @@
   }
  },
  "totals": {
-  "items": 17042,
-  "modeled": 190,
+  "items": 17043,
+  "modeled": 203,
   "assumed": 260,
-  "refused": 16592,
+  "refused": 16580,
   "by_kind": {
    "instruction": {
-    "modeled": 40,
-    "refused": 29
+    "modeled": 51,
+    "refused": 18
    },
    "type": {
     "modeled": 13,
@@ -363,9 +368,9 @@
     "refused": 8
    },
    "intrinsic": {
-    "modeled": 63,
+    "modeled": 65,
     "assumed": 4,
-    "refused": 16356
+    "refused": 16354
    },
    "attribute": {
     "modeled": 43,
@@ -399,12 +404,12 @@
    "form": {
     "modeled": 10,
     "assumed": 3,
-    "refused": 36
+    "refused": 37
    }
   },
   "refused_by_lane": {
    "external calls and globals": 65,
-   "floating point": 139,
+   "floating point": 127,
    "long tail": 1906,
    "memory": 115
   }
@@ -424,17 +429,17 @@
   {"kind": "instruction", "name": "CallBr", "class": "refused", "reason": "asm"},
   {"kind": "instruction", "name": "FNeg", "class": "modeled", "reason": "float"},
   {"kind": "instruction", "name": "Add", "class": "modeled", "reason": "integer"},
-  {"kind": "instruction", "name": "FAdd", "class": "refused", "lane": "floating point", "reason": "floating point"},
+  {"kind": "instruction", "name": "FAdd", "class": "modeled", "reason": "float"},
   {"kind": "instruction", "name": "Sub", "class": "modeled", "reason": "integer"},
-  {"kind": "instruction", "name": "FSub", "class": "refused", "lane": "floating point", "reason": "floating point"},
+  {"kind": "instruction", "name": "FSub", "class": "modeled", "reason": "float"},
   {"kind": "instruction", "name": "Mul", "class": "modeled", "reason": "integer"},
-  {"kind": "instruction", "name": "FMul", "class": "refused", "lane": "floating point", "reason": "floating point"},
+  {"kind": "instruction", "name": "FMul", "class": "modeled", "reason": "float"},
   {"kind": "instruction", "name": "UDiv", "class": "modeled", "reason": "integer"},
   {"kind": "instruction", "name": "SDiv", "class": "modeled", "reason": "integer"},
-  {"kind": "instruction", "name": "FDiv", "class": "refused", "lane": "floating point", "reason": "floating point"},
+  {"kind": "instruction", "name": "FDiv", "class": "modeled", "reason": "float"},
   {"kind": "instruction", "name": "URem", "class": "modeled", "reason": "integer"},
   {"kind": "instruction", "name": "SRem", "class": "modeled", "reason": "integer"},
-  {"kind": "instruction", "name": "FRem", "class": "refused", "lane": "floating point", "reason": "floating point"},
+  {"kind": "instruction", "name": "FRem", "class": "modeled", "reason": "float"},
   {"kind": "instruction", "name": "Shl", "class": "modeled", "reason": "integer"},
   {"kind": "instruction", "name": "LShr", "class": "modeled", "reason": "integer"},
   {"kind": "instruction", "name": "AShr", "class": "modeled", "reason": "integer"},
@@ -451,12 +456,12 @@
   {"kind": "instruction", "name": "Trunc", "class": "modeled", "reason": "integer"},
   {"kind": "instruction", "name": "ZExt", "class": "modeled", "reason": "integer"},
   {"kind": "instruction", "name": "SExt", "class": "modeled", "reason": "integer"},
-  {"kind": "instruction", "name": "FPToUI", "class": "refused", "lane": "floating point", "reason": "floating point"},
-  {"kind": "instruction", "name": "FPToSI", "class": "refused", "lane": "floating point", "reason": "floating point"},
-  {"kind": "instruction", "name": "UIToFP", "class": "refused", "lane": "floating point", "reason": "floating point"},
-  {"kind": "instruction", "name": "SIToFP", "class": "refused", "lane": "floating point", "reason": "floating point"},
-  {"kind": "instruction", "name": "FPTrunc", "class": "refused", "lane": "floating point", "reason": "floating point"},
-  {"kind": "instruction", "name": "FPExt", "class": "refused", "lane": "floating point", "reason": "floating point"},
+  {"kind": "instruction", "name": "FPToUI", "class": "modeled", "reason": "float"},
+  {"kind": "instruction", "name": "FPToSI", "class": "modeled", "reason": "float"},
+  {"kind": "instruction", "name": "UIToFP", "class": "modeled", "reason": "float"},
+  {"kind": "instruction", "name": "SIToFP", "class": "modeled", "reason": "float"},
+  {"kind": "instruction", "name": "FPTrunc", "class": "modeled", "reason": "float"},
+  {"kind": "instruction", "name": "FPExt", "class": "modeled", "reason": "float"},
   {"kind": "instruction", "name": "PtrToInt", "class": "modeled", "reason": "memory"},
   {"kind": "instruction", "name": "PtrToAddr", "class": "modeled", "reason": "memory"},
   {"kind": "instruction", "name": "IntToPtr", "class": "refused", "lane": "memory", "reason": "memory model"},
@@ -4519,8 +4524,8 @@
   {"kind": "intrinsic", "name": "llvm.floor", "class": "refused", "lane": "floating point", "reason": "floating point"},
   {"kind": "intrinsic", "name": "llvm.fma", "class": "refused", "lane": "floating point", "reason": "floating point"},
   {"kind": "intrinsic", "name": "llvm.fmuladd", "class": "refused", "lane": "floating point", "reason": "floating point"},
-  {"kind": "intrinsic", "name": "llvm.fptosi.sat", "class": "refused", "lane": "floating point", "reason": "floating point"},
-  {"kind": "intrinsic", "name": "llvm.fptoui.sat", "class": "refused", "lane": "floating point", "reason": "floating point"},
+  {"kind": "intrinsic", "name": "llvm.fptosi.sat", "class": "modeled", "reason": "float"},
+  {"kind": "intrinsic", "name": "llvm.fptoui.sat", "class": "modeled", "reason": "float"},
   {"kind": "intrinsic", "name": "llvm.fptrunc.round", "class": "refused", "lane": "floating point", "reason": "floating point"},
   {"kind": "intrinsic", "name": "llvm.frameaddress", "class": "refused", "reason": "machine"},
   {"kind": "intrinsic", "name": "llvm.frexp", "class": "refused", "lane": "floating point", "reason": "floating point"},
@@ -17407,6 +17412,7 @@
   {"kind": "form", "name": "srem-of-vectors", "class": "modeled", "reason": "vector"},
   {"kind": "form", "name": "udiv-of-vectors", "class": "modeled", "reason": "vector"},
   {"kind": "form", "name": "urem-of-vectors", "class": "modeled", "reason": "vector"},
+  {"kind": "form", "name": "intrinsic-lane-count-mismatch", "class": "refused", "lane": "floating point", "reason": "float shape"},
   {"kind": "form", "name": "freeze-of-a-vector", "class": "refused", "lane": "long tail", "reason": "vector gap"},
   {"kind": "form", "name": "integer-bitcast-nondividing", "class": "refused", "lane": "long tail", "reason": "vector gap"},
   {"kind": "form", "name": "vector-constant-expression", "class": "refused", "lane": "long tail", "reason": "vector gap"},

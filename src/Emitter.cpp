@@ -185,6 +185,23 @@ std::string fpFormat(const Type *T) {
   }
 }
 
+// Whether an instruction is one of LangRef's "floating-point math operations" the model has that can give a
+// NaN, whose payload and sign LangRef leaves to a choice: a chooser, as `freeze` is. docs/float.md.
+bool choosesNaN(const Instruction &I) {
+  switch (I.getOpcode()) {
+  case Instruction::FAdd:
+  case Instruction::FSub:
+  case Instruction::FMul:
+  case Instruction::FDiv:
+  case Instruction::FRem:
+  case Instruction::FPTrunc:
+  case Instruction::FPExt:
+    return true;
+  default:
+    return false;
+  }
+}
+
 // The first floating-point type in `T`, or null if it has none.
 Type *firstFloat(Type *T) {
   if (T->isFPOrFPVectorTy())
@@ -1698,6 +1715,55 @@ void FunctionEmitter::emitInstruction(const Instruction &I, std::vector<Line> &O
       addLet(I, Out, Fn + " " + Op(0) + fpFlags(I));
     return;
   }
+  // The arithmetic, which chooses a NaN result: on a vector, lane `i` reads `(c'.sub k).pick i`.
+  case Instruction::FAdd:
+  case Instruction::FSub:
+  case Instruction::FMul:
+  case Instruction::FDiv:
+  case Instruction::FRem: {
+    const char *Name = I.getOpcode() == Instruction::FAdd   ? "FP.fadd "
+                       : I.getOpcode() == Instruction::FSub ? "FP.fsub "
+                       : I.getOpcode() == Instruction::FMul ? "FP.fmul "
+                       : I.getOpcode() == Instruction::FDiv ? "FP.fdiv "
+                                                            : "FP.frem ";
+    std::string Fn = Name + fpFormat(I.getType());
+    std::string K = nextChooser();
+    if (IsVector)
+      addLet(I, Out,
+             "FP.lanes2 (c'.sub " + K + ") (fun p a b => " + Fn + " p a b" + fpFlags(I) + ") " + Op(0) + " " +
+                 Op(1));
+    else
+      addLet(I, Out, Fn + " (c'.pick " + K + ") " + Op(0) + " " + Op(1) + fpFlags(I));
+    return;
+  }
+  case Instruction::FPTrunc:
+  case Instruction::FPExt: {
+    std::string Fn = "FP.fconv " + fpFormat(I.getOperand(0)->getType()) + " " + fpFormat(I.getType());
+    std::string K = nextChooser();
+    if (IsVector)
+      addLet(I, Out, "FP.lanes1 (c'.sub " + K + ") (fun p a => " + Fn + " p a" + fpFlags(I) + ") " + Op(0));
+    else
+      addLet(I, Out, Fn + " (c'.pick " + K + ") " + Op(0) + fpFlags(I));
+    return;
+  }
+  case Instruction::FPToUI:
+  case Instruction::FPToSI: {
+    std::string Fn = std::string(I.getOpcode() == Instruction::FPToUI ? "FP.fptoui " : "FP.fptosi ") +
+                     fpFormat(I.getOperand(0)->getType()) + " " +
+                     std::to_string(I.getType()->getScalarSizeInBits());
+    addLet(I, Out, IsVector ? "Vec.map (fun a => " + Fn + " a) " + Op(0) : Fn + " " + Op(0));
+    return;
+  }
+  case Instruction::UIToFP:
+  case Instruction::SIToFP: {
+    std::string Fn = std::string(I.getOpcode() == Instruction::UIToFP ? "FP.uitofp " : "FP.sitofp ") +
+                     fpFormat(I.getType());
+    std::string Flags =
+        (I.getOpcode() == Instruction::UIToFP ? flag(I.hasNonNeg(), "nneg") : "") + fpFlags(I);
+    addLet(I, Out,
+           IsVector ? "Vec.map (fun a => " + Fn + " a" + Flags + ") " + Op(0) : Fn + " " + Op(0) + Flags);
+    return;
+  }
   case Instruction::FCmp: {
     const auto &C = cast<FCmpInst>(I);
     // LLVM numbers the predicates from `false`, 0, to `true`, 15, as `FP.fcmp` reads them.
@@ -2208,6 +2274,21 @@ bool FunctionEmitter::emitIntrinsic(const IntrinsicInst &C, std::vector<Line> &O
       addLet(C, Out, Fn + " " + Op(0) + (Two ? " " + Op(1) : "") + fpFlags(C));
     return true;
   }
+  case Intrinsic::fptoui_sat:
+  case Intrinsic::fptosi_sat: {
+    // LangRef: "The number of vector elements in argument and return must be the same." LLVM's verifier
+    // doesn't check it.
+    auto *RV = dyn_cast<VectorType>(C.getType());
+    auto *AV = dyn_cast<VectorType>(C.getArgOperand(0)->getType());
+    if (!RV != !AV || (RV && RV->getElementCount() != AV->getElementCount()))
+      reject("intrinsic " + C.getCalledFunction()->getName().str() +
+             " with another number of lanes than its argument");
+    std::string Fn =
+        std::string(C.getIntrinsicID() == Intrinsic::fptoui_sat ? "FP.fptouiSat " : "FP.fptosiSat ") +
+        fpFormat(C.getArgOperand(0)->getType()) + " " + std::to_string(C.getType()->getScalarSizeInBits());
+    addLet(C, Out, C.getType()->isVectorTy() ? "Vec.map (fun a => " + Fn + " a) " + Op(0) : Fn + " " + Op(0));
+    return true;
+  }
   case Intrinsic::is_fpclass: {
     auto *Mask = dyn_cast<ConstantInt>(C.getArgOperand(1));
     if (!Mask)
@@ -2564,11 +2645,12 @@ std::string FunctionEmitter::emitArm(const BasicBlock *BB) {
 // several instructions, which no one instruction's meaning can say, so they're refused, as `fast` is, and so
 // is `nsz`, which is a choice the model doesn't make yet. On `fcmp`, LangRef says "the only flags that have
 // any effect on its semantics are ... `nnan`, `ninf`, and `reassoc`", so the others mean nothing there. The
-// operations that take flags are `fneg`, `fcmp`, `llvm.fabs` and `llvm.copysign`: on anything else, any flag
-// is refused. docs/float.md has the design.
+// operations that take flags are `fneg`, `fcmp`, `llvm.fabs`, `llvm.copysign`, the arithmetic and the
+// conversions to floats: on anything else, any flag is refused. docs/float.md has the design.
 void FunctionEmitter::checkFastMath(const Instruction &I) {
   FastMathFlags F = I.getFastMathFlags();
-  bool Takes = isa<UnaryOperator>(I) || isa<FCmpInst>(I);
+  bool Takes =
+      isa<UnaryOperator>(I) || isa<FCmpInst>(I) || choosesNaN(I) || isa<UIToFPInst>(I) || isa<SIToFPInst>(I);
   if (const auto *C = dyn_cast<IntrinsicInst>(&I))
     Takes = C->getIntrinsicID() == Intrinsic::fabs || C->getIntrinsicID() == Intrinsic::copysign;
   bool Compare = isa<FCmpInst>(I);
@@ -3120,15 +3202,15 @@ Emitted emitModule(Module &M, const std::string &Namespace, const std::string &S
     if (UsesMemory)
       MemoryFunctions.insert(Component.begin(), Component.end());
 
-    // A function chooses if it has a `freeze` or a call outside the module that accesses no memory, or calls
-    // something that chooses, through a pointer too. It talks if it calls outside the module, or calls
-    // something that does. Members of a cycle pass choices, the world and the trace along for each other, so
-    // they share the answers.
+    // A function chooses if it has a `freeze`, a floating-point operation that can give a NaN, or a call
+    // outside the module that accesses no memory, or calls something that chooses, through a pointer too. It
+    // talks if it calls outside the module, or calls something that does. Members of a cycle pass choices,
+    // the world and the trace along for each other, so they share the answers.
     bool Chooses = false, Talks = false;
     for (const Function *F : Component)
       for (const BasicBlock &BB : *F)
         for (const Instruction &I : BB) {
-          Chooses |= isa<FreezeInst>(I);
+          Chooses |= isa<FreezeInst>(I) || choosesNaN(I);
           const auto *C = dyn_cast<CallBase>(&I);
           if (!C)
             continue;

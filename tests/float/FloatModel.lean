@@ -17,14 +17,33 @@ import fneg_nnan_dropped_right_ir
 import fpclass_snan_wrong_ir
 import select_zero_wrong_ir
 
+import fadd_negzero_right_ir
+import fmul_one_right_ir
+import fdiv_two_right_ir
+import fsub_negzero_to_fneg_right_ir
+import fadd_comm_right_ir
+import fpext_fptrunc_right_ir
+import sitofp_fptosi_right_ir
+import fadd_zero_wrong_ir
+import fneg_to_fsub_wrong_ir
+import fmul_zero_wrong_ir
+import fdiv_self_wrong_ir
+import fadd_fsub_wrong_ir
+import fptosi_narrowed_wrong_ir
+import uitofp_nneg_added_wrong_ir
 /-! Floating point's bit-level operations in the model, SEM-05's first slice: each rewrite in `tests/float`, as ir-lean
 emits it, with a theorem of the case's name proving its verdict. A `_right` case refines, for every input, poison
 included, and a `_wrong` one provably doesn't, at the input given. `tests/float.sh` builds this with warnings as
 errors, checks its axioms, replays it, and has Alive2 give each case's verdict too. See `docs/float.md`.
 
 Each proof unfolds both functions with `simp`, which reads `IRLean/Float.lean` through the `llvm` set, and closes what's
-left with `bv_decide`, for each argument poison or a value. No operation here makes a choice, so each side returns an
-`Outcome`. -/
+left with `bv_decide`, for each argument poison or a value. `simp [llvm]` leaves the arithmetic's circuits whole, which
+`bv_decide` unfolds itself.
+
+A function with an operation that can give a NaN returns `Outcomes`, an outcome for each way it chooses, and one with
+none returns `Outcome`, which a claim lifts with `Outcomes.det`. A right rewrite whose source chooses names the
+source's choice, as a function of the inputs and of the target's choice: `keep x` returns `x` unchanged where it's a
+NaN, and `swapPick` takes a NaN from the other operand. A wrong one is refuted for every way the source chooses. -/
 
 open IRLean
 
@@ -35,6 +54,38 @@ set_option linter.unusedSimpArgs false
 theorem ite_some {α : Type} {c : Prop} [Decidable c] (a b : α) :
     (if c then some a else some b) = some (if c then a else b) := by
   split <;> rfl
+
+/-- The NaN choice that returns the first operand unchanged, with its own sign: `FP.nan3`'s bits 1 and 2. -/
+def keep (x : Val w) : Nat :=
+  match x with
+  | some v => ((BitVec.ofBool v.msb).setWidth 8 ||| 6#8).toNat
+  | none => 0
+
+/-- The NaN choice that returns the second operand unchanged, with the first operand's sign flipped. -/
+def flipSecond (x : Val w) : Nat :=
+  match x with
+  | some v => ((BitVec.ofBool !v.msb).setWidth 8 ||| 10#8).toNat
+  | none => 0
+
+/-- The choice `k` with the two operands of a binary operation swapped. Its third operand is its second, so 3 names the
+second operand too. -/
+def swapBV (k : BitVec 8) : BitVec 8 :=
+  (k &&& ~~~12#8) |||
+    (if k.extractLsb' 2 2 == 1#2 then 8#8 else if k.extractLsb' 2 2 == 0#2 then 0#8 else 4#8)
+
+def swapPick (n : Nat) : Nat := (swapBV (BitVec.ofNat 8 n)).toNat
+
+/-! What the choices are as the bits `FP` reads, so that `bv_decide` sees bit vectors. -/
+
+theorem ofNat_keep (v : BitVec w) : BitVec.ofNat 8 (keep (some v)) = (BitVec.ofBool v.msb).setWidth 8 ||| 6#8 := by
+  simp only [keep]; cases v.msb <;> decide
+
+theorem ofNat_flipSecond (v : BitVec w) :
+    BitVec.ofNat 8 (flipSecond (some v)) = (BitVec.ofBool !v.msb).setWidth 8 ||| 10#8 := by
+  simp only [flipSecond]; cases v.msb <;> decide
+
+theorem ofNat_swapPick (n : Nat) : BitVec.ofNat 8 (swapPick n) = swapBV (BitVec.ofNat 8 n) := by
+  simp [swapPick]
 
 /-! ### Right -/
 
@@ -115,6 +166,65 @@ theorem fneg_nnan_dropped_right : Refines fneg_nnan_dropped_right_ir.src fneg_nn
   rw [run_ret _ (by rfl), run_ret _ (by rfl), Refine.outcome_ok_ok, Refine.val_iff]
   cases x0 <;> simp [llvm, ite_some, HasPoison.poison] <;> bv_decide
 
+/-- `fadd x, -0.0` to `x`, as InstSimplify folds it: where x is a NaN, the source may return it unchanged. -/
+theorem fadd_negzero_right : Refines fadd_negzero_right_ir.src
+    (fun x => Outcomes.det (fadd_negzero_right_ir.tgt x)) := by
+  intro x
+  refine (Refine.outcomes_det_right _ _).2 ⟨fun _ => keep x, ?_⟩
+  simp only [fadd_negzero_right_ir.src, fadd_negzero_right_ir.tgt]
+  rw [run_ret _ (by rfl), run_ret _ (by rfl), Refine.outcome_ok_ok, Refine.val_iff]
+  cases x <;> simp [llvm, ite_some, HasPoison.poison, Choice.pick, ofNat_keep, ofNat_flipSecond, ofNat_swapPick, swapBV] <;> bv_decide
+
+/-- `fmul x, 1.0` to `x`, NaNs and subnormals included. -/
+theorem fmul_one_right : Refines fmul_one_right_ir.src
+    (fun x => Outcomes.det (fmul_one_right_ir.tgt x)) := by
+  intro x
+  refine (Refine.outcomes_det_right _ _).2 ⟨fun _ => keep x, ?_⟩
+  simp only [fmul_one_right_ir.src, fmul_one_right_ir.tgt]
+  rw [run_ret _ (by rfl), run_ret _ (by rfl), Refine.outcome_ok_ok, Refine.val_iff]
+  cases x <;> simp [llvm, ite_some, HasPoison.poison, Choice.pick, ofNat_keep, ofNat_flipSecond, ofNat_swapPick, swapBV] <;> bv_decide
+
+/-- `fsub -0.0, x` to `fneg x`, as InstCombine folds it: where x is a NaN, the source may return it unchanged with -/
+theorem fsub_negzero_to_fneg_right : Refines fsub_negzero_to_fneg_right_ir.src
+    (fun x => Outcomes.det (fsub_negzero_to_fneg_right_ir.tgt x)) := by
+  intro x
+  refine (Refine.outcomes_det_right _ _).2 ⟨fun _ => flipSecond x, ?_⟩
+  simp only [fsub_negzero_to_fneg_right_ir.src, fsub_negzero_to_fneg_right_ir.tgt]
+  rw [run_ret _ (by rfl), run_ret _ (by rfl), Refine.outcome_ok_ok, Refine.val_iff]
+  cases x <;> simp [llvm, ite_some, HasPoison.poison, Choice.pick, ofNat_keep, ofNat_flipSecond, ofNat_swapPick, swapBV] <;> bv_decide
+
+/-- `fptrunc (fpext x)` to `x`: widening is exact, and a NaN payload comes back as it went. -/
+theorem fpext_fptrunc_right : Refines fpext_fptrunc_right_ir.src
+    (fun x => Outcomes.det (fpext_fptrunc_right_ir.tgt x)) := by
+  intro x
+  refine (Refine.outcomes_det_right _ _).2 ⟨fun _ => keep x, ?_⟩
+  simp only [fpext_fptrunc_right_ir.src, fpext_fptrunc_right_ir.tgt]
+  rw [run_ret _ (by rfl), run_ret _ (by rfl), Refine.outcome_ok_ok, Refine.val_iff]
+  cases x <;> simp [llvm, ite_some, HasPoison.poison, Choice.pick, ofNat_keep, ofNat_flipSecond, ofNat_swapPick, swapBV] <;> bv_decide
+
+/-- `fdiv x, 2.0` to `fmul x, 0.5`: both choose the same. -/
+theorem fdiv_two_right : Refines fdiv_two_right_ir.src fdiv_two_right_ir.tgt := by
+  intro x
+  refine Refine.outcomes_of_same fun c => ?_
+  simp only [fdiv_two_right_ir.src, fdiv_two_right_ir.tgt]
+  rw [run_ret _ (by rfl), run_ret _ (by rfl), Refine.outcome_ok_ok, Refine.val_iff]
+  cases x <;> simp [llvm, ite_some, HasPoison.poison, Choice.pick, ofNat_keep, ofNat_flipSecond, ofNat_swapPick, swapBV] <;> bv_decide
+
+/-- `fadd x, y` to `fadd y, x`: where the target takes a NaN from one operand, the source takes it from the other. -/
+theorem fadd_comm_right : Refines fadd_comm_right_ir.src fadd_comm_right_ir.tgt := by
+  intro x y ct
+  refine ⟨fun p => swapPick (ct p), ?_⟩
+  simp only [fadd_comm_right_ir.src, fadd_comm_right_ir.tgt]
+  rw [run_ret _ (by rfl), run_ret _ (by rfl), Refine.outcome_ok_ok, Refine.val_iff]
+  cases x <;> cases y <;> simp [llvm, ite_some, HasPoison.poison, Choice.pick, ofNat_keep, ofNat_flipSecond, ofNat_swapPick, swapBV] <;> bv_decide
+
+/-- `fptosi (sitofp x)` to `x` for an i16, which a float holds exactly. -/
+theorem sitofp_fptosi_right : Refines sitofp_fptosi_right_ir.src sitofp_fptosi_right_ir.tgt := by
+  intro x
+  simp only [sitofp_fptosi_right_ir.src, sitofp_fptosi_right_ir.tgt]
+  rw [run_ret _ (by rfl), run_ret _ (by rfl), Refine.outcome_ok_ok, Refine.val_iff]
+  cases x <;> simp [llvm, ite_some, HasPoison.poison, Choice.pick, ofNat_keep, ofNat_flipSecond, ofNat_swapPick, swapBV] <;> bv_decide
+
 /-! ### Wrong -/
 
 /-- `copysign(x, y)` to `x`: the sign comes from y. -/
@@ -172,3 +282,64 @@ theorem select_zero_wrong : ¬ Refines select_zero_wrong_ir.src select_zero_wron
   rw [run_ret _ (by rfl), run_ret _ (by rfl), Refine.outcome_ok_ok, Refine.val_iff] at hc
   simp [llvm, ite_some, HasPoison.poison] at hc
   all_goals (revert hc; decide)
+
+/-- `fadd x, 0.0` to `x`: -0.0 + 0.0 is 0.0, not -0.0. -/
+theorem fadd_zero_wrong : ¬ Refines fadd_zero_wrong_ir.src
+    (fun x0 => Outcomes.det (fadd_zero_wrong_ir.tgt x0)) := fun h => by
+  obtain ⟨cs, hc⟩ := (Refine.outcomes_det_right _ _).1 (h (some 0x80000000#32))
+  simp only [fadd_zero_wrong_ir.src, fadd_zero_wrong_ir.tgt] at hc
+  rw [run_ret _ (by rfl), run_ret _ (by rfl), Refine.outcome_ok_ok, Refine.val_iff] at hc
+  simp [llvm, ite_some, HasPoison.poison, Choice.pick, ofNat_keep, ofNat_flipSecond, ofNat_swapPick, swapBV] at hc
+  all_goals bv_decide
+
+/-- `fmul x, 0.0` to `0.0`: -1.0 times 0.0 is -0.0. -/
+theorem fmul_zero_wrong : ¬ Refines fmul_zero_wrong_ir.src
+    (fun x0 => Outcomes.det (fmul_zero_wrong_ir.tgt x0)) := fun h => by
+  obtain ⟨cs, hc⟩ := (Refine.outcomes_det_right _ _).1 (h (some 0xBC00#16))
+  simp only [fmul_zero_wrong_ir.src, fmul_zero_wrong_ir.tgt] at hc
+  rw [run_ret _ (by rfl), run_ret _ (by rfl), Refine.outcome_ok_ok, Refine.val_iff] at hc
+  simp [llvm, ite_some, HasPoison.poison, Choice.pick, ofNat_keep, ofNat_flipSecond, ofNat_swapPick, swapBV] at hc
+  all_goals bv_decide
+
+/-- `fdiv x, x` to `1.0`: 0.0 / 0.0 is a NaN. -/
+theorem fdiv_self_wrong : ¬ Refines fdiv_self_wrong_ir.src
+    (fun x0 => Outcomes.det (fdiv_self_wrong_ir.tgt x0)) := fun h => by
+  obtain ⟨cs, hc⟩ := (Refine.outcomes_det_right _ _).1 (h (some 0#64))
+  simp only [fdiv_self_wrong_ir.src, fdiv_self_wrong_ir.tgt] at hc
+  rw [run_ret _ (by rfl), run_ret _ (by rfl), Refine.outcome_ok_ok, Refine.val_iff] at hc
+  simp [llvm, ite_some, HasPoison.poison, Choice.pick, ofNat_keep, ofNat_flipSecond, ofNat_swapPick, swapBV] at hc
+  all_goals bv_decide
+
+/-- `fsub (fadd x, y), y` to `x`: 1.0 + 2^24 rounds to 2^24 in a float, and taking 2^24 away leaves 0.0. -/
+theorem fadd_fsub_wrong : ¬ Refines fadd_fsub_wrong_ir.src
+    (fun x0 x1 => Outcomes.det (fadd_fsub_wrong_ir.tgt x0 x1)) := fun h => by
+  obtain ⟨cs, hc⟩ := (Refine.outcomes_det_right _ _).1 (h (some 0x3F800000#32) (some 0x4B800000#32))
+  simp only [fadd_fsub_wrong_ir.src, fadd_fsub_wrong_ir.tgt] at hc
+  rw [run_ret _ (by rfl), run_ret _ (by rfl), Refine.outcome_ok_ok, Refine.val_iff] at hc
+  simp [llvm, ite_some, HasPoison.poison, Choice.pick, ofNat_keep, ofNat_flipSecond, ofNat_swapPick, swapBV] at hc
+  all_goals bv_decide
+
+/-- `fneg x` to `fsub -0.0, x`: where x is a NaN, the target may return the preferred NaN, and the source keeps x's The target chooses the preferred NaN. -/
+theorem fneg_to_fsub_wrong : ¬ Refines (fun x => Outcomes.det (fneg_to_fsub_wrong_ir.src x))
+    fneg_to_fsub_wrong_ir.tgt := fun h => by
+  have hc := (Refine.outcomes_det_left _ _).1 (h (some 0x7FC00001#32)) (fun _ => 0)
+  simp only [fneg_to_fsub_wrong_ir.src, fneg_to_fsub_wrong_ir.tgt] at hc
+  rw [run_ret _ (by rfl), run_ret _ (by rfl), Refine.outcome_ok_ok, Refine.val_iff] at hc
+  simp [llvm, ite_some, HasPoison.poison, Choice.pick, ofNat_keep, ofNat_flipSecond, ofNat_swapPick, swapBV] at hc
+  all_goals bv_decide
+
+/-- `trunc (fptosi x to i32) to i8` to `fptosi x to i8`: 200.0 doesn't fit in an i8, so the target is poison. -/
+theorem fptosi_narrowed_wrong : ¬ Refines fptosi_narrowed_wrong_ir.src fptosi_narrowed_wrong_ir.tgt := fun h => by
+  have hc := h (some 0x43480000#32)
+  simp only [fptosi_narrowed_wrong_ir.src, fptosi_narrowed_wrong_ir.tgt] at hc
+  rw [run_ret _ (by rfl), run_ret _ (by rfl), Refine.outcome_ok_ok, Refine.val_iff] at hc
+  simp [llvm, ite_some, HasPoison.poison, Choice.pick, ofNat_keep, ofNat_flipSecond, ofNat_swapPick, swapBV] at hc
+  all_goals (revert hc; decide)
+
+/-- `uitofp x` to `uitofp nneg x`: the target is poison where x's sign bit is set. -/
+theorem uitofp_nneg_added_wrong : ¬ Refines uitofp_nneg_added_wrong_ir.src uitofp_nneg_added_wrong_ir.tgt := fun h => by
+  have hc := h (some 0xFFFFFFFF#32)
+  simp only [uitofp_nneg_added_wrong_ir.src, uitofp_nneg_added_wrong_ir.tgt] at hc
+  rw [run_ret _ (by rfl), run_ret _ (by rfl), Refine.outcome_ok_ok, Refine.val_iff] at hc
+  simp [llvm, ite_some, HasPoison.poison, Choice.pick, ofNat_keep, ofNat_flipSecond, ofNat_swapPick, swapBV] at hc
+  all_goals bv_decide
