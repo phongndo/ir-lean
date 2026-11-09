@@ -11,16 +11,20 @@ on a Zen 5 machine, and then:
    line is in one of those slices and every other line is where it was. A store moved to another block, and an
    edit outside every slice, have to fail that check.
 4. Translates each slice to Lean, and checks a theorem that the rewritten one gives the same result as clang's
-   on every input, poison included, with only the standard axioms and what `bv_decide` adds.
+   on every input, poison included, with only the standard axioms and what `bv_decide` adds. Like
+   tests/proofs.sh, it reads each theorem's axioms as data with tests/check_axioms.lean, which also checks the
+   theorem is about both slices as ir-lean generated them, and leanchecker replays it.
 5. Runs each slice pair natively against each other on random and extreme inputs, if this processor has
    AVX-512 VNNI. That's testing and not proof, but it doesn't depend on the Lean model.
 6. Makes three wrong rewrites, and one change to clang's IR that breaks what the rewrite relies on, and checks
-   that none of the theorems still checks, and that each is refuted: every theorem stops with an error of its
-   own, or the native run catches it. A theorem that only runs out of time or memory is unknown, not refuted.
+   that none of the theorems still checks, and that each is refuted: Lean proves a rewritten slice gives a
+   different result from clang's on an input, which needs no particular processor, or the native run catches
+   it, or every theorem stops with an error of its own. A theorem that only runs out of time or memory is
+   unknown, not refuted.
 
 docs/llama.md has what this shows and what it assumes, and tests/llama_bench.py measures the speed.
 
-usage: tests/llama.py path/to/ir-lean [--manifest FILE] [--keep DIR] [--no-mutants]
+usage: tests/llama.py path/to/ir-lean [--manifest FILE] [--keep DIR] [--no-mutants] [--no-native]
 """
 
 import argparse
@@ -28,6 +32,7 @@ import concurrent.futures
 import hashlib
 import json
 import os
+import random
 import re
 import shutil
 import subprocess
@@ -66,6 +71,8 @@ FLAGS = [
     "-march=znver5",
 ]
 LIMITS = ["-M", os.environ.get("LEAN_MAX_MB", "6000"), "-s", "65536"]
+# What ctest takes as a skip.
+SKIP = 77
 # Lean's errors for running out of time, memory or stack, in a tactic or the kernel. A proof that stops at one
 # of these might check with more, so it says nothing about whether what it's about is wrong.
 LIMIT = re.compile(
@@ -151,30 +158,90 @@ def rewrite(ll: Path, out: Path, report: Path, mutant: str | None = None) -> Non
     run(["opt", "-passes=verify", "-disable-output", out])
 
 
-def prove(tool: Path, slices: Path, work: Path) -> dict[str, dict]:
+def input_for(signature: str, seed: str) -> str | None:
+    """Arguments for a slice, as Lean terms, every lane a pseudo-random value from `seed`, or None if a
+    parameter isn't a vector or a value."""
+    rand = random.Random(seed)
+    terms = []
+    for _, kind in re.findall(r"\((\w+) : (.*?)\)(?= \(|$)", signature):
+        if m := re.fullmatch(r"\(?Vec (\d+) (\d+)\)?", kind):
+            n, w = int(m.group(1)), int(m.group(2))
+            terms.append("#v[" + ", ".join(f"some {rand.getrandbits(w)}#{w}" for _ in range(n)) + "]")
+        elif m := re.fullmatch(r"\(?Val (\d+)\)?", kind):
+            w = int(m.group(1))
+            terms.append(f"(some {rand.getrandbits(w)}#{w})")
+        else:
+            return None
+    return " ".join(f"({t})" for t in terms)
+
+
+def prove(tool: Path, slices: Path, work: Path, refute: str | None = None) -> dict[str, dict]:
     """Translates each slice pair and checks its theorem. Returns, for each, its statement and axioms, or why
-    it failed."""
+    it failed. With `refute`, a seed, it also tries to prove the two slices differ on an input from that seed,
+    which only a wrong rewrite can, and says whether that checked."""
     work.mkdir(parents=True, exist_ok=True)
     shutil.copy(ROOT / "lean-toolchain", work)
     env = {**os.environ, "LEAN_PATH": f"{work}:{ROOT}/.lake/build/lib/lean"}
 
-    def lean(*a, stdin: str | None = None) -> subprocess.CompletedProcess:
+    def lean(*a, stdin: str | None = None, extra: dict | None = None) -> subprocess.CompletedProcess:
         return subprocess.run(
             ["lean", *LIMITS, *map(str, a)],
             cwd=work,
-            env=env,
+            env={**env, **(extra or {})},
             input=stdin,
             capture_output=True,
             text=True,
             check=False,
         )
 
+    def audit(module: str, name: str, theorem: str) -> tuple[str | None, str]:
+        """The axioms `module` rests on, reading it and what it imports as data, and that `theorem` is about
+        both slices as ir-lean generated them. Then the kernel replays it, since Lean code can add a
+        declaration it never checked. Returns the axioms, or None and why not."""
+        S, T = f"{name.upper()}Src", f"{name.upper()}Tgt"
+        axioms = lean(
+            ROOT / "tests" / "check_axioms.lean",
+            extra={
+                "IRLEAN_CHECK_MODULE": module,
+                "IRLEAN_CHECK_GENERATED": f"{S} {T}",
+                "IRLEAN_CHECK_THEOREMS": f"{theorem} {S}.{name}_src\n{theorem} {T}.{name}_tgt",
+            },
+        )
+        if axioms.returncode != 0:
+            return None, f"axioms: {axioms.stdout[-2000:]}{axioms.stderr[-2000:]}"
+        replay = subprocess.run(
+            ["leanchecker", module], cwd=work, env=env, capture_output=True, text=True, check=False
+        )
+        if replay.returncode != 0:
+            return None, f"leanchecker rejects {module}: {replay.stdout[-2000:]}{replay.stderr[-2000:]}"
+        return axioms.stdout.strip(), ""
+
     shutil.copy(HERE / "Vnni.lean", work)
     r = lean("-DwarningAsError=true", "-o", work / "Vnni.olean", work / "Vnni.lean")
     if r.returncode != 0:
         raise RuntimeError(f"Vnni.lean:\n{r.stdout[-4000:]}{r.stderr[-4000:]}")
     index = json.loads((slices / "slices.json").read_text())
-    check_axioms = (ROOT / "tests" / "check_axioms.lean").read_text()
+
+    def differs(name: str, S: str, T: str, sig: str) -> bool:
+        """Whether Lean proves the two slices give different results on one input, which refutes the theorem
+        that they're the same. `decide +kernel` has the kernel work both out, and adds no axiom."""
+        args = input_for(sig, f"{refute}:{name}")
+        if args is None:
+            return False
+        module = f"R{name}"
+        (work / f"{module}.lean").write_text(
+            f"import {S}\nimport {T}\n\nopen IRLean\n\nnamespace {module}\n\n"
+            "/-- What an outcome is, as data with decidable equality. -/\n"
+            "def lanes : Outcome (Vec n w) → Option (List (Option Nat))\n"
+            "  | some (.ok v) => some (v.toList.map (·.map BitVec.toNat))\n"
+            "  | _ => none\n\n"
+            f"theorem {name}_differs :\n    {T}.{name}_tgt {args} ≠\n      {S}.{name}_src {args} :=\n"
+            f"  fun h => absurd (congrArg lanes h) (by\n"
+            f"    unfold {T}.{name}_tgt {S}.{name}_src\n    rw [run, run]\n    decide +kernel)\n\n"
+            f"end {module}\n"
+        )
+        r = lean("-DwarningAsError=true", "-o", work / f"{module}.olean", work / f"{module}.lean")
+        return r.returncode == 0 and audit(module, name, f"{name}_differs")[0] is not None
 
     def one(entry: dict) -> tuple[str, dict]:
         name = entry["name"]
@@ -198,6 +265,7 @@ def prove(tool: Path, slices: Path, work: Path) -> dict[str, dict]:
         sig = found(
             re.search(rf"noncomputable def {name}_src (.*?) : Outcome .* :=\n", src), "signature"
         ).group(1)
+        refuted = {"refuted": differs(name, S, T, sig)} if refute else {}
         args = " ".join(re.findall(r"\((\w+) : ", sig))
         theorem = f"T{name}"
         (work / f"{theorem}.lean").write_text(
@@ -208,19 +276,21 @@ def prove(tool: Path, slices: Path, work: Path) -> dict[str, dict]:
         )
         r = lean("-DwarningAsError=true", "-o", work / f"{theorem}.olean", work / f"{theorem}.lean")
         if r.returncode != 0:
-            return name, {"failure": r.stdout[-3000:] + r.stderr[-1000:], "unknown": only_limits(r.stdout)}
-        axioms = lean("--stdin", stdin=check_axioms.replace("MODULE", theorem))
-        if axioms.returncode != 0:
-            return name, {"failure": f"axioms: {axioms.stdout[-2000:]}{axioms.stderr[-2000:]}"}
+            failure = r.stdout[-3000:] + r.stderr[-1000:]
+            return name, {"failure": failure, "unknown": only_limits(r.stdout), **refuted}
+        axioms, why = audit(theorem, name, f"{name}_same")
+        if axioms is None:
+            return name, {"failure": why, "unknown": False, **refuted}
         statement = lean(
             "--stdin", stdin=f"import {theorem}\nset_option pp.fullNames true\n#check @{name}_same\n"
         )
         return name, {
             "function": entry["function"],
             "value": entry["value"],
-            "axioms": axioms.stdout.strip(),
+            "axioms": axioms,
             "statement": statement.stdout.strip(),
             "lean_sha256": {k: sha256(work / f"{k}.lean") for k in (S, T, theorem)},
+            **refuted,
         }
 
     jobs = int(os.environ.get("LEAN_JOBS", "4"))
@@ -274,8 +344,14 @@ def main() -> int:
         "--keep", type=Path, help="work here and leave everything, instead of a temporary directory"
     )
     parser.add_argument("--no-mutants", action="store_true")
+    parser.add_argument(
+        "--no-native", action="store_true", help="skip running slices natively, as without AVX-512 VNNI"
+    )
     args = parser.parse_args()
     tool = args.tool.resolve()
+    if not os.environ.get("LLAMA_CPP_SRC"):
+        print("skip: LLAMA_CPP_SRC isn't set, so there's no llama.cpp. Run this in `nix develop .#llama`")
+        return SKIP
     src = Path(os.environ["LLAMA_CPP_SRC"])
     if args.keep:
         args.keep.mkdir(parents=True, exist_ok=True)
@@ -343,7 +419,7 @@ def main() -> int:
             failures.append("theorems")
         manifest["theorems"] = results
 
-        vnni = has_vnni()
+        vnni = has_vnni() and not args.no_native
         if vnni:
             native = run([sys.executable, HERE / "native_check.py", slices, work / "native"], check=False)
             print(
@@ -354,7 +430,8 @@ def main() -> int:
             if native.returncode != 0:
                 failures.append("native")
         else:
-            print("skip native comparison: this processor has no AVX-512 VNNI", flush=True)
+            why = "--no-native" if args.no_native else "this processor has no AVX-512 VNNI"
+            print(f"skip native comparison: {why}", flush=True)
 
         if not args.no_mutants:
             manifest["mutants"] = {}
@@ -375,10 +452,11 @@ def main() -> int:
                     print(f"FAIL mutant {mutant}: couldn't slice: {s.stderr[-1000:]}", flush=True)
                     failures.append(f"mutant {mutant}")
                     continue
-                r = prove(tool, d / "slices", d / "lean")
+                r = prove(tool, d / "slices", d / "lean", refute=mutant)
                 proved = [n for n, x in r.items() if "failure" not in x]
                 unknown = [n for n, x in r.items() if "failure" in x and x["unknown"]]
                 stopped = [n for n, x in r.items() if "failure" in x and not x["unknown"]]
+                refuted = [n for n, x in r.items() if x.get("refuted")]
                 caught = None
                 if vnni:
                     caught = (
@@ -395,13 +473,19 @@ def main() -> int:
                         ).returncode
                         != 0
                     )
-                # Refuted: every theorem stops with an error of its own, or the native run finds an input
-                # where the slices differ. One that only runs out of resources refutes nothing.
-                ok = not proved and caught is not False and (len(stopped) == len(r) or caught is True)
+                # Refuted: Lean proves a rewritten slice differs from clang's on an input, or the native run
+                # finds one, or every theorem stops with an error of its own. One that only runs out of
+                # resources refutes nothing.
+                ok = (
+                    not proved
+                    and caught is not False
+                    and (bool(refuted) or caught is True or len(stopped) == len(r))
+                )
                 print(
-                    f"{'ok  ' if ok else 'FAIL'} mutant {mutant}: {len(stopped)}/{len(r)} theorems stop with "
-                    f"an error of their own, {len(unknown)} are unknown after running out of resources, "
-                    f"{len(proved)} still check"
+                    f"{'ok  ' if ok else 'FAIL'} mutant {mutant}: Lean proves {len(refuted)}/{len(r)} "
+                    f"rewritten slices differ from clang's on an input, {len(stopped)}/{len(r)} theorems "
+                    f"stop with an error of their own, {len(unknown)} are unknown after running out of "
+                    f"resources, {len(proved)} still check"
                     + (
                         ""
                         if caught is None
@@ -410,6 +494,7 @@ def main() -> int:
                     flush=True,
                 )
                 manifest["mutants"][mutant] = {
+                    "refuted": len(refuted),
                     "stopped": len(stopped),
                     "unknown": len(unknown),
                     "proved": len(proved),
