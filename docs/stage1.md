@@ -9,7 +9,124 @@ what any theorem means, read [trust](trust.md) first.
 **This proves no optimization.** A certificate here is translation validation of one `opt` run on one function, as
 [binding](llvm-proof-binding.md) says. It says nothing about InstCombine on any other input, or about its C++.
 
-RESULTS
+## The results
+
+Run on 2026-11-09 on x86-64 Linux in the dev shell, with LLVM 23.1.3, Alive2 at its pinned commit, and Lean 4.35.0,
+on `main` at `dbfd710` merged into this branch. The harness was this branch at `51afc87` for every stage, and the
+summaries were written at `362c0f6`, which changes no stage.
+[`results/summary.json`](../bench/instcombine/results/summary.json) has every count and the toolchain's hashes.
+
+**In short:**
+
+- No known-wrong rewrite is certified, and none Alive2 finds wrong without `undef` is proved. Of the 104 pairs from
+  known miscompilations that Alive2 confirms wrong, the model refutes every one it can run, 18, and can't state a
+  claim about 84.
+- On a uniform sample of 4,000 of the 31,158 changed pairs, 1,104 are certified or proved, and Alive2 agrees with
+  1,101 of them. It has no verdict on the other 3. No pair is proved where Alive2 finds a counterexample, and the
+  model finds no counterexample where Alive2 proves one.
+- Certificates are rare: 3 in the sample. `tools/binding.py` needs every argument `noundef`, and 91 of the 12,002
+  candidates have that.
+- The emitter refuses 59% of the changed functions, half of them for floating point. [Below](#why-the-emitter-refuses-a-function).
+
+### Every test
+
+`opt -passes=instcombine` ran on all 1,845 tests, and rejected one. It changed 31,240 of their 38,704 functions:
+
+| Pairs | Count |
+| --- | ---: |
+| Candidates: both sides translated, no memory | 12,002 |
+| The emitter refuses a side | 18,361 |
+| Translated, using memory | 795 |
+| Unchanged once cut into a module of its own | 77 |
+| `llvm-extract` failed | 5 |
+
+Of the 12,002 candidates, 2,696 have vector arguments, and 91 have every argument `noundef`.
+
+### A uniform sample
+
+`--upto 4000` takes the first 4,000 of the 31,158 candidates and refused pairs by id, a SHA-256 of the test and
+function, so they're a uniform sample of them, the same every run. 1,541 are candidates.
+
+| `ir-lean` | Pairs | Why |
+| --- | ---: | --- |
+| `certified` | 3 | Bound by `tools/binding.py` |
+| `proved` | 1,101 | |
+| `refuted` | 0 | |
+| `no_verdict` | 187 | The automation found no proof, and no witness refutes it |
+| `unknown` | 203 | Heartbeats 154, recursion depth 43, time 6 |
+| `unsupported` | 2,466 | The emitter refuses a side 2,356, memory 103, and a model stop on the only counterexample 7 |
+| `error` | 40 | Lean rejects what the emitter wrote: the emitter bug [below](#found-along-the-way) |
+
+The agreement matrix, each pair once:
+
+| `ir-lean` \ Alive2 | `correct` | `incorrect` | `src_always_ub` | `timeout` | `incomplete` | `unsupported` |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| `certified` | 3 | | | | | |
+| `proved` | 1,098 | | 2 | 1 | | |
+| `refuted` | | | | | | |
+| `no_verdict` | 171 | | | 16 | | |
+| `unknown` | 187 | | 3 | 13 | | |
+| `unsupported` | 1,523 | 32 | 28 | 110 | 495 | 278 |
+| `error` | 39 | | 1 | | | |
+
+### Disagreements
+
+Two verdicts disagree where one side proves and the other refutes. In the sample, none do: of the 1,104 pairs `ir-lean`
+certifies or proves, Alive2 refutes none, and of the 32 Alive2 refutes, `ir-lean` proves none. The model refuted no
+pair, on 380 tried, so it contradicts none of Alive2's 3,021 `correct`.
+
+Where one side has a verdict and the other doesn't:
+
+| Kind | Pairs | Explained as |
+| --- | ---: | --- |
+| `ir-lean` proves, Alive2 calls the source always undefined | 2 | Both agree the source is undefined everywhere, such as `udiv_by_zero_indirect_is_poison`, which divides by zero on both paths. The proof is vacuous: any target refines such a source. `--fail-src-ub` is why Alive2 doesn't count it |
+| `ir-lean` proves, Alive2 times out | 1 | An Alive2 timeout: `mul_select` in `select-fixed-zero.ll` |
+| Alive2 has a verdict, the model can't state the claim | 1,555 | Unsupported: the emitter refuses a side for 1,454, and 101 use memory. All 32 of Alive2's `incorrect` are here, 31 refused by the emitter and 1 with memory: floating-point `minnum`, `maximum` and class folds, x86 vector shifts, and a `memcpy` turned into loads |
+| Alive2 calls the source always undefined, the model stops | 7 | Neither has a verdict on the rewrite. Each source calls a function with a type its declaration doesn't have, such as `call void @use16` of an `i16 @use16`: Alive2 calls that undefined, and the model stops, `unknownCallee`, which never certifies |
+| Alive2 says `correct`, `ir-lean` found no proof | 358 | The automation's limit, not a disagreement. 171 found no proof, and a limit stopped 187. Witnesses ran on 341 of them, Alive2's counterexample where it had one and edge values, and none refutes. 16 couldn't be tried, a source that chooses or a type `refute` doesn't take, and 1 ran out of time |
+| Alive2 says `correct`, Lean rejects what the emitter wrote | 39 | The emitter bug, which fails closed |
+
+So over the 1,104 pairs `ir-lean` has a verdict on, every one either agrees with Alive2, or Alive2 has none: two
+vacuous sources and one timeout.
+
+### The known miscompilations
+
+From [`known_wrong.json`](../bench/instcombine/known_wrong.json)'s 232 cases, 186 give a changed pair at the pin, 556
+pairs in all. A pair counts as known-wrong when the pinned Alive2 says so:
+
+| Alive2 | Pairs | `ir-lean` on them |
+| --- | ---: | --- |
+| Wrong, without `undef` | 104 | Refuted 18, unsupported 84, no verdict 1, error 1. None proved or certified |
+| Wrong only with an `undef` argument | 20 | Proved 7, which `proved` allows, since it doesn't cover `undef`. Unsupported 8, no verdict 5. None certified |
+| Not confirmed wrong | 432 | Fixed at the pin, or wrong only in ways this Alive2 doesn't see, such as loops past its bound |
+
+Of the 104, 50 are from Alive2's dashboard, 35 are issues' own pairs, and 19 are what the pinned `opt` still does to an
+issue's reproducer. The model refutes every one it can run. Three pairs disagree:
+
+- **Issue 91127:** the model refutes, and Alive2 calls the source always undefined. The source is a loop of three trips
+  returning 1, and the target returns 0. With `--src-unroll=4 --tgt-unroll=4`, Alive2 finds the same value mismatch.
+  Its bound on loops, not the source, is why it said undefined.
+- **Issue 161492:** Alive2 refutes, and the model has no verdict. The source returns a `select` of two frozen poisons,
+  a value, and the target poison. It chooses, so a refutation needs every way it chooses to fail, which a witness can't
+  show, and the automation finds no proof, as it shouldn't.
+- **Issue 210605:** Alive2 refutes, and Lean rejects what the emitter wrote for its vector `llvm.ssub.with.overflow`.
+
+Whether Alive2 says a pair is wrong only with `undef` comes from a second run without `--disable-undef-input`, and is
+best effort: with `undef` inputs its solver often times out, and a pair whose second run doesn't decide stays not
+confirmed.
+
+### Cost per pair
+
+| Stage | Pairs | Median | 90th percentile | Most | Wall time, at once |
+| --- | ---: | ---: | ---: | ---: | --- |
+| `pairs`, every test | 31,240 | | | | 120 s, 8 tests |
+| `prove` | 1,541 | 4.1 s | 55 s | 120 s, the limit | 3,546 s, 6 |
+| `certify` | 3 | 7.2 s | | | 15 s |
+| Alive2 | 4,000 | 0.02 s | 0.1 s | 60 s, the limit | 366 s, 6 |
+| `refute` | 380 | 3.5 s | 4.5 s | 300 s, the limit | 467 s, 6 |
+
+A candidate costs about 15 s of `ir-lean`'s time in all, most of it the pairs that run to a limit: half prove in
+4.1 s. Alive2 answers most pairs in hundredths of a second. Each `tools/verify.py` peaks at about 2.4 GB.
 
 ## What a verdict means
 
@@ -153,7 +270,7 @@ None is a soundness bug: each makes the model or a tool say less, never prove a 
 
 | Finding | Where | Effect | Next |
 | --- | --- | --- | --- |
-| The emitter writes a vector `llvm.sadd.with.overflow` or `llvm.ssub.with.overflow` as the scalar operation, `Val.saddWithOverflow` on a `Vec`, and Lean rejects the module | `src/Emitter.cpp` | Fails closed: `tools/verify.py` says `generated_module_failed`, an `error` here. 3 pairs in the 50-test sample and 2 in the corpus | An issue for the emitter |
+| The emitter writes the vector form of an intrinsic as its scalar operation, such as `Val.saddWithOverflow` on a `Vec` for a vector `llvm.sadd.with.overflow`, and the same for vector bit counts and `llvm.bitreverse` in InstSimplify's tests. It also applies `noundef` to a struct value as if it were one integer. Lean rejects the module | `src/Emitter.cpp` | Fails closed: `tools/verify.py` says `generated_module_failed`, an `error` here. 40 pairs in the sample and 2 in the corpus | An issue for the emitter |
 | `ir-lean --report` crashes, with a segmentation fault, on a constant `bitcast` of one vector type to another inside an instruction, such as `and <2 x i64> bitcast (<4 x i32> ... to <2 x i64>), ...` from `x86-muldq-inseltpoison.ll` | `src/Emitter.cpp` | Fails closed: the function gets no report and counts as refused. 34 changed functions | An issue for the emitter |
 | `tools/binding.py` binds only a source whose arguments are all `noundef`, since an `undef` argument can be a different value at each use and `IRLean`'s values never are. 91 of the 12,002 candidates are | `tools/binding.py`, by design | Certificates are rare. The rest can be `proved` for every value or poison, the same scope as Alive2's `--disable-undef-input`, but aren't certificates | Modeling `undef` arguments, which F3 kept out, is what would let most of InstCombine's tests be certified |
 | `tests/verify_negative.py`'s list of `IRLean.UB` missed `noProgress` and `noReturn` after SEM-07 added them, so its decidable claim was stricter than refinement where a source spins | `tests/verify_negative.py` | A spurious counterexample where a source breaks a promise; never a false certificate | Fixed by [#77](https://github.com/phongndo/ir-lean/pull/77), which reads the list from the model. This harness reads it from `IRLean/Basic.lean` too |
