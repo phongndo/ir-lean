@@ -21,7 +21,11 @@ another predicate, decided from what `isKnownNonZero` and `computeKnownBits` say
 | `IS.simplifyICmpWithZero.L3094` | `X >s 0` to false, where `X` is known negative |
 | `IS.simplifyICmpWithZero.L3096` | `X >s 0` to true, where `X` is known non-negative and non-zero |
 
-`KnownBits::isNegative` is the sign bit of the known ones, and `isNonNegative` that of the known zeros. -/
+`KnownBits::isNegative` is the sign bit of the known ones, and `isNonNegative` that of the known zeros.
+
+`m_Zero` matches a null pointer too, so a compare of a pointer against null reaches every step here, and `Term` has
+no pointers: the theorems prove the integer instance, not every input, and `folds/is-icmp.json` lists each site
+unproved. -/
 
 namespace Peephole.IS
 
@@ -112,11 +116,11 @@ theorem ne_zero_iff_toNat {x : BitVec w} : x ≠ 0#w ↔ 0 < x.toNat := by
 /-- What the oracle's known bits say about the sign. -/
 theorem msb_of_knownOne {ρ : Env} {o : Oracle} (ho : o.Sound ρ) {t : Term w} {x : BitVec w}
     (hx : t.denote ρ = some x) (h : (o.knownOne t).msb = true) : x.msb = true :=
-  Lemmas.msb_of_and_eq_self (ho.knownOne t x hx) h
+  Lemmas.msb_true_of_and_eq (ho.knownOne t x hx) h
 
 theorem msb_of_knownZero {ρ : Env} {o : Oracle} (ho : o.Sound ρ) {t : Term w} {x : BitVec w}
     (hx : t.denote ρ = some x) (h : (o.knownZero t).msb = true) : x.msb = false :=
-  Lemmas.msb_of_and_eq_zero (ho.knownZero t x hx) h
+  Lemmas.msb_false_of_and_eq_zero (ho.knownZero t x hx) h
 
 end ICmp
 

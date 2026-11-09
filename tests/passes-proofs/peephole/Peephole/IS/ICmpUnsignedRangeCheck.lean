@@ -24,7 +24,11 @@ thing.
 
 Comparisons are unsigned throughout. The source is the `and` or `or` of the two compares, `ICmp.andOrSrc`, with any
 flags: a `disjoint` `or` is poison in more runs. `simplifyUnsignedRangeCheck.sound` says the answer refines it with
-`ZeroICmp` first; `sound_swap`, with it second, as `simplifyAndOfICmps(Op0, Op1)`'s second call has it. -/
+`ZeroICmp` first; `sound_swap`, with it second, as `simplifyAndOfICmps(Op0, Op1)`'s second call has it.
+
+`m_Zero` matches a null pointer too. The first six steps need `Y` to be a `sub`, an integer, but from `L1582` on,
+`UnsignedICmp` is any unsigned compare with `Y`, so compares of pointers reach those six, and `Term` has no pointers:
+their theorems prove the integer instance, not every input, and `folds/is-icmp.json` lists them unproved. -/
 
 namespace Peephole.IS
 

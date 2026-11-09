@@ -9,9 +9,15 @@ can use. The rewrite each one was cut from is named in its docstring. Comparison
 
 The facts about `toNat` and `toInt` that the proofs below go through (`toInt_toNat_cases`, `two_pow_*`,
 `toNat_sub_or` and the like, `slt_eq_sub_intMin`, `outside_of_signExtend_ne`, `toInt_signExtend_range`) are
-arithmetic for the proofs here, not offered to the store; nor are `ule_or_self_right`, which is the icmp-b family's
-`ule_or_right`, and `msb_of_and_eq_self` and `msb_of_and_eq_zero`, which are its `msb_true_of_and_eq` and
-`msb_false_of_and_eq_zero`. `folds/is-icmp.json` lists what is offered.
+arithmetic for the proofs here, not offered to the store. Nor are:
+
+- `ule_or_self_right`, whose key is `ule_or_self_left`'s: the normalizer orders the operands of `|||`, so the two
+  are one statement to the store;
+- `signExtend_ne_of_ne` and `msb_true_of_and_eq`, which `grind` closes alone, so the store would refuse them as
+  trivial.
+
+The icmp-b family's rewrites use `msb_true_of_and_eq`, `msb_false_of_and_eq_zero` and `ule_or_self_right` from
+here. `folds/is-icmp.json` lists what is offered.
 
 For each hypothesis of each lemma offered, `LemmaStore.Counter.<lemma>.drop_<hypothesis>`, at the end, gives one
 input where the lemma without it is false, and `LemmaStore.Counter.<lemma>.sat` one where its hypotheses all hold. -/
@@ -424,13 +430,13 @@ theorem ult_one (x : BitVec w) (hw : 0 < w) : x.ult 1#w = x.ule 0#w := by
 /-! ### Known bits of the sign. `IS.simplifyICmpWithZero` -/
 
 /-- A value with every bit of `k` set has its sign bit set if `k` does. -/
-theorem msb_of_and_eq_self {x k : BitVec w} (h : x &&& k = k) (hk : k.msb = true) : x.msb = true := by
+theorem msb_true_of_and_eq {x k : BitVec w} (h : x &&& k = k) (hk : k.msb = true) : x.msb = true := by
   have := congrArg BitVec.msb h
   rw [BitVec.msb_and, hk] at this
   simpa using this
 
 /-- A value with every bit of `k` clear has its sign bit clear if `k` has it set. -/
-theorem msb_of_and_eq_zero {x k : BitVec w} (h : x &&& k = 0#w) (hk : k.msb = true) : x.msb = false := by
+theorem msb_false_of_and_eq_zero {x k : BitVec w} (h : x &&& k = 0#w) (hk : k.msb = true) : x.msb = false := by
   have := congrArg BitVec.msb h
   rw [BitVec.msb_and, hk, BitVec.msb_zero] at this
   simpa using this
@@ -438,7 +444,7 @@ theorem msb_of_and_eq_zero {x k : BitVec w} (h : x &&& k = 0#w) (hk : k.msb = tr
 /-! ### Multiples. `IS.simplifyICmpWithConstant.L3146` -/
 
 /-- A product that doesn't wrap unsigned is a multiple of each factor. -/
-theorem mul_ne_of_umod_ne {x m c : BitVec w} (hov : x.umulOverflow m = false) (hc : c % m ≠ 0#w) : x * m ≠ c := by
+theorem mul_ne_of_umod_ne {x m c : BitVec w} (hov : x.umulOverflow m = false) (hc : c % m ≠ 0#w) : ¬ x * m = c := by
   intro he
   apply hc
   apply BitVec.eq_of_toNat_eq
@@ -449,7 +455,8 @@ theorem mul_ne_of_umod_ne {x m c : BitVec w} (hov : x.umulOverflow m = false) (h
   simp
 
 /-- A product that doesn't wrap signed is a multiple of each factor, in `srem`'s sense. -/
-theorem mul_ne_of_srem_ne {x m c : BitVec w} (hov : x.smulOverflow m = false) (hc : c.srem m ≠ 0#w) : x * m ≠ c := by
+theorem mul_ne_of_srem_ne {x m c : BitVec w} (hov : x.smulOverflow m = false) (hc : c.srem m ≠ 0#w) :
+    ¬ x * m = c := by
   intro he
   apply hc
   apply BitVec.eq_of_toInt_eq
@@ -585,13 +592,6 @@ theorem Peephole.Lemmas.sle_setWidth_of_ne.sat :
     ∃ (v w : Nat) (_ : BitVec v) (c : BitVec w), (c.setWidth v).setWidth w ≠ c := ⟨0, 1, 0#0, 1#1, by decide⟩
 
 /-! #### A sign extension against a constant that isn't one -/
-
-theorem Peephole.Lemmas.signExtend_ne_of_ne.drop_h :
-    ¬ ∀ {v w : Nat} (x : BitVec v) {c : BitVec w}, x.signExtend w ≠ c :=
-  fun h => absurd (@h 1 1 0#1 0#1) (by decide)
-
-theorem Peephole.Lemmas.signExtend_ne_of_ne.sat :
-    ∃ (v w : Nat) (_ : BitVec v) (c : BitVec w), (c.setWidth v).signExtend w ≠ c := ⟨1, 2, 0#1, 1#2, by decide⟩
 
 theorem Peephole.Lemmas.signExtend_slt_of_ne.drop_h :
     ¬ ∀ {v w : Nat} (x : BitVec v) {c : BitVec w}, (x.signExtend w).slt c = !c.msb :=
@@ -742,15 +742,29 @@ theorem Peephole.Lemmas.ult_one.drop_hw : ¬ ∀ {w : Nat} (x : BitVec w), x.ult
 
 theorem Peephole.Lemmas.ult_one.sat : ∃ (w : Nat) (_ : BitVec w), 0 < w := ⟨1, 0#1, Nat.one_pos⟩
 
+/-! #### Known bits of the sign -/
+
+theorem Peephole.Lemmas.msb_false_of_and_eq_zero.drop_h :
+    ¬ ∀ {w : Nat} {x k : BitVec w}, k.msb = true → x.msb = false :=
+  fun h => absurd (@h 8 128#8 128#8 (by decide)) (by decide)
+
+theorem Peephole.Lemmas.msb_false_of_and_eq_zero.drop_hk :
+    ¬ ∀ {w : Nat} {x k : BitVec w}, x &&& k = 0#w → x.msb = false :=
+  fun h => absurd (@h 8 128#8 0#8 (by decide)) (by decide)
+
+theorem Peephole.Lemmas.msb_false_of_and_eq_zero.sat :
+    ∃ (w : Nat) (x k : BitVec w), x &&& k = 0#w ∧ k.msb = true :=
+  ⟨8, 0#8, 128#8, by decide, by decide⟩
+
 /-! #### Multiples -/
 
 /-- `3 * 3` wraps to `1` in `i2`, which isn't a multiple of 3. -/
 theorem Peephole.Lemmas.mul_ne_of_umod_ne.drop_hov :
-    ¬ ∀ {w : Nat} {x m c : BitVec w}, c % m ≠ 0#w → x * m ≠ c :=
+    ¬ ∀ {w : Nat} {x m c : BitVec w}, c % m ≠ 0#w → ¬ x * m = c :=
   fun h => absurd (@h 2 3#2 3#2 1#2 (by decide)) (by decide)
 
 theorem Peephole.Lemmas.mul_ne_of_umod_ne.drop_hc :
-    ¬ ∀ {w : Nat} {x m c : BitVec w}, x.umulOverflow m = false → x * m ≠ c :=
+    ¬ ∀ {w : Nat} {x m c : BitVec w}, x.umulOverflow m = false → ¬ x * m = c :=
   fun h => absurd (@h 1 0#1 1#1 0#1 (by decide)) (by decide)
 
 theorem Peephole.Lemmas.mul_ne_of_umod_ne.sat :
@@ -759,11 +773,11 @@ theorem Peephole.Lemmas.mul_ne_of_umod_ne.sat :
 
 /-- `3 * 3` wraps to `1` in `i3`, which isn't a multiple of 3. -/
 theorem Peephole.Lemmas.mul_ne_of_srem_ne.drop_hov :
-    ¬ ∀ {w : Nat} {x m c : BitVec w}, c.srem m ≠ 0#w → x * m ≠ c :=
+    ¬ ∀ {w : Nat} {x m c : BitVec w}, c.srem m ≠ 0#w → ¬ x * m = c :=
   fun h => absurd (@h 3 3#3 3#3 1#3 (by decide)) (by decide)
 
 theorem Peephole.Lemmas.mul_ne_of_srem_ne.drop_hc :
-    ¬ ∀ {w : Nat} {x m c : BitVec w}, x.smulOverflow m = false → x * m ≠ c :=
+    ¬ ∀ {w : Nat} {x m c : BitVec w}, x.smulOverflow m = false → ¬ x * m = c :=
   fun h => absurd (@h 1 0#1 1#1 0#1 (by decide)) (by decide)
 
 theorem Peephole.Lemmas.mul_ne_of_srem_ne.sat :
