@@ -65,18 +65,36 @@ define i1 @f(double %x) { %r = fcmp nnan nsz arcp contract afn olt double %x, 1.
   ret i1 %r }'
 accepts 'define float @f(float %x) denormal_fpenv(ieee|ieee) { ret float %x }'
 refuses 'type x86_fp80' 'define x86_fp80 @f(x86_fp80 %x) { ret x86_fp80 %x }'
-refuses 'fast-math flag nsz on %r = fadd' 'define float @f(float %x) { %r = fadd nsz float %x, 1.0
+accepts 'define float @f(float %x) { %r = fadd nsz float %x, 1.0
   ret float %r }'
-refuses 'fast-math flag nsz on %r = sitofp' 'define float @f(i32 %x) { %r = sitofp nsz i32 %x to float
+accepts 'define <2 x float> @f(<2 x i32> %x) { %r = sitofp nsz <2 x i32> %x to <2 x float>
+  ret <2 x float> %r }'
+refuses 'fast-math flag arcp on %r = fmul' 'define float @f(float %x) { %r = fmul fast float %x, 2.0
   ret float %r }'
 accepts 'define <2 x double> @f(<2 x double> %x, <2 x float> %y) { %e = fpext <2 x float> %y to <2 x double>
   %r = fmul nnan ninf <2 x double> %x, %e
   ret <2 x double> %r }'
 refuses 'fast-math flag reassoc on %r = fcmp' 'define i1 @f(float %x) { %r = fcmp reassoc olt float %x, 1.0
   ret i1 %r }'
-refuses 'fast-math flag nsz on %r = fneg' 'define float @f(float %x) { %r = fneg nsz float %x
+accepts 'define float @f(float %x) { %r = fneg nsz float %x
   ret float %r }'
-refuses 'fast-math flag nnan on %r = select' 'define float @f(i1 %c, float %x) { %r = select nnan i1 %c, float %x, float 1.0
+accepts 'define float @f(i1 %c, float %x) { %r = select nnan nsz i1 %c, float %x, float 1.0
+  ret float %r }'
+accepts 'define <2 x float> @f(<2 x i1> %c, <2 x float> %x) { %r = select ninf <2 x i1> %c, <2 x float> %x, <2 x float> zeroinitializer
+  ret <2 x float> %r }'
+refuses 'fast-math flag nnan on %r = select' 'define { float, float } @f(i1 %c, { float, float } %x, { float, float } %y) {
+  %r = select nnan i1 %c, { float, float } %x, { float, float } %y
+  ret { float, float } %r }'
+refuses 'fast-math flag nnan on %r = phi' 'define float @f(i1 %c, float %x) {
+entry:
+  br i1 %c, label %a, label %b
+a:
+  br label %b
+b:
+  %r = phi nnan float [ %x, %entry ], [ 1.0, %a ]
+  ret float %r }'
+refuses 'fast-math flag nsz on %r = call' 'define float @g(float %x) { ret float %x }
+define float @f(float %x) { %r = call nsz float @g(float %x)
   ret float %r }'
 refuses 'function attribute denormal_fpenv(preservesign)' 'define float @f(float %x) denormal_fpenv(preservesign) {
   ret float %x }'
@@ -1022,6 +1040,16 @@ define <2 x float> @lanes(<2 x float> %x) {
   %r = fdiv <2 x float> %x, %x
   ret <2 x float> %r
 }
+define float @negz(float %x) {
+  %a = fneg nsz float %x
+  %r = call nsz float @llvm.copysign.f32(float 1.0, float %a)
+  ret float %r
+}
+define <2 x float> @selz(<2 x i1> %c, <2 x float> %x) {
+  %r = select nsz <2 x i1> %c, <2 x float> %x, <2 x float> zeroinitializer
+  ret <2 x float> %r
+}
+declare float @llvm.copysign.f32(float, float)
 IR
 cat >"$work/FChoicesCheck.lean" <<'LEAN'
 import FChoices
@@ -1045,10 +1073,18 @@ def only (p : List Nat) (n : Nat) : Choice := fun q => if q = p then n else 0
 -- Each lane of the vector `fdiv` reads its own place.
 #guard showV (lanes #v[some 0#32, some 0#32] (only [1, 0] 1)) == "4290772992 2143289344"
 #guard showV (lanes #v[some 0#32, some 0#32] (only [1, 1] 1)) == "2143289344 4290772992"
+-- Under `nsz`, `fneg` and `copysign` are choosers too, and bit 4 of the first operand's choice, bit 5 of the second's,
+-- flips a zero's sign. 1.0 is 1065353216, and -1.0 3212836864.
+#guard show' (negz (some 0#32) (fun _ => 0)) == "3212836864"
+#guard show' (negz (some 0#32) (only [1] 16)) == "1065353216"
+#guard show' (negz (some 0#32) (only [2] 32)) == "1065353216"
+#guard show' (negz (some 0#32) (only [2] 16)) == "3212836864"
+-- A vector `select nsz` flips each lane's zero result by its own choice.
+#guard showV (selz #v[some 0#1, some 0#1] #v[some 0#32, some 0#32] (only [1, 1] 16)) == "0 2147483648"
 LEAN
 if "$tool" "$work/FChoices.ll" -o "$work/FChoices.lean" --namespace FChoices &&
   lean -R "$work" -o "$work/FChoices.olean" "$work/FChoices.lean" && lean "$work/FChoicesCheck.lean"; then
-  printf 'ok    each floating-point operation, and each lane of one, chooses its NaN for itself\n'
+  printf 'ok    each floating-point operation, and each lane of one, chooses its NaN, and under nsz its zeros, for itself\n'
 else
   fail 'what a floating-point operation chooses, by where it runs'
 fi
