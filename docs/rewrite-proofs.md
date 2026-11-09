@@ -7,14 +7,18 @@ input. The rewrites are [the inventory](rewrite-inventory.md)'s, by ID. The proo
 [`tests/passes-proofs/peephole`](../tests/passes-proofs/peephole), and [its README](../tests/passes-proofs/peephole/README.md)
 has the conventions a family of folds follows. For what any theorem here means, read [trust](trust.md) first.
 
-Facts here were checked on 2026-11-09 on branch `chunk1/g2-core`, at commit `29938ba` and the commits after it that
-change only this page and its neighbors, on an Apple silicon Mac with 16 cores and 64 GB, in the dev shell, with Lean
+Facts here were checked on 2026-11-09 on branch `chunk1/g2-core`, at commits `29938ba` to `d87efe8`, the scoreboard's
+at the last, on an Apple silicon Mac with 16 cores and 64 GB, in the dev shell, with Lean
 4.35.0 and LLVM 23.1.3, while other lanes' jobs held slots in the machine's pool of heavy jobs.
 
 ## What it found
 
-- **8 of chunk 1's 3,000 rewrites are proved for every input,** all of them in InstSimplify's `simplifyAddInst`, the
-  worked example: 1.48% of InstSimplify's 540 and 2.62% of its 305 that need only integers.
+- **8 of chunk 1's 3,000 rewrites are proved for every input on this branch,** all of them in InstSimplify's
+  `simplifyAddInst`, the worked example: 1.48% of InstSimplify's 540 and 2.62% of its 305 that need only integers.
+  `opt` exercised all 8.
+- **On a scratch merge of the five families' branches, 237 count:** 43.89% of InstSimplify's 540, of which `opt`
+  exercised 149. 23 more are proved, but their folds were never run by a comparison, so they don't count. The
+  [per-family table](#the-five-families-merged) is below.
 - **`simplifyAddInst`'s model agrees with the pinned `opt`** on all 6,318 cases compared, 127 of them distinct `add`s
   from LLVM's own regression tests, and every one of its 8 sites fires on some. Two broken models are caught: dropping
   the `nuw` guard of `add nuw x, -1` gives 193 mismatches, all at that site, and dropping the flag guard of the
@@ -82,6 +86,13 @@ Its Lean side is [`tests/peephole/Harness.lean`](../tests/peephole/Harness.lean)
    answer doesn't say which step gave it, so the harness also runs a copy of the fold, and of each definition between
    it and `Peephole.run`, whose `run` answers with the site of the step that fired. A definition it can't copy, a
    recursive or `partial` one, leaves its fold's sites unknown, which the report says.
+5. **Which folds each run reached.** For every fold any registry names, the harness also runs, on each case whose
+   operands `opt` left alone, a copy of the entry point in which that fold answers that it was reached, until one case
+   does. A fold that's a definition answering a `Result` is put in place whole. A fold modelled as `<fold>.steps`, a
+   list of steps its callers run as their own, is put in place as one step that delegates, which `run` passes on only
+   where the caller's steps before it fell through, as the C++ reaches it. A fold whose caller drops a delegation, or
+   that the harness can't watch either way, isn't seen, so this errs toward not counting. A fold one of whose steps
+   fired is reached too.
 
 Each case comes out one of these ways:
 
@@ -92,13 +103,18 @@ Each case comes out one of these ways:
 | Mismatched | The model fires where `opt` doesn't, or answers another value | Yes |
 | Delegated | The model hands over to code it doesn't follow. Not compared | |
 | An operand changed first | `opt` changed a line other than the root, so the fold would see other operands. Not compared | |
-| An analysis explains it | `opt` folds, the model with `Oracle.none` doesn't, and does with an oracle that answers yes to everything: every bit known zero, every bit known one, or the sign bit known zero | |
-| Nothing explains it | `opt` folds and no such oracle makes the model fire. Listed with its IR as the first place to look for a missing step | With `--strict` |
+| An analysis explains it | `opt` folds, the model with `Oracle.none` doesn't, and with an oracle that answers yes to everything, every bit known zero, every bit known one, or the sign bit known zero, it fires and answers what `opt` does | |
+| Nothing explains it | `opt` folds, and no such oracle makes the model fire with `opt`'s answer. Listed with its IR, and what the model answered under the oracle, as the first place to look for a missing step | With `--strict` |
+
+An oracle that makes the model fire with another answer explains nothing: in `@and_trunc_nuw_implied`, in LLVM's
+`and-or-implied-cond.ll`, `simplifyAndInst`'s model fires at `L2229` with one and answers its operand `%n1`, while
+`opt` answers `%n3`, through `simplifyWithOpReplaced`. `tests/peephole_test.py` keeps that case as a test.
 
 `--write` records each family's result in `tests/passes-proofs/peephole/compared/<family>.json`, schema
 `ir-lean.peephole.comparison/1`, with a SHA-256 hash of the registry and of every module of the library the model
-imports, the core included. `score` counts a site only if that hash is the sources' now, so a changed model has to be
-compared again.
+imports, the core included, and the folds, of any family, its compared runs reached. `score` reads a record only if
+that hash is the sources' now, so a changed model has to be compared again. A family with no entry points records
+`no entry points`: its folds run only through other families'.
 
 **InstCombine's folds** answer with new IR, not an existing value, so for them `compare` reads only whether each
 fires, and leaves comparing the new IR to `compare_new_ir` in `tests/peephole.py`, which answers "not compared" today.
@@ -145,34 +161,80 @@ front of the library with `PEEPHOLE_OVERLAY`: with them, the first wouldn't comp
 
 ## The scoreboard
 
-`score` counts a rewrite as proved for every input only if every one of these holds, and
+`score` counts a rewrite toward G2 only if every one of these holds, and
 [`irlean.verdict`](trust.md#where-python-decides-a-verdict) decides it:
 
-- `Peephole.<ID>` is a theorem, and rests on the standard three axioms only: no `sorry`, and nothing from `bv_decide`,
-  whose proofs rest on `Lean.ofReduceBool`.
-- Its fold's `sound` theorem, named by the registry, is a theorem on the standard three axioms only, and its proof uses
-  `Peephole.<ID>`, directly or through any declaration of the library. Lean reads that from the proof terms, not the
-  names.
-- Its module passes `tests/check_axioms.lean`, which reads it as data, with nothing from `bv_decide`, and `leanchecker`
-  replays it, and `lake` has nothing left to build.
-- Its model's comparison with `opt` is recorded for the sources it has now, with no mismatch.
+1. `Peephole.<ID>` is a theorem, and rests on the standard three axioms only: no `sorry`, and nothing from
+   `bv_decide`, whose proofs rest on `Lean.ofReduceBool`.
+2. Its fold's `sound` theorem, named by the registry, is a theorem on the standard three axioms only, and its proof uses
+   `Peephole.<ID>`, directly or through any declaration of the library. Lean reads that from the proof terms, not the
+   names.
+3. Its module passes `tests/check_axioms.lean`, which reads it as data, with nothing from `bv_decide`, and `leanchecker`
+   replays it, and `lake` has nothing left to build.
+4. Its family's comparison with `opt` is recorded for the sources it has now, with no mismatch, or no entry points.
+5. Its fold's model was run by a comparison: some comparison recorded for its sources now, with no mismatch, reached
+   the fold from an entry point, as [above](#each-model-against-opt). A helper no compared fold forwards to yet has
+   never been run against `opt`.
+6. Its proof covers every type the inventory says it needs. A site whose `needs` isn't `["int"]` counts only if the
+   registry's `covers` lists those types for it, as `"covers": {"<ID>": ["int", "fp"]}`. A proof about `Term`, which
+   holds integers only, never does today.
+
+A site that fails 1 to 4 doesn't count, and a registry listing it as proved is wrong: `score --check` fails. One that
+holds 1 to 4 and fails 5 is reported as **proved, model not compared with opt**, and one that fails only 6 as
+**integer instance proved**. Neither counts, and neither fails `--check`. `score` also says, for each site and in the
+totals, whether `opt` **exercised** it: in some comparison it reads, a compared case fired the site's step and `opt`
+answered the same. That isn't needed to count, since many sites need an analysis or a recursive answer that
+`Oracle.none` doesn't give, but the scoreboard says how many counted sites it holds for.
 
 A registry lists its sites under `folds`, and each one it didn't prove under `unproved` with why. `score --check`
-fails if a site a registry lists as proved doesn't count, if two list one site, or if a registry names an ID the
-inventory doesn't have. It writes JSON, schema `ir-lean.peephole.score/1`, to `build/peephole/score.json`, with the ID
-of every blocked rewrite by what it waits for, and prints a table. On 2026-11-09:
+also fails if two registries list one site, or one names an ID the inventory doesn't have. It writes JSON, schema
+`ir-lean.peephole.score/1`, to `build/peephole/score.json`, with each listed site's outcome and the ID of every blocked
+rewrite by what it waits for, and prints two tables. On this branch, on 2026-11-09:
 
-| Pass | Rewrites | Proved | % | Integers only | Proved of those | % | Need fp (SEM-05) | Need memory (F4) | Need calls |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| InstSimplify | 540 | 8 | 1.48 | 305 | 8 | 2.62 | 189 | 32 | 109 |
-| InstCombine | 2,392 | 0 | 0.0 | 1,600 | 0 | 0.0 | 428 | 178 | 381 |
-| AggressiveInstCombine | 25 | 0 | 0.0 | 13 | 0 | 0.0 | 3 | 7 | 5 |
-| Reassociate | 43 | 0 | 0.0 | 29 | 0 | 0.0 | 13 | 0 | 1 |
-| All | 3,000 | 8 | 0.27 | 1,947 | 8 | 0.41 | 633 | 217 | 496 |
+| Pass | Rewrites | Proved | % | Of those, exercised by `opt` | Integers only | Proved of those | % | Proved, model not compared | Integer instance proved | Need fp (SEM-05) | Need memory (F4) | Need calls |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| InstSimplify | 540 | 8 | 1.48 | 8 | 305 | 8 | 2.62 | 0 | 0 | 189 | 32 | 109 |
+| InstCombine | 2,392 | 0 | 0.0 | 0 | 1,600 | 0 | 0.0 | 0 | 0 | 428 | 178 | 381 |
+| AggressiveInstCombine | 25 | 0 | 0.0 | 0 | 13 | 0 | 0.0 | 0 | 0 | 3 | 7 | 5 |
+| Reassociate | 43 | 0 | 0.0 | 0 | 29 | 0 | 0.0 | 0 | 0 | 13 | 0 | 1 |
+| All | 3,000 | 8 | 0.27 | 8 | 1,947 | 8 | 0.41 | 0 | 0 | 633 | 217 | 496 |
 
 "Need calls" waits for the external-calls lane. The three overlap, as in [the inventory](rewrite-inventory.md#totals).
 A site proved by `sorry` keeps every site of its fold from counting, since the fold's `sound` theorem then rests on
 `sorry` too, and its module fails the axiom audit, which `tests/peephole_test.py --tier live` checks.
+
+### The five families merged
+
+On 2026-11-09, `origin/chunk1/g2-is-arith`, `-logic`, `-icmp`, `-icmp-b` and `-shift` merged into this branch at
+`bb0cc8f` without a conflict, in a scratch branch that isn't pushed. After `compare --write` for all six families, all
+compared clean, with no mismatch, and `score --check` passed:
+
+| Family | Sites listed | Proved | Exercised by `opt` | Proved, model not compared | Integer instance proved | Not counting | Listed unproved |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| `is-add` | 8 | 8 | 8 | 0 | 0 | 0 | 0 |
+| `is-arith` | 39 | 39 | 25 | 0 | 0 | 0 | 1 |
+| `is-icmp-b` | 59 | 57 | 41 | 2 | 0 | 0 | 6 |
+| `is-icmp` | 61 | 48 | 19 | 13 | 0 | 0 | 3 |
+| `is-logic` | 65 | 62 | 39 | 3 | 0 | 0 | 3 |
+| `is-shift` | 28 | 23 | 17 | 5 | 0 | 0 | 13 |
+| All | 260 | 237 | 149 | 23 | 0 | 0 | 26 |
+
+237 is 43.89% of InstSimplify's 540, and 77.7% of its 305 that need only integers. Before rule 5, all 260 listed
+sites counted. The 23 that no longer do are the sites of folds no compared run reached:
+`simplifyUnsignedRangeCheck` (12) and `simplifyICmpUsingMonotonicValues` (1) of `is-icmp`, `simplifySelectBitTest` (4)
+and `simplifySelectWithEquivalence` (1) of `is-shift`, `simplifyCmpSelCase` (2) of `is-icmp-b`, and
+`simplifyAndOrWithICmpEq.Simplify` (3) of `is-logic`. `is-icmp`'s registry says its model delegates the step before
+`simplifyICmpUsingMonotonicValues`, so its run ends there. No listed site is an integer
+instance today: the two the revised inventory tags `fp`, `IS.simplifyAndOrOfCmps.L1933` and
+`IS.simplifyWithOpsReplaced.L4428`, are already under their families' `unproved`, as integer instances proved. With
+that inventory in place of today's, the counts are the same, but `IS.simplifyICmpInst.L4154`, which `is-icmp` lists,
+isn't one of its IDs, so `score --check` fails until the registry follows it.
+
+The stricter rule for an analysis changed three families' comparisons: an analysis now explains 0 of `is-arith`'s
+cases rather than 90, 5 of `is-logic`'s rather than 6, and 205 of `is-shift`'s rather than 212. Those cases, 92, 3
+and 7, are now "nothing explains it". Of the 50 of `is-arith`'s that its record lists, 48 are the model answering
+poison under such an oracle where `opt` answers a value; in 6 of `is-shift`'s 7, `opt` answers poison and the model a
+value. None fails `compare`, which reports them.
 
 ## The lemma store and the rewrites
 
@@ -290,6 +352,11 @@ tests/peephole.py store --family F              # commit store/index.json and st
 and `store.py check` fails on a status the index doesn't record. Families are stored one at a time: the index is one
 file.
 
+A family with no entry points of its own runs `compare --family F --write` too, which records that. Its folds count
+once a comparison recorded for its callers' sources now reaches them, so after a family lands, the families whose
+entry points reach its folds are compared again. Since a comparison's hash covers every module its model imports, a
+changed helper needs its callers' comparisons written again too.
+
 ## Reproducing
 
 In `nix develop`, after `lake build`:
@@ -307,13 +374,18 @@ processes. Nothing here needs Linux.
 
 ## Gaps
 
-- **One fold.** The scoreboard counts `simplifyAddInst`'s 8 sites. Other families are being proved on branches of
-  their own, and count once their registries and comparisons land.
+- **One fold on this branch.** The scoreboard here counts `simplifyAddInst`'s 8 sites. The five other families are
+  on branches of their own, and count once their registries and comparisons land, [as above](#the-five-families-merged).
 - **The comparison is finite.** It covers what LLVM's tests and the generator reach, at a few widths. Vectors,
   constant expressions and `undef` inside instructions aren't generated, and an argument stands for anything deeper
   than five instructions.
-- **"An analysis explains it" is a heuristic.** It asks three oracles that answer yes to everything. A fold that fires
-  only on particular known bits would show as "nothing explains it", which is reported, not a failure.
+- **"An analysis explains it" is a heuristic.** It asks three oracles that answer yes to everything, and needs the
+  model's answer under one to be `opt`'s. A fold that fires only on particular known bits would show as "nothing
+  explains it", which is reported, not a failure.
+- **Which folds a run reached is seen through copies,** of the entry point with the fold answering a marker. A fold
+  reached only through a recursive or `partial` definition, or whose caller drops a delegation, isn't seen, and its
+  sites don't count until one of its steps fires in a compared case. Each comparison's record lists the registered
+  folds it couldn't watch at all.
 - **LLVM's tests reach 5 of `simplifyAddInst`'s 8 sites.** `L605`, `L626` and `L633` fire only on generated cases.
 - **InstCombine's new IR isn't compared yet,** only whether each fold fires, as [above](#each-model-against-opt).
 - **E3 is measured on 8 proofs** whose lemmas were cut from them.
