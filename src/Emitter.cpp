@@ -2248,7 +2248,8 @@ void FunctionEmitter::emitOutsideCall(const CallBase &C, std::vector<Line> &Out)
     // Its type, and the attributes that change what the callee receives, are part of the event: a variadic
     // callee can receive the same lanes as different types.
     std::string Type = printedType(T);
-    for (auto [Kind, Word] : {std::pair{Attribute::SExt, " signext"}, std::pair{Attribute::ZExt, " zeroext"}})
+    for (auto [Kind, Word] : {std::pair{Attribute::SExt, " signext"}, std::pair{Attribute::ZExt, " zeroext"},
+                              std::pair{Attribute::NoExt, " noext"}, std::pair{Attribute::InReg, " inreg"}})
       if (C.paramHasAttr(I, Kind))
         Type += Word;
     Args += (I ? ", (" : "(") + leanString(Type) + ", " +
