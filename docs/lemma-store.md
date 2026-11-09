@@ -19,8 +19,9 @@ shell, while other work ran on the same machine.
   bound on the shift, so their hypothesis is one nothing needs. `grind` alone closes two more and `Refines.of_eq`, and
   `add_of_and_eq_zero`'s conclusion isn't in the normalizer's form. [Below](#what-seeding-refused).
 - **Lookup finds a lemma restated.** Renamed and reordered variables, reordered hypotheses, `>` for `<`, `¬ =` for
-  `≠`, swapped operands of `∨` and `∧`, and an equation the other way round all give a stored lemma's key. A goal at a real width, such as `mul nuw nsw i32 %x, 8` to `shl nuw nsw i32 %x, 3`, finds the
-  lemma for every width it's an instance of, with its side conditions closed by `decide`.
+  `≠`, swapped operands of `∨` and `∧`, and an equation the other way round all give a stored lemma's key. A goal at
+  a real width, such as `mul nuw nsw i32 %x, 8` to `shl nuw nsw i32 %x, 3`, finds the lemma for every width it's an
+  instance of, with its side conditions closed by `decide`.
 - **The checker refuses each kind of bad lemma,** in `tests/store/must_refuse`: a `sorry`, an axiom of its own, an
   axiom from `bv_decide`, a fixed width, a hypothesis with no counterexample, a duplicate after normalization and a
   false statement.
@@ -145,9 +146,9 @@ it needs. The answer, schema `ir-lean.store.lookup/1`, has a `status`:
 The second tier is a `DiscrTree` over the stored lemmas' conclusions, as `simp`, `exact?` and `rw?` index lemmas, then
 unification at reducible transparency. The third is Lean's own: importing `LemmaStore.Select` registers its selector
 with `@[library_suggestions]`, which puts the store's matches first and Lean's default selector's after them, so
-`grind +suggestions`, `simp? +suggestions` and `try?` see the store. [`tests/store/Suggest.lean`](../tests/store/Suggest.lean)
-proves `add i32 %x, 0` to `%x` and `lshr i256 (shl nuw %x, %s), %s` to `%x` with `grind +suggestions` and no other
-hint.
+`grind +suggestions`, `simp? +suggestions` and `try?` see the store.
+[`tests/store/Suggest.lean`](../tests/store/Suggest.lean) proves `add i32 %x, 0` to `%x` and
+`lshr i256 (shl nuw %x, %s), %s` to `%x` with `grind +suggestions` and no other hint.
 
 A match only says what to try. A proof that uses it is checked by the kernel like any other, and the lemma with it.
 
@@ -282,10 +283,11 @@ migrated. Its two core lemmas each rest on one of `bv_decide`'s axioms and are s
 ## Gaps
 
 - **Reuse is counted only where `check` looks:** the store's own modules, `IRLean`'s, and the consumer modules the
-  index names, [`RefineCases.lean`](../tests/refine/RefineCases.lean), [`ContractPoison.lean`](../tests/contracts/ContractPoison.lean)
-  and [`RewriteCounter.lean`](../tests/generic_rewrites/RewriteCounter.lean). Proofs in `tests/proofs`, `tests/llvm`
-  and `tests/binding` need generated modules, so they aren't scanned, and an `example` leaves nothing to count. Proofs
-  in the same file count: `urem_isUB_iff`'s two users are both in `IRLean/Contract/Poison.lean`. The reuse example's
+  index names, [`RefineCases.lean`](../tests/refine/RefineCases.lean),
+  [`ContractPoison.lean`](../tests/contracts/ContractPoison.lean) and
+  [`RewriteCounter.lean`](../tests/generic_rewrites/RewriteCounter.lean). Proofs in `tests/proofs`, `tests/llvm` and
+  `tests/binding` need generated modules, so they aren't scanned, and an `example` leaves nothing to count. Proofs in
+  the same file count: `urem_isUB_iff`'s two users are both in `IRLean/Contract/Poison.lean`. The reuse example's
   proofs aren't consumers, since they were written to show reuse.
 - **Most candidates are LangRef's contracts,** which no proof uses yet. They wait as rule 4 says.
 - **Normalization knows `ac_nf`'s operators only.** `Val`'s operations aren't registered as commutative, and `Val.add`
