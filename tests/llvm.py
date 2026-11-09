@@ -28,6 +28,10 @@ from pathlib import Path
 from typing import Any
 
 ROOT = Path(__file__).resolve().parent.parent
+sys.path.append(str(ROOT / "tools"))
+from irlean import proc  # noqa: E402
+from irlean import verdict as core  # noqa: E402
+
 PROOFS = ROOT / "tests" / "llvm"
 LEAN_ERROR = re.compile(r"^.*?:(\d+):(\d+): error")
 # A line that starts a command, or the doc comment of one.
@@ -49,23 +53,18 @@ def sha256(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
+def checked(r: proc.Ran) -> str:
+    """What a command printed, or raises with it if the command failed or ran out of time."""
+    if r.limit is not None:
+        raise RuntimeError(f"{' '.join(r.argv)}\ntimed out")
+    if r.exit != 0:
+        raise RuntimeError(f"{' '.join(r.argv)}\n{r.out[:4000]}{r.err[:4000]}")
+    return r.out
+
+
 def run(command: list[str], env: dict[str, str] | None = None, stdin: str | None = None) -> str:
     """Runs a command, and raises with its output if it fails."""
-    try:
-        result = subprocess.run(
-            command,
-            env=env,
-            input=stdin,
-            capture_output=True,
-            text=True,
-            timeout=TIMEOUT_SECONDS,
-            check=False,
-        )
-    except subprocess.TimeoutExpired as error:
-        raise RuntimeError(f"{' '.join(command)}\ntimed out") from error
-    if result.returncode != 0:
-        raise RuntimeError(f"{' '.join(command)}\n{result.stdout[:4000]}{result.stderr[:4000]}")
-    return result.stdout
+    return checked(proc.run(command, env=env, stdin=stdin, timeout=TIMEOUT_SECONDS))
 
 
 def theorem_lines(proof: str, theorem: str) -> tuple[int, int]:
@@ -127,15 +126,30 @@ class Pipeline:
     def lean_env(self, directory: Path) -> dict[str, str]:
         return {**os.environ, "LEAN_PATH": f"{directory}:{ROOT}/.lake/build/lib/lean"}
 
+    def lean_ran(
+        self, directory: Path, *args: str, stdin: str | None = None, env: dict[str, str] | None = None
+    ) -> proc.Ran:
+        with self.slots:
+            return proc.run(
+                ["lean", *self.limits, *args],
+                env=self.lean_env(directory) | (env or {}),
+                stdin=stdin,
+                timeout=TIMEOUT_SECONDS,
+            )
+
     def lean(
         self, directory: Path, *args: str, stdin: str | None = None, env: dict[str, str] | None = None
     ) -> str:
-        with self.slots:
-            return run(["lean", *self.limits, *args], self.lean_env(directory) | (env or {}), stdin)
+        return checked(self.lean_ran(directory, *args, stdin=stdin, env=env))
+
+    def compile_ran(self, directory: Path, source: Path, root: Path) -> proc.Ran:
+        olean = directory / (source.stem + ".olean")
+        return self.lean_ran(
+            directory, "-DwarningAsError=true", "-R", str(root), "-o", str(olean), str(source)
+        )
 
     def compile_lean(self, directory: Path, source: Path, root: Path) -> None:
-        olean = directory / (source.stem + ".olean")
-        self.lean(directory, "-DwarningAsError=true", "-R", str(root), "-o", str(olean), str(source))
+        checked(self.compile_ran(directory, source, root))
 
     def source_path(self, target: dict[str, Any], overlay: Path | None) -> Path:
         """Where a target's source is. A file in this repo only says which of LLVM's functions to use."""
@@ -194,11 +208,8 @@ class Pipeline:
         self.lean(directory, "-R", str(directory), "-o", str(directory / f"{name}.olean"), str(generated))
         return functions
 
-    def axioms(self, directory: Path, module: str, generated: str = "", theorems: str = "") -> str:
-        """The axioms a proof module rests on, reading it as data, and that each theorem in `theorems`, a line
-        of a theorem and the Lean name of a function, is about that function as ir-lean generated it in
-        `generated`. Raises if anything is wrong."""
-        return self.lean(
+    def audit_ran(self, directory: Path, module: str, generated: str = "", theorems: str = "") -> proc.Ran:
+        return self.lean_ran(
             directory,
             str(ROOT / "tests" / "check_axioms.lean"),
             env={
@@ -206,13 +217,50 @@ class Pipeline:
                 "IRLEAN_CHECK_GENERATED": generated,
                 "IRLEAN_CHECK_THEOREMS": theorems,
             },
-        ).strip()
+        )
+
+    def axioms(self, directory: Path, module: str, generated: str = "", theorems: str = "") -> str:
+        """The axioms a proof module rests on, reading it as data, and that each theorem in `theorems`, a line
+        of a theorem and the Lean name of a function, is about that function as ir-lean generated it in
+        `generated`. Raises if anything is wrong."""
+        return checked(self.audit_ran(directory, module, generated, theorems)).strip()
+
+    def replay_ran(self, directory: Path, module: str) -> proc.Ran:
+        with self.slots:
+            return proc.run(["leanchecker", module], env=self.lean_env(directory), timeout=TIMEOUT_SECONDS)
 
     def replay(self, directory: Path, module: str) -> None:
         """Replays a module's declarations through the kernel. Lean code can add one the kernel never checked,
         with `debug.skipKernelTC`, and nothing else here would notice."""
-        with self.slots:
-            run(["leanchecker", module], self.lean_env(directory))
+        checked(self.replay_ran(directory, module))
+
+    def proved(
+        self,
+        directory: Path,
+        compiled: proc.Ran,
+        module: str,
+        generated: str,
+        theorems: str,
+        also: tuple[str, ...] = (),
+    ) -> tuple[str, core.Decision]:
+        """For a proof module `compiled` compiled: audits its axioms, and that each of `theorems` is about its
+        function in `generated`, and replays it and the modules in `also` through the kernel. Returns the
+        axioms, and whether irlean.verdict calls it proved. Raises if a step fails."""
+        checked(compiled)
+        audit = self.audit_ran(directory, module, generated, theorems)
+        axioms = checked(audit).strip()
+        replays = {m: self.replay_ran(directory, m) for m in (module, *also)}
+        for r in replays.values():
+            checked(r)
+        olean = directory / f"{module}.olean"
+        evidence = core.Evidence(
+            lean=core.Step.of("lean", compiled),
+            replay=core.Step.of("leanchecker", replays[module]),
+            axioms=core.Step.of("check_axioms", audit),
+            files={str(olean): olean.is_file()},
+            checks={f"leanchecker {m}": r.ok for m, r in replays.items()},
+        )
+        return axioms, core.decide(core.Verdict.PROVED, evidence)
 
     def statement(self, directory: Path, module: str, theorem: str) -> str:
         source = f"import {module}\nset_option pp.fullNames true\n#check @{theorem}\n"
@@ -254,28 +302,19 @@ class Pipeline:
                 checked = scratch / "proof" / proof.name
                 checked.parent.mkdir()
                 checked.write_text("".join(text.splitlines(keepends=True)[:last]))
-        try:
-            with self.slots:
-                result = subprocess.run(
-                    ["lean", *self.limits, str(checked)],
-                    env=self.lean_env(scratch),
-                    capture_output=True,
-                    text=True,
-                    timeout=TIMEOUT_SECONDS,
-                    check=False,
-                )
-        except subprocess.TimeoutExpired:
+        result = self.lean_ran(scratch, str(checked))
+        if result.limit is not None:
             return f"{mutant['name']}: unknown, since the proof neither passed nor failed in time", None
         shutil.rmtree(scratch)
         errors = [
             (int(m.group(1)), line)
-            for line in result.stdout.splitlines()
+            for line in result.out.splitlines()
             if (m := LEAN_ERROR.match(line)) and not (m.group(1) == "1" and m.group(2) == "0")
         ]
-        if result.returncode == 0:
+        if result.exit == 0:
             return f"{mutant['name']}: the proof still checks", None
         if not errors:
-            output = result.stdout[:2000]
+            output = result.out[:2000]
             return f"{mutant['name']}: unknown, since Lean failed with no error in the proof: {output}", None
         # With one function in the file, its helpers count too. With several, each stops its own theorem.
         if len(target["functions"]) > 1:
@@ -292,7 +331,13 @@ class Pipeline:
                 f"{mutant['name']}: unknown, since the proof only ran out of resources: {errors[0][1][:500]}",
                 None,
             )
-        return None, re.sub(r"^.*?:\d+:\d+: error(\([^)]*\))?: ", "", own[0]).strip()[:300]
+        finding = re.sub(r"^.*?:\d+:\d+: error(\([^)]*\))?: ", "", own[0]).strip()[:300]
+        caught = core.decide(
+            core.Verdict.CAUGHT, core.Evidence(step=core.Step.of("lean", result), finding=finding)
+        )
+        if not caught.granted:
+            return f"{mutant['name']}: {caught.verdict}, since {caught.detail}", None
+        return None, finding
 
 
 def check_target(pipeline: Pipeline, target: dict[str, Any], mutants: bool) -> dict[str, Any]:
@@ -314,7 +359,8 @@ def check_target(pipeline: Pipeline, target: dict[str, Any], mutants: bool) -> d
         entry["lean_sha256"] = sha256(work / f"{target['module']}.lean")
         proof = PROOFS / f"{target['proof']}.lean"
         entry["proof_sha256"] = sha256(proof)
-        pipeline.compile_lean(work, proof, PROOFS)
+        compiled = pipeline.compile_ran(work, proof, PROOFS)
+        checked(compiled)
         # Each theorem has to be about its function, as ir-lean generated it. One left out can't be proved
         # about, and a proof could define something of its own with the generated module's name.
         theorems = []
@@ -326,8 +372,11 @@ def check_target(pipeline: Pipeline, target: dict[str, Any], mutants: bool) -> d
             else:
                 theorems.append(f"{details['theorem']} {target['module']}.{name}")
         if not entry["failures"]:
-            entry["axioms"] = pipeline.axioms(work, target["proof"], target["module"], "\n".join(theorems))
-            pipeline.replay(work, target["proof"])
+            entry["axioms"], proved = pipeline.proved(
+                work, compiled, target["proof"], target["module"], "\n".join(theorems)
+            )
+            if not proved.granted:
+                entry["failures"].append(f"{target['proof']} isn't proved: {proved.detail}")
         for function, details in target["functions"].items():
             statement = pipeline.statement(work, target["proof"], details["theorem"])
             entry["functions"][function] = {k: v for k, v in details.items() if k != "mutants"} | {

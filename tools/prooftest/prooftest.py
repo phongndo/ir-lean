@@ -43,6 +43,8 @@ from pathlib import Path
 from typing import Any, NoReturn
 
 ROOT = Path(__file__).resolve().parent.parent.parent
+sys.path.append(str(ROOT / "tools"))
+from irlean import verdict as core  # noqa: E402
 
 
 def load_verify() -> Any:
@@ -1142,7 +1144,16 @@ def decide(run: Run) -> tuple[str, str, str]:
     inputs that ran say."""
     counterexample = run.counterexample
     if counterexample and counterexample["evidence"]:
-        reason = "kernel_refuted" if "kernel" in counterexample["evidence"] else "compiled_evaluation"
+        refuted = core.decide(
+            core.Verdict.REFUTED,
+            core.Evidence(
+                kernel="kernel" in counterexample["evidence"],
+                evaluated="compiled_evaluation" in counterexample["evidence"],
+            ),
+        )
+        if not refuted.granted:
+            return "unknown", "internal_error", f"the evidence isn't a refutation: {refuted.detail}"
+        reason = "kernel_refuted" if refuted.reason == "kernel_refuted" else "compiled_evaluation"
         return "counterexample", reason, f"the statement is false at {counterexample['shown']}"
     if run.stop is not None:
         return "unknown", run.stop.reason, run.stop.detail

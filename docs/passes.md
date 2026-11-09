@@ -73,7 +73,7 @@ Every file is under `WORK`, `build/passes` by default.
 
 | File | Schema | Holds |
 | --- | --- | --- |
-| `bundles/KEY/manifest.json`, and the six files it names | `ir-lean.binding.manifest/1` | One instance's evidence, as `tools/binding.py record` writes it. Unchanged from [binding](llvm-proof-binding.md#the-contract) |
+| `bundles/KEY/manifest.json`, and the six files it names | `ir-lean.binding.manifest/2` | One instance's evidence, as `tools/binding.py record` writes it. Unchanged from [binding](llvm-proof-binding.md#the-contract) |
 | `verdicts/KEY.json` | `ir-lean.binding.verdict/1` | The last verdict on `bundles/KEY`, as `tools/binding.py verify` printed it |
 | `runs/RUNKEY.json` | `ir-lean.passes.run/1` | One `RUN` line's results, as the cache |
 | `score.json` | `ir-lean.passes.score/1` | The report |

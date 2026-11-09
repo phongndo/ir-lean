@@ -29,7 +29,7 @@ CORPUS_PIN = "ir-lean.corpus.pin/1"
 VERIFY = "ir-lean.verify/1"
 VERIFY_REQUEST = "ir-lean.verify.request/1"
 # tools/binding.py: a bundle's manifest, and a verdict on it. docs/llvm-proof-binding.md.
-BINDING_MANIFEST = "ir-lean.binding.manifest/1"
+BINDING_MANIFEST = "ir-lean.binding.manifest/2"
 BINDING_VERDICT = "ir-lean.binding.verdict/1"
 # tools/prooftest/prooftest.py: a request, its result, the store of counterexamples, and bench.py's report.
 # docs/proof-tests.md.

@@ -717,10 +717,26 @@ def contract_checks() -> list[str]:
         for name, value in results.items():
             run.check(name, value)
         run.claim = {"theorem": {"found": True, "name": "t", "axioms": []}, "statement": None}
+        # The Lean processes irlean.verdict rests a proof on, and the modules they wrote: this file stands in.
+        run.steps = {name: v.verdict.Step(name, 0) for name in ("compile_proof", "kernel_replay")}
+        run.outputs = {name: Path(__file__) for name in ("compile_generated", "compile_proof")}
         return run
 
     if v.decide(run_with())[0] != "proved":
         failures.append("every check passing isn't proved")
+    # Checks that say pass aren't enough: the processes have to have ended as they say, and the modules be
+    # there.
+    for change in (
+        lambda r: r.steps.clear(),
+        lambda r: r.steps.update(compile_proof=v.verdict.Step("compile_proof", -11)),
+        lambda r: r.steps.update(kernel_replay=v.verdict.Step("kernel_replay", 0, limit="time_limit")),
+        lambda r: r.steps.update(kernel_replay=v.verdict.Step("kernel_replay", False)),
+        lambda r: r.outputs.update(compile_proof=Path("/nonexistent/P.olean")),
+    ):
+        run = run_with()
+        change(run)
+        if v.decide(run)[0] == "proved":
+            failures.append("proved, with every check passing, on processes or modules that don't hold it up")
     for name in v.REQUIRED:
         for value in ("fail", "not_run", "skip", "inconclusive"):
             status = v.decide(run_with(**{name: value}))[0]

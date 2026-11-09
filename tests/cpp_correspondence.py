@@ -42,6 +42,10 @@ import tomllib
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
+sys.path.append(str(ROOT / "tools"))
+from irlean import lean as lean_  # noqa: E402
+from irlean import verdict as core  # noqa: E402
+
 HERE = ROOT / "tests" / "cpp_correspondence"
 LEAN_FILES = ["SimplifyAddModel.lean", "SimplifyAddSound.lean"]
 DOC = ROOT / "docs" / "llvm-cpp-correspondence.md"
@@ -426,9 +430,15 @@ def compare(all_cases: list[dict], answers: dict[str, object], before: str, afte
 # ### Lean
 
 
-def build(run: Runner, work: Path, model: str, strict: bool = True) -> str | None:
+def step(name: str, r: subprocess.CompletedProcess) -> core.Step:
+    return core.Step(name, r.returncode, None, r.stdout + r.stderr)
+
+
+def build(
+    run: Runner, work: Path, model: str, strict: bool = True
+) -> tuple[str | None, subprocess.CompletedProcess | None]:
     """Compiles IRLean's integer modules, `model` as the model, then the theorem, into `work`, with warnings
-    as errors if `strict`. The module that failed, with Lean's errors, or None."""
+    as errors if `strict`. The module that failed, with Lean's errors, or None, and the last Lean process."""
     (work / "IRLean").mkdir(parents=True, exist_ok=True)
     for name in ("Attr", "Basic", "Int", "Refine"):
         shutil.copy(ROOT / "IRLean" / f"{name}.lean", work / "IRLean" / f"{name}.lean")
@@ -438,12 +448,13 @@ def build(run: Runner, work: Path, model: str, strict: bool = True) -> str | Non
     steps = [("IRLean/Attr", []), ("IRLean/Basic", []), ("IRLean/Int", []), ("IRLean/Refine", [])]
     strictly = ["-DwarningAsError=true"] if strict else []
     steps += [("SimplifyAddModel", strictly), ("SimplifyAddSound", strictly)]
+    r = None
     for path, options in steps:
         olean, source = str(work / f"{path}.olean"), str(work / f"{path}.lean")
         r = run(run.lean(*options, "-R", str(work), "-o", olean, source), {"LEAN_PATH": str(work)})
         if r.returncode != 0:
-            return f"{path}: {r.stdout}{r.stderr}"
-    return None
+            return f"{path}: {r.stdout}{r.stderr}", r
+    return None, r
 
 
 def answers(run: Runner, work: Path, all_cases: list[dict]) -> dict[str, object]:
@@ -516,7 +527,7 @@ def main() -> int:
             "anchors: a changed line and a missing anchor are refused", anchor_negatives(src, anchors, cited)
         )
 
-        error = build(run, work / "model", model)
+        error, compiled = build(run, work / "model", model)
         ok = error is None
         report(
             "lean: the model and simplifyAddInst_sound compile, warnings as errors",
@@ -528,6 +539,18 @@ def main() -> int:
             replay = run(["leanchecker", "SimplifyAddSound"], {"LEAN_PATH": str(work / "model")})
             problems = [] if ax.returncode == 0 else [ax.stdout + ax.stderr]
             problems += [] if replay.returncode == 0 else [replay.stdout + replay.stderr]
+            olean = work / "model" / "SimplifyAddSound.olean"
+            proved = core.decide(
+                core.Verdict.PROVED,
+                core.Evidence(
+                    lean=step("lean", compiled) if compiled else None,
+                    replay=step("leanchecker", replay),
+                    axioms=step("check_axioms", ax),
+                    files={str(olean): olean.is_file()},
+                ),
+            )
+            if not problems and not proved.granted:
+                problems.append(f"simplifyAddInst_sound isn't proved: {proved.detail}")
             report(f"lean: axioms {ax.stdout.strip()}, and leanchecker replays it", problems)
 
         all_cases = cases()
@@ -549,14 +572,26 @@ def main() -> int:
             assert model.count(old) == 1, f"mutant {name}: the model doesn't have its line once"
             shutil.rmtree(work / "mutant", ignore_errors=True)
             # A mutant can leave a flag unused, which is a warning, so it compiles without warnings as errors.
-            error = build(run, work / "mutant", model.replace(old, new), strict=False)
+            error, last = build(run, work / "mutant", model.replace(old, new), strict=False)
             problems = []
             if error is not None and error.startswith("SimplifyAddModel: "):
                 report(f"mutant: {name}", [f"the model doesn't compile: {error[-1500:]}"])
                 continue
+            # Caught: the theorem itself stops, with an error of its own.
+            own = [e for e in lean_.errors(error or "") if not LIMIT.search(e)]
+            caught = core.decide(
+                core.Verdict.CAUGHT,
+                core.Evidence(
+                    step=step("lean", last) if last else None,
+                    finding=own[0] if own else None,
+                    checks={
+                        "it's the theorem that stops": bool(error and error.startswith("SimplifyAddSound: "))
+                    },
+                ),
+            )
             if proves and error is not None:
                 problems.append(f"the theorem fails: {error[-1500:]}")
-            elif not proves and (error is None or not error.startswith("SimplifyAddSound: ")):
+            elif not proves and not caught.granted:
                 problems.append(f"the theorem doesn't fail with an error of its own: {(error or '')[-1500:]}")
             r = compare(all_cases, answers(run, work / "mutant", all_cases), before.stdout, after.stdout)
             if not any(m.startswith(f"{catches}:") for m in r["mismatches"]):
