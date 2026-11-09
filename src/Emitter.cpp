@@ -359,8 +359,15 @@ public:
         Rejected[&G] = "external global @" + G.getName().str() + ", which may be null";
         continue;
       }
-      if (External && (!G.getValueType()->isSized() || DL.getTypeAllocSize(G.getValueType()).isScalable())) {
+      if (External && !G.getValueType()->isSized()) {
         Rejected[&G] = "external global @" + G.getName().str() + ", whose size isn't known";
+        continue;
+      }
+      // Memory has address space 0 only, and a constant operand's address space isn't checked where it's
+      // used.
+      if (External && G.getAddressSpace() != 0) {
+        Rejected[&G] = "external global @" + G.getName().str() + " in address space " +
+                       std::to_string(G.getAddressSpace());
         continue;
       }
       if (!External && (!hasExactLinkage(G) || G.isExternallyInitialized())) {

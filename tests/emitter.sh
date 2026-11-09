@@ -413,6 +413,9 @@ define i32 @f() { %v = load i32, ptr @g
   ret i32 %v }'
 refuses 'external global @g, which may be null' '@g = extern_weak global i32
 define ptr @f() { ret ptr @g }'
+refuses 'external global @g in address space 1' '@g = external addrspace(1) global i32
+define i32 @f() { %v = load i32, ptr addrspace(1) @g
+  ret i32 %v }'
 refuses "external global @g, whose size isn't known" '%T = type opaque
 @g = external global %T
 define ptr @f() { ret ptr @g }'

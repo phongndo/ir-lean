@@ -348,7 +348,8 @@ theorem that needs it there says so, with its size from the declared type, as `M
   a refinement's source, so F4 has to settle it.
 - **Constant `getelementptr` expressions** over an external global are checked the way they are over one the module
   defines: refused unless every step plainly stays inside the declared type.
-- **Refused:** an external global whose type isn't sized, `extern_weak` ones, which may be null, and thread-local ones.
+- **Refused:** an external global whose type isn't sized, `extern_weak` ones, which may be null, thread-local ones,
+  and ones outside address space 0, which memory doesn't have.
 
 So the 394 InstCombine pairs refused for an external global would move to `memory`, the group stage 1 counts as
 translated without a claim, or to the next refusal each has.
