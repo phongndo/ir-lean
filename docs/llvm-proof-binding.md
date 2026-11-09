@@ -385,13 +385,13 @@ each case breaks one thing and has to get the status and reason given:
 | | An entry for another manifest, or another toolchain, at the key | Replayed and `refused`, cache `stale_ignored` |
 | | A changed file, with a `bound` entry in the cache | `refused` before the cache is read |
 
-64 cases took 191 s on a 32-core machine on 2026-11-08, one process at a time. Twelve of them check hashing without
-Lean: a library hashes the same in another place, and a link out of it, a library that's a link, a link to a
-directory, a link out and back in, a `..` through a link to somewhere else, and a checker that's a link to a writable
-file are errors, while plain files, and this checkout's own, are accepted. The other four are in
-[hashing](#hashing). `memory_limit` also comes back `unknown` without a systemd scope, from
-Lean's `-M` alone, which was checked by hand. `ctest` runs it as `binding`, alone, with a 30-minute limit, and CI runs
-it on every pull request. See [testing](testing.md).
+There are 66 cases. 64 of them, all but the two with a forged binary cache, took 191 s on a 32-core machine on
+2026-11-08, one process at a time. Thirteen of them check hashing without Lean: a library hashes the same in another
+place, and a link out of it, a library that's a link, a link to a directory, a link out and back in, a `..` through a
+link to somewhere else, and a checker that's a link to a writable file are errors, while plain files, and this
+checkout's own, are accepted. The other five are in [hashing](#hashing). `memory_limit` also comes back `unknown`
+without a systemd scope, from Lean's `-M` alone, which was checked by hand. `ctest` runs it as `binding`, alone, with a
+30-minute limit, and CI runs it on every pull request. See [testing](testing.md).
 
 No test reaches `function_not_found`, `function_not_generated`, `signature_mismatch`, `module_shadowed`, which the
 directory listing stops first, or the `error` reasons.
