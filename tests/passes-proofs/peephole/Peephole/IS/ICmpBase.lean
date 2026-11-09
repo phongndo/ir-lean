@@ -151,6 +151,12 @@ theorem src_swap (ρ : Env) (p : Pred) (s : Bool) (a b : Term w) :
     (src (swap p) s b a).eval ρ = (src p s a b).eval ρ := by
   rw [src_eval, src_eval, eval_swap]
 
+/-- What `m_Zero`, `m_One`, `m_AllOnes` and the like say: the operand is that constant. -/
+theorem cst_eq {ρ : Env} {t : Term w} {c : BitVec w} (h : cst (· == c) t = true) : t.denote ρ = some c := by
+  obtain ⟨c', hc', hd⟩ := cst_denote (ρ := ρ) h
+  simp only [beq_iff_eq] at hc'
+  rw [hd, hc']
+
 /-! ### Constants of type `i1` -/
 
 /-- `getTrue(Ty)` and `ConstantInt::getTrue(Ty)`, for an `i1`. -/

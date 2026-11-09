@@ -54,11 +54,6 @@ def simplifyICmpWithZero.matchEquivZeroRHS (p : Pred) (rhs : Term w) : Option Pr
 
 namespace ICmp
 
-theorem cst_eq {ρ : Env} {t : Term w} {c : BitVec w} (h : cst (· == c) t = true) : t.denote ρ = some c := by
-  obtain ⟨c', hc', hd⟩ := cst_denote (ρ := ρ) h
-  simp only [beq_iff_eq] at hc'
-  rw [hd, hc']
-
 theorem cst_ne {t : Term w} {c d : BitVec w} (h : cst (· == c) t = true) (hn : cst (· == d) t = false) : c ≠ d := by
   intro he
   subst he
