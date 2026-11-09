@@ -19,7 +19,9 @@ the largest refusal in its census.
   quantifies over both the way it does over arguments, so source and target face the same world.
 - **A call with effects is an event.** It's added to the trace, its answer depends on the trace, and the trace is part
   of how a run ends: a run that returns returns its trace, and a run that ends inside a call that never comes back ends
-  with the trace up to that call. Two runs refine only with equal traces.
+  with the trace up to that call. Two runs refine only with equal traces. A run that never finishes is compared by
+  every prefix of its trace: after the source chooses its run, for every `n`, the two runs watched for their first `n`
+  calls with effects have to agree.
 - **A call without effects isn't.** A call that accesses no memory (`memory(none)`) answers from the callee and
   arguments alone, and one that only reads, from those and the trace. Neither goes in the trace. Which of the callee's
   possible answers a run gets is the run's choice, through F3's `IRLean.Choice`.
@@ -106,7 +108,7 @@ with no memory attribute at all.
 | --- | --- | --- |
 | Adding a call | Refused: the traces differ | Refused: the added call's answer can be undefined |
 | Dropping one | Refused: the traces differ | Refused if the callee can't promise to return, since its answer can be never returning. **Let through** for a `willreturn nounwind` callee with effects: its answer is a value or undefined, so a source that made the call allows a target that didn't |
-| Reordering two | Refused: the traces differ | **Let through:** each call gets the answer for its arguments, in either order |
+| Reordering two | Refused: the traces differ | Refused for `@use` itself: if `use(1)` never comes back and `use(2)` is undefined, the swapped target is undefined where the source isn't. **Let through** for `willreturn nounwind` callees with effects: each call gets the answer for its arguments, in either order |
 | Changing an argument | Refused: the traces differ | Refused: the new arguments' answer can be undefined |
 | Calling twice where the source calls once | Refused: the traces differ | **Let through:** the second call gets the first's answer |
 
@@ -129,10 +131,11 @@ In a new module, `IRLean/World.lean`.
 /-- A value crossing into or out of a call outside the module: each lane as a number, or poison. -/
 abbrev Lanes := List (Option Nat)
 
-/-- A call outside the module: the callee's name, and each argument's lanes. -/
+/-- A call outside the module: the callee's name, and each argument's type, with the attributes that change how it's
+passed, and lanes. -/
 structure Event where
   callee : String
-  args : List Lanes
+  args : List (String × Lanes)
 
 /-- The calls with effects a run has made, newest first. -/
 abbrev Trace := List Event
@@ -155,11 +158,15 @@ inductive Exit (α : Type) where
   | done (v : α) (t : Trace)   -- returned `v`
   | halted (t : Trace)         -- the call at the head of `t` never came back
   | unwound (t : Trace)        -- the call at the head of `t` unwound, and so did this function
+  | cut (t : Trace)            -- the run was watched for `t`'s calls, and made another
+
+/-- What a function that calls outside the module does: for each way its run chooses, and each number of calls with
+effects to watch it for, how it ends. -/
+def Talks (α : Type) : Type := Choice → Nat → Outcome (Exit α)
 ```
 
 A function that calls outside the module, or calls a function that does, takes `(w : World) (h : Trace)` after its
-arguments and memory, and returns `Outcome (Exit α)`, or `Outcomes (Exit α)` if its run makes choices. Every other
-function is emitted as before, so no existing proof changes.
+arguments and memory, and returns `Talks α`. Every other function is emitted as before, so no existing proof changes.
 
 ### What a call does
 
@@ -185,11 +192,13 @@ How an answer becomes the call's outcome, given what the declaration and the cal
 | --- | --- | --- |
 | `ret v` | Returns `v`'s lanes as the call's type. Undefined under `noreturn` | The same |
 | `undefined` | Undefined | Undefined |
-| `stays` | Ends the run, `halted` with the trace ending in this call | Never finishes, `none`. Undefined under `willreturn` |
+| `stays` | Ends the run, `halted` with the trace ending in this call. Undefined under `willreturn` | Never finishes, `none`. Undefined under `willreturn` |
 | `unwinds` | Undefined under `nounwind`. Otherwise ends the run, `unwound`, with the trace ending in this call | The same, with the call added to the trace for the observation |
 
-A run that ends `halted` or `unwound` passes it up through the module's own callers, the way `Mem` threads memory. A
-function marked `nounwind` that ends `unwound` is undefined, which is how unwinding through a `nounwind` caller is.
+Before a call with effects answers, the run checks how many calls it's watched for: one that would make the trace
+longer than that ends the run `cut`, with the trace so far. A run that ends `halted`, `unwound` or `cut` passes it up
+through the module's own callers, the way `Mem` threads memory. Unwinding through a function or a call marked
+`nounwind` is undefined.
 
 ### Refinement
 
@@ -199,25 +208,33 @@ instance [Refine α] : Refine (Exit α) where
     | .done x t => ∃ y, b = .done y t ∧ Refine.le x y
     | .halted t => b = .halted t
     | .unwound t => b = .unwound t
+    | .cut t => b = .cut t
+
+instance [Refine α] : Refine (Talks α) where
+  le a b := ∀ ct, ∃ cs, ∀ n, Refine.le (a cs n) (b ct n)
 ```
 
 With the existing instances around it, `Refines src tgt` says: for every argument, every world and every trace before
-the call, every way the target chooses has a way the source chooses whose run allows the target's. Undefined behavior
-in the source still allows anything, for that world: if the source, given these answers, reaches undefined behavior,
-LLVM may assume it does, and the answers already say every call before it came back.
+the call, every way the target chooses has a way the source chooses whose run allows the target's, watched for any
+number of calls with effects. Undefined behavior in the source still allows anything, for that world and that many
+calls: if the source, given these answers, reaches undefined behavior before the cut, LLVM may assume it does, and the
+answers already say every call before it came back.
 
-**Why a run that never finishes is still compared by its calls.** A target that drops a call before a loop that never
-ends, and a source that doesn't, both give `none`. They differ in the world that answers `stays` to that call: the
-source ends `halted` with the call in its trace, and the target never finishes. In general, if a target's behavior has
-trace `t`, the world that answers `stays` at each prefix of `t` shows the source makes that prefix of calls too, and
-the world that answers `stays` at one more call shows it makes no more. So comparing finished runs and halted ones
-compares the calls of runs that never finish, without infinite traces.
+**Why a run is watched for every number of calls.** A run that never finishes gives `none`, which says nothing of the
+calls it made. A target that calls `@use` before a loop that never ends, and a source that doesn't, both give `none`.
+Watched for no calls, the target ends `cut` with no calls, and the source still runs forever, so they differ. In
+general, watching for `n` calls shows the first `n` calls of the run, so every prefix of a run's trace, finite or not,
+is something the relation compares.
 
-That needs `stays` to be an answer at every call with effects, `willreturn` callees included. For a call with effects,
-`stays` is never undefined. That adds observations, which only makes the relation stricter: the price is that a source
-reaching undefined behavior after a `willreturn nounwind` call with effects can't drop that call, which LLVM's
-`simplifyUnreachable` does. For a call without effects, `stays` under `willreturn` is undefined, which removing an
-unused call needs.
+**Why the watching comes after the source's choice.** The source has to pick one run that agrees with the target's at
+every `n`. A source that could pick per `n`, or per world, could match each prefix with a different run: one that
+spins silently where the target's `use(); spin` is watched past its call, and one that makes the call and returns where
+it's watched up to it. No single run of that source does what the target does, so that would certify a wrong rewrite.
+The world is an input, before the target's choice, and the cut is quantified last.
+
+**The price.** A source that reaches undefined behavior after a call with effects is defined when watched for fewer
+calls, so the call can't be dropped before the undefined behavior even under `willreturn nounwind`, which LLVM's
+`simplifyUnreachable` does. Keeping the call and replacing what follows still refines.
 
 ### The five wrong rewrites, in this model
 
@@ -226,7 +243,7 @@ For `declare void @use(i8)`, with effects:
 | Wrong rewrite | Why it's refused |
 | --- | --- |
 | Adding a call | The target's trace has a call the source's doesn't |
-| Dropping one | The source's trace has a call the target's doesn't, in a world where the call returns. If it never returns, the source halts and the target doesn't |
+| Dropping one | The source's trace has a call the target's doesn't, in a world where the call returns. Watched for no calls, the source is cut and the target isn't |
 | Reordering two | The traces differ in order |
 | Changing an argument | The traces differ in the argument |
 | Calling twice | The target's trace has one more call |
@@ -245,8 +262,8 @@ For `declare i8 @f(i8) memory(none)`, without effects:
 ### Who keeps a promise
 
 The callee does, and nothing checks it: its body isn't in the module. The model makes a broken promise undefined, as
-LangRef does, by the answers it allows: a `noreturn` callee that returns, a `nounwind` one that unwinds, and a pure
-`willreturn` one that never comes back are all `UB.outside`. That's SEM-07's rule for the module's own promises, applied
+LangRef does, by the answers it allows: a `noreturn` callee that returns, a `nounwind` one that unwinds, and a
+`willreturn` one that never comes back are all `UB.outsideCall`. That's SEM-07's rule for the module's own promises, applied
 to promises about code the module can't see. So a theorem covers every callee that keeps the promises its declaration
 and the call make, and a run where one doesn't is undefined in the model and in LLVM alike. A target that adds a
 promise, such as `willreturn` on a call, is undefined in a world where the callee breaks it, and the source isn't, so it
@@ -256,7 +273,7 @@ doesn't refine.
 | --- | --- |
 | `memory(none)` | No event: the call can be dropped, merged or reordered against calls with effects, as the table above says |
 | `memory(read)` and other read-only effects | The same, except it can't move across a call with effects, since its answer depends on the trace |
-| `willreturn` | For a call without effects, dropping it: `stays` is undefined. For a call with effects, nothing |
+| `willreturn` | `stays` is undefined. For a call without effects, with `nounwind`, that makes it removable. A call with effects stays in the trace |
 | `nounwind` | Dropping or reordering it: `unwinds` is undefined |
 | `noreturn` | Nothing removable: a return is undefined, so the code after the call is unreachable |
 | `mustprogress` | What it does on a module's own function: under a caller's promise, a call without effects to a `mustprogress` callee that isn't `willreturn`, and never comes back, stops the model as `progressUnsettled`, through `IRLean.promised` |
@@ -265,6 +282,12 @@ Refused on a call outside the module, until something needs them: `nosync`, `nof
 `convergent`, `returns_twice` and `builtin`, which the model doesn't check, so a target that added one would be certified
 on a callee that breaks it; `speculatable`, which would rule out every answer but `ret`, and is what adding a call
 needs; operand bundles; and a calling convention that differs from the declaration's, which LangRef makes undefined.
+
+The same goes for promises the *caller* makes about what its calls do, which a callee outside the module could break:
+`norecurse` on a function that calls outside the module, since the callee may call back into it, and `nosync`, `nofree`
+and a `memory(...)` narrower than the callee's on a function that makes a call with effects or that reads. Each is
+refused there. Unwinding through a call marked `nounwind`, to a function in the module that calls outside it, is
+undefined, like unwinding through a function marked so.
 
 ### What stays out, and what a theorem assumes
 
@@ -279,6 +302,8 @@ needs; operand bundles; and a calling convention that differs from the declarati
   with the environment as progress, and `IRLean.runPromised` would call a loop that only does that undefined. Of the
   2,787 InstCombine pairs above, the 2,100 with no pointer in either side have no promise on either side's function.
 - **A call to a `noreturn` function returning `void`** keeps the existing model stop, `noReturnCall`, unchanged.
+- **A function with a stack frame, or that makes promises about memory,** wraps its body in `Mem.withFrame` or
+  `Mem.call`, which don't pass an `Exit` through yet, so a call outside the module there is refused until they do.
 - **Calls through a pointer** to anything outside the module keep stopping the model, `unknownCallee`.
 
 ## Calls that touch memory
@@ -318,8 +343,9 @@ translated without a claim, or to the next refusal each has.
 ## Variadic calls
 
 A variadic call to a function outside the module is an event like any other: each argument after the fixed ones is
-part of it. Nothing in the model depends on the callee's signature beyond its name. So they're admitted where the same
-call without `...` would be. Of the 67 InstCombine pairs refused first for a variadic call, 66 mention a pointer, mostly
+part of it. Its type is part of the event too, since a variadic callee can receive `(i64 1, i64 2)` and `(i128 1, i64
+2)` in the same lanes and read them differently, and so are `signext`, `zeroext` and `inreg`, which change what it
+receives. So they're admitted where the same call without `...` would be. Of the 67 InstCombine pairs refused first for a variadic call, 66 mention a pointer, mostly
 a format string, so they wait for F4 with the rest.
 
 Defining a variadic function stays refused: `va_start` and `va_arg` read memory the model doesn't lay out.
@@ -348,9 +374,9 @@ most of the census's calls into calls inside the module, and the one-definition-
 Each is a pull request, merged when green, with this page updated to say what's built.
 
 1. **Calls that access no memory.** `IRLean/World.lean`: `Event`, `Trace`, `Answer`, `World`, `Exit`, its `Refine`
-   instance, the call helpers and their laws, and `UB.outside` and `UB.unwind` in `IRLean.Basic`. The emitter threads
-   `w` and `h` through functions that call outside the module, and translates pure calls, in any function. Tests in
-   `tests/calls`, as `tests/freeze` does for F3.
+   instance, `Talks` and its instance, the call helpers and their laws, and one new reason, `UB.outsideCall`, in
+   `IRLean.Basic`. The emitter threads `w` and `h` through functions that call outside the module, and translates pure
+   calls, in any function. Tests in `tests/calls`, as `tests/freeze` does for F3.
 2. **Calls with effects, and calls that only read,** in functions without memory, and calls touching only
    `inaccessiblemem` in any function. The emitter refuses calls that touch memory by name. Most of the coverage gain is
    here: of the 2,787 pairs refused first for `call to external`, 2,100 have no pointer in either side, 4 of them with
