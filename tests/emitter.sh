@@ -188,6 +188,11 @@ for layout in e-p:32:32 E-p:64:64 e-p:64:64:64:32 e-po:64:64; do
 define i1 @f(ptr %p) { %c = icmp eq ptr %p, null
   ret i1 %c }"
 done
+# A global holding a pointer in another address space, whose null `po1` makes all ones, is refused too.
+refuses 'pointer in another address space' 'target datalayout = "e-po1:64:64"
+@g = global ptr addrspace(1) null
+define i64 @f() { %v = load i64, ptr @g
+  ret i64 %v }'
 accepts 'target datalayout = "e-pz:64:64-i64:64"
 define i1 @f(ptr %p) { %c = icmp eq ptr %p, null
   ret i1 %c }'

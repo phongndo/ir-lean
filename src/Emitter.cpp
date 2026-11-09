@@ -237,6 +237,13 @@ std::string leanType(Type *T) {
   reject("type " + printedType(T));
 }
 
+// Whether a type holds a pointer outside address space 0, whose size and null `Mem` doesn't know.
+bool mentionsOtherAddressSpace(Type *T) {
+  if (auto *P = dyn_cast<PointerType>(T))
+    return P->getAddressSpace() != 0;
+  return any_of(T->subtypes(), [](Type *S) { return mentionsOtherAddressSpace(S); });
+}
+
 bool mentionsPointer(Type *T) {
   if (T->isPointerTy())
     return true;
@@ -601,6 +608,9 @@ private:
     if (!DL.isLittleEndian())
       reject("big-endian data");
     Type *T = C->getType();
+    // Its null may not be all zeros, and its size may not be 64 bits.
+    if (mentionsOtherAddressSpace(T))
+      reject("initializer with a pointer in another address space");
     uint64_t Size = DL.getTypeAllocSize(T);
     if (isa<UndefValue>(C)) {
       Out.insert(Out.end(), Size, 256);

@@ -143,10 +143,11 @@ data layout, not assumed. Each is:
 | Address width, which LangRef ties to the index size: "The index size also specifies the width of addresses in this address space" | `Mem` compares, converts and offsets 64-bit addresses, and LangRef's `icmp` compares "the address bits" | Refuses a function with memory unless it's 64. Before 2026-11-09 a layout such as `p:64:64:64:32` was accepted, with 64-bit addresses where LLVM has 32 |
 | The null pointer's bits, all ones under a `p` with the `o` flag | `Mem`'s null is address 0 | Refuses a function with memory unless they're all zeros. Before 2026-11-09 `po:64:64` was accepted |
 | Byte order | `Mem` stores bytes little-endian, and a `bitcast` between integers and vectors puts lane 0 in the low bits | Refuses a function with memory, and such a `bitcast`, in a big-endian module |
-| Sizes, alignments and struct field offsets | `alloca`, `getelementptr`, loads, stores and globals | Asks `DataLayout` for each |
+| Sizes and struct field offsets, and the alignment an access needs | `alloca`, `getelementptr`, loads, stores and globals | Asks `DataLayout` for each. Where an allocation is placed isn't constrained by its alignment, which [trust](trust.md#known-gaps-in-the-model) lists |
 | The index size of `getelementptr` | Its offset arithmetic | Refuses one unless it's 64 |
 
-Pointers in another address space and vectors of pointers are refused whatever the layout says. LLVM's parser refuses
+Pointers in another address space are refused whatever the layout says, in a function and in a global's initializer,
+where their null may not be all zeros, and so are vectors of pointers in a function. LLVM's parser refuses
 the `u` and `e` flags, an unstable representation and external state, on address space 0. A function the emitter
 gives no `Mem` has no pointer in it, so none of these changes what it computes but byte order, for `bitcast`.
 `emitter.sh` checks a layout of each kind is refused, and the classification has a form for each.
