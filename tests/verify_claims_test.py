@@ -149,6 +149,18 @@ def run_static() -> list[str]:
             failures.append(
                 f"static {name}: wanted refused {want}, got {v['status']} {v['reason']}: {v['detail']}"
             )
+    # A process that ran out of memory says nothing about the evidence: unknown, never refused. A fork that
+    # fails with ENOMEM, as bv_decide's can on a CI runner, reads this way.
+    enomem = "Proof.lean:1:1: error: resource exhausted (error code: 12, not enough memory)"
+    ran = vc.Ran(["lean"], 1, "", enomem, False, 0.0)
+    try:
+        vc.need(ran, "proof_compile_failed", "lean Proof")
+        got = "passed"
+    except vc.Stop as stop:
+        got = stop.status
+    print(f"{'ok  ' if got == 'unknown' else 'FAIL'} static: a process out of memory is {got}")
+    if got != "unknown":
+        failures.append(f"a process out of memory is {got}, not unknown")
     # tests/llvm_scope.py asks this verifier, and only for a complete claim.
     sys.path.insert(0, str(ROOT / "tests"))
     import llvm_scope

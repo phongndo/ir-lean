@@ -45,16 +45,65 @@ accepts() {
 }
 
 # A `bitcast` between integers and vectors of integers puts lane 0 in the low bits only on a little-endian
-# target, even in a function that doesn't touch memory. Lane widths that don't divide each other, floating-point
-# lanes, pointers and scalable vectors are refused too. tests/x86check.py checks what the accepted ones mean
+# target, even in a function that doesn't touch memory. Lane widths that don't divide each other, formats the model
+# doesn't have, pointers and scalable vectors are refused too. tests/x86check.py checks what the accepted ones mean
 # against Alive2.
 refuses 'big-endian integer bitcast' 'target datalayout = "E"
 define <4 x i8> @f(<2 x i16> %x) { %r = bitcast <2 x i16> %x to <4 x i8>
   ret <4 x i8> %r }'
 refuses 'nondividing lane widths' 'define <3 x i8> @f(<2 x i12> %x) { %r = bitcast <2 x i12> %x to <3 x i8>
   ret <3 x i8> %r }'
-refuses 'type' 'define <2 x i32> @f(<2 x float> %x) { %r = bitcast <2 x float> %x to <2 x i32>
+refuses 'type ppc_fp128' 'define i128 @f(ppc_fp128 %x) { %r = bitcast ppc_fp128 %x to i128
+  ret i128 %r }'
+
+# Floating point, in IRLean/Float.lean: a float is its bits. What it doesn't model yet, or ever, is refused by name,
+# as docs/float.md says, and tests/fpcheck.py and tests/float.sh check what it accepts.
+accepts 'define <2 x i32> @f(<2 x float> %x) { %r = bitcast <2 x float> %x to <2 x i32>
   ret <2 x i32> %r }'
+accepts 'target triple = "x86_64-unknown-linux-gnu"
+define i1 @f(double %x) { %r = fcmp nnan nsz arcp contract afn olt double %x, 1.0
+  ret i1 %r }'
+accepts 'define float @f(float %x) denormal_fpenv(ieee|ieee) { ret float %x }'
+refuses 'type x86_fp80' 'define x86_fp80 @f(x86_fp80 %x) { ret x86_fp80 %x }'
+refuses 'instruction %r = fadd' 'define float @f(float %x) { %r = fadd float %x, 1.0
+  ret float %r }'
+refuses 'fast-math flag reassoc on %r = fcmp' 'define i1 @f(float %x) { %r = fcmp reassoc olt float %x, 1.0
+  ret i1 %r }'
+refuses 'fast-math flag nsz on %r = fneg' 'define float @f(float %x) { %r = fneg nsz float %x
+  ret float %r }'
+refuses 'fast-math flag nnan on %r = select' 'define float @f(i1 %c, float %x) { %r = select nnan i1 %c, float %x, float 1.0
+  ret float %r }'
+refuses 'function attribute denormal_fpenv(preservesign)' 'define float @f(float %x) denormal_fpenv(preservesign) {
+  ret float %x }'
+refuses 'function attribute strictfp' 'define float @f(float %x) strictfp { ret float %x }'
+refuses 'type float for target i386' 'target triple = "i386-unknown-linux-gnu"
+define float @f(float %x) { ret float %x }'
+refuses 'type float for target wasm32' 'target triple = "wasm32-unknown-unknown"
+define i32 @f(float %x) { %r = bitcast float %x to i32
+  ret i32 %r }'
+accepts 'define <2 x float> @f(<2 x float> nofpclass(nan) %x) { ret <2 x float> %x }'
+refuses 'parameter attribute nofpclass(nan) on an aggregate' 'define { float, float } @f({ float, float } nofpclass(nan) %x) {
+  ret { float, float } %x }'
+
+# `nofpclass` on a vector makes only the lanes in a class it names poison, as `range` on a vector does.
+cat >"$work/FClass.ll" <<'IR'
+define <2 x float> @f(<2 x float> nofpclass(nan) %x) {
+  ret <2 x float> %x
+}
+IR
+cat >"$work/FClassCheck.lean" <<'LEAN'
+import FClass
+open IRLean
+#guard (match FClass.f #v[some 0x7FC00000#32, some 0x3F800000#32] with
+  | some (.ok v) => (v[0], v[1]) == (none, some 0x3F800000#32)
+  | _ => false)
+LEAN
+if "$tool" "$work/FClass.ll" -o "$work/FClass.lean" --namespace FClass &&
+  lean -R "$work" -o "$work/FClass.olean" "$work/FClass.lean" && lean "$work/FClassCheck.lean"; then
+  printf 'ok    nofpclass on a vector makes a lane poison on its own\n'
+else
+  fail 'nofpclass on a vector'
+fi
 refuses 'integer bitcast shape' 'define <vscale x 4 x i8> @f(<vscale x 2 x i16> %x) { %r = bitcast <vscale x 2 x i16> %x to <vscale x 4 x i8>
   ret <vscale x 4 x i8> %r }'
 refuses 'integer bitcast shape' 'define ptr @f(ptr %x) { %r = bitcast ptr %x to ptr

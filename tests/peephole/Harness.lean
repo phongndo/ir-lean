@@ -354,8 +354,14 @@ def runCase (entries : Array Entry) (watch : String → String → Bool) (line :
         out := out ++ [("analysis",
           Json.mkObj [("oracle", toJson label), ("value", replJson r'), ("site", siteOf e o t)])]
         break
-  -- `"watch": false` for a case whose comparison doesn't count, where `opt` changed an operand first.
-  let watching := (j.getObjValAs? Bool "watch").toOption.getD true
+  -- Folds are looked for only in a case that's compared: `opt` left its operands alone, `"watch"`, and the model
+  -- fired, or neither the model nor `opt` folded. A delegated case, or one where only `opt` folded, isn't.
+  let optFolded := (j.getObjValAs? Bool "opt_folded").toOption.getD false
+  let compared := match r with
+    | .value _ => true
+    | .null => !optFolded
+    | .delegated _ => false
+  let watching := (j.getObjValAs? Bool "watch").toOption.getD true && compared
   let mut reached := #[]
   for (f, copy) in e.ran do
     if !watching || !watch entry f then continue
