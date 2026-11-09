@@ -1549,3 +1549,10 @@ define <vscale x 4 x i32> @probe(ptr %p) {
   %v = load <vscale x 4 x i32>, ptr %p
   ret <vscale x 4 x i32> %v
 }
+
+; probe: form / intrinsic-lane-count-mismatch
+define <4 x i32> @probe(float %a) {
+  %r = call <4 x i32> @llvm.fptosi.sat.v4i32.f32(float %a)
+  ret <4 x i32> %r
+}
+declare <4 x i32> @llvm.fptosi.sat.v4i32.f32(float)

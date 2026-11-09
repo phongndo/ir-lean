@@ -1,20 +1,33 @@
 {
   "schema": "ir-lean.verification-negative.case/1",
-  "category": "unsupported",
-  "summary": "fadd X, 0.0 -> X, whose fadd the emitter refuses",
+  "category": "wrong_transformation",
+  "summary": "fadd X, 0.0 -> X, refuted at X = -0.0",
   "llvm_verdict": "invalid",
-  "why": "-0.0 + 0.0 is +0.0, not -0.0. The model has no floating-point arithmetic yet, so there's no claim to certify.",
-  "claim": null,
-  "pin_override": {
-    "statement": "True"
+  "why": "-0.0 + 0.0 is +0.0, not -0.0. The model agrees, and tests/float/FloatModel.lean proves it doesn't refine, as fadd_zero_wrong. src's fadd makes a choice, of a NaN, and the claim says some way src chooses allows tgt, which Lean can't decide at a witness, so tools/verify.py finds no counterexample, and reports the proof that failed.",
+  "claim": {
+    "binders": "(x : IRLean.Val 32)",
+    "hypotheses": [],
+    "src_choice": "cs",
+    "src": "Opt.src x cs",
+    "tgt": "Opt.tgt x"
   },
-  "names": [],
+  "names": [
+    "Opt.src",
+    "Opt.tgt"
+  ],
   "request": {
     "input": {
       "ir": "Opt.ll"
     },
     "namespace": "Opt",
-    "function": "src",
+    "function": "tgt",
+    "proof": "Proof.lean",
+    "theorem": "tgt_refines_src",
+    "witnesses": [
+      {
+        "x": "(some 2147483648#32)"
+      }
+    ],
     "limits": {
       "timeout_seconds": 120,
       "memory_mb": 4000
@@ -23,7 +36,7 @@
   "expect": {
     "certified": false,
     "verify": [
-      "unsupported/function_unsupported"
+      "error/proof_failed"
     ],
     "gate": [
       "not_proved"
