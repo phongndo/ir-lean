@@ -22,6 +22,11 @@ or zeros added where the format changes. So a NaN from the constant folder or th
 those, and the model, run again under each of its sixteen choices of a NaN, has to give only those, and all of
 them.
 
+Under `nsz`, LangRef lets each operand that's a zero have its sign flipped, and on `uitofp`, `sitofp` and
+`select`, whose flags apply to the result, a zero result's sign. The model chooses which, so where an operand
+or the result is a zero, its results under every choice have to be the operation's without `nsz` on the
+operands with their zeros' signs flipped every way, and nothing else.
+
 At `half`, every operand of an operation of one operand is tried on the model and the processor, and the
 operations of two have every edge value against every other, and random pairs. Other formats are sampled.
 
@@ -57,6 +62,8 @@ INTS = [8, 16, 32, 64]
 POISON = "poison"
 # The choices of a NaN: sign, unchanged or quieted, and which operand.
 PICKS = range(16)
+# With those, under `nsz`, whether each of up to two operands that's a zero has its sign flipped.
+NSZ_PICKS = range(64)
 
 
 def fwidth(ty):
@@ -87,8 +94,16 @@ def nan_set(out, ins):
     return allowed
 
 
+def is_zero(ty, x):
+    e, m = FORMATS[ty]
+    return x & ((1 << (e + m)) - 1) == 0
+
+
 def op(ident, operands, result, body, decls=(), chooses=False, alive=True):
-    """An operation: operands and result are ("f", type), ("i", width), or ("b",) for an `i1` result."""
+    """An operation: operands and result are ("f", type), ("i", width), or ("b",) for an `i1` result. With
+    `nsz` among its flags, `nsz` says whether the flag flips the sign of zero operands, "in", or of a zero
+    result, "out", and `base` names the same operation without the flag."""
+    words = ident.split()
     return {
         "id": ident,
         "operands": operands,
@@ -97,28 +112,47 @@ def op(ident, operands, result, body, decls=(), chooses=False, alive=True):
         "decls": list(decls),
         "chooses": chooses,
         "alive": alive,
+        "nsz": None,
+        "base": " ".join(w for w in words if w != "nsz") if "nsz" in words else None,
     }
+
+
+def nsz(o, kind):
+    o["nsz"] = kind
+    return o
 
 
 def variants():
     out = []
     for ty in FORMATS:
         f, sfx = ("f", ty), SUFFIX[ty]
-        for flags in ["", "nnan", "ninf", "nnan ninf"]:
-            out.append(op(f"fneg {flags} {ty}", [f], f, f"%r = fneg {flags} {ty} %a0"))
+        for flags in ["", "nnan", "ninf", "nnan ninf", "nsz", "nnan nsz"]:
+            out.append(nsz(op(f"fneg {flags} {ty}", [f], f, f"%r = fneg {flags} {ty} %a0"), "in"))
         fabs = f"declare {ty} @llvm.fabs.{sfx}({ty})"
         copysign = f"declare {ty} @llvm.copysign.{sfx}({ty}, {ty})"
-        for flags in ["", "nnan", "ninf"]:
+        for flags in ["", "nnan", "ninf", "nsz"]:
             out.append(
-                op(f"fabs {flags} {ty}", [f], f, f"%r = call {flags} {ty} @llvm.fabs.{sfx}({ty} %a0)", [fabs])
+                nsz(
+                    op(
+                        f"fabs {flags} {ty}",
+                        [f],
+                        f,
+                        f"%r = call {flags} {ty} @llvm.fabs.{sfx}({ty} %a0)",
+                        [fabs],
+                    ),
+                    "in",
+                )
             )
             out.append(
-                op(
-                    f"copysign {flags} {ty}",
-                    [f, f],
-                    f,
-                    f"%r = call {flags} {ty} @llvm.copysign.{sfx}({ty} %a0, {ty} %a1)",
-                    [copysign],
+                nsz(
+                    op(
+                        f"copysign {flags} {ty}",
+                        [f, f],
+                        f,
+                        f"%r = call {flags} {ty} @llvm.copysign.{sfx}({ty} %a0, {ty} %a1)",
+                        [copysign],
+                    ),
+                    "in",
                 )
             )
         for p in FCMP:
@@ -148,7 +182,15 @@ def variants():
                     [fpclass],
                 )
             )
-        out.append(op(f"select {ty}", [f, f], f, f"%r = select i1 true, {ty} %a1, {ty} %a0"))
+        # Flags on `select` apply to the value it selects, which is the second operand here, and never to the
+        # other.
+        for flags in ["", "nnan", "ninf", "nnan ninf", "nsz", "nnan ninf nsz"]:
+            out.append(
+                nsz(
+                    op(f"select {flags} {ty}", [f, f], f, f"%r = select {flags} i1 true, {ty} %a1, {ty} %a0"),
+                    "out",
+                )
+            )
         # `nofpclass` on a call's argument, to `copysign` of the operand and itself, which is the operand.
         for k in [*MASKS[:10], 0x3, 0x3FC]:
             out.append(
@@ -162,9 +204,18 @@ def variants():
             )
         # The arithmetic, which chooses a NaN.
         for name in ["fadd", "fsub", "fmul", "fdiv", "frem"]:
-            for flags in ["", "nnan", "ninf"]:
+            for flags in ["", "nnan", "ninf", "nsz", "ninf nsz"]:
                 out.append(
-                    op(f"{name} {flags} {ty}", [f, f], f, f"%r = {name} {flags} {ty} %a0, %a1", chooses=True)
+                    nsz(
+                        op(
+                            f"{name} {flags} {ty}",
+                            [f, f],
+                            f,
+                            f"%r = {name} {flags} {ty} %a0, %a1",
+                            chooses=True,
+                        ),
+                        "in",
+                    )
                 )
         # Conversions to and from integers.
         for w in INTS:
@@ -173,7 +224,20 @@ def variants():
             for name in ["uitofp", "sitofp"]:
                 out.append(op(f"{name} i{w} {ty}", [("i", w)], f, f"%r = {name} i{w} %a0 to {ty}"))
         out.append(op(f"uitofp nneg i32 {ty}", [("i", 32)], f, f"%r = uitofp nneg i32 %a0 to {ty}"))
-        # Alive2, at the pin, crashes on `uitofp ninf`, so it isn't asked about this one.
+        # Alive2, at the pin, asserts that `uitofp` and `sitofp` have no fast-math flags, and stops, so it
+        # isn't asked about those that do. LLVM's parser takes the flags before `nneg`. Each operation with
+        # `nsz` has its operation without it.
+        out.append(
+            op(f"sitofp nnan i32 {ty}", [("i", 32)], f, f"%r = sitofp nnan i32 %a0 to {ty}", alive=False)
+        )
+        for name, flags in [
+            ("uitofp", "nsz"),
+            ("uitofp", "nsz nneg"),
+            ("sitofp", "nsz"),
+            ("sitofp", "nnan nsz"),
+        ]:
+            text = f"%r = {name} {flags} i32 %a0 to {ty}"
+            out.append(nsz(op(f"{name} {flags} i32 {ty}", [("i", 32)], f, text, alive=False), "out"))
         out.append(
             op(f"uitofp ninf i128 {ty}", [("i", 128)], f, f"%r = uitofp ninf i128 %a0 to {ty}", alive=False)
         )
@@ -196,20 +260,27 @@ def variants():
             if fwidth(a) == fwidth(b):
                 continue
             name = "fptrunc" if fwidth(a) > fwidth(b) else "fpext"
-            for flags in ["", "nnan"]:
+            for flags in ["", "nnan", "nsz"]:
                 out.append(
-                    op(
-                        f"{name} {flags} {a} {b}",
-                        [("f", a)],
-                        ("f", b),
-                        f"%r = {name} {flags} {a} %a0 to {b}",
-                        chooses=True,
+                    nsz(
+                        op(
+                            f"{name} {flags} {a} {b}",
+                            [("f", a)],
+                            ("f", b),
+                            f"%r = {name} {flags} {a} %a0 to {b}",
+                            chooses=True,
+                        ),
+                        "in",
                     )
                 )
     for o in out:
         o["body"] = re.sub(r" +", " ", o["body"])
         o["name"] = re.sub(r"\W+", "_", o["id"].replace("  ", " "))
         o["id"] = re.sub(r" +", " ", o["id"])
+        if o["base"] is None:
+            o["nsz"] = None
+        else:
+            o["base"] = re.sub(r" +", " ", o["base"])
     return out
 
 
@@ -426,6 +497,56 @@ def check_choices(table, lean, work, results):
     return checked, bad
 
 
+def has_zero(o, case):
+    """Whether an operand is a zero, of either sign if it's a float."""
+    return any(
+        v != POISON and (is_zero(t[1], v) if t[0] == "f" else v == 0)
+        for t, v in zip(o["operands"], case, strict=True)
+    )
+
+
+def check_nsz(table, lean, work, rand):
+    """Each operation with `nsz` under every choice, on every case with a zero operand and a sample of the
+    rest. Where `nsz` flips operands, its results have to be the operation's without it, under every choice
+    of a NaN, on the operands with their zeros' signs flipped every way. Where it flips the result, they have
+    to be the result without it, with either sign if that's a zero. Nothing else, and nothing missing."""
+    index = {o["id"]: i for i, o in enumerate(table)}
+    jobs, plan = [], []
+    for i, o in enumerate(table):
+        if not o["nsz"]:
+            continue
+        b = index[o["base"]]
+        picks = PICKS if table[b]["chooses"] else [0]
+        live = [c for c in o["cases"] if POISON not in c]
+        zero = [c for c in live if has_zero(o, c)]
+        rest = [c for c in live if not has_zero(o, c)]
+        for c in zero + rand.sample(rest, min(50, len(rest))):
+            flips = [list(c)]
+            if o["nsz"] == "in":
+                for k, (t, v) in enumerate(zip(o["operands"], c, strict=True)):
+                    if t[0] == "f" and is_zero(t[1], v):
+                        flips += [[*f[:k], f[k] ^ (1 << (fwidth(t[1]) - 1)), *f[k + 1 :]] for f in flips]
+            want = [(b, p, f) for f in flips for p in picks]
+            got = [(i, p, c) for p in NSZ_PICKS]
+            plan.append((o, c, len(want), len(got), has_zero(o, c)))
+            jobs += want + got
+    out = run_model(table, lean, work, jobs, "nsz")
+    checked, zeros, bad, pos = 0, 0, [], 0
+    for o, c, nwant, ngot, zero in plan:
+        want, got = set(out[pos : pos + nwant]), set(out[pos + nwant : pos + nwant + ngot])
+        pos += nwant + ngot
+        if o["nsz"] == "out":
+            ty = o["result"][1]
+            want |= {
+                str(int(x) ^ (1 << (fwidth(ty) - 1))) for x in want if x != POISON and is_zero(ty, int(x))
+            }
+        checked += 1
+        zeros += zero
+        if want != got:
+            bad.append((o["name"], c, sorted(got - want)[:4], sorted(want - got)[:4]))
+    return checked, zeros, bad
+
+
 def substituted(o, case):
     text = o["text"]
     for k, (t, v) in enumerate(zip(o["operands"], case, strict=True)):
@@ -433,9 +554,19 @@ def substituted(o, case):
     return text
 
 
+def fabs_nsz_negzero(o, case, fold):
+    """Whether this is InstSimplify folding `fabs nsz -0.0` to `-0.0`, which it does where the constant
+    folder doesn't fold `fabs`, as for `fp128`: `simplifyUnaryIntrinsic` returns the operand of `fabs nsz`
+    that's never a NaN or below zero. That reads `nsz` as reaching the result's sign, where LangRef 23.1.3
+    lets it flip only an operand's, and `fabs` of either zero is `0.0`. Alive2 agrees with LangRef, and
+    tests/float has the case."""
+    return o["id"].startswith("fabs nsz") and is_zero(o["operands"][0][1], case[0]) and fold == str(case[0])
+
+
 def check_folder(table, results, work, rand):
     """The constant folder's result, on a sample of each operation's cases, judged as `judge` says. A fold to
-    poison where the model has a value would make the model too defined."""
+    poison where the model has a value would make the model too defined. InstSimplify's `fabs nsz` of `-0.0`
+    is counted apart, as `fabs_nsz_negzero` says."""
     src, decls, keys = [], set(), []
     for o in table:
         decls.update(o["decls"])
@@ -456,13 +587,15 @@ def check_folder(table, results, work, rand):
         r = re.fullmatch(r"\s*ret i\d+ (poison|-?\d+)", lines[-1]) if len(lines) == 1 else None
         if r:
             found[fn] = r.group(1) if r.group(1) == POISON else str(int(r.group(1)) & ((1 << width) - 1))
-    counts, bad = {"agree": 0, "refined": 0, "unfolded": 0, "wrong": 0}, []
+    counts, bad = {"agree": 0, "refined": 0, "unfolded": 0, "wrong": 0, "fabs nsz": 0}, []
     for o, ci in keys:
         fold = found.get(f"{o['name']}__{ci}")
         if fold is None:
             counts["unfolded"] += 1
             continue
         verdict = judge(o, o["cases"][ci], results[o["name"]][ci], fold)
+        if verdict == "wrong" and fabs_nsz_negzero(o, o["cases"][ci], fold):
+            verdict = "fabs nsz"
         counts[verdict] += 1
         if verdict == "wrong":
             bad.append((o["name"], o["cases"][ci], results[o["name"]][ci], fold))
@@ -591,10 +724,10 @@ def check_native(table, results, work):
 
 def check_alive(table, results, work, rand):
     """A sample of cases: the operation on constants against a function returning the model's result. Where
-    that's a NaN, only the model's result refining the operation is asked, since the operation may give
-    others. Alive2 drops `nofpclass` from an intrinsic's argument, so it's asked about `nofpclass` on a return
-    instead, which `FP.nofpclass` is too. It can't check flags it approximates, and crashes on `uitofp ninf`,
-    which are counted."""
+    that's a NaN, or the operation has `nsz`, only the model's result refining the operation is asked, since
+    the operation may give others. Alive2 drops `nofpclass` from an intrinsic's argument, so it's asked about
+    `nofpclass` on a return instead, which `FP.nofpclass` is too. It can't check flags it approximates, and
+    stops at fast-math flags on `uitofp` and `sitofp`, which are counted."""
     pairs, names, decls, unread = [], [], set(), 0
     for o in table:
         if not o["alive"]:
@@ -602,6 +735,10 @@ def check_alive(table, results, work, rand):
             continue
         cases = list(enumerate(o["cases"]))
         sample = [*rand.sample(cases[:-1], min(6, len(cases) - 1)), cases[-1]]
+        # Under `nsz`, two of the cases where a zero's sign may flip.
+        if o["nsz"]:
+            zero = [x for x in cases[:-1] if has_zero(o, x[1])]
+            sample[:0] = rand.sample(zero, min(2, len(zero)))
         for ci, c in sample:
             model = results[o["name"]][ci]
             if o["id"].startswith("nofpclass"):
@@ -620,10 +757,12 @@ def check_alive(table, results, work, rand):
                 src = f"define {o['ret']} @F() {{\n  {substituted(o, c)}\n}}\n"
                 tgt = f"define {o['ret']} @F() {{\n  ret {o['ret']} {model}\n}}\n"
             nan = model != POISON and o["result"][0] == "f" and is_nan(o["result"][1], int(model))
+            # Under `nsz` the operation may give either zero, so the model's is asked only one way too.
+            one_way = nan or o["nsz"] is not None
             pairs.append((src, tgt))
-            if not nan:
+            if not one_way:
                 pairs.append((tgt, src))
-            names.append((o["name"], c, 1 if nan else 2))
+            names.append((o["name"], c, 1 if one_way else 2))
             decls.update(o["decls"])
     outputs = alive.refinements("\n".join(sorted(decls)) + "\n", pairs, work)
     proved, failed, skipped, pos = 0, [], [], 0
@@ -665,6 +804,14 @@ def main():
         for b in cbad[:10]:
             print("  WRONG", b)
         failed |= bool(cbad) or not checked
+        checked, zeros, zbad = check_nsz(table, lean, work, rand)
+        print(
+            f"nsz: {checked} cases, {zeros} of them with a zero, each run under {len(NSZ_PICKS)} choices, "
+            f"{len(zbad)} that give a result flipping zeros' signs doesn't or miss one it does"
+        )
+        for b in zbad[:10]:
+            print("  WRONG", b)
+        failed |= bool(zbad) or not zeros
         counts, bad = check_folder(table, results, work, rand)
         print(
             f"constant folder: {counts['agree']} agree, {counts['refined']} where the model is poison, "
@@ -672,6 +819,11 @@ def main():
         )
         for b in bad[:20]:
             print("  WRONG", b)
+        if counts["fabs nsz"]:
+            print(
+                f"  constant folder: {counts['fabs nsz']} folds of fabs nsz -0.0 to -0.0, which LangRef's "
+                "nsz doesn't allow and Alive2 refutes, not counted"
+            )
         failed |= bool(bad) or not counts["agree"]
         if use_native:
             counts, nbad, skipped = check_native(table, results, work)

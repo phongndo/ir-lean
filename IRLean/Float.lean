@@ -28,7 +28,9 @@ possibly for the sign bit", and `fcmp`, `llvm.is.fpclass` and `nofpclass` only l
 choice.
 
 Fast-math flags: `nnan` and `ninf` make the result poison where an operand is, or the result would be, a NaN or an
-infinity. The emitter refuses the rest where they mean anything. -/
+infinity. `nsz` is a choice: LangRef says "the sign bit of 0.0 or -0.0 input operands can be non-deterministically
+flipped", so each operand that's a zero may have its sign flipped first, as bit `4 + i` of the operation's choice says
+for operand `i`. The emitter refuses the rest where they mean anything. -/
 
 namespace IRLean.FP
 
@@ -59,16 +61,25 @@ variable {e m : Nat}
 @[bv_normalize, llvm] def allows (nnan ninf : Bool) (x : BitVec (1 + e + m)) : Bool :=
   !(nnan && isNaN x) && !(ninf && isInf x)
 
+/-- `nsz` on operand `i`: a zero with its sign flipped where bit `4 + i` of the choice `pick` is set, and anything else
+as it is. LangRef: "the sign bit of 0.0 or -0.0 input operands can be non-deterministically flipped". -/
+@[bv_normalize, llvm] def nszIn (nsz : Bool) (pick : BitVec 8) (i : Nat) (x : BitVec (1 + e + m)) :
+    BitVec (1 + e + m) :=
+  if nsz && isZero x && pick.getLsbD (4 + i) then x ^^^ signBit else x
+
 /-! ### The sign bit
 
 LangRef: these "act directly on the underlying bit representation and never change anything except possibly for the
 sign bit". A NaN keeps its quiet bit and payload. Under `nnan` or `ninf` the result is poison where the operand is a NaN
-or an infinity, and the result is one exactly when an operand is. -/
+or an infinity, and the result is one exactly when an operand is. Under `nsz`, a zero operand's sign is a choice,
+`pick`, which the emitter passes only with `nsz`: then `fneg` of a zero, and `copysign` with a zero second operand, may
+give either zero. `fabs` clears the sign whatever it was, so `nsz` changes nothing there, and it takes no choice. -/
 
 /-- `fneg`: the sign bit flipped. -/
-@[llvm] def fneg (e m : Nat) (a : Val (1 + e + m)) (nnan ninf : Bool := false) : Val (1 + e + m) :=
+@[llvm] def fneg (e m : Nat) (a : Val (1 + e + m)) (nnan ninf nsz : Bool := false) (pick : Nat := 0) :
+    Val (1 + e + m) :=
   match a with
-  | some x => if allows nnan ninf x then some (x ^^^ signBit) else none
+  | some x => if allows nnan ninf x then some (nszIn nsz (BitVec.ofNat 8 pick) 0 x ^^^ signBit) else none
   | none => none
 
 /-- `llvm.fabs`: the sign bit cleared. -/
@@ -77,12 +88,25 @@ or an infinity, and the result is one exactly when an operand is. -/
   | some x => if allows nnan ninf x then some (x &&& ~~~signBit) else none
   | none => none
 
-/-- `llvm.copysign`: the first operand with the second's sign bit. -/
-@[llvm] def copysign (e m : Nat) (a b : Val (1 + e + m)) (nnan ninf : Bool := false) : Val (1 + e + m) :=
+/-- `llvm.copysign`: the first operand with the second's sign bit. Under `nsz` only the second operand's flip can show,
+since the first's sign is cleared. -/
+@[llvm] def copysign (e m : Nat) (a b : Val (1 + e + m)) (nnan ninf nsz : Bool := false) (pick : Nat := 0) :
+    Val (1 + e + m) :=
   match a, b with
   | some x, some y =>
-    if allows nnan ninf x && allows nnan ninf y then some ((x &&& ~~~signBit) ||| (y &&& signBit)) else none
+    if allows nnan ninf x && allows nnan ninf y then
+      some ((x &&& ~~~signBit) ||| (nszIn nsz (BitVec.ofNat 8 pick) 1 y &&& signBit))
+    else none
   | _, _ => none
+
+/-- The fast-math flags of a `select`, which LangRef says "are only applied to the result, not both arms": poison under
+`nnan` or `ninf` where the selected value is a NaN or an infinity, and under `nsz`, a zero's sign flipped where bit 4
+of `pick` says. Alive2 reads them the same way. -/
+@[llvm] def selected (e m : Nat) (a : Val (1 + e + m)) (nnan ninf nsz : Bool := false) (pick : Nat := 0) :
+    Val (1 + e + m) :=
+  match a with
+  | some x => if allows nnan ninf x then some (nszIn nsz (BitVec.ofNat 8 pick) 0 x) else none
+  | none => none
 
 /-! ### Comparison -/
 
@@ -426,39 +450,57 @@ chooses on its own. -/
     Val (1 + e + m) :=
   if ops.all (allows nnan ninf) && allows nnan ninf r then some r else none
 
-@[llvm] def fadd (e m : Nat) (pick : Nat) (a b : Val (1 + e + m)) (nnan ninf : Bool := false) : Val (1 + e + m) :=
+@[llvm] def fadd (e m : Nat) (pick : Nat) (a b : Val (1 + e + m)) (nnan ninf nsz : Bool := false) :
+    Val (1 + e + m) :=
   match a, b with
-  | some x, some y => flagged nnan ninf [x, y] (addBits (BitVec.ofNat 8 pick) x y)
+  | some x, some y =>
+    flagged nnan ninf [x, y]
+      (addBits (BitVec.ofNat 8 pick) (nszIn nsz (BitVec.ofNat 8 pick) 0 x) (nszIn nsz (BitVec.ofNat 8 pick) 1 y))
   | _, _ => none
 
 /-- `fsub`, as `fadd` of the second operand with its sign flipped. A NaN result's sign is the choice's, so where the
 choice takes the second operand's NaN, flipping its sign first changes nothing. -/
-@[llvm] def fsub (e m : Nat) (pick : Nat) (a b : Val (1 + e + m)) (nnan ninf : Bool := false) : Val (1 + e + m) :=
+@[llvm] def fsub (e m : Nat) (pick : Nat) (a b : Val (1 + e + m)) (nnan ninf nsz : Bool := false) :
+    Val (1 + e + m) :=
   match a, b with
-  | some x, some y => flagged nnan ninf [x, y] (addBits (BitVec.ofNat 8 pick) x (y ^^^ signBit))
+  | some x, some y =>
+    flagged nnan ninf [x, y]
+      (addBits (BitVec.ofNat 8 pick) (nszIn nsz (BitVec.ofNat 8 pick) 0 x)
+        (nszIn nsz (BitVec.ofNat 8 pick) 1 y ^^^ signBit))
   | _, _ => none
 
-@[llvm] def fmul (e m : Nat) (pick : Nat) (a b : Val (1 + e + m)) (nnan ninf : Bool := false) : Val (1 + e + m) :=
+@[llvm] def fmul (e m : Nat) (pick : Nat) (a b : Val (1 + e + m)) (nnan ninf nsz : Bool := false) :
+    Val (1 + e + m) :=
   match a, b with
-  | some x, some y => flagged nnan ninf [x, y] (mulBits (BitVec.ofNat 8 pick) x y)
+  | some x, some y =>
+    flagged nnan ninf [x, y]
+      (mulBits (BitVec.ofNat 8 pick) (nszIn nsz (BitVec.ofNat 8 pick) 0 x) (nszIn nsz (BitVec.ofNat 8 pick) 1 y))
   | _, _ => none
 
-@[llvm] def fdiv (e m : Nat) (pick : Nat) (a b : Val (1 + e + m)) (nnan ninf : Bool := false) : Val (1 + e + m) :=
+@[llvm] def fdiv (e m : Nat) (pick : Nat) (a b : Val (1 + e + m)) (nnan ninf nsz : Bool := false) :
+    Val (1 + e + m) :=
   match a, b with
-  | some x, some y => flagged nnan ninf [x, y] (divBits (BitVec.ofNat 8 pick) x y)
+  | some x, some y =>
+    flagged nnan ninf [x, y]
+      (divBits (BitVec.ofNat 8 pick) (nszIn nsz (BitVec.ofNat 8 pick) 0 x) (nszIn nsz (BitVec.ofNat 8 pick) 1 y))
   | _, _ => none
 
-@[llvm] def frem (e m : Nat) (pick : Nat) (a b : Val (1 + e + m)) (nnan ninf : Bool := false) : Val (1 + e + m) :=
+@[llvm] def frem (e m : Nat) (pick : Nat) (a b : Val (1 + e + m)) (nnan ninf nsz : Bool := false) :
+    Val (1 + e + m) :=
   match a, b with
-  | some x, some y => flagged nnan ninf [x, y] (remBits (BitVec.ofNat 8 pick) x y)
+  | some x, some y =>
+    flagged nnan ninf [x, y]
+      (remBits (BitVec.ofNat 8 pick) (nszIn nsz (BitVec.ofNat 8 pick) 0 x) (nszIn nsz (BitVec.ofNat 8 pick) 1 y))
   | _, _ => none
 
 /-- `fptrunc` and `fpext`: from the format `e`, `m` to `e'`, `m'`. -/
-@[llvm] def fconv (e m e' m' : Nat) (pick : Nat) (a : Val (1 + e + m)) (nnan ninf : Bool := false) :
+@[llvm] def fconv (e m e' m' : Nat) (pick : Nat) (a : Val (1 + e + m)) (nnan ninf nsz : Bool := false) :
     Val (1 + e' + m') :=
   match a with
   | some x =>
-    if allows nnan ninf x then flagged nnan ninf [] (convBits e' m' (BitVec.ofNat 8 pick) x) else none
+    if allows nnan ninf x then
+      flagged nnan ninf [] (convBits e' m' (BitVec.ofNat 8 pick) (nszIn nsz (BitVec.ofNat 8 pick) 0 x))
+    else none
   | none => none
 
 /-- `fptoui`: the integer part, toward zero, or poison if it's negative or doesn't fit, or `x` is a NaN or an
@@ -477,15 +519,20 @@ infinity. LangRef: "If the value cannot fit in `ty2`, the result is a poison val
 @[llvm] def fptouiSat (e m w : Nat) (a : Val (1 + e + m)) : Val w := Val.map₁ (toUIntSatBits w) a
 @[llvm] def fptosiSat (e m w : Nat) (a : Val (1 + e + m)) : Val w := Val.map₁ (toSIntSatBits w) a
 
-/-- `uitofp`, poison under `nneg` if the operand's sign bit is set. -/
-@[llvm] def uitofp (e m : Nat) (a : Val w) (nneg nnan ninf : Bool := false) : Val (1 + e + m) :=
+/-- `uitofp`, poison under `nneg` if the operand's sign bit is set. Under `nsz`, LangRef: "if the input value is 0, the
+sign bit of the result is non-deterministic", which bit 4 of `pick` chooses. -/
+@[llvm] def uitofp (e m : Nat) (a : Val w) (nneg nnan ninf nsz : Bool := false) (pick : Nat := 0) :
+    Val (1 + e + m) :=
   match a with
-  | some x => if nneg && x.msb then none else flagged nnan ninf [] (ofIntBits e m false x)
+  | some x =>
+    if nneg && x.msb then none
+    else flagged nnan ninf [] (nszIn nsz (BitVec.ofNat 8 pick) 0 (ofIntBits e m false x))
   | none => none
 
-@[llvm] def sitofp (e m : Nat) (a : Val w) (nnan ninf : Bool := false) : Val (1 + e + m) :=
+/-- `sitofp`. Under `nsz`, a zero result's sign is a choice, as for `uitofp`: only a zero gives one. -/
+@[llvm] def sitofp (e m : Nat) (a : Val w) (nnan ninf nsz : Bool := false) (pick : Nat := 0) : Val (1 + e + m) :=
   match a with
-  | some x => flagged nnan ninf [] (ofIntBits e m x.msb (if x.msb then -x else x))
+  | some x => flagged nnan ninf [] (nszIn nsz (BitVec.ofNat 8 pick) 0 (ofIntBits e m x.msb (if x.msb then -x else x)))
   | none => none
 
 /-- An operation on each lane of two vectors, lane `i` choosing with `c.pick i`. -/
