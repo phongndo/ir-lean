@@ -24,7 +24,6 @@ repo."""
 from __future__ import annotations
 
 import argparse
-import hashlib
 import json
 import os
 import re
@@ -35,10 +34,10 @@ from pathlib import Path
 from typing import Any
 
 ROOT = Path(__file__).resolve().parent.parent
+sys.path.append(str(ROOT / "tools"))
+from irlean import hashing, pins, schemas  # noqa: E402
+
 HERE = ROOT / "tests" / "llvm_scope" / "rewrites"
-SCHEMA = "ir-lean.rewrites/1"
-# The pin, as tests/llvm_scope.py records it. The source tarball has no git metadata.
-TAG = "llvmorg-23.1.3"
 
 # The files each pass's rewrites are written in, under llvm/. A pass's rewrites are the sites in its own
 # files:
@@ -1203,7 +1202,7 @@ def inventory(src: Path, passes: dict[str, dict[str, Any]] | None = None) -> dic
                         "kind": s.kind,
                         "comment": comment_above(comments, f, s),
                         "code": body if len(body) <= 160 else body[:157] + "...",
-                        "hash": hashlib.sha256(f"{f.qualified}\0{body}".encode()).hexdigest()[:16],
+                        "hash": hashing.sha256_parts(f.qualified, body)[:16],
                         **needs(f, s),
                     }
                 )
@@ -1215,7 +1214,7 @@ def inventory(src: Path, passes: dict[str, dict[str, Any]] | None = None) -> dic
             seen[rid] += 1
             if seen[rid] > 1:
                 r["id"] = f"{rid}.{seen[rid]}"
-        hashes = {f"llvm/{rel}": hashlib.sha256((src / rel).read_bytes()).hexdigest() for rel in files}
+        hashes = {f"llvm/{rel}": hashing.sha256_file(src / rel) for rel in files}
         fold_rows = sorted(
             (
                 {
@@ -1232,9 +1231,9 @@ def inventory(src: Path, passes: dict[str, dict[str, Any]] | None = None) -> dic
         )
         others = [f for f in sc.functions[p] if id(f) not in folds and f.result in ("pointer", "bool")]
         out[p] = {
-            "schema": SCHEMA,
+            "schema": schemas.REWRITES,
             "pass": p,
-            "llvm": TAG,
+            "llvm": pins.llvm()["tag"],
             "rule": "docs/rewrite-inventory.md",
             "files": hashes,
             "entries": sorted({f.qualified for f in sc.entries(p)}),
@@ -1320,8 +1319,8 @@ def source() -> Path:
     version = (Path(env) / "cmake" / "Modules" / "LLVMVersion.cmake").read_text()
     parts = [re.search(rf"set\(LLVM_VERSION_{k} (\d+)\)", version) for k in ("MAJOR", "MINOR", "PATCH")]
     got = ".".join(m.group(1) if m else "?" for m in parts)  # type: ignore[union-attr]
-    if f"llvmorg-{got}" != TAG:
-        raise SystemExit(f"LLVM_PROJECT_SRC is {got}, not the pinned {TAG}")
+    if got != pins.llvm_version():
+        raise SystemExit(f"LLVM_PROJECT_SRC is {got}, not the pinned {pins.llvm_version()}")
     return Path(env) / "llvm"
 
 
