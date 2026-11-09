@@ -96,7 +96,7 @@ def subOdd (v s : Term w) : Bool :=
 /-- `simplifyICmpWithBinOpOnLHS(Pred, LBO, RHS, Q, MaxRecurse)`, step by step. `MaxRecurse` isn't read. A known-bits
 query is `o.knownZero` and `o.knownOne`: `isNonNegative` is the sign bit known zero, `isNegative` known one.
 `isKnownNonZero` is `o.nonZero`. -/
-def simplifyICmpWithBinOpOnLHS.steps (o : Oracle) (p : Pred) (lbo rhs : Term w) : List (Step 1) :=
+def _root_.Peephole.IS.simplifyICmpWithBinOpOnLHS.steps (o : Oracle) (p : Pred) (lbo rhs : Term w) : List (Step 1) :=
   [ -- icmp pred (or X, Y), X
     match orOther lbo rhs with
     | some y =>
@@ -152,7 +152,7 @@ def simplifyICmpWithBinOpOnLHS.steps (o : Oracle) (p : Pred) (lbo rhs : Term w) 
 
 /-- `simplifyICmpWithBinOpOnLHS(Pred, LBO, RHS, Q, MaxRecurse)`. `LBO` is a `BinaryOperator`; the model takes it as
 an operand, which every matcher here asks for a binary operator anyway. -/
-def simplifyICmpWithBinOpOnLHS (o : Oracle) (p : Pred) (lbo rhs : Term w) (_maxRecurse : Nat) : Result 1 :=
+def _root_.Peephole.IS.simplifyICmpWithBinOpOnLHS (o : Oracle) (p : Pred) (lbo rhs : Term w) (_maxRecurse : Nat) : Result 1 :=
   run (simplifyICmpWithBinOpOnLHS.steps o p lbo rhs)
 
 /-! ### The rewrites, one theorem each -/
@@ -178,7 +178,7 @@ theorem orOther_val {ρ : Env} {v s y : Term w} {x : BitVec w} (h : orOther v s 
 
 /-- `IS.simplifyICmpWithBinOpOnLHS.L3239`: `(X | Y) <s X` to true and `>=s` to false, where `X`'s sign bit is known
 zero and `Y`'s known one. -/
-theorem simplifyICmpWithBinOpOnLHS.L3239 (ρ : Env) (o : Oracle) (ho : o.Sound ρ) (p : Pred) (s : Bool)
+theorem _root_.Peephole.IS.simplifyICmpWithBinOpOnLHS.L3239 (ρ : Env) (o : Oracle) (ho : o.Sound ρ) (p : Pred) (s : Bool)
     (lbo rhs y : Term w) (cl : lbo.Consistent ρ) (hy : orOther lbo rhs = some y)
     (hc : ((p == .slt || p == .sge) && (o.knownZero rhs).msb && (o.knownOne y).msb) = true) :
     Refines ((icmpSrc p s lbo rhs).eval ρ) ((boolR (p == .slt)).eval ρ) := by
@@ -197,7 +197,7 @@ theorem simplifyICmpWithBinOpOnLHS.L3239 (ρ : Env) (o : Oracle) (ho : o.Sound �
 
 /-- `IS.simplifyICmpWithBinOpOnLHS.L3241`: `(X | Y) <s X` to false and `>=s` to true, where `X`'s sign bit is known
 one or `Y`'s known zero. -/
-theorem simplifyICmpWithBinOpOnLHS.L3241 (ρ : Env) (o : Oracle) (ho : o.Sound ρ) (p : Pred) (s : Bool)
+theorem _root_.Peephole.IS.simplifyICmpWithBinOpOnLHS.L3241 (ρ : Env) (o : Oracle) (ho : o.Sound ρ) (p : Pred) (s : Bool)
     (lbo rhs y : Term w) (cl : lbo.Consistent ρ) (hy : orOther lbo rhs = some y)
     (hc : ((p == .slt || p == .sge) && ((o.knownOne rhs).msb || (o.knownZero y).msb)) = true) :
     Refines ((icmpSrc p s lbo rhs).eval ρ) ((boolR (!(p == .slt))).eval ρ) := by
@@ -230,7 +230,7 @@ theorem uremOf_val {ρ : Env} {v s : Term w} (h : uremOf v s = true) (hc : v.Con
 
 /-- `IS.simplifyICmpWithBinOpOnLHS.L3260`: `(X urem Y) == Y`, `>u Y` and `>=u Y` to false, and `>s Y`, `>=s Y` too
 where `Y`'s sign bit is known zero. -/
-theorem simplifyICmpWithBinOpOnLHS.L3260 (ρ : Env) (o : Oracle) (ho : o.Sound ρ) (p : Pred) (s : Bool)
+theorem _root_.Peephole.IS.simplifyICmpWithBinOpOnLHS.L3260 (ρ : Env) (o : Oracle) (ho : o.Sound ρ) (p : Pred) (s : Bool)
     (lbo rhs : Term w) (cl : lbo.Consistent ρ)
     (hc : (uremOf lbo rhs &&
       (p == .eq || p == .ugt || p == .uge || ((p == .sgt || p == .sge) && (o.knownZero rhs).msb))) = true) :
@@ -261,7 +261,7 @@ theorem simplifyICmpWithBinOpOnLHS.L3260 (ρ : Env) (o : Oracle) (ho : o.Sound �
 
 /-- `IS.simplifyICmpWithBinOpOnLHS.L3271`: `(X urem Y) != Y`, `<u Y` and `<=u Y` to true, and `<s Y`, `<=s Y` too
 where `Y`'s sign bit is known zero. -/
-theorem simplifyICmpWithBinOpOnLHS.L3271 (ρ : Env) (o : Oracle) (ho : o.Sound ρ) (p : Pred) (s : Bool)
+theorem _root_.Peephole.IS.simplifyICmpWithBinOpOnLHS.L3271 (ρ : Env) (o : Oracle) (ho : o.Sound ρ) (p : Pred) (s : Bool)
     (lbo rhs : Term w) (cl : lbo.Consistent ρ)
     (hc : (uremOf lbo rhs &&
       (p == .ne || p == .ult || p == .ule || ((p == .slt || p == .sle) && (o.knownZero rhs).msb))) = true) :
@@ -328,7 +328,7 @@ theorem shrDiv_val {ρ : Env} {v s : Term w} (h : (lshrOf v s || udivOf v s) = t
 
 /-- `IS.simplifyICmpWithBinOpOnLHS.L3295`: `X >>u C` (`C != 0`) or `X udiv C` (`C != 1`) `==`, `>=u` or `>u` a known
 non-zero `X`, to false. -/
-theorem simplifyICmpWithBinOpOnLHS.L3295 (ρ : Env) (o : Oracle) (ho : o.Sound ρ) (p : Pred) (s : Bool)
+theorem _root_.Peephole.IS.simplifyICmpWithBinOpOnLHS.L3295 (ρ : Env) (o : Oracle) (ho : o.Sound ρ) (p : Pred) (s : Bool)
     (lbo rhs : Term w) (cl : lbo.Consistent ρ)
     (hc : ((lshrOf lbo rhs || udivOf lbo rhs) && o.nonZero rhs && (p == .eq || p == .uge || p == .ugt)) = true) :
     Refines ((icmpSrc p s lbo rhs).eval ρ) ((boolR false).eval ρ) := by
@@ -349,7 +349,7 @@ theorem simplifyICmpWithBinOpOnLHS.L3295 (ρ : Env) (o : Oracle) (ho : o.Sound �
 
 /-- `IS.simplifyICmpWithBinOpOnLHS.L3299`: `X >>u C` (`C != 0`) or `X udiv C` (`C != 1`) `!=`, `<u` or `<=u` a known
 non-zero `X`, to true. -/
-theorem simplifyICmpWithBinOpOnLHS.L3299 (ρ : Env) (o : Oracle) (ho : o.Sound ρ) (p : Pred) (s : Bool)
+theorem _root_.Peephole.IS.simplifyICmpWithBinOpOnLHS.L3299 (ρ : Env) (o : Oracle) (ho : o.Sound ρ) (p : Pred) (s : Bool)
     (lbo rhs : Term w) (cl : lbo.Consistent ρ)
     (hc : ((lshrOf lbo rhs || udivOf lbo rhs) && o.nonZero rhs && (p == .ne || p == .ult || p == .ule)) = true) :
     Refines ((icmpSrc p s lbo rhs).eval ρ) ((boolR true).eval ρ) := by
@@ -451,7 +451,7 @@ theorem mulDiv_val {ρ : Env} {v s : Term w} (h : (mulUDiv v s || mulLShr v s ||
 
 /-- `IS.simplifyICmpWithBinOpOnLHS.L3321`: `(X * C1) udiv C2 >u X` to false for `C1 <=u C2`, and its forms with
 shifts. -/
-theorem simplifyICmpWithBinOpOnLHS.L3321 (ρ : Env) (p : Pred) (s : Bool) (lbo rhs : Term w)
+theorem _root_.Peephole.IS.simplifyICmpWithBinOpOnLHS.L3321 (ρ : Env) (p : Pred) (s : Bool) (lbo rhs : Term w)
     (cl : lbo.Consistent ρ) (hc : ((mulUDiv lbo rhs || mulLShr lbo rhs || shlUDiv lbo rhs) && p == .ugt) = true) :
     Refines ((icmpSrc p s lbo rhs).eval ρ) ((boolR false).eval ρ) := by
   simp only [Bool.and_eq_true, beq_iff_eq] at hc
@@ -463,7 +463,7 @@ theorem simplifyICmpWithBinOpOnLHS.L3321 (ρ : Env) (p : Pred) (s : Bool) (lbo r
 
 /-- `IS.simplifyICmpWithBinOpOnLHS.L3323`: `(X * C1) udiv C2 <=u X` to true for `C1 <=u C2`, and its forms with
 shifts. -/
-theorem simplifyICmpWithBinOpOnLHS.L3323 (ρ : Env) (p : Pred) (s : Bool) (lbo rhs : Term w)
+theorem _root_.Peephole.IS.simplifyICmpWithBinOpOnLHS.L3323 (ρ : Env) (p : Pred) (s : Bool) (lbo rhs : Term w)
     (cl : lbo.Consistent ρ) (hc : ((mulUDiv lbo rhs || mulLShr lbo rhs || shlUDiv lbo rhs) && p == .ule) = true) :
     Refines ((icmpSrc p s lbo rhs).eval ρ) ((boolR true).eval ρ) := by
   simp only [Bool.and_eq_true, beq_iff_eq] at hc
@@ -471,7 +471,7 @@ theorem simplifyICmpWithBinOpOnLHS.L3323 (ρ : Env) (p : Pred) (s : Bool) (lbo r
   exact refines_bool fun x z hx hz => mulDiv_val hm cl x z hx hz
 
 /-- `IS.simplifyICmpWithBinOpOnLHS.L3330`: `(C - X) == X` to false and `!=` to true, for odd `C`. -/
-theorem simplifyICmpWithBinOpOnLHS.L3330 (ρ : Env) (p : Pred) (s : Bool) (lbo rhs : Term w)
+theorem _root_.Peephole.IS.simplifyICmpWithBinOpOnLHS.L3330 (ρ : Env) (p : Pred) (s : Bool) (lbo rhs : Term w)
     (cl : lbo.Consistent ρ) (hc : (subOdd lbo rhs && isEquality p) = true) :
     Refines ((icmpSrc p s lbo rhs).eval ρ) ((boolR (!(p == .eq))).eval ρ) := by
   simp only [Bool.and_eq_true] at hc
@@ -502,7 +502,7 @@ theorem simplifyICmpWithBinOpOnLHS.L3330 (ρ : Env) (p : Pred) (s : Bool) (lbo r
 /-! ### The fold -/
 
 /-- Every step of `simplifyICmpWithBinOpOnLHS` that fires is right. -/
-theorem simplifyICmpWithBinOpOnLHS.steps_sound (ρ : Env) (o : Oracle) (ho : o.Sound ρ) (p : Pred) (s : Bool)
+theorem _root_.Peephole.IS.simplifyICmpWithBinOpOnLHS.steps_sound (ρ : Env) (o : Oracle) (ho : o.Sound ρ) (p : Pred) (s : Bool)
     (lbo rhs : Term w) (cl : lbo.Consistent ρ) :
     ∀ site r, Step.fire site r ∈ simplifyICmpWithBinOpOnLHS.steps o p lbo rhs →
       Refines ((icmpSrc p s lbo rhs).eval ρ) (r.eval ρ) := by
@@ -546,7 +546,7 @@ theorem simplifyICmpWithBinOpOnLHS.steps_sound (ρ : Env) (o : Oracle) (ho : o.S
 /-- Theorem 1 for `simplifyICmpWithBinOpOnLHS`: every value the model returns refines `icmp [samesign] Pred LBO, RHS`,
 at every width, predicate, `samesign` flag and recursion budget, in every run `LBO` is consistent with and the oracle
 is sound in, poison included. -/
-theorem simplifyICmpWithBinOpOnLHS.sound (ρ : Env) (o : Oracle) (ho : o.Sound ρ) (p : Pred) (s : Bool)
+theorem _root_.Peephole.IS.simplifyICmpWithBinOpOnLHS.sound (ρ : Env) (o : Oracle) (ho : o.Sound ρ) (p : Pred) (s : Bool)
     (lbo rhs : Term w) (n : Nat) (cl : lbo.Consistent ρ) {r : Repl 1}
     (h : simplifyICmpWithBinOpOnLHS o p lbo rhs n = .value r) :
     Refines ((icmpSrc p s lbo rhs).eval ρ) (r.eval ρ) :=

@@ -204,7 +204,7 @@ theorem recStep_ne_fire {simp : ICmpSimp} {p : Pred} {s : Bool} {n : Nat} {c : O
 
 /-- `simplifyICmpWithBinOp(Pred, LHS, RHS, Q, MaxRecurse)`, step by step. `simp` is the recursive `simplifyICmpInst`,
 whose answers are delegated. -/
-def simplifyICmpWithBinOp.steps (o : Oracle) (simp : ICmpSimp) (p : Pred) (s : Bool) (lhs rhs : Term w)
+def _root_.Peephole.IS.simplifyICmpWithBinOp.steps (o : Oracle) (simp : ICmpSimp) (p : Pred) (s : Bool) (lhs rhs : Term w)
     (n : Nat) : List (Step 1) :=
   [ -- icmp (X+Y), X -> icmp Y, 0 for equalities or if there is no overflow.
     recStep simp p s n (addLeftCall p lhs rhs n),
@@ -286,7 +286,7 @@ def simplifyICmpWithBinOp.steps (o : Oracle) (simp : ICmpSimp) (p : Pred) (s : B
     recStep simp p s n (op1Call p lhs rhs) ]
 
 /-- `simplifyICmpWithBinOp(Pred, LHS, RHS, Q, MaxRecurse)`. -/
-def simplifyICmpWithBinOp (o : Oracle) (simp : ICmpSimp) (p : Pred) (s : Bool) (lhs rhs : Term w) (n : Nat) :
+def _root_.Peephole.IS.simplifyICmpWithBinOp (o : Oracle) (simp : ICmpSimp) (p : Pred) (s : Bool) (lhs rhs : Term w) (n : Nat) :
     Result 1 :=
   run (simplifyICmpWithBinOp.steps o simp p s lhs rhs n)
 
@@ -321,7 +321,7 @@ theorem negZext_val {ρ : Env} {t : Term w} (h : negZext t = true) (hc : t.Consi
   · cases h
 
 /-- `IS.simplifyICmpWithBinOp.L3461`: `0 - zext X <s C` and `!= C` to true, for `C > 0`. -/
-theorem simplifyICmpWithBinOp.L3461 (ρ : Env) (p : Pred) (s : Bool) (lhs rhs : Term w) (c : BitVec w)
+theorem _root_.Peephole.IS.simplifyICmpWithBinOp.L3461 (ρ : Env) (p : Pred) (s : Bool) (lhs rhs : Term w) (c : BitVec w)
     (cl : lhs.Consistent ρ) (wt : WellTyped lhs) (hrc : apint rhs = some c)
     (h : (!isUnsigned p && negZext lhs && !c.msb && c != 0#w && (p == .slt || p == .ne)) = true) :
     Refines ((icmpSrc p s lhs rhs).eval ρ) ((boolR true).eval ρ) := by
@@ -340,7 +340,7 @@ theorem simplifyICmpWithBinOp.L3461 (ρ : Env) (p : Pred) (s : Bool) (lhs rhs : 
     simp [BitVec.slt] at hlt
 
 /-- `IS.simplifyICmpWithBinOp.L3463`: `0 - zext X >=s C` and `== C` to false, for `C > 0`. -/
-theorem simplifyICmpWithBinOp.L3463 (ρ : Env) (p : Pred) (s : Bool) (lhs rhs : Term w) (c : BitVec w)
+theorem _root_.Peephole.IS.simplifyICmpWithBinOp.L3463 (ρ : Env) (p : Pred) (s : Bool) (lhs rhs : Term w) (c : BitVec w)
     (cl : lhs.Consistent ρ) (wt : WellTyped lhs) (hrc : apint rhs = some c)
     (h : (!isUnsigned p && negZext lhs && !c.msb && c != 0#w && (p == .sge || p == .eq)) = true) :
     Refines ((icmpSrc p s lhs rhs).eval ρ) ((boolR false).eval ρ) := by
@@ -359,7 +359,7 @@ theorem simplifyICmpWithBinOp.L3463 (ρ : Env) (p : Pred) (s : Bool) (lhs rhs : 
     simp [BitVec.slt] at hlt
 
 /-- `IS.simplifyICmpWithBinOp.L3467`: `0 - zext X <=s C` to true, for `C >= 0`. -/
-theorem simplifyICmpWithBinOp.L3467 (ρ : Env) (p : Pred) (s : Bool) (lhs rhs : Term w) (c : BitVec w)
+theorem _root_.Peephole.IS.simplifyICmpWithBinOp.L3467 (ρ : Env) (p : Pred) (s : Bool) (lhs rhs : Term w) (c : BitVec w)
     (cl : lhs.Consistent ρ) (wt : WellTyped lhs) (hrc : apint rhs = some c)
     (h : (!isUnsigned p && negZext lhs && !c.msb && p == .sle) = true) :
     Refines ((icmpSrc p s lhs rhs).eval ρ) ((boolR true).eval ρ) := by
@@ -372,7 +372,7 @@ theorem simplifyICmpWithBinOp.L3467 (ρ : Env) (p : Pred) (s : Bool) (lhs rhs : 
   exact Lemmas.zero_sub_setWidth_sle z hv hm
 
 /-- `IS.simplifyICmpWithBinOp.L3469`: `0 - zext X >s C` to false, for `C >= 0`. -/
-theorem simplifyICmpWithBinOp.L3469 (ρ : Env) (p : Pred) (s : Bool) (lhs rhs : Term w) (c : BitVec w)
+theorem _root_.Peephole.IS.simplifyICmpWithBinOp.L3469 (ρ : Env) (p : Pred) (s : Bool) (lhs rhs : Term w) (c : BitVec w)
     (cl : lhs.Consistent ρ) (wt : WellTyped lhs) (hrc : apint rhs = some c)
     (h : (!isUnsigned p && negZext lhs && !c.msb && p == .sgt) = true) :
     Refines ((icmpSrc p s lhs rhs).eval ρ) ((boolR false).eval ρ) := by
@@ -459,7 +459,7 @@ theorem shl_eq_false {ρ : Env} {lhs rhs : Term w} {c : BitVec w} (cl : lhs.Cons
 
 /-- `IS.simplifyICmpWithBinOp.L3492`: `(C2 << X) == C` to false, for a power of two `C2` and a `C` that isn't one,
 where the shift is `nsw` or `nuw`, `C2` is 1, or `C` isn't 0. -/
-theorem simplifyICmpWithBinOp.L3492 (ρ : Env) (p : Pred) (s : Bool) (lhs rhs : Term w) (c : BitVec w)
+theorem _root_.Peephole.IS.simplifyICmpWithBinOp.L3492 (ρ : Env) (p : Pred) (s : Bool) (lhs rhs : Term w) (c : BitVec w)
     (cl : lhs.Consistent ρ) (hrc : apint rhs = some c)
     (h : (shlPow2 lhs && !decide c.toNat.isPowerOfTwo &&
       ((binFlags lhs).nsw || (binFlags lhs).nuw || shlOne lhs || c != 0#w) && p == .eq) = true) :
@@ -469,7 +469,7 @@ theorem simplifyICmpWithBinOp.L3492 (ρ : Env) (p : Pred) (s : Bool) (lhs rhs : 
   exact refines_bool (shl_eq_false cl hrc h)
 
 /-- `IS.simplifyICmpWithBinOp.L3494`: `(C2 << X) != C` to true, the same. -/
-theorem simplifyICmpWithBinOp.L3494 (ρ : Env) (p : Pred) (s : Bool) (lhs rhs : Term w) (c : BitVec w)
+theorem _root_.Peephole.IS.simplifyICmpWithBinOp.L3494 (ρ : Env) (p : Pred) (s : Bool) (lhs rhs : Term w) (c : BitVec w)
     (cl : lhs.Consistent ρ) (hrc : apint rhs = some c)
     (h : (shlPow2 lhs && !decide c.toNat.isPowerOfTwo &&
       ((binFlags lhs).nsw || (binFlags lhs).nuw || shlOne lhs || c != 0#w) && p == .ne) = true) :
@@ -490,7 +490,7 @@ theorem shl_ule_signMask {ρ : Env} {lhs rhs : Term w} (cl : lhs.Consistent ρ)
   exact Lemmas.shiftLeft_pow2_ule_intMin _ h2
 
 /-- `IS.simplifyICmpWithBinOp.L3503`: `(C << X) >u signmask` to false, for a power of two `C`. -/
-theorem simplifyICmpWithBinOp.L3503 (ρ : Env) (p : Pred) (s : Bool) (lhs rhs : Term w) (cl : lhs.Consistent ρ)
+theorem _root_.Peephole.IS.simplifyICmpWithBinOp.L3503 (ρ : Env) (p : Pred) (s : Bool) (lhs rhs : Term w) (cl : lhs.Consistent ρ)
     (h : (shlPow2 lhs && signMask rhs && p == .ugt) = true) :
     Refines ((icmpSrc p s lhs rhs).eval ρ) ((boolR false).eval ρ) := by
   rw [Bool.and_eq_true, beq_iff_eq] at h
@@ -501,7 +501,7 @@ theorem simplifyICmpWithBinOp.L3503 (ρ : Env) (p : Pred) (s : Bool) (lhs rhs : 
   omega
 
 /-- `IS.simplifyICmpWithBinOp.L3505`: `(C << X) <=u signmask` to true, for a power of two `C`. -/
-theorem simplifyICmpWithBinOp.L3505 (ρ : Env) (p : Pred) (s : Bool) (lhs rhs : Term w) (cl : lhs.Consistent ρ)
+theorem _root_.Peephole.IS.simplifyICmpWithBinOp.L3505 (ρ : Env) (p : Pred) (s : Bool) (lhs rhs : Term w) (cl : lhs.Consistent ρ)
     (h : (shlPow2 lhs && signMask rhs && p == .ule) = true) :
     Refines ((icmpSrc p s lhs rhs).eval ρ) ((boolR true).eval ρ) := by
   rw [Bool.and_eq_true, beq_iff_eq] at h
@@ -601,7 +601,7 @@ theorem andOrConsts_val {ρ : Env} {p : Pred} {lhs rhs : Term w} {c1 c2 : BitVec
 
 /-- `IS.simplifyICmpWithBinOp.L3543`: `(X op C1) <=u (X op C2)` to true, for `op` `and` or `or` and `C1` a subset of
 `C2`, after the C++'s swap. -/
-theorem simplifyICmpWithBinOp.L3543 (ρ : Env) (p : Pred) (s : Bool) (lhs rhs : Term w) (c1 c2 : BitVec w)
+theorem _root_.Peephole.IS.simplifyICmpWithBinOp.L3543 (ρ : Env) (p : Pred) (s : Bool) (lhs rhs : Term w) (c1 c2 : BitVec w)
     (p' : Pred) (cl : lhs.Consistent ρ) (cr : rhs.Consistent ρ) (hk : andOrConsts p lhs rhs = some (c1, c2, p'))
     (h : (p' == .ule) = true) : Refines ((icmpSrc p s lhs rhs).eval ρ) ((boolR true).eval ρ) := by
   rw [beq_iff_eq] at h
@@ -612,7 +612,7 @@ theorem simplifyICmpWithBinOp.L3543 (ρ : Env) (p : Pred) (s : Bool) (lhs rhs : 
   exact hab
 
 /-- `IS.simplifyICmpWithBinOp.L3545`: `(X op C1) >u (X op C2)` to false, the same. -/
-theorem simplifyICmpWithBinOp.L3545 (ρ : Env) (p : Pred) (s : Bool) (lhs rhs : Term w) (c1 c2 : BitVec w)
+theorem _root_.Peephole.IS.simplifyICmpWithBinOp.L3545 (ρ : Env) (p : Pred) (s : Bool) (lhs rhs : Term w) (c1 c2 : BitVec w)
     (p' : Pred) (cl : lhs.Consistent ρ) (cr : rhs.Consistent ρ) (hk : andOrConsts p lhs rhs = some (c1, c2, p'))
     (h : (p' == .ugt) = true) : Refines ((icmpSrc p s lhs rhs).eval ρ) ((boolR false).eval ρ) := by
   rw [beq_iff_eq] at h
@@ -624,7 +624,7 @@ theorem simplifyICmpWithBinOp.L3545 (ρ : Env) (p : Pred) (s : Bool) (lhs rhs : 
   omega
 
 /-- `IS.simplifyICmpWithBinOp.L3548`: `(X op C1) <=s (X op C2)` to true, where `C1` and `C2` have one sign. -/
-theorem simplifyICmpWithBinOp.L3548 (ρ : Env) (p : Pred) (s : Bool) (lhs rhs : Term w) (c1 c2 : BitVec w)
+theorem _root_.Peephole.IS.simplifyICmpWithBinOp.L3548 (ρ : Env) (p : Pred) (s : Bool) (lhs rhs : Term w) (c1 c2 : BitVec w)
     (p' : Pred) (cl : lhs.Consistent ρ) (cr : rhs.Consistent ρ) (hk : andOrConsts p lhs rhs = some (c1, c2, p'))
     (h : (c1.msb == c2.msb && p' == .sle) = true) :
     Refines ((icmpSrc p s lhs rhs).eval ρ) ((boolR true).eval ρ) := by
@@ -636,7 +636,7 @@ theorem simplifyICmpWithBinOp.L3548 (ρ : Env) (p : Pred) (s : Bool) (lhs rhs : 
   exact hab hm
 
 /-- `IS.simplifyICmpWithBinOp.L3550`: `(X op C1) >s (X op C2)` to false, where `C1` and `C2` have one sign. -/
-theorem simplifyICmpWithBinOp.L3550 (ρ : Env) (p : Pred) (s : Bool) (lhs rhs : Term w) (c1 c2 : BitVec w)
+theorem _root_.Peephole.IS.simplifyICmpWithBinOp.L3550 (ρ : Env) (p : Pred) (s : Bool) (lhs rhs : Term w) (c1 c2 : BitVec w)
     (p' : Pred) (cl : lhs.Consistent ρ) (cr : rhs.Consistent ρ) (hk : andOrConsts p lhs rhs = some (c1, c2, p'))
     (h : (c1.msb == c2.msb && p' == .sgt) = true) :
     Refines ((icmpSrc p s lhs rhs).eval ρ) ((boolR false).eval ρ) := by
@@ -652,7 +652,7 @@ theorem simplifyICmpWithBinOp.L3550 (ρ : Env) (p : Pred) (s : Bool) (lhs rhs : 
 /-! ### The fold -/
 
 /-- Every step of `simplifyICmpWithBinOp` that fires is right. -/
-theorem simplifyICmpWithBinOp.steps_sound (ρ : Env) (o : Oracle) (ho : o.Sound ρ) (simp : ICmpSimp) (p : Pred)
+theorem _root_.Peephole.IS.simplifyICmpWithBinOp.steps_sound (ρ : Env) (o : Oracle) (ho : o.Sound ρ) (simp : ICmpSimp) (p : Pred)
     (s : Bool) (lhs rhs : Term w) (n : Nat) (cl : lhs.Consistent ρ) (cr : rhs.Consistent ρ)
     (wt : WellTyped lhs) :
     ∀ site r, Step.fire site r ∈ simplifyICmpWithBinOp.steps o simp p s lhs rhs n →
@@ -744,7 +744,7 @@ theorem simplifyICmpWithBinOp.steps_sound (ρ : Env) (o : Oracle) (ho : o.Sound 
 every width, predicate, `samesign` flag and recursion budget, in every run the operands are consistent with and the
 oracle is sound in, poison included, for whatever the recursive `simplifyICmpInst` answers. It assumes `LHS`'s casts
 are well typed. -/
-theorem simplifyICmpWithBinOp.sound (ρ : Env) (o : Oracle) (ho : o.Sound ρ) (simp : ICmpSimp) (p : Pred) (s : Bool)
+theorem _root_.Peephole.IS.simplifyICmpWithBinOp.sound (ρ : Env) (o : Oracle) (ho : o.Sound ρ) (simp : ICmpSimp) (p : Pred) (s : Bool)
     (lhs rhs : Term w) (n : Nat) (cl : lhs.Consistent ρ) (cr : rhs.Consistent ρ) (wt : WellTyped lhs) {r : Repl 1}
     (h : simplifyICmpWithBinOp o simp p s lhs rhs n = .value r) :
     Refines ((icmpSrc p s lhs rhs).eval ρ) (r.eval ρ) :=

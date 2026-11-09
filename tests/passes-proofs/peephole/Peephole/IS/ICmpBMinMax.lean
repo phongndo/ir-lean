@@ -42,7 +42,7 @@ variable {w u : Nat}
 /-! ### `extractEquivalentCondition` -/
 
 /-- `extractEquivalentCondition(V, Pred, LHS, RHS)`, step by step: `V` a `select` whose condition is a compare. -/
-def extractEquivalentCondition.steps (v : Term w) (p : Pred) (a b : Term w) : List (Step 1) :=
+def _root_.Peephole.IS.extractEquivalentCondition.steps (v : Term w) (p : Pred) (a b : Term w) : List (Step 1) :=
   match v with
   | .select _ (.icmp cid cp cs cl cr) _ _ =>
     [ if p == cp && same a cl && same b cr then
@@ -53,7 +53,7 @@ def extractEquivalentCondition.steps (v : Term w) (p : Pred) (a b : Term w) : Li
       else .next ]
   | _ => []
 
-def extractEquivalentCondition (v : Term w) (p : Pred) (a b : Term w) : Result 1 :=
+def _root_.Peephole.IS.extractEquivalentCondition (v : Term w) (p : Pred) (a b : Term w) : Result 1 :=
   run (extractEquivalentCondition.steps v p a b)
 
 theorem select_ne_none {c : Val 1} {t e : Val w} (h : IRLean.select c t e ≠ none) : c ≠ none := by
@@ -94,7 +94,7 @@ theorem cond_val {ρ : Env} {id cid : Nat} {cp : Pred} {cs : Bool} {cl cr : Term
 
 /-- `IS.extractEquivalentCondition.L2630`: the compare `LHS Pred RHS`, without `samesign`, to the `select`'s condition
 `icmp Pred LHS RHS`, where the `select` isn't poison. -/
-theorem extractEquivalentCondition.L2630 (ρ : Env) (p : Pred) (a b : Term w) (id cid : Nat) (cp : Pred) (cs : Bool)
+theorem _root_.Peephole.IS.extractEquivalentCondition.L2630 (ρ : Env) (p : Pred) (a b : Term w) (id cid : Nat) (cp : Pred) (cs : Bool)
     (cl cr : Term u) (t e : Term w) (cv : (Term.select id (.icmp cid cp cs cl cr) t e).Consistent ρ)
     (hv : (Term.select id (.icmp cid cp cs cl cr) t e).denote ρ ≠ none)
     (h : (p == cp && same a cl && same b cr) = true) :
@@ -108,7 +108,7 @@ theorem extractEquivalentCondition.L2630 (ρ : Env) (p : Pred) (a b : Term w) (i
   exact refines_ok (eval_plain_le hne)
 
 /-- `IS.extractEquivalentCondition.L2633`: the same, where the condition is `icmp (swapped Pred) RHS LHS`. -/
-theorem extractEquivalentCondition.L2633 (ρ : Env) (p : Pred) (a b : Term w) (id cid : Nat) (cp : Pred) (cs : Bool)
+theorem _root_.Peephole.IS.extractEquivalentCondition.L2633 (ρ : Env) (p : Pred) (a b : Term w) (id cid : Nat) (cp : Pred) (cs : Bool)
     (cl cr : Term u) (t e : Term w) (cv : (Term.select id (.icmp cid cp cs cl cr) t e).Consistent ρ)
     (hv : (Term.select id (.icmp cid cp cs cl cr) t e).denote ρ ≠ none)
     (h : (p == swapP cp && same a cr && same b cl) = true) :
@@ -134,7 +134,7 @@ theorem extractEquivalentCondition_old {v : Term w} {p : Pred} {a b : Term w} {r
 
 /-- Theorem 1 for `extractEquivalentCondition`: what it returns refines the compare `LHS Pred RHS` without `samesign`,
 where `V` is consistent with the run and isn't poison. -/
-theorem extractEquivalentCondition.sound (ρ : Env) (v : Term w) (p : Pred) (a b : Term w) (cv : v.Consistent ρ)
+theorem _root_.Peephole.IS.extractEquivalentCondition.sound (ρ : Env) (v : Term w) (p : Pred) (a b : Term w) (cv : v.Consistent ρ)
     (hv : v.denote ρ ≠ none) {r : Repl 1} (h : extractEquivalentCondition v p a b = .value r) :
     Refines ((icmpSrc p false a b).eval ρ) (r.eval ρ) := by
   have hs : ∀ site r, Step.fire site r ∈ extractEquivalentCondition.steps v p a b →
@@ -242,14 +242,14 @@ def mmCommon.steps (p : Pred) (l r : Term w) : List (Step 1) :=
 
 /-- `simplifyICmpWithMinMax(Pred, LHS, RHS, Q, MaxRecurse)`, step by step: the signed variants, the unsigned ones, and
 min against max. `simp` is the recursive `simplifyICmpInst`. -/
-def simplifyICmpWithMinMax.steps (simp : ICmpSimp) (p : Pred) (lhs rhs : Term w) (n : Nat) : List (Step 1) :=
+def _root_.Peephole.IS.simplifyICmpWithMinMax.steps (simp : ICmpSimp) (p : Pred) (lhs rhs : Term w) (n : Nat) : List (Step 1) :=
   mmGroup.steps simp (mmSel .smax .smin .sge .sle p lhs rhs) .sle .sgt .sge .slt
       "IS.simplifyICmpWithMinMax.L3680" "IS.simplifyICmpWithMinMax.L3683" lhs rhs n ++
     mmGroup.steps simp (mmSel .umax .umin .uge .ule p lhs rhs) .ule .ugt .uge .ult
       "IS.simplifyICmpWithMinMax.L3753" "IS.simplifyICmpWithMinMax.L3755" lhs rhs n ++
     mmCommon.steps (mmCanon p lhs rhs).1 (mmCanon p lhs rhs).2.1 (mmCanon p lhs rhs).2.2
 
-def simplifyICmpWithMinMax (simp : ICmpSimp) (p : Pred) (lhs rhs : Term w) (n : Nat) : Result 1 :=
+def _root_.Peephole.IS.simplifyICmpWithMinMax (simp : ICmpSimp) (p : Pred) (lhs rhs : Term w) (n : Nat) : Result 1 :=
   run (simplifyICmpWithMinMax.steps simp p lhs rhs n)
 
 /-! ### What a min or max is -/
@@ -546,7 +546,7 @@ theorem mmGroup.steps_sound (ρ : Env) {fmax fmin : BinIntr} {geP leP gtP ltP : 
 
 /-- `IS.simplifyICmpWithMinMax.L3680`: "max(A, B) sge A" to true, for `smax(A, B) >=s A`, `A <=s smax(A, B)`,
 `smin(A, B) <=s A` and `A >=s smin(A, B)`. Proved, with `L3683`, by `mmGroup.steps_sound`. -/
-theorem simplifyICmpWithMinMax.L3680 (ρ : Env) (p : Pred) (s : Bool) (lhs rhs a b : Term w) (eqp : Pred)
+theorem _root_.Peephole.IS.simplifyICmpWithMinMax.L3680 (ρ : Env) (p : Pred) (s : Bool) (lhs rhs a b : Term w) (eqp : Pred)
     (cl : lhs.Consistent ρ) (cr : rhs.Consistent ρ)
     (hsel : mmSel .smax .smin .sge .sle p lhs rhs = some (a, b, eqp, .sge)) :
     Refines ((icmpSrc p s lhs rhs).eval ρ) ((boolR true).eval ρ) := by
@@ -556,7 +556,7 @@ theorem simplifyICmpWithMinMax.L3680 (ρ : Env) (p : Pred) (s : Bool) (lhs rhs a
   rw [he, h1]
 
 /-- `IS.simplifyICmpWithMinMax.L3683`: "max(A, B) slt A" to false. -/
-theorem simplifyICmpWithMinMax.L3683 (ρ : Env) (p : Pred) (s : Bool) (lhs rhs a b : Term w) (eqp : Pred)
+theorem _root_.Peephole.IS.simplifyICmpWithMinMax.L3683 (ρ : Env) (p : Pred) (s : Bool) (lhs rhs a b : Term w) (eqp : Pred)
     (cl : lhs.Consistent ρ) (cr : rhs.Consistent ρ)
     (hsel : mmSel .smax .smin .sge .sle p lhs rhs = some (a, b, eqp, .slt)) :
     Refines ((icmpSrc p s lhs rhs).eval ρ) ((boolR false).eval ρ) := by
@@ -566,7 +566,7 @@ theorem simplifyICmpWithMinMax.L3683 (ρ : Env) (p : Pred) (s : Bool) (lhs rhs a
   rw [he, show Pred.slt = invP .sge from rfl, test_inv, h1]; rfl
 
 /-- `IS.simplifyICmpWithMinMax.L3753`: "max(A, B) uge A" to true. -/
-theorem simplifyICmpWithMinMax.L3753 (ρ : Env) (p : Pred) (s : Bool) (lhs rhs a b : Term w) (eqp : Pred)
+theorem _root_.Peephole.IS.simplifyICmpWithMinMax.L3753 (ρ : Env) (p : Pred) (s : Bool) (lhs rhs a b : Term w) (eqp : Pred)
     (cl : lhs.Consistent ρ) (cr : rhs.Consistent ρ)
     (hsel : mmSel .umax .umin .uge .ule p lhs rhs = some (a, b, eqp, .uge)) :
     Refines ((icmpSrc p s lhs rhs).eval ρ) ((boolR true).eval ρ) := by
@@ -576,7 +576,7 @@ theorem simplifyICmpWithMinMax.L3753 (ρ : Env) (p : Pred) (s : Bool) (lhs rhs a
   rw [he, h1]
 
 /-- `IS.simplifyICmpWithMinMax.L3755`: "max(A, B) ult A" to false. -/
-theorem simplifyICmpWithMinMax.L3755 (ρ : Env) (p : Pred) (s : Bool) (lhs rhs a b : Term w) (eqp : Pred)
+theorem _root_.Peephole.IS.simplifyICmpWithMinMax.L3755 (ρ : Env) (p : Pred) (s : Bool) (lhs rhs a b : Term w) (eqp : Pred)
     (cl : lhs.Consistent ρ) (cr : rhs.Consistent ρ)
     (hsel : mmSel .umax .umin .uge .ule p lhs rhs = some (a, b, eqp, .ult)) :
     Refines ((icmpSrc p s lhs rhs).eval ρ) ((boolR false).eval ρ) := by
@@ -646,7 +646,7 @@ theorem mmCommon_val {ρ : Env} {l r : Term w} (cl : l.Consistent ρ) (cr : r.Co
 
 /-- `IS.simplifyICmpWithMinMax.L3773`: `smax(A, B) >=s smin(C, D)` to true, where they share an operand, after the
 min is put on the right. -/
-theorem simplifyICmpWithMinMax.L3773 (ρ : Env) (p : Pred) (s : Bool) (l r : Term w) (cl : l.Consistent ρ)
+theorem _root_.Peephole.IS.simplifyICmpWithMinMax.L3773 (ρ : Env) (p : Pred) (s : Bool) (l r : Term w) (cl : l.Consistent ρ)
     (cr : r.Consistent ρ) (h : (mmCommon .smax .smin l r && p == .sge) = true) :
     Refines ((icmpSrc p s l r).eval ρ) ((boolR true).eval ρ) := by
   rw [Bool.and_eq_true, beq_iff_eq] at h
@@ -654,7 +654,7 @@ theorem simplifyICmpWithMinMax.L3773 (ρ : Env) (p : Pred) (s : Bool) (l r : Ter
   exact refines_bool fun x y hx hy => (mmCommon_val cl cr).1 h x y hx hy
 
 /-- `IS.simplifyICmpWithMinMax.L3776`: `smax(A, B) <s smin(C, D)` to false. -/
-theorem simplifyICmpWithMinMax.L3776 (ρ : Env) (p : Pred) (s : Bool) (l r : Term w) (cl : l.Consistent ρ)
+theorem _root_.Peephole.IS.simplifyICmpWithMinMax.L3776 (ρ : Env) (p : Pred) (s : Bool) (l r : Term w) (cl : l.Consistent ρ)
     (cr : r.Consistent ρ) (h : (mmCommon .smax .smin l r && p == .slt) = true) :
     Refines ((icmpSrc p s l r).eval ρ) ((boolR false).eval ρ) := by
   rw [Bool.and_eq_true, beq_iff_eq] at h
@@ -665,7 +665,7 @@ theorem simplifyICmpWithMinMax.L3776 (ρ : Env) (p : Pred) (s : Bool) (l r : Ter
   omega
 
 /-- `IS.simplifyICmpWithMinMax.L3782`: `umax(A, B) >=u umin(C, D)` to true. -/
-theorem simplifyICmpWithMinMax.L3782 (ρ : Env) (p : Pred) (s : Bool) (l r : Term w) (cl : l.Consistent ρ)
+theorem _root_.Peephole.IS.simplifyICmpWithMinMax.L3782 (ρ : Env) (p : Pred) (s : Bool) (l r : Term w) (cl : l.Consistent ρ)
     (cr : r.Consistent ρ) (h : (!mmCommon .smax .smin l r && mmCommon .umax .umin l r && p == .uge) = true) :
     Refines ((icmpSrc p s l r).eval ρ) ((boolR true).eval ρ) := by
   rw [Bool.and_eq_true, Bool.and_eq_true, beq_iff_eq] at h
@@ -673,7 +673,7 @@ theorem simplifyICmpWithMinMax.L3782 (ρ : Env) (p : Pred) (s : Bool) (l r : Ter
   exact refines_bool fun x y hx hy => (mmCommon_val cl cr).2 h x y hx hy
 
 /-- `IS.simplifyICmpWithMinMax.L3785`: `umax(A, B) <u umin(C, D)` to false. -/
-theorem simplifyICmpWithMinMax.L3785 (ρ : Env) (p : Pred) (s : Bool) (l r : Term w) (cl : l.Consistent ρ)
+theorem _root_.Peephole.IS.simplifyICmpWithMinMax.L3785 (ρ : Env) (p : Pred) (s : Bool) (l r : Term w) (cl : l.Consistent ρ)
     (cr : r.Consistent ρ) (h : (!mmCommon .smax .smin l r && mmCommon .umax .umin l r && p == .ult) = true) :
     Refines ((icmpSrc p s l r).eval ρ) ((boolR false).eval ρ) := by
   rw [Bool.and_eq_true, Bool.and_eq_true, beq_iff_eq] at h
@@ -698,7 +698,7 @@ theorem mmCommon.steps_sound (ρ : Env) (p : Pred) (s : Bool) (l r : Term w) (cl
 /-- Theorem 1 for `simplifyICmpWithMinMax`: every value the model returns refines `icmp [samesign] Pred LHS, RHS`, at
 every width, predicate, `samesign` flag and recursion budget, in every run the operands are consistent with, poison
 included, where the recursive `simplifyICmpInst` is sound. It says nothing about operands that reach an `undef`. -/
-theorem simplifyICmpWithMinMax.sound (ρ : Env) (simp : ICmpSimp) (hsimp : simp.Sound ρ) (p : Pred) (s : Bool)
+theorem _root_.Peephole.IS.simplifyICmpWithMinMax.sound (ρ : Env) (simp : ICmpSimp) (hsimp : simp.Sound ρ) (p : Pred) (s : Bool)
     (lhs rhs : Term w) (n : Nat) (cl : lhs.Consistent ρ) (cr : rhs.Consistent ρ) (ul : lhs.hasUndef = false)
     (ur : rhs.hasUndef = false) {r : Repl 1} (h : simplifyICmpWithMinMax simp p lhs rhs n = .value r) :
     Refines ((icmpSrc p s lhs rhs).eval ρ) (r.eval ρ) := by
@@ -728,7 +728,7 @@ def subOfBoth (v a b : Term w) : Bool :=
   | none => false
 
 /-- `simplifyICmpWithIntrinsicOnLHS(Pred, LHS, RHS)`, step by step. -/
-def simplifyICmpWithIntrinsicOnLHS.steps (p : Pred) (lhs rhs : Term w) : List (Step 1) :=
+def _root_.Peephole.IS.simplifyICmpWithIntrinsicOnLHS.steps (p : Pred) (lhs rhs : Term w) : List (Step 1) :=
   match lhs with
   | .bi _ .uaddSat a b =>
     [ -- uadd.sat(X, Y) uge X + Y
@@ -742,7 +742,7 @@ def simplifyICmpWithIntrinsicOnLHS.steps (p : Pred) (lhs rhs : Term w) : List (S
       else .next ]
   | _ => []
 
-def simplifyICmpWithIntrinsicOnLHS (p : Pred) (lhs rhs : Term w) : Result 1 :=
+def _root_.Peephole.IS.simplifyICmpWithIntrinsicOnLHS (p : Pred) (lhs rhs : Term w) : Result 1 :=
   run (simplifyICmpWithIntrinsicOnLHS.steps p lhs rhs)
 
 theorem uaddSat_add_val {ρ : Env} {id : Nat} {a b rhs : Term w} (cl : (Term.bi id .uaddSat a b).Consistent ρ)
@@ -802,7 +802,7 @@ theorem usubSat_sub_val {ρ : Env} {id : Nat} {a b rhs : Term w} (cl : (Term.bi 
   · cases h
 
 /-- `IS.simplifyICmpWithIntrinsicOnLHS.L3826`: `uadd.sat(X, Y) >=u X + Y` to true. -/
-theorem simplifyICmpWithIntrinsicOnLHS.L3826 (ρ : Env) (p : Pred) (s : Bool) (id : Nat) (a b rhs : Term w)
+theorem _root_.Peephole.IS.simplifyICmpWithIntrinsicOnLHS.L3826 (ρ : Env) (p : Pred) (s : Bool) (id : Nat) (a b rhs : Term w)
     (cl : (Term.bi id .uaddSat a b).Consistent ρ) (cr : rhs.Consistent ρ) (h : (addOf rhs a b && p == .uge) = true) :
     Refines ((icmpSrc p s (.bi id .uaddSat a b) rhs).eval ρ) ((boolR true).eval ρ) := by
   rw [Bool.and_eq_true, beq_iff_eq] at h
@@ -810,7 +810,7 @@ theorem simplifyICmpWithIntrinsicOnLHS.L3826 (ρ : Env) (p : Pred) (s : Bool) (i
   exact refines_bool (uaddSat_add_val cl cr h)
 
 /-- `IS.simplifyICmpWithIntrinsicOnLHS.L3828`: `uadd.sat(X, Y) <u X + Y` to false. -/
-theorem simplifyICmpWithIntrinsicOnLHS.L3828 (ρ : Env) (p : Pred) (s : Bool) (id : Nat) (a b rhs : Term w)
+theorem _root_.Peephole.IS.simplifyICmpWithIntrinsicOnLHS.L3828 (ρ : Env) (p : Pred) (s : Bool) (id : Nat) (a b rhs : Term w)
     (cl : (Term.bi id .uaddSat a b).Consistent ρ) (cr : rhs.Consistent ρ) (h : (addOf rhs a b && p == .ult) = true) :
     Refines ((icmpSrc p s (.bi id .uaddSat a b) rhs).eval ρ) ((boolR false).eval ρ) := by
   rw [Bool.and_eq_true, beq_iff_eq] at h
@@ -821,7 +821,7 @@ theorem simplifyICmpWithIntrinsicOnLHS.L3828 (ρ : Env) (p : Pred) (s : Bool) (i
   omega
 
 /-- `IS.simplifyICmpWithIntrinsicOnLHS.L3836`: `usub.sat(X, Y) <=u X - Y` to true. -/
-theorem simplifyICmpWithIntrinsicOnLHS.L3836 (ρ : Env) (p : Pred) (s : Bool) (id : Nat) (a b rhs : Term w)
+theorem _root_.Peephole.IS.simplifyICmpWithIntrinsicOnLHS.L3836 (ρ : Env) (p : Pred) (s : Bool) (id : Nat) (a b rhs : Term w)
     (cl : (Term.bi id .usubSat a b).Consistent ρ) (cr : rhs.Consistent ρ)
     (h : (subOfBoth rhs a b && p == .ule) = true) :
     Refines ((icmpSrc p s (.bi id .usubSat a b) rhs).eval ρ) ((boolR true).eval ρ) := by
@@ -830,7 +830,7 @@ theorem simplifyICmpWithIntrinsicOnLHS.L3836 (ρ : Env) (p : Pred) (s : Bool) (i
   exact refines_bool (usubSat_sub_val cl cr h)
 
 /-- `IS.simplifyICmpWithIntrinsicOnLHS.L3838`: `usub.sat(X, Y) >u X - Y` to false. -/
-theorem simplifyICmpWithIntrinsicOnLHS.L3838 (ρ : Env) (p : Pred) (s : Bool) (id : Nat) (a b rhs : Term w)
+theorem _root_.Peephole.IS.simplifyICmpWithIntrinsicOnLHS.L3838 (ρ : Env) (p : Pred) (s : Bool) (id : Nat) (a b rhs : Term w)
     (cl : (Term.bi id .usubSat a b).Consistent ρ) (cr : rhs.Consistent ρ)
     (h : (subOfBoth rhs a b && p == .ugt) = true) :
     Refines ((icmpSrc p s (.bi id .usubSat a b) rhs).eval ρ) ((boolR false).eval ρ) := by
@@ -844,7 +844,7 @@ theorem simplifyICmpWithIntrinsicOnLHS.L3838 (ρ : Env) (p : Pred) (s : Bool) (i
 /-- Theorem 1 for `simplifyICmpWithIntrinsicOnLHS`: every value the model returns refines `icmp [samesign] Pred LHS,
 RHS`, at every width, predicate and `samesign` flag, in every run the operands are consistent with, poison
 included. -/
-theorem simplifyICmpWithIntrinsicOnLHS.sound (ρ : Env) (p : Pred) (s : Bool) (lhs rhs : Term w)
+theorem _root_.Peephole.IS.simplifyICmpWithIntrinsicOnLHS.sound (ρ : Env) (p : Pred) (s : Bool) (lhs rhs : Term w)
     (cl : lhs.Consistent ρ) (cr : rhs.Consistent ρ) {r : Repl 1}
     (h : simplifyICmpWithIntrinsicOnLHS p lhs rhs = .value r) :
     Refines ((icmpSrc p s lhs rhs).eval ρ) (r.eval ρ) := by

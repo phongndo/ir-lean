@@ -368,5 +368,180 @@ theorem usubSat_ule_sub (x y : BitVec w) :
     BitVec.ule (if BitVec.ult x y then 0#w else x - y) (x - y) = true := by
   split <;> simp [BitVec.ule]
 
-end Peephole.Lemmas
+/-! ### Compares of `X + C0` and `X`: what `simplifyAndOfICmpsWithAdd` and `simplifyOrOfICmpsWithAdd` know -/
 
+theorem toInt_cases (x : BitVec w) :
+    (x.msb = false ∧ x.toInt = (x.toNat : Int) ∧ 2 * x.toNat < 2 ^ w) ∨
+      (x.msb = true ∧ x.toInt = (x.toNat : Int) - ((2 ^ w : Nat) : Int) ∧ 2 ^ w ≤ 2 * x.toNat) := by
+  have h := BitVec.toInt_eq_toNat_cond x
+  have hm := BitVec.msb_eq_true_iff_two_mul_ge (x := x)
+  by_cases hc : 2 * x.toNat < 2 ^ w
+  · left
+    simp only [hc, ↓reduceIte] at h
+    refine ⟨?_, h, hc⟩
+    cases hx : x.msb
+    · rfl
+    · have := hm.1 hx; omega
+  · right
+    simp only [hc, ↓reduceIte] at h
+    exact ⟨hm.2 (by omega), h, by omega⟩
+
+theorem toNat_add_cases (x y : BitVec w) :
+    (x.toNat + y.toNat < 2 ^ w ∧ (x + y).toNat = x.toNat + y.toNat) ∨
+      (2 ^ w ≤ x.toNat + y.toNat ∧ (x + y).toNat = x.toNat + y.toNat - 2 ^ w) := by
+  rw [BitVec.toNat_add]
+  have := x.isLt
+  have := y.isLt
+  by_cases h : x.toNat + y.toNat < 2 ^ w
+  · exact Or.inl ⟨h, Nat.mod_eq_of_lt h⟩
+  · refine Or.inr ⟨by omega, ?_⟩
+    rw [Nat.mod_eq_sub_mod (by omega), Nat.mod_eq_of_lt (by omega)]
+
+theorem toNat_ofNat_small {k : Nat} (hw : 2 ≤ w) (hk : k ≤ 2) : (BitVec.ofNat w k).toNat = k := by
+  rw [BitVec.toNat_ofNat]
+  apply Nat.mod_eq_of_lt
+  have : 4 ≤ 2 ^ w := by
+    calc 4 = 2 ^ 2 := rfl
+      _ ≤ 2 ^ w := Nat.pow_le_pow_right (by decide) hw
+  omega
+
+theorem two_le_of_toInt_pos {c : BitVec w} (h : 0 < c.toInt) : 2 ≤ w := by
+  rcases toInt_cases c with ⟨-, hi, hb⟩ | ⟨-, hi, hb⟩
+  · rcases w with _ | _ | w
+    · have : c.toNat = 0 := by have := c.isLt; simp at this; omega
+      omega
+    · have : c.toNat = 0 := by simp at hb; omega
+      omega
+    · omega
+  · have := c.isLt
+    omega
+
+/-- `(v + c0) <u c0 + 2` and `v >s c0` don't both hold for `c0 >s 0`. `IS.simplifyAndOfICmpsWithAdd.L1682`. -/
+theorem ult_add_two_and_sgt {v c0 : BitVec w} (hc : 0 < c0.toInt) :
+    (BitVec.ult (v + c0) (c0 + 2#w) && BitVec.slt c0 v) = false := by
+  have hw := two_le_of_toInt_pos hc
+  have h2 := toNat_ofNat_small (k := 2) hw (by omega)
+  simp only [Bool.and_eq_false_iff, BitVec.ult, BitVec.slt, decide_eq_false_iff_not, Nat.not_lt, Int.not_lt]
+  rcases toInt_cases c0 with ⟨-, hc0, hb0⟩ | ⟨-, hc0, hb0⟩ <;>
+  rcases toInt_cases v with ⟨-, hv, hbv⟩ | ⟨-, hv, hbv⟩ <;>
+  rcases toNat_add_cases v c0 with ⟨ha, hs⟩ | ⟨ha, hs⟩ <;>
+  rcases toNat_add_cases c0 (2#w) with ⟨ha', hs'⟩ | ⟨ha', hs'⟩ <;>
+  rw [hs, hs', hc0, hv] <;> omega
+
+/-- `(v + c0) <s c0 + 2` and `v >s c0` don't both hold for `c0 >s 0` where `v + c0` doesn't overflow signed.
+`IS.simplifyAndOfICmpsWithAdd.L1684`. -/
+theorem slt_add_two_and_sgt {v c0 : BitVec w} (hc : 0 < c0.toInt) (hn : v.saddOverflow c0 = false) :
+    (BitVec.slt (v + c0) (c0 + 2#w) && BitVec.slt c0 v) = false := by
+  have hw := two_le_of_toInt_pos hc
+  have h2 := toNat_ofNat_small (k := 2) hw (by omega)
+  have hsum := BitVec.toInt_add_of_not_saddOverflow (x := v) (y := c0) (by simp [hn])
+  simp only [Bool.and_eq_false_iff, BitVec.slt, decide_eq_false_iff_not, Int.not_lt]
+  rw [hsum]
+  rcases toInt_cases c0 with ⟨-, hc0, hb0⟩ | ⟨-, hc0, hb0⟩ <;>
+  rcases toInt_cases (c0 + 2#w) with ⟨-, hc2, hb2⟩ | ⟨-, hc2, hb2⟩ <;>
+  rcases toNat_add_cases c0 (2#w) with ⟨ha', hs'⟩ | ⟨ha', hs'⟩ <;>
+  rw [hc2, hs', hc0] <;> rw [hs'] at hb2 <;> omega
+
+/-- `(v + c0) <=u c0 + 1` and `v >s c0` don't both hold for `c0 >s 0`. `IS.simplifyAndOfICmpsWithAdd.L1688`. -/
+theorem ule_add_one_and_sgt {v c0 : BitVec w} (hc : 0 < c0.toInt) :
+    (BitVec.ule (v + c0) (c0 + 1#w) && BitVec.slt c0 v) = false := by
+  have hw := two_le_of_toInt_pos hc
+  have h1 := toNat_ofNat_small (k := 1) hw (by omega)
+  simp only [Bool.and_eq_false_iff, BitVec.ule, BitVec.slt, decide_eq_false_iff_not, Nat.not_le, Int.not_lt]
+  rcases toInt_cases c0 with ⟨-, hc0, hb0⟩ | ⟨-, hc0, hb0⟩ <;>
+  rcases toInt_cases v with ⟨-, hv, hbv⟩ | ⟨-, hv, hbv⟩ <;>
+  rcases toNat_add_cases v c0 with ⟨ha, hs⟩ | ⟨ha, hs⟩ <;>
+  rcases toNat_add_cases c0 (1#w) with ⟨ha', hs'⟩ | ⟨ha', hs'⟩ <;>
+  rw [hs, hs', hc0, hv] <;> omega
+
+/-- `(v + c0) <=s c0 + 1` and `v >s c0` don't both hold for `c0 >s 0` where `v + c0` doesn't overflow signed.
+`IS.simplifyAndOfICmpsWithAdd.L1690`. -/
+theorem sle_add_one_and_sgt {v c0 : BitVec w} (hc : 0 < c0.toInt) (hn : v.saddOverflow c0 = false) :
+    (BitVec.sle (v + c0) (c0 + 1#w) && BitVec.slt c0 v) = false := by
+  have hw := two_le_of_toInt_pos hc
+  have h1 := toNat_ofNat_small (k := 1) hw (by omega)
+  have hsum := BitVec.toInt_add_of_not_saddOverflow (x := v) (y := c0) (by simp [hn])
+  simp only [Bool.and_eq_false_iff, BitVec.sle, BitVec.slt, decide_eq_false_iff_not, Int.not_le, Int.not_lt]
+  rw [hsum]
+  rcases toInt_cases c0 with ⟨-, hc0, hb0⟩ | ⟨-, hc0, hb0⟩ <;>
+  rcases toInt_cases (c0 + 1#w) with ⟨-, hc2, hb2⟩ | ⟨-, hc2, hb2⟩ <;>
+  rcases toNat_add_cases c0 (1#w) with ⟨ha', hs'⟩ | ⟨ha', hs'⟩ <;>
+  rw [hc2, hs', hc0] <;> rw [hs'] at hb2 <;> omega
+
+/-- `(v + c0) <u c0 + 2` and `v >u c0` don't both hold for `c0 != 0` where `v + c0` doesn't overflow unsigned.
+`IS.simplifyAndOfICmpsWithAdd.L1696`. -/
+theorem ult_add_two_and_ugt {v c0 : BitVec w} (hc : c0 ≠ 0#w) (hn : v.uaddOverflow c0 = false) :
+    (BitVec.ult (v + c0) (c0 + 2#w) && BitVec.ult c0 v) = false := by
+  have hc' : c0.toNat ≠ 0 := fun h => hc (BitVec.eq_of_toNat_eq (by simpa using h))
+  have hsum := BitVec.toNat_add_of_not_uaddOverflow (x := v) (y := c0) (by simp [hn])
+  simp only [BitVec.uaddOverflow, decide_eq_false_iff_not, Nat.not_le] at hn
+  simp only [Bool.and_eq_false_iff, BitVec.ult, decide_eq_false_iff_not, Nat.not_lt]
+  rw [hsum]
+  rcases toNat_add_cases c0 (2#w) with ⟨ha', hs'⟩ | ⟨ha', hs'⟩ <;> rw [hs'] <;>
+  rw [BitVec.toNat_ofNat] at * <;>
+  rcases Nat.lt_or_ge w 2 with hw | hw
+  · have : 2 ^ w ≤ 2 := by
+      calc 2 ^ w ≤ 2 ^ 1 := Nat.pow_le_pow_right (by decide) (by omega)
+        _ = 2 := rfl
+    have := c0.isLt
+    omega
+  · rw [Nat.mod_eq_of_lt (a := 2) (by have := toNat_ofNat_small (k := 2) hw (by omega); rw [BitVec.toNat_ofNat] at this; have : 4 ≤ 2 ^ w := (by calc 4 = 2 ^ 2 := rfl
+          _ ≤ 2 ^ w := Nat.pow_le_pow_right (by decide) hw); omega)] at *
+    omega
+  · have : 2 ^ w ≤ 2 := by
+      calc 2 ^ w ≤ 2 ^ 1 := Nat.pow_le_pow_right (by decide) (by omega)
+        _ = 2 := rfl
+    have := c0.isLt
+    omega
+  · have : 4 ≤ 2 ^ w := by
+      calc 4 = 2 ^ 2 := rfl
+        _ ≤ 2 ^ w := Nat.pow_le_pow_right (by decide) hw
+    rw [Nat.mod_eq_of_lt (a := 2) (by omega)] at *
+    have := v.isLt
+    omega
+
+/-- `(v + c0) <=u c0 + 1` and `v >u c0` don't both hold for `c0 != 0` where `v + c0` doesn't overflow unsigned.
+`IS.simplifyAndOfICmpsWithAdd.L1699`. -/
+theorem ule_add_one_and_ugt {v c0 : BitVec w} (hc : c0 ≠ 0#w) (hn : v.uaddOverflow c0 = false) :
+    (BitVec.ule (v + c0) (c0 + 1#w) && BitVec.ult c0 v) = false := by
+  have hc' : c0.toNat ≠ 0 := fun h => hc (BitVec.eq_of_toNat_eq (by simpa using h))
+  have hsum := BitVec.toNat_add_of_not_uaddOverflow (x := v) (y := c0) (by simp [hn])
+  simp only [BitVec.uaddOverflow, decide_eq_false_iff_not, Nat.not_le] at hn
+  simp only [Bool.and_eq_false_iff, BitVec.ule, BitVec.ult, decide_eq_false_iff_not, Nat.not_le, Nat.not_lt]
+  rw [hsum]
+  have h0 := c0.isLt
+  have hv := v.isLt
+  have hw : 1 ≤ w := by
+    rcases w with _ | w
+    · simp at h0; omega
+    · omega
+  have : 2 ≤ 2 ^ w := by
+    calc 2 = 2 ^ 1 := rfl
+      _ ≤ 2 ^ w := Nat.pow_le_pow_right (by decide) hw
+  have h1 : (1#w).toNat = 1 := by rw [BitVec.toNat_ofNat]; exact Nat.mod_eq_of_lt (by omega)
+  rcases toNat_add_cases c0 (1#w) with ⟨ha', hs'⟩ | ⟨ha', hs'⟩ <;> rw [hs'] <;> omega
+
+/-! ### `ctpop`: what `simplifyAndOrOfICmpsWithCtpop` knows -/
+
+/-- `ctpop(x) == c` for a non-zero `c` makes `x` non-zero. `IS.simplifyAndOrOfICmpsWithCtpop.L1717`. -/
+theorem cpop_eq_ne_zero {x c : BitVec w} (hc : c ≠ 0#w) (h : x.cpop = c) : x ≠ 0#w := by
+  intro hx
+  rw [hx, BitVec.cpop_zero] at h
+  exact hc h.symm
+
+/-! ### Casts of `i1`: what `simplifyAndOrOfCmps` knows -/
+
+theorem setWidth_or {v : Nat} (x y : BitVec v) : (x ||| y).setWidth w = x.setWidth w ||| y.setWidth w := by
+  apply BitVec.eq_of_getLsbD_eq
+  intro i hi
+  simp only [BitVec.getLsbD_setWidth, BitVec.getLsbD_or]
+  cases decide (i < w) <;> simp
+
+theorem signExtend_or {v : Nat} (x y : BitVec v) :
+    (x ||| y).signExtend w = x.signExtend w ||| y.signExtend w := by
+  apply BitVec.eq_of_getLsbD_eq
+  intro i hi
+  simp only [BitVec.getLsbD_signExtend, BitVec.getLsbD_or, BitVec.msb_or]
+  by_cases h : i < v <;> simp only [h, ↓reduceIte] <;> cases decide (i < w) <;> rfl
+
+end Peephole.Lemmas
