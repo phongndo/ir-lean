@@ -123,6 +123,10 @@ add_test(
         $<TARGET_FILE:ir-lean-probe>
 )
 set_tests_properties(ir_features PROPERTIES TIMEOUT 900)
+# Which of the nine chunks of docs/chunks.md each of the inventory's passes is in, and the counts that page
+# gives: every pass in exactly one, against tests/llvm_scope/inventory.json. Under a second, and no Lean or
+# LLVM.
+add_test(NAME chunks COMMAND ${CMAKE_SOURCE_DIR}/tests/chunks_test.py)
 # tools/corpus/capture.py, in Python, with one seed through opt when the pinned one is on PATH: under a
 # second, and no Lean. docs/corpus.md.
 add_test(NAME corpus COMMAND ${CMAKE_SOURCE_DIR}/tests/corpus_test.py)
