@@ -9,6 +9,7 @@
     "Peephole.IS.ICmpBMinMax",
     "Peephole.IS.ICmpBAndOr",
     "Peephole.IS.ICmpBSelect",
+    "Peephole.IS.ICmpBSelectCond",
     "Peephole.Lemmas.ICmpB"
   ],
   "entries": [],
@@ -148,10 +149,18 @@
         "IS.simplifyCmpSelOfMaxMin.L4775",
         "IS.simplifyCmpSelOfMaxMin.L4783"
       ]
+    },
+    "Peephole.IS.simplifySelectWithICmpCond": {
+      "sound": "Peephole.IS.simplifySelectWithICmpCond.sound",
+      "sites": [
+        "IS.simplifySelectWithICmpCond.L4876",
+        "IS.simplifySelectWithICmpCond.L4890",
+        "IS.simplifySelectWithICmpCond.L4896",
+        "IS.simplifySelectWithICmpCond.L4900"
+      ]
     }
   },
   "lemmas": [
-    "Peephole.Lemmas.Peephole",
     "Peephole.Lemmas.add_ule_uaddSat",
     "Peephole.Lemmas.and_subset",
     "Peephole.Lemmas.beq_smin",
@@ -160,8 +169,6 @@
     "Peephole.Lemmas.msb_true_of_and_eq",
     "Peephole.Lemmas.mul_udiv_ule",
     "Peephole.Lemmas.mul_ushiftRight_ule",
-    "Peephole.Lemmas.not_pow2_three",
-    "Peephole.Lemmas.not_pow2_zero",
     "Peephole.Lemmas.or_subset",
     "Peephole.Lemmas.setWidth_or",
     "Peephole.Lemmas.shiftLeft_pow2",
@@ -250,13 +257,15 @@
     ],
     "IS.extractEquivalentCondition.L2633": [
       "the select V isn't poison: Cmp may carry samesign; simplifyICmpWithMinMax discharges this, since V is an operand of the compare it replaces"
+    ],
+    "IS.simplifySelectWithICmpCond.L4896": [
+      "0 < w: at width 0 abs(0) with int_min_poison is poison (intMin 0 = 0); LLVM has no i0"
+    ],
+    "IS.simplifySelectWithICmpCond.L4900": [
+      "0 < w: at width 0 abs(0) with int_min_poison is poison (intMin 0 = 0); LLVM has no i0"
     ]
   },
   "unproved": {
-    "IS.simplifySelectWithICmpCond.L4857": "simplifySelectWithICmpCond isn't modelled yet",
-    "IS.simplifySelectWithICmpCond.L4876": "simplifySelectWithICmpCond isn't modelled yet",
-    "IS.simplifySelectWithICmpCond.L4890": "simplifySelectWithICmpCond isn't modelled yet",
-    "IS.simplifySelectWithICmpCond.L4896": "simplifySelectWithICmpCond isn't modelled yet",
-    "IS.simplifySelectWithICmpCond.L4900": "simplifySelectWithICmpCond isn't modelled yet"
+    "IS.simplifySelectWithICmpCond.L4857": "the C++ returns X where ValueTracking's matchDecomposedSelectPattern finds a min/max flavor whose predicate is Pred and whose other operand is the flavor's limit constant; that analysis (matchSelectPattern, matchClamp, matchMinMaxOfMinMax, getNotValue, the abs/nabs patterns) isn't modelled, so the model takes its answer as a parameter and delegates this step"
   }
 }

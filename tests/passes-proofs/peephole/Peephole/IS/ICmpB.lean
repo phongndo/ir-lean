@@ -6,8 +6,8 @@ import Peephole.Lemmas.ICmpB
 
 /-! # What the `icmp-b` family's folds share
 
-The folds in `Peephole.IS.ICmpBBinOp`, `ICmpBMinMax`, `ICmpBSelect` and `ICmpBAndOr` answer for an `icmp`, a `select`
-or an `and`/`or` of compares. None is called on an instruction by InstSimplify's dispatcher: `simplifyICmpInst`,
+The folds in `Peephole.IS.ICmpBOnLHS`, `ICmpBBinOp`, `ICmpBMinMax`, `ICmpBAndOr`, `ICmpBSelect` and `ICmpBSelectCond`
+answer for an `icmp`, a `select` or an `and`/`or` of compares. None is called on an instruction by InstSimplify's dispatcher: `simplifyICmpInst`,
 `simplifySelectInst`, `simplifyAndInst` and `simplifyOrInst` forward to them. Each one's `sound` theorem is stated over
 its own C++ arguments, with the instruction its answer replaces, so those callers' models can use it.
 
