@@ -81,8 +81,9 @@ Even a claim that passes all of that is only **unverified**. Its status and hash
 claim, so they can't make a pass done by themselves. A dimension is complete only when an independent verifier for its
 evidence kind replays the evidence and decides it covers every context the pass runs in. Since 2026-11-09 that's
 [`tools/verify_claims.py`](verify-claims.md), [BIND-03](#bind-03-an-independent-verifier)'s, which `check` asks about
-every complete claim. It refuses any claim whose coverage nothing can decide yet: all-input until INV-04 lists the
-rewrites, code-binding until BIND-02 gives the pass's closure, and composition until PASS-05's contract exists. So
+every complete claim. It refuses any claim whose coverage it can't decide yet: all-input until it reads INV-04's lists of
+rewrites, which exist for chunk 1's passes, code-binding until BIND-02 gives the pass's complete closure, and
+composition until PASS-05's contract exists. So
 `verified_done` stays 0, and the summary counts claims as complete only under `claimed_complete`.
 
 ## The measured scope
@@ -402,11 +403,11 @@ when they land.
 - **Lane:** BIND
 - **Scope:** For each pass, every function and file its compiled code can reach, from the call graph of the pinned build, replacing the inventory's entry files.
 - **Depends on:** INV-01
-- **Owns:** `tests/llvm_scope/closure/`
+- **Owns:** `tests/llvm_scope/closure/`, `tests/llvm_closure_test.py`, `docs/llvm-closure.md`
 - **Acceptance:** Each pass's anchors are its closure, hashed, and a test fails when any of them changes.
-- **Trust gaps:** Indirect calls through virtual functions need a stated bound.
-- **Status:** not started
-- **Evidence:** None.
+- **Trust gaps:** Indirect calls through virtual functions need a stated bound. The one stated, any function of the call's type whose address an indexed file takes, is sound over the indexed files and far too coarse to use, so closures record direct calls and list each indirect one, and aren't complete. Ten files of `llvm/lib/Support` and `TargetParser` don't compile without the build's private `config.h`, so what only they define is unresolved.
+- **Status:** in progress: `simplifyAddInst`'s closure, for gates B2 and B3, is recorded and checked. Each pass's is next, starting with chunk 1's
+- **Evidence:** [`tests/llvm_scope/closure/simplifyAddInst.json`](llvm-closure.md), derived by `tests/llvm_scope/closure/closure.py` from the pinned build's call graph: 2,070 functions, in 154 files with every copy of its inline functions, and 1,794 anchors hashed. `tests/llvm_closure_test.py`, in CI as `llvm_closure`, fails when an anchor's hash, clang, or the IR of a function or of any copy of one changes.
 
 ### BIND-03: An independent verifier
 

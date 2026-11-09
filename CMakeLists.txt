@@ -123,6 +123,10 @@ add_test(
         $<TARGET_FILE:ir-lean-probe>
 )
 set_tests_properties(ir_features PROPERTIES TIMEOUT 900)
+# BIND-02's closure of simplifyAddInst: its files hashed, and its 154 files of llvm-project compiled again to
+# the same IR, with 4 clang processes at once. docs/llvm-closure.md.
+add_test(NAME llvm_closure COMMAND ${CMAKE_SOURCE_DIR}/tests/llvm_closure_test.py)
+set_tests_properties(llvm_closure PROPERTIES TIMEOUT 1800)
 # Gate B1, LLVM's IR in memory: IRLean/LLVMHeap.lean and an example heap checked in Lean, and the layout probe
 # against the pinned libLLVM, with the numbers Lean prints. About 5 s. docs/llvm-heap.md.
 add_test(NAME llvm_heap COMMAND ${CMAKE_SOURCE_DIR}/tests/llvm_heap.sh)
@@ -330,7 +334,7 @@ set_tests_properties(binding PROPERTIES LABELS binding)
 set_tests_properties(binding_2 PROPERTIES LABELS binding_2)
 # verify_negative runs alone, after proofs, in the same job, so semantics has only one test that runs alone.
 set_tests_properties(proofs verify_negative PROPERTIES LABELS proofs)
-set_tests_properties(llvm PROPERTIES LABELS llvm)
+set_tests_properties(llvm llvm_closure PROPERTIES LABELS llvm)
 set_tests_properties(verify_claims PROPERTIES LABELS verify_claims)
 set_tests_properties(
     replay_challenge

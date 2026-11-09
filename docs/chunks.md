@@ -14,8 +14,9 @@ Facts here were checked on 2026-11-09 on top of `dbfd710`, against the inventory
 **0 of the 1,162 passes are done.** A pass is done when
 [BIND-03](llvm-verification-tasks.md#bind-03-an-independent-verifier), the independent verifier, accepts its
 all-input, code-binding and composition claims for every context it runs in. Since 2026-11-09 it's
-[`tools/verify_claims.py`](verify-claims.md), and it refuses every claim whose coverage nothing can decide yet: all-input
-before INV-04 lists the rewrites, code-binding before BIND-02 gives a pass's closure, and composition before PASS-05. So
+[`tools/verify_claims.py`](verify-claims.md), and it refuses every claim whose coverage it can't decide yet: all-input
+until it reads INV-04's lists of rewrites, which exist for chunk 1, code-binding until BIND-02 gives a pass's complete
+closure, and composition until PASS-05. So
 `tests/llvm_scope.py summary` counts `verified_done` as 0.
 
 Under that, each chunk's percentage at each gate:
