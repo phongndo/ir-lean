@@ -123,6 +123,6 @@ counterexample to a pass.
 The relation was drafted, uncommitted, on `research/prove-llvm-optimizations` at `28c2364`, as `IRLean/Refine.lean`
 with sha256 `fe538b7d62b72c3b171936af007886d33a30174b0259e158893e7e2cc5a1ba10`. That draft had the instances above,
 reflexivity for `Val` and the unfolding lemmas, and no transitivity. Its rules are unchanged here. What's new is
-transitivity as part of the class, `Refine.Reflexive`, and the laws. Its tactic, `IRLean/RefineTactic.lean`, the
-scorer, `tests/passes.py`, and the scorer's `checkRefines` in `tests/check_axioms.lean` aren't part of this, and are
-left on that branch.
+transitivity as part of the class, `Refine.Reflexive`, and the laws. Its tactic, `IRLean/RefineTactic.lean`, and the
+scorer's `checkRefines` in `tests/check_axioms.lean` aren't part of this, and are left on that branch. The scorer is
+rebuilt as [`tests/passes.py`](passes.md), which binds equivalence certificates and doesn't prove refinement yet.
