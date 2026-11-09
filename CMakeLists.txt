@@ -18,6 +18,13 @@ target_compile_definitions(ir-lean PRIVATE ${LLVM_DEFINITIONS_LIST})
 target_compile_options(ir-lean PRIVATE -Wall -Wextra -fno-rtti)
 llvm_config(ir-lean USE_SHARED analysis core irreader support)
 
+# A call to every intrinsic the pinned LLVM defines, for tests/ir_features.py. See src/Probe.cpp.
+add_executable(ir-lean-probe src/Probe.cpp)
+target_include_directories(ir-lean-probe SYSTEM PRIVATE ${LLVM_INCLUDE_DIRS})
+target_compile_definitions(ir-lean-probe PRIVATE ${LLVM_DEFINITIONS_LIST})
+target_compile_options(ir-lean-probe PRIVATE -Wall -Wextra -fno-rtti)
+llvm_config(ir-lean-probe USE_SHARED core support)
+
 # Tests need the Lean library: run `lake build` first.
 enable_testing()
 add_test(NAME opcheck COMMAND ${CMAKE_SOURCE_DIR}/tests/opcheck.py $<TARGET_FILE:ir-lean>)
@@ -36,7 +43,7 @@ add_test(
         ${CMAKE_SOURCE_DIR}/tests/differential.py $<TARGET_FILE:ir-lean>
         ${CMAKE_SOURCE_DIR}/tests/real/pointers.c ${CMAKE_SOURCE_DIR}/tests/real/vectors.ll
         ${CMAKE_SOURCE_DIR}/tests/real/heap.ll ${CMAKE_SOURCE_DIR}/tests/real/gep.ll
-        ${CMAKE_SOURCE_DIR}/tests/real/promises.ll --strict
+        ${CMAKE_SOURCE_DIR}/tests/real/promises.ll ${CMAKE_SOURCE_DIR}/tests/real/lanes.ll --strict
 )
 add_test(
     NAME undefined
@@ -104,6 +111,29 @@ add_test(NAME llvm COMMAND ${CMAKE_SOURCE_DIR}/tests/llvm.py $<TARGET_FILE:ir-le
 add_test(NAME llvm_scope COMMAND ${CMAKE_SOURCE_DIR}/tests/llvm_scope_test.py)
 add_test(NAME llvm_scope_check COMMAND ${CMAKE_SOURCE_DIR}/tests/llvm_scope.py check)
 set_tests_properties(llvm_scope llvm_scope_check PROPERTIES TIMEOUT 600)
+# SEM-08: everything the pinned IR can contain, each item modeled, refused or assumed, in
+# tests/llvm_scope/ir-features.json. The rules, in Python. Then the file derived again from LLVM's source and
+# compared byte for byte, and a probe of each item through the emitter, which has to do what the item's class
+# says, with what it prints for the probes it translates elaborated in one Lean process. About 40 s.
+add_test(NAME ir_features_rules COMMAND ${CMAKE_SOURCE_DIR}/tests/ir_features_test.py)
+add_test(
+    NAME ir_features
+    COMMAND
+        ${CMAKE_SOURCE_DIR}/tests/ir_features.py check --tool $<TARGET_FILE:ir-lean> --probe
+        $<TARGET_FILE:ir-lean-probe>
+)
+set_tests_properties(ir_features PROPERTIES TIMEOUT 900)
+# Which of the nine chunks of docs/chunks.md each of the inventory's passes is in, and the counts that page
+# gives: every pass in exactly one, against tests/llvm_scope/inventory.json. Under a second, and no Lean or
+# LLVM.
+add_test(NAME chunks COMMAND ${CMAKE_SOURCE_DIR}/tests/chunks_test.py)
+# BIND-03's verifier, tools/verify_claims.py: claims refused before any replay, in Python, then every function
+# tests/llvm.py proves replayed as one piece of evidence, tools/verify.py's controls, and forged claims, each
+# refused for its own reason. docs/verify-claims.md.
+add_test(NAME verify_claims_static COMMAND ${CMAKE_SOURCE_DIR}/tests/verify_claims_test.py --tier static)
+add_test(NAME verify_claims COMMAND ${CMAKE_SOURCE_DIR}/tests/verify_claims_test.py --tier live)
+set_tests_properties(verify_claims_static PROPERTIES TIMEOUT 600)
+set_tests_properties(verify_claims PROPERTIES RUN_SERIAL TRUE TIMEOUT 1800)
 # The rewrites in chunk 1's peephole passes, docs/rewrite-inventory.md: the rule on small C++ files and on
 # mutated copies of the pinned source, then the inventory derived again from the source and compared. A few
 # seconds, and no Lean.
@@ -130,6 +160,10 @@ set_tests_properties(undef_freeze PROPERTIES TIMEOUT 900)
 # One Lean or Alive2 process at a time, each Lean process capped at 2 GB and 300 s.
 add_test(NAME freeze COMMAND ${CMAKE_SOURCE_DIR}/tests/freeze.sh $<TARGET_FILE:ir-lean>)
 set_tests_properties(freeze PROPERTIES TIMEOUT 900)
+# Calls outside the module, on what ir-lean emits: right rewrites refine, wrong ones provably don't, and
+# Alive2 gives each the verdict its case says, the same way. See docs/calls.md.
+add_test(NAME calls COMMAND ${CMAKE_SOURCE_DIR}/tests/calls.sh $<TARGET_FILE:ir-lean>)
+set_tests_properties(calls PROPERTIES TIMEOUT 900)
 add_test(NAME verify COMMAND ${CMAKE_SOURCE_DIR}/tests/verify.py $<TARGET_FILE:ir-lean>)
 # Tier-1 proof tests: the contract in Python, then tools/prooftest/prooftest.py on
 # tests/prooftest/Cases.ll, at most four cases at a time, each with at most one Lean process running.
@@ -232,6 +266,15 @@ add_test(
         --strict --runs 400
 )
 add_test(NAME x86check COMMAND ${CMAKE_SOURCE_DIR}/tests/x86check.py $<TARGET_FILE:ir-lean>)
+# The lane-by-lane forms of integer operations, IRLean/Lanes.lean: vector intrinsics, vector division, and
+# noundef and range on vectors and structs, against Alive2, both ways, and LLVM's constant folder, poison
+# lanes and undefined behavior included, with a wrong result for each that Alive2 has to refuse. About 6 s.
+add_test(NAME vecopcheck COMMAND ${CMAKE_SOURCE_DIR}/tests/vecopcheck.py $<TARGET_FILE:ir-lean>)
+# Scalable vectors, IRLean/Scalable.lean, which Alive2 can't read: each operation at vscale 1, 2 and 4 against
+# the same operation on fixed-width vectors, which the tests above check, splats against LLVM's constant
+# folder, and llvm.vscale and vscale_range against LangRef. About 25 s.
+add_test(NAME scalablecheck COMMAND ${CMAKE_SOURCE_DIR}/tests/scalablecheck.py $<TARGET_FILE:ir-lean>)
+set_tests_properties(vecopcheck scalablecheck PROPERTIES TIMEOUT 900)
 # Refuting the three wrong rewrites takes about as long as everything else, so it's a test of its own, labeled
 # for a CI job of its own. `llama` refutes the change to the mask.
 add_test(NAME llama COMMAND ${CMAKE_SOURCE_DIR}/tests/llama.py $<TARGET_FILE:ir-lean> --mutants mask)
@@ -276,12 +319,14 @@ set_tests_properties(binding_2 PROPERTIES LABELS binding_2)
 # verify_negative runs alone, after proofs, in the same job, so semantics has only one test that runs alone.
 set_tests_properties(proofs verify_negative PROPERTIES LABELS proofs)
 set_tests_properties(llvm PROPERTIES LABELS llvm)
+set_tests_properties(verify_claims PROPERTIES LABELS verify_claims)
 set_tests_properties(
     replay_challenge
     contracts
     refine
     undef_freeze
     freeze
+    calls
     generic_rewrites
     cpp_correspondence
     store

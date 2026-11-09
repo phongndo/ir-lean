@@ -22,16 +22,24 @@ import subprocess
 import sys
 import tempfile
 import time
+import tomllib
 import unittest
 from pathlib import Path
 from typing import Any, ClassVar
 from unittest import mock
 
 ROOT = Path(__file__).resolve().parent.parent
-sys.path.insert(0, str(ROOT / "tools"))
+sys.path.append(str(ROOT / "tools"))
 from irlean import hashing, lean, model, pins, proc, schemas  # noqa: E402
 
 PY = sys.executable
+
+
+def independent(path: str) -> bool:
+    """Whether `path`, relative to the repo, is BIND-03's independent verifier, in
+    docs/llvm-verification-tasks.md, which shares no code with any scorer: it never imports irlean, so none
+    of the library's rules reach it."""
+    return path == "tools/verify_claims.py" or path.startswith("tools/verify_claims/")
 
 
 def alive(pid: int) -> bool:
@@ -648,6 +656,44 @@ class Lean(unittest.TestCase):
                 self.assertEqual(pattern, lean.LIMIT.pattern)
 
 
+class Ratchet(unittest.TestCase):
+    """What keeps the library the one place: ruff bans subprocess, hashlib and process killing everywhere
+    else, and these are the only exceptions, each with its reason in pyproject.toml."""
+
+    EXCEPTIONS: ClassVar[set[str]] = {
+        "tools/irlean/*.py",
+        "tests/irlean_test.py",
+        ".github/needs-tests.py",
+        "tests/alive.py",
+        "prototypes/**/*.py",
+        "tests/llama/rewrite.py",
+        "tests/verify.py",
+        "bench/instcombine/stage1.py",
+        "tools/verify_claims.py",
+        "tools/verify_claims/**/*.py",
+    }
+    # Every API the ban names, so dropping one fails here.
+    BANNED = (
+        "subprocess hashlib os.kill os.killpg os.wait4 os.waitpid os.waitid os.setsid os.setpgid "
+        "resource.setrlimit"
+    )
+
+    def test_the_exceptions_are_these(self) -> None:
+        lint = tomllib.loads((ROOT / "pyproject.toml").read_text())["tool"]["ruff"]["lint"]
+        self.assertIn("TID251", lint["extend-select"])
+        banned = set(lint["flake8-tidy-imports"]["banned-api"])
+        self.assertEqual(banned, set(self.BANNED.split()))
+        ignored = {path for path, rules in lint["per-file-ignores"].items() if "TID251" in rules}
+        self.assertEqual(ignored, self.EXCEPTIONS)
+
+    def test_tools_name_schemas_only_through_the_library(self) -> None:
+        literal = re.compile(r"""["']ir-lean\.[a-z0-9][a-z0-9_.-]*/\d+["']""")
+        for path in sorted((ROOT / "tools").rglob("*.py")):
+            name = path.relative_to(ROOT).as_posix()
+            if name != "tools/irlean/schemas.py" and not independent(name):
+                self.assertIsNone(literal.search(path.read_text()), path)
+
+
 class Schemas(unittest.TestCase):
     def test_names(self) -> None:
         self.assertGreaterEqual(len(schemas.ALL), 22)
@@ -667,6 +713,8 @@ class Schemas(unittest.TestCase):
         for name in tracked:
             path = ROOT / name
             if not path.exists() or name.endswith("_test.py") or name == "tools/irlean/schemas.py":
+                continue
+            if independent(name):
                 continue
             for found in literal.findall(path.read_text()):
                 # A test writes a version that isn't one, to check it's refused.
@@ -778,7 +826,7 @@ class Model(unittest.TestCase):
         found = []
         for name in tracked:
             path = ROOT / name
-            if not path.exists() or name in self.CONSUMERS or name in self.EXCEPTIONS:
+            if not path.exists() or name in self.CONSUMERS or name in self.EXCEPTIONS or independent(name):
                 continue
             text = path.read_text()
             named = {n for n in names if re.search(rf"\b{n}\b", text)}
