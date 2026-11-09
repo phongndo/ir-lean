@@ -2,8 +2,9 @@
 
 What a run does when it calls a function the module only declares, what `IRLean.Refines` asks of two runs that make
 such calls, and what each attribute on the call lets a rewrite do. Also external globals, variadic calls, constant
-expressions over globals and linkage. This is the design, written on 2026-11-09 before any of it is built. For what
-any theorem means, read [trust](trust.md) first, and for the relation, [refinement](refinement.md).
+expressions over globals and linkage. This is the design, written on 2026-11-09, and [slices](#slices) says which
+parts are built. For what any theorem means, read [trust](trust.md) first, and for the relation,
+[refinement](refinement.md).
 
 **Why now.** On InstCombine's own tests at `llvmorg-23.1.3`, calls outside the module are the second-largest reason
 the emitter refuses a pair, after floating point: of the 31,240 functions InstCombine changes, 2,787 are refused first
@@ -386,7 +387,10 @@ Each is a pull request, merged when green, with this page updated to say what's 
 1. **Calls that access no memory.** `IRLean/World.lean`: `Event`, `Trace`, `Answer`, `World`, `Exit`, its `Refine`
    instance, `Talks` and its instance, the call helpers and their laws, and one new reason, `UB.outsideCall`, in
    `IRLean.Basic`. The emitter threads `w` and `h` through functions that call outside the module, and translates pure
-   calls, in any function. Tests in `tests/calls`, as `tests/freeze` does for F3.
+   calls, in any function. Tests in `tests/calls`, as `tests/freeze` does for F3. **Built** on 2026-11-09:
+   `tests/calls` has eleven rewrites, four right and seven wrong, each with its theorem, and Alive2 gives seven the
+   same verdict and four the one this page says it gives by design. One reason, `UB.outsideCall`, covers every broken
+   promise and unwinding through `nounwind`, since the negative-verification statements list every reason.
 2. **Calls with effects, and calls that only read,** in functions without memory, and calls touching only
    `inaccessiblemem` in any function. The emitter refuses calls that touch memory by name. Most of the coverage gain is
    here: of the 2,787 pairs refused first for `call to external`, 2,100 have no pointer in either side, 4 of them with

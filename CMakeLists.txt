@@ -147,6 +147,10 @@ set_tests_properties(undef_freeze PROPERTIES TIMEOUT 900)
 # One Lean or Alive2 process at a time, each Lean process capped at 2 GB and 300 s.
 add_test(NAME freeze COMMAND ${CMAKE_SOURCE_DIR}/tests/freeze.sh $<TARGET_FILE:ir-lean>)
 set_tests_properties(freeze PROPERTIES TIMEOUT 900)
+# Calls outside the module, on what ir-lean emits: right rewrites refine, wrong ones provably don't, and
+# Alive2 gives each the verdict its case says, the same way. See docs/calls.md.
+add_test(NAME calls COMMAND ${CMAKE_SOURCE_DIR}/tests/calls.sh $<TARGET_FILE:ir-lean>)
+set_tests_properties(calls PROPERTIES TIMEOUT 900)
 add_test(NAME verify COMMAND ${CMAKE_SOURCE_DIR}/tests/verify.py $<TARGET_FILE:ir-lean>)
 # Tier-1 proof tests: the contract in Python, then tools/prooftest/prooftest.py on
 # tests/prooftest/Cases.ll, at most four cases at a time, each with at most one Lean process running.
@@ -290,6 +294,7 @@ set_tests_properties(
     refine
     undef_freeze
     freeze
+    calls
     generic_rewrites
     cpp_correspondence
     store
