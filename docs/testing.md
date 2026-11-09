@@ -94,7 +94,7 @@ with 4 cores and 16 GB, and the jobs run at once:
 | Tests and proofs (`binding`) | `binding`, half of `tests/binding.py`'s cases |
 | Tests and proofs (`binding_2`) | `binding_2`, the other half |
 | Tests and proofs (`llvm`) | `llvm` |
-| Tests and proofs (`semantics`) | `replay_challenge`, `contracts`, `refine`, `undef_freeze`, `generic_rewrites`, `cpp_correspondence`, `store` and `prooftest_t1` |
+| Tests and proofs (`semantics`) | `replay_challenge`, `contracts`, `refine`, `undef_freeze`, `generic_rewrites`, `cpp_correspondence`, `store`, `prooftest` and `prooftest_t1` |
 | Tests and proofs (`llama`) | `llama`, in `nix develop .#llama`, the only shell with llama.cpp's source: the 34 theorems, the native comparison, and the change to the mask |
 | Tests and proofs (`llama_mutants`) | `llama_mutants`, in `nix develop .#llama`: the three wrong rewrites |
 | Tests and proofs (`proofs`) | `proofs`, and then `verify_negative`, which runs alone |

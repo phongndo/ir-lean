@@ -257,6 +257,7 @@ set_tests_properties(
     generic_rewrites
     cpp_correspondence
     store
+    prooftest
     prooftest_t1
     PROPERTIES LABELS semantics
 )
