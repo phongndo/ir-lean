@@ -2,7 +2,7 @@
   "schema": "ir-lean.peephole.comparison/1",
   "family": "is-logic",
   "registry": "tests/passes-proofs/peephole/folds/is-logic.json",
-  "sources": "ed338e1b8ec91a08f192df455651118d8cb1876ec051fcff7b6f895fdee81fe3",
+  "sources": "6dc921398c7a1611b38b626ce4fbd36d6426211f97b0f6997199e2ba0fc05b22",
   "opt": "23.1.3",
   "date": "2026-11-09",
   "status": "ok",
@@ -10,21 +10,22 @@
     "cases": 11132,
     "harvested": 1344,
     "generated": 9788,
-    "compared": 5847,
-    "matched": 2254,
+    "compared": 5958,
+    "matched": 2365,
     "agreed_no_fold": 3593,
     "fired_new_ir": 0,
     "mismatched": 0,
-    "delegated": 3898,
-    "analysis": 6,
-    "unexplained": 2,
+    "delegated": 3790,
+    "analysis": 5,
+    "unexplained": 0,
     "operand_changed": 1379
   },
   "delegated_to": {
     "ConstantFoldBinaryOpOperands": 581,
-    "expandCommutativeBinOp": 1058,
-    "simplifyAndOrOfCmps": 880,
+    "expandCommutativeBinOp": 1048,
+    "simplifyAndOrOfCmps": 473,
     "simplifyAssociativeBinOp": 1376,
+    "simplifyWithOpReplaced": 309,
     "threadBinOpOverSelect": 3
   },
   "regression_tests": {
@@ -147,12 +148,37 @@
       ],
       "registered": true
     },
-    "IS.simplifyAndInst.L2229": {
-      "fired": 0,
-      "matched": 0,
+    "IS.simplifyAndOrWithICmpEq.Simplify.L1965": {
+      "fired": 37,
+      "matched": 37,
       "mismatched": 0,
-      "analysis": 1,
-      "files": [],
+      "analysis": 0,
+      "files": [
+        "and-or-implied-cond.ll",
+        "icmp-ranges.ll"
+      ],
+      "registered": true
+    },
+    "IS.simplifyAndOrWithICmpEq.Simplify.L1967": {
+      "fired": 37,
+      "matched": 37,
+      "mismatched": 0,
+      "analysis": 0,
+      "files": [
+        "and-or-implied-cond.ll",
+        "icmp-ranges.ll"
+      ],
+      "registered": true
+    },
+    "IS.simplifyAndOrWithICmpEq.Simplify.L1975": {
+      "fired": 37,
+      "matched": 37,
+      "mismatched": 0,
+      "analysis": 0,
+      "files": [
+        "and-or-implied-cond.ll",
+        "icmp-ranges.ll"
+      ],
       "registered": true
     },
     "IS.simplifyLogicOfAddSub.L2011": {
@@ -454,9 +480,6 @@
     "IS.simplifyAndInst.L2232",
     "IS.simplifyAndInst.L2237",
     "IS.simplifyAndInst.L2240",
-    "IS.simplifyAndOrWithICmpEq.Simplify.L1965",
-    "IS.simplifyAndOrWithICmpEq.Simplify.L1967",
-    "IS.simplifyAndOrWithICmpEq.Simplify.L1975",
     "IS.simplifyOrInst.L2448",
     "IS.simplifyOrInst.L2450",
     "IS.simplifyOrInst.L2475",
@@ -467,25 +490,21 @@
     "IS.simplifyOrInst.L2511",
     "IS.simplifyOrInst.L2514"
   ],
+  "folds_run": {
+    "Peephole.IS.simplifyAndCommutative": "h0.0",
+    "Peephole.IS.simplifyAndInst": "h0.0",
+    "Peephole.IS.simplifyAndOrWithICmpEq": "h0.0",
+    "Peephole.IS.simplifyAndOrWithICmpEq.Simplify": "h265.265",
+    "Peephole.IS.simplifyLogicOfAddSub": "h0.0",
+    "Peephole.IS.simplifyOrInst": "h0.593",
+    "Peephole.IS.simplifyOrLogic": "h0.593",
+    "Peephole.IS.simplifyXorInst": "h0.1243",
+    "Peephole.IS.simplifyXorInst.foldAndOrNot": "h0.1243"
+  },
+  "folds_not_run": [],
   "untagged": [],
   "mismatches": [],
-  "unexplained": [
-    {
-      "case": "h151.744",
-      "where": "and-or-implied-cond.ll:@or_trunc_nuw_implied:%and",
-      "opt": [
-        "%n1"
-      ],
-      "ir": "  %n1 = trunc nuw i8 %v2 to i1\n  %n4 = select i1 %n1, i8 %v5, i8 0\n  %n3 = icmp ne i8 %n4, 0\n  call void (...) @use(i1 %n1, i1 %n3)\n  %r = or i1 %n1, %n3\n  ret i1 %r"
-    },
-    {
-      "case": "h152.745",
-      "where": "and-or-implied-cond.ll:@or_trunc_nuw_implied_to_true:%and",
-      "opt": [
-        "true"
-      ],
-      "ir": "  %n1 = trunc nuw i8 %v2 to i1\n  %n4 = select i1 %n1, i8 %v5, i8 0\n  %n3 = icmp eq i8 %n4, 0\n  call void (...) @use(i1 %n1, i1 %n3)\n  %r = or i1 %n1, %n3\n  ret i1 %r"
-    }
-  ],
-  "seconds": 3.3
+  "unexplained": [],
+  "seconds": 3.9,
+  "folds_unwatchable": []
 }

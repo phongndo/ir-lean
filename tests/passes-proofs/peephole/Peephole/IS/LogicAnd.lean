@@ -395,9 +395,9 @@ def simplifyAndInst (o : Oracle) (x : Option Ext) (op0 op1 : Term w) (n : Nat) :
   else run (simplifyAndInst.steps o x op0 op1 n)
 
 /-- What InstSimplify does with an instruction it reaches: `simplifyInstruction` calls `simplifyAndInst` on an `and`,
-with `MaxRecurse` at `RecursionLimit`, 3. What the core `Oracle` doesn't answer, `Logic.Ext.none` answers: nothing. -/
+with `MaxRecurse` at `RecursionLimit`, 3. What the core `Oracle` doesn't answer, `Logic.Ext.ofTerms` answers from the operands' trees. -/
 def simplifyAndInst.onInst (o : Oracle) : {w : Nat} → Term w → Result w
-  | _, .bin _ .and _ a b => simplifyAndInst o (some Ext.none) a b 3
+  | _, .bin _ .and _ a b => simplifyAndInst o (some Ext.ofTerms) a b 3
   | _, _ => .null
 
 /-! ### What the helpers' matches say about values -/
@@ -735,7 +735,7 @@ theorem simplifyAndCommutative.sound (ρ : Env) (o : Oracle) (ho : o.Sound ρ) (
         exact simplifyAndCommutative.L2060 ρ o ho op0 op1 X X' sh shift1 shift2 c0 c1 h0 h1 h2 (by assumption)
       · simp only [reduceCtorEq] at h
     · simp only [reduceCtorEq] at h
-  · have := simplifyAndOrWithICmpEq.sound ρ x hx true false op0 op1 n c0 (run_of_forward h.symm)
+  · have := simplifyAndOrWithICmpEq.sound ρ x hx true false op0 op1 n c0 c1 (run_of_forward h.symm)
     simpa [andOrSrc] using this
 
 /-! ### `simplifyAndInst`'s rewrites, one theorem each -/
@@ -1114,7 +1114,7 @@ theorem simplifyAndInst.onInst_sound (ρ : Env) (o : Oracle) (ho : o.Sound ρ) (
     cases op <;> simp only [simplifyAndInst.onInst, reduceCtorEq] at h
     obtain ⟨ca, cb, -⟩ := ht
     simp only [Term.hasUndef, Bool.or_eq_false_iff] at hu
-    exact simplifyAndInst.sound ρ o ho _ (some_none_sound ρ) a b 3 ca cb hu.1 hu.2 h
+    exact simplifyAndInst.sound ρ o ho _ (some_ofTerms_sound ρ) a b 3 ca cb hu.1 hu.2 h
   | _ => simp [simplifyAndInst.onInst] at h
 
 end Peephole.IS

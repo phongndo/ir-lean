@@ -342,9 +342,9 @@ def simplifyOrInst (o : Oracle) (x : Option Ext) (op0 op1 : Term w) (n : Nat) : 
 
 /-- What InstSimplify does with an instruction it reaches: `simplifyInstruction` calls `simplifyOrInst` on an `or`,
 whatever its `disjoint` flag, with `MaxRecurse` at `RecursionLimit`, 3. What the core `Oracle` doesn't answer,
-`Logic.Ext.none` answers: nothing. -/
+`Logic.Ext.ofTerms` answers from the operands' trees. -/
 def simplifyOrInst.onInst (o : Oracle) : {w : Nat} → Term w → Result w
-  | _, .bin _ .or _ a b => simplifyOrInst o (some Ext.none) a b 3
+  | _, .bin _ .or _ a b => simplifyOrInst o (some Ext.ofTerms) a b 3
   | _, _ => .null
 
 /-! ### What the matchers say about values -/
@@ -956,10 +956,10 @@ theorem simplifyOrInst.steps_sound (ρ : Env) (o : Oracle) (ho : o.Sound ρ) (x 
     obtain ⟨-, rfl⟩ := h
     exact simplifyOrInst.L2414 ρ op0 op1 d c0 c1 (by assumption)
   -- simplifyAndOrWithICmpEq both ways
-  · have := simplifyAndOrWithICmpEq.sound ρ x hx false d op0 op1 n c0 (run_of_forward h.symm)
+  · have := simplifyAndOrWithICmpEq.sound ρ x hx false d op0 op1 n c0 c1 (run_of_forward h.symm)
     simpa [andOrSrc] using this
   · rw [orSrc_comm]
-    have := simplifyAndOrWithICmpEq.sound ρ x hx false d op1 op0 n c1 (run_of_forward h.symm)
+    have := simplifyAndOrWithICmpEq.sound ρ x hx false d op1 op0 n c1 c0 (run_of_forward h.symm)
     simpa [andOrSrc] using this
   -- simplifyAndOrOfCmps, isCheckForZeroAndMulWithOverflow, simplifyAssociativeBinOp, expandCommutativeBinOp
   · split at h <;> simp only [reduceCtorEq] at h
@@ -1053,7 +1053,7 @@ theorem simplifyOrInst.onInst_sound (ρ : Env) (o : Oracle) (ho : o.Sound ρ) (t
     cases op <;> simp only [simplifyOrInst.onInst, reduceCtorEq] at h
     obtain ⟨ca, cb, -⟩ := ht
     simp only [Term.hasUndef, Bool.or_eq_false_iff] at hu
-    exact simplifyOrInst.sound ρ o ho _ (some_none_sound ρ) a b 3 f.disjoint ca cb hu.1 hu.2 h
+    exact simplifyOrInst.sound ρ o ho _ (some_ofTerms_sound ρ) a b 3 f.disjoint ca cb hu.1 hu.2 h
   | _ => simp [simplifyOrInst.onInst] at h
 
 end Peephole.IS
