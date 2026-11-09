@@ -1,0 +1,178 @@
+{
+  "lemmas": {
+    "d9d842756f": {
+      "name": "LemmaReuse.Store.layer_d9d842756f",
+      "module": "Lemma_layer_d9d842756f",
+      "kind": "layer",
+      "statement": "theorem layer_d9d842756f (a : BitVec 64) :\n    ((((((a - ((a >>> 1#64) &&& 6148914691236517205#64)) >>> 2#64) &&& 3689348814741910323#64) + ((a - ((a >>> 1#64) &&& 6148914691236517205#64)) &&& 3689348814741910323#64)) >>> 4#64) + ((((a - ((a >>> 1#64) &&& 6148914691236517205#64)) >>> 2#64) &&& 3689348814741910323#64) + ((a - ((a >>> 1#64) &&& 6148914691236517205#64)) &&& 3689348814741910323#64))) &&& 1085102592571150095#64 =\n      LemmaReuse.field a 8 7 ++ LemmaReuse.field a 8 6 ++ LemmaReuse.field a 8 5 ++ LemmaReuse.field a 8 4 ++ LemmaReuse.field a 8 3 ++ LemmaReuse.field a 8 2 ++ LemmaReuse.field a 8 1 ++ LemmaReuse.field a 8 0",
+      "bound": null,
+      "needed": null,
+      "check_seconds": 0.3,
+      "mined_by": "popcountdi2_same",
+      "used_by": [
+        "popcountdi2_same"
+      ]
+    },
+    "66a2d682f9": {
+      "name": "LemmaReuse.Store.split_66a2d682f9",
+      "module": "Lemma_split_66a2d682f9",
+      "kind": "split",
+      "statement": "theorem split_66a2d682f9 (a : BitVec 64) :\n    BitVec.setWidth 32 (BitVec.cpop a) =\n      BitVec.setWidth 32 (LemmaReuse.field a 8 0 + LemmaReuse.field a 8 1 + LemmaReuse.field a 8 2 + LemmaReuse.field a 8 3 + LemmaReuse.field a 8 4 + LemmaReuse.field a 8 5 + LemmaReuse.field a 8 6 + LemmaReuse.field a 8 7)",
+      "bound": null,
+      "needed": null,
+      "check_seconds": 0.3,
+      "mined_by": "popcountdi2_same",
+      "used_by": [
+        "popcountdi2_same"
+      ]
+    },
+    "6934d83747": {
+      "name": "LemmaReuse.Store.step_6934d83747",
+      "module": "Lemma_step_6934d83747",
+      "kind": "step",
+      "statement": "theorem step_6934d83747 {x0 x1 x2 x3 x4 x5 x6 x7 : BitVec 8} (_h0 : x0 ≤ 127#8) (_h1 : x1 ≤ 127#8) (_h2 : x2 ≤ 127#8) (_h3 : x3 ≤ 127#8) (_h4 : x4 ≤ 127#8) (_h5 : x5 ≤ 127#8) (_h6 : x6 ≤ 127#8) (_h7 : x7 ≤ 127#8) :\n    BitVec.setWidth 32 (((x7 ++ x6 ++ x5 ++ x4 ++ x3 ++ x2 ++ x1 ++ x0) >>> 32#64) + (x7 ++ x6 ++ x5 ++ x4 ++ x3 ++ x2 ++ x1 ++ x0)) =\n      (x7 + x3) ++ (x6 + x2) ++ (x5 + x1) ++ (x4 + x0)",
+      "bound": 127,
+      "needed": 8,
+      "check_seconds": 0.32,
+      "mined_by": "popcountdi2_same",
+      "used_by": [
+        "popcountdi2_same",
+        "popcountti2_same"
+      ]
+    },
+    "baa1347fcb": {
+      "name": "LemmaReuse.Store.step_baa1347fcb",
+      "module": "Lemma_step_baa1347fcb",
+      "kind": "step",
+      "statement": "theorem step_baa1347fcb {x0 x1 x2 x3 : BitVec 8} (_h0 : x0 ≤ 127#8) (_h1 : x1 ≤ 127#8) (_h2 : x2 ≤ 127#8) (_h3 : x3 ≤ 127#8) :\n    ((x3 ++ x2 ++ x1 ++ x0) >>> 16#32) + (x3 ++ x2 ++ x1 ++ x0) =\n      x3 ++ x2 ++ (x3 + x1) ++ (x2 + x0)",
+      "bound": 127,
+      "needed": 16,
+      "check_seconds": 0.32,
+      "mined_by": "popcountdi2_same",
+      "used_by": [
+        "popcountdi2_same",
+        "popcountti2_same",
+        "popcountsi2_same"
+      ]
+    },
+    "81f8a11ca6": {
+      "name": "LemmaReuse.Store.step_81f8a11ca6",
+      "module": "Lemma_step_81f8a11ca6",
+      "kind": "step",
+      "statement": "theorem step_81f8a11ca6 {x0 x1 x2 x3 : BitVec 8} (_h0 : x0 ≤ 127#8) (_h1 : x1 ≤ 127#8) (_h2 : x2 ≤ 127#8) (_h3 : x3 ≤ 127#8) :\n    ((x3 ++ x2 ++ x1 ++ x0) >>> 8#32) + (x3 ++ x2 ++ x1 ++ x0) =\n      x3 ++ (x3 + x2) ++ (x2 + x1) ++ (x1 + x0)",
+      "bound": 127,
+      "needed": 32,
+      "check_seconds": 0.32,
+      "mined_by": "popcountdi2_same",
+      "used_by": [
+        "popcountdi2_same",
+        "popcountti2_same",
+        "popcountsi2_same"
+      ]
+    },
+    "344daa4124": {
+      "name": "LemmaReuse.Store.step_344daa4124",
+      "module": "Lemma_step_344daa4124",
+      "kind": "step",
+      "statement": "theorem step_344daa4124 {x0 x1 x2 x3 : BitVec 8} (_h0 : x0 ≤ 127#8) (_h1 : x1 ≤ 127#8) (_h2 : x2 ≤ 127#8) (_h3 : x3 ≤ 127#8) :\n    (x3 ++ x2 ++ x1 ++ x0) &&& 127#32 =\n      BitVec.setWidth 32 x0",
+      "bound": 127,
+      "needed": 64,
+      "check_seconds": 0.32,
+      "mined_by": "popcountdi2_same",
+      "used_by": [
+        "popcountdi2_same"
+      ]
+    },
+    "0ff6fe9e15": {
+      "name": "LemmaReuse.Store.layer_0ff6fe9e15",
+      "module": "Lemma_layer_0ff6fe9e15",
+      "kind": "layer",
+      "statement": "theorem layer_0ff6fe9e15 (a : BitVec 128) :\n    ((((((a - ((a >>> 1#128) &&& 113427455640312821154458202477256070485#128)) >>> 2#128) &&& 68056473384187692692674921486353642291#128) + ((a - ((a >>> 1#128) &&& 113427455640312821154458202477256070485#128)) &&& 68056473384187692692674921486353642291#128)) >>> 4#128) + ((((a - ((a >>> 1#128) &&& 113427455640312821154458202477256070485#128)) >>> 2#128) &&& 68056473384187692692674921486353642291#128) + ((a - ((a >>> 1#128) &&& 113427455640312821154458202477256070485#128)) &&& 68056473384187692692674921486353642291#128))) &&& 20016609818878733144904388672456953615#128 =\n      LemmaReuse.field a 8 15 ++ LemmaReuse.field a 8 14 ++ LemmaReuse.field a 8 13 ++ LemmaReuse.field a 8 12 ++ LemmaReuse.field a 8 11 ++ LemmaReuse.field a 8 10 ++ LemmaReuse.field a 8 9 ++ LemmaReuse.field a 8 8 ++ LemmaReuse.field a 8 7 ++ LemmaReuse.field a 8 6 ++ LemmaReuse.field a 8 5 ++ LemmaReuse.field a 8 4 ++ LemmaReuse.field a 8 3 ++ LemmaReuse.field a 8 2 ++ LemmaReuse.field a 8 1 ++ LemmaReuse.field a 8 0",
+      "bound": null,
+      "needed": null,
+      "check_seconds": 0.38,
+      "mined_by": "popcountti2_same",
+      "used_by": [
+        "popcountti2_same"
+      ]
+    },
+    "b78ac5f9a3": {
+      "name": "LemmaReuse.Store.split_b78ac5f9a3",
+      "module": "Lemma_split_b78ac5f9a3",
+      "kind": "split",
+      "statement": "theorem split_b78ac5f9a3 (a : BitVec 128) :\n    BitVec.setWidth 32 (BitVec.cpop a) =\n      BitVec.setWidth 32 (LemmaReuse.field a 8 0 + LemmaReuse.field a 8 1 + LemmaReuse.field a 8 2 + LemmaReuse.field a 8 3 + LemmaReuse.field a 8 4 + LemmaReuse.field a 8 5 + LemmaReuse.field a 8 6 + LemmaReuse.field a 8 7 + LemmaReuse.field a 8 8 + LemmaReuse.field a 8 9 + LemmaReuse.field a 8 10 + LemmaReuse.field a 8 11 + LemmaReuse.field a 8 12 + LemmaReuse.field a 8 13 + LemmaReuse.field a 8 14 + LemmaReuse.field a 8 15)",
+      "bound": null,
+      "needed": null,
+      "check_seconds": 0.25,
+      "mined_by": "popcountti2_same",
+      "used_by": [
+        "popcountti2_same"
+      ]
+    },
+    "3d395ad3fc": {
+      "name": "LemmaReuse.Store.step_3d395ad3fc",
+      "module": "Lemma_step_3d395ad3fc",
+      "kind": "step",
+      "statement": "theorem step_3d395ad3fc {x0 x1 x2 x3 x4 x5 x6 x7 x8 x9 x10 x11 x12 x13 x14 x15 : BitVec 8} (_h0 : x0 ≤ 127#8) (_h1 : x1 ≤ 127#8) (_h2 : x2 ≤ 127#8) (_h3 : x3 ≤ 127#8) (_h4 : x4 ≤ 127#8) (_h5 : x5 ≤ 127#8) (_h6 : x6 ≤ 127#8) (_h7 : x7 ≤ 127#8) (_h8 : x8 ≤ 127#8) (_h9 : x9 ≤ 127#8) (_h10 : x10 ≤ 127#8) (_h11 : x11 ≤ 127#8) (_h12 : x12 ≤ 127#8) (_h13 : x13 ≤ 127#8) (_h14 : x14 ≤ 127#8) (_h15 : x15 ≤ 127#8) :\n    BitVec.setWidth 64 (((x15 ++ x14 ++ x13 ++ x12 ++ x11 ++ x10 ++ x9 ++ x8 ++ x7 ++ x6 ++ x5 ++ x4 ++ x3 ++ x2 ++ x1 ++ x0) >>> 64#128) + (x15 ++ x14 ++ x13 ++ x12 ++ x11 ++ x10 ++ x9 ++ x8 ++ x7 ++ x6 ++ x5 ++ x4 ++ x3 ++ x2 ++ x1 ++ x0)) =\n      (x15 + x7) ++ (x14 + x6) ++ (x13 + x5) ++ (x12 + x4) ++ (x11 + x3) ++ (x10 + x2) ++ (x9 + x1) ++ (x8 + x0)",
+      "bound": 127,
+      "needed": 8,
+      "check_seconds": 0.29,
+      "mined_by": "popcountti2_same",
+      "used_by": [
+        "popcountti2_same"
+      ]
+    },
+    "b4f1aa7047": {
+      "name": "LemmaReuse.Store.step_b4f1aa7047",
+      "module": "Lemma_step_b4f1aa7047",
+      "kind": "step",
+      "statement": "theorem step_b4f1aa7047 {x0 x1 x2 x3 : BitVec 8} (_h0 : x0 ≤ 255#8) (_h1 : x1 ≤ 255#8) (_h2 : x2 ≤ 255#8) (_h3 : x3 ≤ 255#8) :\n    (x3 ++ x2 ++ x1 ++ x0) &&& 255#32 =\n      BitVec.setWidth 32 x0",
+      "bound": 255,
+      "needed": 128,
+      "check_seconds": 0.26,
+      "mined_by": "popcountti2_same",
+      "used_by": [
+        "popcountti2_same"
+      ]
+    },
+    "15cdd830e1": {
+      "name": "LemmaReuse.Store.layer_15cdd830e1",
+      "module": "Lemma_layer_15cdd830e1",
+      "kind": "layer",
+      "statement": "theorem layer_15cdd830e1 (a : BitVec 32) :\n    ((((((a - ((a >>> 1#32) &&& 1431655765#32)) >>> 2#32) &&& 858993459#32) + ((a - ((a >>> 1#32) &&& 1431655765#32)) &&& 858993459#32)) >>> 4#32) + ((((a - ((a >>> 1#32) &&& 1431655765#32)) >>> 2#32) &&& 858993459#32) + ((a - ((a >>> 1#32) &&& 1431655765#32)) &&& 858993459#32))) &&& 252645135#32 =\n      LemmaReuse.field a 8 3 ++ LemmaReuse.field a 8 2 ++ LemmaReuse.field a 8 1 ++ LemmaReuse.field a 8 0",
+      "bound": null,
+      "needed": null,
+      "check_seconds": 0.26,
+      "mined_by": "popcountsi2_same",
+      "used_by": [
+        "popcountsi2_same"
+      ]
+    },
+    "91f21dc64e": {
+      "name": "LemmaReuse.Store.split_91f21dc64e",
+      "module": "Lemma_split_91f21dc64e",
+      "kind": "split",
+      "statement": "theorem split_91f21dc64e (a : BitVec 32) :\n    BitVec.cpop a =\n      BitVec.setWidth 32 (LemmaReuse.field a 8 0 + LemmaReuse.field a 8 1 + LemmaReuse.field a 8 2 + LemmaReuse.field a 8 3)",
+      "bound": null,
+      "needed": null,
+      "check_seconds": 0.24,
+      "mined_by": "popcountsi2_same",
+      "used_by": [
+        "popcountsi2_same"
+      ]
+    },
+    "b7ebfec089": {
+      "name": "LemmaReuse.Store.step_b7ebfec089",
+      "module": "Lemma_step_b7ebfec089",
+      "kind": "step",
+      "statement": "theorem step_b7ebfec089 {x0 x1 x2 x3 : BitVec 8} (_h0 : x0 ≤ 63#8) (_h1 : x1 ≤ 63#8) (_h2 : x2 ≤ 63#8) (_h3 : x3 ≤ 63#8) :\n    (x3 ++ x2 ++ x1 ++ x0) &&& 63#32 =\n      BitVec.setWidth 32 x0",
+      "bound": 63,
+      "needed": 32,
+      "check_seconds": 0.26,
+      "mined_by": "popcountsi2_same",
+      "used_by": [
+        "popcountsi2_same"
+      ]
+    }
+  }
+}

@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 # shellcheck disable=SC2329 # `start` and `in_dir` call these functions.
 # Regenerates Lean from real compiler output, then checks the proofs against it. A proof fails if it
-# relies on any axiom outside `check_axioms`' list, which rules out `sorry`, or if the regenerated code
-# no longer satisfies it.
+# relies on any axiom outside `check_axioms`' list, which rules out `sorry`, if `leanchecker` rejects it, if
+# its theorem doesn't name the function ir-lean generated, or if the regenerated code no longer satisfies it.
+# A bug put in the C has to stop the proof with an error of its own, and not by running out of resources.
 # usage: tests/proofs.sh path/to/ir-lean [--generate DIR]
 # `--generate` only writes the modules the proofs import to DIR, where `lake build Proofs` and the
 # language server look for them.
@@ -119,9 +120,21 @@ compile_split() {
 # and fixes the target, so a proof checks the same IR on every host. -fno-strict-aliasing leaves out `tbaa`,
 # which the emitter refuses.
 translate() {
+  local status=0 left
   # shellcheck disable=SC2086 # PROOF_CFLAGS is several flags.
   clang $PROOF_CFLAGS -O2 -fno-strict-aliasing -S -emit-llvm -fno-discard-value-names -D_LARGEFILE64_SOURCE=1 -o "$3/$2.ll" "$1"
-  "$tool" "$3/$2.ll" --split "$3" --namespace "$2" --no-code >/dev/null
+  left=$("$tool" "$3/$2.ll" --split "$3" --namespace "$2" --no-code 2>&1 >/dev/null) || status=$?
+  # Exit 3 means some functions were left out, which is fine only if they're exactly the ones expected.
+  if [ "$status" = 3 ] && [ "$(sed -n 's/^ir-lean: left out @\([^:]*\):.*/\1/p' <<<"$left" | tr '\n' ' ')" = "$(may_leave_out "$2")" ]; then
+    status=0
+  fi
+  [ "$status" = 0 ] || printf '%s\n' "$left" >&2
+  return "$status"
+}
+
+# The functions a module may leave out: in `Inflate`, the two that call `crc32` and `adler32`, from other files.
+may_leave_out() {
+  if [ "$1" = Inflate ]; then printf 'inflate inflateSetDictionary '; fi
 }
 
 gen() {
@@ -140,13 +153,25 @@ start() {
 }
 
 # Prints the axioms of everything in a compiled proof module, or fails naming any that aren't allowed.
-# This looks at the module rather than trusting its `#print axioms`, which a proof could leave out. The
-# standard three are allowed, and so is what `bv_decide` adds for each call, an axiom that a Bool it
-# worked out natively is true. A name is easy to fake, so each of those gets worked out again here.
+# This reads the module and what it imports as data, rather than trusting its `#print axioms`, which a proof
+# could leave out, or running any of its code. The standard three are allowed, and so is what `bv_decide` adds
+# for each call, an axiom that a Bool it worked out natively is true. A name is easy to fake, so each of those
+# gets worked out again here, and `implemented_by` and `extern` are refused. Then `leanchecker` replays the
+# module's declarations through the kernel, since Lean code can add one the kernel never checked.
+# With a namespace, a theorem and a function, it also checks that the theorem is about that function, as ir-lean
+# generated it.
+# usage: check_axioms MODULE [NAMESPACE THEOREM FUNCTION]
 check_axioms() {
-  sed "s/MODULE/$1/g" "$root/tests/check_axioms.lean" | in_dir "$work" lean --stdin
+  local replay
+  IRLEAN_CHECK_MODULE=$1 IRLEAN_CHECK_GENERATED=${2:-} IRLEAN_CHECK_THEOREMS=${3:+$3 $2.$4} \
+    in_dir "$work" lean "$root/tests/check_axioms.lean" || return 1
+  if ! replay=$(in_dir "$work" leanchecker "$1" 2>&1); then
+    printf 'leanchecker rejects %s: %s\n' "$1" "${replay:0:2000}"
+    return 1
+  fi
 }
 
+# usage: check_proof FILE [NAMESPACE THEOREM FUNCTION]
 check_proof() {
   local name=${1##*/} module axioms key
   module=${name%.lean}
@@ -155,10 +180,10 @@ check_proof() {
     head -c 4000 "$work/$name.out"
     return 1
   fi
-  key=$(<"$work/$module.key")
+  key=$(printf '%s\n' "$(<"$work/$module.key")" "$@" | sha256sum | cut -d' ' -f1)
   if known "$key.axioms"; then
     axioms=$(<"$cache/$key.axioms")
-  elif axioms=$(check_axioms "$module" 2>&1); then
+  elif axioms=$(check_axioms "$module" "${@:2}" 2>&1); then
     printf '%s' "$axioms" | remember "$key.axioms"
   else
     printf 'FAIL  %s\n%s\n' "$name" "${axioms:0:4000}"
@@ -167,16 +192,18 @@ check_proof() {
   printf 'ok    %s (axioms: %s)\n' "$name" "$axioms"
 }
 
-# Each of these has to fail in the axiom check itself, and not for some other reason.
-# usage: must_reject NAME LEAN_SOURCE
+# Each of these has to fail in the axiom check itself, and not for some other reason. With a namespace, a theorem and
+# a function, it's checked that the theorem is about that function, and that can fail too.
+# usage: must_reject NAME LEAN_SOURCE [NAMESPACE THEOREM FUNCTION]
+about="isn't in what ir-lean generated|doesn't mention"
 must_reject() {
   local dir output key
-  key=$(printf '%s\n%s\n' "$library" "$2" | sha256sum | cut -d' ' -f1)
+  key=$(printf '%s\n' "$library" "$@" | sha256sum | cut -d' ' -f1)
   if ! known "$key.rejected"; then
     dir=$(mktemp -d -p "$work")
     printf '%s\n' "$2" >"$dir/Bad${1//[^a-z]/}.lean"
-    output=$(check_proof "$dir/Bad${1//[^a-z]/}.lean" 2>&1 || true)
-    if ! grep -qE 'not an allowed axiom|not what bv_decide would add' <<<"$output"; then
+    output=$(check_proof "$dir/Bad${1//[^a-z]/}.lean" "${@:3}" 2>&1 || true)
+    if ! grep -qE "not an allowed axiom|not what bv_decide would add|uses implemented_by|uses extern|leanchecker rejects|$about" <<<"$output"; then
       printf 'FAIL  a proof with %s still passes\n%s\n' "$1" "$output"
       return 1
     fi
@@ -185,15 +212,27 @@ must_reject() {
   printf 'ok    a proof with %s fails\n' "$1"
 }
 
+# Lean's errors for running out of time, memory or stack, in a tactic or the kernel. A proof that stops at one of
+# these might check with more, so it says nothing about whether the code it's about changed.
+limit='maximum number of heartbeats|\(deterministic\) timeout|maximum recursion depth|deep recursion|stack overflow|'
+limit+='excessive memory|out of memory|SAT solver timed out|maximum number of steps'
+
 # Whether a proof fails with an error of its own, which is all a broken proof needs to show, so this doesn't
-# wait for the rest of it. An error at 1:0 is about the file's imports, and says nothing about the proof.
+# wait for the rest of it. An error at 1:0 is about the file's imports, and says nothing about the proof. A resource
+# limit isn't an error of its own, and Lean goes on to the next declaration after one, with the one that failed
+# still there for the rest to use. Returns 0 if it fails, 1 if it checks, and 2 if that's unknown: its only errors
+# are resource limits, or Lean stopped with no error at all.
 # usage: stops_checking DIR PROOF
 stops_checking() {
-  local line output pid status=0
+  local line output pid status=0 limited=
   exec {output}< <(LEAN_PATH="$1:$root/.lake/build/lib/lean" exec lean -M "${LEAN_MAX_MB:-4000}" "$2" 2>&1)
   pid=$!
   while IFS= read -r line <&"$output"; do
     if [[ $line == "$2:"*": error"* && $line != "$2:1:0:"* ]]; then
+      if grep -qE "$limit" <<<"$line"; then
+        limited=${limited:-$line}
+        continue
+      fi
       kill "$pid" 2>/dev/null
       wait "$pid" 2>/dev/null
       exec {output}<&-
@@ -203,14 +242,20 @@ stops_checking() {
   done
   wait "$pid" || status=$?
   exec {output}<&-
-  [ "$status" != 0 ] && printf 'exit %s, with no error in %s\n' "$status" "$2"
+  if [ -n "$limited" ]; then
+    printf 'its only errors are resource limits, such as %s\n' "${limited:0:500}"
+    return 2
+  elif [ "$status" != 0 ]; then
+    printf 'exit %s, with no error in %s\n' "$status" "$2"
+    return 2
+  fi
   return 1
 }
 
 # A proof has to depend on the code. Break the C, and the same proof must stop checking.
 # usage: must_break NAME MODULE DIR C_FILE FILE_TO_EDIT PROOF SED
 must_break() {
-  local broken module key proofs=("$6")
+  local broken module key why stopped proofs=("$6")
   broken=$(mktemp -d -p "$work")
   cp -r "$3" "$broken/src"
   sed -i "$7" "$broken/src/$5"
@@ -232,17 +277,29 @@ must_break() {
   # These two only depend on the globals. If those changed, they may be what stops checking.
   if [ "$2" = Crc ]; then
     for module in CrcTables CrcSpec; do
-      if ! known "$(module_key "$broken" "$root/tests/proofs/$module.lean").olean" &&
-        stops_checking "$broken" "$root/tests/proofs/$module.lean"; then
-        remember "$key.broke" </dev/null
-        printf 'ok    %s: the proof stops checking\n' "$1"
-        return 0
+      if ! known "$(module_key "$broken" "$root/tests/proofs/$module.lean").olean"; then
+        stopped=0
+        why=$(stops_checking "$broken" "$root/tests/proofs/$module.lean") || stopped=$?
+        if [ "$stopped" = 0 ]; then
+          remember "$key.broke" </dev/null
+          printf 'ok    %s: the proof stops checking\n' "$1"
+          return 0
+        elif [ "$stopped" = 2 ]; then
+          printf 'FAIL  %s: unknown whether %s stops checking: %s\n' "$1" "$module" "$why"
+          return 1
+        fi
       fi
       compile "$broken" "$root/tests/proofs" "$broken/$module.olean" "$root/tests/proofs/$module.lean" >/dev/null
     done
   fi
-  if ! stops_checking "$broken" "$6"; then
-    printf 'FAIL  %s: the proof still checks\n' "$1"
+  stopped=0
+  why=$(stops_checking "$broken" "$6") || stopped=$?
+  if [ "$stopped" = 1 ]; then
+    printf 'FAIL  %s: the proof still checks\n%s' "$1" "${why:+$why$'\n'}"
+    return 1
+  elif [ "$stopped" = 2 ]; then
+    # More time or memory might let the proof check, so the bug isn't shown to break it.
+    printf 'FAIL  %s: unknown whether the proof stops checking: %s\n' "$1" "$why"
     return 1
   fi
   remember "$key.broke" </dev/null
@@ -253,7 +310,8 @@ if [ "${2:-}" = --generate ]; then
   translate "$root/tests/real/bi_reverse.c" Real "$work"
   translate "$work/zlib/adler32.c" Zlib "$work"
   translate "$work/zlib/crc32.c" Crc "$work"
-  for module in Real Zlib Crc; do
+  translate "$work/zlib/inflate.c" Inflate "$work"
+  for module in Real Zlib Crc Inflate; do
     mkdir -p "$3/$module"
     cp "$work/$module.lean" "$3"
     cp "$work/$module"/*.lean "$3/$module"
@@ -267,16 +325,21 @@ gen "$work/zlib/adler32.c" Zlib "$work" &
 adler=$!
 gen "$work/zlib/crc32.c" Crc "$work" &
 crc=$!
+gen "$work/zlib/inflate.c" Inflate "$work" &
+inflate=$!
 # Each runs to the end, so that nothing is left using the directory the exit deletes.
 failed=0
 wait "$real" || failed=1
 wait "$adler" || failed=1
 wait "$crc" || failed=1
+wait "$inflate" || failed=1
 [ "$failed" = 0 ] || exit 1
 
-for proof in Adler32 Popcount; do
-  start check_proof "$root/tests/proofs/$proof.lean"
-done
+# Each theorem has to be about the function ir-lean generated, in the module the proof imports.
+start check_proof "$root/tests/proofs/Adler32.lean" Zlib adler32_z_correct adler32_z
+start check_proof "$root/tests/proofs/MemoryModel.lean"
+start check_proof "$root/tests/proofs/Popcount.lean" Real popcount_correct popcount
+start check_proof "$root/tests/proofs/UpdateWindow.lean" Inflate updatewindow_safe updatewindow
 
 start must_reject 'its own axiom' 'axiom cheat : 1 = 2
 theorem wrong : 1 = 2 := cheat
@@ -290,10 +353,46 @@ start must_reject 'an axiom named like bv_decide' 'axiom t._native.bv_decide.ax_
 theorem wrong : 1 = 2 := t._native.bv_decide.ax_1_1'
 start must_reject 'a false axiom shaped like bv_decide' 'axiom t._native.bv_decide.ax_1_1 : false = true
 theorem wrong : 1 = 2 := by have := t._native.bv_decide.ax_1_1; contradiction'
+# Compiled code runs `truth` for `lie`, so rerunning the axiom natively says it holds.
+start must_reject 'a bv_decide axiom that implemented_by makes true' 'def truth : Bool := true
+@[implemented_by truth] def lie : Bool := false
+axiom t._native.bv_decide.ax_1_1 : lie = true
+theorem wrong : 1 = 2 := by have h : lie = true := t._native.bv_decide.ax_1_1; simp [lie] at h'
+# A theorem about something of its own, named like a function ir-lean left out, or about nothing it generated.
+start must_reject 'a theorem about a lookalike of the function' 'import Real
+def Real.left_out (x : Nat) : Nat := x
+theorem lookalike : Real.left_out 1 = 1 := rfl' Real lookalike left_out
+start must_reject 'a theorem that is not about the function' 'import Real
+theorem unrelated : 1 + 1 = 2 := rfl' Real unrelated popcount
+start must_reject 'extern' '@[extern "lean_nat_add"] def add (a b : Nat) : Nat := a * b
+theorem right : add 2 2 = 4 := rfl'
+# The kernel never sees `oops`, so only replaying the module's declarations catches it.
+# shellcheck disable=SC2016 # Backquotes are Lean's names here, not the shell's.
+start must_reject 'a declaration the kernel skipped' 'import Lean
+open Lean Elab Command
+set_option debug.skipKernelTC true in
+run_cmd liftCoreM <| addDecl <| .thmDecl {
+  name := `oops, levelParams := [], type := mkConst ``False, value := mkConst ``True.intro }
+theorem wrong : 1 = 2 := oops.elim'
+
+# A proof that only runs out of heartbeats might check with more, so it can't count as stopped.
+limit_is_unknown() {
+  local dir status=0
+  dir=$(mktemp -d -p "$work")
+  printf 'set_option maxHeartbeats 1 in\ntheorem slow : 2 ^ 20 = 1048576 := by decide\n' >"$dir/Slow.lean"
+  stops_checking "$dir" "$dir/Slow.lean" >/dev/null || status=$?
+  if [ "$status" != 2 ]; then
+    printf 'FAIL  a proof that only runs out of heartbeats counts as stopping, with %s\n' "$status"
+    return 1
+  fi
+  printf 'ok    a proof that only runs out of heartbeats is unknown, not stopped\n'
+}
+start limit_is_unknown
 
 breaks_popcount() { must_break "popcount $1" Real "$root/tests/real" bi_reverse.c bi_reverse.c "$root/tests/proofs/Popcount.lean" "$2"; }
 breaks_adler() { must_break "adler32 $1" Zlib "$work/zlib" adler32.c adler32.c "$root/tests/proofs/Adler32.lean" "$2"; }
 breaks_crc() { must_break "crc32 $1" Crc "$work/zlib" crc32.c "$2" "$root/tests/proofs/Crc32.lean" "$3"; }
+breaks_window() { must_break "updatewindow $1" Inflate "$work/zlib" inflate.c inflate.c "$root/tests/proofs/UpdateWindow.lean" "$2"; }
 
 start breaks_popcount 'shifts by 2' 's/x >>= 1;/x >>= 2;/'
 
@@ -303,9 +402,14 @@ start breaks_adler 'wrong sum' 's/#define DO1(buf,i)  {adler += (buf)\[i\]; sum2
 start breaks_adler 'skips a byte per block' 's/len -= NMAX;/len -= NMAX - 1;/'
 start breaks_adler 'single-byte path forgets the modulus' '/^    if (len == 1) {/,/^    }/ s/if (adler >= BASE)/if (adler > BASE)/'
 
+# Each of these is a memory bug: the first reads past the end of the output, and the others write past the window.
+start breaks_window 'copies past what the output has' 's/        if (dist > copy) dist = copy;//'
+start breaks_window 'thinks the window is twice its size' 's/state->wsize = 1U << state->wbits;/state->wsize = 2U << state->wbits;/'
+start breaks_window 'copies one byte too many' 's/zmemcpy(state->window + state->wnext, end - copy, dist);/zmemcpy(state->window + state->wnext, end - copy, dist + 1);/'
+
 # Crc32 and the mutants of crc32.c need these two.
 if check_proof "$root/tests/proofs/CrcTables.lean" && check_proof "$root/tests/proofs/CrcSpec.lean"; then
-  start check_proof "$root/tests/proofs/Crc32.lean"
+  start check_proof "$root/tests/proofs/Crc32.lean" Crc crc32_z_correct crc32_z
 
   start breaks_crc 'wrong table entry' crc32.h 's/0x77073096/0x77073097/'
   start breaks_crc 'wrong braid table entry' crc32.h 's/0xaf449247/0xaf449246/'

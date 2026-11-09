@@ -1,0 +1,39 @@
+{
+  "schema": "ir-lean.verification-negative.case/1",
+  "category": "resource",
+  "summary": "The control's proof after a two-minute sleep, with 20 s to run",
+  "llvm_verdict": "valid",
+  "why": "A right rewrite whose check runs out of time is unknown, never proved.",
+  "claim": {
+    "binders": "(x : IRLean.Val 8)",
+    "hypotheses": [],
+    "src": "Opt.src x",
+    "tgt": "Opt.tgt x"
+  },
+  "names": [
+    "Opt.src",
+    "Opt.tgt"
+  ],
+  "request": {
+    "input": {
+      "ir": "Opt.ll"
+    },
+    "namespace": "Opt",
+    "function": "tgt",
+    "proof": "Proof.lean",
+    "theorem": "tgt_refines_src",
+    "limits": {
+      "timeout_seconds": 20,
+      "memory_mb": 4000
+    }
+  },
+  "expect": {
+    "certified": false,
+    "verify": [
+      "timeout/time_limit"
+    ],
+    "gate": [
+      "not_proved"
+    ]
+  }
+}

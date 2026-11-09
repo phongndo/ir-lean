@@ -28,7 +28,8 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 
-from llvm import PROOFS, ROOT, Pipeline, run
+import alive
+from llvm import LEAN_ERROR, LIMIT, PROOFS, ROOT, Pipeline, run
 
 REWRITES = PROOFS / "rewrites"
 
@@ -293,6 +294,8 @@ def main() -> int:
         for module in config.get("support", []):
             pipeline.compile_lean(work, PROOFS / f"{module}.lean", PROOFS)
 
+        # Each theorem in Rewrites.lean says a rewrite does what clang left, so it has to name both functions.
+        theorems = []
         for module, symbol, width, result, proof in FUNCTIONS:
             target = targets[module]
             library = native(pipeline, target, work, module)
@@ -317,15 +320,16 @@ def main() -> int:
             print(f"found {symbol} in {seconds:.1f}s, {found.size} instructions: {'; '.join(found.ir)}")
 
             # An independent check of what the search found, against what clang left.
-            pipeline.generate(target, work)
+            original = pipeline.generate(target, work).get(symbol, (False, "it isn't in the IR"))
             try:
                 output = run(["alive-tv", "--disable-undef-input", str(work / f"{module}.ll"), str(rewrite)])
             except RuntimeError as error:
                 print(f"FAIL  {symbol}: Alive2 didn't accept it: {str(error)[:1000]}")
                 failed = True
                 continue
-            if "Transformation seems to be correct" not in output or "0 incorrect" not in output:
-                print(f"FAIL  {symbol}: Alive2 says:\n{output[:1000]}")
+            # alive-tv exits 0 when its solver times out, so only its count of what it proved says it agrees.
+            if alive.verdict(output) != "correct":
+                print(f"FAIL  {symbol}: Alive2 doesn't prove it:\n{output[-1000:]}")
                 failed = True
                 continue
             print(f"ok    {symbol}: Alive2 agrees")
@@ -345,6 +349,17 @@ def main() -> int:
                 capture_output=True,
             )
             pipeline.lean(work, "-R", str(work), "-o", str(work / f"Rw{proof}.olean"), str(generated))
+            report = run([str(pipeline.tool), str(rewrite), "--namespace", f"Rw{proof}", "--report"])
+            lean_name = next(
+                (f[2] for f in (line.split("\t") for line in report.splitlines()) if f[:2] == ["ok", symbol]),
+                None,
+            )
+            if not original[0] or lean_name is None:
+                print(f"FAIL  {symbol}: ir-lean left out what clang left or the rewrite: {original[1]}")
+                failed = True
+                continue
+            same = f"{symbol.lstrip('_')}_same"
+            theorems += [f"{same} {module}.{original[1]}", f"{same} Rw{proof}.{lean_name}"]
 
             if args.bench:
                 for march in ([], ["-march=x86-64-v3"]):
@@ -358,7 +373,11 @@ def main() -> int:
 
         try:
             pipeline.compile_lean(work, PROOFS / "Rewrites.lean", PROOFS)
-            print(f"ok    Rewrites.lean (axioms: {pipeline.axioms(work, 'Rewrites')})")
+            namespaces = " ".join(n for f in FUNCTIONS for n in (f[0], f"Rw{f[4]}"))
+            axioms = pipeline.axioms(work, "Rewrites", namespaces, "\n".join(theorems))
+            for module in ["Rewrites", *config.get("support", [])]:
+                pipeline.replay(work, module)
+            print(f"ok    Rewrites.lean (axioms: {axioms})")
         except RuntimeError as error:
             print(f"FAIL  Rewrites.lean\n{str(error)[:4000]}")
             failed = True
@@ -391,17 +410,22 @@ def main() -> int:
             text=True,
             check=False,
         )
-        alive = subprocess.run(
+        wrong_alive = subprocess.run(
             ["alive-tv", "--disable-undef-input", str(work / "CrtClzsi2.ll"), str(wrong_ir)],
             capture_output=True,
             text=True,
             check=False,
         )
+        # Running out of time or memory says the theorem might still check, so only another error counts.
+        errors = [line for line in result.stdout.splitlines() if LEAN_ERROR.match(line)]
         if result.returncode == 0:
             print("FAIL  a wrong rewrite still passes the Lean theorem")
             failed = True
-        elif "Transformation doesn't verify" not in alive.stdout:
-            print(f"FAIL  Alive2 didn't reject a wrong rewrite:\n{alive.stdout[:1000]}")
+        elif not [e for e in errors if not LIMIT.search(e)]:
+            print(f"FAIL  unknown whether a wrong rewrite stops the theorem:\n{result.stdout[:1000]}")
+            failed = True
+        elif alive.verdict(wrong_alive.stdout) != "incorrect":
+            print(f"FAIL  Alive2 didn't reject a wrong rewrite:\n{wrong_alive.stdout[:1000]}")
             failed = True
         else:
             print("ok    a wrong rewrite stops the theorem, and Alive2 rejects it")

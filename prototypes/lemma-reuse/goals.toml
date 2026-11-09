@@ -1,0 +1,22 @@
+# What lemmas.py proves, in this order, so the first fills the store and the others can reuse it. Each says a rewrite
+# returns what clang's code returns, for every input: `target` is the module in tests/llvm/targets.toml, and `rewrite`
+# the IR that `lemmas.py rewrite` writes, which is what tests/superopt.py's search finds with a truncation added.
+
+[[goal]]
+theorem = "popcountdi2_same"
+target = "CrtPopcountdi2"
+symbol = "__popcountdi2"
+rewrite = "rewrites/Popcountdi2.ll"
+
+[[goal]]
+theorem = "popcountti2_same"
+target = "CrtPopcountti2"
+symbol = "__popcountti2"
+rewrite = "rewrites/Popcountti2.ll"
+
+# The rewrite tests/llvm/Rewrites.lean already proves, through the hand-written proof that clang's code is correct.
+[[goal]]
+theorem = "popcountsi2_same"
+target = "CrtPopcountsi2"
+symbol = "__popcountsi2"
+rewrite = "../../tests/llvm/rewrites/Popcountsi2.ll"

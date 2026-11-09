@@ -18,7 +18,7 @@ promise from its attributes broken, for every input meeting its hypotheses.
 | --- | --- | --- | --- | --- | --- |
 | [`Popcount.lean`](../tests/proofs/Popcount.lean) | A small example | Counting bits | 66 | About 1 second | None |
 | [`Adler32.lean`](../tests/proofs/Adler32.lean) | zlib's `adler32_z` | RFC 1950 | 651 | About 4 seconds | `Readable` buffer, non-null address, reduced starting sums |
-| [`Crc32.lean`](../tests/proofs/Crc32.lean), with [`CrcSpec.lean`](../tests/proofs/CrcSpec.lean) and [`CrcTables.lean`](../tests/proofs/CrcTables.lean) | zlib's `crc32_z` | RFC 1952 | 1,266 | About 8 seconds | `Readable` buffer, non-null address, `Tables` in place and aligned, and a pointer whose address may be looked at |
+| [`Crc32.lean`](../tests/proofs/Crc32.lean), with [`CrcSpec.lean`](../tests/proofs/CrcSpec.lean) and [`CrcTables.lean`](../tests/proofs/CrcTables.lean) | zlib's `crc32_z` | RFC 1952 | 1,185 | About 5 seconds | `Readable` buffer, non-null address, `Tables` in place and aligned, and a pointer whose address may be looked at |
 
 `Readable` and `Tables` hold for every real layout, called from outside any function that promised something
 about memory: LangRef requires of every object that it's smaller than `2^63` and doesn't cross the top of the
@@ -39,11 +39,22 @@ theorem crc32_z_correct {crc len : BitVec 64} (B : Readable m ts block o len.toN
 
 These are theorems about modeled IR. [The trust model](trust.md) says what that does and doesn't give you.
 
+### Memory safety
+
+zlib's `updatewindow` is proved memory-safe in [`UpdateWindow.lean`](../tests/proofs/UpdateWindow.lean). For every
+stream meeting its invariant, with room behind `end`, it returns 0 having changed only the window's first `wsize` bytes
+and three fields, and the invariant holds again, so the same holds across any number of calls. It assumes the window is
+already allocated. Four more theorems there show four of the preconditions are needed, and
+[`MemoryModel.lean`](../tests/proofs/MemoryModel.lean) proves what the model does with invalid accesses.
+[Memory safety](memory.md) has the statement, its preconditions, and what it leaves out. These were checked on top of
+`6293d34`: 955 lines, about 2 seconds and 0.9 GB, and 223 lines for the model's.
+
 ### LLVM's own code
 
-86 functions from `llvm-project` at `llvmorg-23.1.3` are also proved, under the same rules, and each with its own injected bug
+87 functions from `llvm-project` at `llvmorg-23.1.3` are also proved, under the same rules, and each with its own injected bug
 that stops its proof. [LLVM's own code](llvm.md) has them, how to reproduce them, what they assume, and two rewrites that
-measurably beat `clang -O3`, proved to do the same. Those results are from 2026-11-06, on top of `c389ecc`.
+measurably beat `clang -O3`, proved to do the same. Those results are from 2026-11-06, on top of `c389ecc`, apart from
+`internal::isalnum`, from 2026-11-07 on top of `6293d34`.
 
 ### llama.cpp
 
@@ -71,11 +82,13 @@ Evidence and not proof. A pass here means no disagreement was found on the input
   the layout as Alive2 confirms, with none unchecked or wrong.
 - **Random functions:** fuzzed integer functions at random optimization levels, against native code.
 - **Undefined behavior:** 46 functions LLVM calls undefined stop the model ([`ub.ll`](../tests/real/ub.ll)),
-  including each promise being broken. 18 that LLVM doesn't call undefined stop without being called so
+  including each promise being broken. 14 memory errors each stop it for their own reason
+  ([`memory_errors.ll`](../tests/real/memory_errors.ll)), and `memory_errors` fails if any reason changes. 18 that LLVM doesn't call undefined stop without being called so
   ([`stops.ll`](../tests/real/stops.ll)).
 - **Promises kept:** 25 functions that keep their promises match native code with no input skipped
   ([`promises.ll`](../tests/real/promises.ll)).
-- **Dependence on the code:** 13 bugs injected into the C each make a proof stop checking.
+- **Dependence on the code:** 16 bugs injected into the C each make a proof stop checking, three of them memory bugs in
+  `updatewindow`.
 - **Dependence on the rules:** as a one-off, 114 rules for GEPs and promises were each broken in turn. 108 were
   caught. Of the rest, 4 needed new tests, which now catch them, 1 only shows on layouts that can't exist and is
   checked directly in Lean, and 1 is implied by the others, with a proof.
@@ -113,15 +126,61 @@ Checking the translation takes 8 seconds and 1.5 GB, in its own module. Measured
 median `inflate` block was 4 lines of Lean and the largest 49, and proving things about its blocks cost about 14 seconds once per proof file, to build the equations for its `step`, then almost nothing
 per block.
 
+`updatewindow` cost far more per instruction: about 365 lines of running blocks for its 83 instructions, or 4.4 each.
+It does little arithmetic, but every load, store and copy needs facts about what memory holds, and every store needs
+what it left alone. `inflate_fast` is mostly that kind of code, so the estimate below may be low for it.
+
 So the mechanics scale. At `crc32`'s 0.63 lines per instruction, the 4,191 instructions above come to
 about 2,600 lines of running blocks, and the earlier plan rounded that to about 3,000. That is an
 estimate, and it isn't the hard part. Nothing is measured yet for the invariant, which is.
 
+### What checking costs
+
+Measured on 2026-11-07 on an Apple M4 Max with 16 cores and 64 GB, on top of `6293d34`, with Lean 4.35.0 and clang
+23.1.3, while other work kept the load average between 4 and 10. [`tests/proof_bench.py`](../tests/proof_bench.py)
+checked each proof alone, 5 times, against the same generated code. Times are medians, and memory is the largest peak
+of any run, which on macOS counts about 650 MB of `.olean` files that Lean maps.
+
+| Proof | Before | After | Peak memory before | After |
+| --- | --- | --- | --- | --- |
+| `CrcTables` | 4.20 s | 1.89 s | 948 MB | 1,227 MB |
+| `CrcSpec` | 0.87 s | Unchanged | 808 MB | Unchanged |
+| `Crc32` | 2.19 s | Unchanged | 954 MB | Unchanged |
+| `Adler32` | 3.69 s | Unchanged | 978 MB | Unchanged |
+| `Udivmoddi4` | 7.56 s | Unchanged | 957 MB | Unchanged |
+
+Most of the time goes to `bv_decide`, about 20 ms a call on its own, and `Udivmoddi4` makes 210 calls, 119 of them to
+the SAT solver. Two things about Lean 4.35 decide how that adds up:
+
+- **A file checks in order.** Lean elaborates theorems in parallel, but `bv_decide` and `decide +kernel` add
+  declarations that wait until every earlier declaration in the file has been checked. So a file of such proofs runs
+  on about one core: `Udivmoddi4` takes 7.8 s with `-j1` and 7.4 s with 16 threads. Only separate modules check in
+  parallel.
+- **The kernel shares work only within one declaration.** `CrcTables` checked each of its nine tables in a theorem of
+  its own, working out the same CRC steps again for each. It now checks them in one theorem, with the steps counted so
+  that each table's are on the way to the next one's, so each entry is worked out once, at the cost of the memory the
+  kernel keeps meanwhile. The theorems `CrcSpec` uses say what they said before.
+
+The tests, with nothing in their caches, `LEAN_JOBS=4`, alternating old and new:
+
+| Test | Before | After |
+| --- | --- | --- |
+| `tests/proofs.sh`, 25 checks | 29.9, 30.3, 31.1, 32.9 and 42.1 s | 23.5 and 23.6 s |
+| `tests/llvm.py`, 86 functions and 99 mutants | 105.0, 105.9 and 143.1 s, using 326 to 328 s of CPU | 83.5, 84.5 and 84.5 s, using 250 s of CPU |
+
+The 143.1 s run had twice the system time of the others, from something else on the machine. For `tests/llvm.py`, a
+Mac needs `-D_LIBCPP_DISABLE_AVAILABILITY` in `PROOF_CFLAGS` to compile the C++ targets, so they were compiled against
+Apple's C++ headers and not Linux's, as CI does. Every hash, statement, axiom count and mutant in its manifest came out
+the same before and after. Most of the time it saves is in mutants of `MathExtras`, which proves 23 functions in one
+file: each mutant is now checked against the file only up to the end of its function's theorem. The rest is from the
+axiom check importing only the parts of Lean it uses, which takes 0.3 s instead of 0.6 s to start, and from compiling
+the four support modules together.
+
 ### Probes for later phases
 
 Small one-off experiments, not in CI, to size the work. They are not progress on [Phase 3](roadmap.md#phase-3-c-and-rust-demonstrations).
-They predate the allow-lists and the promise model, which refuse more, such as `linkonce_odr` and `noalias` on
-arguments, so expect fewer to translate now.
+They predate the allow-lists and the promise model, which refuse more, such as calls to `linkonce_odr` functions and
+`noalias` on arguments, so expect fewer to translate now.
 
 | Input | Compiled with | Translated | What stopped the rest |
 | --- | --- | --- | --- |

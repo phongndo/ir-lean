@@ -1,0 +1,2676 @@
+{
+  "summary": {
+    "provenance": {
+      "slices_matching_manifest": "68 of 68",
+      "ir_sha256": "e4c001b87cf0b2ee4c893a2b85f6494707b2bd5bca0d9b95609fbe831c706ffc",
+      "manifest_ir_sha256": "e4c001b87cf0b2ee4c893a2b85f6494707b2bd5bca0d9b95609fbe831c706ffc"
+    },
+    "prepare_seconds": 2.2,
+    "places": 34,
+    "proved": 34,
+    "lemmas_in_store": 27,
+    "lemmas_used": 27,
+    "unproved_facts": 12,
+    "original_seconds_sum": 16.17,
+    "continued_proofs_seconds_sum": 8.83,
+    "split_seconds_sum": 23.74,
+    "axioms": [
+      "at most the standard three, and 0 from bv_decide",
+      "at most the standard three, and 1 from bv_decide",
+      "at most the standard three, and 2 from bv_decide",
+      "at most the standard three, and 4 from bv_decide",
+      "at most the standard three, and 5 from bv_decide",
+      "at most the standard three, and 6 from bv_decide"
+    ],
+    "axioms_by_module": {
+      "Splits00": "at most the standard three, and 5 from bv_decide",
+      "Splits01": "at most the standard three, and 5 from bv_decide",
+      "Splits02": "at most the standard three, and 6 from bv_decide",
+      "Splits03": "at most the standard three, and 6 from bv_decide",
+      "Splits04": "at most the standard three, and 6 from bv_decide",
+      "Splits05": "at most the standard three, and 6 from bv_decide",
+      "Splits06": "at most the standard three, and 4 from bv_decide",
+      "Splits07": "at most the standard three, and 4 from bv_decide",
+      "Splits08": "at most the standard three, and 4 from bv_decide",
+      "Splits09": "at most the standard three, and 4 from bv_decide",
+      "Splits10": "at most the standard three, and 6 from bv_decide",
+      "Splits11": "at most the standard three, and 6 from bv_decide",
+      "Splits12": "at most the standard three, and 6 from bv_decide",
+      "Splits13": "at most the standard three, and 6 from bv_decide",
+      "Splits14": "at most the standard three, and 4 from bv_decide",
+      "Splits15": "at most the standard three, and 4 from bv_decide",
+      "Splits16": "at most the standard three, and 4 from bv_decide",
+      "Splits17": "at most the standard three, and 4 from bv_decide",
+      "Splits18": "at most the standard three, and 6 from bv_decide",
+      "Splits19": "at most the standard three, and 6 from bv_decide",
+      "Splits20": "at most the standard three, and 6 from bv_decide",
+      "Splits21": "at most the standard three, and 6 from bv_decide",
+      "Splits22": "at most the standard three, and 4 from bv_decide",
+      "Splits23": "at most the standard three, and 4 from bv_decide",
+      "Splits24": "at most the standard three, and 4 from bv_decide",
+      "Splits25": "at most the standard three, and 4 from bv_decide",
+      "Splits26": "at most the standard three, and 6 from bv_decide",
+      "Splits27": "at most the standard three, and 6 from bv_decide",
+      "Splits28": "at most the standard three, and 6 from bv_decide",
+      "Splits29": "at most the standard three, and 6 from bv_decide",
+      "Splits30": "at most the standard three, and 4 from bv_decide",
+      "Splits31": "at most the standard three, and 4 from bv_decide",
+      "Splits32": "at most the standard three, and 4 from bv_decide",
+      "Splits33": "at most the standard three, and 4 from bv_decide",
+      "Lemma_core_01920f5ad1": "at most the standard three, and 1 from bv_decide",
+      "Lemma_core_25cc0c39f5": "at most the standard three, and 1 from bv_decide",
+      "Lemma_fact_0f634a210e": "at most the standard three, and 4 from bv_decide",
+      "Lemma_fact_167b0d9f10": "at most the standard three, and 2 from bv_decide",
+      "Lemma_fact_198e6e01d7": "at most the standard three, and 2 from bv_decide",
+      "Lemma_fact_1de73dfe1c": "at most the standard three, and 4 from bv_decide",
+      "Lemma_fact_20341234a9": "at most the standard three, and 1 from bv_decide",
+      "Lemma_fact_2de38c123b": "at most the standard three, and 4 from bv_decide",
+      "Lemma_fact_2f9dda90a0": "at most the standard three, and 1 from bv_decide",
+      "Lemma_fact_3355f82c98": "at most the standard three, and 2 from bv_decide",
+      "Lemma_fact_4502eec962": "at most the standard three, and 4 from bv_decide",
+      "Lemma_fact_45defd144e": "at most the standard three, and 2 from bv_decide",
+      "Lemma_fact_4ff0e38a51": "at most the standard three, and 0 from bv_decide",
+      "Lemma_fact_5e8d79da5d": "at most the standard three, and 1 from bv_decide",
+      "Lemma_fact_60cbe19736": "at most the standard three, and 4 from bv_decide",
+      "Lemma_fact_72c7558303": "at most the standard three, and 4 from bv_decide",
+      "Lemma_fact_739babaa5b": "at most the standard three, and 2 from bv_decide",
+      "Lemma_fact_746b247f44": "at most the standard three, and 4 from bv_decide",
+      "Lemma_fact_98a683bf5c": "at most the standard three, and 4 from bv_decide",
+      "Lemma_fact_a9fed6a78f": "at most the standard three, and 4 from bv_decide",
+      "Lemma_fact_b67399b328": "at most the standard three, and 2 from bv_decide",
+      "Lemma_fact_be126601dd": "at most the standard three, and 2 from bv_decide",
+      "Lemma_fact_c01b84b1da": "at most the standard three, and 4 from bv_decide",
+      "Lemma_fact_cfa7dec569": "at most the standard three, and 1 from bv_decide",
+      "Lemma_fact_d3a6f314cf": "at most the standard three, and 2 from bv_decide",
+      "Lemma_fact_e5537fed30": "at most the standard three, and 4 from bv_decide",
+      "Lemma_fact_fcc9b34b1f": "at most the standard three, and 4 from bv_decide"
+    },
+    "audit_failures": {}
+  },
+  "places": [
+    {
+      "place": "s00",
+      "function": "ggml_gemv_q4_K_8x8_q8_K",
+      "value": "%250",
+      "gaps": [],
+      "frontier": 17,
+      "lemmas": [
+        {
+          "lemma": "LemmaReuse.Store.core_01920f5ad1",
+          "kind": "core",
+          "source": "mined",
+          "check_seconds": 0.31
+        },
+        {
+          "lemma": "LemmaReuse.Store.fact_60cbe19736",
+          "kind": "fact, Nibbles",
+          "source": "mined"
+        },
+        {
+          "lemma": "LemmaReuse.Store.fact_4502eec962",
+          "kind": "fact, Nibbles",
+          "source": "mined"
+        },
+        {
+          "lemma": "LemmaReuse.Store.fact_4502eec962",
+          "kind": "fact, Nibbles",
+          "source": "mined"
+        },
+        {
+          "lemma": "LemmaReuse.Store.fact_60cbe19736",
+          "kind": "fact, Nibbles",
+          "source": "mined"
+        },
+        {
+          "lemma": "LemmaReuse.Store.fact_4502eec962",
+          "kind": "fact, Nibbles",
+          "source": "mined"
+        },
+        {
+          "lemma": "LemmaReuse.Store.fact_60cbe19736",
+          "kind": "fact, Nibbles",
+          "source": "mined"
+        },
+        {
+          "lemma": "LemmaReuse.Store.fact_4502eec962",
+          "kind": "fact, Nibbles",
+          "source": "mined"
+        },
+        {
+          "lemma": "LemmaReuse.Store.fact_60cbe19736",
+          "kind": "fact, Nibbles",
+          "source": "mined"
+        },
+        {
+          "lemma": "LemmaReuse.Store.fact_4ff0e38a51",
+          "kind": "fact, Pairs",
+          "source": "mined"
+        }
+      ],
+      "facts_tried": 17,
+      "facts_proved": 9,
+      "mined": 4,
+      "mined_check_seconds": 1.99,
+      "failed_fact_seconds": 2.19,
+      "lemma_seconds": 0.88,
+      "proof": {
+        "status": "proved",
+        "seconds": 0.25
+      },
+      "original": {
+        "status": "proved",
+        "seconds": 0.41
+      },
+      "distinct_lemmas": 4,
+      "from_store": 0
+    },
+    {
+      "place": "s01",
+      "function": "ggml_gemv_q4_K_8x8_q8_K",
+      "value": "%314",
+      "gaps": [],
+      "frontier": 17,
+      "lemmas": [
+        {
+          "lemma": "LemmaReuse.Store.core_01920f5ad1",
+          "kind": "core",
+          "source": "store",
+          "check_seconds": 0.0
+        },
+        {
+          "lemma": "LemmaReuse.Store.fact_746b247f44",
+          "kind": "fact, Nibbles",
+          "source": "mined"
+        },
+        {
+          "lemma": "LemmaReuse.Store.fact_a9fed6a78f",
+          "kind": "fact, Nibbles",
+          "source": "mined"
+        },
+        {
+          "lemma": "LemmaReuse.Store.fact_a9fed6a78f",
+          "kind": "fact, Nibbles",
+          "source": "mined"
+        },
+        {
+          "lemma": "LemmaReuse.Store.fact_746b247f44",
+          "kind": "fact, Nibbles",
+          "source": "mined"
+        },
+        {
+          "lemma": "LemmaReuse.Store.fact_a9fed6a78f",
+          "kind": "fact, Nibbles",
+          "source": "mined"
+        },
+        {
+          "lemma": "LemmaReuse.Store.fact_746b247f44",
+          "kind": "fact, Nibbles",
+          "source": "mined"
+        },
+        {
+          "lemma": "LemmaReuse.Store.fact_a9fed6a78f",
+          "kind": "fact, Nibbles",
+          "source": "mined"
+        },
+        {
+          "lemma": "LemmaReuse.Store.fact_746b247f44",
+          "kind": "fact, Nibbles",
+          "source": "mined"
+        },
+        {
+          "lemma": "LemmaReuse.Store.fact_4ff0e38a51",
+          "kind": "fact, Pairs",
+          "source": "store"
+        }
+      ],
+      "facts_tried": 17,
+      "facts_proved": 9,
+      "mined": 2,
+      "mined_check_seconds": 0.61,
+      "failed_fact_seconds": 0,
+      "lemma_seconds": 0.31,
+      "proof": {
+        "status": "proved",
+        "seconds": 0.25
+      },
+      "original": {
+        "status": "proved",
+        "seconds": 0.43
+      },
+      "distinct_lemmas": 4,
+      "from_store": 2
+    },
+    {
+      "place": "s02",
+      "function": "ggml_gemm_q4_K_8x8_q8_K",
+      "value": "%646",
+      "gaps": [],
+      "frontier": 17,
+      "lemmas": [
+        {
+          "lemma": "LemmaReuse.Store.core_25cc0c39f5",
+          "kind": "core",
+          "source": "mined",
+          "check_seconds": 0.29
+        },
+        {
+          "lemma": "LemmaReuse.Store.fact_1de73dfe1c",
+          "kind": "fact, Nibbles",
+          "source": "mined"
+        },
+        {
+          "lemma": "LemmaReuse.Store.fact_1de73dfe1c",
+          "kind": "fact, Nibbles",
+          "source": "mined"
+        },
+        {
+          "lemma": "LemmaReuse.Store.fact_1de73dfe1c",
+          "kind": "fact, Nibbles",
+          "source": "mined"
+        },
+        {
+          "lemma": "LemmaReuse.Store.fact_1de73dfe1c",
+          "kind": "fact, Nibbles",
+          "source": "mined"
+        },
+        {
+          "lemma": "LemmaReuse.Store.fact_2de38c123b",
+          "kind": "fact, Nibbles",
+          "source": "mined"
+        },
+        {
+          "lemma": "LemmaReuse.Store.fact_2de38c123b",
+          "kind": "fact, Nibbles",
+          "source": "mined"
+        },
+        {
+          "lemma": "LemmaReuse.Store.fact_2de38c123b",
+          "kind": "fact, Nibbles",
+          "source": "mined"
+        },
+        {
+          "lemma": "LemmaReuse.Store.fact_2de38c123b",
+          "kind": "fact, Nibbles",
+          "source": "mined"
+        },
+        {
+          "lemma": "LemmaReuse.Store.fact_2f9dda90a0",
+          "kind": "fact, Pairs",
+          "source": "mined"
+        }
+      ],
+      "facts_tried": 17,
+      "facts_proved": 9,
+      "mined": 4,
+      "mined_check_seconds": 1.57,
+      "failed_fact_seconds": 0.77,
+      "lemma_seconds": 0.74,
+      "proof": {
+        "status": "proved",
+        "seconds": 0.27
+      },
+      "original": {
+        "status": "proved",
+        "seconds": 0.48
+      },
+      "distinct_lemmas": 4,
+      "from_store": 0
+    },
+    {
+      "place": "s03",
+      "function": "ggml_gemm_q4_K_8x8_q8_K",
+      "value": "%647",
+      "gaps": [],
+      "frontier": 17,
+      "lemmas": [
+        {
+          "lemma": "LemmaReuse.Store.core_25cc0c39f5",
+          "kind": "core",
+          "source": "store",
+          "check_seconds": 0.0
+        },
+        {
+          "lemma": "LemmaReuse.Store.fact_72c7558303",
+          "kind": "fact, Nibbles",
+          "source": "mined"
+        },
+        {
+          "lemma": "LemmaReuse.Store.fact_72c7558303",
+          "kind": "fact, Nibbles",
+          "source": "mined"
+        },
+        {
+          "lemma": "LemmaReuse.Store.fact_72c7558303",
+          "kind": "fact, Nibbles",
+          "source": "mined"
+        },
+        {
+          "lemma": "LemmaReuse.Store.fact_72c7558303",
+          "kind": "fact, Nibbles",
+          "source": "mined"
+        },
+        {
+          "lemma": "LemmaReuse.Store.fact_98a683bf5c",
+          "kind": "fact, Nibbles",
+          "source": "mined"
+        },
+        {
+          "lemma": "LemmaReuse.Store.fact_98a683bf5c",
+          "kind": "fact, Nibbles",
+          "source": "mined"
+        },
+        {
+          "lemma": "LemmaReuse.Store.fact_98a683bf5c",
+          "kind": "fact, Nibbles",
+          "source": "mined"
+        },
+        {
+          "lemma": "LemmaReuse.Store.fact_98a683bf5c",
+          "kind": "fact, Nibbles",
+          "source": "mined"
+        },
+        {
+          "lemma": "LemmaReuse.Store.fact_20341234a9",
+          "kind": "fact, Pairs",
+          "source": "mined"
+        }
+      ],
+      "facts_tried": 17,
+      "facts_proved": 9,
+      "mined": 3,
+      "mined_check_seconds": 1.04,
+      "failed_fact_seconds": 0,
+      "lemma_seconds": 0.37,
+      "proof": {
+        "status": "proved",
+        "seconds": 0.27
+      },
+      "original": {
+        "status": "proved",
+        "seconds": 0.46
+      },
+      "distinct_lemmas": 4,
+      "from_store": 1
+    },
+    {
+      "place": "s04",
+      "function": "ggml_gemm_q4_K_8x8_q8_K",
+      "value": "%648",
+      "gaps": [],
+      "frontier": 17,
+      "lemmas": [
+        {
+          "lemma": "LemmaReuse.Store.core_25cc0c39f5",
+          "kind": "core",
+          "source": "store",
+          "check_seconds": 0.0
+        },
+        {
+          "lemma": "LemmaReuse.Store.fact_1de73dfe1c",
+          "kind": "fact, Nibbles",
+          "source": "store"
+        },
+        {
+          "lemma": "LemmaReuse.Store.fact_1de73dfe1c",
+          "kind": "fact, Nibbles",
+          "source": "store"
+        },
+        {
+          "lemma": "LemmaReuse.Store.fact_1de73dfe1c",
+          "kind": "fact, Nibbles",
+          "source": "store"
+        },
+        {
+          "lemma": "LemmaReuse.Store.fact_1de73dfe1c",
+          "kind": "fact, Nibbles",
+          "source": "store"
+        },
+        {
+          "lemma": "LemmaReuse.Store.fact_2de38c123b",
+          "kind": "fact, Nibbles",
+          "source": "store"
+        },
+        {
+          "lemma": "LemmaReuse.Store.fact_2de38c123b",
+          "kind": "fact, Nibbles",
+          "source": "store"
+        },
+        {
+          "lemma": "LemmaReuse.Store.fact_2de38c123b",
+          "kind": "fact, Nibbles",
+          "source": "store"
+        },
+        {
+          "lemma": "LemmaReuse.Store.fact_2de38c123b",
+          "kind": "fact, Nibbles",
+          "source": "store"
+        },
+        {
+          "lemma": "LemmaReuse.Store.fact_2f9dda90a0",
+          "kind": "fact, Pairs",
+          "source": "store"
+        }
+      ],
+      "facts_tried": 17,
+      "facts_proved": 9,
+      "mined": 0,
+      "mined_check_seconds": 0,
+      "failed_fact_seconds": 0.58,
+      "lemma_seconds": 0.29,
+      "proof": {
+        "status": "proved",
+        "seconds": 0.27
+      },
+      "original": {
+        "status": "proved",
+        "seconds": 0.46
+      },
+      "distinct_lemmas": 4,
+      "from_store": 4
+    },
+    {
+      "place": "s05",
+      "function": "ggml_gemm_q4_K_8x8_q8_K",
+      "value": "%649",
+      "gaps": [],
+      "frontier": 17,
+      "lemmas": [
+        {
+          "lemma": "LemmaReuse.Store.core_25cc0c39f5",
+          "kind": "core",
+          "source": "store",
+          "check_seconds": 0.0
+        },
+        {
+          "lemma": "LemmaReuse.Store.fact_72c7558303",
+          "kind": "fact, Nibbles",
+          "source": "store"
+        },
+        {
+          "lemma": "LemmaReuse.Store.fact_72c7558303",
+          "kind": "fact, Nibbles",
+          "source": "store"
+        },
+        {
+          "lemma": "LemmaReuse.Store.fact_72c7558303",
+          "kind": "fact, Nibbles",
+          "source": "store"
+        },
+        {
+          "lemma": "LemmaReuse.Store.fact_72c7558303",
+          "kind": "fact, Nibbles",
+          "source": "store"
+        },
+        {
+          "lemma": "LemmaReuse.Store.fact_98a683bf5c",
+          "kind": "fact, Nibbles",
+          "source": "store"
+        },
+        {
+          "lemma": "LemmaReuse.Store.fact_98a683bf5c",
+          "kind": "fact, Nibbles",
+          "source": "store"
+        },
+        {
+          "lemma": "LemmaReuse.Store.fact_98a683bf5c",
+          "kind": "fact, Nibbles",
+          "source": "store"
+        },
+        {
+          "lemma": "LemmaReuse.Store.fact_98a683bf5c",
+          "kind": "fact, Nibbles",
+          "source": "store"
+        },
+        {
+          "lemma": "LemmaReuse.Store.fact_20341234a9",
+          "kind": "fact, Pairs",
+          "source": "store"
+        }
+      ],
+      "facts_tried": 17,
+      "facts_proved": 9,
+      "mined": 0,
+      "mined_check_seconds": 0,
+      "failed_fact_seconds": 0,
+      "lemma_seconds": 0.0,
+      "proof": {
+        "status": "proved",
+        "seconds": 0.27
+      },
+      "original": {
+        "status": "proved",
+        "seconds": 0.47
+      },
+      "distinct_lemmas": 4,
+      "from_store": 4
+    },
+    {
+      "place": "s06",
+      "function": "ggml_gemm_q4_K_8x8_q8_K",
+      "value": "%650",
+      "gaps": [],
+      "frontier": 17,
+      "lemmas": [
+        {
+          "lemma": "LemmaReuse.Store.core_25cc0c39f5",
+          "kind": "core",
+          "source": "store",
+          "check_seconds": 0.0
+        },
+        {
+          "lemma": "LemmaReuse.Store.fact_3355f82c98",
+          "kind": "fact, Nibbles",
+          "source": "mined"
+        },
+        {
+          "lemma": "LemmaReuse.Store.fact_3355f82c98",
+          "kind": "fact, Nibbles",
+          "source": "mined"
+        },
+        {
+          "lemma": "LemmaReuse.Store.fact_3355f82c98",
+          "kind": "fact, Nibbles",
+          "source": "mined"
+        },
+        {
+          "lemma": "LemmaReuse.Store.fact_3355f82c98",
+          "kind": "fact, Nibbles",
+          "source": "mined"
+        },
+        {
+          "lemma": "LemmaReuse.Store.fact_45defd144e",
+          "kind": "fact, Nibbles",
+          "source": "mined"
+        },
+        {
+          "lemma": "LemmaReuse.Store.fact_45defd144e",
+          "kind": "fact, Nibbles",
+          "source": "mined"
+        },
+        {
+          "lemma": "LemmaReuse.Store.fact_45defd144e",
+          "kind": "fact, Nibbles",
+          "source": "mined"
+        },
+        {
+          "lemma": "LemmaReuse.Store.fact_45defd144e",
+          "kind": "fact, Nibbles",
+          "source": "mined"
+        },
+        {
+          "lemma": "LemmaReuse.Store.fact_2f9dda90a0",
+          "kind": "fact, Pairs",
+          "source": "store"
+        }
+      ],
+      "facts_tried": 17,
+      "facts_proved": 9,
+      "mined": 2,
+      "mined_check_seconds": 0.75,
+      "failed_fact_seconds": 0,
+      "lemma_seconds": 0.38,
+      "proof": {
+        "status": "proved",
+        "seconds": 0.27
+      },
+      "original": {
+        "status": "proved",
+        "seconds": 0.72
+      },
+      "distinct_lemmas": 4,
+      "from_store": 2
+    },
+    {
+      "place": "s07",
+      "function": "ggml_gemm_q4_K_8x8_q8_K",
+      "value": "%651",
+      "gaps": [],
+      "frontier": 17,
+      "lemmas": [
+        {
+          "lemma": "LemmaReuse.Store.core_25cc0c39f5",
+          "kind": "core",
+          "source": "store",
+          "check_seconds": 0.0
+        },
+        {
+          "lemma": "LemmaReuse.Store.fact_b67399b328",
+          "kind": "fact, Nibbles",
+          "source": "mined"
+        },
+        {
+          "lemma": "LemmaReuse.Store.fact_b67399b328",
+          "kind": "fact, Nibbles",
+          "source": "mined"
+        },
+        {
+          "lemma": "LemmaReuse.Store.fact_b67399b328",
+          "kind": "fact, Nibbles",
+          "source": "mined"
+        },
+        {
+          "lemma": "LemmaReuse.Store.fact_b67399b328",
+          "kind": "fact, Nibbles",
+          "source": "mined"
+        },
+        {
+          "lemma": "LemmaReuse.Store.fact_d3a6f314cf",
+          "kind": "fact, Nibbles",
+          "source": "mined"
+        },
+        {
+          "lemma": "LemmaReuse.Store.fact_d3a6f314cf",
+          "kind": "fact, Nibbles",
+          "source": "mined"
+        },
+        {
+          "lemma": "LemmaReuse.Store.fact_d3a6f314cf",
+          "kind": "fact, Nibbles",
+          "source": "mined"
+        },
+        {
+          "lemma": "LemmaReuse.Store.fact_d3a6f314cf",
+          "kind": "fact, Nibbles",
+          "source": "mined"
+        },
+        {
+          "lemma": "LemmaReuse.Store.fact_20341234a9",
+          "kind": "fact, Pairs",
+          "source": "store"
+        }
+      ],
+      "facts_tried": 17,
+      "facts_proved": 9,
+      "mined": 2,
+      "mined_check_seconds": 0.76,
+      "failed_fact_seconds": 0,
+      "lemma_seconds": 0.38,
+      "proof": {
+        "status": "proved",
+        "seconds": 0.27
+      },
+      "original": {
+        "status": "proved",
+        "seconds": 0.7
+      },
+      "distinct_lemmas": 4,
+      "from_store": 2
+    },
+    {
+      "place": "s08",
+      "function": "ggml_gemm_q4_K_8x8_q8_K",
+      "value": "%652",
+      "gaps": [],
+      "frontier": 17,
+      "lemmas": [
+        {
+          "lemma": "LemmaReuse.Store.core_25cc0c39f5",
+          "kind": "core",
+          "source": "store",
+          "check_seconds": 0.0
+        },
+        {
+          "lemma": "LemmaReuse.Store.fact_3355f82c98",
+          "kind": "fact, Nibbles",
+          "source": "store"
+        },
+        {
+          "lemma": "LemmaReuse.Store.fact_3355f82c98",
+          "kind": "fact, Nibbles",
+          "source": "store"
+        },
+        {
+          "lemma": "LemmaReuse.Store.fact_3355f82c98",
+          "kind": "fact, Nibbles",
+          "source": "store"
+        },
+        {
+          "lemma": "LemmaReuse.Store.fact_3355f82c98",
+          "kind": "fact, Nibbles",
+          "source": "store"
+        },
+        {
+          "lemma": "LemmaReuse.Store.fact_45defd144e",
+          "kind": "fact, Nibbles",
+          "source": "store"
+        },
+        {
+          "lemma": "LemmaReuse.Store.fact_45defd144e",
+          "kind": "fact, Nibbles",
+          "source": "store"
+        },
+        {
+          "lemma": "LemmaReuse.Store.fact_45defd144e",
+          "kind": "fact, Nibbles",
+          "source": "store"
+        },
+        {
+          "lemma": "LemmaReuse.Store.fact_45defd144e",
+          "kind": "fact, Nibbles",
+          "source": "store"
+        },
+        {
+          "lemma": "LemmaReuse.Store.fact_2f9dda90a0",
+          "kind": "fact, Pairs",
+          "source": "store"
+        }
+      ],
+      "facts_tried": 17,
+      "facts_proved": 9,
+      "mined": 0,
+      "mined_check_seconds": 0,
+      "failed_fact_seconds": 0,
+      "lemma_seconds": 0.0,
+      "proof": {
+        "status": "proved",
+        "seconds": 0.27
+      },
+      "original": {
+        "status": "proved",
+        "seconds": 0.7
+      },
+      "distinct_lemmas": 4,
+      "from_store": 4
+    },
+    {
+      "place": "s09",
+      "function": "ggml_gemm_q4_K_8x8_q8_K",
+      "value": "%653",
+      "gaps": [],
+      "frontier": 17,
+      "lemmas": [
+        {
+          "lemma": "LemmaReuse.Store.core_25cc0c39f5",
+          "kind": "core",
+          "source": "store",
+          "check_seconds": 0.0
+        },
+        {
+          "lemma": "LemmaReuse.Store.fact_b67399b328",
+          "kind": "fact, Nibbles",
+          "source": "store"
+        },
+        {
+          "lemma": "LemmaReuse.Store.fact_b67399b328",
+          "kind": "fact, Nibbles",
+          "source": "store"
+        },
+        {
+          "lemma": "LemmaReuse.Store.fact_b67399b328",
+          "kind": "fact, Nibbles",
+          "source": "store"
+        },
+        {
+          "lemma": "LemmaReuse.Store.fact_b67399b328",
+          "kind": "fact, Nibbles",
+          "source": "store"
+        },
+        {
+          "lemma": "LemmaReuse.Store.fact_d3a6f314cf",
+          "kind": "fact, Nibbles",
+          "source": "store"
+        },
+        {
+          "lemma": "LemmaReuse.Store.fact_d3a6f314cf",
+          "kind": "fact, Nibbles",
+          "source": "store"
+        },
+        {
+          "lemma": "LemmaReuse.Store.fact_d3a6f314cf",
+          "kind": "fact, Nibbles",
+          "source": "store"
+        },
+        {
+          "lemma": "LemmaReuse.Store.fact_d3a6f314cf",
+          "kind": "fact, Nibbles",
+          "source": "store"
+        },
+        {
+          "lemma": "LemmaReuse.Store.fact_20341234a9",
+          "kind": "fact, Pairs",
+          "source": "store"
+        }
+      ],
+      "facts_tried": 17,
+      "facts_proved": 9,
+      "mined": 0,
+      "mined_check_seconds": 0,
+      "failed_fact_seconds": 0,
+      "lemma_seconds": 0.0,
+      "proof": {
+        "status": "proved",
+        "seconds": 0.28
+      },
+      "original": {
+        "status": "proved",
+        "seconds": 0.7
+      },
+      "distinct_lemmas": 4,
+      "from_store": 4
+    },
+    {
+      "place": "s10",
+      "function": "ggml_gemm_q4_K_8x8_q8_K",
+      "value": "%1405",
+      "gaps": [],
+      "frontier": 17,
+      "lemmas": [
+        {
+          "lemma": "LemmaReuse.Store.core_25cc0c39f5",
+          "kind": "core",
+          "source": "store",
+          "check_seconds": 0.0
+        },
+        {
+          "lemma": "LemmaReuse.Store.fact_1de73dfe1c",
+          "kind": "fact, Nibbles",
+          "source": "store"
+        },
+        {
+          "lemma": "LemmaReuse.Store.fact_1de73dfe1c",
+          "kind": "fact, Nibbles",
+          "source": "store"
+        },
+        {
+          "lemma": "LemmaReuse.Store.fact_1de73dfe1c",
+          "kind": "fact, Nibbles",
+          "source": "store"
+        },
+        {
+          "lemma": "LemmaReuse.Store.fact_1de73dfe1c",
+          "kind": "fact, Nibbles",
+          "source": "store"
+        },
+        {
+          "lemma": "LemmaReuse.Store.fact_2de38c123b",
+          "kind": "fact, Nibbles",
+          "source": "store"
+        },
+        {
+          "lemma": "LemmaReuse.Store.fact_2de38c123b",
+          "kind": "fact, Nibbles",
+          "source": "store"
+        },
+        {
+          "lemma": "LemmaReuse.Store.fact_2de38c123b",
+          "kind": "fact, Nibbles",
+          "source": "store"
+        },
+        {
+          "lemma": "LemmaReuse.Store.fact_2de38c123b",
+          "kind": "fact, Nibbles",
+          "source": "store"
+        },
+        {
+          "lemma": "LemmaReuse.Store.fact_2f9dda90a0",
+          "kind": "fact, Pairs",
+          "source": "store"
+        }
+      ],
+      "facts_tried": 17,
+      "facts_proved": 9,
+      "mined": 0,
+      "mined_check_seconds": 0,
+      "failed_fact_seconds": 0,
+      "lemma_seconds": 0.0,
+      "proof": {
+        "status": "proved",
+        "seconds": 0.27
+      },
+      "original": {
+        "status": "proved",
+        "seconds": 0.46
+      },
+      "distinct_lemmas": 4,
+      "from_store": 4
+    },
+    {
+      "place": "s11",
+      "function": "ggml_gemm_q4_K_8x8_q8_K",
+      "value": "%1407",
+      "gaps": [],
+      "frontier": 17,
+      "lemmas": [
+        {
+          "lemma": "LemmaReuse.Store.core_25cc0c39f5",
+          "kind": "core",
+          "source": "store",
+          "check_seconds": 0.0
+        },
+        {
+          "lemma": "LemmaReuse.Store.fact_72c7558303",
+          "kind": "fact, Nibbles",
+          "source": "store"
+        },
+        {
+          "lemma": "LemmaReuse.Store.fact_72c7558303",
+          "kind": "fact, Nibbles",
+          "source": "store"
+        },
+        {
+          "lemma": "LemmaReuse.Store.fact_72c7558303",
+          "kind": "fact, Nibbles",
+          "source": "store"
+        },
+        {
+          "lemma": "LemmaReuse.Store.fact_72c7558303",
+          "kind": "fact, Nibbles",
+          "source": "store"
+        },
+        {
+          "lemma": "LemmaReuse.Store.fact_98a683bf5c",
+          "kind": "fact, Nibbles",
+          "source": "store"
+        },
+        {
+          "lemma": "LemmaReuse.Store.fact_98a683bf5c",
+          "kind": "fact, Nibbles",
+          "source": "store"
+        },
+        {
+          "lemma": "LemmaReuse.Store.fact_98a683bf5c",
+          "kind": "fact, Nibbles",
+          "source": "store"
+        },
+        {
+          "lemma": "LemmaReuse.Store.fact_98a683bf5c",
+          "kind": "fact, Nibbles",
+          "source": "store"
+        },
+        {
+          "lemma": "LemmaReuse.Store.fact_20341234a9",
+          "kind": "fact, Pairs",
+          "source": "store"
+        }
+      ],
+      "facts_tried": 17,
+      "facts_proved": 9,
+      "mined": 0,
+      "mined_check_seconds": 0,
+      "failed_fact_seconds": 0,
+      "lemma_seconds": 0.0,
+      "proof": {
+        "status": "proved",
+        "seconds": 0.27
+      },
+      "original": {
+        "status": "proved",
+        "seconds": 0.46
+      },
+      "distinct_lemmas": 4,
+      "from_store": 4
+    },
+    {
+      "place": "s12",
+      "function": "ggml_gemm_q4_K_8x8_q8_K",
+      "value": "%1408",
+      "gaps": [],
+      "frontier": 17,
+      "lemmas": [
+        {
+          "lemma": "LemmaReuse.Store.core_25cc0c39f5",
+          "kind": "core",
+          "source": "store",
+          "check_seconds": 0.0
+        },
+        {
+          "lemma": "LemmaReuse.Store.fact_1de73dfe1c",
+          "kind": "fact, Nibbles",
+          "source": "store"
+        },
+        {
+          "lemma": "LemmaReuse.Store.fact_1de73dfe1c",
+          "kind": "fact, Nibbles",
+          "source": "store"
+        },
+        {
+          "lemma": "LemmaReuse.Store.fact_1de73dfe1c",
+          "kind": "fact, Nibbles",
+          "source": "store"
+        },
+        {
+          "lemma": "LemmaReuse.Store.fact_1de73dfe1c",
+          "kind": "fact, Nibbles",
+          "source": "store"
+        },
+        {
+          "lemma": "LemmaReuse.Store.fact_2de38c123b",
+          "kind": "fact, Nibbles",
+          "source": "store"
+        },
+        {
+          "lemma": "LemmaReuse.Store.fact_2de38c123b",
+          "kind": "fact, Nibbles",
+          "source": "store"
+        },
+        {
+          "lemma": "LemmaReuse.Store.fact_2de38c123b",
+          "kind": "fact, Nibbles",
+          "source": "store"
+        },
+        {
+          "lemma": "LemmaReuse.Store.fact_2de38c123b",
+          "kind": "fact, Nibbles",
+          "source": "store"
+        },
+        {
+          "lemma": "LemmaReuse.Store.fact_2f9dda90a0",
+          "kind": "fact, Pairs",
+          "source": "store"
+        }
+      ],
+      "facts_tried": 17,
+      "facts_proved": 9,
+      "mined": 0,
+      "mined_check_seconds": 0,
+      "failed_fact_seconds": 0,
+      "lemma_seconds": 0.0,
+      "proof": {
+        "status": "proved",
+        "seconds": 0.26
+      },
+      "original": {
+        "status": "proved",
+        "seconds": 0.46
+      },
+      "distinct_lemmas": 4,
+      "from_store": 4
+    },
+    {
+      "place": "s13",
+      "function": "ggml_gemm_q4_K_8x8_q8_K",
+      "value": "%1409",
+      "gaps": [],
+      "frontier": 17,
+      "lemmas": [
+        {
+          "lemma": "LemmaReuse.Store.core_25cc0c39f5",
+          "kind": "core",
+          "source": "store",
+          "check_seconds": 0.0
+        },
+        {
+          "lemma": "LemmaReuse.Store.fact_72c7558303",
+          "kind": "fact, Nibbles",
+          "source": "store"
+        },
+        {
+          "lemma": "LemmaReuse.Store.fact_72c7558303",
+          "kind": "fact, Nibbles",
+          "source": "store"
+        },
+        {
+          "lemma": "LemmaReuse.Store.fact_72c7558303",
+          "kind": "fact, Nibbles",
+          "source": "store"
+        },
+        {
+          "lemma": "LemmaReuse.Store.fact_72c7558303",
+          "kind": "fact, Nibbles",
+          "source": "store"
+        },
+        {
+          "lemma": "LemmaReuse.Store.fact_98a683bf5c",
+          "kind": "fact, Nibbles",
+          "source": "store"
+        },
+        {
+          "lemma": "LemmaReuse.Store.fact_98a683bf5c",
+          "kind": "fact, Nibbles",
+          "source": "store"
+        },
+        {
+          "lemma": "LemmaReuse.Store.fact_98a683bf5c",
+          "kind": "fact, Nibbles",
+          "source": "store"
+        },
+        {
+          "lemma": "LemmaReuse.Store.fact_98a683bf5c",
+          "kind": "fact, Nibbles",
+          "source": "store"
+        },
+        {
+          "lemma": "LemmaReuse.Store.fact_20341234a9",
+          "kind": "fact, Pairs",
+          "source": "store"
+        }
+      ],
+      "facts_tried": 17,
+      "facts_proved": 9,
+      "mined": 0,
+      "mined_check_seconds": 0,
+      "failed_fact_seconds": 0,
+      "lemma_seconds": 0.0,
+      "proof": {
+        "status": "proved",
+        "seconds": 0.27
+      },
+      "original": {
+        "status": "proved",
+        "seconds": 0.46
+      },
+      "distinct_lemmas": 4,
+      "from_store": 4
+    },
+    {
+      "place": "s14",
+      "function": "ggml_gemm_q4_K_8x8_q8_K",
+      "value": "%1411",
+      "gaps": [],
+      "frontier": 17,
+      "lemmas": [
+        {
+          "lemma": "LemmaReuse.Store.core_25cc0c39f5",
+          "kind": "core",
+          "source": "store",
+          "check_seconds": 0.0
+        },
+        {
+          "lemma": "LemmaReuse.Store.fact_3355f82c98",
+          "kind": "fact, Nibbles",
+          "source": "store"
+        },
+        {
+          "lemma": "LemmaReuse.Store.fact_3355f82c98",
+          "kind": "fact, Nibbles",
+          "source": "store"
+        },
+        {
+          "lemma": "LemmaReuse.Store.fact_3355f82c98",
+          "kind": "fact, Nibbles",
+          "source": "store"
+        },
+        {
+          "lemma": "LemmaReuse.Store.fact_3355f82c98",
+          "kind": "fact, Nibbles",
+          "source": "store"
+        },
+        {
+          "lemma": "LemmaReuse.Store.fact_45defd144e",
+          "kind": "fact, Nibbles",
+          "source": "store"
+        },
+        {
+          "lemma": "LemmaReuse.Store.fact_45defd144e",
+          "kind": "fact, Nibbles",
+          "source": "store"
+        },
+        {
+          "lemma": "LemmaReuse.Store.fact_45defd144e",
+          "kind": "fact, Nibbles",
+          "source": "store"
+        },
+        {
+          "lemma": "LemmaReuse.Store.fact_45defd144e",
+          "kind": "fact, Nibbles",
+          "source": "store"
+        },
+        {
+          "lemma": "LemmaReuse.Store.fact_2f9dda90a0",
+          "kind": "fact, Pairs",
+          "source": "store"
+        }
+      ],
+      "facts_tried": 17,
+      "facts_proved": 9,
+      "mined": 0,
+      "mined_check_seconds": 0,
+      "failed_fact_seconds": 0,
+      "lemma_seconds": 0.0,
+      "proof": {
+        "status": "proved",
+        "seconds": 0.27
+      },
+      "original": {
+        "status": "proved",
+        "seconds": 0.69
+      },
+      "distinct_lemmas": 4,
+      "from_store": 4
+    },
+    {
+      "place": "s15",
+      "function": "ggml_gemm_q4_K_8x8_q8_K",
+      "value": "%1413",
+      "gaps": [],
+      "frontier": 17,
+      "lemmas": [
+        {
+          "lemma": "LemmaReuse.Store.core_25cc0c39f5",
+          "kind": "core",
+          "source": "store",
+          "check_seconds": 0.0
+        },
+        {
+          "lemma": "LemmaReuse.Store.fact_b67399b328",
+          "kind": "fact, Nibbles",
+          "source": "store"
+        },
+        {
+          "lemma": "LemmaReuse.Store.fact_b67399b328",
+          "kind": "fact, Nibbles",
+          "source": "store"
+        },
+        {
+          "lemma": "LemmaReuse.Store.fact_b67399b328",
+          "kind": "fact, Nibbles",
+          "source": "store"
+        },
+        {
+          "lemma": "LemmaReuse.Store.fact_b67399b328",
+          "kind": "fact, Nibbles",
+          "source": "store"
+        },
+        {
+          "lemma": "LemmaReuse.Store.fact_d3a6f314cf",
+          "kind": "fact, Nibbles",
+          "source": "store"
+        },
+        {
+          "lemma": "LemmaReuse.Store.fact_d3a6f314cf",
+          "kind": "fact, Nibbles",
+          "source": "store"
+        },
+        {
+          "lemma": "LemmaReuse.Store.fact_d3a6f314cf",
+          "kind": "fact, Nibbles",
+          "source": "store"
+        },
+        {
+          "lemma": "LemmaReuse.Store.fact_d3a6f314cf",
+          "kind": "fact, Nibbles",
+          "source": "store"
+        },
+        {
+          "lemma": "LemmaReuse.Store.fact_20341234a9",
+          "kind": "fact, Pairs",
+          "source": "store"
+        }
+      ],
+      "facts_tried": 17,
+      "facts_proved": 9,
+      "mined": 0,
+      "mined_check_seconds": 0,
+      "failed_fact_seconds": 0,
+      "lemma_seconds": 0.0,
+      "proof": {
+        "status": "proved",
+        "seconds": 0.27
+      },
+      "original": {
+        "status": "proved",
+        "seconds": 0.7
+      },
+      "distinct_lemmas": 4,
+      "from_store": 4
+    },
+    {
+      "place": "s16",
+      "function": "ggml_gemm_q4_K_8x8_q8_K",
+      "value": "%1414",
+      "gaps": [],
+      "frontier": 17,
+      "lemmas": [
+        {
+          "lemma": "LemmaReuse.Store.core_25cc0c39f5",
+          "kind": "core",
+          "source": "store",
+          "check_seconds": 0.0
+        },
+        {
+          "lemma": "LemmaReuse.Store.fact_3355f82c98",
+          "kind": "fact, Nibbles",
+          "source": "store"
+        },
+        {
+          "lemma": "LemmaReuse.Store.fact_3355f82c98",
+          "kind": "fact, Nibbles",
+          "source": "store"
+        },
+        {
+          "lemma": "LemmaReuse.Store.fact_3355f82c98",
+          "kind": "fact, Nibbles",
+          "source": "store"
+        },
+        {
+          "lemma": "LemmaReuse.Store.fact_3355f82c98",
+          "kind": "fact, Nibbles",
+          "source": "store"
+        },
+        {
+          "lemma": "LemmaReuse.Store.fact_45defd144e",
+          "kind": "fact, Nibbles",
+          "source": "store"
+        },
+        {
+          "lemma": "LemmaReuse.Store.fact_45defd144e",
+          "kind": "fact, Nibbles",
+          "source": "store"
+        },
+        {
+          "lemma": "LemmaReuse.Store.fact_45defd144e",
+          "kind": "fact, Nibbles",
+          "source": "store"
+        },
+        {
+          "lemma": "LemmaReuse.Store.fact_45defd144e",
+          "kind": "fact, Nibbles",
+          "source": "store"
+        },
+        {
+          "lemma": "LemmaReuse.Store.fact_2f9dda90a0",
+          "kind": "fact, Pairs",
+          "source": "store"
+        }
+      ],
+      "facts_tried": 17,
+      "facts_proved": 9,
+      "mined": 0,
+      "mined_check_seconds": 0,
+      "failed_fact_seconds": 0,
+      "lemma_seconds": 0.0,
+      "proof": {
+        "status": "proved",
+        "seconds": 0.27
+      },
+      "original": {
+        "status": "proved",
+        "seconds": 0.71
+      },
+      "distinct_lemmas": 4,
+      "from_store": 4
+    },
+    {
+      "place": "s17",
+      "function": "ggml_gemm_q4_K_8x8_q8_K",
+      "value": "%1415",
+      "gaps": [],
+      "frontier": 17,
+      "lemmas": [
+        {
+          "lemma": "LemmaReuse.Store.core_25cc0c39f5",
+          "kind": "core",
+          "source": "store",
+          "check_seconds": 0.0
+        },
+        {
+          "lemma": "LemmaReuse.Store.fact_b67399b328",
+          "kind": "fact, Nibbles",
+          "source": "store"
+        },
+        {
+          "lemma": "LemmaReuse.Store.fact_b67399b328",
+          "kind": "fact, Nibbles",
+          "source": "store"
+        },
+        {
+          "lemma": "LemmaReuse.Store.fact_b67399b328",
+          "kind": "fact, Nibbles",
+          "source": "store"
+        },
+        {
+          "lemma": "LemmaReuse.Store.fact_b67399b328",
+          "kind": "fact, Nibbles",
+          "source": "store"
+        },
+        {
+          "lemma": "LemmaReuse.Store.fact_d3a6f314cf",
+          "kind": "fact, Nibbles",
+          "source": "store"
+        },
+        {
+          "lemma": "LemmaReuse.Store.fact_d3a6f314cf",
+          "kind": "fact, Nibbles",
+          "source": "store"
+        },
+        {
+          "lemma": "LemmaReuse.Store.fact_d3a6f314cf",
+          "kind": "fact, Nibbles",
+          "source": "store"
+        },
+        {
+          "lemma": "LemmaReuse.Store.fact_d3a6f314cf",
+          "kind": "fact, Nibbles",
+          "source": "store"
+        },
+        {
+          "lemma": "LemmaReuse.Store.fact_20341234a9",
+          "kind": "fact, Pairs",
+          "source": "store"
+        }
+      ],
+      "facts_tried": 17,
+      "facts_proved": 9,
+      "mined": 0,
+      "mined_check_seconds": 0,
+      "failed_fact_seconds": 0,
+      "lemma_seconds": 0.0,
+      "proof": {
+        "status": "proved",
+        "seconds": 0.28
+      },
+      "original": {
+        "status": "proved",
+        "seconds": 0.7
+      },
+      "distinct_lemmas": 4,
+      "from_store": 4
+    },
+    {
+      "place": "s18",
+      "function": "ggml_gemm_q4_K_8x8_q8_K",
+      "value": "%2087",
+      "gaps": [],
+      "frontier": 17,
+      "lemmas": [
+        {
+          "lemma": "LemmaReuse.Store.core_01920f5ad1",
+          "kind": "core",
+          "source": "store",
+          "check_seconds": 0.0
+        },
+        {
+          "lemma": "LemmaReuse.Store.fact_fcc9b34b1f",
+          "kind": "fact, Nibbles",
+          "source": "mined"
+        },
+        {
+          "lemma": "LemmaReuse.Store.fact_fcc9b34b1f",
+          "kind": "fact, Nibbles",
+          "source": "mined"
+        },
+        {
+          "lemma": "LemmaReuse.Store.fact_fcc9b34b1f",
+          "kind": "fact, Nibbles",
+          "source": "mined"
+        },
+        {
+          "lemma": "LemmaReuse.Store.fact_fcc9b34b1f",
+          "kind": "fact, Nibbles",
+          "source": "mined"
+        },
+        {
+          "lemma": "LemmaReuse.Store.fact_e5537fed30",
+          "kind": "fact, Nibbles",
+          "source": "mined"
+        },
+        {
+          "lemma": "LemmaReuse.Store.fact_e5537fed30",
+          "kind": "fact, Nibbles",
+          "source": "mined"
+        },
+        {
+          "lemma": "LemmaReuse.Store.fact_e5537fed30",
+          "kind": "fact, Nibbles",
+          "source": "mined"
+        },
+        {
+          "lemma": "LemmaReuse.Store.fact_e5537fed30",
+          "kind": "fact, Nibbles",
+          "source": "mined"
+        },
+        {
+          "lemma": "LemmaReuse.Store.fact_5e8d79da5d",
+          "kind": "fact, Pairs",
+          "source": "mined"
+        }
+      ],
+      "facts_tried": 17,
+      "facts_proved": 9,
+      "mined": 3,
+      "mined_check_seconds": 1.16,
+      "failed_fact_seconds": 0.75,
+      "lemma_seconds": 0.4,
+      "proof": {
+        "status": "proved",
+        "seconds": 0.25
+      },
+      "original": {
+        "status": "proved",
+        "seconds": 0.34
+      },
+      "distinct_lemmas": 4,
+      "from_store": 1
+    },
+    {
+      "place": "s19",
+      "function": "ggml_gemm_q4_K_8x8_q8_K",
+      "value": "%2088",
+      "gaps": [],
+      "frontier": 17,
+      "lemmas": [
+        {
+          "lemma": "LemmaReuse.Store.core_01920f5ad1",
+          "kind": "core",
+          "source": "store",
+          "check_seconds": 0.0
+        },
+        {
+          "lemma": "LemmaReuse.Store.fact_c01b84b1da",
+          "kind": "fact, Nibbles",
+          "source": "mined"
+        },
+        {
+          "lemma": "LemmaReuse.Store.fact_c01b84b1da",
+          "kind": "fact, Nibbles",
+          "source": "mined"
+        },
+        {
+          "lemma": "LemmaReuse.Store.fact_c01b84b1da",
+          "kind": "fact, Nibbles",
+          "source": "mined"
+        },
+        {
+          "lemma": "LemmaReuse.Store.fact_c01b84b1da",
+          "kind": "fact, Nibbles",
+          "source": "mined"
+        },
+        {
+          "lemma": "LemmaReuse.Store.fact_0f634a210e",
+          "kind": "fact, Nibbles",
+          "source": "mined"
+        },
+        {
+          "lemma": "LemmaReuse.Store.fact_0f634a210e",
+          "kind": "fact, Nibbles",
+          "source": "mined"
+        },
+        {
+          "lemma": "LemmaReuse.Store.fact_0f634a210e",
+          "kind": "fact, Nibbles",
+          "source": "mined"
+        },
+        {
+          "lemma": "LemmaReuse.Store.fact_0f634a210e",
+          "kind": "fact, Nibbles",
+          "source": "mined"
+        },
+        {
+          "lemma": "LemmaReuse.Store.fact_cfa7dec569",
+          "kind": "fact, Pairs",
+          "source": "mined"
+        }
+      ],
+      "facts_tried": 17,
+      "facts_proved": 9,
+      "mined": 3,
+      "mined_check_seconds": 0.94,
+      "failed_fact_seconds": 0,
+      "lemma_seconds": 0.32,
+      "proof": {
+        "status": "proved",
+        "seconds": 0.25
+      },
+      "original": {
+        "status": "proved",
+        "seconds": 0.34
+      },
+      "distinct_lemmas": 4,
+      "from_store": 1
+    },
+    {
+      "place": "s20",
+      "function": "ggml_gemm_q4_K_8x8_q8_K",
+      "value": "%2089",
+      "gaps": [],
+      "frontier": 17,
+      "lemmas": [
+        {
+          "lemma": "LemmaReuse.Store.core_01920f5ad1",
+          "kind": "core",
+          "source": "store",
+          "check_seconds": 0.0
+        },
+        {
+          "lemma": "LemmaReuse.Store.fact_fcc9b34b1f",
+          "kind": "fact, Nibbles",
+          "source": "store"
+        },
+        {
+          "lemma": "LemmaReuse.Store.fact_fcc9b34b1f",
+          "kind": "fact, Nibbles",
+          "source": "store"
+        },
+        {
+          "lemma": "LemmaReuse.Store.fact_fcc9b34b1f",
+          "kind": "fact, Nibbles",
+          "source": "store"
+        },
+        {
+          "lemma": "LemmaReuse.Store.fact_fcc9b34b1f",
+          "kind": "fact, Nibbles",
+          "source": "store"
+        },
+        {
+          "lemma": "LemmaReuse.Store.fact_e5537fed30",
+          "kind": "fact, Nibbles",
+          "source": "store"
+        },
+        {
+          "lemma": "LemmaReuse.Store.fact_e5537fed30",
+          "kind": "fact, Nibbles",
+          "source": "store"
+        },
+        {
+          "lemma": "LemmaReuse.Store.fact_e5537fed30",
+          "kind": "fact, Nibbles",
+          "source": "store"
+        },
+        {
+          "lemma": "LemmaReuse.Store.fact_e5537fed30",
+          "kind": "fact, Nibbles",
+          "source": "store"
+        },
+        {
+          "lemma": "LemmaReuse.Store.fact_5e8d79da5d",
+          "kind": "fact, Pairs",
+          "source": "store"
+        }
+      ],
+      "facts_tried": 17,
+      "facts_proved": 9,
+      "mined": 0,
+      "mined_check_seconds": 0,
+      "failed_fact_seconds": 0.56,
+      "lemma_seconds": 0.28,
+      "proof": {
+        "status": "proved",
+        "seconds": 0.25
+      },
+      "original": {
+        "status": "proved",
+        "seconds": 0.34
+      },
+      "distinct_lemmas": 4,
+      "from_store": 4
+    },
+    {
+      "place": "s21",
+      "function": "ggml_gemm_q4_K_8x8_q8_K",
+      "value": "%2090",
+      "gaps": [],
+      "frontier": 17,
+      "lemmas": [
+        {
+          "lemma": "LemmaReuse.Store.core_01920f5ad1",
+          "kind": "core",
+          "source": "store",
+          "check_seconds": 0.0
+        },
+        {
+          "lemma": "LemmaReuse.Store.fact_c01b84b1da",
+          "kind": "fact, Nibbles",
+          "source": "store"
+        },
+        {
+          "lemma": "LemmaReuse.Store.fact_c01b84b1da",
+          "kind": "fact, Nibbles",
+          "source": "store"
+        },
+        {
+          "lemma": "LemmaReuse.Store.fact_c01b84b1da",
+          "kind": "fact, Nibbles",
+          "source": "store"
+        },
+        {
+          "lemma": "LemmaReuse.Store.fact_c01b84b1da",
+          "kind": "fact, Nibbles",
+          "source": "store"
+        },
+        {
+          "lemma": "LemmaReuse.Store.fact_0f634a210e",
+          "kind": "fact, Nibbles",
+          "source": "store"
+        },
+        {
+          "lemma": "LemmaReuse.Store.fact_0f634a210e",
+          "kind": "fact, Nibbles",
+          "source": "store"
+        },
+        {
+          "lemma": "LemmaReuse.Store.fact_0f634a210e",
+          "kind": "fact, Nibbles",
+          "source": "store"
+        },
+        {
+          "lemma": "LemmaReuse.Store.fact_0f634a210e",
+          "kind": "fact, Nibbles",
+          "source": "store"
+        },
+        {
+          "lemma": "LemmaReuse.Store.fact_cfa7dec569",
+          "kind": "fact, Pairs",
+          "source": "store"
+        }
+      ],
+      "facts_tried": 17,
+      "facts_proved": 9,
+      "mined": 0,
+      "mined_check_seconds": 0,
+      "failed_fact_seconds": 0,
+      "lemma_seconds": 0.0,
+      "proof": {
+        "status": "proved",
+        "seconds": 0.25
+      },
+      "original": {
+        "status": "proved",
+        "seconds": 0.34
+      },
+      "distinct_lemmas": 4,
+      "from_store": 4
+    },
+    {
+      "place": "s22",
+      "function": "ggml_gemm_q4_K_8x8_q8_K",
+      "value": "%2091",
+      "gaps": [],
+      "frontier": 17,
+      "lemmas": [
+        {
+          "lemma": "LemmaReuse.Store.core_01920f5ad1",
+          "kind": "core",
+          "source": "store",
+          "check_seconds": 0.0
+        },
+        {
+          "lemma": "LemmaReuse.Store.fact_198e6e01d7",
+          "kind": "fact, Nibbles",
+          "source": "mined"
+        },
+        {
+          "lemma": "LemmaReuse.Store.fact_198e6e01d7",
+          "kind": "fact, Nibbles",
+          "source": "mined"
+        },
+        {
+          "lemma": "LemmaReuse.Store.fact_198e6e01d7",
+          "kind": "fact, Nibbles",
+          "source": "mined"
+        },
+        {
+          "lemma": "LemmaReuse.Store.fact_198e6e01d7",
+          "kind": "fact, Nibbles",
+          "source": "mined"
+        },
+        {
+          "lemma": "LemmaReuse.Store.fact_be126601dd",
+          "kind": "fact, Nibbles",
+          "source": "mined"
+        },
+        {
+          "lemma": "LemmaReuse.Store.fact_be126601dd",
+          "kind": "fact, Nibbles",
+          "source": "mined"
+        },
+        {
+          "lemma": "LemmaReuse.Store.fact_be126601dd",
+          "kind": "fact, Nibbles",
+          "source": "mined"
+        },
+        {
+          "lemma": "LemmaReuse.Store.fact_be126601dd",
+          "kind": "fact, Nibbles",
+          "source": "mined"
+        },
+        {
+          "lemma": "LemmaReuse.Store.fact_5e8d79da5d",
+          "kind": "fact, Pairs",
+          "source": "store"
+        }
+      ],
+      "facts_tried": 17,
+      "facts_proved": 9,
+      "mined": 2,
+      "mined_check_seconds": 0.62,
+      "failed_fact_seconds": 0,
+      "lemma_seconds": 0.31,
+      "proof": {
+        "status": "proved",
+        "seconds": 0.25
+      },
+      "original": {
+        "status": "proved",
+        "seconds": 0.41
+      },
+      "distinct_lemmas": 4,
+      "from_store": 2
+    },
+    {
+      "place": "s23",
+      "function": "ggml_gemm_q4_K_8x8_q8_K",
+      "value": "%2092",
+      "gaps": [],
+      "frontier": 17,
+      "lemmas": [
+        {
+          "lemma": "LemmaReuse.Store.core_01920f5ad1",
+          "kind": "core",
+          "source": "store",
+          "check_seconds": 0.0
+        },
+        {
+          "lemma": "LemmaReuse.Store.fact_739babaa5b",
+          "kind": "fact, Nibbles",
+          "source": "mined"
+        },
+        {
+          "lemma": "LemmaReuse.Store.fact_739babaa5b",
+          "kind": "fact, Nibbles",
+          "source": "mined"
+        },
+        {
+          "lemma": "LemmaReuse.Store.fact_739babaa5b",
+          "kind": "fact, Nibbles",
+          "source": "mined"
+        },
+        {
+          "lemma": "LemmaReuse.Store.fact_739babaa5b",
+          "kind": "fact, Nibbles",
+          "source": "mined"
+        },
+        {
+          "lemma": "LemmaReuse.Store.fact_167b0d9f10",
+          "kind": "fact, Nibbles",
+          "source": "mined"
+        },
+        {
+          "lemma": "LemmaReuse.Store.fact_167b0d9f10",
+          "kind": "fact, Nibbles",
+          "source": "mined"
+        },
+        {
+          "lemma": "LemmaReuse.Store.fact_167b0d9f10",
+          "kind": "fact, Nibbles",
+          "source": "mined"
+        },
+        {
+          "lemma": "LemmaReuse.Store.fact_167b0d9f10",
+          "kind": "fact, Nibbles",
+          "source": "mined"
+        },
+        {
+          "lemma": "LemmaReuse.Store.fact_cfa7dec569",
+          "kind": "fact, Pairs",
+          "source": "store"
+        }
+      ],
+      "facts_tried": 17,
+      "facts_proved": 9,
+      "mined": 2,
+      "mined_check_seconds": 0.62,
+      "failed_fact_seconds": 0,
+      "lemma_seconds": 0.31,
+      "proof": {
+        "status": "proved",
+        "seconds": 0.25
+      },
+      "original": {
+        "status": "proved",
+        "seconds": 0.41
+      },
+      "distinct_lemmas": 4,
+      "from_store": 2
+    },
+    {
+      "place": "s24",
+      "function": "ggml_gemm_q4_K_8x8_q8_K",
+      "value": "%2093",
+      "gaps": [],
+      "frontier": 17,
+      "lemmas": [
+        {
+          "lemma": "LemmaReuse.Store.core_01920f5ad1",
+          "kind": "core",
+          "source": "store",
+          "check_seconds": 0.0
+        },
+        {
+          "lemma": "LemmaReuse.Store.fact_198e6e01d7",
+          "kind": "fact, Nibbles",
+          "source": "store"
+        },
+        {
+          "lemma": "LemmaReuse.Store.fact_198e6e01d7",
+          "kind": "fact, Nibbles",
+          "source": "store"
+        },
+        {
+          "lemma": "LemmaReuse.Store.fact_198e6e01d7",
+          "kind": "fact, Nibbles",
+          "source": "store"
+        },
+        {
+          "lemma": "LemmaReuse.Store.fact_198e6e01d7",
+          "kind": "fact, Nibbles",
+          "source": "store"
+        },
+        {
+          "lemma": "LemmaReuse.Store.fact_be126601dd",
+          "kind": "fact, Nibbles",
+          "source": "store"
+        },
+        {
+          "lemma": "LemmaReuse.Store.fact_be126601dd",
+          "kind": "fact, Nibbles",
+          "source": "store"
+        },
+        {
+          "lemma": "LemmaReuse.Store.fact_be126601dd",
+          "kind": "fact, Nibbles",
+          "source": "store"
+        },
+        {
+          "lemma": "LemmaReuse.Store.fact_be126601dd",
+          "kind": "fact, Nibbles",
+          "source": "store"
+        },
+        {
+          "lemma": "LemmaReuse.Store.fact_5e8d79da5d",
+          "kind": "fact, Pairs",
+          "source": "store"
+        }
+      ],
+      "facts_tried": 17,
+      "facts_proved": 9,
+      "mined": 0,
+      "mined_check_seconds": 0,
+      "failed_fact_seconds": 0,
+      "lemma_seconds": 0.0,
+      "proof": {
+        "status": "proved",
+        "seconds": 0.25
+      },
+      "original": {
+        "status": "proved",
+        "seconds": 0.41
+      },
+      "distinct_lemmas": 4,
+      "from_store": 4
+    },
+    {
+      "place": "s25",
+      "function": "ggml_gemm_q4_K_8x8_q8_K",
+      "value": "%2094",
+      "gaps": [],
+      "frontier": 17,
+      "lemmas": [
+        {
+          "lemma": "LemmaReuse.Store.core_01920f5ad1",
+          "kind": "core",
+          "source": "store",
+          "check_seconds": 0.0
+        },
+        {
+          "lemma": "LemmaReuse.Store.fact_739babaa5b",
+          "kind": "fact, Nibbles",
+          "source": "store"
+        },
+        {
+          "lemma": "LemmaReuse.Store.fact_739babaa5b",
+          "kind": "fact, Nibbles",
+          "source": "store"
+        },
+        {
+          "lemma": "LemmaReuse.Store.fact_739babaa5b",
+          "kind": "fact, Nibbles",
+          "source": "store"
+        },
+        {
+          "lemma": "LemmaReuse.Store.fact_739babaa5b",
+          "kind": "fact, Nibbles",
+          "source": "store"
+        },
+        {
+          "lemma": "LemmaReuse.Store.fact_167b0d9f10",
+          "kind": "fact, Nibbles",
+          "source": "store"
+        },
+        {
+          "lemma": "LemmaReuse.Store.fact_167b0d9f10",
+          "kind": "fact, Nibbles",
+          "source": "store"
+        },
+        {
+          "lemma": "LemmaReuse.Store.fact_167b0d9f10",
+          "kind": "fact, Nibbles",
+          "source": "store"
+        },
+        {
+          "lemma": "LemmaReuse.Store.fact_167b0d9f10",
+          "kind": "fact, Nibbles",
+          "source": "store"
+        },
+        {
+          "lemma": "LemmaReuse.Store.fact_cfa7dec569",
+          "kind": "fact, Pairs",
+          "source": "store"
+        }
+      ],
+      "facts_tried": 17,
+      "facts_proved": 9,
+      "mined": 0,
+      "mined_check_seconds": 0,
+      "failed_fact_seconds": 0,
+      "lemma_seconds": 0.0,
+      "proof": {
+        "status": "proved",
+        "seconds": 0.25
+      },
+      "original": {
+        "status": "proved",
+        "seconds": 0.41
+      },
+      "distinct_lemmas": 4,
+      "from_store": 4
+    },
+    {
+      "place": "s26",
+      "function": "ggml_gemm_q4_K_8x8_q8_K",
+      "value": "%2732",
+      "gaps": [],
+      "frontier": 17,
+      "lemmas": [
+        {
+          "lemma": "LemmaReuse.Store.core_01920f5ad1",
+          "kind": "core",
+          "source": "store",
+          "check_seconds": 0.0
+        },
+        {
+          "lemma": "LemmaReuse.Store.fact_fcc9b34b1f",
+          "kind": "fact, Nibbles",
+          "source": "store"
+        },
+        {
+          "lemma": "LemmaReuse.Store.fact_fcc9b34b1f",
+          "kind": "fact, Nibbles",
+          "source": "store"
+        },
+        {
+          "lemma": "LemmaReuse.Store.fact_fcc9b34b1f",
+          "kind": "fact, Nibbles",
+          "source": "store"
+        },
+        {
+          "lemma": "LemmaReuse.Store.fact_fcc9b34b1f",
+          "kind": "fact, Nibbles",
+          "source": "store"
+        },
+        {
+          "lemma": "LemmaReuse.Store.fact_e5537fed30",
+          "kind": "fact, Nibbles",
+          "source": "store"
+        },
+        {
+          "lemma": "LemmaReuse.Store.fact_e5537fed30",
+          "kind": "fact, Nibbles",
+          "source": "store"
+        },
+        {
+          "lemma": "LemmaReuse.Store.fact_e5537fed30",
+          "kind": "fact, Nibbles",
+          "source": "store"
+        },
+        {
+          "lemma": "LemmaReuse.Store.fact_e5537fed30",
+          "kind": "fact, Nibbles",
+          "source": "store"
+        },
+        {
+          "lemma": "LemmaReuse.Store.fact_5e8d79da5d",
+          "kind": "fact, Pairs",
+          "source": "store"
+        }
+      ],
+      "facts_tried": 17,
+      "facts_proved": 9,
+      "mined": 0,
+      "mined_check_seconds": 0,
+      "failed_fact_seconds": 0,
+      "lemma_seconds": 0.0,
+      "proof": {
+        "status": "proved",
+        "seconds": 0.25
+      },
+      "original": {
+        "status": "proved",
+        "seconds": 0.34
+      },
+      "distinct_lemmas": 4,
+      "from_store": 4
+    },
+    {
+      "place": "s27",
+      "function": "ggml_gemm_q4_K_8x8_q8_K",
+      "value": "%2734",
+      "gaps": [],
+      "frontier": 17,
+      "lemmas": [
+        {
+          "lemma": "LemmaReuse.Store.core_01920f5ad1",
+          "kind": "core",
+          "source": "store",
+          "check_seconds": 0.0
+        },
+        {
+          "lemma": "LemmaReuse.Store.fact_c01b84b1da",
+          "kind": "fact, Nibbles",
+          "source": "store"
+        },
+        {
+          "lemma": "LemmaReuse.Store.fact_c01b84b1da",
+          "kind": "fact, Nibbles",
+          "source": "store"
+        },
+        {
+          "lemma": "LemmaReuse.Store.fact_c01b84b1da",
+          "kind": "fact, Nibbles",
+          "source": "store"
+        },
+        {
+          "lemma": "LemmaReuse.Store.fact_c01b84b1da",
+          "kind": "fact, Nibbles",
+          "source": "store"
+        },
+        {
+          "lemma": "LemmaReuse.Store.fact_0f634a210e",
+          "kind": "fact, Nibbles",
+          "source": "store"
+        },
+        {
+          "lemma": "LemmaReuse.Store.fact_0f634a210e",
+          "kind": "fact, Nibbles",
+          "source": "store"
+        },
+        {
+          "lemma": "LemmaReuse.Store.fact_0f634a210e",
+          "kind": "fact, Nibbles",
+          "source": "store"
+        },
+        {
+          "lemma": "LemmaReuse.Store.fact_0f634a210e",
+          "kind": "fact, Nibbles",
+          "source": "store"
+        },
+        {
+          "lemma": "LemmaReuse.Store.fact_cfa7dec569",
+          "kind": "fact, Pairs",
+          "source": "store"
+        }
+      ],
+      "facts_tried": 17,
+      "facts_proved": 9,
+      "mined": 0,
+      "mined_check_seconds": 0,
+      "failed_fact_seconds": 0,
+      "lemma_seconds": 0.0,
+      "proof": {
+        "status": "proved",
+        "seconds": 0.25
+      },
+      "original": {
+        "status": "proved",
+        "seconds": 0.34
+      },
+      "distinct_lemmas": 4,
+      "from_store": 4
+    },
+    {
+      "place": "s28",
+      "function": "ggml_gemm_q4_K_8x8_q8_K",
+      "value": "%2735",
+      "gaps": [],
+      "frontier": 17,
+      "lemmas": [
+        {
+          "lemma": "LemmaReuse.Store.core_01920f5ad1",
+          "kind": "core",
+          "source": "store",
+          "check_seconds": 0.0
+        },
+        {
+          "lemma": "LemmaReuse.Store.fact_fcc9b34b1f",
+          "kind": "fact, Nibbles",
+          "source": "store"
+        },
+        {
+          "lemma": "LemmaReuse.Store.fact_fcc9b34b1f",
+          "kind": "fact, Nibbles",
+          "source": "store"
+        },
+        {
+          "lemma": "LemmaReuse.Store.fact_fcc9b34b1f",
+          "kind": "fact, Nibbles",
+          "source": "store"
+        },
+        {
+          "lemma": "LemmaReuse.Store.fact_fcc9b34b1f",
+          "kind": "fact, Nibbles",
+          "source": "store"
+        },
+        {
+          "lemma": "LemmaReuse.Store.fact_e5537fed30",
+          "kind": "fact, Nibbles",
+          "source": "store"
+        },
+        {
+          "lemma": "LemmaReuse.Store.fact_e5537fed30",
+          "kind": "fact, Nibbles",
+          "source": "store"
+        },
+        {
+          "lemma": "LemmaReuse.Store.fact_e5537fed30",
+          "kind": "fact, Nibbles",
+          "source": "store"
+        },
+        {
+          "lemma": "LemmaReuse.Store.fact_e5537fed30",
+          "kind": "fact, Nibbles",
+          "source": "store"
+        },
+        {
+          "lemma": "LemmaReuse.Store.fact_5e8d79da5d",
+          "kind": "fact, Pairs",
+          "source": "store"
+        }
+      ],
+      "facts_tried": 17,
+      "facts_proved": 9,
+      "mined": 0,
+      "mined_check_seconds": 0,
+      "failed_fact_seconds": 0,
+      "lemma_seconds": 0.0,
+      "proof": {
+        "status": "proved",
+        "seconds": 0.25
+      },
+      "original": {
+        "status": "proved",
+        "seconds": 0.34
+      },
+      "distinct_lemmas": 4,
+      "from_store": 4
+    },
+    {
+      "place": "s29",
+      "function": "ggml_gemm_q4_K_8x8_q8_K",
+      "value": "%2736",
+      "gaps": [],
+      "frontier": 17,
+      "lemmas": [
+        {
+          "lemma": "LemmaReuse.Store.core_01920f5ad1",
+          "kind": "core",
+          "source": "store",
+          "check_seconds": 0.0
+        },
+        {
+          "lemma": "LemmaReuse.Store.fact_c01b84b1da",
+          "kind": "fact, Nibbles",
+          "source": "store"
+        },
+        {
+          "lemma": "LemmaReuse.Store.fact_c01b84b1da",
+          "kind": "fact, Nibbles",
+          "source": "store"
+        },
+        {
+          "lemma": "LemmaReuse.Store.fact_c01b84b1da",
+          "kind": "fact, Nibbles",
+          "source": "store"
+        },
+        {
+          "lemma": "LemmaReuse.Store.fact_c01b84b1da",
+          "kind": "fact, Nibbles",
+          "source": "store"
+        },
+        {
+          "lemma": "LemmaReuse.Store.fact_0f634a210e",
+          "kind": "fact, Nibbles",
+          "source": "store"
+        },
+        {
+          "lemma": "LemmaReuse.Store.fact_0f634a210e",
+          "kind": "fact, Nibbles",
+          "source": "store"
+        },
+        {
+          "lemma": "LemmaReuse.Store.fact_0f634a210e",
+          "kind": "fact, Nibbles",
+          "source": "store"
+        },
+        {
+          "lemma": "LemmaReuse.Store.fact_0f634a210e",
+          "kind": "fact, Nibbles",
+          "source": "store"
+        },
+        {
+          "lemma": "LemmaReuse.Store.fact_cfa7dec569",
+          "kind": "fact, Pairs",
+          "source": "store"
+        }
+      ],
+      "facts_tried": 17,
+      "facts_proved": 9,
+      "mined": 0,
+      "mined_check_seconds": 0,
+      "failed_fact_seconds": 0,
+      "lemma_seconds": 0.0,
+      "proof": {
+        "status": "proved",
+        "seconds": 0.25
+      },
+      "original": {
+        "status": "proved",
+        "seconds": 0.34
+      },
+      "distinct_lemmas": 4,
+      "from_store": 4
+    },
+    {
+      "place": "s30",
+      "function": "ggml_gemm_q4_K_8x8_q8_K",
+      "value": "%2738",
+      "gaps": [],
+      "frontier": 17,
+      "lemmas": [
+        {
+          "lemma": "LemmaReuse.Store.core_01920f5ad1",
+          "kind": "core",
+          "source": "store",
+          "check_seconds": 0.0
+        },
+        {
+          "lemma": "LemmaReuse.Store.fact_198e6e01d7",
+          "kind": "fact, Nibbles",
+          "source": "store"
+        },
+        {
+          "lemma": "LemmaReuse.Store.fact_198e6e01d7",
+          "kind": "fact, Nibbles",
+          "source": "store"
+        },
+        {
+          "lemma": "LemmaReuse.Store.fact_198e6e01d7",
+          "kind": "fact, Nibbles",
+          "source": "store"
+        },
+        {
+          "lemma": "LemmaReuse.Store.fact_198e6e01d7",
+          "kind": "fact, Nibbles",
+          "source": "store"
+        },
+        {
+          "lemma": "LemmaReuse.Store.fact_be126601dd",
+          "kind": "fact, Nibbles",
+          "source": "store"
+        },
+        {
+          "lemma": "LemmaReuse.Store.fact_be126601dd",
+          "kind": "fact, Nibbles",
+          "source": "store"
+        },
+        {
+          "lemma": "LemmaReuse.Store.fact_be126601dd",
+          "kind": "fact, Nibbles",
+          "source": "store"
+        },
+        {
+          "lemma": "LemmaReuse.Store.fact_be126601dd",
+          "kind": "fact, Nibbles",
+          "source": "store"
+        },
+        {
+          "lemma": "LemmaReuse.Store.fact_5e8d79da5d",
+          "kind": "fact, Pairs",
+          "source": "store"
+        }
+      ],
+      "facts_tried": 17,
+      "facts_proved": 9,
+      "mined": 0,
+      "mined_check_seconds": 0,
+      "failed_fact_seconds": 0,
+      "lemma_seconds": 0.0,
+      "proof": {
+        "status": "proved",
+        "seconds": 0.25
+      },
+      "original": {
+        "status": "proved",
+        "seconds": 0.41
+      },
+      "distinct_lemmas": 4,
+      "from_store": 4
+    },
+    {
+      "place": "s31",
+      "function": "ggml_gemm_q4_K_8x8_q8_K",
+      "value": "%2740",
+      "gaps": [],
+      "frontier": 17,
+      "lemmas": [
+        {
+          "lemma": "LemmaReuse.Store.core_01920f5ad1",
+          "kind": "core",
+          "source": "store",
+          "check_seconds": 0.0
+        },
+        {
+          "lemma": "LemmaReuse.Store.fact_739babaa5b",
+          "kind": "fact, Nibbles",
+          "source": "store"
+        },
+        {
+          "lemma": "LemmaReuse.Store.fact_739babaa5b",
+          "kind": "fact, Nibbles",
+          "source": "store"
+        },
+        {
+          "lemma": "LemmaReuse.Store.fact_739babaa5b",
+          "kind": "fact, Nibbles",
+          "source": "store"
+        },
+        {
+          "lemma": "LemmaReuse.Store.fact_739babaa5b",
+          "kind": "fact, Nibbles",
+          "source": "store"
+        },
+        {
+          "lemma": "LemmaReuse.Store.fact_167b0d9f10",
+          "kind": "fact, Nibbles",
+          "source": "store"
+        },
+        {
+          "lemma": "LemmaReuse.Store.fact_167b0d9f10",
+          "kind": "fact, Nibbles",
+          "source": "store"
+        },
+        {
+          "lemma": "LemmaReuse.Store.fact_167b0d9f10",
+          "kind": "fact, Nibbles",
+          "source": "store"
+        },
+        {
+          "lemma": "LemmaReuse.Store.fact_167b0d9f10",
+          "kind": "fact, Nibbles",
+          "source": "store"
+        },
+        {
+          "lemma": "LemmaReuse.Store.fact_cfa7dec569",
+          "kind": "fact, Pairs",
+          "source": "store"
+        }
+      ],
+      "facts_tried": 17,
+      "facts_proved": 9,
+      "mined": 0,
+      "mined_check_seconds": 0,
+      "failed_fact_seconds": 0,
+      "lemma_seconds": 0.0,
+      "proof": {
+        "status": "proved",
+        "seconds": 0.25
+      },
+      "original": {
+        "status": "proved",
+        "seconds": 0.41
+      },
+      "distinct_lemmas": 4,
+      "from_store": 4
+    },
+    {
+      "place": "s32",
+      "function": "ggml_gemm_q4_K_8x8_q8_K",
+      "value": "%2741",
+      "gaps": [],
+      "frontier": 17,
+      "lemmas": [
+        {
+          "lemma": "LemmaReuse.Store.core_01920f5ad1",
+          "kind": "core",
+          "source": "store",
+          "check_seconds": 0.0
+        },
+        {
+          "lemma": "LemmaReuse.Store.fact_198e6e01d7",
+          "kind": "fact, Nibbles",
+          "source": "store"
+        },
+        {
+          "lemma": "LemmaReuse.Store.fact_198e6e01d7",
+          "kind": "fact, Nibbles",
+          "source": "store"
+        },
+        {
+          "lemma": "LemmaReuse.Store.fact_198e6e01d7",
+          "kind": "fact, Nibbles",
+          "source": "store"
+        },
+        {
+          "lemma": "LemmaReuse.Store.fact_198e6e01d7",
+          "kind": "fact, Nibbles",
+          "source": "store"
+        },
+        {
+          "lemma": "LemmaReuse.Store.fact_be126601dd",
+          "kind": "fact, Nibbles",
+          "source": "store"
+        },
+        {
+          "lemma": "LemmaReuse.Store.fact_be126601dd",
+          "kind": "fact, Nibbles",
+          "source": "store"
+        },
+        {
+          "lemma": "LemmaReuse.Store.fact_be126601dd",
+          "kind": "fact, Nibbles",
+          "source": "store"
+        },
+        {
+          "lemma": "LemmaReuse.Store.fact_be126601dd",
+          "kind": "fact, Nibbles",
+          "source": "store"
+        },
+        {
+          "lemma": "LemmaReuse.Store.fact_5e8d79da5d",
+          "kind": "fact, Pairs",
+          "source": "store"
+        }
+      ],
+      "facts_tried": 17,
+      "facts_proved": 9,
+      "mined": 0,
+      "mined_check_seconds": 0,
+      "failed_fact_seconds": 0,
+      "lemma_seconds": 0.0,
+      "proof": {
+        "status": "proved",
+        "seconds": 0.25
+      },
+      "original": {
+        "status": "proved",
+        "seconds": 0.41
+      },
+      "distinct_lemmas": 4,
+      "from_store": 4
+    },
+    {
+      "place": "s33",
+      "function": "ggml_gemm_q4_K_8x8_q8_K",
+      "value": "%2742",
+      "gaps": [],
+      "frontier": 17,
+      "lemmas": [
+        {
+          "lemma": "LemmaReuse.Store.core_01920f5ad1",
+          "kind": "core",
+          "source": "store",
+          "check_seconds": 0.0
+        },
+        {
+          "lemma": "LemmaReuse.Store.fact_739babaa5b",
+          "kind": "fact, Nibbles",
+          "source": "store"
+        },
+        {
+          "lemma": "LemmaReuse.Store.fact_739babaa5b",
+          "kind": "fact, Nibbles",
+          "source": "store"
+        },
+        {
+          "lemma": "LemmaReuse.Store.fact_739babaa5b",
+          "kind": "fact, Nibbles",
+          "source": "store"
+        },
+        {
+          "lemma": "LemmaReuse.Store.fact_739babaa5b",
+          "kind": "fact, Nibbles",
+          "source": "store"
+        },
+        {
+          "lemma": "LemmaReuse.Store.fact_167b0d9f10",
+          "kind": "fact, Nibbles",
+          "source": "store"
+        },
+        {
+          "lemma": "LemmaReuse.Store.fact_167b0d9f10",
+          "kind": "fact, Nibbles",
+          "source": "store"
+        },
+        {
+          "lemma": "LemmaReuse.Store.fact_167b0d9f10",
+          "kind": "fact, Nibbles",
+          "source": "store"
+        },
+        {
+          "lemma": "LemmaReuse.Store.fact_167b0d9f10",
+          "kind": "fact, Nibbles",
+          "source": "store"
+        },
+        {
+          "lemma": "LemmaReuse.Store.fact_cfa7dec569",
+          "kind": "fact, Pairs",
+          "source": "store"
+        }
+      ],
+      "facts_tried": 17,
+      "facts_proved": 9,
+      "mined": 0,
+      "mined_check_seconds": 0,
+      "failed_fact_seconds": 0,
+      "lemma_seconds": 0.0,
+      "proof": {
+        "status": "proved",
+        "seconds": 0.25
+      },
+      "original": {
+        "status": "proved",
+        "seconds": 0.41
+      },
+      "distinct_lemmas": 4,
+      "from_store": 4
+    }
+  ]
+}

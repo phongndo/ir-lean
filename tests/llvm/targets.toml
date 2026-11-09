@@ -1,4 +1,6 @@
 # What tests/llvm.py proves, from unmodified source in the monorepo at `tag`. See docs/llvm.md.
+# Each function is named by its symbol in the IR, or for people, with the symbol in `symbol`: the function its theorem
+# has to be about, as ir-lean translated it.
 
 support = ["Kit", "Bits", "Div", "Words"]
 
@@ -519,116 +521,139 @@ wrapper = true
 flags = "llvm"
 [target.functions."llvm::Hi_32"]
 theorem = "Llvm.MathExtras.hi32_correct"
+symbol = "hi32"
 mutants = [
   { name = "wrong shift", file = "llvm/include/llvm/Support/MathExtras.h", from = "return static_cast<uint32_t>(Value >> 32);", to = "return static_cast<uint32_t>(Value >> 31);" },
 ]
 [target.functions."llvm::Lo_32"]
 theorem = "Llvm.MathExtras.lo32_correct"
+symbol = "lo32"
 mutants = [
   { name = "wrong half", file = "llvm/include/llvm/Support/MathExtras.h", from = "constexpr uint32_t Lo_32(uint64_t Value) {\n  return static_cast<uint32_t>(Value);", to = "constexpr uint32_t Lo_32(uint64_t Value) {\n  return static_cast<uint32_t>(Value >> 1);" },
 ]
 [target.functions."llvm::Make_64"]
 theorem = "Llvm.MathExtras.make64_correct"
+symbol = "make64"
 mutants = [
   { name = "wrong shift", file = "llvm/include/llvm/Support/MathExtras.h", from = "return ((uint64_t)High << 32) | (uint64_t)Low;", to = "return ((uint64_t)High << 31) | (uint64_t)Low;" },
 ]
 [target.functions."llvm::isMask_64"]
 theorem = "Llvm.MathExtras.ismask64_correct"
+symbol = "ismask64"
 mutants = [
   { name = "takes zero", file = "llvm/include/llvm/Support/MathExtras.h", from = "constexpr bool isMask_64(uint64_t Value) {\n  return Value && ((Value + 1) & Value) == 0;", to = "constexpr bool isMask_64(uint64_t Value) {\n  return ((Value + 1) & Value) == 0;" },
 ]
 [target.functions."llvm::isShiftedMask_64"]
 theorem = "Llvm.MathExtras.isshiftedmask64_correct"
+symbol = "isshiftedmask64"
 mutants = [
   { name = "needs the lowest bit", file = "llvm/include/llvm/Support/MathExtras.h", from = "return Value && isMask_64((Value - 1) | Value);", to = "return Value && isMask_64(Value);" },
 ]
 [target.functions."llvm::isPowerOf2_64"]
 theorem = "Llvm.MathExtras.ispowerof2_64_correct"
+symbol = "ispowerof2_64"
 mutants = [
   { name = "takes zero", file = "llvm/include/llvm/ADT/bit.h", from = "return (Value != 0) && ((Value & (Value - 1)) == 0);", to = "return ((Value & (Value - 1)) == 0);" },
 ]
 [target.functions."llvm::Log2_64"]
 theorem = "Llvm.MathExtras.log2_64_correct"
+symbol = "log2_64"
 mutants = [
   { name = "off by one", file = "llvm/include/llvm/Support/MathExtras.h", from = "return 63 - llvm::countl_zero(Value);", to = "return 64 - llvm::countl_zero(Value);" },
 ]
 [target.functions."llvm::Log2_64_Ceil"]
 theorem = "Llvm.MathExtras.log2_64_ceil_correct"
+symbol = "log2_64_ceil"
 mutants = [
   { name = "off by one", file = "llvm/include/llvm/Support/MathExtras.h", from = "return 64 - llvm::countl_zero(Value - 1);", to = "return 64 - llvm::countl_zero(Value);" },
 ]
 [target.functions."llvm::MinAlign"]
 theorem = "Llvm.MathExtras.minalign_correct"
+symbol = "minalign"
 mutants = [
   { name = "forgets the increment", file = "llvm/include/llvm/Support/MathExtras.h", from = "constexpr uint64_t MinAlign(uint64_t A, uint64_t B) {\n  return (A | B) & (1 + ~(A | B));", to = "constexpr uint64_t MinAlign(uint64_t A, uint64_t B) {\n  return (A | B) & (~(A | B));" },
 ]
 [target.functions."llvm::NextPowerOf2"]
 theorem = "Llvm.MathExtras.nextpowerof2_correct"
+symbol = "nextpowerof2"
 mutants = [
   { name = "misses a shift", file = "llvm/include/llvm/Support/MathExtras.h", from = "A |= (A >> 32);\n", to = "\n" },
 ]
 [target.functions."llvm::PowerOf2Ceil"]
 theorem = "Llvm.MathExtras.powerof2ceil_correct"
+symbol = "powerof2ceil"
 mutants = [
   { name = "allows the overflow", file = "llvm/include/llvm/Support/MathExtras.h", from = "if (!A || A > UINT64_MAX / 2)", to = "if (!A)" },
 ]
 [target.functions."llvm::isUIntN"]
 theorem = "Llvm.MathExtras.isuintn_correct"
+symbol = "isuintn"
 mutants = [
   { name = "wrong limit", file = "llvm/include/llvm/Support/MathExtras.h", from = "return N >= 64 || (x >> N) == 0;", to = "return N >= 63 || (x >> N) == 0;" },
 ]
 [target.functions."llvm::maxUIntN"]
 theorem = "Llvm.MathExtras.maxuintn_correct"
+symbol = "maxuintn"
 mutants = [
   { name = "off by one", file = "llvm/include/llvm/Support/MathExtras.h", from = "return UINT64_MAX >> (64 - N);", to = "return UINT64_MAX >> (63 - N);" },
 ]
 [target.functions."llvm::minIntN"]
 theorem = "Llvm.MathExtras.minintn_correct"
+symbol = "minintn"
 mutants = [
   { name = "off by one", file = "llvm/include/llvm/Support/MathExtras.h", from = "return UINT64_MAX << (N - 1);", to = "return UINT64_MAX << N;" },
 ]
 [target.functions."llvm::maxIntN"]
 theorem = "Llvm.MathExtras.maxintn_correct"
+symbol = "maxintn"
 mutants = [
   { name = "off by one", file = "llvm/include/llvm/Support/MathExtras.h", from = "return (UINT64_C(1) << (N - 1)) - 1;", to = "return (UINT64_C(1) << (N - 1));" },
 ]
 [target.functions."llvm::isIntN"]
 theorem = "Llvm.MathExtras.isintn_correct"
+symbol = "isintn"
 mutants = [
   { name = "wrong limit", file = "llvm/include/llvm/Support/MathExtras.h", from = "return N >= 64 || (minIntN(N) <= x && x <= maxIntN(N));", to = "return N >= 64 || (minIntN(N) < x && x <= maxIntN(N));" },
 ]
 [target.functions."llvm::SignExtend64"]
 theorem = "Llvm.MathExtras.signextend64_correct"
+symbol = "signextend64"
 mutants = [
   { name = "shifts too little", file = "llvm/include/llvm/Support/MathExtras.h", from = "return int64_t(X << (64 - B)) >> (64 - B);", to = "return int64_t(X << (64 - B)) >> (63 - B);" },
 ]
 [target.functions."llvm::AbsoluteDifference"]
 theorem = "Llvm.MathExtras.abs_diff_correct"
+symbol = "abs_diff"
 mutants = [
   { name = "wrong order", file = "llvm/include/llvm/Support/MathExtras.h", from = "return X > Y ? (X - Y) : (Y - X);", to = "return X > Y ? (Y - X) : (Y - X);" },
 ]
 [target.functions."llvm::maskTrailingOnes<uint32_t>"]
 theorem = "Llvm.MathExtras.masktrailingones32_correct"
+symbol = "masktrailingones32"
 mutants = [
   { name = "off by one", file = "llvm/include/llvm/Support/MathExtras.h", from = "return T(-1) >> (Bits - N);", to = "return T(-1) >> (Bits - N - 1);" },
 ]
 [target.functions."llvm::maskTrailingOnes<uint64_t>"]
 theorem = "Llvm.MathExtras.masktrailingones64_correct"
+symbol = "masktrailingones64"
 mutants = [
   { name = "off by one", file = "llvm/include/llvm/Support/MathExtras.h", from = "return T(-1) >> (Bits - N);", to = "return T(-1) >> (Bits - N - 1);" },
 ]
 [target.functions."llvm::maskLeadingOnes<uint64_t>"]
 theorem = "Llvm.MathExtras.maskleadingones64_correct"
+symbol = "maskleadingones64"
 mutants = [
   { name = "forgets to invert", file = "llvm/include/llvm/Support/MathExtras.h", from = "return ~maskTrailingOnes<T>(CHAR_BIT * sizeof(T) - N);", to = "return maskTrailingOnes<T>(CHAR_BIT * sizeof(T) - N);" },
 ]
 [target.functions."llvm::reverseBits<uint32_t>"]
 theorem = "Llvm.MathExtras.reversebits32_correct"
+symbol = "reversebits32"
 mutants = [
   { name = "wrong builtin", file = "llvm/include/llvm/Support/MathExtras.h", from = "return __builtin_bitreverse32(Val);", to = "return __builtin_bswap32(Val);" },
 ]
 [target.functions."llvm::reverseBits<uint64_t>"]
 theorem = "Llvm.MathExtras.reversebits64_correct"
+symbol = "reversebits64"
 mutants = [
   { name = "wrong builtin", file = "llvm/include/llvm/Support/MathExtras.h", from = "return __builtin_bitreverse64(Val);", to = "return __builtin_bswap64(Val);" },
 ]
@@ -641,6 +666,7 @@ wrapper = true
 flags = "llvm"
 [target.functions."llvm::decodeULEB128"]
 theorem = "Llvm.LEB128.decodeuleb128_correct"
+symbol = "decodeuleb128"
 hard = true
 loop = true
 memory = true
@@ -657,6 +683,7 @@ source = "llvm/lib/Support/CRC.cpp"
 flags = "llvm"
 [target.functions."llvm::crc32(uint32_t, ArrayRef<uint8_t>)"]
 theorem = "Llvm.CRC.crc32_correct"
+symbol = "_ZN4llvm5crc32EjNS_8ArrayRefIhEE"
 hard = true
 loop = true
 memory = true
@@ -673,6 +700,7 @@ source = "llvm/lib/Support/APInt.cpp"
 flags = "llvm"
 [target.functions."llvm::APInt::tcIsZero"]
 theorem = "Llvm.APInt.tcIsZero_correct"
+symbol = "_ZN4llvm5APInt8tcIsZeroEPKmj"
 loop = true
 memory = true
 mutants = [
@@ -680,6 +708,7 @@ mutants = [
 ]
 [target.functions."llvm::APInt::tcCompare"]
 theorem = "Llvm.APInt.tcCompare_correct"
+symbol = "_ZN4llvm5APInt9tcCompareEPKmS2_j"
 loop = true
 memory = true
 mutants = [
@@ -687,6 +716,7 @@ mutants = [
 ]
 [target.functions."llvm::APInt::tcAdd"]
 theorem = "Llvm.APInt.tcAdd_correct"
+symbol = "_ZN4llvm5APInt5tcAddEPmPKmmj"
 hard = true
 loop = true
 memory = true
@@ -700,7 +730,7 @@ module = "LibcGenAbs"
 proof = "LibcAbs"
 source = "libc/src/stdlib/abs.cpp"
 flags = "libc"
-functions."__llvm_libc::abs" = { theorem = "Llvm.abs_correct" }
+functions."__llvm_libc::abs" = { theorem = "Llvm.abs_correct", symbol = "_ZN11__llvm_libc3absEi" }
 mutants = [
   { name = "injected bug", file = "libc/src/__support/integer_operations.h", from = "return (n < 0) ? -n : n;", to = "return (n <= 0) ? n : -n;" },
 ]
@@ -710,7 +740,7 @@ module = "LibcGenLabs"
 proof = "LibcLabs"
 source = "libc/src/stdlib/labs.cpp"
 flags = "libc"
-functions."__llvm_libc::labs" = { theorem = "Llvm.labs_correct" }
+functions."__llvm_libc::labs" = { theorem = "Llvm.labs_correct", symbol = "_ZN11__llvm_libc4labsEl" }
 mutants = [
   { name = "injected bug", file = "libc/src/__support/integer_operations.h", from = "return (n < 0) ? -n : n;", to = "return (n <= 0) ? n : -n;" },
 ]
@@ -720,7 +750,7 @@ module = "LibcGenLlabs"
 proof = "LibcLlabs"
 source = "libc/src/stdlib/llabs.cpp"
 flags = "libc"
-functions."__llvm_libc::llabs" = { theorem = "Llvm.llabs_correct" }
+functions."__llvm_libc::llabs" = { theorem = "Llvm.llabs_correct", symbol = "_ZN11__llvm_libc5llabsEx" }
 mutants = [
   { name = "injected bug", file = "libc/src/__support/integer_operations.h", from = "return (n < 0) ? -n : n;", to = "return (n <= 0) ? n : -n;" },
 ]
@@ -730,7 +760,7 @@ module = "LibcGenIsdigit"
 proof = "LibcIsdigit"
 source = "libc/src/ctype/isdigit.cpp"
 flags = "libc"
-functions."__llvm_libc::isdigit" = { theorem = "Llvm.isdigit_correct" }
+functions."__llvm_libc::isdigit" = { theorem = "Llvm.isdigit_correct", symbol = "_ZN11__llvm_libc7isdigitEi" }
 mutants = [
   { name = "injected bug", file = "libc/src/__support/ctype_utils.h", from = "case '0':\n", to = "case '/':\n" },
 ]
@@ -740,7 +770,7 @@ module = "LibcGenIslower"
 proof = "LibcIslower"
 source = "libc/src/ctype/islower.cpp"
 flags = "libc"
-functions."__llvm_libc::islower" = { theorem = "Llvm.islower_correct" }
+functions."__llvm_libc::islower" = { theorem = "Llvm.islower_correct", symbol = "_ZN11__llvm_libc7islowerEi" }
 mutants = [
   { name = "injected bug", file = "libc/src/__support/ctype_utils.h", from = "LIBC_INLINE constexpr bool islower(char ch) {\n  switch (ch) {\n  case 'a':\n", to = "LIBC_INLINE constexpr bool islower(char ch) {\n  switch (ch) {\n  case 'A':\n" },
 ]
@@ -750,7 +780,7 @@ module = "LibcGenIsupper"
 proof = "LibcIsupper"
 source = "libc/src/ctype/isupper.cpp"
 flags = "libc"
-functions."__llvm_libc::isupper" = { theorem = "Llvm.isupper_correct" }
+functions."__llvm_libc::isupper" = { theorem = "Llvm.isupper_correct", symbol = "_ZN11__llvm_libc7isupperEi" }
 mutants = [
   { name = "injected bug", file = "libc/src/__support/ctype_utils.h", from = "LIBC_INLINE constexpr bool isupper(char ch) {\n  switch (ch) {\n  case 'A':\n", to = "LIBC_INLINE constexpr bool isupper(char ch) {\n  switch (ch) {\n  case 'a':\n" },
 ]
@@ -760,7 +790,7 @@ module = "LibcGenIsblank"
 proof = "LibcIsblank"
 source = "libc/src/ctype/isblank.cpp"
 flags = "libc"
-functions."__llvm_libc::isblank" = { theorem = "Llvm.isblank_correct" }
+functions."__llvm_libc::isblank" = { theorem = "Llvm.isblank_correct", symbol = "_ZN11__llvm_libc7isblankEi" }
 mutants = [
   { name = "injected bug", file = "libc/src/ctype/isblank.cpp", from = "return static_cast<int>(c == ' ' || c == '\\t');", to = "return static_cast<int>(c == ' ');" },
 ]
@@ -770,7 +800,7 @@ module = "LibcGenIscntrl"
 proof = "LibcIscntrl"
 source = "libc/src/ctype/iscntrl.cpp"
 flags = "libc"
-functions."__llvm_libc::iscntrl" = { theorem = "Llvm.iscntrl_correct" }
+functions."__llvm_libc::iscntrl" = { theorem = "Llvm.iscntrl_correct", symbol = "_ZN11__llvm_libc7iscntrlEi" }
 mutants = [
   { name = "injected bug", file = "libc/src/ctype/iscntrl.cpp", from = "return static_cast<int>(ch < 0x20 || ch == 0x7f);", to = "return static_cast<int>(ch < 0x20);" },
 ]
@@ -780,7 +810,7 @@ module = "LibcGenIsgraph"
 proof = "LibcIsgraph"
 source = "libc/src/ctype/isgraph.cpp"
 flags = "libc"
-functions."__llvm_libc::isgraph" = { theorem = "Llvm.isgraph_correct" }
+functions."__llvm_libc::isgraph" = { theorem = "Llvm.isgraph_correct", symbol = "_ZN11__llvm_libc7isgraphEi" }
 mutants = [
   { name = "injected bug", file = "libc/src/__support/ctype_utils.h", from = "return 0x20 < ch && ch < 0x7f;", to = "return 0x20 <= ch && ch < 0x7f;" },
 ]
@@ -790,7 +820,7 @@ module = "LibcGenIsascii"
 proof = "LibcIsascii"
 source = "libc/src/ctype/isascii.cpp"
 flags = "libc"
-functions."__llvm_libc::isascii" = { theorem = "Llvm.isascii_correct" }
+functions."__llvm_libc::isascii" = { theorem = "Llvm.isascii_correct", symbol = "_ZN11__llvm_libc7isasciiEi" }
 mutants = [
   { name = "injected bug", file = "libc/src/ctype/isascii.cpp", from = "return static_cast<int>((c & (~0x7f)) == 0);", to = "return static_cast<int>((c & (~0xff)) == 0);" },
 ]
@@ -800,9 +830,21 @@ module = "LibcGenToascii"
 proof = "LibcToascii"
 source = "libc/src/ctype/toascii.cpp"
 flags = "libc"
-functions."__llvm_libc::toascii" = { theorem = "Llvm.toascii_correct" }
+functions."__llvm_libc::toascii" = { theorem = "Llvm.toascii_correct", symbol = "_ZN11__llvm_libc7toasciiEi" }
 mutants = [
   { name = "injected bug", file = "libc/src/ctype/toascii.cpp", from = "return (c & 0x7f);", to = "return (c & 0xff);" },
+]
+
+# An inline function, so `linkonce_odr`, which clang keeps out of line rather than inlining it into the public `isalnum`.
+# The theorem is about this translation's copy, and the public `isalnum` is left out, since its call may run another's.
+[[target]]
+module = "LibcGenIsalnum"
+proof = "LibcIsalnum"
+source = "libc/src/ctype/isalnum.cpp"
+flags = "libc"
+functions."__llvm_libc::internal::isalnum" = { theorem = "Llvm.internal_isalnum_correct", symbol = "_ZN11__llvm_libc8internal7isalnumEc" }
+mutants = [
+  { name = "injected bug", file = "libc/src/__support/ctype_utils.h", from = "isalnum(char ch) {\n  switch (ch) {\n  case 'a':\n", to = "isalnum(char ch) {\n  switch (ch) {\n  case '!':\n" },
 ]
 
 [[target]]
@@ -821,7 +863,8 @@ mutants = [
   { name = "last carry dropped", from = "q.all = (q.all << 1) | carry;", to = "q.all = (q.all << 1);" },
   { name = "wrong power-of-2 remainder", from = "*rem = n.s.low & (d.s.low - 1);", to = "*rem = n.s.low & d.s.low;" },
   { name = "wrong high-word remainder", from = "r.s.high = n.s.high % d.s.high;\n        r.s.low = 0;", to = "r.s.high = n.s.high % d.s.high;\n        r.s.low = 1;" },
-  { name = "wrong shift count", from = "sr = 1 + n_uword_bits + clzsi(d.s.low) - clzsi(n.s.high);", to = "sr = 2 + n_uword_bits + clzsi(d.s.low) - clzsi(n.s.high);" },
+  # Shifting one further only ever ran the proof out of recursion depth, which says nothing, so this shifts one less.
+  { name = "wrong shift count", from = "sr = 1 + n_uword_bits + clzsi(d.s.low) - clzsi(n.s.high);", to = "sr = n_uword_bits + clzsi(d.s.low) - clzsi(n.s.high);" },
   { name = "one step too few", from = "for (; sr > 0; --sr) {", to = "for (; sr > 1; --sr) {" },
 ]
 
@@ -832,6 +875,7 @@ source = "llvm/lib/Support/xxhash.cpp"
 flags = "llvm"
 [target.functions."llvm::xxh3_64bits (up to 16 bytes)"]
 theorem = "Llvm.Xxhash.xxh3_64bits_correct"
+symbol = "_ZN4llvm11xxh3_64bitsEPKhm"
 hard = true
 memory = true
 partial = "only inputs of at most 16 bytes"

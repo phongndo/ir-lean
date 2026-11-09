@@ -338,14 +338,12 @@ def alive_functions(shape, ret, body, cases, res):
 
 
 def alive_verdict(direction, output):
-    """None if Alive2 proves it, or what's wrong."""
-    if output is None or ("1 correct transformations" in output and "0 incorrect" in output):
+    """None if Alive2 proves it, or what's wrong. A timeout or anything else it can't decide is a skip, which
+    fails the test too."""
+    found = alive.verdict(output)
+    if found == "correct":
         return None
-    if (
-        "ERROR:" in output
-        and "doesn't verify" not in output
-        and "incorrect" not in output.split("Summary")[0].lower().replace("0 incorrect", "")
-    ):
+    if found == "unknown":
         return ("skip", output[:400])
     return ("fail", direction, output[:800])
 
