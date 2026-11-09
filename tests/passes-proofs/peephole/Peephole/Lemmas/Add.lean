@@ -5,7 +5,8 @@ import IRLean.Refine
 
 Each is about values, not about LLVM's code: a candidate for the lemma store, which any proof about an `add` can use.
 The rewrite each one was cut from is named in its docstring. #47 proved them first, in
-`tests/cpp_correspondence/SimplifyAddSound.lean`, about its own model. -/
+`tests/cpp_correspondence/SimplifyAddSound.lean`, about its own model. The two with a hypothesis have its
+counterexample at the end, which the store needs. -/
 
 namespace Peephole.Lemmas
 
@@ -128,3 +129,27 @@ theorem add_nuw_allOnes_refines (a : Val w) (nsw : Bool) :
   · simp [Refine.le]
 
 end Peephole.Lemmas
+
+/-! ### Counterexamples, for the lemma store
+
+For each hypothesis `h` of a lemma above, `drop_h` says the lemma without it is false, and `sat` that its hypotheses
+can all hold, by the names and in the form `tools/store/store.py` looks for. -/
+
+/-- In `i1`, `0 + 0` is `0`, which `1` doesn't refine. -/
+theorem LemmaStore.Counter.Peephole.Lemmas.add_refines_of_sum.drop_h :
+    ¬ ∀ {w : Nat} {x y r : BitVec w} {nuw nsw : Bool},
+      IRLean.Refines (IRLean.Val.add (some x) (some y) nuw nsw) (some r) :=
+  fun h => absurd (show (some 1#1 : IRLean.Val 1) = some (0#1 + 0#1) from @h 1 0#1 0#1 1#1 false false) (by decide)
+
+theorem LemmaStore.Counter.Peephole.Lemmas.add_refines_of_sum.sat :
+    ∃ (w : Nat) (x y r : BitVec w) (_ _ : Bool), x + y = r :=
+  ⟨0, 0#0, 0#0, 0#0, false, false, rfl⟩
+
+/-- In `i1`, `1` isn't `0`, and `1 + -1` wraps. -/
+theorem LemmaStore.Counter.Peephole.Lemmas.eq_zero_of_not_uaddOverflow_allOnes.drop_h :
+    ¬ ∀ {w : Nat} {x : BitVec w}, x = 0#w :=
+  fun h => absurd (@h 1 1#1) (by decide)
+
+theorem LemmaStore.Counter.Peephole.Lemmas.eq_zero_of_not_uaddOverflow_allOnes.sat :
+    ∃ (w : Nat) (x : BitVec w), x.uaddOverflow (BitVec.allOnes w) = false :=
+  ⟨1, 0#1, by decide⟩
