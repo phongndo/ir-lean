@@ -37,18 +37,6 @@ add_test(
         ${CMAKE_SOURCE_DIR}/tests/real/heap.ll ${CMAKE_SOURCE_DIR}/tests/real/gep.ll
         ${CMAKE_SOURCE_DIR}/tests/real/promises.ll --strict
 )
-# x86's dot-product intrinsics against the processor, which needs AVX-512 VNNI. Without it, this skips.
-add_test(
-    NAME x86
-    COMMAND
-        sh -c "grep -q avx512_vnni /proc/cpuinfo || exit 77; exec \"$@\"" sh
-        ${CMAKE_SOURCE_DIR}/tests/differential.py $<TARGET_FILE:ir-lean> ${CMAKE_SOURCE_DIR}/tests/real/x86.ll
-        --strict --runs 400
-)
-set_tests_properties(x86 PROPERTIES SKIP_RETURN_CODE 77)
-# The same intrinsics but VPDPBUSD, and vector bitcasts, against Alive2 and LLVM's constant folder, on any
-# processor.
-add_test(NAME x86check COMMAND ${CMAKE_SOURCE_DIR}/tests/x86check.py $<TARGET_FILE:ir-lean>)
 add_test(
     NAME undefined
     COMMAND
@@ -116,7 +104,6 @@ add_test(NAME llvm_scope COMMAND ${CMAKE_SOURCE_DIR}/tests/llvm_scope_test.py)
 add_test(NAME llvm_scope_check COMMAND ${CMAKE_SOURCE_DIR}/tests/llvm_scope.py check)
 set_tests_properties(llvm_scope llvm_scope_check PROPERTIES TIMEOUT 600)
 add_test(NAME superopt COMMAND ${CMAKE_SOURCE_DIR}/tests/superopt.py $<TARGET_FILE:ir-lean>)
-add_test(NAME llama COMMAND ${CMAKE_SOURCE_DIR}/tests/llama.py $<TARGET_FILE:ir-lean>)
 add_test(NAME names COMMAND ${CMAKE_SOURCE_DIR}/tests/names.sh)
 # The experimental undef and freeze semantics against LangRef's examples and Alive2, compiled from copies in a
 # temporary directory, one Lean or Alive2 process at a time, each Lean process capped at 2 GB and 300 s.
@@ -182,6 +169,22 @@ add_test(
     COMMAND ${CMAKE_SOURCE_DIR}/tests/zlib.sh $<TARGET_FILE:ir-lean> --runs 1 --only harness_slow
 )
 set_tests_properties(zlib zlib_slow PROPERTIES TIMEOUT 5400)
+# llama.cpp's q4_K rewrite. x86's dot-product intrinsics against the processor, which needs AVX-512 VNNI, so
+# it skips without it. Those and vector bitcasts against Alive2 and LLVM's constant folder, on any processor.
+# And the rewrite's proofs, which need llama.cpp's source, so they're labeled `llama`, run in
+# `nix develop .#llama`, and skip in any other shell.
+add_test(
+    NAME x86
+    COMMAND
+        sh -c "grep -q avx512_vnni /proc/cpuinfo || exit 77; exec \"$@\"" sh
+        ${CMAKE_SOURCE_DIR}/tests/differential.py $<TARGET_FILE:ir-lean> ${CMAKE_SOURCE_DIR}/tests/real/x86.ll
+        --strict --runs 400
+)
+add_test(NAME x86check COMMAND ${CMAKE_SOURCE_DIR}/tests/x86check.py $<TARGET_FILE:ir-lean>)
+add_test(NAME llama COMMAND ${CMAKE_SOURCE_DIR}/tests/llama.py $<TARGET_FILE:ir-lean>)
+set_tests_properties(x86 llama PROPERTIES SKIP_RETURN_CODE 77)
+set_tests_properties(x86 x86check llama PROPERTIES TIMEOUT 1800)
+set_tests_properties(llama PROPERTIES LABELS llama)
 # ctest has no limit of its own, and a Lean run that never ends would otherwise hang these.
 set_tests_properties(
     differential
@@ -190,9 +193,6 @@ set_tests_properties(
     fuzz
     llvm
     superopt
-    llama
-    x86
-    x86check
     verify
     PROPERTIES TIMEOUT 1800
 )

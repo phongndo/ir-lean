@@ -66,13 +66,6 @@ pkgs.mkShell.override { inherit (llvmPackages) stdenv; } {
   ZLIB_SRC = pkgs.zlib.src;
   # tests/llvm.py proves theorems about this exact source: the monorepo at the tag this shell's clang was built from.
   LLVM_PROJECT_SRC = llvmPackages.llvm.monorepoSrc;
-  # tests/llama.py proves a rewrite of this exact llama.cpp release correct.
-  LLAMA_CPP_SRC = pkgs.fetchFromGitHub {
-    owner = "ggml-org";
-    repo = "llama.cpp";
-    rev = "b12189";
-    hash = "sha256-Y57pW8G1grsd6QD+mIQ7F7b2S5bwWdSlH39eRRYr0b0=";
-  };
   # uv uses this Python instead of downloading its own.
   UV_PYTHON = "${pkgs.python3}/bin/python3";
   UV_PYTHON_DOWNLOADS = "never";
