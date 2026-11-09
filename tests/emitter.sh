@@ -109,6 +109,72 @@ if "$tool" "$work/FClass.ll" -o "$work/FClass.lean" --namespace FClass &&
 else
   fail 'nofpclass on a vector'
 fi
+
+# LLVM 23 holds a fixed-length splat of a float, `zeroinitializer` included, as a `ConstantFP` of vector type. Every
+# lane has its value, in a function and in a global's bytes, where before 2026-11-09 the emitter printed one lane where
+# a vector goes, and wrote only lane 0 of a global. A vector in a global takes its whole allocation, padding included,
+# which before then an array of them didn't.
+cat >"$work/FSplat.ll" <<'IR'
+target datalayout = "e-m:e-i64:64-n8:16:32:64-S128"
+@g = global <2 x float> splat (float 1.0)
+@a = global [2 x <3 x float>] [<3 x float> splat (float 1.0), <3 x float> splat (float 2.0)]
+@b = global [2 x <3 x float>] [<3 x float> <float 1.0, float 2.0, float 3.0>, <3 x float> <float 4.0, float 5.0, float 6.0>]
+define <2 x float> @ones(<2 x float> %x) {
+  %r = call <2 x float> @llvm.copysign.v2f32(<2 x float> splat (float 1.0), <2 x float> %x)
+  ret <2 x float> %r
+}
+define <2 x float> @zeros(<2 x i1> %c, <2 x float> %x) {
+  %r = select <2 x i1> %c, <2 x float> %x, <2 x float> zeroinitializer
+  ret <2 x float> %r
+}
+define i32 @lane1() {
+  %p = getelementptr i8, ptr @g, i64 4
+  %v = load i32, ptr %p
+  ret i32 %v
+}
+define i32 @second(ptr %a) {
+  %p = getelementptr i8, ptr %a, i64 16
+  %v = load i32, ptr %p
+  ret i32 %v
+}
+define i32 @splats() {
+  %v = call i32 @second(ptr @a)
+  ret i32 %v
+}
+define i32 @lanes() {
+  %v = call i32 @second(ptr @b)
+  ret i32 %v
+}
+declare <2 x float> @llvm.copysign.v2f32(<2 x float>, <2 x float>)
+IR
+cat >"$work/FSplatCheck.lean" <<'LEAN'
+import FSplat
+open IRLean FSplat
+-- 1.0 is 1065353216, and -1.0 3212836864.
+#guard (match ones #v[some 0x80000000#32, some 0#32] with
+  | some (.ok v) => (v[0], v[1]) == (some 3212836864#32, some 1065353216#32)
+  | _ => false)
+#guard (match zeros #v[some 0#1, some 1#1] #v[some 7#32, some 7#32] with
+  | some (.ok v) => (v[0], v[1]) == (some 0#32, some 7#32)
+  | _ => false)
+#guard (match lane1 initial with
+  | some (.ok (v, _)) => v == some 1065353216#32
+  | _ => false)
+-- A `<3 x float>` takes 16 bytes, so the second of an array of them starts at 16: 2.0 is 1073741824, and 4.0
+-- 1082130432.
+#guard (match splats initial with
+  | some (.ok (v, _)) => v == some 1073741824#32
+  | _ => false)
+#guard (match lanes initial with
+  | some (.ok (v, _)) => v == some 1082130432#32
+  | _ => false)
+LEAN
+if "$tool" "$work/FSplat.ll" -o "$work/FSplat.lean" --namespace FSplat &&
+  lean -R "$work" -o "$work/FSplat.olean" "$work/FSplat.lean" && lean "$work/FSplatCheck.lean"; then
+  printf 'ok    a splat of a float has its value in every lane, in a function and in a global, and vectors their size\n'
+else
+  fail 'a splat of a float'
+fi
 refuses 'integer bitcast shape' 'define <vscale x 4 x i8> @f(<vscale x 2 x i16> %x) { %r = bitcast <vscale x 2 x i16> %x to <vscale x 4 x i8>
   ret <vscale x 4 x i8> %r }'
 refuses 'integer bitcast shape' 'define ptr @f(ptr %x) { %r = bitcast ptr %x to ptr
