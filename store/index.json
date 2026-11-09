@@ -3,7 +3,7 @@
   "version": {
     "lean": "leanprover/lean4:v4.35.0",
     "normalizer": 1,
-    "sources": "3cc7c34c5be5bdc1f7925c098475cf4e3ab09ba5b69e0afa67d42fd0209e5e34"
+    "sources": "d6418720cf073a20d546dad067b50ac4de9240f506a037df613324d3d762ea68"
   },
   "consumers": [
     {
@@ -97,7 +97,12 @@
       "widths": "every",
       "hypotheses": [],
       "witness": null,
-      "used_by": []
+      "used_by": [
+        "Peephole.IS.simplifyAddInst.L609"
+      ],
+      "rewrites": [
+        "IS.simplifyAddInst.L609"
+      ]
     },
     {
       "name": "IRLean.Generic.sub_zero",
@@ -1872,12 +1877,18 @@
         "IRLean.Generic.sub_self_refines",
         "IRLean.Generic.xor_self_refines",
         "IRLean.Generic.xor_xor_cancel_refines",
+        "Peephole.IS.simplifyAddInst.L601",
+        "Peephole.IS.simplifyAddInst.L605",
         "RefineCases.addZero",
         "RefineCases.dropNuw",
         "RefineCases.freezeInserted",
         "RefineCases.poisonLane",
         "RefineCases.poisonToValue",
         "RefineCases.undefArgument"
+      ],
+      "rewrites": [
+        "IS.simplifyAddInst.L601",
+        "IS.simplifyAddInst.L605"
       ]
     },
     {
@@ -1999,6 +2010,7 @@
         "IRLean.Generic.sdiv_one_refines",
         "IRLean.Generic.srem_one_refines",
         "IRLean.Generic.urem_one_refines",
+        "Peephole.IS.refines_ok",
         "RefineCases.addZero",
         "RefineCases.addedNuw",
         "RefineCases.dropNuw",
@@ -2019,6 +2031,16 @@
         "RefineCases.undefArgument",
         "RefineCases.valueToPoison",
         "RefineCases.wrongConstant"
+      ],
+      "rewrites": [
+        "IS.simplifyAddInst.L601",
+        "IS.simplifyAddInst.L605",
+        "IS.simplifyAddInst.L609",
+        "IS.simplifyAddInst.L613",
+        "IS.simplifyAddInst.L621",
+        "IS.simplifyAddInst.L626",
+        "IS.simplifyAddInst.L633",
+        "IS.simplifyAddInst.L637"
       ]
     },
     {
@@ -2091,10 +2113,14 @@
       "hypotheses": [],
       "witness": null,
       "used_by": [
+        "Peephole.IS.simplifyAddInst.L609",
         "RefineCases.dropNuw",
         "RefineCases.loopDeletedUnderPromise",
         "RefineCases.poisonLane",
         "RefineCases.promiseDropped"
+      ],
+      "rewrites": [
+        "IS.simplifyAddInst.L609"
       ]
     },
     {
@@ -2254,6 +2280,204 @@
       "hypotheses": [],
       "witness": null,
       "used_by": []
+    },
+    {
+      "name": "Peephole.Lemmas.add_comm",
+      "module": "Peephole.Lemmas.Add",
+      "family": "peephole-is-add",
+      "provenance": "chunk 1's G2, tests/passes-proofs/peephole/folds/is-add.json, cut from the proofs of IS.simplifyAddInst.L601, IS.simplifyAddInst.L605, IS.simplifyAddInst.L609, IS.simplifyAddInst.L613, IS.simplifyAddInst.L621, IS.simplifyAddInst.L626, IS.simplifyAddInst.L633, IS.simplifyAddInst.L637",
+      "key": "b04d32ec0135d5f8b486",
+      "status": "admitted",
+      "widths": "every",
+      "hypotheses": [],
+      "witness": null,
+      "used_by": [
+        "Peephole.IS.addSrc_comm",
+        "Peephole.IS.simplifyAddInst.L613",
+        "Peephole.IS.simplifyAddInst.L621",
+        "Peephole.IS.simplifyAddInst.L626"
+      ],
+      "rewrites": [
+        "IS.simplifyAddInst.L613",
+        "IS.simplifyAddInst.L621",
+        "IS.simplifyAddInst.L626"
+      ]
+    },
+    {
+      "name": "Peephole.Lemmas.add_none_right",
+      "module": "Peephole.Lemmas.Add",
+      "family": "peephole-is-add",
+      "provenance": "chunk 1's G2, tests/passes-proofs/peephole/folds/is-add.json, cut from the proofs of IS.simplifyAddInst.L601, IS.simplifyAddInst.L605, IS.simplifyAddInst.L609, IS.simplifyAddInst.L613, IS.simplifyAddInst.L621, IS.simplifyAddInst.L626, IS.simplifyAddInst.L633, IS.simplifyAddInst.L637",
+      "key": "1767c50b0f8a0c4b7c0b",
+      "status": "admitted",
+      "widths": "every",
+      "hypotheses": [],
+      "witness": null,
+      "used_by": [
+        "Peephole.IS.simplifyAddInst.L601",
+        "Peephole.IS.simplifyAddInst.L605",
+        "Peephole.Lemmas.add_sub_cancel_refines",
+        "Peephole.Lemmas.add_sub_sub_refines"
+      ],
+      "rewrites": [
+        "IS.simplifyAddInst.L601",
+        "IS.simplifyAddInst.L605"
+      ]
+    },
+    {
+      "name": "Peephole.Lemmas.add_refines_of_sum",
+      "module": "Peephole.Lemmas.Add",
+      "family": "peephole-is-add",
+      "provenance": "chunk 1's G2, tests/passes-proofs/peephole/folds/is-add.json, cut from the proofs of IS.simplifyAddInst.L601, IS.simplifyAddInst.L605, IS.simplifyAddInst.L609, IS.simplifyAddInst.L613, IS.simplifyAddInst.L621, IS.simplifyAddInst.L626, IS.simplifyAddInst.L633, IS.simplifyAddInst.L637",
+      "key": "308777524e571fec2e66",
+      "status": "admitted",
+      "widths": "every",
+      "hypotheses": [
+        "LemmaStore.Counter.Peephole.Lemmas.add_refines_of_sum.drop_h"
+      ],
+      "witness": "LemmaStore.Counter.Peephole.Lemmas.add_refines_of_sum.sat",
+      "used_by": [
+        "Peephole.Lemmas.add_not_left_refines",
+        "Peephole.Lemmas.add_not_right_refines",
+        "Peephole.Lemmas.add_sub_cancel_refines",
+        "Peephole.Lemmas.add_sub_sub_refines",
+        "Peephole.Lemmas.add_xor_signMask_refines"
+      ]
+    },
+    {
+      "name": "Peephole.Lemmas.add_sub_cancel_refines",
+      "module": "Peephole.Lemmas.Add",
+      "family": "peephole-is-add",
+      "provenance": "chunk 1's G2, tests/passes-proofs/peephole/folds/is-add.json, cut from the proofs of IS.simplifyAddInst.L601, IS.simplifyAddInst.L605, IS.simplifyAddInst.L609, IS.simplifyAddInst.L613, IS.simplifyAddInst.L621, IS.simplifyAddInst.L626, IS.simplifyAddInst.L633, IS.simplifyAddInst.L637",
+      "key": "ebadb1c7c2763693a885",
+      "status": "admitted",
+      "widths": "every",
+      "hypotheses": [],
+      "witness": null,
+      "used_by": [
+        "Peephole.IS.simplifyAddInst.L613",
+        "Peephole.IS.simplifyAddInst.L621",
+        "Peephole.IS.simplifyAddInst.L621_swapped"
+      ],
+      "rewrites": [
+        "IS.simplifyAddInst.L613",
+        "IS.simplifyAddInst.L621"
+      ]
+    },
+    {
+      "name": "Peephole.Lemmas.add_sub_sub_refines",
+      "module": "Peephole.Lemmas.Add",
+      "family": "peephole-is-add",
+      "provenance": "chunk 1's G2, tests/passes-proofs/peephole/folds/is-add.json, cut from the proofs of IS.simplifyAddInst.L601, IS.simplifyAddInst.L605, IS.simplifyAddInst.L609, IS.simplifyAddInst.L613, IS.simplifyAddInst.L621, IS.simplifyAddInst.L626, IS.simplifyAddInst.L633, IS.simplifyAddInst.L637",
+      "key": "074a1ed38c4b2ab60251",
+      "status": "candidate",
+      "widths": "every",
+      "hypotheses": [],
+      "witness": null,
+      "used_by": [
+        "Peephole.IS.simplifyAddInst.L613"
+      ],
+      "rewrites": [
+        "IS.simplifyAddInst.L613"
+      ]
+    },
+    {
+      "name": "Peephole.Lemmas.add_not_left_refines",
+      "module": "Peephole.Lemmas.Add",
+      "family": "peephole-is-add",
+      "provenance": "chunk 1's G2, tests/passes-proofs/peephole/folds/is-add.json, cut from the proofs of IS.simplifyAddInst.L601, IS.simplifyAddInst.L605, IS.simplifyAddInst.L609, IS.simplifyAddInst.L613, IS.simplifyAddInst.L621, IS.simplifyAddInst.L626, IS.simplifyAddInst.L633, IS.simplifyAddInst.L637",
+      "key": "d23317545c0c13cae615",
+      "status": "candidate",
+      "widths": "every",
+      "hypotheses": [],
+      "witness": null,
+      "used_by": [
+        "Peephole.IS.simplifyAddInst.L626"
+      ],
+      "rewrites": [
+        "IS.simplifyAddInst.L626"
+      ]
+    },
+    {
+      "name": "Peephole.Lemmas.add_not_right_refines",
+      "module": "Peephole.Lemmas.Add",
+      "family": "peephole-is-add",
+      "provenance": "chunk 1's G2, tests/passes-proofs/peephole/folds/is-add.json, cut from the proofs of IS.simplifyAddInst.L601, IS.simplifyAddInst.L605, IS.simplifyAddInst.L609, IS.simplifyAddInst.L613, IS.simplifyAddInst.L621, IS.simplifyAddInst.L626, IS.simplifyAddInst.L633, IS.simplifyAddInst.L637",
+      "key": "859b6a06e6f667a7a154",
+      "status": "candidate",
+      "widths": "every",
+      "hypotheses": [],
+      "witness": null,
+      "used_by": [
+        "Peephole.IS.simplifyAddInst.L626"
+      ],
+      "rewrites": [
+        "IS.simplifyAddInst.L626"
+      ]
+    },
+    {
+      "name": "Peephole.Lemmas.add_intMin",
+      "module": "Peephole.Lemmas.Add",
+      "family": "peephole-is-add",
+      "provenance": "chunk 1's G2, tests/passes-proofs/peephole/folds/is-add.json, cut from the proofs of IS.simplifyAddInst.L601, IS.simplifyAddInst.L605, IS.simplifyAddInst.L609, IS.simplifyAddInst.L613, IS.simplifyAddInst.L621, IS.simplifyAddInst.L626, IS.simplifyAddInst.L633, IS.simplifyAddInst.L637",
+      "key": "af6af06babe583729689",
+      "status": "candidate",
+      "widths": "every",
+      "hypotheses": [],
+      "witness": null,
+      "used_by": [
+        "Peephole.Lemmas.add_xor_signMask_refines"
+      ]
+    },
+    {
+      "name": "Peephole.Lemmas.add_xor_signMask_refines",
+      "module": "Peephole.Lemmas.Add",
+      "family": "peephole-is-add",
+      "provenance": "chunk 1's G2, tests/passes-proofs/peephole/folds/is-add.json, cut from the proofs of IS.simplifyAddInst.L601, IS.simplifyAddInst.L605, IS.simplifyAddInst.L609, IS.simplifyAddInst.L613, IS.simplifyAddInst.L621, IS.simplifyAddInst.L626, IS.simplifyAddInst.L633, IS.simplifyAddInst.L637",
+      "key": "b1530b54ea56e8266ccf",
+      "status": "candidate",
+      "widths": "every",
+      "hypotheses": [],
+      "witness": null,
+      "used_by": [
+        "Peephole.IS.simplifyAddInst.L633"
+      ],
+      "rewrites": [
+        "IS.simplifyAddInst.L633"
+      ]
+    },
+    {
+      "name": "Peephole.Lemmas.eq_zero_of_not_uaddOverflow_allOnes",
+      "module": "Peephole.Lemmas.Add",
+      "family": "peephole-is-add",
+      "provenance": "chunk 1's G2, tests/passes-proofs/peephole/folds/is-add.json, cut from the proofs of IS.simplifyAddInst.L601, IS.simplifyAddInst.L605, IS.simplifyAddInst.L609, IS.simplifyAddInst.L613, IS.simplifyAddInst.L621, IS.simplifyAddInst.L626, IS.simplifyAddInst.L633, IS.simplifyAddInst.L637",
+      "key": "e3f1fde2b72c64932277",
+      "status": "candidate",
+      "widths": "every",
+      "hypotheses": [
+        "LemmaStore.Counter.Peephole.Lemmas.eq_zero_of_not_uaddOverflow_allOnes.drop_h"
+      ],
+      "witness": "LemmaStore.Counter.Peephole.Lemmas.eq_zero_of_not_uaddOverflow_allOnes.sat",
+      "used_by": [
+        "Peephole.Lemmas.add_nuw_allOnes_refines"
+      ]
+    },
+    {
+      "name": "Peephole.Lemmas.add_nuw_allOnes_refines",
+      "module": "Peephole.Lemmas.Add",
+      "family": "peephole-is-add",
+      "provenance": "chunk 1's G2, tests/passes-proofs/peephole/folds/is-add.json, cut from the proofs of IS.simplifyAddInst.L601, IS.simplifyAddInst.L605, IS.simplifyAddInst.L609, IS.simplifyAddInst.L613, IS.simplifyAddInst.L621, IS.simplifyAddInst.L626, IS.simplifyAddInst.L633, IS.simplifyAddInst.L637",
+      "key": "c13ad4e37a8869768584",
+      "status": "candidate",
+      "widths": "every",
+      "hypotheses": [],
+      "witness": null,
+      "used_by": [
+        "Peephole.IS.simplifyAddInst.L637"
+      ],
+      "rewrites": [
+        "IS.simplifyAddInst.L637"
+      ]
     }
   ],
   "forgotten": [

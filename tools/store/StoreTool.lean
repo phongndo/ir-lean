@@ -32,6 +32,11 @@ structure Request where
   triviality : Bool := true
   /-- Whether to print each catalog lemma's key too, for judging new lemmas against the store. -/
   catalogKeys : Bool := false
+  /-- Theorems that prove a rewrite, `Peephole.<ID>` for each ID in `tests/llvm_scope/rewrites`: each lemma's
+  `rewrites` are those whose proofs use it. -/
+  sites : Array Name := #[]
+  /-- The library those theorems are in, whose theorems that aren't stored a use is followed through. -/
+  siteLibrary : Name := `Peephole
 
 /-- A request's field `k`, or `d` if it has none. -/
 def field [FromJson α] (j : Json) (k : String) (d : α) : Except String α :=
@@ -46,7 +51,8 @@ instance : FromJson Request where
       lemmas := ← field j "lemmas" d.lemmas, catalog := ← field j "catalog" d.catalog,
       modules := ← field j "modules" d.modules, counterPrefix := ← field j "counterPrefix" d.counterPrefix,
       heartbeats := ← field j "heartbeats" d.heartbeats, triviality := ← field j "triviality" d.triviality,
-      catalogKeys := ← field j "catalogKeys" d.catalogKeys }
+      catalogKeys := ← field j "catalogKeys" d.catalogKeys, sites := ← field j "sites" d.sites,
+      siteLibrary := ← field j "siteLibrary" d.siteLibrary }
 
 def moduleOf (env : Environment) (n : Name) : Name :=
   match env.getModuleIdxFor? n with
@@ -255,9 +261,37 @@ where
           if let some v := info.value? (allowOpaque := true) then todo := todo ++ v.getUsedConstants
     return seen
 
+/-- For each lemma in `stored`, the site theorems among `sites` whose proofs use it: directly, or through theorems and
+auxiliary declarations of `library`'s modules that aren't in `stored` themselves. -/
+def siteUses (sites : Array Name) (stored : NameSet) (library : Name) : MetaM (Std.HashMap Name (Array Name)) := do
+  let env ← getEnv
+  let inLibrary (c : Name) : Bool :=
+    (env.getModuleIdxFor? c).any (env.header.moduleNames[·.toNat]!.getRoot == library)
+  let mut out : Std.HashMap Name (Array Name) := {}
+  for s in sites do
+    let some (.thmInfo info) := env.find? s | continue
+    let mut seen : NameSet := {}
+    let mut todo := info.value.getUsedConstants
+    while !todo.isEmpty do
+      let c := todo.back!
+      todo := todo.pop
+      if seen.contains c then continue
+      seen := seen.insert c
+      if stored.contains c then
+        out := out.insert c ((out.getD c #[]).push s)
+      else if inLibrary c then
+        match env.find? c with
+        | some (.thmInfo i) => todo := todo ++ i.value.getUsedConstants
+        | some i =>
+          if auxiliary c then
+            if let some v := i.value? (allowOpaque := true) then todo := todo ++ v.getUsedConstants
+        | none => pure ()
+  return out
+
 /-! ### The facts about one lemma -/
 
-def factsOf (req : Request) (uses : Array (Name × Name × NameSet)) (n : Name) : MetaM Json := do
+def factsOf (req : Request) (uses : Array (Name × Name × NameSet)) (rewrites : Std.HashMap Name (Array Name))
+    (n : Name) : MetaM Json := do
   let env ← getEnv
   let some info := env.find? n | return Json.mkObj [("name", toJson n.toString), ("found", false)]
   let kind := match info with
@@ -297,7 +331,8 @@ def factsOf (req : Request) (uses : Array (Name × Name × NameSet)) (n : Name) 
     ("subsumed_by", toJson ((← subsumedBy n type req.catalog).map (·.toString))),
     ("replay_ms", match ← replayMs n with | some t => toJson t | none => Json.null),
     ("used_by", Json.arr (users.map fun (c, m, _) =>
-      Json.mkObj [("theorem", toJson c.toString), ("module", toJson m.toString)]))]
+      Json.mkObj [("theorem", toJson c.toString), ("module", toJson m.toString)])),
+    ("rewrites", toJson ((rewrites.getD n #[]).map (·.toString)))]
 
 def readRequest : IO Request := do
   let some path ← IO.getEnv "LEMMA_STORE_REQUEST" | throw (IO.userError "LEMMA_STORE_REQUEST isn't set")
@@ -316,10 +351,12 @@ def check : MetaM Unit := do
     for c in env.header.moduleData[i.toNat]!.constNames do
       if auxiliary c || req.counterPrefix.isPrefixOf c then continue
       if let some (.thmInfo _) := env.find? c then lemmas := lemmas.push c
+  let stored := (req.catalog ++ lemmas).foldl (·.insert ·) ({} : NameSet)
+  let rewrites ← siteUses req.sites stored req.siteLibrary
   let mut out := #[]
   for n in lemmas do
     -- Each lemma gets the default budget of its own, and running out of it is reported, never taken as a verdict.
-    let fact ← tryCatchRuntimeEx (withCurrHeartbeats (factsOf req uses n)) fun e => do
+    let fact ← tryCatchRuntimeEx (withCurrHeartbeats (factsOf req uses rewrites n)) fun e => do
       return Json.mkObj [("name", toJson n.toString), ("found", true), ("limit", toJson (← e.toMessageData.toString))]
     out := out.push fact
   let mut keys := #[]
