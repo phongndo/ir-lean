@@ -81,7 +81,29 @@ define float @f(float %x) { ret float %x }'
 refuses 'type float for target wasm32' 'target triple = "wasm32-unknown-unknown"
 define i32 @f(float %x) { %r = bitcast float %x to i32
   ret i32 %r }'
-refuses 'parameter attribute nofpclass' 'define <2 x float> @f(<2 x float> nofpclass(nan) %x) { ret <2 x float> %x }'
+accepts 'define <2 x float> @f(<2 x float> nofpclass(nan) %x) { ret <2 x float> %x }'
+refuses 'parameter attribute nofpclass(nan) on an aggregate' 'define { float, float } @f({ float, float } nofpclass(nan) %x) {
+  ret { float, float } %x }'
+
+# `nofpclass` on a vector makes only the lanes in a class it names poison, as `range` on a vector does.
+cat >"$work/FClass.ll" <<'IR'
+define <2 x float> @f(<2 x float> nofpclass(nan) %x) {
+  ret <2 x float> %x
+}
+IR
+cat >"$work/FClassCheck.lean" <<'LEAN'
+import FClass
+open IRLean
+#guard (match FClass.f #v[some 0x7FC00000#32, some 0x3F800000#32] with
+  | some (.ok v) => (v[0], v[1]) == (none, some 0x3F800000#32)
+  | _ => false)
+LEAN
+if "$tool" "$work/FClass.ll" -o "$work/FClass.lean" --namespace FClass &&
+  lean -R "$work" -o "$work/FClass.olean" "$work/FClass.lean" && lean "$work/FClassCheck.lean"; then
+  printf 'ok    nofpclass on a vector makes a lane poison on its own\n'
+else
+  fail 'nofpclass on a vector'
+fi
 refuses 'type' 'define <vscale x 4 x i8> @f(<vscale x 2 x i16> %x) { %r = bitcast <vscale x 2 x i16> %x to <vscale x 4 x i8>
   ret <vscale x 4 x i8> %r }'
 refuses 'integer bitcast shape' 'define ptr @f(ptr %x) { %r = bitcast ptr %x to ptr

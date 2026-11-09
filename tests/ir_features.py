@@ -108,7 +108,9 @@ REASONS: dict[str, Reason] = {
         "An integer operation in IRLean/Int.lean, checked by tests/opcheck.py "
         "against Alive2 and LLVM's constant folder",
     ),
-    "vector": Reason("modeled", None, "A vector of integers, lane by lane, in IRLean/Vec.lean"),
+    "vector": Reason(
+        "modeled", None, "A vector of integers, lane by lane, in IRLean/Vec.lean and IRLean/Lanes.lean"
+    ),
     "control": Reason(
         "modeled",
         None,
@@ -324,9 +326,6 @@ REASONS: dict[str, Reason] = {
         "refused",
         "long tail",
         "Metadata the long tail is reviewing, to accept where it has no meaning for a run, or model",
-    ),
-    "value attribute gap": Reason(
-        "refused", "long tail", "A value promise on a vector, which the model checks only on scalars so far"
     ),
     "nondeterministic": Reason(
         "refused",
@@ -786,11 +785,9 @@ BUNDLE_RULES = [
 
 # Forms: each with its class, and the probe that shows the emitter treats it so.
 FORM_RULES = [
-    R(
-        "vector gap",
-        "udiv-of-vectors sdiv-of-vectors urem-of-vectors srem-of-vectors freeze-of-a-vector "
-        "scalar-intrinsic-on-vectors integer-bitcast-nondividing",
-    ),
+    R("vector", "udiv-of-vectors sdiv-of-vectors urem-of-vectors srem-of-vectors"),
+    R("vector gap", "freeze-of-a-vector integer-bitcast-nondividing vector-constant-expression"),
+    R("scalable", "getelementptr-over-a-scalable-type"),
     R("aggregate gap", "array-value insertvalue-nested freeze-of-a-struct"),
     R(
         "layout",
@@ -813,7 +810,7 @@ FORM_RULES = [
     R("call", "indirect-call"),
     R("tail call", "tail-call musttail-call"),
     R("hint", "notail-call"),
-    R("value attribute gap", "noundef-on-a-vector range-on-a-vector"),
+    R("value promise", "noundef-on-a-vector range-on-a-vector noundef-on-a-struct"),
     R("undef", "undef-in-a-vector"),
     R("global", "getelementptr-constant-expression"),
     R("data layout", "data-layout-explicit-64-bit"),
@@ -1552,7 +1549,6 @@ PARTIAL = [
     (r"^type (<\d+ x )?ppc_fp128>?$", ("type", "", "PPC_FP128")),
     (r"^type <\d+ x ptr", ("form", "", "vector-of-pointers")),
     (r"^type ptr addrspace", ("form", "", "pointer-in-address-space")),
-    (r"^intrinsic llvm\.\S+ of vectors$", ("form", "", "scalar-intrinsic-on-vectors")),
 ]
 
 # Items no probe can show anything about, each with why. Every other item without one fails the check.

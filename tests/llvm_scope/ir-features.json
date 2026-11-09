@@ -23,7 +23,7 @@
   },
   "vector": {
    "class": "modeled",
-   "says": "A vector of integers, lane by lane, in IRLean/Vec.lean"
+   "says": "A vector of integers, lane by lane, in IRLean/Vec.lean and IRLean/Lanes.lean"
   },
   "control": {
    "class": "modeled",
@@ -231,11 +231,6 @@
    "lane": "long tail",
    "says": "Metadata the long tail is reviewing, to accept where it has no meaning for a run, or model"
   },
-  "value attribute gap": {
-   "class": "refused",
-   "lane": "long tail",
-   "says": "A value promise on a vector, which the model checks only on scalars so far"
-  },
   "nondeterministic": {
    "class": "refused",
    "lane": "long tail",
@@ -325,10 +320,10 @@
   }
  },
  "totals": {
-  "items": 17033,
-  "modeled": 175,
+  "items": 17035,
+  "modeled": 182,
   "assumed": 170,
-  "refused": 16688,
+  "refused": 16683,
   "by_kind": {
    "instruction": {
     "modeled": 40,
@@ -374,15 +369,15 @@
     "refused": 18
    },
    "form": {
-    "modeled": 3,
+    "modeled": 10,
     "assumed": 3,
-    "refused": 36
+    "refused": 31
    }
   },
   "refused_by_lane": {
    "external calls and globals": 62,
    "floating point": 139,
-   "long tail": 1974,
+   "long tail": 1969,
    "memory": 114
   }
  },
@@ -17378,13 +17373,14 @@
   {"kind": "operand bundle", "name": "assume:nonnull", "class": "modeled", "reason": "assume"},
   {"kind": "operand bundle", "name": "assume:noundef", "class": "refused", "lane": "long tail", "reason": "metadata review"},
   {"kind": "operand bundle", "name": "assume:separate_storage", "class": "refused", "lane": "memory", "reason": "memory model"},
+  {"kind": "form", "name": "sdiv-of-vectors", "class": "modeled", "reason": "vector"},
+  {"kind": "form", "name": "srem-of-vectors", "class": "modeled", "reason": "vector"},
+  {"kind": "form", "name": "udiv-of-vectors", "class": "modeled", "reason": "vector"},
+  {"kind": "form", "name": "urem-of-vectors", "class": "modeled", "reason": "vector"},
   {"kind": "form", "name": "freeze-of-a-vector", "class": "refused", "lane": "long tail", "reason": "vector gap"},
   {"kind": "form", "name": "integer-bitcast-nondividing", "class": "refused", "lane": "long tail", "reason": "vector gap"},
-  {"kind": "form", "name": "scalar-intrinsic-on-vectors", "class": "refused", "lane": "long tail", "reason": "vector gap"},
-  {"kind": "form", "name": "sdiv-of-vectors", "class": "refused", "lane": "long tail", "reason": "vector gap"},
-  {"kind": "form", "name": "srem-of-vectors", "class": "refused", "lane": "long tail", "reason": "vector gap"},
-  {"kind": "form", "name": "udiv-of-vectors", "class": "refused", "lane": "long tail", "reason": "vector gap"},
-  {"kind": "form", "name": "urem-of-vectors", "class": "refused", "lane": "long tail", "reason": "vector gap"},
+  {"kind": "form", "name": "vector-constant-expression", "class": "refused", "lane": "long tail", "reason": "vector gap"},
+  {"kind": "form", "name": "getelementptr-over-a-scalable-type", "class": "refused", "lane": "long tail", "reason": "scalable"},
   {"kind": "form", "name": "array-value", "class": "refused", "lane": "long tail", "reason": "aggregate gap"},
   {"kind": "form", "name": "freeze-of-a-struct", "class": "refused", "lane": "long tail", "reason": "aggregate gap"},
   {"kind": "form", "name": "insertvalue-nested", "class": "refused", "lane": "long tail", "reason": "aggregate gap"},
@@ -17415,8 +17411,9 @@
   {"kind": "form", "name": "musttail-call", "class": "assumed", "reason": "tail call"},
   {"kind": "form", "name": "tail-call", "class": "assumed", "reason": "tail call"},
   {"kind": "form", "name": "notail-call", "class": "assumed", "reason": "hint"},
-  {"kind": "form", "name": "noundef-on-a-vector", "class": "refused", "lane": "long tail", "reason": "value attribute gap"},
-  {"kind": "form", "name": "range-on-a-vector", "class": "refused", "lane": "long tail", "reason": "value attribute gap"},
+  {"kind": "form", "name": "noundef-on-a-struct", "class": "modeled", "reason": "value promise"},
+  {"kind": "form", "name": "noundef-on-a-vector", "class": "modeled", "reason": "value promise"},
+  {"kind": "form", "name": "range-on-a-vector", "class": "modeled", "reason": "value promise"},
   {"kind": "form", "name": "undef-in-a-vector", "class": "refused", "reason": "undef"},
   {"kind": "form", "name": "getelementptr-constant-expression", "class": "modeled", "reason": "global"},
   {"kind": "form", "name": "data-layout-explicit-64-bit", "class": "modeled", "reason": "data layout"}

@@ -127,6 +127,13 @@ set_tests_properties(ir_features PROPERTIES TIMEOUT 900)
 # gives: every pass in exactly one, against tests/llvm_scope/inventory.json. Under a second, and no Lean or
 # LLVM.
 add_test(NAME chunks COMMAND ${CMAKE_SOURCE_DIR}/tests/chunks_test.py)
+# BIND-03's verifier, tools/verify_claims.py: claims refused before any replay, in Python, then every function
+# tests/llvm.py proves replayed as one piece of evidence, tools/verify.py's controls, and forged claims, each
+# refused for its own reason. docs/verify-claims.md.
+add_test(NAME verify_claims_static COMMAND ${CMAKE_SOURCE_DIR}/tests/verify_claims_test.py --tier static)
+add_test(NAME verify_claims COMMAND ${CMAKE_SOURCE_DIR}/tests/verify_claims_test.py --tier live)
+set_tests_properties(verify_claims_static PROPERTIES TIMEOUT 600)
+set_tests_properties(verify_claims PROPERTIES RUN_SERIAL TRUE TIMEOUT 1800)
 # tools/corpus/capture.py, in Python, with one seed through opt when the pinned one is on PATH: under a
 # second, and no Lean. docs/corpus.md.
 add_test(NAME corpus COMMAND ${CMAKE_SOURCE_DIR}/tests/corpus_test.py)
@@ -251,6 +258,11 @@ add_test(
         --strict --runs 400
 )
 add_test(NAME x86check COMMAND ${CMAKE_SOURCE_DIR}/tests/x86check.py $<TARGET_FILE:ir-lean>)
+# The lane-by-lane forms of integer operations, IRLean/Lanes.lean: vector intrinsics, vector division, and
+# noundef and range on vectors and structs, against Alive2, both ways, and LLVM's constant folder, poison
+# lanes and undefined behavior included, with a wrong result for each that Alive2 has to refuse. About 6 s.
+add_test(NAME vecopcheck COMMAND ${CMAKE_SOURCE_DIR}/tests/vecopcheck.py $<TARGET_FILE:ir-lean>)
+set_tests_properties(vecopcheck PROPERTIES TIMEOUT 900)
 # Refuting the three wrong rewrites takes about as long as everything else, so it's a test of its own, labeled
 # for a CI job of its own. `llama` refutes the change to the mask.
 add_test(NAME llama COMMAND ${CMAKE_SOURCE_DIR}/tests/llama.py $<TARGET_FILE:ir-lean> --mutants mask)
@@ -295,6 +307,7 @@ set_tests_properties(binding_2 PROPERTIES LABELS binding_2)
 # verify_negative runs alone, after proofs, in the same job, so semantics has only one test that runs alone.
 set_tests_properties(proofs verify_negative PROPERTIES LABELS proofs)
 set_tests_properties(llvm PROPERTIES LABELS llvm)
+set_tests_properties(verify_claims PROPERTIES LABELS verify_claims)
 set_tests_properties(
     replay_challenge
     contracts
