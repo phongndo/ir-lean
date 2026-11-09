@@ -27,8 +27,7 @@ It fails closed. Anything it doesn't recognise, can't check or can't finish is n
   refused      1  the evidence doesn't match what it claims to be: a hash, the toolchain, a replay, or the
                   theorem's type
   unsupported  3  the claim kind can't be checked by any tool here (all inputs, the C++, or a pipeline),
-                  or the model can't judge the function: the emitter refuses it, it uses memory, or the
-                  target makes a promise IRLean trusts
+                  or the model can't judge the function: the emitter refuses it, or it uses memory
   unknown      4  a time or memory limit stopped a step. More may help
   error        5  a tool failed in a way that says nothing about the evidence
 
@@ -410,9 +409,6 @@ def ir_target(ll: str) -> dict[str, str | None]:
     return {"triple": triple.group(1) if triple else None, "datalayout": layout.group(1) if layout else None}
 
 
-# Promises IRLean trusts instead of checking (docs/trust.md): a run the model says never ends is undefined in
-# LLVM under one. A target with one could be undefined where the source spins, and the model can't see it.
-TRUSTED_PROMISES = re.compile(r"\b(mustprogress|willreturn)\b")
 DEFINE = re.compile(r'^define [^@]*@"?([^"(\s]+)"?\(.*?^}', re.M | re.S)
 
 
@@ -726,15 +722,11 @@ def _verify(
         )
     checks("target", f"{m['target']['triple']} / {m['target']['datalayout']}")
 
-    tgt_text = data["tgt_ir"].decode(errors="replace")
-    if TRUSTED_PROMISES.search(tgt_text):
-        raise Verdict(
-            "unsupported",
-            "trusted_promise",
-            "the target IR has mustprogress or willreturn, which IRLean trusts instead of checking",
-        )
+    # Promises to progress or to return, `mustprogress`, `willreturn` and `llvm.loop.mustprogress`, aren't
+    # refused: the model makes a run that breaks one undefined, on both sides (docs/trust.md), and the emitter
+    # refuses the ones it can't judge.
     verdict["uncovered_changes"] = changes_elsewhere(
-        data["src_ir"].decode(errors="replace"), tgt_text, claim["function"]
+        data["src_ir"].decode(errors="replace"), data["tgt_ir"].decode(errors="replace"), claim["function"]
     )
 
     # Everything below is replay. The key covers the manifest and the live toolchain, which now agree, so a

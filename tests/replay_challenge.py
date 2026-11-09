@@ -656,27 +656,10 @@ def runner_cases(report: Report) -> None:
             report.add(case, "ok" if got == want else "fail", f"{got[0]}/{got[1]}")
 
 
-def promise_cases(report: Report) -> None:
-    """The promises IRLean trusts are found wherever LLVM writes them, in metadata and attribute groups
-    too."""
-    case = "static/promises"
-    if not report.wanted(case):
-        return
-    b = load_binding()
-    texts = {
-        "loop metadata": '!1 = distinct !{!1, !2}\n!2 = !{!"llvm.loop.mustprogress"}\n',
-        "attribute group": "attributes #0 = { mustprogress nofree norecurse }\n",
-        "function attribute": "define i8 @f(i8 noundef %x) willreturn {\n",
-    }
-    missed = [k for k, t in texts.items() if not b.TRUSTED_PROMISES.search(t)]
-    report.add(case, "fail" if missed else "ok", f"missed in {missed}" if missed else ", ".join(texts))
-
-
 def static_tier(report: Report) -> None:
     check_fixtures(report)
     manifest_cases(report)
     runner_cases(report)
-    promise_cases(report)
 
 
 # ------------------------------------------------------------------------------------------------------------
@@ -953,6 +936,10 @@ CLAIM = (
 )
 GOOD = (HERE / "MulNsw.lean").read_text()
 assert CLAIM in GOOD
+# The same input through `default<O2>`, whose `function-attrs` adds `mustprogress` and `willreturn`, which
+# the model checks.
+GOOD_O2 = (HERE / "MulNswO2.lean").read_text()
+assert CLAIM in GOOD_O2
 HEADER = "import Fx.Src\nimport Fx.Tgt\n\nopen IRLean\n\n"
 # A certificate that compiles and claims nothing, for cases stopped before its theorem is read.
 TRIVIAL = "import Fx.Src\nimport Fx.Tgt\n\ntheorem Fx.cert : True := trivial\n"
@@ -1078,8 +1065,8 @@ def binding_cases(report: Report) -> None:
         ),
         (
             "o2_promises",
-            lambda: record("o2_promises", mul_nsw, "default<O2>", GOOD),
-            ("unsupported", "trusted_promise"),
+            lambda: record("o2_promises", mul_nsw, "default<O2>", GOOD_O2),
+            ("bound", "replayed"),
             None,
         ),
         (
@@ -1113,9 +1100,6 @@ def binding_cases(report: Report) -> None:
             report.add(case, "notrun", f"{v.get('reason')}: {v.get('detail')}")
             continue
         if judge(report, case, v, code, contract, known) and contract[0] == "bound":
-            against_alive(report, f"{case}/alive", manifest)
-        elif name == "o2_promises":
-            # Unsupported isn't refuted: Alive2 finds the O2 pipeline's output right.
             against_alive(report, f"{case}/alive", manifest)
 
 

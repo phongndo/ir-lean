@@ -1,8 +1,9 @@
 // Each function becomes a type with one constructor per basic block, whose fields are the block's
 // phi values and the values it needs from earlier blocks, plus a `step` function that runs one
 // block. IRLean.run loops over `step`. Recursive functions can't go through that driver, so their
-// blocks call each other directly, in a `mutual` block. Anything this file can't model exactly is
-// refused, so the semantics stay in Lean and this stays a printer.
+// blocks call each other directly, in a `mutual` block. Under a promise to progress or to return, a
+// run that never finishes is judged by IRLean.promised, as IRLean/Promise.lean says. Anything this
+// file can't model exactly is refused, so the semantics stay in Lean and this stays a printer.
 
 #include "Emitter.h"
 
@@ -11,10 +12,13 @@
 #include "llvm/ADT/DepthFirstIterator.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringExtras.h"
+#include "llvm/Analysis/CFG.h"
+#include "llvm/Analysis/LoopInfo.h"
 #include "llvm/IR/CFG.h"
 #include "llvm/IR/ConstantRange.h"
 #include "llvm/IR/Constants.h"
 #include "llvm/IR/DataLayout.h"
+#include "llvm/IR/Dominators.h"
 #include "llvm/IR/Function.h"
 #include "llvm/IR/GetElementPtrTypeIterator.h"
 #include "llvm/IR/GlobalVariable.h"
@@ -27,6 +31,7 @@
 
 #include <algorithm>
 #include <cctype>
+#include <functional>
 #include <map>
 #include <memory>
 #include <optional>
@@ -116,7 +121,7 @@ const std::set<std::string> &reservedNames() {
         "Block", "IRLean", "Next", "Outcome", "Val", "andThen", "assume", "br", "branch", "false", "jump",
         "loop", "none", "noundef", "ret", "run", "select", "some", "step", "sw", "true", "unreachable",
         "HasPoison", "Mem", "Ptr", "PtrVal", "initial", "m", "indirect", "Vec", "Vector", "a", "b", "Unit",
-        "Nat", "BitVec", "Array",
+        "Nat", "BitVec", "Array", "promised", "runPromised",
         // Names Lean generates for every inductive type.
         "below", "binductionOn", "brecOn", "casesOn", "ctorElim", "ctorElimType", "ctorIdx", "ibelow",
         "injEq", "noConfusion", "noConfusionType", "rec", "recOn", "sizeOf", "toCtorIdx"};
@@ -550,6 +555,32 @@ private:
 
 const char *libraryFunction(const Function &F);
 
+// Whether loop metadata carries `llvm.loop.mustprogress`, read as LLVM's `findOptionMDForLoopID` does.
+bool marksMustProgress(const MDNode *LoopID) {
+  if (!LoopID)
+    return false;
+  for (unsigned I = 1, E = LoopID->getNumOperands(); I < E; ++I) {
+    const auto *Option = dyn_cast<MDNode>(LoopID->getOperand(I));
+    if (!Option || Option->getNumOperands() == 0)
+      continue;
+    const auto *Name = dyn_cast<MDString>(Option->getOperand(0));
+    if (Name && Name->getString() == "llvm.loop.mustprogress")
+      return true;
+  }
+  return false;
+}
+
+// Whether a function, or a loop in it, promises to progress.
+bool promisesProgress(const Function &F) {
+  if (F.mustProgress())
+    return true;
+  for (const BasicBlock &BB : F)
+    if (const Instruction *T = BB.getTerminator();
+        T && marksMustProgress(T->getMetadata(LLVMContext::MD_loop)))
+      return true;
+  return false;
+}
+
 enum class Position { Parameter, Return, CallParameter, CallReturn };
 
 // Attributes on a parameter or return value. These either change what the value means, and are emitted as
@@ -694,10 +725,8 @@ void checkFunctionAttributes(AttributeSet Attrs, const std::string &Where, bool 
     case Attribute::Memory:
     case Attribute::NoFree:
     case Attribute::NoRecurse:
-    // A run of this function that never finishes is undefined in LLVM, as with `llvm.loop.mustprogress` on
-    // a loop, and in the model it's `none`. So a theorem that allows `none` assumes that doesn't happen,
-    // and a theorem that says `= Outcome.ok` isn't affected. Refusing them would refuse most of zlib, and
-    // telling a spinning loop from a callee that never returns isn't something `none` can do.
+    // Promises to progress and to return. A run that breaks one is undefined, as
+    // `FunctionEmitter::findPromises` and IRLean/Promise.lean say. At a call they're refused, in `emitCall`.
     case Attribute::MustProgress:
     case Attribute::WillReturn:
       continue;
@@ -746,12 +775,14 @@ struct Line {
 
 class FunctionEmitter {
 public:
-  FunctionEmitter(Function &F, std::string LeanName, bool Recursive, bool UsesMemory,
+  // `PromisedCycle` is for a recursive function in a cycle where some function or loop promises to progress.
+  FunctionEmitter(Function &F, std::string LeanName, bool Recursive, bool PromisedCycle, bool UsesMemory,
                   const DenseMap<const Function *, std::string> &Callees,
                   const std::set<const Function *> &MemoryFunctions,
                   const std::set<const Function *> &ReachesFree, const ModuleContext &Context)
-      : F(F), LeanName(std::move(LeanName)), Recursive(Recursive), UsesMemory(UsesMemory), Callees(Callees),
-        MemoryFunctions(MemoryFunctions), ReachesFree(ReachesFree), Context(Context) {}
+      : F(F), LeanName(std::move(LeanName)), Recursive(Recursive), PromisedCycle(PromisedCycle),
+        UsesMemory(UsesMemory), Callees(Callees), MemoryFunctions(MemoryFunctions), ReachesFree(ReachesFree),
+        Context(Context) {}
 
   // Checks the function can be translated, and sets up names and liveness.
   void prepare();
@@ -759,8 +790,10 @@ public:
   std::string emitBlocks();
   // For recursive functions: the blocks calling each other, for a `mutual` block.
   std::string emitLoop();
-  // The function itself.
+  // The function itself, or in a promised cycle, the raw function members call, inside the `mutual` block.
   std::string emitFunction();
+  // In a promised cycle: the function callers outside the cycle see, after the `mutual` block.
+  std::string emitPromisedCycleWrapper();
   unsigned blockCount() const { return Blocks.size(); }
   unsigned instructionCount() const { return Instructions; }
 
@@ -768,6 +801,10 @@ private:
   void collectBlocks();
   void nameValues();
   void computeLiveness();
+  void findPromises();
+  std::string promisedRun(const std::string &Entry);
+  std::string promisedCall(const Function *Callee, const std::string &Call);
+  std::string signature(const std::string &Name);
 
   std::string operand(const Value *V);
   std::string flag(bool On, const char *Name) { return On ? std::string(" (") + Name + " := true)" : ""; }
@@ -810,7 +847,13 @@ private:
   Function &F;
   std::string LeanName;
   bool Recursive;
+  bool PromisedCycle;
   bool UsesMemory;
+  // Blocks under a promise to progress: every block of a function marked `mustprogress` or `willreturn`, and
+  // the blocks of each loop marked `llvm.loop.mustprogress` otherwise.
+  std::set<const BasicBlock *> Promised;
+  // The block being emitted.
+  const BasicBlock *Current = nullptr;
   bool HasAlloca = false;
   bool HasCall = false;
   const DenseMap<const Function *, std::string> &Callees;
@@ -907,6 +950,100 @@ void FunctionEmitter::computeLiveness() {
       }
     }
   }
+}
+
+// Which blocks are under a promise to progress. A run of the function that stays among them for good, as
+// `IRLean.stay` says, is undefined, which LangRef says of a loop marked `llvm.loop.mustprogress` that never
+// terminates. Staying among the blocks of all such loops is the same as staying in one of them as long as
+// every cycle through those blocks lies inside one such loop, which only irreducible control flow can break,
+// so a function where one doesn't is refused.
+//
+// LangRef puts loop metadata on the branch in a loop's latch, and LLVM's `Loop::getLoopID` reads it only
+// there, and only when every latch of the loop carries the same node. Passes copy it elsewhere, onto a split
+// exit edge or a rotated loop's header, and there it describes no loop, so it's ignored. Where LangRef
+// doesn't settle what it means, it's refused: on one of a loop's latches when they don't all carry it, and
+// anywhere off a latch in a function with irreducible control flow, whose cycles aren't loops and have no
+// latch to tell it from.
+void FunctionEmitter::findPromises() {
+  if (F.mustProgress()) {
+    Promised.insert(Blocks.begin(), Blocks.end());
+    return;
+  }
+  // A recursive function's runs are judged by the cycle it's in, in `emitPromisedCycleWrapper`.
+  if (Recursive)
+    return;
+  DominatorTree DT(F);
+  LoopInfo LI(DT);
+  for (const Loop *L : LI.getLoopsInPreorder())
+    if (marksMustProgress(L->getLoopID()))
+      Promised.insert(L->block_begin(), L->block_end());
+  SmallVector<std::pair<const BasicBlock *, const BasicBlock *>, 16> Retreating;
+  FindFunctionBackedges(F, Retreating);
+  bool Irreducible = any_of(Retreating, [&](const auto &E) { return !DT.dominates(E.second, E.first); });
+  for (const BasicBlock *BB : Blocks) {
+    const MDNode *ID = BB->getTerminator()->getMetadata(LLVMContext::MD_loop);
+    if (!marksMustProgress(ID))
+      continue;
+    bool Latch = false;
+    for (const Loop *L = LI.getLoopFor(BB); L; L = L->getParentLoop()) {
+      if (!L->isLoopLatch(BB))
+        continue;
+      Latch = true;
+      if (L->getLoopID() != ID)
+        reject("llvm.loop.mustprogress on " + printed(*BB->getTerminator()) +
+               ", a latch of a loop whose latches don't all carry it");
+    }
+    if (!Latch && Irreducible)
+      reject("llvm.loop.mustprogress on " + printed(*BB->getTerminator()) +
+             ", off a loop's latch, in a function with irreducible control flow");
+  }
+  // Tarjan's algorithm over the promised blocks, with the edges between them.
+  std::vector<const BasicBlock *> Nodes;
+  for (const BasicBlock *BB : Blocks)
+    if (Promised.count(BB))
+      Nodes.push_back(BB);
+  std::map<const BasicBlock *, unsigned> Index, LowLink;
+  std::vector<const BasicBlock *> Stack;
+  std::set<const BasicBlock *> OnStack;
+  std::function<void(const BasicBlock *)> Visit = [&](const BasicBlock *BB) {
+    unsigned Mine = Index.size();
+    Index[BB] = LowLink[BB] = Mine;
+    Stack.push_back(BB);
+    OnStack.insert(BB);
+    bool SelfLoop = false;
+    for (const BasicBlock *S : successors(BB)) {
+      if (!Promised.count(S))
+        continue;
+      SelfLoop |= S == BB;
+      if (!Index.count(S)) {
+        Visit(S);
+        LowLink[BB] = std::min(LowLink[BB], LowLink[S]);
+      } else if (OnStack.count(S)) {
+        LowLink[BB] = std::min(LowLink[BB], Index[S]);
+      }
+    }
+    if (LowLink[BB] != Mine)
+      return;
+    std::vector<const BasicBlock *> Component;
+    const BasicBlock *Member;
+    do {
+      Member = Stack.back();
+      Stack.pop_back();
+      OnStack.erase(Member);
+      Component.push_back(Member);
+    } while (Member != BB);
+    if (Component.size() == 1 && !SelfLoop)
+      return;
+    for (const Loop *L = LI.getLoopFor(BB); L; L = L->getParentLoop())
+      if (marksMustProgress(L->getLoopID()) &&
+          all_of(Component, [&](const BasicBlock *X) { return L->contains(X); }))
+        return;
+    reject("a cycle through loops marked llvm.loop.mustprogress that leaves each of them, at block " +
+           BlockNames.lookup(BB));
+  };
+  for (const BasicBlock *BB : Nodes)
+    if (!Index.count(BB))
+      Visit(BB);
 }
 
 std::vector<const Value *> FunctionEmitter::blockParams(const BasicBlock *BB) const {
@@ -1641,9 +1778,9 @@ void FunctionEmitter::emitCall(const CallBase &C, std::vector<Line> &Out) {
   if (Callee) {
     std::string Expr = Callees.lookup(Callee) + Args;
     if (MemoryFunctions.count(Callee))
-      Out.push_back({Line::Bind, Bound, Expr + " m"});
+      Out.push_back({Line::Bind, Bound, promisedCall(Callee, Expr + " m")});
     else
-      addBind(C, Out, Expr);
+      addBind(C, Out, promisedCall(Callee, Expr));
   } else {
     // Try each function of this type whose address is taken. Anything else stops the model.
     std::string Expr = "(indirect " + operand(C.getCalledOperand()) + " fun q' =>";
@@ -1656,9 +1793,9 @@ void FunctionEmitter::emitCall(const CallBase &C, std::vector<Line> &Out) {
         reject("indirect call that can reach @" + Target->getName().str() + ", which isn't translated");
       std::string Call = Callees.lookup(Target) + Args;
       if (MemoryFunctions.count(Target))
-        Call += " m";
+        Call = promisedCall(Target, Call + " m");
       else
-        Call = "andThen (" + Call + ") fun r' => Outcome.ok (r', m)";
+        Call = "andThen (" + promisedCall(Target, Call) + ") fun r' => Outcome.ok (r', m)";
       Expr += "\n      if q'.same " + Context.functionAddress(Target) + " then " + Call + " else";
     }
     Expr += "\n      Outcome.stop .unknownCallee : Outcome (" + leanType(C.getType()) + " × Mem))";
@@ -1712,6 +1849,7 @@ std::string FunctionEmitter::emitTerminator(const BasicBlock *BB) {
 }
 
 std::string FunctionEmitter::emitArm(const BasicBlock *BB) {
+  Current = BB;
   std::string Out = "  | ." + BlockNames.lookup(BB);
   if (UsesMemory)
     Out += " m";
@@ -1758,6 +1896,7 @@ void FunctionEmitter::prepare() {
   collectBlocks();
   nameValues();
   computeLiveness();
+  findPromises();
   if (Recursive && Blocks.size() > MaxRecursiveBlocks)
     reject("recursive function with more than " + std::to_string(MaxRecursiveBlocks) + " blocks");
   RetType = leanType(F.getReturnType());
@@ -1826,6 +1965,15 @@ std::string FunctionEmitter::emitBlocks() {
     for (unsigned G = 0; G != Groups; ++G)
       Out += "  | .g" + std::to_string(G) + " block => G" + std::to_string(G) + ".step block\n";
   }
+  // The blocks under a promise, when they aren't all of them. The entry block is never in a loop.
+  if (!Recursive && !F.willReturn() && !Promised.empty() && Promised.size() != Blocks.size()) {
+    Out += "\n/-- The blocks of loops marked `llvm.loop.mustprogress`. -/\n" + Context.Def +
+           "promise : Block → Bool\n";
+    for (const BasicBlock *BB : Blocks)
+      if (Promised.count(BB))
+        Out += "  | " + constructorPath(BB, BlockNames.lookup(BB) + " ..") + " => true\n";
+    Out += "  | _ => false\n";
+  }
   return Out + "\nend " + LeanName + "\n";
 }
 
@@ -1837,13 +1985,49 @@ std::string FunctionEmitter::emitLoop() {
   return Out + "partial_fixpoint\n";
 }
 
-std::string FunctionEmitter::emitFunction() {
-  std::string Out = Context.Def + LeanName;
+std::string FunctionEmitter::signature(const std::string &Name) {
+  std::string Out = Context.Def + Name;
   for (const Argument &A : F.args())
     Out += " (" + Names.at(&A) + " : " + leanType(A.getType()) + ")";
   if (UsesMemory)
     Out += " (m : Mem)";
-  Out += " : Outcome (" + resultType() + ") :=\n";
+  return Out + " : Outcome (" + resultType() + ") :=\n";
+}
+
+// A run from the entry block, judged by the function's promises.
+std::string FunctionEmitter::promisedRun(const std::string &Entry) {
+  std::string Run = "run " + LeanName + ".step " + Entry;
+  if (F.willReturn())
+    return "promised (" + Run + ") fun _ => Outcome.ub .noReturn";
+  if (Promised.empty())
+    return Run;
+  std::string Which = Promised.size() == Blocks.size() ? "(fun _ => true)" : LeanName + ".promise";
+  return "promised (" + Run + ") fun _ => runPromised " + Which + " " + LeanName + ".step " + Entry;
+}
+
+// Under a promise, a call to a function that promises to progress, and not to return, that never returns is a
+// run LangRef doesn't settle, so it stops the model. A callee without the promise may run forever, which
+// leaves the run waiting on it, as `runPromised` allows. A recursive function's cycle judges its runs as a
+// whole.
+std::string FunctionEmitter::promisedCall(const Function *Callee, const std::string &Call) {
+  if (Recursive || F.willReturn() || !Promised.count(Current) || !Callee->mustProgress() ||
+      Callee->willReturn())
+    return Call;
+  return "promised (" + Call + ") fun _ => Outcome.stop .progressUnsettled";
+}
+
+std::string FunctionEmitter::emitPromisedCycleWrapper() {
+  std::string Args;
+  for (const Argument &A : F.args())
+    Args += " " + Names.at(&A);
+  if (UsesMemory)
+    Args += " m";
+  return signature(LeanName) + "  promised (" + LeanName + ".raw" + Args + ") fun _ => " +
+         (F.willReturn() ? "Outcome.ub .noReturn" : "Outcome.stop .recursionUnsettled") + "\n";
+}
+
+std::string FunctionEmitter::emitFunction() {
+  std::string Out = signature(PromisedCycle ? LeanName + ".raw" : LeanName);
   AttributeList Attrs = F.getAttributes();
   for (const Argument &A : F.args()) {
     AttributeSet Param = Attrs.getParamAttrs(A.getArgNo());
@@ -1894,7 +2078,7 @@ std::string FunctionEmitter::emitFunction() {
     Entry += " " + Names.at(V);
   if (Recursive)
     return Out + "  " + LeanName + ".loop (." + Entry + ")\npartial_fixpoint\n";
-  return Out + "  run " + LeanName + ".step " + constructorPath(Blocks.front(), Entry) + "\n";
+  return Out + "  " + promisedRun(constructorPath(Blocks.front(), Entry)) + "\n";
 }
 
 std::string describeSignature(const Function &F) {
@@ -2124,10 +2308,14 @@ Emitted emitModule(Module &M, const std::string &Namespace, const std::string &S
   std::string Body;
   for (const std::vector<Function *> &Component : Order.Components) {
     bool Recursive = Order.Recursive.count(Component.front());
+    // A cycle where something promises to progress has its runs that never return judged as a whole, by a
+    // function outside the `mutual` block: inside it, members call each other's raw functions.
+    bool PromisedCycle =
+        Recursive && any_of(Component, [](const Function *F) { return promisesProgress(*F); });
     // Members of a cycle call each other, so they must all be known before any is emitted.
     for (Function *F : Component)
       if (Recursive)
-        Translated[F] = LeanNames.lookup(F);
+        Translated[F] = LeanNames.lookup(F) + (PromisedCycle ? ".raw" : "");
 
     // A function uses memory if it does so itself, or calls something that does. Members of a
     // cycle pass memory along for each other, so they share the answer.
@@ -2143,10 +2331,11 @@ Emitted emitModule(Module &M, const std::string &Namespace, const std::string &S
       MemoryFunctions.insert(Component.begin(), Component.end());
 
     std::vector<std::unique_ptr<FunctionEmitter>> Emitters;
-    std::string Types, Loops, Functions, Failure;
+    std::string Types, Loops, Functions, Wrappers, Failure;
     for (Function *F : Component) {
-      Emitters.push_back(std::make_unique<FunctionEmitter>(
-          *F, LeanNames.lookup(F), Recursive, UsesMemory, Translated, MemoryFunctions, ReachesFree, Context));
+      Emitters.push_back(std::make_unique<FunctionEmitter>(*F, LeanNames.lookup(F), Recursive, PromisedCycle,
+                                                           UsesMemory, Translated, MemoryFunctions,
+                                                           ReachesFree, Context));
       FunctionEmitter &E = *Emitters.back();
       try {
         E.prepare();
@@ -2154,6 +2343,8 @@ Emitted emitModule(Module &M, const std::string &Namespace, const std::string &S
         if (Recursive)
           Loops += E.emitLoop() + "\n";
         Functions += E.emitFunction() + "\n";
+        if (PromisedCycle)
+          Wrappers += E.emitPromisedCycleWrapper() + "\n";
       } catch (const Unsupported &U) {
         Failure = U.Why;
       }
@@ -2176,7 +2367,8 @@ Emitted emitModule(Module &M, const std::string &Namespace, const std::string &S
     }
     for (Function *F : Component)
       Translated[F] = LeanNames.lookup(F);
-    std::string Text = Types + (Recursive ? "mutual\n\n" + Loops + Functions + "end\n\n" : Functions);
+    std::string Text =
+        Types + (Recursive ? "mutual\n\n" + Loops + Functions + "end\n\n" + Wrappers : Functions);
     Body += Text;
 
     Piece P;

@@ -1,5 +1,6 @@
 import IRLean.Attr
 import IRLean.Basic
+import IRLean.Promise
 import IRLean.Int
 import IRLean.Mem
 import IRLean.Vec

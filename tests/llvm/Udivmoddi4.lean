@@ -488,7 +488,7 @@ theorem udivmoddi4_correct {block o : Nat} {w : Nat → BitVec 64} (a b : BitVec
     · exact Words.storeInt_eq hs0 (by simp only [hoff]; omega) hal0 hro hcheck r
   simp only [CrtUdivmoddi4._udivmoddi4, noundef_some, Mem.call, Mem.tag, Option.map]
   rw [show run CrtUdivmoddi4._udivmoddi4.step _ = _ from from_entry (a := a) O hb0]
-  simp only [andThen, Outcome.ok, after, Bool.false_eq_true, ite_false, Mem.afterCall]
+  simp only [andThen, Outcome.ok, promised_some, after, Bool.false_eq_true, ite_false, Mem.afterCall]
   have hallocs := Words.write_allocs (m := m0) hs0 hoff [remTag m] (a % b)
   have hsame : (m0.setWords block o 1 (fun _ => a % b)).allocs = (m.setWords block o 1 (fun _ => a % b)).allocs := by
     simp only [Mem.setWords, hs0, hs]

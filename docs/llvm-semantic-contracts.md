@@ -226,7 +226,7 @@ so a theorem that they're equal holds. The adversarial lane reports that equalit
 | `noundef`, `range`, `nonnull`, `align`, `dereferenceable` on a function's parameters and returns | Checked | Tested. `dereferenceable` implies `noundef`, as LangRef 23 says, since an access through poison is undefined |
 | `readonly`, `writeonly`, `readnone`, `nofree`, `initializes`, `captures`, `memory(...)` | Checked on each access, through tags | Tested, with one-off mutation. See trust |
 | `returned`, `noalias` returns, address `captures` | Model stop | **Model stop** |
-| `mustprogress`, `willreturn`, and `llvm.loop.mustprogress` | A spinning run is `none`, where LLVM is undefined | **Laxer**. A theorem of `= Outcome.ok` isn't affected |
+| `mustprogress`, `willreturn`, and `llvm.loop.mustprogress` | A run that never finishes under one is `UB.noProgress` or `UB.noReturn`, unless it waits on a call LangRef allows never to return. Two runs LangRef doesn't settle are model stops, and loop metadata it doesn't settle is refused ([trust](trust.md#promises-to-progress)) | Holds since SEM-07, on 2026-11-08 |
 | `nosync`, `nounwind` | Always hold: no threads, no exceptions | Holds in the model |
 | Optimization hints such as `cold`, `minsize`, `noinline` | Ignored, as they mean nothing for one run | Holds |
 | `sext`, `zext` on a parameter | Ignored, as they're about how a target passes it | Holds, for x86-64. Other targets need their ABI |
@@ -236,7 +236,8 @@ so a theorem that they're equal holds. The adversarial lane reports that equalit
 
 `checkMetadata` in `src/Emitter.cpp` allows `llvm.loop`, `prof`, `unpredictable`, `nosanitize`, `noundef`,
 `heapallocsite`, `srcloc`, `annotation` and `inline_history`, and refuses the rest. `!noundef` on a load is checked.
-The rest of that list are hints with no meaning for one run, apart from `llvm.loop.mustprogress`, in the row above. So
+The rest of that list are hints with no meaning for one run, apart from `llvm.loop.mustprogress`, in the row above,
+which is read on a loop's latches, as LLVM reads it. So
 `!range`, `!nonnull`, `!align`, `!dereferenceable`, `!invariant.load`, `!invariant.group`, `!tbaa` and the alias scopes
 are all refused, which is sound, and blocks most `-O2` builds without `-fno-strict-aliasing`.
 
@@ -263,8 +264,9 @@ These are the exact dependencies, each a decision this lane doesn't make silentl
 2. **Nondeterminism in `Outcome`.** `freeze`, NaN payloads and value-changing fast-math flags all need a run to have
    more than one allowed result. Today's `Outcome` is a single result, so these are model stops or refused. This is the
    largest change the model needs, and it changes the type every emitted function has.
-3. **`mustprogress`.** The model is laxer here. Refinement is unaffected in the direction it needs, since a source that
-   spins needs a target that spins, but a target that adds `mustprogress` can't be certified.
+3. **`mustprogress`.** Settled by SEM-07: a run that breaks the promise is undefined, on both sides. What's left is a
+   recursive function under a promise, and a run waiting on a promised callee that waits itself, which stop the model,
+   so a refinement can't count them as undefined.
 4. **Memory.** Every row marked Stricter in memory is wrong for a source. Refinement with memory needs those fixed
    first, or a separate source semantics.
 5. **Floating point.** Nothing exists.

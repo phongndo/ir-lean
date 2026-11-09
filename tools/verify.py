@@ -678,7 +678,8 @@ def translate(run: Run, ll: Path) -> None:
 
 
 def ir_facts(run: Run, ll: Path) -> None:
-    """What the IR says about its target, and the promises the model trusts instead of checking."""
+    """What the IR says about its target, and the promises to progress or return its function makes, which the
+    model checks."""
     text = None
     if ll.suffix == ".ll":
         text = ll.read_text(errors="replace")
@@ -694,7 +695,7 @@ def ir_facts(run: Run, ll: Path) -> None:
     run.target["datalayout"] = layout[1] if layout else None
     name = re.escape(run.request["function"])
     body = re.search(rf'^define [^\n]*@(?:{name}|"{name}")\(([^\n]*)\n(.*?)^}}', text, re.M | re.S)
-    trusted: set[str] = set()
+    promises: set[str] = set()
     if body:
         header = body[1]
         groups = set(re.findall(r"#(\d+)", header))
@@ -703,10 +704,10 @@ def ir_facts(run: Run, ll: Path) -> None:
             attributes = re.search(rf"^attributes #{group} = {{([^\n]*)}}", text, re.M)
             if attributes:
                 words |= set(attributes[1].split())
-        trusted |= {w for w in ("mustprogress", "willreturn") if w in words}
+        promises |= {w for w in ("mustprogress", "willreturn") if w in words}
         if "!llvm.loop" in body[2] and "llvm.loop.mustprogress" in text:
-            trusted.add("llvm.loop.mustprogress")
-    run.target["trusted_promises"] = sorted(trusted)
+            promises.add("llvm.loop.mustprogress")
+    run.target["promises"] = sorted(promises)
 
 
 def generate(run: Run, ll: Path) -> Path:
@@ -1207,18 +1208,20 @@ def assumptions(run: Run, status: str) -> list[dict[str, Any]]:
             "stop or a run that never ends. Read it",
             "docs/trust.md#what-the-model-does-at-its-edges",
         )
-    promises = target.get("trusted_promises") or []
+    promises = target.get("promises") or []
     if promises:
         effect = (
-            "A theorem of this shape rules out spinning, so it isn't affected"
+            "A theorem of this shape rules all of these out"
             if shape in ("returns_ok", "exists_returns_ok")
-            else "A claim that allows `none` has a hole there"
+            else "A claim that allows undefined behavior or a model stop allows these"
         )
         add(
             "llvm.mustprogress",
-            f"The IR has {', '.join(promises)}, which the model trusts: where LLVM calls spinning undefined, "
-            f"the model says `none`. {effect}",
-            "docs/trust.md#known-gaps-in-the-model",
+            f"The IR has {', '.join(promises)}, which the model checks as it reads LangRef: a run that "
+            "never finishes under one is undefined, unless it waits on a call LangRef allows never to "
+            "return. Where LangRef doesn't settle it, as for a recursive function, the model stops, and "
+            f"loop metadata off a loop's latch is no promise, as LLVM reads it. {effect}",
+            "docs/trust.md#promises-to-progress",
         )
     if target.get("uses_memory"):
         add(

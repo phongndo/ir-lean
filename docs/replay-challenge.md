@@ -59,7 +59,6 @@ and reason for another cause fails.
 | `runner/timeout` | A process past its time, with a child | `unknown`, `time_limit`, and the child gone |
 | `runner/leftover` | A process that exits and leaves a child | Exit 0, and the child gone |
 | `runner/memory` | A process past its cgroup's memory | `unknown`, `resource_limit`. Without a systemd scope, only that the runner doesn't claim one |
-| `promises` | `mustprogress` in loop metadata and an attribute group, `willreturn` on a function | Found, so a target with one is `unsupported` |
 
 Every verdict is also checked for what any verdict has to be: its schema, an exit code that's its status's, and
 `does_not_establish`, `trusted` and `open_obligation`. A verdict that isn't `bound` establishes nothing, and a `bound`
@@ -150,12 +149,13 @@ module the certificate adds is caught by the listing first, as [binding](llvm-pr
 | `signature_changed` | [`dead_argument.ll`](../tests/replay_challenge/dead_argument.ll), `deadargelim` | `f` loses an argument | `refused`, `signature_mismatch` |
 | `namespace_irlean` | `mul_nsw.ll`, `instcombine` | Namespace `IRLean`, so the generated modules are `IRLean.Src` and `IRLean.Tgt` | `refused`, `manifest_invalid`. Known: F2 |
 | `string_noundef` | [`string_noundef.ll`](../tests/replay_challenge/string_noundef.ll), `instcombine` | An argument with the string attribute `"noundef"`, which isn't `noundef` | `unsupported`, `undef_argument` |
-| `o2_promises` | `mul_nsw.ll`, `default<O2>` | `function-attrs` adds `mustprogress` and `willreturn` | `unsupported`, `trusted_promise`, and Alive2 finds the run right |
+| `o2_promises` | `mul_nsw.ll`, `default<O2>` | [`MulNswO2.lean`](../tests/replay_challenge/MulNswO2.lean): `function-attrs` adds `mustprogress` and `willreturn`, and a return `range`, and the two are still equal and never stop | `bound`, and Alive2 agrees |
 | `custom_axiom` | `mul_nsw.ll`, `instcombine` | The claim as an `axiom` | `refused`, `axiom_policy_failed` |
 | `spoofed_limit` | `mul_nsw.ll`, `instcombine` | `MulNsw.lean` and a theorem whose tactic fails with "maximum number of heartbeats" | `refused`, `certificate_compile_failed`. Known: F1 |
 
-`o2_promises` matters for scoring pipelines: any function `function-attrs` can prove returns gets `willreturn`, so a
-pure function from an `-O2` pipeline is unsupported until IRLean checks those promises.
+`o2_promises` matters for scoring pipelines: any function `function-attrs` can prove returns gets `willreturn`. Before
+SEM-07 the model trusted that promise, and a pure function from an `-O2` pipeline was `unsupported`. Since 2026-11-08
+the model checks it, and the run binds.
 
 ## Findings
 

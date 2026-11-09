@@ -16,7 +16,7 @@ target_include_directories(ir-lean SYSTEM PRIVATE ${LLVM_INCLUDE_DIRS})
 separate_arguments(LLVM_DEFINITIONS_LIST NATIVE_COMMAND ${LLVM_DEFINITIONS})
 target_compile_definitions(ir-lean PRIVATE ${LLVM_DEFINITIONS_LIST})
 target_compile_options(ir-lean PRIVATE -Wall -Wextra -fno-rtti)
-llvm_config(ir-lean USE_SHARED core irreader support)
+llvm_config(ir-lean USE_SHARED analysis core irreader support)
 
 # Tests need the Lean library: run `lake build` first.
 enable_testing()
