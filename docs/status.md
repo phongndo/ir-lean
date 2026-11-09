@@ -95,13 +95,16 @@ Evidence and not proof. A pass here means no disagreement was found on the input
   of at most about 800 bytes, because the semantics are slow to run: each memory access walks back through
   earlier writes. The harness reaches all but 5 of zlib's functions, counted without optimization so
   nothing is inlined away: two for big-endian machines, `crc32_combine_gen`, `_tr_align` and `_tr_tally`.
-- **What the emitter accepts:** all 17,040 items the pinned IR can contain are classified, 168 modeled, 260
-  assumed and 16,612 refused, and a probe of each shows the emitter does what its class says, with the Lean it
+- **What the emitter accepts:** all 17,042 items the pinned IR can contain are classified, 175 modeled, 260
+  assumed and 16,607 refused, and a probe of each shows the emitter does what its class says, with the Lean it
   prints for each it translates elaborating ([IR features](ir-features.md)). Since 2026-11-09.
 - **Vector forms of integer operations:** the vector forms of 16 intrinsics, vector division and remainder, and
   `noundef` and `range` on vectors and structs agree with Alive2 both ways, undefined behavior included, and with
   LLVM's constant folder, on 1,452 inputs to 69 operations, with a wrong result for each refuted
   ([`vecopcheck.py`](../tests/vecopcheck.py)). Checked on 2026-11-09.
+- **Scalable vectors:** 43 operations on `<vscale x 4 x i8>` at `vscale` 1, 2 and 4 give exactly what they give
+  on fixed-width vectors, on 1,032 inputs, splats agree with LLVM's constant folder, and `llvm.vscale` and
+  `vscale_range` agree with LangRef ([scalable vectors](scalable-vectors.md)). Checked on 2026-11-09.
 - **Integer operations:** against LLVM's constant folder at many widths, and Alive2 for exact poison and
   UB at small widths: 265 variants proved exact, with none unchecked.
 - **`getelementptr` flags:** 1,194 cases against Alive2, on 644 layouts. 927 are proved exact, and 267 depend on
@@ -270,3 +273,6 @@ reads it. That difference is itself a thing [Phase 3](roadmap.md#phase-3-c-and-r
     claim only if it agrees. It replays every function in [LLVM's own code](#llvms-own-code) and refuses forged
     claims, each for its own reason. It verifies no claim about a pass yet: none can be complete before INV-04,
     BIND-02 and PASS-05 say what each dimension has to cover. See [verifying claims](verify-claims.md).
+16. An inventory of chunk 1's rewrites, INV-04 for InstSimplify, InstCombine, AggressiveInstCombine and Reassociate:
+    3,174 at `llvmorg-23.1.3`, 1,837 of them on integers only, each with an ID and its line, derived from the pinned
+    source and checked in CI. None is proved for every input yet. See [rewrite inventory](rewrite-inventory.md).
