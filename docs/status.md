@@ -269,3 +269,6 @@ reads it. That difference is itself a thing [Phase 3](roadmap.md#phase-3-c-and-r
     claim only if it agrees. It replays every function in [LLVM's own code](#llvms-own-code) and refuses forged
     claims, each for its own reason. It verifies no claim about a pass yet: none can be complete before INV-04,
     BIND-02 and PASS-05 say what each dimension has to cover. See [verifying claims](verify-claims.md).
+16. An inventory of chunk 1's rewrites, INV-04 for InstSimplify, InstCombine, AggressiveInstCombine and Reassociate:
+    3,174 at `llvmorg-23.1.3`, 1,837 of them on integers only, each with an ID and its line, derived from the pinned
+    source and checked in CI. None is proved for every input yet. See [rewrite inventory](rewrite-inventory.md).

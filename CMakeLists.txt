@@ -134,6 +134,12 @@ add_test(NAME verify_claims_static COMMAND ${CMAKE_SOURCE_DIR}/tests/verify_clai
 add_test(NAME verify_claims COMMAND ${CMAKE_SOURCE_DIR}/tests/verify_claims_test.py --tier live)
 set_tests_properties(verify_claims_static PROPERTIES TIMEOUT 600)
 set_tests_properties(verify_claims PROPERTIES RUN_SERIAL TRUE TIMEOUT 1800)
+# The rewrites in chunk 1's peephole passes, docs/rewrite-inventory.md: the rule on small C++ files and on
+# mutated copies of the pinned source, then the inventory derived again from the source and compared. A few
+# seconds, and no Lean.
+add_test(NAME llvm_rewrites COMMAND ${CMAKE_SOURCE_DIR}/tests/llvm_rewrites_test.py)
+add_test(NAME llvm_rewrites_check COMMAND ${CMAKE_SOURCE_DIR}/tests/llvm_rewrites.py check)
+set_tests_properties(llvm_rewrites llvm_rewrites_check PROPERTIES TIMEOUT 300)
 # tools/corpus/capture.py, in Python, with one seed through opt when the pinned one is on PATH: under a
 # second, and no Lean. docs/corpus.md.
 add_test(NAME corpus COMMAND ${CMAKE_SOURCE_DIR}/tests/corpus_test.py)

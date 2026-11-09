@@ -215,11 +215,11 @@ when they land.
 - **Lane:** INV
 - **Scope:** The units inside passes: InstCombine's and InstSimplify's rewrites, DAGCombiner and GlobalISel combiner rules, and TableGen selection and legalization patterns for each built target.
 - **Depends on:** INV-01
-- **Owns:** `tests/llvm_scope/rewrites/`
+- **Owns:** `tests/llvm_scope/rewrites/`, `tests/llvm_rewrites.py`, `tests/llvm_rewrites_test.py`, `docs/rewrite-inventory.md`
 - **Acceptance:** Each unit has a stable ID and a source location, generated from the pinned source, and a test fails if one appears or disappears without the inventory changing.
-- **Trust gaps:** Rewrites written as C++ control flow rather than patterns have no natural boundary. The split has to be stated, and reviewed.
-- **Status:** not started
-- **Evidence:** None.
+- **Trust gaps:** Rewrites written as C++ control flow rather than patterns have no natural boundary. The split has to be stated, and reviewed. For chunk 1's passes, [the rule](rewrite-inventory.md#the-rule) states it, and [what it doesn't see](rewrite-inventory.md#what-the-rule-doesnt-see) lists where it can be wrong.
+- **Status:** in progress
+- **Evidence:** Chunk 1's four passes, InstSimplify, InstCombine, AggressiveInstCombine and Reassociate: 3,174 rewrites in `tests/llvm_scope/rewrites/`, derived by `tests/llvm_rewrites.py` and checked in CI as `llvm_rewrites_check`. DAGCombiner, GlobalISel's combiners and TableGen's patterns aren't started.
 
 ### INV-05: Permitted inputs and options
 
