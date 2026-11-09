@@ -685,7 +685,8 @@ theorem zextZext_sound (h : zextZext rec p lhs rhs n = .fire site r) :
         simp only [Term.Consistent] at c0' c1'
         simp only [Term.hasUndef] at u0 u1
         simp only [ICmpB.WellTyped] at wt0 wt1
-        refine src_refines_via (fun a b ha hb => ?_) (hrec (unsigned p) x y r c0'.1 c1'.1 u0 u1 wt0.2 wt1.2 (fwd_fire h))
+        refine src_refines_via (fun a b ha hb => ?_)
+          (hrec (unsigned p) x y r c0'.1 c1'.1 u0 u1 wt0.2 wt1.2 (fwd_fire h))
         obtain ⟨xv, hx, rfl⟩ := zext_denote c0 ha
         obtain ⟨yv, hy, rfl⟩ := zext_denote c1 hb
         exact ⟨xv, yv, hx, hy, test_setWidth p xv yv hc.2⟩
