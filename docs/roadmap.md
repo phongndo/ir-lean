@@ -75,6 +75,49 @@ These gates moved, or went:
 | Runtime memory model | Part of Phase 1 | [Phase 6](#phase-6-the-engine-and-the-lemma-store), in wave 2. Revised: wave 3 ([wave 2](#wave-2-revised-on-2026-11-08)) | Every track that runs memory code needs it, not only `inflate` |
 | Milestones | M0 to M11 | Named by phase: F, S, E, T, C, G, B and A | The old M1 to M4, for `inflate`, are G2 to G5 |
 
+### Three decisions of 2026-11-09
+
+On 2026-11-09 the maintainer decided three things this page had left open or hadn't said.
+
+**1. `undef` stays out of the model, and `freeze` goes in.** `undef` constants stay refused, and reading
+uninitialized memory stays poison, as the [known gaps](trust.md#known-gaps-in-the-model) list them. `freeze` enters the
+model as [#49](https://github.com/phongndo/ir-lean/pull/49)'s [prototype](undef-freeze.md) defines it: `freeze` of a
+value is that value, and `freeze` of poison is an arbitrary value of its type, the same for every use of that `freeze`,
+chosen when it runs. F3 becomes "`freeze` in the model, with `undef` kept out", and F4, `Refines` for functions with
+memory, depends on it.
+
+Why:
+
+- **It follows LLVM.** LLVM is moving to remove `undef`, with a byte type and a freezing load
+  ([PLDI 2026](https://web.ist.utl.pt/nuno.lopes/pubs/byte-type-pldi26.pdf)), and Vellvm 3.0 already removed it
+  ([prior art](prior-art.md)). Taking `undef` into the model would change the type of every emitted function, and every
+  proof, for a value LLVM is retiring.
+- **`freeze` stays in LLVM, and the model's stop at it costs refinements now.** No certificate covers a source that
+  freezes poison, and inserting a `freeze`, which is right in LLVM, isn't a refinement in the model
+  ([refinement](refinement.md#what-it-says-about-llvm)).
+- **What `undef` leaves out is already written down.** Refusing `undef` constants is sound. Reading uninitialized memory
+  as poison is more undefined behavior than LLVM has, which is fine for safety proofs and wrong for a refinement's
+  source, so F4 has to settle it for memory.
+
+**2. Proving every LLVM optimization stays parked**, as [below](#whats-parked-and-what-stays). Its progress metric is
+the share of InstCombine's own test transformations that `ir-lean` can certify, which the stage-1 benchmark, S1,
+measures.
+
+Why: a parked goal still needs a number, so that bringing it back is a decision made on evidence. S1 is built to read
+InstCombine's tests through the emitter and certify them, so the number comes from work already in a wave.
+
+**3. Python is the glue.** Python runs tools, reads their output and orchestrates processes. Anything that shows memory
+or speed problems moves to C++, as the emitter is. Wave 3 starts with Python consolidation, as the foundation the rest
+of it builds on, and the waves are reordered, in [wave 3](#wave-3-set-on-2026-11-09) and [wave 4](#wave-4).
+
+Why:
+
+- **Python has grown with every lane.** At `3d7bffb`, `tools/` and `tests/` held 45 Python files, 23,845 lines.
+  Consolidating first means wave 3's lanes build on one library instead of copying each other's.
+- **Python has already shown both problems.** `tools/binding.py` read whole files to hash about 2.8 GiB of toolchain,
+  at about 455 MiB a verify, as [wave 0](#wave-0-the-maintainer-now) records, and [Phase 8](#phase-8-speed) puts speed
+  among the goals.
+
 ### The flywheel
 
 ```mermaid
@@ -145,8 +188,8 @@ this sits beside Hypothesis, QuickCheck, Kani, CBMC, Dafny and Verus.
   [Phase 2](#phase-2-reusable-contracts-and-frame-reasoning).
 - **The bridge.** `Safe src → Refines src tgt → Safe tgt`, in [Phase 4](#phase-4-certified-translation-validation-and-superoptimization).
   It needed SEM-07 first, so a target can't claim a promise no certificate checked, and SEM-07 landed in [#62](https://github.com/phongndo/ir-lean/pull/62). It
-  also needs `Refines` for functions with memory, which [doesn't exist yet](refinement.md). That's SEM-06, which
-  [isn't in a wave yet](#not-in-a-wave-yet).
+  also needs `Refines` for functions with memory, which [doesn't exist yet](refinement.md). That's SEM-06, F4, in
+  [wave 4](#wave-4), after F3.
 
 ### What's parked, and what stays
 
@@ -154,7 +197,8 @@ this sits beside Hypothesis, QuickCheck, Kani, CBMC, Dafny and Verus.
 names, the `O1` obligation ledger from #52, and binding proofs to LLVM's C++, BIND-02 to BIND-05 in the task list. The
 [task list](llvm-verification-tasks.md) stays as a reference inventory, with its statuses kept true, and
 `tests/llvm_scope.py check` still checks it. It comes back as a goal only by a change written down here, with its
-reason.
+reason. Its progress metric, since [2026-11-09](#three-decisions-of-2026-11-09), is the share of InstCombine's own test
+transformations that `ir-lean` can certify, which S1 measures.
 
 **Kept, as tools for the goal:**
 
@@ -195,9 +239,9 @@ spend no effort on them until these work.
 
 | Horizon | Work | Why it's here |
 | --- | --- | --- |
-| **Now** | [Wave 2](#wave-2-revised-on-2026-11-08), as revised on 2026-11-08: lemma store v1, the stage-1 benchmark and soundness corpus, SEM-07, which has landed, tier-1 proof tests, and speed, round 2. Wave 1 is done: [#57](https://github.com/phongndo/ir-lean/pull/57) and [#58](https://github.com/phongndo/ir-lean/pull/58) brought the llama.cpp results to `main` | Each starts a track, and each is the step the next one in that track waits on |
-| **Next** | Wave 3: superoptimizer v2, the safety bridge, the executable memory model, proof-test tiers 2 and 3 with the unit-test milestone, and the `inflate_table` proof. `inflate_table`'s statement is light work, taken up when a lane frees | Each needs something wave 2 builds, or waits for a lane |
-| **Later** | MLIR, contracts, C++ and Rust, and adoption | Each needs a milestone from wave 3 |
+| **Now** | [Wave 3](#wave-3-set-on-2026-11-09)'s first items, set on 2026-11-09: Python consolidation, `freeze` in the model (F3), and the stage-1 benchmark finishing. Of [wave 2](#wave-2-revised-on-2026-11-08), lemma store v1, SEM-07 and tier-1 proof tests are done, speed's round 2 has landed, and S1 carries into wave 3 | Python consolidation is the foundation the rest of wave 3 builds on. F3 is what memory refinement waits on |
+| **Next** | The rest of wave 3, on that foundation: lemma mining at scale, superoptimizer v2, and proof-test tiers 2 and 3. Then [wave 4](#wave-4): the executable memory model, memory refinement (F4) and the safety bridge. `inflate_table`'s statement is light work, taken up when a lane frees | Each needs something wave 2 or the first part of wave 3 builds |
+| **Later** | MLIR, `inflate`, contracts, C++ and Rust, the unit-test milestone, and adoption | Each needs a milestone from wave 3 or 4, or [isn't in a wave yet](#not-in-a-wave-yet) |
 
 ## Next steps
 
@@ -214,34 +258,44 @@ flowchart LR
   end
   subgraph W2[Wave 2]
     STORE[Lemma store v1]
-    BENCH[Stage-1 benchmark]
     SEM07[SEM-07]
     PT1[Proof tests, tier 1]
     SPEED[Speed, round 2]
   end
   subgraph W3[Wave 3]
+    PY[Python consolidation]
+    F3[F3, freeze in the model]
+    BENCH[Stage-1 benchmark, from wave 2]
+    MINE[Lemma mining at scale]
     SO2[Superoptimizer v2]
-    BRIDGE[Safety bridge]
-    EXEC[Executable memory]
     PT3[Proof tests, tiers 2 and 3]
-    PROOF[inflate_table proof]
+  end
+  subgraph W4[Wave 4]
+    EXEC[Executable memory]
+    F4[F4, memory refinement]
+    BRIDGE[Safety bridge]
   end
   STMT[inflate_table statement, when a lane frees]
+  PROOF[inflate_table proof, in no wave]
   PR48[Pull request 48, landed] --> STORE
   STUDY --> SO2
   STUDY --> BENCH
   SEM07 --> BRIDGE
   STMT --> PROOF
+  STORE --> MINE
+  PY --> MINE
+  PY --> SO2
+  PY --> PT3
+  F3 --> F4
+  F4 --> BRIDGE
+  F4 --> SO2
   CI -.-> W2
   STORE -.-> SO2
   STORE -.-> PT3
-  UNDEF[undef decision] --> SEM06[SEM-06, memory refinement]
-  SEM06 --> BRIDGE
-  SEM06 --> SO2
 ```
 
-Solid arrows are hard dependencies and dashed ones soft. The `undef` decision and SEM-06 aren't in a wave yet, and
-SEM-06 holds up only superoptimizer v2's memory candidates, not the rest of it.
+Solid arrows are hard dependencies and dashed ones soft. F4 holds up only superoptimizer v2's memory candidates, not
+the rest of it.
 
 ### Wave 0: the maintainer, now
 
@@ -295,6 +349,8 @@ It waited on #48 and the CI split, which landed in #48 and #53. Five lanes:
 The statement of `inflate_table`'s theorem, G1, slice 13, isn't a lane. It's light work, taken up when one of these
 frees.
 
+S1 hadn't finished when wave 3 was set, on 2026-11-09, and finishes there.
+
 **What changed.** On 2026-11-08 the maintainer approved this wave in place of the one #55 wrote, which was lemma store
 v1, SEM-07, the executable memory model, tier-1 proof tests, and `inflate_table`'s statement:
 
@@ -305,14 +361,49 @@ v1, SEM-07, the executable memory model, tier-1 proof tests, and `inflate_table`
 | Executable memory model, E2 | Wave 2 | Wave 3 | Two [limits](#limits). Only one pull request at a time changes semantics in `IRLean/*.lean`, and in wave 2 SEM-07 holds it. And the five lanes above fill the cap of about 4 or 5 |
 | `inflate_table`'s statement, G1 | Wave 2 | Light work, when a lane frees | The five lanes fill the cap. It's a statement for review, with no proof |
 
-### Wave 3
+### Wave 3, set on 2026-11-09
 
-- Superoptimizer v2: more arguments, `select`, memory, and real targets, [Phase 4](#phase-4-certified-translation-validation-and-superoptimization).
-- The safety bridge, [Phase 4](#phase-4-certified-translation-validation-and-superoptimization).
-- The executable memory model, E2, slice 15, [Phase 6](#phase-6-the-engine-and-the-lemma-store). Moved from wave 2 on
-  2026-11-08, [above](#wave-2-revised-on-2026-11-08).
-- Proof-test tiers 2 and 3, and the "replace one unit-test file" milestone, [Phase 7](#phase-7-proof-tests).
-- The `inflate_table` proof, slice 14, [Phase 1](#phase-1-zlib-inflate-memory-safety).
+Python consolidation is the foundation, [decision 3](#three-decisions-of-2026-11-09).
+
+**First:**
+
+- Python consolidation, slice 31, [Phase 8](#phase-8-speed): one shared library for `tools/` and `tests/*.py`, with
+  anything that shows memory or speed problems moved to C++.
+- `freeze` in the model, with `undef` kept out, F3, slice 32, [Phase 0](#phase-0-semantic-fidelity-and-trust-infrastructure).
+  It's the one lane that changes semantics in `IRLean/*.lean` this wave.
+- The stage-1 benchmark finishing, S1, slice 29, [Phase 4](#phase-4-certified-translation-validation-and-superoptimization),
+  from wave 2.
+
+**Then, on that foundation:**
+
+- Lemma mining at scale, E3, slice 33, [Phase 6](#phase-6-the-engine-and-the-lemma-store), with targets for peak memory
+  on big proofs.
+- Superoptimizer v2, S3, slice 25: more arguments, `select`, memory, and real targets,
+  [Phase 4](#phase-4-certified-translation-validation-and-superoptimization). Its memory candidates wait on F4.
+- Proof-test tiers 2 and 3, T2, slice 27, [Phase 7](#phase-7-proof-tests).
+
+**What changed,** against the wave 3 that [wave 2's revision](#wave-2-revised-on-2026-11-08) left:
+
+| Item | Was | Now | Why |
+| --- | --- | --- | --- |
+| Python consolidation | In no wave | Wave 3, first | Decision 3: it's the foundation the rest of wave 3 builds on |
+| F3, `freeze` in the model | In no wave, waiting on the `undef` decision | Wave 3, first | Decision 1 made it, and F4 waits on F3 |
+| S1, the stage-1 benchmark | Wave 2 | Finishes in wave 3, first | It hadn't finished, and decision 2 makes it the parked goal's measure too |
+| Lemma mining at scale, E3 | In no wave | Wave 3, then | The maintainer's order. E1 landed in [#60](https://github.com/phongndo/ir-lean/pull/60), and E3 is what shows the store pays |
+| Superoptimizer v2, S3, and proof-test tiers 2 and 3, T2 | Wave 3 | Wave 3, then | They build on Python consolidation |
+| The executable memory model, E2 | Wave 3 | [Wave 4](#wave-4) | The maintainer's order puts it with the rest of the memory work, F4 and S4 |
+| The safety bridge, S4 | Wave 3 | Wave 4 | It needs F4, which needs F3, so it can't land in wave 3 |
+| The unit-test milestone, T3, slice 28 | Wave 3 | [In no wave](#not-in-a-wave-yet) | Not in the maintainer's order. It waits on T2 |
+| The `inflate_table` proof, slice 14 | Wave 3 | In no wave | Not in the maintainer's order, and it waits on 0A's slices 6 and 7, which aren't in a wave either |
+
+### Wave 4
+
+- The executable memory model, E2, slice 15, [Phase 6](#phase-6-the-engine-and-the-lemma-store). Moved from wave 2 to
+  wave 3 on 2026-11-08, [above](#wave-2-revised-on-2026-11-08), and to wave 4 on 2026-11-09.
+- `Refines` for functions with memory, F4, SEM-06, slice 34, [Phase 0](#phase-0-semantic-fidelity-and-trust-infrastructure).
+  It waits on F3.
+- The safety bridge, S4, slice 26, [Phase 4](#phase-4-certified-translation-validation-and-superoptimization). It waits
+  on F4.
 
 ### Dependencies
 
@@ -324,6 +415,9 @@ v1, SEM-07, the executable memory model, tier-1 proof tests, and `inflate_table`
 | The prior-art study | Superoptimizer v2's design | The field is moving: [Trivet](https://arxiv.org/abs/2609.19583) already does LLM-assisted refinement proofs in Lean on integer code. This is the reading the old Phase 4 asked for before stage 1. Met: #56 landed |
 | SEM-07 | The safety bridge | While `mustprogress` and `willreturn` are trusted, a target can claim a promise the certificate didn't check, and the bridge would carry safety to it. Met: SEM-07 landed in [#62](https://github.com/phongndo/ir-lean/pull/62) |
 | `inflate_table`'s statement, reviewed | Its proof | A proof of the wrong statement is wasted, and the statement is where a memory-safety claim is most likely to be wrong |
+| Python consolidation | Lemma mining at scale, superoptimizer v2, and proof-test tiers 2 and 3 | They're built on its shared library, by [decision 3](#three-decisions-of-2026-11-09), so they don't add Python it would then have to move |
+| F3, `freeze` in the model | F4, memory refinement | Decided on 2026-11-09. F3 changes what a run's outcome is, since `freeze` makes it a choice, and F4's relation between memories is stated over that outcome, so it's built once, on F3's |
+| F4 | The safety bridge, and superoptimizer v2's memory candidates | The bridge is a statement about `Refines` with memory, and so is every certificate for a memory candidate |
 
 **Soft:** better in this order. Going the other way needs a reason, written in the pull request.
 
@@ -337,21 +431,23 @@ v1, SEM-07, the executable memory model, tier-1 proof tests, and `inflate_table`
 These are on the critical path, or are needed by something that is, and no wave holds them yet. Where they go is the
 maintainer's call.
 
-- **The `undef` decision.** [#49](https://github.com/phongndo/ir-lean/pull/49)'s [prototype](undef-freeze.md) settles
-  what a semantics with `undef` and `freeze` has to say, outside the model. Deciding whether and how the model takes it
-  is left, and it changes the type of every emitted function. SEM-06 waits on it in the task list.
-- **SEM-06, memory refinement.** `Refines` has no instance for `Mem`, so no certificate covers a function with memory.
-  Superoptimizer v2's memory candidates and the safety bridge both need it.
-- **The rest of 0A, slices 6 and 7.** Phase 1 needs 0A, so the `inflate_table` proof in wave 3 waits on them, as it
-  did before. They land first, or the proof's pull request waives the gate with its reason.
+- **The `inflate_table` proof, slice 14,** moved out of wave 3 on 2026-11-09. Its statement, G1, stays light work for
+  when a lane frees.
+- **The rest of 0A, slices 6 and 7.** Phase 1 needs 0A, so the `inflate_table` proof waits on them, as it did before.
+  They land first, or the proof's pull request waives the gate with its reason.
+- **The unit-test milestone, T3, slice 28,** moved out of wave 3 on 2026-11-09. It waits on T2.
 - **The rest of Phase 0:** slices 8, 10, 12 and 16 [below](#near-term-pull-requests).
 - **Phases 2, 3 and 5,** which wait on milestones in later waves.
+
+Two items left this list on 2026-11-09. The `undef` decision was made, [decision 1](#three-decisions-of-2026-11-09), and
+SEM-06, memory refinement, is F4 in [wave 4](#wave-4).
 
 ### Limits
 
 - **One pull request at a time that changes semantics in `IRLean/*.lean`.** Every proof and certificate rests on those
   files, so two semantic changes at once can't each be reviewed against what's on `main`, and each one makes every
-  proof check again. In wave 2 that's SEM-07, which is one reason the executable memory model moved to wave 3.
+  proof check again. In wave 2 that was SEM-07, which is one reason the executable memory model moved to wave 3. In
+  wave 3 it's F3.
 - **About 4 or 5 active lanes.** Runners are limited. Every lane registers its tests in `CMakeLists.txt`, where they
   conflict. And Lean takes 1.5 to 3.5 GB a process: one binding verify peaked at 1.5 GiB in #52's pilot, and
   `CMakeLists.txt` runs the `binding` test alone because each of its Lean processes takes up to 3.5 GB.
@@ -377,15 +473,19 @@ GEP flags ([#15](https://github.com/phongndo/ir-lean/pull/15)), attribute and li
 | 22 | Lemma store v1 | 6 | 2 | E1 below |
 | 23 | Promises as UB, SEM-07 | 0 | 2 | Done in [#62](https://github.com/phongndo/ir-lean/pull/62): a `loop-deletion` run under `mustprogress` is bound as a refinement, and adding the promise provably isn't one |
 | 24 | Tier-1 proof tests on `tools/verify.py` | 7 | 2 | T1 below |
-| 29 | Stage-1 benchmark and soundness corpus | 4 | 2 | S1 below |
+| 29 | Stage-1 benchmark and soundness corpus | 4 | 2, finishing in 3 | S1 below |
 | 30 | Speed, round 2 | 8 | 2 | C1 below |
 | 13 | Statement of `inflate_table`'s theorem, for review, with no proof | 1 | When a lane frees | Someone other than the author has reviewed it |
-| 15 | Executable memory representation, proved to agree with `Mem` | 6 | 3 | E2 below |
-| 25 | Superoptimizer v2 | 4 | 3 | S3 below |
-| 26 | The safety bridge | 4 | 3 | S4 below |
-| 27 | Proof-test tiers 2 and 3 | 7 | 3 | T2 below |
-| 28 | One real project's unit-test file, as proof tests | 7 | 3 | T3 below |
-| 14 | `inflate_table` proof | 1 | 3 | Checks in CI, costs recorded, and the 30:1 gate evaluated |
+| 31 | Python consolidation | 8 | 3, first | `tools/` and `tests/*.py` share one library, and what showed memory or speed problems is in C++ |
+| 32 | `freeze` in the model, with `undef` kept out | 0 | 3, first | F3 below |
+| 33 | Lemma mining at scale | 6 | 3, then | E3 below, and targets for peak memory on big proofs, set in [Phase 8](#phase-8-speed) |
+| 25 | Superoptimizer v2 | 4 | 3, then | S3 below |
+| 27 | Proof-test tiers 2 and 3 | 7 | 3, then | T2 below |
+| 15 | Executable memory representation, proved to agree with `Mem` | 6 | 4 | E2 below |
+| 34 | `Refines` for functions with memory, SEM-06 | 0 | 4 | F4 below |
+| 26 | The safety bridge | 4 | 4 | S4 below |
+| 28 | One real project's unit-test file, as proof tests | 7 | None yet | T3 below |
+| 14 | `inflate_table` proof | 1 | None yet | Checks in CI, costs recorded, and the 30:1 gate evaluated |
 | 6 | Pin the target in `tests/zlib.sh`, as `tests/proofs.sh` already does | 0 | None yet | Generated IR's triple is the pinned one on any host |
 | 7 | Write a manifest for each generated module | 0 | None yet | Each proof's manifest has hashes, versions and axioms |
 | 8 | `Layout.WF`, with lemmas replacing `hnn` and alignment hypotheses | 0 | None yet | `adler32` and `crc32` use it, with statements no weaker for real layouts |
@@ -401,20 +501,20 @@ Each is reached when its checks pass in CI, not on a date.
 | --- | --- | --- | --- | --- |
 | F1 | Phase 0A done: axioms allow-listed, GEP gaps closed, pinned target and manifest | 0 | | In progress: axioms, GEPs and allow-lists are done |
 | F2 | `mustprogress` and `willreturn` checked as UB, SEM-07 | 0 | | Done in [#62](https://github.com/phongndo/ir-lean/pull/62). Recursion under a promise stops the model, as [trust](trust.md#promises-to-progress) says |
-| F3 | `undef` and `freeze` in the model, SEM-02 and SEM-03 | 0 | The `undef` decision | A [prototype](undef-freeze.md) outside the model |
-| F4 | `Refines` for functions with memory, SEM-06 | 0 | F3 | Not started |
+| F3 | `freeze` in the model, with `undef` kept out, SEM-03. Until 2026-11-09, `undef` and `freeze` in the model, SEM-02 and SEM-03 ([why](#three-decisions-of-2026-11-09)) | 0 | | Wave 3. A [prototype](undef-freeze.md) outside the model |
+| F4 | `Refines` for functions with memory, SEM-06 | 0 | F3 | Wave 4. Not started |
 | F5 | Phase 0B done: full inventory, semantic mutation, two-machine determinism | 0 | F1 | In progress: promises, model stops and Alive2 are done |
 | S1 | Stage 1: proved wins on integer code, and no known-wrong rewrite certified | 4 | | In part: 2 proved wins over `clang -O3` ([#30](https://github.com/phongndo/ir-lean/pull/30)). The comparison with Alive2 isn't done |
 | S2 | A proved win on real code, on `main` | 4 | | The q4_K rewrite landed in [#57](https://github.com/phongndo/ir-lean/pull/57) (`b59d862`), and the Q5 rewrite in [#58](https://github.com/phongndo/ir-lean/pull/58) |
-| S3 | Superoptimizer v2 | 4 | The study. E1, soft. F4, for memory | Not started |
+| S3 | Superoptimizer v2 | 4 | The study. Python consolidation. E1, soft. F4, for memory | Not started |
 | S4 | The safety bridge proved | 4 | F2, F4 | Not started |
 | S5 | A proved win on LLVM IR exported from MLIR | 4 | S3 | Not started |
 | S6 | A proved rewrite accepted upstream | 4 | S2 or S3 | Not started |
 | E1 | Lemma store v1 | 6 | #48 | Done in [#60](https://github.com/phongndo/ir-lean/pull/60): 163 lemmas in `lake build` and CI, each meeting rules 1 to 3, and 16 all four ([lemma store](lemma-store.md)) |
 | E2 | Executable memory model | 6 | | Not started |
-| E3 | The store makes proofs cheaper, measured | 6 | E1 | Not started |
+| E3 | The store makes proofs cheaper, measured | 6 | E1. Python consolidation | Wave 3, after Python consolidation. Not started |
 | T1 | Tier-1 proof tests | 7 | | Done in [#66](https://github.com/phongndo/ir-lean/pull/66): every injected bug it can run refuted, at a median of 9.1 ms to a counterexample the kernel checked, and `prooftest_t1` checks T1's set in CI ([proof tests](proof-tests.md#t1-measured)) |
-| T2 | Tiers 2 and 3 | 7 | T1. E1, soft, for tier 3 | Not started |
+| T2 | Tiers 2 and 3 | 7 | T1. Python consolidation. E1, soft, for tier 3 | Not started |
 | T3 | One real project's unit-test file replaced | 7 | T2 | Not started |
 | C1 | Pull request CI in at most 10 minutes | 8 | | In progress: on 2026-11-09, #65's last pull request run, with #61, #63 and #64 merged in, took 8.0 minutes, against 11.7 to 16.6 in three runs before #65 that day ([testing](testing.md#ci)). Reached when the median of 20 consecutive pull requests is at most 10 |
 | C2 | One candidate or proof checked locally in seconds | 8 | | Not measured as such |
@@ -449,8 +549,9 @@ listed as an assumption of each theorem it affects.
   `llvm.loop.mustprogress`, is undefined, as [trust](trust.md#promises-to-progress) says. Trusting them blocked
   certifying any loop deletion, and anything after `function-attrs` in a pipeline, since #52's pilot found it adds both
   to every loop-free function.
-- **The `undef` decision.** Whether and how the model takes `undef` and `freeze`, from #49's
-  [prototype](undef-freeze.md). Memory refinement waits on it. [Not in a wave yet](#not-in-a-wave-yet).
+- **`freeze` in the model, F3.** Decided on [2026-11-09](#three-decisions-of-2026-11-09): `undef` stays out, and
+  `freeze` goes in as #49's [prototype](undef-freeze.md) defines it. Memory refinement, F4, waits on it. In
+  [wave 3](#wave-3-set-on-2026-11-09).
 
 **0A, which blocks safety proofs:**
 
@@ -472,7 +573,8 @@ listed as an assumption of each theorem it affects.
   [Phase 3](#phase-3-c-and-rust-demonstrations) needs it. An independent check of these rules, as Alive2 is for GEPs,
   is still to try.
 - **Poison, `undef`, provenance:** write down the choice for each, with its direction and a test. Integer poison is
-  stated as [contracts](llvm-semantic-contracts.md), and `undef` and `freeze` are [prototyped](undef-freeze.md).
+  stated as [contracts](llvm-semantic-contracts.md), and `undef` and `freeze` are [prototyped](undef-freeze.md). Since
+  2026-11-09 the choice for `undef` is to keep it out: refused as a constant, and poison where memory is uninitialized.
 - **Mutation beyond the C:** change each `Val.*` and `Mem.*` definition, and each emitter case, and
   require some test to fail. Survivors show what the tests can't see.
 - **Hermetic pipeline:** Lean from a pinned source, and LLVM pinned to a version and not `_latest`. Record what
@@ -511,7 +613,7 @@ showing every assumption that theorem rests on.
 theorem that it refines the original. The search, and any AI in it, is untrusted. Only the certificate counts.
 
 **Prerequisites,** per stage below. Integer code needs only what's on `main`. Loops needed SEM-07, which has landed.
-Memory needs SEM-06, which waits on the `undef` decision.
+Memory needs SEM-06, F4, which waits on F3, `freeze` in the model.
 
 **What's being certified:** [`IRLean.Refines`](refinement.md) ([#46](https://github.com/phongndo/ir-lean/pull/46)).
 `Refines src tgt` says `tgt` only does what `src` allows: where the source is undefined, anything; where the model
@@ -616,7 +718,9 @@ makes each proof cheaper than the last.
 
 - **Lemma store v1,** wave 2: in the build and CI, the bar enforced by a check, and seeded from #48. Versioned by Lean
   and `ir-lean` commit, so a lemma that stops checking is reported and not silently dropped.
-- **Executable memory model,** wave 3, slice 15: an executable representation of memory, proved to agree with `Mem`,
+- **Lemma mining at scale,** wave 3, slice 33: cut lemmas from many proofs into the store, until E3's measure can
+  run, with targets for peak memory on big proofs, which [Phase 8](#phase-8-speed) records.
+- **Executable memory model,** wave 4, slice 15: an executable representation of memory, proved to agree with `Mem`,
   for the differential tests, the search's refuting step, and tier-1 proof tests on code with memory. `inflate`'s
   window is 32 KiB, so inputs under that never exercise its full distance range.
 
@@ -666,7 +770,7 @@ fuzzing, the Alive2 checks `opcheck` and `gepcheck`, and the negative corpus.
 - **Tier 1,** wave 2: generate random and edge-case inputs for a property, and run it through `tools/verify.py`.
 - **Tiers 2 and 3,** wave 3: a bounded proof, then a full one from the lemma store, each tried only when the tier below
   found no counterexample.
-- **The milestone,** wave 3: pick a real project and one of its unit-test files, and replace it.
+- **The milestone,** in no wave since 2026-11-09: pick a real project and one of its unit-test files, and replace it.
 
 **Exit criteria:**
 
@@ -704,7 +808,13 @@ before #53 split it:
 
 The latest two took 37.3 and 38.4 minutes, against the job's 60-minute limit in `.github/workflows/ci.yml`.
 
-**Targets:** pull request CI in at most 10 minutes, and checking one candidate or one proof locally in seconds.
+**Targets:** pull request CI in at most 10 minutes, and checking one candidate or one proof locally in seconds. Peak
+memory on big proofs gets targets too, set in wave 3 with lemma mining at scale, slice 33. For scale, Lean takes 1.5 to
+3.5 GB a process today ([limits](#limits)).
+
+**Python is the glue,** since [2026-11-09](#three-decisions-of-2026-11-09). Python runs tools, reads their output and
+orchestrates processes. Anything in it that shows memory or speed problems moves to C++. Python consolidation, slice
+31, is wave 3's foundation: one shared library for `tools/` and `tests/*.py`.
 
 **Work:** [#53](https://github.com/phongndo/ir-lean/pull/53) split CI into parallel jobs, which took it to 13 to 16
 minutes. On 2026-11-09, [#61](https://github.com/phongndo/ir-lean/pull/61) made setup survive the downloads that had
@@ -774,7 +884,7 @@ makes the proof harder, and it has to assume the allocator returns. It says noth
 **The order,** so each step tests the riskiest thing left:
 
 1. `inflate_table`: every entry it writes stays inside `codes`, and links stay in the table it built. Its statement is
-   light work, taken up when a wave-2 lane frees, and its proof is in wave 3.
+   light work, taken up when a lane frees, and its proof isn't in a wave yet.
 2. `inflate_fast`, assuming tables with that property. This is where a memory bug would most likely be.
 3. The invariant across `inflate`'s modes, one mode at a time, starting with stored blocks.
 
@@ -946,6 +1056,8 @@ that produced it. Current values live in [status](status.md).
 | --- | --- | --- |
 | Proved wins over `clang -O3`, on real code and on the rest | Yes, 2, neither a call real programs make on x86-64. The real-code results are on branches | The goal |
 | Speedup on a real workload, from proved rewrites | On branches only | Whether the goal matters to anyone |
+| Share of InstCombine's own test transformations `ir-lean` certifies | Not yet. S1 measures it | The parked goal's progress, since [2026-11-09](#three-decisions-of-2026-11-09) |
+| Peak memory of the biggest proofs | Partly, as check time and peak memory below | Targets set in wave 3, with lemma mining at scale |
 | Candidates refuted, proved, or left unknown, per search | No | Whether the engine's tiers pay |
 | Lemmas meeting each rule of the bar, and reuses per lemma | Yes, by `tools/store/store.py check`, in CI | Whether the flywheel turns |
 | Proof-test bugs caught against the unit tests', and time | No | Whether proof tests beat what they replace |
@@ -1021,6 +1133,6 @@ The ones with the most leverage, for research collaborators:
 - How a search should choose its targets, and measure a win: `llvm-mca` cycles, size, or time on a real workload.
 - How far a lemma can generalize before matching it costs more than proving the step again.
 - What spec language a developer would write proof tests in, and how close to their own language it has to be.
-- What the model should do about `undef`, `noalias` on arguments and TBAA.
+- What the model should do about `noalias` on arguments and TBAA. `undef` was settled on 2026-11-09: it stays out.
 - The `inflate` invariant.
 - How far a check inside Lean can replace trust in the emitter.
