@@ -74,15 +74,15 @@ and the 84 left out are reached only through aliases.
 
 `ir-lean --report` translated 284 of the 2,070, 13.7%, before and after the first slice of the external-calls lane,
 [#83](https://github.com/phongndo/ir-lean/pull/83), landed, and translates 287 since #88, #93 and #95 on top of
-`398031b`. Since #83, the first reason for most of the rest is its new boundary: a call to a function outside the
+`398031b`, and since #94 on top of `45a55e7`. Since #83, the first reason for most of the rest is its new boundary: a call to a function outside the
 module, from a function with a stack frame or with promises about memory, which `IRLean.World` doesn't wrap yet. On top
-of `398031b`:
+of `45a55e7`:
 
 | First refusal, or the first of a function in a cycle with it | Functions |
 | --- | --- |
-| A call outside the module from a function with a stack frame or promises about memory | 798 |
+| A call outside the module from a function with a stack frame or promises about memory | 811 |
 | A call to a function itself refused | 217 |
-| A type: vectors of pointers, `<2 x ptr>`, `double` and the like | 157 |
+| A type: vectors of pointers, `<2 x ptr>` | 144 |
 | A global outside the module | 100 |
 | `memory(...)` on a call | 84 |
 | A call to a `linkonce_odr` copy | 83 |
@@ -103,17 +103,18 @@ limit.
 ## The share of the 18-file slice
 
 The census from #74, [`prototypes/binding/census.sh`](../prototypes/binding/census.sh), run again on 2026-11-09, on top
-of `2c9e6df`, after #83 landed, on top of `62d2463`, and after #88, #93 and #95, on top of `398031b`: 78 of 2,540
+of `2c9e6df`, after #83 landed, on top of `62d2463`, after #88, #93 and #95, on top of `398031b`, and after #94, on top of `45a55e7`: 78 of 2,540
 functions translate linked, 3.1%, and 146 of 3,703 file by file, 3.9%, every time. That's #74's figure. `freeze` in the model, F3, which landed after #74 measured,
 didn't move it, nor did #83, the external-calls lane's first slice, which answers calls outside the module that access
 no memory from functions with no stack frame.
 
-What #83 moved is which reason comes first, and #88, #93 and #95 didn't move it further. On `398031b`, linked: 1,069 functions stop first at a call outside the
+What #83 moved is which reason comes first. #88, #93 and #95 didn't move it further, and #94, which put `double` in the
+model, moved 4 functions from the type to that boundary. On `45a55e7`, linked: 1,073 functions stop first at a call outside the
 module from a function with a stack frame or promises about memory, 481 at a call outside the module that touches
 memory, 437 at `!nonnull` or `!range`, 173 at a call to a `linkonce_odr` copy, 75 at vectors of pointers, 64 at a call
 to a function itself refused, 45 at the 200-block limit and 33 at scoped `noalias`. `census.sh`'s own grouping files the
 first of those under its catch-all, "a global, intrinsic, vtable constant, attribute or undef", since #83's reason is
-new. The calls this slice leaves refused are 1,550 of the 2,462 linked functions that don't translate, so the next
+new. The calls this slice leaves refused are 1,554 of the 2,462 linked functions that don't translate, so the next
 slices of the external-calls lane, and F4, are what the share waits on.
 
 ## A policy for the one-definition rule
