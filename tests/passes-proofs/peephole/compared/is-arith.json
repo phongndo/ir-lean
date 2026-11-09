@@ -1,0 +1,820 @@
+{
+  "schema": "ir-lean.peephole.comparison/1",
+  "family": "is-arith",
+  "registry": "tests/passes-proofs/peephole/folds/is-arith.json",
+  "sources": "26fa03dc48a79fc11885fb7523cbba03c46dd6d93fa5c6425dab0a08adc96a62",
+  "opt": "23.1.3",
+  "date": "2026-11-09",
+  "status": "ok",
+  "cases": {
+    "cases": 34572,
+    "harvested": 314,
+    "generated": 34258,
+    "compared": 16593,
+    "matched": 7314,
+    "agreed_no_fold": 9279,
+    "fired_new_ir": 0,
+    "mismatched": 0,
+    "delegated": 13085,
+    "analysis": 0,
+    "unexplained": 92,
+    "operand_changed": 4802
+  },
+  "delegated_to": {
+    "ConstantFoldBinaryOpOperands": 2032,
+    "simplifyAndInst": 616,
+    "simplifyBinOp": 2877,
+    "simplifyICmpInst": 4997,
+    "simplifyXorInst": 859,
+    "threadBinOpOverPHI": 1704
+  },
+  "regression_tests": {
+    "read": 190,
+    "unread": 0
+  },
+  "sites": {
+    "IS.simplifyDivRem.L1057": {
+      "fired": 553,
+      "matched": 553,
+      "mismatched": 0,
+      "analysis": 0,
+      "fired_without_undef": 276,
+      "matched_without_undef": 276,
+      "files": [
+        "undef.ll"
+      ],
+      "registered": true
+    },
+    "IS.simplifyDivRem.L1063": {
+      "fired": 278,
+      "matched": 278,
+      "mismatched": 0,
+      "analysis": 0,
+      "fired_without_undef": 278,
+      "matched_without_undef": 278,
+      "files": [
+        "undef.ll"
+      ],
+      "registered": true
+    },
+    "IS.simplifyDivRem.L1068": {
+      "fired": 276,
+      "matched": 276,
+      "mismatched": 0,
+      "analysis": 0,
+      "fired_without_undef": 276,
+      "matched_without_undef": 276,
+      "files": [],
+      "registered": true
+    },
+    "IS.simplifyDivRem.L1073": {
+      "fired": 276,
+      "matched": 276,
+      "mismatched": 0,
+      "analysis": 0,
+      "fired_without_undef": 0,
+      "matched_without_undef": 0,
+      "files": [],
+      "registered": false
+    },
+    "IS.simplifyDivRem.L1078": {
+      "fired": 278,
+      "matched": 278,
+      "mismatched": 0,
+      "analysis": 0,
+      "fired_without_undef": 278,
+      "matched_without_undef": 278,
+      "files": [
+        "div.ll",
+        "rem.ll"
+      ],
+      "registered": true
+    },
+    "IS.simplifyDivRem.L1083": {
+      "fired": 276,
+      "matched": 276,
+      "mismatched": 0,
+      "analysis": 0,
+      "fired_without_undef": 276,
+      "matched_without_undef": 276,
+      "files": [],
+      "registered": true
+    },
+    "IS.simplifyDivRem.L1100": {
+      "fired": 1904,
+      "matched": 1904,
+      "mismatched": 0,
+      "analysis": 0,
+      "fired_without_undef": 1904,
+      "matched_without_undef": 1904,
+      "files": [],
+      "registered": true
+    },
+    "IS.simplifyDivRem.L1114": {
+      "fired": 9,
+      "matched": 9,
+      "mismatched": 0,
+      "analysis": 0,
+      "fired_without_undef": 9,
+      "matched_without_undef": 9,
+      "files": [
+        "reassociate.ll",
+        "rem.ll"
+      ],
+      "registered": true
+    },
+    "IS.simplifyDivRem.L1119": {
+      "fired": 2,
+      "matched": 2,
+      "mismatched": 0,
+      "analysis": 0,
+      "fired_without_undef": 2,
+      "matched_without_undef": 2,
+      "files": [
+        "reassociate.ll",
+        "rem.ll"
+      ],
+      "registered": true
+    },
+    "IS.simplifyMulInst.L906": {
+      "fired": 369,
+      "matched": 369,
+      "mismatched": 0,
+      "analysis": 0,
+      "fired_without_undef": 369,
+      "matched_without_undef": 369,
+      "files": [
+        "mul.ll"
+      ],
+      "registered": true
+    },
+    "IS.simplifyMulInst.L911": {
+      "fired": 739,
+      "matched": 739,
+      "mismatched": 0,
+      "analysis": 0,
+      "fired_without_undef": 371,
+      "matched_without_undef": 371,
+      "files": [
+        "icmp-constant.ll",
+        "mul.ll"
+      ],
+      "registered": true
+    },
+    "IS.simplifyMulInst.L915": {
+      "fired": 369,
+      "matched": 369,
+      "mismatched": 0,
+      "analysis": 0,
+      "fired_without_undef": 369,
+      "matched_without_undef": 369,
+      "files": [
+        "mul.ll"
+      ],
+      "registered": true
+    },
+    "IS.simplifyMulInst.L923": {
+      "fired": 4,
+      "matched": 4,
+      "mismatched": 0,
+      "analysis": 0,
+      "fired_without_undef": 4,
+      "matched_without_undef": 4,
+      "files": [
+        "reassociate.ll"
+      ],
+      "registered": true
+    },
+    "IS.simplifyMulInst.L929": {
+      "fired": 614,
+      "matched": 614,
+      "mismatched": 0,
+      "analysis": 0,
+      "fired_without_undef": 614,
+      "matched_without_undef": 614,
+      "files": [
+        "mul.ll"
+      ],
+      "registered": true
+    },
+    "IS.simplifySDivInst.L1216": {
+      "fired": 60,
+      "matched": 60,
+      "mismatched": 0,
+      "analysis": 0,
+      "fired_without_undef": 60,
+      "matched_without_undef": 60,
+      "files": [
+        "sdiv.ll"
+      ],
+      "registered": true
+    },
+    "IS.simplifySRemInst.L1246": {
+      "fired": 1,
+      "matched": 1,
+      "mismatched": 0,
+      "analysis": 0,
+      "fired_without_undef": 1,
+      "matched_without_undef": 1,
+      "files": [
+        "rem.ll"
+      ],
+      "registered": true
+    },
+    "IS.simplifySRemInst.L1250": {
+      "fired": 75,
+      "matched": 75,
+      "mismatched": 0,
+      "analysis": 0,
+      "fired_without_undef": 75,
+      "matched_without_undef": 75,
+      "files": [
+        "srem.ll"
+      ],
+      "registered": true
+    },
+    "IS.simplifySubInst.L754": {
+      "fired": 370,
+      "matched": 370,
+      "mismatched": 0,
+      "analysis": 0,
+      "fired_without_undef": 370,
+      "matched_without_undef": 370,
+      "files": [
+        "sub.ll"
+      ],
+      "registered": true
+    },
+    "IS.simplifySubInst.L759": {
+      "fired": 368,
+      "matched": 368,
+      "mismatched": 0,
+      "analysis": 0,
+      "fired_without_undef": 0,
+      "matched_without_undef": 0,
+      "files": [],
+      "registered": false
+    },
+    "IS.simplifySubInst.L763": {
+      "fired": 185,
+      "matched": 185,
+      "mismatched": 0,
+      "analysis": 0,
+      "fired_without_undef": 185,
+      "matched_without_undef": 185,
+      "files": [
+        "sub.ll"
+      ],
+      "registered": true
+    },
+    "IS.simplifySubInst.L767": {
+      "fired": 185,
+      "matched": 185,
+      "mismatched": 0,
+      "analysis": 0,
+      "fired_without_undef": 185,
+      "matched_without_undef": 185,
+      "files": [
+        "sub.ll"
+      ],
+      "registered": true
+    },
+    "IS.simplifySubInst.L773": {
+      "fired": 93,
+      "matched": 93,
+      "mismatched": 0,
+      "analysis": 0,
+      "fired_without_undef": 93,
+      "matched_without_undef": 93,
+      "files": [
+        "AndOrXor.ll",
+        "negate.ll"
+      ],
+      "registered": true
+    },
+    "IS.simplifySubInst.L780": {
+      "fired": 12,
+      "matched": 12,
+      "mismatched": 0,
+      "analysis": 0,
+      "fired_without_undef": 12,
+      "matched_without_undef": 12,
+      "files": [],
+      "registered": true
+    },
+    "IS.simplifySubInst.L783": {
+      "fired": 13,
+      "matched": 13,
+      "mismatched": 0,
+      "analysis": 0,
+      "fired_without_undef": 13,
+      "matched_without_undef": 13,
+      "files": [
+        "2010-12-20-Boolean.ll"
+      ],
+      "registered": true
+    },
+    "IS.simplifySubInst.L886": {
+      "fired": 5,
+      "matched": 5,
+      "mismatched": 0,
+      "analysis": 0,
+      "fired_without_undef": 5,
+      "matched_without_undef": 5,
+      "files": [
+        "subnuw-with-xor.ll"
+      ],
+      "registered": true
+    }
+  },
+  "not_exercised": [
+    "IS.expandBinOp.L218",
+    "IS.simplifyAssociativeBinOp.L274",
+    "IS.simplifyAssociativeBinOp.L294",
+    "IS.simplifyAssociativeBinOp.L318",
+    "IS.simplifyAssociativeBinOp.L338",
+    "IS.simplifyByDomEq.L727",
+    "IS.simplifyByDomEq.L731",
+    "IS.simplifyByDomEq.L736",
+    "IS.simplifyDiv.L1157",
+    "IS.simplifyDiv.L1168",
+    "IS.simplifyDivRem.L1092",
+    "IS.simplifyRem.L1189",
+    "IS.simplifyRem.L1204",
+    "IS.threadBinOpOverSelect.L394"
+  ],
+  "folds_run": {
+    "Peephole.IS.expandBinOp": "h2.69",
+    "Peephole.IS.expandCommutativeBinOp": "h2.69",
+    "Peephole.IS.simplifyAssociativeBinOp": "h2.69",
+    "Peephole.IS.simplifyByDomEq": "h1.1",
+    "Peephole.IS.simplifyDiv": "h33.167",
+    "Peephole.IS.simplifyDivRem": "h33.167",
+    "Peephole.IS.simplifyMulInst": "h2.69",
+    "Peephole.IS.simplifyRem": "h9.251",
+    "Peephole.IS.simplifySDivInst": "h5.184",
+    "Peephole.IS.simplifySRemInst": "h10.284",
+    "Peephole.IS.simplifySubInst": "h0.0",
+    "Peephole.IS.simplifyUDivInst": "h33.167",
+    "Peephole.IS.simplifyURemInst": "h9.251"
+  },
+  "folds_not_run": [
+    "Peephole.IS.threadBinOpOverSelect"
+  ],
+  "untagged": [],
+  "mismatches": [],
+  "unexplained": [
+    {
+      "case": "h37.37",
+      "where": "negate.ll:@negate_zero_or_minsigned_nsw:%neg",
+      "opt": [
+        "0"
+      ],
+      "model_with_an_analysis": null,
+      "ir": "  %n1 = and i8 %v2, -128\n  call void (...) @use(i8 0, i8 %n1)\n  %r = sub nsw i8 0, %n1\n  ret i8 %r"
+    },
+    {
+      "case": "h38.38",
+      "where": "negate.ll:@negate_zero_or_minsigned:%neg",
+      "opt": [
+        "%n1"
+      ],
+      "model_with_an_analysis": null,
+      "ir": "  %n1 = shl i8 %v2, 7\n  call void (...) @use(i8 0, i8 %n1)\n  %r = sub i8 0, %n1\n  ret i8 %r"
+    },
+    {
+      "case": "g.sdiv.1684.26468",
+      "where": "",
+      "opt": [
+        "-128"
+      ],
+      "model_with_an_analysis": "poison",
+      "ir": "  %n1648 = and i8 %v0, 1\n  call void (...) @use(i8 -128, i8 %n1648)\n  %r = sdiv i8 -128, %n1648\n  ret i8 %r"
+    },
+    {
+      "case": "g.sdiv.1685.26469",
+      "where": "",
+      "opt": [
+        "-128"
+      ],
+      "model_with_an_analysis": "poison",
+      "ir": "  %n1648 = and i8 %v0, 1\n  call void (...) @use(i8 -128, i8 %n1648)\n  %r = sdiv exact i8 -128, %n1648\n  ret i8 %r"
+    },
+    {
+      "case": "g.sdiv.1934.26718",
+      "where": "",
+      "opt": [
+        "%n1634"
+      ],
+      "model_with_an_analysis": "poison",
+      "ir": "  %n1634 = sub i8 0, %v0\n  %n1648 = and i8 %v0, 1\n  call void (...) @use(i8 %n1634, i8 %n1648)\n  %r = sdiv i8 %n1634, %n1648\n  ret i8 %r"
+    },
+    {
+      "case": "g.sdiv.1935.26719",
+      "where": "",
+      "opt": [
+        "%n1634"
+      ],
+      "model_with_an_analysis": "poison",
+      "ir": "  %n1634 = sub i8 0, %v0\n  %n1648 = and i8 %v0, 1\n  call void (...) @use(i8 %n1634, i8 %n1648)\n  %r = sdiv exact i8 %n1634, %n1648\n  ret i8 %r"
+    },
+    {
+      "case": "g.sdiv.1984.26768",
+      "where": "",
+      "opt": [
+        "%n1635"
+      ],
+      "model_with_an_analysis": "poison",
+      "ir": "  %n1635 = xor i8 %v0, -1\n  %n1648 = and i8 %v0, 1\n  call void (...) @use(i8 %n1635, i8 %n1648)\n  %r = sdiv i8 %n1635, %n1648\n  ret i8 %r"
+    },
+    {
+      "case": "g.sdiv.1985.26769",
+      "where": "",
+      "opt": [
+        "%n1635"
+      ],
+      "model_with_an_analysis": "poison",
+      "ir": "  %n1635 = xor i8 %v0, -1\n  %n1648 = and i8 %v0, 1\n  call void (...) @use(i8 %n1635, i8 %n1648)\n  %r = sdiv exact i8 %n1635, %n1648\n  ret i8 %r"
+    },
+    {
+      "case": "g.sdiv.2034.26818",
+      "where": "",
+      "opt": [
+        "%n1636"
+      ],
+      "model_with_an_analysis": "poison",
+      "ir": "  %n1636 = xor i8 -1, %v0\n  %n1648 = and i8 %v0, 1\n  call void (...) @use(i8 %n1636, i8 %n1648)\n  %r = sdiv i8 %n1636, %n1648\n  ret i8 %r"
+    },
+    {
+      "case": "g.sdiv.2035.26819",
+      "where": "",
+      "opt": [
+        "%n1636"
+      ],
+      "model_with_an_analysis": "poison",
+      "ir": "  %n1636 = xor i8 -1, %v0\n  %n1648 = and i8 %v0, 1\n  call void (...) @use(i8 %n1636, i8 %n1648)\n  %r = sdiv exact i8 %n1636, %n1648\n  ret i8 %r"
+    },
+    {
+      "case": "g.sdiv.2084.26868",
+      "where": "",
+      "opt": [
+        "%n1637"
+      ],
+      "model_with_an_analysis": "poison",
+      "ir": "  %n1637 = sub i8 %v0, %v1\n  %n1648 = and i8 %v0, 1\n  call void (...) @use(i8 %n1637, i8 %n1648)\n  %r = sdiv i8 %n1637, %n1648\n  ret i8 %r"
+    },
+    {
+      "case": "g.sdiv.2085.26869",
+      "where": "",
+      "opt": [
+        "%n1637"
+      ],
+      "model_with_an_analysis": "poison",
+      "ir": "  %n1637 = sub i8 %v0, %v1\n  %n1648 = and i8 %v0, 1\n  call void (...) @use(i8 %n1637, i8 %n1648)\n  %r = sdiv exact i8 %n1637, %n1648\n  ret i8 %r"
+    },
+    {
+      "case": "g.sdiv.2134.26918",
+      "where": "",
+      "opt": [
+        "%n1638"
+      ],
+      "model_with_an_analysis": "poison",
+      "ir": "  %n1638 = and i8 %v0, %v1\n  %n1648 = and i8 %v0, 1\n  call void (...) @use(i8 %n1638, i8 %n1648)\n  %r = sdiv i8 %n1638, %n1648\n  ret i8 %r"
+    },
+    {
+      "case": "g.sdiv.2135.26919",
+      "where": "",
+      "opt": [
+        "%n1638"
+      ],
+      "model_with_an_analysis": "poison",
+      "ir": "  %n1638 = and i8 %v0, %v1\n  %n1648 = and i8 %v0, 1\n  call void (...) @use(i8 %n1638, i8 %n1648)\n  %r = sdiv exact i8 %n1638, %n1648\n  ret i8 %r"
+    },
+    {
+      "case": "g.sdiv.2184.26968",
+      "where": "",
+      "opt": [
+        "%n1639"
+      ],
+      "model_with_an_analysis": "poison",
+      "ir": "  %n1639 = or i8 %v0, %v1\n  %n1648 = and i8 %v0, 1\n  call void (...) @use(i8 %n1639, i8 %n1648)\n  %r = sdiv i8 %n1639, %n1648\n  ret i8 %r"
+    },
+    {
+      "case": "g.sdiv.2185.26969",
+      "where": "",
+      "opt": [
+        "%n1639"
+      ],
+      "model_with_an_analysis": "poison",
+      "ir": "  %n1639 = or i8 %v0, %v1\n  %n1648 = and i8 %v0, 1\n  call void (...) @use(i8 %n1639, i8 %n1648)\n  %r = sdiv exact i8 %n1639, %n1648\n  ret i8 %r"
+    },
+    {
+      "case": "g.sdiv.2234.27018",
+      "where": "",
+      "opt": [
+        "%n1640"
+      ],
+      "model_with_an_analysis": "poison",
+      "ir": "  %n1640 = xor i8 %v0, %v1\n  %n1648 = and i8 %v0, 1\n  call void (...) @use(i8 %n1640, i8 %n1648)\n  %r = sdiv i8 %n1640, %n1648\n  ret i8 %r"
+    },
+    {
+      "case": "g.sdiv.2235.27019",
+      "where": "",
+      "opt": [
+        "%n1640"
+      ],
+      "model_with_an_analysis": "poison",
+      "ir": "  %n1640 = xor i8 %v0, %v1\n  %n1648 = and i8 %v0, 1\n  call void (...) @use(i8 %n1640, i8 %n1648)\n  %r = sdiv exact i8 %n1640, %n1648\n  ret i8 %r"
+    },
+    {
+      "case": "g.sdiv.2284.27068",
+      "where": "",
+      "opt": [
+        "%n1641"
+      ],
+      "model_with_an_analysis": "poison",
+      "ir": "  %n1641 = add i8 %v0, %v1\n  %n1648 = and i8 %v0, 1\n  call void (...) @use(i8 %n1641, i8 %n1648)\n  %r = sdiv i8 %n1641, %n1648\n  ret i8 %r"
+    },
+    {
+      "case": "g.sdiv.2285.27069",
+      "where": "",
+      "opt": [
+        "%n1641"
+      ],
+      "model_with_an_analysis": "poison",
+      "ir": "  %n1641 = add i8 %v0, %v1\n  %n1648 = and i8 %v0, 1\n  call void (...) @use(i8 %n1641, i8 %n1648)\n  %r = sdiv exact i8 %n1641, %n1648\n  ret i8 %r"
+    },
+    {
+      "case": "g.sdiv.2334.27118",
+      "where": "",
+      "opt": [
+        "%n1642"
+      ],
+      "model_with_an_analysis": "poison",
+      "ir": "  %n1642 = mul i8 %v0, %v1\n  %n1648 = and i8 %v0, 1\n  call void (...) @use(i8 %n1642, i8 %n1648)\n  %r = sdiv i8 %n1642, %n1648\n  ret i8 %r"
+    },
+    {
+      "case": "g.sdiv.2335.27119",
+      "where": "",
+      "opt": [
+        "%n1642"
+      ],
+      "model_with_an_analysis": "poison",
+      "ir": "  %n1642 = mul i8 %v0, %v1\n  %n1648 = and i8 %v0, 1\n  call void (...) @use(i8 %n1642, i8 %n1648)\n  %r = sdiv exact i8 %n1642, %n1648\n  ret i8 %r"
+    },
+    {
+      "case": "g.sdiv.2384.27168",
+      "where": "",
+      "opt": [
+        "%n1643"
+      ],
+      "model_with_an_analysis": "poison",
+      "ir": "  %n1643 = shl i8 %v0, %v1\n  %n1648 = and i8 %v0, 1\n  call void (...) @use(i8 %n1643, i8 %n1648)\n  %r = sdiv i8 %n1643, %n1648\n  ret i8 %r"
+    },
+    {
+      "case": "g.sdiv.2385.27169",
+      "where": "",
+      "opt": [
+        "%n1643"
+      ],
+      "model_with_an_analysis": "poison",
+      "ir": "  %n1643 = shl i8 %v0, %v1\n  %n1648 = and i8 %v0, 1\n  call void (...) @use(i8 %n1643, i8 %n1648)\n  %r = sdiv exact i8 %n1643, %n1648\n  ret i8 %r"
+    },
+    {
+      "case": "g.sdiv.2434.27218",
+      "where": "",
+      "opt": [
+        "%n1644"
+      ],
+      "model_with_an_analysis": "poison",
+      "ir": "  %n1644 = lshr i8 %v0, %v1\n  %n1648 = and i8 %v0, 1\n  call void (...) @use(i8 %n1644, i8 %n1648)\n  %r = sdiv i8 %n1644, %n1648\n  ret i8 %r"
+    },
+    {
+      "case": "g.sdiv.2435.27219",
+      "where": "",
+      "opt": [
+        "%n1644"
+      ],
+      "model_with_an_analysis": "poison",
+      "ir": "  %n1644 = lshr i8 %v0, %v1\n  %n1648 = and i8 %v0, 1\n  call void (...) @use(i8 %n1644, i8 %n1648)\n  %r = sdiv exact i8 %n1644, %n1648\n  ret i8 %r"
+    },
+    {
+      "case": "g.sdiv.2484.27268",
+      "where": "",
+      "opt": [
+        "%n1645"
+      ],
+      "model_with_an_analysis": "poison",
+      "ir": "  %n1645 = ashr i8 %v0, %v1\n  %n1648 = and i8 %v0, 1\n  call void (...) @use(i8 %n1645, i8 %n1648)\n  %r = sdiv i8 %n1645, %n1648\n  ret i8 %r"
+    },
+    {
+      "case": "g.sdiv.2485.27269",
+      "where": "",
+      "opt": [
+        "%n1645"
+      ],
+      "model_with_an_analysis": "poison",
+      "ir": "  %n1645 = ashr i8 %v0, %v1\n  %n1648 = and i8 %v0, 1\n  call void (...) @use(i8 %n1645, i8 %n1648)\n  %r = sdiv exact i8 %n1645, %n1648\n  ret i8 %r"
+    },
+    {
+      "case": "g.sdiv.2534.27318",
+      "where": "",
+      "opt": [
+        "%n1646"
+      ],
+      "model_with_an_analysis": "poison",
+      "ir": "  %n1646 = sub i8 %v1, %v0\n  %n1648 = and i8 %v0, 1\n  call void (...) @use(i8 %n1646, i8 %n1648)\n  %r = sdiv i8 %n1646, %n1648\n  ret i8 %r"
+    },
+    {
+      "case": "g.sdiv.2535.27319",
+      "where": "",
+      "opt": [
+        "%n1646"
+      ],
+      "model_with_an_analysis": "poison",
+      "ir": "  %n1646 = sub i8 %v1, %v0\n  %n1648 = and i8 %v0, 1\n  call void (...) @use(i8 %n1646, i8 %n1648)\n  %r = sdiv exact i8 %n1646, %n1648\n  ret i8 %r"
+    },
+    {
+      "case": "g.sdiv.2584.27368",
+      "where": "",
+      "opt": [
+        "%n1647"
+      ],
+      "model_with_an_analysis": "poison",
+      "ir": "  %n1647 = xor i8 %v0, -128\n  %n1648 = and i8 %v0, 1\n  call void (...) @use(i8 %n1647, i8 %n1648)\n  %r = sdiv i8 %n1647, %n1648\n  ret i8 %r"
+    },
+    {
+      "case": "g.sdiv.2585.27369",
+      "where": "",
+      "opt": [
+        "%n1647"
+      ],
+      "model_with_an_analysis": "poison",
+      "ir": "  %n1647 = xor i8 %v0, -128\n  %n1648 = and i8 %v0, 1\n  call void (...) @use(i8 %n1647, i8 %n1648)\n  %r = sdiv exact i8 %n1647, %n1648\n  ret i8 %r"
+    },
+    {
+      "case": "g.sdiv.3438.28222",
+      "where": "",
+      "opt": [
+        "-2147483648"
+      ],
+      "model_with_an_analysis": "poison",
+      "ir": "  %n3549 = and i32 %v0, 1\n  call void (...) @use(i32 -2147483648, i32 %n3549)\n  %r = sdiv i32 -2147483648, %n3549\n  ret i32 %r"
+    },
+    {
+      "case": "g.sdiv.3439.28223",
+      "where": "",
+      "opt": [
+        "-2147483648"
+      ],
+      "model_with_an_analysis": "poison",
+      "ir": "  %n3549 = and i32 %v0, 1\n  call void (...) @use(i32 -2147483648, i32 %n3549)\n  %r = sdiv exact i32 -2147483648, %n3549\n  ret i32 %r"
+    },
+    {
+      "case": "g.sdiv.3688.28472",
+      "where": "",
+      "opt": [
+        "%n3535"
+      ],
+      "model_with_an_analysis": "poison",
+      "ir": "  %n3535 = sub i32 0, %v0\n  %n3549 = and i32 %v0, 1\n  call void (...) @use(i32 %n3535, i32 %n3549)\n  %r = sdiv i32 %n3535, %n3549\n  ret i32 %r"
+    },
+    {
+      "case": "g.sdiv.3689.28473",
+      "where": "",
+      "opt": [
+        "%n3535"
+      ],
+      "model_with_an_analysis": "poison",
+      "ir": "  %n3535 = sub i32 0, %v0\n  %n3549 = and i32 %v0, 1\n  call void (...) @use(i32 %n3535, i32 %n3549)\n  %r = sdiv exact i32 %n3535, %n3549\n  ret i32 %r"
+    },
+    {
+      "case": "g.sdiv.3738.28522",
+      "where": "",
+      "opt": [
+        "%n3536"
+      ],
+      "model_with_an_analysis": "poison",
+      "ir": "  %n3536 = xor i32 %v0, -1\n  %n3549 = and i32 %v0, 1\n  call void (...) @use(i32 %n3536, i32 %n3549)\n  %r = sdiv i32 %n3536, %n3549\n  ret i32 %r"
+    },
+    {
+      "case": "g.sdiv.3739.28523",
+      "where": "",
+      "opt": [
+        "%n3536"
+      ],
+      "model_with_an_analysis": "poison",
+      "ir": "  %n3536 = xor i32 %v0, -1\n  %n3549 = and i32 %v0, 1\n  call void (...) @use(i32 %n3536, i32 %n3549)\n  %r = sdiv exact i32 %n3536, %n3549\n  ret i32 %r"
+    },
+    {
+      "case": "g.sdiv.3788.28572",
+      "where": "",
+      "opt": [
+        "%n3537"
+      ],
+      "model_with_an_analysis": "poison",
+      "ir": "  %n3537 = xor i32 -1, %v0\n  %n3549 = and i32 %v0, 1\n  call void (...) @use(i32 %n3537, i32 %n3549)\n  %r = sdiv i32 %n3537, %n3549\n  ret i32 %r"
+    },
+    {
+      "case": "g.sdiv.3789.28573",
+      "where": "",
+      "opt": [
+        "%n3537"
+      ],
+      "model_with_an_analysis": "poison",
+      "ir": "  %n3537 = xor i32 -1, %v0\n  %n3549 = and i32 %v0, 1\n  call void (...) @use(i32 %n3537, i32 %n3549)\n  %r = sdiv exact i32 %n3537, %n3549\n  ret i32 %r"
+    },
+    {
+      "case": "g.sdiv.3838.28622",
+      "where": "",
+      "opt": [
+        "%n3538"
+      ],
+      "model_with_an_analysis": "poison",
+      "ir": "  %n3538 = sub i32 %v0, %v1\n  %n3549 = and i32 %v0, 1\n  call void (...) @use(i32 %n3538, i32 %n3549)\n  %r = sdiv i32 %n3538, %n3549\n  ret i32 %r"
+    },
+    {
+      "case": "g.sdiv.3839.28623",
+      "where": "",
+      "opt": [
+        "%n3538"
+      ],
+      "model_with_an_analysis": "poison",
+      "ir": "  %n3538 = sub i32 %v0, %v1\n  %n3549 = and i32 %v0, 1\n  call void (...) @use(i32 %n3538, i32 %n3549)\n  %r = sdiv exact i32 %n3538, %n3549\n  ret i32 %r"
+    },
+    {
+      "case": "g.sdiv.3888.28672",
+      "where": "",
+      "opt": [
+        "%n3539"
+      ],
+      "model_with_an_analysis": "poison",
+      "ir": "  %n3539 = and i32 %v0, %v1\n  %n3549 = and i32 %v0, 1\n  call void (...) @use(i32 %n3539, i32 %n3549)\n  %r = sdiv i32 %n3539, %n3549\n  ret i32 %r"
+    },
+    {
+      "case": "g.sdiv.3889.28673",
+      "where": "",
+      "opt": [
+        "%n3539"
+      ],
+      "model_with_an_analysis": "poison",
+      "ir": "  %n3539 = and i32 %v0, %v1\n  %n3549 = and i32 %v0, 1\n  call void (...) @use(i32 %n3539, i32 %n3549)\n  %r = sdiv exact i32 %n3539, %n3549\n  ret i32 %r"
+    },
+    {
+      "case": "g.sdiv.3938.28722",
+      "where": "",
+      "opt": [
+        "%n3540"
+      ],
+      "model_with_an_analysis": "poison",
+      "ir": "  %n3540 = or i32 %v0, %v1\n  %n3549 = and i32 %v0, 1\n  call void (...) @use(i32 %n3540, i32 %n3549)\n  %r = sdiv i32 %n3540, %n3549\n  ret i32 %r"
+    },
+    {
+      "case": "g.sdiv.3939.28723",
+      "where": "",
+      "opt": [
+        "%n3540"
+      ],
+      "model_with_an_analysis": "poison",
+      "ir": "  %n3540 = or i32 %v0, %v1\n  %n3549 = and i32 %v0, 1\n  call void (...) @use(i32 %n3540, i32 %n3549)\n  %r = sdiv exact i32 %n3540, %n3549\n  ret i32 %r"
+    },
+    {
+      "case": "g.sdiv.3988.28772",
+      "where": "",
+      "opt": [
+        "%n3541"
+      ],
+      "model_with_an_analysis": "poison",
+      "ir": "  %n3541 = xor i32 %v0, %v1\n  %n3549 = and i32 %v0, 1\n  call void (...) @use(i32 %n3541, i32 %n3549)\n  %r = sdiv i32 %n3541, %n3549\n  ret i32 %r"
+    },
+    {
+      "case": "g.sdiv.3989.28773",
+      "where": "",
+      "opt": [
+        "%n3541"
+      ],
+      "model_with_an_analysis": "poison",
+      "ir": "  %n3541 = xor i32 %v0, %v1\n  %n3549 = and i32 %v0, 1\n  call void (...) @use(i32 %n3541, i32 %n3549)\n  %r = sdiv exact i32 %n3541, %n3549\n  ret i32 %r"
+    },
+    {
+      "case": "g.sdiv.4038.28822",
+      "where": "",
+      "opt": [
+        "%n3542"
+      ],
+      "model_with_an_analysis": "poison",
+      "ir": "  %n3542 = add i32 %v0, %v1\n  %n3549 = and i32 %v0, 1\n  call void (...) @use(i32 %n3542, i32 %n3549)\n  %r = sdiv i32 %n3542, %n3549\n  ret i32 %r"
+    },
+    {
+      "case": "g.sdiv.4039.28823",
+      "where": "",
+      "opt": [
+        "%n3542"
+      ],
+      "model_with_an_analysis": "poison",
+      "ir": "  %n3542 = add i32 %v0, %v1\n  %n3549 = and i32 %v0, 1\n  call void (...) @use(i32 %n3542, i32 %n3549)\n  %r = sdiv exact i32 %n3542, %n3549\n  ret i32 %r"
+    }
+  ],
+  "seconds": 4.5,
+  "folds_unwatchable": []
+}

@@ -1107,10 +1107,11 @@ MEM_IDS = re.compile(
     r"getGEPIndicesForOffset|EmitGEPOffset|isAllocSiteRemovable|isAllocLikeFn|isFreeCall|getAllocAlignment|"
     r"isRemovableAlloc|isNonEscapingLocalObject|PointerMayBeCaptured|isIdentifiedObject|DataLayout_ptr|"
     r"isKnownNonNull|getPointerElementType|ConstantPointerNull|isa_GEP|PHINode_ptr|SimplifyQuery_ptr|"
-    r"isOnlyCopiedFromConstantMemory|canReplacePointersIfEqual|canReplacePointersInUseIfEqual)$"
+    r"isOnlyCopiedFromConstantMemory|canReplacePointersIfEqual|canReplacePointersInUseIfEqual|getAssumeAlignInfo|"
+    r"getAssumeNonNullInfo|CreateNonnullAssumption|CreateAlignmentAssumption)$"
 )
 MEM_MATCHERS = re.compile(
-    r"^m_(PtrToInt|PtrToIntSameSize|IntToPtr|PtrToAddr|GEP|PtrAdd|Load|Store|AddrSpaceCast)$"
+    r"^m_(PtrToInt|PtrToIntSameSize|PtrToIntOrAddr|IntToPtr|PtrToAddr|GEP|PtrAdd|Load|Store|AddrSpaceCast)$"
 )
 # The classes of intrinsics the model has, `MinMaxIntrinsic`, `SaturatingInst`, `WithOverflowInst`,
 # `BinaryOpIntrinsic` and `CmpIntrinsic`, aren't calls here.
@@ -1120,6 +1121,13 @@ CALL_IDS = re.compile(
     r"CreateUnaryIntrinsic|CreateBinaryIntrinsic|getOrInsertDeclaration|Function|isa_Call|"
     r""
     r"m_Intrinsic|m_Call|isInstructionTriviallyDead|wouldInstructionBeTriviallyDead)$"
+)
+# What walks, removes or builds a call's operand bundles. A test for one bundle, as `getOperandBundle` is,
+# says nothing about a site that follows it.
+BUNDLE_IDS = re.compile(
+    r"^(operand_bundles|getNumOperandBundles|removeOperandBundleAt|"
+    r"OperandBundleUse|OperandBundleDef|BundleAttr|getBundleAttrFromOBU|getAssumeAlignInfo|getAssumeNonNullInfo|"
+    r"getAssumeNoUndefInfo|CreateNonnullAssumption|CreateAlignmentAssumption)$"
 )
 VECTOR_IDS = re.compile(
     r"^(ShuffleVectorInst|ExtractElementInst|InsertElementInst|VectorType|FixedVectorType|ScalableVectorType|"
@@ -1157,18 +1165,37 @@ UNDEF_IDS = re.compile(
 )
 
 
+def params_of(fn: Function) -> list[Tok]:
+    """The function's parameter list, brackets included, or nothing for a lambda without one."""
+    toks = fn.toks
+    j = fn.body[0] - 1
+    while j >= 0 and toks[j].text in QUALIFIERS:
+        j -= 1
+    return toks[match_open(toks, j) : j + 1] if toks[j].text == ")" else []
+
+
+def switch_labels(switch: Stmt, site: Site) -> list[Stmt]:
+    """The case labels of `switch` the site is under: the run of labels last before it in the switch's
+    body."""
+    labels: list[Stmt] = []
+    last_was_label = False
+    for c in switch.children[0].children if switch.children and switch.children[0].kind == "block" else []:
+        if c.start > site.stmt.start:
+            break
+        if c.kind == "label":
+            labels = [*labels, c] if last_was_label else [c]
+            last_was_label = True
+        else:
+            last_was_label = False
+    return labels
+
+
 def tokens_of(fn: Function, site: Site) -> list[Tok]:
     """What a site's path reads: the function's parameters, the headers of the statements around it, the plain
     statements before it in each block, and the site itself."""
     toks = fn.toks
-    out: list[Tok] = []
     # Parameters, for a visit method's instruction type.
-    a = fn.body[0]
-    j = a - 1
-    while j >= 0 and toks[j].text in QUALIFIERS:
-        j -= 1
-    if toks[j].text == ")":
-        out.extend(toks[match_open(toks, j) : j + 1])
+    out: list[Tok] = list(params_of(fn))
     enclosing = (*site.path, site.stmt)
     # The function's own body is a block too: the plain statements before the site's outermost statement.
     for c in body_of(fn):
@@ -1194,17 +1221,7 @@ def tokens_of(fn: Function, site: Site) -> list[Tok]:
                     out.extend(toks[c.start : c.end])
             if s.kind == "switch" and nxt is not None:
                 # The case labels the site is under: the run of labels last before it in the switch's body.
-                labels: list[Stmt] = []
-                last_was_label = False
-                for c in s.children[0].children if s.children and s.children[0].kind == "block" else []:
-                    if c.start > site.stmt.start:
-                        break
-                    if c.kind == "label":
-                        labels = [*labels, c] if last_was_label else [c]
-                        last_was_label = True
-                    else:
-                        last_was_label = False
-                for c in labels:
+                for c in switch_labels(s, site):
                     out.extend(toks[c.cond[0] : c.cond[1]] if c.cond else [])
     out.extend(toks[site.stmt.start : site.stmt.end])
     return out
@@ -1249,17 +1266,71 @@ def int_guarded(toks: list[Tok]) -> bool:
     return False
 
 
+# Names in `Intrinsic::` that aren't intrinsics: the type of an intrinsic's ID, and the ID of what isn't one.
+NOT_INTRINSICS = {"ID", "not_intrinsic"}
+
+
+def intrinsics_in(toks: list[Tok]) -> list[str]:
+    """The intrinsics `toks` name, as `Intrinsic::umax`."""
+    return [
+        toks[k + 2].text
+        for k in range(len(toks) - 2)
+        if toks[k].text == "Intrinsic"
+        and toks[k + 1].text == "::"
+        and toks[k + 2].kind == "id"
+        and toks[k + 2].text not in NOT_INTRINSICS
+    ]
+
+
+def falls_through(toks: list[Tok], stmt: Stmt) -> bool:
+    """Whether a case's last statement, or its block's, is `[[fallthrough]];`."""
+    while stmt.kind == "block" and stmt.children:
+        stmt = stmt.children[-1]
+    return text(toks[stmt.start : stmt.end]) == "[ [ fallthrough ] ] ;"
+
+
+def cases_reaching(fn: Function, switch: Stmt, site: Site) -> list[Stmt]:
+    """The case labels of `switch` the site is under, and those of each case that falls through into it."""
+    kids = switch.children[0].children if switch.children and switch.children[0].kind == "block" else []
+    labels = switch_labels(switch, site)
+    out = list(labels)
+    i = kids.index(labels[0]) if labels else 0
+    while i > 0 and kids[i - 1].kind != "label" and falls_through(fn.toks, kids[i - 1]):
+        j = i - 1
+        while j >= 0 and kids[j].kind != "label":
+            j -= 1
+        i = j + 1
+        while i > 0 and kids[i - 1].kind == "label":
+            i -= 1
+            out.append(kids[i])
+    return out
+
+
+def int_intrinsic_case(fn: Function, site: Site) -> bool:
+    """Whether the site is under `case Intrinsic::X:` labels, each X an integer intrinsic, as is each case
+    that falls through into it: then the call it's about is one of those, so its values are integers, whatever
+    else the function handles."""
+    labels = [c for s in site.path if s.kind == "switch" for c in cases_reaching(fn, s, site)]
+    # A `default` among them reaches the site with any intrinsic.
+    if any(fn.toks[c.start].text == "default" for c in labels):
+        return False
+    named = [intrinsics_in(fn.toks[c.cond[0] : c.cond[1]]) for c in labels if c.cond]
+    named = [n for n in named if n]
+    return bool(named) and all(len(n) == 1 and n[0] in INT_INTRINSICS for n in named)
+
+
 def needs(fn: Function, site: Site) -> dict[str, Any]:
-    ids = [t.text for t in tokens_of(fn, site) if t.kind == "id"]
+    toks = tokens_of(fn, site)
+    ids = [t.text for t in toks if t.kind == "id"]
     ids_set = set(ids)
     name = fn.name if fn.parent is None else f"{fn.parent.name}"
-    intrinsics: set[str] = set()
-    toks = tokens_of(fn, site)
-    for k in range(len(toks) - 2):
-        if toks[k].text == "Intrinsic" and toks[k + 1].text == "::" and toks[k + 2].kind == "id":
-            intrinsics.add(toks[k + 2].text)
+    intrinsics = set(intrinsics_in(toks))
+    # Under an integer intrinsic's case labels, a floating-point type in the parameters, such as the
+    # `FastMathFlags` a function takes for its floating-point intrinsics, isn't about this site.
+    int_case = int_intrinsic_case(fn, site)
+    own = toks[len(params_of(fn)) :] if int_case else toks
     fp = (
-        any(FP_IDS.match(x) or FP_MATCHERS.match(x) for x in ids_set)
+        any(FP_IDS.match(x) or FP_MATCHERS.match(x) for x in {t.text for t in own if t.kind == "id"})
         or bool(
             re.search(
                 r"F(Add|Sub|Mul|Div|Rem|Neg|Cmp|Abs|Sqrt|Trunc|Ext|Pow|Max|Min)|FP|Float|Fabs|FMA|Sqrt|NaN|Minnum|Maxnum|CopySign|Powi|Exp2|Log2|Ldexp|Frexp",
@@ -1289,6 +1360,10 @@ def needs(fn: Function, site: Site) -> dict[str, Any]:
     )
     if call_ids and not (intrinsics and intrinsics <= INT_INTRINSICS):
         calls = True
+    # Operand bundles, such as `llvm.assume`'s "align", "nonnull" and "noundef", aren't in the model, and
+    # carry values of any type, whatever intrinsic they're on.
+    if any(BUNDLE_IDS.match(x) for x in ids_set):
+        calls = True
     # A function that rewrites floating point as well as integers, such as Reassociate's `RewriteExprTree`,
     # rewrites both at a site whose path doesn't say the type is an integer.
     generic = False
@@ -1298,7 +1373,7 @@ def needs(fn: Function, site: Site) -> dict[str, Any]:
         # Reassociate's every function serves integer and fast-math floating-point reassociation alike, from
         # `OptimizeInst`, so its sites are generic whatever their own function mentions.
         handles_fp = fn.file in FP_GENERIC_FILES or any(FP_IDS.match(x) or FP_MATCHERS.match(x) for x in body)
-        if handles_fp and not int_guarded(toks):
+        if handles_fp and not (int_guarded(toks) or int_case):
             fp = generic = True
     blocked = [k for k, v in (("fp", fp), ("memory", mem), ("calls", calls)) if v]
     also = [k for k, v in (

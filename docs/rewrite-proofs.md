@@ -10,28 +10,33 @@ has the conventions a family of folds follows. For what any theorem here means, 
 Facts here were checked on 2026-11-09 on branch `chunk1/g2-core`, at commits `29938ba` to `d87efe8`, and the
 scoreboard's after `main` and its revised inventory, #79, merged in, on an Apple silicon Mac with 16 cores and 64 GB,
 in the dev shell, with Lean 4.35.0 and LLVM 23.1.3, while other lanes' jobs held slots in the machine's pool of heavy
-jobs.
+jobs. The InstSimplify families' scoreboard, store and E3 were checked the same day on branch
+`chunk1/g2-instsimplify`, on a Linux machine with 32 cores and 30 GB, shared with other lanes the same way.
 
 ## What it found
 
-- **7 of chunk 1's 3,174 rewrites count as proved for every input on this branch,** all of them in InstSimplify's
-  `simplifyAddInst`, the worked example: 1.29% of InstSimplify's 541 and 2.33% of its 300 that need only integers.
-  `opt` exercised all 7. Its eighth, `IS.simplifyAddInst.L605`, `X + undef` to `undef`, is unproved: only `undef`
-  reaches its step, which the model doesn't have, so its theorem says nothing past `L601`'s.
-- **On a scratch merge of the five families' branches, 237 counted** before the rules about `undef` and about compared
-  cases: 43.89% of the 540 InstSimplify had then, of which `opt` exercised 149. 23 more are proved, but their folds
-  were never run by a comparison, so they don't count. The [per-family table](#the-five-families-merged) is below.
+- **244 of chunk 1's 3,174 rewrites count as proved for every input,** all in InstSimplify: 45.1% of its 541, and
+  242 of its 335 that need only integers, 72.24%. `opt` exercised 171 of them. Seven families hold them, from the
+  worked example, `simplifyAddInst`, to the integer intrinsics, as the [per-family table](#the-instsimplify-families)
+  shows. 3 more are proved, but no compared run reaches their folds. 34 are proved for integers only, though the C++
+  reaches them with floating-point or pointer values too, and 4 for integers, which only reach them, but the
+  inventory tags them `fp`.
+- **`simplifyAddInst`'s eighth site, `IS.simplifyAddInst.L605`,** `X + undef` to `undef`, is unproved: only `undef`
+  reaches its step, which the model doesn't have, so its theorem says nothing past `L601`'s. 11 sites of the other
+  families are the same.
 - **`simplifyAddInst`'s model agrees with the pinned `opt`** on all 6,318 cases compared, 127 of them distinct `add`s
   from LLVM's own regression tests, and every one of its 8 sites fires on some. Two broken models are caught: dropping
   the `nuw` guard of `add nuw x, -1` gives 193 mismatches, all at that site, and dropping the flag guard of the
   sign-mask rule, which no theorem can catch since the rewrite is right without flags, gives 4.
 - **The store took all 11 of the worked example's value lemmas:** 4 meet all four rules of the bar and 7 are
   candidates. None was refused as `trivial`. Two were refused until their counterexamples were written.
-- **E3 so far:** every one of the 8 proofs uses a stored rewrite lemma, but 7 use only lemmas cut from these same
-  proofs, so 1 shows reuse. 21 stored lemmas meet all four rules, 4 of them rewrites. The kernel checks a proof using
-  a stored lemma faster than the same proof with the lemma's proof inlined, at the median 0.36 ms against 0.88 ms.
-- **Peak memory is what importing costs:** each module of the library peaks between 669 and 725 MiB, and importing
-  alone takes 652 MiB. The targets [below](#peak-memory-targets) are 1.25 GB a module.
+- **E3 so far:** 192 of the 247 site proofs use a stored rewrite lemma, but only 28 one cut from another family's
+  proofs, so reuse across families is small so far. 73 stored lemmas meet all four rules, 47 of them rewrites. The
+  kernel checks a proof using a stored lemma faster than the same proof with the lemma's proof inlined, at the median
+  0.54 ms against 1.19 ms over 206 pairs. [Below](#over-the-instsimplify-families).
+- **Peak memory is what importing costs:** each module of the library peaks between 803 and 1,192 MiB on Linux, and
+  importing alone takes most of it. The targets [below](#peak-memory-targets) are 1.25 GB a module, which every module
+  meets.
 
 ## What a proof claims
 
@@ -201,54 +206,64 @@ and keeps its theorem.
 A registry lists its sites under `folds`, and each one it didn't prove under `unproved` with why. `score --check`
 also fails if two registries list one site, or one names an ID the inventory doesn't have. It writes JSON, schema
 `ir-lean.peephole.score/1`, to `build/peephole/score.json`, with each listed site's outcome and the ID of every blocked
-rewrite by what it waits for, and prints two tables. On this branch, on 2026-11-09, with #79's inventory:
+rewrite by what it waits for, and prints two tables. On 2026-11-09, with #79's inventory and its intrinsic folds'
+tags corrected, and the seven InstSimplify families:
 
 | Pass | Rewrites | Proved | % | Of those, exercised by `opt` | Integers only | Proved of those | % | Proved, model not compared | Undef only | Integer instance proved | Need fp (SEM-05) | Need memory (F4) | Need calls |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| InstSimplify | 541 | 7 | 1.29 | 7 | 300 | 7 | 2.33 | 0 | 0 | 0 | 200 | 31 | 115 |
-| InstCombine | 2,536 | 0 | 0.0 | 0 | 1,499 | 0 | 0.0 | 0 | 0 | 0 | 607 | 281 | 515 |
-| AggressiveInstCombine | 37 | 0 | 0.0 | 0 | 20 | 0 | 0.0 | 0 | 0 | 0 | 6 | 11 | 8 |
+| InstSimplify | 541 | 244 | 45.1 | 171 | 335 | 242 | 72.24 | 3 | 0 | 0 | 165 | 31 | 64 |
+| InstCombine | 2,536 | 0 | 0.0 | 0 | 1,571 | 0 | 0.0 | 0 | 0 | 0 | 581 | 284 | 441 |
+| AggressiveInstCombine | 37 | 0 | 0.0 | 0 | 21 | 0 | 0.0 | 0 | 0 | 0 | 6 | 11 | 7 |
 | Reassociate | 60 | 0 | 0.0 | 0 | 18 | 0 | 0.0 | 0 | 0 | 0 | 42 | 0 | 3 |
-| All | 3,174 | 7 | 0.22 | 7 | 1,837 | 7 | 0.38 | 0 | 0 | 0 | 855 | 323 | 641 |
+| All | 3,174 | 244 | 7.69 | 171 | 1,945 | 242 | 12.44 | 3 | 0 | 0 | 794 | 326 | 515 |
+
+The two proved sites outside the integer-only column are `IS.foldMinMaxSharedOp.L6698` and `L6701`, which the
+inventory tags `calls` because the case label that says they're about integer min and max is in their caller. The only
+call they inspect is such an intrinsic, which `Term` holds, so `is-intrinsic`'s registry lists them under `covers`.
 
 "Need calls" waits for the external-calls lane. The three overlap, as in [the inventory](rewrite-inventory.md#totals).
 A site proved by `sorry` keeps every site of its fold from counting, since the fold's `sound` theorem then rests on
 `sorry` too, and its module fails the axiom audit, which `tests/peephole_test.py --tier live` checks.
 
-### The five families merged
+### The InstSimplify families
 
-On 2026-11-09, `origin/chunk1/g2-is-arith`, `-logic`, `-icmp`, `-icmp-b` and `-shift` merged into this branch at
-`bb0cc8f` without a conflict, in a scratch branch that isn't pushed. After `compare --write` for all six families, all
-compared clean, with no mismatch, and `score --check` passed. That was with the inventory before #79, and before rule
-7 and the rule that only a compared case that agreed shows a fold ran, so these counts are those rules' upper bound;
-`is-add`'s row counts `L605`, which no longer does:
+`score`'s second table, on the same day:
 
-| Family | Sites listed | Proved | Exercised by `opt` | Proved, model not compared | Integer instance proved | Not counting | Listed unproved |
-| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| `is-add` | 8 | 8 | 8 | 0 | 0 | 0 | 0 |
-| `is-arith` | 39 | 39 | 25 | 0 | 0 | 0 | 1 |
-| `is-icmp-b` | 59 | 57 | 41 | 2 | 0 | 0 | 6 |
-| `is-icmp` | 61 | 48 | 19 | 13 | 0 | 0 | 3 |
-| `is-logic` | 65 | 62 | 39 | 3 | 0 | 0 | 3 |
-| `is-shift` | 28 | 23 | 17 | 5 | 0 | 0 | 13 |
-| All | 260 | 237 | 149 | 23 | 0 | 0 | 26 |
+| Family | Sites listed | Proved | Exercised by `opt` | Proved, model not compared | Undef only | Integer instance proved | Not counting | Listed unproved |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| `is-add` | 7 | 7 | 7 | 0 | 0 | 0 | 0 | 1 |
+| `is-arith` | 37 | 36 | 23 | 1 | 0 | 0 | 0 | 3 |
+| `is-icmp-b` | 57 | 55 | 49 | 2 | 0 | 0 | 0 | 8 |
+| `is-icmp` | 38 | 38 | 15 | 0 | 0 | 0 | 0 | 25 |
+| `is-intrinsic` | 26 | 26 | 23 | 0 | 0 | 0 | 0 | 65 |
+| `is-logic` | 60 | 60 | 37 | 0 | 0 | 0 | 0 | 8 |
+| `is-shift` | 22 | 22 | 17 | 0 | 0 | 0 | 0 | 19 |
 
-237 is 43.89% of InstSimplify's 540, and 77.7% of its 305 that need only integers. Before rule 5, all 260 listed
-sites counted. The 23 that no longer do are the sites of folds no compared run reached:
-`simplifyUnsignedRangeCheck` (12) and `simplifyICmpUsingMonotonicValues` (1) of `is-icmp`, `simplifySelectBitTest` (4)
-and `simplifySelectWithEquivalence` (1) of `is-shift`, `simplifyCmpSelCase` (2) of `is-icmp-b`, and
-`simplifyAndOrWithICmpEq.Simplify` (3) of `is-logic`. `is-icmp`'s registry says its model delegates the step before
-`simplifyICmpUsingMonotonicValues`, so its run ends there. No listed site is an integer
-instance today: the two the revised inventory tags `fp`, `IS.simplifyAndOrOfCmps.L1933` and
-`IS.simplifyWithOpsReplaced.L4428`, are already under their families' `unproved`, as integer instances proved. With
-that inventory in place of today's, the counts are the same, but `IS.simplifyICmpInst.L4154`, which `is-icmp` lists,
-isn't one of its IDs, so `score --check` fails until the registry follows it.
+The three proved and not compared are `IS.threadBinOpOverSelect.L394`, whose arms' recursive calls `onInst` doesn't
+answer, and `IS.extractEquivalentCondition.L2630` and `L2633`, whose `select` SSA doesn't allow.
 
-The stricter rule for an analysis changed three families' comparisons: an analysis now explains 0 of `is-arith`'s
-cases rather than 90, 5 of `is-logic`'s rather than 6, and 205 of `is-shift`'s rather than 212. Those cases, 92, 3
-and 7, are now "nothing explains it". Of the 50 of `is-arith`'s that its record lists, 48 are the model answering
-poison under such an oracle where `opt` answers a value; in 6 of `is-shift`'s 7, `opt` answers poison and the model a
-value. None fails `compare`, which reports them.
+**Integer instances.** `Term` holds scalar integers. A site whose C++ also runs on floating-point or pointer values,
+as `icmp` of two pointers reaches `simplifyICmpWithZero` through `m_Zero` matching `ptr null`, isn't proved for every
+input, whatever the inventory's tag. Its family lists it under `unproved`, with a reason that says the integer
+instance is proved and names the other types, and keeps its theorem. There are 34:
+
+- 22 of `is-icmp`'s;
+- 3 of `is-icmp-b`'s;
+- 5 of `is-shift`'s;
+- 3 of `is-logic`'s;
+- 1 of `is-intrinsic`'s.
+
+Floating point is in the model now, and pointers will be with F4, so these are the first to revisit as each lands.
+
+Four more of `is-icmp-b`'s, `IS.simplifySelectWithICmpCond.L4876`, `L4890`, `L4896` and `L4900`, are listed unproved
+though only integers reach them: each needs a funnel shift, a rotate or `abs`, which only integers have. The inventory
+tags them `fp`, since their function also handles floating point, and the registry doesn't claim `fp` in `covers` for
+a proof about `Term`. They count once the inventory's rule reads those matchers as integers.
+
+**Families that call each other.** `is-icmp`'s `simplifyICmpInst` forwards to `is-icmp-b`'s folds, and `is-icmp-b`'s
+and and or of compares to `is-icmp`'s `simplifyUnsignedRangeCheck`, as the C++ calls them, so a comparison of one
+family runs the other's folds too. A family's comparison is keyed by the sources of every module its model imports,
+so a change to one family's folds means comparing both again.
 
 ## The lemma store and the rewrites
 
@@ -321,6 +336,33 @@ understates the difference. 8 proofs of one fold aren't E3's 20, and their lemma
 say the machinery works, not that the store makes later proofs cheaper. The families now being proved are the first
 test of that.
 
+### Over the InstSimplify families
+
+`measure` for each family, after the store took every family's lemmas, on Linux:
+
+| Family | Proofs | Use a stored rewrite lemma | One from another family | Each proof | Module peak | Kernel median, stored vs inlined |
+| --- | ---: | ---: | ---: | --- | --- | --- |
+| `is-add` | 7 | 7 | 1 | 3.0 to 63.9 ms | 803 to 862 MiB | 0.39 vs 0.99 ms, 12 pairs |
+| `is-arith` | 37 | 25 | 7 | 2.6 to 70.5 ms | 804 to 919 MiB | 1.07 vs 1.59 ms, 56 pairs |
+| `is-logic` | 60 | 57 | 11 | 3.2 to 52.6 ms | 805 to 998 MiB | 0.46 vs 1.25 ms, 55 pairs |
+| `is-icmp` | 38 | 12 | 0 | 4.7 to 36.0 ms | 805 to 1,192 MiB | 0.49 vs 0.66 ms, 18 pairs |
+| `is-icmp-b` | 57 | 49 | 4 | 5.8 to 25.7 ms | 805 to 1,174 MiB | 0.77 vs 1.24 ms, 21 pairs |
+| `is-shift` | 22 | 16 | 5 | 3.6 to 24.0 ms | 805 to 916 MiB | 0.36 vs 1.21 ms, 16 pairs |
+| `is-intrinsic` | 26 | 26 | 0 | 3.6 to 32.8 ms | 805 to 930 MiB | 0.49 vs 0.82 ms, 28 pairs |
+| All | 247 | 192 | 28 | 2.6 to 70.5 ms | 803 to 1,192 MiB | 0.54 vs 1.19 ms, 206 pairs |
+
+"Proofs" counts every site theorem a registry lists, counted or not.
+
+| E3's criterion | Over the seven families |
+| --- | --- |
+| At least half the proofs use a stored lemma | 192 of 247 use a stored rewrite lemma. Of those, 28 use one cut from other proofs: 21 use #48's generic rewrites, 4 of `is-icmp-b`'s use `is-icmp`'s, and 3 of `is-logic`'s use `is-add`'s. The rest use their own family's, stored after the proofs were written |
+| At least 10 lemmas meet all four rules | 73 do, 47 of them rewrites |
+| A proof using the store checks faster than without it, at the median | Yes: 0.54 ms against 1.19 ms, over 206 pairs of a site and a stored lemma its proof names |
+
+So the store makes checking cheaper, and a later family reaches for an earlier one's lemmas where they fit, but
+across families that's 11% of proofs so far. Each family proved its own facts about its own operations; the reuse E3
+is after should show more in InstCombine, whose folds rest on the same facts InstSimplify's do.
+
 ### Peak memory targets
 
 Each module, elaborated alone by `lean -M 4096` with what it imports already built, through `tools/measure.py --heavy`:
@@ -388,8 +430,8 @@ processes. Nothing here needs Linux.
 
 ## Gaps
 
-- **One fold on this branch.** The scoreboard here counts 7 of `simplifyAddInst`'s 8 sites. The five other families are
-  on branches of their own, and count once their registries and comparisons land, [as above](#the-five-families-merged).
+- **InstSimplify only.** The scoreboard counts 244 of InstSimplify's sites and none of the other three passes'. The
+  rest of InstSimplify's integer-only sites are mostly about vectors, aggregates and phis, which `Term` doesn't hold.
 - **The comparison is finite.** It covers what LLVM's tests and the generator reach, at a few widths. Vectors,
   constant expressions and `undef` inside instructions aren't generated, and an argument stands for anything deeper
   than five instructions.
@@ -402,4 +444,5 @@ processes. Nothing here needs Linux.
   folds it couldn't watch at all.
 - **LLVM's tests reach 5 of `simplifyAddInst`'s 8 steps that rewrite.** `L605`, `L626` and `L633` fire only on generated cases.
 - **InstCombine's new IR isn't compared yet,** only whether each fold fires, as [above](#each-model-against-opt).
-- **E3 is measured on 8 proofs** whose lemmas were cut from them.
+- **E3's reuse across families is small:** 28 of 247 proofs use a lemma cut from another family's proofs. Most reuse
+  is of a family's own lemmas, stored after its proofs were written.
