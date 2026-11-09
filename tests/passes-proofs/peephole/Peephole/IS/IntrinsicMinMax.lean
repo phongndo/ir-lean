@@ -8,9 +8,9 @@ immediate constant second, then tries, in order:
 | ID | Rewrite |
 | --- | --- |
 | `IS.simplifyBinaryIntrinsic.L7004` | `max(x, x)` to `x` |
-| `IS.simplifyBinaryIntrinsic.L7012` | `max(x, undef)` to the saturation point. IRLean has no `undef`, so this is about poison only |
+| `IS.simplifyBinaryIntrinsic.L7012` | `max(x, undef)` to the saturation point: without `undef`, of poison |
 | `IS.simplifyBinaryIntrinsic.L7020` | `max(x, C)` to `C`, where `C` is the saturation point, such as `umax(x, -1)` |
-| `IS.simplifyBinaryIntrinsic.L7027` | `max(x, C)` to `x`, where `C` is the inverse's saturation point, such as `umin(x, -1)` |
+| `IS.simplifyBinaryIntrinsic.L7027` | `max(x, C)` to `x`, `C` the inverse's saturation point, such as `umin(x, -1)` |
 | `IS.simplifyBinaryIntrinsic.L7040` | `max(max(x, C1), C2)` to `max(x, C1)`, where `C1 >= C2` |
 | `IS.foldMinMaxSharedOp.L6698` | `max(max(x, y), z)` to `max(x, y)`, where `z` is `x`, `y`, or a min or max of them |
 | `IS.foldMinMaxSharedOp.L6701` | `max(min(x, y), z)` to `z`, where `z` is `x`, `y`, or a min or max of them |
@@ -26,6 +26,103 @@ namespace Peephole.IS
 open IRLean Intrinsic
 
 variable {w : Nat}
+
+/-! ### Facts about `umin`, `umax`, `smin` and `smax`, from the lemmas about each -/
+
+private theorem minMax_self {f : BinIntr} (hf : isMinMax f = true) (a : Val w) : f.eval a a = a := by
+  cases f <;> simp only [isMinMax, Bool.false_eq_true] at hf <;> simp only [BinIntr.eval]
+  · exact Lemmas.umin_self a
+  · exact Lemmas.umax_self a
+  · exact Lemmas.smin_self a
+  · exact Lemmas.smax_self a
+
+private theorem minMax_comm {f : BinIntr} (hf : isMinMax f = true) (a b : Val w) : f.eval a b = f.eval b a := by
+  cases f <;> simp only [isMinMax, Bool.false_eq_true] at hf <;> simp only [BinIntr.eval]
+  · exact Lemmas.umin_comm a b
+  · exact Lemmas.umax_comm a b
+  · exact Lemmas.smin_comm a b
+  · exact Lemmas.smax_comm a b
+
+/-- A min or max with its saturation point is that point. -/
+private theorem minMax_satPoint {f : BinIntr} (hf : isMinMax f = true) (a : Val w) :
+    Refines (f.eval a (some (satPoint f w))) (some (satPoint f w)) := by
+  cases f <;> simp only [isMinMax, Bool.false_eq_true] at hf <;> simp only [BinIntr.eval, satPoint]
+  · exact Lemmas.umin_zero_refines a
+  · exact Lemmas.umax_allOnes_refines a
+  · exact Lemmas.smin_intMin_refines a
+  · exact Lemmas.smax_intMax_refines a
+
+/-- A min or max with its inverse's saturation point is the other operand. -/
+private theorem minMax_inverse_satPoint {f : BinIntr} (hf : isMinMax f = true) (a : Val w) :
+    f.eval a (some (satPoint (inverse f) w)) = a := by
+  cases f <;> simp only [isMinMax, Bool.false_eq_true] at hf <;> simp only [BinIntr.eval, satPoint, inverse]
+  · exact Lemmas.umin_allOnes a
+  · exact Lemmas.umax_zero a
+  · exact Lemmas.smin_intMax a
+  · exact Lemmas.smax_intMin a
+
+/-- `max(max(x, c), d)` is `max(x, c)` if `c ≥ d`, by the non-strict predicate. -/
+private theorem minMax_nested {f : BinIntr} (hf : isMinMax f = true) (a : Val w) {c d : BitVec w}
+    (h : compare (nonStrictPred f) c d = true) : f.eval (f.eval a (some c)) (some d) = f.eval a (some c) := by
+  cases f <;> simp only [isMinMax, Bool.false_eq_true] at hf <;>
+    simp only [Intrinsic.compare, nonStrictPred, Pred.eval, Val.icmpUle, Val.icmpUge, Val.icmpSle, Val.icmpSge,
+      Val.icmp, Bool.false_and, Bool.false_eq_true, ite_false, beq_iff_eq, Option.some.injEq] at h <;>
+    simp only [BinIntr.eval]
+  · exact Lemmas.umin_umin_of_ule a (by cases hc : c.ule d <;> simp_all)
+  · exact Lemmas.umax_umax_of_ule a (by cases hc : d.ule c <;> simp_all)
+  · exact Lemmas.smin_smin_of_sle a (by cases hc : c.sle d <;> simp_all)
+  · exact Lemmas.smax_smax_of_sle a (by cases hc : d.sle c <;> simp_all)
+
+private theorem minMax_left {f : BinIntr} (hf : isMinMax f = true) (a b : Val w) :
+    f.eval (f.eval a b) a = f.eval a b := by
+  cases f <;> simp only [isMinMax, Bool.false_eq_true] at hf <;> simp only [BinIntr.eval]
+  · exact Lemmas.umin_umin_left a b
+  · exact Lemmas.umax_umax_left a b
+  · exact Lemmas.smin_smin_left a b
+  · exact Lemmas.smax_smax_left a b
+
+private theorem minMax_right {f : BinIntr} (hf : isMinMax f = true) (a b : Val w) :
+    f.eval (f.eval a b) b = f.eval a b := by
+  cases f <;> simp only [isMinMax, Bool.false_eq_true] at hf <;> simp only [BinIntr.eval]
+  · exact Lemmas.umin_umin_right a b
+  · exact Lemmas.umax_umax_right a b
+  · exact Lemmas.smin_smin_right a b
+  · exact Lemmas.smax_smax_right a b
+
+/-- `max(min(x, y), x)` refines `x`. -/
+private theorem minMax_inverse_left {f : BinIntr} (hf : isMinMax f = true) (a b : Val w) :
+    Refines (f.eval ((inverse f).eval a b) a) a := by
+  cases f <;> simp only [isMinMax, Bool.false_eq_true] at hf <;> simp only [BinIntr.eval, inverse]
+  · exact Lemmas.umin_umax_left_refines a b
+  · exact Lemmas.umax_umin_left_refines a b
+  · exact Lemmas.smin_smax_left_refines a b
+  · exact Lemmas.smax_smin_left_refines a b
+
+private theorem minMax_inverse_right {f : BinIntr} (hf : isMinMax f = true) (a b : Val w) :
+    Refines (f.eval ((inverse f).eval a b) b) b := by
+  cases f <;> simp only [isMinMax, Bool.false_eq_true] at hf <;> simp only [BinIntr.eval, inverse]
+  · exact Lemmas.umin_umax_right_refines a b
+  · exact Lemmas.umax_umin_right_refines a b
+  · exact Lemmas.smin_smax_right_refines a b
+  · exact Lemmas.smax_smin_right_refines a b
+
+/-- A min or max of two values is one of them. -/
+private theorem minMax_some_mem {f : BinIntr} (hf : isMinMax f = true) (x y : BitVec w) :
+    f.eval (some x) (some y) = some x ∨ f.eval (some x) (some y) = some y := by
+  cases f <;> simp only [isMinMax, Bool.false_eq_true] at hf <;>
+    simp only [BinIntr.eval, Val.umin, Val.umax, Val.smin, Val.smax, Val.map₂] <;> split <;> simp
+
+/-- A min or max of two values whose non-strict predicate holds of them is the first. -/
+private theorem minMax_of_pred {f : BinIntr} (hf : isMinMax f = true) {x y : BitVec w}
+    (h : (nonStrictPred f).eval (some x) (some y) false = some 1#1) : f.eval (some x) (some y) = some x := by
+  cases f <;> simp only [isMinMax, Bool.false_eq_true] at hf <;>
+    simp only [nonStrictPred, Pred.eval, Val.icmpUle, Val.icmpUge, Val.icmpSle, Val.icmpSge, Val.icmp,
+      Bool.false_and, Bool.false_eq_true, ite_false, Option.some.injEq] at h <;>
+    simp only [BinIntr.eval]
+  · exact Lemmas.umin_of_ule (by cases hc : x.ule y <;> simp_all)
+  · exact Lemmas.umax_of_ule (by cases hc : y.ule x <;> simp_all)
+  · exact Lemmas.smin_of_sle (by cases hc : x.sle y <;> simp_all)
+  · exact Lemmas.smax_of_sle (by cases hc : y.sle x <;> simp_all)
 
 /-! ### Matchers -/
 

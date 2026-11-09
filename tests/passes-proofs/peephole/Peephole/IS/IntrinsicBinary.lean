@@ -15,7 +15,7 @@ by step in the C++'s order, for those. `IID` and the operands are the call's, `c
 | `IS.simplifyBinaryIntrinsic.L6942` | `ctlz(C >>s x)` to 0, for a negative constant `C` |
 | The min and max case | `Peephole.IS.IntrinsicMinMax`'s nine |
 | `IS.simplifyBinaryIntrinsic.L7111` | `uadd.sat(-1, x)` and `uadd.sat(x, -1)` to -1 |
-| `IS.simplifyBinaryIntrinsic.L7119` | `uadd.sat` and `sadd.sat` of `undef` to -1. IRLean has no `undef`, so this is about poison only |
+| `IS.simplifyBinaryIntrinsic.L7119` | `uadd.sat` and `sadd.sat` of `undef` to -1: without `undef`, of poison |
 | `IS.simplifyBinaryIntrinsic.L7123` | `uadd.sat(x, 0)` and `sadd.sat(x, 0)` to `x` |
 | `IS.simplifyBinaryIntrinsic.L7126` | `uadd.sat(0, x)` and `sadd.sat(0, x)` to `x` |
 | `IS.simplifyBinaryIntrinsic.L7131` | `usub.sat(0, x)` and `usub.sat(x, -1)` to 0 |

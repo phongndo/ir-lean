@@ -12,10 +12,10 @@ C++'s order, for the calls to integer intrinsics `Term` holds:
 | ID | Rewrite |
 | --- | --- |
 | `IS.simplifyIntrinsic.L7329` | A call to an intrinsic that propagates poison, with a poison operand, to poison |
-| `IS.simplifyIntrinsic.L7375` | `fshl(undef, undef, z)` to `undef`. IRLean has no `undef`, so this is about poison only |
+| `IS.simplifyIntrinsic.L7375` | `fshl(undef, undef, z)` to `undef`: without `undef`, of poison |
 | `IS.simplifyIntrinsic.L7379` | `fshl(x, y, undef)` to `x`, `fshr` to `y`, about poison only too |
 | `IS.simplifyIntrinsic.L7387` | `fshl(x, y, C)` to `x`, `fshr` to `y`, where `C` is a multiple of the width |
-| `IS.simplifyIntrinsic.L7396` | `fshl(x >> C1, x << C2, C1)` and `fshr(x >> C1, x << C2, C2)` to `x`, where `C1 + C2` is the width |
+| `IS.simplifyIntrinsic.L7396` | `fshl(x >> C1, x << C2, C1)` and `fshr(..., C2)` to `x`, where `C1 + C2` is the width |
 | `IS.simplifyIntrinsic.L7401` | `fshl(0, 0, z)` and `fshr(0, 0, z)` to 0 |
 | `IS.simplifyIntrinsic.L7405` | `fshl(-1, -1, z)` and `fshr(-1, -1, z)` to -1 |
 
