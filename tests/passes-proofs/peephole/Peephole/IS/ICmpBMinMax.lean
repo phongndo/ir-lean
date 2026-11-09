@@ -464,9 +464,13 @@ theorem mm_eqp {pp eqp leP gtP : Pred} {uv vv av bv : BitVec w} (hgt : gtP = inv
 
 /-- Every step of one group of `simplifyICmpWithMinMax` that fires is right. -/
 theorem mmGroup.steps_sound (ρ : Env) {fmax fmin : BinIntr} {geP leP gtP ltP : Pred}
-    (hk : MMKind fmax fmin geP leP) (hgt : gtP = invP leP) (hlt : ltP = invP geP) (simp : ICmpSimp)
+    (hk : MMKind fmax fmin geP leP) (hgt : gtP = invP leP) (simp : ICmpSimp)
     (hsimp : simp.Sound ρ) (p : Pred) (s : Bool) (lhs rhs : Term w) (n : Nat) (siteT siteF : String)
-    (cl : lhs.Consistent ρ) (cr : rhs.Consistent ρ) (ul : lhs.hasUndef = false) (ur : rhs.hasUndef = false) :
+    (cl : lhs.Consistent ρ) (cr : rhs.Consistent ρ) (ul : lhs.hasUndef = false) (ur : rhs.hasUndef = false)
+    (hT : ∀ a b eqp, mmSel fmax fmin geP leP p lhs rhs = some (a, b, eqp, geP) →
+      Refines ((icmpSrc p s lhs rhs).eval ρ) ((boolR true).eval ρ))
+    (hF : ∀ a b eqp, mmSel fmax fmin geP leP p lhs rhs = some (a, b, eqp, ltP) →
+      Refines ((icmpSrc p s lhs rhs).eval ρ) ((boolR false).eval ρ)) :
     ∀ site r, Step.fire site r ∈
       mmGroup.steps simp (mmSel fmax fmin geP leP p lhs rhs) leP gtP geP ltP siteT siteF lhs rhs n →
       Refines ((icmpSrc p s lhs rhs).eval ρ) (r.eval ρ) := by
@@ -530,18 +534,14 @@ theorem mmGroup.steps_sound (ρ : Env) {fmax fmin : BinIntr} {geP leP gtP ltP : 
       next hp =>
       obtain ⟨-, rfl⟩ := h
       rw [beq_iff_eq] at hp
-      subst hp
-      refine refines_bool fun x y hx hy => ?_
-      obtain ⟨av, bv, uv, vv, -, -, he, h1, -, -⟩ := hv x y hx hy
-      rw [he, h1]
+      rw [hp] at hsel
+      exact hT a b eqp hsel
     · split at h <;> simp only [Step.fire.injEq, reduceCtorEq] at h
       next hp =>
       obtain ⟨-, rfl⟩ := h
       rw [beq_iff_eq] at hp
-      subst hp
-      refine refines_bool fun x y hx hy => ?_
-      obtain ⟨av, bv, uv, vv, -, -, he, h1, -, -⟩ := hv x y hx hy
-      rw [he, hlt, test_inv, h1]; rfl
+      rw [hp] at hsel
+      exact hF a b eqp hsel
   · simp at hmem
 
 /-- `IS.simplifyICmpWithMinMax.L3680`: "max(A, B) sge A" to true, for `smax(A, B) >=s A`, `A <=s smax(A, B)`,
@@ -707,8 +707,12 @@ theorem _root_.Peephole.IS.simplifyICmpWithMinMax.sound (ρ : Env) (simp : ICmpS
     intro site r hmem
     simp only [simplifyICmpWithMinMax.steps, List.mem_append] at hmem
     rcases hmem with (hm | hm) | hm
-    · exact mmGroup.steps_sound ρ signedKind rfl rfl simp hsimp p s lhs rhs n _ _ cl cr ul ur site r hm
-    · exact mmGroup.steps_sound ρ unsignedKind rfl rfl simp hsimp p s lhs rhs n _ _ cl cr ul ur site r hm
+    · exact mmGroup.steps_sound ρ signedKind rfl simp hsimp p s lhs rhs n _ _ cl cr ul ur
+        (fun a b eqp h => simplifyICmpWithMinMax.L3680 ρ p s lhs rhs a b eqp cl cr h)
+        (fun a b eqp h => simplifyICmpWithMinMax.L3683 ρ p s lhs rhs a b eqp cl cr h) site r hm
+    · exact mmGroup.steps_sound ρ unsignedKind rfl simp hsimp p s lhs rhs n _ _ cl cr ul ur
+        (fun a b eqp h => simplifyICmpWithMinMax.L3753 ρ p s lhs rhs a b eqp cl cr h)
+        (fun a b eqp h => simplifyICmpWithMinMax.L3755 ρ p s lhs rhs a b eqp cl cr h) site r hm
     · rw [← mmCanon_eval]
       exact mmCommon.steps_sound ρ _ s _ _ (mmCanon_consistent cl cr).1 (mmCanon_consistent cl cr).2 site r hm
   exact run_sound hs h

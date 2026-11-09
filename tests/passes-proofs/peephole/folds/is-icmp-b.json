@@ -10,9 +10,39 @@
     "Peephole.IS.ICmpBAndOr",
     "Peephole.IS.ICmpBSelect",
     "Peephole.IS.ICmpBSelectCond",
+    "Peephole.IS.ICmpBEntry",
     "Peephole.Lemmas.ICmpB"
   ],
-  "entries": [],
+  "entries": [
+    {
+      "fold": "Peephole.IS.ICmpB.icmpOnInst",
+      "opcodes": [
+        "icmp"
+      ],
+      "opt": "instsimplify"
+    },
+    {
+      "fold": "Peephole.IS.ICmpB.selectOnInst",
+      "opcodes": [
+        "select"
+      ],
+      "opt": "instsimplify"
+    },
+    {
+      "fold": "Peephole.IS.ICmpB.andOnInst",
+      "opcodes": [
+        "and"
+      ],
+      "opt": "instsimplify"
+    },
+    {
+      "fold": "Peephole.IS.ICmpB.orOnInst",
+      "opcodes": [
+        "or"
+      ],
+      "opt": "instsimplify"
+    }
+  ],
   "folds": {
     "Peephole.IS.simplifyICmpWithBinOpOnLHS": {
       "sound": "Peephole.IS.simplifyICmpWithBinOpOnLHS.sound",
@@ -122,9 +152,7 @@
     },
     "Peephole.IS.simplifyAndOrOfCmps": {
       "sound": "Peephole.IS.simplifyAndOrOfCmps.sound",
-      "sites": [
-        "IS.simplifyAndOrOfCmps.L1933"
-      ]
+      "sites": []
     },
     "Peephole.IS.simplifyCmpSelCase": {
       "sound": "Peephole.IS.simplifyCmpSelCase.sound",
@@ -152,12 +180,7 @@
     },
     "Peephole.IS.simplifySelectWithICmpCond": {
       "sound": "Peephole.IS.simplifySelectWithICmpCond.sound",
-      "sites": [
-        "IS.simplifySelectWithICmpCond.L4876",
-        "IS.simplifySelectWithICmpCond.L4890",
-        "IS.simplifySelectWithICmpCond.L4896",
-        "IS.simplifySelectWithICmpCond.L4900"
-      ]
+      "sites": []
     }
   },
   "lemmas": [
@@ -266,6 +289,11 @@
     ]
   },
   "unproved": {
-    "IS.simplifySelectWithICmpCond.L4857": "the C++ returns X where ValueTracking's matchDecomposedSelectPattern finds a min/max flavor whose predicate is Pred and whose other operand is the flavor's limit constant; that analysis (matchSelectPattern, matchClamp, matchMinMaxOfMinMax, getNotValue, the abs/nabs patterns) isn't modelled, so the model takes its answer as a parameter and delegates this step"
+    "IS.simplifyAndOrOfCmps.L1933": "tagged fp/generic: simplifyAndOrOfCmps also looks through casts to fcmps. The integer instance is proved for every input, by Peephole.IS.simplifyAndOrOfCmps.L1933, which Peephole.IS.simplifyAndOrOfCmps.sound uses; the floating-point instance waits for SEM-05",
+    "IS.simplifySelectWithICmpCond.L4857": "the C++ returns X where ValueTracking's matchDecomposedSelectPattern finds a min/max flavor whose predicate is Pred and whose other operand is the flavor's limit constant; that analysis (matchSelectPattern, matchClamp, matchMinMaxOfMinMax, getNotValue, the abs/nabs patterns) isn't modelled, so the model takes its answer as a parameter and delegates this step. Tagged fp/generic too: the floating-point instance waits for SEM-05",
+    "IS.simplifySelectWithICmpCond.L4876": "tagged fp/generic: simplifySelectWithICmpCond's path also handles floating point. The integer instance is proved for every input, by Peephole.IS.simplifySelectWithICmpCond.L4876, which Peephole.IS.simplifySelectWithICmpCond.sound uses; the floating-point instance waits for SEM-05",
+    "IS.simplifySelectWithICmpCond.L4890": "tagged fp/generic: simplifySelectWithICmpCond's path also handles floating point. The integer instance is proved for every input, by Peephole.IS.simplifySelectWithICmpCond.L4890, which Peephole.IS.simplifySelectWithICmpCond.sound uses; the floating-point instance waits for SEM-05",
+    "IS.simplifySelectWithICmpCond.L4896": "tagged fp/generic: simplifySelectWithICmpCond's path also handles floating point. The integer instance is proved for every input, by Peephole.IS.simplifySelectWithICmpCond.L4896, which Peephole.IS.simplifySelectWithICmpCond.sound uses; the floating-point instance waits for SEM-05",
+    "IS.simplifySelectWithICmpCond.L4900": "tagged fp/generic: simplifySelectWithICmpCond's path also handles floating point. The integer instance is proved for every input, by Peephole.IS.simplifySelectWithICmpCond.L4900, which Peephole.IS.simplifySelectWithICmpCond.sound uses; the floating-point instance waits for SEM-05"
   }
 }
