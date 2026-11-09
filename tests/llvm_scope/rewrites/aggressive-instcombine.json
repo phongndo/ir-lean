@@ -1,0 +1,102 @@
+{
+  "schema": "ir-lean.rewrites/1",
+  "pass": "aggressive-instcombine",
+  "llvm": "llvmorg-23.1.3",
+  "rule": "docs/rewrite-inventory.md",
+  "files": {
+    "llvm/lib/Transforms/AggressiveInstCombine/AggressiveInstCombine.cpp": "709c02cf8f46d5ffcff002e211f89e939bbad5453404696e585229f4795983a6",
+    "llvm/lib/Transforms/AggressiveInstCombine/TruncInstCombine.cpp": "cd544536090c7809965d59f840a1a22148092fea400547dcf96299b28558d021"
+  },
+  "entries": [
+    "AggressiveInstCombinePass::run",
+    "TruncInstCombine::run",
+    "runImpl"
+  ],
+  "totals": {
+    "rewrites": 25,
+    "int": 13,
+    "blocked_fp": 3,
+    "blocked_memory": 7,
+    "blocked_calls": 5,
+    "by_needs": {
+      "calls": 3,
+      "fp": 1,
+      "fp+calls": 1,
+      "fp+memory": 1,
+      "int": 13,
+      "memory": 5,
+      "memory+calls": 1
+    }
+  },
+  "folds": [
+    {"function": "foldSelectSplitCTTZ", "file": "llvm/lib/Transforms/AggressiveInstCombine/AggressiveInstCombine.cpp", "line": 90, "why": "builds", "rewrites": 1},
+    {"function": "foldSelectSplitCTLZ", "file": "llvm/lib/Transforms/AggressiveInstCombine/AggressiveInstCombine.cpp", "line": 147, "why": "builds", "rewrites": 1},
+    {"function": "foldSelectSplitCTLZCTTZ", "file": "llvm/lib/Transforms/AggressiveInstCombine/AggressiveInstCombine.cpp", "line": 199, "why": "forwarded", "rewrites": 0},
+    {"function": "foldGuardedFunnelShift", "file": "llvm/lib/Transforms/AggressiveInstCombine/AggressiveInstCombine.cpp", "line": 231, "why": "builds", "rewrites": 1},
+    {"function": "foldAnyOrAllBitsSet", "file": "llvm/lib/Transforms/AggressiveInstCombine/AggressiveInstCombine.cpp", "line": 415, "why": "builds", "rewrites": 1},
+    {"function": "replaceWithPopCount", "file": "llvm/lib/Transforms/AggressiveInstCombine/AggressiveInstCombine.cpp", "line": 465, "why": "forwarded", "rewrites": 0},
+    {"function": "tryToRecognizePopCount", "file": "llvm/lib/Transforms/AggressiveInstCombine/AggressiveInstCombine.cpp", "line": 546, "why": "forwarded", "rewrites": 1},
+    {"function": "tryToRecognizePopCount1", "file": "llvm/lib/Transforms/AggressiveInstCombine/AggressiveInstCombine.cpp", "line": 600, "why": "forwarded", "rewrites": 1},
+    {"function": "tryToRecognizePopCount2n3", "file": "llvm/lib/Transforms/AggressiveInstCombine/AggressiveInstCombine.cpp", "line": 720, "why": "forwarded", "rewrites": 1},
+    {"function": "tryToFPToSat", "file": "llvm/lib/Transforms/AggressiveInstCombine/AggressiveInstCombine.cpp", "line": 795, "why": "builds", "rewrites": 1},
+    {"function": "foldSqrt", "file": "llvm/lib/Transforms/AggressiveInstCombine/AggressiveInstCombine.cpp", "line": 850, "why": "builds", "rewrites": 1},
+    {"function": "tryToRecognizeTableBasedCttz", "file": "llvm/lib/Transforms/AggressiveInstCombine/AggressiveInstCombine.cpp", "line": 961, "why": "builds", "rewrites": 1},
+    {"function": "tryToRecognizeTableBasedLog2", "file": "llvm/lib/Transforms/AggressiveInstCombine/AggressiveInstCombine.cpp", "line": 1127, "why": "builds", "rewrites": 1},
+    {"function": "tryToRecognizeTableBasedCttzOrLog2", "file": "llvm/lib/Transforms/AggressiveInstCombine/AggressiveInstCombine.cpp", "line": 1235, "why": "forwarded", "rewrites": 0},
+    {"function": "foldConsecutiveLoads", "file": "llvm/lib/Transforms/AggressiveInstCombine/AggressiveInstCombine.cpp", "line": 1441, "why": "builds", "rewrites": 1},
+    {"function": "mergeConsecutivePartStores", "file": "llvm/lib/Transforms/AggressiveInstCombine/AggressiveInstCombine.cpp", "line": 1540, "why": "builds", "rewrites": 1},
+    {"function": "mergePartStores", "file": "llvm/lib/Transforms/AggressiveInstCombine/AggressiveInstCombine.cpp", "line": 1590, "why": "forwarded", "rewrites": 0},
+    {"function": "foldConsecutiveStores", "file": "llvm/lib/Transforms/AggressiveInstCombine/AggressiveInstCombine.cpp", "line": 1623, "why": "forwarded", "rewrites": 0},
+    {"function": "optimizeShiftInOrChain", "file": "llvm/lib/Transforms/AggressiveInstCombine/AggressiveInstCombine.cpp", "line": 1664, "why": "builds", "rewrites": 1},
+    {"function": "foldICmpOrChain", "file": "llvm/lib/Transforms/AggressiveInstCombine/AggressiveInstCombine.cpp", "line": 1692, "why": "builds", "rewrites": 1},
+    {"function": "foldPatternedLoads", "file": "llvm/lib/Transforms/AggressiveInstCombine/AggressiveInstCombine.cpp", "line": 1762, "why": "builds", "rewrites": 1},
+    {"function": "foldMemChr", "file": "llvm/lib/Transforms/AggressiveInstCombine/AggressiveInstCombine.cpp", "line": 2007, "why": "builds", "rewrites": 1},
+    {"function": "foldLibCalls", "file": "llvm/lib/Transforms/AggressiveInstCombine/AggressiveInstCombine.cpp", "line": 2086, "why": "forwarded", "rewrites": 2},
+    {"function": "foldMulHigh", "file": "llvm/lib/Transforms/AggressiveInstCombine/AggressiveInstCombine.cpp", "line": 2159, "why": "builds", "rewrites": 1},
+    {"function": "foldMulHigh::FoldMulHighCarry", "file": "llvm/lib/Transforms/AggressiveInstCombine/AggressiveInstCombine.cpp", "line": 2195, "why": "builds", "rewrites": 1},
+    {"function": "foldMulHigh::FoldMulHighLadder", "file": "llvm/lib/Transforms/AggressiveInstCombine/AggressiveInstCombine.cpp", "line": 2249, "why": "builds", "rewrites": 1},
+    {"function": "foldMulHigh::FoldMulHighLadder4", "file": "llvm/lib/Transforms/AggressiveInstCombine/AggressiveInstCombine.cpp", "line": 2306, "why": "builds", "rewrites": 1},
+    {"function": "foldMulHigh::FoldMulHighCarry4", "file": "llvm/lib/Transforms/AggressiveInstCombine/AggressiveInstCombine.cpp", "line": 2367, "why": "builds", "rewrites": 1},
+    {"function": "foldUnusualPatterns", "file": "llvm/lib/Transforms/AggressiveInstCombine/AggressiveInstCombine.cpp", "line": 2455, "why": "forwarded", "rewrites": 0},
+    {"function": "runImpl", "file": "llvm/lib/Transforms/AggressiveInstCombine/AggressiveInstCombine.cpp", "line": 2505, "why": "entry", "rewrites": 0},
+    {"function": "AggressiveInstCombinePass::run", "file": "llvm/lib/Transforms/AggressiveInstCombine/AggressiveInstCombine.cpp", "line": 2516, "why": "entry", "rewrites": 0},
+    {"function": "TruncInstCombine::ReduceExpressionGraph", "file": "llvm/lib/Transforms/AggressiveInstCombine/TruncInstCombine.cpp", "line": 379, "why": "forwarded", "rewrites": 0},
+    {"function": "TruncInstCombine::run", "file": "llvm/lib/Transforms/AggressiveInstCombine/TruncInstCombine.cpp", "line": 524, "why": "entry", "rewrites": 1}
+  ],
+  "helpers": [
+    "matchPopCountBytes"
+  ],
+  "builders": [
+    "TruncInstCombine::getReducedOperand",
+    "foldGuardedFunnelShift::matchFunnelShift",
+    "foldMulHigh::CheckHiLo",
+    "foldMulHigh::CheckLoLo"
+  ],
+  "rewrites": [
+    {"id": "AIC.AggressiveInstCombine.foldSelectSplitCTTZ.L128", "file": "llvm/lib/Transforms/AggressiveInstCombine/AggressiveInstCombine.cpp", "line": 128, "function": "foldSelectSplitCTTZ", "kind": "return", "comment": "", "code": "return true ;", "hash": "79791dcba34c89bd", "needs": ["int"], "also": [], "analyses": [], "intrinsics": []},
+    {"id": "AIC.AggressiveInstCombine.foldSelectSplitCTLZ.L193", "file": "llvm/lib/Transforms/AggressiveInstCombine/AggressiveInstCombine.cpp", "line": 193, "function": "foldSelectSplitCTLZ", "kind": "return", "comment": "", "code": "return true ;", "hash": "5273c6895c65c814", "needs": ["int"], "also": [], "analyses": [], "intrinsics": []},
+    {"id": "AIC.AggressiveInstCombine.foldGuardedFunnelShift.L343", "file": "llvm/lib/Transforms/AggressiveInstCombine/AggressiveInstCombine.cpp", "line": 343, "function": "foldGuardedFunnelShift", "kind": "return", "comment": "", "code": "return true ;", "hash": "68930705651770cf", "needs": ["int"], "also": [], "analyses": [], "intrinsics": []},
+    {"id": "AIC.AggressiveInstCombine.foldAnyOrAllBitsSet.L459", "file": "llvm/lib/Transforms/AggressiveInstCombine/AggressiveInstCombine.cpp", "line": 459, "function": "foldAnyOrAllBitsSet", "kind": "return", "comment": "", "code": "return true ;", "hash": "f4ed9d7e0800a6f0", "needs": ["int"], "also": [], "analyses": [], "intrinsics": []},
+    {"id": "AIC.AggressiveInstCombine.tryToRecognizePopCount.L575", "file": "llvm/lib/Transforms/AggressiveInstCombine/AggressiveInstCombine.cpp", "line": 575, "function": "tryToRecognizePopCount", "kind": "return", "comment": "", "code": "return true ;", "hash": "08dc577af5be8ade", "needs": ["int"], "also": [], "analyses": [], "intrinsics": []},
+    {"id": "AIC.AggressiveInstCombine.tryToRecognizePopCount1.L698", "file": "llvm/lib/Transforms/AggressiveInstCombine/AggressiveInstCombine.cpp", "line": 698, "function": "tryToRecognizePopCount1", "kind": "return", "comment": "", "code": "return true ;", "hash": "8f3e7151f7fd929d", "needs": ["int"], "also": [], "analyses": [], "intrinsics": []},
+    {"id": "AIC.AggressiveInstCombine.tryToRecognizePopCount2n3.L784", "file": "llvm/lib/Transforms/AggressiveInstCombine/AggressiveInstCombine.cpp", "line": 784, "function": "tryToRecognizePopCount2n3", "kind": "return", "comment": "", "code": "return true ;", "hash": "c3e417c0f78f2226", "needs": ["int"], "also": [], "analyses": [], "intrinsics": []},
+    {"id": "AIC.AggressiveInstCombine.tryToFPToSat.L844", "file": "llvm/lib/Transforms/AggressiveInstCombine/AggressiveInstCombine.cpp", "line": 844, "function": "tryToFPToSat", "kind": "return", "comment": "", "code": "return true ;", "hash": "a9e08face1864dce", "needs": ["fp"], "also": [], "analyses": [], "intrinsics": []},
+    {"id": "AIC.AggressiveInstCombine.foldSqrt.L873", "file": "llvm/lib/Transforms/AggressiveInstCombine/AggressiveInstCombine.cpp", "line": 873, "function": "foldSqrt", "kind": "return", "comment": "", "code": "return true ;", "hash": "72ca731708f2c616", "needs": ["fp", "calls"], "also": [], "analyses": [], "intrinsics": ["sqrt"]},
+    {"id": "AIC.AggressiveInstCombine.tryToRecognizeTableBasedCttz.L1021", "file": "llvm/lib/Transforms/AggressiveInstCombine/AggressiveInstCombine.cpp", "line": 1021, "function": "tryToRecognizeTableBasedCttz", "kind": "return", "comment": "", "code": "return true ;", "hash": "2ccabef04c5dc6ae", "needs": ["memory"], "also": [], "analyses": [], "intrinsics": []},
+    {"id": "AIC.AggressiveInstCombine.tryToRecognizeTableBasedLog2.L1229", "file": "llvm/lib/Transforms/AggressiveInstCombine/AggressiveInstCombine.cpp", "line": 1229, "function": "tryToRecognizeTableBasedLog2", "kind": "return", "comment": "", "code": "return true ;", "hash": "ccac0f9c09693747", "needs": ["fp", "memory"], "also": [], "analyses": [], "intrinsics": []},
+    {"id": "AIC.AggressiveInstCombine.foldConsecutiveLoads.L1495", "file": "llvm/lib/Transforms/AggressiveInstCombine/AggressiveInstCombine.cpp", "line": 1495, "function": "foldConsecutiveLoads", "kind": "return", "comment": "", "code": "return true ;", "hash": "cd06dd12487c0dd9", "needs": ["memory"], "also": [], "analyses": [], "intrinsics": []},
+    {"id": "AIC.AggressiveInstCombine.mergeConsecutivePartStores.L1587", "file": "llvm/lib/Transforms/AggressiveInstCombine/AggressiveInstCombine.cpp", "line": 1587, "function": "mergeConsecutivePartStores", "kind": "return", "comment": "", "code": "return true ;", "hash": "ba81a53b4755066e", "needs": ["memory"], "also": [], "analyses": [], "intrinsics": []},
+    {"id": "AIC.AggressiveInstCombine.optimizeShiftInOrChain.L1688", "file": "llvm/lib/Transforms/AggressiveInstCombine/AggressiveInstCombine.cpp", "line": 1688, "function": "optimizeShiftInOrChain", "kind": "return", "comment": "", "code": "return Builder . CreateOr ( Op0 , Op1 ) ;", "hash": "797c505c4e429880", "needs": ["int"], "also": [], "analyses": [], "intrinsics": []},
+    {"id": "AIC.AggressiveInstCombine.foldICmpOrChain.L1712", "file": "llvm/lib/Transforms/AggressiveInstCombine/AggressiveInstCombine.cpp", "line": 1712, "function": "foldICmpOrChain", "kind": "return", "comment": "", "code": "return true ;", "hash": "0b815d421b7a6816", "needs": ["memory"], "also": [], "analyses": [], "intrinsics": []},
+    {"id": "AIC.AggressiveInstCombine.foldPatternedLoads.L1804", "file": "llvm/lib/Transforms/AggressiveInstCombine/AggressiveInstCombine.cpp", "line": 1804, "function": "foldPatternedLoads", "kind": "return", "comment": "", "code": "return true ;", "hash": "c8c62b0f1c7ad6cf", "needs": ["memory"], "also": [], "analyses": [], "intrinsics": []},
+    {"id": "AIC.AggressiveInstCombine.foldMemChr.L2083", "file": "llvm/lib/Transforms/AggressiveInstCombine/AggressiveInstCombine.cpp", "line": 2083, "function": "foldMemChr", "kind": "return", "comment": "", "code": "return true ;", "hash": "3240e9795d9fc4a0", "needs": ["memory", "calls"], "also": [], "analyses": [], "intrinsics": []},
+    {"id": "AIC.AggressiveInstCombine.foldLibCalls.L2115", "file": "llvm/lib/Transforms/AggressiveInstCombine/AggressiveInstCombine.cpp", "line": 2115, "function": "foldLibCalls", "kind": "return", "comment": "", "code": "return true ;", "hash": "230928f8e6734c94", "needs": ["calls"], "also": [], "analyses": [], "intrinsics": []},
+    {"id": "AIC.AggressiveInstCombine.foldLibCalls.L2121", "file": "llvm/lib/Transforms/AggressiveInstCombine/AggressiveInstCombine.cpp", "line": 2121, "function": "foldLibCalls", "kind": "return", "comment": "", "code": "return true ;", "hash": "230928f8e6734c94", "needs": ["calls"], "also": [], "analyses": [], "intrinsics": []},
+    {"id": "AIC.AggressiveInstCombine.foldMulHigh.FoldMulHighCarry.L2246", "file": "llvm/lib/Transforms/AggressiveInstCombine/AggressiveInstCombine.cpp", "line": 2246, "function": "foldMulHigh::FoldMulHighCarry", "kind": "return", "comment": "", "code": "return CreateMulHigh ( X , Y ) ;", "hash": "6830756f177f8da0", "needs": ["int"], "also": [], "analyses": [], "intrinsics": []},
+    {"id": "AIC.AggressiveInstCombine.foldMulHigh.FoldMulHighLadder.L2303", "file": "llvm/lib/Transforms/AggressiveInstCombine/AggressiveInstCombine.cpp", "line": 2303, "function": "foldMulHigh::FoldMulHighLadder", "kind": "return", "comment": "", "code": "return CreateMulHigh ( X , Y ) ;", "hash": "b1ed72e1fa4c4feb", "needs": ["int"], "also": [], "analyses": [], "intrinsics": []},
+    {"id": "AIC.AggressiveInstCombine.foldMulHigh.FoldMulHighLadder4.L2364", "file": "llvm/lib/Transforms/AggressiveInstCombine/AggressiveInstCombine.cpp", "line": 2364, "function": "foldMulHigh::FoldMulHighLadder4", "kind": "return", "comment": "", "code": "return CreateMulHigh ( X , Y ) ;", "hash": "4e18be5803f6a0e4", "needs": ["int"], "also": [], "analyses": [], "intrinsics": []},
+    {"id": "AIC.AggressiveInstCombine.foldMulHigh.FoldMulHighCarry4.L2413", "file": "llvm/lib/Transforms/AggressiveInstCombine/AggressiveInstCombine.cpp", "line": 2413, "function": "foldMulHigh::FoldMulHighCarry4", "kind": "return", "comment": "", "code": "return CreateMulHigh ( X , Y ) ;", "hash": "dfd6055b39cc7d3d", "needs": ["int"], "also": [], "analyses": [], "intrinsics": []},
+    {"id": "AIC.AggressiveInstCombine.foldMulHigh.L2428", "file": "llvm/lib/Transforms/AggressiveInstCombine/AggressiveInstCombine.cpp", "line": 2428, "function": "foldMulHigh", "kind": "return", "comment": "", "code": "return true ;", "hash": "fb5c6449bc954e9d", "needs": ["int"], "also": [], "analyses": [], "intrinsics": []},
+    {"id": "AIC.TruncInstCombine.TruncInstCombine.run.L550", "file": "llvm/lib/Transforms/AggressiveInstCombine/TruncInstCombine.cpp", "line": 550, "function": "TruncInstCombine::run", "kind": "flag", "comment": "", "code": "MadeIRChange = true ;", "hash": "30a56041bef5d7db", "needs": ["calls"], "also": [], "analyses": [], "intrinsics": []}
+  ]
+}

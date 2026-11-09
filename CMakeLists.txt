@@ -104,6 +104,12 @@ add_test(NAME llvm COMMAND ${CMAKE_SOURCE_DIR}/tests/llvm.py $<TARGET_FILE:ir-le
 add_test(NAME llvm_scope COMMAND ${CMAKE_SOURCE_DIR}/tests/llvm_scope_test.py)
 add_test(NAME llvm_scope_check COMMAND ${CMAKE_SOURCE_DIR}/tests/llvm_scope.py check)
 set_tests_properties(llvm_scope llvm_scope_check PROPERTIES TIMEOUT 600)
+# The rewrites in chunk 1's peephole passes, docs/rewrite-inventory.md: the rule on small C++ files and on
+# mutated copies of the pinned source, then the inventory derived again from the source and compared. A few
+# seconds, and no Lean.
+add_test(NAME llvm_rewrites COMMAND ${CMAKE_SOURCE_DIR}/tests/llvm_rewrites_test.py)
+add_test(NAME llvm_rewrites_check COMMAND ${CMAKE_SOURCE_DIR}/tests/llvm_rewrites.py check)
+set_tests_properties(llvm_rewrites llvm_rewrites_check PROPERTIES TIMEOUT 300)
 # tools/corpus/capture.py, in Python, with one seed through opt when the pinned one is on PATH: under a
 # second, and no Lean. docs/corpus.md.
 add_test(NAME corpus COMMAND ${CMAKE_SOURCE_DIR}/tests/corpus_test.py)
