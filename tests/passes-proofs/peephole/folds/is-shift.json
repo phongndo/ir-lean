@@ -45,6 +45,13 @@
         "freeze"
       ],
       "opt": "instsimplify"
+    },
+    {
+      "fold": "Peephole.IS.Select.selectOnInst",
+      "opcodes": [
+        "select"
+      ],
+      "opt": "instsimplify"
     }
   ],
   "folds": {
@@ -130,7 +137,8 @@
     "ConstantFoldBinaryOpOperands": "simplifyShift's foldOrCommuteConstant with two constant operands: the constant folder's answer, IS.foldOrCommuteConstant.L582, isn't this family's",
     "threadBinOpOverSelect": "simplifyShift with a select operand and MaxRecurse above 0: it calls simplifyBinOp on the select's arms, a recursive call into InstSimplify",
     "threadBinOpOverPHI": "simplifyShift with a phi operand, by Shift.Ext.phi, and MaxRecurse above 0: it calls simplifyBinOp on the phi's incoming values",
-    "simplifyWithOpsReplaced": "simplifyWithOpsReplaced past its first loop and the checks after it, and on a V a Term shows as var: the replacement through V's operands, which recurses and calls simplifyInstructionWithOperands or ConstantFoldInstOperands. simplifySelectWithEquivalence delegates wherever it gets that answer"
+    "simplifyWithOpsReplaced": "simplifyWithOpsReplaced past its first loop and the checks after it, and on a V a Term shows as var: the replacement through V's operands, which recurses and calls simplifyInstructionWithOperands or ConstantFoldInstOperands. simplifySelectWithEquivalence delegates wherever it gets that answer",
+    "simplifySelectInst": "Select.selectOnInst delegates every statement of simplifySelectInst before simplifySelectWithICmpCond that could end it, simplifyCmpSelOfMaxMin where an arm is a min or max, the min/max limit test for predicates other than eq and ne, the funnel shift, rotate and abs steps where an arm is one, and everything after simplifySelectWithICmpCond"
   },
   "lemmas": [
     "Peephole.Lemmas.shl_of_le_toNat",
@@ -175,22 +183,22 @@
       "Peephole.IS.Shift.Ext.Sound: isGuaranteedNotToBeUndefOrPoison is sound, PASS-01's. onInst reads it from the oracle's notPoison, Shift.Ext.ofOracle, so there Oracle.Sound gives it: Shift.Ext.ofOracle_sound"
     ],
     "IS.simplifySelectBitTest.L4683": [
-      "Peephole.IS.Select.BitTest: the callers' contract, that where the select's condition and X aren't poison, the condition is (X & Y) == 0 if TrueWhenUnset and != 0 if not. simplifySelectWithBitTest owes it through decomposeBitTest, and simplifySelectWithICmpCond from icmp eq (and X, Y), 0"
+      "Peephole.IS.Select.BitTest: the callers' contract, that where the select's condition and X aren't poison, the condition is (X & Y) == 0 if TrueWhenUnset and != 0 if not. simplifySelectWithBitTest owes it through decomposeBitTest, and simplifySelectWithICmpCond from icmp eq (and X, Y), 0. On simplifySelectWithICmpCond's path, from icmp eq or ne, Peephole.IS.Select.selectOnInst_sound discharges it."
     ],
     "IS.simplifySelectBitTest.L4689": [
-      "Peephole.IS.Select.BitTest: the callers' contract, that where the select's condition and X aren't poison, the condition is (X & Y) == 0 if TrueWhenUnset and != 0 if not. simplifySelectWithBitTest owes it through decomposeBitTest, and simplifySelectWithICmpCond from icmp eq (and X, Y), 0"
+      "Peephole.IS.Select.BitTest: the callers' contract, that where the select's condition and X aren't poison, the condition is (X & Y) == 0 if TrueWhenUnset and != 0 if not. simplifySelectWithBitTest owes it through decomposeBitTest, and simplifySelectWithICmpCond from icmp eq (and X, Y), 0. On simplifySelectWithICmpCond's path, from icmp eq or ne, Peephole.IS.Select.selectOnInst_sound discharges it."
     ],
     "IS.simplifySelectBitTest.L4699": [
-      "Peephole.IS.Select.BitTest: the callers' contract, that where the select's condition and X aren't poison, the condition is (X & Y) == 0 if TrueWhenUnset and != 0 if not. simplifySelectWithBitTest owes it through decomposeBitTest, and simplifySelectWithICmpCond from icmp eq (and X, Y), 0"
+      "Peephole.IS.Select.BitTest: the callers' contract, that where the select's condition and X aren't poison, the condition is (X & Y) == 0 if TrueWhenUnset and != 0 if not. simplifySelectWithBitTest owes it through decomposeBitTest, and simplifySelectWithICmpCond from icmp eq (and X, Y), 0. On simplifySelectWithICmpCond's path, from icmp eq or ne, Peephole.IS.Select.selectOnInst_sound discharges it."
     ],
     "IS.simplifySelectBitTest.L4709": [
-      "Peephole.IS.Select.BitTest: the callers' contract, that where the select's condition and X aren't poison, the condition is (X & Y) == 0 if TrueWhenUnset and != 0 if not. simplifySelectWithBitTest owes it through decomposeBitTest, and simplifySelectWithICmpCond from icmp eq (and X, Y), 0"
+      "Peephole.IS.Select.BitTest: the callers' contract, that where the select's condition and X aren't poison, the condition is (X & Y) == 0 if TrueWhenUnset and != 0 if not. simplifySelectWithBitTest owes it through decomposeBitTest, and simplifySelectWithICmpCond from icmp eq (and X, Y), 0. On simplifySelectWithICmpCond's path, from icmp eq or ne, Peephole.IS.Select.selectOnInst_sound discharges it."
     ],
     "IS.simplifyWithOpsReplaced.L4428": [
       "Peephole.IS.Select.OpsHold: in the run, each Op is its RepOp, which the callers know where the condition they took Ops from is true; the theorem says the answer is V there"
     ],
     "IS.simplifySelectWithEquivalence.L4819": [
-      "the callers' contract, hcond: where the select's condition is true, Peephole.IS.Select.OpsHold for Replacements, as for icmp eq X, Y and {X, Y}. simplifySelectWithICmpCond and simplifySelectWithFCmp owe it"
+      "the callers' contract, hcond: where the select's condition is true, Peephole.IS.Select.OpsHold for Replacements, as for icmp eq X, Y and {X, Y}. simplifySelectWithICmpCond and simplifySelectWithFCmp owe it. On simplifySelectWithICmpCond's path, from icmp eq or ne, Peephole.IS.Select.selectOnInst_sound discharges it."
     ]
   },
   "unproved": {

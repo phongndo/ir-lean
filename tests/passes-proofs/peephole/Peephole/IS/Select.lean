@@ -3,8 +3,12 @@ import Peephole.IS.Cast
 /-! # Three of InstSimplify's helpers for `select`, and their rewrites for every input
 
 `simplifySelectBitTest` (`llvm/lib/Analysis/InstructionSimplify.cpp:4675-4713`), `simplifyWithOpsReplaced`
-(`4413-4649`) and `simplifySelectWithEquivalence` (`4801-4822`), at `llvmorg-23.1.3`. None is an entry: each answers its caller with a value, and is right under what its caller knows,
-which each theorem here takes as a hypothesis, by name.
+(`4413-4649`) and `simplifySelectWithEquivalence` (`4801-4822`), at `llvmorg-23.1.3`. None is called on an
+instruction: each answers its caller with a value, and is right under what its caller knows, which each theorem here
+takes as a hypothesis, by name. Each theorem is about the value of the `select`'s condition, so a caller that swaps the
+arms for `ne` can use it too. `Select.selectOnInst`, at the end, follows `simplifySelectInst` and
+`simplifySelectWithICmpCond` to them, for the comparison with `opt`, and `Select.selectOnInst_sound` discharges their
+hypotheses there.
 
 | ID | Rewrite |
 | --- | --- |
@@ -52,12 +56,6 @@ def orOf (x v : Term w) : Option (BitVec w × Bool) :=
 true exactly when `(X & Y) == 0` is `TrueWhenUnset`. -/
 def BitTest (c : Val 1) (x : Val w) (y : BitVec w) (trueWhenUnset : Bool) : Prop :=
   ∀ b v, c = some b → x = some v → (b == 1#1) = ((v &&& y == 0#w) == trueWhenUnset)
-
-/-- The `select` a fold replaces. -/
-def selSrc (cond : Term 1) (t e : Term w) : Repl w := .select (.old cond) (.old t) (.old e)
-
-theorem selSrc_eval (ρ : Env) (cond : Term 1) (t e : Term w) :
-    (selSrc cond t e).eval ρ = Outcome.ok (IRLean.select (cond.denote ρ) (t.denote ρ) (e.denote ρ)) := rfl
 
 end Select
 
@@ -266,64 +264,68 @@ end Select
 open Select in
 /-- `IS.simplifySelectBitTest.L4683`: `(X & Y) == 0 ? X & ~Y : X` to `X`, and `(X & Y) != 0 ? X & ~Y : X` to
 `X & ~Y`. It rests on `Select.BitTest`, the callers' contract. -/
-theorem simplifySelectBitTest.L4683 (ρ : Env) (cond : Term 1) (trueVal falseVal x : Term w) (y : BitVec w)
-    (tw : Bool) (hbt : BitTest (cond.denote ρ) (x.denote ρ) y tw) (ct : trueVal.Consistent ρ)
+theorem simplifySelectBitTest.L4683 (ρ : Env) (c : Val 1) (trueVal falseVal x : Term w) (y : BitVec w)
+    (tw : Bool) (hbt : BitTest c (x.denote ρ) y tw) (ct : trueVal.Consistent ρ)
     (h : (specific x falseVal && (andOf x trueVal).any (y == ~~~·)) = true) :
-    Refines ((selSrc cond trueVal falseVal).eval ρ) ((Repl.old (if tw then falseVal else trueVal)).eval ρ) := by
+    Refines (Outcome.ok (IRLean.select c (trueVal.denote ρ) (falseVal.denote ρ)))
+      ((Repl.old (if tw then falseVal else trueVal)).eval ρ) := by
   simp only [Bool.and_eq_true, Option.any_eq_true, beq_iff_eq] at h
   obtain ⟨hf, k, hk, rfl⟩ := h
-  rw [selSrc_eval, eval_old_ite, andOf_denote hk ct, specific_denote hf]
+  rw [eval_old_ite, andOf_denote hk ct, specific_denote hf]
   exact refines_ok (select_and_left hbt)
 
 open Select in
 /-- `IS.simplifySelectBitTest.L4689`: `(X & Y) == 0 ? X : X & ~Y` to `X & ~Y`, and `(X & Y) != 0 ? X : X & ~Y` to
 `X`. It rests on `Select.BitTest`. -/
-theorem simplifySelectBitTest.L4689 (ρ : Env) (cond : Term 1) (trueVal falseVal x : Term w) (y : BitVec w)
-    (tw : Bool) (hbt : BitTest (cond.denote ρ) (x.denote ρ) y tw) (cf : falseVal.Consistent ρ)
+theorem simplifySelectBitTest.L4689 (ρ : Env) (c : Val 1) (trueVal falseVal x : Term w) (y : BitVec w)
+    (tw : Bool) (hbt : BitTest c (x.denote ρ) y tw) (cf : falseVal.Consistent ρ)
     (h : (specific x trueVal && (andOf x falseVal).any (y == ~~~·)) = true) :
-    Refines ((selSrc cond trueVal falseVal).eval ρ) ((Repl.old (if tw then falseVal else trueVal)).eval ρ) := by
+    Refines (Outcome.ok (IRLean.select c (trueVal.denote ρ) (falseVal.denote ρ)))
+      ((Repl.old (if tw then falseVal else trueVal)).eval ρ) := by
   simp only [Bool.and_eq_true, Option.any_eq_true, beq_iff_eq] at h
   obtain ⟨ht, k, hk, rfl⟩ := h
-  rw [selSrc_eval, eval_old_ite, andOf_denote hk cf, specific_denote ht]
+  rw [eval_old_ite, andOf_denote hk cf, specific_denote ht]
   exact refines_ok (select_and_right hbt)
 
 open Select in
 /-- `IS.simplifySelectBitTest.L4699`: `(X & Y) == 0 ? X | Y : X` to `X | Y`, if the `or` isn't `disjoint`, and
 `(X & Y) != 0 ? X | Y : X` to `X`, for `Y` a power of two. It rests on `Select.BitTest`. -/
-theorem simplifySelectBitTest.L4699 (ρ : Env) (cond : Term 1) (trueVal falseVal x : Term w) (y : BitVec w)
-    (tw d : Bool) (hbt : BitTest (cond.denote ρ) (x.denote ρ) y tw) (ct : trueVal.Consistent ρ)
+theorem simplifySelectBitTest.L4699 (ρ : Env) (c : Val 1) (trueVal falseVal x : Term w) (y : BitVec w)
+    (tw d : Bool) (hbt : BitTest c (x.denote ρ) y tw) (ct : trueVal.Consistent ρ)
     (hp : y.toNat.isPowerOfTwo) (hf : specific x falseVal = true) (ho : orOf x trueVal = some (y, d))
     (hd : (tw && d) = false) :
-    Refines ((selSrc cond trueVal falseVal).eval ρ) ((Repl.old (if tw then trueVal else falseVal)).eval ρ) := by
-  rw [selSrc_eval, eval_old_ite, orOf_denote ho ct, specific_denote hf]
+    Refines (Outcome.ok (IRLean.select c (trueVal.denote ρ) (falseVal.denote ρ)))
+      ((Repl.old (if tw then trueVal else falseVal)).eval ρ) := by
+  rw [eval_old_ite, orOf_denote ho ct, specific_denote hf]
   exact refines_ok (select_or_left hp hd hbt)
 
 open Select in
 /-- `IS.simplifySelectBitTest.L4709`: `(X & Y) == 0 ? X : X | Y` to `X`, and `(X & Y) != 0 ? X : X | Y` to `X | Y`, if
 the `or` isn't `disjoint`, for `Y` a power of two. It rests on `Select.BitTest`. -/
-theorem simplifySelectBitTest.L4709 (ρ : Env) (cond : Term 1) (trueVal falseVal x : Term w) (y : BitVec w)
-    (tw d : Bool) (hbt : BitTest (cond.denote ρ) (x.denote ρ) y tw) (cf : falseVal.Consistent ρ)
+theorem simplifySelectBitTest.L4709 (ρ : Env) (c : Val 1) (trueVal falseVal x : Term w) (y : BitVec w)
+    (tw d : Bool) (hbt : BitTest c (x.denote ρ) y tw) (cf : falseVal.Consistent ρ)
     (hp : y.toNat.isPowerOfTwo) (ht : specific x trueVal = true) (ho : orOf x falseVal = some (y, d))
     (hd : (!tw && d) = false) :
-    Refines ((selSrc cond trueVal falseVal).eval ρ) ((Repl.old (if tw then trueVal else falseVal)).eval ρ) := by
-  rw [selSrc_eval, eval_old_ite, orOf_denote ho cf, specific_denote ht]
+    Refines (Outcome.ok (IRLean.select c (trueVal.denote ρ) (falseVal.denote ρ)))
+      ((Repl.old (if tw then trueVal else falseVal)).eval ρ) := by
+  rw [eval_old_ite, orOf_denote ho cf, specific_denote ht]
   exact refines_ok (select_or_right hp hd hbt)
 
 open Select in
-theorem simplifySelectBitTest.steps_sound (ρ : Env) (cond : Term 1) (trueVal falseVal x : Term w) (y : BitVec w)
-    (tw : Bool) (hbt : BitTest (cond.denote ρ) (x.denote ρ) y tw) (ct : trueVal.Consistent ρ)
+theorem simplifySelectBitTest.steps_sound (ρ : Env) (c : Val 1) (trueVal falseVal x : Term w) (y : BitVec w)
+    (tw : Bool) (hbt : BitTest c (x.denote ρ) y tw) (ct : trueVal.Consistent ρ)
     (cf : falseVal.Consistent ρ) :
     ∀ s r, Step.fire s r ∈ simplifySelectBitTest.steps trueVal falseVal x y tw →
-      Refines ((selSrc cond trueVal falseVal).eval ρ) (r.eval ρ) := by
+      Refines (Outcome.ok (IRLean.select c (trueVal.denote ρ) (falseVal.denote ρ))) (r.eval ρ) := by
   intro s r hmem
   simp only [simplifySelectBitTest.steps, List.mem_cons, List.not_mem_nil, or_false] at hmem
   rcases hmem with h | h | h | h
   · split at h <;> simp only [Step.fire.injEq, reduceCtorEq] at h
     obtain ⟨-, rfl⟩ := h
-    exact simplifySelectBitTest.L4683 ρ cond trueVal falseVal x y tw hbt ct (by assumption)
+    exact simplifySelectBitTest.L4683 ρ c trueVal falseVal x y tw hbt ct (by assumption)
   · split at h <;> simp only [Step.fire.injEq, reduceCtorEq] at h
     obtain ⟨-, rfl⟩ := h
-    exact simplifySelectBitTest.L4689 ρ cond trueVal falseVal x y tw hbt cf (by assumption)
+    exact simplifySelectBitTest.L4689 ρ c trueVal falseVal x y tw hbt cf (by assumption)
   · split at h
     · next hc =>
       simp only [Bool.and_eq_true, decide_eq_true_eq] at hc
@@ -337,7 +339,7 @@ theorem simplifySelectBitTest.steps_sound (ρ : Env) (cond : Term 1) (trueVal fa
           · next hd =>
             simp only [Step.fire.injEq] at h
             obtain ⟨-, rfl⟩ := h
-            exact simplifySelectBitTest.L4699 ρ cond trueVal falseVal x y tw d hbt ct hc.1 hc.2 ho
+            exact simplifySelectBitTest.L4699 ρ c trueVal falseVal x y tw d hbt ct hc.1 hc.2 ho
               (by simpa using hd)
         · simp only [reduceCtorEq] at h
       · simp only [reduceCtorEq] at h
@@ -355,7 +357,7 @@ theorem simplifySelectBitTest.steps_sound (ρ : Env) (cond : Term 1) (trueVal fa
           · next hd =>
             simp only [Step.fire.injEq] at h
             obtain ⟨-, rfl⟩ := h
-            exact simplifySelectBitTest.L4709 ρ cond trueVal falseVal x y tw d hbt cf hc.1 hc.2 ho
+            exact simplifySelectBitTest.L4709 ρ c trueVal falseVal x y tw d hbt cf hc.1 hc.2 ho
               (by simpa using hd)
         · simp only [reduceCtorEq] at h
       · simp only [reduceCtorEq] at h
@@ -364,11 +366,11 @@ theorem simplifySelectBitTest.steps_sound (ρ : Env) (cond : Term 1) (trueVal fa
 /-- Theorem 1 for `simplifySelectBitTest`: every value it returns refines a `select` of `TrueVal` and `FalseVal` on a
 condition its callers know is `(X & Y) == 0`, or `!= 0`, `Select.BitTest`, at every width, in every run the arms are
 consistent with, poison included. -/
-theorem simplifySelectBitTest.sound (ρ : Env) (cond : Term 1) (trueVal falseVal x : Term w) (y : BitVec w)
-    (tw : Bool) (hbt : Select.BitTest (cond.denote ρ) (x.denote ρ) y tw) (ct : trueVal.Consistent ρ)
+theorem simplifySelectBitTest.sound (ρ : Env) (c : Val 1) (trueVal falseVal x : Term w) (y : BitVec w)
+    (tw : Bool) (hbt : Select.BitTest c (x.denote ρ) y tw) (ct : trueVal.Consistent ρ)
     (cf : falseVal.Consistent ρ) {r : Repl w} (h : simplifySelectBitTest trueVal falseVal x y tw = .value r) :
-    Refines ((Select.selSrc cond trueVal falseVal).eval ρ) (r.eval ρ) :=
-  run_sound (simplifySelectBitTest.steps_sound ρ cond trueVal falseVal x y tw hbt ct cf) h
+    Refines (Outcome.ok (IRLean.select c (trueVal.denote ρ) (falseVal.denote ρ))) (r.eval ρ) :=
+  run_sound (simplifySelectBitTest.steps_sound ρ c trueVal falseVal x y tw hbt ct cf) h
 
 /-! ### `simplifyWithOpsReplaced`, as far as its first loop, and `simplifySelectWithEquivalence` -/
 
@@ -395,8 +397,8 @@ end Select
 
 /-- `simplifyWithOpsReplaced(V, Ops, Q, AllowRefinement, DropFlags, MaxRecurse)`, as far as the C++ goes before it
 replaces `V`'s operands: its first loop, over `Ops` in order, and the checks after it. What follows, the replacement
-through the operands, which calls `simplifyWithOpsReplaced` on each and `simplifyInstructionWithOperands` or the constant
-folder on the result, is `.delegate`d, as is an operand a `Term` shows as `var`: an argument, which isn't an
+through the operands, which calls `simplifyWithOpsReplaced` on each and `simplifyInstructionWithOperands` or the
+constant folder on the result, is `.delegate`d, as is an operand a `Term` shows as `var`: an argument, which isn't an
 `Instruction`, or an instruction a `Term` doesn't see into, a `phi` or an `llvm.is.constant` call among them. Nothing
 before the replacement reads `Q`, `AllowRefinement` or `DropFlags`. -/
 def simplifyWithOpsReplaced.steps {v : Nat} (V : Term v) (ops : List Select.OpPair) (maxRecurse : Nat) :
@@ -469,6 +471,14 @@ def replaced {v : Nat} (V : Term v) (ops : List OpPair) (n : Nat) : Option (Term
   | .null => some V
   | .delegated _ => none
 
+/-- Which delegation of `simplifyWithOpsReplaced` leaves `simplifySelectWithEquivalence` unmodelled: the false arm's,
+which the C++ asks first, else the true arm's. -/
+def delegatedTo {v : Nat} (a b : Result v) : String :=
+  match a, b with
+  | .delegated c, _ => c
+  | _, .delegated c => c
+  | _, _ => "simplifyWithOpsReplaced"
+
 theorem replaced_denote {ρ : Env} {v : Nat} {V t : Term v} {ops : List OpPair} {n : Nat}
     (h : replaced V ops n = some t) (hold : OpsHold ρ ops) : t.denote ρ = V.denote ρ := by
   unfold replaced at h
@@ -493,7 +503,9 @@ def simplifySelectWithEquivalence.steps (ops : List Select.OpPair) (trueVal fals
   | some sf, some st =>
     [ -- if (SimplifiedFalseVal == SimplifiedTrueVal) return FalseVal;
       if specific sf st then .fire "IS.simplifySelectWithEquivalence.L4819" (.old falseVal) else .next ]
-  | _, _ => [ .delegate "simplifyWithOpsReplaced" ]
+  | _, _ =>
+    [ .delegate (Select.delegatedTo (simplifyWithOpsReplaced falseVal ops maxRecurse)
+        (simplifyWithOpsReplaced trueVal ops maxRecurse)) ]
 
 def simplifySelectWithEquivalence (ops : List Select.OpPair) (trueVal falseVal : Term w) (maxRecurse : Nat) :
     Result w :=
@@ -503,13 +515,13 @@ open Select in
 /-- `IS.simplifySelectWithEquivalence.L4819`: a `select` whose arms are the same value once `Replacements` are made is
 its false arm. It rests on the callers' contract: where the condition is true, `Replacements` hold, as they do for
 `icmp eq X, Y` and `{X, Y}`. -/
-theorem simplifySelectWithEquivalence.L4819 (ρ : Env) (cond : Term 1) (ops : List OpPair) (trueVal falseVal : Term w)
-    (n : Nat) (hcond : cond.denote ρ = some 1#1 → OpsHold ρ ops) (sf st : Term w)
+theorem simplifySelectWithEquivalence.L4819 (ρ : Env) (c : Val 1) (ops : List OpPair) (trueVal falseVal : Term w)
+    (n : Nat) (hcond : c = some 1#1 → OpsHold ρ ops) (sf st : Term w)
     (hf : replaced falseVal ops n = some sf) (ht : replaced trueVal ops n = some st) (h : specific sf st = true) :
-    Refines ((selSrc cond trueVal falseVal).eval ρ) ((Repl.old falseVal).eval ρ) := by
-  rw [selSrc_eval, Repl.eval_old]
+    Refines (Outcome.ok (IRLean.select c (trueVal.denote ρ) (falseVal.denote ρ))) ((Repl.old falseVal).eval ρ) := by
+  rw [Repl.eval_old]
   refine refines_ok ?_
-  cases hc : cond.denote ρ with
+  cases hc : c with
   | none => exact Refine.val_none _
   | some b =>
     simp only [IRLean.select]
@@ -525,11 +537,12 @@ theorem simplifySelectWithEquivalence.L4819 (ρ : Env) (cond : Term 1) (ops : Li
 open Select in
 /-- Theorem 1 for `simplifySelectWithEquivalence`: what it returns refines a `select` on a condition its callers know
 makes `Replacements` hold where it's true, at every width, poison included. -/
-theorem simplifySelectWithEquivalence.sound (ρ : Env) (cond : Term 1) (ops : List OpPair) (trueVal falseVal : Term w)
-    (n : Nat) (hcond : cond.denote ρ = some 1#1 → OpsHold ρ ops) {r : Repl w}
+theorem simplifySelectWithEquivalence.sound (ρ : Env) (c : Val 1) (ops : List OpPair) (trueVal falseVal : Term w)
+    (n : Nat) (hcond : c = some 1#1 → OpsHold ρ ops) {r : Repl w}
     (h : simplifySelectWithEquivalence ops trueVal falseVal n = .value r) :
-    Refines ((selSrc cond trueVal falseVal).eval ρ) (r.eval ρ) := by
-  refine run_sound (P := fun r => Refines ((selSrc cond trueVal falseVal).eval ρ) (r.eval ρ)) ?_ h
+    Refines (Outcome.ok (IRLean.select c (trueVal.denote ρ) (falseVal.denote ρ))) (r.eval ρ) := by
+  refine run_sound
+    (P := fun r => Refines (Outcome.ok (IRLean.select c (trueVal.denote ρ) (falseVal.denote ρ))) (r.eval ρ)) ?_ h
   intro s r hmem
   unfold simplifySelectWithEquivalence.steps at hmem
   split at hmem
@@ -538,7 +551,312 @@ theorem simplifySelectWithEquivalence.sound (ρ : Env) (cond : Term 1) (ops : Li
     split at hmem <;> simp only [Step.fire.injEq, reduceCtorEq] at hmem
     next hs =>
     obtain ⟨-, rfl⟩ := hmem
-    exact simplifySelectWithEquivalence.L4819 ρ cond ops trueVal falseVal n hcond sf st hf ht hs
+    exact simplifySelectWithEquivalence.L4819 ρ c ops trueVal falseVal n hcond sf st hf ht hs
   · simp only [List.mem_cons, List.not_mem_nil, or_false, reduceCtorEq] at hmem
+
+/-! ### Where InstSimplify reaches these helpers: `simplifySelectInst`, for the comparison with `opt`
+
+`simplifyInstructionWithOperands` calls `simplifySelectInst` on a `select`, which calls `simplifySelectWithICmpCond`,
+which calls `simplifySelectBitTest` and `simplifySelectWithEquivalence`. `Select.selectOnInst` follows them there:
+
+- Every statement of `simplifySelectInst` before `simplifySelectWithICmpCond` that could end it, where it could, is a
+  `.delegate`, read from the C++'s guards: a constant condition, an `i1` `select`, the same value in both arms, and a
+  poison or `undef` arm.
+- In `simplifySelectWithICmpCond`, `simplifyCmpSelOfMaxMin` answers only where an arm is a min or max intrinsic, and is
+  delegated there. Its min/max limit test answers for no equality, and is delegated for the other predicates. Its
+  funnel shift, rotate and `abs` steps, between the bit test and the equivalences, are delegated wherever an arm is a
+  funnel shift or an `abs`. The rest it runs as the C++ does, with `simplifySelectBitTest` and
+  `simplifySelectWithEquivalence` as modelled here.
+- After `simplifySelectWithICmpCond`, the rest of `simplifySelectInst` is a `.delegate`. -/
+
+namespace Select
+
+/-- `if (Value *V = g(...)) return V;`, where `g` is a fold modelled here: `g`'s answer, or fall through. -/
+def fwd (callee : String) : Result w → Step w
+  | .value r => .fire callee r
+  | .null => .next
+  | .delegated c => .delegate c
+
+theorem fwd_fire {c s : String} {res : Result w} {r : Repl w} (h : fwd c res = .fire s r) : res = .value r := by
+  cases res <;> simp_all [fwd]
+
+/-- `isa<MinMaxIntrinsic>(V)`: `umin`, `umax`, `smin` or `smax`. -/
+def isMinMax : Term w → Bool
+  | .bi _ .umin .. | .bi _ .umax .. | .bi _ .smin .. | .bi _ .smax .. => true
+  | _ => false
+
+/-- A funnel shift or an `abs`: one arm of `simplifySelectWithICmpCond`'s funnel shift, rotate and `abs` patterns is
+one. -/
+def fshOrAbs : Term w → Bool
+  | .fsh .. => true
+  | .un _ (.abs _) _ => true
+  | _ => false
+
+/-- Whether a statement of `simplifySelectInst` before `simplifySelectWithICmpCond` could end it: a constant condition,
+the folds where the condition has the arms' type, `i1`, `select ?, X, X`, and a poison or `undef` arm. -/
+def selectEarlier (c : Term 1) (t e : Term w) : Bool :=
+  c.isConstant || w == 1 || specific t e || isUndefValue t || isUndefValue e
+
+/-- `m_And(m_Value(X), m_APInt(Y))`, binding `X` and `Y`. -/
+def andConst? {u : Nat} (t : Term u) : Option (Term u × BitVec u) :=
+  match binop? .and t with
+  | some (_, x, yc) => (apint yc).map (x, ·)
+  | none => none
+
+end Select
+
+/-- The steps of `simplifySelectWithICmpCond` under `Pred == ICMP_EQ`, once `ne` is made `eq` and the arms swapped for
+it, on the compare's operands `CmpLHS` and `CmpRHS` and the arms `TrueVal` and `FalseVal`. -/
+def simplifySelectWithICmpCond.eqSteps {u : Nat} (cl cr : Term u) (tv fv : Term w) (n : Nat) : List (Step w) :=
+  [ -- if (Pred == ICmpInst::ICMP_EQ && match(CmpRHS, m_Zero())) {
+    --   if (match(CmpLHS, m_And(m_Value(X), m_APInt(Y))))
+    --     if (Value *V = simplifySelectBitTest(TrueVal, FalseVal, X, Y, /*TrueWhenUnset=*/true)) return V;
+    -- An `X` of another type than the arms is no arm, which each of its rewrites needs.
+    if zero cr then
+      match Select.andConst? cl with
+      | some (x, y) =>
+        if h : u = w then Select.fwd "IS.simplifySelectBitTest" (simplifySelectBitTest tv fv (h ▸ x) (h ▸ y) true)
+        else .next
+      | none => .next
+    else .next,
+    -- Test for a bogus zero-shift-guard-op around funnel-shift or rotate, and X == 0 ? abs(X) : -abs(X): not
+    -- modelled here, and delegated wherever an arm is a funnel shift or an `abs`.
+    if zero cr && (Select.fshOrAbs tv || Select.fshOrAbs fv) then
+      .delegate "simplifySelectWithICmpCond: a funnel shift or abs step"
+    else .next,
+    -- If we have a scalar equality comparison, then we know the value in one of the arms of the select.
+    Select.fwd "IS.simplifySelectWithEquivalence" (simplifySelectWithEquivalence [⟨u, cl, cr⟩] tv fv n),
+    Select.fwd "IS.simplifySelectWithEquivalence" (simplifySelectWithEquivalence [⟨u, cr, cl⟩] tv fv n),
+    -- select((X | Y) == 0 ?  X : 0) --> 0 (commuted 2 ways)
+    if zero cr then
+      match binop? .or cl with
+      | some (_, x, y) =>
+        Select.fwd "IS.simplifySelectWithEquivalence" (simplifySelectWithEquivalence [⟨u, x, cr⟩, ⟨u, y, cr⟩] tv fv n)
+      | none => .next
+    else .next,
+    -- select((X & Y) == -1 ?  X : -1) --> -1 (commuted 2 ways)
+    if allOnes cr then
+      match binop? .and cl with
+      | some (_, x, y) =>
+        Select.fwd "IS.simplifySelectWithEquivalence" (simplifySelectWithEquivalence [⟨u, x, cr⟩, ⟨u, y, cr⟩] tv fv n)
+      | none => .next
+    else .next ]
+
+/-- `simplifySelectWithICmpCond(CondVal, TrueVal, FalseVal, Q, MaxRecurse)`, as far as it reaches the helpers here. A
+condition that isn't an `icmp` answers `nullptr` at once. -/
+def simplifySelectWithICmpCond.steps (c : Term 1) (t e : Term w) (n : Nat) : List (Step w) :=
+  match c with
+  | .icmp _ p _ cl cr =>
+    -- if (Value *V = simplifyCmpSelOfMaxMin(...)) return V;
+    (if Select.isMinMax t || Select.isMinMax e then .delegate "simplifyCmpSelOfMaxMin" else .next) ::
+    -- Canonicalize ne to eq predicate. The min/max limit test after it answers for no `eq`.
+    if p = .eq then simplifySelectWithICmpCond.eqSteps cl cr t e n
+    else if p = .ne then simplifySelectWithICmpCond.eqSteps cl cr e t n
+    else [ .delegate "matchDecomposedSelectPattern" ]
+  | _ => []
+
+/-- `simplifySelectInst(Cond, TrueVal, FalseVal, FMF, Q, MaxRecurse)`, as far as it reaches the helpers here. -/
+def Select.selectEntry.steps (c : Term 1) (t e : Term w) (n : Nat) : List (Step w) :=
+  (if Select.selectEarlier c t e then .delegate "simplifySelectInst: a step before simplifySelectWithICmpCond"
+    else .next) ::
+  simplifySelectWithICmpCond.steps c t e n ++
+  [ .delegate "simplifySelectInst: a step after simplifySelectWithICmpCond" ]
+
+/-- What InstSimplify does with a `select`, as far as it reaches the helpers here: `simplifyInstructionWithOperands`
+calls `simplifySelectInst` with `MaxRecurse` at `RecursionLimit`, 3. -/
+def Select.selectOnInst (_o : Oracle) : {w : Nat} → Term w → Result w
+  | _, .select _ c t e => run (Select.selectEntry.steps c t e 3)
+  | _, _ => .null
+
+namespace Select
+
+theorem icmpEq_eq_one {u : Nat} {a b : Val u} {s : Bool} (h : Val.icmpEq a b s = some 1#1) : a = b ∧ a ≠ none := by
+  cases a <;> cases b <;> simp only [Val.icmpEq, Val.icmp, reduceCtorEq] at h
+  · next x y =>
+    split at h
+    · cases h
+    · simp only [Option.some.injEq] at h
+      have : (x == y) = true := by
+        cases hxy : (x == y)
+        · rw [hxy] at h; exact absurd h (by decide)
+        · rfl
+      simp only [beq_iff_eq] at this
+      subst this
+      exact ⟨rfl, nofun⟩
+  all_goals simp_all
+
+theorem select_ne {u : Nat} (a b : Val u) (s : Bool) (t e : Val w) :
+    IRLean.select (Val.icmpNe a b s) t e = IRLean.select (Val.icmpEq a b s) e t := by
+  cases a <;> cases b <;> simp only [Val.icmpNe, Val.icmpEq, Val.icmp]
+  any_goals rfl
+  next x y =>
+  split
+  · rfl
+  · by_cases hxy : x = y <;> simp [IRLean.select, hxy]
+
+theorem bitTest_of_icmpEq {a : Val w} {y : BitVec w} {s : Bool} :
+    BitTest (Val.icmpEq (Val.and a (some y)) (some 0#w) s) a y true := by
+  intro b v hb hv
+  subst hv
+  simp only [Val.icmpEq, Val.icmp, Val.and, Val.map₂] at hb
+  split at hb
+  · cases hb
+  · simp only [Option.some.injEq] at hb
+    subst hb
+    cases (v &&& y == 0#w) <;> decide
+
+theorem or_eq_zero {a b : Val w} {d : Bool} (h : Val.or a b d = some 0#w) : a = some 0#w ∧ b = some 0#w := by
+  cases a <;> cases b <;> simp only [Val.or, reduceCtorEq] at h
+  next x y =>
+  split at h
+  · cases h
+  · simp only [Option.some.injEq] at h
+    have hx : x = 0#w := by
+      ext i hi
+      have := congrArg (·[i]) h
+      simp only [BitVec.getElem_or, BitVec.getElem_zero, Bool.or_eq_false_iff] at this
+      simp [this.1]
+    have hy : y = 0#w := by
+      ext i hi
+      have := congrArg (·[i]) h
+      simp only [BitVec.getElem_or, BitVec.getElem_zero, Bool.or_eq_false_iff] at this
+      simp [this.2]
+    exact ⟨by rw [hx], by rw [hy]⟩
+
+theorem and_eq_allOnes {a b : Val w} (h : Val.and a b = some (BitVec.allOnes w)) :
+    a = some (BitVec.allOnes w) ∧ b = some (BitVec.allOnes w) := by
+  cases a <;> cases b <;> simp only [Val.and, Val.map₂, reduceCtorEq, Option.some.injEq] at h
+  next x y =>
+  have hx : x = BitVec.allOnes w := by
+    ext i hi
+    have := congrArg (·[i]) h
+    simp only [BitVec.getElem_and, BitVec.getElem_allOnes, Bool.and_eq_true] at this
+    simp [this.1]
+  have hy : y = BitVec.allOnes w := by
+    ext i hi
+    have := congrArg (·[i]) h
+    simp only [BitVec.getElem_and, BitVec.getElem_allOnes, Bool.and_eq_true] at this
+    simp [this.2]
+  exact ⟨by rw [hx], by rw [hy]⟩
+
+theorem andConst?_denote {ρ : Env} {u : Nat} {t x : Term u} {y : BitVec u} (h : andConst? t = some (x, y))
+    (hc : t.Consistent ρ) : t.denote ρ = Val.and (x.denote ρ) (some y) := by
+  unfold andConst? at h
+  split at h
+  · next f x' yc hb =>
+    cases hy : apint yc with
+    | none => simp [hy] at h
+    | some y' =>
+      simp only [hy, Option.map_some, Option.some.injEq, Prod.mk.injEq] at h
+      obtain ⟨rfl, rfl⟩ := h
+      rw [← apint_denote hy]
+      exact (ok_inj (Shift.binop?_denote hb hc)).symm
+  · cases h
+
+end Select
+
+open Select in
+/-- What `simplifySelectWithICmpCond`'s steps under `eq` return refines a `select` on `CmpLHS == CmpRHS`, with or
+without `samesign`, at every width, in every run its operands are consistent with. -/
+theorem simplifySelectWithICmpCond.eqSteps_sound (ρ : Env) {u : Nat} (cl cr : Term u) (tv fv : Term w) (n : Nat)
+    (s : Bool) (ccl : cl.Consistent ρ) (ctv : tv.Consistent ρ) (cfv : fv.Consistent ρ) :
+    ∀ site r, Step.fire site r ∈ simplifySelectWithICmpCond.eqSteps cl cr tv fv n →
+      Refines (Outcome.ok (IRLean.select (Val.icmpEq (cl.denote ρ) (cr.denote ρ) s) (tv.denote ρ) (fv.denote ρ)))
+        (r.eval ρ) := by
+  intro site r hmem
+  have hold : Val.icmpEq (cl.denote ρ) (cr.denote ρ) s = some 1#1 → cl.denote ρ = cr.denote ρ :=
+    fun h => (icmpEq_eq_one h).1
+  simp only [simplifySelectWithICmpCond.eqSteps, List.mem_cons, List.not_mem_nil, or_false] at hmem
+  rcases hmem with h | h | h | h | h | h
+  · -- The bit test.
+    split at h
+    · next hz =>
+      split at h
+      · next x y hxy =>
+        split at h
+        · next hu =>
+          subst hu
+          have hres := fwd_fire h.symm
+          have hbt : BitTest (Val.icmpEq (cl.denote ρ) (cr.denote ρ) s) (x.denote ρ) y true := by
+            rw [andConst?_denote hxy ccl, cst_eq hz]
+            exact bitTest_of_icmpEq
+          exact simplifySelectBitTest.sound ρ _ tv fv x y true hbt ctv cfv hres
+        · simp only [reduceCtorEq] at h
+      · simp only [reduceCtorEq] at h
+    · simp only [reduceCtorEq] at h
+  · split at h <;> simp only [reduceCtorEq] at h
+  · exact simplifySelectWithEquivalence.sound ρ _ _ tv fv n
+      (fun hc p hp => by simp only [List.mem_singleton] at hp; subst hp; exact hold hc) (fwd_fire h.symm)
+  · exact simplifySelectWithEquivalence.sound ρ _ _ tv fv n
+      (fun hc p hp => by simp only [List.mem_singleton] at hp; subst hp; exact (hold hc).symm) (fwd_fire h.symm)
+  · split at h
+    · next hz =>
+      split at h
+      · next f x y hb =>
+        refine simplifySelectWithEquivalence.sound ρ _ _ tv fv n (fun hc p hp => ?_) (fwd_fire h.symm)
+        have hcl := hold hc
+        rw [cst_eq hz, ← (ok_inj (Shift.binop?_denote hb ccl))] at hcl
+        have := or_eq_zero hcl
+        simp only [List.mem_cons, List.not_mem_nil, or_false] at hp
+        rcases hp with rfl | rfl
+        · simp only [cst_eq hz]; exact this.1
+        · simp only [cst_eq hz]; exact this.2
+      · simp only [reduceCtorEq] at h
+    · simp only [reduceCtorEq] at h
+  · split at h
+    · next ha =>
+      split at h
+      · next f x y hb =>
+        refine simplifySelectWithEquivalence.sound ρ _ _ tv fv n (fun hc p hp => ?_) (fwd_fire h.symm)
+        have hcl := hold hc
+        rw [cst_eq ha, ← (ok_inj (Shift.binop?_denote hb ccl))] at hcl
+        have := and_eq_allOnes hcl
+        simp only [List.mem_cons, List.not_mem_nil, or_false] at hp
+        rcases hp with rfl | rfl
+        · simp only [cst_eq ha]; exact this.1
+        · simp only [cst_eq ha]; exact this.2
+      · simp only [reduceCtorEq] at h
+    · simp only [reduceCtorEq] at h
+
+open Select in
+/-- What `Select.selectOnInst` returns refines the `select` it's given, at every width, in every run the `select` is
+consistent with, poison included. -/
+theorem Select.selectOnInst_sound (o : Oracle) (ρ : Env) (t : Term w) (ct : t.Consistent ρ) {r : Repl w}
+    (h : Select.selectOnInst o t = .value r) : Refines (t.top.eval ρ) (r.eval ρ) := by
+  unfold Select.selectOnInst at h
+  split at h
+  · next id c a b =>
+    obtain ⟨cc, ca, cb, -⟩ := ct
+    change Refines (Outcome.ok (IRLean.select (c.denote ρ) (a.denote ρ) (b.denote ρ))) (r.eval ρ)
+    refine run_sound (P := fun r => Refines (Outcome.ok (IRLean.select (c.denote ρ) (a.denote ρ) (b.denote ρ)))
+      (r.eval ρ)) ?_ h
+    intro site r hmem
+    simp only [Select.selectEntry.steps, List.cons_append, List.mem_cons, List.mem_append, List.not_mem_nil,
+      or_false] at hmem
+    rcases hmem with hm | hm | hm
+    · split at hm <;> simp only [reduceCtorEq] at hm
+    · unfold simplifySelectWithICmpCond.steps at hm
+      split at hm
+      · next id' p s cl cr =>
+        obtain ⟨ccl, -, hd⟩ := cc
+        have hcd : (Term.icmp id' p s cl cr).denote ρ = p.eval (cl.denote ρ) (cr.denote ρ) s := hd.symm
+        rw [hcd]
+        simp only [List.mem_cons] at hm
+        rcases hm with hm | hm
+        · split at hm <;> simp only [reduceCtorEq] at hm
+        · split at hm
+          · next hp =>
+            subst hp
+            exact simplifySelectWithICmpCond.eqSteps_sound ρ cl cr a b 3 s ccl ca cb site r hm
+          · split at hm
+            · next hp =>
+              subst hp
+              rw [show Pred.eval .ne (cl.denote ρ) (cr.denote ρ) s = Val.icmpNe (cl.denote ρ) (cr.denote ρ) s from rfl,
+                select_ne]
+              exact simplifySelectWithICmpCond.eqSteps_sound ρ cl cr b a 3 s ccl cb ca site r hm
+            · simp only [List.mem_cons, List.not_mem_nil, or_false, reduceCtorEq] at hm
+      · simp only [List.not_mem_nil] at hm
+    · simp only [reduceCtorEq] at hm
+  · cases h
 
 end Peephole.IS
