@@ -43,7 +43,7 @@ from irlean import hashing, pins, proc  # noqa: E402
 
 SCHEMA = "ir-lean.closure/1"
 # Changes when what `parse` reads of a module does, so cached readings are redone.
-PARSER = 2
+PARSER = 3
 TARGETS = ROOT / "tests" / "llvm" / "targets.toml"
 INDEX = [
     "llvm/lib/IR",
@@ -209,10 +209,39 @@ def call_args(line: str, at: int) -> str:
     return line[at + 1 :]
 
 
+ATTRIBUTES = re.compile(r"^attributes #(\d+) = (.*)$", re.M)
+METADATA = re.compile(r"^!(\d+) = (.*)$", re.M)
+ATTR_REF = re.compile(r"#(\d+)\b")
+MD_REF = re.compile(r"!(\d+)\b")
+
+
+def expand_metadata(md: dict[str, str], ref: str, seen: frozenset[str] = frozenset()) -> str:
+    """A metadata node's text with every node it refers to written out in place, so the text doesn't depend on
+    how the module numbered them. A node met again inside itself, as a loop's ID is, is `!self`."""
+    if ref in seen:
+        return "!self"
+    text = md.get(ref, "!missing")
+    return MD_REF.sub(lambda m: "!{" + expand_metadata(md, m.group(1), seen | {ref}) + "}", text)
+
+
+def canonical_ir(body: str, attrs: dict[str, str], md: dict[str, str]) -> str:
+    """A function's IR as its hash covers it: with the attribute groups and metadata it refers to written out
+    in place, so a change to either changes the hash and their numbering doesn't, and without comments, which
+    carry numbers that move with unrelated code."""
+    lines = []
+    for raw in body.split("\n"):
+        line = re.sub(r"\s*;.*$", "", raw)
+        line = ATTR_REF.sub(lambda m: "#{" + attrs.get(m.group(1), "missing") + "}", line)
+        lines.append(MD_REF.sub(lambda m: "!{" + expand_metadata(md, m.group(1)) + "}", line))
+    return "\n".join(lines)
+
+
 def parse(ll: Path) -> dict[str, Any]:
     """Each definition in a module: its linkage, IR, instruction count, the functions it calls directly, how
     many indirect calls it makes, and every function the module refers to other than by calling it."""
     text = ll.read_text(errors="replace")
+    attrs = {m.group(1): m.group(2) for m in ATTRIBUTES.finditer(text)}
+    md = {m.group(1): m.group(2) for m in METADATA.finditer(text)}
     defs: dict[str, Any] = {}
     referenced: set[str] = set()
     starts = list(DEFINE.finditer(text))
@@ -244,8 +273,7 @@ def parse(ll: Path) -> dict[str, Any]:
             for r in REF.findall(line):
                 if callee is None or "@" + r != callee:
                     referenced.add(unquote(r))
-        # The IR names no file, but comments carry numbers that move with unrelated code: leave them out.
-        canonical = "\n".join(re.sub(r"\s*;.*$", "", line) for line in body.split("\n"))
+        canonical = canonical_ir(body, attrs, md)
         first = body.split("\n", 1)[0]
         defs[unquote(m.group(2))] = {
             "linkage": linkage,
@@ -407,7 +435,14 @@ def derive(name: str, root: str, file: str, index: list[str], jobs: int, cache: 
     bounded, bounded_unresolved, _, _, _ = walk(expand=True)
     bounded_instructions = sum(modules[tu]["defs"][sym]["instructions"] for (_, sym), tu in bounded.items())
 
-    reached_tus = sorted(set(where.values()))
+    # Every copy whose calls the walk followed is part of the closure: its file is compiled, its anchors
+    # hashed, and its IR recorded, so a change to any copy shows.
+    def copy_files(node: tuple[str, str], tu: str) -> list[str]:
+        if not node[0] and not strong.get(node[1]):
+            return sorted({tu, *weak.get(node[1], [])})
+        return [tu]
+
+    reached_tus = sorted({c for node, tu in where.items() for c in copy_files(node, tu)})
     anchors: dict[str, str] = {}
     for tu in reached_tus:
         for p in dependencies(cached(cache, tu)[1]):
@@ -416,12 +451,14 @@ def derive(name: str, root: str, file: str, index: list[str], jobs: int, cache: 
     hashes = hashing.sha256_files([s / a for a in anchors])
     anchors = {a: hashes[s / a] for a in sorted(anchors)}
 
-    functions = []
-    for (_, sym), tu in sorted(where.items(), key=lambda kv: (kv[1], kv[0][1])):
+    functions: list[dict[str, Any]] = []
+    for (key, sym), tu in sorted(where.items(), key=lambda kv: (kv[1], kv[0][1])):
         d = modules[tu]["defs"][sym]
+        others = [c for c in copy_files((key, sym), tu) if c != tu]
         functions.append(
             {"symbol": sym, "file": tu, "linkage": d["linkage"], "instructions": d["instructions"],
-             "ir_sha256": d["ir_sha256"], "indirect": d["indirect_types"]}
+             "ir_sha256": d["ir_sha256"], "indirect": d["indirect_types"],
+             "copies": {c: modules[c]["defs"][sym]["ir_sha256"] for c in others}}
         )  # fmt: skip
 
     # The one-definition rule: whether each inline function's copies in the indexed files are the same IR.
@@ -528,13 +565,16 @@ def check(
     modules = {tu: load(cache, tu) for tu in c["compiled"]}
     wrong = []
     for f in c["functions"]:
-        d = modules[f["file"]]["defs"].get(f["symbol"])
-        if d is None or d["ir_sha256"] != f["ir_sha256"]:
-            wrong.append(f["symbol"])
+        for file, h in {f["file"]: f["ir_sha256"], **f["copies"]}.items():
+            d = modules[file]["defs"].get(f["symbol"])
+            if d is None or d["ir_sha256"] != h:
+                wrong.append(f"{f['symbol']} in {file}")
     if wrong:
         print(f"FAIL {name}: {len(wrong)} functions' IR or calls changed, such as {wrong[:3]}")
         return 1
-    print(f"ok   {name}: its {len(c['compiled'])} files compile to the same {len(c['functions'])} functions")
+    copies = sum(len(f["copies"]) for f in c["functions"])
+    n, files = len(c["functions"]), len(c["compiled"])
+    print(f"ok   {name}: its {files} files compile to the same {n} functions, and {copies} more copies")
     return 0
 
 

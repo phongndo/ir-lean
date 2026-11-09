@@ -17,10 +17,12 @@ Facts here were checked on top of `2c9e6df` on 2026-11-09, on x86-64 Linux in th
 include directory upstream's CMake adds for `Support`. Then from the root symbol it follows each direct call: to the
 same file's copy for an inline function or template (`linkonce_odr`), through aliases such as a complete-object
 constructor's, and otherwise to the one file that defines the function. It records each function with its file,
-linkage, instruction count and the SHA-256 of its IR, and every file of llvm-project the reached files read, headers
-included, from clang's `-MD`, with its SHA-256. Those files are the closure's anchors. The linker keeps one copy of an
+linkage, instruction count and the SHA-256 of its IR, with the attribute groups and metadata it refers to written out in
+place, so a change to either changes the hash and their numbering doesn't. And it records every file of llvm-project
+the closure's files read, headers included, from clang's `-MD`, with its SHA-256. Those files are the closure's
+anchors. The linker keeps one copy of an
 inline function, from any file that has one, and copies can call different functions after `-O3` inlined different
-things into each, so it follows the calls of every indexed copy.
+things into each, so it follows the calls of every indexed copy, and records each copy's file and IR too.
 
 Compiling the 413 files took 98 s with 4 jobs on a 32-core machine, peaking at 1.1 GB, and is cached under
 `build/closure`. 10 files don't compile with the repo's minimal `llvm/Config/config.h`, since they need what the build's
@@ -36,8 +38,8 @@ private one says about the host: `CommandLine`, `ErrorHandling`, `Memory`, `Path
 | --- | --- |
 | Functions reached by direct calls | 2,070: 936 external, 230 internal, 897 `linkonce_odr` and 7 `weak_odr` |
 | IR instructions | 240,134 |
-| Files compiled | 64: 29 in `IR`, 18 in `Analysis`, 16 in `Support` and one in `TargetParser` |
-| Anchors, every file of llvm-project those read | 1,531 |
+| Files compiled | 154: 64 hold the copies the walk reached, 29 in `IR`, 18 in `Analysis`, 16 in `Support` and one in `TargetParser`, and 90 more hold other copies of 319 of its inline functions, 693 copies in all |
+| Anchors, every file of llvm-project those read | 1,794 |
 | Unresolved calls | 18: `raw_ostream`'s writes, `errs()` and `report_fatal_error`, in the files that don't compile, `bcmp`, and `sin`, `cos` and `pow`, which constant folding calls on `double`s |
 | Calls into the C and C++ runtimes | 29, such as `std::string`'s and `operator delete[]` |
 | Intrinsics called | 43 |
@@ -55,14 +57,14 @@ every destructor and most virtual methods. A bound from the class hierarchy, eac
 its static type, and each `function_ref`'s callbacks from where it's made, is what would make it usable. The IR alone
 doesn't carry the static types, so that needs clang's type metadata, which the shipped build isn't compiled with.
 
-**The one-definition rule.** Of the closure's 904 inline functions, 318 have copies in other indexed files whose IR
-differs from the copy the closure reached. The linker keeps one copy, and which one isn't recorded. Following only the
+**The one-definition rule.** Of the closure's 904 inline functions, 160 have copies in other indexed files whose IR
+differs from the copy the closure reached, with attribute groups and metadata written out. The linker keeps one copy, and which one isn't recorded. Following only the
 reached copy's calls left out three functions another copy calls, which LLVM's own call graph over the linked files
 found, such as `detail::scalbn`.
 
 ## The closure in one module
 
-`closure.py link` links the 64 files with `llvm-link` and takes the closure out with `llvm-extract`: from the root with
+`closure.py link` links the 154 files with `llvm-link` and takes the closure out with `llvm-extract`: from the root with
 `--recursive`, so LLVM's own call graph adds what it reaches, and every function of the closure that isn't internal by
 name, since `llvm-extract` doesn't follow an alias, such as a complete-object constructor's, to the function it names.
 The module holds exactly the closure's 2,070 functions. Through the call graph alone it held 1,986, all in the closure,
@@ -112,7 +114,7 @@ So this is a proposal, and nothing implements it:
    theorem rests on, every file of the build that has a copy is compiled, and the copies compared. Where all are the same
    IR, the kept copy is the one proved, whichever the linker chose.
 3. **Where copies differ, each is a unit of its own,** bound to the same model, so the claim covers whichever is kept.
-   318 of the closure's 904 inline functions differ even within the 403 indexed files.
+   160 of the closure's 904 inline functions differ even within the 403 indexed files.
 4. **Not proposed: trusting the rule.** Assuming every copy behaves as the kept one where the theorem says the code is
    defined would rest on the source being defined there too. A theorem about the compiled copy can't show that, since a
    compiler may define what the source leaves undefined.
@@ -122,10 +124,12 @@ the shipped `libLLVM` has several times as many. It's the maintainer's to accept
 
 ## The checks
 
-[`tests/llvm_closure_test.py`](../tests/llvm_closure_test.py), in CI as `llvm_closure`: the closure's 1,531 files hash as
-recorded, clang is the one it was derived with, and its 64 files compile again to the same 2,070 functions' IR. A
-closure with one file's hash changed fails, and so does one with one function's IR changed. It took 23 s with 4 jobs on
-2026-11-09. `closure.py check simplifyAddInst` alone hashes the files and checks clang, in about a second.
+[`tests/llvm_closure_test.py`](../tests/llvm_closure_test.py), in CI as `llvm_closure`: the closure's 1,794 files hash as
+recorded, clang is the one it was derived with, and its 154 files compile again to the same IR for its 2,070 functions
+and the 693 other copies of its inline ones. A closure with one file's hash changed fails, and so does one with one
+function's IR changed, or one other copy's. A function's IR hash changes when an attribute group or a `!range` it refers
+to does, and stays when they're renumbered. `closure.py check simplifyAddInst` alone hashes the files and checks clang,
+in about a second.
 
 ## Reproduce
 

@@ -404,7 +404,7 @@ when they land.
 - **Acceptance:** Each pass's anchors are its closure, hashed, and a test fails when any of them changes.
 - **Trust gaps:** Indirect calls through virtual functions need a stated bound. The one stated, any function of the call's type whose address an indexed file takes, is sound over the indexed files and far too coarse to use, so closures record direct calls and list each indirect one, and aren't complete. Ten files of `llvm/lib/Support` and `TargetParser` don't compile without the build's private `config.h`, so what only they define is unresolved.
 - **Status:** in progress: `simplifyAddInst`'s closure, for gates B2 and B3, is recorded and checked. Each pass's is next, starting with chunk 1's
-- **Evidence:** [`tests/llvm_scope/closure/simplifyAddInst.json`](llvm-closure.md), derived by `tests/llvm_scope/closure/closure.py` from the pinned build's call graph: 2,070 functions in 64 files, with 1,531 anchors hashed. `tests/llvm_closure_test.py`, in CI as `llvm_closure`, fails when an anchor's hash, clang, or a function's IR changes.
+- **Evidence:** [`tests/llvm_scope/closure/simplifyAddInst.json`](llvm-closure.md), derived by `tests/llvm_scope/closure/closure.py` from the pinned build's call graph: 2,070 functions, in 154 files with every copy of its inline functions, and 1,794 anchors hashed. `tests/llvm_closure_test.py`, in CI as `llvm_closure`, fails when an anchor's hash, clang, or the IR of a function or of any copy of one changes.
 
 ### BIND-03: An independent verifier
 

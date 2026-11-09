@@ -123,7 +123,7 @@ add_test(
         $<TARGET_FILE:ir-lean-probe>
 )
 set_tests_properties(ir_features PROPERTIES TIMEOUT 900)
-# BIND-02's closure of simplifyAddInst: its files hashed, and its 64 files of llvm-project compiled again to
+# BIND-02's closure of simplifyAddInst: its files hashed, and its 154 files of llvm-project compiled again to
 # the same IR, with 4 clang processes at once. docs/llvm-closure.md.
 add_test(NAME llvm_closure COMMAND ${CMAKE_SOURCE_DIR}/tests/llvm_closure_test.py)
 set_tests_properties(llvm_closure PROPERTIES TIMEOUT 1800)
