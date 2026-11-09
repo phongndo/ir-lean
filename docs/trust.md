@@ -262,8 +262,8 @@ the same table has.
   only on x86-64 Linux.
 - `llvmPackages_latest` moves with each flake update, and Lean comes through `elan` from outside Nix.
 - [The classification](ir-features.md) probes each item once, or once for each shape of an overloaded intrinsic, in
-  one place. It shows the emitter refuses or translates that probe, not every way the item can appear, and 132 items
-  have no probe, all refused but `immarg`, which only LLVM's verifier sees.
+  one place. It shows the emitter refuses or translates that probe, not every way the item can appear, and 133 items
+  have no probe, each listed with why, all refused but `immarg` and the `metadata` type.
 - Mutation in CI covers the C being proved. Mutation of the GEP and promise rules was a one-off, with no script
   in the repo, and the rest of the semantics and the emitter haven't been mutated.
 - A mutant counts when its proof stops with an error that isn't a resource limit. That shows the proof depends on the

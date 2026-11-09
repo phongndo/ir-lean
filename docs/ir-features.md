@@ -64,7 +64,8 @@ A refused item is refused whatever it means, so refusing is always sound. What i
    overloaded intrinsic's first type, integer, vector, scalable vector, floating point and pointer, and every call
    passes LLVM's verifier. The rest are in [`tests/ir_features/probes.ll`](../tests/ir_features/probes.ll), or built
    from templates in the script. A modeled intrinsic may be refused at some shapes only because of an item that's
-   refused itself, such as a scalable vector type.
+   refused itself, such as a scalable vector type. A probe the emitter crashes on, or gives no report for, fails,
+   and so does an item with no probe it reads, unless the script lists it with its reason, [below](#what-it-doesnt-show).
 4. Elaborates, in one Lean process, the Lean the emitter prints for every probe it translates. Reporting a function
    translated isn't enough: the Lean has to typecheck.
 5. Checks each modeled intrinsic has a case in the emitter's `emitIntrinsic`, and each case there is classified.
@@ -120,8 +121,10 @@ a change to the classification, and shows in review as lines of the file.
   Whether that matches LLVM is what `opcheck`, `gepcheck`, `x86check`, the differential tests and Alive2 are for.
 - **Every way an item can appear.** A probe uses an item once, in one place, at one type or a few. An attribute is
   probed on `i32`, a pointer and a vector, and a form is listed only where the emitter treats it differently.
-- **132 items have no probe.** 117 are intrinsics no call the generator builds passes LLVM's verifier, such as
-  `llvm.experimental.gc.statepoint`, and 15 are other items no IR can hold where the emitter would see them, such as
-  `UserOp1` or `elementtype` on a definition's parameter. All but `immarg` are refused, and the emitter refuses any
-  intrinsic outside `emitIntrinsic`'s cases, which the check compares with the modeled ones. `immarg` goes only on an
-  intrinsic's declaration, where LLVM's verifier checks it.
+- **133 items have no probe.** 117 are intrinsics no call the generator builds passes LLVM's verifier, such as
+  `llvm.experimental.gc.statepoint`. Each is refused, and has no case in `emitIntrinsic`, so the emitter's default
+  refuses it, which the check confirms for each. The other 16 are listed in the script's `UNPROBEABLE`, each with why
+  no IR the emitter reads can hold it, such as `UserOp1`, internal to LLVM's passes, or `elementtype` on a
+  definition's parameter, which the verifier rejects. All are refused but three: `immarg`, at two places, goes only
+  on an intrinsic's declaration, where LLVM's verifier checks it, and the `metadata` type is only an operand of an
+  intrinsic, and the emitter translates none that takes one.

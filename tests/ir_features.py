@@ -1322,9 +1322,14 @@ class Outcome:
 
 def report(tool: Path, path: Path, function: str = "probe") -> Outcome:
     ran = proc.run([str(tool), str(path), "--report"], timeout=120)
-    if ran.limit or ran.exit not in (0, 3):
+    # The emitter exits 1 on IR LLVM's reader or verifier rejects. Anything else is a crash or a hang.
+    if ran.limit or ran.exit not in (0, 1):
+        return Outcome(
+            "crash", f"the emitter {'hit its ' + str(ran.limit) if ran.limit else f'exited {ran.exit}'}"
+        )
+    if ran.exit == 1:
         said = (ran.err or ran.out).strip().splitlines()
-        return Outcome("invalid", said[0][:300] if said else f"exit {ran.exit}")
+        return Outcome("invalid", said[0][:300] if said else "exit 1")
     for line in ran.out.splitlines():
         row = line.split("\t")
         if len(row) >= 3 and row[1] == function:
@@ -1339,7 +1344,7 @@ def first_valid(tool: Path, work: Path, n: int, variants: list[str]) -> tuple[Ou
         path.write_text(text)
         out = report(tool, path)
         if out.status != "invalid":
-            return out, path
+            return out, path if out.status != "crash" else None
         last = out
     return last, None
 
@@ -1474,6 +1479,7 @@ def run_probes(
                 for key in owner.get(ns, [("?", "", ns)]):
                     problems.append(f"Lean rejects what the emitter printed for {key}: {errs[0]}")
 
+    cases = emitter_cases(items)
     counts: Counter[str] = Counter()
     unprobed_items: list[str] = []
     for item in items:
@@ -1483,18 +1489,31 @@ def run_probes(
         cls = row["class"]
         outs = outcomes.get(item.key, [])
         where = f"{item.kind} {item.at + ' ' if item.at else ''}{item.name}"
+        for _, o, _ in outs:
+            if o.status in ("crash", "missing"):
+                problems.append(
+                    f"{where}: {o.detail if o.status == 'crash' else 'the emitter reported no probe'}"
+                )
         valid = [(s, o) for s, o, _ in outs if o.status in ("ok", "refused")]
         if not valid:
             why = (
-                unprobed.get(item.name)
-                if item.kind == "intrinsic"
+                unprobed.get(item.name, "no probe")
+                if item.kind == "intrinsic" and not outs
                 else (outs[0][1].detail if outs else "no probe")
             )
             counts["unprobed"] += 1
             unprobed_items.append(f"{where} ({cls}): {why}")
-            if cls != "refused" and row["reason"] not in UNPROBED_OK:
-                problems.append(f"{where} is {cls}, and no probe of it shows that: {why}")
+            # An intrinsic ir-lean-probe can build no call to is refused by the emitter's default, which
+            # refuses every intrinsic `emitIntrinsic` has no case for. Anything else needs its reason in
+            # UNPROBEABLE.
+            if item.kind == "intrinsic" and item.name in unprobed and not outs:
+                if cls != "refused" or item.name in cases:
+                    problems.append(f"{where} is {cls}, and no probe of it shows that: {why}")
+            elif item.key not in UNPROBEABLE:
+                problems.append(f"{where} has no probe the emitter reads: {why}")
             continue
+        if item.key in UNPROBEABLE:
+            problems.append(f"{where} is listed in UNPROBEABLE, and has a probe: drop it from the list")
         counts["probed"] += 1
         oks = [s for s, o in valid if o.status == "ok"]
         refusals = [(s, o.detail) for s, o in valid if o.status == "refused"]
@@ -1526,9 +1545,55 @@ PARTIAL = [
     (r"^intrinsic llvm\.\S+ of vectors$", ("form", "", "scalar-intrinsic-on-vectors")),
 ]
 
-# Reasons whose items may have no probe, because none can be written: IR can't contain them, or only as part
-# of an intrinsic, whose own class covers them.
-UNPROBED_OK = {"not in IR", "verifier", "intrinsic operand"}
+# Items no probe can show anything about, each with why. Every other item without one fails the check.
+UNPROBEABLE = {
+    ("instruction", "", "UserOp1"): "internal to LLVM's passes: neither IR's text nor its bitcode has it",
+    ("instruction", "", "UserOp2"): "internal to LLVM's passes: neither IR's text nor its bitcode has it",
+    ("type", "", "TypedPointer"): "gone from IR's text and bitcode, used only inside some GPU backends",
+    (
+        "type",
+        "",
+        "Metadata",
+    ): "only an operand of an intrinsic, and no intrinsic the emitter translates takes one",
+    (
+        "attribute",
+        "parameter",
+        "immarg",
+    ): "only on an intrinsic's declaration; LLVM's verifier rejects it here",
+    (
+        "attribute",
+        "call parameter",
+        "immarg",
+    ): "only on an intrinsic's declaration; LLVM's verifier rejects it here",
+    ("attribute", "function", "builtin"): "only at a call; LLVM's verifier rejects it on a function",
+    ("attribute", "call", "speculatable"): "only on a function; LLVM's verifier rejects it at a call",
+    ("attribute", "call", "denormal_fpenv"): "only on a function; LLVM's verifier rejects it at a call",
+    (
+        "attribute",
+        "call",
+        "preallocated",
+    ): "at a call only on llvm.call.preallocated.arg, which the verifier checks",
+    ("attribute", "parameter", "elementtype"): "only on an intrinsic's or inline assembly's arguments",
+    ("attribute", "call parameter", "elementtype"): "only on an intrinsic's or inline assembly's arguments",
+    ("attribute", "return", "elementtype"): "only on an intrinsic's or inline assembly's arguments",
+    (
+        "attribute",
+        "call parameter",
+        "returned",
+    ): "needs a call whose argument and result types match, which the "
+    "probes' callees don't have, and it's refused at every call",
+    ("attribute", "call parameter", "swifterror"): "needs a swifterror alloca, which needs memory",
+    ("attribute", "call parameter", "preallocated"): "needs llvm.call.preallocated.setup's token",
+}
+
+
+def emitter_cases(items: list[Item]) -> set[str]:
+    """The intrinsics `emitIntrinsic` has a case for, by name."""
+    text = EMITTER.read_text()
+    body = text[text.index("bool FunctionEmitter::emitIntrinsic") :]
+    body = body[: body.index("\n}\n")]
+    enums = {i.facts["enum"]: i.name for i in items if i.kind == "intrinsic"}
+    return {enums[c] for c in re.findall(r"case Intrinsic::(\w+):", body) if c in enums}
 
 
 def static_checks(rows: list[dict[str, Any]], items: list[Item]) -> list[str]:
@@ -1539,7 +1604,7 @@ def static_checks(rows: list[dict[str, Any]], items: list[Item]) -> list[str]:
     body = body[: body.index("\n}\n")]
     cases = set(re.findall(r"case Intrinsic::(\w+):", body))
     enums = {i.facts["enum"]: i.name for i in items if i.kind == "intrinsic"}
-    names = {enums[c] for c in cases if c in enums}
+    names = emitter_cases(items)
     problems = [
         f"emitIntrinsic has a case for {c}, which the pin doesn't define" for c in sorted(cases - set(enums))
     ]

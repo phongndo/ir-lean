@@ -611,13 +611,6 @@ define void @probe(ptr %p) {
   ret void
 }
 
-; probe: type / Metadata
-define i32 @probe(i32 %a) {
-  call void @llvm.donothing()
-  ret i32 %a
-}
-declare void @llvm.donothing()
-
 ; probe: intrinsic / llvm.dbg.value
 define i32 @probe(i32 %a) !dbg !5 {
   call void @llvm.dbg.value(metadata i32 %a, metadata !9, metadata !DIExpression()), !dbg !8
