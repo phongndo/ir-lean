@@ -56,6 +56,23 @@ that stops its proof. [LLVM's own code](llvm.md) has them, how to reproduce them
 measurably beat `clang -O3`, proved to do the same. Those results are from 2026-11-06, on top of `c389ecc`, apart from
 `internal::isalnum`, from 2026-11-07 on top of `6293d34`.
 
+### llama.cpp
+
+A rewrite of the IR clang `-O3` gives llama.cpp's q4_K matrix kernels, at release `b12189`, so they use AVX-512 VNNI.
+Lean proves each of the 34 places it changes gives the same result as clang's IR on every input, from slices of the
+kernels that include how clang computed their operands. For each of three wrong rewrites, it proves the rewritten slice
+differs from clang's at every place. [llama.cpp](llama.md) has the details, what connects the slices to the kernels,
+which is a checked argument and not a theorem, and the measurements. CI checks it in a test job of its own, which needs no
+model. The proofs were checked on 2026-11-07 on top of `6293d34`, and again on 2026-11-08 merged with `main` at
+`0330cd7`, with the same hashes for the IR, every slice and every generated Lean file.
+
+A second rewrite, of the bit unpacking in llama.cpp's Q5 kernel, replaces six instructions with a `bitcast` and the
+`select` that ended them.
+[`LlamaBitspread.lean`](../tests/proofs/LlamaBitspread.lean) proves the exact slice and its replacement give the same
+result for every input, poison included, and that every byte is defined for a defined input. Extracting the slice and
+substituting its result are trusted, as for q4_K. [llama.cpp's Q5](llama-q5.md) has the details. Recorded on
+2026-11-07, and the proof checked again on 2026-11-08 with the q4_K rewrite and `main` at `0330cd7`.
+
 ## Tested
 
 Evidence and not proof. A pass here means no disagreement was found on the inputs tried.
@@ -80,6 +97,17 @@ Evidence and not proof. A pass here means no disagreement was found on the input
   ([`stops.ll`](../tests/real/stops.ll)).
 - **Promises kept:** 25 functions that keep their promises match native code with no input skipped
   ([`promises.ll`](../tests/real/promises.ll)).
+- **x86 intrinsics and vector bitcasts:** PMADDUBSW, PMADDWD and VPDPBUSD at all three widths, and `bitcast` between
+  vectors, agree with the processor on 8,800 results ([`x86.ll`](../tests/real/x86.ll)), which needs AVX-512 VNNI. On
+  any processor, the bitcasts, PMADDUBSW and PMADDWD agree with Alive2 both ways and LLVM's constant folder, poison
+  included, on 617 inputs to 38 operations, scalar bitcasts among them ([`x86check.py`](../tests/x86check.py)).
+  Checked on 2026-11-08.
+- **llama.cpp's rewrite natively:** each of the 34 pairs of slices gives the same results on the processor, on 200,000
+  inputs each, and each wrong rewrite differs ([llama.cpp](llama.md#checked-another-way)). With the two libraries,
+  `llama-perplexity` gives the same logits bit for bit on two models, on 2026-11-07.
+- **llama.cpp's Q5 rewrite natively:** both helpers match a byte formula on 1,000,066 inputs, and with the rewrite,
+  generating 512 tokens gives the same 77,791,232 FP32 logits bit for bit, with one thread and with eight
+  ([llama.cpp's Q5](llama-q5.md#what-is-proved-and-checked)), on 2026-11-07.
 - **Dependence on the code:** 16 bugs injected into the C each make a proof stop checking, three of them memory bugs in
   `updatewindow`.
 - **Dependence on the rules:** as a one-off, 114 rules for GEPs and promises were each broken in turn. 108 were
@@ -87,6 +115,16 @@ Evidence and not proof. A pass here means no disagreement was found on the input
   checked directly in Lean, and 1 is implied by the others, with a proof.
 
 ## Measured
+
+The q4_K rewrite makes reading a prompt with llama.cpp 5.5% to 7.2% faster on two models, on a Ryzen 9 9950X with 8
+threads, in every round, and generating isn't faster with 8 threads. [llama.cpp](llama.md#measured) has the tables, the
+spread and the raw rows. Measured on 2026-11-07 on top of `6293d34`, and not since, as it needs models that aren't in
+the repo.
+
+The Q5 rewrite makes generating with one thread about 5% faster, on Qwen2.5-0.5B-Instruct `Q4_K_M`: a median
+inference speedup of 1.049x over 30 pairs, with a 95% interval of 1.029x to 1.057x. With eight threads it's
+inconclusive. [llama.cpp's Q5](llama-q5.md#performance-and-variance) has the sessions. Measured on 2026-11-07 against
+Clang 23.1.5, and not since. `llama_evidence` recomputes the pooled estimates from the committed rows.
 
 What the proofs cost, which is a result about the method and not about zlib. This table was measured before the
 promise model. The proofs have since grown by 36 and 58 lines, mostly threading tags through, so the totals are
@@ -198,5 +236,7 @@ reads it. That difference is itself a thing [Phase 3](roadmap.md#phase-3-c-and-r
 8. `crc32`. Done.
 9. Promises the optimizer leaves, checked or refused. Done, apart from `mustprogress` and `willreturn`.
 10. `inflate`: [measured](#measured). Its next step is [its invariant](roadmap.md#phase-1-zlib-inflate-memory-safety).
-11. Tier-1 proof tests, which run a property on generated inputs and have the kernel check each counterexample. Done,
+11. A [lemma store](lemma-store.md): 163 checked lemmas from #42, #46 and #48 that later proofs can find, in `lake build`
+    and CI, 16 of them used by two proofs. Done in [#60](https://github.com/phongndo/ir-lean/pull/60).
+12. Tier-1 proof tests, which run a property on generated inputs and have the kernel check each counterexample. Done,
     for functions without memory: [proof tests](proof-tests.md) has what they refute, and what they can't run.

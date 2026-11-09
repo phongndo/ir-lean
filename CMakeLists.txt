@@ -149,7 +149,8 @@ set_tests_properties(replay_challenge PROPERTIES RUN_SERIAL TRUE TIMEOUT 1800)
 # match: one instcombine rewrite, and the cases of mismatched evidence, one capped Lean process at a time.
 add_test(NAME binding COMMAND ${CMAKE_SOURCE_DIR}/tests/binding.py)
 # Alone, since each of its Lean processes takes up to 3.5 GB. It hashes the Lean toolchain on every check,
-# so it gets more time than it takes on a fast disk, about 5 minutes.
+# so it gets more time than it takes: about 3 minutes on 32 cores, and 10 on CI's 4 before that hashing got
+# faster.
 set_tests_properties(binding PROPERTIES RUN_SERIAL TRUE TIMEOUT 1800)
 # The scorer, on two small tests rather than llvm-project: an instance counts only when tools/binding.py
 # binds its bundle in the same run. The rules in Python first, then the scorer itself, alone, since it runs
@@ -173,6 +174,11 @@ set_tests_properties(cpp_correspondence PROPERTIES TIMEOUT 900)
 # one Lean process at a time, each capped at 2 GB and 300 s by the script itself.
 add_test(NAME generic_rewrites COMMAND ${CMAKE_SOURCE_DIR}/tests/generic_rewrites.sh)
 set_tests_properties(generic_rewrites PROPERTIES TIMEOUT 900)
+# The lemma store, docs/lemma-store.md: every stored lemma against the bar, lookup under restatements, a bad
+# lemma of each kind refused, and a proof from the store against one without it. It reads what `lake build`
+# built, and runs its Lean processes two at a time, each capped at 4 GB.
+add_test(NAME store COMMAND ${CMAKE_SOURCE_DIR}/tests/store_test.py $<TARGET_FILE:ir-lean>)
+set_tests_properties(store PROPERTIES TIMEOUT 1200)
 add_test(
     NAME zlib
     COMMAND
@@ -185,6 +191,30 @@ add_test(
     COMMAND ${CMAKE_SOURCE_DIR}/tests/zlib.sh $<TARGET_FILE:ir-lean> --runs 1 --only harness_slow
 )
 set_tests_properties(zlib zlib_slow PROPERTIES TIMEOUT 5400)
+# llama.cpp's q4_K rewrite. x86's dot-product intrinsics against the processor, which needs AVX-512 VNNI, so
+# it skips without it. Those and vector bitcasts against Alive2 and LLVM's constant folder, on any processor.
+# And the rewrite's proofs, which need llama.cpp's source, so they're labeled `llama`, run in
+# `nix develop .#llama`, and skip in any other shell.
+add_test(
+    NAME x86
+    COMMAND
+        sh -c "grep -q avx512_vnni /proc/cpuinfo || exit 77; exec \"$@\"" sh
+        ${CMAKE_SOURCE_DIR}/tests/differential.py $<TARGET_FILE:ir-lean> ${CMAKE_SOURCE_DIR}/tests/real/x86.ll
+        --strict --runs 400
+)
+add_test(NAME x86check COMMAND ${CMAKE_SOURCE_DIR}/tests/x86check.py $<TARGET_FILE:ir-lean>)
+add_test(NAME llama COMMAND ${CMAKE_SOURCE_DIR}/tests/llama.py $<TARGET_FILE:ir-lean>)
+set_tests_properties(x86 llama PROPERTIES SKIP_RETURN_CODE 77)
+set_tests_properties(x86 x86check llama PROPERTIES TIMEOUT 1800)
+set_tests_properties(llama PROPERTIES LABELS llama)
+# llama.cpp's Q5 rewrite: the exact bit-unpacking slice and its proof, the matcher, the logit comparison and
+# the retained timings. None needs a model or llama.cpp's source, so they run in the default shell.
+add_test(NAME llama_bitspread COMMAND ${CMAKE_SOURCE_DIR}/tests/llama-bitspread.sh $<TARGET_FILE:ir-lean>)
+add_test(NAME llama_rewrite COMMAND ${CMAKE_SOURCE_DIR}/tests/llama/test_rewrite.py)
+add_test(NAME llama_capture COMMAND ${CMAKE_SOURCE_DIR}/tests/llama/test_compare.py)
+add_test(NAME llama_evidence COMMAND ${CMAKE_SOURCE_DIR}/tests/llama/replay_results.py)
+set_tests_properties(llama_rewrite llama_capture llama_evidence PROPERTIES TIMEOUT 60)
+set_tests_properties(llama_bitspread PROPERTIES TIMEOUT 1800)
 # ctest has no limit of its own, and a Lean run that never ends would otherwise hang these.
 set_tests_properties(
     differential
@@ -196,6 +226,9 @@ set_tests_properties(
     verify
     PROPERTIES TIMEOUT 1800
 )
+# .github/needs-tests.py, which lets a pull request that only adds or edits documents no test reads skip CI's
+# test jobs: in a scratch git repo, and against the documents tests here read. About a second, and only git.
+add_test(NAME needs_tests COMMAND ${CMAKE_SOURCE_DIR}/tests/needs_tests_test.py ${CMAKE_BINARY_DIR})
 set_tests_properties(zlib_slow PROPERTIES LABELS slow)
 # CI's test jobs: the longest tests apart, so they don't wait for each other. Each job is named after its
 # label and runs the tests with it, and a test with none of these runs in the job for the rest. See
@@ -211,6 +244,7 @@ set_tests_properties(
     undef_freeze
     generic_rewrites
     cpp_correspondence
+    store
     prooftest_t1
     PROPERTIES LABELS semantics
 )

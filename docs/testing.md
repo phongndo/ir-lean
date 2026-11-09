@@ -12,6 +12,9 @@ Run `lake build`, then `ctest --test-dir build`. Add `-LE slow` to skip `zlib_sl
 run takes about a minute. A run with nothing changed takes about 4 s, apart from `llvm` and `superopt`, which check
 everything every time, in about a minute.
 
+`llama` needs llama.cpp's source, which only `nix develop .#llama` has, so it skips in the default shell. Run it with
+`nix develop .#llama -c ctest --test-dir build -L llama`, which takes under 3 minutes with 6 Lean jobs.
+
 | Test | What it checks |
 | --- | --- |
 | `opcheck` | Each integer operation against LLVM's constant folder, and against Alive2 for exact poison and UB behavior. Fails without `alive-tv`, or if it can't check a variant. `--no-alive` is the opt-out. Prints Alive2's LLVM version and this code's |
@@ -27,15 +30,22 @@ everything every time, in about a minute.
 | `proofs` | The proofs against freshly generated Lean, that each theorem names its generated function, that breaking the C stops the proof with an error that isn't running out of time or memory, that a proof can only rest on the standard axioms and `bv_decide`'s, with no `implemented_by` or `extern`, and that `leanchecker` replays it |
 | `llvm` | [LLVM's own code](llvm.md): functions from `llvm-project` at the pinned tag, compiled as upstream does, against their proofs, checked as `proofs` checks them, with an injected bug for each that has to stop its proof with an error of its own. Prints the score. `--manifest` writes what each theorem says and rests on, and what stopped each bug's proof |
 | `llvm_scope` | The checks on [claims about LLVM's passes and the task list](llvm-verification-tasks.md), without LLVM: no claim counts as done without an independent verifier, finite translation validation never counts for all inputs, a stale hash or evidence outside the repo is refused, and the list's scope line matches the inventory. Python only |
-| `llvm_scope_check` | The inventory of every name the pinned LLVM registers a pass or codegen implementation under, derived again from its source, `opt` and `llc`, and compared byte for byte, so the denominator can't move quietly. About 5 s, and no Lean |
+| `llvm_scope_check` | The inventory of every name the pinned LLVM registers a pass or codegen implementation under, derived again from its source, `opt` and `llc`, and compared byte for byte, so the denominator can't move quietly. `llc` starts from `x86_64-unknown-linux-gnu` before `-march` sets each target, so macOS gives the same inventory as Linux. About 5 s, and no Lean |
 | `corpus` | [The corpus](corpus.md)'s capture reads `opt`'s pipelines and traces right, and a corpus refuses a toolchain other than its own. `tools/measure.py` gives MiB on macOS and Linux, stops the whole process tree at a cap or timeout, and keeps its heavy-job lock exclusive, in the platform's cache directory. With the pinned `opt` on `PATH`, one seed is captured and each of its steps replays alone byte for byte. About 2 s, and no Lean |
 | `superopt` | What a search finds for real functions, against Alive2 and a Lean theorem that names both and says they do the same, and that a wrong rewrite fails both, with an error in Lean and a counterexample from Alive2. An Alive2 timeout is never a pass. `--bench` also measures it against `clang -O3`, which CI doesn't, since timings vary |
+| `x86` | x86's integer dot-product intrinsics and vector bitcasts against the processor, at every width, skipped without AVX-512 VNNI |
+| `x86check` | The same intrinsics but VPDPBUSD, which nothing but the processor knows, and bitcasts between integers and vectors, on any processor: against Alive2, both ways, and LLVM's constant folder, poison included, with a wrong result for each that Alive2 has to refuse. About 2 s |
+| `llama` | [llama.cpp's q4_K kernels](llama.md): that `llc` reproduces clang's code, the rewrite, that every change is in a slice and every other line is where it was, a Lean theorem for each slice, a native comparison of each if the processor can run it, and four wrong versions each refuted, by Lean proving a rewritten slice differs from clang's on an input, by every theorem stopping with an error of its own, or by the native comparison. A theorem that only runs out of time or memory is unknown, and refutes nothing. It needs llama.cpp's source, so it runs in `nix develop .#llama`, and skips elsewhere. CI runs it in a job of its own. `tests/llama_bench.py` measures it on real inference, which CI doesn't |
+| `llama_bitspread` | The exact q5_0 integer slice against its replacement, including poison inputs and the defined byte value for every bit; regenerates Lean, audits axioms, and rejects a wrong-bit replacement without downloading a model |
+| `llama_rewrite` | The q5_0 matcher against the committed IR fixture: it rewrites exactly the three sites into the committed helper, keeps every other line and outside users, and refuses a wrong shuffle lane, complement mask, flag, input width, layout, metadata or name, and a site count or function set other than the expected one |
+| `llama_capture` | Complete raw-logit captures are accepted; changed bits, tokens, positions, prompts, truncation, and inconsistent metadata are rejected |
+| `llama_evidence` | Committed timing rows agree with raw logs and generated output hashes; paired estimates and the pooled bootstrap reproduce without a model download |
 | `names` | Every word Lean reserves is avoided in generated names |
 | `undef_freeze` | [An experimental `undef` and `freeze` semantics](undef-freeze.md), not the model's: it builds with warnings as errors, LangRef's examples get LangRef's verdicts, four shortcuts each certify a wrong rewrite it rejects, both modules rest on the standard axioms and `leanchecker` replays them, two false proofs and a `sorry` are refused, five edits to a copy of it each stop the theorem they target, and Alive2 gives the same verdict on 31 rewrites. One process at a time, each Lean process capped at 2 GB, about 17 s of CPU |
 | `verify` | [`tools/verify.py`](verify.md) gives each status and reason when it should, refuses proofs that cheat, and no required check can be missing from a proved result |
 | `prooftest` | [Tier-1 proof tests](proof-tests.md): in Python, the generators, shrinking, the store, and that nothing undecided, stopped or unconfirmed is a pass. Then `tools/prooftest/prooftest.py` on `tests/prooftest/Cases.ll`: a wrong spec shrinks to the least failing input, which the kernel refutes and the next run tries first, a buggy loop is refuted through `runFuel`, poison inputs, a call the kernel can't follow is confirmed by `tools/verify.py` instead, and a run that never ends, memory, floating point, a statement about another function and a memory limit each come back unknown, a vacuous hypothesis vacuous, never a pass. At most four cases at a time |
 | `prooftest_t1` | Milestone T1, with `tools/prooftest/bench.py --check-t1`: tier 1 on the 16 bugs `tests/proofs.sh` injects and on `tests/verification_negative`. Each one it can run is refuted, each one it can't comes back unknown, a true claim is never refuted, and the median time to a counterexample is under 100 ms. Two cases at a time |
-| `verify_negative_static` | [What counts as a certificate](llvm-negative-verification.md): a stored proved result is certified, and broken, stale or mismatched ones aren't, nor answers from checkers that hang, crash or print nonsense. Python only |
+| `verify_negative_static` | [What counts as a certificate](llvm-negative-verification.md): a stored proved result is certified, and broken, stale or mismatched ones aren't, nor answers from checkers that hang, crash or print nonsense. The runner reads a checker's peak memory, and what's free, in MB on macOS and Linux. Python only |
 | `verify_negative` | Wrong LLVM rewrites, and right ones outside the model, are never certified through `tools/verify.py`, and four right ones are. Runs alone, one Lean process at a time, about 2 minutes |
 | `replay_challenge_static` | [Challenging replay certificates](replay-challenge.md): manifests `tools/binding.py` has to refuse before it reads a tool, and its runner calling a crash, a timeout or running out of memory unknown, and leaving nothing running. A finding it shows is accepted as known, and the contract's answer too. Python only, about 4 s |
 | `replay_challenge_alive` | The same: Alive2 agrees with LangRef, worked out by hand, on 17 poison and flag rewrites and every case in `tests/verification_negative`, with and without `undef` arguments, and two disagreements have the reason given checked. A certified case Alive2 finds wrong fails. One capped `alive-tv` at a time, about 5 s |
@@ -47,6 +57,8 @@ everything every time, in about a minute.
 | `refine` | [Refinement](refinement.md): `IRLean.Refines` builds with warnings as errors and rests on the standard axioms, right rewrites refine and nine known-wrong ones provably don't, memory has no claim, the claim `tools/binding_check.lean` builds is the statement a certificate elaborates, a false proof fails, and two edits to a copy of `IRLean/Int.lean` each stop the case guarding them. One Lean process at a time, each capped at 2 GB, about 10 s |
 | `cpp_correspondence` | [LLVM's C++](llvm-cpp-correspondence.md): a model of the pinned `simplifyAddInst`, proved right at every width, its quotes of the C++ at the pinned hashes and lines, with every code line quoted, and its answers against `opt -passes=instsimplify` on generated `add`s, with a changed quote, a missing one and two broken models each caught. One Lean process at a time, each capped at 2 GB, about 12 s |
 | `generic_rewrites` | [Rewrites at every width](generic-rewrites.md): `IRLean.Generic` builds with warnings as errors, its uses at real widths hold, a counterexample shows each hypothesis and flag is needed and each refinement isn't an equality, every module rests on the standard axioms and `leanchecker` replays it, two false rewrites and a `sorry` are refused, and five edits to a copy of `IRLean/Int.lean` each stop the theorem they target with an error that isn't a resource limit. One Lean process at a time, each capped at 2 GB, about 20 s |
+| `store` | [The lemma store](lemma-store.md): `tools/store/store.py check` passes, so every stored lemma rests on the standard axioms with its module replayed by `leanchecker`, is stated for every width, has a counterexample for each hypothesis, and meets the other admission checks, and the index's status for each is right. Lookup finds lemmas under five restatements and at two real widths, `store.py add` refuses a `sorry`, an extra axiom, a `bv_decide` proof, a fixed width, a hypothesis with no counterexample, a counterexample proved by `sorry`, a duplicate after normalization and a false statement, and a lemma already in `IRLean` whose hypothesis nothing needs, and accepts a good lemma, `grind +suggestions` proves two goals from the store that plain `grind` doesn't, and a proof from the store and one without it both check, with the axioms each should have. Reads what `lake build` built. Two Lean processes at a time, each capped at 4 GB |
+| `needs_tests` | [`.github/needs-tests.py`](#skipping-the-tests), which lets a pull request skip CI's test jobs: 15 changes in a scratch git repo each get the answer given, the three documents tests here are known to read each have a reader it finds, and the scripts it leaves out as the lint job's are what the tests labeled `lint` run. About a second, and only git |
 | `zlib` | All of zlib translates, and real calls into it match native code, failing if any input is skipped |
 | `zlib_slow` | The same for the calls that slide `deflate`'s window, the slowest of them |
 | `lint` | Every formatter and linter below, for every language |
@@ -79,7 +91,8 @@ with 4 cores and 16 GB, and the jobs run at once:
 | Tests and proofs (`passes`) | `passes` |
 | Tests and proofs (`binding`) | `binding` |
 | Tests and proofs (`llvm`) | `llvm` |
-| Tests and proofs (`semantics`) | `verify_negative`, `replay_challenge`, `contracts`, `refine`, `undef_freeze`, `generic_rewrites`, `cpp_correspondence` and `prooftest_t1` |
+| Tests and proofs (`semantics`) | `verify_negative`, `replay_challenge`, `contracts`, `refine`, `undef_freeze`, `generic_rewrites`, `cpp_correspondence`, `store` and `prooftest_t1` |
+| Tests and proofs (`llama`) | `llama`, in `nix develop .#llama`, the only job that needs llama.cpp's source |
 | Tests and proofs (`rest`) | Every other test, apart from `zlib_slow` |
 | Slow zlib tests | `zlib_slow`, on pushes to `main` |
 
@@ -94,6 +107,48 @@ depending on the runner, one Lean process at a time, so CI takes 13 to 16 minute
 
 Every job restores one cache, of the Lean toolchain, uv's packages, `.lake` and `build/lean-cache`, from the latest
 commit that saved one. Only the lint job saves it, so the jobs don't race for its key.
+
+### Setting up
+
+`.github/actions/setup` installs Nix, restores the caches, sets up the dev shell, and builds `build/ir-lean` and the
+Lean library. Three downloads in it have failed a run:
+
+| When | What failed | What happens now |
+| --- | --- | --- |
+| 2026-11-09, [run 42555906703](https://github.com/phongndo/ir-lean/actions/runs/42555906703/attempts/1) | The Nix installer's download of `nix-2.35.4-x86_64-linux.tar.xz` from releases.nixos.org: nothing for a minute, then a TLS "unexpected eof" | Every `curl` in the job reads `$RUNNER_TEMP/.curlrc`, which tries a download six times, and gives up on a try after 30 s without a connection or below 1 kB/s for 30 s. The installer runs `curl` once for the tarball and has no option for retries, so this is the one place to add them. It checks the tarball's SHA-256, so a bad download still fails |
+| 2026-11-08, runs [42473433450](https://github.com/phongndo/ir-lean/actions/runs/42473433450) and [42473641335](https://github.com/phongndo/ir-lean/actions/runs/42473641335) | alive2's source from GitHub, HTTP 504 on all four tries, while Nix set up the dev shell | alive2 comes from a cache of its own, so its source isn't downloaded, and the dev shell, and the job's own if it has one, such as `.#llama` with llama.cpp's source from GitHub, are each set up up to three times, 30 s and then 60 s apart |
+| Reported, with no run found among the latest 200 | HTTP 416 from cache.nixos.org while Nix set up the dev shell | The same three tries. What Nix finished stays in the store, so a second try only does the rest |
+
+Retrying the whole install step instead would have to reason about what a failed install left behind, and the
+installer fails on the download before it changes anything, so retrying the download itself is the smaller change.
+
+alive2 is built from source, since cache.nixos.org doesn't have it on this LLVM, which took about 73 s of every job's
+setup. After the first job builds it, `nix-store --export` writes it to `~/.cache/ir-lean-alive2`, 1.2 MB, with the paths it
+depends on. The lint job saves that under a key naming `flake.lock`, `flake.nix` and `nix/`, so a change to anything
+Nix builds it from builds it again. Other jobs fetch what it depends on from cache.nixos.org, as for the rest of the
+shell, and `nix-store --import` it. That's unsigned: the cache is trusted as the toolchain and the library the jobs
+restore are, and a pull request's run only ever saves a cache its own runs can read. If the import fails, Nix builds it.
+
+### Skipping the tests
+
+A job, "Which jobs the change needs", runs first and decides with `.github/needs-tests.py`. A pull request skips the
+test jobs only when every file it changes is Markdown it adds or edits, and no file in the repo that isn't Markdown
+names that file, ignoring case. Tests read a document by naming it:
+
+| Document | Read by |
+| --- | --- |
+| `docs/llvm-verification-tasks.md` | `tests/llvm_scope.py`, which parses the task list |
+| `docs/llvm-cpp-correspondence.md` | `tests/cpp_correspondence.py`, which checks its anchors |
+| `docs/verify.md` | `tests/verify.py`, which checks it names every status and reason |
+| Any document `tests/llvm_scope/coverage.json` gives as evidence | `tests/llvm_scope.py`, which checks the evidence's hash |
+| Every Markdown file | `tests/lint.sh` and `tests/lsp.py`, the lint job's, which runs on every pull request |
+
+A name in a comment counts too, so as of 2026-11-08 only `docs/llama-q5.md`, `docs/prior-art.md`, `docs/roadmap.md` and
+new documents can skip the tests. Removing or renaming a file always runs them, since a test can check that a file it
+was told about exists. The rule only sees names: a test that read every document by a pattern would have to be added to
+it. Lint runs either way, and pushes to `main` and manual runs run everything. A skipped job counts as passed for a
+required check, so the tests are skipped only when that job says so: if it fails, they run. `needs_tests` tests the
+rule, and fails if the documents above stop having readers it finds.
 
 ## Formatters, linters and language servers
 

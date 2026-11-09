@@ -413,10 +413,10 @@ input-dependent trip count doesn't finish. Both end at `bounded` or `unknown`, n
 
 ## Tier 3: proofs from the lemma store
 
-Not built, and it waits on [lemma store v1](roadmap.md#phase-6-the-engine-and-the-lemma-store), milestone E1, as a
-soft dependency. The lemma-store lane, on `feat/lemma-store-v1` as this is written, has `tools/store/store.py lookup
---statement`, which finds stored lemmas that prove a statement exactly or by instance, and `LemmaStore.Select`, which
-registers the store with Lean's premise selection so `grind +suggestions`, `simp? +suggestions` and `try?` see it.
+Not built. It builds on [the lemma store](lemma-store.md), milestone E1, which
+[#60](https://github.com/phongndo/ir-lean/pull/60) added: `tools/store/store.py lookup --statement` finds stored lemmas
+that prove a statement exactly or by instance, and importing `LemmaStore.Select` registers the store with Lean's
+premise selection, so `grind +suggestions`, `simp? +suggestions` and `try?` see it.
 
 A tier-3 result is `proved/kernel_checked`, with no bound: the statement for every input.
 
@@ -457,7 +457,7 @@ flywheel: each proof test that reaches tier 3 makes the next one cheaper.
 For wave 3, after T1:
 
 - **Tiers 2 and 3,** milestone T2, as designed above. Tier 2's exhaustive kernel proof and unrolling need nothing new
-  in `IRLean`. Tier 3 needs lemma store v1 merged, and `llvm_exec` where a proof test can import it.
+  in `IRLean`. Tier 3 needs `llvm_exec` where a proof test can import it, and the store, which is in.
 - **The unit-test milestone,** T3: compiler-rt's builtins against their own unit tests in
   `compiler-rt/test/builtins/Unit`, scored by injected bugs, as the [prior-art study](prior-art.md#proof-tests)
   proposes. `popcountsi2_test.c` tries 6 edge values and 10,000 `rand()` values, which never set bit 31.
