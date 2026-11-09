@@ -206,14 +206,14 @@
     "IS.simplifyCastInst.L5669": "ptrtoint of a ptradd: needs memory and pointers, which Term doesn't have",
     "IS.simplifyWithOpsReplaced.L4508": "past simplifyWithOpsReplaced's first loop, which the model delegates: it rests on what the recursive calls on V's operands answer, by induction over them, with AllowRefinement false's contract that the answer not refine V; x op identity to x, with ConstantExpr::getBinOpIdentity's identities",
     "IS.simplifyWithOpsReplaced.L4517": "past simplifyWithOpsReplaced's first loop, which the model delegates: it rests on what the recursive calls on V's operands answer, by induction over them, with AllowRefinement false's contract that the answer not refine V; x - x and x ^ x to 0, where an operand is a RepOp",
-    "IS.simplifyWithOpsReplaced.L4530": "past simplifyWithOpsReplaced's first loop, which the model delegates: it rests on what the recursive calls on V's operands answer, by induction over them, with AllowRefinement false's contract that the answer not refine V; the absorber, which also needs impliesPoison, which the core Oracle lacks",
+    "IS.simplifyWithOpsReplaced.L4530": "inventoried as fp, the function being generic over types; and past simplifyWithOpsReplaced's first loop, which the model delegates: it rests on what the recursive calls on V's operands answer, by induction over them, with AllowRefinement false's contract that the answer not refine V; the absorber, which also needs impliesPoison, which the core Oracle lacks",
     "IS.simplifyWithOpsReplaced.L4546": "past simplifyWithOpsReplaced's first loop, which the model delegates: it rests on what the recursive calls on V's operands answer, by induction over them, with AllowRefinement false's contract that the answer not refine V; scmp and ucmp of x, x to 0, intrinsics Term doesn't have",
     "IS.simplifyWithOpsReplaced.L4491": "inventoried as fp; past the delegated replacement too",
     "IS.simplifyWithOpsReplaced.L4494": "inventoried as fp; past the delegated replacement too",
     "IS.simplifyWithOpsReplaced.L4566": "inventoried as calls: min and max intrinsics with their identity, past the delegated replacement",
-    "IS.simplifyWithOpsReplaced.L4575": "inventoried as memory: getelementptr x, 0",
-    "IS.simplifyWithOpsReplaced.L4644": "inventoried as calls: simplifyInstructionWithOperands on the replaced operands, a recursive call into InstSimplify, under PreventSelfSimplify",
-    "IS.simplifyWithOpsReplaced.L4647": "inventoried as calls: ConstantFoldInstOperands, the constant folder, on the replaced operands",
-    "IS.simplifyWithOpsReplaced.L4428": "integer instance proved, not claimed for every input: simplifyWithOpsReplaced also handles floating point, and the revised inventory tags this site fp. Peephole.IS.simplifyWithOpsReplaced.L4428, which Peephole.IS.simplifyWithOpsReplaced.sound uses, proves it for every scalar integer input; the floating-point instance waits for SEM-05"
+    "IS.simplifyWithOpsReplaced.L4575": "inventoried as fp and memory: getelementptr x, 0, past the delegated replacement",
+    "IS.simplifyWithOpsReplaced.L4644": "inventoried as fp and calls: simplifyInstructionWithOperands on the replaced operands, a recursive call into InstSimplify, under PreventSelfSimplify",
+    "IS.simplifyWithOpsReplaced.L4647": "inventoried as fp and calls: ConstantFoldInstOperands, the constant folder, on the replaced operands",
+    "IS.simplifyWithOpsReplaced.L4428": "integer instance proved, not claimed for every input: simplifyWithOpsReplaced also handles floating point, and the inventory tags this site fp. Peephole.IS.simplifyWithOpsReplaced.L4428, which Peephole.IS.simplifyWithOpsReplaced.sound uses, proves it for every scalar integer input; the floating-point instance waits for SEM-05"
   }
 }
