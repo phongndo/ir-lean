@@ -201,8 +201,8 @@ Everything [binding](llvm-proof-binding.md#what-a-bound-verdict-rests-on) rests 
 
 - Every claim kind but `ir_instance_equivalence`. Equivalence fails on rewrites that only refine, such as removing
   undefined behavior or poison, so those come back `failed`, not wrong.
-- Functions with memory or pointers, vectors (ir-lean refuses `noundef` on a vector argument), arguments that aren't
-  `noundef`, and functions a pass adds or removes.
+- Functions with memory or pointers, arguments that aren't `noundef`, and functions a pass adds or removes. Until
+  2026-11-09 vectors too, since ir-lean refused `noundef` on a vector argument.
 - Loops and recursion: the automation runs the blocks without an invariant, so a loop runs it out of heartbeats
   or recursion depth, which is `unknown`.
 - Any `opt` option but `-passes=` and `-mtriple`, pipelines, codegen, and `llc`.

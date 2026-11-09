@@ -108,7 +108,9 @@ REASONS: dict[str, Reason] = {
         "An integer operation in IRLean/Int.lean, checked by tests/opcheck.py "
         "against Alive2 and LLVM's constant folder",
     ),
-    "vector": Reason("modeled", None, "A vector of integers, lane by lane, in IRLean/Vec.lean"),
+    "vector": Reason(
+        "modeled", None, "A vector of integers, lane by lane, in IRLean/Vec.lean and IRLean/Lanes.lean"
+    ),
     "control": Reason(
         "modeled",
         None,
@@ -133,6 +135,12 @@ REASONS: dict[str, Reason] = {
         "trace, or for one without effects, an answer at the run's choice (docs/calls.md)",
     ),
     "aggregate": Reason("modeled", None, "A struct is a Lean tuple, field by field"),
+    "float": Reason(
+        "modeled",
+        None,
+        "Floating point in IRLean/Float.lean: a float is its bits, and each operation is checked by "
+        "tests/fpcheck.py against LLVM's constant folder, the processor and Alive2 (SEM-05, docs/float.md)",
+    ),
     "freeze": Reason(
         "modeled",
         None,
@@ -226,7 +234,8 @@ REASONS: dict[str, Reason] = {
     "target setting": Reason(
         "assumed",
         None,
-        "A setting for the backend or a sanitizer, with no meaning in LangRef for a run of this function",
+        "A setting for the backend, a sanitizer, a profile or a tool, with no meaning in LangRef for a run "
+        "of this function",
     ),
     "symbol metadata": Reason(
         "assumed",
@@ -236,6 +245,38 @@ REASONS: dict[str, Reason] = {
         "functions or globals. None says what a run does, apart from absolute_symbol, which "
         "narrows where a symbol is: a theorem holds for every address the model allows, "
         "which includes those",
+    ),
+    "hardening": Reason(
+        "assumed",
+        None,
+        "Hardening, instrumentation or patching that code generation or a later pass adds, such as a "
+        "sanitizer or a shadow call stack. The IR the emitter reads is what runs, before any of it",
+    ),
+    "one thread": Reason(
+        "assumed",
+        None,
+        "Says which transformations keep code right when many threads run it in step, as on a GPU. The model "
+        "runs one thread, which none of these constrains",
+    ),
+    "no callback": Reason(
+        "assumed",
+        None,
+        'LangRef: it "has no effect on functions defined in the current module". On a call the model answers '
+        "from the world, the calls' own check refuses it, and a call that never returns stops the model",
+    ),
+    "speculatable": Reason(
+        "assumed",
+        None,
+        "Promises the function has no effects and no undefined behavior. A run of the function itself is "
+        "the same with it or without, so the emitter accepts it on a function without memory, and refuses it "
+        "on one with memory, and every call to such a function, since LangRef makes a call undefined where "
+        "the function would be, even when the call doesn't run",
+    ),
+    "noreturn": Reason(
+        "modeled",
+        None,
+        'LangRef: it "produces undefined behavior at runtime if the function ever does dynamically return", '
+        "so the emitter makes each return undefined",
     ),
     "string on a value": Reason(
         "assumed",
@@ -270,11 +311,30 @@ REASONS: dict[str, Reason] = {
     "intrinsic operand": Reason(
         "assumed", None, "Only an operand of an intrinsic, whose own class covers it"
     ),
+    "x86 bit function": Reason(
+        "modeled",
+        None,
+        "One of x86's pure bit functions, VPTERNLOG, PSHUFB and the shifts, in IRLean/X86Bits.lean, checked "
+        "by tests/vecopcheck.py against Alive2, both ways, and LLVM's constant folder with x86's own folds",
+    ),
+    "scalable vector": Reason(
+        "modeled",
+        None,
+        "A scalable vector of integers, a Vec (vscale * N) M, with vscale a parameter every function in the "
+        "module takes, in IRLean/Scalable.lean. Checked against the fixed-width forms and LLVM's constant "
+        "folder by tests/scalablecheck.py, and decided in docs/scalable-vectors.md",
+    ),
+    "vscale range": Reason(
+        "modeled",
+        None,
+        "A run with vscale outside the function's vscale_range is undefined, checked at its entry, "
+        "IRLean/Scalable.lean",
+    ),
     "data layout": Reason(
         "modeled",
         None,
-        "A data layout the model reads the facts it uses from: 64-bit pointers "
-        "and indices, and little-endian",
+        "A data layout that says what Mem assumes, read from it: 64-bit pointers in address space 0, all of "
+        "them address, null all zeros, and little-endian",
     ),
     # Refused, with the lane working on it.
     "floating point": Reason("refused", "floating point", "Floating point"),
@@ -302,23 +362,34 @@ REASONS: dict[str, Reason] = {
     "x86": Reason(
         "refused",
         "long tail",
-        "An x86 intrinsic. The pure bit functions among them are the long tail's "
-        "to model, and the rest stay refused by name",
+        "An x86 intrinsic besides those IRLean/X86.lean and IRLean/X86Bits.lean model. It stays refused, by "
+        "name, until it's modeled and checked against Alive2 and LLVM's constant folder",
     ),
     "layout": Reason(
         "refused",
+        "memory",
+        "Pointers Mem doesn't have yet: in another address space, in a vector, or, in a function with "
+        "memory, narrower than 64 bits, with fewer address bits, or with a null that isn't all zeros",
+    ),
+    "big-endian": Reason(
+        "refused",
         "long tail",
-        "A data layout, an address space or a vector of pointers the model doesn't have yet",
+        "A bitcast between integers and vectors in a big-endian module, whose lane order the model "
+        "doesn't have",
     ),
     "exceptions": Reason(
-        "refused", "long tail", "Exception handling: invoke, landingpad, resume and the funclet instructions"
+        "refused",
+        "long tail",
+        "Exception handling: invoke, landingpad, resume and the funclet instructions. Refused on review: a "
+        "landing pad's value is a pointer to the exception and a selector the personality function, outside "
+        "the module, chooses, so it waits on memory and on calls. docs/ir-features.md",
     ),
     "aggregate gap": Reason("refused", "long tail", "An aggregate form the emitter doesn't translate yet"),
     "calling convention mismatch": Reason(
         "refused",
         "long tail",
-        "A call whose calling convention isn't the "
-        "callee's, which LangRef makes undefined, refused until modeled so",
+        "A call whose calling convention or ABI attributes, such as inreg or signext, aren't the callee's, "
+        "which LangRef makes undefined, refused until modeled so",
     ),
     "attribute review": Reason(
         "refused",
@@ -330,9 +401,6 @@ REASONS: dict[str, Reason] = {
         "refused",
         "long tail",
         "Metadata the long tail is reviewing, to accept where it has no meaning for a run, or model",
-    ),
-    "value attribute gap": Reason(
-        "refused", "long tail", "A value promise on a vector, which the model checks only on scalars so far"
     ),
     "nondeterministic": Reason(
         "refused",
@@ -442,6 +510,10 @@ INTRINSIC_RULES = [
         "llvm.vector.reduce.xor",
     ),
     R("assume", "llvm.assume"),
+    R(
+        "scalable vector",
+        "llvm.vscale llvm.stepvector llvm.vector.reverse llvm.vector.insert llvm.vector.extract",
+    ),
     R("identity", "llvm.expect"),
     R("no effect", "llvm.donothing"),
     R("memory", "llvm.memcpy llvm.memset llvm.lifetime.start llvm.lifetime.end"),
@@ -459,13 +531,14 @@ INTRINSIC_RULES = [
         "llvm.x86.avx512.broadcastmw.128 llvm.x86.avx512.broadcastmw.256 llvm.x86.avx512.broadcastmw.512",
     ),
     R("progress effect", "llvm.sideeffect"),
+    R("float", "llvm.copysign llvm.fabs llvm.is.fpclass"),
     R(
         "floating point",
         "llvm.acos llvm.asin llvm.atan llvm.atan2 llvm.arithmetic.fence llvm.canonicalize llvm.ceil "
-        "llvm.convert.from.arbitrary.fp llvm.convert.to.arbitrary.fp llvm.copysign llvm.cos llvm.cosh "
+        "llvm.convert.from.arbitrary.fp llvm.convert.to.arbitrary.fp llvm.cos llvm.cosh "
         "llvm.exp "
-        "llvm.exp10 llvm.exp2 llvm.fabs llvm.floor llvm.fma llvm.fmuladd llvm.fptosi.sat llvm.fptoui.sat "
-        "llvm.fptrunc.round llvm.frexp llvm.get.fpenv llvm.get.fpmode llvm.get.rounding llvm.is.fpclass "
+        "llvm.exp10 llvm.exp2 llvm.floor llvm.fma llvm.fmuladd llvm.fptosi.sat llvm.fptoui.sat "
+        "llvm.fptrunc.round llvm.frexp llvm.get.fpenv llvm.get.fpmode llvm.get.rounding "
         "llvm.ldexp llvm.llrint llvm.llround llvm.log llvm.log10 llvm.log2 llvm.lrint llvm.lround "
         "llvm.maximum "
         "llvm.maximumnum llvm.maxnum llvm.minimum llvm.minimumnum llvm.minnum llvm.modf llvm.nearbyint "
@@ -499,13 +572,13 @@ INTRINSIC_RULES = [
     ),
     R(
         "scalable",
-        "llvm.vscale llvm.stepvector llvm.get.active.lane.mask llvm.experimental.get.vector.length "
+        "llvm.get.active.lane.mask llvm.experimental.get.vector.length "
         "llvm.experimental.cttz.elts llvm.loop.dependence.raw.mask llvm.loop.dependence.war.mask",
         "llvm.vp. llvm.experimental.vp.",
     ),
     R(
         "vector gap",
-        "llvm.vector.extract llvm.vector.insert llvm.vector.reverse llvm.vector.splice.left "
+        "llvm.vector.splice.left "
         "llvm.vector.splice.right llvm.vector.partial.reduce.add llvm.experimental.vector.compress "
         "llvm.experimental.vector.match llvm.experimental.vector.extract.last.active llvm.masked.sdiv "
         "llvm.masked.srem llvm.masked.udiv llvm.masked.urem llvm.matrix.multiply llvm.matrix.transpose "
@@ -564,6 +637,36 @@ INTRINSIC_RULES = [
         "llvm.experimental.patchpoint llvm.experimental.patchpoint.void llvm.experimental.stackmap",
     ),
     R("objc", "", "llvm.objc."),
+    R(
+        "x86 bit function",
+        "llvm.x86.avx2.pshuf.b llvm.x86.avx2.psll.d llvm.x86.avx2.psll.q llvm.x86.avx2.psll.w "
+        "llvm.x86.avx2.pslli.d llvm.x86.avx2.pslli.q llvm.x86.avx2.pslli.w llvm.x86.avx2.psllv.d "
+        "llvm.x86.avx2.psllv.d.256 llvm.x86.avx2.psllv.q llvm.x86.avx2.psllv.q.256 llvm.x86.avx2.psra.d "
+        "llvm.x86.avx2.psra.w llvm.x86.avx2.psrai.d llvm.x86.avx2.psrai.w llvm.x86.avx2.psrav.d "
+        "llvm.x86.avx2.psrav.d.256 llvm.x86.avx2.psrl.d llvm.x86.avx2.psrl.q llvm.x86.avx2.psrl.w "
+        "llvm.x86.avx2.psrli.d llvm.x86.avx2.psrli.q llvm.x86.avx2.psrli.w llvm.x86.avx2.psrlv.d "
+        "llvm.x86.avx2.psrlv.d.256 llvm.x86.avx2.psrlv.q llvm.x86.avx2.psrlv.q.256 "
+        "llvm.x86.avx512.pshuf.b.512 llvm.x86.avx512.psll.d.512 llvm.x86.avx512.psll.q.512 "
+        "llvm.x86.avx512.psll.w.512 llvm.x86.avx512.pslli.d.512 llvm.x86.avx512.pslli.q.512 "
+        "llvm.x86.avx512.pslli.w.512 llvm.x86.avx512.psllv.d.512 llvm.x86.avx512.psllv.q.512 "
+        "llvm.x86.avx512.psllv.w.128 llvm.x86.avx512.psllv.w.256 llvm.x86.avx512.psllv.w.512 "
+        "llvm.x86.avx512.psra.d.512 llvm.x86.avx512.psra.q.128 llvm.x86.avx512.psra.q.256 "
+        "llvm.x86.avx512.psra.q.512 llvm.x86.avx512.psra.w.512 llvm.x86.avx512.psrai.d.512 "
+        "llvm.x86.avx512.psrai.q.128 llvm.x86.avx512.psrai.q.256 llvm.x86.avx512.psrai.q.512 "
+        "llvm.x86.avx512.psrai.w.512 llvm.x86.avx512.psrav.d.512 llvm.x86.avx512.psrav.q.128 "
+        "llvm.x86.avx512.psrav.q.256 llvm.x86.avx512.psrav.q.512 llvm.x86.avx512.psrav.w.128 "
+        "llvm.x86.avx512.psrav.w.256 llvm.x86.avx512.psrav.w.512 llvm.x86.avx512.psrl.d.512 "
+        "llvm.x86.avx512.psrl.q.512 llvm.x86.avx512.psrl.w.512 llvm.x86.avx512.psrli.d.512 "
+        "llvm.x86.avx512.psrli.q.512 llvm.x86.avx512.psrli.w.512 llvm.x86.avx512.psrlv.d.512 "
+        "llvm.x86.avx512.psrlv.q.512 llvm.x86.avx512.psrlv.w.128 llvm.x86.avx512.psrlv.w.256 "
+        "llvm.x86.avx512.psrlv.w.512 llvm.x86.avx512.pternlog.d.128 llvm.x86.avx512.pternlog.d.256 "
+        "llvm.x86.avx512.pternlog.d.512 llvm.x86.avx512.pternlog.q.128 llvm.x86.avx512.pternlog.q.256 "
+        "llvm.x86.avx512.pternlog.q.512 llvm.x86.sse2.psll.d llvm.x86.sse2.psll.q llvm.x86.sse2.psll.w "
+        "llvm.x86.sse2.pslli.d llvm.x86.sse2.pslli.q llvm.x86.sse2.pslli.w llvm.x86.sse2.psra.d "
+        "llvm.x86.sse2.psra.w llvm.x86.sse2.psrai.d llvm.x86.sse2.psrai.w llvm.x86.sse2.psrl.d "
+        "llvm.x86.sse2.psrl.q llvm.x86.sse2.psrl.w llvm.x86.sse2.psrli.d llvm.x86.sse2.psrli.q "
+        "llvm.x86.sse2.psrli.w llvm.x86.ssse3.pshuf.b.128",
+    ),
     R("x86", "", "llvm.x86."),
     R(
         "other target",
@@ -598,8 +701,10 @@ ATTRIBUTE_RULES = [
     R("memory promise", "noalias", at="return"),
     R("external", "noalias", at="call return"),
     R("memory model", "noalias", at="parameter, call parameter"),
-    R("floating point", "nofpclass denormal_fpenv strictfp noimplicitfloat"),
-    R("scalable", "vscale_range"),
+    R("float", "nofpclass", at=VALUE),
+    R("floating point", "denormal_fpenv strictfp noimplicitfloat"),
+    R("vscale range", "vscale_range", at="function"),
+    R("scalable", "vscale_range", at="call"),
     R(
         "memory model",
         "byval byref inalloca preallocated sret elementtype writable dead_on_unwind dead_on_return "
@@ -609,22 +714,31 @@ ATTRIBUTE_RULES = [
     ),
     R("coroutines", "coro_only_destroy_when_complete coro_elide_safe presplitcoroutine"),
     R(
-        "instrumentation",
+        "hardening",
         "sanitize_address sanitize_alloc_token sanitize_hwaddress sanitize_memtag sanitize_memory "
         "sanitize_numerical_stability sanitize_realtime sanitize_realtime_blocking sanitize_thread "
-        "sanitize_type "
-        "disable_sanitizer_instrumentation nosanitize_bounds nosanitize_coverage noprofile skipprofile "
-        "optforfuzzing",
+        "sanitize_type disable_sanitizer_instrumentation nosanitize_bounds nosanitize_coverage noprofile "
+        "skipprofile optforfuzzing nocf_check fn_ret_thunk_extern hybrid_patchable shadowcallstack safestack "
+        "speculative_load_hardening",
+        at="function, call",
     ),
+    R("hint", "flatten nooutline optdebug nonlazybind alignstack", at="function, call"),
+    R("hint", "noipa", at="call"),
+    # LLVM counts a `noipa` definition as one another module could replace, so the emitter refuses it with the
+    # rest, through `isInterposable()`.
+    R("external", "noipa", at="function"),
+    R("one thread", "convergent noduplicate nodivergencesource", at="function, call"),
+    R("no callback", "nocallback", at="function, call"),
+    R("abi", "inreg noext alignstack", at=VALUE),
+    R("noreturn", "noreturn", at="function"),
     R(
         "attribute review",
-        "nocallback speculatable convergent noduplicate nocreateundeforpoison nodivergencesource flatten "
-        "noipa "
-        "nooutline optdebug jumptable naked nonlazybind nocf_check fn_ret_thunk_extern hybrid_patchable "
-        "shadowcallstack safestack speculative_load_hardening alignstack builtin returns_twice noreturn "
-        "inreg "
-        "noext",
+        "nocreateundeforpoison jumptable naked builtin returns_twice",
+        at="function, call",
     ),
+    R("speculatable", "speculatable", at="function"),
+    R("attribute review", "speculatable", at="call"),
+    R("attribute review", "noreturn", at="call"),
     R("verifier", "immarg"),
 ]
 
@@ -638,18 +752,22 @@ STRING_ATTRIBUTE_RULES = [
     R("string on a value", "any", at="parameter, return, call parameter, call return"),
     R("floating point", "less-precise-fpmad no-signed-zeros-fp-math", at="function, call"),
     R(
-        "attribute review",
-        "no-jump-tables no-inline-line-tables profile-sample-accurate use-sample-profile loader-replaceable "
-        "allow_direct_access_in_hot_patch_function marked_for_windows_hot_patching any",
+        "target setting",
+        "no-jump-tables no-inline-line-tables profile-sample-accurate use-sample-profile "
+        "allow_direct_access_in_hot_patch_function marked_for_windows_hot_patching "
+        "instcombine-no-verify-fixpoint",
         at="function, call",
     ),
+    R("external", "loader-replaceable", at="function, call"),
+    R("attribute review", "any", at="function, call"),
 ]
 # Metadata kinds the emitter allows that FixedMetadataKinds.def doesn't fix: clang names them by string.
 EMITTER_METADATA = ("heapallocsite", "srcloc")
 # The string attributes the emitter allows on a function or a call, which aren't in Attributes.td.
 ALLOWED_STRINGS = (
     "alloc-family frame-pointer min-legal-vector-width no-builtins no-trapping-math probe-stack "
-    "stack-protector-buffer-size target-cpu target-features tune-cpu zero-call-used-regs".split()
+    "stack-protector-buffer-size target-cpu target-features tune-cpu zero-call-used-regs "
+    "instcombine-no-verify-fixpoint".split()
 )
 
 METADATA_RULES = [
@@ -694,7 +812,8 @@ INSTRUCTION_RULES = [
     R("freeze", "Freeze"),
     R("call", "Call"),
     R("memory", "Alloca Load Store GetElementPtr PtrToInt PtrToAddr"),
-    R("floating point", "FNeg FAdd FSub FMul FDiv FRem FPToUI FPToSI UIToFP SIToFP FPTrunc FPExt FCmp"),
+    R("float", "FNeg FCmp"),
+    R("floating point", "FAdd FSub FMul FDiv FRem FPToUI FPToSI UIToFP SIToFP FPTrunc FPExt"),
     R("memory model", "IntToPtr"),
     R("layout", "AddrSpaceCast"),
     R("concurrency", "Fence AtomicCmpXchg AtomicRMW"),
@@ -712,8 +831,9 @@ TYPE_RULES = [
     R("aggregate", "Struct"),
     R("call", "Function"),
     R("memory", "Pointer"),
-    R("floating point", "Half BFloat Float Double X86_FP80 FP128 PPC_FP128"),
-    R("scalable", "ScalableVector"),
+    R("float", "Half BFloat Float Double FP128"),
+    R("floating point", "X86_FP80 PPC_FP128"),
+    R("scalable vector", "ScalableVector"),
     R("vector gap", "Array"),
     R("memory model", "Byte"),
     R("token", "Token"),
@@ -759,7 +879,7 @@ CONSTANT_RULES = [
     R("global", "GlobalVariable ConstantDataArray ConstantArray"),
     R("call", "Function"),
     R("undef", "UndefValue"),
-    R("floating point", "ConstantFP"),
+    R("float", "ConstantFP"),
     R("memory model", "ConstantByte"),
     R("external", "ConstantExpr GlobalIFunc DSOLocalEquivalent NoCFIValue"),
     R("alias", "GlobalAlias"),
@@ -788,16 +908,16 @@ BUNDLE_RULES = [
 
 # Forms: each with its class, and the probe that shows the emitter treats it so.
 FORM_RULES = [
-    R(
-        "vector gap",
-        "udiv-of-vectors sdiv-of-vectors urem-of-vectors srem-of-vectors freeze-of-a-vector "
-        "scalar-intrinsic-on-vectors integer-bitcast-nondividing",
-    ),
+    R("vector", "udiv-of-vectors sdiv-of-vectors urem-of-vectors srem-of-vectors"),
+    R("vector gap", "freeze-of-a-vector integer-bitcast-nondividing vector-constant-expression"),
+    R("scalable", "getelementptr-over-a-scalable-type scalable-vector-in-a-recursive-function"),
+    R("memory model", "load-of-a-scalable-vector"),
     R("aggregate gap", "array-value insertvalue-nested freeze-of-a-struct"),
     R(
         "layout",
         "pointer-in-address-space vector-of-pointers getelementptr-of-vectors "
-        "data-layout-32-bit-pointers-with-memory big-endian-bitcast",
+        "data-layout-32-bit-pointers-with-memory data-layout-32-bit-addresses-with-memory "
+        "data-layout-null-all-ones-with-memory",
     ),
     R("memory model", "store-of-i1 load-of-i1 freeze-of-a-pointer"),
     R("concurrency", "volatile-load volatile-store atomic-load atomic-store"),
@@ -806,14 +926,16 @@ FORM_RULES = [
     R("external", "call-to-an-odr-definition variadic-call alias-the-linker-may-replace"),
     R("variadic", "variadic-function"),
     R("exceptions", "personality-function"),
+    R("big-endian", "big-endian-bitcast"),
     R("asm", "inline-asm-call"),
     R("gc", "function-with-gc"),
     R("machine", "prefix-or-prologue-data"),
-    R("calling convention mismatch", "calling-convention-mismatch"),
+    R("calling convention mismatch", "calling-convention-mismatch abi-attribute-mismatch"),
+    R("attribute review", "speculatable-with-memory call-to-a-speculatable-function"),
     R("call", "indirect-call"),
     R("tail call", "tail-call musttail-call"),
     R("hint", "notail-call"),
-    R("value attribute gap", "noundef-on-a-vector range-on-a-vector"),
+    R("value promise", "noundef-on-a-vector range-on-a-vector noundef-on-a-struct"),
     R("undef", "undef-in-a-vector"),
     R("global", "getelementptr-constant-expression"),
     R("data layout", "data-layout-explicit-64-bit"),
@@ -1134,6 +1256,11 @@ def attribute_probes(item: Item) -> list[str]:
                 f"define void @probe() {{\n  call void @callee() #0\n  ret void\n}}\n{group}\n"
             ]
         return value_probes(at, ["i32"], lambda ty: text)
+    if (a, at) == ("jumptable", "call"):
+        # LLVM's verifier checks `jumptable` with `cast<GlobalValue>(V)->hasGlobalUnnamedAddr()`, and at a
+        # call `V` is the call, so the bits it reads aren't the call's. Whether a probe passes the verifier
+        # can change from run to run, as on macOS, or from shape to shape, as on Linux, so no probe is built.
+        return []
     if at in ("function", "call"):
         # In an attribute group, alignstack is written with `=`.
         text = "alignstack=8" if a == "alignstack" else ATTRIBUTE_TEXT.get(a, a)
@@ -1159,13 +1286,22 @@ def attribute_probes(item: Item) -> list[str]:
                     f"define {ret} @probe({params}) {{\n  {call}\n  {body}\n}}\n{group}\n"
                 )
         return out
-    return value_probes(at, [*VALUE_TYPES, "<4 x i32>"], lambda ty: attribute_text(a, ty))
+    return value_probes(
+        at, [*VALUE_TYPES, "<4 x i32>"], lambda ty: attribute_text(a, ty), a in ABI_ATTRIBUTES
+    )
 
 
-def value_probes(at: str, types: list[str], text: Callable[[str], str]) -> list[str]:
+# Attributes that have to be the same at a call and on the callee, or LangRef says the behavior may be
+# undefined, so a probe at a call puts them on the callee too. The form abi-attribute-mismatch probes one that
+# isn't.
+ABI_ATTRIBUTES = {"signext", "zeroext", "noext", "inreg", "alignstack"}
+
+
+def value_probes(at: str, types: list[str], text: Callable[[str], str], abi: bool = False) -> list[str]:
     out = []
     for ty in types:
         t = text(ty)
+        on_callee = f"{t} " if abi else ""
         if at == "parameter":
             out.append(f"define void @probe({ty} {t} %x) {{\n  ret void\n}}\n")
             out.append(f"define {ty} @probe({ty} {t} %x) {{\n  ret {ty} %x\n}}\n")
@@ -1174,12 +1310,12 @@ def value_probes(at: str, types: list[str], text: Callable[[str], str]) -> list[
             out.append(f"define {t} {ty} @probe({ty} %x) {{\n  ret {ty} %x\n}}\n")
         elif at == "call parameter":
             out.append(
-                f"define void @callee({ty} %x) {{\n  ret void\n}}\n"
+                f"define void @callee({ty} {on_callee}%x) {{\n  ret void\n}}\n"
                 f"define void @probe({ty} %x) {{\n  call void @callee({ty} {t} %x)\n  ret void\n}}\n"
             )
         elif at == "call return":
             out.append(
-                f"define {ty} @callee({ty} %x) {{\n  ret {ty} %x\n}}\n"
+                f"define {on_callee}{ty} @callee({ty} %x) {{\n  ret {ty} %x\n}}\n"
                 f"define {ty} @probe({ty} %x) {{\n  %r = call {t} {ty} @callee({ty} %x)\n  ret {ty} %r\n}}\n"
             )
     return out
@@ -1547,12 +1683,11 @@ def run_probes(
 # Why a modeled item's probe may be refused at some shapes: the emitter's reason, and the refused item it's
 # about.
 PARTIAL = [
-    (r"^type <vscale x", ("type", "", "ScalableVector")),
-    (r"^type (half|bfloat|float|double|fp128|x86_fp80|ppc_fp128)$", ("type", "", "Float")),
-    (r"^type <\d+ x (half|bfloat|float|double|fp128|x86_fp80|ppc_fp128)>$", ("type", "", "Float")),
+    (r"^type (<(vscale x )?\d+ x )?x86_fp80>?$", ("type", "", "X86_FP80")),
+    (r"^type (<(vscale x )?\d+ x )?ppc_fp128>?$", ("type", "", "PPC_FP128")),
+    (r"^type <vscale x \d+ x ptr", ("form", "", "vector-of-pointers")),
     (r"^type <\d+ x ptr", ("form", "", "vector-of-pointers")),
     (r"^type ptr addrspace", ("form", "", "pointer-in-address-space")),
-    (r"^intrinsic llvm\.\S+ of vectors$", ("form", "", "scalar-intrinsic-on-vectors")),
 ]
 
 # Items no probe can show anything about, each with why. Every other item without one fails the check.
@@ -1577,6 +1712,12 @@ UNPROBEABLE = {
     ): "only on an intrinsic's declaration; LLVM's verifier rejects it here",
     ("attribute", "function", "builtin"): "only at a call; LLVM's verifier rejects it on a function",
     ("attribute", "call", "speculatable"): "only on a function; LLVM's verifier rejects it at a call",
+    (
+        "attribute",
+        "call",
+        "jumptable",
+    ): "LLVM's verifier reads memory that isn't the call's to check it, so no probe of it is the same "
+    "every run; checkFunctionAttributes has no case for it, so the emitter refuses it",
     ("attribute", "call", "denormal_fpenv"): "only on a function; LLVM's verifier rejects it at a call",
     (
         "attribute",
