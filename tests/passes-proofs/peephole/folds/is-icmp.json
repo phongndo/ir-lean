@@ -1,0 +1,199 @@
+{
+  "schema": "ir-lean.peephole.folds/1",
+  "family": "is-icmp",
+  "pass": "instsimplify",
+  "modules": [
+    "Peephole.Lemmas.ICmp",
+    "Peephole.IS.ICmpBase",
+    "Peephole.IS.ICmpConstantRange",
+    "Peephole.IS.ICmpOfBools",
+    "Peephole.IS.ICmpWithZero",
+    "Peephole.IS.ICmpWithConstant",
+    "Peephole.IS.ICmpMonotonic",
+    "Peephole.IS.ICmpUnsignedRangeCheck",
+    "Peephole.IS.ICmp"
+  ],
+  "entries": [
+    {
+      "fold": "Peephole.IS.simplifyICmpInst.onInst",
+      "opcodes": [
+        "icmp"
+      ],
+      "opt": "instsimplify"
+    }
+  ],
+  "folds": {
+    "Peephole.IS.simplifyICmpInst": {
+      "sound": "Peephole.IS.simplifyICmpInst.sound",
+      "sites": [
+        "IS.simplifyICmpInst.L3910",
+        "IS.simplifyICmpInst.L3913",
+        "IS.simplifyICmpInst.L3959",
+        "IS.simplifyICmpInst.L3961",
+        "IS.simplifyICmpInst.L4000",
+        "IS.simplifyICmpInst.L4005",
+        "IS.simplifyICmpInst.L4011",
+        "IS.simplifyICmpInst.L4016",
+        "IS.simplifyICmpInst.L4038",
+        "IS.simplifyICmpInst.L4040",
+        "IS.simplifyICmpInst.L4074",
+        "IS.simplifyICmpInst.L4076",
+        "IS.simplifyICmpInst.L4082",
+        "IS.simplifyICmpInst.L4087"
+      ]
+    },
+    "Peephole.IS.simplifyICmpOfBools": {
+      "sound": "Peephole.IS.simplifyICmpOfBools.sound",
+      "sites": [
+        "IS.simplifyICmpOfBools.ExtractNotLHS.L2899",
+        "IS.simplifyICmpOfBools.L2908",
+        "IS.simplifyICmpOfBools.L2919",
+        "IS.simplifyICmpOfBools.L2923",
+        "IS.simplifyICmpOfBools.L2933",
+        "IS.simplifyICmpOfBools.L2944",
+        "IS.simplifyICmpOfBools.L2948",
+        "IS.simplifyICmpOfBools.L2960",
+        "IS.simplifyICmpOfBools.L2971",
+        "IS.simplifyICmpOfBools.L2975",
+        "IS.simplifyICmpOfBools.L2980"
+      ]
+    },
+    "Peephole.IS.simplifyICmpWithZero": {
+      "sound": "Peephole.IS.simplifyICmpWithZero.sound",
+      "sites": []
+    },
+    "Peephole.IS.simplifyICmpWithConstant": {
+      "sound": "Peephole.IS.simplifyICmpWithConstant.sound",
+      "sites": [
+        "IS.simplifyICmpWithConstant.L3126",
+        "IS.simplifyICmpWithConstant.L3128",
+        "IS.simplifyICmpWithConstant.L3133",
+        "IS.simplifyICmpWithConstant.L3135",
+        "IS.simplifyICmpWithConstant.L3146",
+        "IS.simplifyICmpWithConstant.L3149"
+      ]
+    },
+    "Peephole.IS.simplifyICmpUsingMonotonicValues": {
+      "sound": "Peephole.IS.simplifyICmpUsingMonotonicValues.sound",
+      "sites": [
+        "IS.simplifyICmpUsingMonotonicValues.L3222"
+      ]
+    },
+    "Peephole.IS.simplifyUnsignedRangeCheck": {
+      "sound": "Peephole.IS.simplifyUnsignedRangeCheck.sound",
+      "sites": [
+        "IS.simplifyUnsignedRangeCheck.L1534",
+        "IS.simplifyUnsignedRangeCheck.L1539",
+        "IS.simplifyUnsignedRangeCheck.L1545",
+        "IS.simplifyUnsignedRangeCheck.L1551",
+        "IS.simplifyUnsignedRangeCheck.L1561",
+        "IS.simplifyUnsignedRangeCheck.L1564"
+      ]
+    }
+  },
+  "delegates": {
+    "Peephole.IS.simplifyICmpInst": {
+      "ConstantFoldCompareInstOperands": "two constants: the constant folder, IS.simplifyICmpInst.L3869",
+      "simplifyICmpInst, from simplifyICmpWithBinOp and simplifyICmpWithMinMax": "their recursive calls, with MaxRecurse - 1, are a parameter of the icmp-b family's models; this model passes ICmpB.ICmpSimp.delegating, so each delegates. simplifyICmpWithBinOp delegates its answers in any case, and falls through where they decline",
+      "simplifyICmpWithDominatingAssume": "assumptions (needs calls): not modelled; delegated unconditionally, so the steps after it (L4148, threadCmpOverSelect, threadCmpOverPHI) aren't reached by a run",
+      "threadCmpOverSelect": "where an operand is a select: not modelled",
+      "threadCmpOverPHI": "where an operand is a Term.var, which may be a phi: not modelled"
+    }
+  },
+  "model": {
+    "Peephole.IS.ICmp.Ext": "analyses the core Oracle lacks: isImpliedByDomCondition (domCond), getRange (getRange) and computeConstantRange (constRange), with Ext.Sound. The entry point simplifyICmpInst.onInst runs with Ext.none, which knows nothing; simplifyICmpInst.onInstWith takes any Ext, and simplifyICmpInst.sound holds for every sound one",
+    "Peephole.IS.ICmp.CR": "ConstantRange as ConstantRange.cpp computes it (makeAllowedICmpRegion, makeExactICmpRegion, contains, inverse, icmp and the min and max of a range), with what each says about values proved; the steps that read a range only fire at a positive width, since LLVM has no i0 and at width 0 the full and the empty range are the same pair",
+    "Peephole.IS.simplifyICmpInst": "forwards to the icmp-b family's simplifyICmpWithBinOp, simplifyICmpWithMinMax and simplifyICmpWithIntrinsicOnLHS (twice, the second with the operands and predicate swapped), in the C++'s order, as it does to simplifyICmpOfBools, simplifyICmpWithZero, simplifyICmpWithConstant and simplifyICmpUsingMonotonicValues; each forward's theorem is the callee's sound. CmpPredicate's samesign flag reaches only simplifyICmpWithBinOp's recursive calls, which are delegated, so the model passes it false there, with the same answer. simplifyICmpWithBinOp.sound assumes the zext in 0 - zext X widens, so simplifyICmpInst.sound, onInstWith_sound and onInst_sound assume every cast in the operands is well typed (Peephole.IS.ICmpB.WellTyped: zext and sext widen, trunc narrows), as LLVM's verifier requires and Term doesn't say",
+    "Peephole.IS.simplifyICmpInst.body": "simplifyICmpInst's own recursive calls (on the operands of two zexts or two sexts, on a zext or sext against a constant that's an extension, and on sext X against 0) are forwards to the model one MaxRecurse down; simplifyICmpInst.sound covers them by induction. Those on two extensions, or on one and an extended constant, are only taken where the cast widens (v < w), as LLVM's verifier requires and Term doesn't. body3 is body at RecursionLimit written out without recursion (body_three: they're equal by rfl), which the entry point runs, so the comparison with opt can name each case's site",
+    "Peephole.IS.simplifyUnsignedRangeCheck": "the source is ICmp.andOrSrc, the and (IsAnd) or the or of ZeroICmp and UnsignedICmp with any flags; sound_swap has them the other way round. The icmp-b family's simplifyAndOfICmps and simplifyOrOfICmps forward to it, both ways round, and use sound and sound_swap for those steps"
+  },
+  "lemmas": [
+    "Peephole.Lemmas.setWidth_ule_signExtend",
+    "Peephole.Lemmas.signExtend_sle_setWidth",
+    "Peephole.Lemmas.setWidth_ult_of_ne",
+    "Peephole.Lemmas.setWidth_slt_of_ne",
+    "Peephole.Lemmas.setWidth_sle_of_ne",
+    "Peephole.Lemmas.slt_setWidth_of_ne",
+    "Peephole.Lemmas.sle_setWidth_of_ne",
+    "Peephole.Lemmas.signExtend_slt_of_ne",
+    "Peephole.Lemmas.signExtend_sle_of_ne",
+    "Peephole.Lemmas.slt_signExtend_of_ne",
+    "Peephole.Lemmas.sle_signExtend_of_ne",
+    "Peephole.Lemmas.ult_signExtend_of_ne",
+    "Peephole.Lemmas.ule_signExtend_of_ne",
+    "Peephole.Lemmas.setWidth_ult_setWidth",
+    "Peephole.Lemmas.setWidth_ule_setWidth",
+    "Peephole.Lemmas.setWidth_beq_setWidth",
+    "Peephole.Lemmas.setWidth_slt_setWidth",
+    "Peephole.Lemmas.setWidth_sle_setWidth",
+    "Peephole.Lemmas.signExtend_slt_signExtend",
+    "Peephole.Lemmas.signExtend_sle_signExtend",
+    "Peephole.Lemmas.signExtend_beq_signExtend",
+    "Peephole.Lemmas.signExtend_ult_signExtend",
+    "Peephole.Lemmas.signExtend_ule_signExtend",
+    "Peephole.Lemmas.allOnes_slt",
+    "Peephole.Lemmas.sle_allOnes",
+    "Peephole.Lemmas.one_sle",
+    "Peephole.Lemmas.slt_one",
+    "Peephole.Lemmas.one_ule",
+    "Peephole.Lemmas.ult_one",
+    "Peephole.Lemmas.msb_false_of_and_eq_zero",
+    "Peephole.Lemmas.mul_ne_of_umod_ne",
+    "Peephole.Lemmas.mul_ne_of_srem_ne",
+    "Peephole.Lemmas.ule_or_self_left",
+    "Peephole.Lemmas.ule_uaddSat_left",
+    "Peephole.Lemmas.ule_uaddSat_right",
+    "Peephole.Lemmas.ule_mul_left",
+    "Peephole.Lemmas.ule_mul_right",
+    "Peephole.Lemmas.and_ule_left",
+    "Peephole.Lemmas.and_ule_right",
+    "Peephole.Lemmas.umod_ule",
+    "Peephole.Lemmas.udiv_ule",
+    "Peephole.Lemmas.ushiftRight_ule",
+    "Peephole.Lemmas.usubSat_ule"
+  ],
+  "rests_on": {
+    "IS.simplifyICmpInst.L3910": [
+      "Peephole.IS.ICmp.Ext.Sound, getRange: a value with !range metadata or a range attribute is in its range wherever it isn't poison"
+    ],
+    "IS.simplifyICmpInst.L3913": [
+      "Peephole.IS.ICmp.Ext.Sound, getRange: a value with !range metadata or a range attribute is in its range wherever it isn't poison"
+    ],
+    "IS.simplifyICmpInst.L4148": [
+      "Peephole.IS.ICmp.Ext.Sound, domCond: what isImpliedByDomCondition(Pred, LHS, RHS) answers holds of the operands' values at the instruction, where they aren't poison"
+    ],
+    "IS.simplifyICmpWithConstant.L3133": [
+      "Peephole.IS.ICmp.Ext.Sound, constRange: computeConstantRange's range contains the operand's value wherever it isn't poison"
+    ],
+    "IS.simplifyICmpWithConstant.L3135": [
+      "Peephole.IS.ICmp.Ext.Sound, constRange: computeConstantRange's range contains the operand's value wherever it isn't poison"
+    ]
+  },
+  "unproved": {
+    "IS.simplifyICmpInst.L3869": "needs calls: two constants go to ConstantFoldCompareInstOperands, the constant folder, which isn't modelled; the model delegates",
+    "IS.simplifyICmpInst.L3881": "integer instance proved, not claimed for every input: simplifyICmpInst compares pointers too, and icmp of a pointer against poison reaches this step. Peephole.IS.simplifyICmpInst.L3881, which Peephole.IS.simplifyICmpInst.sound uses, proves it for every scalar integer input; the pointer instance waits for pointers in the model (memory, F4)",
+    "IS.simplifyICmpInst.L3887": "undef-only: icmp eq/ne X, undef to undef. With no undef the step's operand can only be poison, which L3881 takes first, so only undef reaches it, and every theorem here assumes no operand reaches undef. Its theorem, Peephole.IS.simplifyICmpInst.L3887, is kept and is about poison only",
+    "IS.simplifyICmpInst.L3892": "integer instance proved, not claimed for every input: simplifyICmpInst compares pointers too, and icmp of a pointer with itself reaches this step. Peephole.IS.simplifyICmpInst.L3892, which Peephole.IS.simplifyICmpInst.sound uses, proves it for every scalar integer input; the pointer instance waits for pointers in the model (memory, F4)",
+    "IS.simplifyICmpInst.L4122": "integer instance proved, not claimed for every input: simplifyICmpInst compares pointers too, and isKnownNonEqual answers for two pointers too: through phis and selects of pointers, a GEP that recurses through a loop's phi (isNonEqualPointersWithRecursiveGEP), and conditions known from the context. Peephole.IS.simplifyICmpInst.L4122, which Peephole.IS.simplifyICmpInst.sound uses, proves it for every scalar integer input; the pointer instance waits for pointers in the model (memory, F4)",
+    "IS.simplifyICmpInst.L4148": "integer instance proved, not claimed for every input: simplifyICmpInst compares pointers too, and isImpliedByDomCondition answers for a compare of two pointers. Peephole.IS.simplifyICmpInst.L4148, which Peephole.IS.simplifyICmpInst.sound uses, proves it for every scalar integer input; the pointer instance waits for pointers in the model (memory, F4)",
+    "IS.simplifyICmpWithConstant.L3120": "needs fp: it matches bitcast (uitofp X), and Term has no floating point, so the model's step never fires",
+    "IS.simplifyICmpWithZero.L3054": "integer instance proved, not claimed for every input: m_Zero matches a null pointer, so icmp of a pointer against null reaches this step, and isKnownNonZero and computeKnownBits answer for pointers. Peephole.IS.simplifyICmpWithZero.L3054, which Peephole.IS.simplifyICmpWithZero.sound uses, proves it for every scalar integer input; the pointer instance waits for pointers in the model (memory, F4)",
+    "IS.simplifyICmpWithZero.L3056": "integer instance proved, not claimed for every input: m_Zero matches a null pointer, so icmp of a pointer against null reaches this step, and isKnownNonZero and computeKnownBits answer for pointers. Peephole.IS.simplifyICmpWithZero.L3056, which Peephole.IS.simplifyICmpWithZero.sound uses, proves it for every scalar integer input; the pointer instance waits for pointers in the model (memory, F4)",
+    "IS.simplifyICmpWithZero.L3060": "integer instance proved, not claimed for every input: m_Zero matches a null pointer, so icmp of a pointer against null reaches this step, and isKnownNonZero and computeKnownBits answer for pointers. Peephole.IS.simplifyICmpWithZero.L3060, which Peephole.IS.simplifyICmpWithZero.sound uses, proves it for every scalar integer input; the pointer instance waits for pointers in the model (memory, F4)",
+    "IS.simplifyICmpWithZero.L3065": "integer instance proved, not claimed for every input: m_Zero matches a null pointer, so icmp of a pointer against null reaches this step, and isKnownNonZero and computeKnownBits answer for pointers. Peephole.IS.simplifyICmpWithZero.L3065, which Peephole.IS.simplifyICmpWithZero.sound uses, proves it for every scalar integer input; the pointer instance waits for pointers in the model (memory, F4)",
+    "IS.simplifyICmpWithZero.L3070": "integer instance proved, not claimed for every input: m_Zero matches a null pointer, so icmp of a pointer against null reaches this step, and isKnownNonZero and computeKnownBits answer for pointers. Peephole.IS.simplifyICmpWithZero.L3070, which Peephole.IS.simplifyICmpWithZero.sound uses, proves it for every scalar integer input; the pointer instance waits for pointers in the model (memory, F4)",
+    "IS.simplifyICmpWithZero.L3072": "integer instance proved, not claimed for every input: m_Zero matches a null pointer, so icmp of a pointer against null reaches this step, and isKnownNonZero and computeKnownBits answer for pointers. Peephole.IS.simplifyICmpWithZero.L3072, which Peephole.IS.simplifyICmpWithZero.sound uses, proves it for every scalar integer input; the pointer instance waits for pointers in the model (memory, F4)",
+    "IS.simplifyICmpWithZero.L3078": "integer instance proved, not claimed for every input: m_Zero matches a null pointer, so icmp of a pointer against null reaches this step, and isKnownNonZero and computeKnownBits answer for pointers. Peephole.IS.simplifyICmpWithZero.L3078, which Peephole.IS.simplifyICmpWithZero.sound uses, proves it for every scalar integer input; the pointer instance waits for pointers in the model (memory, F4)",
+    "IS.simplifyICmpWithZero.L3080": "integer instance proved, not claimed for every input: m_Zero matches a null pointer, so icmp of a pointer against null reaches this step, and isKnownNonZero and computeKnownBits answer for pointers. Peephole.IS.simplifyICmpWithZero.L3080, which Peephole.IS.simplifyICmpWithZero.sound uses, proves it for every scalar integer input; the pointer instance waits for pointers in the model (memory, F4)",
+    "IS.simplifyICmpWithZero.L3086": "integer instance proved, not claimed for every input: m_Zero matches a null pointer, so icmp of a pointer against null reaches this step, and isKnownNonZero and computeKnownBits answer for pointers. Peephole.IS.simplifyICmpWithZero.L3086, which Peephole.IS.simplifyICmpWithZero.sound uses, proves it for every scalar integer input; the pointer instance waits for pointers in the model (memory, F4)",
+    "IS.simplifyICmpWithZero.L3088": "integer instance proved, not claimed for every input: m_Zero matches a null pointer, so icmp of a pointer against null reaches this step, and isKnownNonZero and computeKnownBits answer for pointers. Peephole.IS.simplifyICmpWithZero.L3088, which Peephole.IS.simplifyICmpWithZero.sound uses, proves it for every scalar integer input; the pointer instance waits for pointers in the model (memory, F4)",
+    "IS.simplifyICmpWithZero.L3094": "integer instance proved, not claimed for every input: m_Zero matches a null pointer, so icmp of a pointer against null reaches this step, and isKnownNonZero and computeKnownBits answer for pointers. Peephole.IS.simplifyICmpWithZero.L3094, which Peephole.IS.simplifyICmpWithZero.sound uses, proves it for every scalar integer input; the pointer instance waits for pointers in the model (memory, F4)",
+    "IS.simplifyICmpWithZero.L3096": "integer instance proved, not claimed for every input: m_Zero matches a null pointer, so icmp of a pointer against null reaches this step, and isKnownNonZero and computeKnownBits answer for pointers. Peephole.IS.simplifyICmpWithZero.L3096, which Peephole.IS.simplifyICmpWithZero.sound uses, proves it for every scalar integer input; the pointer instance waits for pointers in the model (memory, F4)",
+    "IS.simplifyUnsignedRangeCheck.L1582": "integer instance proved, not claimed for every input: ZeroICmp's m_Zero matches a null pointer, and from here on UnsignedICmp is any unsigned compare with Y, so the and or the or of icmp eq/ne ptr %y, null with an unsigned compare of pointers reaches this step. Peephole.IS.simplifyUnsignedRangeCheck.L1582, which Peephole.IS.simplifyUnsignedRangeCheck.sound uses, proves it for every scalar integer input; the pointer instance waits for pointers in the model (memory, F4)",
+    "IS.simplifyUnsignedRangeCheck.L1588": "integer instance proved, not claimed for every input: ZeroICmp's m_Zero matches a null pointer, and from here on UnsignedICmp is any unsigned compare with Y, so the and or the or of icmp eq/ne ptr %y, null with an unsigned compare of pointers reaches this step. Peephole.IS.simplifyUnsignedRangeCheck.L1588, which Peephole.IS.simplifyUnsignedRangeCheck.sound uses, proves it for every scalar integer input; the pointer instance waits for pointers in the model (memory, F4)",
+    "IS.simplifyUnsignedRangeCheck.L1598": "integer instance proved, not claimed for every input: ZeroICmp's m_Zero matches a null pointer, and from here on UnsignedICmp is any unsigned compare with Y, so the and or the or of icmp eq/ne ptr %y, null with an unsigned compare of pointers reaches this step. Peephole.IS.simplifyUnsignedRangeCheck.L1598, which Peephole.IS.simplifyUnsignedRangeCheck.sound uses, proves it for every scalar integer input; the pointer instance waits for pointers in the model (memory, F4)",
+    "IS.simplifyUnsignedRangeCheck.L1603": "integer instance proved, not claimed for every input: ZeroICmp's m_Zero matches a null pointer, and from here on UnsignedICmp is any unsigned compare with Y, so the and or the or of icmp eq/ne ptr %y, null with an unsigned compare of pointers reaches this step. Peephole.IS.simplifyUnsignedRangeCheck.L1603, which Peephole.IS.simplifyUnsignedRangeCheck.sound uses, proves it for every scalar integer input; the pointer instance waits for pointers in the model (memory, F4)",
+    "IS.simplifyUnsignedRangeCheck.L1608": "integer instance proved, not claimed for every input: ZeroICmp's m_Zero matches a null pointer, and from here on UnsignedICmp is any unsigned compare with Y, so the and or the or of icmp eq/ne ptr %y, null with an unsigned compare of pointers reaches this step. Peephole.IS.simplifyUnsignedRangeCheck.L1608, which Peephole.IS.simplifyUnsignedRangeCheck.sound uses, proves it for every scalar integer input; the pointer instance waits for pointers in the model (memory, F4)",
+    "IS.simplifyUnsignedRangeCheck.L1613": "integer instance proved, not claimed for every input: ZeroICmp's m_Zero matches a null pointer, and from here on UnsignedICmp is any unsigned compare with Y, so the and or the or of icmp eq/ne ptr %y, null with an unsigned compare of pointers reaches this step. Peephole.IS.simplifyUnsignedRangeCheck.L1613, which Peephole.IS.simplifyUnsignedRangeCheck.sound uses, proves it for every scalar integer input; the pointer instance waits for pointers in the model (memory, F4)"
+  }
+}

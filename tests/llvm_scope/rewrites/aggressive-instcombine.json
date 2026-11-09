@@ -14,15 +14,15 @@
   ],
   "totals": {
     "rewrites": 37,
-    "int": 20,
+    "int": 21,
     "blocked_fp": 6,
     "blocked_memory": 11,
-    "blocked_calls": 8,
+    "blocked_calls": 7,
     "by_needs": {
-      "calls": 2,
+      "calls": 1,
       "fp+calls": 4,
       "fp+memory": 2,
-      "int": 20,
+      "int": 21,
       "memory": 7,
       "memory+calls": 2
     }
@@ -74,7 +74,7 @@
   "rewrites": [
     {"id": "AIC.AggressiveInstCombine.foldSelectSplitCTTZ.L128", "file": "llvm/lib/Transforms/AggressiveInstCombine/AggressiveInstCombine.cpp", "line": 128, "function": "foldSelectSplitCTTZ", "kind": "return", "comment": "", "code": "return true ;", "hash": "2bc5303ac510e03b", "needs": ["int"], "also": [], "analyses": [], "intrinsics": ["cttz"]},
     {"id": "AIC.AggressiveInstCombine.foldSelectSplitCTLZ.L193", "file": "llvm/lib/Transforms/AggressiveInstCombine/AggressiveInstCombine.cpp", "line": 193, "function": "foldSelectSplitCTLZ", "kind": "return", "comment": "", "code": "return true ;", "hash": "0333cd1c48a0e8d4", "needs": ["int"], "also": [], "analyses": [], "intrinsics": ["ctlz"]},
-    {"id": "AIC.AggressiveInstCombine.foldGuardedFunnelShift.L343", "file": "llvm/lib/Transforms/AggressiveInstCombine/AggressiveInstCombine.cpp", "line": 343, "function": "foldGuardedFunnelShift", "kind": "return", "comment": "", "code": "return true ;", "hash": "f079028031d30665", "needs": ["calls"], "also": ["cfg"], "analyses": [], "intrinsics": ["ID", "fshl", "fshr", "not_intrinsic"]},
+    {"id": "AIC.AggressiveInstCombine.foldGuardedFunnelShift.L343", "file": "llvm/lib/Transforms/AggressiveInstCombine/AggressiveInstCombine.cpp", "line": 343, "function": "foldGuardedFunnelShift", "kind": "return", "comment": "", "code": "return true ;", "hash": "f079028031d30665", "needs": ["int"], "also": ["cfg"], "analyses": [], "intrinsics": ["fshl", "fshr"]},
     {"id": "AIC.AggressiveInstCombine.foldAnyOrAllBitsSet.L459", "file": "llvm/lib/Transforms/AggressiveInstCombine/AggressiveInstCombine.cpp", "line": 459, "function": "foldAnyOrAllBitsSet", "kind": "return", "comment": "", "code": "return true ;", "hash": "e8caa245c23a5ca4", "needs": ["int"], "also": [], "analyses": [], "intrinsics": []},
     {"id": "AIC.AggressiveInstCombine.replaceWithPopCount.L477", "file": "llvm/lib/Transforms/AggressiveInstCombine/AggressiveInstCombine.cpp", "line": 477, "function": "replaceWithPopCount", "kind": "change", "comment": "", "code": "I . replaceAllUsesWith ( NewVal ) ;", "hash": "e355c8a3c8f4b746", "needs": ["int"], "also": [], "analyses": [], "intrinsics": ["ctpop"]},
     {"id": "AIC.AggressiveInstCombine.tryToRecognizePopCount.L575", "file": "llvm/lib/Transforms/AggressiveInstCombine/AggressiveInstCombine.cpp", "line": 575, "function": "tryToRecognizePopCount", "kind": "return", "comment": "", "code": "return true ;", "hash": "daf006769e42d930", "needs": ["int"], "also": [], "analyses": [], "intrinsics": []},

@@ -475,7 +475,7 @@ when they land.
 - **Trust gaps:** None.
 - **Status:** in progress
 - **Gate waiver:** The proofs whose reuse is measured are written by hand, so none needs AUTO-01's tactic. A proof that tactic makes later is measured the same way.
-- **Evidence:** On branch `chunk1/g2-core` on 2026-11-09, not yet on `main`: `tools/store/store.py` counts the `Peephole` library's proofs as uses and records, in each index entry's `rewrites`, the rewrites whose theorems use the lemma, and `tests/peephole.py measure` measures E3 over those proofs. All 8 proofs of InstSimplify's `simplifyAddInst` use a stored rewrite lemma, but only 1 uses one not cut from those same proofs, so most proofs don't reuse a lemma yet in the acceptance's sense. See [rewrite proofs](rewrite-proofs.md#e3-so-far).
+- **Evidence:** On 2026-11-09: `tools/store/store.py` counts the `Peephole` library's proofs as uses and records, in each index entry's `rewrites`, the rewrites whose theorems use the lemma, and `tests/peephole.py measure` measures E3 over those proofs. Over InstSimplify's seven families, 192 of 247 site proofs use a stored rewrite lemma, but only 28 use one cut from other proofs, so most proofs don't reuse a lemma yet in the acceptance's sense. 73 stored lemmas meet all four rules, and a proof using one checks faster at the median, 0.54 ms against 1.19 ms. See [rewrite proofs](rewrite-proofs.md#over-the-instsimplify-families).
 
 ### AUTO-03: From instances to every width
 
@@ -522,7 +522,7 @@ when they land.
 - **Trust gaps:** Rewrites that read analyses rest on PASS-01.
 - **Status:** in progress
 - **Gate waiver:** INV-04 has inventoried chunk 1's four passes, which is all this uses. Each proof is about the integer operations `IRLean/Int.lean` models today, as AUTO-03's are, and is checked again by `lake build` when SEM-04 changes them. AUTO-03's rewrites at every width are a source of lemmas, not a prerequisite of any proof here.
-- **Evidence:** On branch `chunk1/g2-core` on 2026-11-09, not yet on `main`: InstSimplify's `simplifyAddInst`, modelled in `tests/passes-proofs/peephole/Peephole/IS/Add.lean`, with all 8 of its rewrites proved for every input, which `tests/peephole.py score` counts by its rules: 8 of chunk 1's 3,000. Its model agrees with the pinned `opt` on 6,318 compared cases, 127 of them from LLVM's regression tests. See [rewrite proofs](rewrite-proofs.md).
+- **Evidence:** On 2026-11-09: seven families of InstSimplify's folds, modelled in `tests/passes-proofs/peephole/Peephole/IS/`, with 244 of InstSimplify's 541 rewrites proved for every input, 242 of its 335 that need only integers, as `tests/peephole.py score` counts them by its rules. Every family's model agrees with the pinned `opt` on every case compared, 55,131 of 128,333, with none mismatched. InstCombine, AggressiveInstCombine and Reassociate have none counted yet. See [rewrite proofs](rewrite-proofs.md).
 
 ### PASS-04: Scalar and CFG transforms
 
