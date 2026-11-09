@@ -10,9 +10,12 @@ The outside world is an input. A function that calls outside the module takes a 
 and the `Trace` of calls with effects made before it, after its arguments and memory, and `Refines` quantifies over
 both as it does over arguments: source and target face the same world.
 
-- A call that accesses no memory answers from `World.pure`, given only the call. Which of its possible answers a run
-  gets is the run's choice, as for a `freeze`: `IRLean.Choice` numbers both. It goes in no trace, except the one a run
-  that ends by unwinding from it ends with.
+- A call with effects is an event: it goes in the trace, and answers from `World.effect`, given the trace that ends with
+  it. One that never comes back ends the run `halted`, with that trace.
+- A call that accesses no memory answers from `World.pure`, given only the call, and one that only reads from
+  `World.read`, given the trace before it too. Which of its possible answers a run gets is the run's choice, as for a
+  `freeze`: `IRLean.Choice` numbers both. Neither goes in the trace, except the one a run that ends by unwinding from
+  it ends with.
 - A run ends as an `Exit`: it returned, with its trace, or a call it made never came back, or unwound, or it was cut
   off, watched for as many calls with effects as it had made. A function that calls outside the module returns
   `Talks`: how its run ends for each way it chooses, watched for each number of calls. Two runs refine only with equal
@@ -119,6 +122,22 @@ the trace so the run says which call it was. -/
 /-- A call that accesses no memory, at the run's choice `i` among the callee's answers. -/
 @[llvm] def callPure (w : World) (t : Trace) (e : Event) (i : Nat) (p : Promises) : Outcome (Exit Lanes) :=
   quiet (w.pure e i) t e p
+
+/-- A call that only reads memory, at the run's choice `i` among the callee's answers. What it reads may have been
+written by the calls with effects in `t`, so its answers depend on them. -/
+@[llvm] def callRead (w : World) (t : Trace) (e : Event) (i : Nat) (p : Promises) : Outcome (Exit Lanes) :=
+  quiet (w.read t e i) t e p
+
+/-- A call with effects, in a run watched for `n` calls with effects. It goes in the trace before it answers, and its
+answer depends on every call with effects before it. One that would make the trace longer than `n` ends the run `cut`,
+with the trace so far. One that never comes back ends the run `halted`, unless it promised to return. -/
+@[llvm] def callEffect (w : World) (t : Trace) (n : Nat) (e : Event) (p : Promises) : Outcome (Exit Lanes) :=
+  if n ≤ t.length then Outcome.ok (.cut t) else
+  match w.effect (e :: t) with
+  | .ret v => if p.noreturn then Outcome.ub .outsideCall else Outcome.ok (.done v (e :: t))
+  | .undefined => Outcome.ub .outsideCall
+  | .stays => if p.willreturn then Outcome.ub .outsideCall else Outcome.ok (.halted (e :: t))
+  | .unwinds => if p.nounwind then Outcome.ub .outsideCall else Outcome.ok (.unwound (e :: t))
 
 end World
 

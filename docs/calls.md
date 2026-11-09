@@ -384,7 +384,11 @@ Each is a pull request, merged when green, with this page updated to say what's 
 2. **Calls with effects, and calls that only read,** in functions without memory, and calls touching only
    `inaccessiblemem` in any function. The emitter refuses calls that touch memory by name. Most of the coverage gain is
    here: of the 2,787 pairs refused first for `call to external`, 2,100 have no pointer in either side, 4 of them with
-   floating point, which stays refused.
+   floating point, which stays refused. **Built** on 2026-11-09: `tests/calls` has thirteen more rewrites, four right
+   and nine wrong, among them the five wrong ones above for a call with effects, each refuted. Alive2 gives twelve the
+   same verdict, and can't decide the thirteenth, a call dropped before a loop that never ends: it unrolls a loop a
+   fixed number of times, and drops the runs that go on. `tests/binding.py` binds a real `instcombine` run that
+   rewrites around a call to `@use`, which stays, as `ir_instance_refinement`.
 3. **External globals,** and constant expressions over them, as above.
 4. **Variadic calls** to functions outside the module, as above.
 

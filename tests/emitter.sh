@@ -264,7 +264,8 @@ define i32 @f(i32 %x) {
   call void @gives_up() noreturn
   unreachable
 }'
-refuses 'call to external' 'declare void @returns()
+# A call outside the module with effects, in a function without memory, goes in the trace: docs/calls.md.
+accepts 'declare void @returns()
 define i32 @f(i32 %x) {
   call void @returns()
   ret i32 %x
@@ -288,6 +289,44 @@ accepts 'declare i8 @g(i8) memory(none)
 define internal i8 @h(i8 %x) { %r = call i8 @g(i8 %x)
   ret i8 %r }
 define i8 @f(i8 %x) { %r = call i8 @h(i8 %x)
+  ret i8 %r }'
+accepts 'declare i8 @g(i8) memory(read)
+define i8 @f(i8 %x) { %r = call i8 @g(i8 %x)
+  ret i8 %r }'
+accepts 'declare i8 @g() memory(inaccessiblemem: readwrite)
+define i8 @f(ptr %p) { %v = load i8, ptr %p
+  %r = call i8 @g()
+  %s = add i8 %v, %r
+  ret i8 %s }'
+refuses 'touches memory: F4' 'declare void @g(i8)
+define void @f(ptr %p) { call void @g(i8 1)
+  ret void }'
+refuses 'touches memory: F4' 'declare i8 @g(i8) memory(read)
+define i8 @f(ptr %p) { %r = call i8 @g(i8 1)
+  ret i8 %r }'
+# Under a promise to progress, a call with effects is progress, which the model can't count yet.
+for attribute in mustprogress willreturn; do
+  refuses 'with effects, under a promise to progress' "declare void @g(i8)
+define void @f(i8 %x) $attribute { call void @g(i8 %x)
+  ret void }"
+done
+refuses 'with effects, under a promise to progress' 'declare void @g(i8)
+define void @f(i8 %x) {
+entry:
+  br label %loop
+loop:
+  call void @g(i8 %x)
+  br label %loop, !llvm.loop !0
+}
+!0 = distinct !{!0, !1}
+!1 = !{!"llvm.loop.mustprogress"}'
+refuses 'which calls outside the module with effects, under a promise to progress' 'declare void @g(i8)
+define internal void @h(i8 %x) { call void @g(i8 %x)
+  ret void }
+define void @f(i8 %x) mustprogress { call void @h(i8 %x)
+  ret void }'
+accepts 'declare i8 @g(i8) memory(read)
+define i8 @f(i8 %x) mustprogress { %r = call i8 @g(i8 %x)
   ret i8 %r }'
 refuses 'touches memory: F4' 'declare i8 @g(ptr) memory(none)
 define i8 @f(ptr %p) { %r = call i8 @g(ptr %p)
