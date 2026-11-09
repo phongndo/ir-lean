@@ -286,7 +286,10 @@ It waited on #48 and the CI split, which landed in #48 and #53. Five lanes:
   [Phase 0](#phase-0-semantic-fidelity-and-trust-infrastructure).
   Done in [#62](https://github.com/phongndo/ir-lean/pull/62).
 - Tier-1 proof tests on `tools/verify.py`, T1, slice 24, [Phase 7](#phase-7-proof-tests).
-- Speed, round 2, C1, slice 30, [Phase 8](#phase-8-speed).
+- Speed, round 2, C1, slice 30, [Phase 8](#phase-8-speed). [#61](https://github.com/phongndo/ir-lean/pull/61),
+  [#63](https://github.com/phongndo/ir-lean/pull/63), [#64](https://github.com/phongndo/ir-lean/pull/64) and
+  [#65](https://github.com/phongndo/ir-lean/pull/65) landed, and #65's last pull request run, with the other three
+  merged in, took 8.0 minutes.
 
 The statement of `inflate_table`'s theorem, G1, slice 13, isn't a lane. It's light work, taken up when one of these
 frees.
@@ -412,7 +415,7 @@ Each is reached when its checks pass in CI, not on a date.
 | T1 | Tier-1 proof tests | 7 | | Not started |
 | T2 | Tiers 2 and 3 | 7 | T1. E1, soft, for tier 3 | Not started |
 | T3 | One real project's unit-test file replaced | 7 | T2 | Not started |
-| C1 | Pull request CI in at most 10 minutes | 8 | | In progress: after #53's split, CI takes 13 to 16 minutes ([testing](testing.md#ci)) |
+| C1 | Pull request CI in at most 10 minutes | 8 | | In progress: on 2026-11-09, #65's last pull request run, with #61, #63 and #64 merged in, took 8.0 minutes, against 11.7 to 16.6 in three runs before #65 that day ([testing](testing.md#ci)). Reached when the median of 20 consecutive pull requests is at most 10 |
 | C2 | One candidate or proof checked locally in seconds | 8 | | Not measured as such |
 | G1 | `inflate_table`'s statement reviewed | 1 | | Not started |
 | G2 | `inflate_table` proved: entries stay inside `codes`, links stay in the table | 1 | G1, F1 | Not started |
@@ -699,8 +702,12 @@ The latest two took 37.3 and 38.4 minutes, against the job's 60-minute limit in 
 
 **Targets:** pull request CI in at most 10 minutes, and checking one candidate or one proof locally in seconds.
 
-**Work:** [#53](https://github.com/phongndo/ir-lean/pull/53) split CI into parallel jobs, and [testing](testing.md#ci)
-says how long each takes: 13 to 16 minutes in all. This page states only the goal and the targets.
+**Work:** [#53](https://github.com/phongndo/ir-lean/pull/53) split CI into parallel jobs, which took it to 13 to 16
+minutes. On 2026-11-09, [#61](https://github.com/phongndo/ir-lean/pull/61) made setup survive the downloads that had
+failed it and kept alive2's build, [#63](https://github.com/phongndo/ir-lean/pull/63) made `tools/binding.py` hash less,
+and [#65](https://github.com/phongndo/ir-lean/pull/65) split the slowest jobs again. #65's last pull request run, with
+the others merged in, took 8.0 minutes. [Testing](testing.md#ci) says how long each job takes, and has three proposals left for the
+maintainer. This page states only the goal and the targets.
 
 **Exit criteria:**
 
