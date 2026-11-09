@@ -190,8 +190,8 @@ call graph and summary analyses. A call out of a module is refused today, so thi
 
 ### 6. Vectorization
 
-`loop-vectorize`, which plans with VPlan, `slp-vectorizer` and `load-store-vectorizer`, with `vector-combine`, the sandbox
-vectorizer, `loop-idiom-vectorize`, lowering matrix intrinsics, the two scalarizers and `inject-tli-mappings`.
+`loop-vectorize`, which plans with VPlan, `slp-vectorizer` and `load-store-vectorizer`, with `vector-combine`, the
+sandbox vectorizer, `loop-idiom-vectorize`, lowering matrix intrinsics, the two scalarizers and `inject-tli-mappings`.
 
 ### 7. Pipelines
 
