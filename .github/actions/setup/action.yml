@@ -1,17 +1,35 @@
 name: Set up
 description: Installs Nix, restores what's slow to rebuild, and builds the translator and the Lean library.
+outputs:
+  cache-key:
+    description: The key for this commit's cache. Only the lint job saves it, after its tests.
+    value: ${{ steps.cache.outputs.cache-primary-key }}
+  cache-paths:
+    description: What the cache holds.
+    value: ${{ steps.paths.outputs.paths }}
 runs:
   using: composite
   steps:
     - uses: cachix/install-nix-action@v31
+    - name: Name what the cache holds
+      id: paths
+      shell: bash
+      run: |
+        cat >>"$GITHUB_OUTPUT" <<'EOF'
+        paths<<PATHS
+        ~/.elan
+        ~/.cache/uv
+        .lake
+        build/lean-cache
+        PATHS
+        EOF
+    # A cache from an earlier commit is still good: the key names the toolchain and the locks, lake rebuilds
+    # what changed in .lake, and build/lean-cache names each module after everything it's compiled from.
     - name: Restore caches
-      uses: actions/cache@v6
+      id: cache
+      uses: actions/cache/restore@v6
       with:
-        path: |
-          ~/.elan
-          ~/.cache/uv
-          .lake
-          build/lean-cache
+        path: ${{ steps.paths.outputs.paths }}
         key: tools-${{ runner.os }}-${{ hashFiles('lean-toolchain', 'uv.lock', 'flake.lock') }}-${{ github.sha }}
         restore-keys: tools-${{ runner.os }}-${{ hashFiles('lean-toolchain', 'uv.lock', 'flake.lock') }}-
     - name: Build

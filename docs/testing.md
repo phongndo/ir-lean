@@ -65,6 +65,30 @@ the peak memory each one takes. `--llvm CrtUdivmoddi4` adds a target's proof, an
 version of a proof on the same obligations, so two versions can be compared. [Status](status.md#what-checking-costs)
 has what it measured.
 
+## CI
+
+`.github/workflows/ci.yml` runs on every pull request and push to `main`. Each job sets up on a runner of its own,
+with 4 cores and 16 GB, and the jobs run at once:
+
+| Job | Runs |
+| --- | --- |
+| Formatters, linters and language servers | The tests labeled `lint`: `lint` and `lsp` |
+| Tests and proofs (`passes`) | `passes` |
+| Tests and proofs (`binding`) | `binding` |
+| Tests and proofs (`llvm`) | `llvm` |
+| Tests and proofs (`semantics`) | `verify_negative`, `replay_challenge`, `contracts`, `refine`, `undef_freeze`, `generic_rewrites` and `cpp_correspondence` |
+| Tests and proofs (`rest`) | Every other test, apart from `zlib_slow` |
+| Slow zlib tests | `zlib_slow`, on pushes to `main` |
+
+Each test job but `rest` is named after a ctest label set in `CMakeLists.txt`, and runs the tests with it, through
+`.github/test-shard.sh`. `rest` runs every test without one of those labels, `lint` or `slow`, so a new test runs
+there with nothing more to do. To give a long test a job of its own, label it, and add the label to the matrix in
+`ci.yml`. Before it runs anything, `rest` checks that CI runs each test exactly once, and fails if a test would run
+in two jobs.
+
+Every job restores one cache, of the Lean toolchain, uv's packages, `.lake` and `build/lean-cache`, from the latest
+commit that saved one. Only the lint job saves it, so the jobs don't race for its key.
+
 ## Formatters, linters and language servers
 
 | Language | Formatter | Linter | Language server |
