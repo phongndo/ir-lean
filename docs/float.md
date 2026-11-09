@@ -349,7 +349,10 @@ every existing proof still passing, its coverage reported, and [trust](trust.md)
    **In the model** since 2026-11-09, checked by `tests/fpcheck.py` against the constant folder, the processor and
    Alive2, and by `tests/float.sh` on 18 rewrites, with `nofpclass` lane by lane on vectors, scalable ones
    included, and the lane-moving vector intrinsics on vectors of floats. On the same pairs, it
-   makes 1,572 of those the emitter refused at `091275e` translatable, and moves 82 to a refusal for memory.
+   makes 1,572 of those the emitter refused at `091275e` translatable, and moves 82 to a refusal for memory. Until a
+   fix on 2026-11-09, a fixed-length splat of a float, which LLVM 23 holds as a `ConstantFP` of vector type, printed
+   as one lane where a vector goes, which Lean rejects, and in a global's initializer gave only lane 0 its bytes, the
+   rest zeros, which made the model read a value LLVM doesn't. 168 of those pairs printed a splat.
 2. **Arithmetic and conversions:** `fadd`, `fsub`, `fmul`, `fdiv` and `frem`, `fptrunc` and `fpext`, `fptoui` and
    `fptosi`, poison out of range, `uitofp` and `sitofp`, with `nneg`, and the `*.sat` conversions. Each is a chooser.
 3. **Fast-math flags:** `nnan`, `ninf` and `nsz` on everything, as above.

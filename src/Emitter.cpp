@@ -411,9 +411,11 @@ public:
       return poisonOf(C->getType());
     if (isa<UndefValue>(C))
       reject("undef");
-    // A splat that isn't written lane by lane: of a scalable vector, or a vector-typed `ConstantInt`.
+    // A splat that isn't written lane by lane: of a scalable vector, or a vector-typed `ConstantInt` or
+    // `ConstantFP`, which is how LLVM 23 holds a fixed-length splat of a float, `zeroinitializer` included.
     if (auto *V = dyn_cast<VectorType>(C->getType());
-        V && (isa<ScalableVectorType>(V) || isa<ConstantInt>(C)) && !isa<ConstantAggregateZero>(C)) {
+        V && (isa<ScalableVectorType>(V) || isa<ConstantInt>(C) || isa<ConstantFP>(C)) &&
+        !isa<ConstantAggregateZero>(C)) {
       const Constant *Splat = C->getSplatValue();
       if (!Splat)
         reject("constant " + printed(*C));
@@ -637,6 +639,21 @@ private:
         reject("initializer " + printed(*C));
       Relocs.push_back({Out.size(), Block, Offset});
       Out.insert(Out.end(), Size, 0);
+      return;
+    }
+    // A vector-typed `ConstantInt` or `ConstantFP` is a splat, and each lane has its value, laid out as a
+    // `ConstantDataVector`'s lanes are below.
+    if (auto *V = dyn_cast<FixedVectorType>(T); V && (isa<ConstantInt>(C) || isa<ConstantFP>(C))) {
+      leanType(V);
+      Type *E = V->getElementType();
+      // A vector's lanes are packed by their size in bits, so a lane that isn't a whole number of bytes, such as
+      // an `i1`, isn't laid out this way.
+      if (E->getPrimitiveSizeInBits() != 8 * DL.getTypeAllocSize(E))
+        reject("initializer " + printed(*C));
+      APInt Lane = isa<ConstantInt>(C) ? cast<ConstantInt>(C)->getValue()
+                                       : cast<ConstantFP>(C)->getValueAPF().bitcastToAPInt();
+      for (unsigned I = 0, N = V->getNumElements(); I != N; ++I)
+        appendInt(Lane, DL.getTypeAllocSize(E), Out);
       return;
     }
     if (auto *I = dyn_cast<ConstantInt>(C)) {
