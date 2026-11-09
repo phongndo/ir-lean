@@ -1264,13 +1264,6 @@ define { { i32, i8 }, i8 } @probe({ { i32, i8 }, i8 } %s, i32 %a) {
   ret { { i32, i8 }, i8 } %r
 }
 
-; probe: form / scalar-intrinsic-on-vectors
-declare <4 x i32> @llvm.ctpop.v4i32(<4 x i32>)
-define <4 x i32> @probe(<4 x i32> %a) {
-  %r = call <4 x i32> @llvm.ctpop.v4i32(<4 x i32> %a)
-  ret <4 x i32> %r
-}
-
 ; probe: form / integer-bitcast-nondividing
 define <2 x i24> @probe(<3 x i16> %a) {
   %r = bitcast <3 x i16> %a to <2 x i24>
@@ -1426,6 +1419,15 @@ define i32 @probe(i32 %a) {
   ret i32 %r
 }
 
+; probe: form / abi-attribute-mismatch
+define internal i32 @callee(i32 %a) {
+  ret i32 %a
+}
+define i32 @probe(i32 %a) {
+  %r = call i32 @callee(i32 inreg %a)
+  ret i32 %r
+}
+
 ; probe: form / indirect-call
 define i32 @callee(i32 %a) {
   ret i32 %a
@@ -1482,4 +1484,54 @@ define <2 x i32> @probe() {
 @g = global [4 x i32] zeroinitializer
 define ptr @probe() {
   ret ptr getelementptr inbounds ([4 x i32], ptr @g, i64 0, i64 1)
+}
+
+; probe: form / noundef-on-a-struct
+define { i32, i8 } @probe({ i32, i8 } noundef %s) {
+  ret { i32, i8 } %s
+}
+
+; probe: form / vector-constant-expression
+define <2 x i64> @probe() {
+  ret <2 x i64> bitcast (<4 x i32> <i32 1, i32 2, i32 3, i32 4> to <2 x i64>)
+}
+
+; probe: form / getelementptr-over-a-scalable-type
+define ptr @probe(ptr %p, i64 %i) {
+  %q = getelementptr <vscale x 4 x i32>, ptr %p, i64 %i
+  ret ptr %q
+}
+
+; probe: form / speculatable-with-memory
+define i32 @probe(ptr %p) speculatable {
+  %v = load i32, ptr %p
+  ret i32 %v
+}
+
+; probe: form / call-to-a-speculatable-function
+define i32 @callee(i32 %a) speculatable {
+  ret i32 %a
+}
+define i32 @probe(i32 %a) {
+  %r = call i32 @callee(i32 %a)
+  ret i32 %r
+}
+
+; probe: form / scalable-vector-in-a-recursive-function
+define <vscale x 4 x i32> @probe(<vscale x 4 x i32> %a, i32 %n) {
+entry:
+  %z = icmp eq i32 %n, 0
+  br i1 %z, label %done, label %again
+again:
+  %m = sub i32 %n, 1
+  %r = call <vscale x 4 x i32> @probe(<vscale x 4 x i32> %a, i32 %m)
+  ret <vscale x 4 x i32> %r
+done:
+  ret <vscale x 4 x i32> %a
+}
+
+; probe: form / load-of-a-scalable-vector
+define <vscale x 4 x i32> @probe(ptr %p) {
+  %v = load <vscale x 4 x i32>, ptr %p
+  ret <vscale x 4 x i32> %v
 }
