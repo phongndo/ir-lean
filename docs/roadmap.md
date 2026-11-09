@@ -547,8 +547,8 @@ can't claim one the certificate didn't check, `mustprogress` and `willreturn` in
    [multi-IR](multi-ir.md#proof-of-concept-plan)'s MIR-1 plans. A claim about the MLIR program itself needs a model of
    each dialect, which isn't proposed.
 6. **GIMPLE,** a spike behind a gate: only after stage 5, since [multi-IR](multi-ir.md#proof-of-concept-plan) opens
-   its GIMPLE step, MIR-2, only after MIR-1. It also waits for the license decision in
-   [Phase 5](#phase-5-public-api-adoption-and-publication), and keeps MIR-2's stop rule.
+   its GIMPLE step, MIR-2, only after MIR-1. The license decision it also waited for was made on 2026-11-08, in
+   [Phase 5](#phase-5-public-api-adoption-and-publication), and it keeps MIR-2's stop rule.
 
 **Demo:** a candidate from an untrusted source, certified, on real code, faster on a real workload, with a safety
 theorem carried across.
@@ -901,8 +901,9 @@ Phase 2 for an API of contracts. Phase 3 makes the claim stronger, and isn't a h
 
 **Work:**
 
-- **A license.** The repo doesn't have one, so no one outside can safely use it. This is the maintainers'
-  decision, and should come well before the rest of this phase. It also gates the GIMPLE spike.
+- **A license.** Done on 2026-11-08: the maintainer chose Apache-2.0, in [`LICENSE`](../LICENSE), and the
+  [README](../README.md#license) lists the two committed files that keep another project's license. It was the gate
+  on the GIMPLE spike, which [multi-IR](multi-ir.md#proof-of-concept-plan) now reads as met.
 - **A stable surface:** versioned `IRLean` modules, contract and tactic APIs, a documented manifest, and a
   `ir-lean` command line with a compatibility policy.
 - **A contributor path:** a walkthrough from a small C function to a checked theorem, in an hour.
