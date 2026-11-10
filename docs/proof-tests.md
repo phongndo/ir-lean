@@ -487,8 +487,10 @@ flywheel: each proof test that reaches tier 3 makes the next one cheaper.
 
 ## What's next
 
-After T1. Since 2026-11-09, tiers 2 and 3 wait until chunk 1's G2 is producing lemmas, and the waves are replaced by
-the roadmap's [platform track and chunks](roadmap.md#next-steps):
+After T1. Since later on 2026-11-09, tiers 2 and 3 wait until the results board exists, by
+[decision 12 after #103](roadmap.md#thirteen-decisions-of-2026-11-09-after-103): until then proof tests get the
+platform work the search also needs, and tier 1 stays green in CI. Before that decision they waited until chunk 1's G2
+was producing lemmas. The waves are replaced by the roadmap's [platform track and chunks](roadmap.md#next-steps):
 
 - **Tiers 2 and 3,** milestone T2, as designed above. Tier 2's exhaustive kernel proof and unrolling need nothing new
   in `IRLean`. Tier 3 needs `llvm_exec` where a proof test can import it, and the store, which is in.

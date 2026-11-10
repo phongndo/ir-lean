@@ -1,15 +1,42 @@
 # Chunks and gates
 
-How `ir-lean` proves LLVM's optimizations, the main program since 2026-11-09: the pinned LLVM's 1,162 registered pass
-names in nine chunks, the five gates each chunk goes through, how each gate's percentage is measured, and where each
-chunk stands. The [roadmap](roadmap.md#six-decisions-of-2026-11-09-after-69) has the decision and its reasons, and the
-[platform track](roadmap.md#the-platform-track) the chunks pull from. The [task list](llvm-verification-tasks.md)
+How `ir-lean` proves LLVM's rewrites: the pinned LLVM's 1,162 registered pass names in nine chunks, the five gates a
+chunk was set to go through, how each gate's percentage is measured, and where each chunk stands. For part of
+2026-11-09 this was the main program, and the [roadmap](roadmap.md#six-decisions-of-2026-11-09-after-69) has that
+decision and its reasons. Since later that day it supplies proved superoptimization with coverage and rules, and stops
+at G2, as [below](#what-changed-later-on-2026-11-09). The [platform track](roadmap.md#the-platform-track) is what the
+chunks pull from. The [task list](llvm-verification-tasks.md)
 defines what done means, and holds the inventory and the tasks. For what any theorem means, see [trust](trust.md).
 
 Facts here were checked on 2026-11-09 on top of `dbfd710`, against the inventory of LLVM 23.1.3 in
-[`tests/llvm_scope/inventory.json`](../tests/llvm_scope/inventory.json).
+[`tests/llvm_scope/inventory.json`](../tests/llvm_scope/inventory.json). Chunk 1's G2 is the scoreboard
+[rewrite proofs](rewrite-proofs.md#the-scoreboard) records, checked the same day on its own branches.
+
+## What changed later on 2026-11-09
+
+The roadmap's [thirteen decisions after #103](roadmap.md#thirteen-decisions-of-2026-11-09-after-103) made proved
+superoptimization the lead, and the chunks its supplier. For this page:
+
+- **G0, G1 and G2 go on.** They give a search coverage of real code, and rules proved for every input.
+- **G3 and G4 are paused, for every chunk.** Binding stops when gate B2 reports its number: BIND-02 finishes that
+  measurement, and gates B3 to B5 don't start.
+- **Chunks 7, 8 and 9 are out of the program.** Their passes stay in
+  [`chunks.json`](../tests/llvm_scope/chunks.json), and [the test](#the-test) still checks that every name is in
+  exactly one chunk.
+- **No pass is counted done,** since done needs G3 and G4. The count below stays 0 by that decision, and it isn't the
+  project's headline. The headline is the roadmap's results board, of proved wins over `clang -O3`.
+- **Within G2, the order is by demand.** Chunk 1's rewrites are proved in the order the corpus fires them, and when the
+  search asks for one. Chunks 2 to 6 start when the search needs their rewrites.
+- **The supply gauge** is the share of rewrite firings on the corpus that a proved rule covers. It isn't measured yet:
+  it needs the corpus, and a way to tell which of INV-04's rewrites fired.
+
+The rest of this page is as it stood before that. What it says of G0 to G2 still holds, and what it says of G3, G4 and
+chunks 7 to 9 is the record of the plan that's paused.
 
 ## The headline
+
+*Not the project's headline since [later on 2026-11-09](#what-changed-later-on-2026-11-09), and it stays 0 while G3 and
+G4 are paused.*
 
 **0 of the 1,162 passes are done.** A pass is done when
 [BIND-03](llvm-verification-tasks.md#bind-03-an-independent-verifier), the independent verifier, accepts its
@@ -33,7 +60,7 @@ Under that, each chunk's percentage at each gate:
 | 8 | Codegen | Not measured | Not measured | Not measured | Not measured | 0 of 673 |
 | 9 | The rest | Not measured | Not measured | Not measured | Not measured | 0 of 232 |
 
-[Chunk 1](#1-peepholes) has the one number measured, and what it rests on.
+[Chunk 1](#1-peepholes) has the numbers measured, and what each rests on.
 
 ## The gates
 
@@ -144,22 +171,29 @@ Where it stands:
 
 | Pass | G0 | G1 | G2 | G3 | G4 |
 | --- | --- | --- | --- | --- | --- |
-| `instcombine` | 40.2%: 12,547 of 31,240 pairs translate | 0.11%: 34 of 31,240 pairs certified | 0%: 0 of 2,536 rewrites proved | Not measured | Not done |
-| `instsimplify` | Not measured | Not measured | 45.1%: 244 of 541 rewrites proved | Not measured | Not done |
-| `aggressive-instcombine` | Not measured | Not measured | 0%: 0 of 37 rewrites proved | Not measured | Not done |
-| `reassociate` | Not measured | Not measured | 0%: 0 of 60 rewrites proved | Not measured | Not done |
+| `instcombine` | 40.2%: 12,547 of 31,240 pairs translate | 0.11%: 34 of 31,240 pairs certified | 0%: 0 of 2,536 rewrites | Not measured | Not done |
+| `instsimplify` | Not measured | Not measured | 45.1%: 244 of 541 rewrites | Not measured | Not done |
+| `aggressive-instcombine` | Not measured | Not measured | 0%: 0 of 37 rewrites | Not measured | Not done |
+| `reassociate` | Not measured | Not measured | 0%: 0 of 60 rewrites | Not measured | Not done |
 
 InstCombine's G0 and G1 are from S1's run on 2026-11-09, with `main` at `b9446de`
 ([stage 1](stage1.md#chunk-1s-gates-for-instcombine)). Its G0 was recorded as 38.4% before, counting only the pairs
 without memory. G0 and G1 across chunk 1's other three passes come next. G2 is what `tests/peephole.py score` counted
 on 2026-11-09, against INV-04's 3,174 rewrites ([rewrite proofs](rewrite-proofs.md)).
 
-What exists and doesn't count yet:
+G2 is [rewrite proofs](rewrite-proofs.md#the-scoreboard)' scoreboard, against
+[INV-04's 3,174 rewrites](rewrite-inventory.md) for the four passes: 244 count as proved for every input, all in
+InstSimplify, which pools to 7.69% for the chunk. The scoreboard's seven rules don't check the gate's last condition,
+that a rewrite's lemmas are in the store: 192 of the 247 site proofs use a stored rewrite lemma
+([E3 so far](rewrite-proofs.md#e3-so-far)).
+
+What exists and doesn't count by itself:
 
 - **33 rewrites proved for every width,** from InstSimplify and InstCombine, in
   [#48](https://github.com/phongndo/ir-lean/pull/48) ([generic rewrites](generic-rewrites.md)), with their lemmas in
-  the store. They were chosen by hand, not from INV-04's list, so they aren't a share of G2: they're a source of lemmas
-  for the rewrites that are.
+  the store. They were chosen by hand, before INV-04's list existed. The scoreboard counts a rewrite by its ID in that
+  list, through its site's theorem in the `Peephole` library, so these count only where a counted site's proof uses
+  them.
 - **Gate B0:** the [prototype](binding-approach.md#the-prototype) proves the compiled `llvm::isKnownNegation` computes
   #47's model of it, with 6 calls out of the module cut. A function with a cut doesn't count at G3.
 
