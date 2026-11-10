@@ -56,6 +56,15 @@ that stops its proof. [LLVM's own code](llvm.md) has them, how to reproduce them
 measurably beat `clang -O3`, proved to do the same. Those results are from 2026-11-06, on top of `c389ecc`, apart from
 `internal::isalnum`, from 2026-11-07 on top of `6293d34`.
 
+### InstCombine's rewrites
+
+[Stage 1](stage1.md), on 2026-11-09, on `main` at `dbfd710`: InstCombine's own regression tests, each rewrite proved to
+refine its source in the model. On a uniform sample of 4,000 of the 31,158 changed functions the emitter or Alive2 can
+be asked about, 1,104 are proved for every input that's a value or poison, through `tools/verify.py`, and 3 of those are
+certificates bound by `tools/binding.py`, which needs every argument `noundef`. Alive2 agrees with 1,101 of the 1,104
+and has no verdict on the other 3. None of 104 rewrites from known miscompilations that Alive2 confirms wrong is proved or
+certified. These are translation validation of one `opt` run each, not proofs about InstCombine.
+
 ### llama.cpp
 
 A rewrite of the IR clang `-O3` gives llama.cpp's q4_K matrix kernels, at release `b12189`, so they use AVX-512 VNNI.

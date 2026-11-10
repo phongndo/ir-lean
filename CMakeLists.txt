@@ -157,6 +157,18 @@ add_test(NAME irlean COMMAND ${CMAKE_SOURCE_DIR}/tests/irlean_test.py)
 # tools/irlean/verdict.py, the one place Python decides a verdict: every combination of how the processes
 # it rests on end, and each tool and test asking it. About 4 s, and no Lean. docs/trust.md.
 add_test(NAME verdict COMMAND ${CMAKE_SOURCE_DIR}/tests/verdict_test.py)
+# tests/alive.py on three small rewrites through alive-tv: a source that's undefined on every input is
+# unknown, never correct. About a second, and no Lean.
+add_test(NAME alive COMMAND ${CMAKE_SOURCE_DIR}/tests/alive_test.py)
+# The stage-1 benchmark's harness on its fixture: InstCombine's rewrites of a few functions, certified,
+# proved, refuted or unsupported as bench/instcombine/fixture/expect.json says, three known miscompilations
+# never certified, and a certified pair whose target changes or whose latest proof failed no longer
+# certified. One Lean process at a time, alone. docs/stage1.md.
+add_test(
+    NAME stage1
+    COMMAND ${CMAKE_SOURCE_DIR}/bench/instcombine/stage1.py --work ${CMAKE_BINARY_DIR}/stage1-ci ci
+)
+set_tests_properties(stage1 PROPERTIES RUN_SERIAL TRUE TIMEOUT 900)
 add_test(NAME superopt COMMAND ${CMAKE_SOURCE_DIR}/tests/superopt.py $<TARGET_FILE:ir-lean>)
 add_test(NAME names COMMAND ${CMAKE_SOURCE_DIR}/tests/names.sh)
 # The experimental undef and freeze semantics against LangRef's examples and Alive2, compiled from copies in a
@@ -330,7 +342,8 @@ set_tests_properties(zlib_slow PROPERTIES LABELS slow)
 # label and runs the tests with it, and a test with none of these runs in the job for the rest. See
 # docs/testing.md.
 set_tests_properties(passes PROPERTIES LABELS passes)
-set_tests_properties(binding PROPERTIES LABELS binding)
+# stage1 binds two certificates with tools/binding.py, and runs alone, so it goes with binding's first half.
+set_tests_properties(binding stage1 PROPERTIES LABELS binding)
 set_tests_properties(binding_2 PROPERTIES LABELS binding_2)
 # verify_negative runs alone, after proofs, in the same job, so semantics has only one test that runs alone.
 set_tests_properties(proofs verify_negative PROPERTIES LABELS proofs)

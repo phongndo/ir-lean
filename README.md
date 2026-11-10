@@ -75,6 +75,7 @@ theorem popcount_correct (x : BitVec 32) :
 | [Python](docs/python.md) | What the Python is for, the library every script shares, and the rules that keep it small |
 | [Roadmap](docs/roadmap.md) | Where this is going, in what order, and the [first pull requests](docs/roadmap.md#near-term-pull-requests) |
 | [Chunks](docs/chunks.md) | The main program: LLVM's 1,162 registered passes in nine chunks, the five gates each goes through, how each gate's percentage is measured, and where each chunk stands |
+| [Stage 1](docs/stage1.md) | InstCombine's own rewrites, certified with `bv_decide` and compared with Alive2, and known miscompilations that must not be certified |
 | [Prior art](docs/prior-art.md) | What others have built toward proved superoptimization, a lemma store and proof tests, and whether Trivet or Lean-MLIR already cover integer stage 1 |
 
 Each fact lives in one doc, and the others link to it. When a result changes, update its doc in the same pull

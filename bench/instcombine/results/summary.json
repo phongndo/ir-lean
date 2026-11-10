@@ -1,0 +1,1157 @@
+{
+ "schema": "ir-lean.stage1.summary/1",
+ "instcombine": {
+  "schema": "ir-lean.stage1.summary/1",
+  "tests": {
+   "count": 1845,
+   "status": {
+    "ok": 1844,
+    "opt_failed": 1
+   },
+   "specs": {
+    "instcombine": 1838,
+    "instcombine<no-verify-fixpoint>": 4,
+    "instcombine<max-iterations=1>": 2
+   }
+  },
+  "functions": {
+   "defined": 38704,
+   "changed_by_the_test_run": 31240
+  },
+  "sample": {
+   "pairs": 4000,
+   "of": 31158,
+   "candidates": 1541,
+   "how": "the first pairs by id, a SHA-256 of test and function: a uniform sample"
+  },
+  "emitter_refusals": {
+   "functions": 18361,
+   "by_first_reason": {
+    "floating point": 9035,
+    "calls outside the module": 2936,
+    "target intrinsics": 1815,
+    "scalable vectors": 977,
+    "pointers: address spaces, inttoptr, external globals": 887,
+    "undef": 691,
+    "data layouts": 491,
+    "division or remainder on vectors": 289,
+    "other instructions": 258,
+    "other intrinsics": 228,
+    "other attributes": 157,
+    "vector casts and pointer vectors": 148,
+    "attributes on vectors": 112,
+    "metadata": 94,
+    "atomics": 70,
+    "constant expressions": 66,
+    "exceptions": 41,
+    "emitter gave no report, crashed": 34,
+    "other": 22,
+    "other types": 10
+   },
+   "commonest_reasons": {
+    "type float": 4074,
+    "call to external @F": 2787,
+    "type double": 1862,
+    "type <N x float>": 1245,
+    "type half": 824,
+    "undef": 691,
+    "type ptr addrspace(N)": 440,
+    "type <N x double>": 435,
+    "external global @F": 393,
+    "type <vscale x N x i32>": 288,
+    "data layout e-p:N:N:N-i1:N:N-i8:N:N-i16:N:N-i32:N:N-i64:N:N-f32:N:N-f64:N:N-v64:": 257,
+    "type <vscale x N x i1>": 182,
+    "type <N x ptr>": 145,
+    "intrinsic llvm.x86.avx512.pternlog.d.N": 141,
+    "intrinsic llvm.x86.avx512.pternlog.q.N": 132,
+    "type <N x half>": 112,
+    "type <vscale x N x float>": 109,
+    "function attribute vscale_range(N,N)": 105,
+    "function attribute nocallback": 84,
+    "type <vscale x N x i8>": 81,
+    "type <vscale x N x i64>": 73,
+    "variadic call": 67,
+    "function attribute \"amdgpu-ieee\"=\"true\"": 58,
+    "function attribute denormal_fpenv(dynamic)": 56,
+    "intrinsic llvm.amdgcn.mbcnt.lo": 53,
+    "call return attribute range(i32 N, N) on a vector": 52,
+    "type <vscale x N x i16>": 49,
+    "type fp128": 48,
+    "type <vscale x N x half>": 47,
+    "function attribute denormal_fpenv(preservesign)": 43,
+    "exception handling": 41,
+    "instruction store i1 %v, ptr %v, align N": 38,
+    "function attribute strictfp": 37,
+    "intrinsic llvm.x86.ssse3.pshuf.b.N": 36,
+    "intrinsic llvm.x86.avx2.pshuf.b": 36,
+    "intrinsic llvm.x86.avx512.pshuf.b.N": 36,
+    "emitter gave no report": 34,
+    "data layout p:N:N": 28,
+    "type <vscale x N x double>": 27,
+    "intrinsic llvm.amdgcn.icmp.i64.i32": 27
+   },
+   "features_in_the_source": {
+    "floating point": 9576,
+    "vectors": 7131,
+    "scalable vectors": 906,
+    "undef": 1222,
+    "calls to a declared function": 5264,
+    "target intrinsics": 4656,
+    "pointers": 3918,
+    "memory instructions": 2913
+   }
+  },
+  "pairs": {
+   "status": {
+    "unsupported:emitter": 18361,
+    "candidate:": 12002,
+    "unsupported:memory": 795,
+    "skipped:unchanged_alone": 77,
+    "error:extract_failed": 5
+   },
+   "candidates": 12002,
+   "candidates_with_undef_arguments": 11911,
+   "candidates_with_a_promise_in_the_target": 2796,
+   "candidates_with_a_promise_on_the_function": 0,
+   "candidates_with_vectors": 2696,
+   "certificate_eligible": 91
+  },
+  "prove": {
+   "proved:kernel_checked": 1104,
+   "failed:proof_not_found": 194,
+   "unknown:heartbeat_limit": 154,
+   "unknown:recursion_limit": 43,
+   "error:generated_module_failed": 40,
+   "unknown:time_limit": 6
+  },
+  "certify": {
+   "bound:replayed": 3
+  },
+  "refute": {
+   "none:no_witness_falsifies": 370,
+   "unsupported:not_integers_or_vectors": 11,
+   "model_stop:a side stops the model on the counterexample": 7,
+   "unsupported:source_chooses": 6,
+   "unknown:time_limit": 3
+  },
+  "alive": {
+   "correct:": 3021,
+   "unknown:error: Couldn't prove the correctness of the transformation": 483,
+   "unknown:timeout": 140,
+   "unknown:error: Unsupported type: <vscale x 4 x i32>": 35,
+   "unknown:src_always_ub": 34,
+   "incorrect:Value mismatch": 23,
+   "unknown:error: Unsupported type: <vscale x 4 x float>": 15,
+   "unknown:error: Unsupported type: <vscale x 16 x i1>": 10,
+   "unknown:error: Unsupported type: <vscale x 16 x i8>": 8,
+   "unknown:error: Unsupported type: <vscale x 8 x half>": 8,
+   "unknown:error: Unsupported type: <vscale x 2 x i1>": 7,
+   "unknown:error: Unsupported type: <vscale x 8 x i16>": 7,
+   "unknown:error: Unsupported type: <vscale x 2 x i64>": 5,
+   "unknown:error: Unsupported type: ppc_fp128": 4,
+   "unknown:error: Unsupported type: <vscale x 2 x float>": 4,
+   "unknown:error: Unsupported type: <vscale x 4 x i8>": 4,
+   "unknown:error: Unsupported metadata: 55": 4,
+   "unknown:other": 4,
+   "unknown:error: Unsupported type: <vscale x 4 x i1>": 3,
+   "incorrect:Target's return value is more undefined": 3,
+   "incorrect:Target is more poisonous than source": 3,
+   "unknown:error: Unsupported instruction:   fence seq_cst": 2,
+   "unknown:error: Unsupported metadata: 1": 2,
+   "unknown:error: Could not translate 'extract_elt1_struct_ptr_buffer_load_format_v2f32' to A": 2,
+   "unknown:error: Unsupported type: b8": 2,
+   "unknown:error: Unsupported metadata: 3": 2,
+   "unknown:error: SMT Error: out of memory": 2,
+   "unknown:error: Could not translate 'extract_elt2_raw_ptr_buffer_load_format_v3f32' to Aliv": 2,
+   "unknown:error: Unsupported type: <vscale x 2 x i8>": 2,
+   "unknown:error: Unsupported instruction:   store volatile i1 %cmpf32, ptr @var, align 1": 2,
+   "unknown:error: Unsupported attribute: noalias": 2,
+   "unknown:error: Unsupported type: <vscale x 2 x i32>": 2,
+   "unknown:error: Unsupported type: <vscale x 2 x double>": 2,
+   "unknown:error: Unsupported type: <vscale x 4 x i16>": 2,
+   "unknown:error: Unsupported instruction:   %x = icmp eq ptr addrspace(3) inttoptr (i16 99 t": 2,
+   "unknown:error: Invalid expr": 2,
+   "incorrect:Mismatch in memory": 2,
+   "unknown:error: SMT Error: smt tactic failed to show goal to be sat/unsat (incomplete quant": 2,
+   "unknown:error: Unsupported instruction:   %t0 = load volatile float, ptr %inout, align 4": 2,
+   "unknown:error: Unsupported type: token": 2,
+   "unknown:error: Unsupported instruction:   %call = invoke noalias ptr @_Znwm(i64 13)": 1,
+   "unknown:error: Unsupported instruction:   %1 = atomicrmw or ptr %addr, i32 -1 monotonic, a": 1,
+   "unknown:error: Could not translate 'extract_elt0_elt1_struct_ptr_tbuffer_load_v4f32' to Al": 1,
+   "unknown:error: Unsupported metadata: 45": 1,
+   "unknown:error: Could not translate 'offset_sample_c_lz_o_2d' to Alive IR": 1,
+   "unknown:error: Unsupported instruction:   %__constexpr_1 = addrspacecast ptr addrspace(3) ": 1,
+   "unknown:error: Could not translate 'image_sample_a16_c_lz_1d' to Alive IR": 1,
+   "unknown:error: Unsupported type: <vscale x 512 x i8>": 1,
+   "unknown:error: Could not translate 'extract_elt1_struct_ptr_buffer_load_v4f16' to Alive IR": 1,
+   "unknown:error: Could not translate 'test_as2' to Alive IR": 1,
+   "unknown:error: Could not translate 'extract0_bitcast_raw_ptr_buffer_load_v4i32' to Alive I": 1,
+   "unknown:error: The source program doesn't reach a return instruction.": 1,
+   "unknown:error: Unsupported type: metadata": 1,
+   "unknown:error: Could not translate 'extract_elt1_raw_ptr_buffer_load_v3f32' to Alive IR": 1,
+   "unknown:error: Could not translate 'ptrmask_is_null_fail' to Alive IR": 1,
+   "unknown:error: Could not translate 'extract_elt2_raw_ptr_buffer_load_format_v4f32' to Aliv": 1,
+   "unknown:error: Could not translate 'offset_sample_c_b_o_2d' to Alive IR": 1,
+   "unknown:error: Unsupported instruction:   %p = getelementptr [10 x i16], ptr addrspace(2) ": 1,
+   "unknown:error: Could not translate 'extract0_bitcast_raw_ptr_buffer_load_v4f32' to Alive I": 1,
+   "unknown:error: Unsupported instruction:   %.pre = load ptr addrspace(4), ptr %gp, align 8": 1,
+   "unknown:error: Could not translate 'ptrmask_combine_add_alignment2' to Alive IR": 1,
+   "unknown:error: Unsupported instruction:   call void @llvm.assume(i1 true) [ \"separate_stor": 1,
+   "unknown:error: Could not translate 'offset_sample_c_l_o_2d' to Alive IR": 1,
+   "unknown:error: Could not translate 'image_sample_a16_l_2d' to Alive IR": 1,
+   "unknown:error: Could not translate 'extract_elt0_raw_ptr_buffer_load_format_v2f32' to Aliv": 1,
+   "unknown:error: Unsupported instruction:   %alloca = alloca [32 x i8], align 4, addrspace(1": 1,
+   "unknown:error: Unsupported type: <vscale x 3 x i64>": 1,
+   "unknown:error: Could not translate 'issue68120_use_cast_to_as0' to Alive IR": 1,
+   "unknown:error: Could not translate 'image_sample_a16_cl_2d' to Alive IR": 1,
+   "unknown:error: Could not translate 'image_sample_a16_cube' to Alive IR": 1,
+   "unknown:error: Could not translate 'foo' to Alive IR": 1,
+   "unknown:error: Could not translate 'explicit_nonnull' to Alive IR": 1,
+   "unknown:error: Could not translate 'load_hw' to Alive IR": 1,
+   "unknown:error: Unsupported instruction:   store volatile i32 %var, ptr %ptr, align 4": 1,
+   "unknown:error: Could not translate 'image_sample_a16_d_cl_2d' to Alive IR": 1,
+   "unknown:error: Unsupported type: <vscale x 2 x ptr>": 1,
+   "unknown:error: Could not translate 'memcpy_constant_intrinsic_ptr_to_alloca' to Alive IR": 1,
+   "unknown:error: Unsupported instruction:   invoke void asm sideeffect unwind \"call trap\", \"": 1,
+   "unknown:error: Could not translate 'image_sample_a16_2darray' to Alive IR": 1,
+   "unknown:error: Unsupported instruction:   %B = inttoptr i16 %A to ptr addrspace(2)": 1,
+   "unknown:error: Could not translate 'split_store_one' to Alive IR": 1,
+   "unknown:error: Could not translate 'image_sample_a16_c_b16_1d' to Alive IR": 1,
+   "unknown:error: Could not translate 'extract_elt1_raw_ptr_buffer_load_format_v2f32' to Aliv": 1,
+   "unknown:error: Unsupported instruction:   %A = getelementptr inbounds bfloat, ptr addrspac": 1,
+   "unknown:error: Unsupported type: <vscale x 4 x ptr>": 1,
+   "unknown:error: Could not translate 'extract_elt0_elt1_struct_ptr_buffer_load_format_v3f32'": 1,
+   "unknown:error: Could not translate 'extract_elt0_elt1_elt2_struct_ptr_buffer_load_v4f32' t": 1,
+   "unknown:error: Could not translate 'gather4_b_o_2d' to Alive IR": 1,
+   "unknown:error: Could not translate 'test_wmma_scale16_f32_16x16x128_f8f6f4___v16i32_fp6___": 1,
+   "unknown:error: Could not translate 'extract_elt2_struct_ptr_buffer_load_format_v3f32' to A": 1,
+   "unknown:error: Could not translate 'extract_elt1_raw_ptr_buffer_load_format_v4f32' to Aliv": 1,
+   "unknown:error: Unsupported instruction:   store volatile float bitcast (<1 x i32> splat (i": 1,
+   "unknown:error: Unsupported instruction:   %res = atomicrmw and ptr %addr, i32 -1 monotonic": 1,
+   "unknown:error: Could not translate 'extract_elt0_elt1_struct_ptr_tbuffer_load_v3f32' to Al": 1,
+   "unknown:error: Could not translate 'implicit_nonnull' to Alive IR": 1,
+   "unknown:error: Unsupported type: <vscale x 8 x i1>": 1,
+   "unknown:error: Could not translate 'store_hw_ds' to Alive IR": 1,
+   "unknown:error: Could not translate 'image_sample_a16_b16_2d' to Alive IR": 1,
+   "unknown:error: Could not translate 'permlanex16_bound_ctrl' to Alive IR": 1,
+   "unknown:error: Could not translate 'test_gep_bitcast_array_different_size_element_as1' to ": 1,
+   "unknown:error: Unsupported instruction:   store volatile i32 123, ptr %a, align 4": 1,
+   "unknown:error: Unsupported instruction:   %cast = addrspacecast ptr %sel to ptr addrspace(": 1,
+   "unknown:error: Unsupported metadata: 41": 1,
+   "unknown:error: Could not translate 'fold_2x_vec_i32_undef' to Alive IR": 1,
+   "unknown:error: Could not translate 'inttoptr_add_ptrtoint_used_by_single_icmp_different_sr": 1,
+   "unknown:error: Could not translate 'bitcast_vec_to_array_addrspace' to Alive IR": 1,
+   "unknown:error: Unsupported instruction:   %res = atomicrmw xor ptr %addr, i16 0 syncscope(": 1,
+   "unknown:error: Could not translate 'zext_ptrtoint_sub_ptrtoint_as2_nusw_local' to Alive IR": 1,
+   "unknown:error: Could not translate 'extract_elt0_struct_ptr_tbuffer_load_v3f32' to Alive I": 1,
+   "unknown:error: Unsupported instruction:   %x = load volatile <4 x double>, ptr %p, align 3": 1,
+   "unknown:error: Unsupported instruction:   invoke void @bar()": 1,
+   "unknown:error: Could not translate 'test_wmma_scale_f32_16x16x128_f8f6f4___v16i32_fp6___v1": 1,
+   "unknown:error: Unsupported type: <vscale x 3 x i1>": 1,
+   "unknown:error: Unsupported instruction:   %ptr = getelementptr [2 x [2 x i16]], ptr addrsp": 1,
+   "unknown:error: Unsupported instruction:   %res = atomicrmw sub ptr %addr, i32 0 syncscope(": 1,
+   "unknown:error: Unsupported instruction:   %__constexpr_0 = addrspacecast ptr addrspace(7) ": 1,
+   "unknown:error: Unsupported instruction:   store atomic i8 1, ptr %dest unordered, align 2": 1,
+   "unknown:error: Could not translate 'extract_elt1_elt2_struct_ptr_buffer_load_format_v4f32'": 1,
+   "unknown:error: Could not translate 'extract_elt1_elt2_raw_ptr_buffer_load_format_v4f32' to": 1,
+   "unknown:error: Could not translate 'ds_bpermute_uniform_src' to Alive IR": 1,
+   "unknown:error: Unsupported instruction:   %__constexpr_0 = ptrtoint ptr ptrauth (ptr @foo,": 1,
+   "unknown:error: Unsupported type: <vscale x 8 x i64>": 1,
+   "unknown:error: Unsupported type: x86_fp80": 1,
+   "unknown:error: Unsupported instruction:   %t0 = cmpxchg ptr %ptr, i64 %bc, i64 %new_value ": 1,
+   "unknown:error: Could not translate 'remove_new_array' to Alive IR": 1,
+   "unknown:error: Could not translate 'test61_as1' to Alive IR": 1,
+   "unknown:error: Could not translate 'ptrmask_combine_consecutive_preserve_attrs_todo2' to A": 1,
+   "unknown:error: Could not translate 'extract_elt0_elt1_raw_ptr_buffer_load_format_v4f32' to": 1,
+   "unknown:error: Could not translate 'func_ptr_different_addrspace' to Alive IR": 1,
+   "unknown:error: Could not translate 'offset_sample_lz_o_1d' to Alive IR": 1,
+   "unknown:error: Could not translate 'extract_elt1_struct_ptr_buffer_load_v4f32' to Alive IR": 1,
+   "unknown:error: Could not translate 'image_sample_g16_d_cl_2d' to Alive IR": 1,
+   "unknown:error: Could not translate 'test33_as1' to Alive IR": 1,
+   "unknown:error: Unsupported instruction:   %A = getelementptr nuw bfloat, ptr addrspace(2) ": 1,
+   "unknown:error: Unsupported instruction:   store atomic i32 2, ptr @a unordered, align 4": 1,
+   "unknown:error: Unsupported instruction:   call void @llvm.memcpy.p0.p1.i64(ptr %a, ptr add": 1,
+   "unknown:error: Could not translate 'extract_elt0_raw_ptr_buffer_load_format_v3f32' to Aliv": 1,
+   "unknown:error: Could not translate 'preserve_metadata_extract_elt0_struct_ptr_tbuffer_load": 1,
+   "unknown:error: Could not translate 'test_wmma_f32_16x16x128_f8f6f4___v16i32_bf6___v16i32_b": 1,
+   "unknown:error: Could not translate 'test_wmma_scale16_f32_16x16x128_f8f6f4___v12i32_fp4___": 1,
+   "unknown:error: Could not translate 'image_sample_g16_c_cd_2d' to Alive IR": 1,
+   "unknown:error: Could not translate 'combine_redundant_addrspacecast_vector' to Alive IR": 1,
+   "unknown:error: Could not translate 'test_no_derived_use' to Alive IR": 1,
+   "unknown:error: Unsupported instruction:   fence acquire": 1,
+   "unknown:error: Could not translate 'extract_elt0_raw_ptr_buffer_load_v2i8' to Alive IR": 1,
+   "unknown:error: Unsupported instruction:   %res = atomicrmw and ptr %addr, i32 -1 syncscope": 1,
+   "unknown:error: Could not translate 'extract_elt2_elt3_raw_ptr_buffer_load_v4f32' to Alive ": 1,
+   "unknown:error: Unsupported instruction:   %xchg = cmpxchg ptr %sc, i32 %old_val, i32 %new_": 1,
+   "unknown:error: Unsupported instruction:   %__constexpr_0 = addrspacecast ptr addrspace(3) ": 1,
+   "unknown:error: Unsupported instruction:   %x = getelementptr %struct.foo, ptr addrspace(3)": 1,
+   "unknown:error: Could not translate 'extract_elt0_struct_ptr_buffer_load_format_v3f32' to A": 1,
+   "unknown:error: Could not translate 'extract_elt1_raw_ptr_tbuffer_load_v2f32' to Alive IR": 1,
+   "unknown:error: Could not translate 'bar' to Alive IR": 1,
+   "unknown:error: Could not translate 'invalid_bitcast_icmp_addrspacecast_as0_null' to Alive ": 1,
+   "unknown:error: Could not translate 'load_mip_cube' to Alive IR": 1,
+   "unknown:error: Unsupported instruction:   %x = icmp eq ptr addrspace(3) null, null": 1,
+   "unknown:error: Could not translate 'offset_sample_d_cl_o_2d' to Alive IR": 1,
+   "unknown:error: Unsupported instruction:   invoke void @invoke(ptr %ref)": 1,
+   "unknown:error: Could not translate 'inttoptr_add_ptrtoint_used_by_single_icmp_different_ds": 1,
+   "unknown:error: Could not translate 'test' to Alive IR": 1,
+   "unknown:error: Could not translate 'image_sample_a16_d_1d' to Alive IR": 1,
+   "unknown:error: Could not translate 'test_wmma_f32_16x16x128_f8f6f4___v16i32_fp8___v16i32_f": 1,
+   "unknown:error: Could not translate 'test33_addrspacecast' to Alive IR": 1,
+   "unknown:error: Unsupported instruction:   %a = alloca <vscale x 16 x i8>, align 16": 1,
+   "unknown:error: Could not translate 'test_wmma_scale_f32_16x16x128_f8f6f4___v16i32_fp8___v1": 1,
+   "incorrect:Source is more defined than target": 1,
+   "unknown:error: Could not translate 'image_sample_a16_1d' to Alive IR": 1,
+   "unknown:error: Unsupported instruction:   %v = load atomic volatile i32, ptr %p seq_cst, a": 1,
+   "unknown:error: Could not translate 'extract_elt1_struct_ptr_buffer_load_format_v4f32' to A": 1,
+   "unknown:error: Could not translate 'func' to Alive IR": 1,
+   "unknown:error: Unsupported metadata: 5": 1,
+   "unknown:error: Could not translate 'extract_elt0_elt1_raw_ptr_buffer_load_v4i8' to Alive I": 1,
+   "unknown:error: Could not translate 'extract_elt1_elt2_struct_ptr_buffer_load_v4f32' to Ali": 1,
+   "unknown:error: Unsupported metadata: 47": 1,
+   "unknown:error: Unsupported type: <vscale x 12 x i32>": 1,
+   "unknown:error: Could not translate 'inbounds_bitcast_vec_to_array_addrspace_matching_alloc": 1,
+   "unknown:error: SMT Error: max. memory exceeded": 1
+  },
+  "verdicts": {
+   "lean": {
+    "unsupported": 2466,
+    "proved": 1101,
+    "unknown": 203,
+    "no_verdict": 187,
+    "error": 40,
+    "certified": 3
+   },
+   "alive": {
+    "correct": 3021,
+    "incomplete": 495,
+    "unsupported": 278,
+    "timeout": 140,
+    "src_always_ub": 34,
+    "incorrect": 32
+   }
+  },
+  "matrix": {
+   "certified": {
+    "correct": 3,
+    "incorrect": 0,
+    "src_always_ub": 0,
+    "timeout": 0,
+    "incomplete": 0,
+    "unsupported": 0,
+    "not_run": 0
+   },
+   "proved": {
+    "correct": 1098,
+    "incorrect": 0,
+    "src_always_ub": 2,
+    "timeout": 1,
+    "incomplete": 0,
+    "unsupported": 0,
+    "not_run": 0
+   },
+   "refuted": {
+    "correct": 0,
+    "incorrect": 0,
+    "src_always_ub": 0,
+    "timeout": 0,
+    "incomplete": 0,
+    "unsupported": 0,
+    "not_run": 0
+   },
+   "no_verdict": {
+    "correct": 171,
+    "incorrect": 0,
+    "src_always_ub": 0,
+    "timeout": 16,
+    "incomplete": 0,
+    "unsupported": 0,
+    "not_run": 0
+   },
+   "unknown": {
+    "correct": 187,
+    "incorrect": 0,
+    "src_always_ub": 3,
+    "timeout": 13,
+    "incomplete": 0,
+    "unsupported": 0,
+    "not_run": 0
+   },
+   "unsupported": {
+    "correct": 1523,
+    "incorrect": 32,
+    "src_always_ub": 28,
+    "timeout": 110,
+    "incomplete": 495,
+    "unsupported": 278,
+    "not_run": 0
+   },
+   "error": {
+    "correct": 39,
+    "incorrect": 0,
+    "src_always_ub": 1,
+    "timeout": 0,
+    "incomplete": 0,
+    "unsupported": 0,
+    "not_run": 0
+   }
+  },
+  "soundness": null,
+  "compared": 3960,
+  "disagreements": {
+   "unsupported": 1555,
+   "lean_no_proof": 358,
+   "source_always_ub": 2,
+   "alive2_timeout": 1
+  },
+  "to_investigate": [],
+  "cost": {
+   "prove": {
+    "n": 1541,
+    "total_s": 21034.1,
+    "median_s": 4.06,
+    "p90_s": 55.4,
+    "max_s": 120.16
+   },
+   "certify": {
+    "n": 3,
+    "total_s": 21.5,
+    "median_s": 7.2,
+    "p90_s": 7.2,
+    "max_s": 7.2
+   },
+   "alive": {
+    "n": 4000,
+    "total_s": 2179.3,
+    "median_s": 0.02,
+    "p90_s": 0.1,
+    "max_s": 60.12
+   },
+   "refute": {
+    "n": 380,
+    "total_s": 2223.6,
+    "median_s": 3.45,
+    "p90_s": 4.51,
+    "max_s": 300.13
+   },
+   "stages": []
+  },
+  "toolchain": {
+   "repo_commit": "362c0f624345cd83f33becee13240d4634c39d89",
+   "repo_dirty": false,
+   "llvm_project": {
+    "repository": "https://github.com/llvm/llvm-project",
+    "tag": "llvmorg-23.1.3",
+    "commit": "0d261d1ca552c95a8f007e061c787ac7132fbcbc",
+    "nix_hash": "sha256-+e5YvYEbCvvEQbLVIQP5hwPp4tEk6EB270bSEMKv0t4="
+   },
+   "opt": {
+    "version": "23.1.3",
+    "sha256": "f5725da4074e87581e7c0e07c3a61d8870896d0e7dc03d911eec1f0f6411f208"
+   },
+   "llvm_extract_sha256": "c778f91bd2d225cd5782edca48fa99b97952b8240e8a306d142dc6d84ae323e2",
+   "llvm_link_sha256": "75d831cf37145fab0bbb313560da684a1d994748967875a1164013614d3e36b5",
+   "alive_tv": {
+    "path": "/nix/store/ym2n4vwjbnaavjrihrn5bjpjz8fjvbz9-alive2-21.0-unstable-2026-07-23/bin/alive-tv",
+    "sha256": "8e2cccb7b68a149778fdf0993cc4af000e295ae26277711bd5db98864fe6533e",
+    "flags": [
+     "--disable-undef-input",
+     "--fail-src-ub"
+    ]
+   },
+   "llubi_sha256": "04943c49aa115a8c2dc9f10ac6cd0e7f3e12b754e14839361b73298a1f381046",
+   "lean": {
+    "version": "Lean (version 4.35.0, x86_64-unknown-linux-gnu, commit eb6cafb7290e8bd5f2937522d8d804f58f02bafc, Release)",
+    "sha256": "a884390f045303caa22583ae6e18f0fb03d8aa5d175b8f3426a244c3334e6e3b"
+   },
+   "ir_lean_binary_sha256": "112ad65d0989d0aa5525d308d586c9f2c42d8c3da2f3fe1898d3ded033adb057",
+   "irlean_library_sha256": "87ffa1043271821792302ba59e3d84e5b099d99f13d08c1f2243d1d58d992d35",
+   "checkers_sha256": {
+    "tools/verify.py": "642261ba01ce5df2a0e37e58eec29b4d058df82b65cb7a2c93a5e10acae21235",
+    "tools/verify_check.lean": "230ae18f83286ced0fc846536580e4c76f4239b7cf1ed7d65c4a4e391bd34697",
+    "tests/check_axioms.lean": "c731e1e303372e190387e74b4285a8221abbbb539599bae61ef116afa641747b",
+    "tools/irlean/__init__.py": "fdce211993454482a5a9e0f648d7ee322616b963ae6a75d2df56d9d3066d44f4",
+    "tools/irlean/hashing.py": "e53fe4843bd92a4f9451df2484e926876a48e4a37b2420d15e7e2502446239cb",
+    "tools/irlean/lean.py": "3fd6e7004ee3722b83294f1c522428aae636f2212590f2fd9d550d5eb48c8cc4",
+    "tools/irlean/pins.py": "758c49457554dd731891ae117eabefb1b9c201fea57034643ff8af628f6557c2",
+    "tools/irlean/proc.py": "1403227df944ed9c1facf6cd6fcf9ffcba2d376e11f8d0e142507d8ef8002ac6",
+    "tools/irlean/schemas.py": "11603f3134c0cfcb95fcc6bf4a30a06bc243dd291ea202c09e5818ad35cdac95",
+    "tools/irlean/verdict.py": "bcdd5692f5b28451bf0f7e08598a859b0f4db80f319f15623685764759aa1ba0",
+    "tools/binding.py": "ef5663bd091f1a0e17001bd267de754c6d94bec2cf73b3dd968f17ecab9ef6a0",
+    "tests/verify_negative.py": "10c8e29ad7e10b60916e7abac620c8641516e3219f2219008be2d480010ce605",
+    "tests/alive.py": "d0743dfeb6683a487c01b5dc08457c7f5c163274771033d95dee7551e537bf44",
+    "bench/instcombine/stage1.py": "21477077d5a6105633dc8ae3c6f0dde1ad74e6bc933c762609afcfbddaf281b3"
+   }
+  }
+ },
+ "known_wrong": {
+  "schema": "ir-lean.stage1.summary/1",
+  "tests": {
+   "count": 0,
+   "status": {},
+   "specs": {}
+  },
+  "functions": {
+   "defined": 0,
+   "changed_by_the_test_run": 0
+  },
+  "sample": null,
+  "emitter_refusals": {
+   "functions": 443,
+   "by_first_reason": {
+    "target intrinsics": 209,
+    "floating point": 135,
+    "calls outside the module": 39,
+    "data layouts": 17,
+    "undef": 9,
+    "other instructions": 7,
+    "metadata": 5,
+    "division or remainder on vectors": 4,
+    "pointers: address spaces, inttoptr, external globals": 4,
+    "other attributes": 4,
+    "attributes on vectors": 3,
+    "other intrinsics": 2,
+    "constant expressions": 2,
+    "vector casts and pointer vectors": 2,
+    "other types": 1,
+    "emitter gave no report, crashed": 0,
+    "scalable vectors": 0,
+    "atomics": 0,
+    "exceptions": 0,
+    "other": 0
+   },
+   "commonest_reasons": {
+    "type float": 78,
+    "call to external @F": 34,
+    "type <N x float>": 27,
+    "type double": 20,
+    "undef": 9,
+    "intrinsic llvm.x86.avx2.psra.w": 8,
+    "intrinsic llvm.x86.avx512.psra.w.N": 8,
+    "intrinsic llvm.x86.avx512.psra.d.N": 8,
+    "intrinsic llvm.x86.avx512.psrav.w.N": 8,
+    "intrinsic llvm.x86.avx512.psrlv.w.N": 8,
+    "intrinsic llvm.x86.avx512.psllv.w.N": 8,
+    "data layout E-p:N:N:N-a0:N:N-f32:N:N-f64:N:N-i1:N:N-i8:N:N-i16:N:N-i32:N:N-i64:N": 8,
+    "intrinsic llvm.x86.avx2.psrai.w": 6,
+    "intrinsic llvm.x86.avx512.psrai.w.N": 6,
+    "intrinsic llvm.x86.avx512.psrai.d.N": 6,
+    "intrinsic llvm.x86.avx512.psrav.d.N": 6,
+    "intrinsic llvm.x86.sse2.psra.w": 5,
+    "intrinsic llvm.x86.ssse3.pshuf.b.N": 4,
+    "intrinsic llvm.x86.avx2.psrli.w": 4,
+    "intrinsic llvm.x86.avx512.psrli.w.N": 4,
+    "intrinsic llvm.x86.avx512.psrli.d.N": 4,
+    "intrinsic llvm.x86.avx2.pslli.w": 4,
+    "intrinsic llvm.x86.avx512.pslli.w.N": 4,
+    "intrinsic llvm.x86.avx512.pslli.d.N": 4,
+    "intrinsic llvm.x86.avx2.psra.d": 4,
+    "intrinsic llvm.x86.avx2.psrl.w": 4,
+    "intrinsic llvm.x86.avx512.psrl.w.N": 4,
+    "intrinsic llvm.x86.avx512.psrl.d.N": 4,
+    "intrinsic llvm.x86.avx2.psll.w": 4,
+    "intrinsic llvm.x86.avx512.psll.w.N": 4,
+    "intrinsic llvm.x86.avx512.psll.d.N": 4,
+    "type half": 3,
+    "intrinsic llvm.x86.avx512.psrlv.d.N": 3,
+    "intrinsic llvm.x86.avx512.psllv.d.N": 3,
+    "data layout p:N:N:N": 2,
+    "external global @F": 2,
+    "integer bitcast with nondividing lane widths %v = bitcast <N x i24> %v to <N x i": 2,
+    "instruction store i1 %v, ptr %v, align N": 2,
+    "instruction %v = inttoptr i64 %v to ptr": 2,
+    "metadata !range on %v = load i32, ptr %v, align N, !range !N": 2
+   },
+   "features_in_the_source": {
+    "floating point": 138,
+    "vectors": 266,
+    "scalable vectors": 0,
+    "undef": 14,
+    "calls to a declared function": 63,
+    "target intrinsics": 210,
+    "pointers": 76,
+    "memory instructions": 61
+   }
+  },
+  "pairs": {
+   "status": {
+    "unsupported:emitter": 443,
+    "candidate:": 81,
+    "skipped:unchanged_at_pin": 52,
+    "unsupported:memory": 29,
+    "skipped:unchanged_alone": 16,
+    "error:opt_rejects": 3
+   },
+   "candidates": 81,
+   "candidates_with_undef_arguments": 74,
+   "candidates_with_a_promise_in_the_target": 18,
+   "candidates_with_a_promise_on_the_function": 2,
+   "candidates_with_vectors": 30,
+   "certificate_eligible": 4
+  },
+  "prove": {
+   "proved:kernel_checked": 39,
+   "failed:proof_not_found": 31,
+   "unknown:recursion_limit": 5,
+   "unknown:heartbeat_limit": 4,
+   "error:generated_module_failed": 2
+  },
+  "certify": {},
+  "refute": {
+   "none:no_witness_falsifies": 19,
+   "refuted:witness_falsifies": 19,
+   "unsupported:source_chooses": 2,
+   "error:generated_module_failed": 1
+  },
+  "alive": {
+   "correct:": 382,
+   "incorrect:Target is more poisonous than source": 35,
+   "incorrect:Value mismatch": 32,
+   "unknown:timeout": 30,
+   "incorrect:Source is more defined than target": 24,
+   "unknown:error: Couldn't prove the correctness of the transformation": 16,
+   "unknown:src_always_ub": 16,
+   "incorrect:Mismatch in memory": 12,
+   "unknown:error: The source program doesn't reach a return instruction.": 4,
+   "incorrect:Unsupported attribute: captures(address)": 1,
+   "unknown:error: Unsupported attribute: nofree": 1
+  },
+  "verdicts": {
+   "lean": {
+    "unsupported": 472,
+    "proved": 39,
+    "refuted": 19,
+    "no_verdict": 15,
+    "unknown": 6,
+    "error": 5
+   },
+   "alive": {
+    "correct": 382,
+    "incorrect": 104,
+    "timeout": 30,
+    "incomplete": 20,
+    "src_always_ub": 16,
+    "not_run": 3,
+    "unsupported": 1
+   }
+  },
+  "matrix": {
+   "certified": {
+    "correct": 0,
+    "incorrect": 0,
+    "src_always_ub": 0,
+    "timeout": 0,
+    "incomplete": 0,
+    "unsupported": 0,
+    "not_run": 0
+   },
+   "proved": {
+    "correct": 39,
+    "incorrect": 0,
+    "src_always_ub": 0,
+    "timeout": 0,
+    "incomplete": 0,
+    "unsupported": 0,
+    "not_run": 0
+   },
+   "refuted": {
+    "correct": 0,
+    "incorrect": 18,
+    "src_always_ub": 1,
+    "timeout": 0,
+    "incomplete": 0,
+    "unsupported": 0,
+    "not_run": 0
+   },
+   "no_verdict": {
+    "correct": 11,
+    "incorrect": 1,
+    "src_always_ub": 3,
+    "timeout": 0,
+    "incomplete": 0,
+    "unsupported": 0,
+    "not_run": 0
+   },
+   "unknown": {
+    "correct": 5,
+    "incorrect": 0,
+    "src_always_ub": 0,
+    "timeout": 1,
+    "incomplete": 0,
+    "unsupported": 0,
+    "not_run": 0
+   },
+   "unsupported": {
+    "correct": 326,
+    "incorrect": 84,
+    "src_always_ub": 12,
+    "timeout": 29,
+    "incomplete": 20,
+    "unsupported": 1,
+    "not_run": 0
+   },
+   "error": {
+    "correct": 1,
+    "incorrect": 1,
+    "src_always_ub": 0,
+    "timeout": 0,
+    "incomplete": 0,
+    "unsupported": 0,
+    "not_run": 3
+   }
+  },
+  "soundness": {
+   "pairs": 556,
+   "by_kind": {
+    "dashboard:not_confirmed": 388,
+    "dashboard:wrong": 50,
+    "issue_reproducer:not_confirmed": 37,
+    "issue_pair:wrong": 35,
+    "issue_reproducer:wrong": 19,
+    "dashboard:wrong_only_with_undef": 15,
+    "issue_pair:not_confirmed": 7,
+    "issue_reproducer:wrong_only_with_undef": 3,
+    "issue_pair:wrong_only_with_undef": 2
+   },
+   "lean_on_confirmed_wrong": {
+    "unsupported": 84,
+    "refuted": 18,
+    "no_verdict": 1,
+    "error": 1
+   },
+   "lean_on_wrong_only_with_undef": {
+    "unsupported": 8,
+    "proved": 7,
+    "no_verdict": 5
+   },
+   "lean_on_not_confirmed": {
+    "unsupported": 380,
+    "proved": 32,
+    "no_verdict": 9,
+    "unknown": 6,
+    "error": 4,
+    "refuted": 1
+   },
+   "violations": [],
+   "cases": 186
+  },
+  "compared": 551,
+  "disagreements": {
+   "unsupported": 410,
+   "lean_no_proof": 16,
+   "investigate": 3
+  },
+  "to_investigate": [
+   {
+    "id": "3429cb4083b6f10e",
+    "test": "issue 91127",
+    "function": "f",
+    "known": "3429cb4083b6f10e",
+    "known_kind": "issue_pair",
+    "known_wrong": "not_confirmed",
+    "lean": "refuted",
+    "lean_reason": "witness_falsifies",
+    "alive": "src_always_ub",
+    "alive_reason": "src_always_ub",
+    "kind": "investigate"
+   },
+   {
+    "id": "1fb8b3e5e1a47ff7",
+    "test": "issue 161492",
+    "function": "f",
+    "known": "1fb8b3e5e1a47ff7",
+    "known_kind": "issue_pair",
+    "known_wrong": "wrong",
+    "lean": "no_verdict",
+    "lean_reason": "proof_not_found",
+    "alive": "incorrect",
+    "alive_reason": "Target is more poisonous than source",
+    "kind": "investigate"
+   },
+   {
+    "id": "34c143985fe56abe",
+    "test": "issue 210605",
+    "function": "do_stuff",
+    "known": "8c39b0550d936ec2",
+    "known_kind": "issue_reproducer",
+    "known_wrong": "wrong",
+    "lean": "error",
+    "lean_reason": "generated_module_failed",
+    "alive": "incorrect",
+    "alive_reason": "Target is more poisonous than source",
+    "kind": "investigate"
+   }
+  ],
+  "cost": {
+   "prove": {
+    "n": 81,
+    "total_s": 781.5,
+    "median_s": 3.95,
+    "p90_s": 17.71,
+    "max_s": 82.44
+   },
+   "certify": {
+    "n": 0
+   },
+   "alive": {
+    "n": 553,
+    "total_s": 569.1,
+    "median_s": 0.02,
+    "p90_s": 2.2,
+    "max_s": 60.07
+   },
+   "refute": {
+    "n": 39,
+    "total_s": 165.7,
+    "median_s": 4.26,
+    "p90_s": 5.85,
+    "max_s": 6.4
+   },
+   "stages": []
+  },
+  "toolchain": {
+   "repo_commit": "362c0f624345cd83f33becee13240d4634c39d89",
+   "repo_dirty": false,
+   "llvm_project": {
+    "repository": "https://github.com/llvm/llvm-project",
+    "tag": "llvmorg-23.1.3",
+    "commit": "0d261d1ca552c95a8f007e061c787ac7132fbcbc",
+    "nix_hash": "sha256-+e5YvYEbCvvEQbLVIQP5hwPp4tEk6EB270bSEMKv0t4="
+   },
+   "opt": {
+    "version": "23.1.3",
+    "sha256": "f5725da4074e87581e7c0e07c3a61d8870896d0e7dc03d911eec1f0f6411f208"
+   },
+   "llvm_extract_sha256": "c778f91bd2d225cd5782edca48fa99b97952b8240e8a306d142dc6d84ae323e2",
+   "llvm_link_sha256": "75d831cf37145fab0bbb313560da684a1d994748967875a1164013614d3e36b5",
+   "alive_tv": {
+    "path": "/nix/store/ym2n4vwjbnaavjrihrn5bjpjz8fjvbz9-alive2-21.0-unstable-2026-07-23/bin/alive-tv",
+    "sha256": "8e2cccb7b68a149778fdf0993cc4af000e295ae26277711bd5db98864fe6533e",
+    "flags": [
+     "--disable-undef-input",
+     "--fail-src-ub"
+    ]
+   },
+   "llubi_sha256": "04943c49aa115a8c2dc9f10ac6cd0e7f3e12b754e14839361b73298a1f381046",
+   "lean": {
+    "version": "Lean (version 4.35.0, x86_64-unknown-linux-gnu, commit eb6cafb7290e8bd5f2937522d8d804f58f02bafc, Release)",
+    "sha256": "a884390f045303caa22583ae6e18f0fb03d8aa5d175b8f3426a244c3334e6e3b"
+   },
+   "ir_lean_binary_sha256": "112ad65d0989d0aa5525d308d586c9f2c42d8c3da2f3fe1898d3ded033adb057",
+   "irlean_library_sha256": "87ffa1043271821792302ba59e3d84e5b099d99f13d08c1f2243d1d58d992d35",
+   "checkers_sha256": {
+    "tools/verify.py": "642261ba01ce5df2a0e37e58eec29b4d058df82b65cb7a2c93a5e10acae21235",
+    "tools/verify_check.lean": "230ae18f83286ced0fc846536580e4c76f4239b7cf1ed7d65c4a4e391bd34697",
+    "tests/check_axioms.lean": "c731e1e303372e190387e74b4285a8221abbbb539599bae61ef116afa641747b",
+    "tools/irlean/__init__.py": "fdce211993454482a5a9e0f648d7ee322616b963ae6a75d2df56d9d3066d44f4",
+    "tools/irlean/hashing.py": "e53fe4843bd92a4f9451df2484e926876a48e4a37b2420d15e7e2502446239cb",
+    "tools/irlean/lean.py": "3fd6e7004ee3722b83294f1c522428aae636f2212590f2fd9d550d5eb48c8cc4",
+    "tools/irlean/pins.py": "758c49457554dd731891ae117eabefb1b9c201fea57034643ff8af628f6557c2",
+    "tools/irlean/proc.py": "1403227df944ed9c1facf6cd6fcf9ffcba2d376e11f8d0e142507d8ef8002ac6",
+    "tools/irlean/schemas.py": "11603f3134c0cfcb95fcc6bf4a30a06bc243dd291ea202c09e5818ad35cdac95",
+    "tools/irlean/verdict.py": "bcdd5692f5b28451bf0f7e08598a859b0f4db80f319f15623685764759aa1ba0",
+    "tools/binding.py": "ef5663bd091f1a0e17001bd267de754c6d94bec2cf73b3dd968f17ecab9ef6a0",
+    "tests/verify_negative.py": "10c8e29ad7e10b60916e7abac620c8641516e3219f2219008be2d480010ce605",
+    "tests/alive.py": "d0743dfeb6683a487c01b5dc08457c7f5c163274771033d95dee7551e537bf44",
+    "bench/instcombine/stage1.py": "21477077d5a6105633dc8ae3c6f0dde1ad74e6bc933c762609afcfbddaf281b3"
+   }
+  }
+ },
+ "instcombine_gates": {
+  "schema": "ir-lean.stage1.summary/1",
+  "tests": {
+   "count": 1845,
+   "status": {
+    "ok": 1844,
+    "opt_failed": 1
+   },
+   "specs": {
+    "instcombine": 1838,
+    "instcombine<no-verify-fixpoint>": 4,
+    "instcombine<max-iterations=1>": 2
+   }
+  },
+  "functions": {
+   "defined": 38704,
+   "changed_by_the_test_run": 31240
+  },
+  "sample": null,
+  "gates": {
+   "pairs": 31240,
+   "translated": 12547,
+   "G0": 0.4016,
+   "bindable": 75,
+   "certified": 34,
+   "G1": 0.0011
+  },
+  "emitter_refusals": {
+   "functions": 18611,
+   "by_first_reason": {
+    "floating point": 9035,
+    "calls outside the module": 2937,
+    "target intrinsics": 1815,
+    "scalable vectors": 976,
+    "pointers: address spaces, inttoptr, external globals": 883,
+    "undef": 690,
+    "other intrinsics": 570,
+    "data layouts": 491,
+    "division or remainder on vectors": 288,
+    "other instructions": 251,
+    "other attributes": 154,
+    "vector casts and pointer vectors": 148,
+    "metadata": 93,
+    "atomics": 70,
+    "constant expressions": 66,
+    "exceptions": 41,
+    "emitter gave no report, crashed": 34,
+    "attributes on vectors": 31,
+    "other": 28,
+    "other types": 10
+   },
+   "commonest_reasons": {
+    "type float": 4074,
+    "call to external @F": 2140,
+    "type double": 1862,
+    "type <N x float>": 1245,
+    "type half": 824,
+    "undef": 690,
+    "call to external @F, which touches memory: F4": 581,
+    "type ptr addrspace(N)": 440,
+    "type <N x double>": 435,
+    "external global @F": 391,
+    "type <vscale x N x i32>": 288,
+    "data layout e-p:N:N:N-i1:N:N-i8:N:N-i16:N:N-i32:N:N-i64:N:N-f32:N:N-f64:N:N-v64:": 257,
+    "type <vscale x N x i1>": 182,
+    "type <N x ptr>": 145,
+    "intrinsic llvm.x86.avx512.pternlog.d.N": 141,
+    "intrinsic llvm.x86.avx512.pternlog.q.N": 132,
+    "call to external functions in a function with a stack frame or promises about me": 126,
+    "type <N x half>": 112,
+    "type <vscale x N x float>": 109,
+    "function attribute vscale_range(N,N)": 105,
+    "function attribute nocallback": 84,
+    "type <vscale x N x i8>": 81,
+    "type <vscale x N x i64>": 73,
+    "variadic call": 62,
+    "function attribute \"amdgpu-ieee\"=\"true\"": 58,
+    "function attribute denormal_fpenv(dynamic)": 56,
+    "intrinsic llvm.amdgcn.mbcnt.lo": 53,
+    "type <vscale x N x i16>": 49,
+    "type fp128": 48,
+    "type <vscale x N x half>": 47,
+    "function attribute denormal_fpenv(preservesign)": 43,
+    "exception handling": 41,
+    "instruction store i1 %v, ptr %v, align N": 38,
+    "function attribute strictfp": 37,
+    "intrinsic llvm.x86.ssse3.pshuf.b.N": 36,
+    "intrinsic llvm.x86.avx2.pshuf.b": 36,
+    "intrinsic llvm.x86.avx512.pshuf.b.N": 36,
+    "emitter gave no report": 34,
+    "data layout p:N:N": 28,
+    "intrinsic llvm.ctlz.v2i32 of vectors": 28
+   },
+   "features_in_the_source": {
+    "floating point": 9576,
+    "vectors": 7384,
+    "scalable vectors": 906,
+    "undef": 1222,
+    "calls to a declared function": 5262,
+    "target intrinsics": 4656,
+    "pointers": 3919,
+    "memory instructions": 2914
+   }
+  },
+  "pairs": {
+   "status": {
+    "unsupported:emitter": 18611,
+    "candidate:": 11753,
+    "unsupported:memory": 794,
+    "skipped:unchanged_alone": 77,
+    "error:extract_failed": 5
+   },
+   "candidates": 11753,
+   "candidates_with_undef_arguments": 11678,
+   "candidates_with_a_promise_in_the_target": 2547,
+   "candidates_with_a_promise_on_the_function": 0,
+   "candidates_with_vectors": 2444,
+   "certificate_eligible": 75
+  },
+  "prove": {
+   "proved:kernel_checked": 34,
+   "failed:proof_not_found": 28,
+   "unknown:heartbeat_limit": 10,
+   "unsupported:emitter_combined": 2,
+   "error:generated_module_failed": 1
+  },
+  "certify": {
+   "bound:replayed": 34
+  },
+  "refute": {},
+  "alive": {
+   "correct:": 67,
+   "unknown:src_always_ub": 8
+  },
+  "verdicts": {
+   "lean": {
+    "unsupported": 19407,
+    "error": 11684,
+    "certified": 34,
+    "no_verdict": 28,
+    "unknown": 10
+   },
+   "alive": {
+    "not_run": 31088,
+    "correct": 67,
+    "src_always_ub": 8
+   }
+  },
+  "matrix": {
+   "certified": {
+    "correct": 33,
+    "incorrect": 0,
+    "src_always_ub": 1,
+    "timeout": 0,
+    "incomplete": 0,
+    "unsupported": 0,
+    "not_run": 0
+   },
+   "proved": {
+    "correct": 0,
+    "incorrect": 0,
+    "src_always_ub": 0,
+    "timeout": 0,
+    "incomplete": 0,
+    "unsupported": 0,
+    "not_run": 0
+   },
+   "refuted": {
+    "correct": 0,
+    "incorrect": 0,
+    "src_always_ub": 0,
+    "timeout": 0,
+    "incomplete": 0,
+    "unsupported": 0,
+    "not_run": 0
+   },
+   "no_verdict": {
+    "correct": 27,
+    "incorrect": 0,
+    "src_always_ub": 1,
+    "timeout": 0,
+    "incomplete": 0,
+    "unsupported": 0,
+    "not_run": 0
+   },
+   "unknown": {
+    "correct": 4,
+    "incorrect": 0,
+    "src_always_ub": 6,
+    "timeout": 0,
+    "incomplete": 0,
+    "unsupported": 0,
+    "not_run": 0
+   },
+   "unsupported": {
+    "correct": 2,
+    "incorrect": 0,
+    "src_always_ub": 0,
+    "timeout": 0,
+    "incomplete": 0,
+    "unsupported": 0,
+    "not_run": 19405
+   },
+   "error": {
+    "correct": 1,
+    "incorrect": 0,
+    "src_always_ub": 0,
+    "timeout": 0,
+    "incomplete": 0,
+    "unsupported": 0,
+    "not_run": 11683
+   }
+  },
+  "soundness": null,
+  "compared": 74,
+  "disagreements": {
+   "lean_no_proof": 31,
+   "unsupported": 2,
+   "source_always_ub": 1
+  },
+  "to_investigate": [],
+  "cost": {
+   "prove": {
+    "n": 73,
+    "total_s": 1067.4,
+    "median_s": 3.79,
+    "p90_s": 78.11,
+    "max_s": 82.93
+   },
+   "certify": {
+    "n": 34,
+    "total_s": 245.9,
+    "median_s": 7.2,
+    "p90_s": 7.5,
+    "max_s": 8.1
+   },
+   "alive": {
+    "n": 75,
+    "total_s": 5.0,
+    "median_s": 0.02,
+    "p90_s": 0.16,
+    "max_s": 1.03
+   },
+   "refute": {
+    "n": 0
+   },
+   "stages": []
+  },
+  "toolchain": {
+   "repo_commit": "44cfcc2e8fce81df3a5d86e0c295d902893b1715",
+   "repo_dirty": false,
+   "llvm_project": {
+    "repository": "https://github.com/llvm/llvm-project",
+    "tag": "llvmorg-23.1.3",
+    "commit": "0d261d1ca552c95a8f007e061c787ac7132fbcbc",
+    "nix_hash": "sha256-+e5YvYEbCvvEQbLVIQP5hwPp4tEk6EB270bSEMKv0t4="
+   },
+   "opt": {
+    "version": "23.1.3",
+    "sha256": "f5725da4074e87581e7c0e07c3a61d8870896d0e7dc03d911eec1f0f6411f208"
+   },
+   "llvm_extract_sha256": "c778f91bd2d225cd5782edca48fa99b97952b8240e8a306d142dc6d84ae323e2",
+   "llvm_link_sha256": "75d831cf37145fab0bbb313560da684a1d994748967875a1164013614d3e36b5",
+   "alive_tv": {
+    "path": "/nix/store/ym2n4vwjbnaavjrihrn5bjpjz8fjvbz9-alive2-21.0-unstable-2026-07-23/bin/alive-tv",
+    "sha256": "8e2cccb7b68a149778fdf0993cc4af000e295ae26277711bd5db98864fe6533e",
+    "flags": [
+     "--disable-undef-input",
+     "--fail-src-ub"
+    ]
+   },
+   "llubi_sha256": "04943c49aa115a8c2dc9f10ac6cd0e7f3e12b754e14839361b73298a1f381046",
+   "lean": {
+    "version": "Lean (version 4.35.0, x86_64-unknown-linux-gnu, commit eb6cafb7290e8bd5f2937522d8d804f58f02bafc, Release)",
+    "sha256": "a884390f045303caa22583ae6e18f0fb03d8aa5d175b8f3426a244c3334e6e3b"
+   },
+   "ir_lean_binary_sha256": "0b34a1c414c8a2a26a6760ed9225a8ca5473db6e4f4fa1c51bdbc35564e37049",
+   "irlean_library_sha256": "5779b1fc92ea77a32f6c3025550350afc7b4cfa0971b27929be165fcf77a7fad",
+   "checkers_sha256": {
+    "tools/verify.py": "642261ba01ce5df2a0e37e58eec29b4d058df82b65cb7a2c93a5e10acae21235",
+    "tools/verify_check.lean": "230ae18f83286ced0fc846536580e4c76f4239b7cf1ed7d65c4a4e391bd34697",
+    "tests/check_axioms.lean": "c731e1e303372e190387e74b4285a8221abbbb539599bae61ef116afa641747b",
+    "tools/irlean/__init__.py": "2546f9117c1873c6abf2de00f3b1b19016066a11be1f382b21b4469385ed4588",
+    "tools/irlean/hashing.py": "e53fe4843bd92a4f9451df2484e926876a48e4a37b2420d15e7e2502446239cb",
+    "tools/irlean/lean.py": "3fd6e7004ee3722b83294f1c522428aae636f2212590f2fd9d550d5eb48c8cc4",
+    "tools/irlean/model.py": "43a6a0566ed53d558384c3a2604dbe3fce2ae399b4ad309b3f73d0691ca12249",
+    "tools/irlean/pins.py": "758c49457554dd731891ae117eabefb1b9c201fea57034643ff8af628f6557c2",
+    "tools/irlean/proc.py": "d7f19fa53522f7b226a1ca393c6ba5f74829b5b3266f7b0ae490772a14b4e90c",
+    "tools/irlean/schemas.py": "1211642a3556c1c0d8a8609f9d94bd58093eee21201294ba4e0f169495d1a10d",
+    "tools/irlean/verdict.py": "bcdd5692f5b28451bf0f7e08598a859b0f4db80f319f15623685764759aa1ba0",
+    "tools/binding.py": "ef5663bd091f1a0e17001bd267de754c6d94bec2cf73b3dd968f17ecab9ef6a0",
+    "tests/verify_negative.py": "96fddda03b24e00ee7d76589b59a42bcd9964629a2bc360680223765847b36b2",
+    "tests/alive.py": "d0743dfeb6683a487c01b5dc08457c7f5c163274771033d95dee7551e537bf44",
+    "bench/instcombine/stage1.py": "62e9f1176617a8a7967b5efe3f5b6d2db2341fcdd3c5959d00c1dbe5c3ecc3d9"
+   }
+  }
+ }
+}

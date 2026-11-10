@@ -1,0 +1,2539 @@
+{
+ "schema": "ir-lean.stage1.known-wrong/1",
+ "sources": {
+  "issues": "llvm/llvm-project issues labeled miscompilation and llvm:instcombine, fetched 2026-11-08",
+  "dashboard": "Alive2's run of LLVM 8a4244b560f3 on 2026-01-29, https://web.ist.utl.pt/nuno.lopes/alive2/index.php?hash=c3466a6048874dbf"
+ },
+ "cases": [
+  {
+   "issue": 55291,
+   "title": "Missing freeze on fold: (urem X, -1) -> select(X == -1, 0, x)",
+   "state": "CLOSED",
+   "from": "https://alive2.llvm.org/ce/z/j9ZLMJ",
+   "kind": "issue_pair",
+   "ir": "; (urem X, -1) -> select(X == -1, 0, x)\n\ndefine i8 @src(i8 %a0) {\n  %r = urem i8 %a0, -1\n  ret i8 %r\n}\n\ndefine i8 @tgt(i8 %a0) {\n  %c = icmp eq i8 %a0, -1\n  %r = select i1 %c, i8 0, i8 %a0\n  ret i8 %r\n}",
+   "id": "3ce8f75d7675a6f3"
+  },
+  {
+   "issue": 57357,
+   "title": "[InstCombine] Wrong signed zero optimization",
+   "state": "CLOSED",
+   "from": "https://alive2.llvm.org/ce/z/jFq6m7",
+   "kind": "issue_pair",
+   "ir": "define internal double @src(double %0) {\n  %2 = fcmp olt double %0, 0.000000e+00\n  %3 = select i1 %2, double -0.000000e+00, double %0\n  ret double %3\n}\n\ndefine double @tgt(double %0) {\n  %2 = fcmp ole double %0, 0.000000e+00\n  %3 = select i1 %2, double -0.000000e+00, double %0\n  ret double %3\n}",
+   "id": "918818b8dd2b34b2"
+  },
+  {
+   "issue": 59876,
+   "title": "@llvm.smul.with.overflow.i1 is special",
+   "state": "CLOSED",
+   "from": "https://alive2.llvm.org/ce/z/3BdrRX",
+   "kind": "issue_pair",
+   "ir": "declare { i1, i1 } @llvm.smul.with.overflow.i1(i1, i1) #0\n\ndefine i1 @src(i1 %0) {\n  %2 = call { i1, i1 } @llvm.smul.with.overflow.i1(i1 %0, i1 true)\n  %3 = extractvalue { i1, i1 } %2, 1\n  ret i1 %3\n}\n\ndefine i1 @tgt(i1 %0) {\n  ret i1 %0\n}",
+   "id": "09e2c1e0aed5e0aa"
+  },
+  {
+   "issue": 59876,
+   "title": "@llvm.smul.with.overflow.i1 is special",
+   "state": "CLOSED",
+   "from": "https://alive2.llvm.org/ce/z/VCcohD",
+   "kind": "issue_reproducer",
+   "ir": "declare { i1, i1 } @llvm.smul.with.overflow.i1(i1, i1) #0\n\ndefine i1 @f(i1 %0) {\n  %2 = call { i1, i1 } @llvm.smul.with.overflow.i1(i1 %0, i1 true)\n  %3 = extractvalue { i1, i1 } %2, 1\n  ret i1 %3\n}\n",
+   "spec": "instcombine",
+   "id": "fb80acca300e301a"
+  },
+  {
+   "issue": 60906,
+   "title": "UB-related miscompile due to InstCombine",
+   "state": "CLOSED",
+   "from": "https://alive2.llvm.org/ce/z/WVGBgr",
+   "kind": "issue_pair",
+   "ir": "define i32 @src(ptr %0, i32 %1) local_unnamed_addr {\n  %3 = srem i32 %1, 151340185\n  %4 = srem i32 %1, 151340180\n  %5 = load i32, ptr %0, align 4\n  %6 = trunc i32 %5 to i1\n  %7 = select i1 %6, i32 %4, i32 %3\n  store i32 %7, ptr %0, align 4\n  ret i32 0\n}\n\ndefine i32 @tgt(ptr %0, i32 %1) local_unnamed_addr {\n  %3 = load i32, ptr %0, align 4\n  %4 = and i32 %3, 1\n  %.not = icmp eq i32 %4, 0\n  %.v = select i1 %.not, i32 151340185, i32 151340180\n  %5 = srem i32 %1, %.v\n  store i32 %5, ptr %0, align 4\n  ret i32 0\n}\n",
+   "id": "efc1419168314e91"
+  },
+  {
+   "issue": 62401,
+   "title": "[InstCombine] Miscompilation on vector operations with undef and poison elements",
+   "state": "CLOSED",
+   "from": "https://alive2.llvm.org/ce/z/JX-TLu",
+   "kind": "issue_pair",
+   "ir": "define <2 x i32> @src(<2 x i1> %x, <2 x i32> %y) local_unnamed_addr {\n  %sext.i1 = sext <2 x i1> %x to <2 x i32>\n  %r.i2 = xor <2 x i32> <i32 42, i32 -7>, %sext.i1\n  %r = urem <2 x i32> %y, %sext.i1\n  ret <2 x i32> %r\n}\n\ndefine <2 x i32> @tgt(<2 x i1> %x, <2 x i32> %y) local_unnamed_addr {\n  %1 = icmp eq <2 x i32> %y, <i32 -1, i32 -1>\n  %r = select <2 x i1> %1, <2 x i32> zeroinitializer, <2 x i32> %y\n  ret <2 x i32> %r\n}",
+   "id": "9106af389edcce26"
+  },
+  {
+   "issue": 63992,
+   "title": "[InstCombine] Miscompilation on extract and insert element operations",
+   "state": "CLOSED",
+   "from": "https://alive2.llvm.org/ce/z/M9AyPJ",
+   "kind": "issue_pair",
+   "ir": "define <4 x float> @src(<4 x float> %a, <4 x float> %b, <4 x i32> %c) {\nf_ult.SM.exit:\n  %c0 = extractelement <4 x i32> %c, i32 0\n  %a0 = extractelement <4 x float> %a, i32 0\n  %a1 = extractelement <4 x float> %a, i32 1\n  %b0 = extractelement <4 x float> %b, i32 0\n  %b1 = extractelement <4 x float> %b, i32 123\n  %cmp0 = icmp ne i32 %c0, 0\n  %s0 = select i1 %cmp0, float %a0, float %b0\n  %s1 = select i1 %cmp0, float %a1, float %b1\n  %ra = insertelement <4 x float> <float poison, float poison, float undef, float undef>, float %s0, i32 0\n  %rb = insertelement <4 x float> %ra, float %s1, i32 1\n  ret <4 x float> %rb\n}\n\ndefine <4 x float> @tgt(<4 x float> %a, <4 x float> %b, <4 x i32> %c) {\nf_ult.SM.exit:\n  %c0 = extractelement <4 x i32> %c, i64 0\n  %a0 = extractelement <4 x float> %a, i64 0\n  %b0 = extractelement <4 x float> %b, i64 0\n  %cmp0.not = icmp eq i32 %c0, 0\n  %s0 = select i1 %cmp0.not, float %b0, float %a0\n  %rb = insertelement <4 x float> %a, float %s0, i64 0\n  ret <4 x float> %rb\n}",
+   "id": "aa3e1380681c4859"
+  },
+  {
+   "issue": 64177,
+   "title": "[Instcombine] Undef shuffle may lead to unsound transform",
+   "state": "CLOSED",
+   "from": "https://alive2.llvm.org/ce/z/jUBXvb",
+   "kind": "issue_reproducer",
+   "ir": "define <3 x i32> @select_and_insert_values(<3 x i32> %a, <3 x i32> %b, <3 x i32> %c) {\n  %c0 = extractelement <3 x i32> %c, i32 0\n  %cmp0 = icmp ne i32 %c0, 0\n  %1 = insertelement <2 x i1> poison, i1 %cmp0, i32 0\n  %2 = shufflevector <2 x i1> %1, <2 x i1> poison, <2 x i32> zeroinitializer\n  %3 = shufflevector <3 x i32> %a, <3 x i32> poison, <2 x i32> zeroinitializer\n  %4 = shufflevector <3 x i32> %b, <3 x i32> poison, <2 x i32> <i32 0, i32 1>\n  %5 = select <2 x i1> %2, <2 x i32> %3, <2 x i32> %4\n  %6 = shufflevector <2 x i32> %5, <2 x i32> undef, <3 x i32> <i32 0, i32 1, i32 2>\n  ret <3 x i32> %6\n}\n",
+   "spec": "instcombine",
+   "id": "2c0c77096e1d6b17"
+  },
+  {
+   "issue": 76441,
+   "title": "Incorrect instcombine optimization",
+   "state": "CLOSED",
+   "from": "https://alive2.llvm.org/ce/z/B5daAG",
+   "kind": "issue_reproducer",
+   "ir": "define i128 @__sample__main(i128 %x) {\nentry:\n  %0 = and i128 %x, 36893488147419103231\n  %1 = xor i128 %0, -1\n  %2 = and i128 %1, 36893488147419103231\n  %3 = xor i128 %x, -1\n  %4 = and i128 %3, 36893488147419103231\n  %5 = add i128 %2, %4\n  %6 = and i128 %5, 36893488147419103231\n  ret i128 %6\n}",
+   "spec": "instcombine",
+   "id": "a0e9935cff4a8eac"
+  },
+  {
+   "issue": 77320,
+   "title": "[InstSimplify] Miscompile with select of vectors and bitcast",
+   "state": "CLOSED",
+   "from": "https://alive2.llvm.org/ce/z/xhCFyk",
+   "kind": "issue_reproducer",
+   "ir": "define <4 x i32> @src(<2 x i64> %x, <4 x i32> %y) {\n  %x.bc = bitcast <2 x i64> %x to <4 x i32>\n  %y.bc = bitcast <4 x i32> %y to <2 x i64>\n  %sub = sub <2 x i64> %x, %y.bc\n  %sub.bc = bitcast <2 x i64> %sub to <4 x i32>\n  %cmp = icmp eq <4 x i32> %y, %x.bc\n  %sel = select <4 x i1> %cmp, <4 x i32> %sub.bc, <4 x i32> zeroinitializer\n  ret <4 x i32> %sel\n}\n",
+   "spec": "instsimplify",
+   "id": "dd5d5db0b00c0b2f"
+  },
+  {
+   "issue": 81793,
+   "title": "Faulty load-store forwarding with non byte-sized types",
+   "state": "CLOSED",
+   "from": "https://alive2.llvm.org/ce/z/LJpiuS",
+   "kind": "issue_pair",
+   "ir": "target datalayout = \"E\"\n\ndefine i8 @src(ptr %p) {\nentry:\n  store i9 -1, ptr %p, align 1\n  %r0 = load i8, ptr %p, align 1\n  ret i8 %r0\n}\n\ndefine i8 @tgt(ptr %p) {\n  store i9 -1, ptr %p, align 1\n  ret i8 -1\n}\n\n; a good \"getting started\" exercise with alive2\n; would be to change the udiv (unsigned divide)\n; instruction in @src above into an sdiv (signed\n; divide) and then fix @tgt so that the optimization\n; is again correct\n\n; alive-tv is a translation validation tool based\n; on Alive2:\n;   https://github.com/AliveToolkit/alive2\n;\n; you can use it in two ways:\n; 1. as illustrated by the default text above, if\n;    you provide an LLVM IR function called src\n;    and one called tgt, alive-tv will try to prove\n;    that tgt refines src\n; 2. otherwise, alive-tv will run an optimization\n;    pipeline similar to -O2 on your code, and then\n;    try to show that the optimized function(s) \n;    refine the original one(s)",
+   "id": "2975dfa6f499f535"
+  },
+  {
+   "issue": 82052,
+   "title": "[InstCombine] Replacement of binop with binop-of-shuffle incorrectly adds extra poison value",
+   "state": "CLOSED",
+   "from": "https://alive2.llvm.org/ce/z/RpBJEN",
+   "kind": "issue_reproducer",
+   "ir": "target datalayout = \"e-m:e-i8:8:32-i16:16:32-i64:64-i128:128-n32:64-S128\"\ntarget triple = \"aarch64-unknown-linux-gnu\"\n\ndefine i8 @src(<2 x i8> %x, <2 x i8> %y) {\n  %xsplat = shufflevector <2 x i8> %x, <2 x i8> poison, <2 x i32> <i32 1, i32 0>\n  %vv = mul <2 x i8> %xsplat, %y\n  %m = mul <2 x i8> %x, %y\n  %msplat = shufflevector <2 x i8> %m, <2 x i8> poison, <2 x i32> <i32 0, i32 0>\n  %res = add <2 x i8> %vv, %msplat\n  %vget_lane = extractelement <2 x i8> %res, i64 1\n  ret i8 %vget_lane\n}\n",
+   "spec": "instcombine",
+   "id": "91e6b89bc7523b1d"
+  },
+  {
+   "issue": 84025,
+   "title": "InstCombine calculated a wrong `insertelement` instruction",
+   "state": "CLOSED",
+   "from": "https://alive2.llvm.org/ce/z/7FIJNi",
+   "kind": "issue_pair",
+   "ir": "define <4 x i32> @src(i32 %arg) {\n  %i = zext i32 %arg to i64\n  %i1 = shl i64 %i, 32\n  %i2 = or i64 %i1, 65\n  %i3 = zext i64 %i2 to i128\n  %i4 = shl i128 %i3, 64\n  %i5 = bitcast i128 %i4 to <4 x i32>\n  ret <4 x i32> %i5\n}\n\ndefine <4 x i32> @tgt(i32 %arg) {\n  %i5 = insertelement <4 x i32> <i32 0, i32 0, i32 0, i32 poison>, i32 %arg, i64 3\n  ret <4 x i32> %i5\n}",
+   "id": "ad479335ae5bdb15"
+  },
+  {
+   "issue": 89338,
+   "title": "instcombine is wrong about a vector fshr->shl transformation",
+   "state": "CLOSED",
+   "from": "https://alive2.llvm.org/ce/z/s4UpPe",
+   "kind": "issue_reproducer",
+   "ir": "define i32 @f(<4 x i8> %0) {\n  %2 = call <4 x i8> @llvm.fshr.v4i8(<4 x i8> %0, <4 x i8> zeroinitializer, <4 x i8> <i8 -12, i8 -80, i8 35, i8 1>)\n  %3 = bitcast <4 x i8> %2 to i32\n  ret i32 %3\n}\n\n; Function Attrs: nocallback nofree nosync nounwind speculatable willreturn memory(none)\ndeclare <4 x i8> @llvm.fshr.v4i8(<4 x i8>, <4 x i8>, <4 x i8>) #0\n\nattributes #0 = { nocallback nofree nosync nounwind speculatable willreturn memory(none) }\n",
+   "spec": "instcombine",
+   "id": "d9e2e81486d98ef6"
+  },
+  {
+   "issue": 89516,
+   "title": "miscompile of vanilla integer code by InstCombine",
+   "state": "CLOSED",
+   "from": "https://alive2.llvm.org/ce/z/jRfVLr",
+   "kind": "issue_reproducer",
+   "ir": "define i8 @f(i8 %0, i8 %1) {\n  %3 = icmp slt i8 %1, 0\n  %4 = shl i8 1, %0\n  %5 = srem i8 1, %4\n  %6 = add i8 %5, %4\n  %7 = select i1 %3, i8 %6, i8 %5\n  ret i8 %7\n}\n",
+   "spec": "instcombine",
+   "id": "a779b2e0b5198617"
+  },
+  {
+   "issue": 89669,
+   "title": "miscompile of vector double-negation + select by InstCombine",
+   "state": "CLOSED",
+   "from": "https://alive2.llvm.org/ce/z/N1RVAr",
+   "kind": "issue_reproducer",
+   "ir": "define <4 x i32> @f(<4 x i32> %0) {\n  %2 = sub <4 x i32> zeroinitializer, %0\n  %3 = select <4 x i1> <i1 false, i1 true, i1 poison, i1 poison>, <4 x i32> %2, <4 x i32> %0\n  %4 = sub <4 x i32> zeroinitializer, %3\n  ret <4 x i32> %4\n}\n",
+   "spec": "instcombine",
+   "id": "6fa2a5524aa69d91"
+  },
+  {
+   "issue": 91127,
+   "title": "[InstCombine] Miscompilation which converts `icmp eq (trunc nsw i64 X), (trunc nsw i32 Y)` into `icmp eq (zext i32 Y), X",
+   "state": "CLOSED",
+   "from": "https://alive2.llvm.org/ce/z/MLgA5x",
+   "kind": "issue_pair",
+   "ir": "target datalayout = \"e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-i128:128-f80:128-n8:16:32:64-S128\"\ntarget triple = \"x86_64-unknown-linux-gnu\"\n\ndefine i32 @src() {\nentry:\n  br label %for.cond\n\nfor.cond:                                         ; preds = %if.end, %entry\n  %storemerge = phi i32 [ 3, %entry ], [ %dec, %if.end ]\n  %h = phi i32 [ 1, %entry ], [ %hres, %if.end ]\n  %e = phi i32 [ 0, %entry ], [ -1, %if.end ]\n  %tobool.not = icmp eq i32 %storemerge, 0\n  br i1 %tobool.not, label %for.end9, label %for.body\n\nfor.body:                                         ; preds = %for.cond\n  %cmp = icmp eq i32 %h, 5\n  %conv1 = zext i1 %cmp to i64\n  %conv2 = sext i32 %e to i64\n  %cond.i = call i64 @llvm.umax.i64(i64 %conv1, i64 %conv2)\n  %conv3 = trunc nsw i64 %cond.i to i16\n  %conv4 = trunc nsw i32 %e to i16\n  %sub.i = sub i16 %conv3, %conv4\n  %tobool6.not = icmp eq i16 %sub.i, 0\n  br i1 %tobool6.not, label %if.end, label %if.then\n\nif.then:                                          ; preds = %for.body\n  br label %if.end\n\nif.end:                                           ; preds = %if.then, %for.body\n  %hres = phi i32 [ 0, %if.then ], [ %h, %for.body ]\n  %dec = add nsw i32 %storemerge, -1\n  br label %for.cond\n\nfor.end9:                                         ; preds = %for.cond\n  ret i32 %h\n}\n\ndefine i32 @tgt() {\nentry:\n  br label %for.cond\n\nfor.cond:                                         ; preds = %if.end, %entry\n  %storemerge = phi i32 [ 3, %entry ], [ %dec, %if.end ]\n  %h = phi i32 [ 1, %entry ], [ %hres, %if.end ]\n  %e = phi i32 [ 0, %entry ], [ -1, %if.end ]\n  %tobool.not = icmp eq i32 %storemerge, 0\n  br i1 %tobool.not, label %for.end9, label %for.body\n\nfor.body:                                         ; preds = %for.cond\n  %cmp = icmp eq i32 %h, 5\n  %conv1 = zext i1 %cmp to i64\n  %conv2 = sext i32 %e to i64\n  %cond.i = call i64 @llvm.umax.i64(i64 %conv1, i64 %conv2)\n  %0 = zext i32 %e to i64\n  %tobool6.not = icmp eq i64 %cond.i, %0\n  br i1 %tobool6.not, label %if.end, label %if.then\n\nif.then:                                          ; preds = %for.body\n  br label %if.end\n\nif.end:                                           ; preds = %if.then, %for.body\n  %hres = phi i32 [ 0, %if.then ], [ %h, %for.body ]\n  %dec = add nsw i32 %storemerge, -1\n  br label %for.cond\n\nfor.end9:                                         ; preds = %for.cond\n  ret i32 %h\n}",
+   "id": "3429cb4083b6f10e"
+  },
+  {
+   "issue": 91691,
+   "title": "instcombine removes a select, making code more poisonous",
+   "state": "CLOSED",
+   "from": "https://alive2.llvm.org/ce/z/c__jy8",
+   "kind": "issue_reproducer",
+   "ir": "define i32 @f(i32 %0) {\n  %2 = sub nuw i32 -2, %0\n  %3 = tail call i32 @llvm.ctlz.i32(i32 %2, i1 false)\n  %4 = sub i32 32, %3\n  %5 = shl i32 1, %4\n  %6 = icmp ult i32 %0, -2\n  %7 = select i1 %6, i32 %5, i32 1\n  ret i32 %7\n}\n\n; Function Attrs: nocallback nofree nosync nounwind speculatable willreturn memory(none)\ndeclare i32 @llvm.ctlz.i32(i32, i1 immarg) #0\n\nattributes #0 = { nocallback nofree nosync nounwind speculatable willreturn memory(none) }\n",
+   "spec": "instcombine",
+   "id": "96f997fb87c7deb2"
+  },
+  {
+   "issue": 92887,
+   "title": "Miscompile with opt -passes=\"instcombine\"",
+   "state": "CLOSED",
+   "from": "https://alive2.llvm.org/ce/z/1GVkRh",
+   "kind": "issue_pair",
+   "ir": "%struct.bit = type { i16, i16, i16, i16, i16, i16 }\n@bit = global %struct.bit zeroinitializer\n\ndefine i16 @src() {\nentry:\n  store %struct.bit {i16 0, i16 0, i16 0, i16 0, i16 2, i16 0}, ptr @bit ; mem @bit is <0x0,0x0,0x0,0x0,0x2,0x0>\n  %f0 = getelementptr inbounds %struct.bit, ptr @bit, i32 0, i32 1\n  %0 = load <2 x i16>, ptr %f0, align 1                           ; <0x0,0x0>\n  %.i09 = extractelement <2 x i16> %0, i64 0                      ; 0x0\n  %.i010 = and i16 %.i09, 1                                       ; 0x0\n  %.i111 = extractelement <2 x i16> %0, i64 1                     ; 0x0\n  %.i112 = and i16 %.i111, 1                                      ; 0x0\n  %.upto034 = insertelement <2 x i16> poison, i16 %.i010, i64 0   ; <0x0,p>\n  %1 = insertelement <2 x i16> %.upto034, i16 %.i112, i64 1       ; <0x0,0x0>\n\n  %shuff = shufflevector <2 x i16> %1, <2 x i16> poison, <4 x i32> <i32 0, i32 1, i32 poison, i32 poison> ; <0x0,0x0,p,p>\n  %sel = select <4 x i1> <i1 true, i1 true, i1 false, i1 false>, <4 x i16> %shuff, <4 x i16> undef        ; <0x0,0x0,u,u>\n  %f326 = getelementptr inbounds %struct.bit, ptr @bit, i32 0, i32 4\n  %bf.load27 = load i16, ptr %f326, align 1                       ; 0x2\n  %extract = extractelement <4 x i16> %sel, i32 2                 ; u\n  %bf.clear33 = and i16 %extract, 1                               ; 0x000u only lowest bit is undef\n  %bf.set34 = or i16 %bf.clear33, %bf.load27                      ; 0x2 lowest bit is undef\n  %bf.ashr39 = ashr i16 %bf.set34, 1                              ; 0x1\n  ret i16 %bf.ashr39\n}\n\ndefine i16 @tgt() {\nentry:\n  store i16 0, ptr @bit, align 2\n  store i16 0, ptr getelementptr inbounds (%struct.bit, ptr @bit, i64 0, i32 1), align 2\n  store i16 0, ptr getelementptr inbounds (%struct.bit, ptr @bit, i64 0, i32 2), align 2\n  store i16 0, ptr getelementptr inbounds (%struct.bit, ptr @bit, i64 0, i32 3), align 2\n  store i16 2, ptr getelementptr inbounds (%struct.bit, ptr @bit, i64 0, i32 4), align 2\n  store i16 0, ptr getelementptr inbounds (%struct.bit, ptr @bit, i64 0, i32 5), align 2\n  ret i16 poison\n}\n",
+   "id": "1114d82a28ee8366"
+  },
+  {
+   "issue": 96857,
+   "title": "Wrong `xor` --> `or disjoint` due to undef inputs",
+   "state": "CLOSED",
+   "from": "https://alive2.llvm.org/ce/z/XMy5BD",
+   "kind": "issue_reproducer",
+   "ir": "define i32 @fun0(i32 %val0, i32 %val1, i32 %val2) {\n  %val4 = and i32 %val2, %val0\n  %val5 = xor i32 %val2, -1\n  %val6 = and i32 %val5, %val1\n  %val7 = xor i32 %val4, %val6\n  ret i32 %val7\n}\n",
+   "spec": "instcombine",
+   "id": "d75083d378d8fd85"
+  },
+  {
+   "issue": 97053,
+   "title": "Wrong swap between `sdiv` and `extractelement` by InstCombine",
+   "state": "CLOSED",
+   "from": "https://alive2.llvm.org/ce/z/mGNeLx",
+   "kind": "issue_reproducer",
+   "ir": "define i8 @fun0(<4 x i8> %val0, i32 %val1) {\n  %val2 = sdiv <4 x i8> <i8 42, i8 42, i8 42, i8 42>, %val0\n  %val3 = extractelement <4 x i8> %val2, i32 %val1\n  ret i8 %val3\n}",
+   "spec": "instcombine",
+   "id": "d27409908f378a3b"
+  },
+  {
+   "issue": 97330,
+   "title": "[InstCombine] Miscompilation with llvm.assume in unreachable blocks",
+   "state": "CLOSED",
+   "from": "https://alive2.llvm.org/ce/z/zKvpXV",
+   "kind": "issue_pair",
+   "ir": "define i16 @src(i16 %g, ptr %e, ptr %d) {\nentry:\n  %0 = load i64, ptr %d, align 8\n  %conv = trunc i64 %0 to i16\n  %tobool.not.i = icmp eq i16 %g, 0\n  br i1 %tobool.not.i, label %i.exit, label %for.cond.preheader.i\n\nfor.cond.preheader.i:\n  %cmp5.i = icmp ne i16 %g, %conv\n  %conv6.i = zext i1 %cmp5.i to i32\n  store i32 %conv6.i, ptr %e, align 4\n  %cmp7.i = icmp eq i64 %0, 1\n  call void @llvm.assume(i1 %cmp7.i)\n  unreachable\n\ni.exit:\n  ret i16 %conv\n}\n\ndefine i16 @tgt(i16 %g, ptr %e, ptr %d) {\nentry:\n  %tobool.not.i = icmp eq i16 %g, 0\n  br i1 %tobool.not.i, label %i.exit, label %for.cond.preheader.i\n\nfor.cond.preheader.i:                             ; preds = %entry\n  unreachable\n\ni.exit:                                           ; preds = %entry\n  ret i16 1\n}\n",
+   "id": "b38a2722cfefd59c"
+  },
+  {
+   "issue": 98433,
+   "title": "Wrong vector select folding on undef values by InstCombine",
+   "state": "OPEN",
+   "from": "https://alive2.llvm.org/ce/z/EixYHA",
+   "kind": "issue_reproducer",
+   "ir": "define <4 x i8> @fun0(<4 x i8> %val1, i1 %val2) {\nentry:\n  %val3 = shufflevector <4 x i8> <i8 0, i8 1, i8 2, i8 3>, <4 x i8> %val1, <4 x i32> <i32 0, i32 5, i32 2, i32 3>\n  %val4 = select i1 %val2, <4 x i8> %val1, <4 x i8> %val3\n  ret <4 x i8> %val4\n}\n",
+   "spec": "instcombine",
+   "id": "a52c8234aa0cabf1"
+  },
+  {
+   "issue": 98435,
+   "title": "Wrong select folding for undef conditions by InstCombine",
+   "state": "CLOSED",
+   "from": "https://alive2.llvm.org/ce/z/Qtu72J",
+   "kind": "issue_reproducer",
+   "ir": "define <2 x i1> @fun0(<2 x i1> %val0, <2 x i1> %val1) {\n  %val2 = select <2 x i1> %val0, <2 x i1> %val0, <2 x i1> %val0\n  %val3 = select <2 x i1> <i1 undef, i1 true>, <2 x i1> <i1 true, i1 true>, <2 x i1> %val2\n  ret <2 x i1> %val3\n}\n",
+   "spec": "instcombine",
+   "id": "fb9a5d02c671de85"
+  },
+  {
+   "issue": 98441,
+   "title": "Wrong constant fold for ICmp by InstCombine",
+   "state": "OPEN",
+   "from": "https://alive2.llvm.org/ce/z/5IfYQ9",
+   "kind": "issue_reproducer",
+   "ir": "define <2 x i1> @fun0(i1 %val0) {\nentry:\n  br i1 %val0, label %if.true, label %if.false\n\nif.true:                                          ; preds = %entry\n  br label %merge\n\nif.false:                                         ; preds = %entry\n  br label %merge\n\nmerge:                                            ; preds = %if.false, %if.true\n  %val1 = phi <2 x i32> [ <i32 -1, i32 poison>, %if.true ], [ <i32 poison, i32 0>, %if.false ]\n  br label %exit\n\nexit:                                             ; preds = %merge\n  %val2 = icmp eq <2 x i32> %val1, <i32 undef, i32 -1>\n  ret <2 x i1> %val2\n}\n",
+   "spec": "instcombine",
+   "id": "df359a3de606765e"
+  },
+  {
+   "issue": 111934,
+   "title": "[InstCombine] poison-generating attributes are not dropped when folding logical and/or of icmps",
+   "state": "CLOSED",
+   "from": "https://alive2.llvm.org/ce/z/rSUfvo",
+   "kind": "issue_pair",
+   "ir": "define i1 @src(i32 noundef %Value) {\nentry:\n  %cmp.not = icmp eq i32 %Value, 0\n  %0 = call range(i32 1, 33) i32 @llvm.ctpop.i32(i32 %Value)\n  %cmp1 = icmp ult i32 %0, 2\n  %1 = select i1 %cmp.not, i1 false, i1 %cmp1\n  ret i1 %1\n}\n\ndefine i1 @tgt(i32 noundef %Value) {\nentry:\n  %0 = call range(i32 1, 33) i32 @llvm.ctpop.i32(i32 %Value)\n  %1 = icmp eq i32 %0, 1\n  ret i1 %1\n}\n",
+   "id": "0e365602438294b1"
+  },
+  {
+   "issue": 112076,
+   "title": "[InstCombine] `range` attribute should be dropped in `foldBitCeil`",
+   "state": "CLOSED",
+   "from": "https://alive2.llvm.org/ce/z/NQTmkh",
+   "kind": "issue_pair",
+   "ir": "define i32 @src(i32 %x) {\n  %ctlz = call range(i32 1, 33) i32 @llvm.ctlz.i32(i32 %x, i1 false)\n  %sub = sub i32 32, %ctlz\n  %shl = shl i32 1, %sub\n  %dec = add i32 %x, -1\n  %ult = icmp ult i32 %dec, -2\n  %sel = select i1 %ult, i32 %shl, i32 1\n  ret i32 %sel\n}\n\ndefine i32 @tgt(i32 %x) {\n  %ctlz = call range(i32 1, 33) i32 @llvm.ctlz.i32(i32 %x, i1 false)\n  %1 = sub nsw i32 0, %ctlz\n  %2 = and i32 %1, 31\n  %sel = shl nuw i32 1, %2\n  ret i32 %sel\n}\n",
+   "id": "881ef256da742482"
+  },
+  {
+   "issue": 113123,
+   "title": "Wrong canonicalization of a range check idiom",
+   "state": "CLOSED",
+   "from": "https://alive2.llvm.org/ce/z/qBHAmS",
+   "kind": "issue_reproducer",
+   "ir": "define i1 @test_and_olt_fmf_propagation_union.2(float %x) {\n  %cmp1 = fcmp nnan ninf olt float %x, 0x3C00000000000000\n  %cmp2 = fcmp nnan nsz ogt float %x, 0xBC00000000000000\n  %2 = select i1 %cmp2, i1 %cmp1, i1 %cmp2\n  %cond = and i1 %2, %cmp2\n  ret i1 %cond\n}\n",
+   "spec": "instcombine",
+   "id": "838d398efac8b7bd"
+  },
+  {
+   "issue": 113301,
+   "title": "Wrong canonicalization of `add` and bitwise logic operation",
+   "state": "CLOSED",
+   "from": "https://alive2.llvm.org/ce/z/n2TNxF",
+   "kind": "issue_reproducer",
+   "ir": "define <2 x i8> @t5_splat_undef_0b1000.2(<2 x i8> %x) {\n  %2 = xor <2 x i8> %x, <i8 15, i8 undef>\n  %x.lowbits.are.zero = icmp eq <2 x i8> %2, zeroinitializer\n  %x.biased = add <2 x i8> %x, <i8 16, i8 16>\n  %x.biased.highbits = and <2 x i8> %x.biased, <i8 -16, i8 -16>\n  %x.roundedup = select <2 x i1> %x.lowbits.are.zero, <2 x i8> %x, <2 x i8> %x.biased.highbits\n  ret <2 x i8> %x.roundedup\n}\n\ndefine i8 @t5_splat_undef_0b1000.3(i8 %x) {\n  %2 = xor i8 %x, undef\n  %x.lowbits.are.zero = icmp eq i8 %2, 0\n  %x.biased = add i8 %x, 16\n  %x.biased.highbits = and i8 %x.biased, -16\n  %x.roundedup = select i1 %x.lowbits.are.zero, i8 %x, i8 %x.biased.highbits\n  ret i8 %x.roundedup\n}",
+   "spec": "instcombine",
+   "id": "7c68aea86a052240"
+  },
+  {
+   "issue": 113423,
+   "title": "Wrong folding of `select` into floating number ops",
+   "state": "CLOSED",
+   "from": "https://alive2.llvm.org/ce/z/7MRSu5",
+   "kind": "issue_reproducer",
+   "ir": "define float @fmul_by_self_if_0_oeq_zero_f32_fmul_nnan_ninf_nsz.2(float %x) {\n  %2 = fcmp ule float %x, 0.000000e+00\n  %scaled.x = fmul nnan ninf nsz float %x, %x\n  %scaled.if.denormal = select nnan i1 %2, float %x, float %scaled.x\n  ret float %scaled.if.denormal\n}\n\ndefine float @fmul_by_self_if_0_oeq_zero_f32_fmul_nnan_ninf_nsz.3(float %x) {\n  %1 = fcmp ult float %x, 0.000000\n  %scaled.x = fmul nnan ninf nsz float %x, %x\n  %scaled.if.denormal = select nnan i1 %1, float %scaled.x, float %x\n  ret float %scaled.if.denormal\n}",
+   "spec": "instcombine",
+   "id": "df81eacd27356433"
+  },
+  {
+   "issue": 113515,
+   "title": "Wrong canonicalization of `select` for a vector of poisonous values",
+   "state": "CLOSED",
+   "from": "https://alive2.llvm.org/ce/z/fqZFy9",
+   "kind": "issue_reproducer",
+   "ir": "define <2 x i32> @uadd_sat_not_ugt_commute_add.2(<2 x i32> %x, <2 x i32> %yp) {\n  %y = sdiv <2 x i32> %yp, <i32 2442, i32 4242>\n  %notx = xor <2 x i32> %x, <i32 -1, i32 poison>\n  %a = add <2 x i32> %y, %notx\n  %c = icmp ugt <2 x i32> %y, %x\n  %r = select <2 x i1> %c, <2 x i32> <i32 -1, i32 -1>, <2 x i32> %a\n  ret <2 x i32> %r\n}",
+   "spec": "instcombine",
+   "id": "afaed357c2882a03"
+  },
+  {
+   "issue": 113539,
+   "title": "Wrong folding of `and` and `or` of `icmp`s",
+   "state": "CLOSED",
+   "from": "https://alive2.llvm.org/ce/z/Mk92Z5",
+   "kind": "issue_reproducer",
+   "ir": "define i1 @bitwise_and_bitwise_and_icmps_comm3.2(i8 %x, i8 %y, i8 %z) {\n  %c1 = icmp eq i8 %y, 42\n  %x.m1 = and i8 %x, 1\n  %2 = and i8 %z, %x.m1\n  %z.shift = shl i8 1, %2\n  %x.m2 = and i8 %x, %z.shift\n  %c2 = icmp ne i8 %x.m1, 0\n  %c3 = icmp ne i8 %x.m2, 0\n  %and1 = and i1 %c2, %c1\n  %and2 = and i1 %c3, %and1\n  ret i1 %and2\n}",
+   "spec": "instcombine",
+   "id": "720a2cb0fca97692"
+  },
+  {
+   "issue": 113869,
+   "title": "Poison value wrongly propagates through vector operations on an optimized code",
+   "state": "CLOSED",
+   "from": "https://alive2.llvm.org/ce/z/6tSdhb",
+   "kind": "issue_reproducer",
+   "ir": "define <2 x i32> @uadd_sat_not_ugt_commute_add.2(<2 x i32> %x, <2 x i32> %yp) {\n  %2 = sdiv <2 x i32> <i32 2442, i32 4242>, %yp\n  %notx = xor <2 x i32> %x, <i32 -1, i32 poison>\n  %a = add nuw <2 x i32> %2, %notx\n  %c = icmp ugt <2 x i32> %2, %x\n  %r = select <2 x i1> %c, <2 x i32> <i32 -1, i32 -1>, <2 x i32> %a\n  ret <2 x i32> %r\n}",
+   "spec": "instcombine",
+   "id": "adc68e2a8d22f617"
+  },
+  {
+   "issue": 113989,
+   "title": "Wrong folding to `fabs` (`NaN` not handled)",
+   "state": "CLOSED",
+   "from": "https://alive2.llvm.org/ce/z/y2UAwe",
+   "kind": "issue_reproducer",
+   "ir": "define double @select_fcmp_ole_zero.2(double %x) {\n  %lezero = fcmp ole double %x, 0.000000e+00\n  %negx = fsub double 0.000000e+00, %x\n  %fabs = select i1 %lezero, double %negx, double %x\n  ret double %fabs\n}\n\ndefine double @select_fcmp_nnan_ole_zero.2(double %x) {\n  %lezero = fcmp ole double %x, 0.000000e+00\n  %negx = fsub nnan double 0.000000e+00, %x\n  %fabs = select i1 %lezero, double %negx, double %x\n  ret double %fabs\n}\n\ndefine half @select_fcmp_nnan_ugt_negzero.2(half %x) {\n  %2 = fcmp ugt half %x, 0xH8000\n  %negx = fsub nnan half 0xH0000, %x\n  %3 = fadd half %negx, 0xH0000\n  %fabs = select i1 %2, half %x, half %3\n  ret half %fabs\n}",
+   "spec": "instcombine",
+   "id": "6481289f763353c1"
+  },
+  {
+   "issue": 113992,
+   "title": "Wrong substitution of a PHI node",
+   "state": "CLOSED",
+   "from": "https://alive2.llvm.org/ce/z/89TX9n",
+   "kind": "issue_reproducer",
+   "ir": "define i32 @sub_const_incoming0.2(i1 %b, i32 %x, i32 %y) {\nentry:\n  br i1 %b, label %if, label %then\n\nif:                                               ; preds = %entry\n  br label %then\n\nthen:                                             ; preds = %if, %entry\n  %p0 = phi i32 [ 42, %if ], [ %x, %entry ]\n  %p1 = phi i32 [ undef, %if ], [ %y, %entry ]\n  %r = sub i32 %p1, %p0\n  ret i32 %r\n}\n",
+   "spec": "instcombine",
+   "id": "65953d6858e66bde"
+  },
+  {
+   "issue": 114181,
+   "title": "[InstCombine] Wrong negation of vector selection with a poison value",
+   "state": "CLOSED",
+   "from": "https://alive2.llvm.org/ce/z/tdHHuq",
+   "kind": "issue_reproducer",
+   "ir": "define <2 x i32> @negate_select_of_negation_poison.2(<2 x i1> %c, <2 x i32> %x) {\n  %2 = srem <2 x i32> <i32 poison, i32 0>, %x\n  %neg = sub nsw <2 x i32> %2, %x\n  %sel = select <2 x i1> %c, <2 x i32> %neg, <2 x i32> %x\n  %neg2 = sub <2 x i32> %x, %sel\n  ret <2 x i32> %neg2\n}",
+   "spec": "instcombine",
+   "id": "af7ec1185c165900"
+  },
+  {
+   "issue": 114191,
+   "title": "[InstCombine] miscompilation of `or` of vectors",
+   "state": "CLOSED",
+   "from": "https://alive2.llvm.org/ce/z/LyM8sY",
+   "kind": "issue_reproducer",
+   "ir": "define <2 x i32> @or_sext_to_sel_constant_vec.3(<2 x i1> %y) {\n  %sext = sext <2 x i1> %y to <2 x i32>\n  %2 = or <2 x i32> %sext, <i32 0, i32 1>\n  %3 = udiv <2 x i32> <i32 42, i32 -7>, %2\n  ret <2 x i32> %3\n}\n\ndefine <2 x i32> @or_sext_to_sel_constant_vec.2(<2 x i1> %y) {\n  %sext = sext <2 x i1> %y to <2 x i32>\n  %2 = or <2 x i32> %sext, <i32 0, i32 1>\n  %3 = sdiv <2 x i32> <i32 42, i32 -7>, %2\n  %4 = udiv exact <2 x i32> %3, %3\n  %5 = or <2 x i32> %3, %3\n  ret <2 x i32> %5\n}\n",
+   "spec": "instcombine",
+   "id": "66e458d064f4a389"
+  },
+  {
+   "issue": 115250,
+   "title": "[InstSimplify] simplifyPHINode phi fold incorrect according to alive2",
+   "state": "CLOSED",
+   "from": "https://alive2.llvm.org/ce/z/7RNy3W",
+   "kind": "issue_pair",
+   "ir": "define i4 @src(i4 %a, i1 %c) {\nentry:\n    %add = add i4 %a, 2\n    br i1 %c, label %ba, label %bb\nba:\n    \n    br label %bt\nbb:\n    br label %bt\n\nbt:\n    %retval = phi i4 [%add, %ba], [undef, %bb]\n    ret i4 %retval\n}\n\ndefine i4 @tgt(i4 %a, i1 %c) {\n  %add = add i4 %a, 2\n  br i1 %c, label %ba, label %bb\n\nba:                                               ; preds = %entry\n  br label %bt\n\nbb:                                               ; preds = %entry\n  br label %bt\n\nbt:                                               ; preds = %bb, %ba\n  ret i4 %add\n}\n; a good \"getting started\" exercise with alive2\n; would be to change the udiv (unsigned divide)\n; instruction in @src above into an sdiv (signed\n; divide) and then fix @tgt so that the optimization\n; is again correct\n\n; alive-tv is a translation validation tool based\n; on Alive2:\n;   https://github.com/AliveToolkit/alive2\n;\n; you can use it in two ways:\n; 1. as illustrated by the default text above, if\n;    you provide an LLVM IR function called src\n;    and one called tgt, alive-tv will try to prove\n;    that tgt refines src\n; 2. otherwise, alive-tv will run an optimization\n;    pipeline similar to -O2 on your code, and then\n;    try to show that the optimized function(s) \n;    refine the original one(s)",
+   "id": "dd7b9945e6094b88"
+  },
+  {
+   "issue": 115454,
+   "title": "[InstCombine] miscompilation",
+   "state": "CLOSED",
+   "from": "https://alive2.llvm.org/ce/z/ym5WV-",
+   "kind": "issue_reproducer",
+   "ir": "define i32 @abs_abs_x18.2(i32 %x, i32 %y) {\n  %a = sub nsw i32 %x, %y\n  %b = sub nuw nsw i32 %y, %x\n  %cmp = icmp sgt i32 %x, -1\n  %cond = select i1 %cmp, i32 %a, i32 %b\n  %cmp1 = icmp sgt i32 %cond, -1\n  %sub16 = sub nsw i32 0, %cond\n  ret i32 %sub16\n}",
+   "spec": "instcombine",
+   "id": "b3e3244d218917b5"
+  },
+  {
+   "issue": 115456,
+   "title": "[InstCombine] miscompilation of `-X * Y --> -(X * Y)`",
+   "state": "CLOSED",
+   "from": "https://alive2.llvm.org/ce/z/Rq5DNd",
+   "kind": "issue_reproducer",
+   "ir": "define i32 @test1.2(i32 %b, i32 %z) {\n  %c = sub i32 0, %z\n  %2 = sdiv i32 %z, %c\n  %d = mul nsw i32 %2, %b\n  %e = mul i32 %c, %d\n  ret i32 %e\n}",
+   "spec": "instcombine",
+   "id": "b6c621f3096f3c43"
+  },
+  {
+   "issue": 115458,
+   "title": "[InstCombine] miscompilation  of `mul (sext X), Y -> select X, -Y, 0`",
+   "state": "CLOSED",
+   "from": "https://alive2.llvm.org/ce/z/GmGpRE",
+   "kind": "issue_reproducer",
+   "ir": "define i8 @sext_multi_uses.2(i8 %a, i1 %b, i8 %x) {\n  %2 = sext i1 %b to i8\n  %3 = mul nsw i8 %a, %2\n  %4 = select i1 %b, i8 %3, i8 %a\n  %5 = sub i8 %2, %4\n  %f = mul nuw i8 %x, %2\n  %r = add i8 %f, %5\n  ret i8 %r\n}\n",
+   "spec": "instcombine",
+   "id": "3ad2ca800f028602"
+  },
+  {
+   "issue": 115465,
+   "title": "[InstCombine] folded select produces different result on a blended vector",
+   "state": "CLOSED",
+   "from": "https://alive2.llvm.org/ce/z/73v-ug",
+   "kind": "issue_reproducer",
+   "ir": "define <4 x i8> @sel_shuf_commute3.2(<4 x i8> %x, <4 x i8> %y, i1 %cmp) {\n  %blend = shufflevector <4 x i8> zeroinitializer, <4 x i8> %y, <4 x i32> <i32 0, i32 5, i32 2, i32 3>\n  %r = select i1 %cmp, <4 x i8> %y, <4 x i8> %blend\n  %2 = select <4 x i1> <i1 false, i1 true, i1 false, i1 true>, <4 x i8> <i8 0, i8 1, i8 2, i8 3>, <4 x i8> %r\n  ret <4 x i8> %2\n}",
+   "spec": "instcombine",
+   "id": "83806e5dd5c84925"
+  },
+  {
+   "issue": 120361,
+   "title": "[InstCombine] `samesign` should be dropped when folding logical and of icmps",
+   "state": "CLOSED",
+   "from": "https://alive2.llvm.org/ce/z/YSW_NC",
+   "kind": "issue_pair",
+   "ir": "define i1 @src(i8 %0, i8 %1) {\nstart:\n  %2 = icmp samesign eq i8 %0, -1\n  %3 = icmp ne i8 %0, 0\n  %4 = icmp ugt i8 %0, %0\n  %result = select i1 %3, i1 %2, i1 %4\n  ret i1 %result\n}\n\ndefine i1 @tgt(i8 %0, i8 %1) {\nstart:\n  %2 = icmp samesign eq i8 %0, -1\n  ret i1 %2\n}\n",
+   "id": "17b1ce0f759528b7"
+  },
+  {
+   "issue": 120361,
+   "title": "[InstCombine] `samesign` should be dropped when folding logical and of icmps",
+   "state": "CLOSED",
+   "from": "https://github.com/llvm/llvm-project/issues/120361",
+   "kind": "issue_pair",
+   "ir": "\n----------------------------------------\ndefine i1 @src(i8 %#0, i8 %#1) {\nstart:\n  %#2 = icmp samesign eq i8 %#0, 255\n  %#3 = icmp ne i8 %#0, 0\n  %#4 = icmp ugt i8 %#0, %#0\n  %result = select i1 %#3, i1 %#2, i1 %#4\n  ret i1 %result\n}\n=>\ndefine i1 @tgt(i8 %#0, i8 %#1) {\nstart:\n  %#2 = icmp samesign eq i8 %#0, 255\n  ret i1 %#2\n}\nTransformation doesn't verify!\n\nERROR: Target is more poisonous than source\n\nExample:\ni8 %#0 = #x00 (0)\ni8 %#1 = poison\n\nSource:\ni1 %#2 = poison\ni1 %#3 = #x0 (0)\ni1 %#4 = #x0 (0)\ni1 %result = #x0 (0)\n\nTarget:\ni1 %#2 = poison\nSource value: #x0 (0)\nTarget value: poison\n",
+   "id": "112c858d9df714cc"
+  },
+  {
+   "issue": 121428,
+   "title": "[InstCombine] `noundef` attribute should be dropped",
+   "state": "CLOSED",
+   "from": "https://github.com/llvm/llvm-project/issues/121428",
+   "kind": "issue_pair",
+   "ir": "define i32 @src(i32 noundef %x) {\n  %ct = call noundef i32 @llvm.cttz.i32(i32 %x, i1 false)\n  %cmp = icmp ne i32 %x, 0\n  %res = select i1 %cmp, i32 %ct, i32 123\n  ret i32 %res\n}\ndefine i32 @tgt(i32 noundef %x) {\n  %ct = call noundef range(i32 0, 33) i32 @llvm.cttz.i32(i32 %x, i1 true)\n  %cmp.not = icmp eq i32 %x, 0\n  %res = select i1 %cmp.not, i32 123, i32 %ct\n  ret i32 %res\n}\n",
+   "id": "87fc428d7995ac1f"
+  },
+  {
+   "issue": 121430,
+   "title": "[InstCombine] `ninf` is incorrectly inferred",
+   "state": "CLOSED",
+   "from": "https://github.com/llvm/llvm-project/issues/121430",
+   "kind": "issue_pair",
+   "ir": "define double @src(double noundef %x) {\n  %cmp = fcmp ult double %x, 0.000000e+00\n  %negX = fneg ninf double %x\n  %sel = select i1 %cmp, double %x, double %negX\n  ret double %sel\n}\n\ndefine double @tgt(double noundef %x) {\n  %cmp = fcmp ult double %x, 0.000000e+00\n  %negX = fneg ninf double %x\n  %sel = select ninf i1 %cmp, double %x, double %negX\n  ret double %sel\n}\n",
+   "id": "1cbe76f4dd76eaf1"
+  },
+  {
+   "issue": 121459,
+   "title": "[InstCombine] GEPNoWrapFlags is propagated incorrectly",
+   "state": "CLOSED",
+   "from": "https://alive2.llvm.org/ce/z/3ME7S7",
+   "kind": "issue_reproducer",
+   "ir": "define ptr @src(i1 %c, ptr %p) {\n  br i1 %c, label %if, label %else\n\nif:\n  %gep1 = getelementptr inbounds i32, ptr %p, i64 1\n  br label %join\n\nelse:\n  %gep2 = getelementptr i64, ptr %p, i64 2\n  br label %join\n\njoin:\n  %phi = phi ptr [ %gep1, %if ], [ %gep2, %else ]\n  %gep = getelementptr i32, ptr %phi, i64 1\n  ret ptr %gep\n}\n",
+   "spec": "instcombine",
+   "id": "a79bec26b59d7516"
+  },
+  {
+   "issue": 121581,
+   "title": "[InstCombine] Incorrect fold of the comparison of GEPs",
+   "state": "CLOSED",
+   "from": "https://alive2.llvm.org/ce/z/HRsqeW",
+   "kind": "issue_reproducer",
+   "ir": "define i1 @test(ptr %x, ptr %y) {\n  %gep1 = getelementptr i8, ptr %x, i32 1\n  %gep2 = getelementptr i8, ptr %y, i32 1\n  %cmp = icmp ult ptr %gep1, %gep2\n  ret i1 %cmp\n}\n",
+   "spec": "instcombine",
+   "id": "3fdf25e88c40de12"
+  },
+  {
+   "issue": 121583,
+   "title": "[InstCombine] `disjoint` should be dropped in `foldSelectICmpEq`",
+   "state": "CLOSED",
+   "from": "https://alive2.llvm.org/ce/z/am7W57",
+   "kind": "issue_reproducer",
+   "ir": "define i32 @src(i32 noundef %x, i32 noundef %y, i32 %c) {\nentry:\n  %xor = xor i32 %y, %x\n  %cmp = icmp eq i32 %xor, %c\n  %and = and i32 %x, %y\n  %or = or disjoint i32 %y, %x\n  %not = xor i32 %c, -1\n  %and1 = and i32 %or, %not\n  %cond = select i1 %cmp, i32 %and, i32 %and1\n  ret i32 %cond\n}\n",
+   "spec": "instcombine",
+   "id": "c1cc6b07af00b69a"
+  },
+  {
+   "issue": 121584,
+   "title": "[InstCombine] Miscompilation in `simplifyIRemMulShl`",
+   "state": "CLOSED",
+   "from": "https://alive2.llvm.org/ce/z/rdeehL",
+   "kind": "issue_reproducer",
+   "ir": "\ndefine i8 @srem_XY_XZ_with_CY_gt_CZ_no_nuw_out1(i8 noundef %X) {\n  %BO0 = mul nsw i8 %X, 127\n  %BO1 = shl nsw i8 %X, 7\n  %r = srem i8 %BO1, %BO0\n  ret i8 %r\n}\n",
+   "spec": "instcombine",
+   "id": "a9251b2ff4f168e2"
+  },
+  {
+   "issue": 121890,
+   "title": "[InstCombine] Missing flag check when folding comparison of geps with the same base pointer",
+   "state": "CLOSED",
+   "from": "https://alive2.llvm.org/ce/z/P5XbMx",
+   "kind": "issue_pair",
+   "ir": "target datalayout = \"p:8:8:8\"\n\ndefine i1 @src(ptr %ptr, i8 %idx1, i8 %idx2) {\n  %gep1 = getelementptr i32, ptr %ptr, i8 %idx1\n  %gep2 = getelementptr i32, ptr %ptr, i8 %idx2\n  %cmp = icmp eq ptr %gep1, %gep2\n  ret i1 %cmp\n}\n\ndefine i1 @tgt(ptr %ptr, i8 %idx1, i8 %idx2) {\n  %cmp = icmp eq i8 %idx1, %idx2\n  ret i1 %cmp\n}\n\ndefine i1 @src1(ptr %ptr, i8 %idx1, i8 %idx2) {\n  %gep1 = getelementptr nuw i32, ptr %ptr, i8 %idx1\n  %gep2 = getelementptr nuw i32, ptr %ptr, i8 %idx2\n  %cmp = icmp eq ptr %gep1, %gep2\n  ret i1 %cmp\n}\n\ndefine i1 @tgt1(ptr %ptr, i8 %idx1, i8 %idx2) {\n  %cmp = icmp eq i8 %idx1, %idx2\n  ret i1 %cmp\n}\n\ndefine i1 @src2(ptr %ptr, i8 %idx1, i8 %idx2) {\n  %gep1 = getelementptr nusw i32, ptr %ptr, i8 %idx1\n  %gep2 = getelementptr nusw i32, ptr %ptr, i8 %idx2\n  %cmp = icmp eq ptr %gep1, %gep2\n  ret i1 %cmp\n}\n\ndefine i1 @tgt2(ptr %ptr, i8 %idx1, i8 %idx2) {\n  %cmp = icmp eq i8 %idx1, %idx2\n  ret i1 %cmp\n}\n",
+   "id": "8b9b769cea17aa1c"
+  },
+  {
+   "issue": 121890,
+   "title": "[InstCombine] Missing flag check when folding comparison of geps with the same base pointer",
+   "state": "CLOSED",
+   "from": "https://github.com/llvm/llvm-project/issues/121890",
+   "kind": "issue_pair",
+   "ir": "\n----------------------------------------\ndefine i1 @src(ptr %ptr, i8 %idx1, i8 %idx2) {\n#0:\n  %gep1 = gep ptr %ptr, 4 x i8 %idx1\n  %gep2 = gep ptr %ptr, 4 x i8 %idx2\n  %cmp = icmp eq ptr %gep1, %gep2, offsetonly\n  ret i1 %cmp\n}\n=>\ndefine i1 @tgt(ptr %ptr, i8 %idx1, i8 %idx2) {\n#0:\n  %cmp = icmp eq i8 %idx1, %idx2\n  ret i1 %cmp\n}\nTransformation doesn't verify!\n\nERROR: Value mismatch\n\nExample:\nptr %ptr = null\ni8 %idx1 = #x00 (0)\ni8 %idx2 = #x40 (64)\n\nSource:\nptr %gep1 = null\nptr %gep2 = null\ni1 %cmp = #x1 (1)\n\nSOURCE MEMORY STATE\n===================\nNON-LOCAL BLOCKS:\nBlock 0 >\tsize: 0\talign: 1\talloc type: 0\talive: false\taddress: 0\nBlock 1 >\tsize: 0\talign: 1\talloc type: 0\talive: true\taddress: 1\n\nTarget:\ni1 %cmp = #x0 (0)\nSource value: #x1 (1)\nTarget value: #x0 (0)\n\n\n----------------------------------------\ndefine i1 @src1(ptr %ptr, i8 %idx1, i8 %idx2) {\n#0:\n  %gep1 = gep nuw ptr %ptr, 4 x i8 %idx1\n  %gep2 = gep nuw ptr %ptr, 4 x i8 %idx2\n  %cmp = icmp eq ptr %gep1, %gep2, offsetonly\n  ret i1 %cmp\n}\n=>\ndefine i1 @tgt1(ptr %ptr, i8 %idx1, i8 %idx2) {\n#0:\n  %cmp = icmp eq i8 %idx1, %idx2\n  ret i1 %cmp\n}\nTransformation seems to be correct!\n\n\n----------------------------------------\ndefine i1 @src2(ptr %ptr, i8 %idx1, i8 %idx2) {\n#0:\n  %gep1 = gep nusw ptr %ptr, 4 x i8 %idx1\n  %gep2 = gep nusw ptr %ptr, 4 x i8 %idx2\n  %cmp = icmp eq ptr %gep1, %gep2, offsetonly\n  ret i1 %cmp\n}\n=>\ndefine i1 @tgt2(ptr %ptr, i8 %idx1, i8 %idx2) {\n#0:\n  %cmp = icmp eq i8 %idx1, %idx2\n  ret i1 %cmp\n}\nTransformation seems to be correct!\n\nSummary:\n  2 correct transformations\n  1 incorrect transformations\n  0 failed-to-prove transformations\n  0 Alive2 errors\n",
+   "id": "3c8b2d6754f97287"
+  },
+  {
+   "issue": 126533,
+   "title": "[InstCombine] Wrong add+gep canonicalization to gep+gep",
+   "state": "CLOSED",
+   "from": "https://alive2.llvm.org/ce/z/NTVnvL",
+   "kind": "issue_pair",
+   "ir": "define ptr @src(i32 %a, ptr %pointer){\nentry:\n  %add = add i32 %a, 1\n  %add.ptr = getelementptr inbounds i8, ptr %pointer, i32 %add\n  ret ptr %add.ptr\n}\n\n\n\ndefine ptr @tgt(i32 %a, ptr %pointer) {\nentry:\n  %0 = getelementptr i8, ptr %pointer, i32 %a\n  %add.ptr = getelementptr i8, ptr %0, i32 1\n  ret ptr %add.ptr\n}\n\n",
+   "id": "60fe67226eb8f124"
+  },
+  {
+   "issue": 128457,
+   "title": "[InstCombine] wrong folding of `select (fcmp ...) (frem ...) C`",
+   "state": "CLOSED",
+   "from": "https://alive2.llvm.org/ce/z/Ee6vRd",
+   "kind": "issue_reproducer",
+   "ir": "define float @select_fcmp_frem(float %x) {\n  %fcmp = fcmp oeq float %x, 3.000000e+00\n  %frem = frem float %x, 2.000000e+00\n  %sel = select i1 %fcmp, float %frem, float 1.000000e+00\n  ret float %sel\n}\n",
+   "spec": "instcombine",
+   "id": "45dea6380b98c4ff"
+  },
+  {
+   "issue": 131927,
+   "title": "[InstCombine] Empty lifetime range removal changes behaviour",
+   "state": "OPEN",
+   "from": "https://alive2.llvm.org/ce/z/Vo8GLq",
+   "kind": "issue_reproducer",
+   "ir": "define { i1, i1 } @f() {\n  %a = alloca ptr\n  %b = alloca ptr\n  ; Overlapping lifetimes (removed by instcombine)\n  call void @llvm.lifetime.start.p0(i64 8, ptr %a)\n  call void @llvm.lifetime.start.p0(i64 8, ptr %b)\n  call void @llvm.lifetime.end.p0(i64 8, ptr %a)\n  call void @llvm.lifetime.end.p0(i64 8, ptr %b)\n  ; Disjoint lifetimes\n  call void @llvm.lifetime.start.p0(i64 8, ptr %a)\n  call void @g(ptr %a)\n  call void @llvm.lifetime.end.p0(i64 8, ptr %a)\n  call void @llvm.lifetime.start.p0(i64 8, ptr %b)\n  call void @g(ptr %b)\n  call void @llvm.lifetime.end.p0(i64 8, ptr %b)\n  ; Obscured equality comparison. Avoids fold that incorrectly assumes that\n  ; \"Two distinct allocations will never be equal.\" See #45725 for details.\n  %1 = icmp ule ptr %a, %b\n  %2 = icmp uge ptr %a, %b\n  %3 = insertvalue { i1, i1 } poison, i1 %1, 0\n  %4 = insertvalue { i1, i1 } %3,     i1 %2, 1\n  ret { i1, i1 } %4\n}\n\ndeclare void @g(ptr)\n",
+   "spec": "instcombine",
+   "id": "b2eb029e96c39e95"
+  },
+  {
+   "issue": 133059,
+   "title": "[InstCombine][FuncAttrs] InstCombine breaks `initializes` attribute",
+   "state": "CLOSED",
+   "from": "https://alive2.llvm.org/ce/z/rx6rJk",
+   "kind": "issue_reproducer",
+   "ir": "target datalayout = \"e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-i128:128-f80:128-n8:16:32:64-S128\"\ntarget triple = \"x86_64-unknown-linux-gnu\"\n\ndefine fastcc void @src(ptr initializes((0, 48)) %0) {\n  %2 = alloca [24 x i8], align 8\n  store i8 0, ptr %0, align 16\n  %3 = getelementptr i8, ptr %0, i64 1\n  store i8 0, ptr %3, align 1\n  %4 = getelementptr i8, ptr %0, i64 2\n  store i16 0, ptr %4, align 2\n  %5 = getelementptr i8, ptr %0, i64 4\n  store i32 0, ptr %5, align 4\n  %6 = getelementptr i8, ptr %0, i64 8\n  store i16 0, ptr %6, align 8\n  %7 = getelementptr i8, ptr %0, i64 10\n  store i16 0, ptr %7, align 2\n  %8 = getelementptr i8, ptr %0, i64 12\n  store i32 0, ptr %8, align 4\n  %9 = getelementptr i8, ptr %0, i64 16\n  store double 0.000000e+00, ptr %9, align 16\n  %10 = getelementptr i8, ptr %0, i64 24\n  call void @llvm.memcpy.p0.p0.i64(ptr %10, ptr %2, i64 24, i1 false)\n  ret void\n}\n",
+   "spec": "instcombine",
+   "id": "3cd2b66dac905f9a"
+  },
+  {
+   "issue": 136430,
+   "title": "[InstCombine] ninf should not be propagated",
+   "state": "CLOSED",
+   "from": "https://alive2.llvm.org/ce/z/cmneUX",
+   "kind": "issue_reproducer",
+   "ir": "define half @test_fcmp_select_maxnum(half %x) {\n  %cmp2 = fcmp ogt half %x, 255.000000\n  %sel2 = select nnan ninf nsz i1 %cmp2, half %x, half 255.000000\n  ret half %sel2\n}\n",
+   "spec": "instcombine",
+   "id": "8043789441cf6441"
+  },
+  {
+   "issue": 139041,
+   "title": "Wrong `select (fcmp ...) (fadd ...)` folding to llvm max intrinsic",
+   "state": "CLOSED",
+   "from": "https://alive2.llvm.org/ce/z/50KuQH",
+   "kind": "issue_pair",
+   "ir": "define float @src(float %in) {\n  %cmp1 = fcmp nnan ogt float %in, 0.000000e+00\n  %2 = fadd float %in, 1.000000e+00\n  %sel = select fast i1 %cmp1, float %2, float 1.000000e+00\n  ret float %sel\n}\n\ndefine float @tgt(float %in) {\n  %sel = call nnan nsz float @llvm.maxnum.f32(float %in, float 0.000000e+00)\n  %2 = fadd nnan ninf nsz float %sel, 1.000000e+00\n  ret float %2\n}",
+   "id": "0df50136a51ac282"
+  },
+  {
+   "issue": 140994,
+   "title": "[InstCombine] `(fcmp une T, F) ? T : F --> T` should not rely on the nsz flag on fcmp",
+   "state": "CLOSED",
+   "from": "https://github.com/llvm/llvm-project/issues/140994",
+   "kind": "issue_pair",
+   "ir": "define double @src(double %x, double %y) {\n  %cmp = fcmp nsz une double %x, %y\n  %cond = select i1 %cmp, double %x, double %y\n  ret double %cond\n}\n\ndefine double @tgt(double returned %x, double %y) {\n  ret double %x\n}\n",
+   "id": "0f65ba3125dd10c1"
+  },
+  {
+   "issue": 151303,
+   "title": "[InstCombine] Incorrect fabs + nsz fold",
+   "state": "OPEN",
+   "from": "https://alive2.llvm.org/ce/z/FmBrma",
+   "kind": "issue_reproducer",
+   "ir": "define float @src(float %a) {\n  %i32 = bitcast float %a to i32\n  %cmp = icmp slt i32 %i32, 0\n  call void @llvm.assume(i1 %cmp)\n\n  %b = fneg nsz float %a\n  %c = call float @llvm.fabs(float %b)\n  ret float %c\n}",
+   "spec": "instsimplify",
+   "id": "220d84010d21debb"
+  },
+  {
+   "issue": 157254,
+   "title": "[InstCombine] Wrong folding of select + fpext",
+   "state": "OPEN",
+   "from": "https://alive2.llvm.org/ce/z/JPVWbm",
+   "kind": "issue_reproducer",
+   "ir": "define double @f(float %0) {\nentry:\n  %a5_3 = fcmp olt float %0, 0.000000e+00\n  %1 = fpext float %0 to double\n  %2 = select i1 %a5_3, double 0.000000e+00, double %1\n  ret double %2\n}\n",
+   "spec": "instcombine",
+   "id": "c8c5f0134303ec76"
+  },
+  {
+   "issue": 157714,
+   "title": "[InstCombine] Miscompilation in foldGEPICmp",
+   "state": "CLOSED",
+   "from": "https://alive2.llvm.org/ce/z/SLybDz",
+   "kind": "issue_reproducer",
+   "ir": ";target datalayout = \"p:8:8:8\"\n\ndefine i1 @gep_mugtiple_ugt_inbounds_nusw(ptr %base, i64 %idx, i64 %idx2) {\n  %gep1 = getelementptr inbounds i8, ptr %base, i64 %idx\n  %gep2 = getelementptr nusw i8, ptr %gep1, i64 %idx2\n  %cmp = icmp ugt ptr %gep2, %base\n  ret i1 %cmp\n}\n",
+   "spec": "instcombine",
+   "id": "0e4176faba7abaa3"
+  },
+  {
+   "issue": 161492,
+   "title": "[InstCombine] Miscompilation when removing freezes",
+   "state": "CLOSED",
+   "from": "https://alive2.llvm.org/ce/z/3napog",
+   "kind": "issue_pair",
+   "ir": "define i64 @src(i1 %cond) {\n  %1 = freeze i64 poison\n  %2 = freeze i64 poison\n  %ret = select i1 %cond, i64 %1, i64 %2\n  ret i64 %ret\n}\n\ndefine i64 @tgt(i1 %cond) {\n  ret i64 poison\n}\n",
+   "id": "1fb8b3e5e1a47ff7"
+  },
+  {
+   "issue": 161493,
+   "title": "[InstCombine] Missing poison check when reusing existing value in def-use chain",
+   "state": "CLOSED",
+   "from": "https://alive2.llvm.org/ce/z/H_tcBV",
+   "kind": "issue_pair",
+   "ir": "define i16 @src(i4 %x, i12 %y) {\n  %x.fr = freeze i4 %x\n  %zext.x = zext i4 %x.fr to i16\n  %slx = shl nuw nsw i16 %zext.x, 12\n  %zext.y = zext i12 %y to i16\n  %xy = or disjoint i16 %slx, %zext.y\n  call void @use(i16 %xy)\n  %sly = shl nuw i16 %zext.y, 4\n  %yx = or disjoint i16 %sly, %zext.x\n  ret i16 %yx\n}\n\ndefine i16 @tgt(i4 %x, i12 %y) {\n  %x.fr = freeze i4 %x\n  %zext.x = zext i4 %x.fr to i16\n  %slx = shl nuw nsw i16 %zext.x, 12\n  %zext.y = zext i12 %y to i16\n  %xy = or disjoint i16 %slx, %zext.y\n  call void @use(i16 %xy)\n  ;%sly = shl nuw i16 %zext.y, 4\n  ;%yx = or disjoint i16 %sly, %zext.x\n  %yx = call i16 @llvm.fshl.i16(i16 %xy, i16 %xy, i16 4)\n  ret i16 %yx\n}\n\ndeclare void @use(i16)\n",
+   "id": "26d74e177d2c769d"
+  },
+  {
+   "issue": 161525,
+   "title": "[InstCombine] `ninf` should not be propagated when folding `fcmp pred, x - y, 0` to `fcmp pred, x, y`",
+   "state": "CLOSED",
+   "from": "https://alive2.llvm.org/ce/z/ZHW6-B",
+   "kind": "issue_reproducer",
+   "ir": "define i1 @src1(float %x, float %y) {\n  %fs = fsub float %x, %y\n  %cmp = fcmp ninf ule float %fs, 0.000000e+00\n  ret i1 %cmp\n}\n",
+   "spec": "instcombine",
+   "id": "5440d6d0056efac3"
+  },
+  {
+   "issue": 161634,
+   "title": "[InstCombine] ninf should not be preserved",
+   "state": "CLOSED",
+   "from": "https://alive2.llvm.org/ce/z/GNeZKU",
+   "kind": "issue_reproducer",
+   "ir": "define float @select_fpclass_fadd(i1 %cond, float nofpclass(nan) %A, float %B) {\n  %C = fadd float %A, %B\n  %D = select ninf i1 %cond, float %C, float %A\n  ret float %D\n}\n",
+   "spec": "instcombine",
+   "id": "8e54fd040b7dd44c"
+  },
+  {
+   "issue": 161636,
+   "title": "[InstCombine] Pointer equality propagated without regard to provenance",
+   "state": "CLOSED",
+   "from": "https://alive2.llvm.org/ce/z/FLg923",
+   "kind": "issue_reproducer",
+   "ir": "define ptr @src1(ptr %p, ptr %q) {\n  %cmp = icmp eq ptr %p, %q\n  %1 = freeze i1 %cmp\n  %select = select i1 %1, ptr %p, ptr %q\n  ret ptr %select\n}\n\ndefine ptr @src2(ptr %p, ptr %q) {\n  %gep1 = getelementptr i32, ptr %p, i64 4\n  %gep2 = getelementptr i32, ptr %q, i64 4\n  %cmp = icmp eq ptr %p, %q\n  %1 = freeze i1 %cmp\n  %select = select i1 %1, ptr %gep1, ptr %gep2\n  ret ptr %select\n}",
+   "spec": "instcombine",
+   "id": "a2a7098197ee721c"
+  },
+  {
+   "issue": 169921,
+   "title": "[AggressiveInstCombine] Miscompilation at O3",
+   "state": "CLOSED",
+   "from": "https://alive2.llvm.org/ce/z/msNmWC",
+   "kind": "issue_reproducer",
+   "ir": "target datalayout = \"e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-i128:128-f80:128-n8:16:32:64-S128\"\ntarget triple = \"x86_64-unknown-linux-gnu\"\n\n@g_374 = global ptr @g_375\n@g_375 = global { i32, i8, [3 x i8] } { i32 8, i8 -9, [3 x i8] zeroinitializer }\n\ndefine i32 @main() {\nentry:\n  %0 = load ptr, ptr @g_374, align 8\n  %l_1162.sroa.3.8.copyload.i.i = load i32, ptr %0, align 4\n  %l_1162.sroa.6.8..sroa_idx.i.i = getelementptr i8, ptr %0, i64 4\n  %l_1162.sroa.8.8..sroa_idx.i.i = getelementptr i8, ptr %0, i64 5\n  store i8 0, ptr getelementptr inbounds nuw (i8, ptr @g_375, i64 4), align 4\n  %l_1162.sroa.6.8.copyload.i.i = load i8, ptr %l_1162.sroa.6.8..sroa_idx.i.i, align 4\n  %l_1162.sroa.8.8.copyload.i.i = load i24, ptr %l_1162.sroa.8.8..sroa_idx.i.i, align 1\n  %1 = zext i24 %l_1162.sroa.8.8.copyload.i.i to i64\n  %2 = shl i64 %1, 40\n  %3 = zext i8 %l_1162.sroa.6.8.copyload.i.i to i64\n  %4 = shl i64 %3, 32\n  %5 = or i64 %2, %4\n  %6 = zext i32 %l_1162.sroa.3.8.copyload.i.i to i64\n  %7 = or i64 %5, %6\n  store i64 %7, ptr %0, align 4\n  %8 = load i32, ptr getelementptr inbounds nuw (i8, ptr @g_375, i64 4), align 4\n  ret i32 %8\n}\n",
+   "spec": "aggressive-instcombine",
+   "id": "27b9711ec89e0504"
+  },
+  {
+   "issue": 173787,
+   "title": "[InstCombine] `foldBitCeil` miscompiles non-power-of-two integer widths",
+   "state": "CLOSED",
+   "from": "https://alive2.llvm.org/ce/z/Z3Gq8Q",
+   "kind": "issue_reproducer",
+   "ir": "; RUN: opt < %s -passes=instcombine -S | FileCheck %s\n\ndefine i33 @test_bit_ceil_i33_non_pow2(i33 %x) {\n  %ctlz = call i33 @llvm.ctlz.i33(i33 %x, i1 false)\n  %sub = sub i33 33, %ctlz\n  %shl = shl i33 1, %sub\n  %dec = add i33 %x, -1\n  %ult = icmp ult i33 %dec, -2\n  %sel = select i1 %ult, i33 %shl, i33 1\n  ret i33 %sel\n}\n\ndeclare i33 @llvm.ctlz.i33(i33, i1)\n",
+   "spec": "instcombine",
+   "id": "5ba05d2919a2fa07"
+  },
+  {
+   "issue": 173793,
+   "title": "[InstCombine] Vector `fshl` retains invalid `range` after demanded-bits simplification",
+   "state": "CLOSED",
+   "from": "https://alive2.llvm.org/ce/z/JTXAYD",
+   "kind": "issue_reproducer",
+   "ir": "; RUN: opt < %s -passes=instcombine -S | FileCheck %s\n\n; Issue: Ensure vector types drop attributes correctly.\n; We demand low bits of the vector elements.\n; High bits are simplified, violating the range.\n\ndefine <2 x i8> @test_vector_fshl_range(<2 x i1> %x) {\n; CHECK-LABEL: @test_vector_fshl_range(\n; CHECK: call <2 x i32> @llvm.fshl.v2i32\n; CHECK-NOT: !range\n; CHECK: trunc\n  %zext = zext <2 x i1> %x to <2 x i32>\n  %or = or disjoint <2 x i32> %zext, <i32 -2, i32 -2>\n  ; Range [-4, 2)\n  %fshl = call <2 x i32> @llvm.fshl.v2i32(<2 x i32> %or, <2 x i32> <i32 -2, i32 -2>, <2 x i32> <i32 1, i32 1>), !range !0\n  %tr = trunc <2 x i32> %fshl to <2 x i8>\n  ret <2 x i8> %tr\n}\n\ndeclare <2 x i32> @llvm.fshl.v2i32(<2 x i32>, <2 x i32>, <2 x i32>)\n\n!0 = !{i32 -4, i32 2}\n",
+   "spec": "instcombine",
+   "id": "221f45f49147984c"
+  },
+  {
+   "issue": 177541,
+   "title": "Miscompilation in float select transformation",
+   "state": "OPEN",
+   "from": "https://alive2.llvm.org/ce/z/CceAMX",
+   "kind": "issue_pair",
+   "ir": "define float @src(float %x) {\n  %a = fcmp nnan ninf ult float %x, 255.0\n  %b = select i1 %a, float 255.0, float %x\n  %c = fcmp nnan ugt float %x, 512.0\n  %r = select i1 %c, float 512.0, float %b\n  ret float %r\n}\n\ndefine float @tgt(float %x) {\n  %a.inv = fcmp nnan ninf oge float %x, 2.550000e+02\n  %b = select nnan ninf i1 %a.inv, float %x, float 2.550000e+02\n  %.inv = fcmp nnan ole float %b, 5.120000e+02\n  %r1 = select nnan i1 %.inv, float %b, float 5.120000e+02\n  ret float %r1\n}",
+   "id": "c913255df8cc8460"
+  },
+  {
+   "issue": 178245,
+   "title": "[InstCombine] Miscompilation at O1",
+   "state": "CLOSED",
+   "from": "https://alive2.llvm.org/ce/z/BPpLg_",
+   "kind": "issue_pair",
+   "ir": "define i32 @src(i32 %i.0.i.i) {\nentry:\n  %conv102.i.i = sext i32 %i.0.i.i to i64\n  %add.i128.i.i = add i64 %conv102.i.i, 1177359834\n  %tobool104.i.i = icmp ne i64 %add.i128.i.i, 0\n  %conv108.i.i = zext i1 %tobool104.i.i to i16\n  %mul.i.i.i = mul i16 -5, %conv108.i.i\n  %conv111.i.i = sext i16 %mul.i.i.i to i32\n  %0 = bitcast i32 %conv111.i.i to float\n  %1 = fcmp uno float %0, 0.000000e+00\n  %2 = call float @llvm.copysign.f32(float 0.000000e+00, float %0)\n  %3 = select i1 %1, float 0.000000e+00, float %2\n  %4 = bitcast float %3 to i32\n  ret i32 %4\n}\n\ndefine i32 @tgt(i32 %i.0.i.i) {\nentry:\n  %tobool104.i.i.not = icmp eq i32 %i.0.i.i, -1177359834\n  %conv111.i.i = select i1 %tobool104.i.i.not, i32 0, i32 -1177359834\n  %0 = bitcast i32 %conv111.i.i to float\n  %1 = fcmp uno float %0, 0.000000e+00\n  %2 = call float @llvm.copysign.f32(float 0.000000e+00, float %0)\n  %3 = select i1 %1, float 0.000000e+00, float %2\n  %4 = bitcast float %3 to i32\n  ret i32 %4\n}\n",
+   "id": "ca7666c3e5626dcf"
+  },
+  {
+   "issue": 189732,
+   "title": "[InstCombine] Incorrect addition of `nsz` to `llvm.minnum`: target's return value is more undefined",
+   "state": "OPEN",
+   "from": "https://alive2.llvm.org/ce/z/ji6x4X",
+   "kind": "issue_pair",
+   "ir": "define nofpclass(nsub) float @src(float %unknown, float noundef nofpclass(pinf zero sub norm) %must.be.ninf.or.nan) {\n  %result = call float @llvm.minnum.f32(float %must.be.ninf.or.nan, float %unknown)\n  ret float %result\n}\n\ndefine nofpclass(nsub) float @tgt(float %unknown, float noundef nofpclass(pinf zero sub norm) %must.be.ninf.or.nan) {\n  %result = call nsz float @llvm.minnum.f32(float %must.be.ninf.or.nan, float %unknown)\n  ret float %result\n}",
+   "id": "cdc9c882d6a46a9c"
+  },
+  {
+   "issue": 193698,
+   "title": "[InstCombine] Incorrectly transformed of Freezing early",
+   "state": "OPEN",
+   "from": "https://alive2.llvm.org/ce/z/97tvEz",
+   "kind": "issue_reproducer",
+   "ir": "; ModuleID = './test.ll'\nsource_filename = \"./test.ll\"\n\ndeclare <1 x double> @dummy(<1 x double>)\n\ndefine <2 x double> @pr25999_phis2_reduced(i1 %c, <1 x double> %a, <2 x double> %b) {\nbb1:\n  br i1 %c, label %bb2, label %bb3\n\nbb2:                                              ; preds = %bb1\n  %r = call <1 x double> @dummy(<1 x double> poison)\n  br label %bb3\n\nbb3:                                              ; preds = %bb2, %bb1\n  %t1 = phi <1 x double> [ %a, %bb1 ], [ %r, %bb2 ]\n  %t2 = phi <2 x double> [ %b, %bb1 ], [ zeroinitializer, %bb2 ]\n  %t1.fr = freeze <1 x double> %t1\n  %d = fadd <1 x double> %t1.fr, %t1.fr\n  %0 = shufflevector <1 x double> %d, <1 x double> poison, <2 x i32> <i32 0, i32 poison>\n  %t4 = shufflevector <2 x double> %t2, <2 x double> %0, <2 x i32> <i32 0, i32 2>\n  ret <2 x double> %t4\n}",
+   "spec": "instcombine",
+   "id": "38789e476043bb82"
+  },
+  {
+   "issue": 199782,
+   "title": "[InstCombine] common_binop_demand_via_extelt_op0 propagates nuw from sibling binop",
+   "state": "CLOSED",
+   "from": "https://alive2.llvm.org/ce/z/9yEaG7",
+   "kind": "issue_reproducer",
+   "ir": "target datalayout = \"e-m:e-i64:64-f80:128-n8:16:32:64-S128\"\n\ndeclare void @use(<2 x i4>)\n\ndefine i4 @f(<2 x i4>, <2 x i4>) {\n  %3 = shufflevector <2 x i4> %0, <2 x i4> zeroinitializer, <2 x i32> zeroinitializer\n  %4 = sub nuw <2 x i4> %3, %1\n  call void @use(<2 x i4> %4)\n  %5 = sub <2 x i4> %0, %1\n  %6 = extractelement <2 x i4> %5, i32 0\n  ret i4 %6\n}",
+   "spec": "instcombine",
+   "id": "894ae5eedc8f8a98"
+  },
+  {
+   "issue": 210605,
+   "title": "[InstCombine] fshl --> lshr fold incorrectly applied to vectors with shift having some lanes as constant zero",
+   "state": "CLOSED",
+   "from": "https://alive2.llvm.org/ce/z/ykv34N",
+   "kind": "issue_reproducer",
+   "ir": "target datalayout = \"e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-i128:128-f80:128-n8:16:32:64-S128\"\ntarget triple = \"x86_64-unknown-linux-gnu\"\n\ndefine <2 x i8> @do_stuff(<2 x i8> %v5) {\n  %v21 = call <2 x i8> @llvm.fshl.v2i8(<2 x i8> zeroinitializer, <2 x i8> %v5, <2 x i8> <i8 1, i8 16>)\n  ret <2 x i8> %v21\n}\n\ndeclare <2 x i8> @llvm.fshl.v2i8(<2 x i8>, <2 x i8>, <2 x i8>) #0\n\nattributes #0 = { nocallback nocreateundeforpoison nofree nosync nounwind speculatable willreturn memory(none) }",
+   "spec": "instcombine",
+   "id": "8c39b0550d936ec2"
+  },
+  {
+   "issue": 214652,
+   "title": "[InstCombine] Missed fold: xor(zext(or disjoint X, C1), C2) -> xor(zext(X), C2 ^ zext(C1))",
+   "state": "OPEN",
+   "from": "https://alive2.llvm.org/ce/z/zsnvLo",
+   "kind": "issue_pair",
+   "ir": "define i64 @src(i32 %x) {\nentry:\n  %or = or disjoint i32 %x, 16842752\n  %z = zext i32 %or to i64\n  %r = xor i64 %z, 7640891576956012808\n  ret i64 %r\n}\n\ndefine i64 @tgt(i32 %x) {\nentry:\n  %z = zext i32 %x to i64\n  %r = xor i64 %z, 7640891576939301128\n  ret i64 %r\n}",
+   "id": "fcd0eba47b9e47d9"
+  },
+  {
+   "issue": 221664,
+   "title": "Incorrect select-to-or transformation when the unselected operand may be poison",
+   "state": "CLOSED",
+   "from": "https://alive2.llvm.org/ce/z/qNv5-Y",
+   "kind": "issue_pair",
+   "ir": "define i1 @src(i1 %c, i8 noundef range(i8 0, 2) %x) {\n  %trunc = trunc nsw i8 %x to i1\n  %or = select i1 %c, i1 true, i1 %trunc\n  ret i1 %or\n}\n\ndefine i1 @tgt(i1 %c, i8 noundef range(i8 0, 2) %x) local_unnamed_addr #0 {\n  %trunc = trunc nuw nsw i8 %x to i1\n  %or = or i1 %c, %trunc\n  ret i1 %or\n}\n\nattributes #0 = { mustprogress nofree norecurse nosync nounwind willreturn memory(none) }\n",
+   "id": "5053556d46d0b42e"
+  },
+  {
+   "issue": 221666,
+   "title": "Incorrect select-to-xor transformation when the unselected operand may be poison",
+   "state": "CLOSED",
+   "from": "https://alive2.llvm.org/ce/z/NKQ8V9",
+   "kind": "issue_pair",
+   "ir": "define i1 @src(i1 %c, i8 noundef range(i8 0, 2) %x) {\n  %p = trunc nsw i8 %x to i1\n  %r = select i1 %c, i1 false, i1 %p\n  ret i1 %r\n}\n\ndefine i1 @tgt(i1 %c, i8 noundef range(i8 0, 2) %x) local_unnamed_addr #0 {\n  %p = trunc nuw nsw i8 %x to i1\n  %not.c = xor i1 %c, true\n  %r = and i1 %not.c, %p\n  ret i1 %r\n}\n\nattributes #0 = { mustprogress nofree norecurse nosync nounwind willreturn memory(none) }",
+   "id": "06d1d78c8826f836"
+  },
+  {
+   "issue": 226504,
+   "title": "[InstCombine] Miscompile with not chain",
+   "state": "CLOSED",
+   "from": "https://alive2.llvm.org/ce/z/JuujxF",
+   "kind": "issue_pair",
+   "ir": "define i1 @src(i1 %arg) {\nentry:\n  br i1 %arg, label %join, label %split\n\nsplit:\n  br label %join\n\njoin:\n  %phi = phi i1 [ false, %split ], [ true, %entry ]\n  %phi.not = xor i1 %phi, true\n  %phi.not.not = xor i1 %phi.not, true\n  %or = or i1 %phi, %phi.not.not\n  br i1 %phi, label %bb42, label %bb25\n\nbb25:\n  br i1 %or, label %bb42, label %bb33\n\nbb33:\n  ret i1 true\n\nbb42:\n  ret i1 false\n}\n\ndefine i1 @tgt(i1 %arg) {\nentry:\n  br i1 %arg, label %join, label %split\n\nsplit:\n  br label %join\n\njoin:\n  %phi.not1 = phi i1 [ true, %split ], [ false, %entry ]\n  %phi.not = xor i1 %phi.not1, true\n  br i1 %phi.not1, label %bb25, label %bb42\n\nbb25:\n  %or.not = and i1 %phi.not1, %phi.not\n  br i1 %or.not, label %bb33, label %bb42\n\nbb33:\n  ret i1 true\n\nbb42:\n  ret i1 false\n}",
+   "id": "735ee0d9e999e7c7"
+  },
+  {
+   "issue": 227862,
+   "title": "[InstCombine] log2-ceil fold is invalid for non-power-of-two integer widths",
+   "state": "CLOSED",
+   "from": "https://alive2.llvm.org/ce/z/neHNzf",
+   "kind": "issue_reproducer",
+   "ir": "define i3 @f(i3 %a) {\nentry:\n  %p = call i3 @llvm.ctpop.i3(i3 %a)\n  %cmp = icmp ugt i3 %p, 1\n  %z = zext i1 %cmp to i3\n  %lz = call i3 @llvm.ctlz.i3(i3 %a, i1 true)\n  %xor = xor i3 %lz, 2\n  %v = add i3 %z, %xor\n  ret i3 %v\n}\n",
+   "spec": "instcombine",
+   "id": "2f422e8d8c8af515"
+  },
+  {
+   "issue": 231991,
+   "title": "[InstCombine] foldLogOpOfMaskedICmps reuses the RHS of a logical or whose constant has a poison lane",
+   "state": "OPEN",
+   "from": "https://alive2.llvm.org/ce/z/pL65xc",
+   "kind": "issue_reproducer",
+   "ir": "define <2 x i1> @f(<2 x i8> %x) {\n  %c1 = icmp eq <2 x i8> %x, zeroinitializer\n  %c2 = icmp sgt <2 x i8> %x, <i8 poison, i8 -1>\n  %r = select <2 x i1> %c1, <2 x i1> splat (i1 true), <2 x i1> %c2\n  ret <2 x i1> %r\n}",
+   "spec": "instcombine",
+   "id": "aeddbf0cb75df62b"
+  },
+  {
+   "issue": 232015,
+   "title": "[InstCombine] foldSelectOfBools miscompiles a constant arm with a poison lane as all-false",
+   "state": "OPEN",
+   "from": "https://alive2.llvm.org/ce/z/3Av_yi",
+   "kind": "issue_reproducer",
+   "ir": "define <2 x i1> @f(<2 x i1> %a, <2 x i8> %x, <2 x i8> %y) {\n  %b = icmp sge <2 x i8> %x, %y\n  %or = select <2 x i1> %a, <2 x i1> splat (i1 true), <2 x i1> %b\n  %c = icmp slt <2 x i8> %x, %y\n  %r = select <2 x i1> %or, <2 x i1> %c, <2 x i1> <i1 poison, i1 false>\n  ret <2 x i1> %r\n}",
+   "spec": "instcombine",
+   "id": "50d93bd9aa0c645c"
+  },
+  {
+   "issue": 232023,
+   "title": "[InstCombine] foldBitCeil miscompiles vector `not` with poison lanes",
+   "state": "OPEN",
+   "from": "https://alive2.llvm.org/ce/z/f7b5hL",
+   "kind": "issue_reproducer",
+   "ir": "define <2 x i8> @f(<2 x i8> %x) {\n  %dec = add <2 x i8> %x, splat (i8 -1)\n  %ult = icmp ult <2 x i8> %dec, splat (i8 -2)\n  %not = xor <2 x i8> %x, <i8 poison, i8 -1>\n  %ctlz = call <2 x i8> @llvm.ctlz.v2i8(<2 x i8> %not, i1 false)\n  %sub = sub <2 x i8> splat (i8 8), %ctlz\n  %shl = shl <2 x i8> splat (i8 1), %sub\n  %r = select <2 x i1> %ult, <2 x i8> %shl, <2 x i8> splat (i8 1)\n  ret <2 x i8> %r\n}\n\ndeclare <2 x i8> @llvm.ctlz.v2i8(<2 x i8>, i1 immarg)",
+   "spec": "instcombine",
+   "id": "d242defbbb3d68a5"
+  },
+  {
+   "issue": 233092,
+   "title": "[InstCombine] `foldCmpLoadFromIndexedGlobal` misses wrapped offsets of a non-inbounds GEP with a non-power-of-two stride",
+   "state": "CLOSED",
+   "from": "https://alive2.llvm.org/ce/z/wTt5CA",
+   "kind": "issue_reproducer",
+   "ir": "target datalayout = \"p:8:8\"\n\n@A = constant [4 x i8] c\"\\00\\01\\00\\00\"\n\ndefine i1 @f(i8 %x) {\n  %p = getelementptr [3 x i8], ptr @A, i8 %x\n  %v = load i8, ptr %p, align 1\n  %c = icmp ne i8 %v, 0\n  ret i1 %c\n}\n",
+   "spec": "instcombine",
+   "id": "7d2442b9eb2a86a1"
+  },
+  {
+   "issue": 233094,
+   "title": "[InstCombine] Variable GEP index is replaced with 0 although the non-inbounds offset can wrap back into the object",
+   "state": "OPEN",
+   "from": "https://alive2.llvm.org/ce/z/EdbwDv",
+   "kind": "issue_reproducer",
+   "ir": "target datalayout = \"p:8:8\"\n\n@A = constant [3 x i8] c\"\\00\\01\\02\"\n\ndefine i8 @f(i8 %x) {\n  %p = getelementptr [3 x i8], ptr @A, i8 %x\n  %v = load i8, ptr %p, align 1\n  ret i8 %v\n}\n",
+   "spec": "instcombine",
+   "id": "a91f2ff0eb56ea94"
+  },
+  {
+   "issue": 233232,
+   "title": "[InstCombine] `ctlz(X) ^ (BW-1)` -> `cttz(X)` for power-of-two `X` is wrong when the bit width is not a power of two",
+   "state": "CLOSED",
+   "from": "https://alive2.llvm.org/ce/z/6M47X9",
+   "kind": "issue_reproducer",
+   "ir": "define i24 @g(i24 %x) {\n  %neg = sub i24 0, %x\n  %p = and i24 %x, %neg\n  %c = call i24 @llvm.ctlz.i24(i24 %p, i1 true)\n  %r = xor i24 %c, 23\n  ret i24 %r\n}\n\ndefine i32 @g32(i32 %x) {\n  %neg = sub i32 0, %x\n  %p = and i32 %x, %neg\n  %c = call i32 @llvm.ctlz.i32(i32 %p, i1 true)\n  %r = xor i32 %c, 31\n  ret i32 %r\n}\n",
+   "spec": "instcombine",
+   "id": "672ea62a7499efe2"
+  },
+  {
+   "issue": 233452,
+   "title": "[InstCombine] Folding dependent IVs copies `nnan` onto the new first-iteration value",
+   "state": "OPEN",
+   "from": "https://alive2.llvm.org/ce/z/A6ycs6",
+   "kind": "issue_reproducer",
+   "ir": "define float @f(float %start, i1 %c) {\nentry:\n  br label %loop\n\nloop:\n  %iv = phi float [ %start, %entry ], [ %iv.next, %loop ]\n  %iv2 = phi float [ -0.0, %entry ], [ %iv2.next, %loop ]\n  %iv2.next = fadd float %iv2, 1.0\n  %iv.next = fadd nnan float %start, %iv2.next\n  br i1 %c, label %exit, label %loop\n\nexit:\n  ret float %iv\n}\n",
+   "spec": "instcombine",
+   "id": "324facdad6264e3e"
+  },
+  {
+   "issue": 233696,
+   "title": "[InstCombine] Bitcast-of-shuffle fold shuffles the already shifted vector again for the next bitcast user",
+   "state": "OPEN",
+   "from": "https://alive2.llvm.org/ce/z/J9FSxE",
+   "kind": "issue_reproducer",
+   "ir": "declare void @use_i32(i32)\ndeclare void @use_float(float)\n\ndefine void @f(<4 x i16> %x) {\n  %s = shufflevector <4 x i16> %x, <4 x i16> poison, <2 x i32> <i32 1, i32 2>\n  %b1 = bitcast <2 x i16> %s to i32\n  call void @use_i32(i32 %b1)\n  %b2 = bitcast <2 x i16> %s to float\n  call void @use_float(float %b2)\n  ret void\n}\n",
+   "spec": "instcombine",
+   "id": "27b200ae507c5888"
+  },
+  {
+   "issue": 234330,
+   "title": "[InstCombine] extractelement of a bitcast insertelement reads the wrong bits when the lane counts are not multiples",
+   "state": "OPEN",
+   "from": "https://alive2.llvm.org/ce/z/r_TAkD",
+   "kind": "issue_reproducer",
+   "ir": "; <3 x i16> lane 1 is bits 16..31: bits 16..23 of %v[0] and bits 0..7 of %s\ndefine i16 @f(<2 x i24> %v, i24 %s) {\n  %ins = insertelement <2 x i24> %v, i24 %s, i64 1\n  %bc = bitcast <2 x i24> %ins to <3 x i16>\n  %e = extractelement <3 x i16> %bc, i64 1\n  ret i16 %e\n}\n\n; <3 x i16> lane 2 is bits 32..47: bits 8..23 of %s\ndefine i16 @g(<2 x i24> %v, i24 %s) {\n  %ins = insertelement <2 x i24> %v, i24 %s, i64 1\n  %bc = bitcast <2 x i24> %ins to <3 x i16>\n  %e = extractelement <3 x i16> %bc, i64 2\n  ret i16 %e\n}\n\n; control: the lane counts divide, folded correctly\ndefine i16 @ok(<2 x i32> %v, i32 %s) {\n  %ins = insertelement <2 x i32> %v, i32 %s, i64 1\n  %bc = bitcast <2 x i32> %ins to <4 x i16>\n  %e = extractelement <4 x i16> %bc, i64 2\n  ret i16 %e\n}\n",
+   "spec": "instcombine",
+   "id": "7a9a538a5d7cc762"
+  },
+  {
+   "issue": 234418,
+   "title": "[InstCombine] Miscompilation where a select-shuffle fold keeps no-signed-zeros on the identity lanes it adds",
+   "state": "OPEN",
+   "from": "https://alive2.llvm.org/ce/z/sXAu8w",
+   "kind": "issue_pair",
+   "ir": "define <2 x half> @src(<2 x half> nofpclass(nan) %v) {\n  %b = fmul nsz <2 x half> %v, <half 2.0, half 3.0>\n  %s = shufflevector <2 x half> %b, <2 x half> %v, <2 x i32> <i32 0, i32 3>\n  ret <2 x half> %s\n}\n\ndefine <2 x half> @tgt(<2 x half> nofpclass(nan) %v) {\n  %s = fmul nnan nsz <2 x half> %v, <half 2.000000e+00, half 1.000000e+00>\n  ret <2 x half> %s\n}",
+   "id": "9f4fc6afc3e073e8"
+  },
+  {
+   "issue": 234423,
+   "title": "[InstCombine] Miscompilation where shrinking a double copysign to float can give a NaN the wrong sign",
+   "state": "OPEN",
+   "from": "https://alive2.llvm.org/ce/z/unaVE_",
+   "kind": "issue_pair",
+   "ir": "define double @src(float nofpclass(inf zero sub norm) %x, float %y) {\n  %x.ext = fpext float %x to double\n  %y.ext = fpext float %y to double\n  %r = call double @copysign(double %x.ext, double %y.ext)\n  ret double %r\n}\n\ndeclare double @copysign(double, double)\n\ndefine double @tgt(float nofpclass(inf zero sub norm) %x, float %y) {\n  %copysignf = call float @llvm.copysign.f32(float %x, float %y)\n  %r = fpext float %copysignf to double\n  ret double %r\n}\n\ndeclare float @copysignf(float, float) #0\n\ndeclare float @llvm.copysign.f32(float, float)\n\nattributes #0 = { nocallback nofree nounwind willreturn memory(none) }",
+   "id": "f2ece67548c3a721"
+  },
+  {
+   "issue": 234426,
+   "title": "[InstSimplify] Miscompilation where copysign with a negated sign operand is folded",
+   "state": "CLOSED",
+   "from": "https://alive2.llvm.org/ce/z/G5ZjoH",
+   "kind": "issue_pair",
+   "ir": "define half @src(half %x) {\n  %negx = fsub half -0.0, %x\n  %r = call half @llvm.copysign.f16(half %x, half %negx)\n  ret half %r\n}\n\ndefine half @tgt(half %x) {\n  %negx = fsub half -0.000000e+00, %x\n  ret half %negx\n}\n\ndeclare half @llvm.copysign.f16(half, half)",
+   "id": "62f6dc2454978366"
+  },
+  {
+   "issue": 234429,
+   "title": "[InstCombine] Miscompilation where the ceiling-log2 idiom fold ignores non-power-of-two widths",
+   "state": "CLOSED",
+   "from": "https://alive2.llvm.org/ce/z/Scrck8",
+   "kind": "issue_pair",
+   "ir": "define i33 @src(i33 %x) {\n  %ctlz = call i33 @llvm.ctlz.i33(i33 %x, i1 true)\n  %xor = xor i33 %ctlz, 32\n  %ctpop = call i33 @llvm.ctpop.i33(i33 %x)\n  %cmp = icmp ugt i33 %ctpop, 1\n  %zext = zext i1 %cmp to i33\n  %r = add i33 %xor, %zext\n  ret i33 %r\n}\n\ndefine i33 @tgt(i33 %x) {\n  %1 = add i33 %x, -1\n  %2 = call range(i33 0, 34) i33 @llvm.ctlz.i33(i33 %1, i1 false)\n  %r = sub nuw nsw i33 33, %2\n  ret i33 %r\n}\n\ndeclare i33 @llvm.ctlz.i33(i33, i1 immarg)\n\ndeclare i33 @llvm.ctpop.i33(i33)",
+   "id": "fe807eec2bc90882"
+  },
+  {
+   "issue": 234433,
+   "title": "[InstCombine] Miscompilation while forwarding a memset to a load causing overflow",
+   "state": "OPEN",
+   "from": "https://alive2.llvm.org/ce/z/oh2G4G",
+   "kind": "issue_reproducer",
+   "ir": "declare void @llvm.memset.p0.i64(ptr, i8, i64, i1)\n\ndefine i1 @src(ptr %a) {\n  call void @llvm.memset.p0.i64(ptr %a, i8 0, i64 16, i1 false)\n  %g = getelementptr i8, ptr %a, i64 2305843009213693953\n  %v = load i1, ptr %g, align 1\n  ret i1 %v\n}\n",
+   "spec": "instcombine",
+   "id": "e3314558a059983f"
+  },
+  {
+   "issue": 234556,
+   "title": "[InstCombine] Store of an aggregate built from a vector with non-byte-sized elements is rewritten as a bit-packed vector",
+   "state": "OPEN",
+   "from": "https://alive2.llvm.org/ce/z/u4xbfX",
+   "kind": "issue_reproducer",
+   "ir": "define i32 @f(<2 x i31> %v) {\n  %e0 = extractelement <2 x i31> %v, i64 0\n  %e1 = extractelement <2 x i31> %v, i64 1\n  %a0 = insertvalue [2 x i31] poison, i31 %e0, 0\n  %a1 = insertvalue [2 x i31] %a0, i31 %e1, 1\n  %p = alloca [2 x i31], align 8\n  store [2 x i31] %a1, ptr %p, align 8\n  %q = getelementptr i8, ptr %p, i64 4\n  %r = load i31, ptr %q, align 4\n  %z = zext i31 %r to i32\n  ret i32 %z\n}\n\ndefine i32 @main() {\n  %r = call i32 @f(<2 x i31> <i31 3, i31 3>)\n  ret i32 %r\n}\n",
+   "spec": "instcombine",
+   "id": "ce03f882f73fb114"
+  },
+  {
+   "issue": 234680,
+   "title": "[InstCombine] Miscompilation where merging asymmetric masked compares in a logical or",
+   "state": "OPEN",
+   "from": "https://alive2.llvm.org/ce/z/5iXXnE",
+   "kind": "issue_pair",
+   "ir": "define <2 x i1> @src(<2 x i8> %x) {\n  %c1 = icmp eq <2 x i8> %x, zeroinitializer\n  %t = trunc <2 x i8> %x to <2 x i3>\n  %c2 = icmp ne <2 x i3> %t, <i3 poison, i3 -2>\n  %r = select <2 x i1> %c1, <2 x i1> splat (i1 true), <2 x i1> %c2\n  ret <2 x i1> %r\n}\n\ndefine <2 x i1> @tgt(<2 x i8> %x) {\n  %t = trunc <2 x i8> %x to <2 x i3>\n  %c2 = icmp ne <2 x i3> %t, <i3 poison, i3 -2>\n  ret <2 x i1> %c2\n}",
+   "id": "46c2b65c662c4e2a"
+  },
+  {
+   "issue": 234688,
+   "title": "[InstCombine] Miscompilation while dividing a float by itself under no-infinities",
+   "state": "OPEN",
+   "from": "https://alive2.llvm.org/ce/z/JhBUjG",
+   "kind": "issue_pair",
+   "ir": "define nofpclass(snan) half @src(half noundef %x) #0 {\n  %d = fdiv ninf half %x, %x\n  ret half %d\n}\n\nattributes #0 = { \"denormal-fp-math\"=\"ieee,preserve-sign\" }\n\n\ndefine nofpclass(snan) half @tgt(half noundef %x) #0 {\n  %1 = fcmp ninf ueq half %x, 0.000000e+00\n  %2 = call ninf half @llvm.fabs.f16(half %x)\n  %3 = fcmp ninf ueq half %2, 0xH7C00\n  %4 = or i1 %3, %1\n  %5 = select ninf i1 %4, half 0xH7E00, half 1.000000e+00\n  ret half %5\n}\n\ndeclare half @llvm.fabs.f16(half)\n\nattributes #0 = { \"denormal-fp-math\"=\"ieee,preserve-sign\" }",
+   "id": "aa27c47e05601bc5"
+  },
+  {
+   "issue": 234696,
+   "title": "[InstCombine] Miscompilation while simplifying copysign's sign operand",
+   "state": "OPEN",
+   "from": "https://alive2.llvm.org/ce/z/Uzkq2J",
+   "kind": "issue_pair",
+   "ir": "define float @src(float %mag, float %sign) {\n  %i = bitcast float %sign to i32\n  %a = and i32 %i, -2147483648\n  %s = bitcast i32 %a to float\n  %r = call nnan float @llvm.copysign.f32(float %mag, float %s)\n  ret float %r\n}\n\ndefine float @tgt(float %mag, float %sign) {\n  %r = call nnan float @llvm.copysign.f32(float %mag, float %sign)\n  ret float %r\n}\n\ndeclare float @llvm.copysign.f32(float, float)",
+   "id": "145071cdabf9c6d1"
+  },
+  {
+   "issue": 234697,
+   "title": "[InstCombine] Miscompilation while negating a float subtraction by swapping its operands",
+   "state": "OPEN",
+   "from": "https://alive2.llvm.org/ce/z/6haXBe",
+   "kind": "issue_pair",
+   "ir": "define half @src(half %x, half %y) {\n  %s = fsub half %x, %y\n  %r = fneg ninf nsz half %s\n  ret half %r\n}\n\ndefine half @tgt(half %x, half %y) {\n  %r = fsub ninf nsz half %y, %x\n  ret half %r\n}",
+   "id": "91553567955656fe"
+  },
+  {
+   "issue": 234702,
+   "title": "[InstCombine] Miscompilation where replacing one use of a nsz value lets its uses disagree on the sign of zero",
+   "state": "OPEN",
+   "from": "https://alive2.llvm.org/ce/z/CsKsum",
+   "kind": "issue_pair",
+   "ir": "define nofpclass(snan) float @src(float nofpclass(nan ninf nnorm nsub nzero) %p, float nofpclass(nan pinf pnorm psub pzero) %n, ptr %ptr) {\n  %m = call nsz float @llvm.maxnum.f32(float %p, float %n)\n  store float %m, ptr %ptr\n  ret float %m\n}\n\ndefine nofpclass(snan) float @tgt(float nofpclass(nan ninf nzero nsub nnorm) %p, float nofpclass(nan pinf pzero psub pnorm) %n, ptr %ptr) {\n  %m = call nsz float @llvm.maxnum.f32(float %p, float %n)\n  store float %m, ptr %ptr, align 4\n  ret float %p\n}\n\ndeclare float @llvm.maxnum.f32(float, float)",
+   "id": "03944e4ca49011f1"
+  },
+  {
+   "issue": 234713,
+   "title": "[InstCombine] Miscompilation where a float class test of a negation ignores nsz on a negation with other uses",
+   "state": "OPEN",
+   "from": "https://alive2.llvm.org/ce/z/qQLhHG",
+   "kind": "issue_pair",
+   "ir": "define i1 @src(float %x, ptr %ptr) {\n  %n = fneg nsz float %x\n  store float %n, ptr %ptr\n  %c = call i1 @llvm.is.fpclass.f32(float %n, i32 32)\n  ret i1 %c\n}\n\ndefine i1 @tgt(float %x, ptr %ptr) {\n  %n = fneg nsz float %x\n  store float %n, ptr %ptr, align 4\n  %c = call i1 @llvm.is.fpclass.f32(float %x, /* (pzero) */ i32 64)\n  ret i1 %c\n}\n\ndeclare i1 @llvm.is.fpclass.f32(float, i32 immarg)",
+   "id": "8f4f88dd62c0a07c"
+  },
+  {
+   "issue": 235380,
+   "title": "[InstCombine] Negator reuses a cached nsw negation for a non-nsw request",
+   "state": "OPEN",
+   "from": "https://alive2.llvm.org/ce/z/782izT",
+   "kind": "issue_reproducer",
+   "ir": "define i8 @f(i1 %c, i8 %a, i8 %z) {\n  %v = sub nsw i8 -2, %a\n  %p = shl nsw i8 %v, 1\n  %q = add i8 %v, %z\n  %r = select i1 %c, i8 %p, i8 %q\n  %n = sub nsw i8 0, %r\n  ret i8 %n\n}\n\ndefine i32 @main() {\n  %n = call i8 @f(i1 false, i8 126, i8 8)\n  %result = zext i8 %n to i32\n  ret i32 %result\n}\n",
+   "spec": "instcombine",
+   "id": "ba683b85d2b05cfc"
+  },
+  {
+   "issue": 235384,
+   "title": "[InstCombine] Narrowing an aggregate load through extractvalue incorrectly increases alignment",
+   "state": "OPEN",
+   "from": "https://alive2.llvm.org/ce/z/zjyxrX",
+   "kind": "issue_reproducer",
+   "ir": "define <4 x i32> @field(ptr %p) {\n  %aggregate = load { i8, <4 x i32> }, ptr %p, align 1\n  %value = extractvalue { i8, <4 x i32> } %aggregate, 1\n  ret <4 x i32> %value\n}\n\ndefine i32 @main() {\n  %buffer = alloca [48 x i8], align 16\n  store [48 x i8] zeroinitializer, ptr %buffer, align 16\n  %p = getelementptr i8, ptr %buffer, i64 8\n  %value = call <4 x i32> @field(ptr %p)\n  %result = extractelement <4 x i32> %value, i64 0\n  ret i32 %result\n}\n",
+   "spec": "instcombine",
+   "id": "753ac3b2bd75d329"
+  },
+  {
+   "issue": 235385,
+   "title": "[InstCombine] Replacing an entry-block freeze(poison) with a loop-varying select arm changes the result",
+   "state": "OPEN",
+   "from": "https://alive2.llvm.org/ce/z/eDJaTv",
+   "kind": "issue_reproducer",
+   "ir": "define i32 @main() {\nentry:\n  %frozen = freeze i32 poison\n  br label %loop\n\nloop:\n  %i = phi i32 [ 0, %entry ], [ 1, %loop ]\n  %previous = phi i32 [ 0, %entry ], [ %selected, %loop ]\n  %selected = select i1 true, i32 %frozen, i32 %i\n  %done = icmp eq i32 %i, 1\n  br i1 %done, label %exit, label %loop\n\nexit:\n  %result = xor i32 %previous, %selected\n  ret i32 %result\n}\n",
+   "spec": "instcombine",
+   "id": "f6ffd60f905cd101"
+  },
+  {
+   "issue": 236299,
+   "title": "[InstCombine] Folding masked icmps to RHS exposes poison",
+   "state": "OPEN",
+   "from": "https://alive2.llvm.org/ce/z/NAvfco",
+   "kind": "issue_pair",
+   "ir": "define <2 x i1> @src(<2 x i8> %x) {\n  %and1 = and <2 x i8> %x, splat (i8 12)\n  %cmp1 = icmp ne <2 x i8> %and1, zeroinitializer\n  %and2 = and <2 x i8> %x, splat (i8 15)\n  %cmp2 = icmp eq <2 x i8> %and2, <i8 8, i8 poison>\n  %or = select <2 x i1> %cmp1, <2 x i1> %cmp2, <2 x i1> zeroinitializer\n  ret <2 x i1> %or\n}\n\ndefine <2 x i1> @tgt(<2 x i8> %x) {\n  %and2 = and <2 x i8> %x, splat (i8 15)\n  %cmp2 = icmp eq <2 x i8> %and2, <i8 8, i8 poison>\n  ret <2 x i1> %cmp2\n}",
+   "id": "c1f7762b22f08bfd"
+  },
+  {
+   "issue": 236299,
+   "title": "[InstCombine] Folding masked icmps to RHS exposes poison",
+   "state": "OPEN",
+   "from": "https://github.com/llvm/llvm-project/issues/236299",
+   "kind": "issue_pair",
+   "ir": "define <2 x i1> @src(<2 x i8> %x) {\n  %and1 = and <2 x i8> %x, splat (i8 12)\n  %cmp1 = icmp ne <2 x i8> %and1, zeroinitializer\n  %and2 = and <2 x i8> %x, splat (i8 15)\n  %cmp2 = icmp eq <2 x i8> %and2, <i8 8, i8 poison>\n  %or = select <2 x i1> %cmp1, <2 x i1> %cmp2, <2 x i1> zeroinitializer\n  ret <2 x i1> %or\n}\n\ndefine <2 x i1> @tgt(<2 x i8> %x) {\n  %and2 = and <2 x i8> %x, splat (i8 15)\n  %cmp2 = icmp eq <2 x i8> %and2, <i8 8, i8 poison>\n  ret <2 x i1> %cmp2\n}\n",
+   "id": "4ad9154de5f576a6"
+  },
+  {
+   "issue": 236933,
+   "title": "[AggressiveInstCombine] Load merging reads past an object before a non-returning call",
+   "state": "OPEN",
+   "from": "https://alive2.llvm.org/ce/z/mHRguy",
+   "kind": "issue_reproducer",
+   "ir": "target triple = \"x86_64-unknown-linux-gnu\"\n\ndefine void @spin() memory(none) {\nentry:\n  br label %loop\n\nloop:\n  br label %loop\n}\n\ndefine i16 @f(ptr %p) {\n  %lo = load i8, ptr %p, align 1\n  call void @spin()\n  %p1 = getelementptr i8, ptr %p, i64 1\n  %hi = load i8, ptr %p1, align 1\n  %lo.ext = zext i8 %lo to i16\n  %hi.ext = zext i8 %hi to i16\n  %hi.shl = shl i16 %hi.ext, 8\n  %r = or i16 %lo.ext, %hi.shl\n  ret i16 %r\n}\n\ndefine i32 @main() {\n  %obj = alloca i8, align 1\n  store i8 7, ptr %obj, align 1\n  %r = call i16 @f(ptr %obj)\n  %r.ext = zext i16 %r to i32\n  ret i32 %r.ext\n}\n",
+   "spec": "aggressive-instcombine",
+   "id": "d872e138e9e2d3ec"
+  },
+  {
+   "kind": "dashboard",
+   "test": "llvm/test/Transforms/CallSiteSplitting/callsite-split-or-phi.ll",
+   "functions": [
+    "caller2",
+    "test_ne_ne_ne_constrain_same_pointer_arg",
+    "test_nonconst_nonconst_phi"
+   ],
+   "from": "https://web.ist.utl.pt/nuno.lopes/alive2/index.php?hash=c3466a6048874dbf",
+   "id": "aa17ae3573a88458"
+  },
+  {
+   "kind": "dashboard",
+   "test": "llvm/test/Transforms/CodeGenPrepare/AMDGPU/bypass-slow-div-debug-info-inseltpoison.ll",
+   "functions": [
+    "sdiv64"
+   ],
+   "from": "https://web.ist.utl.pt/nuno.lopes/alive2/index.php?hash=c3466a6048874dbf",
+   "id": "4aa34aa65dbc7008"
+  },
+  {
+   "kind": "dashboard",
+   "test": "llvm/test/Transforms/CodeGenPrepare/AMDGPU/bypass-slow-div-debug-info.ll",
+   "functions": [
+    "sdiv64"
+   ],
+   "from": "https://web.ist.utl.pt/nuno.lopes/alive2/index.php?hash=c3466a6048874dbf",
+   "id": "f588e3b554b937d9"
+  },
+  {
+   "kind": "dashboard",
+   "test": "llvm/test/Transforms/CodeGenPrepare/NVPTX/bypass-slow-div-not-exact.ll",
+   "functions": [
+    "test"
+   ],
+   "from": "https://web.ist.utl.pt/nuno.lopes/alive2/index.php?hash=c3466a6048874dbf",
+   "id": "1f6fe1b87d56c52d"
+  },
+  {
+   "kind": "dashboard",
+   "test": "llvm/test/Transforms/CodeGenPrepare/NVPTX/bypass-slow-div-special-cases.ll",
+   "functions": [
+    "Test_check_one_operand"
+   ],
+   "from": "https://web.ist.utl.pt/nuno.lopes/alive2/index.php?hash=c3466a6048874dbf",
+   "id": "e8d9642e70dfadb6"
+  },
+  {
+   "kind": "dashboard",
+   "test": "llvm/test/Transforms/CodeGenPrepare/NVPTX/bypass-slow-div.ll",
+   "functions": [
+    "div_only"
+   ],
+   "from": "https://web.ist.utl.pt/nuno.lopes/alive2/index.php?hash=c3466a6048874dbf",
+   "id": "c775ca442d73a4b5"
+  },
+  {
+   "kind": "dashboard",
+   "test": "llvm/test/Transforms/CodeGenPrepare/X86/memset_chk-simplify-nobuiltin.ll",
+   "functions": [
+    "test_nobuiltin"
+   ],
+   "from": "https://web.ist.utl.pt/nuno.lopes/alive2/index.php?hash=c3466a6048874dbf",
+   "id": "1f5cd600fd803233"
+  },
+  {
+   "kind": "dashboard",
+   "test": "llvm/test/Transforms/CodeGenPrepare/revert-constant-ptr-propagation-on-calls.ll",
+   "functions": [
+    "caller_1"
+   ],
+   "from": "https://web.ist.utl.pt/nuno.lopes/alive2/index.php?hash=c3466a6048874dbf",
+   "id": "2d10aa362b9fa8a5"
+  },
+  {
+   "kind": "dashboard",
+   "test": "llvm/test/Transforms/ConstantMerge/2011-01-15-EitherOrder.ll",
+   "functions": [
+    "main"
+   ],
+   "from": "https://web.ist.utl.pt/nuno.lopes/alive2/index.php?hash=c3466a6048874dbf",
+   "id": "b414f98149720909"
+  },
+  {
+   "kind": "dashboard",
+   "test": "llvm/test/Transforms/ConstantMerge/align.ll",
+   "functions": [
+    "test1"
+   ],
+   "from": "https://web.ist.utl.pt/nuno.lopes/alive2/index.php?hash=c3466a6048874dbf",
+   "id": "ab51dd27bdb48cc8"
+  },
+  {
+   "kind": "dashboard",
+   "test": "llvm/test/Transforms/ConstantMerge/merge-both.ll",
+   "functions": [
+    "main"
+   ],
+   "from": "https://web.ist.utl.pt/nuno.lopes/alive2/index.php?hash=c3466a6048874dbf",
+   "id": "382cb43c55de27af"
+  },
+  {
+   "kind": "dashboard",
+   "test": "llvm/test/Transforms/ConstantMerge/merge-dbg.ll",
+   "functions": [
+    "test1"
+   ],
+   "from": "https://web.ist.utl.pt/nuno.lopes/alive2/index.php?hash=c3466a6048874dbf",
+   "id": "2b5dd190f717f441"
+  },
+  {
+   "kind": "dashboard",
+   "test": "llvm/test/Transforms/ConstantMerge/unnamed-addr.ll",
+   "functions": [
+    "main"
+   ],
+   "from": "https://web.ist.utl.pt/nuno.lopes/alive2/index.php?hash=c3466a6048874dbf",
+   "id": "c95b06238dc7715b"
+  },
+  {
+   "kind": "dashboard",
+   "test": "llvm/test/Transforms/DeadStoreElimination/captures.ll",
+   "functions": [
+    "address_capture"
+   ],
+   "from": "https://web.ist.utl.pt/nuno.lopes/alive2/index.php?hash=c3466a6048874dbf",
+   "id": "7f330853f0abd7c5"
+  },
+  {
+   "kind": "dashboard",
+   "test": "llvm/test/Transforms/DeadStoreElimination/free.ll",
+   "functions": [
+    "test2"
+   ],
+   "from": "https://web.ist.utl.pt/nuno.lopes/alive2/index.php?hash=c3466a6048874dbf",
+   "id": "8420449e715e9ef2"
+  },
+  {
+   "kind": "dashboard",
+   "test": "llvm/test/Transforms/DeadStoreElimination/inter-procedural.ll",
+   "functions": [
+    "p1_write_only_caller"
+   ],
+   "from": "https://web.ist.utl.pt/nuno.lopes/alive2/index.php?hash=c3466a6048874dbf",
+   "id": "03c30d5f49c7df19"
+  },
+  {
+   "kind": "dashboard",
+   "test": "llvm/test/Transforms/EarlyCSE/commute.ll",
+   "functions": [
+    "smin_commute",
+    "test1",
+    "test2",
+    "test3",
+    "test4",
+    "test5"
+   ],
+   "from": "https://web.ist.utl.pt/nuno.lopes/alive2/index.php?hash=c3466a6048874dbf",
+   "id": "7b1a425c80c88cd8"
+  },
+  {
+   "kind": "dashboard",
+   "test": "llvm/test/Transforms/EarlyCSE/replace-calls-def-attrs.ll",
+   "functions": [
+    "same_parent_combine_diff_attrs_needs_intersect2"
+   ],
+   "from": "https://web.ist.utl.pt/nuno.lopes/alive2/index.php?hash=c3466a6048874dbf",
+   "id": "c55905422ee1f662"
+  },
+  {
+   "kind": "dashboard",
+   "test": "llvm/test/Transforms/ExpandIRInsts/X86/expand-fp-convert-small.ll",
+   "functions": [
+    "fptosi_f16_i16"
+   ],
+   "from": "https://web.ist.utl.pt/nuno.lopes/alive2/index.php?hash=c3466a6048874dbf",
+   "id": "ce38c08c1a48d2c5"
+  },
+  {
+   "kind": "dashboard",
+   "test": "llvm/test/Transforms/ExpandIRInsts/X86/expand-large-fp-convert-fptosi129.ll",
+   "functions": [
+    "floattosi129",
+    "halftosi129"
+   ],
+   "from": "https://web.ist.utl.pt/nuno.lopes/alive2/index.php?hash=c3466a6048874dbf",
+   "id": "2117c25fbe1d90cd"
+  },
+  {
+   "kind": "dashboard",
+   "test": "llvm/test/Transforms/ExpandIRInsts/X86/expand-large-fp-convert-fptoui129.ll",
+   "functions": [
+    "floattoui129"
+   ],
+   "from": "https://web.ist.utl.pt/nuno.lopes/alive2/index.php?hash=c3466a6048874dbf",
+   "id": "1d4a28dc896f8427"
+  },
+  {
+   "kind": "dashboard",
+   "test": "llvm/test/Transforms/ExpandIRInsts/X86/expand-large-fp-convert-si129tofp.ll",
+   "functions": [
+    "si129tohalf"
+   ],
+   "from": "https://web.ist.utl.pt/nuno.lopes/alive2/index.php?hash=c3466a6048874dbf",
+   "id": "2502b7a1314d0933"
+  },
+  {
+   "kind": "dashboard",
+   "test": "llvm/test/Transforms/ExpandIRInsts/X86/expand-large-fp-convert-ui129tofp.ll",
+   "functions": [
+    "ui129tohalf"
+   ],
+   "from": "https://web.ist.utl.pt/nuno.lopes/alive2/index.php?hash=c3466a6048874dbf",
+   "id": "e7755babc8bad0df"
+  },
+  {
+   "kind": "dashboard",
+   "test": "llvm/test/Transforms/ExpandIRInsts/X86/expand-large-fp-optnone.ll",
+   "functions": [
+    "main"
+   ],
+   "from": "https://web.ist.utl.pt/nuno.lopes/alive2/index.php?hash=c3466a6048874dbf",
+   "id": "6690305fe69bba54"
+  },
+  {
+   "kind": "dashboard",
+   "test": "llvm/test/Transforms/ExpandMemCmp/AArch64/memcmp.ll",
+   "functions": [
+    "cmp2"
+   ],
+   "from": "https://web.ist.utl.pt/nuno.lopes/alive2/index.php?hash=c3466a6048874dbf",
+   "id": "1be142995f91c40d"
+  },
+  {
+   "kind": "dashboard",
+   "test": "llvm/test/Transforms/ExpandMemCmp/X86/bcmp.ll",
+   "functions": [
+    "bcmp8"
+   ],
+   "from": "https://web.ist.utl.pt/nuno.lopes/alive2/index.php?hash=c3466a6048874dbf",
+   "id": "ff479985014bea6e"
+  },
+  {
+   "kind": "dashboard",
+   "test": "llvm/test/Transforms/ExpandMemCmp/X86/memcmp-x32.ll",
+   "functions": [
+    "cmp2"
+   ],
+   "from": "https://web.ist.utl.pt/nuno.lopes/alive2/index.php?hash=c3466a6048874dbf",
+   "id": "4d7d26c5f3f665d3"
+  },
+  {
+   "kind": "dashboard",
+   "test": "llvm/test/Transforms/ExpandMemCmp/X86/memcmp.ll",
+   "functions": [
+    "cmp2"
+   ],
+   "from": "https://web.ist.utl.pt/nuno.lopes/alive2/index.php?hash=c3466a6048874dbf",
+   "id": "86bd2a549b07a321"
+  },
+  {
+   "kind": "dashboard",
+   "test": "llvm/test/Transforms/GVN/PRE/rle.ll",
+   "functions": [
+    "coerce_mustalias5",
+    "coerce_mustalias6",
+    "coerce_mustalias7",
+    "memset_to_float_local"
+   ],
+   "from": "https://web.ist.utl.pt/nuno.lopes/alive2/index.php?hash=c3466a6048874dbf",
+   "id": "9c498f9f4d048b39"
+  },
+  {
+   "kind": "dashboard",
+   "test": "llvm/test/Transforms/GVN/metadata.ll",
+   "functions": [
+    "load_ptr_nonnull_to_i32"
+   ],
+   "from": "https://web.ist.utl.pt/nuno.lopes/alive2/index.php?hash=c3466a6048874dbf",
+   "id": "a19c50099d6164a0"
+  },
+  {
+   "kind": "dashboard",
+   "test": "llvm/test/Transforms/GVN/pr63059.ll",
+   "functions": [
+    "ConvertVectors_ByRef"
+   ],
+   "from": "https://web.ist.utl.pt/nuno.lopes/alive2/index.php?hash=c3466a6048874dbf",
+   "id": "46a412fabbfc8060"
+  },
+  {
+   "kind": "dashboard",
+   "test": "llvm/test/Transforms/HipStdPar/math-fixup.ll",
+   "functions": [
+    "test_acos",
+    "test_acosh",
+    "test_asin",
+    "test_asinh",
+    "test_atan",
+    "test_atan2",
+    "test_atanh",
+    "test_cbrt",
+    "test_cos",
+    "test_cosh",
+    "test_erf",
+    "test_erfc"
+   ],
+   "from": "https://web.ist.utl.pt/nuno.lopes/alive2/index.php?hash=c3466a6048874dbf",
+   "id": "70e860acc1358409"
+  },
+  {
+   "kind": "dashboard",
+   "test": "llvm/test/Transforms/IRCE/bad_expander.ll",
+   "functions": [
+    "test_03"
+   ],
+   "from": "https://web.ist.utl.pt/nuno.lopes/alive2/index.php?hash=c3466a6048874dbf",
+   "id": "eb24fea8b6853543"
+  },
+  {
+   "kind": "dashboard",
+   "test": "llvm/test/Transforms/IRCE/multiple-access-no-preloop.ll",
+   "functions": [
+    "multiple_access_no_preloop"
+   ],
+   "from": "https://web.ist.utl.pt/nuno.lopes/alive2/index.php?hash=c3466a6048874dbf",
+   "id": "37145a4d7cd5af43"
+  },
+  {
+   "kind": "dashboard",
+   "test": "llvm/test/Transforms/IRCE/non-loop-invariant-rhs-instr.ll",
+   "functions": [
+    "test_01"
+   ],
+   "from": "https://web.ist.utl.pt/nuno.lopes/alive2/index.php?hash=c3466a6048874dbf",
+   "id": "5fdfae47db6f2665"
+  },
+  {
+   "kind": "dashboard",
+   "test": "llvm/test/Transforms/IRCE/wide_indvar.ll",
+   "functions": [
+    "test_increasing_slt_slt_wide_non-negative",
+    "test_increasing_slt_slt_wide_simple_no_postloop",
+    "test_increasing_slt_slt_wide_simple_postloop"
+   ],
+   "from": "https://web.ist.utl.pt/nuno.lopes/alive2/index.php?hash=c3466a6048874dbf",
+   "id": "2a78f2d64989da5f"
+  },
+  {
+   "kind": "dashboard",
+   "test": "llvm/test/Transforms/IRNormalizer/reordering.ll",
+   "functions": [
+    "independentldst"
+   ],
+   "from": "https://web.ist.utl.pt/nuno.lopes/alive2/index.php?hash=c3466a6048874dbf",
+   "id": "b289429547f0f1aa"
+  },
+  {
+   "kind": "dashboard",
+   "test": "llvm/test/Transforms/InstCombine/IntPtrCast.ll",
+   "functions": [
+    "test"
+   ],
+   "from": "https://web.ist.utl.pt/nuno.lopes/alive2/index.php?hash=c3466a6048874dbf",
+   "id": "a6820d930262d52f"
+  },
+  {
+   "kind": "dashboard",
+   "test": "llvm/test/Transforms/InstCombine/X86/x86-pshufb-inseltpoison.ll",
+   "functions": [
+    "identity_test",
+    "identity_test_avx2",
+    "identity_test_avx512",
+    "splat_test"
+   ],
+   "from": "https://web.ist.utl.pt/nuno.lopes/alive2/index.php?hash=c3466a6048874dbf",
+   "id": "30f49dca7572eee5"
+  },
+  {
+   "kind": "dashboard",
+   "test": "llvm/test/Transforms/InstCombine/X86/x86-pshufb.ll",
+   "functions": [
+    "identity_test",
+    "identity_test_avx2",
+    "identity_test_avx512",
+    "splat_test"
+   ],
+   "from": "https://web.ist.utl.pt/nuno.lopes/alive2/index.php?hash=c3466a6048874dbf",
+   "id": "1005dc25a163860e"
+  },
+  {
+   "kind": "dashboard",
+   "test": "llvm/test/Transforms/InstCombine/X86/x86-vector-shifts-inseltpoison.ll",
+   "functions": [
+    "avx2_psll_d_15",
+    "avx2_psll_q_15",
+    "avx2_psll_w_0",
+    "avx2_psll_w_15",
+    "avx2_pslli_d_15",
+    "avx2_pslli_q_15",
+    "avx2_pslli_w_0",
+    "avx2_pslli_w_15",
+    "avx2_psllv_d_128_poison",
+    "avx2_psllv_d_128_var",
+    "avx2_psllv_d_256_poison",
+    "avx2_psllv_d_256_var",
+    "avx2_psllv_q_128_var",
+    "avx2_psllv_q_256_poison",
+    "avx2_psllv_q_256_var",
+    "avx2_psra_d_15_splat",
+    "avx2_psra_d_64",
+    "avx2_psra_w_0",
+    "avx2_psra_w_15",
+    "avx2_psra_w_15_splat",
+    "avx2_psra_w_64",
+    "avx2_psrai_d_64",
+    "avx2_psrai_w_0",
+    "avx2_psrai_w_15",
+    "avx2_psrai_w_64",
+    "avx2_psrl_d_15",
+    "avx2_psrl_q_15",
+    "avx2_psrl_w_0",
+    "avx2_psrl_w_15",
+    "avx2_psrli_d_15",
+    "avx2_psrli_q_15",
+    "avx2_psrli_w_0",
+    "avx2_psrli_w_15",
+    "avx2_psrlv_d_128_poison",
+    "avx2_psrlv_d_128_var",
+    "avx2_psrlv_d_256_poison",
+    "avx2_psrlv_d_256_var",
+    "avx2_psrlv_d_512_0",
+    "avx2_psrlv_q_128_var",
+    "avx2_psrlv_q_256_poison",
+    "avx2_psrlv_q_256_var",
+    "avx512_psll_d_512_0",
+    "avx512_psll_d_512_15",
+    "avx512_psll_q_512_15",
+    "avx512_psll_w_512_0",
+    "avx512_psll_w_512_15",
+    "avx512_pslli_d_512_0",
+    "avx512_pslli_d_512_15",
+    "avx512_pslli_q_512_15",
+    "avx512_pslli_w_512_0",
+    "avx512_pslli_w_512_15",
+    "avx512_psllv_d_512_0",
+    "avx512_psllv_d_512_poison",
+    "avx512_psllv_d_512_var",
+    "avx512_psllv_q_512_poison",
+    "avx512_psllv_q_512_var",
+    "avx512_psllv_w_128_poison",
+    "avx512_psllv_w_128_var",
+    "avx512_psllv_w_256_0",
+    "avx512_psllv_w_256_poison",
+    "avx512_psllv_w_256_var",
+    "avx512_psllv_w_512_0",
+    "avx512_psllv_w_512_poison",
+    "avx512_psllv_w_512_var",
+    "avx512_psra_d_512_0",
+    "avx512_psra_d_512_15",
+    "avx512_psra_d_512_15_splat",
+    "avx512_psra_d_512_64",
+    "avx512_psra_q_512_64",
+    "avx512_psra_w_512_0",
+    "avx512_psra_w_512_15",
+    "avx512_psra_w_512_15_splat",
+    "avx512_psra_w_512_64",
+    "avx512_psrai_d_512_0",
+    "avx512_psrai_d_512_15",
+    "avx512_psrai_d_512_64",
+    "avx512_psrai_q_512_64",
+    "avx512_psrai_w_512_0",
+    "avx512_psrai_w_512_15",
+    "avx512_psrai_w_512_64",
+    "avx512_psrav_d_512_0",
+    "avx512_psrav_d_512_allbig",
+    "avx512_psrav_d_512_poison",
+    "avx512_psrav_d_512_var",
+    "avx512_psrav_w_256_0",
+    "avx512_psrav_w_256_allbig",
+    "avx512_psrav_w_256_poison",
+    "avx512_psrav_w_256_var",
+    "avx512_psrav_w_512_0",
+    "avx512_psrav_w_512_allbig",
+    "avx512_psrav_w_512_poison",
+    "avx512_psrav_w_512_var",
+    "avx512_psrl_d_512_0",
+    "avx512_psrl_d_512_15",
+    "avx512_psrl_q_512_15",
+    "avx512_psrl_w_512_0",
+    "avx512_psrl_w_512_15",
+    "avx512_psrli_d_512_0",
+    "avx512_psrli_d_512_15",
+    "avx512_psrli_q_512_15",
+    "avx512_psrli_w_512_0",
+    "avx512_psrli_w_512_15",
+    "avx512_psrlv_d_512_poison",
+    "avx512_psrlv_d_512_var",
+    "avx512_psrlv_q_512_poison",
+    "avx512_psrlv_q_512_var",
+    "avx512_psrlv_w_128_poison",
+    "avx512_psrlv_w_128_var",
+    "avx512_psrlv_w_256_0",
+    "avx512_psrlv_w_256_poison",
+    "avx512_psrlv_w_256_var",
+    "avx512_psrlv_w_512_0",
+    "avx512_psrlv_w_512_poison",
+    "avx512_psrlv_w_512_var",
+    "sse2_psll_d_15",
+    "sse2_psll_q_15",
+    "sse2_pslli_d_15",
+    "sse2_pslli_q_15",
+    "sse2_psra_w_128_masked",
+    "sse2_psra_w_15_splat",
+    "sse2_psra_w_64",
+    "sse2_psrai_w_64",
+    "sse2_psrl_d_15",
+    "sse2_psrl_q_15",
+    "sse2_psrli_d_15",
+    "sse2_psrli_q_15"
+   ],
+   "from": "https://web.ist.utl.pt/nuno.lopes/alive2/index.php?hash=c3466a6048874dbf",
+   "id": "666ae0630a1717c8"
+  },
+  {
+   "kind": "dashboard",
+   "test": "llvm/test/Transforms/InstCombine/X86/x86-vector-shifts.ll",
+   "functions": [
+    "avx2_psll_d_15",
+    "avx2_psll_q_15",
+    "avx2_psll_w_0",
+    "avx2_psll_w_15",
+    "avx2_pslli_d_15",
+    "avx2_pslli_q_15",
+    "avx2_pslli_w_0",
+    "avx2_pslli_w_15",
+    "avx2_psra_d_15_splat",
+    "avx2_psra_d_64",
+    "avx2_psra_w_0",
+    "avx2_psra_w_15",
+    "avx2_psra_w_15_splat",
+    "avx2_psra_w_64",
+    "avx2_psrai_d_64",
+    "avx2_psrai_w_0",
+    "avx2_psrai_w_15",
+    "avx2_psrai_w_64",
+    "avx2_psrav_d_128_allbig",
+    "avx2_psrl_d_15",
+    "avx2_psrl_q_15",
+    "avx2_psrl_w_0",
+    "avx2_psrl_w_15",
+    "avx2_psrli_d_15",
+    "avx2_psrli_q_15",
+    "avx2_psrli_w_0",
+    "avx2_psrli_w_15",
+    "avx512_psll_d_512_0",
+    "avx512_psll_d_512_15",
+    "avx512_psll_q_512_15",
+    "avx512_psll_w_512_0",
+    "avx512_psll_w_512_15",
+    "avx512_pslli_d_512_0",
+    "avx512_pslli_d_512_15",
+    "avx512_pslli_q_512_15",
+    "avx512_pslli_w_512_0",
+    "avx512_pslli_w_512_15",
+    "avx512_psra_d_512_0",
+    "avx512_psra_d_512_15",
+    "avx512_psra_d_512_15_splat",
+    "avx512_psra_d_512_64",
+    "avx512_psra_q_512_64",
+    "avx512_psra_w_512_0",
+    "avx512_psra_w_512_15",
+    "avx512_psra_w_512_15_splat",
+    "avx512_psra_w_512_64",
+    "avx512_psrai_d_512_0",
+    "avx512_psrai_d_512_15",
+    "avx512_psrai_d_512_64",
+    "avx512_psrai_q_512_64",
+    "avx512_psrai_w_512_0",
+    "avx512_psrai_w_512_15",
+    "avx512_psrai_w_512_64",
+    "avx512_psrav_d_512_0",
+    "avx512_psrav_d_512_var",
+    "avx512_psrl_d_512_0",
+    "avx512_psrl_d_512_15",
+    "avx512_psrl_q_512_15",
+    "avx512_psrl_w_512_0",
+    "avx512_psrl_w_512_15",
+    "avx512_psrli_d_512_0",
+    "avx512_psrli_d_512_15",
+    "avx512_psrli_q_512_15",
+    "avx512_psrli_w_512_0",
+    "avx512_psrli_w_512_15",
+    "sse2_psll_d_15",
+    "sse2_psll_q_15",
+    "sse2_pslli_d_15",
+    "sse2_pslli_q_15",
+    "sse2_psra_w_15_splat",
+    "sse2_psra_w_64",
+    "sse2_psrai_w_64",
+    "sse2_psrl_d_15",
+    "sse2_psrl_q_15",
+    "sse2_psrli_d_15",
+    "sse2_psrli_q_15"
+   ],
+   "from": "https://web.ist.utl.pt/nuno.lopes/alive2/index.php?hash=c3466a6048874dbf",
+   "id": "d77244098612792e"
+  },
+  {
+   "kind": "dashboard",
+   "test": "llvm/test/Transforms/InstCombine/and-or-icmps.ll",
+   "functions": [
+    "simplify_before_foldAndOfICmps2"
+   ],
+   "from": "https://web.ist.utl.pt/nuno.lopes/alive2/index.php?hash=c3466a6048874dbf",
+   "id": "3c85f6498804affc"
+  },
+  {
+   "kind": "dashboard",
+   "test": "llvm/test/Transforms/InstCombine/builtin-dynamic-object-size.ll",
+   "functions": [
+    "weird_identity_but_ok"
+   ],
+   "from": "https://web.ist.utl.pt/nuno.lopes/alive2/index.php?hash=c3466a6048874dbf",
+   "id": "0170352dc5067f1c"
+  },
+  {
+   "kind": "dashboard",
+   "test": "llvm/test/Transforms/InstCombine/call.ll",
+   "functions": [
+    "test3"
+   ],
+   "from": "https://web.ist.utl.pt/nuno.lopes/alive2/index.php?hash=c3466a6048874dbf",
+   "id": "ca4061d57b0ce75e"
+  },
+  {
+   "kind": "dashboard",
+   "test": "llvm/test/Transforms/InstCombine/create-class-from-logic-fcmp.ll",
+   "functions": [
+    "subnormal_or_zero_daz"
+   ],
+   "from": "https://web.ist.utl.pt/nuno.lopes/alive2/index.php?hash=c3466a6048874dbf",
+   "id": "361438ee9dcfd9af"
+  },
+  {
+   "kind": "dashboard",
+   "test": "llvm/test/Transforms/InstCombine/cttz.ll",
+   "functions": [
+    "cttz_of_lowest_set_bit_vec",
+    "cttz_of_lowest_set_bit_vec_undef",
+    "cttz_of_lowest_set_bit_wrong_const"
+   ],
+   "from": "https://web.ist.utl.pt/nuno.lopes/alive2/index.php?hash=c3466a6048874dbf",
+   "id": "a4760c8422a6e05b"
+  },
+  {
+   "kind": "dashboard",
+   "test": "llvm/test/Transforms/InstCombine/fdiv.ll",
+   "functions": [
+    "div_constant_dividend1",
+    "div_constant_dividend2",
+    "div_constant_dividend3",
+    "div_factor",
+    "div_factor_commute",
+    "div_with_div_denominator",
+    "div_with_div_denominator_with_one_as_numerator_extra_use",
+    "div_with_div_numerator",
+    "exact_inverse",
+    "exact_inverse2",
+    "exact_inverse_splat",
+    "exact_inverse_vec",
+    "fabs_same_op",
+    "fdiv_fneg1",
+    "fdiv_fneg1_extra_use",
+    "fdiv_fneg2",
+    "fneg_dividend_constant_divisor",
+    "fneg_dividend_constant_divisor_vec",
+    "fneg_dividend_constant_divisor_vec_poison_elt",
+    "fneg_divisor_constant_dividend",
+    "fneg_divisor_constant_dividend_vec",
+    "fneg_fneg",
+    "fneg_fneg_fast",
+    "fneg_fneg_vec",
+    "fneg_unary_fneg",
+    "fneg_unary_fneg_vec",
+    "not_exact_but_allow_recip",
+    "not_exact_but_allow_recip_splat",
+    "not_exact_inverse_vec_arcp",
+    "unary_fneg_dividend_constant_divisor",
+    "unary_fneg_dividend_constant_divisor_vec",
+    "unary_fneg_divisor_constant_dividend",
+    "unary_fneg_divisor_constant_dividend_vec",
+    "unary_fneg_fneg",
+    "unary_fneg_fneg_vec",
+    "unary_fneg_unary_fneg",
+    "unary_fneg_unary_fneg_fast",
+    "unary_fneg_unary_fneg_vec"
+   ],
+   "from": "https://web.ist.utl.pt/nuno.lopes/alive2/index.php?hash=c3466a6048874dbf",
+   "id": "031f122ae9b10f05"
+  },
+  {
+   "kind": "dashboard",
+   "test": "llvm/test/Transforms/InstCombine/ffs-1.ll",
+   "functions": [
+    "test_simplify13"
+   ],
+   "from": "https://web.ist.utl.pt/nuno.lopes/alive2/index.php?hash=c3466a6048874dbf",
+   "id": "ea23caae241022b6"
+  },
+  {
+   "kind": "dashboard",
+   "test": "llvm/test/Transforms/InstCombine/ffs-i16.ll",
+   "functions": [
+    "fold_ffs"
+   ],
+   "from": "https://web.ist.utl.pt/nuno.lopes/alive2/index.php?hash=c3466a6048874dbf",
+   "id": "3f3ad557d222427f"
+  },
+  {
+   "kind": "dashboard",
+   "test": "llvm/test/Transforms/InstCombine/icmp-custom-dl.ll",
+   "functions": [
+    "test60"
+   ],
+   "from": "https://web.ist.utl.pt/nuno.lopes/alive2/index.php?hash=c3466a6048874dbf",
+   "id": "37d4aca7484fcf32"
+  },
+  {
+   "kind": "dashboard",
+   "test": "llvm/test/Transforms/InstCombine/invert-variable-mask-in-masked-merge-scalar.ll",
+   "functions": [
+    "scalar"
+   ],
+   "from": "https://web.ist.utl.pt/nuno.lopes/alive2/index.php?hash=c3466a6048874dbf",
+   "id": "dba8d26261e8ae78"
+  },
+  {
+   "kind": "dashboard",
+   "test": "llvm/test/Transforms/InstCombine/invert-variable-mask-in-masked-merge-vector.ll",
+   "functions": [
+    "vector"
+   ],
+   "from": "https://web.ist.utl.pt/nuno.lopes/alive2/index.php?hash=c3466a6048874dbf",
+   "id": "c44aca1f0f59e9f0"
+  },
+  {
+   "kind": "dashboard",
+   "test": "llvm/test/Transforms/InstCombine/is_fpclass.ll",
+   "functions": [
+    "test_class_is_p0_n0_or_sub_or_nan_f32_daz"
+   ],
+   "from": "https://web.ist.utl.pt/nuno.lopes/alive2/index.php?hash=c3466a6048874dbf",
+   "id": "fdf15cc2b4f1655f"
+  },
+  {
+   "kind": "dashboard",
+   "test": "llvm/test/Transforms/InstCombine/load.ll",
+   "functions": [
+    "test16-vect",
+    "test21"
+   ],
+   "from": "https://web.ist.utl.pt/nuno.lopes/alive2/index.php?hash=c3466a6048874dbf",
+   "id": "f901db73a537594a"
+  },
+  {
+   "kind": "dashboard",
+   "test": "llvm/test/Transforms/InstCombine/malloc-free.ll",
+   "functions": [
+    "other_aligned_allocation_function"
+   ],
+   "from": "https://web.ist.utl.pt/nuno.lopes/alive2/index.php?hash=c3466a6048874dbf",
+   "id": "db6a30b6b9e9955d"
+  },
+  {
+   "kind": "dashboard",
+   "test": "llvm/test/Transforms/InstCombine/memcmp-constant-fold.ll",
+   "functions": [
+    "memcmp_4bytes_unaligned_constant_i8"
+   ],
+   "from": "https://web.ist.utl.pt/nuno.lopes/alive2/index.php?hash=c3466a6048874dbf",
+   "id": "79634d8f0b3653be"
+  },
+  {
+   "kind": "dashboard",
+   "test": "llvm/test/Transforms/InstCombine/memcpy-from-global.ll",
+   "functions": [
+    "test1",
+    "test3_nocapture"
+   ],
+   "from": "https://web.ist.utl.pt/nuno.lopes/alive2/index.php?hash=c3466a6048874dbf",
+   "id": "14b9d3ee3abdfc4f"
+  },
+  {
+   "kind": "dashboard",
+   "test": "llvm/test/Transforms/InstCombine/memcpy-to-load.ll",
+   "functions": [
+    "copy_1_byte"
+   ],
+   "from": "https://web.ist.utl.pt/nuno.lopes/alive2/index.php?hash=c3466a6048874dbf",
+   "id": "c7be9e2b70b7e2ae"
+  },
+  {
+   "kind": "dashboard",
+   "test": "llvm/test/Transforms/InstCombine/memset.ll",
+   "functions": [
+    "memset_undef"
+   ],
+   "from": "https://web.ist.utl.pt/nuno.lopes/alive2/index.php?hash=c3466a6048874dbf",
+   "id": "e1a3720b94f7a3a2"
+  },
+  {
+   "kind": "dashboard",
+   "test": "llvm/test/Transforms/InstCombine/modular-format.ll",
+   "functions": [
+    "test_float_absent"
+   ],
+   "from": "https://web.ist.utl.pt/nuno.lopes/alive2/index.php?hash=c3466a6048874dbf",
+   "id": "cba12330178ab9a0"
+  },
+  {
+   "kind": "dashboard",
+   "test": "llvm/test/Transforms/InstCombine/phi.ll",
+   "functions": [
+    "inttoptr_of_phi",
+    "phi_op_self_simplify_2",
+    "test11",
+    "test12",
+    "test15b",
+    "test25",
+    "test25b",
+    "test26"
+   ],
+   "from": "https://web.ist.utl.pt/nuno.lopes/alive2/index.php?hash=c3466a6048874dbf",
+   "id": "fbc1c0bdf0269110"
+  },
+  {
+   "kind": "dashboard",
+   "test": "llvm/test/Transforms/InstCombine/pr44835.ll",
+   "functions": [
+    "test"
+   ],
+   "from": "https://web.ist.utl.pt/nuno.lopes/alive2/index.php?hash=c3466a6048874dbf",
+   "id": "1cbc6aeb1be86384"
+  },
+  {
+   "kind": "dashboard",
+   "test": "llvm/test/Transforms/InstCombine/select-binop-cmp.ll",
+   "functions": [
+    "select_add_icmp",
+    "select_add_icmp_bad",
+    "select_fadd_fcmp",
+    "select_fadd_fcmp_2",
+    "select_fadd_fcmp_2_poszero",
+    "select_fadd_fcmp_4",
+    "select_fadd_fcmp_4_poszero",
+    "select_fadd_fcmp_5",
+    "select_fadd_fcmp_5_poszero",
+    "select_fadd_fcmp_bad_10",
+    "select_fadd_fcmp_bad_11",
+    "select_fadd_fcmp_bad_12",
+    "select_fadd_fcmp_bad_13",
+    "select_fadd_fcmp_bad_4",
+    "select_fadd_fcmp_bad_5",
+    "select_fadd_fcmp_bad_6",
+    "select_fadd_fcmp_bad_7",
+    "select_fadd_fcmp_bad_8",
+    "select_fadd_fcmp_bad_9",
+    "select_fadd_fcmp_equiv",
+    "select_fadd_fcmp_equiv2",
+    "select_fadd_fcmp_poszero",
+    "select_fdiv_fcmp",
+    "select_fdiv_fcmp_equiv",
+    "select_fdiv_fcmp_equiv2",
+    "select_fmul_fcmp",
+    "select_fmul_fcmp_equiv",
+    "select_fmul_fcmp_equiv2",
+    "select_fsub_fcmp",
+    "select_fsub_fcmp_equiv",
+    "select_fsub_fcmp_negzero",
+    "select_lshr_icmp_bad",
+    "select_lshr_icmp_const",
+    "select_lshr_icmp_const_reordered",
+    "select_mul_icmp",
+    "select_mul_icmp_bad",
+    "select_or_icmp_bad",
+    "select_replace_call_speculatable",
+    "select_replace_nested",
+    "select_replace_nested_no_simplify",
+    "select_replace_one_use",
+    "select_shl_icmp_bad",
+    "select_sub_icmp",
+    "select_sub_icmp_bad",
+    "select_sub_icmp_bad_2",
+    "select_sub_icmp_vec",
+    "select_xor_icmp_bad_5",
+    "select_xor_icmp_vec",
+    "select_xor_icmp_vec_equivalence"
+   ],
+   "from": "https://web.ist.utl.pt/nuno.lopes/alive2/index.php?hash=c3466a6048874dbf",
+   "id": "f72a17bb331b45de"
+  },
+  {
+   "kind": "dashboard",
+   "test": "llvm/test/Transforms/InstCombine/select-cmp-cttz-ctlz.ll",
+   "functions": [
+    "test_ctlz_not_bw"
+   ],
+   "from": "https://web.ist.utl.pt/nuno.lopes/alive2/index.php?hash=c3466a6048874dbf",
+   "id": "217f995dfde7bb15"
+  },
+  {
+   "kind": "dashboard",
+   "test": "llvm/test/Transforms/InstCombine/select-extractelement-inseltpoison.ll",
+   "functions": [
+    "extract_cond",
+    "extract_one_select_user",
+    "extract_one_vselect_user",
+    "simple_vector_select"
+   ],
+   "from": "https://web.ist.utl.pt/nuno.lopes/alive2/index.php?hash=c3466a6048874dbf",
+   "id": "1cb5f395facf562e"
+  },
+  {
+   "kind": "dashboard",
+   "test": "llvm/test/Transforms/InstCombine/select-extractelement.ll",
+   "functions": [
+    "extract_cond",
+    "extract_one_select_user",
+    "extract_one_vselect_user",
+    "simple_vector_select"
+   ],
+   "from": "https://web.ist.utl.pt/nuno.lopes/alive2/index.php?hash=c3466a6048874dbf",
+   "id": "6880ea6197913ea3"
+  },
+  {
+   "kind": "dashboard",
+   "test": "llvm/test/Transforms/InstCombine/select-select.ll",
+   "functions": [
+    "sel_shuf_commute0",
+    "sel_shuf_commute1",
+    "sel_shuf_commute3"
+   ],
+   "from": "https://web.ist.utl.pt/nuno.lopes/alive2/index.php?hash=c3466a6048874dbf",
+   "id": "defe891051d7b0d2"
+  },
+  {
+   "kind": "dashboard",
+   "test": "llvm/test/Transforms/InstCombine/shuffle_select-inseltpoison.ll",
+   "functions": [
+    "fadd_maybe_nan",
+    "fmul",
+    "fsub",
+    "lshr_constant_op0",
+    "lshr_undef_mask_elt",
+    "shl",
+    "shl_undef_mask_elt"
+   ],
+   "from": "https://web.ist.utl.pt/nuno.lopes/alive2/index.php?hash=c3466a6048874dbf",
+   "id": "563c50208df94e38"
+  },
+  {
+   "kind": "dashboard",
+   "test": "llvm/test/Transforms/InstCombine/shuffle_select.ll",
+   "functions": [
+    "fadd_maybe_nan",
+    "fmul",
+    "fsub",
+    "lshr_constant_op0",
+    "lshr_undef_mask_elt",
+    "shl",
+    "shl_undef_mask_elt"
+   ],
+   "from": "https://web.ist.utl.pt/nuno.lopes/alive2/index.php?hash=c3466a6048874dbf",
+   "id": "06351ef945d9131c"
+  },
+  {
+   "kind": "dashboard",
+   "test": "llvm/test/Transforms/InstCombine/simplify-demanded-fpclass-canonicalize.ll",
+   "functions": [
+    "ret_nofpclass_nan__canonicalize_only_zero__dapz"
+   ],
+   "from": "https://web.ist.utl.pt/nuno.lopes/alive2/index.php?hash=c3466a6048874dbf",
+   "id": "94b804676b9387a9"
+  },
+  {
+   "kind": "dashboard",
+   "test": "llvm/test/Transforms/InstCombine/simplify-demanded-fpclass-maximum.ll",
+   "functions": [
+    "lhs_must_be_ninf_or_nan"
+   ],
+   "from": "https://web.ist.utl.pt/nuno.lopes/alive2/index.php?hash=c3466a6048874dbf",
+   "id": "b0aee5d7487426c7"
+  },
+  {
+   "kind": "dashboard",
+   "test": "llvm/test/Transforms/InstCombine/simplify-demanded-fpclass-maximumnum.ll",
+   "functions": [
+    "lhs_must_be_pinf_or_nan"
+   ],
+   "from": "https://web.ist.utl.pt/nuno.lopes/alive2/index.php?hash=c3466a6048874dbf",
+   "id": "5efddda578d76a57"
+  },
+  {
+   "kind": "dashboard",
+   "test": "llvm/test/Transforms/InstCombine/simplify-demanded-fpclass-minimum.ll",
+   "functions": [
+    "lhs_must_be_pinf_or_nan"
+   ],
+   "from": "https://web.ist.utl.pt/nuno.lopes/alive2/index.php?hash=c3466a6048874dbf",
+   "id": "6fb62a0518362897"
+  },
+  {
+   "kind": "dashboard",
+   "test": "llvm/test/Transforms/InstCombine/simplify-demanded-fpclass-minimumnum.ll",
+   "functions": [
+    "lhs_must_be_pinf_or_nan"
+   ],
+   "from": "https://web.ist.utl.pt/nuno.lopes/alive2/index.php?hash=c3466a6048874dbf",
+   "id": "dea096adddf8112d"
+  },
+  {
+   "kind": "dashboard",
+   "test": "llvm/test/Transforms/InstCombine/simplify-demanded-fpclass.ll",
+   "functions": [
+    "fneg_fabs_nsz_src_known_negative_or_poszero_multiple_uses"
+   ],
+   "from": "https://web.ist.utl.pt/nuno.lopes/alive2/index.php?hash=c3466a6048874dbf",
+   "id": "15d712dc9e557d68"
+  },
+  {
+   "kind": "dashboard",
+   "test": "llvm/test/Transforms/InstCombine/store.ll",
+   "functions": [
+    "store_of_undef"
+   ],
+   "from": "https://web.ist.utl.pt/nuno.lopes/alive2/index.php?hash=c3466a6048874dbf",
+   "id": "7daca18727828109"
+  },
+  {
+   "kind": "dashboard",
+   "test": "llvm/test/Transforms/InstSimplify/ConstProp/loads.ll",
+   "functions": [
+    "test_undef_aggregate"
+   ],
+   "from": "https://web.ist.utl.pt/nuno.lopes/alive2/index.php?hash=c3466a6048874dbf",
+   "id": "e095ac87830eabfb"
+  },
+  {
+   "kind": "dashboard",
+   "test": "llvm/test/Transforms/InstSimplify/ptrtoaddr.ll",
+   "functions": [
+    "gep_of_sub_ptrtoaddr",
+    "gep_of_sub_ptrtoaddr_ashr",
+    "ptrtoaddr_of_ptradd_of_sub"
+   ],
+   "from": "https://web.ist.utl.pt/nuno.lopes/alive2/index.php?hash=c3466a6048874dbf",
+   "id": "d4340fe2a7124454"
+  },
+  {
+   "kind": "dashboard",
+   "test": "llvm/test/Transforms/LICM/PR116813-memoryssa-outdated.ll",
+   "functions": [
+    "foo"
+   ],
+   "from": "https://web.ist.utl.pt/nuno.lopes/alive2/index.php?hash=c3466a6048874dbf",
+   "id": "e1374350551cb538"
+  },
+  {
+   "kind": "dashboard",
+   "test": "llvm/test/Transforms/LICM/scalar-promote.ll",
+   "functions": [
+    "test1",
+    "test11",
+    "test4",
+    "test7",
+    "test7bad",
+    "test8",
+    "test9",
+    "test_hoistable_existing_load_sinkable_store_writeonly"
+   ],
+   "from": "https://web.ist.utl.pt/nuno.lopes/alive2/index.php?hash=c3466a6048874dbf",
+   "id": "1f3190d6995c9af2"
+  },
+  {
+   "kind": "dashboard",
+   "test": "llvm/test/Transforms/LoadStoreVectorizer/batch-aa-compile-time.ll",
+   "functions": [
+    "compile-time-test"
+   ],
+   "from": "https://web.ist.utl.pt/nuno.lopes/alive2/index.php?hash=c3466a6048874dbf",
+   "id": "2b9d3099bbf794c2"
+  },
+  {
+   "kind": "dashboard",
+   "test": "llvm/test/Transforms/LoopIdiom/X86/arithmetic-right-shift-until-zero.ll",
+   "functions": [
+    "p0"
+   ],
+   "from": "https://web.ist.utl.pt/nuno.lopes/alive2/index.php?hash=c3466a6048874dbf",
+   "id": "e474dff4443e344a"
+  },
+  {
+   "kind": "dashboard",
+   "test": "llvm/test/Transforms/LoopIdiom/X86/left-shift-until-zero.ll",
+   "functions": [
+    "p0"
+   ],
+   "from": "https://web.ist.utl.pt/nuno.lopes/alive2/index.php?hash=c3466a6048874dbf",
+   "id": "13ed7ec04489ebb1"
+  },
+  {
+   "kind": "dashboard",
+   "test": "llvm/test/Transforms/LoopIdiom/X86/logical-right-shift-until-zero-debuginfo.ll",
+   "functions": [
+    "p"
+   ],
+   "from": "https://web.ist.utl.pt/nuno.lopes/alive2/index.php?hash=c3466a6048874dbf",
+   "id": "afc77bea7ab97bea"
+  },
+  {
+   "kind": "dashboard",
+   "test": "llvm/test/Transforms/LoopIdiom/X86/logical-right-shift-until-zero.ll",
+   "functions": [
+    "p0"
+   ],
+   "from": "https://web.ist.utl.pt/nuno.lopes/alive2/index.php?hash=c3466a6048874dbf",
+   "id": "c184f91f61d708eb"
+  },
+  {
+   "kind": "dashboard",
+   "test": "llvm/test/Transforms/LoopIdiom/X86/preserve-profile.ll",
+   "functions": [
+    "p0"
+   ],
+   "from": "https://web.ist.utl.pt/nuno.lopes/alive2/index.php?hash=c3466a6048874dbf",
+   "id": "6bb5e76fa02198bd"
+  },
+  {
+   "kind": "dashboard",
+   "test": "llvm/test/Transforms/LoopStrengthReduce/lsr-term-fold.ll",
+   "functions": [
+    "IcmpSgt",
+    "IcmpSle",
+    "IcmpSlt",
+    "SeveralLoopLatch",
+    "SeveralLoopLatch2",
+    "const_tripcount",
+    "inbounds_poison_use",
+    "non_branch_terminator",
+    "profiled_long_tc"
+   ],
+   "from": "https://web.ist.utl.pt/nuno.lopes/alive2/index.php?hash=c3466a6048874dbf",
+   "id": "607e7b45e398e04b"
+  },
+  {
+   "kind": "dashboard",
+   "test": "llvm/test/Transforms/LoopStrengthReduce/variable_stride.ll",
+   "functions": [
+    "test"
+   ],
+   "from": "https://web.ist.utl.pt/nuno.lopes/alive2/index.php?hash=c3466a6048874dbf",
+   "id": "1e6b11b194b29537"
+  },
+  {
+   "kind": "dashboard",
+   "test": "llvm/test/Transforms/LoopUnroll/peel-last-iteration-with-variable-trip-count.ll",
+   "functions": [
+    "peel_last_with_trip_count_check_lcssa_phi"
+   ],
+   "from": "https://web.ist.utl.pt/nuno.lopes/alive2/index.php?hash=c3466a6048874dbf",
+   "id": "8e4cc125656cc10f"
+  },
+  {
+   "kind": "dashboard",
+   "test": "llvm/test/Transforms/LoopVectorize/ARM/mve-qabs.ll",
+   "functions": [
+    "arm_abs_q7"
+   ],
+   "from": "https://web.ist.utl.pt/nuno.lopes/alive2/index.php?hash=c3466a6048874dbf",
+   "id": "bc9f2b9939dba247"
+  },
+  {
+   "kind": "dashboard",
+   "test": "llvm/test/Transforms/LoopVectorize/X86/propagate-metadata.ll",
+   "functions": [
+    "no_propagate_range_metadata"
+   ],
+   "from": "https://web.ist.utl.pt/nuno.lopes/alive2/index.php?hash=c3466a6048874dbf",
+   "id": "976e01d56584f410"
+  },
+  {
+   "kind": "dashboard",
+   "test": "llvm/test/Transforms/LoopVectorize/partial-lcssa.ll",
+   "functions": [
+    "foo"
+   ],
+   "from": "https://web.ist.utl.pt/nuno.lopes/alive2/index.php?hash=c3466a6048874dbf",
+   "id": "2b29a3f891863a12"
+  },
+  {
+   "kind": "dashboard",
+   "test": "llvm/test/Transforms/LoopVectorize/runtime-check.ll",
+   "functions": [
+    "foo"
+   ],
+   "from": "https://web.ist.utl.pt/nuno.lopes/alive2/index.php?hash=c3466a6048874dbf",
+   "id": "9d95e609ccebdb26"
+  },
+  {
+   "kind": "dashboard",
+   "test": "llvm/test/Transforms/LoopVectorize/runtime-checks-difference.ll",
+   "functions": [
+    "nested_loop_outer_iv_addrec_invariant_in_inner2",
+    "nested_loop_start_of_inner_ptr_addrec_is_same_outer_addrec",
+    "same_step_and_size_no_dominance_between_accesses",
+    "steps_match_two_loadstores_different_access_sizes"
+   ],
+   "from": "https://web.ist.utl.pt/nuno.lopes/alive2/index.php?hash=c3466a6048874dbf",
+   "id": "caee297489a1bea9"
+  },
+  {
+   "kind": "dashboard",
+   "test": "llvm/test/Transforms/LowerConstantIntrinsics/builtin-object-size-idxsize.ll",
+   "functions": [
+    "possible_out_of_bounds_gep_i16_sroa"
+   ],
+   "from": "https://web.ist.utl.pt/nuno.lopes/alive2/index.php?hash=c3466a6048874dbf",
+   "id": "e2d9fb0e10e94186"
+  },
+  {
+   "kind": "dashboard",
+   "test": "llvm/test/Transforms/LowerConstantIntrinsics/builtin-object-size-phi.ll",
+   "functions": [
+    "negative_offset_dynamic_eval"
+   ],
+   "from": "https://web.ist.utl.pt/nuno.lopes/alive2/index.php?hash=c3466a6048874dbf",
+   "id": "a20cb4296fbfe180"
+  },
+  {
+   "kind": "dashboard",
+   "test": "llvm/test/Transforms/MemCpyOpt/fca2memcpy.ll",
+   "functions": [
+    "copy"
+   ],
+   "from": "https://web.ist.utl.pt/nuno.lopes/alive2/index.php?hash=c3466a6048874dbf",
+   "id": "e26fb2a69eb956f4"
+  },
+  {
+   "kind": "dashboard",
+   "test": "llvm/test/Transforms/MergeICmps/X86/no-gep-other-work.ll",
+   "functions": [
+    "test"
+   ],
+   "from": "https://web.ist.utl.pt/nuno.lopes/alive2/index.php?hash=c3466a6048874dbf",
+   "id": "5418549046982d8e"
+  },
+  {
+   "kind": "dashboard",
+   "test": "llvm/test/Transforms/MergeICmps/X86/pair-int32-int32.ll",
+   "functions": [
+    "opeq1_inverse"
+   ],
+   "from": "https://web.ist.utl.pt/nuno.lopes/alive2/index.php?hash=c3466a6048874dbf",
+   "id": "d66ab0a201f3fd69"
+  },
+  {
+   "kind": "dashboard",
+   "test": "llvm/test/Transforms/MergeICmps/X86/split-block-does-work.ll",
+   "functions": [
+    "opeq1"
+   ],
+   "from": "https://web.ist.utl.pt/nuno.lopes/alive2/index.php?hash=c3466a6048874dbf",
+   "id": "70b9aa764edda9e7"
+  },
+  {
+   "kind": "dashboard",
+   "test": "llvm/test/Transforms/NaryReassociate/NVPTX/nary-slsr.ll",
+   "functions": [
+    "nary_reassociate_after_slsr"
+   ],
+   "from": "https://web.ist.utl.pt/nuno.lopes/alive2/index.php?hash=c3466a6048874dbf",
+   "id": "d3631ce2101d80a8"
+  },
+  {
+   "kind": "dashboard",
+   "test": "llvm/test/Transforms/PhaseOrdering/AArch64/constraint-elimination-placement.ll",
+   "functions": [
+    "test2_fn3"
+   ],
+   "from": "https://web.ist.utl.pt/nuno.lopes/alive2/index.php?hash=c3466a6048874dbf",
+   "id": "9e8f2e57622ab015"
+  },
+  {
+   "kind": "dashboard",
+   "test": "llvm/test/Transforms/PhaseOrdering/generate-fabs.ll",
+   "functions": [
+    "fabs_fcmp_olt_nsz_func_attr"
+   ],
+   "from": "https://web.ist.utl.pt/nuno.lopes/alive2/index.php?hash=c3466a6048874dbf",
+   "id": "5b7dc921cfd47cb8"
+  },
+  {
+   "kind": "dashboard",
+   "test": "llvm/test/Transforms/SLPVectorizer/AMDGPU/horizontal-store.ll",
+   "functions": [
+    "dminv6",
+    "fmaxv6",
+    "smax_wdiff_valuenum"
+   ],
+   "from": "https://web.ist.utl.pt/nuno.lopes/alive2/index.php?hash=c3466a6048874dbf",
+   "id": "2bb033f0e91d7542"
+  },
+  {
+   "kind": "dashboard",
+   "test": "llvm/test/Transforms/SLPVectorizer/X86/minbw-node-used-twice.ll",
+   "functions": [
+    "test"
+   ],
+   "from": "https://web.ist.utl.pt/nuno.lopes/alive2/index.php?hash=c3466a6048874dbf",
+   "id": "a79c350e168f5630"
+  },
+  {
+   "kind": "dashboard",
+   "test": "llvm/test/Transforms/SLPVectorizer/vectorizable-functions-inseltpoison.ll",
+   "functions": [
+    "memread_4x"
+   ],
+   "from": "https://web.ist.utl.pt/nuno.lopes/alive2/index.php?hash=c3466a6048874dbf",
+   "id": "e8be02a342896229"
+  },
+  {
+   "kind": "dashboard",
+   "test": "llvm/test/Transforms/SLPVectorizer/vectorizable-functions.ll",
+   "functions": [
+    "memread_4x"
+   ],
+   "from": "https://web.ist.utl.pt/nuno.lopes/alive2/index.php?hash=c3466a6048874dbf",
+   "id": "dea253e8a1a620dd"
+  },
+  {
+   "kind": "dashboard",
+   "test": "llvm/test/Transforms/SROA/alignment.ll",
+   "functions": [
+    "test1"
+   ],
+   "from": "https://web.ist.utl.pt/nuno.lopes/alive2/index.php?hash=c3466a6048874dbf",
+   "id": "21e9ac574d38662c"
+  },
+  {
+   "kind": "dashboard",
+   "test": "llvm/test/Transforms/SROA/basictest.ll",
+   "functions": [
+    "PR14059.1",
+    "PR15674",
+    "PR15805",
+    "test15"
+   ],
+   "from": "https://web.ist.utl.pt/nuno.lopes/alive2/index.php?hash=c3466a6048874dbf",
+   "id": "6315f3787586136a"
+  },
+  {
+   "kind": "dashboard",
+   "test": "llvm/test/Transforms/Scalarizer/min-bits.ll",
+   "functions": [
+    "load_add_store_v2i16",
+    "load_add_store_v3i16",
+    "load_add_store_v4i16",
+    "select_uniform_condition_v2f16"
+   ],
+   "from": "https://web.ist.utl.pt/nuno.lopes/alive2/index.php?hash=c3466a6048874dbf",
+   "id": "eeb339812bc7c36b"
+  },
+  {
+   "kind": "dashboard",
+   "test": "llvm/test/Transforms/Scalarizer/scatter-order.ll",
+   "functions": [
+    "test1"
+   ],
+   "from": "https://web.ist.utl.pt/nuno.lopes/alive2/index.php?hash=c3466a6048874dbf",
+   "id": "39a301e6dc5cfee6"
+  },
+  {
+   "kind": "dashboard",
+   "test": "llvm/test/Transforms/SimplifyCFG/fold-branch-to-common-dest.ll",
+   "functions": [
+    "one_pred_with_extra_op",
+    "one_pred_with_spec_call"
+   ],
+   "from": "https://web.ist.utl.pt/nuno.lopes/alive2/index.php?hash=c3466a6048874dbf",
+   "id": "00d9eebe9a93f199"
+  },
+  {
+   "kind": "dashboard",
+   "test": "llvm/test/Transforms/SimplifyCFG/hoist-cb-diff-attrs.ll",
+   "functions": [
+    "test_hoist_int_attrs"
+   ],
+   "from": "https://web.ist.utl.pt/nuno.lopes/alive2/index.php?hash=c3466a6048874dbf",
+   "id": "403ba8d39ed1c6cd"
+  },
+  {
+   "kind": "dashboard",
+   "test": "llvm/test/Transforms/SimplifyCFG/no-drop-debug-loc-when-speculating-call.ll",
+   "functions": [
+    "test1"
+   ],
+   "from": "https://web.ist.utl.pt/nuno.lopes/alive2/index.php?hash=c3466a6048874dbf",
+   "id": "be85961a3d1cc981"
+  },
+  {
+   "kind": "dashboard",
+   "test": "llvm/test/Transforms/SimplifyCFG/sink-cb-diff-attrs.ll",
+   "functions": [
+    "test_sink_no_args_oneside"
+   ],
+   "from": "https://web.ist.utl.pt/nuno.lopes/alive2/index.php?hash=c3466a6048874dbf",
+   "id": "1c4fa2da642deed3"
+  },
+  {
+   "kind": "dashboard",
+   "test": "llvm/test/Transforms/SimplifyCFG/speculate-call.ll",
+   "functions": [
+    "speculatable_attribute"
+   ],
+   "from": "https://web.ist.utl.pt/nuno.lopes/alive2/index.php?hash=c3466a6048874dbf",
+   "id": "cae5cfdd9dcc6e06"
+  },
+  {
+   "kind": "dashboard",
+   "test": "llvm/test/Transforms/StraightLineStrengthReduce/NVPTX/slsr-var-delta.ll",
+   "functions": [
+    "foo"
+   ],
+   "from": "https://web.ist.utl.pt/nuno.lopes/alive2/index.php?hash=c3466a6048874dbf",
+   "id": "69de4cf0cb755ba8"
+  },
+  {
+   "kind": "dashboard",
+   "test": "llvm/test/Transforms/StraightLineStrengthReduce/slsr-add.ll",
+   "functions": [
+    "shl"
+   ],
+   "from": "https://web.ist.utl.pt/nuno.lopes/alive2/index.php?hash=c3466a6048874dbf",
+   "id": "a18d160b88ec50d0"
+  },
+  {
+   "kind": "dashboard",
+   "test": "llvm/test/Transforms/StraightLineStrengthReduce/slsr-mul.ll",
+   "functions": [
+    "non_canonicalized",
+    "or",
+    "slsr1",
+    "slsr2"
+   ],
+   "from": "https://web.ist.utl.pt/nuno.lopes/alive2/index.php?hash=c3466a6048874dbf",
+   "id": "03f895599168196a"
+  },
+  {
+   "kind": "dashboard",
+   "test": "llvm/test/Transforms/StructurizeCFG/invert-constantexpr.ll",
+   "functions": [
+    "invert_constantexpr_condition"
+   ],
+   "from": "https://web.ist.utl.pt/nuno.lopes/alive2/index.php?hash=c3466a6048874dbf",
+   "id": "476261e95bad2dea"
+  },
+  {
+   "kind": "dashboard",
+   "test": "llvm/test/Transforms/Util/DeclareRuntimeLibcalls/merge_attributes.ll",
+   "functions": [
+    "sqrtf"
+   ],
+   "from": "https://web.ist.utl.pt/nuno.lopes/alive2/index.php?hash=c3466a6048874dbf",
+   "id": "55db1605a6fd272b"
+  },
+  {
+   "kind": "dashboard",
+   "test": "llvm/test/Transforms/Util/call-promotion-utils-ptrcast-attribute.ll",
+   "functions": [
+    "bar"
+   ],
+   "from": "https://web.ist.utl.pt/nuno.lopes/alive2/index.php?hash=c3466a6048874dbf",
+   "id": "b935fc3d632dc53c"
+  },
+  {
+   "kind": "dashboard",
+   "test": "llvm/test/Transforms/Util/call-promotion-utils-ptrcast.ll",
+   "functions": [
+    "bar"
+   ],
+   "from": "https://web.ist.utl.pt/nuno.lopes/alive2/index.php?hash=c3466a6048874dbf",
+   "id": "c2829fa2b527bd44"
+  }
+ ]
+}

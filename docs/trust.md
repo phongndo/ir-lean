@@ -107,6 +107,7 @@ rests on crashed, ran out of something or failed, and that nothing it needs is m
 | `tests/superopt.py` | Proved, for `Rewrites.lean`, and caught, by Lean and by Alive2, for the wrong rewrite |
 | `tests/passes.py` | Certified, for an instance `tools/binding.py` binds |
 | `tests/verify_negative.py` | Certified, for a result the gate passes |
+| `bench/instcombine/stage1.py` | Proved, for a pair `tools/verify.py` proves and the negative-verification gate passes, certified, for a bundle `tools/binding.py` binds, and refuted, for a witness `tools/verify.py` decides false |
 | `tests/cpp_correspondence.py` | Proved, for the model, and caught, for each broken model |
 
 One tool decides a verdict without asking it, on purpose: [`tools/verify_claims.py`](verify-claims.md), BIND-03's

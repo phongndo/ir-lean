@@ -4,7 +4,11 @@ what a caller reads about a failure or a timeout doesn't depend on what else was
 proved isn't asked again, for the same `alive-tv`.
 
 `alive-tv` exits 0 whatever it found, including when its solver times out, so `verdict` reads its summary, and
-anything but a proof of every function or a counterexample is unknown."""
+anything but a proof of every function or a counterexample is unknown.
+
+A source that's undefined on every input is refined by any target, so `alive-tv` counts it correct, with only
+a warning. `--fail-src-ub` makes it a failure to prove instead, which `verdict` reads as unknown: a check that
+proves nothing about the target mustn't pass as one that does."""
 
 import concurrent.futures
 import hashlib
@@ -22,6 +26,13 @@ CHUNK = 32
 CORRECT = "Transformation seems to be correct!"
 # How long one `alive-tv` process may take. Past this, what it would have said is unknown.
 TIMEOUT_SECONDS = 300
+# Inputs are values or poison, as IRLean's are. And a source that's undefined everywhere isn't a proof: the
+# pinned alive-tv spells that `--fail-src-ub`.
+FLAGS = ("--disable-undef-input", "--fail-src-ub")
+# For a caller that asks each pair both ways round, as tests/vecopcheck.py does: where the model says an
+# operation is undefined, the target is too, so a source undefined everywhere is what's checked, and where the
+# model gives a value, the other direction fails if the operation is undefined.
+BOTH_WAYS = ("--disable-undef-input",)
 SUMMARY = re.compile(
     r"^\s*(\d+) (correct|incorrect|failed-to-prove) transformations$|^\s*(\d+) Alive2 errors$", re.M
 )
@@ -30,7 +41,7 @@ PROVED = os.path.join(RESULTS, "alive-proved")
 PROVED_KEPT = 100000
 
 
-def run(source, target, work):
+def run(source, target, work, flags=FLAGS):
     """What `alive-tv` says about two files of the same functions. If it doesn't finish, that's said instead,
     with no summary, so `verdict` reads it as unknown."""
     with tempfile.TemporaryDirectory(dir=work) as d:
@@ -40,7 +51,7 @@ def run(source, target, work):
                 f.write(text)
         try:
             r = subprocess.run(
-                ["alive-tv", "--disable-undef-input", a, b],
+                ["alive-tv", *flags, a, b],
                 text=True,
                 capture_output=True,
                 timeout=TIMEOUT_SECONDS,
@@ -94,21 +105,25 @@ def named(function, n):
 
 
 def check_chunk(job):
-    declarations, pairs, work = job
+    declarations, pairs, work, flags = job
     source = declarations + "".join(named(s, n) for n, (s, _) in enumerate(pairs))
     target = declarations + "".join(named(t, n) for n, (_, t) in enumerate(pairs))
-    found = proved(run(source, target, work))
+    found = proved(run(source, target, work, flags))
     return [
-        None if n in found else run(declarations + s, declarations + t, work)
+        None if n in found else run(declarations + s, declarations + t, work, flags)
         for n, (s, t) in enumerate(pairs)
     ]
 
 
-def refinements(declarations, pairs, work):
+def refinements(declarations, pairs, work, flags=FLAGS):
     """For each (source, target) pair of functions named @F, None if the source is proved to refine the
     target, and otherwise what `alive-tv` says with that pair alone."""
     tool = os.path.realpath(shutil.which("alive-tv") or "alive-tv")
-    keys = [hashlib.sha256(f"{tool}\0{declarations}\0{s}\0{t}".encode()).hexdigest() for s, t in pairs]
+    # The flags are in the key, so what was proved under other flags is asked again.
+    keys = [
+        hashlib.sha256(f"{tool}\0{' '.join(flags)}\0{declarations}\0{s}\0{t}".encode()).hexdigest()
+        for s, t in pairs
+    ]
     try:
         with open(PROVED) as f:
             known = set(f.read().split())
@@ -117,7 +132,9 @@ def refinements(declarations, pairs, work):
     asked = [n for n, key in enumerate(keys) if key not in known]
     chunks = [asked[i : i + CHUNK] for i in range(0, len(asked), CHUNK)]
     with concurrent.futures.ThreadPoolExecutor(max_workers=os.cpu_count() or 4) as pool:
-        results = pool.map(check_chunk, [(declarations, [pairs[n] for n in chunk], work) for chunk in chunks])
+        results = pool.map(
+            check_chunk, [(declarations, [pairs[n] for n in chunk], work, flags) for chunk in chunks]
+        )
         outputs = [None] * len(pairs)
         for chunk, result in zip(chunks, results, strict=True):
             for n, output in zip(chunk, result, strict=True):
