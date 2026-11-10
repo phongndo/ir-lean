@@ -23,7 +23,7 @@ Under that, each chunk's percentage at each gate:
 
 | # | Chunk | G0 Coverage | G1 Instances | G2 All inputs | G3 Bound | G4 Composed |
 | --- | --- | --- | --- | --- | --- | --- |
-| 1 | Peepholes | Not measured. InstCombine alone: 38.4% | Not measured | Not measured | Not measured | 0 of 4 |
+| 1 | Peepholes | Not measured. InstCombine alone: 40.2% | Not measured. InstCombine alone: 0.11% | 7.69%: 244 of 3,174 rewrites | Not measured | 0 of 4 |
 | 2 | Scalar, no memory | Not measured | Not measured | Not measured | Not measured | 0 of 63 |
 | 3 | Memory | Not measured | Not measured | Not measured | Not measured | 0 of 41 |
 | 4 | Loops | Not measured | Not measured | Not measured | Not measured | 0 of 37 |
@@ -144,20 +144,22 @@ Where it stands:
 
 | Pass | G0 | G1 | G2 | G3 | G4 |
 | --- | --- | --- | --- | --- | --- |
-| `instcombine` | 40.2%: 12,547 of 31,240 pairs translate | 0.11%: 34 of 31,240 pairs certified | Not measured | Not measured | Not done |
-| `instsimplify` | Not measured | Not measured | Not measured | Not measured | Not done |
-| `aggressive-instcombine` | Not measured | Not measured | Not measured | Not measured | Not done |
-| `reassociate` | Not measured | Not measured | Not measured | Not measured | Not done |
+| `instcombine` | 40.2%: 12,547 of 31,240 pairs translate | 0.11%: 34 of 31,240 pairs certified | 0%: 0 of 2,536 rewrites proved | Not measured | Not done |
+| `instsimplify` | Not measured | Not measured | 45.1%: 244 of 541 rewrites proved | Not measured | Not done |
+| `aggressive-instcombine` | Not measured | Not measured | 0%: 0 of 37 rewrites proved | Not measured | Not done |
+| `reassociate` | Not measured | Not measured | 0%: 0 of 60 rewrites proved | Not measured | Not done |
 
 InstCombine's G0 and G1 are from S1's run on 2026-11-09, with `main` at `b9446de`
 ([stage 1](stage1.md#chunk-1s-gates-for-instcombine)). Its G0 was recorded as 38.4% before, counting only the pairs
-without memory. G0 and G1 across chunk 1's other three passes come next.
+without memory. G0 and G1 across chunk 1's other three passes come next. G2 is what `tests/peephole.py score` counted
+on 2026-11-09, against INV-04's 3,174 rewrites ([rewrite proofs](rewrite-proofs.md)).
 
 What exists and doesn't count yet:
 
 - **33 rewrites proved for every width,** from InstSimplify and InstCombine, in
   [#48](https://github.com/phongndo/ir-lean/pull/48) ([generic rewrites](generic-rewrites.md)), with their lemmas in
-  the store. They were chosen by hand, so they aren't a share of G2 until INV-04's list exists to count them against.
+  the store. They were chosen by hand, not from INV-04's list, so they aren't a share of G2: they're a source of lemmas
+  for the rewrites that are.
 - **Gate B0:** the [prototype](binding-approach.md#the-prototype) proves the compiled `llvm::isKnownNegation` computes
   #47's model of it, with 6 calls out of the module cut. A function with a cut doesn't count at G3.
 

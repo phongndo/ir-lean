@@ -57,15 +57,20 @@ def canonical(obj: Any) -> bytes:
     return json.dumps(obj, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode()
 
 
+def _unlistable(error: OSError) -> None:
+    """For os.walk, which otherwise skips a directory it can't list, so it would read as an empty one."""
+    raise error
+
+
 def walk(*roots: Path) -> list[Path]:
     """Every file, directory and link under `roots`, or `roots` themselves if they're files, without following
-    links, in a fixed order."""
+    links, in a fixed order. Raises OSError for a directory it can't list."""
     out = []
     for root in roots:
         if not root.is_dir() or root.is_symlink():
             out.append(root)
             continue
-        for d, subdirs, files in os.walk(root):
+        for d, subdirs, files in os.walk(root, onerror=_unlistable):
             out += [Path(d) / name for name in subdirs + files]
     return sorted(out)
 
@@ -149,7 +154,7 @@ def snapshot(*dirs: Path) -> dict[str, str]:
     """Every entry under `dirs`, without following links: a file by its hash, a link by its target."""
     out = {}
     for d in dirs:
-        for root, subdirs, files in os.walk(d):
+        for root, subdirs, files in os.walk(d, onerror=_unlistable):
             for name in subdirs + files:
                 p = Path(root) / name
                 out[str(p)] = (

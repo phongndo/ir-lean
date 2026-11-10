@@ -8,9 +8,11 @@ The dev shell works on Linux and on Apple silicon Macs. The proofs compile for x
 they check the same IR everywhere. On Macs, `lint` and `lsp` fail on C++ only: `clang-tidy` and `clangd` report
 errors there that don't appear on Linux, so use `-LE 'lint|slow'` to skip them.
 
-Run `lake build`, then `ctest --test-dir build`. Add `-LE slow` to skip `zlib_slow`. With that, on 32 cores, a first
-run takes about a minute. A run with nothing changed takes about 4 s, apart from `llvm` and `superopt`, which check
-everything every time, in about a minute.
+Run `lake build`, then `ctest --test-dir build`. Add `-LE slow` to skip `zlib_slow`. With that, on 32 cores and 30 GB,
+a first run took about 18 minutes on 2026-11-10, and a run with nothing changed about 17, while other work ran on the
+same machine. The caches below keep what compiled and what Alive2 proved, but the longest tests check everything every
+time, at 100 to 190 s each: `verify_claims`, `passes`, `fpcheck`, `store`, `prooftest_t1`, `binding`, `binding_2`,
+`stage1`, `llvm` and `llvm_closure`.
 
 `llama` needs llama.cpp's source, which only `nix develop .#llama` has, so it skips in the default shell. Run it with
 `nix develop .#llama -c ctest --test-dir build -L llama`, which takes under 3 minutes with 6 Lean jobs.
@@ -239,8 +241,8 @@ names that file, ignoring case. Tests read a document by naming it:
 | Any document `tests/llvm_scope/coverage.json` gives as evidence | `tests/llvm_scope.py`, which checks the evidence's hash |
 | Every Markdown file | `tests/lint.sh` and `tests/lsp.py`, the lint job's, which runs on every pull request |
 
-A name in a comment counts too, so as of 2026-11-08 only `docs/llama-q5.md`, `docs/prior-art.md`, `docs/roadmap.md` and
-new documents can skip the tests. Removing or renaming a file always runs them, since a test can check that a file it
+A name in a comment counts too, so as of 2026-11-10 only `docs/llama-q5.md`, `docs/prior-art.md` and new documents can
+skip the tests. Removing or renaming a file always runs them, since a test can check that a file it
 was told about exists. The rule only sees names: a test that read every document by a pattern would have to be added to
 it. Lint runs either way, and pushes to `main` and manual runs run everything. A skipped job counts as passed for a
 required check, so the tests are skipped only when that job says so: if it fails, they run. `needs_tests` tests the

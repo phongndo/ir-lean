@@ -123,7 +123,7 @@ required one to pass and none of the others to fail. The decision is one functio
 | --- | --- | --- |
 | `request`, `toolchain`, `inputs` | Yes | The request is well formed, the tools are there, and every input is copied and hashed |
 | `compile_c` | If C | clang compiled it, with `PROOF_CFLAGS` and `-O2 -fno-strict-aliasing` unless `cflags` says otherwise |
-| `ir_valid` | Yes | `opt -passes=verify` accepts the IR. ir-lean doesn't run LLVM's verifier, and hand-written or generated IR can fail it |
+| `ir_valid` | Yes | `opt -passes=verify` accepts the IR. ir-lean runs LLVM's verifier too and refuses IR it rejects; this checks it independently, and hand-written or generated IR can fail it |
 | `translate`, `generate` | Yes | ir-lean translated the function, and wrote the module |
 | `compile_generated`, `compile_support`, `compile_proof` | Yes | Lean checked each, in that order |
 | `claim`, `theorem` | Yes | The theorem is declared in the proof module, and is a theorem of a proposition |

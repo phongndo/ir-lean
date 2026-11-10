@@ -210,6 +210,11 @@ class Classify(unittest.TestCase):
         # An operand changed first: left out, even where the answers differ.
         t = self.outcome(fires, after("%r", changed=True))
         self.assertEqual((t.operand_changed, t.compared, t.mismatched), (1, 0, 0))
+        # The model builds new IR and opt rewrote the root: counted as fired_new_ir, not compared.
+        new_ir = {"result": {"value": {"k": "bin", "w": 8, "op": "add"}}, "site": "IS.f.L1"}
+        with mock.patch.object(peephole, "compare_new_ir", return_value=None):
+            t = self.outcome(new_ir, after("0"))
+        self.assertEqual((t.fired_new_ir, t.compared, t.matched, t.mismatched), (1, 0, 0, 0))
 
     def test_an_analysis_that_answers_otherwise_explains_nothing(self) -> None:
         """`@and_trunc_nuw_implied` in and-or-implied-cond.ll: with an oracle that says yes, the model of

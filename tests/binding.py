@@ -815,7 +815,9 @@ def main() -> int:
     if runs("time_limit"):
         # The certificate that ran out of time mustn't still be running.
         ran += 1
-        left = proc.run(["pgrep", "-f", "binding/tests/.*Cert.lean|runs/.*/Fx/Cert.lean"]).out
+        pg = proc.run(["pgrep", "-f", "binding/tests/.*Cert.lean|runs/.*/Fx/Cert.lean"])
+        # pgrep exits 0 with matches, 1 for none, 2/3 on an error; only 0 or 1 is an answer.
+        left = pg.out if pg.exit in (0, 1) else f"pgrep error (exit {pg.exit})"
         if left:
             failures.append(f"time_limit: left running: {left}")
         else:
@@ -841,7 +843,8 @@ def main() -> int:
         # Code that ran while the certificate compiled doesn't outlive it.
         ran += 1
         verdict = verify(record("leaves_process", LEAVES_PROCESS))
-        left = proc.run(["pgrep", "-f", "sleep 313.7"]).out
+        pg = proc.run(["pgrep", "-f", "sleep 313.7"])
+        left = pg.out if pg.exit in (0, 1) else f"pgrep error (exit {pg.exit})"
         if verdict.get("status") != "bound" or left:
             failures.append(
                 f"leaves_process: {verdict.get('status')} {verdict.get('reason')}, left: {left!r}"

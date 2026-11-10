@@ -123,7 +123,7 @@ const std::set<std::string> &reservedNames() {
         "loop", "none", "noundef", "ret", "run", "select", "some", "step", "sw", "true", "unreachable",
         "HasPoison", "Mem", "Ptr", "PtrVal", "initial", "m", "indirect", "Vec", "Vector", "a", "b", "Unit",
         "Nat", "BitVec", "Array", "promised", "runPromised", "Choice", "Outcomes", "World", "Trace", "Exit",
-        "Lanes", "Event", "Answer", "Promises", "Talks",
+        "Lanes", "Event", "Answer", "Promises", "Talks", "FP", "X86", "VScale", "noundefAll",
         // Names Lean generates for every inductive type.
         "below", "binductionOn", "brecOn", "casesOn", "ctorElim", "ctorElimType", "ctorIdx", "ibelow",
         "injEq", "noConfusion", "noConfusionType", "rec", "recOn", "sizeOf", "toCtorIdx"};
@@ -400,6 +400,12 @@ public:
         Declared.push_back(&G);
         continue;
       }
+      // Memory has address space 0 only, as for a global another module defines, below.
+      if (G.getAddressSpace() != 0) {
+        Rejected[&G] =
+            "global @" + G.getName().str() + " in address space " + std::to_string(G.getAddressSpace());
+        continue;
+      }
       if (!hasExactLinkage(G) || G.isExternallyInitialized()) {
         Rejected[&G] = "global @" + G.getName().str() + ", whose initial value may not be this one";
         continue;
@@ -407,7 +413,9 @@ public:
       Add(G, false);
     }
     for (const Function &F : M) {
-      if (!F.hasAddressTaken())
+      // An `extern_weak` function may not be there at all, and its address null, and memory has address
+      // space 0 only. Neither gets an address, so a constant naming one is refused.
+      if (!F.hasAddressTaken() || F.hasExternalWeakLinkage() || F.getAddressSpace() != 0)
         continue;
       FunctionAddresses[&F] = {GlobalNames.make("fn_" + F.getName().str(), "fn"), Block++};
       if (!F.isDeclaration())
@@ -629,9 +637,10 @@ private:
         V = G->getPointerOperand();
       } else if (auto *A = dyn_cast<GlobalAlias>(V)) {
         V = A->getAliasee();
-      } else if (auto *O = dyn_cast<Operator>(V)) {
+      } else if (auto *O = dyn_cast<Operator>(V); O && O->getOpcode() != Instruction::AddrSpaceCast) {
         V = O->getOperand(0);
       } else {
+        // An `addrspacecast` among them: a pointer in another address space isn't this one.
         reject("constant " + printed(*C));
       }
     }
@@ -1425,8 +1434,11 @@ void FunctionEmitter::computeLiveness() {
       BitVector Out(N);
       for (const BasicBlock *S : successors(Blocks[B])) {
         BitVector FromSucc = LiveIn[BlockIndex.lookup(S)];
-        for (const PHINode &P : S->phis()) {
+        // Every phi is taken out before any incoming value is put in: a phi's incoming value can be another
+        // phi of the same block, as in a loop that swaps two values, and it's live here all the same.
+        for (const PHINode &P : S->phis())
           FromSucc.reset(ValueIndex.lookup(&P));
+        for (const PHINode &P : S->phis()) {
           const Value *In = P.getIncomingValueForBlock(Blocks[B]);
           if (IsTracked(In))
             FromSucc.set(ValueIndex.lookup(In));
@@ -2653,6 +2665,10 @@ void FunctionEmitter::emitCall(const CallBase &C, std::vector<Line> &Out) {
     return;
   }
   if (const auto *Intr = dyn_cast<IntrinsicInst>(&C)) {
+    // `llvm.assume`'s bundles are its own, and `emitIntrinsic` reads them. On any other intrinsic a bundle
+    // says something of the call that isn't modeled, as on a call to a function, below.
+    if (C.hasOperandBundles() && Intr->getIntrinsicID() != Intrinsic::assume)
+      reject("instruction " + printed(C));
     if (!emitIntrinsic(*Intr, Out))
       reject("intrinsic " + Intr->getCalledFunction()->getName().str());
     checkCallResult(C, Out);
@@ -2818,7 +2834,7 @@ void FunctionEmitter::emitOutsideCall(const CallBase &C, std::vector<Line> &Out)
   addExit(C, Out, "out'", Expr);
   if (auto *I = dyn_cast<IntegerType>(C.getType()))
     addLet(C, Out, "Lanes.toVal " + std::to_string(I->getBitWidth()) + " out'");
-  else if (auto *V = dyn_cast<FixedVectorType>(C.getType()))
+  else if (auto *V = dyn_cast<FixedVectorType>(C.getType()); V && V->getElementType()->isIntegerTy())
     addLet(C, Out,
            "Lanes.toVec " + std::to_string(V->getNumElements()) + " " +
                std::to_string(V->getElementType()->getIntegerBitWidth()) + " out'");
@@ -3275,12 +3291,20 @@ bool usesMemoryDirectly(const Function &F) {
           default:
             break;
           }
-        else if (isa<CallBase>(I))
+        // A call to a function is judged by what the function needs. A call through anything else, a
+        // pointer or an alias, compares that with each function's address, which is in memory.
+        else if (const auto *Call = dyn_cast<CallBase>(&I)) {
+          if (!Call->getCalledFunction())
+            return true;
           continue;
+        }
         return true;
       }
+      // Only the function a call names isn't a pointer the code computes with: another function's address,
+      // compared or converted, is read from memory.
+      const auto *Call = dyn_cast<CallBase>(&I);
       for (const Use &U : I.operands())
-        if (U->getType()->isPointerTy() && !isa<Function>(U.get()))
+        if (U->getType()->isPointerTy() && !(Call && Call->isCallee(&U) && isa<Function>(U.get())))
           return true;
     }
   return false;
@@ -3436,8 +3460,9 @@ Emitted emitModule(Module &M, const std::string &Namespace, const std::string &S
     }
   }
 
-  // Modules are files, and some filesystems ignore case.
-  std::set<std::string> ModuleNames;
+  // Modules are files, and some filesystems ignore case. `Globals` is the module of the globals, which a
+  // function named that would otherwise overwrite.
+  std::set<std::string> ModuleNames = {"globals"};
   auto uniqueModuleName = [&](const std::string &Name) {
     std::string Unique = Name;
     for (unsigned I = 1;; ++I) {

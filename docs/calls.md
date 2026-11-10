@@ -317,7 +317,7 @@ undefined, like unwinding through a function marked so.
   `Mem.call`, which don't pass an `Exit` through yet, so a call outside the module there is refused until they do.
 - **Calls through a pointer** to anything outside the module keep stopping the model, `unknownCallee`.
 - **A call to an `extern_weak` declaration** is refused: the function may not be there at all, and its address null,
-  as for an `extern_weak` global.
+  as for an `extern_weak` global. A constant that names its address is refused too.
 
 ## Calls that touch memory
 

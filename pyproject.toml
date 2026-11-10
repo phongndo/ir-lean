@@ -40,8 +40,6 @@ ignore = ["SIM905", "RUF001"]
 "tests/irlean_test.py" = ["TID251"]
 # Runs in CI before the dev shell exists, on the runner's own Python, so it stands alone.
 ".github/needs-tests.py" = ["TID251"]
-# The stage-1 lane edits it on 2026-11-09. It moves onto irlean once that lands.
-"tests/alive.py" = ["TID251"]
 # Research prototypes outside CI, which reproduce what docs/lemma-reuse.md and docs/binding-approach.md
 # measured, and which nothing here runs, so they aren't changed untested.
 "prototypes/**/*.py" = ["TID251"]
@@ -50,8 +48,6 @@ ignore = ["SIM905", "RUF001"]
 "tests/llama/rewrite.py" = ["TID251"]
 # It checks tools/verify.py leaves nothing running, which irlean.proc would clean up before it looked.
 "tests/verify.py" = ["TID251"]
-# The stage-1 lane's harness, not on main on 2026-11-09. It moves onto irlean once it lands.
-"bench/instcombine/stage1.py" = ["TID251"]
 # BIND-03's independent verifier, docs/llvm-verification-tasks.md: it shares no code with any scorer, so it
 # runs commands and hashes without irlean, and must never import it.
 "tools/verify_claims.py" = ["TID251"]

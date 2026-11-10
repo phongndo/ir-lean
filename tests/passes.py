@@ -948,10 +948,15 @@ class Scorer:
         )
         stop = self.stopped(r, "lean on the certificate")
         if stop:
+            # Marked as the proof step, so the self-check can tell a limit here, which is the automation
+            # failing to prove a wrong rewrite, from one at an earlier step that never reached the proof.
+            stop["step"] = "certificate"
             return stop
         if r.code != 0:
             m = LEAN_ERROR.search(r.out + r.err)
-            return result("failed", "proof_not_found", m.group(3) if m else (r.out + r.err)[-300:])
+            return result(
+                "failed", "proof_not_found", m.group(3) if m else (r.out + r.err)[-300:], step="certificate"
+            )
         return None
 
     def bind(self, r: Run, key: str, input_ll: bytes, function: str, cert: str, ns: str) -> dict:
@@ -1177,7 +1182,7 @@ def mutants_passed(scorer: Scorer) -> dict | None:
             and entry.get("salt") == scorer.salt
             and set(mutants) == {m[0] for m in MUTANTS}
             and all(
-                v.get("status") in ("failed", "unknown") and v.get("reason") != "no_automation"
+                v.get("status") in ("failed", "unknown") and v.get("step") == "certificate"
                 for found in mutants.values()
                 for v in found.values()
             )
@@ -1211,14 +1216,17 @@ def self_check(scorer: Scorer, jobs: int = 1) -> dict:
         attempts = list(ex.map(attempt, [] if cached is not None else MUTANTS))
     for name, found in attempts:
         statuses = sorted({v["status"] for v in found.values()})
-        out["mutants"][name] = {n: {"status": v["status"], "reason": v["reason"]} for n, v in found.items()}
-        # It has to fail in the proof itself: anything else, such as unsupported, would hide a wrong
-        # certificate.
-        if statuses not in (["failed"], ["unknown"]) or any(
-            v["reason"] == "no_automation" for v in found.values()
-        ):
+        out["mutants"][name] = {
+            n: {"status": v["status"], "reason": v["reason"], "step": v.get("step")} for n, v in found.items()
+        }
+        # Every instance has to have failed in the proof itself (step `certificate`). A `failed` or `unknown`
+        # from an earlier step, such as a limit stopping the report or compiling a side, never reached the
+        # proof, so counting it would let a limit pass for the wrong rewrite being caught, as an `unsupported`
+        # would. `no_automation` is a `failed` with no step, and is rejected for the same reason.
+        reached_proof = bool(found) and all(v.get("step") == "certificate" for v in found.values())
+        if statuses not in (["failed"], ["unknown"]) or not reached_proof:
             out["ok"] = False
-            out["problems"].append(f"mutant {name!r} didn't fail to prove: {found}")
+            out["problems"].append(f"mutant {name!r} didn't fail in the proof: {found}")
     control = scorer.work / "selfcheck" / "control.ll"
     control.parent.mkdir(parents=True, exist_ok=True)
     control.write_text(CONTROL)

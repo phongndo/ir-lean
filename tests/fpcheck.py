@@ -681,23 +681,35 @@ def check_native(table, results, work):
         # The rest has to build everywhere, which shows the driver does. `fp128` and `i128` need library calls
         # a backend may not have, as AArch64's has none for `uitofp i128` to `bfloat`, or a host may not link.
         r = None
-        for argv in (
-            ["clang", "-O0", "-w", "-c", "-o", os.path.join(d, "main.c.o"), os.path.join(d, "main.c")],
-            ["clang", "-O0", "-w", "-c", "-o", os.path.join(d, "ops.ll.o"), os.path.join(d, "ops.ll")],
-            [
-                "clang",
-                "-o",
-                os.path.join(d, "run"),
-                os.path.join(d, "main.c.o"),
-                os.path.join(d, "ops.ll.o"),
-                "-lm",
-            ],
+        failed_step = -1
+        for step, argv in enumerate(
+            (
+                ["clang", "-O0", "-w", "-c", "-o", os.path.join(d, "main.c.o"), os.path.join(d, "main.c")],
+                ["clang", "-O0", "-w", "-c", "-o", os.path.join(d, "ops.ll.o"), os.path.join(d, "ops.ll")],
+                [
+                    "clang",
+                    "-o",
+                    os.path.join(d, "run"),
+                    os.path.join(d, "main.c.o"),
+                    os.path.join(d, "ops.ll.o"),
+                    "-lm",
+                ],
+            )
         ):
             r = proc.run(argv)
             if r.exit != 0:
+                failed_step = step
                 break
+        assert r is not None  # the loop above always runs at least once
         if r.exit != 0:
-            if group == "rest":
+            # Only the link step (2) failing on its own with a missing-library error is the "this host can't
+            # build it" case this group allows. A compile error (step 0 or 1), a signal death (exit < 0), a
+            # crash exit code (>= 128), or a resource limit is a real failure that mustn't silently drop every
+            # fp128/i128 case from the oracle, even if its partial output mentions "undefined".
+            link_missing_lib = (
+                failed_step == 2 and r.limit is None and 0 < r.exit < 128 and "undefined" in r.output.lower()
+            )
+            if group == "rest" or not link_missing_lib:
                 sys.exit(f"building the processor's check failed:\n{r.output[:2000]}")
             found = [
                 line

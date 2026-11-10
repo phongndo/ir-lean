@@ -426,7 +426,9 @@ def main():
         )
         for b in bad[:25]:
             print("  WRONG", b)
-        failed = bool(bad)
+        # Zero agreements means the folder compared nothing (opt's output stopped matching, or it folded
+        # nothing): the oracle went silent, which its siblings fpcheck/vecopcheck/x86check also refuse.
+        failed = bool(bad) or not agreed
         if use_alive:
             alive, ours = llvm_version("alive-tv"), llvm_version("opt")
             print(f"alive2: built on LLVM {alive}, and this code is on LLVM {ours}")

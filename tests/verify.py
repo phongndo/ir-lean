@@ -250,6 +250,10 @@ def check_check(name: str, value: str) -> Callable[[dict[str, Any], Path], str |
 def check_nothing_left(result: dict[str, Any], directory: Path) -> str | None:
     """Nothing the run started is still running."""
     left = proc.run(["pgrep", "-f", str(directory / "work")])
+    # pgrep exits 0 with matches, 1 for none, and 2/3 on an error, also with empty output. Only 0 or 1 is an
+    # answer; anything else means the check didn't run, not that nothing is left.
+    if left.exit not in (0, 1):
+        return f"pgrep failed (exit {left.exit}): {left.output.strip()[:300]}"
     return expect(not left.out.strip(), f"still running: {left.out.strip()}")
 
 

@@ -68,7 +68,6 @@ KINDS = (
     "operand bundle",
     "form",
 )
-POSITIONS = ("function", "parameter", "return", "call", "call parameter", "call return")
 CLASSES = {
     "modeled": "IRLean gives it LLVM's meaning, checked on each run or computed, as LangRef at the pin says",
     "assumed": "Translated, and the model ignores it: it only guides optimization, lowering or tools, or it "

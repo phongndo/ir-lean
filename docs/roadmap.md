@@ -354,7 +354,7 @@ spend no effort on them until these work.
 
 | Horizon | Platform track | Chunks |
 | --- | --- | --- |
-| **Now** | Semantics lanes for floating point (SEM-05), the long tail (SEM-08 and the remaining refusals), and external calls and globals, whose design is in [#81](https://github.com/phongndo/ir-lean/pull/81), open. The binding verifier, BIND-03, with gate B1, and BIND-02 toward gate B2 | Chunk 1: S1 finishing, then G0 and G1 across its four passes. INV-04, in [#79](https://github.com/phongndo/ir-lean/pull/79), open, and the G2 burn-down |
+| **Now** | Semantics lanes for floating point (SEM-05), the long tail (SEM-08 and the remaining refusals), and external calls and globals, whose design is in [#81](https://github.com/phongndo/ir-lean/pull/81). The binding verifier, BIND-03, with gate B1, and BIND-02 toward gate B2 | Chunk 1: S1 finishing, then G0 and G1 across its four passes. INV-04, in [#79](https://github.com/phongndo/ir-lean/pull/79), and the G2 burn-down |
 | **Next** | F4, memory in `Refines` (SEM-06), when the first coverage lane lands. Binding gates B3 to B5, by [#74's gates and stop rules](binding-approach.md#gates). The tactics, AUTO-01 to 03 | Chunk 1 through G2 and G3, to its first pass done, BIND-06. The other chunks start at G0 as what they need from the platform lands. Superoptimizer v2 and proof-test tiers 2 and 3, once chunk 1's G2 is producing lemmas |
 | **Later** | E2, the executable memory model, and the safety bridge, S4, after F4 | Chunks 2 to 9 through their gates. MLIR, `inflate`, contracts, C++ and Rust, the unit-test milestone, and adoption, which wait on milestones or [aren't in the plan's order yet](#not-in-the-plans-order-yet) |
 

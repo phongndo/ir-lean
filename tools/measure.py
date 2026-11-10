@@ -60,11 +60,17 @@ def main() -> int:
         print(f"not started: {why}", file=sys.stderr)
         return proc.BUSY
     with contextlib.ExitStack() as stack:
-        lock = (
-            str(stack.enter_context(proc.heavy_lock(args.label, args.lock_wait, args.max_tree_rss_mb)))
-            if args.heavy
-            else None
-        )
+        try:
+            lock = (
+                str(stack.enter_context(proc.heavy_lock(args.label, args.lock_wait, args.max_tree_rss_mb)))
+                if args.heavy
+                else None
+            )
+        except TimeoutError as error:
+            # No slot within --lock-wait is the machine being busy, as too little memory is, not the command
+            # failing.
+            print(f"not started: {error}", file=sys.stderr)
+            return proc.BUSY
         log = stack.enter_context(args.log.open("wb")) if args.log else None
         record = proc.measure(
             argv,

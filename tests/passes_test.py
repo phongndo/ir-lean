@@ -193,7 +193,10 @@ def static(f: Failures) -> None:
         s.store(key, run, b"x", {"instances": {"f": P.result("error", "tool_failed")}})
         f.check(not (s.runs / f"{key}.json").exists(), "a run with an error isn't stored")
 
-        passed = {m[0]: {"f": {"status": "failed", "reason": "proof_not_found"}} for m in P.MUTANTS}
+        passed = {
+            m[0]: {"f": {"status": "failed", "reason": "proof_not_found", "step": "certificate"}}
+            for m in P.MUTANTS
+        }
         record = s.work / "selfcheck" / f"{s.salt}.json"
         record.parent.mkdir(parents=True, exist_ok=True)
 
@@ -208,6 +211,12 @@ def static(f: Failures) -> None:
         proved = json.loads(json.dumps(good_check))
         proved["mutants"]["off by one"]["f"]["status"] = "candidate"
         f.check(selfcheck(proved) is None, "a stored self-check where a mutant was proved is ignored")
+        early = json.loads(json.dumps(good_check))
+        early["mutants"]["off by one"]["f"] = {"status": "unknown", "reason": "resource_limit"}
+        f.check(
+            selfcheck(early) is None,
+            "a stored self-check where a mutant was stopped before the proof is ignored",
+        )
         missing = json.loads(json.dumps(good_check))
         del missing["mutants"]["loops forever"]
         f.check(selfcheck(missing) is None, "a stored self-check missing a mutant is ignored")
@@ -452,8 +461,12 @@ def live(f: Failures, keep: bool) -> None:
         check,
     )
     f.check(
-        all(v["status"] in ("failed", "unknown") for m in check["mutants"].values() for v in m.values()),
-        "no mutant is anything but failed or unknown",
+        all(
+            v["status"] in ("failed", "unknown") and v.get("step") == "certificate"
+            for m in check["mutants"].values()
+            for v in m.values()
+        ),
+        "every mutant failed in the proof itself, not at an earlier step",
         check["mutants"],
     )
     got = by_function(records)

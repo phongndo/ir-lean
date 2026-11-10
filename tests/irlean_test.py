@@ -587,6 +587,21 @@ class Hashing(unittest.TestCase):
             self.assertEqual(hashing.snapshot(root)[str(root / "l")], "link a")
             self.assertTrue(stat.S_ISLNK(hashing.stamp(root)[str(root / "l")][0]))
 
+    def test_a_directory_that_cant_be_listed_isnt_an_empty_one(self) -> None:
+        if os.geteuid() == 0:
+            self.skipTest("root can list any directory")
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            (root / "sub").mkdir()
+            (root / "sub" / "a").write_bytes(b"x")
+            (root / "sub").chmod(0)
+            try:
+                for read in (hashing.walk, hashing.stamp, hashing.snapshot):
+                    with self.assertRaises(OSError):
+                        read(root)
+            finally:
+                (root / "sub").chmod(0o700)
+
 
 class Lean(unittest.TestCase):
     # What Lean prints at each limit, as tools/verify.py's tests and tests/proofs.sh have seen it.
@@ -598,9 +613,15 @@ class Lean(unittest.TestCase):
         "solver_limit": "error: The SAT solver timed out while solving the problem.",
         "step_limit": "error: simp failed, maximum number of steps exceeded: 100000",
     }
+    # What the kernel prints at its own limits, which name no tactic: Lean 4.35's Lean/Message.lean.
+    KERNEL_SAID: ClassVar[dict[str, str]] = {
+        "heartbeat_limit": "error: (kernel) deterministic timeout",
+        "stack_limit": "error: (kernel) deep recursion detected, use `set_option maxRecDepth <num>` to "
+        "increase the limit",
+    }
 
     def test_each_limit_is_read(self) -> None:
-        for reason, text in self.SAID.items():
+        for reason, text in [*self.SAID.items(), *self.KERNEL_SAID.items()]:
             self.assertEqual(lean.limit_of(text), reason)
             self.assertTrue(lean.is_limit(text), text)
         for text in ("error: type mismatch", "unsolved goals", "error: unknown identifier 'heartbeat'"):
@@ -664,11 +685,9 @@ class Ratchet(unittest.TestCase):
         "tools/irlean/*.py",
         "tests/irlean_test.py",
         ".github/needs-tests.py",
-        "tests/alive.py",
         "prototypes/**/*.py",
         "tests/llama/rewrite.py",
         "tests/verify.py",
-        "bench/instcombine/stage1.py",
         "tools/verify_claims.py",
         "tools/verify_claims/**/*.py",
     }
@@ -732,6 +751,9 @@ class Schemas(unittest.TestCase):
             schemas.check(good, "ir-lean.made-up/1")
         with self.assertRaises(schemas.SchemaError):
             schemas.loads("{", schemas.VERIFY)
+        # Bytes that aren't UTF-8 aren't JSON either.
+        with self.assertRaises(schemas.SchemaError):
+            schemas.loads(b"\xff", schemas.VERIFY)
         self.assertEqual(schemas.loads(json.dumps(good), schemas.VERIFY), good)
 
     def test_writing_keeps_the_writers_form_and_replaces_whole(self) -> None:
@@ -773,8 +795,8 @@ class Model(unittest.TestCase):
     EXCEPTIONS: ClassVar[dict[str, str]] = {
         "tools/irlean/model.py": "it's where they're read",
         "tests/irlean_test.py": "it checks them",
-        "bench/instcombine/stage1.py": "the stage-1 lane's, which reads IRLean/Basic.lean itself, and moves "
-        "onto irlean.model once it lands",
+        "bench/instcombine/stage1.py": "it reads them through irlean.model, and names two of them, and "
+        "IRLean/Basic.lean, to check that worked",
     }
 
     def test_lean_reads_them_the_same(self) -> None:

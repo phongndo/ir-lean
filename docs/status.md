@@ -266,8 +266,8 @@ reads it. That difference is itself a thing [Phase 3](roadmap.md#phase-3-c-and-r
 9. Promises the optimizer leaves, checked or refused. Done, with `mustprogress`, `willreturn` and
    `llvm.loop.mustprogress` [since SEM-07](trust.md#promises-to-progress).
 10. `inflate`: [measured](#measured). Its next step is [its invariant](roadmap.md#phase-1-zlib-inflate-memory-safety).
-11. A [lemma store](lemma-store.md): 164 checked lemmas from #42, #46, #48 and F3 that later proofs can find, in
-    `lake build` and CI, 17 of them used by two proofs. Done in [#60](https://github.com/phongndo/ir-lean/pull/60).
+11. A [lemma store](lemma-store.md): 437 checked lemmas from #42, #46, #48, F3 and #103 that later proofs can find, in
+    `lake build` and CI, 73 of them used by two proofs. Done in [#60](https://github.com/phongndo/ir-lean/pull/60).
 12. Tier-1 proof tests, which run a property on generated inputs and have the kernel check each counterexample. Done,
     for functions without memory: [proof tests](proof-tests.md) has what they refute, and what they can't run.
 13. `freeze` in the model, F3: `freeze` of poison is a value each run chooses, and `IRLean.Refines` quantifies over each
@@ -287,7 +287,8 @@ reads it. That difference is itself a thing [Phase 3](roadmap.md#phase-3-c-and-r
     BIND-02 and PASS-05 say what each dimension has to cover. See [verifying claims](verify-claims.md).
 16. An inventory of chunk 1's rewrites, INV-04 for InstSimplify, InstCombine, AggressiveInstCombine and Reassociate:
     3,174 at `llvmorg-23.1.3`, 1,945 of them on integers only, each with an ID and its line, derived from the pinned
-    source and checked in CI. None is proved for every input yet. See [rewrite inventory](rewrite-inventory.md).
+    source and checked in CI. 244 of them are proved for every input, scored as G2 (see [chunks](chunks.md)); the
+    rest aren't yet. See [rewrite inventory](rewrite-inventory.md).
 17. Gate B1 of binding proofs to LLVM's C++, on 2026-11-09: `IRLean/LLVMHeap.lean` says what bytes in memory mean as
     LLVM's `Value`, `Use`, `ConstantInt`, `APInt` and `Type`, as the matchers read them, proved kept by
     `ConstantInt::get`, `PoisonValue::get` and `BinaryOperator::Create` as specifications of what each does to memory,

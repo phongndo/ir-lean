@@ -338,6 +338,12 @@ def axiom_check(module: str, env: dict[str, str]) -> tuple[str | None, str, core
     step = core.Step("check_axioms", code, None, out)
     said = (out.strip().splitlines() or [""])[-1]
     if code != 0:
+        if code < 0 or code >= 128:
+            # A signal death or a crash exit code (SIGKILL, SIGABRT, SIGSEGV, 134, 137...): the audit produced
+            # no verdict, so nothing is known about the module's axioms. Decided before any refusal text in
+            # the output is read -- a crashed process that happened to print "not an allowed axiom" mustn't be
+            # read as a refusal of the lemma. An error, never a refusal.
+            raise StoreError("tool_failed", f"checking {module}'s axioms was killed (exit {code}): {said}")
         if RESOURCE.search(out):
             raise StoreError("resource_limit", f"checking {module}'s axioms ran out: {said}")
         m = re.search(r"not an allowed axiom: (\S+)", out)
@@ -364,6 +370,10 @@ def replay_check(module: str, env: dict[str, str]) -> tuple[str | None, str, cor
     if code != 0:
         if RESOURCE.search(out):
             raise StoreError("resource_limit", f"replaying {module} ran out: {out[-300:]}")
+        if code < 0 or code >= 128:
+            # leanchecker killed by a signal or a crash exit code: it replayed nothing, so this decides
+            # nothing about the module. An error, not a refusal of the lemma.
+            raise StoreError("tool_failed", f"leanchecker on {module} was killed (exit {code})")
         return "replay_failed", f"{module}: {out.strip()[-500:]}", step
     return None, f"{module}: replayed", step
 
@@ -713,6 +723,8 @@ def lookup(statement: str, imports: list[str]) -> tuple[dict[str, Any], int]:
     if code != 0:
         if RESOURCE.search(out):
             raise StoreError("resource_limit", out[-2000:])
+        if code < 0 or code >= 128:
+            raise StoreError("tool_failed", f"the lookup driver was killed (exit {code}): {out[-2000:]}")
         errors = [e.split("error:", 1)[-1].strip() for e in lean_errors(out)]
         raise StoreError("statement_invalid", "; ".join(errors) or out[-2000:])
     found = json_line(out)
@@ -780,6 +792,10 @@ def add(
             if code != 0:
                 if RESOURCE.search(out):
                     raise StoreError("resource_limit", out[-2000:])
+                if code < 0 or code >= 128:
+                    raise StoreError(
+                        "tool_failed", f"compiling the candidate was killed (exit {code}): {out[-2000:]}"
+                    )
                 errors = lean_errors(out)
                 result = {
                     "schema": ADMISSION_SCHEMA,

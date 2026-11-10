@@ -3,22 +3,25 @@ starting it is most of what a small check costs. A function it can't say is righ
 what a caller reads about a failure or a timeout doesn't depend on what else was in the file. What it has
 proved isn't asked again, for the same `alive-tv`.
 
-`alive-tv` exits 0 whatever it found, including when its solver times out, so `verdict` reads its summary, and
-anything but a proof of every function or a counterexample is unknown.
+`alive-tv` exits 0 whether it found the transformation correct or incorrect, and even when its solver times
+out, so a verdict is read from its summary, not its exit code, and anything but a proof of every function or a
+counterexample is unknown. A crash is the exception: a process a signal killed may have printed `correct` for
+some functions before it died, which isn't clean evidence, so `run` reports that it died instead of returning
+the partial output, as it does a timeout, and `verdict` reads it as unknown.
 
 A source that's undefined on every input is refined by any target, so `alive-tv` counts it correct, with only
 a warning. `--fail-src-ub` makes it a failure to prove instead, which `verdict` reads as unknown: a check that
 proves nothing about the target mustn't pass as one that does."""
 
 import concurrent.futures
-import hashlib
 import os
 import re
 import shutil
-import subprocess
 import tempfile
 
+# tests/differential.py puts tools/ on the path, where the shared library is.
 from differential import RESULTS
+from irlean import hashing, proc
 
 # Functions in one process. Enough that starting it stops mattering, and few enough that one slow function
 # doesn't hold up many others.
@@ -49,17 +52,17 @@ def run(source, target, work, flags=FLAGS):
         for path, text in ((a, source), (b, target)):
             with open(path, "w") as f:
                 f.write(text)
-        try:
-            r = subprocess.run(
-                ["alive-tv", *flags, a, b],
-                text=True,
-                capture_output=True,
-                timeout=TIMEOUT_SECONDS,
-                check=False,
-            )
-        except subprocess.TimeoutExpired:
-            return f"ERROR: alive-tv didn't finish in {TIMEOUT_SECONDS} s\n"
-    return r.stdout + r.stderr
+        r = proc.run(["alive-tv", *flags, a, b], timeout=TIMEOUT_SECONDS)
+    if r.limit is not None:
+        return f"ERROR: alive-tv didn't finish in {TIMEOUT_SECONDS} s\n"
+    if r.exit != 0:
+        # alive-tv exits 0 for a complete run, whether it found the transformation correct or incorrect. Any
+        # other exit -- a signal death, 255 for IR it can't read, a crash code like 134, or 1 for a function
+        # it couldn't analyse -- means it didn't finish, so whatever it printed first isn't clean evidence:
+        # none of it is returned, `proved` finds nothing, and each pair the chunk held is asked again alone.
+        reason = f"signal {-r.exit}" if r.exit < 0 else f"exit {r.exit}"
+        return f"ERROR: alive-tv ended abnormally ({reason})\n"
+    return r.output
 
 
 def summary(output):
@@ -120,10 +123,7 @@ def refinements(declarations, pairs, work, flags=FLAGS):
     target, and otherwise what `alive-tv` says with that pair alone."""
     tool = os.path.realpath(shutil.which("alive-tv") or "alive-tv")
     # The flags are in the key, so what was proved under other flags is asked again.
-    keys = [
-        hashlib.sha256(f"{tool}\0{' '.join(flags)}\0{declarations}\0{s}\0{t}".encode()).hexdigest()
-        for s, t in pairs
-    ]
+    keys = [hashing.sha256_text(f"{tool}\0{' '.join(flags)}\0{declarations}\0{s}\0{t}") for s, t in pairs]
     try:
         with open(PROVED) as f:
             known = set(f.read().split())
