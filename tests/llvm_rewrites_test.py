@@ -236,7 +236,7 @@ def test_rule(failures: list[str]) -> None:
         failures.append("rule: a site behind m_APInt is integers only")
     if needs.get(line_of(TOY, "return &I;", 2)) != ["memory"]:
         failures.append(
-            f"rule: a site after an inttoptr should need memory: {needs.get(line_of(TOY, 'return &I;', 3))}"
+            f"rule: a site after an inttoptr should need memory: {needs.get(line_of(TOY, 'return &I;', 2))}"
         )
     kinds = {r["line"]: r["kind"] for r in inv["rewrites"]}
     if kinds.get(line_of(TOY, "replaceUse(U, X);")) != "change":
@@ -462,13 +462,15 @@ def mutate(src: Path, tmp: Path, rel: str, old: str, new: str) -> Path:
     return root
 
 
-def test_check(failures: list[str]) -> None:
+def test_check(failures: list[str]) -> bool:
+    """The mutation check against the pinned source. Returns whether it ran, so a skip isn't reported as a
+    pass. Needs the dev shell for LLVM_PROJECT_SRC; ctest always has it."""
     env = os.environ.get("LLVM_PROJECT_SRC")
     if not env:
         print(
             "skipped the check against the pinned source: LLVM_PROJECT_SRC isn't set, so not in the dev shell"
         )
-        return
+        return False
     src = lr.source()
     recorded = {p: lr.load(lr.HERE / f"{p}.json") for p in lr.PASSES}
     simplify = "lib/Analysis/InstructionSimplify.cpp"
@@ -512,6 +514,7 @@ def test_check(failures: list[str]) -> None:
         got_short = [g.split(" at ")[0].split(" from ")[0] for g in got]
         if got_short != expect:
             failures.append(f"check, {name}: expected {expect}, got {got}")
+    return True
 
 
 def main() -> int:
@@ -519,11 +522,14 @@ def main() -> int:
     test_rule(failures)
     test_generic_pass(failures)
     test_intrinsic_cases(failures)
-    test_check(failures)
+    ran_check = test_check(failures)
     for f in failures:
         print(f"FAIL {f}")
-    print("ok" if not failures else f"{len(failures)} failures")
-    return 1 if failures else 0
+    if failures:
+        print(f"{len(failures)} failures")
+        return 1
+    print("ok" if ran_check else "ok, but the check against the pinned source was skipped")
+    return 0
 
 
 if __name__ == "__main__":

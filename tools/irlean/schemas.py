@@ -96,7 +96,8 @@ def loads(text: str | bytes, schema: str) -> dict[str, Any]:
     """A record of `schema` from JSON text. Raises SchemaError if it isn't JSON, or isn't one."""
     try:
         record = json.loads(text)
-    except json.JSONDecodeError as error:
+    # Bytes that aren't UTF-8 raise UnicodeDecodeError, which is a ValueError as JSONDecodeError is.
+    except ValueError as error:
         raise SchemaError(f"not JSON, so not {schema}: {error}") from error
     return check(record, schema)
 

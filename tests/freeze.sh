@@ -25,7 +25,7 @@ fail() {
   failed=1
 }
 # Resource limits say a proof might check with more, so they never count as a failure of its own.
-limit='maximum number of heartbeats|\(deterministic\) timeout|maximum recursion depth|deep recursion|stack overflow|'
+limit='maximum number of heartbeats|deterministic\)? timeout|maximum recursion depth|deep recursion|stack overflow|'
 limit+='excessive memory|out of memory|maximum number of steps'
 
 # Each case, as the module CASE_ir, from tests/freeze and from the Alive2 cases with a `freeze` and no `undef`.
@@ -81,6 +81,8 @@ elif [ "$status" = 0 ]; then
   fail "$file checks, so a wrong rewrite was certified" "$out"
 elif [ -z "$errors" ] || ! grep -qvE "$limit" <<<"$errors"; then
   fail "$file stops only at a resource limit or never says why, which isn't a failure of its own" "$out"
+elif grep -qiE 'unknown (identifier|constant|tactic|namespace)|unexpected (token|identifier)' <<<"$errors"; then
+  fail "$file fails because the proof text can't be read (a renamed or removed name), not because the rewrite is wrong" "$out"
 else
   printf 'ok    %s fails: %s\n' "$file" "$(head -1 <<<"$errors" | cut -c1-200)"
 fi

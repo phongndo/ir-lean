@@ -123,8 +123,10 @@ Before scoring, seven known-wrong rewrites have to fail in the proof, as `failed
 `instcombine` folding `add 1` then `sub 1`, has to be bound end to end, or nothing is scored and the exit code is 1.
 The wrong ones each have `noundef` arguments, so they reach the proof: a wrong constant, an added `nuw`, poison
 where there was a value, added undefined behavior, a dropped branch guard, a duplicated `freeze`, which until F3
-both sides stopped the model on and since then chooses apart, and a loop that never ends. A wrong rewrite that comes back `unsupported` fails the check too,
-since it never reached the proof. `score.json`'s `self_check` has each one's result.
+both sides stopped the model on and since then chooses apart, and a loop that never ends. Only a `failed` or an
+`unknown` from the certificate step itself counts: a wrong rewrite that comes back `unsupported`, or `unknown`
+from a limit at an earlier step, such as the report or compiling a side, fails the check too, since it never
+reached the proof. `score.json`'s `self_check` has each one's result, with the step it ended at.
 
 A self-check where every mutant failed is kept in `WORK/selfcheck/SALT.json`, and its mutants' results are reused
 by a run with the same salt, the run key's first part: a mutant never reaches `tools/binding.py`, so its result

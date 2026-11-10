@@ -214,7 +214,7 @@ must_reject() {
 
 # Lean's errors for running out of time, memory or stack, in a tactic or the kernel. A proof that stops at one of
 # these might check with more, so it says nothing about whether the code it's about changed.
-limit='maximum number of heartbeats|\(deterministic\) timeout|maximum recursion depth|deep recursion|stack overflow|'
+limit='maximum number of heartbeats|deterministic\)? timeout|maximum recursion depth|deep recursion|stack overflow|'
 limit+='excessive memory|out of memory|SAT solver timed out|maximum number of steps'
 
 # Whether a proof fails with an error of its own, which is all a broken proof needs to show, so this doesn't

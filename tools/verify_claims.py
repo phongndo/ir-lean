@@ -75,7 +75,7 @@ MODULE = re.compile(r"[A-Za-z_][A-Za-z0-9_]*(\.[A-Za-z_][A-Za-z0-9_]*)*")
 # Lean's messages for running out of time, memory, stack, heartbeats or the solver's time. Hitting one says
 # nothing about the evidence, so it's unknown, never refused.
 LIMIT = re.compile(
-    r"maximum number of heartbeats|\(deterministic\) timeout|maximum recursion depth|deep recursion|"
+    r"maximum number of heartbeats|deterministic\)? timeout|maximum recursion depth|deep recursion|"
     r"stack overflow|out of memory|excessive memory|memory limit|SAT solver timed out|resource exhausted|"
     r"not enough memory|cannot allocate memory|"
     r"maximum number of steps",
@@ -157,11 +157,17 @@ def run(
 
 
 def need(r: Ran, reason: str, what: str) -> Ran:
-    """A step that has to succeed: unknown if a limit stopped it, refused with `reason` otherwise."""
+    """A step that has to succeed: unknown if a limit stopped it, an error if it crashed, refused with
+    `reason` only when it ran and ended on its own with a non-zero exit."""
     if r.ok:
         return r
     if r.limited():
         raise Stop("unknown", "limit", f"{what}: {r.text()}")
+    # A signal death (other than SIGKILL, which limited() reads as a cap) or a crash / could-not-execute exit
+    # code (126 and above): the tool didn't do its job, so nothing was learned about the evidence. That's an
+    # error, never a refusal of the evidence.
+    if r.exit is not None and (r.exit < 0 or r.exit >= 126):
+        raise Stop("error", "tool_failed", f"{what} was killed (exit {r.exit}): {r.text()}")
     raise refuse(reason, f"{what}: {r.text()}")
 
 

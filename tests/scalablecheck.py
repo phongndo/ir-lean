@@ -526,6 +526,11 @@ def check_vscale(tool, work):
         }[f]
         if got != want:
             wrong.append(f"{f} at vscale {k}: the model gives {got}, LangRef {want}")
+    # One line per (vscale 0..4, function): a short output means Lean stopped or crashed, not that nothing
+    # disagreed.
+    expected = 5 * 4
+    if len(out) != expected:
+        wrong.append(f"the vscale check printed {len(out)} lines, not the {expected} expected")
     return len(out) - len(wrong), wrong
 
 
@@ -536,7 +541,13 @@ def main():
     failed = False
     try:
         out = run_model(tool, ops, work)
-        differ = [line for line in out if line.split(" ", 2)[2].split(" | ")[0] != line.split(" | ")[1]]
+        differ = []
+        for line in out:
+            scalable, _, fixed = line.split(" ", 2)[2].partition(" | ")
+            # Two sides that both stop or both diverge aren't "the same": the model gave no answer in either
+            # form, which vecopcheck and x86check also count as wrong. Only equal real results agree.
+            if scalable != fixed or scalable in ("stop", "diverged") or fixed in ("stop", "diverged"):
+                differ.append(line)
         undefined = sum(" ub | " in line for line in out)
         print(
             f"{len(ops)} operations, {len(out)} inputs at vscale 1, 2 and 4: {len(out) - len(differ)} the "

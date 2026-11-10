@@ -323,10 +323,13 @@ fi
 
 # However large a function is, its nested blocks have to fit in the types that hold them.
 nested_blocks 3905 >"$work/Huge.ll"
-"$tool" "$work/Huge.ll" -o "$work/Huge.lean" --no-code
-groups=$(grep -c '^  | g[0-9]* (block : G[0-9]*)$' "$work/Huge.lean")
-if [ "$groups" -gt 244 ]; then
-  fail "a Lean type holds at most 244 constructors, and this has $groups"
+if ! "$tool" "$work/Huge.ll" -o "$work/Huge.lean" --no-code; then
+  fail 'the emitter should translate a 3,905-block function, not fail or crash on it'
+else
+  groups=$(grep -c '^  | g[0-9]* (block : G[0-9]*)$' "$work/Huge.lean" || true)
+  if [ "${groups:-0}" -lt 1 ] || [ "${groups:-0}" -gt 244 ]; then
+    fail "a Lean type holds between 1 and 244 constructors, and this has ${groups:-0}"
+  fi
 fi
 
 # Linkage: a definition can be proved about if it's certainly the one a run uses, or if it's this translation's copy
@@ -505,6 +508,23 @@ define ptr @f() { ret ptr @g }'
 refuses 'external global @g in address space 1' '@g = external addrspace(1) global i32
 define i32 @f() { %v = load i32, ptr addrspace(1) @g
   ret i32 %v }'
+# Memory has address space 0 only, for what this module defines too: a global, a function's address, and a constant
+# cast from one address space to another, which isn't the same pointer.
+refuses 'global @g in address space 1' 'target datalayout = "e-p1:32:32"
+@g = addrspace(1) global i32 7
+define void @f(ptr %p) { store ptr addrspace(1) @g, ptr %p
+  ret void }'
+refuses 'constant ptr addrspace(1) addrspacecast (ptr @g to ptr addrspace(1))' '@g = global i32 7
+define void @f(ptr %p) { store ptr addrspace(1) addrspacecast (ptr @g to ptr addrspace(1)), ptr %p
+  ret void }'
+refuses 'constant define void @h() addrspace(1)' 'target datalayout = "e-P1"
+define void @h() addrspace(1) { ret void }
+define void @f(ptr %p) { store ptr addrspace(1) @h, ptr %p
+  ret void }'
+# The address of an `extern_weak` function may be null, as an `extern_weak` global's may.
+refuses 'constant declare extern_weak void @g()' 'declare extern_weak void @g()
+define i1 @f() { %c = icmp ne ptr @g, null
+  ret i1 %c }'
 refuses "external global @g, whose size isn't known" '%T = type opaque
 @g = external global %T
 define ptr @f() { ret ptr @g }'
@@ -634,6 +654,14 @@ define i8 @f(ptr %p) memory(read) { %v = load i8, ptr %p
 refuses 'call to external @g, which may be null' 'declare extern_weak void @g(i8)
 define void @f(i8 %x) { call void @g(i8 %x)
   ret void }'
+# A result that isn't an integer or a vector of them has no lanes, as an argument that isn't.
+refuses 'call to external @g with a value of type <4 x float>' 'declare <4 x float> @g(i8) memory(none)
+define void @f(i8 %x) { %r = call <4 x float> @g(i8 %x)
+  ret void }'
+# An operand bundle on an intrinsic other than `llvm.assume` isn't modeled, as on a call to a function.
+refuses 'instruction %r = call i8 @llvm.umax.i8' 'declare i8 @llvm.umax.i8(i8, i8)
+define i8 @f(i8 %x, i8 %y) { %r = call i8 @llvm.umax.i8(i8 %x, i8 %y) [ "deopt"(i8 1) ]
+  ret i8 %r }'
 refuses 'calling convention' 'declare fastcc i8 @g(i8) memory(none)
 define i8 @f(i8 %x) { %r = call i8 @g(i8 %x)
   ret i8 %r }'
@@ -665,6 +693,71 @@ if out=$("$tool" "$work/Names.ll" -o "$work/Names.lean" --namespace Names --no-c
   printf 'ok    names that calls outside the module use are kept for them\n'
 else
   fail "names that calls outside the module use should be kept for them: $out"
+fi
+# What a block needs from the ones before it, and whether a function needs memory. A loop that swaps two values has
+# phis whose incoming values are each other, which are live in the block they come from. Comparing two functions'
+# addresses, and calling through an alias, read memory. And values named like what emitted code uses for floating
+# point, x86, scalable vectors and `noundef` vectors get other names.
+cat >"$work/Live.ll" <<'IR'
+define i32 @swap(i32 %n) {
+entry:
+  br label %head
+head:
+  %a = phi i32 [ 0, %entry ], [ %b, %latch ]
+  %b = phi i32 [ 1, %entry ], [ %a, %latch ]
+  %i = phi i32 [ 0, %entry ], [ %i1, %latch ]
+  %c = icmp eq i32 %i, %n
+  br i1 %c, label %exit, label %latch
+latch:
+  %i1 = add i32 %i, 1
+  br label %head
+exit:
+  ret i32 %a
+}
+declare void @f1()
+declare void @f2()
+define i1 @same() {
+  %c = icmp eq ptr @f1, @f2
+  ret i1 %c
+}
+@al = alias void (), ptr @callee
+define void @callee() {
+  ret void
+}
+define void @through() {
+  call void @al()
+  ret void
+}
+define float @named(float %FP, float %X86, <2 x i32> noundef %noundefAll, i32 %VScale) {
+  %s = fadd float %FP, %X86
+  ret float %s
+}
+IR
+cat >"$work/LiveCheck.lean" <<'LEAN'
+import Live
+open IRLean Live
+
+def value : Outcome (Val 32) → Option (BitVec 32)
+  | some (.ok (some v)) => some v
+  | _ => none
+
+#guard value (swap (some 0#32)) == some 0#32
+#guard value (swap (some 3#32)) == some 1#32
+#guard value (swap (some 4#32)) == some 0#32
+LEAN
+if out=$("$tool" "$work/Live.ll" -o "$work/Live.lean" --namespace Live 2>&1) &&
+  out=$(lean -R "$work" -o "$work/Live.olean" "$work/Live.lean" 2>&1) && out=$(lean "$work/LiveCheck.lean" 2>&1); then
+  printf 'ok    phis that read each other, function addresses compared, a call through an alias, and names of its own\n'
+else
+  fail "phis that read each other, function addresses compared, a call through an alias, or names of its own: $out"
+fi
+# A function named like the module of the globals gets a module of its own.
+printf '%s\n' '@x = global i32 5' 'define i32 @Globals() { %v = load i32, ptr @x' '  ret i32 %v }' >"$work/input.ll"
+if out=$("$tool" "$work/input.ll" --split "$work/Split" --namespace Split 2>&1) &&
+  grep -q '^def g_x : Ptr' "$work/Split/Split/Globals.lean" && [ -f "$work/Split/Split/Globals_1.lean" ]; then
+  printf 'ok    a function named Globals keeps the globals their module\n'
+else
+  fail "a function named Globals should get a module of its own: $out"
 fi
 # Under a promise to progress, one that promises to progress, and not to return, and never comes back stops the model.
 printf '%s\n' 'declare i8 @g(i8) memory(none) mustprogress

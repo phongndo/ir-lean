@@ -147,7 +147,8 @@ data layout, not assumed. Each is:
 | The index size of `getelementptr` | Its offset arithmetic | Refuses one unless it's 64 |
 
 Pointers in another address space are refused whatever the layout says, in a function and in a global's initializer,
-where their null may not be all zeros, and so are vectors of pointers in a function. LLVM's parser refuses
+where their null may not be all zeros, and so are vectors of pointers in a function. That includes a global or a
+function that's in one, and a constant `addrspacecast`. LLVM's parser refuses
 the `u` and `e` flags, an unstable representation and external state, on address space 0. A function the emitter
 gives no `Mem` has no pointer in it, so none of these changes what it computes but byte order, for `bitcast`.
 `emitter.sh` checks a layout of each kind is refused, and the classification has a form for each.

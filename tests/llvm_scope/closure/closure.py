@@ -620,6 +620,11 @@ def link(name: str, out: Path, cache: Path) -> int:
         print(r.stderr.decode(errors="replace")[-2000:])
         return 1
     report = proc.run([str(ROOT / "build" / "ir-lean"), str(out), "--report"], timeout=1800)
+    if report.limit or report.exit not in (0, 3):
+        why = report.limit or f"exit {report.exit}"
+        print(f"{name}: ir-lean --report didn't finish cleanly ({why}), so these counts would be wrong")
+        print(report.stderr.decode(errors="replace")[-2000:])
+        return 1
     lines = [ln.split("\t") for ln in report.stdout.decode().splitlines()]
     ok = [x for x in lines if x[0] == "ok"]
     refused = [x for x in lines if x[0] == "unsupported"]

@@ -88,8 +88,8 @@ What each script did for itself, outside the library, its tests and the prototyp
 
 | Done in each script | Before | After | What's left |
 | --- | ---: | ---: | --- |
-| Files importing `subprocess` | 40 | 3 | `.github/needs-tests.py`, `tests/alive.py`, `tests/verify.py`: exceptions, below |
-| Files importing `hashlib` | 26 | 2 | `tests/alive.py`, `tests/llama/rewrite.py`: exceptions |
+| Files importing `subprocess` | 40 | 2 | `.github/needs-tests.py`, `tests/verify.py`: exceptions, below |
+| Files importing `hashlib` | 26 | 1 | `tests/llama/rewrite.py`: an exception |
 | SHA-256 helpers | 19 | 1 | `tests/llama/rewrite.py`'s, an exception |
 | Kills, new sessions and rlimits | 22 | 0 | One `os.kill` is left, in a child `tests/replay_challenge.py` starts to crash itself |
 | Lean limit patterns | 6 | 0 | Each is `irlean.lean.LIMIT`. `tests/store_test.py` keeps a broader one, on purpose: a refusal it expects mustn't mention a limit at all |
@@ -120,13 +120,11 @@ Every `run` or `sh` left in a script, but for the exceptions below, calls `proc.
 
 The `irlean` test checks the exceptions to the first rule are these, so adding one means saying why:
 
-| File | Why it's an exception, on 2026-11-09 |
+| File | Why it's an exception, on 2026-11-10 |
 | --- | --- |
 | `tools/irlean/*.py` | The library, where these live |
 | `tests/irlean_test.py` | It checks `irlean.proc` and `irlean.hashing` from outside, against the standard library |
 | `.github/needs-tests.py` | It runs in CI before the dev shell exists, on the runner's own Python, so it stands alone |
-| `tests/alive.py` | The stage-1 lane edits it. It moves onto the library once that lands |
-| `bench/instcombine/stage1.py` | The stage-1 lane's harness, not on `main` yet. The same |
 | `prototypes/**/*.py` | Research prototypes outside CI, which reproduce what [lemma reuse](lemma-reuse.md) and [binding](binding-approach.md) measured, and which nothing here runs, so they aren't changed untested |
 | `tests/llama/rewrite.py` | Its own SHA-256 is recorded in committed evidence, `tests/llama/results/2026-11-07/rewrite-witness.json`, so editing it invalidates that evidence |
 | `tests/verify.py` | It checks `tools/verify.py` leaves nothing running, which `irlean.proc` would clean up before it looked |

@@ -406,6 +406,7 @@ class Routed(unittest.TestCase):
         "tests/passes.py": ["Verdict.CERTIFIED"],
         "tests/verify_negative.py": ["Verdict.CERTIFIED"],
         "tests/cpp_correspondence.py": ["Verdict.PROVED", "Verdict.CAUGHT"],
+        "bench/instcombine/stage1.py": ["Verdict.PROVED", "Verdict.CERTIFIED", "Verdict.REFUTED"],
     }
 
     def test_each_site_asks_the_core(self) -> None:
@@ -440,7 +441,16 @@ class Routed(unittest.TestCase):
         word = r"""["'](proved|bound|certified|refuted|caught|counterexample)["']"""
         said = re.compile(rf"""return\s*\(?\s*{word}|["']status["']\s*:\s*{word}|status\s*=\s*{word}""")
         files = proc.run(
-            ["git", "ls-files", "--cached", "--others", "--exclude-standard", "tools/*.py", "tests/*.py"],
+            [
+                "git",
+                "ls-files",
+                "--cached",
+                "--others",
+                "--exclude-standard",
+                "tools/*.py",
+                "tests/*.py",
+                "bench/*.py",
+            ],
             cwd=ROOT,
         ).out.split()
         found = sorted(

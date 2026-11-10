@@ -451,6 +451,10 @@ def main() -> int:
     config = tomllib.loads((PROOFS / "targets.toml").read_text())
     targets = config["target"]
     if args.only:
+        unknown = sorted(set(args.only) - {t["module"] for t in targets})
+        if unknown:
+            print(f"FAIL  --only names modules targets.toml doesn't have: {unknown}")
+            return 1
         targets = [t for t in targets if t["module"] in args.only]
     jobs = int(os.environ.get("LEAN_JOBS", "4"))
 

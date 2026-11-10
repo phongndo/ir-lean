@@ -178,7 +178,8 @@ Where it stands:
 
 InstCombine's G0 and G1 are from S1's run on 2026-11-09, with `main` at `b9446de`
 ([stage 1](stage1.md#chunk-1s-gates-for-instcombine)). Its G0 was recorded as 38.4% before, counting only the pairs
-without memory. G0 and G1 across chunk 1's other three passes come next.
+without memory. G0 and G1 across chunk 1's other three passes come next. G2 is what `tests/peephole.py score` counted
+on 2026-11-09, against INV-04's 3,174 rewrites ([rewrite proofs](rewrite-proofs.md)).
 
 G2 is [rewrite proofs](rewrite-proofs.md#the-scoreboard)' scoreboard, against
 [INV-04's 3,174 rewrites](rewrite-inventory.md) for the four passes: 244 count as proved for every input, all in

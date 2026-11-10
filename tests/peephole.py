@@ -743,9 +743,6 @@ def const_text(c: int, w: int) -> str:
     return str(c - (1 << w) if c >> (w - 1) else c)
 
 
-INTRINSIC_ARITY = {**dict.fromkeys(UNARY, 1), **dict.fromkeys(BINARY, 2), **dict.fromkeys(FUNNEL, 3)}
-
-
 class Emitter:
     """One case as a function: its arguments are the `var`s, each instruction is emitted once, operands first,
     a call keeps the root's operands alive whatever happens to the root, and the root, `%r`, is returned. So
@@ -955,16 +952,18 @@ def classify(
     clean = not has_undef(case.term)
     s["fired_without_undef"] += clean
     s["files"].update(case.files)
-    t.compared += 1
     expect = expected_text(result["value"], names)
     ok: bool | None
     if expect is None:
         ok = compare_new_ir(case, result["value"], after) if opt_changed else False
         if ok is None:
+            # The model built new IR and opt rewrote the root in place: not a comparison, so not counted in
+            # `compared`.
             t.fired_new_ir += 1
             return
     else:
         ok = opt_changed and rets == [expect]
+    t.compared += 1
     if ok:
         t.matched += 1
         s["matched"] += 1

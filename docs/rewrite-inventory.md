@@ -149,7 +149,7 @@ Each rewrite has:
   model at all, and no rewrite's proof covers them;
 - `analyses`: the analyses on its path, such as `computeKnownBits` or `isKnownToBeAPowerOfTwo`. A proof takes each
   analysis's answer as a hypothesis that it's sound, which is [PASS-01](llvm-verification-tasks.md#pass-01-analyses-are-sound)'s
-  to prove. 321 of InstCombine's rewrites and 85 of InstSimplify's read one;
+  to prove. 472 of InstCombine's rewrites and 119 of InstSimplify's read one;
 - `intrinsics`: those named on its path, as `Intrinsic::umax`. `Intrinsic::ID`, the type of an intrinsic's ID, and
   `Intrinsic::not_intrinsic`, the ID of a function that isn't one, aren't intrinsics. The integer intrinsics
   `src/Emitter.cpp` translates, such as `umax`, `ctpop` and `fshl`, count as integers only. An intrinsic the model

@@ -29,15 +29,15 @@ STACK_KB = 65536
 # Each limit Lean reports, by the reason tools/verify.py gives for it, in the order it checks them.
 LIMITS: list[tuple[str, re.Pattern[str]]] = [
     ("memory_limit", re.compile(r"excessive memory consumption|out of memory", re.I)),
-    ("heartbeat_limit", re.compile(r"maximum number of heartbeats|\(deterministic\) timeout")),
+    ("heartbeat_limit", re.compile(r"maximum number of heartbeats|deterministic\)? timeout")),
     ("recursion_limit", re.compile(r"maximum recursion depth has been reached")),
-    ("stack_limit", re.compile(r"deep recursion was detected|stack overflow", re.I)),
+    ("stack_limit", re.compile(r"deep recursion (was )?detected|stack overflow", re.I)),
     ("solver_limit", re.compile(r"SAT solver timed out")),
     ("step_limit", re.compile(r"maximum number of steps exceeded")),
 ]
 # Any of them, as one pattern, as tests/proofs.sh lists them.
 LIMIT = re.compile(
-    r"maximum number of heartbeats|\(deterministic\) timeout|maximum recursion depth|deep recursion|"
+    r"maximum number of heartbeats|deterministic\)? timeout|maximum recursion depth|deep recursion|"
     r"stack overflow|excessive memory|out of memory|SAT solver timed out|maximum number of steps",
     re.IGNORECASE,
 )

@@ -10,10 +10,20 @@ import os
 import shutil
 import sys
 import tempfile
+from unittest import mock
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 import alive
+
+# What a crashed alive-tv may have printed before it died: f0's result, said correct, and no summary. Without
+# the signal check in `run`, `proved` would read f0 as proved from this.
+PARTIAL_THEN_CRASH = (
+    "-" * 40 + "\n"
+    "define i8 @f0(i8 %x) {\n  %r = mul i8 %x, 2\n  ret i8 %r\n}\n=>\n"
+    "define i8 @f0(i8 %x) {\n  %r = shl i8 %x, 1\n  ret i8 %r\n}\n\n"
+    f"{alive.CORRECT}\n\n"
+)
 
 RIGHT = (
     "define i8 @F(i8 %x) {\n  %r = mul i8 %x, 2\n  ret i8 %r\n}\n",
@@ -70,7 +80,22 @@ def main() -> int:
             failed += 1
         else:
             print("ok    only the right rewrite is cached as proved")
-    print(f"{2 * len(CASES) + 1 - failed} of {2 * len(CASES) + 1} checks passed")
+        # A crash is not clean evidence: alive-tv ending abnormally after it printed `correct` for some
+        # functions mustn't let `proved` read them as proved. This holds for a signal death (-6) and for a
+        # crash/error exit code (134, 255), which a negative-only guard would have missed.
+        for exit_code in (-6, 134, 255):
+            crashed = alive.proc.Ran(["alive-tv"], exit_code, PARTIAL_THEN_CRASH.encode(), b"", 0.1)
+            with mock.patch.object(alive.proc, "run", return_value=crashed):
+                out = alive.run(RIGHT[0], RIGHT[1], work)
+            if not out.startswith("ERROR:") or alive.proved(out) or alive.verdict(out) != "unknown":
+                print(
+                    f"FAIL  alive-tv exit {exit_code} read as evidence: proved={alive.proved(out)}, {out!r}"
+                )
+                failed += 1
+            else:
+                print(f"ok    alive-tv exit {exit_code} proves nothing")
+    total = 2 * len(CASES) + 4
+    print(f"{total - failed} of {total} checks passed")
     return 1 if failed else 0
 
 
