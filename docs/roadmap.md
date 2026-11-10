@@ -3,31 +3,39 @@
 What we want to be true of `ir-lean`, in what order, and how we'd know we were wrong. For what's true
 today, see [status](status.md). For what any theorem means, see [trust](trust.md).
 
-Nothing here is a date or a duration. Progress and order are gates and dependencies, as decided on
-[2026-11-09](#six-decisions-of-2026-11-09-after-69). Effort figures, in lines of proof, are estimates that hold only if
+Nothing here is a date or a duration, with one exception: the envelope of about three months and its checkpoint, in
+[decision 8 after #103](#thirteen-decisions-of-2026-11-09-after-103). Progress and order are gates and dependencies, as
+decided on [2026-11-09](#six-decisions-of-2026-11-09-after-69). Effort figures, in lines of proof, are estimates that hold only if
 the gates before them pass, and they get redone at each gate. Every threshold is a proposal, to adjust as we learn, but
 any change gets written down here with its reason, so that a gate can't quietly move.
 
 ## The goal
 
-**Prove LLVM's optimizations.** Since 2026-11-09 this is the main program
-([decision 1](#six-decisions-of-2026-11-09-after-69)): every pass a pinned LLVM registers, 1,162 names at LLVM 23.1.3,
-proved for every input, bound to the C++ that implements it, and correct in every pipeline it runs in, as the
-[task list](llvm-verification-tasks.md) defines done. The passes are in nine [chunks](chunks.md), and each chunk goes
-through from expressing its own regression tests to being counted done. A [platform track](#the-platform-track) runs under
-all of them, and the chunks pull from it. The headline is the passes counted done, of the 1,162, with each chunk's
-percentage at each gate. It's 0 today: a pass counts only when BIND-03, the independent verifier, accepts it, and since
-2026-11-09 it exists and refuses every claim whose coverage nothing can decide yet ([verifying claims](verify-claims.md)).
+**Proved superoptimization.** Since later on 2026-11-09 this leads
+([decision 1 after #103](#thirteen-decisions-of-2026-11-09-after-103)): a search finds code that's faster than what the
+compiler produced, and Lean proves that it refines the original, so on every input the new code does only what the
+original allows. The engine's core is a deterministic search over rules already proved for every input, so what it
+finds carries its proof, and agents propose new rules offline. The headline is the results board: the proved wins over
+`clang -O3` on a corpus of real hot code fixed before the search runs, hot numeric kernels with SIMD on x86-64 first,
+and the speedup each measures. The board doesn't exist yet. On `main` today are two proved rewrites of llama.cpp,
+neither found by a search ([status](status.md#llamacpp)). The target, within an envelope of about three months, is at
+least 10 proved wins from at least 3 projects, with a checkpoint a third of the way in.
 
-**Proved superoptimization and proof tests ride on the same platform.** Superoptimization finds code that's faster than
-what the compiler produced, and proves in Lean that it refines the original: on every input, the new code does only
-what the original allows. It starts with LLVM IR, brings MLIR in later by lowering it to LLVM IR, as
-[multi-IR](multi-ir.md#recommendation) recommends, and GIMPLE after that, as a spike behind a gate. Neither it nor proof
-tests is parked or dropped. They use the semantics, the lemma store and the engine the chunks use, and they get better
-from the lemmas the chunks produce. Superoptimizer v2 and proof-test tiers 2 and 3 wait until chunk 1's G2 is producing
-lemmas.
+**Proving LLVM's rewrites supplies it.** The pinned LLVM's passes stay in [chunks](chunks.md), and a chunk's rewrites go
+through three gates: the model can express them, their test transformations are certified, and each is proved for every
+input and stored as a rule. They're proved in the order the corpus needs them. It stops there: binding a proof to
+LLVM's C++ and composing passes through pipelines are paused, and pipelines, codegen and the rest are out of the
+program. So no pass is counted done, and the count of passes done, 0 of 1,162, isn't the headline any more. Under the
+headline is the share of rewrite firings on the corpus that a proved rule covers, which isn't measured yet. A
+[platform track](#the-platform-track) runs under the search and the chunks.
 
-Four things serve both:
+**Memory safety, leak checking and proof tests are bases of the same platform.** They use the semantics, the lemma
+store and the engine the search uses. What ships of them is deterministic: it answers proved, counterexample or
+unknown, and never calls a model. Until the results board exists they get the platform work the search also needs, and
+no lanes of their own. All of it starts with LLVM IR, brings MLIR in later by lowering it to LLVM IR, as
+[multi-IR](multi-ir.md#recommendation) recommends, and GIMPLE after that, as a spike behind a gate.
+
+Four things serve all of them:
 
 1. **A discovery engine and a lemma store.** The search finds candidates and their proofs. Every completed proof, a
    chunk's or the search's, leaves checked, reusable lemmas in a store, which makes the next search and the next proof
@@ -50,8 +58,9 @@ give you. Search tools and AI propose. Only a certificate the Lean kernel has ch
 ### The goal changed on 2026-11-08
 
 *Superseded in part on 2026-11-09, by [decision 1](#six-decisions-of-2026-11-09-after-69) after #69: proving LLVM's
-optimizations is the main program again, and superoptimization rides on the same platform. What follows is the record
-of 2026-11-08.*
+optimizations is the main program again, and superoptimization rides on the same platform. That was superseded in turn
+later the same day, by [decision 1 after #103](#thirteen-decisions-of-2026-11-09-after-103): superoptimization leads
+again, and proving LLVM's rewrites supplies it. What follows is the record of 2026-11-08.*
 
 Before 2026-11-08, this page put the foundation first. Its headline was zlib `inflate` proved memory-safe, as
 [Phase 1](#phase-1-zlib-inflate-memory-safety), marked **Now**. Certified optimization was Phase 4, which wouldn't
@@ -145,6 +154,13 @@ Why:
 Later on 2026-11-09, after [#69](https://github.com/phongndo/ir-lean/pull/69) recorded the three above, the maintainer
 decided six more things. Where they replace something on this page, the old text stays, marked as superseded.
 
+*Superseded in part later on 2026-11-09, by the [thirteen decisions after #103](#thirteen-decisions-of-2026-11-09-after-103).
+Decision 1, by their decisions 1, 2 and 6: superoptimization leads, proving LLVM's optimizations stops at G2 and
+supplies it, and the headline is proved speedup, not passes done. Decision 5's wait for chunk 1's G2, by their
+decisions 3, 4 and 12: the search starts now, and proof-test tiers 2 and 3 wait for the results board. Decision 6, by
+their decision 8, for the envelope and its checkpoint only. Decisions 2, 3 and 4 stand, with gates G3 and G4 paused and
+chunks 7 to 9 out of the program. What follows is the record as it was decided.*
+
 **1. Proving LLVM's optimizations is the main program.** This supersedes #69's
 [decision 2](#three-decisions-of-2026-11-09), that the goal stays parked.
 
@@ -224,6 +240,171 @@ Why:
 2026-11-09 found no estimate in weeks, months or years left in the plan to remove. A run time that was measured is a
 fact, and stays. No reason was given beyond the rule itself, which is the one the [milestones](#milestones) already
 followed: each is reached when its checks pass in CI, not on a date.
+
+### Thirteen decisions of 2026-11-09, after #103
+
+Later again on 2026-11-09, with `main` at `df3e997`, the maintainer went through the direction one decision at a time,
+and settled thirteen things. Where they replace something on this page, the old text stays, marked as superseded.
+
+**1. Proved superoptimization leads, and proving LLVM's rewrites supplies it.** This supersedes
+[decision 1 after #69](#six-decisions-of-2026-11-09-after-69), that proving LLVM's optimizations is the main program.
+Memory safety, leak checking and proof tests stay bases of the same platform, as decision 12 says.
+
+Why:
+
+- **It's the maintainer's main goal, and the plan had it wait.** Superoptimizer v2 was deferred until chunk 1's G2 was
+  producing lemmas.
+- **Of the five gates, only G0 to G2 give a search anything.** Coverage lets it read real code, and a rewrite proved
+  for every input is a rule it can apply. That LLVM's C++ makes only those rewrites, G3, and that its pipelines compose
+  them, G4, are facts about LLVM that no candidate's proof uses.
+- **The headline couldn't move.** It was 0 of 1,162. Binding InstCombine alone is
+  [inferred](binding-approach.md#what-it-would-cost) at 3 to 6.5 times seL4's proof, and 905 of the names are chunk 8's
+  and chunk 9's.
+
+**2. Proving LLVM's optimizations stops at G2.** Binding stops when gate B2 reports its number: BIND-02 finishes that
+measurement, and gates B3 to B5 don't start. G3 and G4 are paused for every chunk. Chunks 7, 8 and 9, the pipelines,
+codegen and the rest, 925 names, leave the program. So under the [task list](llvm-verification-tasks.md)'s rule no pass
+is counted done, and the count stays 0 by this decision. What G2 claims is unchanged: a rewrite proved for every input
+on a model written by hand and compared with the pinned `opt` on finitely many cases, as
+[rewrite proofs](rewrite-proofs.md#what-a-proof-claims) says. It isn't a claim about LLVM's C++.
+
+Why: decision 1's second and third reasons. And a binding goes stale each time the pin moves.
+
+**3. Supply is by demand.** Chunk 1's rewrites are proved in the order the corpus fires them, most often first, and
+when the search asks for one. Chunks 2 to 6 start when the search needs their rewrites. The gauge under the headline is
+the share of rewrite firings on the corpus that a proved rule covers. It isn't measured yet: it needs the corpus, and a
+way to tell which of INV-04's rewrites fired. This replaces burning the inventory down in file order, which is what
+[decision 5 after #69](#six-decisions-of-2026-11-09-after-69) made of E3.
+
+Why:
+
+- **LLVM's rewrites are what LLVM already does.** They're the base a search starts from, not its wins.
+- **Reuse across families is small so far.** 28 of InstSimplify's 247 site proofs use a lemma cut from another
+  family's ([rewrite proofs](rewrite-proofs.md#over-the-instsimplify-families)), and the q4_K proof rests on the 527
+  lines of `Vnni.lean`, written for it.
+- **So the gauge may stay small,** and the share of LLVM's rewrites proved may stop growing. The maintainer accepts
+  that: by decision 13 it doesn't reopen the goal.
+
+**4. The engine's core is a rule search.** It rewrites real IR using only rules already proved for every input, so what
+it finds carries its proof: a chain of proved rules, which `Refines`' transitivity composes. It's deterministic. Agents
+and other untrusted sources, Minotaur run offline among them, propose new rules offline, and each is generalized, proved
+once and stored. The search starts now: it doesn't wait for chunk 1's G2, as
+[decision 5 after #69](#six-decisions-of-2026-11-09-after-69) had it. A rule is a refinement, which goes one way, so it
+can't be merged into an e-graph as an equality ([prior art](prior-art.md#rule-inference-e-graphs-and-generalization)).
+
+Why: it's the form in which proved rewrites and the store can feed discovery, which the maintainer wants and isn't sure
+is possible. Decision 8's checkpoint tests it early.
+
+**5. Agents offline, deterministic online.** A tool that ships, the plugin, a safety checker or proof tests, never calls
+a model when it runs. It replays stored proofs and runs fixed procedures, and answers proved, counterexample or unknown.
+A proof an agent found counts once the kernel has checked it and it's stored, since it replays the same way every time.
+
+Why: the maintainer wants the bases other than superoptimization deterministic. That can't mean a tool always proves:
+whether code is memory-safe is undecidable, so unknown is one of its answers.
+
+**6. The headline is proved speedup.** It's the results board: the proved wins over `clang -O3` on a corpus fixed
+before the search runs, and the speedup each measures, in wall time on the real workload. `llvm-mca` uOps only filter
+candidates inside the search, as [prior art](prior-art.md#superoptimizer-v2) recommends. Under it is decision 3's gauge.
+
+Why: it's this page's own test of [whether the goal matters to anyone](#how-we-measure), and passes done can't move.
+
+**7. The corpus is hot numeric kernels with SIMD, on x86-64 first.** Inference, compression, codecs, hashing and
+crypto. A pull request proposes the projects, the maintainer approves the list, and it's fixed before the search runs.
+AArch64's NEON waits until the board exists.
+
+Why:
+
+- **That's where the measured wins are.** The two llama.cpp rewrites give 5.5% to 7.2% and about 5%
+  ([status](status.md#measured)). Integer vector rewrites gave 75.6% of Minotaur's speedup, and LPO's accepted fixes
+  moved SPEC CPU 2017 by under 2% ([prior art](prior-art.md#superoptimizers-and-proposers)).
+- **It's where Alive2 stops.** It gave no verdict on the q4_K slices ([lemma reuse](lemma-reuse.md)).
+- **The cost is trusted semantics.** Each intrinsic is written from Intel's pseudo-code and checked against the
+  processor ([trust](trust.md#trust-boundaries)). The model has PMADDUBSW, PMADDWD, VPDPBUSD, VPTERNLOG, PSHUFB and
+  the shifts, and Minotaur has 165. z is the x86-64 machine, where they can be checked against a processor, and both
+  llama.cpp rewrites are x86-64's, which is why it goes first.
+
+**8. An envelope of about three months, S3's bar, and a checkpoint.** The maintainer alone with agents, on z and y, with
+no new hardware.
+
+- **By about 2027-02-09:** S3's bar, on the fixed corpus: at least 10 proved wins from at least 3 projects, each
+  measurably faster than `clang -O3`'s output, and no wrong candidate certified.
+- **By about 2026-12-09, the checkpoint, S7:** at least one new proved win on real code that the rule search found from
+  stored rules, with no rule written by hand for its site. If there's none, the engine's core becomes an agent
+  proposer: an agent proposes a faster version of each hot sequence, Alive2 filters, and Lean proves each instance.
+  That changes the engine, not the goal.
+
+This is the one exception to [decision 6 after #69](#six-decisions-of-2026-11-09-after-69), no calendar estimates: the
+envelope and the checkpoint have dates, and every other gate stays without one. Not decided: whether the two llama.cpp
+rewrites on `main` count toward the ten.
+
+Why: feasible has to be judged against something, and a wrong engine found only at the end costs the whole envelope.
+
+**9. What counts as a win, in labeled tiers.** By what's proved: a slice, with cutting it out and putting its result
+back trusted, as for [llama.cpp's](llama.md#what-it-assumes), or the whole function. By what the proof rests on: the
+standard three axioms, or those and `bv_decide`'s. Every combination counts toward the bar, and the board, the plugin
+and the paper say which each win is. [The bar for a stored lemma](#the-flywheel) is unchanged: nothing from `bv_decide`.
+F4, memory in `Refines`, and the lemma that a refined cut gives a refined function go first in the
+[platform track](#the-platform-track), so that wins become whole-function ones.
+
+Why: a fixed-width SIMD rule is hard to prove without `bv_decide`, as `Vnni.lean`'s 527 lines show. And counting only
+whole functions would hold every win until F4, which puts the checkpoint at risk.
+
+**10. Four outside results, as one funnel.** In this order, cut from the end if the envelope runs short:
+
+1. **The results board,** S8, which the others quote.
+2. **A plugin** for `clang` and `opt` at the pin, S9, which applies only rules proved for every input. Each rule lives
+   in one declarative form, a pattern, a replacement and side conditions, and both its Lean statement and its matcher
+   are generated from that. A certify mode proves again every rewrite the plugin applied, and CI runs it over the
+   corpus, so a bug in the generator shows as a proof that fails.
+3. **A paper** on both. Its venue isn't chosen.
+4. **A few patches upstream,** S6, each read and owned by the maintainer.
+
+Outside engagement, with Minotaur's and VeIR's groups first, waits until the board exists, so that first contact shows
+measured, proved wins.
+
+Why patches come last: each costs the maintainer's attention. [LLVM's policy](https://llvm.org/docs/AIToolPolicy.html)
+asks for a human in the loop and bans agents that act without approval, and
+[llama.cpp](https://raw.githubusercontent.com/ggml-org/llama.cpp/HEAD/CONTRIBUTING.md) doesn't accept pull requests
+that are fully or predominantly AI-generated. Both are as a web search reported them on 2026-11-09, mostly from
+mirrors: read the live pages before relying on them.
+
+Read live on 2026-11-10: LLVM's page says that. llama.cpp's doesn't. It allows AI-generated code, and asks the
+contributor to disclose how AI was used, review all of it by hand, be able to explain every line, and write the pull
+request's description and other posts without AI.
+
+**11. A second agent reviews each statement.** This replaces "a person has read the theorem statement" in
+[what this project won't do](#what-this-project-wont-do). The reviewer runs on another provider's model, with none of
+the author's context, and the maintainer reads only the disputes. And every counted statement needs a must-break
+mutant: a bug put into the code has to stop its proof, as [`tests/llvm.py`](../tests/llvm.py) already asks of each of
+[LLVM's own functions](llvm.md).
+
+Why: the maintainer's attention goes to direction, and the limits on the work are what agents can prove and what two
+machines can check. Two agents can share a blind spot, which is why the reviewer is another family's model, and why the
+mutants, which need no judgment, are required.
+
+**12. The other bases get platform work only, until the board exists.** Memory safety, leak checking and proof tests
+get no lanes of their own until then. They get what the search also needs: F4, and E2, the executable memory model. One
+standing demonstration each stays green in CI: [`UpdateWindow.lean`](../tests/proofs/UpdateWindow.lean) for safety, and
+tier-1 [proof tests](proof-tests.md). Leak checking waits for a definition: `IRLean/Mem.lean` has `malloc` and `free`
+and makes a bad `free` undefined, and nothing in it says an allocation is still live when a run ends. Their order after
+the board isn't decided.
+
+Why: three months, two machines. z's 30 GB admits about 12 checks at once, at about 2.4 GB a verify
+([stage 1](stage1.md#cost-per-pair)).
+
+**13. The goal is frozen, and reopens on four events only.**
+
+1. The board misses S3's bar at the end of the envelope.
+2. Someone else ships proved superoptimization with Lean certificates.
+3. A fidelity gap can't be closed, refused or stated as an assumption.
+4. The wins land only on code no real program runs.
+
+A new idea is written down under [not in the plan's order yet](#not-in-the-plans-order-yet), and doesn't change the
+goal. Decision 3's gauge standing still, missing the checkpoint, which changes the engine, and curiosity about binding
+don't reopen it either.
+
+Why: the goal changed on 2026-11-08 and again on 2026-11-09, and these decisions change it a third time. Each change
+rewrote this page.
 
 ### The flywheel
 
@@ -343,7 +524,12 @@ spend no effort on them until these work.
 - Claim anything about machine code without a correspondence argument, which we don't have.
 - Compile general Lean 4 programs to LLVM IR. See [IR and Lean, both ways](design.md#ir-and-lean-both-ways).
 - Trust an AI's output. AI provers and search tools are welcome, and nothing they produce counts until
-  the Lean kernel has checked it and a person has read the theorem statement.
+  the Lean kernel has checked it and its statement has passed review. Since
+  [decision 11 after #103](#thirteen-decisions-of-2026-11-09-after-103) that's a second agent on another provider's
+  model, with the maintainer reading the disputes, and a bug put into the code that has to stop the proof. Until then
+  the rule was that a person had read the theorem statement.
+- Ship a tool that calls a model when it runs, or that answers anything but proved, counterexample or unknown
+  ([decision 5 after #103](#thirteen-decisions-of-2026-11-09-after-103)).
 - Report a proof test's tier-1 pass as a proof, or a timeout or an unsupported case as a pass.
 - Call an LLVM pass correct because its runs were certified. That's translation validation, which
   [never counts for all inputs](llvm-verification-tasks.md#translation-validation-isnt-proof-for-all-inputs).
@@ -351,6 +537,16 @@ spend no effort on them until these work.
   hashes are its author's word.
 
 ## Now, next, later
+
+Since the [thirteen decisions after #103](#thirteen-decisions-of-2026-11-09-after-103):
+
+| Horizon | Platform track | Superoptimization | Supply: LLVM's rewrites |
+| --- | --- | --- | --- |
+| **Now** | F4, memory in `Refines` (SEM-06), and the lemma that a refined cut gives a refined function, first. x86 SIMD intrinsics in the model, each checked against the processor. Coverage lanes as the corpus needs them. BIND-02 to gate B2's number, then binding stops | The corpus, proposed, approved and fixed. The rule format, one source for a rule's Lean statement and its matcher. The rule search. The results board | Chunk 1's rewrites ranked by how often each fires on the corpus, and G2 in that order |
+| **Next** | E2, the executable memory model, which is also the search's refuter for code with memory. The reviewer on another provider's model, and a must-break mutant for each counted statement | The checkpoint, S7, by about 2026-12-09. The plugin, with its certify mode in CI over the corpus. S3's bar by about 2027-02-09 | Chunks 2 to 6's rewrites, as the search asks for them |
+| **Later** | The safety bridge, S4. The other bases' own lanes, once the board exists: a memory-safety checker, leak checking, and proof-test tiers 2 and 3 | The paper. A few patches upstream, each read by the maintainer. Outside engagement. AArch64's NEON, MLIR | `inflate`, contracts, C++ and Rust, the unit-test milestone, and adoption, which wait on milestones or [aren't in the plan's order yet](#not-in-the-plans-order-yet) |
+
+Until then, from earlier on 2026-11-09, the table read:
 
 | Horizon | Platform track | Chunks |
 | --- | --- | --- |
@@ -371,6 +567,66 @@ Since 2026-11-09 the order is the platform track and the chunks
 ([decision 2](#six-decisions-of-2026-11-09-after-69)). Chunks run in parallel, each at its own gate, and an item starts
 when its own [hard dependencies](#dependencies) have landed. The [waves](#waves-0-to-3-until-2026-11-09) before that
 are history.
+
+Since the [thirteen decisions after #103](#thirteen-decisions-of-2026-11-09-after-103), the search leads and the chunks
+supply it:
+
+```mermaid
+flowchart LR
+  subgraph P[Platform track]
+    F4[F4, memory in Refines, and the cut lemma]
+    E2[E2, executable memory]
+    S4[S4, safety bridge]
+    X86[x86 SIMD intrinsics, checked against the processor]
+    COV[Coverage lanes, as the corpus needs them]
+    LEM[Lemma engine: store, tactics]
+    REV[Statement review: second agent, mutants]
+    BC[BIND-02 to the number gate B2 reports, then binding stops]
+  end
+  subgraph S[Superoptimization]
+    CORP[Corpus, fixed first]
+    RULE[Rule format: one source for statement and matcher]
+    RS[Rule search]
+    CHK[Checkpoint, S7]
+    BOARD[Results board, to the bar S3 sets]
+    PLUG[Plugin, with certify mode]
+    PAPER[Paper]
+    PATCH[Patches upstream]
+  end
+  subgraph C[Supply: chunks 1 to 6, to G2]
+    C1[1 Peepholes]
+    C26[2 to 6, when the search asks]
+  end
+  OTHER[Own lanes for the other bases]
+  CORP --> RS
+  RULE --> RS
+  LEM --> RS
+  X86 --> RS
+  COV --> RS
+  RS --> CHK
+  CHK --> BOARD
+  REV --> BOARD
+  F4 -->|whole-function wins| BOARD
+  RULE --> PLUG
+  BOARD --> PLUG
+  PLUG --> PAPER
+  PAPER --> PATCH
+  CORP -->|which rewrites fire| C1
+  RS -->|asks for rewrites| C1
+  RS -->|asks for rewrites| C26
+  C1 -->|rules| RS
+  C26 -->|rules| RS
+  F4 --> E2
+  F4 --> S4
+  BOARD --> OTHER
+```
+
+An arrow into the search, the board or the plugin is a hard dependency. The arrows between the search and the chunks say
+what flows: the search asks for rewrites, and the chunks give it rules. The four outside results are in
+[decision 10](#thirteen-decisions-of-2026-11-09-after-103)'s order, which is an order of priority. F4 holds up only
+whole-function wins: a slice-proved win counts without it.
+
+Until then, from earlier on 2026-11-09, the order was:
 
 ```mermaid
 flowchart LR
@@ -433,8 +689,9 @@ flowchart LR
   C1 -->|G2 producing lemmas| PT3
 ```
 
-Every arrow is a hard dependency, of the gate it's needed for: F4 holds up chunk 3 from G1 on, PASS-01 holds up a
-chunk's G2, and the binding gates hold up G3. A chunk can reach G0 and G1 before the rest of what it needs lands.
+In that order, every arrow was a hard dependency, of the gate it's needed for: F4 holds up chunk 3 from G1 on, PASS-01
+holds up a chunk's G2, and the binding gates hold up G3. A chunk can reach G0 and G1 before the rest of what it needs
+lands. What it says of G0 to G2 still holds.
 
 ### The platform track
 
@@ -447,23 +704,35 @@ Chunks pull from it ([decision 3](#six-decisions-of-2026-11-09-after-69)).
   floating point, SEM-05, the long tail, SEM-08 and the remaining refusals, and external calls and globals, as several
   lanes at once, each on its own module, merged one at a time ([limits](#limits)). Next: F4, memory in `Refines`,
   SEM-06, which starts when the first coverage lane lands. Then E2, the executable memory model, and the safety bridge,
-  S4, after F4.
+  S4, after F4. Since [decision 9 after #103](#thirteen-decisions-of-2026-11-09-after-103), F4 goes first, with the
+  lemma that a refined cut gives a refined function, and x86 SIMD intrinsics, each checked against the processor, are a
+  coverage lane.
 - **Lemma engine.** Done: the store, E1, in [#60](https://github.com/phongndo/ir-lean/pull/60). Mining at scale, E3, is
   chunk 1's G2 burn-down. The tactics are AUTO-01 to 03: AUTO-01 and AUTO-03 are in progress, and AUTO-02 hasn't
-  started ([task list](llvm-verification-tasks.md#auto-01-the-refinement-tactic)).
+  started ([task list](llvm-verification-tasks.md#auto-01-the-refinement-tactic)). Since
+  [decision 3 after #103](#thirteen-decisions-of-2026-11-09-after-103), chunk 1's G2 goes in the order the corpus needs,
+  not the inventory's.
+- **Rules and review.** New with the [thirteen decisions after #103](#thirteen-decisions-of-2026-11-09-after-103): the
+  rule format, one source for a rule's Lean statement and its matcher, and the plugin's certify mode. A reviewer on
+  another provider's model for each counted statement, and a must-break mutant for each.
 - **Binding.** Done: BIND-01 and gate B0, in #74 ([binding a proof to LLVM's C++](binding-approach.md)). Now: BIND-03,
   the independent verifier, with gate B1, and BIND-02, each pass's closure, toward gate B2. Then gates B3 to B5, by
-  [#74's gates and stop rules](binding-approach.md#gates). B5 is BIND-06, the first pass done end to end.
+  [#74's gates and stop rules](binding-approach.md#gates). B5 is BIND-06, the first pass done end to end. Paused since
+  [decision 2 after #103](#thirteen-decisions-of-2026-11-09-after-103): BIND-02 finishes gate B2's measurement, and B3
+  to B5 don't start.
 - **Honesty and speed.** The NEG tasks, NEG-02 to NEG-07, which keep wrong and unknown results from counting, and C1,
   pull request CI in at most 10 minutes ([Phase 8](#phase-8-speed)).
 
 ### The chunks, at their gates
 
-[Chunks](chunks.md) has each chunk's passes, how each gate is measured, and the numbers.
+[Chunks](chunks.md) has each chunk's passes, how each gate is measured, and the numbers. Since
+[decision 2 after #103](#thirteen-decisions-of-2026-11-09-after-103), G3 and G4 are paused for every chunk and chunks 7
+to 9 are out of the program. So what a row below says of binding, and rows 7 to 9, are the record of the plan that's
+paused, and chunks 2 to 6 start when the search asks for their rewrites.
 
 | # | Chunk | Where it is | What it waits on next |
 | --- | --- | --- | --- |
-| 1 | Peepholes | S1 finishing. G0 measured once for InstCombine, 38.4%. Nothing else measured | S1's G1 for InstCombine. INV-04 for G2. The binding gates for G3 |
+| 1 | Peepholes | S1 met its exit criteria ([stage 1](stage1.md)). G0 and G1 are measured for InstCombine alone, and G2 for the chunk: 244 of 3,174 rewrites ([chunks](chunks.md#the-headline)) | The corpus, which sets the order for the rest of G2, by [decision 3 after #103](#thirteen-decisions-of-2026-11-09-after-103). The binding gates for G3, which are paused |
 | 2 | Scalar, no memory | Nothing measured | PASS-01's dominators, known bits and lazy value info |
 | 3 | Memory | Nothing measured | F4, and sound alias analysis and MemorySSA |
 | 4 | Loops | Nothing measured | Sound scalar evolution |
@@ -654,6 +923,23 @@ and F4 next in the semantics stream.*
 
 **Hard:** the second doesn't start until the first has landed.
 
+Since the [thirteen decisions after #103](#thirteen-decisions-of-2026-11-09-after-103), four are new, and some rows of
+the table below no longer hold:
+
+| First | Then | Why |
+| --- | --- | --- |
+| The corpus, approved and fixed | The rule search, and the results board | Decision 7. S3 asks for a corpus fixed before the search runs, so the wins aren't chosen after the fact |
+| The rule format | The plugin | Decision 10: a rule's Lean statement and its matcher come from one source |
+| F4, and the lemma that a refined cut gives a refined function | A whole-function win | Decision 9. A slice-proved win counts without them |
+| An intrinsic checked against the processor | A rule that uses it | Decision 7: each is trusted semantics |
+
+- **Dropped:** chunk 1's G2 producing lemmas, before superoptimizer v2. The search starts now, by decision 4.
+  Proof-test tiers 2 and 3 wait for the results board instead, by decision 12.
+- **Paused, or out of the program:** the rows for a pass's G4, BIND-03, a chunk's G3, and chunks 7, 8 and 9, by
+  decision 2.
+
+The table as it stood until then:
+
 | First | Then | Why |
 | --- | --- | --- |
 | #48 | Seeding the lemma store | Its rewrites at every width are the seed. Met: #48 landed |
@@ -767,9 +1053,11 @@ GEP flags ([#15](https://github.com/phongndo/ir-lean/pull/15)), attribute and li
 
 ### Milestones
 
-Each is reached when its checks pass in CI, not on a date. The main program's milestones are the chunks' gates, in
-[chunks](chunks.md), and its first pass done is BIND-06, binding gate B5. The column "In the plan" says where each
-milestone below sits since 2026-11-09.
+Each is reached when its checks pass in CI, not on a date, apart from the checkpoint, S7, and S3's bar, which
+[decision 8 after #103](#thirteen-decisions-of-2026-11-09-after-103) dates. The supply's milestones are the chunks'
+gates up to G2, in [chunks](chunks.md). From earlier on 2026-11-09 until that decision, the main program's milestones
+were the chunks' gates, and its first pass done was to be BIND-06, binding gate B5, which is paused. The column "In the
+plan" says where each milestone below sits since 2026-11-09.
 
 `inflate`'s milestones were G1 to G6, and the C++ and Rust demonstrations B1 and B2, until 2026-11-09. They're Z1 to Z6
 and D1 and D2 now, so they don't read as the gates G0 to G4 or [#74](https://github.com/phongndo/ir-lean/pull/74)'s
@@ -780,19 +1068,22 @@ binding gates B0 to B5. The record of 2026-11-08 [above](#the-goal-changed-on-20
 | F1 | Phase 0A done: axioms allow-listed, GEP gaps closed, pinned target and manifest | 0 | | Platform, semantics. Slices 6 and 7 [aren't in the plan's order yet](#not-in-the-plans-order-yet) | In progress: axioms, GEPs and allow-lists are done |
 | F2 | `mustprogress` and `willreturn` checked as UB, SEM-07 | 0 | | Platform, semantics. Chunk 4 needed it | Done in [#62](https://github.com/phongndo/ir-lean/pull/62). Recursion under a promise stops the model, as [trust](trust.md#promises-to-progress) says |
 | F3 | `freeze` in the model, with `undef` kept out, SEM-03. Until 2026-11-09, `undef` and `freeze` in the model, SEM-02 and SEM-03 ([why](#three-decisions-of-2026-11-09)) | 0 | | Platform, semantics. Chunk 1 needed it | Done in [#72](https://github.com/phongndo/ir-lean/pull/72): `freeze` of poison is a value each run chooses, and `Refines` quantifies over each side's choices ([refinement](refinement.md#runs-that-make-choices)). Ten rewrites' verdicts are proved on what ir-lean emits, with Alive2 agreeing, and four real `instcombine` runs on `freeze` are bound |
-| F4 | `Refines` for functions with memory, SEM-06 | 0 | F3. The first coverage lane landing | Platform, semantics, next. Chunk 3 needs it from G1, and chunk 6 too | Not started |
+| F4 | `Refines` for functions with memory, SEM-06, and the lemma that a refined cut gives a refined function | 0 | F3. The first coverage lane landing | Platform, semantics, first, by [decision 9 after #103](#thirteen-decisions-of-2026-11-09-after-103): a whole-function win needs it. Chunk 3 needs it from G1, and chunk 6 too | Not started |
 | F5 | Phase 0B done: full inventory, semantic mutation, two-machine determinism | 0 | F1 | Platform, semantics, and honesty: NEG-03 and NEG-05 | In progress: promises, model stops and Alive2 are done |
 | S1 | Stage 1: proved wins on integer code, and no known-wrong rewrite certified | 4 | | Chunk 1. Its metric is chunk 1's G1 for InstCombine | Exit criteria met for stage 1 as [the gate](prior-art.md#the-gate) narrowed it, on 2026-11-09, on `main` at `dbfd710` ([stage 1](stage1.md)): no rewrite of 104 known miscompilations Alive2 confirms wrong is proved or certified, and on a uniform sample of 4,000 of InstCombine's 31,158 changed pairs, Alive2 agrees with 1,101 of the 1,104 the model proves and has no verdict on the other 3. G1 for InstCombine, its metric: 0.11%, 34 of 31,240 pairs certified, and G0 40.2%, with `main` at `b9446de`; Alive2 calls none of the 75 pairs G1 tries incorrect. 2 proved wins over `clang -O3` ([#30](https://github.com/phongndo/ir-lean/pull/30)) |
 | S2 | A proved win on real code, on `main` | 4 | | Superoptimization, on the platform | The q4_K rewrite landed in [#57](https://github.com/phongndo/ir-lean/pull/57) (`b59d862`), and the Q5 rewrite in [#58](https://github.com/phongndo/ir-lean/pull/58) |
-| S3 | Superoptimizer v2 | 4 | The study. Python consolidation. Chunk 1's G2 producing lemmas. E1, soft. F4, for memory | Deferred until chunk 1's G2 is producing lemmas | Not started |
+| S3 | Superoptimizer v2: on the fixed corpus, at least 10 proved wins from at least 3 projects | 4 | The study. Python consolidation. The corpus, fixed first. The rule format and the rule search. E1, soft. F4, for whole-function wins | The envelope's target, by about 2027-02-09, by [decision 8 after #103](#thirteen-decisions-of-2026-11-09-after-103). Until then, deferred until chunk 1's G2 was producing lemmas | Not started |
 | S4 | The safety bridge proved | 4 | F2, F4 | Platform, semantics, after F4 | Not started |
 | S5 | A proved win on LLVM IR exported from MLIR | 4 | S3 | After S3 | Not started |
-| S6 | A proved rewrite accepted upstream | 4 | S2 or S3 | Superoptimization, on the platform | Not started |
+| S6 | A proved rewrite accepted upstream | 4 | S2 or S3 | Last of the four outside results, each patch read and owned by the maintainer, by [decision 10 after #103](#thirteen-decisions-of-2026-11-09-after-103) | Not started |
+| S7 | The checkpoint: one new proved win on real code that the rule search found from stored rules, with no rule written by hand for its site | 4 | The corpus. The rule format and the rule search | By about 2026-12-09, by decision 8 after #103. If it's missed, the engine's core becomes an agent proposer | Not started |
+| S8 | The results board: every proved win on the corpus, labeled by tier, with its measured speedup, reproducible from the repo | 4 | The corpus. A first win | First of the four outside results | Not started |
+| S9 | The plugin: rules from one source, and its certify mode in CI over the corpus | 4 | The rule format. S8 | Second of the four outside results | Not started |
 | E1 | Lemma store v1 | 6 | #48 | Platform, lemma engine | Done in [#60](https://github.com/phongndo/ir-lean/pull/60): 163 lemmas in `lake build` and CI, each meeting rules 1 to 3, and 16 all four ([lemma store](lemma-store.md)) |
 | E2 | Executable memory model | 6 | F4 | Platform, semantics, after F4 | Not started |
-| E3 | The store makes proofs cheaper, measured | 6 | E1. Python consolidation | Chunk 1's G2 burn-down | Not started |
+| E3 | The store makes proofs cheaper, measured | 6 | E1. Python consolidation | Chunk 1's G2, in the order the corpus needs, by [decision 3 after #103](#thirteen-decisions-of-2026-11-09-after-103). Until then, its burn-down | Not started |
 | T1 | Tier-1 proof tests | 7 | | Proof tests, on the platform | Done in [#66](https://github.com/phongndo/ir-lean/pull/66): every injected bug it can run refuted, at a median of 9.1 ms to a counterexample the kernel checked, and `prooftest_t1` checks T1's set in CI ([proof tests](proof-tests.md#t1-measured)) |
-| T2 | Tiers 2 and 3 | 7 | T1. Python consolidation. Chunk 1's G2 producing lemmas. E1, soft, for tier 3 | Deferred until chunk 1's G2 is producing lemmas | Not started |
+| T2 | Tiers 2 and 3 | 7 | T1. Python consolidation. The results board, S8. E1, soft, for tier 3 | After the results board exists, by [decision 12 after #103](#thirteen-decisions-of-2026-11-09-after-103). Until then, deferred until chunk 1's G2 was producing lemmas | Not started |
 | T3 | One real project's unit-test file replaced | 7 | T2 | Not in the plan's order yet | Not started |
 | C1 | Pull request CI in at most 10 minutes | 8 | | Platform, honesty and speed | In progress: on 2026-11-09, #65's last pull request run, with #61, #63 and #64 merged in, took 8.0 minutes, against 11.7 to 16.6 in three runs before #65 that day ([testing](testing.md#ci)). Reached when the median of 20 consecutive pull requests is at most 10 |
 | C2 | One candidate or proof checked locally in seconds | 8 | | Platform, honesty and speed | Not measured as such |
@@ -804,7 +1095,7 @@ binding gates B0 to B5. The record of 2026-11-08 [above](#the-goal-changed-on-20
 | Z6 | Contracts reused by three callers, and the cost comparison published | 2 | Z5, F5 | Not in the plan's order yet | Not started |
 | D1 | C++ demonstration | 3 | Z6 | Not in the plan's order yet | Not started |
 | D2 | Rust demonstration | 3 | D1 | Not in the plan's order yet | Not started |
-| A1 | First outside user, or an accepted bug or rewrite found with this tool | 5 | S2 or T3 | Not in the plan's order yet | Not started |
+| A1 | First outside user, or an accepted bug or rewrite found with this tool | 5 | S2 or T3 | After the results board, when outside engagement starts, by [decision 10 after #103](#thirteen-decisions-of-2026-11-09-after-103) | Not started |
 
 ## Phases
 
@@ -889,9 +1180,11 @@ showing every assumption that theorem rests on.
 
 ### Phase 4: certified translation validation and superoptimization
 
-**The goal from 2026-11-08 to 2026-11-09.** Until 2026-11-08 it was a contingent, later phase
-([why it changed](#the-goal-changed-on-2026-11-08)). Since 2026-11-09 it rides on the platform the chunks use, and
-superoptimizer v2 waits until chunk 1's G2 is producing lemmas ([why](#six-decisions-of-2026-11-09-after-69)).
+**The goal from 2026-11-08 to 2026-11-09, and again since later on 2026-11-09,** by
+[decision 1 after #103](#thirteen-decisions-of-2026-11-09-after-103). Until 2026-11-08 it was a contingent, later phase
+([why it changed](#the-goal-changed-on-2026-11-08)). For part of 2026-11-09 it rode on the platform the chunks use, and
+superoptimizer v2 waited until chunk 1's G2 was producing lemmas ([why](#six-decisions-of-2026-11-09-after-69)). It
+doesn't wait now: the rule search starts on the corpus, and asks the chunks for the rewrites it needs.
 
 **Goal:** a search finds replacements for real code that run faster than the compiler's, and for each, Lean checks a
 theorem that it refines the original. The search, and any AI in it, is untrusted. Only the certificate counts.
@@ -955,6 +1248,15 @@ theorem carried across.
   replacement.
 - S5: at least one proved win on LLVM IR exported from an MLIR pipeline.
 - S6: at least one proved rewrite accepted upstream, by LLVM or by the project whose code it speeds up.
+- S7, the checkpoint, by about 2026-12-09: at least one new proved win on real code that the rule search found from
+  stored rules, with no rule written by hand for its site. If it's missed, the engine's core becomes an agent proposer.
+- S8: the results board is reproducible from the repo, with every proved win on the corpus labeled as slice or whole
+  function, and as resting on the standard three axioms or on `bv_decide`'s too, and with its measured speedup.
+- S9: the plugin loads into the pinned `clang` and `opt`, every rule it applies comes from the one source its Lean
+  statement comes from, and CI runs its certify mode over the corpus with no rewrite left unproved.
+
+S3's bar is the envelope's target, by about 2027-02-09, and S7 to S9 are new, by the
+[thirteen decisions after #103](#thirteen-decisions-of-2026-11-09-after-103).
 
 **Risks:** this field is moving quickly. [Trivet](https://arxiv.org/abs/2609.19583), from September 2026,
 already does LLM-assisted refinement proofs in Lean on integer code, on top of Lean-MLIR. It has no memory
@@ -1341,9 +1643,10 @@ that produced it. Current values live in [status](status.md).
 
 | Metric | Measured yet | Why it matters |
 | --- | --- | --- |
-| Proved wins over `clang -O3`, on real code and on the rest | Yes, 2, neither a call real programs make on x86-64. The real-code results are on branches | The goal |
-| Speedup on a real workload, from proved rewrites | On branches only | Whether the goal matters to anyone |
-| Passes counted done, of the 1,162, and each chunk's percentage at each gate | 0 done. One gate measured for one pass: G0 for InstCombine, 38.4% ([chunks](chunks.md)) | The headline, since [2026-11-09](#six-decisions-of-2026-11-09-after-69) |
+| Proved wins over `clang -O3` on the fixed corpus, and the speedup each measures | Not yet: the corpus isn't fixed, and the board doesn't exist. On `main` are 2 wins on compiler-rt's fallbacks, which real programs on x86-64 don't call, and the two llama.cpp rewrites, which no search found | The headline, since [decision 6 after #103](#thirteen-decisions-of-2026-11-09-after-103) |
+| Speedup on a real workload, from proved rewrites | Yes, for the two llama.cpp rewrites ([status](status.md#measured)) | Whether the goal matters to anyone |
+| Share of rewrite firings on the corpus that a proved rule covers | No. It needs the corpus, and a way to tell which rewrite fired | The supply gauge, under the headline, by [decision 3 after #103](#thirteen-decisions-of-2026-11-09-after-103) |
+| Passes counted done, of the 1,162, and each chunk's percentage at each gate | 0 done, and it stays 0 while G3 and G4 are paused. G0 and G1 are measured for InstCombine ([chunks](chunks.md)), and G2 for chunk 1, 244 of 3,174 ([rewrite proofs](rewrite-proofs.md#the-scoreboard)) | The headline from [2026-11-09](#six-decisions-of-2026-11-09-after-69) until later that day. G0 to G2 still say what the supply has |
 | Share of InstCombine's own test transformations `ir-lean` certifies | Not yet. S1 measures it | Chunk 1's G1 for InstCombine. Until later on 2026-11-09, the parked goal's progress ([decision 2](#three-decisions-of-2026-11-09)) |
 | Peak memory of the biggest proofs | Partly, as check time and peak memory below | Targets set with lemma mining at scale, chunk 1's G2 |
 | Candidates refuted, proved, or left unknown, per search | No | Whether the engine's tiers pay |
@@ -1370,6 +1673,11 @@ that produced it. Current values live in [status](status.md).
 
 These apply across phases. The ones specific to a phase are with that phase.
 
+Since [decision 13 after #103](#thirteen-decisions-of-2026-11-09-after-103) the goal is frozen, and four events reopen
+it: the results board missing S3's bar at the end of the envelope, someone else shipping proved superoptimization with
+Lean certificates, a fidelity gap that can't be closed, refused or stated as an assumption, and wins that land only on
+code no real program runs. The rest of this list changes how the work is done, not what it's for.
+
 - Proofs don't get cheaper as the lemma store grows, and no reason can be found.
 - Proved wins come only on code no real program runs.
 - A fidelity gap can't be closed, refused or stated as an assumption. That undermines the claims, so it comes
@@ -1379,7 +1687,9 @@ These apply across phases. The ones specific to a phase are with that phase.
 - Binding stops at one of [#74's gates](binding-approach.md#when-to-stop). Then, under the task list's rule, no pass
   can be done, and the headline needs the end condition rewritten, as
   [its fallback](binding-approach.md#the-fallback-and-what-it-does-to-done) says. That's the maintainer's call, written
-  here with its reason.
+  here with its reason. Since [decision 2 after #103](#thirteen-decisions-of-2026-11-09-after-103) binding is paused by
+  decision when gate B2 reports, and the headline no longer counts passes done, so this applies only if binding is
+  taken up again.
 - Someone else ships the same thing. Contribute to theirs instead.
 - Frama-C or VST gives the same confidence for less work on the same question, or Kani or Verus does for proof
   tests. This project isn't needed for that job.
