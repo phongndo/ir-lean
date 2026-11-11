@@ -215,7 +215,9 @@ def build_modules(work, env):
     def build(module):
         target = os.path.join(work, "M", module + ".olean")
         cached = os.path.join(LEAN_CACHE, f"{module}.{keys[module]}.olean")
-        if os.path.exists(cached):
+        # Tests running at once share the cache, and another may remove an entry between seeing and copying
+        # it, so one that's gone is compiled again.
+        with contextlib.suppress(FileNotFoundError):
             shutil.copyfile(cached, target)
             return
         sh(
@@ -224,7 +226,8 @@ def build_modules(work, env):
         )
         os.makedirs(LEAN_CACHE, exist_ok=True)
         for old in glob.glob(os.path.join(glob.escape(LEAN_CACHE), glob.escape(module) + ".*.olean")):
-            os.remove(old)
+            with contextlib.suppress(FileNotFoundError):
+                os.remove(old)
         partial = f"{cached}.{os.getpid()}"
         shutil.copyfile(target, partial)
         os.replace(partial, cached)

@@ -128,6 +128,19 @@ int main(int Argc, char **Argv) {
   }
   if (Namespace.empty())
     Namespace = defaultNamespace(Input);
+  // `--executable-memory` renames every whole word `Mem`, so a namespace with `Mem` or `ExecMem` in it would
+  // change too, or clash with IRLean's.
+  if (Executable) {
+    for (StringRef Rest = Namespace; !Rest.empty();) {
+      auto [Part, Tail] = Rest.split('.');
+      if (Part == "Mem" || Part == "ExecMem") {
+        errs() << "ir-lean: --executable-memory can't take the namespace " << Namespace << ", which names "
+               << Part << "\n";
+        return ExitUsage;
+      }
+      Rest = Tail;
+    }
+  }
 
   LLVMContext Context;
   SMDiagnostic Diagnostic;

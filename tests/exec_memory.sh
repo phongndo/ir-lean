@@ -141,6 +141,20 @@ for ll in heap gep promises memory_errors stops ub; do
     printf 'ok    tests/real/%s.ll on ExecMem is the same Lean, and checks\n' "$ll"
   fi
 done
+# A namespace the rename would change is refused, whole or split, with or without a dot around it.
+refused=1
+for ns in Mem ExecMem A.Mem Mem.B; do
+  for split in "" "--split $work/refused"; do
+    # shellcheck disable=SC2086 # $split is a flag and its value, or nothing.
+    "$tool" tests/real/heap.ll --namespace "$ns" --executable-memory -o "$work/refused.lean" $split 2>/dev/null
+    code=$?
+    if [ "$code" != 2 ]; then
+      fail "--namespace $ns --executable-memory ${split:+with --split }exits $code, not 2"
+      refused=0
+    fi
+  done
+done
+[ "$refused" = 1 ] && printf 'ok    --executable-memory refuses a namespace that names Mem or ExecMem\n'
 "$tool" tests/real/heap.ll --namespace X --split "$work/model" 2>/dev/null
 "$tool" tests/real/heap.ll --namespace X --split "$work/exec" --executable-memory 2>/dev/null
 same=1
