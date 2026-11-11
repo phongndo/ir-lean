@@ -321,7 +321,9 @@ undefined, like unwinding through a function marked so.
 
 ## Calls that touch memory
 
-They wait for F4, `Refines` with memory (SEM-06). A call touches memory when it passes or returns a pointer, or when the
+They waited for F4, `Refines` with memory (SEM-06), whose relation landed on 2026-11-10:
+[functions with memory](refinement.md#functions-with-memory). They're still refused. What's missing now is theirs:
+what a world's answer says about memory. A call touches memory when it passes or returns a pointer, or when the
 function has memory and the call may access memory other than `inaccessiblemem`. In a function with no memory, a call
 that writes any memory is a call with effects, and that's sound: the function reads no memory, so nothing it does can
 see what the call wrote, except later calls, whose answers the trace keys. In a function with memory, the call could
@@ -331,13 +333,16 @@ Until then they're refused by name: `call to external @F, which touches memory: 
 silently in another group. A call that touches only `inaccessiblemem`, which LangRef says "is not accessible by the
 current module", is a call with effects even in a function with memory, since nothing the function reads can change.
 
-F4 would key a call that reads the function's memory by that memory, as Alive2 does, and have a call that writes give a
-new memory as part of its answer, for the parts the callee can reach.
+The next slice would key a call that reads the function's memory by that memory, as Alive2 does, and have a call that
+writes give a new memory as part of its answer, for the parts the callee can reach. `Mem.le` is the relation two such
+answers would be compared by. It asks both sides for the same allocations, so a callee that allocates is the same open
+question as a target that does: [what it leaves out](refinement.md#what-it-leaves-out).
 
 ## External globals
 
 An external global is an address the model doesn't know. A function that uses one has memory, since it mentions a
-pointer, so it has no `Refines` claim until F4 either way. What changes is whether it translates at all.
+pointer, so until F4's relation, on 2026-11-10, it had no `Refines` claim either way. What changed with this slice is
+whether it translates at all.
 
 Supportable now: the global as a pointer to an allocation the module doesn't create. `Mem.initial` leaves it out, and a
 theorem that needs it there says so, with its size from the declared type, as `Mem.Object` does for one object. Then:
@@ -345,7 +350,9 @@ theorem that needs it there says so, with its size from the declared type, as `M
 - **Address arithmetic,** `getelementptr` and comparing two pointers, translates as it does for any pointer.
 - **Loads and stores** translate too, reading whatever the theorem's memory holds. With `Mem.initial` alone they find
   no allocation, which is `badAccess`: more undefined behavior than LLVM, conservative for a safety proof and wrong for
-  a refinement's source, so F4 has to settle it.
+  a refinement's source from `initial` alone. F4 settles it by what a claim quantifies over: a `Refines` claim is for
+  every memory, not for `initial`, so it covers the memories that hold the global, whatever the other module put
+  there ([refinement](refinement.md#memorys-gaps-each-with-its-side)).
 - **Constant `getelementptr` expressions** over an external global are checked the way they are over one the module
   defines: refused unless every step plainly stays inside the declared type.
 - **Refused:** an external global whose type isn't sized, `extern_weak` ones, which may be null, thread-local ones,

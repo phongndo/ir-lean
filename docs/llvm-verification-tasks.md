@@ -337,11 +337,12 @@ when they land.
 - **Lane:** SEM
 - **Scope:** A relation between source and target memories, since a target may allocate differently. Also provenance and exposure for `ptrtoint` and `inttoptr`, bytes that are poison or `undef`, lifetimes, and dead stack objects, which are more UB than LLVM today and so wrong for a source.
 - **Depends on:** SEM-01, SEM-03. Until 2026-11-09, SEM-02, which the maintainer's decision kept out of the model
+- **Gate waiver:** SEM-02 is blocked for good, by the maintainer's [decision](roadmap.md#three-decisions-of-2026-11-09) of 2026-11-09: `undef` stays out of the model, and F4 depends on F3, SEM-03, in its place. So this starts without it, and what `undef` would have changed is a trust gap below: a read of uninitialized memory is poison.
 - **Owns:** `IRLean/Mem.lean`, `IRLean/Safety.lean`
 - **Acceptance:** `Refines` has an instance for functions with memory, and the known gaps in [trust](trust.md#known-gaps-in-the-model) each have a side: no more UB than LLVM on the source, no less on the target.
-- **Trust gaps:** `tbaa` and scoped `noalias` are refused, and stay refused until modeled.
-- **Status:** not started
-- **Evidence:** None.
+- **Trust gaps:** `tbaa` and scoped `noalias` are refused, and stay refused until modeled. A claim about memory is guarded by `Outcome.answered`, since a source that touches memory stops the model on some memory, and rests on four gaps not arising on the side each is wrong for: [refinement](refinement.md#memorys-gaps-each-with-its-side).
+- **Status:** in progress: in the stages [refinement](refinement.md#functions-with-memory) gives. Done on 2026-11-10: the lemma that a refined cut gives a refined function, for functions without memory and, for the memory operations proved to keep the relation, with it, and `Refines` for functions with memory under the simplest sound relation, the same allocations on both sides. Not done: a target that allocates differently, so removing an `alloca` has no claim, provenance and exposure for `ptrtoint` and `inttoptr`, closing the gaps rather than naming their side, and a tool that states a claim about memory
+- **Evidence:** `IRLean/Cut.lean`, `IRLean/CutPromised.lean`, `IRLean/Mono.lean` and `IRLean/MemRefine.lean`. The `cut` test: a loop holding llama.cpp's q5_0 bit-spreading slice refines from the slice's own proof, and so do that loop with loads and a store and a loop as clang compiled it, with its attributes and its promise to progress, and a wrong cut, a wrong loop and a wrong lemma each stop a proof. The `memory_refine` test: nine rewrites on what ir-lean emits, four that refine, four that provably don't and one with no claim, Alive2 giving each the verdict its case says, and four changed rules of the relation each stopped by the law that pins it. The `refine` test, which until then checked memory had no instance.
 
 ### SEM-07: Promises as UB
 

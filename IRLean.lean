@@ -12,4 +12,8 @@ import IRLean.Lemmas
 import IRLean.Safety
 import IRLean.Refine
 import IRLean.World
+import IRLean.Cut
+import IRLean.CutPromised
+import IRLean.Mono
+import IRLean.MemRefine
 import IRLean.Scalable

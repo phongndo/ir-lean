@@ -205,6 +205,17 @@ set_tests_properties(float PROPERTIES TIMEOUT 900)
 # Alive2 gives each the verdict its case says, the same way. See docs/calls.md.
 add_test(NAME calls COMMAND ${CMAKE_SOURCE_DIR}/tests/calls.sh $<TARGET_FILE:ir-lean>)
 set_tests_properties(calls PROPERTIES TIMEOUT 900)
+# The cut lemma, on what ir-lean emits: a proof about a slice becomes a theorem about the loop that holds it,
+# llama.cpp's q5_0 bit-spreading slice among them, and a wrong cut, a wrong loop and a wrong lemma each stop a
+# proof. One Lean or Alive2 process at a time, each Lean process capped at 4 GB. See docs/refinement.md.
+add_test(NAME cut COMMAND ${CMAKE_SOURCE_DIR}/tests/cut.sh $<TARGET_FILE:ir-lean>)
+set_tests_properties(cut PROPERTIES TIMEOUT 900)
+# `Refines` for functions with memory, SEM-06, on what ir-lean emits: right rewrites refine on every memory
+# the model has an answer for, wrong ones provably don't, a changed rule of the relation stops the law that
+# pins it, and Alive2 gives each case the verdict it says. One Lean or Alive2 process at a time, each Lean
+# process capped at 2 GB and 300 s. See docs/refinement.md.
+add_test(NAME memory_refine COMMAND ${CMAKE_SOURCE_DIR}/tests/memory_refine.sh $<TARGET_FILE:ir-lean>)
+set_tests_properties(memory_refine PROPERTIES TIMEOUT 900)
 add_test(NAME verify COMMAND ${CMAKE_SOURCE_DIR}/tests/verify.py $<TARGET_FILE:ir-lean>)
 # Tier-1 proof tests: the contract in Python, then tools/prooftest/prooftest.py on
 # tests/prooftest/Cases.ll, at most four cases at a time, each with at most one Lean process running.
@@ -385,6 +396,8 @@ set_tests_properties(
     freeze
     float
     calls
+    cut
+    memory_refine
     generic_rewrites
     cpp_correspondence
     store
