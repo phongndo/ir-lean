@@ -213,8 +213,10 @@ set_tests_properties(float PROPERTIES TIMEOUT 900)
 add_test(NAME calls COMMAND ${CMAKE_SOURCE_DIR}/tests/calls.sh $<TARGET_FILE:ir-lean>)
 set_tests_properties(calls PROPERTIES TIMEOUT 900)
 # The cut lemma, on what ir-lean emits: a proof about a slice becomes a theorem about the loop that holds it,
-# llama.cpp's q5_0 bit-spreading slice among them, and a wrong cut, a wrong loop and a wrong lemma each stop a
-# proof. One Lean or Alive2 process at a time, each Lean process capped at 4 GB. See docs/refinement.md.
+# llama.cpp's q5_0 bit-spreading slice among them, and about a kernel of the corpus as clang compiled it,
+# libsodium's gh_ad_blocks, and a wrong cut, a wrong loop, a wrong lemma and a wrong operation each stop a
+# proof. One Lean or Alive2 process at a time, each Lean process capped at 4 GB, the kernel's at 8 GB. See
+# docs/refinement.md.
 add_test(NAME cut COMMAND ${CMAKE_SOURCE_DIR}/tests/cut.sh $<TARGET_FILE:ir-lean>)
 set_tests_properties(cut PROPERTIES TIMEOUT 900)
 # `Refines` for functions with memory, SEM-06, on what ir-lean emits: right rewrites refine on every memory
