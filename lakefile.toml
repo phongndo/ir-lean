@@ -1,7 +1,7 @@
 name = "ir-lean"
 version = "0.1.0"
 license = "Apache-2.0"
-defaultTargets = ["IRLean", "LemmaStore", "StoreTool", "Peephole"]
+defaultTargets = ["IRLean", "LemmaStore", "StoreTool", "Peephole", "Rules"]
 
 [[lean_lib]]
 name = "IRLean"
@@ -50,4 +50,13 @@ roots = [
 name = "Peephole"
 srcDir = "tests/passes-proofs/peephole"
 globs = ["Peephole.+"]
+moreLeanArgs = ["-M", "4096"]
+
+# The rules the rule search applies: rewrites proved for every input, each from one declarative source in
+# rules/src, with its statement generated into Rules/Statements.lean and its theorem on the standard three axioms.
+# Each Lean process is capped at 4 GB. A default target, so CI's setup checks every rule. docs/rules.md.
+[[lean_lib]]
+name = "Rules"
+srcDir = "rules"
+roots = ["Rules"]
 moreLeanArgs = ["-M", "4096"]

@@ -417,7 +417,7 @@ in. None of this changes the goal.
 
 | Name | Command | What it is | Built |
 | --- | --- | --- | --- |
-| sopt | `irl sopt` | The superoptimizer: the rule search, its results and the plugin, decisions 4 and 10 above | No |
+| sopt | `irl sopt` | The superoptimizer: the rule search, its results and the plugin, decisions 4 and 10 above | Not as `irl sopt`. Since 2026-11-10 the rule search is `tools/rules/rules.py` ([rule search](rule-search.md)), and the plugin isn't built |
 | ptf | `irl ptf` | The proof-test framework, `tools/prooftest/` | Tier 1 |
 | msc | `irl msc` | The memory-safety checker | No |
 | emit | `irl emit` | The emitter, `build/ir-lean` | Yes |
