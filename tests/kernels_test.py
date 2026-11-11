@@ -307,6 +307,35 @@ class Records(unittest.TestCase):
         self.assertIn(schemas.KERNELS_DEMAND, schemas.ALL)
 
 
+class Provenance(unittest.TestCase):
+    """A run of some projects keeps the others' counts, and each keeps the date, commit and clang it was
+    measured with, so counts from two runs can't pass for one."""
+
+    OLD: typing.ClassVar[dict[str, Any]] = {
+        "date": "2026-11-09",
+        "commit": "old",
+        "clang": "clang 23.1.3",
+        "projects": {
+            "libwebp": {"totals": {}},
+            "zlib-ng": {"totals": {}, "measured": {"date": "2026-11-10"}},
+        },
+    }
+
+    def test_a_kept_project_keeps_the_record_it_was_measured_with(self) -> None:
+        kept = demand.kept(self.OLD, ["libwebp", "zlib-ng", "flac"])
+        self.assertEqual(
+            kept["libwebp"]["measured"], {"date": "2026-11-09", "commit": "old", "clang": "clang 23.1.3"}
+        )
+        self.assertEqual(kept["zlib-ng"]["measured"], {"date": "2026-11-10"})
+        self.assertNotIn("flac", kept)
+        self.assertEqual(demand.kept(None, ["libwebp"]), {})
+
+    def test_every_project_in_the_results_says_what_it_was_measured_with(self) -> None:
+        record = schemas.read(RESULTS, schemas.KERNELS_DEMAND)
+        for name, project in record["projects"].items():
+            self.assertEqual(set(project.get("measured", {})), {"date", "commit", "clang"}, name)
+
+
 class Demand(unittest.TestCase):
     KNOWN: typing.ClassVar[dict[str, dict[str, str]]] = {
         name: {} for name in ("llvm.umin", "llvm.memmove", "llvm.x86.avx2.psad.bw", "llvm.vector.reduce.add")

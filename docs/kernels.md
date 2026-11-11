@@ -231,7 +231,10 @@ evening of 2026-11-10 on z. The proposal's run, at `df3e997` on 2026-11-10, tran
 ten projects that aren't rejected as built and 241 relaxed, and 19 of their 85 named kernels relaxed, 16 of them in
 the six. Now it's 31 and 279, and 25 of the 85, 22 of them in the six. Every gain is #107's: VZEROUPPER, PCLMULQDQ,
 AESNI, the saturating packs, PMULH, PAVG, PSADBW, PSIGN, PHADD and BZHI are modeled now. No function translated
-before and is refused now, so #105's new refusals cost none here. The tables are the new run's.
+before and is refused now, so #105's new refusals cost none here. The tables are the new run's. It was run once more
+at `5c99def`, which changes nothing the emitter does either, with the same counts, so that each project in
+`demand.json` carries what it was measured with: its own date, commit and clang. A run of some projects keeps the
+others' counts with their own, and so can't pass them off as its own.
 
 | Project | Units | Instructions | Functions | Translate as built | Relaxed |
 | --- | ---: | ---: | ---: | ---: | ---: |
@@ -623,7 +626,11 @@ rule for every win.
   build's own link command.
 - **Checked before timing:** the two differ in the rewritten functions and nothing else, and `llc` on the unchanged
   IR gives the baseline's machine code, as `tests/llama_bench.py` checks.
-- **The same output.** Every timed run's output is hashed, and has to be the baseline's, bit for bit.
+- **The same output.** Where a workload's output is its result, a decompressed file, a hash or logits, every timed
+  run's output is hashed, and has to be the baseline's, bit for bit. Where it's only timings, as for libsodium's
+  Argon2id test in benchmark mode and `xxhsum -b`, the candidate's build first has to pass the project's own test of
+  the same functions in its checking mode, which compares against known answers, and the timed runs' output is
+  recorded and not compared. Each workload's check is written into the manifest when the list is fixed.
 
 **What's measured.** Wall time of the workload's command, from start to exit, on z, pinned to cores of one CCD, with
 the thread count the manifest gives, one unless the workload says otherwise. A run shorter than 2 seconds is repeated
@@ -634,8 +641,9 @@ is the measure. The load average and the cores are recorded with each run.
 
 - Runs come in pairs, baseline and candidate back to back, in an order drawn from a recorded seed.
 - Each session warms both once, then runs its pairs. No pair is removed, outliers included.
-- The statistic is the median of the paired ratios, baseline time over candidate time, with a 95% percentile
-  bootstrap interval from 20,000 resamples of the pairs.
+- The statistic is the median of the paired ratios, with a 95% percentile bootstrap interval from 20,000 resamples of
+  the pairs. A ratio is baseline time over candidate time, or, where the measure is a rate, as `xxhsum -b`'s MB/s is,
+  candidate rate over baseline rate, so that above 1 is faster either way.
 - A session that picks among candidates is exploratory. Only confirmation sessions count: run after the candidate, its
   workload, its thread count and its cores are written down, with a new seed.
 

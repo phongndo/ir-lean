@@ -330,6 +330,16 @@ def totals(units: list[dict[str, Any]], known: dict[str, dict[str, str]]) -> dic
     return out
 
 
+def kept(old: dict[str, Any] | None, keep: list[str]) -> dict[str, Any]:
+    """The projects of an earlier record that a run of other projects keeps, each with what it was measured
+    with: its own `measured`, or else, in a record from before projects had one, the record's date, commit and
+    clang."""
+    if old is None:
+        return {}
+    top = {k: old.get(k, "") for k in ("date", "commit", "clang")}
+    return {n: {"measured": top, **old["projects"][n]} for n in keep if n in old["projects"]}
+
+
 def run(args: argparse.Namespace) -> int:
     manifest = kernels.load()
     if found := kernels.problems(manifest):
@@ -345,15 +355,20 @@ def run(args: argparse.Namespace) -> int:
         print(f"clang isn't the pinned {pins.llvm_version()}: run this in `nix develop`", file=sys.stderr)
         return 1
     known = features()
-    previous = (
-        schemas.read(args.out, schemas.KERNELS_DEMAND)["projects"]
-        if args.project and args.out.exists()
-        else {}
-    )
-    projects: dict[str, Any] = {n: previous[n] for n in with_units if n in previous and n not in names}
+    head = proc.run(["git", "-C", ROOT, "rev-parse", "HEAD"], timeout=60).out.strip()
+    # What each project's counts were measured with, kept with them: a run of some projects keeps the others'
+    # counts, and they keep the date, commit and clang they were measured with, not this run's.
+    measured = {
+        "date": proc.now()[:10],
+        "commit": head,
+        "clang": clang.version.splitlines()[0] if clang.version else "",
+    }
+    old = schemas.read(args.out, schemas.KERNELS_DEMAND) if args.project and args.out.exists() else None
+    projects = kept(old, [n for n in with_units if n not in names])
     for name in names:
         result = measure(name, manifest, args.work, args.jobs)
         result["totals"] = totals(result["units"], known)
+        result["measured"] = measured
         projects[name] = result
         t = result["totals"]
         print(
@@ -362,13 +377,11 @@ def run(args: argparse.Namespace) -> int:
             f"{t['relaxed']['functions']} relaxed",
             flush=True,
         )
-    head = proc.run(["git", "-C", ROOT, "rev-parse", "HEAD"], timeout=60).out.strip()
     record = {
         "schema": schemas.KERNELS_DEMAND,
         "generated_by": "bench/kernels/demand.py run",
-        "date": proc.now()[:10],
-        "commit": head,
-        "clang": clang.version.splitlines()[0] if clang.version else "",
+        # The run that wrote this file. Each project's own `measured` says when its counts were measured.
+        **measured,
         "opt": manifest["corpus"]["opt"],
         "variants": {"as-built": [], "relaxed": RELAX},
         "projects": {n: projects[n] for n in sorted(projects)},
