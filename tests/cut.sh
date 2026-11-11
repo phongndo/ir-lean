@@ -163,26 +163,44 @@ done
 
 # The theorems, with warnings as errors, replayed in the kernel. The cases rest on the standard axioms alone. The
 # kernel's theorem rests on what its slice's proof does, and adds nothing: every bv_decide axiom is the slice's.
+# Whether a Lean step that failed stopped at a limit, and so decided nothing: timeout's exit 124, a kill's 137, Lean's
+# own line for running out of memory, or every error it reported naming a limit on the error's own line. A goal or a
+# string Lean shows under an error isn't read, so a proof whose goal mentions a limit still fails.
+# usage: stopped_at_limit STATUS OUTPUT
+stopped_at_limit() {
+  local errors
+  if [ "$1" = 124 ] || [ "$1" = 137 ] ||
+    grep -qE '^(libc\+\+abi: terminating due to uncaught exception of type lean::memory_exception|INTERNAL PANIC: out of memory)' <<<"$2"; then
+    return 0
+  fi
+  errors=$(grep -E '^[^ ]+:[0-9]+:[0-9]+: error' <<<"$2" || true)
+  [ -n "$errors" ] && ! grep -vqE "$limit" <<<"$errors"
+}
 # usage: check MODULE GENERATED THEOREMS
 check() {
   local out replay status=0
   out=$(lean -DwarningAsError=true -R tests/cut -o "$work/$1.olean" "tests/cut/$1.lean" 2>&1) || status=$?
   if [ "$status" != 0 ]; then
-    # timeout exits 124, and a process the kernel killed for memory 137.
-    if [ "$status" = 124 ] || [ "$status" = 137 ] || grep -qE "$limit" <<<"$out"; then
+    if stopped_at_limit "$status" "$out"; then
       unknown "tests/cut/$1.lean stopped at a limit (exit $status), so it's neither proved nor refuted" "$out"
     else
       fail "tests/cut/$1.lean" "$out"
     fi
     return 1
   fi
-  if ! out=$(IRLEAN_CHECK_MODULE=$1 IRLEAN_CHECK_GENERATED=$2 IRLEAN_CHECK_THEOREMS=$3 lean tests/check_axioms.lean 2>&1); then
-    fail "$1: axioms" "$out"
+  out=$(IRLEAN_CHECK_MODULE=$1 IRLEAN_CHECK_GENERATED=$2 IRLEAN_CHECK_THEOREMS=$3 lean tests/check_axioms.lean 2>&1) ||
+    status=$?
+  if [ "$status" != 0 ]; then
+    if stopped_at_limit "$status" "$out"; then
+      unknown "$1: the axiom check stopped at a limit (exit $status), so it decided nothing" "$out"
+    else
+      fail "$1: axioms" "$out"
+    fi
     return 1
   fi
   replay=$(timeout "$secs" leanchecker "$1" 2>&1) || status=$?
   if [ "$status" != 0 ]; then
-    if [ "$status" = 124 ] || [ "$status" = 137 ] || grep -qE "$limit" <<<"$replay"; then
+    if stopped_at_limit "$status" "$replay"; then
       unknown "$1: leanchecker stopped at a limit (exit $status), so its replay decided nothing" "$replay"
     else
       fail "$1: replay" "$replay"
