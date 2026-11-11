@@ -6,15 +6,21 @@ An entry is a record in bench/kernels/board/, one per rewrite, `ir-lean.board.wi
 toward S3's bar has to be everything docs/kernels.md's "What a win is" asks, and `check` refuses it otherwise:
 
 - on the fixed corpus: the manifest is fixed, its project is approved, and it was found after the lock;
-- proved: its modules are in the repo and a test registered in CMakeLists.txt checks them;
+- proved: its Lean modules are in the repo, a test registered in CMakeLists.txt names each, they name each
+  of its functions, and `proof.ir` gives the source and target IR the proof is about, which the test names;
 - reviewed: a second agent's review of the statement, and a must-break mutant, as decision 11 asks;
-- measured: comparisons in the repo, made by bench/kernels/harness.py with the protocol's rule, each
-  measurably faster, against the -O3 baseline, and against the project's own level where that isn't -O3,
-  with every other workload of the project measured and none slower;
+- measured: comparisons in the repo, each a measurement of its own, made by bench/kernels/harness.py with
+  the protocol's rule, each measurably faster, against the -O3 baseline, and against the project's own
+  level where that isn't -O3, with every other workload of the project measured and none slower;
+- the rewrite measured: each comparison's candidate, by the build records beside its plan, is built from
+  the corpus's pin with its flags and clang, rewrites the entry's unit and declares its functions, from the
+  proof's source IR to its target;
 - labeled: what's proved, what it rests on, the source IR, and how it was found.
 
-Every comparison the board cites, and every harness control in bench/kernels/results/controls/, is worked
-out again from its sessions, and has to give what's recorded.
+No two entries are one rewrite, or cite one comparison. Every comparison the board cites, and every harness
+control in bench/kernels/results/controls/, is worked out again from its sessions, its plan and the build
+records beside it, and has to give all of what's recorded: what it compares, at what level, and whether
+it's a control, not only its statistic and verdict.
 
 usage: bench/kernels/board.py write    write docs/board.md from the records
        bench/kernels/board.py check    check every record, and that docs/board.md is what `write` gives
@@ -68,38 +74,135 @@ def controls() -> list[Path]:
 
 
 def recompute(path: Path) -> list[str]:
-    """What's wrong with a comparison record: its sessions missing or changed, or a statistic or verdict
-    that its sessions don't give."""
+    """What's wrong with a comparison record: its sessions missing or changed, or any of it, the builds and
+    level it compares, whether it's a control, its statistic or its verdict, that its sessions, its plan and
+    the build records beside the plan don't give. The workloads it has to account for are the project's, from
+    its configuration, not the ones it lists."""
     stored = schemas.read(path, schemas.KERNELS_COMPARISON)
     where = path.parent
     sessions = {}
-    plans = {}
     for p in sorted(where.glob("*.json")):
-        try:
+        with contextlib.suppress(schemas.SchemaError):
             record = schemas.read(p, schemas.KERNELS_SESSION)
-        except schemas.SchemaError:
-            with contextlib.suppress(schemas.SchemaError):
-                plans[hashing.sha256_file(p)] = schemas.read(p, schemas.KERNELS_PLAN)
-            continue
-        record["_sha256"] = hashing.sha256_file(p)
-        sessions[record["_sha256"]] = record
+            record["_sha256"] = hashing.sha256_file(p)
+            sessions[record["_sha256"]] = record
     main = [sessions.get(s["sha256"]) for s in stored["sessions"]]
-    if any(s is None for s in main):
+    if not main or any(s is None for s in main):
         return [f"{show(path)}: a session it cites isn't beside it, as it was"]
     others: dict[str, list[dict[str, Any]]] = {}
     for name, summary in stored["others"].items():
         if any(sha not in sessions for sha in summary["sessions"]):
             return [f"{show(path)}: a session of {name} it cites isn't beside it, as it was"]
         others[name] = [sessions[sha] for sha in summary["sessions"]]
-    names = sorted({*stored["others"], *stored["unmeasured"], stored["workload"]})
-    rule = protocol.Rule(**stored["rule"])
-    again = harness.compare([s for s in main if s is not None], others, names, rule, plans)
-    keys = ("verdict", "conditions", "sessions", "pooled", "others", "protocol_problems", "rule")
-    return [f"{show(path)}: its {k} isn't what its sessions give" for k in keys if again[k] != stored[k]]
+    plans = harness.read_plans(where)
+    found = [s for s in main if s is not None]
+    names = harness.required_workloads(plans.get(found[0]["plan_sha256"]), stored["project"])
+    try:
+        again = harness.compare(found, others, names, protocol.Rule(**stored["rule"]), plans)
+    except harness.Refused as error:
+        return [f"{show(path)}: {error}"]
+    return [
+        f"{show(path)}: its {k} isn't what its sessions and plan give"
+        for k in sorted(again.keys() | stored.keys())
+        if again.get(k) != stored.get(k)
+    ]
 
 
-def tested(name: str) -> bool:
-    return re.search(rf"add_test\(\s*NAME {re.escape(name)}\b", CMAKE.read_text()) is not None
+def plan_of(path: Path) -> dict[str, Any] | None:
+    """A comparison's plan, with its build records, from beside it."""
+    return harness.read_plans(path.parent).get(schemas.read(path, schemas.KERNELS_COMPARISON)["plan_sha256"])
+
+
+def test_text(name: str) -> str | None:
+    """A test registered in CMakeLists.txt: its command, and the text of each file in the repo it runs, or
+    None if there's no test of that name."""
+    m = re.search(rf"add_test\(\s*NAME\s+{re.escape(name)}\s+COMMAND\s+([^)]*)\)", CMAKE.read_text())
+    if m is None:
+        return None
+    text = m[1]
+    for arg in re.findall(r"\$\{CMAKE_SOURCE_DIR\}/(\S+)", m[1]):
+        if (ROOT / arg).is_file():
+            text += "\n" + (ROOT / arg).read_text(errors="replace")
+    return text
+
+
+def built(
+    what: str, e: dict[str, Any], project: dict[str, Any], corpus: dict[str, Any], plan: Any
+) -> list[str]:
+    """How a comparison's builds, by the records beside its plan, aren't this entry's rewrite: the baseline
+    and the candidate built from the corpus's pin with its flags and toolchain by this harness, and the
+    candidate rewriting the entry's unit, declaring its functions, from the proof's source IR to its
+    target."""
+    builds = (plan or {}).get("_builds") or {}
+    base, cand = builds.get("baseline"), builds.get("candidate")
+    if base is None or cand is None:
+        return [f"{what}: its plan's build records aren't beside it"]
+    out = []
+    version = corpus["llvm_tag"].removeprefix("llvmorg-")
+    for role, r in (("baseline", base), ("candidate", cand)):
+        if r["schema"] != schemas.KERNELS_BUILD:
+            out.append(f"{what}: its {role} was built by an earlier harness, {r['schema']}")
+        pin = r.get("pin") or {}
+        if (pin.get("rev"), pin.get("nix_hash")) != (project["rev"], project["nix_hash"]):
+            out.append(f"{what}: its {role} isn't built from {e['project']} at the corpus's pin")
+        if r.get("flags") != corpus.get("flags"):
+            out.append(f"{what}: its {role} isn't built with the corpus's flags")
+        tools = r.get("tools") or {}
+        if f"clang version {version}" not in ((tools.get("clang") or {}).get("version") or "") or (
+            f"LLVM version {version}" not in ((tools.get("llc") or {}).get("version") or "")
+        ):
+            out.append(f"{what}: its {role} isn't built with the corpus's clang and llc, {version}")
+    if base["variant"] != "baseline" or base["control"] is not None:
+        out.append(f"{what}: its baseline isn't the baseline build")
+    info = cand.get("candidate") or {}
+    if cand["control"] is not None or info.get("form") not in ("ir", "object"):
+        out.append(f"{what}: its candidate isn't a rewrite")
+    if info.get("unit") != e.get("unit"):
+        out.append(
+            f"{what}: its candidate rewrites {info.get('unit')!r}, and the entry's unit is {e.get('unit')!r}"
+        )
+    if info.get("declared") != sorted(e.get("functions") or []):
+        out.append(
+            f"{what}: its candidate declares {info.get('declared')}, and the entry's functions are "
+            f"{sorted(e.get('functions') or [])}"
+        )
+    sources = {o.get("ir_sha256") for o in info.get("objects") or []}
+    pairs = [
+        (ROOT / x.get("source", ""), ROOT / x.get("target", ""))
+        for x in (e.get("proof") or {}).get("ir") or []
+    ]
+    if not any(
+        s.is_file()
+        and t.is_file()
+        and hashing.sha256_file(s) in sources
+        and hashing.sha256_file(t) == info.get("input_sha256")
+        for s, t in pairs
+    ):
+        out.append(
+            f"{what}: its proof isn't about its candidate: no pair in proof.ir has the unit's IR as built as "
+            f"its source and the candidate's input, {info.get('input_sha256')}, as its target"
+        )
+    return out
+
+
+def duplicates(found: list[tuple[Path, dict[str, Any]]]) -> list[str]:
+    """Entries that are one rewrite, by project, unit and functions, or that cite one comparison."""
+    out = []
+    seen: dict[Any, Path] = {}
+    for path, e in found:
+        keys: list[Any] = [
+            ("the rewrite", e.get("project"), e.get("unit"), tuple(sorted(e.get("functions") or [])))
+        ]
+        for m in (e.get("measured") or {}).get("comparisons", []):
+            keys += [("the comparison", m.get("path")), ("the comparison", m.get("sha256"))]
+        for key in dict.fromkeys(keys):
+            if key in seen:
+                out.append(
+                    f"{show(path)}: {key[0]} {key[1:]} is {show(seen[key])}'s too: one rewrite, one entry"
+                )
+            else:
+                seen[key] = path
+    return out
 
 
 def problems(path: Path, e: dict[str, Any], manifest: dict[str, Any]) -> list[str]:
@@ -116,12 +219,19 @@ def problems(path: Path, e: dict[str, Any], manifest: dict[str, Any]) -> list[st
             out.append(
                 f"{label}: label {key} is {e.get('labels', {}).get(key)!r}, not one of {', '.join(values)}"
             )
-    for module in e.get("proof", {}).get("modules", []):
-        if not (ROOT / module).is_file():
-            out.append(f"{label}: its proof's module {module} isn't in the repo")
-    test = e.get("proof", {}).get("test")
-    if not isinstance(test, str) or not tested(test):
+    proof = e.get("proof") or {}
+    test = proof.get("test")
+    command = test_text(test) if isinstance(test, str) else None
+    if command is None:
         out.append(f"{label}: no test named {test!r} is registered in CMakeLists.txt to check its proof")
+    modules = proof.get("modules") or []
+    if not modules:
+        out.append(f"{label}: its proof names no module")
+    for module in modules:
+        if not (ROOT / module).is_file() or not module.endswith(".lean"):
+            out.append(f"{label}: its proof's module {module} isn't a Lean module in the repo")
+        elif command is not None and Path(module).name not in command:
+            out.append(f"{label}: its proof's test, {test}, doesn't name its module {module}")
     if not e.get("functions"):
         out.append(f"{label}: it names no function")
     if not e["counts"]:
@@ -144,7 +254,21 @@ def problems(path: Path, e: dict[str, Any], manifest: dict[str, Any]) -> list[st
     review = e.get("review") or {}
     if not review.get("statement") or not review.get("mutant"):
         out.append(f"{label}: it needs a second agent's review of its statement and a must-break mutant")
+    # The proof is about these functions, from this source IR to this target, which its test reads.
+    text = "".join((ROOT / m).read_text(errors="replace") for m in modules if (ROOT / m).is_file())
+    if unnamed := [f for f in e.get("functions") or [] if f not in text]:
+        out.append(f"{label}: its proof's modules don't name {unnamed}")
+    if not proof.get("ir"):
+        out.append(f"{label}: its proof gives no source and target IR, in proof.ir")
+    for pair in proof.get("ir") or []:
+        for side in ("source", "target"):
+            where = ROOT / str(pair.get(side, ""))
+            if not where.is_file():
+                out.append(f"{label}: its proof's {side} IR {pair.get(side)} isn't in the repo")
+            elif command is not None and where.name not in command:
+                out.append(f"{label}: its proof's test, {test}, doesn't name its {side} IR {pair.get(side)}")
     levels = set()
+    plans_seen: set[str] = set()
     measured = e.get("measured", {}).get("comparisons", [])
     if not measured:
         out.append(f"{label}: it has no comparison")
@@ -156,6 +280,10 @@ def problems(path: Path, e: dict[str, Any], manifest: dict[str, Any]) -> list[st
         c = schemas.read(where, schemas.KERNELS_COMPARISON)
         out += recompute(where)
         what = f"{label}: {m['path']}"
+        if c["plan_sha256"] in plans_seen:
+            out.append(f"{what} is the measurement another of its comparisons is")
+        plans_seen.add(c["plan_sha256"])
+        out += built(what, e, project, corpus, plan_of(where))
         if c["project"] != e["project"] or c["control"] is not None:
             out.append(f"{what} is a control, or another project's")
         if c["rule"] != protocol.PROTOCOL.as_record() or not c["by_the_protocol"]:
@@ -176,8 +304,10 @@ def problems(path: Path, e: dict[str, Any], manifest: dict[str, Any]) -> list[st
 def check_all() -> list[str]:
     manifest = kernels.load()
     out = []
-    for path, e in entries():
+    found = entries()
+    for path, e in found:
         out += problems(path, e, manifest)
+    out += duplicates(found)
     for path in controls():
         out += recompute(path)
         c = schemas.read(path, schemas.KERNELS_COMPARISON)
@@ -248,8 +378,9 @@ HOW = """\
 3. A plan is written down, then its confirmation sessions run, and `harness.py compare` reads them by
    [the rule](kernels.md#measurably-faster), against `-O3`, and against the project's own level where that's
    `-O2`, with every other workload of the project measured.
-4. An entry in `bench/kernels/board/` cites the comparisons, the proof and the review, and
-   `bench/kernels/board.py check` refuses it unless all of that holds.
+4. An entry in `bench/kernels/board/` cites the comparisons, the proof, with the source and target IR it's
+   about, and the review, and `bench/kernels/board.py check` refuses it unless all of that holds, and the
+   candidate each comparison measured is that rewrite, of that IR, built from the corpus's pin.
 """
 
 

@@ -17,3 +17,5 @@ output = "result"
 command = ["{build}/hot", "mix", "5"]
 measure = "time"
 output = "result"
+# Its own test, given the build's arguments, as xxHash's `make check` is: without them it builds hot again.
+check = ["make", "-C", "{build}", "{build_args}", "check"]

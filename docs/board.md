@@ -49,5 +49,6 @@ worked out again from its sessions when this page was written. A ratio above 1 i
 3. A plan is written down, then its confirmation sessions run, and `harness.py compare` reads them by
    [the rule](kernels.md#measurably-faster), against `-O3`, and against the project's own level where that's
    `-O2`, with every other workload of the project measured.
-4. An entry in `bench/kernels/board/` cites the comparisons, the proof and the review, and
-   `bench/kernels/board.py check` refuses it unless all of that holds.
+4. An entry in `bench/kernels/board/` cites the comparisons, the proof, with the source and target IR it's
+   about, and the review, and `bench/kernels/board.py check` refuses it unless all of that holds, and the
+   candidate each comparison measured is that rewrite, of that IR, built from the corpus's pin.

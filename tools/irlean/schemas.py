@@ -80,10 +80,15 @@ KERNELS_MANIFEST = "ir-lean.kernels.manifest/1"
 KERNELS_DEMAND = "ir-lean.kernels.demand/1"
 # bench/kernels/harness.py, the benchmark harness: a baseline's or a candidate's build and the checks it
 # passed, a comparison's plan, written before it runs, one session's timed pairs, and the verdict the rule
-# gives them. docs/kernels.md.
-KERNELS_BUILD = "ir-lean.kernels.build/1"
+# gives them, and a session's attempt, which holds its place before it runs and what it did if it failed.
+# docs/kernels.md. A build of version 2 compares what each function refers to and the unit's data, and
+# checks with the build's own arguments, so its record says more than version 1's did with the same fields:
+# version 1, of the controls of 2026-11-10, is read for what it compared, and no win rests on it.
+KERNELS_BUILD = "ir-lean.kernels.build/2"
+KERNELS_BUILD_1 = "ir-lean.kernels.build/1"
 KERNELS_PLAN = "ir-lean.kernels.plan/1"
 KERNELS_SESSION = "ir-lean.kernels.session/1"
+KERNELS_ATTEMPT = "ir-lean.kernels.attempt/1"
 KERNELS_COMPARISON = "ir-lean.kernels.comparison/1"
 # bench/kernels/board.py: an entry on the results board, a proved win or a rewrite that doesn't count, with
 # its labels, proof and measurements. docs/board.md.

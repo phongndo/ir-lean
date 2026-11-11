@@ -1,0 +1,16 @@
+# The synthetic project with a check that doesn't give make the build's arguments, as xxHash's `make check` was
+# first written: make builds hot again from the source, over the candidate, with the flags it has by default.
+# tests/kernels_bench_test.py checks bench/kernels/harness.py refuses that candidate.
+name = "unflagged"
+src = "project"
+system = "make"
+targets = ["hot"]
+binaries = ["hot"]
+project_opt = "-O3"
+flags = ["-fomit-frame-pointer", "-momit-leaf-frame-pointer"]
+
+[workload.sum]
+command = ["{build}/hot", "sum", "5"]
+measure = "time"
+output = "result"
+check = ["make", "-C", "{build}", "check"]

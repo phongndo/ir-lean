@@ -7,12 +7,15 @@
 # `threads`, `measure` and `output` wherever the manifest gives them, over what's here.
 #
 # Each workload:
-#   command   what's timed, with {build}, {src}, {inputs}, {input:NAME}, {work}, {out} and {threads} filled in
+#   command   what's timed, with {build}, {src}, {inputs}, {input:NAME}, {work}, {out} and {threads} filled in,
+#             and an argument that's {build_args} replaced by the build's own: make's CFLAGS, CXXFLAGS and
+#             configure, nothing for CMake
 #   measure   "time", the command's wall time, or "rate", the number `rate` matches in what it prints
 #   output    "result": every timed run's output is hashed, and has to be the baseline's, bit for bit; or
 #             "timings": it's recorded and not compared, and the workload needs a `check`
 #   check     a command the candidate's build has to pass before it's timed, as the project's own test of the
-#             functions it changes
+#             functions it changes. One that drives the build again takes {build_args}, so it tests what was
+#             built: the harness refuses a candidate if a check changes either build's binaries or its objects
 #   setup     a command run once a session, with the baseline, before the warm-up
 #   threads   how many threads it runs, and how many cores it's pinned to: one unless it says otherwise
 #
@@ -52,8 +55,9 @@ measure = "rate"
 # -b and its number.
 rate = '\d+#\S+\s+:[^(\r\n]*\(\s*([0-9.]+) MiB/s\)'
 output = "timings"
-# Its own known answers, in its checking mode.
-check = ["make", "-C", "{build}", "check"]
+# Its own known answers, in its checking mode. Its Makefile keeps each build's objects under a hash of its
+# flags, and builds xxhsum again from the source when it's run with others, so the check takes the build's.
+check = ["make", "-C", "{build}", "{build_args}", "check"]
 
 [xxhash.workload.file]
 command = ["{build}/xxhsum", "-H3", "{inputs}/silesia.tar"]

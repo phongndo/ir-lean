@@ -35,7 +35,10 @@ project from a file instead of the manifest, as tests/kernels_bench_test.py's sy
 from __future__ import annotations
 
 import argparse
+import bisect
 import contextlib
+import itertools
+import json
 import math
 import os
 import platform
@@ -68,6 +71,10 @@ CORPUS_OPT = "-O3"
 OWN_OPT = "project"
 # What a control checks. A record with one is never a win.
 CONTROLS = ("a/a", "slower", "faster")
+# A session repeats a run until it takes this much more than the minimum, checked warm at most this many times
+# before its pairs.
+CALIBRATION_MARGIN = 1.1
+CALIBRATIONS = 4
 # The longest a timed run, a build or a check may take.
 RUN_LIMIT_S = 1800
 BUILD_LIMIT_S = 3600
@@ -78,6 +85,9 @@ LLC_LEVEL = {"-O0": "-O0", "-O1": "-O1", "-O2": "-O2", "-O3": "-O3", "-Os": "-O2
 DEPENDENCY_FLAGS = {"-MD": 0, "-MMD": 0, "-MP": 0, "-MF": 1, "-MT": 1, "-MQ": 1}
 # Padding objdump shows at the end of a function, which depends on where the next one starts.
 PADDING = re.compile(r"^\s*(int3|nop\w*\b.*|xchg\s+%ax,%ax|data16\b.*|cs nop\w*.*)\s*$")
+# The relocations relative to where the instruction is, whose target is the next instruction's address plus
+# what the field holds.
+PC_RELATIVE = re.compile(r"R_X86_64_(PC\d+|PLT32|GOTPC\w*|GOTPCREL\w*|REX_GOTPCRELX|CODE_\w*GOTPC\w*)$")
 
 
 class Refused(Exception):
@@ -264,6 +274,13 @@ def make_flags(project: Project, opt: str) -> list[str]:
         )
     flags = shlex.join([CORPUS_OPT, *project.flags])
     return [f"CFLAGS={flags}", f"CXXFLAGS={flags}"]
+
+
+def build_args(project: Project, opt: str) -> list[str]:
+    """What a command that drives the build again, as a check can, has to give it so that it builds what was
+    built: make's variables, which a Makefile can key what it builds on, as xxHash's does. Nothing for CMake,
+    whose build directory keeps them. A workload's commands take them as `{build_args}`."""
+    return [*make_flags(project, opt), *project.configure] if project.system == "make" else []
 
 
 def configure_and_build(project: Project, opt: str, tree: Path) -> Path:
@@ -473,18 +490,184 @@ def build_baseline(project: Project, opt: str, work: Path) -> dict[str, Any]:
 # Machine code
 
 
+@dataclass
+class Elf:
+    """What `code` and `data` read of an object or a binary, from llvm-readobj: its sections by index, its
+    symbols, and each section's relocations, by the index of the section they apply to."""
+
+    relocatable: bool
+    sections: dict[int, dict[str, Any]]
+    symbols: list[dict[str, Any]]
+    relocations: dict[int, dict[int, dict[str, Any]]]
+    # `within`'s symbols with a size, by where they start, for each section and kind of name.
+    _index: dict[Any, Any] = field(default_factory=dict, repr=False)
+
+    def named(self, s: dict[str, Any]) -> bool:
+        """A symbol with a name of its own: not a section's, a file's, or a private `.L` label's."""
+        return bool(s["name"]) and s["type"] not in ("Section", "File") and not s["name"].startswith(".L")
+
+    def within(self, section: int | None, at: int, named: bool) -> dict[str, Any] | None:
+        """The symbol with a size that `at` is in, in `section`, or anywhere in a linked binary, whose
+        symbols' values are addresses: a named one, or a private label's. The smallest, then by name."""
+        if (section, named) not in self._index:
+            syms = sorted(
+                (
+                    s
+                    for s in self.symbols
+                    if s["size"] > 0
+                    and s["type"] not in ("Section", "File")
+                    and self.named(s) == named
+                    and (section is None or s["section"] == section)
+                ),
+                key=lambda s: s["value"],
+            )
+            # How far any symbol up to each one reaches, so a search back can stop where none reaches `at`.
+            reach = list(itertools.accumulate((s["value"] + s["size"] for s in syms), max))
+            self._index[section, named] = (syms, [s["value"] for s in syms], reach)
+        syms, starts, reach = self._index[section, named]
+        found = []
+        i = bisect.bisect_right(starts, at) - 1
+        while i >= 0 and reach[i] > at:
+            if syms[i]["value"] + syms[i]["size"] > at:
+                found.append(syms[i])
+            i -= 1
+        return min(found, key=lambda s: (s["size"], s["name"])) if found else None
+
+
+def elf(path: Path) -> Elf:
+    """`path`'s sections, symbols and relocations. A linked binary's are only its sections and symbols:
+    `code` reads no data from it."""
+    head = json.loads(
+        sh(["llvm-readobj", "--elf-output-style=JSON", "--file-headers", str(path)], env=None).out
+    )
+    kind = head[0]["ElfHeader"]["Type"]
+    relocatable = str(kind.get("Name", "") if isinstance(kind, dict) else kind).startswith("Relocatable")
+    what = ["--sections", "--symbols"] + (["--section-data", "--relocations"] if relocatable else [])
+    d = json.loads(sh(["llvm-readobj", "--elf-output-style=JSON", *what, str(path)], env=None).out)[0]
+    sections: dict[int, dict[str, Any]] = {}
+    for x in d.get("Sections", []):
+        s = x["Section"]
+        sections[s["Index"]] = {
+            "name": s["Name"]["Name"],
+            "type": s["Type"]["Name"],
+            "flags": {f["Name"] for f in s["Flags"]["Flags"]},
+            "entsize": s["EntrySize"],
+            "info": s["Info"],
+            "data": bytes(s.get("SectionData", {}).get("Bytes", [])),
+        }
+    symbols = [
+        {
+            "name": s["Name"]["Name"],
+            "value": s["Value"],
+            "size": s["Size"],
+            "type": s["Type"]["Name"],
+            "section": s["Section"]["Value"],
+        }
+        for s in (x["Symbol"] for x in d.get("Symbols", []))
+    ]
+    relocations: dict[int, dict[int, dict[str, Any]]] = {}
+    for group in d.get("Relocations", []):
+        target = sections[group["SectionIndex"]]["info"]
+        for x in group["Relocs"]:
+            r = x["Relocation"]
+            addend = r.get("Addend", 0)
+            relocations.setdefault(target, {})[r["Offset"]] = {
+                "type": r["Type"]["Name"],
+                "symbol": r["Symbol"]["Value"],
+                "addend": addend - (1 << 64) if addend >= 1 << 63 else addend,
+            }
+    return Elf(relocatable, sections, symbols, relocations)
+
+
+def place(e: Elf, section: int, at: int, depth: int = 1) -> str:
+    """What's at `at` in an object's `section`, as a function's reference to it is compared: a named
+    symbol's name and the offset in it, or, for a constant with no name, what it holds, wherever it was put.
+    A private label's data is what it holds too, with where its own relocations point, `depth` deep."""
+    s = e.sections.get(section)
+    if s is None:
+        return f"?{at:#x}"
+    if (sym := e.within(section, at, named=True)) is not None:
+        return f"{sym['name']}+{at - sym['value']:#x}"
+    if (sym := e.within(section, at, named=False)) is not None:
+        lo, hi = sym["value"], sym["value"] + sym["size"]
+        relocs = [
+            f"{off - lo:#x}:{r['type']}:{target(e, r, 0, depth - 1) if depth > 0 else r['addend']}"
+            for off, r in sorted(e.relocations.get(section, {}).items())
+            if lo <= off < hi
+        ]
+        return f"<{s['data'][lo:hi].hex()}{''.join(' ' + x for x in relocs)}>+{at - lo:#x}"
+    if "SHF_MERGE" in s["flags"] and "SHF_STRINGS" in s["flags"]:
+        end = s["data"].find(b"\0", at)
+        return f"<{s['data'][at : end if end >= 0 else None].hex()}>"
+    if "SHF_MERGE" in s["flags"] and s["entsize"]:
+        return f"<{s['data'][at : at + s['entsize']].hex()}>"
+    # Data with no name or size to tell it by, as a jump table is: where it is, which only changes if the
+    # section before it does, so a difference here can only make a function look changed when it isn't.
+    return f"{s['name']}+{at:#x}"
+
+
+def target(e: Elf, r: dict[str, Any], pc: int, depth: int = 1) -> str:
+    """Where relocation `r` points, by `place`. `pc`, for one relative to the instruction, is how far the
+    next instruction is from the field it fills."""
+    sym = e.symbols[r["symbol"]]
+    off = r["addend"] + (pc if PC_RELATIVE.match(r["type"]) else 0)
+    if e.named(sym):
+        return f"{sym['name']}+{off:#x}"
+    return place(e, sym["section"], sym["value"] + off, depth)
+
+
 def code(path: Path) -> dict[str, str]:
     """Each function's machine code in an object or a binary, without addresses or anything that only says
-    where things are, as tests/llama.py's `disassembly` has it, and without the padding after it. A name
-    defined twice, as static functions of two units can be, is kept apart by a `#2`."""
-    text = sh(["objdump", "-d", "--no-show-raw-insn", "--no-addresses", str(path)], env=None).out
+    where things are, as tests/llama.py's `disassembly` has it, and without the padding after it. What each
+    instruction refers to stays: in an object, where its relocations point, by `place`; in a binary, the named
+    symbol a RIP-relative operand is in, and the offset in it. A name defined twice, as static functions of
+    two units can be, is kept apart by a `#2`."""
+    e = elf(path)
+    by_name = {s["name"]: i for i, s in sorted(e.sections.items(), reverse=True)}
+    text = sh(["objdump", "-d", "-r", "--no-show-raw-insn", str(path)], env=None).out
+    # Each function's instructions, as [address, text, RIP target, relocation offsets], in its section.
+    functions: list[tuple[str, int | None, list[list[Any]]]] = []
+    section: int | None = None
+    for line in text.splitlines():
+        if m := re.fullmatch(r"Disassembly of section (.+):", line):
+            section = by_name.get(m[1])
+            functions.append(("", section, []))
+        elif m := re.fullmatch(r"[0-9a-f]+ <(.+)>:", line):
+            functions.append((m[1], section, []))
+        elif m := re.fullmatch(r"\s+([0-9a-f]+): R_X86_64_\w+\s.*", line):
+            if functions and functions[-1][2]:
+                functions[-1][2][-1][3].append(int(m[1], 16))
+        elif (m := re.fullmatch(r"\s*([0-9a-f]+):\t(.*)", line)) and functions:
+            rip = re.search(r"\(%rip\).*#\s*([0-9a-f]+)\b", m[2])
+            functions[-1][2].append([int(m[1], 16), m[2], int(rip[1], 16) if rip else None, []])
+    # Where each instruction ends: where the next one in its section starts.
+    flat = [(sec, insn) for _, sec, insns in functions for insn in insns]
+    ends = {id(insn): (nxt[1][0] if nxt[0] == sec else None) for (sec, insn), nxt in itertools.pairwise(flat)}
     out: dict[str, str] = {}
-    name: str | None = None
-    lines: list[str] = []
-
-    def keep() -> None:
-        if name is None:
-            return
+    for name, sec, insns in functions:
+        if not name:
+            continue
+        lines = []
+        for insn in insns:
+            _, raw, rip, relocs = insn
+            line = re.sub(r"\b[0-9a-f]+ <([^>+]+)(\+0x[0-9a-f]+)?>", r"<\1\2>", raw)
+            line = re.sub(r"-?0x[0-9a-f]+\(%rip\)", "D(%rip)", line)
+            line = re.sub(r"\s*#.*$", "", line)
+            if e.relocatable and sec is not None:
+                refs = []
+                for p in relocs:
+                    r = e.relocations.get(sec, {}).get(p)
+                    if r is not None:
+                        # The last instruction of a section ends where its 32-bit field does.
+                        end = ends.get(id(insn)) or p + 4
+                        refs.append(target(e, r, end - p))
+                    else:
+                        refs.append(f"?{p:#x}")
+                line += "".join(f" @{x}" for x in refs)
+            elif rip is not None:
+                sym = e.within(None, rip, named=True)
+                line += f" @{sym['name']}+{rip - sym['value']:#x}" if sym else " @?"
+            lines.append(line)
         while lines and PADDING.match(lines[-1]):
             lines.pop()
         key, n = name, 1
@@ -492,19 +675,30 @@ def code(path: Path) -> dict[str, str]:
             n += 1
             key = f"{name}#{n}"
         out[key] = "\n".join(lines)
+    return out
 
-    for line in text.splitlines():
-        if m := re.fullmatch(r"<(.+)>:", line):
-            keep()
-            name, lines = m[1], []
-        elif line.startswith("Disassembly of section"):
-            keep()
-            name, lines = None, []
-        elif name is not None and line.strip():
-            text = re.sub(r"\b[0-9a-f]+ <([^>+]+)(\+0x[0-9a-f]+)?>", r"<\1\2>", line)
-            text = re.sub(r"-?0x[0-9a-f]+\(%rip\)", "D(%rip)", text)
-            lines.append(re.sub(r"\s*#.*$", "", text))
-    keep()
+
+def data(path: Path) -> dict[str, str]:
+    """Each named data symbol of an object, by name, as what it holds: its bytes, or its size where it has
+    none, and where each of its relocations points. A name defined twice is kept apart by a `#2`."""
+    e = elf(path)
+    out: dict[str, str] = {}
+    for sym in e.symbols:
+        s = e.sections.get(sym["section"])
+        if s is None or not e.named(sym) or sym["type"] not in ("Object", "TLS"):
+            continue
+        lo, hi = sym["value"], sym["value"] + sym["size"]
+        body = f"{sym['size']} zero bytes" if s["type"] == "SHT_NOBITS" else s["data"][lo:hi].hex()
+        relocs = [
+            f"{off - lo:#x}:{r['type']}:{target(e, r, 0)}"
+            for off, r in sorted(e.relocations.get(sym["section"], {}).items())
+            if lo <= off < hi
+        ]
+        key, n = sym["name"], 1
+        while key in out:
+            n += 1
+            key = f"{sym['name']}#{n}"
+        out[key] = hashing.sha256_text("\n".join([body, *relocs]))
     return out
 
 
@@ -700,6 +894,7 @@ def make_candidate(
             "baseline_object_sha256": hashing.sha256_file(c.obj),
             "candidate_object_sha256": hashing.sha256_file(new),
             "functions_changed": changed(built, code(new)),
+            "data_changed": changed(data(c.obj), data(new)),
         }
         replace(project, build, c.obj, new)
         replaced.append((c, record))
@@ -708,20 +903,37 @@ def make_candidate(
     for c, record in replaced:
         if hashing.sha256_file(c.obj) != record["candidate_object_sha256"]:
             raise Refused(f"the build compiled {c.obj.name} again, over the candidate's object")
-    # The two builds' binaries differ in the rewritten functions and nothing else.
+    # The two builds differ in the rewritten functions and nothing else: their binaries, by each function's
+    # code and the named symbols it refers to, and the unit's objects, by each function's code and what it
+    # refers to, constants by what they hold, and by every named datum's bytes.
     unit_functions: set[str] = {f for _, r in replaced for f in r["functions_changed"]}
+    unit_data = sorted({d for _, r in replaced for d in r["data_changed"]})
     differences: dict[str, list[str]] = {}
     for b in project.binaries:
         differences[b] = changed(code(base_build / b), code(build / b))
     found = sorted({f for fs in differences.values() for f in fs})
     if control is None:
-        if found != sorted(rep.functions):
-            raise Refused(f"the builds differ in {found}, and the candidate declares {sorted(rep.functions)}")
+        every = sorted(set(found) | unit_functions)
+        if every != sorted(rep.functions):
+            raise Refused(f"the builds differ in {every}, and the candidate declares {sorted(rep.functions)}")
+        if unit_data:
+            raise Refused(f"the candidate changes {unit}'s data {unit_data}, and a rewrite changes functions")
     elif not set(found) <= unit_functions:
         raise Refused(f"the builds differ outside {unit}: {sorted(set(found) - unit_functions)}")
-    if control == "a/a" and found:
-        raise Refused(f"an A/A control changes nothing, and the builds differ in {found}")
-    checks = run_checks(project, opt, work, base_build, build)
+    if control == "a/a" and (found or unit_functions or unit_data):
+        raise Refused(
+            f"an A/A control changes nothing, and the builds differ in {sorted({*found, *unit_functions})} "
+            f"and data {unit_data}"
+        )
+    # What's timed is what was checked: the checks run with the build's own arguments, and mustn't change
+    # either build's binaries or the candidate's objects.
+    kept = {"baseline": base["binaries"], "candidate": binaries(project, build)}
+    objects = [(c.obj, r["candidate_object_sha256"]) for c, r in replaced]
+
+    def unchanged(after: str) -> None:
+        intact(project, {"baseline": base_build, "candidate": build}, kept, objects, after)
+
+    checks = run_checks(project, opt, work, base_build, build, unchanged)
     record = {
         "schema": schemas.KERNELS_BUILD,
         "project": project.name,
@@ -734,7 +946,7 @@ def make_candidate(
         "flags": project.flags,
         "targets": project.targets,
         "build": str(build.relative_to(tree)),
-        "binaries": binaries(project, build),
+        "binaries": kept["candidate"],
         "control": control,
         "candidate": {
             "second_build_same_bytes": same_bytes,
@@ -757,18 +969,44 @@ def make_candidate(
     return record
 
 
-def run_checks(project: Project, opt: str, work: Path, base: Path, cand: Path) -> dict[str, Any]:
+def intact(
+    project: Project,
+    builds: dict[str, Path],
+    kept: dict[str, dict[str, str]],
+    objects: list[tuple[Path, str]],
+    after: str,
+) -> None:
+    """Refuses if a build's binaries, or a candidate's objects, aren't what they were before `after` ran."""
+    for role, build in builds.items():
+        if binaries(project, build) != kept[role]:
+            raise Refused(
+                f"{after} changed the {role}'s binaries, so what's timed wouldn't be what was checked: a "
+                "command that drives the build again takes the build's own arguments, {build_args}"
+            )
+    for obj, sha in objects:
+        if not obj.is_file() or hashing.sha256_file(obj) != sha:
+            raise Refused(f"{after} changed the candidate's object {obj.name}, so it isn't what was checked")
+
+
+def run_checks(
+    project: Project, opt: str, work: Path, base: Path, cand: Path, unchanged: Any = None
+) -> dict[str, Any]:
     """Each workload's check on the candidate, and for one whose output is its result, its output against the
-    baseline's, once, before anything is timed."""
+    baseline's, once, before anything is timed. `unchanged(what)` refuses if what just ran changed a build."""
     out: dict[str, Any] = {}
+    args = build_args(project, opt)
     for w in project.workloads.values():
         entry: dict[str, Any] = {"check": None, "output": None}
         with session_dir(project, opt, work, f"check-{w.name}") as scratch:
             if w.setup:
-                sh(fill(w.setup, places(project, base, scratch, scratch, w)), timeout=RUN_LIMIT_S)
+                sh(fill(w.setup, places(project, base, scratch, scratch, w), args), timeout=RUN_LIMIT_S)
+                if unchanged:
+                    unchanged(f"{w.name}'s setup")
             if w.check:
                 where = places(project, cand, scratch, scratch, w)
-                sh(fill(w.check, where), timeout=RUN_LIMIT_S)
+                sh(fill(w.check, where, args), timeout=RUN_LIMIT_S)
+                if unchanged:
+                    unchanged(f"{w.name}'s check, {shlex.join(w.check)},")
                 entry["check"] = {
                     "command": w.check,
                     "from": w.sources.get("check", "harness"),
@@ -780,10 +1018,12 @@ def run_checks(project: Project, opt: str, work: Path, base: Path, cand: Path) -
                     run = scratch / variant
                     run.mkdir()
                     hashes[variant] = run_once(
-                        fill(w.command, places(project, build, scratch, run, w)), 1, run
+                        fill(w.command, places(project, build, scratch, run, w), args), 1, run
                     )
                     if hashes[variant]["exit"] != 0:
                         raise Refused(f"{w.name} failed with the {variant}: exit {hashes[variant]['exit']}")
+                    if unchanged:
+                        unchanged(f"{w.name} with the {variant}")
                 same = hashes["baseline"]["output_sha256"] == hashes["candidate"]["output_sha256"]
                 if not same:
                     raise Refused(f"{w.name}'s output with the candidate isn't the baseline's")
@@ -817,11 +1057,17 @@ def places(project: Project, build: Path, scratch: Path, out: Path, w: Workload)
     }
 
 
-def fill(argv: list[str], where: dict[str, str]) -> list[str]:
+def fill(argv: list[str], where: dict[str, str], args: list[str] | None = None) -> list[str]:
     """`argv` with its places filled in. `{input:NAME}` is the inputs directory for a zip, which
-    bench/kernels/kernels.py unpacks there, and the file NAME there otherwise."""
+    bench/kernels/kernels.py unpacks there, and the file NAME there otherwise. An argument that's
+    `{build_args}` is `args`, the build's own arguments, as `build_args` gives them."""
     out = []
     for arg in argv:
+        if arg == "{build_args}":
+            if args is None:
+                raise Refused(f"{shlex.join(argv)} takes the build's arguments, and none were given")
+            out += args
+            continue
         a = re.sub(
             r"\{input:([^}]+)\}",
             lambda m: where["inputs"] if m[1].endswith(".zip") else str(Path(where["inputs"]) / m[1]),
@@ -884,8 +1130,9 @@ def run_once(argv: list[str], times: int, run: Path, w: Workload | None = None) 
     return record
 
 
-def value(run: dict[str, Any], w: Workload) -> float:
-    return float(run["rate"] if w.measure == protocol.RATE else run["wall_s"])
+def value(run: dict[str, Any], measure: str) -> float:
+    """What a run measured: its rate, or its wall time."""
+    return float(run["rate"] if measure == protocol.RATE else run["wall_s"])
 
 
 def ccds() -> list[list[int]]:
@@ -984,8 +1231,24 @@ def make_plan(
     }
 
 
-def session(project: Project, plan: dict[str, Any], plan_sha256: str, n: int, work: Path) -> dict[str, Any]:
-    """Runs session `n` of `plan`, and returns its record."""
+def orders(seed: int, pairs: int) -> list[list[str]]:
+    """The order of each of `pairs` pairs, drawn from a session's seed: the same seed, the same orders."""
+    rng = random.Random(seed)
+    return [
+        ["baseline", "candidate"] if rng.random() < 0.5 else ["candidate", "baseline"] for _ in range(pairs)
+    ]
+
+
+def session(
+    project: Project,
+    plan: dict[str, Any],
+    plan_sha256: str,
+    n: int,
+    work: Path,
+    record: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Runs session `n` of `plan`, and returns its record. It fills in `record` as it goes, so that one that
+    fails or is stopped leaves what it had done."""
     picked = [s for s in plan["sessions"] if s["session"] == n]
     if not picked:
         raise Refused(f"the plan has no session {n}")
@@ -995,45 +1258,57 @@ def session(project: Project, plan: dict[str, Any], plan_sha256: str, n: int, wo
     if w.as_record() != plan["workload"]:
         raise Refused(f"{w.name} isn't what the plan wrote down")
     builds = {}
+    kept = {}
     for role in ("baseline", "candidate"):
         tree = project.tree(work, opt, plan[role]["variant"])
         if hashing.sha256_file(tree / "build.json") != plan[role]["record_sha256"]:
             raise Refused(f"the {role}'s build record isn't the one the plan names")
-        record = schemas.read(tree / "build.json", schemas.KERNELS_BUILD)
-        builds[role] = tree / record["build"]
-        if binaries(project, builds[role]) != record["binaries"]:
+        built = schemas.read(tree / "build.json", schemas.KERNELS_BUILD)
+        builds[role] = tree / built["build"]
+        kept[role] = built["binaries"]
+        if binaries(project, builds[role]) != kept[role]:
             raise Refused(f"the {role}'s binaries aren't the ones its record has")
     pinned = list(plan["cpus"])
     if hasattr(os, "sched_setaffinity"):
         os.sched_setaffinity(0, pinned)
-    rng = random.Random(seed)
-    record: dict[str, Any] = {
-        "schema": schemas.KERNELS_SESSION,
-        "project": project.name,
-        "plan_sha256": plan_sha256,
-        "session": n,
-        "kind": plan["kind"],
-        "control": plan["control"],
-        "workload": w.name,
-        "measure": w.measure,
-        "seed": seed,
-        "cpus": sorted(os.sched_getaffinity(0)) if hasattr(os, "sched_getaffinity") else None,
-        # The CPUs sharing the pinned ones' L3 cache, if they all share one, from the kernel's topology.
-        "ccd": shared if (shared := l3(pinned[0])) is not None and set(pinned) <= set(shared) else None,
-        "threads": w.threads,
-        "min_seconds": plan["min_seconds"],
-        "started": proc.now(),
-        "host": host(),
-        "repo": repo(),
-    }
+    drawn = orders(seed, plan["pairs"])
+    args = build_args(project, opt)
+    record = {} if record is None else record
+    record.update(
+        {
+            "schema": schemas.KERNELS_SESSION,
+            "project": project.name,
+            "plan_sha256": plan_sha256,
+            "session": n,
+            "kind": plan["kind"],
+            "control": plan["control"],
+            "workload": w.name,
+            "measure": w.measure,
+            "seed": seed,
+            "cpus": sorted(os.sched_getaffinity(0)) if hasattr(os, "sched_getaffinity") else None,
+            # The CPUs sharing the pinned ones' L3 cache, if they all share one, from the kernel's topology.
+            "ccd": shared if (shared := l3(pinned[0])) is not None and set(pinned) <= set(shared) else None,
+            "threads": w.threads,
+            "min_seconds": plan["min_seconds"],
+            "started": proc.now(),
+            "host": host(),
+            "repo": repo(),
+        }
+    )
     with session_dir(project, opt, work, f"session-{w.name}-{n}") as scratch:
         if w.setup:
-            sh(fill(w.setup, places(project, builds["baseline"], scratch, scratch, w)), timeout=RUN_LIMIT_S)
+            sh(
+                fill(w.setup, places(project, builds["baseline"], scratch, scratch, w), args),
+                timeout=RUN_LIMIT_S,
+            )
+            intact(project, builds, kept, [], f"{w.name}'s setup")
 
         def one(role: str, times: int) -> dict[str, Any]:
             run = scratch / role
             run.mkdir(exist_ok=True)
-            got = run_once(fill(w.command, places(project, builds[role], scratch, run, w)), times, run, w)
+            got = run_once(
+                fill(w.command, places(project, builds[role], scratch, run, w), args), times, run, w
+            )
             if got["exit"] != 0 or got["limit"]:
                 raise Refused(f"{w.name} failed with the {role}: exit {got['exit']} {got['limit'] or ''}")
             if w.measure == protocol.RATE and not got.get("rate"):
@@ -1041,16 +1316,25 @@ def session(project: Project, plan: dict[str, Any], plan_sha256: str, n: int, wo
             return got
 
         warm = {role: one(role, 1) for role in ("baseline", "candidate")}
+        record["warmup"] = warm
         if w.output == "result" and warm["baseline"]["output_sha256"] != warm["candidate"]["output_sha256"]:
             raise Refused("warming up, the candidate's output isn't the baseline's")
-        once = min(warm["baseline"]["wall_s"], warm["candidate"]["wall_s"])
-        times = max(1, math.ceil(plan["min_seconds"] / max(once, 1e-6)))
+        # How many times a run is repeated, from the warm-up, then checked warm, before any pair: a cold
+        # warm-up can take longer than the runs after it.
+        aim = CALIBRATION_MARGIN * plan["min_seconds"]
+        times = max(1, math.ceil(aim / max(min(r["wall_s"] for r in warm.values()), 1e-6)))
+        record["calibration"] = []
+        for _ in range(CALIBRATIONS):
+            runs = {role: one(role, times) for role in ("baseline", "candidate")}
+            record["calibration"].append({"repeats": times, **runs})
+            shortest = min(r["wall_s"] for r in runs.values())
+            if shortest >= aim:
+                break
+            times = math.ceil(times * aim / max(shortest, 1e-6))
         record["repeats"] = times
-        record["warmup"] = warm
         reference = None
-        pairs = []
-        for i in range(1, plan["pairs"] + 1):
-            order = ["baseline", "candidate"] if rng.random() < 0.5 else ["candidate", "baseline"]
+        record["pairs"] = pairs = []
+        for i, order in enumerate(drawn, 1):
             runs = {role: one(role, times) for role in order}
             if w.output == "result":
                 reference = reference or runs["baseline"]["output_sha256"]
@@ -1063,23 +1347,114 @@ def session(project: Project, plan: dict[str, Any], plan_sha256: str, n: int, wo
                     "order": order,
                     **runs,
                     "ratio": protocol.ratio(
-                        value(runs["baseline"], w), value(runs["candidate"], w), w.measure
+                        value(runs["baseline"], w.measure), value(runs["candidate"], w.measure), w.measure
                     ),
                 }
             )
+            short = [role for role, r in runs.items() if r["wall_s"] < plan["min_seconds"]]
             print(
                 f"     pair {i}/{plan['pairs']}: ratio {pairs[-1]['ratio']:.4f}, "
-                f"load {runs[order[0]]['load'][0]}",
+                f"load {runs[order[0]]['load'][0]}"
+                + (f", under {plan['min_seconds']} s: {short}" if short else ""),
                 flush=True,
             )
-        record["pairs"] = pairs
         record["output_sha256"] = reference
+        intact(project, builds, kept, [], f"session {n}")
     record["finished"] = proc.now()
     return record
 
 
 # ------------------------------------------------------------------------------------------------------------
 # Comparing
+
+
+def read_build(path: Path) -> dict[str, Any]:
+    """A build record, of this harness or of the one before its checks of references, data and checks."""
+    try:
+        return schemas.read(path, schemas.KERNELS_BUILD)
+    except schemas.SchemaError:
+        return schemas.read(path, schemas.KERNELS_BUILD_1)
+
+
+def read_plans(*dirs: Path) -> dict[str, dict[str, Any]]:
+    """Every plan in `dirs`, by its file's hash, each with the two build records `plan` copied beside it, in
+    `_builds`, or None for one that isn't there as the plan names it."""
+    out: dict[str, dict[str, Any]] = {}
+    for d in dict.fromkeys(dirs):
+        for path in sorted(d.glob("*.json")):
+            try:
+                plan = schemas.read(path, schemas.KERNELS_PLAN)
+            except (schemas.SchemaError, OSError):
+                continue
+            plan["_builds"] = {}
+            for role in ("baseline", "candidate"):
+                copy = path.with_name(f"{path.stem}.{role}.build.json")
+                ok = copy.is_file() and hashing.sha256_file(copy) == plan[role]["record_sha256"]
+                plan["_builds"][role] = read_build(copy) if ok else None
+            out[hashing.sha256_file(path)] = plan
+    return out
+
+
+def control_of(baseline: str, records: dict[str, dict[str, Any]]) -> str | None:
+    """What control a comparison of these builds is, as `make_plan` writes it down: faster when the baseline
+    isn't the baseline build, and otherwise a control build's own."""
+    if baseline != "baseline":
+        return "faster"
+    controls = {r["control"] for r in records.values()} - {None}
+    return controls.pop() if controls else None
+
+
+def plan_problems(plan: dict[str, Any]) -> list[str]:
+    """How a plan doesn't say what its build records do: they aren't beside it as it names them, or they're
+    of another project, level or variant, or its control isn't what they make it."""
+    builds = plan.get("_builds") or {}
+    if any(builds.get(role) is None for role in ("baseline", "candidate")):
+        return ["its plan's build records aren't beside it as the plan names them"]
+    out = []
+    for role, r in builds.items():
+        if (r["project"], r["opt"], r["variant"]) != (plan["project"], plan["opt"], plan[role]["variant"]):
+            out.append(
+                f"its {role}'s build record isn't {plan[role]['variant']} at {plan['opt']}, as its plan's is"
+            )
+    if control_of(plan["baseline"]["variant"], builds) != plan["control"]:
+        out.append(f"its plan calls it control {plan['control']!r}, and its builds make it another")
+    return out
+
+
+def required_workloads(plan: dict[str, Any] | None, project: str, spec: Path | None = None) -> list[str]:
+    """Every workload of the project, from its configuration, not from what a comparison lists: harness.toml,
+    or the spec file a build record names."""
+    builds = (plan or {}).get("_builds") or {}
+    pin = next((r["pin"] for r in builds.values() if r is not None), {})
+    if spec is None and "spec" in pin:
+        spec = ROOT / pin["spec"]
+    return workload_names(spec, project)
+
+
+def canonical(sessions: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Sessions in one order whatever order they're given in: by plan, then by number."""
+    return sorted(sessions, key=lambda s: (s["plan_sha256"], s["session"]))
+
+
+def ratios(s: dict[str, Any]) -> list[float]:
+    """A session's paired ratios, worked out from its runs, not read from what it stored."""
+    m = s["measure"]
+    return [protocol.ratio(value(p["baseline"], m), value(p["candidate"], m), m) for p in s["pairs"]]
+
+
+def same_builds(main: dict[str, Any] | None, other: dict[str, Any] | None) -> list[str]:
+    """How another workload's plan isn't of the comparison's builds, which condition 4 asks about."""
+    if main is None or other is None:
+        return ["its plan isn't given"]
+    keys = {
+        "project": lambda p: p["project"],
+        "level": lambda p: p["opt"],
+        "baseline": lambda p: p["baseline"]["record_sha256"],
+        "candidate": lambda p: p["candidate"]["record_sha256"],
+        "kind": lambda p: p["kind"],
+        "control": lambda p: p["control"],
+    }
+    return [f"its {k} isn't the comparison's" for k, get in keys.items() if get(main) != get(other)]
 
 
 def compare(
@@ -1089,40 +1464,51 @@ def compare(
     rule: protocol.Rule = protocol.PROTOCOL,
     plans: dict[str, dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
-    """The verdict on `main`'s sessions, all of one plan, with the project's other workloads' sessions."""
+    """The verdict on `main`'s sessions, all of one plan, with the project's other workloads' sessions, each
+    of the same builds and kind. What it compares is its plan's, and its statistic is worked out from each
+    run's measure, in one order."""
+    main = canonical(main)
+    plans = plans or {}
+    plan = plans.get(main[0]["plan_sha256"])
     problems = protocol_problems(main, rule, plans)
+    if plan is not None:
+        problems += plan_problems(plan)
     if len({s["workload"] for s in main}) != 1:
         raise Refused("a comparison is of one workload")
     workload = main[0]["workload"]
     pooled_others: dict[str, list[float] | None] = {}
     other_records = {}
-    for name, sessions in others.items():
+    for name, given in sorted(others.items()):
         if name == workload:
             raise Refused(f"{name} is the workload compared, not another")
-        problems += [f"{name}: {p}" for p in protocol_problems(sessions, rule, plans)]
-        s = protocol.summary([p["ratio"] for x in sessions for p in x["pairs"]], seed_of(sessions), rule)
-        pooled_others[name] = s["interval"]
-        other_records[name] = {**s, "sessions": [x.get("_sha256") for x in sessions]}
+        sessions = canonical(given)
+        theirs = plans.get(sessions[0]["plan_sha256"])
+        record: dict[str, Any] = {"plan_sha256": sessions[0]["plan_sha256"]}
+        apart = [f"{name}: {p}" for p in protocol_problems(sessions, rule, plans)]
+        apart += [f"{name}: {p}" for p in same_builds(plan, theirs)]
+        if apart:
+            # Not evidence about these builds, so the workload counts as not measured.
+            problems += apart
+            pooled_others[name] = None
+        else:
+            s = protocol.summary([r for x in sessions for r in ratios(x)], seed_of(sessions), rule)
+            pooled_others[name] = s["interval"]
+            record.update(s)
+        other_records[name] = {**record, "sessions": [x.get("_sha256") for x in sessions]}
     for name in names:
         if name != workload and name not in pooled_others:
             pooled_others[name] = None
-    got = protocol.verdict(
-        [[p["ratio"] for p in s["pairs"]] for s in main],
-        [s["kind"] for s in main],
-        seed_of(main),
-        pooled_others,
-        rule,
-    )
-    plan = (plans or {}).get(main[0]["plan_sha256"], {})
+    kinds = [plan["kind"] if plan is not None else s["kind"] for s in main]
+    got = protocol.verdict([ratios(s) for s in main], kinds, seed_of(main), pooled_others, rule)
     return {
         "schema": schemas.KERNELS_COMPARISON,
-        "project": main[0]["project"],
+        "project": plan["project"] if plan is not None else main[0]["project"],
         "workload": workload,
         "plan_sha256": main[0]["plan_sha256"],
-        "opt": plan.get("opt"),
-        "baseline": plan.get("baseline"),
-        "candidate": plan.get("candidate"),
-        "control": main[0]["control"],
+        "opt": plan["opt"] if plan is not None else None,
+        "baseline": plan["baseline"] if plan is not None else None,
+        "candidate": plan["candidate"] if plan is not None else None,
+        "control": plan["control"] if plan is not None else main[0]["control"],
         "sessions": [
             {
                 "session": s["session"],
@@ -1161,31 +1547,71 @@ def seed_of(sessions: list[dict[str, Any]]) -> int:
 def protocol_problems(
     sessions: list[dict[str, Any]], rule: protocol.Rule, plans: dict[str, dict[str, Any]] | None
 ) -> list[str]:
-    """How these sessions fall short of the protocol, or nothing."""
+    """How these sessions fall short of the protocol, or nothing: each is checked against its plan, every
+    session the plan has is there once, and each pair is what its session's seed and runs make it."""
     out = []
+    plans = plans or {}
     if len({s["plan_sha256"] for s in sessions}) != 1:
         out.append("the sessions aren't all of one plan")
     seeds = [s["seed"] for s in sessions]
     if len(set(seeds)) != len(seeds):
         out.append("two sessions share a seed")
+    for sha in sorted({s["plan_sha256"] for s in sessions}):
+        plan = plans.get(sha)
+        given = sorted(s["session"] for s in sessions if s["plan_sha256"] == sha)
+        if plan is not None and given != sorted(x["session"] for x in plan["sessions"]):
+            out.append(
+                f"its sessions are {given}, and its plan has {sorted(x['session'] for x in plan['sessions'])}"
+            )
     for s in sessions:
         label = f"session {s['session']}"
         if s["min_seconds"] < rule.min_seconds:
             out.append(f"{label}: runs were repeated to {s['min_seconds']} s, not {rule.min_seconds}")
+        short = sum(
+            r["wall_s"] < rule.min_seconds for p in s["pairs"] for r in (p["baseline"], p["candidate"])
+        )
+        if short:
+            out.append(f"{label}: {short} of its runs took under {rule.min_seconds} s")
         if s["cpus"] is None or s.get("ccd") is None or not set(s["cpus"]) <= set(s["ccd"]):
             out.append(f"{label}: it wasn't pinned to cores of one CCD")
         if s["cpus"] is not None and len(s["cpus"]) != s["threads"]:
             out.append(f"{label}: {s['threads']} threads on {len(s['cpus'])} cores")
-        plan = (plans or {}).get(s["plan_sha256"])
-        if plan is not None:
-            if s["started"] < plan["written"]:
-                out.append(f"{label}: it started before its plan was written")
-            if len(s["pairs"]) != plan["pairs"]:
-                out.append(f"{label}: {len(s['pairs'])} pairs, and the plan has {plan['pairs']}")
-            if s["cpus"] != plan["cpus"]:
-                out.append(f"{label}: run on {s['cpus']}, and the plan wrote down {plan['cpus']}")
-        elif plans is not None:
+        if [p["pair"] for p in s["pairs"]] != list(range(1, len(s["pairs"]) + 1)):
+            out.append(f"{label}: its pairs aren't numbered 1 to {len(s['pairs'])}, once each, in order")
+        if [p["order"] for p in s["pairs"]] != orders(s["seed"], len(s["pairs"])):
+            out.append(f"{label}: its pairs' order isn't the one its seed draws")
+        if [p["ratio"] for p in s["pairs"]] != ratios(s):
+            out.append(f"{label}: a pair's ratio isn't what its runs give")
+        plan = plans.get(s["plan_sha256"])
+        if plan is None:
             out.append(f"{label}: its plan isn't given")
+            continue
+        seed = next((x["seed"] for x in plan["sessions"] if x["session"] == s["session"]), None)
+        if s["seed"] != seed:
+            out.append(f"{label}: its seed isn't the one its plan drew for it")
+        w = plan["workload"]
+        expected = {
+            "project": plan["project"],
+            "kind": plan["kind"],
+            "control": plan["control"],
+            "workload": w["name"],
+            "measure": w["measure"],
+            "threads": plan["threads"],
+            "min_seconds": plan["min_seconds"],
+        }
+        out += [f"{label}: its {k} isn't its plan's" for k, want in expected.items() if s[k] != want]
+        if w["output"] == "result" and any(
+            r["output_sha256"] != s["output_sha256"]
+            for p in s["pairs"]
+            for r in (p["baseline"], p["candidate"])
+        ):
+            out.append(f"{label}: a run's output isn't the baseline's")
+        if s["started"] < plan["written"]:
+            out.append(f"{label}: it started before its plan was written")
+        if len(s["pairs"]) != plan["pairs"]:
+            out.append(f"{label}: {len(s['pairs'])} pairs, and the plan has {plan['pairs']}")
+        if s["cpus"] != plan["cpus"]:
+            out.append(f"{label}: run on {s['cpus']}, and the plan wrote down {plan['cpus']}")
     return out
 
 
@@ -1306,15 +1732,22 @@ def main(argv: list[str]) -> int:
                 if args.session not in (None, s["session"]):
                     continue
                 print(f"     session {s['session']} of {args.plan}", flush=True)
-                record = session(project, plan, digest, s["session"], args.work)
                 out = args.plan.with_name(f"{args.plan.stem}.session-{s['session']}.json")
-                schemas.write(out, record, schemas.KERNELS_SESSION, indent=2)
-                ratios = [p["ratio"] for p in record["pairs"]]
-                print(f"ok   {out}: median {statistics.median(ratios):.4f} over {len(ratios)} pairs")
+                record = attempt(
+                    out, digest, s, lambda r, n=s["session"]: session(project, plan, digest, n, args.work, r)
+                )
+                got = [p["ratio"] for p in record["pairs"]]
+                print(f"ok   {out}: median {statistics.median(got):.4f} over {len(got)} pairs")
         elif args.cmd == "compare":
 
             def read(path: Path) -> dict[str, Any]:
-                s = schemas.read(path, schemas.KERNELS_SESSION)
+                try:
+                    s = schemas.read(path, schemas.KERNELS_SESSION)
+                except schemas.SchemaError:
+                    a = schemas.read(path, schemas.KERNELS_ATTEMPT)
+                    raise Refused(
+                        f"{path} is session {a['session']}'s attempt, {a['status']}, not a session"
+                    ) from None
                 s["_sha256"] = hashing.sha256_file(path)
                 return s
 
@@ -1323,12 +1756,10 @@ def main(argv: list[str]) -> int:
             for p in args.other:
                 s = read(p)
                 others.setdefault(s["workload"], []).append(s)
-            plans = {}
-            for path in {*args.sessions, *args.other}:
-                for plan_path in path.parent.glob("*.json"):
-                    with contextlib.suppress(schemas.SchemaError, OSError):
-                        plans[hashing.sha256_file(plan_path)] = schemas.read(plan_path, schemas.KERNELS_PLAN)
-            names = workload_names(args.spec, main_sessions[0]["project"])
+            plans = read_plans(*(path.parent for path in [*args.sessions, *args.other]))
+            names = required_workloads(
+                plans.get(main_sessions[0]["plan_sha256"]), main_sessions[0]["project"], args.spec
+            )
             rule = protocol.Rule(min_seconds=args.min_seconds)
             result = compare(main_sessions, others, names, rule, plans)
             if args.out:
@@ -1338,6 +1769,58 @@ def main(argv: list[str]) -> int:
         print(f"FAIL {error}", file=sys.stderr)
         return 1
     return 0
+
+
+def attempt(out: Path, plan_sha256: str, planned: dict[str, Any], run: Any) -> dict[str, Any]:
+    """Runs one session of a plan into `out`, which it takes first, so that each session is attempted once:
+    a session's seed is drawn once, and running it again until it gives the answer wanted isn't the protocol.
+    `run(record)` runs it, filling in `record`. One that fails, or is stopped, is left at `out` as an attempt,
+    with what it had done, and another try is another plan, with new seeds."""
+    try:
+        with out.open("x") as f:
+            f.write(
+                schemas.dumps(
+                    {
+                        "schema": schemas.KERNELS_ATTEMPT,
+                        "plan_sha256": plan_sha256,
+                        "session": planned["session"],
+                        "seed": planned["seed"],
+                        "status": "running",
+                        "started": proc.now(),
+                        "host": host(),
+                    },
+                    schemas.KERNELS_ATTEMPT,
+                    indent=2,
+                )
+                + "\n"
+            )
+    except FileExistsError:
+        raise Refused(
+            f"session {planned['session']} was attempted already, as {out} says: a session is run once, and "
+            "another try is another plan, with new seeds"
+        ) from None
+    record: dict[str, Any] = {}
+    try:
+        record = run(record)
+    except (Refused, Exception, KeyboardInterrupt) as error:
+        schemas.write(
+            out,
+            {
+                "schema": schemas.KERNELS_ATTEMPT,
+                "plan_sha256": plan_sha256,
+                "session": planned["session"],
+                "seed": planned["seed"],
+                "status": "interrupted" if isinstance(error, KeyboardInterrupt) else "failed",
+                "error": f"{type(error).__name__}: {error}",
+                "stopped": proc.now(),
+                "done": {k: v for k, v in record.items() if k != "schema"},
+            },
+            schemas.KERNELS_ATTEMPT,
+            indent=2,
+        )
+        raise
+    schemas.write(out, record, schemas.KERNELS_SESSION, indent=2)
+    return record
 
 
 def describe(c: dict[str, Any]) -> str:

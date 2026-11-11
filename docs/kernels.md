@@ -688,26 +688,42 @@ Each step, and what it checks:
   removed, since its deps log would otherwise compile the object again, and make, after the object is made newer.
   The candidate is the unit's IR with the functions named by `--functions` rewritten, or an object. Before anything
   is timed it checks that `llc` on the unit's unchanged IR, emitted from the build's own compile command with its use
-  lists, gives the build's machine code, function by function, as `tests/llama_bench.py` does; that the two builds'
-  binaries differ in exactly the functions declared, by each function's disassembly without addresses; that each
-  workload's check passes on the candidate; and that each workload whose output is its result gives the baseline's
-  output, bit for bit.
+  lists, gives the build's machine code, function by function, as `tests/llama_bench.py` does; that the two builds
+  differ in exactly the functions declared; that each workload's check passes on the candidate; and that each
+  workload whose output is its result gives the baseline's output, bit for bit. A function's code is compared
+  without addresses, and with what each instruction refers to: in the binaries, the named symbol a RIP-relative
+  operand is in and the offset in it, and in the unit's objects, where each relocation points, a named symbol by its
+  name and a constant by what it holds. Every named datum of the unit's object has to hold the same bytes, so a
+  rewrite that also has another function load another table or constant, or changes a table's contents, is refused.
+  A check that drives the build again takes the build's own arguments as `{build_args}`, and the candidate is
+  refused if a check, a setup or a run changes either build's binaries or the candidate's objects: xxHash's
+  `Makefile` keeps its objects under a hash of its flags, and `make check` without them built `xxhsum` again from
+  the source, over the candidate, which would then have been timed. The record is `ir-lean.kernels.build/2`.
 - **`plan`** writes down what's compared before it runs: both builds, by their records, which it copies beside
   itself, the workload, the threads, the cores, the pairs, and a new seed for each session. The cores are one per
   thread, one hardware thread a core, in one CCD, by default the first cores of the last: CPU 8 on z, as the Q5
   rewrite was measured on.
 - **`measure`** runs a plan's sessions. Each pins itself to the plan's cores, checks both builds' binaries are the
   ones their records hash, warms each once, and repeats a run inside one timed command, as `sh` running it that
-  many times, until it takes at least 2 s. Then it runs its pairs, baseline and candidate back to back in an order
-  drawn from its seed. Each run records its wall time from start to exit, its CPU time, the load average, the cores
-  and the hash of everything it wrote. A run whose output isn't the baseline's stops the session, and no pair is
-  removed.
+  many times, until it takes at least 2 s, with a tenth to spare, checked warm before any pair and recorded as the
+  session's calibration. Then it runs its pairs, baseline and candidate back to back in an order drawn from its
+  seed. Each run records its wall time from start to exit, its CPU time, the load average, the cores and the hash of
+  everything it wrote. A run whose output isn't the baseline's stops the session, and no pair is removed. A session
+  is run once: `measure` takes its file before it starts, as an `ir-lean.kernels.attempt/1` record, refuses a
+  session whose file is there, and leaves one that fails or is stopped there as a failed or interrupted attempt,
+  with what it had done. Another try is another plan, with new seeds.
 - **`compare`** takes the ratios, their median and the 95% percentile bootstrap from 20,000 resamples, per session
   and pooled, with a seed taken from the sessions' own, and reads them by [the rule](#measurably-faster). The rule
   doesn't say when a candidate is slower, so the harness takes the mirror of a win: at least 30 pairs in at least 2
-  confirmation sessions, the pooled interval at or under 1 / 1.005, and every session's median under 1. A comparison
-  also lists how its sessions fall short of the protocol: runs repeated to under 2 s, cores not in one CCD, a plan
-  written after a session started, a pair missing, or two sessions with one seed. Only one with none, read by the
+  confirmation sessions, the pooled interval at or under 1 / 1.005, and every session's median under 1. What it
+  compares, its level and whether it's a control are its plan's, checked against the build records beside the
+  plan, and the workloads condition 4 needs are the project's, from its configuration. Each ratio is worked out
+  from its pair's runs, and the sessions are read in one order whatever order they're given in. A comparison also
+  lists how its sessions fall short of the protocol: a session of its plan missing, or one given twice; a seed, an
+  order, a kind or a ratio that isn't what the plan and the runs give; runs repeated to under 2 s, or any timed run
+  under 2 s; cores not in one CCD; a plan written after a session started; a pair missing; or two sessions with one
+  seed. Another workload's sessions count for condition 4 only if their plan is of the same builds, level, kind and
+  control, and otherwise that workload is as good as unmeasured. Only a comparison with no problem, read by the
   protocol's own rule, can put a win on the board.
 
 **What it reads.** The manifest gives each project's pin, flags, level and workload command. What the manifest
@@ -769,7 +785,11 @@ What they say about the harness and z:
   bigger, and what's linked after it moves. So relinking alone can move a workload by a few tenths of a percent, which
   the rule's 1.005 is above.
 - **Every comparison is by the protocol,** with no problem listed: pinned to one CCD, runs of at least 2 s, the plan
-  written first, no pair missing, and a new seed for each session. The first five sessions' records give their CCD as
+  written first, no pair missing, and a new seed for each session. Their sessions and the build records beside
+  their plans are as they were timed, by the harness before its review: the build records are
+  `ir-lean.kernels.build/1`, from before it compared what each function refers to, so no win could rest on them,
+  and the board reads them only for what they compared. Worked out again by the stricter `compare`, every number and
+  verdict is the same, and only the faster comparison's record changed, to name its other workload's plan. The first five sessions' records give their CCD as
   CPU 8 alone, from a bug in how the harness read it that was fixed before the other three ran, which give CPUs 8 to
   15 and 24 to 31. CPU 8 is in that CCD in all eight.
 

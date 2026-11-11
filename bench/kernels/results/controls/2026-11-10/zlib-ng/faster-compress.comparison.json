@@ -90,6 +90,7 @@
   },
   "others": {
     "decompress": {
+      "plan_sha256": "3163b4cf2a8eb2b3ce0bc80ee166e3503fb204c79b6fdc6f6378fce72118bc41",
       "pairs": 40,
       "median": 1.003352609282738,
       "interval": [
