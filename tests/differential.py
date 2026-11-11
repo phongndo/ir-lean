@@ -10,16 +10,22 @@ first, so inputs that would crash native code never reach it.
 
 usage: tests/differential.py path/to/ir-lean file.c|file.ll [...] [--runs N] [--bound FUNCTION=MAX]
                              [--split] [--only PREFIX] [--strict] [--slow PREFIX=N]
-                             [--expect-ub | --expect-stop]
+                             [--expect-ub | --expect-stop] [--model-memory]
 
 `--bound` keeps a function's inputs small, for functions that would otherwise run for too long or
 overflow the stack. `--split` builds one Lean module per function, which large inputs need. It builds
 LEAN_JOBS at a time, and keeps them in LEAN_CACHE so another run doesn't repeat that work. `--only`
 tests just the functions whose names start with PREFIX. `--strict` fails on any skipped input, for
 code that shouldn't hit poison or UB, where a bug in the semantics would otherwise only skip it. `--slow`
-runs functions whose names start with PREFIX only N times. `--expect-ub` fails unless every function
-translates and every call stops on undefined behavior, and `--expect-stop` does the same for the model
-stopping without an answer, which isn't undefined behavior.
+runs functions whose names start with PREFIX only N times, and can be given more than once.
+`--expect-ub` fails unless every function translates and every call stops on undefined behavior, and
+`--expect-stop` does the same for the model stopping without an answer, which isn't undefined behavior.
+
+Functions with memory run on `IRLean.ExecMem`, from `ir-lean --executable-memory`: the same Lean, with
+each operation on memory one proved to agree with `IRLean.Mem`'s, which runs far faster.
+`--model-memory` runs them on `Mem` itself. docs/memory.md#executable-memory says why a result on
+`ExecMem` is one on `Mem`. With DIFFERENTIAL_TIMES set, it prints how long each run of the Lean took,
+apart from compiling it, and its peak memory.
 """
 
 import concurrent.futures
@@ -116,10 +122,12 @@ def inputs_for(widths, runs, rand):
     return picked
 
 
-def emit_lean(tool, ll, work, split):
-    """Translates `ll` to the Lean module M."""
+def emit_lean(tool, ll, work, split, model_memory=False):
+    """Translates `ll` to the Lean module M, on `ExecMem` unless `model_memory`."""
     lean = os.path.join(work, "M.lean")
     args = [tool, ll, "--namespace", "M"] + (["--split", work] if split else ["-o", lean])
+    if not model_memory:
+        args.append("--executable-memory")
     r = proc.run(args)
     if r.exit not in (0, 3):
         sys.exit(f"ir-lean failed:\n{r.err}")
@@ -164,7 +172,11 @@ def lean_output(work, command, env, prepare):
     except OSError:
         pass
     prepare()
-    output = sh(command, env=env).out
+    ran = sh(command, env=env)
+    output = ran.out
+    if os.environ.get("DIFFERENTIAL_TIMES"):
+        # How long running the Lean took, and its peak memory, apart from compiling it, for docs/memory.md.
+        print(f"lean ran in {ran.seconds:.2f} s, peak {ran.peak_process_mb:.0f} MiB", file=sys.stderr)
     os.makedirs(RESULTS, exist_ok=True)
     partial = f"{cached}.{os.getpid()}.{threading.get_ident()}"
     with open(partial, "w") as f:
@@ -248,6 +260,8 @@ def run_lean(functions, cases, work, split):
         "class Shows (α : Type) where shows : α → String",
         "instance : Shows (Outcome (Val w)) := ⟨show'⟩",
         "instance : Shows (Outcome (Val w × Mem)) := ⟨fun x => show' (andThen x fun r => Outcome.ok r.1)⟩",
+        "instance : Shows (Outcome (Val w × ExecMem)) :=",
+        "  ⟨fun x => show' (andThen x fun r => Outcome.ok r.1)⟩",
         # A function with a `freeze` runs under one choice, marked: native code may have chosen otherwise.
         "instance [Shows (Outcome α)] : Shows (Outcomes α) :=",
         '  ⟨fun o => "choice:" ++ Shows.shows (o fun _ => 0)⟩',
@@ -323,20 +337,21 @@ def has_no_result(x):
     return x in ("poison", "diverged") or x.startswith(("ub:", "stop:"))
 
 
-def compare_ll(tool, ll, runs, rand, stats, bounds=None, split=False, only="", slow=None):
+def compare_ll(tool, ll, runs, rand, stats, bounds=None, split=False, only="", slow=None, model_memory=False):
     bounds = bounds or {}
     with tempfile.TemporaryDirectory(prefix="diff-") as work:
         functions, reasons = report(tool, ll, only)
         stats.unsupported.update(reasons)
         if not functions:
             return
-        emit_lean(tool, ll, work, split)
+        emit_lean(tool, ll, work, split, model_memory)
         cases = [inputs_for(f[2], runs, rand) for f in functions]
         for i, (name, *_) in enumerate(functions):
             if name in bounds:
                 cases[i] = [[v % (bounds[name] + 1) for v in c] for c in cases[i]]
-            if slow and name.startswith(slow[0]):
-                cases[i] = cases[i][: slow[1]]
+            for prefix, count in slow or []:
+                if name.startswith(prefix):
+                    cases[i] = cases[i][:count]
         kept = [(f, c) for f, c in zip(functions, cases, strict=True) if c]
         functions, cases = [f for f, _ in kept], [c for _, c in kept]
         stats.functions += len(functions)
@@ -443,12 +458,15 @@ def main():
     strict = "--strict" in args
     if strict:
         args.remove("--strict")
-    slow = None
-    if "--slow" in args:
+    slow = []
+    while "--slow" in args:
         i = args.index("--slow")
         prefix, count = args[i + 1].split("=")
-        slow = (prefix, int(count))
+        slow.append((prefix, int(count)))
         del args[i : i + 2]
+    model_memory = "--model-memory" in args
+    if model_memory:
+        args.remove("--model-memory")
     expect = None
     for flag, kind in (("--expect-ub", "undefined"), ("--expect-stop", "model stop")):
         if flag in args:
@@ -461,7 +479,9 @@ def main():
     try:
         for path in files:
             before = stats.skipped if expect else stats.compared
-            compare_ll(tool, compile_input(path, work), runs, rand, stats, bounds, split, only, slow)
+            compare_ll(
+                tool, compile_input(path, work), runs, rand, stats, bounds, split, only, slow, model_memory
+            )
             if (stats.skipped if expect else stats.compared) == before:
                 untested.append(path)
     finally:
