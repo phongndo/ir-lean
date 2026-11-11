@@ -28,6 +28,11 @@ usage:
 statements it found, and writes the evidence to OUT.json, after every other check has passed. `claim` decides
 each complete claim in the coverage manifest, or the one at --index. Exit codes: 0 replayed or verified, 1
 refused, 2 partial, 4 unknown (a limit stopped it), 5 error.
+
+It decides its own verdicts, and denies by default, as docs/verdicts.md says: only `complete` gives
+`replayed`, when every check of REPLAYED passed exactly once over every module the evidence plans, and only
+`verified` gives `verified`, when each evidence file's replay is so. Anything else is `error`, `incomplete`,
+and IRLEAN_DENY_ALL, set to anything but 0, takes every grant away.
 """
 
 from __future__ import annotations
@@ -63,6 +68,13 @@ COVERAGE = ROOT / "tests" / "llvm_scope" / "coverage.json"
 CLOSURES = ROOT / "tests" / "llvm_scope" / "closure"
 REWRITES = ROOT / "tests" / "llvm_scope" / "rewrites"
 EXIT = {"replayed": 0, "verified": 0, "refused": 1, "partial": 2, "unknown": 4, "error": 5}
+# The grants, which only `complete` and `verified` give, and the checks a replay needs for one.
+GRANTED = ("replayed", "verified")
+REPLAYED = (
+    "pin", "anchors", "ir_replay", "translation_replay", "compile_generated", "compile_evidence",
+    "statements", "axioms", "kernel_replay", "unchanged",
+)  # fmt: skip
+DENY_ALL = "IRLEAN_DENY_ALL"
 HEX = re.compile(r"[0-9a-f]{64}")
 FLAG = re.compile(
     r"-(O[0-3sz]|D[A-Za-z_]\w*(=[\w.+-]*)?|U[A-Za-z_]\w*|std=[\w+]+|f[A-Za-z][\w=.+-]*|W[\w=-]*|m[\w=.-]+)"
@@ -396,10 +408,19 @@ def check_pin(ev: dict[str, Any], t: Tools, timeout: float) -> None:
 
 class Replay:
     def __init__(self, ev: dict[str, Any], t: Tools, work: Path, jobs: int, memory: int, timeout: float,
-                 record: bool) -> None:  # fmt: skip
+                 record: bool, validated: dict[str, Any]) -> None:  # fmt: skip
         self.ev, self.t, self.work, self.jobs, self.memory, self.timeout = ev, t, work, jobs, memory, timeout
         self.record = record
         self.checks: list[dict[str, str]] = []
+        # The modules each check over modules has to cover, each once, from the evidence before anything ran,
+        # and those it did cover.
+        generated, own = [u["namespace"] for u in validated["units"]], list(validated["lean"]["files"])
+        self.plan = {
+            "compile_generated": generated,
+            "compile_evidence": own,
+            "kernel_replay": generated + own,
+        }
+        self.observed: dict[str, list[str]] = {step: [] for step in self.plan}
         # Lean's memory limit, and a thread stack of 64 MB, as tests/llvm.py gives it: Lean commits about
         # 1 GiB of stack for each thread, and bv_decide forks Lean to start its solver, which fails with
         # ENOMEM on a machine with less memory than that commit, such as a CI runner.
@@ -525,9 +546,10 @@ class Replay:
             timeout=self.timeout,
         )
 
-    def compile(self, module: str, reason: str) -> None:
+    def compile(self, module: str, step: str, reason: str) -> None:
         path = module.replace(".", "/")
         need(self.lean("-R", str(self.work), "-o", f"{path}.olean", f"{path}.lean"), reason, f"lean {module}")
+        self.observed[step].append(module)
 
     def waves(self, files: dict[str, str]) -> list[list[str]]:
         """The evidence's modules in waves, each importing only modules of earlier waves, read from the import
@@ -563,7 +585,9 @@ class Replay:
         self.passed("translation_replay", "ir-lean gives the recorded Lean, byte for byte")
         generated = [u["namespace"] for u in ev["units"]]
         with self.pool() as pool:
-            list(pool.map(lambda m: self.compile(m, "generated_module_failed"), generated))
+            list(
+                pool.map(lambda m: self.compile(m, "compile_generated", "generated_module_failed"), generated)
+            )
         self.passed("compile_generated", "Lean compiles every generated module")
 
         # The evidence's own modules, copied from the repo with the recorded hashes. Their code runs while
@@ -582,7 +606,7 @@ class Replay:
         before_files = self.hashes()
         for wave in self.waves(ev["lean"]["files"]):
             with self.pool() as pool:
-                list(pool.map(lambda m: self.compile(m, "proof_compile_failed"), wave))
+                list(pool.map(lambda m: self.compile(m, "compile_evidence", "proof_compile_failed"), wave))
         self.passed("compile_evidence", "Lean compiles the evidence's modules")
         after_compile = self.hashes()
         self.unchanged(before_files, after_compile, before, expected_new=True)
@@ -611,11 +635,13 @@ class Replay:
         allowed |= {str(Path(a).parent) for a in allowed if "/" in a}
         for path in sorted(old.keys() | new.keys()):
             if old.get(path) != new.get(path) and not (path in allowed and path not in old):
-                raise refuse("artifacts_modified", f"{path} changed while the evidence's code could run")
+                raise Stop(
+                    "error", "artifacts_modified", f"{path} changed while the evidence's code could run"
+                )
         now = stamp([self.t.irlean_lib, self.t.toolchain, HERE, CHECKER, self.t.irlean_tool])
         if now != stamped:
             changed = sorted(k for k in now.keys() | stamped.keys() if now.get(k) != stamped.get(k))
-            raise refuse("artifacts_modified", f"{changed[:3]} changed while the evidence's code ran")
+            raise Stop("error", "artifacts_modified", f"{changed[:3]} changed while the evidence's code ran")
 
     def statements(self) -> list[dict[str, Any]]:
         ev = self.ev
@@ -713,6 +739,7 @@ class Replay:
             # One module at a time, for the same reason as the checker.
             r = run([self.t.leanchecker, module], cwd=self.work, env=self.lean_env, timeout=self.timeout)
             need(r, "kernel_replay_failed", f"leanchecker {module}")
+            self.observed["kernel_replay"].append(module)
 
         with self.pool() as pool:
             list(pool.map(check, modules))
@@ -720,18 +747,68 @@ class Replay:
 
 
 def verdict(status: str, reason: str, detail: str, **extra: Any) -> dict[str, Any]:
+    """Any verdict but a grant, which only `complete` and `verified` give."""
+    if status in GRANTED:
+        raise ValueError(f"{status} is given only by complete and verified")
     return {"schema": VERDICT_SCHEMA, "status": status, "reason": reason, "detail": detail, **extra,
             "trusted": TRUSTED}  # fmt: skip
 
 
-def replay_evidence(ev: Any, *, work: Path | None = None, jobs: int = 4, memory: int = 4000,
-                    timeout: float = 900, record: bool = False) -> tuple[dict[str, Any], Any]:  # fmt: skip
+def deny() -> None:
+    """IRLEAN_DENY_ALL, set to anything but 0, takes every grant away, as irlean.verdict's does. It's read
+    here, since this shares no code with that."""
+    if os.environ.get(DENY_ALL, "") not in ("", "0"):
+        raise Stop("error", "denied", f"{DENY_ALL} is set, and nothing is granted")
+
+
+@dataclass(frozen=True)
+class Replayed:
+    """What only `complete` gives: the evidence file it replayed, by the path it's given, and its verdict."""
+
+    path: str
+    verdict: dict[str, Any]
+
+
+def complete(replay: Replay, detail: str, *, path: str = "", **extra: Any) -> Replayed:
+    """The one place a replay is `replayed`: every check of REPLAYED passed exactly once, and Lean compiled
+    and leanchecker replayed every module the evidence planned, each once. Anything else is `error`,
+    `incomplete`, so a step skipped, by a bug here or a caller's, can't grant."""
+    names = [c["name"] for c in replay.checks]
+    if sorted(names) != sorted(REPLAYED):
+        raise Stop("error", "incomplete", f"the checks passed are {names}, not each of {list(REPLAYED)} once")
+    for step, plan in replay.plan.items():
+        if sorted(replay.observed[step]) != sorted(plan):
+            got = replay.observed[step]
+            raise Stop("error", "incomplete", f"{step} covered {got}, not each of {plan} once")
+    deny()
+    v = {"schema": VERDICT_SCHEMA, "status": "replayed", "reason": "replayed", "detail": detail,
+         "checks": replay.checks, **extra, "trusted": TRUSTED}  # fmt: skip
+    return Replayed(path, v)
+
+
+def verified(results: list[Any], planned: list[str], detail: str) -> dict[str, Any]:
+    """The one place a claim is `verified`: each of the `planned` evidence files it names replayed, and
+    `complete`'s result said so of each, by its path, once, and of no other. Else `error`, `incomplete`."""
+    done = [r for r in results if isinstance(r, Replayed)]
+    if not planned or len(done) != len(results) or sorted(r.path for r in done) != sorted(set(planned)):
+        raise Stop(
+            "error", "incomplete", f"{planned} are planned, and complete replayed {[r.path for r in done]}"
+        )
+    deny()
+    return {"schema": VERDICT_SCHEMA, "status": "verified", "reason": "verified", "detail": detail,
+            "evidence": [r.verdict for r in done], "trusted": TRUSTED}  # fmt: skip
+
+
+def replay_evidence(ev: Any, *, path: str = "", work: Path | None = None, jobs: int = 4, memory: int = 4000,
+                    timeout: float = 900, record: bool = False,
+                    ) -> tuple[Replayed | dict[str, Any], Any]:  # fmt: skip
     """Replays evidence, given as parsed JSON. Returns the verdict, and the evidence with what's recorded."""
     replay: Replay | None = None
     owned = work is None
     work = Path(tempfile.mkdtemp(prefix="verify-claims-")) if work is None else work
     try:
         validate(ev, record)
+        validated = json.loads(json.dumps(ev))  # the evidence as validated, before any tool runs
         if ev["cuts"]:
             # A call the theorem rules out by stopping the model says nothing about the code it runs.
             return verdict("partial", "cut", f"calls out of the code are cut: {ev['cuts']}"), ev
@@ -747,14 +824,13 @@ def replay_evidence(ev: Any, *, work: Path | None = None, jobs: int = 4, memory:
         if run_dir.exists():
             shutil.rmtree(run_dir)
         run_dir.mkdir(parents=True)
-        replay = Replay(ev, t, run_dir, jobs, memory, timeout, record)
+        replay = Replay(ev, t, run_dir, jobs, memory, timeout, record, validated)
         replay.passed("pin", "llvm-project has the pinned NAR hash")
         theorems = replay.replay()
         for u in ev["units"]:
             u.pop("_functions", None)
         detail = "every check passed" + (", and the evidence is recorded" if record else "")
-        return verdict("replayed", "replayed", detail, checks=replay.checks, theorems=theorems,
-                       contexts=ev["contexts"]), ev  # fmt: skip
+        return complete(replay, detail, path=path, theorems=theorems, contexts=ev["contexts"]), ev
     except Stop as s:
         return verdict(s.status, s.reason, s.detail, checks=replay.checks if replay else []), ev
     except Exception as e:
@@ -854,6 +930,7 @@ def _decide_claim(claim: dict[str, Any], root: Path, inventory: Path, closures: 
     evidence = [e for e in claim["evidence"] if isinstance(e, dict) and e.get("kind") == kind]
     if not evidence:
         raise refuse("claim_invalid", f"a complete {dim} claim needs {kind} evidence")
+    planned = [str(e.get("path")) for e in evidence]  # read before any replay
     covered: set[tuple[str, str]] = set()
     anchors: dict[str, str] = {}
     compiled: set[str] = set()
@@ -865,9 +942,9 @@ def _decide_claim(claim: dict[str, Any], root: Path, inventory: Path, closures: 
         if sha256(path) != e.get("sha256"):
             raise refuse("stale_evidence", f"{e.get('path')} changed since the claim was made")
         ev = json.loads(path.read_text())
-        v, _ = replay_evidence(ev, **options)
+        v, _ = replay_evidence(ev, path=str(e.get("path")), **options)
         results.append(v)
-        if v["status"] != "replayed":
+        if not isinstance(v, Replayed):
             raise Stop(v["status"] if v["status"] != "partial" else "refused", v["reason"],
                        f"{e['path']}: {v['detail']}")  # fmt: skip
         if ev["contexts"] != "all":
@@ -877,7 +954,7 @@ def _decide_claim(claim: dict[str, Any], root: Path, inventory: Path, closures: 
             if u["source_in"] == "llvm-project":
                 compiled.add(u["source"])
         # A closure's function is covered by a theorem about it as compiled from its own file.
-        for t in v["theorems"]:
+        for t in v.verdict["theorems"]:
             covered |= {(c["source"], c["symbol"]) for c in t["covers"] if c["source_in"] == "llvm-project"}
     if closure is not None:
         for f, h in closure["files"].items():
@@ -892,7 +969,7 @@ def _decide_claim(claim: dict[str, Any], root: Path, inventory: Path, closures: 
             why = f"no theorem is about {len(missing)} functions of the closure, such as {missing[:3]}"
             raise refuse("closure_uncovered", why)
     detail = f"{len(results)} evidence files replay and cover {item_id}'s {dim}"
-    return verdict("verified", "verified", detail, evidence=results)
+    return verified(results, planned, detail)
 
 
 def check_claim(claim: dict[str, Any], item: dict[str, Any], contexts: set[str], root: Path) -> str | None:
@@ -933,8 +1010,9 @@ def main() -> int:
         if work is not None:
             work.mkdir(parents=True, exist_ok=True)
         v, recorded = replay_evidence(ev, work=work, record=args.record is not None, **options)
-        if args.record is not None and v["status"] == "replayed":
+        if args.record is not None and isinstance(v, Replayed):
             args.record.write_text(json.dumps(recorded, indent=1) + "\n")
+        v = v.verdict if isinstance(v, Replayed) else v
         print(json.dumps(v, indent=1))
         return EXIT[v["status"]]
     claims = json.loads(args.coverage.read_text()).get("claims", [])

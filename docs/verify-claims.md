@@ -9,7 +9,7 @@ C++](binding-approach.md#what-a-code-binding-claims-evidence-is) says G3 and G4 
 see [trust](trust.md).
 
 Facts here were checked on top of `dbfd710` on 2026-11-09, on x86-64 Linux in the dev shell, with LLVM 23.1.3 at
-`llvmorg-23.1.3` and Lean 4.35.0.
+`llvmorg-23.1.3` and Lean 4.35.0, and its guard on top of `f48651f` on 2026-11-11.
 
 **Today it verifies no claim, because none can be complete yet.** `coverage.json` has no claims. Of the dimensions
 a pass needs, all-input waits on the verifier reading [INV-04](llvm-verification-tasks.md#inv-04-rewrite-level-inventory)'s
@@ -32,6 +32,20 @@ bug in the scorer's checks isn't a bug here too, unless both make the same mista
 That makes it the one place Python grants a verdict without asking [`irlean.verdict`](trust.md#where-python-decides-a-verdict),
 on purpose. Its verdicts are `replayed`, `verified`, `refused`, `partial`, `unknown` and `error`, none of which the
 scorer uses, and [`tests/verify_claims_test.py`](../tests/verify_claims_test.py) checks how it reaches each.
+
+## Its guard
+
+It denies by default, with a guard of its own, as [stage A's design](verdicts.md#toolsverify_claimspy) says.
+`REPLAYED` is the fixed list of checks a replay needs: `pin`, `anchors`, `ir_replay`, `translation_replay`,
+`compile_generated`, `compile_evidence`, `statements`, `axioms`, `kernel_replay` and `unchanged`. Only `complete` gives
+`replayed`: each check of the list passed exactly once, and no other, and Lean compiled and `leanchecker` replayed each
+module the evidence plans, its units' namespaces and its own files, each once, against a plan read from the evidence
+as it was validated, before any tool ran. `complete` gives a frozen `Replayed`, which carries the path of the evidence
+file it replayed. Only `verified` gives `verified`: a `Replayed` for each evidence file the claim names, by the paths
+read before any replay, each once, and for no other. Anything else is `error`, `incomplete`, so a step skipped, or a
+replay counted in another's place, by a bug here or a caller's, can't grant, and `verdict` raises if it's asked for
+either. `IRLEAN_DENY_ALL`, set to anything but `0`, takes every grant away: what would have been granted is `error`,
+`denied`, exit 5, and `--record` writes nothing. It reads that itself, since it imports nothing of `irlean`.
 
 ## Evidence
 
@@ -86,7 +100,8 @@ For evidence, the first that fails decides:
    toolchain's own checker. `sorryAx` is reported as `sorry`.
 10. **Kernel.** `leanchecker` replays every generated module and every module of the evidence's, one to a process.
 11. **Unchanged.** The run's directory holds what it did, apart from each evidence module's new `.olean`, and nothing
-    stamped has changed.
+    stamped has changed. If something has, it's `error`, `artifacts_modified`, exit 5, as in every tool: what was
+    checked isn't what's there, so the replay says nothing about the evidence.
 
 Every Lean process runs with `-M` and a thread stack of 64 MB, `-s 65536`, as `tests/llvm.py` gives it: Lean commits
 about 1 GiB of stack for each thread, and `bv_decide` forks Lean to start its solver, which fails with `ENOMEM` on a
@@ -143,11 +158,27 @@ And each forged claim, a good one with one thing broken:
 | A false theorem added with `debug.skipKernelTC` | `refused`, `kernel_replay_failed` |
 | Other flags, an edited translation, an extra field | `refused`, `ir_replay_mismatch`, `translation_replay_mismatch`, `evidence_invalid` |
 | A theorem listed twice, a flag loading a plugin into clang, and the function a closure needs also defined by hand-written IR, which could stand in for it | `refused`, `evidence_invalid` |
-| A proof whose code rewrites a generated module, or adds a module where Lean looks, while it compiles | `refused`, `artifacts_modified` |
+| A proof whose code rewrites a generated module, or adds a module where Lean looks, while it compiles | `error`, `artifacts_modified` |
 | A call cut out | `partial` |
 
-And claims refused before any replay: partial and admitted claims, some contexts, gaps, translation validation, an
-unknown pass, all-input and composition, stale anchors, anchors left out, and code-binding for a pass with no closure.
+Each forged claim runs through `tools/verify_claims.py evidence`, as a reader runs it, and its exit code is the one its
+verdict names. And claims refused before any replay: partial and admitted claims, some contexts, gaps, translation
+validation, an unknown pass, all-input and composition, stale anchors, anchors left out, and code-binding for a pass
+with no closure.
+
+And its guard, on ashldi3's evidence:
+
+| Replayed | Verdict |
+| --- | --- |
+| With `leanchecker`'s step skipped, with it over every module but one, or with a check passed twice | `error`, `incomplete` |
+| By `tools/verify_claims.py evidence --record` with `IRLEAN_DENY_ALL=1` | `error`, `denied`, exit 5, and no record |
+| The same, without it | `replayed`, exit 0, and the record |
+
+And without a process, for a plan of one generated module and two of the evidence's: each check of `REPLAYED` left
+out or passed twice, a check not on it, and for each check over modules, each module left out or covered twice and one
+not planned, are `incomplete`; `verdict` raises if it's asked for a grant; and `verified` is `incomplete` with an
+evidence file planned and not replayed, another file's replay in a planned one's place, one file's replay twice, or a
+verdict saying `replayed` in place of `complete`'s result.
 
 **A finding about the scorer.** `tools/verify.py` answers `timeout`, `heartbeat_limit` while reading the claim, on
 `tests/llvm`'s proofs, such as `ashldi3_correct` with the IR the verifier compiled. So it proves none of them, though
