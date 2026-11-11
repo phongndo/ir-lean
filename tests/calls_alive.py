@@ -13,7 +13,10 @@ line says it gives another and why: `; alive2: VERDICT: REASON`, where VERDICT i
 `unknown`. Those are where the model and Alive2 differ by design, as docs/calls.md lists. Anything else that
 isn't a proof or a counterexample, such as a timeout, is a failure, not agreement. Alive2 runs with `undef`
 inputs off, since an argument of the model is a value or poison, one process at a time. Run by
-tests/calls.sh."""
+tests/calls.sh.
+
+With a directory and the files that hold its theorems, it checks that directory's cases the same way,
+against the theorem of each case's name in any of those files. tests/cut.sh runs it so."""
 
 import os
 import re
@@ -82,13 +85,16 @@ def check(path, lean, work):
 
 
 def main():
-    if len(sys.argv) > 1:
-        sys.exit("usage: tests/calls_alive.py")
-    with open(MODEL) as f:
-        lean = f.read()
-    paths = [os.path.join(CASES, n) for n in sorted(os.listdir(CASES)) if n.endswith(".ll")]
+    if len(sys.argv) == 2:
+        sys.exit("usage: tests/calls_alive.py [CASES_DIR THEOREMS.lean...]")
+    cases, models = (sys.argv[1], sys.argv[2:]) if len(sys.argv) > 2 else (CASES, [MODEL])
+    lean = ""
+    for model in models:
+        with open(model) as f:
+            lean += f.read() + "\n"
+    paths = [os.path.join(cases, n) for n in sorted(os.listdir(cases)) if n.endswith(".ll")]
     if not paths:
-        sys.exit(f"no cases in {CASES}")
+        sys.exit(f"no cases in {cases}")
     failed = 0
     with tempfile.TemporaryDirectory() as work:
         for path in paths:

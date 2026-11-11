@@ -2,9 +2,10 @@ import IRLean.Basic
 
 /-! # Refinement
 
-What it means for one function to be a correct replacement for another, in IRLean's semantics, for the integer and
-vector code the model covers without memory. `Refines src tgt` says `tgt` only does what `src` allows, on every input,
-poison included. [`docs/refinement.md`](../docs/refinement.md) says what that does and doesn't say about LLVM.
+What it means for one function to be a correct replacement for another, in IRLean's semantics. `Refines src tgt` says
+`tgt` only does what `src` allows, on every input, poison included.
+[`docs/refinement.md`](../docs/refinement.md) says what that does and doesn't say about LLVM. This file has the
+relation for integer and vector code, and `IRLean/MemRefine.lean` the instances for a pointer and a memory.
 
 For a value, poison allows any value, and a value allows only itself. Vectors and structs go lane by lane, field by
 field. For a run:
@@ -21,8 +22,9 @@ it doesn't stop the model, so for `f` into `Outcome`, `Refines f f` says `f` nev
 that makes choices refines itself where no way of choosing stops the model, and also where some way is undefined, which
 allows anything: `Refine.outcomes_le_self`.
 
-There's deliberately no instance for `Mem`. The emitter gives every function that mentions a pointer or touches memory a
-`Mem` argument and a `Mem` in its result, so such a function has no `Refines` claim at all. -/
+Until F4 there was deliberately no instance for `Mem`, so a function that mentions a pointer or touches memory, which
+the emitter gives a `Mem` argument and a `Mem` in its result, had no `Refines` claim at all. `IRLean/MemRefine.lean`
+gives it one, and says what a claim about memory has to add: where the source has an answer. -/
 
 namespace IRLean
 

@@ -80,7 +80,9 @@ A second rewrite, of the bit unpacking in llama.cpp's Q5 kernel, replaces six in
 [`LlamaBitspread.lean`](../tests/proofs/LlamaBitspread.lean) proves the exact slice and its replacement give the same
 result for every input, poison included, and that every byte is defined for a defined input. Extracting the slice and
 substituting its result are trusted, as for q4_K. [llama.cpp's Q5](llama-q5.md) has the details. Recorded on
-2026-11-07, and the proof checked again on 2026-11-08 with the q4_K rewrite and `main` at `0330cd7`.
+2026-11-07, and the proof checked again on 2026-11-08 with the q4_K rewrite and `main` at `0330cd7`. Since
+2026-11-10 [the cut lemma](refinement.md#the-cut-lemma) proves substituting it right in two loops written to hold the
+slice, one with memory, but not in the kernel, which hasn't been translated, so there it's still trusted.
 
 ## Tested
 
@@ -277,7 +279,7 @@ reads it. That difference is itself a thing [Phase 3](roadmap.md#phase-3-c-and-r
    `llvm.loop.mustprogress` [since SEM-07](trust.md#promises-to-progress).
 10. `inflate`: [measured](#measured). Its next step is [its invariant](roadmap.md#phase-1-zlib-inflate-memory-safety).
 11. A [lemma store](lemma-store.md): 437 checked lemmas from #42, #46, #48, F3 and #103 that later proofs can find, in
-    `lake build` and CI, 73 of them used by two proofs. Done in [#60](https://github.com/phongndo/ir-lean/pull/60).
+    `lake build` and CI, 75 of them used by two proofs. Done in [#60](https://github.com/phongndo/ir-lean/pull/60).
 12. Tier-1 proof tests, which run a property on generated inputs and have the kernel check each counterexample. Done,
     for functions without memory: [proof tests](proof-tests.md) has what they refute, and what they can't run.
 13. `freeze` in the model, F3: `freeze` of poison is a value each run chooses, and `IRLean.Refines` quantifies over each
@@ -303,3 +305,10 @@ reads it. That difference is itself a thing [Phase 3](roadmap.md#phase-3-c-and-r
     LLVM's `Value`, `Use`, `ConstantInt`, `APInt` and `Type`, as the matchers read them, proved kept by
     `ConstantInt::get`, `PoisonValue::get` and `BinaryOperator::Create` as specifications of what each does to memory,
     and a layout probe agrees with it on the pinned `libLLVM`. See [LLVM's IR in memory](llvm-heap.md).
+18. Memory in `IRLean.Refines`, and the lemma that a refined cut gives a refined function, F4 (SEM-06), on 2026-11-10:
+    in progress, not finished. Of its six [stages](refinement.md#functions-with-memory), 1, 2 and 4 are done: the cut
+    lemma, `Refines` for functions with memory where both sides allocate alike, guarded by `Outcome.answered` where the
+    model has no answer for the source, and the cut lemma with memory for the operations that have a lemma. Stage 5,
+    the model's memory gaps, is partly done: each has its side, and four aren't closed. Stage 3, a target that
+    allocates differently, so removing an `alloca` has no claim, and stage 6, `tools/binding.py` on memory, which
+    still refuses it, haven't started. The `cut` and `memory_refine` tests check it.

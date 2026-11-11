@@ -3,7 +3,7 @@
   "version": {
     "lean": "leanprover/lean4:v4.35.0",
     "normalizer": 1,
-    "sources": "3afa00b73ea4c6c3bb5937494bb2360701bfb06d02f855800cdee5066224a439"
+    "sources": "c8a2b99f459c3c7771e1f7c50d0f42ab7f4bee50496419765b552e7552423a82"
   },
   "consumers": [
     {
@@ -2181,6 +2181,7 @@
         "IRLean.Generic.sub_self_refines",
         "IRLean.Generic.xor_self_refines",
         "IRLean.Generic.xor_xor_cancel_refines",
+        "IRLean.Mem.le.loadInt",
         "Peephole.IS.ICmp.andOrSrc_refines",
         "Peephole.IS.ICmp.eval_refines",
         "Peephole.IS.ICmp.eval_refines_of_left_none",
@@ -2450,6 +2451,9 @@
       "witness": null,
       "used_by": [
         "IRLean.Generic.Counter.not_refines",
+        "IRLean.Mem.le.storeVec",
+        "IRLean.Mono.join",
+        "IRLean.Mono.split",
         "Peephole.IS.Arith.eq_of_refines_some",
         "Peephole.IS.simplifyAndOrOfCmps.L1933",
         "Peephole.Lemmas.Logic.not_refines",
@@ -2601,6 +2605,8 @@
         "IRLean.Generic.sdiv_one_refines",
         "IRLean.Generic.srem_one_refines",
         "IRLean.Generic.urem_one_refines",
+        "IRLean.Mono.udiv",
+        "IRLean.Mono.urem",
         "Peephole.IS.Arith.eq_of_refines_some",
         "Peephole.IS.Arith.eval_drop_flags",
         "Peephole.IS.Arith.ok_none_refines",
@@ -2622,6 +2628,7 @@
         "RefineCases.freezeRemoved",
         "RefineCases.inContext",
         "RefineCases.loopDeletedUnderPromise",
+        "RefineCases.memory_result",
         "RefineCases.poisonLane",
         "RefineCases.poisonToValue",
         "RefineCases.promiseDropped",
@@ -2932,6 +2939,8 @@
         "IRLean.Generic.sdiv_one_refines",
         "IRLean.Generic.srem_one_refines",
         "IRLean.Generic.urem_one_refines",
+        "IRLean.Mono.udiv",
+        "IRLean.Mono.urem",
         "Peephole.IS.Arith.eval_drop_flags",
         "Peephole.IS.Arith.refines_of_refines_ok_none",
         "Peephole.IS.Arith.sdiv_none_left",
@@ -3033,6 +3042,13 @@
       "hypotheses": [],
       "witness": null,
       "used_by": [
+        "IRLean.Mem.le.loadInt",
+        "IRLean.Mem.le.toVal",
+        "IRLean.Mono.join",
+        "IRLean.Mono.loadInt",
+        "IRLean.Mono.split",
+        "IRLean.Mono.udiv",
+        "IRLean.Mono.urem",
         "Peephole.IS.Arith.ok_refl",
         "Peephole.IS.ICmp.andOrSrc_refines",
         "Peephole.IS.ICmp.eval_refines",
@@ -3302,14 +3318,25 @@
       "family": "refinement",
       "provenance": "#46, IRLean/Refine.lean",
       "key": "5ec6b27774290d91373a",
-      "status": "candidate",
+      "status": "admitted",
       "widths": "every",
       "hypotheses": [
         "LemmaStore.Counter.IRLean.Refine.val_map_mono.drop_hf",
         "LemmaStore.Counter.IRLean.Refine.val_map_mono.drop_h"
       ],
       "witness": "LemmaStore.Counter.IRLean.Refine.val_map_mono.sat",
-      "used_by": []
+      "used_by": [
+        "IRLean.Mono.abs",
+        "IRLean.Mono.bitreverse",
+        "IRLean.Mono.bswap",
+        "IRLean.Mono.ctlz",
+        "IRLean.Mono.ctpop",
+        "IRLean.Mono.cttz",
+        "IRLean.Mono.range",
+        "IRLean.Mono.sext",
+        "IRLean.Mono.trunc",
+        "IRLean.Mono.zext"
+      ]
     },
     {
       "name": "IRLean.Refine.val_map₂_mono",
@@ -3317,7 +3344,7 @@
       "family": "refinement",
       "provenance": "#46, IRLean/Refine.lean",
       "key": "db8e5a27d66ea2513e1c",
-      "status": "candidate",
+      "status": "admitted",
       "widths": "every",
       "hypotheses": [
         "LemmaStore.Counter.IRLean.Refine.val_map₂_mono.drop_hl",
@@ -3327,6 +3354,26 @@
       ],
       "witness": "LemmaStore.Counter.IRLean.Refine.val_map₂_mono.sat",
       "used_by": [
+        "IRLean.Mono.add",
+        "IRLean.Mono.and",
+        "IRLean.Mono.ashr",
+        "IRLean.Mono.icmp",
+        "IRLean.Mono.lshr",
+        "IRLean.Mono.mul",
+        "IRLean.Mono.or",
+        "IRLean.Mono.saddSat",
+        "IRLean.Mono.scmp",
+        "IRLean.Mono.shl",
+        "IRLean.Mono.smax",
+        "IRLean.Mono.smin",
+        "IRLean.Mono.ssubSat",
+        "IRLean.Mono.sub",
+        "IRLean.Mono.uaddSat",
+        "IRLean.Mono.ucmp",
+        "IRLean.Mono.umax",
+        "IRLean.Mono.umin",
+        "IRLean.Mono.usubSat",
+        "IRLean.Mono.xor",
         "RefineCases.inContext"
       ]
     },

@@ -5,7 +5,8 @@ None of the proof's code runs here. A file that imports a module runs that modul
 elaborators and extensions it adds, and that code could print an answer of its own. So the proof and support
 modules are read as data, with `importModules (loadExts := false)`: their declarations, and which module each came
 from. Pinned statements and witnesses are elaborated where only Lean, IRLean and the generated module are
-imported, and a bv_decide axiom is rerun with the toolchain's checker on the data the proof recorded.
+imported, and a bv_decide axiom is rerun with the toolchain's checker on the data the proof recorded. A witness is
+code that runs here, so it comes from the request, or is a literal `tools/verify.py` read from bv_decide's output.
 
 What to check comes from the JSON file that `IRLEAN_VERIFY_CONFIG` names, so nothing in a request is pasted into
 Lean source. Each answer is one line starting with `IRLEAN_VERIFY` and the run's nonce. -/
@@ -70,9 +71,16 @@ def emit (nonce : String) (fields : List (String × Json)) : IO Unit := do
 def pp (e : Expr) : MetaM String := do
   return toString (← withOptions (fun o => o.setBool `pp.fullNames true) (ppExpr e))
 
+/-- A statement or a witness, refused if it has a tactic block, `by ...` or `show T by ...`, which can run any code,
+`run_tac` among them, or `by_elab`, here where the nonce is. That doesn't make elaborating a term run no code:
+`include_str` with a path an `unsafeIO` computes still does. So only the request's own terms, trusted as the request
+is, and the literals `bv_decide` printed, which tools/verify.py checks, get here. docs/verify.md has why. -/
 def parseTerm (text what : String) : TermElabM Syntax := do
   match Parser.runParserCategory (← getEnv) `term text s!"<{what}>" with
-  | .ok s => return s
+  | .ok s =>
+    if (s.find? fun n => n.isOfKind ``Lean.Parser.Tactic.tacticSeq || n.isOfKind ``Lean.byElab).isSome then
+      throwError "the {what} has a tactic block or by_elab, which would run code here"
+    return s
   | .error e => throwError "the {what} doesn't parse: {e}"
 
 def elabStatement (text : String) : TermElabM Expr := Term.withoutErrToSorry do
@@ -114,7 +122,9 @@ def inEnv (env : Environment) (x : MetaM α) : IO α := do
 def sameIn (here proof : Environment) (c : Name) : Bool :=
   here.contains c && moduleIn here c == moduleIn proof c
 
-/-- Whether the conclusion says the target returns normally: `target ... = Outcome.ok _`, perhaps under `∃`. -/
+/-- Whether the conclusion says the target returns normally: `target ... = Outcome.ok _`, perhaps under `∃`.
+The left side has to be a call of the target itself, as written: `(fun _ => Outcome.ok v) (target x)` only
+mentions it, and holds whatever it does. -/
 partial def shapeOf (target : Name) (concl : Expr) : String :=
   let rec strip (e : Expr) (under : Bool) : Expr × Bool :=
     if e.isAppOfArity ``Exists 2 then
@@ -128,7 +138,7 @@ partial def shapeOf (target : Name) (concl : Expr) : String :=
     let rhs := core.appArg!
     let ok := rhs.isAppOf ``IRLean.Outcome.ok ||
       (rhs.isAppOfArity ``Option.some 2 && rhs.appArg!.isAppOf ``Except.ok)
-    if ok && lhs.getUsedConstants.contains target then
+    if ok && lhs.getAppFn.isConstOf target then
       if under then "exists_returns_ok" else "returns_ok"
     else "other"
   else "other"
