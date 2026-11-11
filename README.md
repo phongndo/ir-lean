@@ -84,6 +84,8 @@ build/irl verify check --c tests/real/bi_reverse.c --namespace Real --function p
 | [Design](docs/design.md) | What gets emitted, what the model covers, and why |
 | [Testing](docs/testing.md) | How to run the tests and linters, and what each one checks |
 | [Python](docs/python.md) | What the Python is for, the library every script shares, and the rules that keep it small |
+| [Process](docs/process.md) | How a change gets to `main`: a design reviewed before any code, one full review, fixes that close a kind of bug, and a stop rule |
+| [Bug classes](docs/bug-classes.md) | The kinds of bug this repo has had more than once, where each showed up, and what guards against it |
 | [Roadmap](docs/roadmap.md) | Where this is going, in what order, and the [first pull requests](docs/roadmap.md#near-term-pull-requests). The goal is proved superoptimization: code faster than `clang -O3`'s, with a Lean proof that it refines the original |
 | [Chunks](docs/chunks.md) | What supplies the search with rules: LLVM's 1,162 registered passes in nine chunks, the gates a chunk's rewrites go through, how each gate's percentage is measured, and where each chunk stands |
 | [Stage 1](docs/stage1.md) | InstCombine's own rewrites, certified with `bv_decide` and compared with Alive2, and known miscompilations that must not be certified |
