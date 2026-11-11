@@ -10,8 +10,9 @@ IRLean.Refines Chain.s0 Chain.sk` from them by `IRLean.Refines.trans`, and the g
 3. `tools/rules/rules_check.lean` builds the claim from the two names and finds the theorem's type is that
    expression, and reads the axioms it rests on and the rules its proof uses;
 4. `tests/check_axioms.lean` audits the certificate's module and everything it imports;
-5. `leanchecker` replays the generated module and the certificate;
-6. `irlean.verdict` grants `certified`, or doesn't.
+5. `leanchecker` replays the certificate, the generated module and every module they import but Lean's own;
+6. `irlean.verdict` grants `certified`, or doesn't. `refused` is only for what a check diagnosed, and a tool
+   that failed is an `error`, or `unknown` at a limit.
 
 A step's proof is one term, written here from the two states as the IR has them: `Rules.Mono.<instruction>`
 down to where they differ, `Refine.refl_val _` for what's the same, and the rule's theorem at the instruction
@@ -49,6 +50,18 @@ STANDARD = {"propext", "Classical.choice", "Quot.sound"}
 # A step's proof follows the state as a tree. Past this many nodes it isn't written.
 MAX_PROOF_NODES = 4000
 TRIPLE = 'target triple = "x86_64-unknown-linux-gnu"\n'
+# The checks whose failure is a diagnosis of the certificate, from the checker's answer. Any other failing
+# is a tool's.
+AXIOMS_CHECK = "its axioms are the standard three, or those and bv_decide's"
+RULES_CHECK = "its proof uses the chain's rules, and no others"
+# What tests/check_axioms.lean says when its policy refuses what a proof rests on, as tests/proofs.sh reads
+# it.
+POLICY = re.compile(r"not an allowed axiom|not what bv_decide would add|uses (?:implemented_by|extern)")
+# What leanchecker says when the kernel rejects a declaration it replays, or a constructor or recursor isn't
+# the one the kernel makes, as Lean.Replay throws them.
+KERNEL = re.compile(r"^\(kernel\) |^uncaught exception: (?:Invalid|No such) (?:constructor|recursor) ")
+# Lean failing to read a module a file imports: a file that isn't there, which refuses nothing.
+UNREAD = re.compile(r"object file .* does not exist|unknown module prefix")
 
 
 @dataclass(frozen=True)
@@ -316,60 +329,92 @@ def check(
         env,
         out,
     )
+    # What a checker answered counts only if it then ended cleanly: one that crashed or was stopped after
+    # answering says nothing it can be held to.
+    checks["rules_check.lean ended on its own, with 0"] = asked.exit == 0 and asked.limit is None
+    if not checks["rules_check.lean ended on its own, with 0"]:
+        return done(*failed(asked, None))
     answer = answers[0] if len(answers) == 1 and isinstance(answers[0], dict) else {}
     checks["the theorem states that the last state refines the first"] = answer.get("ok") is True
     if answer.get("ok") is not True:
-        if asked.exit != 0 and not answer:
-            return done("error", "tool_failed", asked.output)
-        return done(
-            "refused", str(answer.get("reason", "claim_unread")), json.dumps(answer, ensure_ascii=False)
-        )
+        if answer.get("reason") in (None, "checker_error"):
+            return done("error", "tool_failed", json.dumps(answer, ensure_ascii=False) + "\n" + asked.output)
+        return done("refused", str(answer["reason"]), json.dumps(answer, ensure_ascii=False))
     record["claim"]["statement"] = answer["statement"]
     record["rules_used"], record["axioms"] = answer["rules"], answer["axioms"]
     others = [a for a in answer["axioms"] if a not in STANDARD]
     solver = [a for a in others if re.search(r"\._native\.bv_decide\.ax_", a)]
     record["tier"]["axioms"] = "standard" if not others else "bv_decide" if solver == others else None
-    checks["its axioms are the standard three, or those and bv_decide's"] = (
-        record["tier"]["axioms"] is not None
-    )
+    checks[AXIOMS_CHECK] = record["tier"]["axioms"] is not None
     wanted = sorted({r.name for r in rules})
-    checks["its proof uses the chain's rules, and no others"] = answer["rules"] == wanted
+    checks[RULES_CHECK] = answer["rules"] == wanted
+    listed = answer.get("replay")
+    checks["leanchecker replays the certificate and the generated module, and what they import"] = isinstance(
+        listed, list
+    ) and {NAMESPACE, CERT} <= {m for m in listed if isinstance(m, str)}
     audit = proved.run(lean.audit_argv(proved.LEAN_MB), lean.audit_env(CERT, base=env), cwd=out)
-    replay = proved.run(lean.checker(NAMESPACE, CERT), env, cwd=out)
+    replay = proved.replay(listed, env, cwd=out)
     files = {name: (out / name).exists() for name in ("chain.ll", f"{NAMESPACE}.lean", f"{CERT}.lean")}
+    return done(*conclude(cert_step, core.Step.of("check_axioms", audit), replay, files, checks))
+
+
+def conclude(
+    cert: core.Step,
+    audit: core.Step,
+    replay: core.Step,
+    files: dict[str, bool],
+    checks: dict[str, bool | None],
+) -> tuple[str, str, str]:
+    """The status, reason and detail of a certificate's evidence: `certified` only if irlean.verdict grants
+    it. A limit is `unknown`. `refused` is only for a diagnosis: the checker's answer that the theorem rests
+    on an axiom that isn't allowed or uses other rules than the chain's, tests/check_axioms.lean's policy
+    refusing it, or the kernel rejecting a declaration leanchecker replays. Anything else, such as a crash, a
+    missing file, or a process that failed without saying why, is an `error`: a tool that failed decided
+    nothing."""
     decision = core.decide(
         core.Verdict.CERTIFIED,
-        core.Evidence(
-            lean=cert_step,
-            replay=core.Step.of("leanchecker", replay),
-            axioms=core.Step.of("check_axioms", audit),
-            files=files,
-            checks=checks,
-        ),
+        core.Evidence(lean=cert, replay=replay, axioms=audit, files=files, checks=checks),
     )
     if decision.granted:
-        return done("certified", decision.reason, decision.detail)
-    status = "unknown" if decision.verdict is core.Verdict.UNKNOWN else "refused"
-    detail = decision.detail
+        return "certified", decision.reason, decision.detail
+    if decision.verdict is core.Verdict.UNKNOWN:
+        return "unknown", decision.reason, decision.detail
+    unmet = {name for name, passed in checks.items() if passed is not True}
+    if decision.reason == "check_failed" and unmet <= {AXIOMS_CHECK, RULES_CHECK}:
+        return "refused", decision.reason, decision.detail
     if decision.reason == "no_evidence":
-        detail += "\n" + (audit.output if audit.exit != 0 else replay.output)
-    return done(status, decision.reason, detail)
+        for step, reason, said in (
+            (audit, "disallowed_axiom", POLICY),
+            (replay, "kernel_replay_failed", KERNEL),
+        ):
+            if step.exit != 0 or step.limit is not None:
+                return failed(step, reason, said)
+    return "error", decision.reason, decision.detail
 
 
-def failed(ran: proc.Ran) -> tuple[str, str, str]:
-    """The status, reason and detail of a certificate Lean didn't compile. A limit is `unknown`, and SIGKILL
-    is how a cap or the OOM killer stops a process. Any other signal or crash is no answer from Lean, so it's
-    an `error` and never a refusal, even after Lean printed an error: what it printed may be a part. Only an
-    error Lean reported and then exited on is `refused`."""
+def failed(
+    ran: proc.Ran | core.Step, reason: str | None = "proof_failed", said: re.Pattern[str] | None = None
+) -> tuple[str, str, str]:
+    """The status, reason and detail of a process that didn't end on its own with 0: by default, Lean
+    compiling a certificate. A limit is `unknown`, and SIGKILL is how a cap or the OOM killer stops a process.
+    A signal or a crash is no answer, so it's an `error`, even after the process printed an error: what it
+    printed may be a part. Otherwise an error the process reported and exited on, a Lean error or a line
+    `said` matches, is `refused` for `reason`, but not empty output, and not an error about a module it
+    couldn't read, which is a file that isn't there. With `reason` None, as for a checker, whose refusals
+    are answers, nothing is a refusal."""
     limit = ran.limit or lean.limit_of(ran.output)
     if limit is None and ran.exit in (-signal.SIGKILL, 128 + signal.SIGKILL):
         limit = "killed"
     if limit:
         return "unknown", str(limit), ran.output
-    if ran.exit < 0 or ran.exit >= 128:
-        return "error", "tool_failed", f"lean ended with {ran.exit}\n{ran.output}"
-    errors = [m.text for m in lean.messages(ran.output) if m.severity == "error"]
-    return "refused", "proof_failed", "\n".join(errors) or ran.output
+    if reason is not None and ran.exit is not None and 0 < ran.exit < 128:
+        if said is None:
+            errors = [m.text for m in lean.messages(ran.output) if m.severity == "error"]
+        else:
+            errors = [line for line in ran.output.splitlines() if said.search(line)]
+        if errors and not any(UNREAD.search(e) for e in errors):
+            return "refused", reason, "\n".join(errors)
+    return "error", "tool_failed", f"ended with {ran.exit}\n{ran.output}"
 
 
 def chain_module(preamble: str, texts: list[tuple[str, list[str]]]) -> str:

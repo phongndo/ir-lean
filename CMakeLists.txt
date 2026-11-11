@@ -302,8 +302,8 @@ set_tests_properties(peephole_compare peephole_score peephole PROPERTIES TIMEOUT
 # The static tier checks the format, the matcher and the IR reader in Python, under a second, with no Lean
 # or LLVM. The live tier checks that every rule is proved, that a wrong statement generator, a wrong matcher
 # and a false rule are each refused for their own reason, certify mode, and the search on
-# tests/rules/search.ll, twice, byte for byte. One Lean process at a time, each capped at 4 GB, about two
-# and a half minutes.
+# tests/rules/search.ll, twice, byte for byte. One Lean process at a time, each capped at 4 GB, but for
+# leanchecker, two modules at a time, or LEAN_JOBS up to four, about three and a half minutes.
 add_test(NAME rules_static COMMAND ${CMAKE_SOURCE_DIR}/tests/rules_test.py --tier static)
 add_test(NAME rules COMMAND ${CMAKE_SOURCE_DIR}/tests/rules_test.py --tier live)
 set_tests_properties(rules PROPERTIES TIMEOUT 1800)

@@ -148,17 +148,19 @@ They're where the rules' patterns occur, since the rules were cut from the proof
 
 | Step | Each | Measured over |
 | --- | --- | --- |
-| Checking the rules are proved, once a run | 5.3 s, 2.4 GB | `rules.py check`, 182 rules |
+| Checking the rules are proved, once a run | 5.7 s, 2.9 GB | `rules.py check`, 182 rules |
 | Searching one instruction's cut | Median 0.4 ms, at most 30 ms | 7,945 instructions of LLVM's InstSimplify tests, 5.9 s in all |
 | `llvm-mca` on one candidate, both sides | Median 29 ms | 225 candidates, 6.6 s in all |
 | Certifying one chain as a slice | Median 3.0 s, at most 8.1 s | 225 chains, 681 s in all |
 | Certifying one chain as a whole function | Median 3.0 s, at most 4.6 s | 223 chains, 662 s in all |
 
 The first three rows are from runs that certify nothing, and the last two from the run on LLVM's InstSimplify tests
-that keeps every candidate.
+that keeps every candidate. That run was before each certificate's replay reached every module it imports, 29 of
+them, one `leanchecker` process each, which took the chain in `tests/rules/chain.ll` from 2.9 s to 4.5 s. It
+hasn't been run again.
 
-Certifying is ir-lean, two Lean compiles, the checker, the axiom audit and `leanchecker`, each a process of its own
-that imports the libraries again. It's done one chain at a time. Putting many chains in one module would share that
+Certifying is ir-lean, two Lean compiles, the checker, the axiom audit and `leanchecker` on each module the
+certificate imports, each a process of its own that imports the libraries again. It's done one chain at a time. Putting many chains in one module would share that
 cost, and isn't done.
 
 ## What it can't do

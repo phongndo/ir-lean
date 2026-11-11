@@ -4,8 +4,8 @@
 `--tier static`, in Python, with no Lean or LLVM:
 
 - The format: a rule's statement is the Lean it should be, for flags, constants, casts, a bound instruction, a
-  division at the root and below it, side conditions and a fixed width, and a malformed rule is refused for
-  its reason.
+  division at the root and below it, at its own width, side conditions and a fixed width, and a malformed rule
+  is refused for its reason.
 - The matcher: a pattern matches what it should, and not a second occurrence that's another value, a missing
   flag, a constant that fails a side condition, or a cast the wrong way.
 - Constants are computed as Lean's `BitVec` computes them.
@@ -13,24 +13,31 @@
   term printed and read again is the same term; a slice's lines are the function's own; a rewritten function
   has the new value at each use and none of the dead cut.
 - A certificate Lean didn't compile is `refused` only for an error Lean reported and exited on: a limit or
-  SIGKILL is `unknown`, and any other crash an `error`, even after Lean printed an error.
+  SIGKILL is `unknown`, and any other crash, empty output or a module Lean couldn't read an `error`, even
+  after Lean printed an error. Past the compile, it's `refused` only for a diagnosis: the axiom audit's
+  policy, the kernel rejecting a declaration, or the checker's answer. An audit or a replay that crashed,
+  didn't run or failed without saying why, or a missing file, is an `error`.
 - rules/Rules/Statements.lean is what rules/src generates, and the importer's record names the rules imported.
 - The search's core finds the chain it should, the same way each time.
 
-`--tier live`, with Lean, `opt`, `llc` and `llvm-mca`, one Lean process at a time:
+`--tier live`, with Lean, `opt`, `llc` and `llvm-mca`, one Lean process at a time, but for `leanchecker`,
+which replays modules two at a time, or `LEAN_JOBS` up to four:
 
 - `import_peephole.py --check`, and `rules.py check`: every rule is proved, on the standard three axioms.
 - A statement generator that prints `sub`'s operands the wrong way round stops the proof of `add_sub_cancel`.
 - A rule whose statement is false has no proof: `not_proved`. Proved by `sorry`, or a true one at one width by
   `bv_decide`: `disallowed_axiom`. With a theorem of another statement: `statement_mismatch`. The others stay
-  proved.
+  proved. Proved from `False` that a module outside the library added past the kernel: not proved, as
+  leanchecker replays that module, and an application of it `refused`: `kernel_replay_failed`.
+- The statement of a comparison of two divisions, each at its own width, compiles.
 - A statement that isn't the pattern's but is still true, with a proof of its own, is refused twice over: the
   library's statements aren't what the source generates, and no application of the rule is certified.
 - Certify mode on tests/rules/chain.ll: certified, as a slice, on the standard axioms, by exactly its three
   rules.
 - States a broken matcher would give are refused, each for its own reason: a second occurrence that's another
   value, a side condition skipped, a flag not checked, another replacement, and another rule named. So is a
-  certificate that states another claim, and one by `sorry`.
+  certificate that states another claim, and one by `sorry`. A checker killed after answering certifies
+  nothing: `error`.
 - The search on tests/rules/search.ll finds what tests/rules/expect.json says, each certified, a chain of
   three rules as a whole function and one of two as a slice, and a second run writes the same bytes.
   `llvm-mca` drops every candidate against `opt -O3`, and keeps exactly one against `llc` alone. Alive2,
@@ -44,6 +51,7 @@ usage: tests/rules_test.py --tier static|live
 from __future__ import annotations
 
 import argparse
+import dataclasses
 import json
 import re
 import shutil
@@ -112,6 +120,13 @@ STATEMENTS = {
         "  ∀ {w : Nat} (a b q0 : Val w) (f0 f1 : Bool),\n"
         "    Val.udiv a b true = Outcome.ok q0 →\n"
         "    Refines (Outcome.ok (Val.mul q0 b f0 f1)) (Outcome.ok a)"
+    ),
+    # Each division below the root at its own width, not the root's: `Val 1` here doesn't compile.
+    ("division_in_compare", "(icmp.eq (udiv A B) (udiv A B))", "1"): (
+        "  ∀ {w : Nat} (a b q0 q1 : Val w) (f0 f1 f2 : Bool),\n"
+        "    Val.udiv a b f1 = Outcome.ok q0 →\n"
+        "    Val.udiv a b f2 = Outcome.ok q1 →\n"
+        "    Refines (Outcome.ok (Val.icmpEq q0 q1 f0)) (Outcome.ok (some 1#1))"
     ),
     ("condition", "(sub.nuw C (xor A C))", "A", "(eq (c.and (c.add C 1) C) 0)"): (
         "  ∀ {w : Nat} (a : Val w) (c : BitVec w) (f0 : Bool),\n"
@@ -462,6 +477,12 @@ def static_certificates() -> None:
     mismatch = "ChainCert.lean:3:2: error: type mismatch\n"
     for code, said, want in [
         (1, mismatch, ("refused", "proof_failed")),
+        (1, "", ("error", "tool_failed")),
+        (
+            1,
+            "ChainCert.lean:1:0: error: object file 'Rules.olean' of module Rules does not exist\n",
+            ("error", "tool_failed"),
+        ),
         (-signal.SIGSEGV, mismatch, ("error", "tool_failed")),
         (134, mismatch, ("error", "tool_failed")),
         (-signal.SIGKILL, "", ("unknown", "killed")),
@@ -470,8 +491,81 @@ def static_certificates() -> None:
     ]:
         got = certify.failed(proc.Ran(["lean"], code, b"", said.encode(), 0.0))[:2]
         report(
-            got == want, f"a certificate's compile that ended with {code} is {want[0]}: {want[1]}", str(got)
+            got == want,
+            f"a certificate's compile that ended with {code}, saying {said[:30]!r}, is {want[0]}: {want[1]}",
+            str(got),
         )
+    # Past the compile, a certificate is refused only for what a check diagnosed. An audit or a replay that
+    # crashed, didn't run or failed without saying why decided nothing.
+    clean = core.Step("lean", 0)
+    files = {"ChainCert.lean": True}
+    checks = {certify.AXIOMS_CHECK: True, certify.RULES_CHECK: True}
+    policy = "check_axioms.lean:166:0: error: not an allowed axiom: sorryAx\n"
+    kernel = (
+        "leanchecker found a problem in Peephole.Hack\n"
+        "uncaught exception: while replaying declaration 'Peephole.Hack.bad':\n"
+        "(kernel) declaration type mismatch, 'Peephole.Hack.bad' has type\n"
+    )
+    for what, audit, replay, more, want in [
+        ("every check passed", clean, clean, {}, ("certified", "kernel_checked")),
+        (
+            "the audit crashed",
+            core.Step("check_axioms", -signal.SIGSEGV),
+            clean,
+            {},
+            ("error", "tool_failed"),
+        ),
+        ("the audit failed silently", core.Step("check_axioms", 1), clean, {}, ("error", "tool_failed")),
+        (
+            "the audit's policy refused it",
+            core.Step("check_axioms", 1, output=policy),
+            clean,
+            {},
+            ("refused", "disallowed_axiom"),
+        ),
+        (
+            "the replay crashed",
+            clean,
+            core.Step("leanchecker", -signal.SIGSEGV),
+            {},
+            ("error", "tool_failed"),
+        ),
+        ("the replay didn't run", clean, core.Step("leanchecker", None), {}, ("error", "tool_failed")),
+        ("the replay failed silently", clean, core.Step("leanchecker", 1), {}, ("error", "tool_failed")),
+        (
+            "the kernel rejected a declaration",
+            clean,
+            core.Step("leanchecker", 1, output=kernel),
+            {},
+            ("refused", "kernel_replay_failed"),
+        ),
+        (
+            "the replay hit a limit",
+            clean,
+            core.Step("leanchecker", -signal.SIGKILL, "time_limit"),
+            {},
+            ("unknown", "limit"),
+        ),
+        ("a file is missing", clean, clean, {"files": {"ChainCert.lean": False}}, ("error", "missing_file")),
+        (
+            "its axioms aren't allowed",
+            clean,
+            clean,
+            {"checks": {certify.AXIOMS_CHECK: False}},
+            ("refused", "check_failed"),
+        ),
+        (
+            "the checker named nothing to replay",
+            clean,
+            clean,
+            {"checks": {"replay listed": False}},
+            ("error", "check_failed"),
+        ),
+    ]:
+        got = certify.conclude(
+            clean, audit, replay, more.get("files", files), {**checks, **more.get("checks", {})}
+        )[:2]
+        report(got == want, f"a certificate when {what}: {want[0]}, {want[1]}", str(got))
 
 
 def static_search() -> None:
@@ -578,6 +672,13 @@ ONE_WIDTH = {"name": "xor_and_xor_i8", "match": "(xor (and X:8 Y) (xor X Y))", "
 EXTRA_HEADER = (
     "import Rules.Mono\nimport Rules.Statements\nimport IRLean.Generic.Arith\n\n"
     "open IRLean\n\nnamespace Rules\n\n"
+)
+# A module outside the Rules library that adds `False` past the kernel, as Lean code can, with no axiom.
+HACK = (
+    "import Lean\n\nopen Lean Elab Command\n\nset_option debug.skipKernelTC true in\n"
+    "run_cmd liftCoreM <| addDecl (.thmDecl\n"
+    "  { name := `Peephole.Hack.bad, levelParams := [], type := mkConst ``False,\n"
+    "    value := mkConst ``True.intro })\n"
 )
 
 
@@ -693,6 +794,70 @@ def live_rules() -> None:
             "xor_and_xor_i8",
             "disallowed_axiom",
             "a true rule proved at one width by `bv_decide` isn't proved: disallowed_axiom",
+        )
+
+        # A false rule proved from `False`, which a module the library imports added past the kernel. Its
+        # proof rests on no axiom, and only leanchecker replaying that module notices.
+        hack = base / "hack"
+        (hack / "Peephole").mkdir(parents=True)
+        for entry in (lean.LIBRARY / "Peephole").iterdir():
+            (hack / "Peephole" / entry.name).symlink_to(entry)
+        (hack / "Peephole" / "Hack.lean").write_text(HACK)
+        helper = proc.run(
+            lean.argv(4096, "-o", "Peephole/Hack.olean", "Peephole/Hack.lean"),
+            cwd=hack,
+            env=lean.env(hack, pin=True),
+            timeout=600,
+        )
+        extra = "theorem add_one_wrong : Stmt.add_one_wrong := Peephole.Hack.bad.elim\n\nend Rules\n"
+        ran = overlay(
+            hack, statements, {"Imported": IMPORTED, "Extra": "import Peephole.Hack\n" + EXTRA_HEADER + extra}
+        )
+        alone = proc.run(lean.checker("Peephole.Hack"), cwd=hack, env=lean.env(hack, pin=True), timeout=600)
+        kernel = [line for line in alone.output.splitlines() if line.startswith("(kernel) ")]
+        rejects = core.decide(
+            core.Verdict.CAUGHT,
+            core.Evidence(step=core.Step.of("leanchecker", alone), finding=kernel[0] if kernel else None),
+        )
+        got = {e["name"]: e for e in proved.check(more, hack)["rules"]}
+        report(
+            helper.ok
+            and ran["Rules"].ok
+            and rejects.granted
+            and not got["add_one_wrong"]["proved"]
+            and "leanchecker exited with 1, not 0\nleanchecker Peephole.Hack: "
+            in got["add_one_wrong"]["detail"]
+            and "\n(kernel) declaration type mismatch, 'Peephole.Hack.bad'" in got["add_one_wrong"]["detail"],
+            "a false rule proved from `False` added past the kernel, in a module outside the library, isn't "
+            "proved: leanchecker replays that module, and the kernel rejects it",
+            f"{rejects}\n{json.dumps(got['add_one_wrong'])}\n"
+            + "\n".join(r.output[:800] for r in ran.values()),
+        )
+        wrong = STATES.format(
+            width=8, params="i8 %x", before="  %r = add i8 %x, 1\n  ret i8 %r", after="  ret i8 %x"
+        )
+        verdict = certify.check(wrong, [lang.Rule(WRONG)], base / "hack-cert", "slice", overlay=hack)
+        report(
+            verdict["status"] == "refused"
+            and verdict["reason"] == "kernel_replay_failed"
+            and "Peephole.Hack.bad" in verdict["detail"],
+            "and an application of it isn't certified: refused, kernel_replay_failed, at Peephole.Hack.bad",
+            json.dumps(verdict)[:1500],
+        )
+
+        # A division below the root has its own width, here not the root's, and the statement compiles.
+        division = lang.Rule(
+            {"name": "udiv_eq_self", "match": "(icmp.eq (udiv A B) (udiv A B))", "replace": "1"}
+        )
+        (base / "division").mkdir()
+        (base / "division" / "Division.lean").write_text(gen.statements_text([division]))
+        ran_division = proc.run(
+            lean.argv(4096, "Division.lean"), cwd=base / "division", env=lean.env(pin=True), timeout=600
+        )
+        report(
+            ran_division.ok and not lean.errors(ran_division.output),
+            "the statement of a comparison of two divisions compiles",
+            ran_division.output[:1500],
         )
 
         # A statement that isn't the pattern's, but true, with a proof of its own.
@@ -932,6 +1097,25 @@ def live_certify(work: Path) -> None:
     report(
         verdict["status"] == "certified",
         "and the right certificate for the same states is certified",
+        json.dumps(verdict)[:1500],
+    )
+    # The same, with the checker crashing after its answer: what it answered counts for nothing.
+    real = proved.ask
+
+    def crashed(
+        config: dict[str, Any], header: str, env: dict[str, str], work: Path
+    ) -> tuple[proc.Ran, list[Any]]:
+        ran, answers = real(config, header, env, work)
+        return dataclasses.replace(ran, exit=-signal.SIGSEGV), answers
+
+    proved.ask = crashed  # ty: ignore[invalid-assignment]
+    try:
+        verdict = certify.check(good, [by_name["or_zero"]], work / "segv", "slice")
+    finally:
+        proved.ask = real
+    report(
+        verdict["status"] == "error" and verdict["reason"] == "tool_failed",
+        "and with the checker killed by SIGSEGV after it answered: error, tool_failed",
         json.dumps(verdict)[:1500],
     )
     bad_ir = good.replace("ret i8 %x\n}\n", "ret i8 %nothing\n}\n", 1) if good.count("ret i8 %x") else good

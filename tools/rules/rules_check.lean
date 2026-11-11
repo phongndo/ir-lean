@@ -15,7 +15,8 @@ mention only constants that are the same declarations here, and have a type that
 uses, read from the proof terms.
 
 What to check comes from the JSON file `IRLEAN_RULES_CONFIG` names. Each answer is one line, starting with
-`IRLEAN_RULES` and the run's nonce. The kernel replay is `leanchecker`'s, separately. -/
+`IRLEAN_RULES` and the run's nonce. The kernel replay is `leanchecker`'s, separately, of the modules each mode names as
+`replay`: every module the proofs import that declares something and isn't the toolchain's. -/
 
 open Lean Meta
 
@@ -59,6 +60,22 @@ def reachable (env : Environment) (roots : Array Name) : NameSet × Array Name :
 def pp (e : Expr) : MetaM String := do
   return toString (← withOptions (fun o => o.setBool `pp.fullNames true) (ppExpr e))
 
+/-- What `leanchecker` has to replay for a proof in `env` to count: every module `env` imports that declares
+something and isn't the toolchain's, by where its `.olean` is. Lean code in any of them can add a declaration the
+kernel never checked, with `debug.skipKernelTC`, and a proof resting on it rests on no axiom. A module declaring
+nothing, such as a library's root, gives the kernel nothing to replay, and `leanchecker` given its name would replay
+every module whose name starts with it, `IRLean`'s all at once. -/
+def toReplay (env : Environment) (toolchainDir : String) : IO (Array Name) := do
+  let mut out := #[]
+  for m in env.header.moduleNames, data in env.header.moduleData do
+    unless data.constNames.isEmpty do
+      unless (← IO.FS.realPath (← findOLean m)).toString.startsWith (toolchainDir ++ "/") do
+        out := out.push m
+  return out
+
+def toolchainLibDir : IO String := do
+  return (← IO.FS.realPath (← getLibDir (← findSysroot))).toString
+
 /-- A rule's theorem: its name is `Rules.<rule>`, in a module of the library, and not one of the library's own
 lemmas. -/
 def ruleOf (env : Environment) (c : Name) : Option String :=
@@ -70,6 +87,7 @@ def ruleOf (env : Environment) (c : Name) : Option String :=
 unsafe def checkRules (nonce : String) (j : Json) : MetaM Unit := do
   let names ← IO.ofExcept (j.getObjValAs? (Array String) "rules")
   let env ← importModules #[{ module := `Rules }] {} (loadExts := false)
+  emit nonce [("replay", toJson ((← toReplay env (← toolchainLibDir)).map (·.toString)))]
   for name in names do
     let stmt := `Rules.Stmt ++ Name.mkSimple name
     let thm := `Rules ++ Name.mkSimple name
@@ -129,7 +147,7 @@ unsafe def checkCert (nonce : String) (j : Json) : MetaM Unit := do
     return
   -- Each module has to be the file it should be: Lean's from the toolchain, the libraries' from the repo's build,
   -- and the rest from the run. A module of the same name earlier on the search path would be read instead.
-  let toolchainDir := (← IO.FS.realPath (← getLibDir (← findSysroot))).toString
+  let toolchainDir ← toolchainLibDir
   for m in proof.header.moduleNames do
     let path := (← IO.FS.realPath (← findOLean m)).toString
     let dirs :=
@@ -156,7 +174,8 @@ unsafe def checkCert (nonce : String) (j : Json) : MetaM Unit := do
   let (seen, axioms) := reachable proof #[theoremName]
   let rules := seen.toArray.filterMap (ruleOf proof ·) |>.qsort (· < ·)
   emit nonce [("ok", toJson true), ("statement", toJson (← pp want)),
-    ("axioms", toJson (axioms.map (·.toString)).qsort.toList), ("rules", toJson rules.toList)]
+    ("axioms", toJson (axioms.map (·.toString)).qsort.toList), ("rules", toJson rules.toList),
+    ("replay", toJson ((← toReplay proof toolchainDir).map (·.toString)))]
 
 unsafe def check : MetaM Unit := do
   let some path ← IO.getEnv "IRLEAN_RULES_CONFIG" | throwError "IRLEAN_RULES_CONFIG isn't set"

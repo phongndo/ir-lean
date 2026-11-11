@@ -108,10 +108,13 @@ The file is checked in, and `rules.py gen --check` fails if it isn't what the so
 
 A rule is **proved** when `Rules.<name>` is a theorem whose type is the constant `Rules.Stmt.<name>` itself, on the
 standard three axioms, with nothing from `bv_decide`, as [the bar for a stored lemma](lemma-store.md) asks, in a
-library `lake` has nothing left to build for and `leanchecker` replays. The proofs are ordinary Lean, in
-[`rules/Rules`](../rules/Rules), which `lake build` checks. `tools/rules/rules.py check` reads each theorem's type and
-axioms from the compiled library, with [`tools/rules/rules_check.lean`](../tools/rules/rules_check.lean), and only a
-rule that passes is given to the matcher. It took 5.3 s and 2.4 GB for the 182.
+library `lake` has nothing left to build for. `leanchecker` replays it, and every module it imports that declares
+something and isn't Lean's own, `IRLean`'s and `Peephole`'s included: Lean code in any of them can add a declaration
+the kernel never checked, with `debug.skipKernelTC`, and a proof resting on one rests on no axiom. The proofs are
+ordinary Lean, in [`rules/Rules`](../rules/Rules), which `lake build` checks. `tools/rules/rules.py check` reads each
+theorem's type and axioms from the compiled library, with
+[`tools/rules/rules_check.lean`](../tools/rules/rules_check.lean), and only a rule that passes is given to the
+matcher. It took 5.7 s, with a 2.9 GB peak, for the 182, replaying 18 modules: the library's root declares nothing.
 
 ## How the matcher and the statement are tied
 
@@ -138,19 +141,22 @@ tools/rules/rules.py certify tests/rules/chain.ll --rule or_zero --rule and_allO
    to be that expression, as [`tools/binding_check.lean`](llvm-proof-binding.md) does, and reads the axioms the
    theorem rests on and the rules its proof uses, which have to be the rules named.
    [`tests/check_axioms.lean`](../tests/check_axioms.lean) audits the certificate's module and everything it imports,
-   `leanchecker` replays the modules, and [`irlean.verdict`](trust.md#where-python-decides-a-verdict) decides.
+   `leanchecker` replays the certificate, the generated module and every module they import that declares something
+   and isn't Lean's own, one process each, and [`irlean.verdict`](trust.md#where-python-decides-a-verdict) decides.
+   The checker's answer counts only if its process then ended on its own with 0.
 
 The answer is JSON, schema `ir-lean.rules.certificate/1`, and the exit code is 0 only for `certified`:
 
 | Status | Means |
 | --- | --- |
 | `certified` | Every check above passed |
-| `refused` | The certificate doesn't prove the claim: its proof doesn't elaborate, it states another claim, it rests on an axiom that isn't allowed, or it uses other rules than the ones named |
+| `refused` | A check diagnosed that the certificate doesn't prove the claim: its proof doesn't elaborate, with an error Lean reported, it states another claim, it rests on an axiom that isn't allowed, it uses other rules than the ones named, or the kernel rejects a declaration it rests on |
 | `unsupported` | A state isn't one block of integer instructions without memory, or its proof would be too long to write |
 | `unknown` | A limit stopped Lean. More time or memory might decide it |
-| `error` | The states aren't valid IR, or a tool failed |
+| `error` | The states aren't valid IR, or a tool failed: crashed, failed without saying why, or left a file missing. Never a refusal, even after a checker answered |
 
-The certificate's proof has no search in it and no `bv_decide`. It took 3.0 s for the chain above.
+The certificate's proof has no search in it and no `bv_decide`. It took 4.5 s for the chain above, replaying 29
+modules, where it took 2.9 s before the replay reached every module the certificate imports.
 
 ### What fails
 
@@ -167,6 +173,8 @@ The certificate's proof has no search in it and no `bv_decide`. It took 3.0 s fo
 | A matcher that doesn't check a flag, builds another replacement, or names another rule | `refused`: `proof_failed`, a type mismatch |
 | A certificate whose theorem states something else | `refused`: `claim_type_mismatch` |
 | A certificate by `sorry` | `refused`: its axioms aren't allowed |
+| A false rule proved from `False`, which a module outside the library, `Peephole.Hack`, added past the kernel with `debug.skipKernelTC`, so its proof rests on no axiom | `check`: not proved, as `leanchecker` rejects `Peephole.Hack`. An application of the rule: `refused`, `kernel_replay_failed` |
+| The checker killed by `SIGSEGV` after it answered that a right certificate states its claim | `error`: `tool_failed` |
 
 The matchers are wrong in two ways there: as states a wrong matcher would give, handed to certify mode, and as
 matchers generated from a wrong pattern, run by the search's own core.

@@ -2,13 +2,16 @@
 
 A rule is proved when `Rules.<name>` is a theorem whose type is `Rules.Stmt.<name>`, the statement generated
 from the rule's source, on the standard three axioms, in a library `lake` has nothing left to build for and
-`leanchecker` replays. docs/rules.md. Only a proved rule is given to the matcher, so the search never applies
-a rule whose theorem is missing, false, or rests on `sorry` or `bv_decide`.
+`leanchecker` replays, with every module it imports but Lean's own. docs/rules.md. Only a proved rule is given
+to the matcher, so the search never applies a rule whose theorem is missing, false, or rests on `sorry` or
+`bv_decide`.
 """
 
 from __future__ import annotations
 
+import concurrent.futures
 import json
+import os
 import secrets
 import sys
 import tempfile
@@ -64,6 +67,20 @@ def ask(config: dict[str, Any], header: str, env: dict[str, str], work: Path) ->
     return ran, answers
 
 
+def replay(modules: Any, env: dict[str, str], cwd: Path = ROOT) -> core.Step:
+    """`leanchecker` on each of `modules`, the ones rules_check.lean names, a few at a time, one process each,
+    as tools/store/store.py runs it: one process for all of them holds an environment for each at once, 10 GB
+    for the rules'. The first that didn't end on its own with 0, or the last if all did. Anything but a
+    non-empty list of names is a step that didn't run, which grants nothing."""
+    if not isinstance(modules, list) or not modules or not all(isinstance(m, str) and m for m in modules):
+        return core.Step("leanchecker", None, output=f"no modules to replay: {modules!r}")
+    jobs = max(1, min(int(os.environ.get("LEAN_JOBS", "2")), 4))
+    with concurrent.futures.ThreadPoolExecutor(max_workers=jobs) as pool:
+        ran = list(pool.map(lambda m: run(lean.checker(m), env, cwd=cwd), modules))
+    steps = [core.Step.of(f"leanchecker {m}", r) for m, r in zip(modules, ran, strict=True)]
+    return next((s for s in steps if s.exit != 0 or s.limit is not None), steps[-1])
+
+
 def check(rules: list[lang.Rule] | None = None, overlay: Path | None = None) -> dict[str, Any]:
     """Every rule, proved or refused with why, as a record of schema RULES_PROVED. `overlay` is a directory
     holding another build of the `Rules` library and its `Rules/Statements.lean`, read in place of the repo's,
@@ -81,8 +98,9 @@ def check(rules: list[lang.Rule] | None = None, overlay: Path | None = None) -> 
         asked, answers = ask(
             {"mode": "rules", "rules": [r.name for r in rules]}, "import Lean\n", env, Path(temporary)
         )
-    replay = run(lean.checker("Rules"), env)
-    by_name = {a.get("rule"): a for a in answers if isinstance(a, dict)}
+    listed = [a["replay"] for a in answers if isinstance(a, dict) and "replay" in a]
+    replayed = replay(listed[0] if len(listed) == 1 else None, env)
+    by_name = {a["rule"]: a for a in answers if isinstance(a, dict) and "rule" in a}
     out: list[dict[str, Any]] = []
     for rule in rules:
         answer = by_name.get(rule.name, {})
@@ -98,7 +116,7 @@ def check(rules: list[lang.Rule] | None = None, overlay: Path | None = None) -> 
             core.Verdict.PROVED,
             core.Evidence(
                 lean=core.Step.of("rules_check.lean", asked),
-                replay=core.Step.of("leanchecker", replay),
+                replay=replayed,
                 axioms=answer.get("ok") is True,
                 checks=checks,
             ),
@@ -116,6 +134,8 @@ def check(rules: list[lang.Rule] | None = None, overlay: Path | None = None) -> 
         else:
             entry["reason"] = answer.get("reason") or decision.reason
             entry["detail"] = answer.get("detail") or decision.detail
+            if not answer.get("detail") and (replayed.exit != 0 or replayed.limit is not None):
+                entry["detail"] += f"\n{replayed.name}: {replayed.output[-1000:]}"
         out.append(entry)
     return {"schema": schemas.RULES_PROVED, "rules": out}
 

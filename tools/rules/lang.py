@@ -647,7 +647,8 @@ class Rule:
     def lean(self) -> dict[str, Any]:
         """The statement's parts: its binders, in order, its hypotheses, and the two sides."""
         flags: list[str] = []
-        divs: list[tuple[str, str]] = []  # the variable a division below the root becomes, and its hypothesis
+        # The variable a division below the root becomes, its hypothesis, and its width.
+        divs: list[tuple[str, str, str]] = []
         bound: dict[str, str] = {}
 
         def pat(t: Typed, root: bool = False) -> str:
@@ -672,7 +673,7 @@ class Rule:
             text = " ".join([info.lean, *lead, *args, *taken])
             if info.div and not root:
                 q = f"q{len(divs)}"
-                divs.append((q, f"{text} = Outcome.ok {q}"))
+                divs.append((q, f"{text} = Outcome.ok {q}", self.width(t)))
                 return q
             return f"({text})"
 
@@ -696,8 +697,8 @@ class Rule:
             binders.append((name.lower(), f"Val {self.width_name[self.ws.find(self.var_cls[name])]}"))
         for name in self.consts:
             binders.append((name.lower(), f"BitVec {self.width_name[self.ws.find(self.var_cls[name])]}"))
-        for q, _ in divs:
-            binders.append((q, f"Val {self.width_name[self.ws.find(self.lhs.cls)]}"))
+        for q, _, width in divs:
+            binders.append((q, f"Val {width}"))
         for f in flags:
             binders.append((f, "Bool"))
         cast_hyps: list[str] = []
@@ -711,7 +712,7 @@ class Rule:
             "widths": self.width_vars,
             "binders": binders,
             "casts": cast_hyps,
-            "divs": [h for _, h in divs],
+            "divs": [h for _, h, _ in divs],
             "conds": conds,
             "left": left,
             "right": right,
