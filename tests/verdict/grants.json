@@ -1,0 +1,51 @@
+{
+  "verify.counterexample": {
+    "cases": null,
+    "checks": [
+      "falsified",
+      "nonce",
+      "literal"
+    ],
+    "excludes": [
+      "verify.proved"
+    ],
+    "exit": 2,
+    "files": false,
+    "schema": "ir-lean.verify/1",
+    "steps": [
+      "witnesses"
+    ],
+    "word": "counterexample"
+  },
+  "verify.proved": {
+    "cases": null,
+    "checks": [
+      "request",
+      "toolchain",
+      "inputs",
+      "ir_valid",
+      "translate",
+      "generate",
+      "compile_generated",
+      "compile_proof",
+      "claim",
+      "theorem",
+      "mentions_target",
+      "axioms",
+      "kernel_replay",
+      "artifacts_unchanged"
+    ],
+    "excludes": [
+      "verify.counterexample"
+    ],
+    "exit": 0,
+    "files": true,
+    "schema": "ir-lean.verify/1",
+    "steps": [
+      "lean",
+      "axioms",
+      "replay"
+    ],
+    "word": "proved"
+  }
+}

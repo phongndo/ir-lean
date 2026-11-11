@@ -1,5 +1,18 @@
 #!/usr/bin/env python3
 """Checks tools/irlean/verdict.py, the one place Python decides a verdict, without Lean, in a few seconds.
+docs/verdicts.md is the design, and these are its invariants 3 to 6:
+
+- What each grant requires is fixed: GRANTS is tests/verdict/grants.json, byte for byte, so a change to it is
+  one a reviewer sees.
+- Bounded, for each grant: every value of each kind of evidence with the rest clean, each requirement left
+  out, every pair at one value of each failure category, and named interactions, such as Lean killed after
+  the error a check expects, each giving the outcome docs/verdicts.md's table says.
+- One lint: no function in tools/, tests/ or bench/ returns, assigns, or sets as a status or verdict a
+  grant's word, or makes a Decision, but those on a list that can only shrink, each with why; and no shell
+  test runs Lean and prints `ok` or exits 0 itself, but those on another.
+- The old form, `decide` asked for a claim, is counted where it's called, and the count can only fall.
+
+And the old form, until it goes:
 
 - Exhaustively, over every combination of a set of ways each process can end, each file can be there or not,
   and each check can pass, fail or not run, that `decide` grants a claim only when everything it rests on is
@@ -9,16 +22,20 @@
 - That the three verdicts Python got wrong before can't come back: a crashed native check counting as catching
   a wrong rewrite, and a slice that didn't compile counting as a refutation, both in #57, and a cached result
   whose certificate is gone counting as certified, in #51.
-- That each tool and test that decides one of these verdicts asks `decide`, and doesn't grant it otherwise.
+- That each tool and test that decides one of these verdicts asks `decide`.
 
 docs/trust.md#where-python-decides-a-verdict.
 
 usage: tests/verdict_test.py
 """
 
+import ast
+import collections
 import dataclasses
 import importlib.util
 import itertools
+import json
+import os
 import re
 import sys
 import unittest
@@ -29,32 +46,50 @@ from unittest import mock
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.append(str(ROOT / "tools"))
 from irlean import proc, schemas  # noqa: E402
-from irlean.verdict import CLAIMS, UPSTREAM, Decision, Evidence, Step, Verdict, decide  # noqa: E402
+from irlean.verdict import (  # noqa: E402
+    CLAIMS,
+    DENY_ALL,
+    GRANTS,
+    UNCHANGED,
+    UPSTREAM,
+    Cases,
+    Decision,
+    Evidence,
+    Grant,
+    Plan,
+    Step,
+    Verdict,
+    decide,
+    limit_of,
+)
 
 LIMIT_TEXT = "x.lean:3:2: error: (deterministic) timeout at `whnf`, maximum number of heartbeats (200000)"
 ERROR_TEXT = "x.lean:3:2: error: type mismatch"
 
-# Every way a process can end, by name: what it is, whether it's clean (exit 0, nothing stopped it), and
-# whether a limit stopped it, when its output is read as Lean's.
-STEPS: dict[str, tuple[Step | None, bool, bool]] = {
-    "absent": (None, False, False),
-    "clean": (Step("p", 0), True, False),
-    "clean_with_limit_text": (Step("p", 0, output=LIMIT_TEXT), True, False),
-    "never_ended": (Step("p", None), False, False),
-    "failed": (Step("p", 1, output=ERROR_TEXT), False, False),
-    "failed_quietly": (Step("p", 1), False, False),
-    "failed_at_a_lean_limit": (Step("p", 1, output=LIMIT_TEXT), False, True),
-    "exit_2": (Step("p", 2), False, False),
-    "exit_3": (Step("p", 3, output="differs"), False, False),
-    "time_limit": (Step("p", -9, limit="time_limit"), False, True),
-    "cap": (Step("p", -9, limit="resource_limit"), False, True),
-    "zero_but_stopped": (Step("p", 0, limit="time_limit"), False, True),
-    "sigkill": (Step("p", -9), False, True),
-    "sigkill_from_a_shell": (Step("p", 137), False, True),
-    "segfault": (Step("p", -11), False, False),
-    "abort": (Step("p", -6), False, False),
-    "exit_false": (Step("p", False), False, False),
-    "exit_text": (Step("p", "0"), False, False),  # ty: ignore[invalid-argument-type]
+# Every way a process can end, by name: what it is, its category in docs/verdicts.md's outcome table, and the
+# limit that stopped it, if one did. A Lean limit is read from the first error of a process that didn't exit
+# 0.
+STEPS: dict[str, tuple[Step | None, str, str | None]] = {
+    "absent": (None, "absent", None),
+    "clean": (Step("p", 0), "clean", None),
+    "clean_with_limit_text": (Step("p", 0, output=LIMIT_TEXT), "clean", None),
+    "never_ended": (Step("p", None), "absent", None),
+    "failed": (Step("p", 1, output=ERROR_TEXT), "unclean", None),
+    "failed_quietly": (Step("p", 1), "unclean", None),
+    "failed_at_a_lean_limit": (Step("p", 1, output=LIMIT_TEXT), "limit", "heartbeat_limit"),
+    "exit_2": (Step("p", 2), "unclean", None),
+    "exit_3": (Step("p", 3, output="differs"), "unclean", None),
+    "time_limit": (Step("p", -9, limit="time_limit"), "limit", "time_limit"),
+    "cap": (Step("p", -9, limit="resource_limit"), "limit", "resource_limit"),
+    "zero_but_stopped": (Step("p", 0, limit="time_limit"), "limit", "time_limit"),
+    "sigkill": (Step("p", -9), "limit", "killed"),
+    "sigkill_from_a_shell": (Step("p", 137), "limit", "killed"),
+    "timeout_124": (Step("p", 124), "limit", "time_limit"),
+    "segfault": (Step("p", -11), "crash", None),
+    "segfault_from_a_shell": (Step("p", 139), "crash", None),
+    "abort": (Step("p", -6), "crash", None),
+    "exit_false": (Step("p", False), "crash", None),
+    "exit_text": (Step("p", "0"), "crash", None),  # ty: ignore[invalid-argument-type]
 }
 FILES: dict[str, Any] = {
     "none": {},
@@ -74,17 +109,11 @@ FLAGS: dict[str, Any] = {"absent": None, "true": True, "false": False, "truthy":
 
 
 def clean(step: Step | None) -> bool:
-    return step is not None and STEPS[name_of(step)][1]
+    return step is not None and STEPS[name_of(step)][1] == "clean"
 
 
-def limited(step: Step | None, read_output: bool = True) -> bool:
-    if step is None:
-        return False
-    stopped = STEPS[name_of(step)][2]
-    # A Lean limit is only read from the output of a Lean process the verdict rests on.
-    if name_of(step) == "failed_at_a_lean_limit" and not read_output:
-        return False
-    return stopped
+def limited(step: Step | None) -> bool:
+    return step is not None and STEPS[name_of(step)][1] == "limit"
 
 
 def name_of(step: Step) -> str:
@@ -142,12 +171,15 @@ class Exhaustive(unittest.TestCase):
         """certified from a stored verdict, and refuted by the kernel or compiled code, which counts only if
         the process that answered ended cleanly, with every file and check."""
         for claim in (Verdict.PROVED, Verdict.CERTIFIED, Verdict.REFUTED):
-            for kernel, evaluated, cached, (
-                _,
-                (lean, lean_clean, lean_limit),
-            ), files, checks in itertools.product(
-                FLAGS.values(), FLAGS.values(), FLAGS.values(), STEPS.items(), FILES.values(), CHECKS.values()
+            for kernel, evaluated, cached, (lean, _, _), files, checks in itertools.product(
+                FLAGS.values(),
+                FLAGS.values(),
+                FLAGS.values(),
+                STEPS.values(),
+                FILES.values(),
+                CHECKS.values(),
             ):
+                lean_clean, lean_limit = clean(lean), limited(lean)
                 e = Evidence(
                     kernel=kernel, evaluated=evaluated, cached=cached, lean=lean, files=files, checks=checks
                 )
@@ -179,7 +211,7 @@ class Exhaustive(unittest.TestCase):
                         grants = (schema, status, code) in UPSTREAM[claim]
                         ended = same_code(step.exit, code) and step.limit is None
                         exact = same_code(exit_code, code)
-                        self.check(claim, e, grants and ended and exact, limited(step, read_output=False))
+                        self.check(claim, e, grants and ended and exact, limited(step))
             self.assertFalse(
                 decide(claim, Evidence(upstream=(Step("u", 0), ["proved"]), files={"a": True})).granted
             )
@@ -190,7 +222,7 @@ class Exhaustive(unittest.TestCase):
             [s for s, _, _ in STEPS.values()], (1, 3, 0), findings, CHECKS.values()
         ):
             e = Evidence(step=step, found_exit=found_exit, finding=finding, checks=checks)
-            any_limit = limited(step, read_output=False)
+            any_limit = limited(step)
             ended = step is not None and same_code(step.exit, found_exit) and not step.limit
             checks_ok = all(v is True for v in checks.values())
             own = bool((finding or "").strip()) and finding != LIMIT_TEXT
@@ -200,7 +232,7 @@ class Exhaustive(unittest.TestCase):
             )
 
     def test_only_the_four_are_claims(self) -> None:
-        for claim in ("unknown", "error", "bound", "", None, 1, "PROVED"):
+        for claim in ("unknown", "error", "granted", "bound", "", None, 1, "PROVED", "verify.prove"):
             with self.assertRaises(ValueError, msg=claim):
                 decide(claim, Evidence())  # ty: ignore[invalid-argument-type]
         for claim in CLAIMS:
@@ -231,12 +263,14 @@ GRANTED: list[tuple[Verdict, Evidence]] = [
 def breakages(e: Evidence) -> list[tuple[str, Evidence]]:
     """Every way to break one thing in `e`, each named."""
     out: list[tuple[str, Evidence]] = []
-    bad_steps = {n: s for n, (s, ok, _) in STEPS.items() if not ok}
+    bad_steps = {n: s for n, (s, category, _) in STEPS.items() if category != "clean"}
     for field in ("lean", "replay", "axioms", "step"):
         current = getattr(e, field)
         if isinstance(current, Step):
             for n, s in bad_steps.items():
-                if field == "step" and s is not None and same_code(s.exit, e.found_exit) and not s.limit:
+                # For caught, a check that exits with the code that says it found something isn't broken.
+                expected = s is not None and same_code(s.exit, e.found_exit) and not limited(s)
+                if field == "step" and expected:
                     continue
                 replaced = None if s is None else dataclasses.replace(s, name=current.name)
                 out.append((f"{field}={n}", dataclasses.replace(e, **{field: replaced})))
@@ -437,32 +471,761 @@ class Routed(unittest.TestCase):
         run.outputs["compile_proof"] = Path("/nonexistent/P.olean")
         self.assertEqual(verify.decide(run)[:2], ("error", "internal_error"))
 
-    def test_no_other_site_grants_these_verdicts(self) -> None:
-        # A file that returns one of these verdicts, or sets a status to one, has to be one of SITES. Today
-        # that's tools/verify.py, tools/binding.py and tools/prooftest/prooftest.py.
-        word = r"""["'](proved|bound|certified|refuted|caught|counterexample)["']"""
-        said = re.compile(rf"""return\s*\(?\s*{word}|["']status["']\s*:\s*{word}|status\s*=\s*{word}""")
-        files = proc.run(
-            [
-                "git",
-                "ls-files",
-                "--cached",
-                "--others",
-                "--exclude-standard",
-                "tools/*.py",
-                "tests/*.py",
-                "bench/*.py",
-            ],
-            cwd=ROOT,
-        ).out.split()
-        found = sorted(
-            f
-            for f in files
-            if (ROOT / f).exists() and not f.endswith("_test.py") and said.search((ROOT / f).read_text())
+
+# Grants by name: docs/verdicts.md's invariants 3 and 4.
+
+GRANTS_JSON = ROOT / "tests" / "verdict" / "grants.json"
+# A check left out of the evidence, rather than given a value.
+LEFT_OUT = object()
+CHECK_VALUES: dict[str, Any] = {
+    "true": True,
+    "false": False,
+    "not_run": None,
+    "left_out": LEFT_OUT,
+    "one": 1,
+    "yes": "yes",
+}
+FILE_VALUES: dict[str, dict[str, Any]] = {
+    "there": {"out.olean": True},
+    "one_gone": {"out.olean": True, "other.olean": False},
+    "unknown": {"out.olean": None},
+    "truthy": {"out.olean": 1},
+    "left_out": {},
+}
+VALUES = {"step": list(STEPS), "check": list(CHECK_VALUES), "files": list(FILE_VALUES)}
+CLEAN = {"step": "clean", "check": "true", "files": "there"}
+# One value of each failure category, by kind.
+REPRESENTATIVE = {
+    "step": {"limit": "time_limit", "crash": "segfault", "absent": "absent", "unclean": "failed"},
+    "check": {"absent": "left_out", "unclean": "false"},
+    "files": {"absent": "left_out", "unclean": "one_gone"},
+}
+Values = dict[tuple[str, str], str]
+
+
+def grants_json() -> str:
+    """GRANTS, as tests/verdict/grants.json has it."""
+    return json.dumps({n: dataclasses.asdict(g) for n, g in GRANTS.items()}, indent=2, sort_keys=True) + "\n"
+
+
+def requirements(grant: Grant) -> list[tuple[str, str]]:
+    """Each thing `grant` requires, by kind and name, in the order `decide` reads them."""
+    return [
+        *(("step", r) for r in grant.steps),
+        *(("check", c) for c in grant.checks),
+        *([("files", "files")] if grant.files else []),
+    ]
+
+
+def clean_values(name: str) -> Values:
+    return {r: CLEAN[r[0]] for r in requirements(GRANTS[name])}
+
+
+def evidence(values: Values) -> Evidence:
+    """Evidence with each requirement as `values` says."""
+    own: dict[str, Any] = {}
+    steps: dict[str, Step] = {}
+    checks: dict[str, Any] = {}
+    files: dict[str, Any] = {}
+    for (kind, name), value in values.items():
+        if kind == "step":
+            step = STEPS[value][0]
+            step = None if step is None else dataclasses.replace(step, name=name)
+            if name in ("lean", "replay", "axioms", "step"):
+                own[name] = step
+            elif step is not None:
+                steps[name] = step
+        elif kind == "check" and CHECK_VALUES[value] is not LEFT_OUT:
+            checks[name] = CHECK_VALUES[value]
+        elif kind == "files":
+            files = FILE_VALUES[value]
+    return Evidence(**own, steps=steps, checks=checks, files=files)
+
+
+def category(kind: str, value: str) -> tuple[str, str | None]:
+    """The outcome table's category of a value, and the limit that stopped it, if one did."""
+    if kind == "step":
+        return STEPS[value][1], STEPS[value][2]
+    clean_or_absent = {"true": "clean", "there": "clean", "not_run": "absent", "left_out": "absent"}
+    return clean_or_absent.get(value, "unclean"), None
+
+
+def expected(values: Values) -> tuple[Verdict, str]:
+    """What docs/verdicts.md's outcome table says of `values`, a grant's requirements in its order: the first
+    limit, then a crash, then something absent, then the first that isn't clean, the check that files didn't
+    change before the rest."""
+    found = [(kind, name, *category(kind, value)) for (kind, name), value in values.items()]
+    for _, _, cat, limit in found:
+        if cat == "limit":
+            return Verdict.UNKNOWN, str(limit)
+    for want, reason in (("crash", "tool_failed"), ("absent", "internal_error")):
+        if any(cat == want for _, _, cat, _ in found):
+            return Verdict.ERROR, reason
+    unclean = [(kind, name) for kind, name, cat, _ in found if cat == "unclean"]
+    if ("check", UNCHANGED) in unclean:
+        return Verdict.ERROR, "artifacts_modified"
+    if unclean:
+        kind, name = unclean[0]
+        return Verdict.ERROR, "missing_file" if kind == "files" else name
+    return Verdict.GRANTED, "clean"
+
+
+class Fixed(unittest.TestCase):
+    """docs/verdicts.md's invariant 3: what each grant requires is fixed in GRANTS, and a change to it changes
+    tests/verdict/grants.json, so it's one a reviewer sees."""
+
+    def test_grants_are_the_snapshot(self) -> None:
+        self.assertEqual(
+            GRANTS_JSON.read_text(),
+            grants_json(),
+            "GRANTS changed: what a grant requires goes in tests/verdict/grants.json too, from grants_json()",
         )
-        self.assertEqual([f for f in found if f not in self.SITES], [])
-        self.assertGreaterEqual(len(found), 3)
+
+    def test_each_grant_is_whole(self) -> None:
+        for name, grant in GRANTS.items():
+            self.assertIn(grant.schema, schemas.ALL, name)
+            self.assertIs(type(grant.exit), int, name)
+            for what in (grant.steps, grant.checks, grant.excludes):
+                self.assertEqual(len(set(what)), len(what), name)
+            for other in grant.excludes:
+                # Each excludes the other, so the same evidence is asked for both.
+                self.assertIn(name, GRANTS[other].excludes, (name, other))
+
+
+class Bounded(unittest.TestCase):
+    """docs/verdicts.md's invariant 4: for each grant, the outcome table's answer to every value of each kind
+    with the rest clean, each requirement left out, and every pair at one value of each failure category."""
+
+    def check(self, name: str, values: Values) -> None:
+        d = decide(name, evidence(values))
+        want = expected(values)
+        self.assertEqual((d.verdict, d.reason), want, (name, values, d))
+        self.assertEqual(d.granted, want[0] is Verdict.GRANTED)
+        self.assertEqual(d.grant, name if d.granted else "")
+
+    def test_each_value_with_the_rest_clean(self) -> None:
+        count = 0
+        for name in GRANTS:
+            clean = clean_values(name)
+            self.check(name, clean)
+            for r in clean:
+                for value in VALUES[r[0]]:
+                    self.check(name, {**clean, r: value})
+                    count += 1
+        self.assertGreater(count, 100)
+
+    def test_each_requirement_left_out(self) -> None:
+        for name in GRANTS:
+            clean = clean_values(name)
+            for r in clean:
+                out = {**clean, r: "absent" if r[0] == "step" else "left_out"}
+                d = decide(name, evidence(out))
+                self.assertEqual((d.verdict, d.reason), (Verdict.ERROR, "internal_error"), (name, r))
+
+    def test_every_pair(self) -> None:
+        count = 0
+        for name in GRANTS:
+            clean = clean_values(name)
+            for a, b in itertools.combinations(clean, 2):
+                for va, vb in itertools.product(REPRESENTATIVE[a[0]].values(), REPRESENTATIVE[b[0]].values()):
+                    self.check(name, {**clean, a: va, b: vb})
+                    count += 1
+        self.assertGreater(count, 800)
+
+    def test_a_check_no_grant_lists_is_an_internal_error(self) -> None:
+        for name in GRANTS:
+            e = evidence(clean_values(name))
+            typo = dataclasses.replace(e, checks={**e.checks, "artifact_unchanged": True})
+            self.assertEqual(decide(name, typo).reason, "internal_error", name)
+
+    def test_an_axiom_audit_needs_its_process(self) -> None:
+        e = evidence(clean_values("verify.proved"))
+        for answer in (True, 1):
+            d = decide("verify.proved", dataclasses.replace(e, axioms=answer))
+            self.assertEqual((d.verdict, d.reason), (Verdict.ERROR, "internal_error"))
+
+
+def proved(**change: Any) -> Evidence:
+    """Evidence `verify.proved` is granted on, with `change`."""
+    return dataclasses.replace(evidence(clean_values("verify.proved")), **change)
+
+
+REFUTED_BY: dict[str, Any] = {"witnesses": Step("witnesses", 0)}
+REFUTATION: dict[str, Any] = {"falsified": True, "nonce": True, "literal": True}
+
+
+class Interactions(unittest.TestCase):
+    """docs/verdicts.md's invariant 4's named interactions."""
+
+    def test_a_limit_and_an_ordinary_error_in_either_order(self) -> None:
+        limit_first = Step("lean", 1, output=f"{LIMIT_TEXT}\n{ERROR_TEXT}")
+        error_first = Step("lean", 1, output=f"{ERROR_TEXT}\n{LIMIT_TEXT}")
+        self.assertEqual(limit_of(limit_first), "heartbeat_limit")
+        self.assertIsNone(limit_of(error_first))
+        d = decide("verify.proved", proved(lean=limit_first))
+        self.assertEqual((d.verdict, d.reason), (Verdict.UNKNOWN, "heartbeat_limit"))
+        d = decide("verify.proved", proved(lean=error_first))
+        self.assertEqual((d.verdict, d.reason), (Verdict.ERROR, "lean"))
+        # The old form reads its limits the same way.
+        old = Evidence(lean=error_first, replay=Step("leanchecker", 0), axioms=True)
+        self.assertEqual(decide(Verdict.PROVED, old).verdict, Verdict.ERROR)
+        old = dataclasses.replace(old, lean=limit_first)
+        self.assertEqual(decide(Verdict.PROVED, old).verdict, Verdict.UNKNOWN)
+
+    def test_lean_stopped_after_the_error_a_check_expects(self) -> None:
+        ends = [Step("lean", code, output=ERROR_TEXT) for code in (137, -9, 124)]
+        ends += [
+            Step("lean", 1, output=f"{ERROR_TEXT}\n{said}")
+            for said in (
+                "INTERNAL PANIC: out of memory",
+                "libc++abi: terminating due to uncaught exception of type lean::memory_exception",
+                "Stack overflow detected. Aborting.",
+            )
+        ]
+        for end in ends:
+            caught = decide(Verdict.CAUGHT, Evidence(step=end, finding="type mismatch"))
+            self.assertEqual(caught.verdict, Verdict.UNKNOWN, end)
+            self.assertEqual(decide("verify.proved", proved(lean=end)).verdict, Verdict.UNKNOWN, end)
+        self.assertTrue(
+            decide(
+                Verdict.CAUGHT, Evidence(step=Step("lean", 1, output=ERROR_TEXT), finding="mismatch")
+            ).granted
+        )
+
+    def test_a_proof_beside_a_refutation(self) -> None:
+        e = proved(steps=REFUTED_BY, checks={**proved().checks, **REFUTATION})
+        for name in ("verify.proved", "verify.counterexample"):
+            d = decide(name, e)
+            self.assertEqual((d.verdict, d.reason), (Verdict.ERROR, "contradiction"), name)
+        self.assertTrue(decide("verify.proved", proved()).granted)
+        self.assertTrue(
+            decide("verify.counterexample", Evidence(steps=REFUTED_BY, checks=REFUTATION)).granted
+        )
+        # A refutation that isn't one takes nothing from the proof.
+        for change in ({"falsified": False}, {"nonce": False}, {"literal": None}):
+            e = proved(steps=REFUTED_BY, checks={**proved().checks, **REFUTATION, **change})
+            self.assertTrue(decide("verify.proved", e).granted, change)
+            self.assertFalse(decide("verify.counterexample", e).granted, change)
+
+
+# A grant over many cases, which no tool asks for until tools/prooftest/prooftest.py moves onto its grants, in
+# PR 6: the harness's exits, with a model stop of its own.
+TIER = Grant(
+    "passed",
+    0,
+    schemas.PROOFTEST,
+    steps=("harness",),
+    cases=Cases(holds=(1,), discards=(0, 3), stops=(4,), at_least="min_satisfied"),
+)
+# Each way a case can end, its category, and the limit that stopped it.
+CASE: dict[str, tuple[Step, str, str | None]] = {
+    "holds": (Step("", 1), "holds", None),
+    "discarded": (Step("", 0), "discard", None),
+    "discarded_later": (Step("", 3), "discard", None),
+    "stopped_the_model": (Step("", 4), "stop", None),
+    "failed": (Step("", 2), "fail", None),
+    "time_limit": (Step("", -9, limit="time_limit"), "limit", "time_limit"),
+    "killed": (Step("", 137), "limit", "killed"),
+    "crashed": (Step("", -11), "crash", None),
+    "never_ended": (Step("", None), "absent", None),
+}
+PLANNED = ("a", "b", "c")
+
+
+def observed(kinds: tuple[str, ...], how: str) -> list[tuple[str, str]]:
+    """Each case observed, by its identity and kind, as `how` says: as planned, one left out, the first
+    observed twice, as a retry is, or one not planned."""
+    out = list(zip(PLANNED, kinds, strict=True))
+    return {
+        "as_planned": out,
+        "one_left_out": out[:-1],
+        "first_twice": [*out, out[0]],
+        "one_not_planned": [*out, ("z", "holds")],
+    }[how]
+
+
+def run_over(harness: str, cases: list[tuple[str, str]], at_least: int, whole: bool) -> Evidence:
+    return Evidence(
+        steps={"harness": dataclasses.replace(s, name="harness")} if (s := STEPS[harness][0]) else {},
+        plan=Plan(PLANNED, at_least, whole),
+        cases=tuple(dataclasses.replace(CASE[kind][0], name=case) for case, kind in cases),
+    )
+
+
+def expected_of_cases(
+    harness: str, cases: list[tuple[str, str]], how: str, at_least: int, whole: bool
+) -> tuple[Verdict, str]:
+    _, h, h_limit = STEPS[harness]
+    kinds = [CASE[kind][1] for _, kind in cases]
+    if h == "limit":
+        return Verdict.UNKNOWN, str(h_limit)
+    for _, kind in cases:
+        if CASE[kind][1] == "limit":
+            return Verdict.UNKNOWN, str(CASE[kind][2])
+    if h == "crash" or "crash" in kinds:
+        return Verdict.ERROR, "tool_failed"
+    if h == "absent" or "absent" in kinds:
+        return Verdict.ERROR, "internal_error"
+    if how != "as_planned":
+        return Verdict.ERROR, "incomplete"
+    if h == "unclean":
+        return Verdict.ERROR, "harness"
+    if "fail" in kinds:
+        return Verdict.ERROR, "case_failed"
+    if "stop" in kinds:
+        return Verdict.UNKNOWN, "model_stopped"
+    if not kinds.count("holds"):
+        return Verdict.ERROR, "vacuous"
+    if not whole and kinds.count("holds") < at_least:
+        return Verdict.UNKNOWN, "too_few_satisfying"
+    return Verdict.GRANTED, "exhaustive" if whole else "sampled"
+
+
+@mock.patch.dict(GRANTS, {"t.passed": TIER})
+class ManyCases(unittest.TestCase):
+    """A grant over many cases: every three cases, planned, left out, observed twice or not planned, at two
+    minimums, sampled and the whole domain, under a harness that ended cleanly, failed or stopped at a
+    limit."""
+
+    def test_every_three_cases(self) -> None:
+        count = 0
+        for harness, kinds, how, at_least, whole in itertools.product(
+            ("clean", "failed", "time_limit"),
+            itertools.product(CASE, repeat=3),
+            ("as_planned", "one_left_out", "first_twice", "one_not_planned"),
+            (1, 3),
+            (False, True),
+        ):
+            cases = observed(kinds, how)
+            d = decide("t.passed", run_over(harness, cases, at_least, whole))
+            want = expected_of_cases(harness, cases, how, at_least, whole)
+            self.assertEqual((d.verdict, d.reason), want, (harness, cases, at_least, whole, d))
+            count += 1
+        self.assertGreater(count, 30000)
+
+    def test_named(self) -> None:
+        def reason(harness: str, *kinds: str, at_least: int = 1, whole: bool = False) -> tuple[Verdict, str]:
+            cases = list(zip(["a", "b", "c", "a"], kinds, strict=False))
+            d = decide("t.passed", run_over(harness, cases, at_least, whole))
+            return d.verdict, d.reason
+
+        # A clean retry after a failure, or after a limit.
+        self.assertEqual(reason("clean", "failed", "holds", "holds", "holds"), (Verdict.ERROR, "incomplete"))
+        self.assertEqual(reason("clean", "killed", "holds", "holds", "holds"), (Verdict.UNKNOWN, "killed"))
+        # A model stop beside a failing input: the failure decides.
+        self.assertEqual(
+            reason("clean", "stopped_the_model", "failed", "holds"), (Verdict.ERROR, "case_failed")
+        )
+        # A run its own budget stopped: the cases it didn't reach are unknown, not incomplete.
+        self.assertEqual(reason("time_limit", "holds"), (Verdict.UNKNOWN, "time_limit"))
+        self.assertEqual(reason("clean", "holds", "holds", "holds", at_least=3), (Verdict.GRANTED, "sampled"))
+
+    def test_the_plan(self) -> None:
+        holds = (Step("a", 1),)
+        harness = {"harness": Step("harness", 0)}
+        for plan, want in (
+            (None, (Verdict.ERROR, "internal_error")),
+            (Plan((), 1), (Verdict.UNKNOWN, "nothing_planned")),
+            (Plan(("a",), 0), (Verdict.ERROR, "internal_error")),
+            (Plan(("a",), False), (Verdict.ERROR, "internal_error")),
+            (Plan(("a",), "1"), (Verdict.ERROR, "internal_error")),  # ty: ignore[invalid-argument-type]
+            (Plan(("a", "a"), 1), (Verdict.ERROR, "incomplete")),
+            (Plan(("a",), 1), (Verdict.GRANTED, "sampled")),
+        ):
+            d = decide("t.passed", Evidence(steps=harness, plan=plan, cases=holds))
+            self.assertEqual((d.verdict, d.reason), want, plan)
+
+
+class OneLimitReader(unittest.TestCase):
+    """`limit_of` alone says which limit stopped a process, for both forms of `decide`."""
+
+    SAID: ClassVar[list[tuple[Step, str | None]]] = [
+        (Step("p", 0, limit="time_limit"), "time_limit"),
+        (Step("p", -9), "killed"),
+        (Step("p", 137), "killed"),
+        (Step("p", 124), "time_limit"),
+        (Step("p", 1, output="INTERNAL PANIC: out of memory"), "memory_limit"),
+        (
+            Step(
+                "p",
+                -6,
+                output="libc++abi: terminating due to uncaught exception of type lean::memory_exception",
+            ),
+            "memory_limit",
+        ),
+        (Step("p", 134, output="Stack overflow detected. Aborting."), "stack_limit"),
+        (
+            Step("p", 1, output="P.lean:1:1: error: resource exhausted (error code: 12, not enough memory)"),
+            "memory_limit",
+        ),
+        (Step("p", 1, output="error: cannot allocate memory"), "memory_limit"),
+        (Step("p", 1, output="uncaught exception: (kernel) deep recursion detected"), "stack_limit"),
+        (
+            Step(
+                "p", 1, output="X.lean:2:0: error: tactic failed\n  maximum recursion depth has been reached"
+            ),
+            "recursion_limit",
+        ),
+        (Step("p", -11, output=LIMIT_TEXT), "heartbeat_limit"),
+        (Step("p", 1, output=f"X.lean:1:0: warning: maximum number of heartbeats\n{ERROR_TEXT}"), None),
+        (Step("p", 1, output="solver: SAT solver timed out"), None),
+        (Step("p", 0, output=LIMIT_TEXT), None),
+        (Step("p", 1, output=ERROR_TEXT), None),
+        (Step("p", 2), None),
+        (Step("p", -11), None),
+        (Step("p", None), None),
+    ]
+
+    def test_limit_of(self) -> None:
+        for step, want in self.SAID:
+            self.assertEqual(limit_of(step), want, step)
+
+    def test_verdict_reads_no_limit_any_other_way(self) -> None:
+        text = (ROOT / "tools" / "irlean" / "verdict.py").read_text()
+        self.assertNotIn("is_limit", text)
+        self.assertNotIn("LIMIT.", text)
+
+
+class DenyAll(unittest.TestCase):
+    """IRLEAN_DENY_ALL takes every grant away, and nothing else."""
+
+    def test_it_takes_every_grant_away(self) -> None:
+        granted: list[tuple[Any, Evidence]] = [*GRANTED, *((n, evidence(clean_values(n))) for n in GRANTS)]
+        for claim, e in granted:
+            self.assertTrue(decide(claim, e).granted, claim)
+            for value in ("1", "yes", "true"):
+                with mock.patch.dict(os.environ, {DENY_ALL: value}):
+                    d = decide(claim, e)
+                    self.assertEqual((d.verdict, d.reason), (Verdict.ERROR, "denied"), (claim, value))
+            for value in ("", "0"):
+                with mock.patch.dict(os.environ, {DENY_ALL: value}):
+                    self.assertTrue(decide(claim, e).granted, (claim, value))
+
+    def test_it_takes_nothing_else(self) -> None:
+        for claim, e in GRANTED:
+            for name, broken in breakages(e):
+                plain = decide(claim, broken)
+                with mock.patch.dict(os.environ, {DENY_ALL: "1"}):
+                    self.assertEqual(decide(claim, broken), plain, name)
+
+
+# One lint: docs/verdicts.md's invariant 5.
+
+# Words a grant is reported as that GRANTS doesn't have yet, each with the pull request of docs/verdicts.md's
+# migration that adds its grant. It can only shrink: a word GRANTS has can't be here too.
+PENDING = {
+    "bound": "PR 9, tools/binding.py",
+    "passed_tier1": "PR 6, tools/prooftest/prooftest.py",
+    "exact": "PR 7, tools/store/store.py",
+    "instance": "PR 7, tools/store/store.py",
+    "admitted": "PR 7, tools/store/store.py",
+    "candidate": "PR 7, tools/store/store.py",
+    "counted": "PR 10, the peephole scorer",
+    "faster": "#117, cut again on PR 1",
+    "slower": "#117, cut again on PR 1",
+    "win": "#117, cut again on PR 1",
+}
+# tools/verify_claims.py's verdicts, which it decides itself, on purpose: BIND-03 shares no code with the
+# scorer it checks.
+VERIFY_CLAIMS = ("replayed", "verified")
+GRANTING = {m.name for m in (*CLAIMS, Verdict.GRANTED)}
+
+
+def words() -> set[str]:
+    """Every word a grant is reported as."""
+    return {g.word for g in GRANTS.values()} | {str(c) for c in CLAIMS} | set(PENDING) | set(VERIFY_CLAIMS)
+
+
+def given(node: ast.AST, said: set[str], returned: bool = False) -> set[str]:
+    """The grant words and granting Verdicts `node` gives as a value: itself, or through a conditional, or
+    `and` and `or`, and if it's `returned`, through a tuple, as a status and its reason are. A tuple of words
+    assigned is a list of the ones a tool knows, which isn't a grant."""
+    if isinstance(node, ast.Constant):
+        return {node.value} & said if isinstance(node.value, str) else set()
+    if isinstance(node, ast.Attribute) and node.attr in GRANTING:
+        base = node.value
+        if (
+            isinstance(base, ast.Name | ast.Attribute)
+            and (getattr(base, "id", None) or getattr(base, "attr", None)) == "Verdict"
+        ):
+            return {f"Verdict.{node.attr}"}
+    if isinstance(node, ast.Tuple) and returned:
+        return set().union(*(given(e, said, returned) for e in node.elts))
+    if isinstance(node, ast.IfExp):
+        return given(node.body, said, returned) | given(node.orelse, said, returned)
+    if isinstance(node, ast.BoolOp):
+        return set().union(*(given(v, said, returned) for v in node.values))
+    return set()
+
+
+def grants_in(source: str, path: str = "") -> dict[str, set[str]]:
+    """Each function, class or module in `source` that returns, assigns, or sets as a `status` or `verdict`
+    a grant's word or a granting Verdict, or that makes a Decision outside tools/irlean/verdict.py, by its
+    dotted name, and what it gives. A word passed by position counts where `source` defines what it's passed
+    to, and names that parameter `status` or `verdict`."""
+    said = words()
+    found: dict[str, set[str]] = collections.defaultdict(set)
+    tree = ast.parse(source)
+    # The parameters of each function and class `source` defines, by name.
+    params: dict[str, list[str]] = {}
+    for node in ast.walk(tree):
+        if isinstance(node, ast.FunctionDef | ast.AsyncFunctionDef):
+            params.setdefault(node.name, [a.arg for a in [*node.args.posonlyargs, *node.args.args]])
+        elif isinstance(node, ast.ClassDef):
+            for init in node.body:
+                if isinstance(init, ast.FunctionDef) and init.name == "__init__":
+                    params[node.name] = [a.arg for a in [*init.args.posonlyargs, *init.args.args]][1:]
+
+    def visit(node: ast.AST, where: str) -> None:
+        for child in ast.iter_child_nodes(node):
+            values: list[Any] = []
+            given_as = ast.Return | ast.Yield | ast.Assign | ast.AnnAssign | ast.AugAssign | ast.NamedExpr
+            as_status = isinstance(child, ast.keyword) and child.arg in ("status", "verdict")
+            if isinstance(child, given_as) or as_status:
+                values.append(getattr(child, "value", None))
+            elif isinstance(child, ast.Dict):
+                values += [
+                    v
+                    for k, v in zip(child.keys, child.values, strict=True)
+                    if isinstance(k, ast.Constant) and k.value in ("status", "verdict")
+                ]
+            elif isinstance(child, ast.Call):
+                callee = getattr(child.func, "id", None) or getattr(child.func, "attr", None)
+                if callee == "Decision" and path != "tools/irlean/verdict.py":
+                    found[where].add("Decision")
+                names = params.get(callee, []) if isinstance(child.func, ast.Name) else []
+                values += [a for a, n in zip(child.args, names, strict=False) if n in ("status", "verdict")]
+            returned = isinstance(child, ast.Return | ast.Yield)
+            for value in values:
+                if value is not None:
+                    found[where] |= given(value, said, returned)
+            inner = where
+            if isinstance(child, ast.FunctionDef | ast.AsyncFunctionDef | ast.ClassDef):
+                inner = child.name if where == "<module>" else f"{where}.{child.name}"
+            visit(child, inner)
+
+    visit(tree, "<module>")
+    return {where: words for where, words in found.items() if words}
+
+
+def tracked(*patterns: str) -> list[str]:
+    """The files git has, or would add, matching `patterns`."""
+    listed = ["git", "ls-files", "--cached", "--others", "--exclude-standard", *patterns]
+    return sorted(f for f in proc.run(listed, cwd=ROOT).out.split() if (ROOT / f).is_file())
+
+
+# Each place on main that gives a grant's word, or makes a Decision, outside tools/irlean/verdict.py, and why.
+# It can only shrink: each tool's pull request in docs/verdicts.md's migration takes its own off, and at the
+# end of stage A only tools/verify_claims.py and the fixtures that write one tool's record to feed another are
+# left.
+EXCEPTIONS: dict[str, str] = {
+    "tools/verify.py::decide": "tools/verify.py's statuses, until it's on its grants: PR 3",
+    "tools/prooftest/prooftest.py::decide": "tools/prooftest/prooftest.py's statuses: PR 6",
+    "tools/store/store.py::lookup": "A lookup's `exact` and `instance`: PR 7",
+    "tools/store/store.py::verdict": "A lemma's `admitted` and `candidate`: PR 7",
+    "tools/rules/certify.py::conclude": "A certificate's `certified`: PR 8",
+    "tools/binding.py::_verify": "A cached `bound`: PR 9",
+    "tools/binding.py::replay": "A replayed `bound`: PR 9",
+    "bench/instcombine/stage1.py::lean_verdict": "Joins tools/verify.py's and binding.py's records: PR 9",
+    "bench/instcombine/stage1.py::classify": "A pair's `candidate`, one to prove, isn't the store's: PR 9",
+    "tests/verify_negative.py::Outcome.line": "Prints a case's `certified`, from tools/verify.py's: PR 9",
+    "tests/passes.py::Scorer.instances": "Records an instance Lean accepts as a `candidate`, not bound: PR 9",
+    "tests/passes.py::Scorer.store": "Caches a `bound` instance as a `candidate`, never as bound: PR 9",
+    "tests/binding.py::cache_cases": "What it expects tools/binding.py to say, passed as `status`: PR 9",
+    "tests/peephole.py::counts": "The peephole scorer's `counted`: PR 10",
+    "tools/irlean/verdict.py::Verdict": "The old form's claims, which only decide returns: PR 10",
+    "tools/verify_claims.py::replay_evidence": "BIND-03 decides its own `replayed`, sharing no code: PR 2",
+    "tools/verify_claims.py::_decide_claim": "BIND-03 decides its own `verified`, sharing no code: PR 2",
+    "tests/gepcheck.py::classify": "Its `exact` is Alive2 agreeing both ways on a pointer, not the store's",
+    "tests/irlean_test.py::Schemas.test_reading_checks_the_schema": "A fixture: tools/verify.py's record",
+    "tests/passes_test.py::static": "Fixtures: tools/binding.py's records and the scorer's cache",
+    "tests/passes_test.py::live": "A fixture: tools/binding.py's record, which the scorer reads",
+    "tests/prooftest_test.py::static_checks": "A fixture: a record of tools/prooftest/prooftest.py's",
+    "tests/verify_claims_test.py::static_cases": "A fixture: a claim saying `admitted`, its own status",
+    "tests/verdict_test.py::PastBugs.test_a_cached_result_whose_certificate_is_gone_is_not_certified": (
+        "A fixture: tools/binding.py's record, which decide reads"
+    ),
+    "tests/verdict_test.py::expected": "What the outcome table says decide answers",
+    "tests/verdict_test.py::expected_of_cases": "What the outcome table says decide answers",
+}
+
+# Shell tests that run Lean, and print `ok` or exit 0 themselves rather than through tools/irlean/check.py,
+# and the pull request that moves their decisions onto it. It can only shrink, to nothing after PR 5.
+SHELL: dict[str, str] = {
+    "tests/cut.sh": "PR 4",
+    **{
+        f"tests/{name}.sh": "PR 5"
+        for name in (
+            "proofs",
+            "calls",
+            "contracts",
+            "float",
+            "freeze",
+            "refine",
+            "generic_rewrites",
+            "undef_freeze",
+            "memory_refine",
+            "exec_memory",
+            "llama-bitspread",
+            "llvm_heap",
+            "emitter",
+        )
+    },
+}
+# A Lean process the script starts itself, and a line it grants with itself.
+LEAN_RUN = re.compile(
+    r"(?:^|[\s;|&(`]|\$\()(?:command\s+|exec\s+|lake\s+env\s+)?(?:lean|leanchecker)(?=\s|$|\))"
+)
+GRANTS_ITSELF = re.compile(r"""(?:echo|printf)\s+["']?ok\b|\bexit\s+0\b""")
+
+
+def runs_lean_and_grants(text: str) -> bool:
+    lines = [line for line in text.splitlines() if not line.lstrip().startswith("#")]
+    runs = any(LEAN_RUN.search(line) and "check.py" not in line for line in lines)
+    return runs and any(GRANTS_ITSELF.search(line) for line in lines)
+
+
+# Where a grant word is given, as a status, in each way the lint has to see.
+GIVES = (
+    "def f():\n    return '{w}'\n",
+    "def f():\n    return '{w}', 'why', 'detail'\n",
+    "def f(x):\n    return '{w}' if x else 'error'\n",
+    "def f(x):\n    return x and '{w}'\n",
+    "def f():\n    status = '{w}'\n",
+    "def f(r):\n    r['status'] = '{w}'\n",
+    "def f():\n    return {{'status': '{w}', 'reason': 'r'}}\n",
+    "def f(g):\n    g(verdict='{w}')\n",
+    "def f(g):\n    g(status='{w}')\n",
+    "def g(status, reason):\n    pass\n\n\ndef f():\n    return g('{w}', 'why')\n",
+    "class C:\n    def f(self):\n        yield '{w}'\n",
+)
+# And where one isn't.
+READS = (
+    "def f(r):\n    return r['status'] == '{w}'\n",
+    "def f():\n    return {{'{w}': 'what it means'}}\n",
+    "def f():\n    '''{w}'''\n",
+    "def f(g):\n    g('{w}')\n",
+    "KNOWN = ('{w}', 'error')\n",
+)
+
+
+class OneLint(unittest.TestCase):
+    """docs/verdicts.md's invariant 5. It replaces a lint that matched six words, by a pattern, in files not
+    on its list, so a word such as `passed_tier1` or `exact`, or any word at all in a file on the list,
+    passed."""
+
+    def test_a_grant_word_is_found_anywhere(self) -> None:
+        for word in sorted(words()):
+            for form in GIVES:
+                self.assertEqual(
+                    grants_in(form.format(w=word)), {"f" if "class" not in form else "C.f": {word}}
+                )
+            for form in READS:
+                self.assertEqual(grants_in(form.format(w=word)), {}, form)
+        made = "def f(core):\n    return core.Decision(core.Verdict.PROVED, 'x')\n"
+        self.assertEqual(grants_in(made), {"f": {"Decision"}})
+        self.assertEqual(grants_in(made, "tools/irlean/verdict.py"), {})
+        self.assertEqual(grants_in("def f(v):\n    return v.Verdict.CAUGHT\n"), {"f": {"Verdict.CAUGHT"}})
+        self.assertEqual(grants_in("X = Verdict.GRANTED\n"), {"<module>": {"Verdict.GRANTED"}})
+
+    def test_a_new_grant_word_is_found(self) -> None:
+        with mock.patch.dict(GRANTS, {"x.adopted": Grant("adopted", 0, schemas.VERIFY)}):
+            self.assertEqual(grants_in("def f():\n    return 'adopted'\n"), {"f": {"adopted"}})
+        self.assertEqual(grants_in("def f():\n    return 'adopted'\n"), {})
+
+    def test_no_word_is_both_pending_and_in_grants(self) -> None:
+        self.assertEqual(set(PENDING) & {g.word for g in GRANTS.values()}, set())
+
+    def test_nothing_gives_a_grant_but_what_the_list_says(self) -> None:
+        found = {
+            f"{path}::{where}": said
+            for path in tracked("tools/*.py", "tests/*.py", "bench/*.py")
+            for where, said in grants_in((ROOT / path).read_text(), path).items()
+        }
+        unlisted = {k: sorted(v) for k, v in found.items() if k not in EXCEPTIONS}
+        self.assertEqual(
+            unlisted, {}, "these give a grant outside irlean.verdict: ask decide, through an adapter"
+        )
+        stale = sorted(set(EXCEPTIONS) - set(found))
+        self.assertEqual(stale, [], "these don't give a grant any more: take them off EXCEPTIONS")
+
+    def test_no_shell_test_grants_a_lean_process_itself(self) -> None:
+        found = {
+            p for p in tracked("tests/*.sh", "bench/*.sh") if runs_lean_and_grants((ROOT / p).read_text())
+        }
+        self.assertEqual(sorted(found - set(SHELL)), [], "these run Lean, and grant themselves")
+        self.assertEqual(sorted(set(SHELL) - found), [], "these don't any more: take them off SHELL")
+        self.assertTrue(runs_lean_and_grants("lean x.lean\nprintf 'ok    x\\n'\n"))
+        self.assertTrue(runs_lean_and_grants("out=$(command lean -M 4000 x.lean 2>&1)\nexit 0\n"))
+        self.assertFalse(runs_lean_and_grants("tools/irlean/check.py module X\n# lean x.lean\necho ok\n"))
+
+
+# Calls of `decide` in the old form, asked for a claim rather than a grant's name, by file. It can only fall:
+# each tool's pull request in docs/verdicts.md's migration takes its own off, and the last, PR 10, takes the
+# old form away.
+LEGACY: dict[str, int] = {
+    "tools/verify.py": 2,
+    "tools/prooftest/prooftest.py": 1,
+    "tools/rules/proved.py": 1,
+    "tools/rules/certify.py": 1,
+    "tools/store/store.py": 1,
+    "tools/binding.py": 1,
+    "bench/instcombine/stage1.py": 2,
+    "tests/passes.py": 1,
+    "tests/llvm.py": 2,
+    "tests/llama.py": 3,
+    "tests/superopt.py": 2,
+    "tests/cpp_correspondence.py": 2,
+    "tests/verify_negative.py": 1,
+    "tests/peephole.py": 1,
+    "tests/rules_test.py": 2,
+}
+
+
+def legacy_calls(source: str) -> int:
+    """How many times `source` calls irlean.verdict's `decide` with anything but a grant's name."""
+    tree = ast.parse(source)
+    modules, functions = set(), set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.ImportFrom) and node.module in ("irlean", "irlean.verdict"):
+            for alias in node.names:
+                if (node.module, alias.name) == ("irlean", "verdict"):
+                    modules.add(alias.asname or alias.name)
+                elif (node.module, alias.name) == ("irlean.verdict", "decide"):
+                    functions.add(alias.asname or alias.name)
+    count = 0
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.Call) or not node.args:
+            continue
+        f = node.func
+        ours = isinstance(f, ast.Name) and f.id in functions
+        ours |= (
+            isinstance(f, ast.Attribute) and f.attr == "decide" and getattr(f.value, "id", None) in modules
+        )
+        first = node.args[0]
+        count += ours and not (isinstance(first, ast.Constant) and first.value in GRANTS)
+    return count
+
+
+class LegacyCalls(unittest.TestCase):
+    """docs/verdicts.md's invariant 6."""
+
+    def test_the_old_form_only_falls(self) -> None:
+        found = {
+            path: n
+            for path in tracked("tools/*.py", "tests/*.py", "bench/*.py")
+            if path != "tests/verdict_test.py" and (n := legacy_calls((ROOT / path).read_text()))
+        }
+        self.assertEqual(found, LEGACY, "LEGACY counts the old form's calls, and can only fall")
+
+    def test_what_counts(self) -> None:
+        self.assertEqual(legacy_calls("from irlean import verdict as v\nv.decide(v.Verdict.PROVED, e)\n"), 1)
+        self.assertEqual(legacy_calls("from irlean.verdict import decide\ndecide(claim, e)\n"), 1)
+        self.assertEqual(legacy_calls("from irlean import verdict\nverdict.decide('verify.proved', e)\n"), 0)
+        self.assertEqual(legacy_calls("import x as v\nv.decide(run)\ndecide(run)\n"), 0)
 
 
 if __name__ == "__main__":
+    # Set where this runs, it would take every grant away the tests expect.
+    os.environ.pop(DENY_ALL, None)
     unittest.main()
