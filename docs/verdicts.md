@@ -284,12 +284,13 @@ consumes as a success go through `decide`; 2, `artifacts_modified` is `error` ev
 `proved` record, bound to the entry's artifacts and toolchain; 4, a must-fail Lean check killed at a limit after its
 error is `unknown`; and 5, the other shell tests are rewritten after stage A, and their verdicts move within it.
 
-## Open questions
+The maintainer answered the revision's two questions on 2026-11-11:
 
-1. A run that plans nothing, such as `pairs.py` with every project skipped, or a shell test whose glob matched no
-   case: exit 77, which `ctest` reads as skipped, or `unknown`, which fails CI?
-2. At the end of stage A, should [the ledger](bug-classes.md) mark class 1 closed on `main`, with the harness named as
-   open until #117 merges, or keep it open until then?
+- **A run that plans nothing** exits 77, which `ctest` reads as skipped, only when a precondition it names is missing,
+  such as a project's source not in the Nix store. A plan empty for any other reason, such as a glob that matched no
+  case, is `unknown`, which fails CI.
+- **At the end of stage A,** [the ledger](bug-classes.md) marks class 1 closed on `main`, and names the harness as open
+  until #117 is cut again on the core, merges, and passes the deny-all test.
 
 ## Review
 
