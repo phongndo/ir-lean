@@ -128,7 +128,7 @@ Evidence and not proof. A pass here means no disagreement was found on the input
 - **Promises kept:** 25 functions that keep their promises match native code with no input skipped
   ([`promises.ll`](../tests/real/promises.ll)).
 - **x86 intrinsics and vector bitcasts:** all 250 x86 intrinsics the model has, at every width and for each
-  immediate tried, agree with the processor on 667,792 lanes of 45,264 results, and the processor disagrees with a
+  immediate tried, agree with the processor on 674,668 lanes of 45,726 results, and the processor disagrees with a
   wrong version of each ([`x86native.py`](../tests/x86native.py)). That's the dot products, VPTERNLOG, PSHUFB and the
   shifts the model had, and 151 more, which [the ranking](x86-intrinsics.md) put first: PCLMULQDQ, the AES rounds,
   PAVG, the packs, PSIGN, PMULHW, PMULHUW, PMULHRSW, PSADBW, PHADD, PHSUB, PBLENDVB, VPDPBUSDS, VPDPWSSD, VPDPWSSDS,
@@ -136,8 +136,8 @@ Evidence and not proof. A pass here means no disagreement was found on the input
   hold 99.5% of the integer `llvm.x86.*` calls `clang -O3` leaves in ten projects' kernels. PMADDUBSW, PMADDWD and
   VPDPBUSD, and `bitcast` between vectors, also agree with the processor on 8,800 results through
   [`x86.ll`](../tests/real/x86.ll). On any processor, the bitcasts and the 157 of those intrinsics outside
-  `vecopcheck` and VZEROUPPER agree with Alive2 both ways, on 4,881 inputs to the 52 it knows, and with
-  InstCombine's folds, on 58,026 lanes, poison included, with a wrong version of each refuted
+  `vecopcheck` and VZEROUPPER agree with Alive2 both ways, on 4,953 inputs to the 52 it knows, and with
+  InstCombine's folds, on 60,042 lanes, poison included, with a wrong version of each refuted
   ([`x86check.py`](../tests/x86check.py)). Neither computes 99 of them, so only the processor checks their values,
   on one model of processor: [x86 intrinsics](x86-intrinsics.md#what-the-model-has) says which. Checked on
   2026-11-10, on z.

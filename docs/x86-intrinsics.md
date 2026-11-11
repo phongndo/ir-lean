@@ -238,8 +238,8 @@ On 2026-11-10, on z, with the model at 250 intrinsics:
 
 | Test | Result |
 | --- | --- |
-| `x86native` | 250 intrinsics as 319 operations: 667,792 lanes of 45,264 results agree with the processor, with no mismatch, and the processor refutes the wrong version for all 249 that have one. About 11 s |
-| `x86check` | 223 operations, the intrinsics and 32 bitcasts, on 16,164 inputs. InstCombine's folds agree on 58,026 lanes, refine the model's poison on 3,033, and on 1,438 inputs replace operands whose values the model keeps. Alive2 proves 4,881 of 4,881 inputs exact both ways, refuses a changed result for each operation, and refutes the wrong version of the 52 intrinsics it knows, as the folds do for the 36 InstCombine folds or rewrites. About 14 s |
+| `x86native` | 250 intrinsics as 319 operations: 674,668 lanes of 45,726 results agree with the processor, with no mismatch, each pack and saturating move tried at its destination's limits and the values just past them, and the processor refutes the wrong version for all 249 that have one. About 11 s |
+| `x86check` | 223 operations, the intrinsics and 32 bitcasts, on 16,572 inputs. InstCombine's folds agree on 60,042 lanes, refine the model's poison on 3,033, and on 1,438 inputs replace operands whose values the model keeps. Alive2 proves 4,953 of 4,953 inputs exact both ways, refuses a changed result for each operation, and refutes the wrong version of the 52 intrinsics it knows, as the folds do for the 36 InstCombine folds or rewrites. About 14 s |
 | `x86` | 22 functions: 8,800 results agree with the processor |
 
 ```console

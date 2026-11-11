@@ -355,6 +355,15 @@ def extremes(w: int) -> list[int]:
     return sorted({0, 1, 2, m, m - 1, top, top - 1, (top + 1) & m})
 
 
+def narrowing_limits(w: int, narrow: int) -> list[int]:
+    """For a `w`-bit lane an operation narrows to `narrow` bits: the narrow width's limits and the values just
+    past them, signed and unsigned, where saturation starts. None if it doesn't narrow."""
+    if not 0 < narrow < w:
+        return []
+    m, half, full = (1 << w) - 1, 1 << (narrow - 1), 1 << narrow
+    return sorted({x & m for x in (half - 1, half, -half, -half - 1, full - 1, full)})
+
+
 def count(op: Op, w: int, rand: Any) -> int:
     """A shift's count, `w` bits of it, near where its rules change: below, at and past the lane width."""
     lw = op.args[0][1]
@@ -390,6 +399,15 @@ def value_cases(
     product = list(itertools.product(*[extremes(w) for _, w in op.args]))
     for picked in product if len(product) <= splats else rand.sample(product, splats):
         out.append([[x] * max(n, 1) for x, (n, _) in zip(picked, op.args, strict=True)])
+    # A pack or a saturating move: every operand a splat of each value at the destination's limits, which
+    # the extremes of the source width don't reach.
+    limits = [narrowing_limits(w, op.ret[1]) for _, w in op.args]
+    for k in range(max(map(len, limits), default=0)):
+        case = [
+            [lim[k % len(lim)] if lim else 0] * max(n, 1) for lim, (n, _) in zip(limits, op.args, strict=True)
+        ]
+        if case not in out:
+            out.append(case)
     for i, (n, w) in enumerate(op.args):
         if op.pick(i) == "bytes" and tables:
             # Every byte of this operand the same, for each value a byte has.
