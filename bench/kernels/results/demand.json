@@ -1,8 +1,8 @@
 {
  "schema": "ir-lean.kernels.demand/1",
  "generated_by": "bench/kernels/demand.py run",
- "date": "2026-11-10",
- "commit": "df3e997d7bd11a197aa157c68418062137c271a2",
+ "date": "2026-11-11",
+ "commit": "41bd4007c8f7c6e25c328fc025836b7c83c63c16",
  "clang": "clang version 23.1.3",
  "opt": "-O3",
  "variants": {
@@ -31,10 +31,9 @@
       },
       "relaxed": {
        "functions": 2,
-       "translated": 0,
+       "translated": 1,
        "refused": {
-        "inline assembly": 1,
-        "intrinsic llvm.x86.avx.ptestz.256": 1
+        "inline assembly": 1
        }
       }
      },
@@ -57,7 +56,7 @@
         "llvm.x86.avx2.pshuf.b": 43
        },
        "as-built": "metadata !tbaa",
-       "relaxed": "intrinsic llvm.x86.avx.ptestz.256"
+       "relaxed": "ok"
       },
       "base64_stream_encode_avx2": {
        "instructions": 100,
@@ -85,9 +84,8 @@
       },
       "relaxed": {
        "functions": 2,
-       "translated": 0,
+       "translated": 1,
        "refused": {
-        "intrinsic llvm.x86.avx.ptestz.256": 1,
         "intrinsic llvm.x86.avx512.pmultishift.qb.512": 1
        }
       }
@@ -113,7 +111,7 @@
         "llvm.x86.avx2.pshuf.b": 43
        },
        "as-built": "metadata !tbaa",
-       "relaxed": "intrinsic llvm.x86.avx.ptestz.256"
+       "relaxed": "ok"
       },
       "base64_stream_encode_avx512": {
        "instructions": 190,
@@ -141,9 +139,8 @@
     },
     "relaxed": {
      "functions": 4,
-     "translated": 0,
+     "translated": 2,
      "refused": {
-      "intrinsic llvm.x86.avx.ptestz.256": 2,
       "inline assembly": 1,
       "intrinsic llvm.x86.avx512.pmultishift.qb.512": 1
      }
@@ -151,8 +148,7 @@
     "intrinsics": {
      "llvm.x86.avx.ptestz.256": {
       "calls": 28,
-      "class": "refused",
-      "lane": "long tail"
+      "class": "modeled"
      },
      "llvm.x86.avx2.pmadd.ub.sw": {
       "calls": 30,
@@ -180,7 +176,7 @@
     "kernels": {
      "named": 4,
      "as-built": 0,
-     "relaxed": 0
+     "relaxed": 2
     }
    }
   },
@@ -373,10 +369,8 @@
       },
       "relaxed": {
        "functions": 3,
-       "translated": 0,
-       "refused": {
-        "intrinsic llvm.x86.avx.vzeroupper": 3
-       }
+       "translated": 3,
+       "refused": {}
       }
      },
      "instructions": 3667,
@@ -399,7 +393,7 @@
         "llvm.x86.avx2.psra.d": 12
        },
        "as-built": "function attribute \"no-signed-zeros-fp-math\"",
-       "relaxed": "intrinsic llvm.x86.avx.vzeroupper"
+       "relaxed": "ok"
       },
       "FLAC__lpc_compute_residual_from_qlp_coefficients_intrin_avx2": {
        "instructions": 963,
@@ -411,7 +405,7 @@
         "llvm.x86.avx2.psra.d": 12
        },
        "as-built": "function attribute \"no-signed-zeros-fp-math\"",
-       "relaxed": "intrinsic llvm.x86.avx.vzeroupper"
+       "relaxed": "ok"
       }
      }
     },
@@ -470,10 +464,8 @@
       },
       "relaxed": {
        "functions": 1,
-       "translated": 0,
-       "refused": {
-        "intrinsic llvm.x86.avx.vzeroupper": 1
-       }
+       "translated": 1,
+       "refused": {}
       }
      },
      "instructions": 258,
@@ -497,7 +489,7 @@
         "llvm.x86.avx.vzeroupper": 1
        },
        "as-built": "function attribute \"no-signed-zeros-fp-math\"",
-       "relaxed": "intrinsic llvm.x86.avx.vzeroupper"
+       "relaxed": "ok"
       }
      }
     },
@@ -907,7 +899,7 @@
     },
     "relaxed": {
      "functions": 248,
-     "translated": 105,
+     "translated": 109,
      "refused": {
       "call to external functions in a function with a stack frame or promises about memory, which IRLean.World doesn't wrap yet": 64,
       "function attribute memory on a function whose calls outside the module access memory": 17,
@@ -918,7 +910,6 @@
       "call to @_, which isn't translated": 6,
       "call to external @_, which touches memory: F4": 4,
       "intrinsic llvm.fmuladd": 4,
-      "intrinsic llvm.x86.avx.vzeroupper": 4,
       "call return attribute dereferenceable_or_null": 2,
       "indirect call that can reach @_, which isn't translated": 2,
       "llvm.loop.mustprogress off a loop's latch, in a function with irreducible control flow": 2
@@ -1018,8 +1009,7 @@
      },
      "llvm.x86.avx.vzeroupper": {
       "calls": 4,
-      "class": "refused",
-      "lane": "long tail"
+      "class": "modeled"
      },
      "llvm.x86.avx2.pmadd.wd": {
       "calls": 78,
@@ -1037,7 +1027,7 @@
     "kernels": {
      "named": 16,
      "as-built": 0,
-     "relaxed": 3
+     "relaxed": 6
     }
    }
   },
@@ -1537,24 +1527,20 @@
      "variants": {
       "as-built": {
        "functions": 11,
-       "translated": 0,
+       "translated": 2,
        "refused": {
         "call to external functions in a function with a stack frame or promises about memory, which IRLean.World doesn't wrap yet": 6,
         "function attribute norecurse on a function that calls outside the module": 2,
-        "call to external @_, which may be null": 1,
-        "intrinsic llvm.x86.aesni.aeskeygenassist": 1,
-        "intrinsic llvm.x86.pclmulqdq": 1
+        "call to external @_, which may be null": 1
        }
       },
       "relaxed": {
        "functions": 11,
-       "translated": 0,
+       "translated": 2,
        "refused": {
         "call to external functions in a function with a stack frame or promises about memory, which IRLean.World doesn't wrap yet": 6,
         "function attribute norecurse on a function that calls outside the module": 2,
-        "call to external @_, which may be null": 1,
-        "intrinsic llvm.x86.aesni.aeskeygenassist": 1,
-        "intrinsic llvm.x86.pclmulqdq": 1
+        "call to external @_, which may be null": 1
        }
       }
      },
@@ -1579,8 +1565,8 @@
        "intrinsics": {
         "llvm.x86.pclmulqdq": 122
        },
-       "as-built": "intrinsic llvm.x86.pclmulqdq",
-       "relaxed": "intrinsic llvm.x86.pclmulqdq"
+       "as-built": "ok",
+       "relaxed": "ok"
       }
      }
     }
@@ -1590,28 +1576,24 @@
     "instructions": 10491,
     "as-built": {
      "functions": 30,
-     "translated": 5,
+     "translated": 7,
      "refused": {
       "call to external functions in a function with a stack frame or promises about memory, which IRLean.World doesn't wrap yet": 17,
       "call to @_, which isn't translated": 2,
       "function attribute norecurse on a function that calls outside the module": 2,
       "call to external @_, which may be null": 1,
-      "instruction load volatile": 1,
-      "intrinsic llvm.x86.aesni.aeskeygenassist": 1,
-      "intrinsic llvm.x86.pclmulqdq": 1
+      "instruction load volatile": 1
      }
     },
     "relaxed": {
      "functions": 30,
-     "translated": 5,
+     "translated": 7,
      "refused": {
       "call to external functions in a function with a stack frame or promises about memory, which IRLean.World doesn't wrap yet": 17,
       "call to @_, which isn't translated": 2,
       "function attribute norecurse on a function that calls outside the module": 2,
       "call to external @_, which may be null": 1,
-      "instruction load volatile": 1,
-      "intrinsic llvm.x86.aesni.aeskeygenassist": 1,
-      "intrinsic llvm.x86.pclmulqdq": 1
+      "instruction load volatile": 1
      }
     },
     "intrinsics": {
@@ -1653,29 +1635,25 @@
      },
      "llvm.x86.aesni.aesenc": {
       "calls": 988,
-      "class": "refused",
-      "lane": "long tail"
+      "class": "modeled"
      },
      "llvm.x86.aesni.aesenclast": {
       "calls": 76,
-      "class": "refused",
-      "lane": "long tail"
+      "class": "modeled"
      },
      "llvm.x86.aesni.aeskeygenassist": {
       "calls": 13,
-      "class": "refused",
-      "lane": "long tail"
+      "class": "modeled"
      },
      "llvm.x86.pclmulqdq": {
       "calls": 490,
-      "class": "refused",
-      "lane": "long tail"
+      "class": "modeled"
      }
     },
     "kernels": {
      "named": 7,
-     "as-built": 3,
-     "relaxed": 3
+     "as-built": 4,
+     "relaxed": 4
     }
    }
   },
@@ -1799,23 +1777,18 @@
      "variants": {
       "as-built": {
        "functions": 33,
-       "translated": 0,
+       "translated": 5,
        "refused": {
         "metadata !tbaa": 26,
-        "intrinsic llvm.x86.sse2.packsswb.128": 6,
-        "intrinsic llvm.x86.sse2.pavg.b": 1
+        "parameter attribute noalias": 2
        }
       },
       "relaxed": {
        "functions": 33,
-       "translated": 7,
+       "translated": 27,
        "refused": {
-        "intrinsic llvm.x86.sse2.packsswb.128": 12,
-        "intrinsic llvm.x86.sse2.pavg.b": 5,
-        "intrinsic llvm.x86.sse2.psad.bw": 4,
-        "intrinsic llvm.x86.sse2.packuswb.128": 3,
-        "constant ptr getelementptr inbounds nuw (i8, ptr @_, i64 8) with flags that don't plainly hold": 1,
-        "intrinsic llvm.x86.sse2.pmulh.w": 1
+        "parameter attribute noalias": 5,
+        "constant ptr getelementptr inbounds nuw (i8, ptr @_, i64 8) with flags that don't plainly hold": 1
        }
       }
      },
@@ -1842,7 +1815,7 @@
         "llvm.x86.sse2.pmulh.w": 8
        },
        "as-built": "metadata !tbaa",
-       "relaxed": "intrinsic llvm.x86.sse2.pmulh.w"
+       "relaxed": "parameter attribute noalias"
       }
      }
     },
@@ -1863,8 +1836,7 @@
        "functions": 11,
        "translated": 1,
        "refused": {
-        "metadata !alias": 5,
-        "intrinsic llvm.x86.sse2.pmulhu.w": 4,
+        "metadata !alias": 9,
         "constant ptr getelementptr inbounds nuw (i8, ptr @_, i64 16) with flags that don't plainly hold": 1
        }
       }
@@ -1891,7 +1863,7 @@
         "llvm.x86.sse2.pmulhu.w": 20
        },
        "as-built": "metadata !tbaa",
-       "relaxed": "intrinsic llvm.x86.sse2.pmulhu.w"
+       "relaxed": "metadata !alias"
       }
      }
     },
@@ -2009,13 +1981,11 @@
       },
       "relaxed": {
        "functions": 31,
-       "translated": 2,
+       "translated": 10,
        "refused": {
         "in a cycle with a function refused for: call to external functions in a function with a stack frame or promises about memory, which IRLean.World doesn't wrap yet": 10,
-        "intrinsic llvm.x86.sse2.packuswb.128": 7,
-        "intrinsic llvm.x86.sse2.pavg.b": 6,
-        "call to external @_, which touches memory: F4": 5,
-        "intrinsic llvm.x86.sse2.pmulh.w": 1
+        "call to external @_, which touches memory: F4": 7,
+        "parameter attribute noalias": 4
        }
       }
      },
@@ -2039,7 +2009,7 @@
         "llvm.x86.sse2.packuswb.128": 1
        },
        "as-built": "metadata !tbaa",
-       "relaxed": "intrinsic llvm.x86.sse2.packuswb.128"
+       "relaxed": "parameter attribute noalias"
       }
      }
     },
@@ -2284,12 +2254,11 @@
       },
       "relaxed": {
        "functions": 24,
-       "translated": 3,
+       "translated": 4,
        "refused": {
         "in a cycle with a function refused for: parameter attribute noalias": 14,
-        "parameter attribute noalias": 4,
-        "intrinsic llvm.x86.avx2.pmulh.w": 2,
-        "intrinsic llvm.x86.avx2.packssdw": 1
+        "parameter attribute noalias": 5,
+        "indirect call that can reach @_, which isn't translated": 1
        }
       }
      },
@@ -2315,7 +2284,7 @@
         "llvm.x86.avx2.packsswb": 2
        },
        "as-built": "metadata !tbaa",
-       "relaxed": "intrinsic llvm.x86.avx2.packssdw"
+       "relaxed": "ok"
       },
       "VectorMismatch_AVX2": {
        "instructions": 80,
@@ -2333,7 +2302,7 @@
         "llvm.x86.avx2.pmulh.w": 3
        },
        "as-built": "metadata !tbaa",
-       "relaxed": "intrinsic llvm.x86.avx2.pmulh.w"
+       "relaxed": "parameter attribute noalias"
       }
      }
     },
@@ -2355,10 +2324,9 @@
        "functions": 7,
        "translated": 1,
        "refused": {
-        "intrinsic llvm.x86.sse2.pmulhu.w": 3,
+        "parameter attribute noalias": 4,
         "call to external functions in a function with a stack frame or promises about memory, which IRLean.World doesn't wrap yet": 1,
-        "metadata !alias": 1,
-        "parameter attribute noalias": 1
+        "metadata !alias": 1
        }
       }
      },
@@ -2391,7 +2359,7 @@
         "llvm.x86.ssse3.psign.w.128": 2
        },
        "as-built": "metadata !tbaa",
-       "relaxed": "intrinsic llvm.x86.sse2.pmulhu.w"
+       "relaxed": "parameter attribute noalias"
       }
      }
     },
@@ -2413,8 +2381,7 @@
        "translated": 1,
        "refused": {
         "intrinsic llvm.experimental.noalias.scope.decl": 10,
-        "intrinsic llvm.x86.sse2.packssdw.128": 2,
-        "metadata !alias": 2,
+        "metadata !alias": 4,
         "parameter attribute noalias": 2,
         "call to external functions in a function with a stack frame or promises about memory, which IRLean.World doesn't wrap yet": 1,
         "instruction freeze of a vector": 1
@@ -2452,7 +2419,7 @@
         "llvm.x86.sse2.pmadd.wd": 6
        },
        "as-built": "metadata !tbaa",
-       "relaxed": "intrinsic llvm.x86.sse2.packssdw.128"
+       "relaxed": "metadata !alias"
       },
       "ITransform_SSE2": {
        "instructions": 256,
@@ -2485,7 +2452,7 @@
     "instructions": 29633,
     "as-built": {
      "functions": 234,
-     "translated": 3,
+     "translated": 8,
      "refused": {
       "metadata !tbaa": 122,
       "call to external functions in a function with a stack frame or promises about memory, which IRLean.World doesn't wrap yet": 41,
@@ -2493,39 +2460,30 @@
       "in a cycle with a function refused for: call to external functions in a function with a stack frame or promises about memory, which IRLean.World doesn't wrap yet": 10,
       "call to external @_, which touches memory: F4": 9,
       "intrinsic llvm.experimental.noalias.scope.decl": 9,
-      "intrinsic llvm.x86.sse2.packsswb.128": 6,
       "function attribute norecurse on a function that calls outside the module": 3,
       "more than one parameter with attribute initializes": 2,
-      "call to @_, which isn't translated": 1,
-      "intrinsic llvm.x86.sse2.pavg.b": 1
+      "parameter attribute noalias": 2,
+      "call to @_, which isn't translated": 1
      }
     },
     "relaxed": {
      "functions": 234,
-     "translated": 39,
+     "translated": 68,
      "refused": {
       "call to external functions in a function with a stack frame or promises about memory, which IRLean.World doesn't wrap yet": 41,
+      "parameter attribute noalias": 28,
       "in a cycle with a function refused for: parameter attribute noalias": 27,
-      "call to external @_, which touches memory: F4": 21,
-      "parameter attribute noalias": 15,
-      "intrinsic llvm.x86.sse2.packsswb.128": 12,
+      "call to external @_, which touches memory: F4": 23,
+      "metadata !alias": 14,
       "intrinsic llvm.experimental.noalias.scope.decl": 11,
-      "intrinsic llvm.x86.sse2.pavg.b": 11,
       "in a cycle with a function refused for: call to external functions in a function with a stack frame or promises about memory, which IRLean.World doesn't wrap yet": 10,
-      "intrinsic llvm.x86.sse2.packuswb.128": 10,
-      "metadata !alias": 8,
-      "intrinsic llvm.x86.sse2.pmulhu.w": 7,
-      "intrinsic llvm.x86.sse2.psad.bw": 4,
       "function attribute norecurse on a function that calls outside the module": 3,
       "call to @_, which isn't translated": 2,
-      "intrinsic llvm.x86.avx2.pmulh.w": 2,
-      "intrinsic llvm.x86.sse2.packssdw.128": 2,
-      "intrinsic llvm.x86.sse2.pmulh.w": 2,
       "more than one parameter with attribute initializes": 2,
       "constant ptr getelementptr inbounds nuw (i8, ptr @_, i64 16) with flags that don't plainly hold": 1,
       "constant ptr getelementptr inbounds nuw (i8, ptr @_, i64 8) with flags that don't plainly hold": 1,
+      "indirect call that can reach @_, which isn't translated": 1,
       "instruction freeze of a vector": 1,
-      "intrinsic llvm.x86.avx2.packssdw": 1,
       "parameter attribute dead_on_unwind": 1
      }
     },
@@ -2622,23 +2580,19 @@
      },
      "llvm.x86.avx2.packssdw": {
       "calls": 7,
-      "class": "refused",
-      "lane": "long tail"
+      "class": "modeled"
      },
      "llvm.x86.avx2.packsswb": {
       "calls": 2,
-      "class": "refused",
-      "lane": "long tail"
+      "class": "modeled"
      },
      "llvm.x86.avx2.packuswb": {
       "calls": 10,
-      "class": "refused",
-      "lane": "long tail"
+      "class": "modeled"
      },
      "llvm.x86.avx2.pavg.b": {
       "calls": 28,
-      "class": "refused",
-      "lane": "long tail"
+      "class": "modeled"
      },
      "llvm.x86.avx2.pmadd.wd": {
       "calls": 3,
@@ -2646,33 +2600,27 @@
      },
      "llvm.x86.avx2.pmulh.w": {
       "calls": 7,
-      "class": "refused",
-      "lane": "long tail"
+      "class": "modeled"
      },
      "llvm.x86.avx2.psad.bw": {
       "calls": 14,
-      "class": "refused",
-      "lane": "long tail"
+      "class": "modeled"
      },
      "llvm.x86.sse2.packssdw.128": {
       "calls": 59,
-      "class": "refused",
-      "lane": "long tail"
+      "class": "modeled"
      },
      "llvm.x86.sse2.packsswb.128": {
       "calls": 48,
-      "class": "refused",
-      "lane": "long tail"
+      "class": "modeled"
      },
      "llvm.x86.sse2.packuswb.128": {
       "calls": 146,
-      "class": "refused",
-      "lane": "long tail"
+      "class": "modeled"
      },
      "llvm.x86.sse2.pavg.b": {
       "calls": 47,
-      "class": "refused",
-      "lane": "long tail"
+      "class": "modeled"
      },
      "llvm.x86.sse2.pmadd.wd": {
       "calls": 158,
@@ -2680,29 +2628,25 @@
      },
      "llvm.x86.sse2.pmulh.w": {
       "calls": 30,
-      "class": "refused",
-      "lane": "long tail"
+      "class": "modeled"
      },
      "llvm.x86.sse2.pmulhu.w": {
       "calls": 96,
-      "class": "refused",
-      "lane": "long tail"
+      "class": "modeled"
      },
      "llvm.x86.sse2.psad.bw": {
       "calls": 20,
-      "class": "refused",
-      "lane": "long tail"
+      "class": "modeled"
      },
      "llvm.x86.ssse3.psign.w.128": {
       "calls": 8,
-      "class": "refused",
-      "lane": "long tail"
+      "class": "modeled"
      }
     },
     "kernels": {
      "named": 21,
      "as-built": 0,
-     "relaxed": 2
+     "relaxed": 3
     }
    }
   },
@@ -2732,10 +2676,9 @@
        "refused": {
         "instruction freeze of a vector": 4,
         "intrinsic llvm.experimental.noalias.scope.decl": 2,
+        "intrinsic llvm.fma": 2,
         "intrinsic llvm.x86.avx.max.ps.256": 2,
-        "type: a vector of pointers": 2,
-        "intrinsic llvm.fma": 1,
-        "intrinsic llvm.x86.ssse3.phadd.w.128": 1
+        "type: a vector of pointers": 2
        }
       }
      },
@@ -2789,7 +2732,7 @@
         "llvm.x86.ssse3.phadd.w.128": 4
        },
        "as-built": "metadata !tbaa",
-       "relaxed": "intrinsic llvm.x86.ssse3.phadd.w.128"
+       "relaxed": "intrinsic llvm.fma"
       },
       "ggml_gemv_q4_K_8x8_q8_K": {
        "instructions": 386,
@@ -2827,15 +2770,12 @@
        "functions": 28,
        "translated": 0,
        "refused": {
-        "intrinsic llvm.x86.avx2.psign.b": 7,
+        "intrinsic llvm.fma": 13,
         "type: a vector of pointers": 7,
-        "intrinsic llvm.fma": 5,
-        "intrinsic llvm.fmuladd": 2,
+        "intrinsic llvm.fmuladd": 3,
         "intrinsic llvm.x86.avx.max.ps.256": 2,
-        "intrinsic llvm.x86.ssse3.phadd.w.128": 2,
-        "call to external @_, which touches memory: F4": 1,
-        "intrinsic llvm.x86.avx2.pavg.b": 1,
-        "parameter attribute noalias": 1
+        "parameter attribute noalias": 2,
+        "call to external @_, which touches memory: F4": 1
        }
       }
      },
@@ -2883,7 +2823,7 @@
         "llvm.x86.ssse3.phadd.w.128": 1
        },
        "as-built": "metadata !tbaa",
-       "relaxed": "intrinsic llvm.x86.ssse3.phadd.w.128"
+       "relaxed": "intrinsic llvm.fma"
       },
       "ggml_vec_dot_q5_0_q8_0": {
        "instructions": 146,
@@ -2896,7 +2836,7 @@
         "llvm.x86.avx512.vpdpbusd.256": 3
        },
        "as-built": "metadata !tbaa",
-       "relaxed": "intrinsic llvm.x86.avx2.psign.b"
+       "relaxed": "intrinsic llvm.fma"
       },
       "ggml_vec_dot_q6_K_q8_K": {
        "instructions": 162,
@@ -2931,17 +2871,14 @@
      "functions": 40,
      "translated": 0,
      "refused": {
+      "intrinsic llvm.fma": 15,
       "type: a vector of pointers": 9,
-      "intrinsic llvm.x86.avx2.psign.b": 7,
-      "intrinsic llvm.fma": 6,
       "instruction freeze of a vector": 4,
       "intrinsic llvm.x86.avx.max.ps.256": 4,
-      "intrinsic llvm.x86.ssse3.phadd.w.128": 3,
+      "intrinsic llvm.fmuladd": 3,
       "intrinsic llvm.experimental.noalias.scope.decl": 2,
-      "intrinsic llvm.fmuladd": 2,
-      "call to external @_, which touches memory: F4": 1,
-      "intrinsic llvm.x86.avx2.pavg.b": 1,
-      "parameter attribute noalias": 1
+      "parameter attribute noalias": 2,
+      "call to external @_, which touches memory: F4": 1
      }
     },
     "intrinsics": {
@@ -3032,18 +2969,15 @@
      },
      "llvm.x86.avx2.packssdw": {
       "calls": 20,
-      "class": "refused",
-      "lane": "long tail"
+      "class": "modeled"
      },
      "llvm.x86.avx2.packsswb": {
       "calls": 10,
-      "class": "refused",
-      "lane": "long tail"
+      "class": "modeled"
      },
      "llvm.x86.avx2.pavg.b": {
       "calls": 16,
-      "class": "refused",
-      "lane": "long tail"
+      "class": "modeled"
      },
      "llvm.x86.avx2.pmadd.ub.sw": {
       "calls": 598,
@@ -3059,8 +2993,7 @@
      },
      "llvm.x86.avx2.psign.b": {
       "calls": 454,
-      "class": "refused",
-      "lane": "long tail"
+      "class": "modeled"
      },
      "llvm.x86.avx512.pmaddubs.w.512": {
       "calls": 384,
@@ -3094,8 +3027,7 @@
      },
      "llvm.x86.sse2.packuswb.128": {
       "calls": 1,
-      "class": "refused",
-      "lane": "long tail"
+      "class": "modeled"
      },
      "llvm.x86.sse2.pmadd.wd": {
       "calls": 2,
@@ -3103,13 +3035,11 @@
      },
      "llvm.x86.ssse3.phadd.d.128": {
       "calls": 2,
-      "class": "refused",
-      "lane": "long tail"
+      "class": "modeled"
      },
      "llvm.x86.ssse3.phadd.w.128": {
       "calls": 7,
-      "class": "refused",
-      "lane": "long tail"
+      "class": "modeled"
      },
      "llvm.x86.ssse3.pshuf.b.128": {
       "calls": 28,
@@ -3855,8 +3785,7 @@
      },
      "llvm.x86.avx512.mask.pmovs.db.512": {
       "calls": 14,
-      "class": "refused",
-      "lane": "long tail"
+      "class": "modeled"
      },
      "llvm.x86.avx512.max.ps.512": {
       "calls": 10,
@@ -4319,8 +4248,8 @@
        "functions": 3,
        "translated": 0,
        "refused": {
+        "call parameter attribute readonly": 1,
         "call to @_, which isn't translated": 1,
-        "intrinsic llvm.x86.bmi.bzhi.32": 1,
         "metadata !tbaa": 1
        }
       },
@@ -4329,7 +4258,7 @@
        "translated": 0,
        "refused": {
         "call to @_, which isn't translated": 2,
-        "intrinsic llvm.x86.bmi.bzhi.32": 1
+        "call parameter attribute readonly": 1
        }
       }
      },
@@ -4385,8 +4314,8 @@
         "llvm.x86.bmi.bzhi.32": 6,
         "llvm.x86.ssse3.pshuf.b.128": 2
        },
-       "as-built": "intrinsic llvm.x86.bmi.bzhi.32",
-       "relaxed": "intrinsic llvm.x86.bmi.bzhi.32"
+       "as-built": "call parameter attribute readonly",
+       "relaxed": "call parameter attribute readonly"
       }
      }
     },
@@ -4457,10 +4386,8 @@
       },
       "relaxed": {
        "functions": 5,
-       "translated": 1,
+       "translated": 4,
        "refused": {
-        "intrinsic llvm.x86.pclmulqdq": 2,
-        "call to @_, which isn't translated": 1,
         "intrinsic llvm.memmove": 1
        }
       }
@@ -4492,7 +4419,7 @@
         "llvm.x86.ssse3.pshuf.b.128": 18
        },
        "as-built": "metadata !tbaa",
-       "relaxed": "intrinsic llvm.x86.pclmulqdq"
+       "relaxed": "ok"
       }
      }
     }
@@ -4505,19 +4432,18 @@
      "translated": 1,
      "refused": {
       "metadata !tbaa": 22,
-      "call to @_, which isn't translated": 1,
-      "intrinsic llvm.x86.bmi.bzhi.32": 1
+      "call parameter attribute readonly": 1,
+      "call to @_, which isn't translated": 1
      }
     },
     "relaxed": {
      "functions": 25,
-     "translated": 17,
+     "translated": 20,
      "refused": {
-      "call to @_, which isn't translated": 3,
-      "intrinsic llvm.x86.pclmulqdq": 2,
+      "call to @_, which isn't translated": 2,
+      "call parameter attribute readonly": 1,
       "call to external @_, which touches memory: F4": 1,
-      "intrinsic llvm.memmove": 1,
-      "intrinsic llvm.x86.bmi.bzhi.32": 1
+      "intrinsic llvm.memmove": 1
      }
     },
     "intrinsics": {
@@ -4590,18 +4516,15 @@
      },
      "llvm.x86.bmi.bzhi.32": {
       "calls": 7,
-      "class": "refused",
-      "lane": "long tail"
+      "class": "modeled"
      },
      "llvm.x86.pclmulqdq": {
       "calls": 96,
-      "class": "refused",
-      "lane": "long tail"
+      "class": "modeled"
      },
      "llvm.x86.pclmulqdq.512": {
       "calls": 64,
-      "class": "refused",
-      "lane": "long tail"
+      "class": "modeled"
      },
      "llvm.x86.ssse3.pshuf.b.128": {
       "calls": 38,
@@ -4611,7 +4534,7 @@
     "kernels": {
      "named": 10,
      "as-built": 0,
-     "relaxed": 6
+     "relaxed": 7
     }
    }
   },

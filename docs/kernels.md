@@ -1,25 +1,36 @@
 # The kernel corpus
 
-The fixed list of real projects the superoptimizer is judged on: a proposal, for the maintainer to approve. It serves
-decisions 6, 7 and 8 of the thirteen decisions of 2026-11-09, after #103, in the [roadmap](roadmap.md): the headline
-is proved speedup over `clang -O3`, in wall time on a real workload, on a corpus fixed before the search runs, and the
-bar is at least 10 proved wins from at least 3 projects.
+The fixed list of real projects the superoptimizer is judged on. It serves decisions 6, 7 and 8 of the thirteen
+decisions of 2026-11-09, after #103, in the [roadmap](roadmap.md): the headline is proved speedup over `clang -O3`, in
+wall time on a real workload, on a corpus fixed before the search runs, and the bar is at least 10 proved wins from at
+least 3 projects.
 
-**Nothing here is approved.** [`bench/kernels/manifest.toml`](../bench/kernels/manifest.toml) says `state = "proposed"`
-until the maintainer fixes a list, and no search or candidate rewrite has been run on any of these projects.
+**Approved on 2026-11-10.** The maintainer approved the proposal as it recommended: the six projects, llama.cpp,
+zlib-ng, xxHash, libsodium, FLAC and libwebp, and all seven [decisions](#what-the-maintainer-decided-on-2026-11-10),
+which the roadmap records in [the kernel corpus, decided on 2026-11-10](roadmap.md#the-kernel-corpus-decided-on-2026-11-10).
+[`bench/kernels/manifest.toml`](../bench/kernels/manifest.toml) says `state = "approved"`, and names the six. It isn't
+fixed yet: decision 7 asks for libsodium's bulk-encryption driver to be written first, and then the manifest's `[lock]`
+fixes the list ([how](#the-manifest)). No search or candidate rewrite has been run on any of these projects.
+
+Until then this page was the proposal, and it reads as one where it gives the case for each choice.
 
 **Two things are called a corpus.** [The corpus](corpus.md) is pairs of IR that `tools/corpus/capture.py` takes from
 `opt`. This is the *kernel corpus*: projects, their hot kernels and their workloads. It lives in `bench/kernels/`, and
 neither renames the other.
 
 Facts here were measured on 2026-11-10, on z, an AMD Ryzen 9 9950X, at commit `df3e997`, with clang 23.1.3, unless
-they say otherwise. Each has its source or the command that reproduces it.
+they say otherwise. [What the emitter does with them](#what-the-emitter-does-with-them-today) was measured again
+after #105 and #107. Each has its source or the command that reproduces it.
 
-## Decisions for the maintainer
+## What the maintainer decided on 2026-11-10
 
-Each has a recommendation. Approving the first as it stands fixes the corpus.
+Each decision had a recommendation, and on 2026-11-10 the maintainer took every one as it stood. The table is the
+proposal's, kept as the record, with the alternatives that weren't taken. Its counts are the proposal's, at `df3e997`:
+after #105 and #107, decision 1's 16 of the six's 64 named kernels are 22, the 14 intrinsics libwebp's SIMD needed are
+all modeled, and decision 4's 24 and 241 of 798 functions are 31 and 279
+([below](#what-the-emitter-does-with-them-today)).
 
-| # | Decision | Recommendation | The alternative, and what it costs |
+| # | Decision | Recommended, and decided on 2026-11-10 | The alternative, not taken, and what it would have cost |
 | --- | --- | --- | --- |
 | 1 | Which projects | Six: **llama.cpp, zlib-ng, xxHash, libsodium, FLAC and libwebp**, one or two from each of the five domains. In all but llama.cpp, a kernel the profile calls hot translates today: 16 of the six's 64 named kernels do, in the [relaxed run](#what-the-emitter-does-with-them-today) | Add zstd, the first alternate: its hot kernels are match finders and entropy coders with little SIMD, which is why it isn't in the six, and three of them translate today. Or drop libwebp: its lossy decoder is 78% scalar, and its SIMD needs 14 intrinsics the model lacks. Fewer than five projects leaves a domain out |
 | 2 | Whether the two llama.cpp rewrites on `main` count toward the ten | **No, as they stand.** Each counts once the rule search finds it again on the fixed corpus and it's measured again by [the protocol](#the-benchmark-protocol), labeled as resting on a rule written for its site | Count both now: the bar becomes 8 wins from the engine, on results chosen before the corpus existed. [Arguments each way](#the-two-llamacpp-rewrites) |
@@ -29,7 +40,7 @@ Each has a recommendation. Approving the first as it stands fixes the corpus.
 | 6 | The names | "The kernel corpus", `docs/kernels.md`, `bench/kernels/` | Any other name that isn't "corpus" alone |
 | 7 | libsodium's workload | Its Argon2id test in benchmark mode, which is its own and 99% kernel time. Bulk encryption needs a driver of ours, about 30 lines over its documented `crypto_secretstream` example, written before the list is fixed | Argon2id only: ChaCha20-Poly1305 and BLAKE2b then have no workload a win could be measured on |
 
-Decisions 3 to 5 are rules the board is read by, so they're worth settling with the list.
+Decisions 3 to 5 are rules the board is read by, which is why they were settled with the list.
 
 ## The criteria
 
@@ -55,9 +66,10 @@ is a function the profile names, as the linker sees it.
 
 ## The candidates
 
-Fifteen, across the five domains. Each was fetched with `nix flake prefetch github:OWNER/REPO/REV` on 2026-11-09, at
-the latest release tag `git ls-remote --tags` showed that day. llama.cpp stays at `b12189`, the release both
-rewrites on `main` are about. The manifest has each Nix hash.
+Fifteen, across the five domains. The six recommended are the six the maintainer approved on 2026-11-10. Each was
+fetched with `nix flake prefetch github:OWNER/REPO/REV` on 2026-11-09, at the latest release tag `git ls-remote --tags`
+showed that day. llama.cpp stays at `b12189`, the release both rewrites on `main` are about. The manifest has each Nix
+hash.
 
 | Project | Domain | What it is | Who uses it | License | Pin | Commit | Proposal |
 | --- | --- | --- | --- | --- | --- | --- | --- |
@@ -189,8 +201,8 @@ every flag.
 | xxHash | C with intrinsics | `-O3` | None: a target attribute, in `xxh_x86dispatch.c`, which its `Makefile` adds on x86 with `DISPATCH ?= 1` | Yes: on z it takes AVX-512 |
 | libsodium | C with intrinsics | `-O3 -fno-strict-aliasing -fno-strict-overflow -fstack-protector` | `-mavx2`, `-mavx512f`, `-maes -mpclmul` on those files | Yes. Curve25519 and one Salsa20 path are assembly, and neither was hot |
 
-The corpus compiles every unit at `-O3`, [decision 3](#decisions-for-the-maintainer). Three build at `-O2`: zlib-ng,
-libdeflate and XNNPACK.
+The corpus compiles every unit at `-O3`, [decision 3](#what-the-maintainer-decided-on-2026-11-10). Three build at
+`-O2`: zlib-ng, libdeflate and XNNPACK.
 
 ## What the emitter does with them today
 
@@ -213,49 +225,63 @@ Translating says the emitter accepted a function. It doesn't say the Lean elabor
 that the translation is right ([trust](trust.md#trust-boundaries)). A unit is a whole source file, so the counts
 include its functions that aren't hot.
 
+**Measured again after #105 and #107,** on z, at commit `41bd400`, which is `main` at `9718b50` with this page's
+proposal on it, and changes nothing the emitter does. `demand.json` dates the run 2026-11-11, in UTC: it was the
+evening of 2026-11-10 on z. The proposal's run, at `df3e997` on 2026-11-10, translated 24 of the 798 functions in the
+ten projects that aren't rejected as built and 241 relaxed, and 19 of their 85 named kernels relaxed, 16 of them in
+the six. Now it's 31 and 279, and 25 of the 85, 22 of them in the six. Every gain is #107's: VZEROUPPER, PCLMULQDQ,
+AESNI, the saturating packs, PMULH, PAVG, PSADBW, PSIGN, PHADD and BZHI are modeled now. No function translated
+before and is refused now, so #105's new refusals cost none here. The tables are the new run's.
+
 | Project | Units | Instructions | Functions | Translate as built | Relaxed |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| base64 | 2 | 1,528 | 4 | 0 | 0 |
+| base64 | 2 | 1,528 | 4 | 0 | 2 |
 | blake3 | 2 | 8,483 | 5 | 0 | 3 |
-| flac | 12 | 39,563 | 247 | 0 | 105 |
+| flac | 12 | 39,563 | 247 | 0 | 109 |
 | libdeflate | 2 | 15,867 | 28 | 1 | 9 |
-| libsodium | 6 | 10,491 | 30 | 5 | 5 |
-| libwebp | 14 | 29,633 | 234 | 3 | 39 |
+| libsodium | 6 | 10,491 | 30 | 7 | 7 |
+| libwebp | 14 | 29,633 | 234 | 8 | 68 |
 | llama.cpp | 2 | 22,170 | 40 | 0 | 0 |
 | opus | 6 | 7,716 | 30 | 3 | 8 |
 | xnnpack | 4 | 2,214 | 4 | 0 | 0 |
 | xxhash | 2 | 18,251 | 93 | 10 | 27 |
-| zlib-ng | 7 | 6,835 | 25 | 1 | 17 |
+| zlib-ng | 7 | 6,835 | 25 | 1 | 20 |
 | zstd | 5 | 37,947 | 67 | 1 | 31 |
 
 Of the kernels the profiles name:
 
 | Project | Kernels named | Translate as built | Relaxed |
 | --- | ---: | ---: | ---: |
-| base64 | 4 | 0 | 0 |
+| base64 | 4 | 0 | 2 |
 | blake3 | 2 | 0 | 0 |
-| flac | 16 | 0 | 3 |
+| flac | 16 | 0 | 6 |
 | libdeflate | 3 | 0 | 0 |
-| libsodium | 7 | 3 | 3 |
-| libwebp | 21 | 0 | 2 |
+| libsodium | 7 | 4 | 4 |
+| libwebp | 21 | 0 | 3 |
 | llama.cpp | 5 | 0 | 0 |
 | opus | 7 | 0 | 0 |
 | xnnpack | 4 | 0 | 0 |
 | xxhash | 5 | 0 | 2 |
-| zlib-ng | 10 | 0 | 6 |
+| zlib-ng | 10 | 0 | 7 |
 | zstd | 7 | 0 | 3 |
 
-Nineteen of the 85 named kernels translate whole in the relaxed run, sixteen of them in the six recommended projects:
+Twenty-five of the 85 named kernels in the projects that aren't rejected translate whole in the relaxed run, 22 of
+them in the six approved projects, against 19 and 16 in the proposal's run. Those new since #107 are marked *new*:
 
 - **zlib-ng:** `longest_match_avx512`, 54% of compressing, and `compress_block`, `build_tree`, `insert_string`,
-  `quick_insert_string` and `zng_inflate_table`.
+  `quick_insert_string` and `zng_inflate_table`, and *new* `crc32_fold_vpclmulqdq`, with its 84 PCLMULQDQ calls.
 - **libsodium, as built:** `fill_block_with_xor` and `argon2_fill_segment_avx512f`, 99% of Argon2id between them, and
-  `blake2b_compress_avx2`.
+  `blake2b_compress_avx2`, and *new* `gh_ad_blocks`, AES-GCM's GHASH, which has no workload of its own here.
 - **xxHash:** `XXH64` and `XXH32`, each a quarter of `xxhsum -b`. Both are scalar.
-- **FLAC:** `FLAC__MD5Transform`, `FLAC__crc16` and `FLAC__crc16_update_words64`. All three are scalar.
-- **libwebp:** `BuildHuffmanTable` and `VectorMismatch_AVX2`.
+- **FLAC:** `FLAC__MD5Transform`, `FLAC__crc16` and `FLAC__crc16_update_words64`, all three scalar, and *new* its two
+  integer residual kernels, 20% of `flac -8` between them, and `FLAC__precompute_partition_info_sums_intrin_avx2`, all
+  three AVX2, whose first reason was VZEROUPPER.
+- **libwebp:** `BuildHuffmanTable` and `VectorMismatch_AVX2`, and *new* `CombinedShannonEntropy_AVX2`, 37% of
+  `cwebp -lossless`.
 - **zstd,** an alternate: `ZSTD_btGetAllMatches_noDict_3`, 51% of level 19, `ZSTD_insertBt1` and
   `ZSTD_encodeSequences_bmi2`.
+
+And base64's two decoders, *new*, though base64 is rejected.
 
 ### What stops the rest
 
@@ -263,17 +289,17 @@ Functions by first reason, relaxed, in each project:
 
 | Project | What stops the rest, relaxed: functions by first reason |
 | --- | --- |
-| base64 | intrinsic llvm.x86.avx.ptestz.256: 2; inline assembly: 1; intrinsic llvm.x86.avx512.pmultishift.qb.512: 1 |
+| base64 | inline assembly: 1; intrinsic llvm.x86.avx512.pmultishift.qb.512: 1 |
 | blake3 | intrinsic llvm.prefetch: 2 |
-| flac | call to external functions in a function with a stack frame or promises about memory, which IRLean.World doesn't wrap yet: 64; function attribute memory on a function whose calls outside the module access memory: 17; function attribute norecurse on a function that calls outside the module: 13; function attribute nofree on a function whose calls outside the module have effects: 10; parameter attribute noalias: 8; metadata !alias: 7; call to @_, which isn't translated: 6; call to external @_, which touches memory: F4: 4; others: 14 |
+| flac | call to external functions in a function with a stack frame or promises about memory, which IRLean.World doesn't wrap yet: 64; function attribute memory on a function whose calls outside the module access memory: 17; function attribute norecurse on a function that calls outside the module: 13; function attribute nofree on a function whose calls outside the module have effects: 10; parameter attribute noalias: 8; metadata !alias: 7; call to @_, which isn't translated: 6; call to external @_, which touches memory: F4: 4; others: 10 |
 | libdeflate | call to @_, which isn't translated: 3; instruction load volatile: 3; metadata !range: 3; call parameter attribute readonly: 2; intrinsic llvm.experimental.noalias.scope.decl: 2; intrinsic llvm.prefetch: 2; call to external @_, which touches memory: F4: 1; call to external functions in a function with a stack frame or promises about memory, which IRLean.World doesn't wrap yet: 1; others: 2 |
-| libsodium | call to external functions in a function with a stack frame or promises about memory, which IRLean.World doesn't wrap yet: 17; call to @_, which isn't translated: 2; function attribute norecurse on a function that calls outside the module: 2; call to external @_, which may be null: 1; instruction load volatile: 1; intrinsic llvm.x86.aesni.aeskeygenassist: 1; intrinsic llvm.x86.pclmulqdq: 1 |
-| libwebp | call to external functions in a function with a stack frame or promises about memory, which IRLean.World doesn't wrap yet: 41; in a cycle with a function refused for: parameter attribute noalias: 27; call to external @_, which touches memory: F4: 21; parameter attribute noalias: 15; intrinsic llvm.x86.sse2.packsswb.128: 12; intrinsic llvm.experimental.noalias.scope.decl: 11; intrinsic llvm.x86.sse2.pavg.b: 11; in a cycle with a function refused for: call to external functions in a function with a stack frame or promises about memory, which IRLean.World doesn't wrap yet: 10; others: 47 |
-| llama.cpp | type: a vector of pointers: 9; intrinsic llvm.x86.avx2.psign.b: 7; intrinsic llvm.fma: 6; instruction freeze of a vector: 4; intrinsic llvm.x86.avx.max.ps.256: 4; intrinsic llvm.x86.ssse3.phadd.w.128: 3; intrinsic llvm.experimental.noalias.scope.decl: 2; intrinsic llvm.fmuladd: 2; others: 3 |
+| libsodium | call to external functions in a function with a stack frame or promises about memory, which IRLean.World doesn't wrap yet: 17; call to @_, which isn't translated: 2; function attribute norecurse on a function that calls outside the module: 2; call to external @_, which may be null: 1; instruction load volatile: 1 |
+| libwebp | call to external functions in a function with a stack frame or promises about memory, which IRLean.World doesn't wrap yet: 41; parameter attribute noalias: 28; in a cycle with a function refused for: parameter attribute noalias: 27; call to external @_, which touches memory: F4: 23; metadata !alias: 14; intrinsic llvm.experimental.noalias.scope.decl: 11; in a cycle with a function refused for: call to external functions in a function with a stack frame or promises about memory, which IRLean.World doesn't wrap yet: 10; function attribute norecurse on a function that calls outside the module: 3; others: 9 |
+| llama.cpp | intrinsic llvm.fma: 15; type: a vector of pointers: 9; instruction freeze of a vector: 4; intrinsic llvm.x86.avx.max.ps.256: 4; intrinsic llvm.fmuladd: 3; intrinsic llvm.experimental.noalias.scope.decl: 2; parameter attribute noalias: 2; call to external @_, which touches memory: F4: 1 |
 | opus | call to external functions in a function with a stack frame or promises about memory, which IRLean.World doesn't wrap yet: 12; call to @_, which isn't translated: 2; call to external @_, which touches memory: F4: 1; fast-math flag nnan: 1; function attribute norecurse on a function that calls outside the module: 1; intrinsic llvm.fmuladd: 1; intrinsic llvm.x86.sse.rcp.ps: 1; metadata !alias: 1; others: 2 |
 | xnnpack | instruction inttoptr: 3; intrinsic llvm.masked.load: 1 |
 | xxhash | intrinsic llvm.experimental.noalias.scope.decl: 24; call attribute memory: 23; intrinsic llvm.prefetch: 6; call return attribute dereferenceable_or_null: 3; metadata !noalias: 3; call parameter attribute captures(address): 2; call to @_, which isn't translated: 2; parameter attribute noalias: 2; others: 1 |
-| zlib-ng | call to @_, which isn't translated: 3; intrinsic llvm.x86.pclmulqdq: 2; call to external @_, which touches memory: F4: 1; intrinsic llvm.memmove: 1; intrinsic llvm.x86.bmi.bzhi.32: 1 |
+| zlib-ng | call to @_, which isn't translated: 2; call parameter attribute readonly: 1; call to external @_, which touches memory: F4: 1; intrinsic llvm.memmove: 1 |
 | zstd | call to external functions in a function with a stack frame or promises about memory, which IRLean.World doesn't wrap yet: 18; call to @_, which isn't translated: 9; intrinsic llvm.memmove: 3; inline assembly: 2; call attribute memory: 1; intrinsic llvm.prefetch: 1; metadata !noalias: 1; type: a vector of pointers: 1 |
 
 And added up over the ten projects that aren't rejected, which is the coverage lanes' demand:
@@ -281,45 +307,33 @@ And added up over the ten projects that aren't rejected, which is the coverage l
 | What stops a function, relaxed, in the projects that aren't rejected | Functions | Projects |
 | --- | ---: | --- |
 | call to external functions in a function with a stack frame or promises about memory, which IRLean.World doesn't wrap yet | 153 | flac, libdeflate, libsodium, libwebp, opus, zstd |
+| parameter attribute noalias | 41 | flac, libwebp, llama.cpp, opus, xxhash |
 | intrinsic llvm.experimental.noalias.scope.decl | 39 | libdeflate, libwebp, llama.cpp, xxhash |
-| call to @_, which isn't translated | 29 | flac, libdeflate, libsodium, libwebp, opus, xxhash, zlib-ng, zstd |
-| call to external @_, which touches memory: F4 | 29 | flac, libdeflate, libwebp, llama.cpp, opus, zlib-ng |
+| call to external @_, which touches memory: F4 | 31 | flac, libdeflate, libwebp, llama.cpp, opus, zlib-ng |
+| call to @_, which isn't translated | 28 | flac, libdeflate, libsodium, libwebp, opus, xxhash, zlib-ng, zstd |
 | in a cycle with a function refused for: parameter attribute noalias | 27 | libwebp |
-| parameter attribute noalias | 27 | flac, libwebp, llama.cpp, opus, xxhash |
 | call attribute memory | 24 | xxhash, zstd |
+| metadata !alias | 23 | flac, libwebp, opus, xxhash |
 | function attribute norecurse on a function that calls outside the module | 19 | flac, libsodium, libwebp, opus |
 | function attribute memory on a function whose calls outside the module access memory | 17 | flac |
-| metadata !alias | 17 | flac, libwebp, opus, xxhash |
-| intrinsic llvm.x86.sse2.packsswb.128 | 12 | libwebp |
-| intrinsic llvm.x86.sse2.pavg.b | 11 | libwebp |
+| intrinsic llvm.fma | 15 | llama.cpp |
 | type: a vector of pointers | 11 | llama.cpp, opus, zstd |
 | function attribute nofree on a function whose calls outside the module have effects | 10 | flac |
 | in a cycle with a function refused for: call to external functions in a function with a stack frame or promises about memory, which IRLean.World doesn't wrap yet | 10 | libwebp |
-| intrinsic llvm.x86.sse2.packuswb.128 | 10 | libwebp |
 | intrinsic llvm.prefetch | 9 | libdeflate, xxhash, zstd |
-| intrinsic llvm.fmuladd | 7 | flac, llama.cpp, opus |
-| intrinsic llvm.x86.avx2.psign.b | 7 | llama.cpp |
-| intrinsic llvm.x86.sse2.pmulhu.w | 7 | libwebp |
-| intrinsic llvm.fma | 6 | llama.cpp |
+| intrinsic llvm.fmuladd | 8 | flac, llama.cpp, opus |
 | call return attribute dereferenceable_or_null | 5 | flac, xxhash |
 | instruction freeze of a vector | 5 | libwebp, llama.cpp |
 | intrinsic llvm.memmove | 5 | libdeflate, zlib-ng, zstd |
+| indirect call that can reach @_, which isn't translated | 4 | flac, libdeflate, libwebp |
 | instruction load volatile | 4 | libdeflate, libsodium |
 | intrinsic llvm.x86.avx.max.ps.256 | 4 | llama.cpp |
-| intrinsic llvm.x86.avx.vzeroupper | 4 | flac |
-| intrinsic llvm.x86.sse2.psad.bw | 4 | libwebp |
 | metadata !noalias | 4 | xxhash, zstd |
-| indirect call that can reach @_, which isn't translated | 3 | flac, libdeflate |
+| call parameter attribute readonly | 3 | libdeflate, zlib-ng |
 | instruction inttoptr | 3 | xnnpack |
-| intrinsic llvm.x86.pclmulqdq | 3 | libsodium, zlib-ng |
-| intrinsic llvm.x86.ssse3.phadd.w.128 | 3 | llama.cpp |
 | metadata !range | 3 | libdeflate |
 | call parameter attribute captures(address) | 2 | xxhash |
-| call parameter attribute readonly | 2 | libdeflate |
 | inline assembly | 2 | zstd |
-| intrinsic llvm.x86.avx2.pmulh.w | 2 | libwebp |
-| intrinsic llvm.x86.sse2.packssdw.128 | 2 | libwebp |
-| intrinsic llvm.x86.sse2.pmulh.w | 2 | libwebp |
 | llvm.loop.mustprogress off a loop's latch, in a function with irreducible control flow | 2 | flac |
 | more than one parameter with attribute initializes | 2 | libwebp |
 | call to external @_, which may be null | 1 | libsodium |
@@ -327,42 +341,42 @@ And added up over the ten projects that aren't rejected, which is the coverage l
 | constant ptr getelementptr inbounds nuw (i8, ptr @_, i64 8) with flags that don't plainly hold | 1 | libwebp |
 | fast-math flag nnan | 1 | opus |
 | intrinsic llvm.masked.load | 1 | xnnpack |
-| intrinsic llvm.x86.aesni.aeskeygenassist | 1 | libsodium |
-| intrinsic llvm.x86.avx2.packssdw | 1 | libwebp |
-| intrinsic llvm.x86.avx2.pavg.b | 1 | llama.cpp |
-| intrinsic llvm.x86.bmi.bzhi.32 | 1 | zlib-ng |
 | intrinsic llvm.x86.sse.rcp.ps | 1 | opus |
 | parameter attribute dead_on_unwind | 1 | libwebp |
 
 What that asks of the lanes, most functions first:
 
-1. **`!tbaa`,** which the relaxed run sets aside. As built, 774 of 798 functions are refused, and `!tbaa` is the
+1. **`!tbaa`,** which the relaxed run sets aside. As built, 767 of 798 functions are refused, and `!tbaa` is the
    first reason for 294 of them, more than any other, with 27 more in a cycle with one.
 2. **Calls outside the module from a function with a stack frame,** 153 functions and 10 more behind them: F4's.
 3. **`noalias`,** as a parameter attribute, `llvm.experimental.noalias.scope.decl`, `!noalias` and `!alias.scope`:
-   114 functions, all memory lane.
-4. **`llvm.prefetch`,** 299 calls. It changes no value. It's the first reason for `XXHL64_default_avx512`, and it's
+   134 functions, all memory lane. It was 114 in the proposal's run: what an intrinsic stopped first then, `noalias`
+   stops now, in libwebp most.
+4. **Floating point.** `llvm.fma` is the first reason for four of llama.cpp's five kernels, and the only intrinsic
+   they call that the model refuses, and `llvm.fmuladd` for FLAC's autocorrelation, 22% of `flac -8`.
+5. **`llvm.prefetch`,** 299 calls. It changes no value. It's the first reason for `XXHL64_default_avx512`, and it's
    in three of the four XNNPACK kernels.
-5. **`llvm.x86.avx.vzeroupper`,** four calls, which are the first reason for FLAC's two integer residual kernels,
-   20% of `flac -8`, and for its partition sums. It changes no value either.
 6. **FLAC's function attributes:** `"no-signed-zeros-fp-math"` and its three siblings sit on every function, with or
    without floating point in it, and stop all 247 as built.
+
+In the proposal's run, `llvm.x86.avx.vzeroupper` was fifth: four calls, the first reason for FLAC's two integer
+residual kernels and its partition sums. It's modeled since #107, and all three translate.
 
 ### The x86 intrinsics
 
 | Project | `llvm.x86.*` the model has, with calls | `llvm.x86.*` it refuses, with calls |
 | --- | --- | --- |
-| base64 | `avx2.pmadd.ub.sw` 30, `avx2.pmadd.wd` 30, `avx2.pshuf.b` 86 | `avx.ptestz.256` 28, `avx512.permvar.qi.512` 10, `avx512.pmultishift.qb.512` 10 |
+| base64 | `avx.ptestz.256` 28, `avx2.pmadd.ub.sw` 30, `avx2.pmadd.wd` 30, `avx2.pshuf.b` 86 | `avx512.permvar.qi.512` 10, `avx512.pmultishift.qb.512` 10 |
 | blake3 | None | None |
-| flac | `avx2.pmadd.wd` 78, `avx2.psra.d` 24, `avx2.psrl.q` 12 | `avx.vzeroupper` 4 |
+| flac | `avx.vzeroupper` 4, `avx2.pmadd.wd` 78, `avx2.psra.d` 24, `avx2.psrl.q` 12 | None |
 | libdeflate | None | None |
-| libsodium | None | `aesni.aesenc` 988, `aesni.aesenclast` 76, `aesni.aeskeygenassist` 13, `pclmulqdq` 490 |
-| libwebp | `avx2.pmadd.wd` 3, `sse2.pmadd.wd` 158 | `avx2.packssdw` 7, `avx2.packsswb` 2, `avx2.packuswb` 10, `avx2.pavg.b` 28, `avx2.pmulh.w` 7, `avx2.psad.bw` 14, `sse2.packssdw.128` 59, `sse2.packsswb.128` 48, `sse2.packuswb.128` 146, `sse2.pavg.b` 47, `sse2.pmulh.w` 30, `sse2.pmulhu.w` 96, `sse2.psad.bw` 20, `ssse3.psign.w.128` 8 |
-| llama.cpp | `avx2.pmadd.ub.sw` 598, `avx2.pmadd.wd` 267, `avx2.pshuf.b` 74, `avx512.pmaddubs.w.512` 384, `avx512.pmaddw.d.512` 120, `avx512.pshuf.b.512` 48, `avx512.vpdpbusd.256` 237, `avx512.vpdpbusd.512` 192, `sse2.pmadd.wd` 2, `ssse3.pshuf.b.128` 28 | `avx.cvt.ps2dq.256` 40, `avx.max.ps.256` 55, `avx.round.ps.256` 40, `avx2.packssdw` 20, `avx2.packsswb` 10, `avx2.pavg.b` 16, `avx2.psign.b` 454, `sse.max.ps` 18, `sse.max.ss` 9, `sse2.packuswb.128` 1, `ssse3.phadd.d.128` 2, `ssse3.phadd.w.128` 7, `vcvtps2ph.128` 9 |
+| libsodium | `aesni.aesenc` 988, `aesni.aesenclast` 76, `aesni.aeskeygenassist` 13, `pclmulqdq` 490 | None |
+| libwebp | `avx2.packssdw` 7, `avx2.packsswb` 2, `avx2.packuswb` 10, `avx2.pavg.b` 28, `avx2.pmadd.wd` 3, `avx2.pmulh.w` 7, `avx2.psad.bw` 14, `sse2.packssdw.128` 59, `sse2.packsswb.128` 48, `sse2.packuswb.128` 146, `sse2.pavg.b` 47, `sse2.pmadd.wd` 158, `sse2.pmulh.w` 30, `sse2.pmulhu.w` 96, `sse2.psad.bw` 20, `ssse3.psign.w.128` 8 | None |
+| llama.cpp | `avx2.packssdw` 20, `avx2.packsswb` 10, `avx2.pavg.b` 16, `avx2.pmadd.ub.sw` 598, `avx2.pmadd.wd` 267, `avx2.pshuf.b` 74, `avx2.psign.b` 454, `avx512.pmaddubs.w.512` 384, `avx512.pmaddw.d.512` 120, `avx512.pshuf.b.512` 48, `avx512.vpdpbusd.256` 237, `avx512.vpdpbusd.512` 192, `sse2.packuswb.128` 1, `sse2.pmadd.wd` 2, `ssse3.phadd.d.128` 2, `ssse3.phadd.w.128` 7, `ssse3.pshuf.b.128` 28 | `avx.cvt.ps2dq.256` 40, `avx.max.ps.256` 55, `avx.round.ps.256` 40, `sse.max.ps` 18, `sse.max.ss` 9, `vcvtps2ph.128` 9 |
 | opus | None | `avx.hadd.ps.256` 3, `avx.maskload.ps.256` 9, `sse.max.ps` 5, `sse.rcp.ps` 1, `sse.rsqrt.ps` 3, `sse2.cvttps2dq` 1 |
-| xnnpack | `avx512.vpdpbusd.512` 156 | `avx512.mask.cvtps2dq.512` 14, `avx512.mask.pmovs.db.512` 14, `avx512.max.ps.512` 10, `avx512.min.ps.512` 24 |
+| xnnpack | `avx512.mask.pmovs.db.512` 14, `avx512.vpdpbusd.512` 156 | `avx512.mask.cvtps2dq.512` 14, `avx512.max.ps.512` 10, `avx512.min.ps.512` 24 |
 | xxhash | `avx512.pternlog.d.512` 10 | None |
-| zlib-ng | `avx2.pshuf.b` 1, `avx512.pternlog.d.512` 32, `ssse3.pshuf.b.128` 38 | `bmi.bzhi.32` 7, `pclmulqdq` 96, `pclmulqdq.512` 64 |
+| zlib-ng | `avx2.pshuf.b` 1, `avx512.pternlog.d.512` 32, `bmi.bzhi.32` 7, `pclmulqdq` 96, `pclmulqdq.512` 64, `ssse3.pshuf.b.128` 38 | None |
 | zstd | None | None |
 
 Every intrinsic the units call that the model refuses, over the ten projects that aren't rejected, which is the x86
@@ -370,55 +384,30 @@ lane's demand, with the floating-point and memory lanes' beside it:
 
 | Intrinsic the model refuses, in the projects that aren't rejected | Calls | Lane | Projects |
 | --- | ---: | --- | --- |
-| `llvm.x86.aesni.aesenc` | 988 | long tail | libsodium |
-| `llvm.x86.pclmulqdq` | 586 | long tail | libsodium, zlib-ng |
 | `llvm.fmuladd` | 499 | floating point | flac, libwebp, llama.cpp, opus |
-| `llvm.x86.avx2.psign.b` | 454 | long tail | llama.cpp |
 | `llvm.experimental.noalias.scope.decl` | 372 | memory | libdeflate, libwebp, llama.cpp, opus, xxhash |
 | `llvm.prefetch` | 299 | none | libdeflate, libsodium, xnnpack, xxhash, zstd |
 | `llvm.fma` | 198 | floating point | llama.cpp, opus, xnnpack |
-| `llvm.x86.sse2.packuswb.128` | 147 | long tail | libwebp, llama.cpp |
-| `llvm.x86.sse2.pmulhu.w` | 96 | long tail | libwebp |
 | `llvm.masked.gather` | 77 | memory | llama.cpp |
-| `llvm.x86.aesni.aesenclast` | 76 | long tail | libsodium |
 | `llvm.vector.reduce.fadd` | 73 | floating point | flac |
 | `llvm.memmove` | 68 | memory | flac, libdeflate, zlib-ng, zstd |
-| `llvm.x86.pclmulqdq.512` | 64 | long tail | zlib-ng |
-| `llvm.x86.sse2.packssdw.128` | 59 | long tail | libwebp |
 | `llvm.x86.avx.max.ps.256` | 55 | long tail | llama.cpp |
-| `llvm.x86.sse2.packsswb.128` | 48 | long tail | libwebp |
-| `llvm.x86.sse2.pavg.b` | 47 | long tail | libwebp |
-| `llvm.x86.avx2.pavg.b` | 44 | long tail | libwebp, llama.cpp |
 | `llvm.x86.avx.cvt.ps2dq.256` | 40 | long tail | llama.cpp |
 | `llvm.x86.avx.round.ps.256` | 40 | long tail | llama.cpp |
 | `llvm.pdep` | 36 | long tail | llama.cpp |
-| `llvm.x86.sse2.pmulh.w` | 30 | long tail | libwebp |
 | `llvm.masked.store` | 28 | memory | xnnpack, zlib-ng |
-| `llvm.x86.avx2.packssdw` | 27 | long tail | libwebp, llama.cpp |
 | `llvm.x86.avx512.min.ps.512` | 24 | long tail | xnnpack |
 | `llvm.x86.sse.max.ps` | 23 | long tail | llama.cpp, opus |
 | `llvm.masked.load` | 20 | memory | llama.cpp, xnnpack, zlib-ng |
-| `llvm.x86.sse2.psad.bw` | 20 | long tail | libwebp |
-| `llvm.x86.avx2.psad.bw` | 14 | long tail | libwebp |
 | `llvm.x86.avx512.mask.cvtps2dq.512` | 14 | long tail | xnnpack |
-| `llvm.x86.avx512.mask.pmovs.db.512` | 14 | long tail | xnnpack |
-| `llvm.x86.aesni.aeskeygenassist` | 13 | long tail | libsodium |
-| `llvm.x86.avx2.packsswb` | 12 | long tail | libwebp, llama.cpp |
-| `llvm.x86.avx2.packuswb` | 10 | long tail | libwebp |
 | `llvm.x86.avx512.max.ps.512` | 10 | long tail | xnnpack |
 | `llvm.x86.avx.maskload.ps.256` | 9 | long tail | opus |
 | `llvm.x86.sse.max.ss` | 9 | long tail | llama.cpp |
 | `llvm.x86.vcvtps2ph.128` | 9 | long tail | llama.cpp |
-| `llvm.x86.ssse3.psign.w.128` | 8 | long tail | libwebp |
-| `llvm.x86.avx2.pmulh.w` | 7 | long tail | libwebp |
-| `llvm.x86.bmi.bzhi.32` | 7 | long tail | zlib-ng |
-| `llvm.x86.ssse3.phadd.w.128` | 7 | long tail | llama.cpp |
-| `llvm.x86.avx.vzeroupper` | 4 | long tail | flac |
 | `llvm.sqrt` | 3 | floating point | opus |
 | `llvm.x86.avx.hadd.ps.256` | 3 | long tail | opus |
 | `llvm.x86.sse.rsqrt.ps` | 3 | long tail | opus |
 | `llvm.floor` | 2 | floating point | opus |
-| `llvm.x86.ssse3.phadd.d.128` | 2 | long tail | llama.cpp |
 | `llvm.stackrestore` | 1 | none | opus |
 | `llvm.stacksave` | 1 | none | opus |
 | `llvm.x86.sse.rcp.ps` | 1 | long tail | opus |
@@ -426,16 +415,17 @@ lane's demand, with the floating-point and memory lanes' beside it:
 
 Read by what a kernel needs, not by count:
 
-- **The saturating packs,** `packuswb`, `packsswb` and `packssdw`, at 128 and 256 bits: 303 calls, and nearly every
-  libwebp kernel.
-- **The high multiplies,** `pmulh.w` and `pmulhu.w`: 133 calls, libwebp's transforms and colour conversion.
-- **`pavg.b` and `psad.bw`:** 125 calls, libwebp and llama.cpp.
-- **`psign.b`,** 454 calls, in llama.cpp's `q5_0` and `q8_0` dot products, where it carries a sign across a
-  `maddubs`.
-- **`pclmulqdq`,** 650 calls with the 512-bit form: zlib-ng's CRC-32 and libsodium's GHASH.
-- **`aesni.aesenc`,** 988 calls, libsodium's AES-GCM only, which has no workload of its own here.
-- **`bmi.bzhi.32`,** 7 calls, which stands between the model and `chunkmemset_avx512`, and so `inflate_fast_avx512`,
-  90% of zlib-ng's decompressing.
+- **Every `llvm.x86.*` intrinsic left is on floating-point values:** 14 of them, 241 calls, in llama.cpp, Opus and
+  XNNPACK, and only llama.cpp is approved. They wait for the floating-point lane, as `llvm.fma` and `llvm.fmuladd` do.
+- **`llvm.pdep`,** 36 calls in llama.cpp. At this pin it reaches IR as a generic intrinsic, not as `llvm.x86.*`.
+- **`chunkmemset_avx512`,** in front of `inflate_fast_avx512`, 90% of zlib-ng's decompressing, now stops at `call
+  parameter attribute readonly`, the first reason behind BZHI.
+
+In the proposal's run, the x86 lane's demand was 39 refused `llvm.x86.*` intrinsics with 3,025 calls, read as: the
+saturating packs, 303 calls and nearly every libwebp kernel; the high multiplies `pmulh.w` and `pmulhu.w`, 133;
+`pavg.b` and `psad.bw`, 125; `psign.b`, 454, in llama.cpp's `q5_0` and `q8_0` dot products; `pclmulqdq`, 650 with the
+512-bit form, zlib-ng's CRC-32 and libsodium's GHASH; `aesni.aesenc`, 988, libsodium's AES-GCM only; and
+`bmi.bzhi.32`, 7, in front of `chunkmemset_avx512`. #107 modeled every one of them.
 
 ### Each kernel
 
@@ -443,10 +433,10 @@ Read by what a kernel needs, not by count:
 | --- | --- | ---: | --- | --- | --- |
 | flac | `FLAC__lpc_compute_autocorrelation_intrin_fma_lag_12` | 338 | function attribute "no-signed-zeros-fp-math" | intrinsic llvm.fmuladd | `fmuladd` 50, `memset` 1, `vector.reduce.fadd` 12 |
 | flac | `FLAC__lpc_compute_autocorrelation_intrin_fma_lag_16` | 464 | function attribute "no-signed-zeros-fp-math" | intrinsic llvm.fmuladd | `fmuladd` 103, `memset` 1, `vector.reduce.fadd` 16 |
-| flac | `FLAC__lpc_compute_residual_from_qlp_coefficients_16_intrin_avx2` | 1,309 | function attribute "no-signed-zeros-fp-math" | intrinsic llvm.x86.avx.vzeroupper | `vector.reduce.add` 1, `x86.avx.vzeroupper` 1, `x86.avx2.pmadd.wd` 78, `x86.avx2.psra.d` 12 |
-| flac | `FLAC__lpc_compute_residual_from_qlp_coefficients_intrin_avx2` | 963 | function attribute "no-signed-zeros-fp-math" | intrinsic llvm.x86.avx.vzeroupper | `vector.reduce.add` 1, `x86.avx.vzeroupper` 1, `x86.avx2.psra.d` 12 |
+| flac | `FLAC__lpc_compute_residual_from_qlp_coefficients_16_intrin_avx2` | 1,309 | function attribute "no-signed-zeros-fp-math" | ok | `vector.reduce.add` 1, `x86.avx.vzeroupper` 1, `x86.avx2.pmadd.wd` 78, `x86.avx2.psra.d` 12 |
+| flac | `FLAC__lpc_compute_residual_from_qlp_coefficients_intrin_avx2` | 963 | function attribute "no-signed-zeros-fp-math" | ok | `vector.reduce.add` 1, `x86.avx.vzeroupper` 1, `x86.avx2.psra.d` 12 |
 | flac | `FLAC__fixed_compute_best_predictor_wide_intrin_avx2` | 233 | function attribute "no-signed-zeros-fp-math" | function attribute norecurse on a function that calls outside the module | `abs` 5, `umin` 6, `vector.reduce.add` 5 |
-| flac | `FLAC__precompute_partition_info_sums_intrin_avx2` | 258 | function attribute "no-signed-zeros-fp-math" | intrinsic llvm.x86.avx.vzeroupper | `abs` 10, `assume` 1, `ctlz` 1, `vector.reduce.add` 2, `x86.avx.vzeroupper` 1 |
+| flac | `FLAC__precompute_partition_info_sums_intrin_avx2` | 258 | function attribute "no-signed-zeros-fp-math" | ok | `abs` 10, `assume` 1, `ctlz` 1, `vector.reduce.add` 2, `x86.avx.vzeroupper` 1 |
 | flac | `FLAC__MD5Transform` | 542 | function attribute "no-signed-zeros-fp-math" | ok | `fshl` 64 |
 | flac | `FLAC__lpc_restore_signal` | 721 | function attribute "no-signed-zeros-fp-math" | parameter attribute noalias | `assume` 3, `vector.reduce.add` 9 |
 | flac | `FLAC__lpc_compute_lp_coefficients` | 155 | function attribute "no-signed-zeros-fp-math" | intrinsic llvm.fmuladd | `fmuladd` 7, `lifetime.end` 1, `lifetime.start` 1, `umax` 1, `vector.reduce.fadd` 1 |
@@ -466,32 +456,32 @@ Read by what a kernel needs, not by count:
 | libsodium | `fill_block_with_xor` | 561 | ok | ok | `fshl` 32 |
 | libsodium | `argon2_fill_segment_avx512f` | 747 | ok | ok | `fshl` 32, `lifetime.end` 6, `lifetime.start` 6, `memcpy` 1, `memset` 6 |
 | libsodium | `salsa20_encrypt_bytes` | 1,333 | call to external functions in a function with a stack frame or promises about memory, which IRLean.World doesn't wrap yet | call to external functions in a function with a stack frame or promises about memory, which IRLean.World doesn't wrap yet | `fshl` 84, `lifetime.end` 1, `lifetime.start` 1 |
-| libsodium | `gh_ad_blocks` | 494 | intrinsic llvm.x86.pclmulqdq | intrinsic llvm.x86.pclmulqdq | `x86.pclmulqdq` 122 |
+| libsodium | `gh_ad_blocks` | 494 | ok | ok | `x86.pclmulqdq` 122 |
 | libwebp | `GetCoeffsFast` | 252 | call to external functions in a function with a stack frame or promises about memory, which IRLean.World doesn't wrap yet | call to external functions in a function with a stack frame or promises about memory, which IRLean.World doesn't wrap yet | `bswap` 4, `ctlz` 3, `experimental.noalias.scope.decl` 8, `fshl` 4 |
 | libwebp | `GetLargeValue` | 603 | call to external functions in a function with a stack frame or promises about memory, which IRLean.World doesn't wrap yet | call to external functions in a function with a stack frame or promises about memory, which IRLean.World doesn't wrap yet | `bswap` 11, `ctlz` 11, `experimental.noalias.scope.decl` 22, `fshl` 11 |
 | libwebp | `VP8ParseIntraModeRow` | 743 | call to external functions in a function with a stack frame or promises about memory, which IRLean.World doesn't wrap yet | call to external functions in a function with a stack frame or promises about memory, which IRLean.World doesn't wrap yet | `bswap` 13, `ctlz` 12, `experimental.noalias.scope.decl` 26, `fshl` 13, `memset` 2 |
-| libwebp | `Transform_SSE2` | 206 | metadata !tbaa | intrinsic llvm.x86.sse2.pmulh.w | `x86.sse2.packuswb.128` 4, `x86.sse2.pmulh.w` 8 |
-| libwebp | `VP8YuvToRgb32_SSE41` | 177 | metadata !tbaa | intrinsic llvm.x86.sse2.pmulhu.w | `uadd.sat` 4, `usub.sat` 4, `x86.sse2.packuswb.128` 6, `x86.sse2.pmulhu.w` 20 |
+| libwebp | `Transform_SSE2` | 206 | metadata !tbaa | parameter attribute noalias | `x86.sse2.packuswb.128` 4, `x86.sse2.pmulh.w` 8 |
+| libwebp | `VP8YuvToRgb32_SSE41` | 177 | metadata !tbaa | metadata !alias | `uadd.sat` 4, `usub.sat` 4, `x86.sse2.packuswb.128` 6, `x86.sse2.pmulhu.w` 20 |
 | libwebp | `DecodeImageData` | 652 | call to external functions in a function with a stack frame or promises about memory, which IRLean.World doesn't wrap yet | call to external functions in a function with a stack frame or promises about memory, which IRLean.World doesn't wrap yet | `memcpy` 2, `smax` 1, `smin` 1 |
 | libwebp | `BuildHuffmanTable` | 541 | metadata !tbaa | ok | `assume` 1, `lifetime.end` 2, `lifetime.start` 2, `memset` 1, `smin` 1 |
-| libwebp | `PredictorAdd13_SSE2` | 52 | metadata !tbaa | intrinsic llvm.x86.sse2.packuswb.128 | `x86.sse2.packuswb.128` 1 |
+| libwebp | `PredictorAdd13_SSE2` | 52 | metadata !tbaa | parameter attribute noalias | `x86.sse2.packuswb.128` 1 |
 | libwebp | `TransformColorInverse_AVX2` | 63 | in a cycle with a function refused for: metadata !tbaa | in a cycle with a function refused for: parameter attribute noalias | `x86.avx2.pmulh.w` 2 |
 | libwebp | `PredictorAdd12_AVX2` | 131 | in a cycle with a function refused for: metadata !tbaa | in a cycle with a function refused for: parameter attribute noalias | `x86.avx2.packuswb` 8 |
 | libwebp | `VP8LHashChainFill` | 373 | call to external functions in a function with a stack frame or promises about memory, which IRLean.World doesn't wrap yet | call to external functions in a function with a stack frame or promises about memory, which IRLean.World doesn't wrap yet | `memset` 2, `smax` 2, `smin` 3, `usub.sat` 1 |
 | libwebp | `VP8LGetBackwardReferences` | 2,229 | call to external functions in a function with a stack frame or promises about memory, which IRLean.World doesn't wrap yet | call to external functions in a function with a stack frame or promises about memory, which IRLean.World doesn't wrap yet | `assume` 2, `ctlz` 1, `lifetime.end` 19, `lifetime.start` 12, `memcpy` 11, `memset` 6, `smin` 1, `umin` 2 |
 | libwebp | `GetCombinedEntropyUnrefined_C` | 156 | more than one parameter with attribute initializes | more than one parameter with attribute initializes | `experimental.noalias.scope.decl` 4, `memset` 2 |
 | libwebp | `VP8LResidualImage` | 1,082 | call to external functions in a function with a stack frame or promises about memory, which IRLean.World doesn't wrap yet | call to external functions in a function with a stack frame or promises about memory, which IRLean.World doesn't wrap yet | `assume` 2, `lifetime.end` 5, `lifetime.start` 3, `memcpy` 28, `memset` 2, `smax` 1, `smin` 5, `umax` 1 |
-| libwebp | `CombinedShannonEntropy_AVX2` | 118 | metadata !tbaa | intrinsic llvm.x86.avx2.packssdw | `cttz` 1, `x86.avx2.packssdw` 4, `x86.avx2.packsswb` 2 |
+| libwebp | `CombinedShannonEntropy_AVX2` | 118 | metadata !tbaa | ok | `cttz` 1, `x86.avx2.packssdw` 4, `x86.avx2.packsswb` 2 |
 | libwebp | `VectorMismatch_AVX2` | 80 | metadata !tbaa | ok | None |
-| libwebp | `CollectColorBlueTransforms_AVX2` | 240 | metadata !tbaa | intrinsic llvm.x86.avx2.pmulh.w | `x86.avx2.pmulh.w` 3 |
-| libwebp | `QuantizeBlock_SSE41` | 75 | metadata !tbaa | intrinsic llvm.x86.sse2.pmulhu.w | `abs` 2, `smin` 2, `x86.sse2.packssdw.128` 2, `x86.sse2.packsswb.128` 1, `x86.sse2.pmulhu.w` 2, `x86.ssse3.psign.w.128` 2 |
-| libwebp | `FTransform_SSE2` | 111 | metadata !tbaa | intrinsic llvm.x86.sse2.packssdw.128 | `x86.sse2.packssdw.128` 4, `x86.sse2.pmadd.wd` 6 |
+| libwebp | `CollectColorBlueTransforms_AVX2` | 240 | metadata !tbaa | parameter attribute noalias | `x86.avx2.pmulh.w` 3 |
+| libwebp | `QuantizeBlock_SSE41` | 75 | metadata !tbaa | parameter attribute noalias | `abs` 2, `smin` 2, `x86.sse2.packssdw.128` 2, `x86.sse2.packsswb.128` 1, `x86.sse2.pmulhu.w` 2, `x86.ssse3.psign.w.128` 2 |
+| libwebp | `FTransform_SSE2` | 111 | metadata !tbaa | metadata !alias | `x86.sse2.packssdw.128` 4, `x86.sse2.pmadd.wd` 6 |
 | libwebp | `ITransform_SSE2` | 256 | intrinsic llvm.experimental.noalias.scope.decl | intrinsic llvm.experimental.noalias.scope.decl | `experimental.noalias.scope.decl` 5, `x86.sse2.packuswb.128` 5, `x86.sse2.pmulh.w` 12 |
 | libwebp | `SSE4x4_SSE2` | 53 | metadata !tbaa | parameter attribute noalias | `vector.reduce.add` 1, `x86.sse2.pmadd.wd` 2 |
-| llama.cpp | `ggml_gemm_q4_K_8x8_q8_K` | 3,034 | metadata !tbaa | intrinsic llvm.x86.ssse3.phadd.w.128 | `assume` 1, `fma` 32, `lifetime.end` 6, `lifetime.start` 6, `memset` 4, `x86.avx2.pmadd.ub.sw` 128, `x86.avx2.pmadd.wd` 24, `x86.avx512.pmaddubs.w.512` 128, `x86.avx512.pmaddw.d.512` 24, `x86.ssse3.phadd.w.128` 4 |
+| llama.cpp | `ggml_gemm_q4_K_8x8_q8_K` | 3,034 | metadata !tbaa | intrinsic llvm.fma | `assume` 1, `fma` 32, `lifetime.end` 6, `lifetime.start` 6, `memset` 4, `x86.avx2.pmadd.ub.sw` 128, `x86.avx2.pmadd.wd` 24, `x86.avx512.pmaddubs.w.512` 128, `x86.avx512.pmaddw.d.512` 24, `x86.ssse3.phadd.w.128` 4 |
 | llama.cpp | `ggml_gemv_q4_K_8x8_q8_K` | 386 | instruction freeze of a vector | instruction freeze of a vector | `assume` 1, `fma` 2, `memset` 9, `x86.avx2.pmadd.ub.sw` 16, `x86.avx2.pmadd.wd` 3, `x86.ssse3.phadd.w.128` 1 |
-| llama.cpp | `ggml_vec_dot_q4_K_q8_K` | 172 | metadata !tbaa | intrinsic llvm.x86.ssse3.phadd.w.128 | `fma` 2, `x86.avx2.pmadd.ub.sw` 8, `x86.avx2.pmadd.wd` 8, `x86.sse2.pmadd.wd` 1, `x86.ssse3.phadd.w.128` 1 |
-| llama.cpp | `ggml_vec_dot_q5_0_q8_0` | 146 | metadata !tbaa | intrinsic llvm.x86.avx2.psign.b | `assume` 1, `fma` 3, `x86.avx2.psign.b` 6, `x86.avx512.vpdpbusd.256` 3 |
+| llama.cpp | `ggml_vec_dot_q4_K_q8_K` | 172 | metadata !tbaa | intrinsic llvm.fma | `fma` 2, `x86.avx2.pmadd.ub.sw` 8, `x86.avx2.pmadd.wd` 8, `x86.sse2.pmadd.wd` 1, `x86.ssse3.phadd.w.128` 1 |
+| llama.cpp | `ggml_vec_dot_q5_0_q8_0` | 146 | metadata !tbaa | intrinsic llvm.fma | `assume` 1, `fma` 3, `x86.avx2.psign.b` 6, `x86.avx512.vpdpbusd.256` 3 |
 | llama.cpp | `ggml_vec_dot_q6_K_q8_K` | 162 | metadata !tbaa | intrinsic llvm.fma | `fma` 1, `x86.avx2.pmadd.ub.sw` 8, `x86.avx2.pmadd.wd` 9 |
 | opus | `op_pvq_search_sse2` | 335 | metadata !tbaa | intrinsic llvm.x86.sse.rcp.ps | `assume` 3, `fabs` 3, `fmuladd` 2, `memcpy` 1, `memset` 3, `smax` 6, `vector.reduce.add` 1, `x86.sse.max.ps` 5, `x86.sse.rcp.ps` 1, `x86.sse.rsqrt.ps` 3, `x86.sse2.cvttps2dq` 1 |
 | opus | `exp_rotation` | 837 | function attribute norecurse on a function that calls outside the module | function attribute norecurse on a function that calls outside the module | `assume` 4, `fmuladd` 36 |
@@ -516,9 +506,9 @@ Read by what a kernel needs, not by count:
 | zlib-ng | `insert_string` | 38 | metadata !tbaa | ok | None |
 | zlib-ng | `quick_insert_string` | 27 | metadata !tbaa | ok | None |
 | zlib-ng | `inflate_fast_avx512` | 923 | metadata !tbaa | call to @_, which isn't translated | `abs` 1, `masked.load` 1, `masked.store` 1, `memcpy` 20, `umin` 8, `x86.bmi.bzhi.32` 1 |
-| zlib-ng | `chunkmemset_avx512` | 223 | intrinsic llvm.x86.bmi.bzhi.32 | intrinsic llvm.x86.bmi.bzhi.32 | `abs` 1, `ctpop` 1, `cttz` 1, `lifetime.end` 1, `lifetime.start` 1, `masked.load` 6, `masked.store` 3, `memcpy` 1, `memmove` 1, `memset` 1, `x86.avx2.pshuf.b` 1, `x86.bmi.bzhi.32` 6, `x86.ssse3.pshuf.b.128` 2 |
+| zlib-ng | `chunkmemset_avx512` | 223 | call parameter attribute readonly | call parameter attribute readonly | `abs` 1, `ctpop` 1, `cttz` 1, `lifetime.end` 1, `lifetime.start` 1, `masked.load` 6, `masked.store` 3, `memcpy` 1, `memmove` 1, `memset` 1, `x86.avx2.pshuf.b` 1, `x86.bmi.bzhi.32` 6, `x86.ssse3.pshuf.b.128` 2 |
 | zlib-ng | `zng_inflate_table` | 562 | metadata !tbaa | ok | `assume` 2, `lifetime.end` 2, `lifetime.start` 2, `memset` 1, `umax` 1, `umin` 1 |
-| zlib-ng | `crc32_fold_vpclmulqdq` | 560 | metadata !tbaa | intrinsic llvm.x86.pclmulqdq | `lifetime.end` 2, `lifetime.start` 2, `memcpy` 3, `x86.avx512.pternlog.d.512` 16, `x86.pclmulqdq` 52, `x86.pclmulqdq.512` 32, `x86.ssse3.pshuf.b.128` 18 |
+| zlib-ng | `crc32_fold_vpclmulqdq` | 560 | metadata !tbaa | ok | `lifetime.end` 2, `lifetime.start` 2, `memcpy` 3, `x86.avx512.pternlog.d.512` 16, `x86.pclmulqdq` 52, `x86.pclmulqdq.512` 32, `x86.ssse3.pshuf.b.128` 18 |
 | zstd | `ZSTD_compressBlock_doubleFast` | 4,509 | metadata !tbaa | call attribute memory | `cttz` 40, `lifetime.end` 4, `lifetime.start` 4, `memcpy` 4, `prefetch` 16 |
 | zstd | `ZSTD_decompressSequences_bmi2` | 829 | metadata !tbaa | inline assembly | `ctlz` 2, `lifetime.end` 5, `lifetime.start` 3, `memcpy` 1, `memmove` 2, `smax` 1, `smin` 1, `umax` 3, `umin` 1 |
 | zstd | `ZSTD_encodeSequences_bmi2` | 489 | metadata !tbaa | ok | None |
@@ -548,7 +538,8 @@ and the rest on 2026-11-10 at 06:26 PST. For each repository these paths were as
 
 The roadmap's note on llama.cpp, from a mirror, was wrong: it accepts AI-generated code, with disclosure and a human
 who understands every line, and bans AI-written descriptions and automated submissions. Its note on LLVM matches the
-live page. [The exact lines to change](#what-other-docs-should-change) are below.
+live page. The roadmap has said what llama.cpp's live page does since #104
+([below](#what-other-docs-should-change)), and the policies here are as read before that.
 
 ## Risks, by project
 
@@ -557,9 +548,9 @@ live page. [The exact lines to change](#what-other-docs-should-change) are below
 | llama.cpp | Every kernel mixes integer SIMD with floating point, so a whole-function win needs the floating-point lane, and so far its wins are slices. It releases several times a day, so the pin ages fastest. Models are 1 GB and more, and aren't in CI |
 | zlib-ng | `-mtune=cascadelake` on its AVX-512 files, on a Zen 5. Its baseline is `-O2`. gzip never reaches its Adler-32 kernels |
 | xxHash | Its kernels are short and already tight, so wins may be scarce. `xxhsum -b` runs for a fixed time, not a fixed amount of work, so its own figure, MB/s, is the measure, not wall time |
-| libsodium | No bulk benchmark of its own, [decision 7](#decisions-for-the-maintainer). A rewrite of cryptographic code can break constant-time behaviour, which `Refines` doesn't see: a win here needs that said beside it |
+| libsodium | No bulk benchmark of its own: [decision 7](#what-the-maintainer-decided-on-2026-11-10)'s driver, ours, is still to be written. A rewrite of cryptographic code can break constant-time behaviour, which `Refines` doesn't see: a win here needs that said beside it |
 | FLAC | As built, every function is refused for its fast-math attributes. Its hottest kernel at level 8, the autocorrelation, is floating point with reassociation allowed, which the model refuses |
-| libwebp | 14 intrinsics the model lacks, and the scalar boolean decoder dominates lossy decoding. `cwebp` in the dev shell has no libpng, so the encoder's input is the lossless images' pixels |
+| libwebp | The scalar boolean decoder dominates lossy decoding. The 14 intrinsics the model lacked in the proposal's run are modeled since #107. `cwebp` in the dev shell has no libpng, so the encoder's input is the lossless images' pixels |
 | zstd | Little SIMD. `ZSTD_decompressSequences_bmi2` holds an inline `.p2align` directive, which the emitter refuses as inline assembly |
 | libdeflate | Its kernels are zlib-ng's problems again, with one compressor function at 83%. Its checksums, the SIMD it has, aren't reached by its benchmark |
 | Opus | Floating point throughout, and flat |
@@ -577,11 +568,13 @@ and Nix hash, the units its kernels are compiled from, the flags the project bui
 workload, with the SHA-256 of each input. `[corpus]` holds what every project is compiled with: the LLVM tag, the
 target, `-O3`, and the machine.
 
-Approving is one act, in one pull request:
+The proposal had approving and fixing as one act. Decision 7 puts libsodium's driver between them, so they're two:
 
-1. `corpus.approved` names the projects.
-2. `corpus.state` becomes `"fixed"`.
-3. `[lock]` records the digest `bench/kernels/kernels.py digest NAME...` prints, the date, and the pull request.
+1. **Approved,** on 2026-11-10. `corpus.state` is `"approved"`, `corpus.approved` names the six, `corpus.approved_on`
+   gives the date, and `corpus.decided_in` points to where the roadmap records the decisions. Nothing is locked, so an
+   approved project's entry can still change, as the driver will change libsodium's workload.
+2. **Fixed,** once the driver is written, in one pull request: `corpus.state` becomes `"fixed"`, and `[lock]` records
+   the digest `bench/kernels/kernels.py digest` prints, the date, and the pull request. The search runs after that.
 
 The digest is a SHA-256 over `[corpus]`'s settings and each approved project's whole entry: its pin, hash, units,
 flags, kernels, workload and input hashes. So after that, a change to any of them, or to the pinned LLVM, changes the
@@ -595,6 +588,8 @@ digest.
   a full commit and an SRI hash, in one of the five domains, under a listed license, with units, kernels, a workload
   and hashed inputs, or rejected with the criteria it fails.
 - While it's proposed, nothing is approved and there's no lock, so approving can't happen by halves.
+- While it's approved, it names at least 3 projects, none rejected, with the date and where it was decided, and has no
+  lock or amendment, so fixing it is one act too. The list is the six of 2026-11-10.
 - Once it's fixed, the digest has to be the lock's, or reached from it by `[[amendment]]`s, each with its date, its
   reason, the pull request, and the digest it starts from and ends on. So the corpus can change, and never quietly:
   the roadmap's rule for a gate.
@@ -677,7 +672,7 @@ Each win carries four labels, and every combination counts toward the bar:
 | --- | --- | --- |
 | What's proved | A slice, with cutting it out and putting its result back trusted, or the whole function | Decision 9 |
 | What the proof rests on | The standard three axioms, or those and `bv_decide`'s | Decision 9 |
-| The source IR | As built, or relaxed with `-fno-strict-aliasing` | [Decision 4](#decisions-for-the-maintainer) here |
+| The source IR | As built, or relaxed with `-fno-strict-aliasing` | [Decision 4](#what-the-maintainer-decided-on-2026-11-10) here |
 | How it was found | By the rule search from stored rules, by the search with a rule written for its site, or by an agent proposer | Decision 8: only the first meets the checkpoint, S7 |
 
 ## The two llama.cpp rewrites
@@ -707,6 +702,9 @@ the rules `Vnni.lean` leaves in the store, that's a win, labeled as resting on a
 can't meet the checkpoint. Until then the board shows both in a row of their own: proved and measured before the
 corpus was fixed, found by hand.
 
+**Decided on 2026-11-10, as recommended:** neither counts toward the ten yet.
+[Decision 2](#what-the-maintainer-decided-on-2026-11-10) is the record, and the roadmap's S3 says it too.
+
 What that costs: the two wins in hand have to be earned again, and the Q5 rewrite needs its matcher's pattern stated as
 a rule.
 
@@ -714,12 +712,13 @@ a rule.
 
 - **No timing.** Every number here is a share of cycles, or a count. No baseline was timed, so nothing says how noisy
   each workload is on z, which the protocol's 30 pairs assume is enough.
-- **No bulk workload for libsodium,** [decision 7](#decisions-for-the-maintainer).
+- **No bulk workload for libsodium yet.** [Decision 7](#what-the-maintainer-decided-on-2026-11-10)'s driver, over its
+  `crypto_secretstream` example, isn't written, so the corpus is approved and not fixed.
 - **Whether the translated kernels elaborate in Lean** wasn't checked. `tests/ir_features.py` checks that for its
   probes, not for these.
 - **What's behind each first reason.** The emitter reports one reason per function.
-- **How often each of chunk 1's rewrites fires on the corpus,** decision 3's gauge. It needs the approved list, and
-  a way to tell which of INV-04's rewrites fired.
+- **How often each of chunk 1's rewrites fires on the corpus,** the gauge of the roadmap's decision 3 after #103. The list is approved now, and it
+  still needs a way to tell which of INV-04's rewrites fired.
 - **XNNPACK and llama.cpp weren't profiled here.** llama.cpp's shares are from 2026-11-07, on `main`.
 - **Policies stated outside a repository's files** weren't searched, and OpenSSL's policy page wasn't read.
 - **The whole-unit counts cover the units named,** 64 of them. A project's other files weren't compiled.
@@ -728,24 +727,20 @@ a rule.
 
 ## What other docs should change
 
-For the lane that holds them. Nothing here edits `docs/roadmap.md`, `docs/chunks.md` or `README.md`.
+The proposal listed these for the lane that holds them. With the approval, this pull request makes them, and what was
+done elsewhere first says where:
 
-- **`docs/roadmap.md`, decision 10,** the sentence beginning "and llama.cpp doesn't accept pull requests that are
-  fully or predominantly AI-generated", and the one after it. Replace both with: "and
-  [llama.cpp](https://github.com/ggml-org/llama.cpp/blob/master/CONTRIBUTING.md) allows AI-generated code, with
-  disclosure and a contributor who has reviewed and can explain every line, and prohibits AI-written pull request
-  descriptions and automated submissions. Both were read from the live pages, LLVM's on 2026-11-09 and llama.cpp's
-  the same day ([the kernel corpus](kernels.md#policies-on-patches-written-with-ai))."
-- **`docs/roadmap.md`, decision 7,** after "it's fixed before the search runs": add "The proposal is
-  [the kernel corpus](kernels.md)."
-- **`docs/roadmap.md`, decision 8,** "Not decided: whether the two llama.cpp rewrites on `main` count toward the
-  ten": add "[The kernel corpus](kernels.md#the-two-llamacpp-rewrites) recommends they don't as they stand."
-- **`docs/roadmap.md`, "The flywheel",** "the [corpus](corpus.md) of `opt`'s rewrites": unchanged, and where the page
-  says "the corpus" for the fixed list, say "the kernel corpus" at first use, with a link here.
-- **`README.md`, the Docs table:** add a row, linking "Kernel corpus" to `docs/kernels.md`, with "The proposed list of
-  real projects the superoptimizer is judged on, what the emitter makes of their hot kernels today, and the rules that
-  fix the list and say what a win is". And in the Corpus row, "for the superoptimizer and lemmas" could say "for lemmas
-  and the search's problems, not the kernel corpus", with the same link.
-- **`docs/status.md`:** nothing yet. When the list is fixed: a line under "What's been built".
-- **`docs/testing.md`:** done here: two rows in its Tests table, `kernels` and `kernels_demand`.
+- **`docs/roadmap.md`, decision 10,** the sentences on llama.cpp's policy: `main` already says what llama.cpp's live
+  page does, since #104.
+- **`docs/roadmap.md`, decisions 7 and 8 after #103:** each links to
+  [the kernel corpus, decided on 2026-11-10](roadmap.md#the-kernel-corpus-decided-on-2026-11-10), the seven decisions
+  with a reason for each, and decision 8's open question says how it was decided. "Now, next, later", the dependency
+  on the corpus, S3, S7, S8 and "How we measure" name the kernel corpus, approved and not yet fixed.
+- **`docs/roadmap.md`, "The flywheel",** "the [corpus](corpus.md) of `opt`'s rewrites": unchanged.
+- **`README.md`, the Docs table:** a row for the kernel corpus.
+- **`docs/status.md`, [llama.cpp](llama.md) and [llama.cpp's Q5](llama-q5.md):** nothing. None of them says whether
+  the two rewrites count toward S3's bar, so none needs decision 2. When the list is fixed, `docs/status.md` gets a
+  line under "What's been built".
+- **`docs/x86-intrinsics.md`:** its comparison with this page's demand calls the projects approved.
+- **`docs/testing.md`:** two rows in its Tests table, `kernels` and `kernels_demand`.
 - **`docs/chunks.md`:** nothing.

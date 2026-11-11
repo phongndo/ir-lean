@@ -2,9 +2,10 @@
 """Checks the kernel corpus's manifest, bench/kernels/manifest.toml, against the rules in
 bench/kernels/kernels.py, without LLVM, Lean or the network. docs/kernels.md.
 
-It fails if the manifest breaks a rule, if a corpus that's only proposed approves anything, or if a fixed
-corpus's digest isn't the one its lock and amendments end at: so a pin, a hash, a flag, a kernel or a workload
-input of an approved project can't change without an amendment that says why. Cases built to break each rule
+It fails if the manifest breaks a rule, if a corpus that's only proposed approves anything, if an approved one
+isn't the maintainer's list of 2026-11-10 with its date and where it's recorded, or if a fixed corpus's digest
+isn't the one its lock and amendments end at: so a pin, a hash, a flag, a kernel or a workload input of an
+approved project can't change without an amendment that says why. Cases built to break each rule
 show it's refused. It also checks docs/kernels.md names every project with its commit and standing, that
 bench/kernels/results/demand.json is about the manifest's pins and kernels, and how bench/kernels/demand.py
 reads IR and the emitter's refusals. Only the standard library and tools/irlean, in under a second.
@@ -44,10 +45,24 @@ MANIFEST = kernels.load()
 DOC = ROOT / "docs" / "kernels.md"
 RESULTS = HERE / "results" / "demand.json"
 WORD = {"recommended": "**Recommended**", "alternate": "Alternate", "rejected": "Rejected"}
+# What the maintainer approved on 2026-11-10: the proposal's six recommended projects. docs/roadmap.md.
+APPROVED_ON = "2026-11-10"
+SIX = ["flac", "libsodium", "libwebp", "llama.cpp", "xxhash", "zlib-ng"]
 
 
 def names(status: str) -> list[str]:
     return sorted(n for n, p in MANIFEST["project"].items() if p["status"] == status)
+
+
+def proposed() -> dict[str, Any]:
+    """The manifest as it stood before the maintainer approved a list."""
+    m = copy.deepcopy(MANIFEST)
+    m["corpus"].update(state="proposed", approved=[])
+    for key in ("approved_on", "decided_in"):
+        m["corpus"].pop(key, None)
+    m.pop("lock", None)
+    m.pop("amendment", None)
+    return m
 
 
 def fixed() -> dict[str, Any]:
@@ -83,15 +98,15 @@ class Manifest(unittest.TestCase):
             self.assertTrue([n for n, p in MANIFEST["project"].items() if p["domain"] == domain], domain)
 
     def test_a_proposed_corpus_approves_nothing(self) -> None:
-        if MANIFEST["corpus"]["state"] != "proposed":
-            self.skipTest("the corpus is fixed")
+        before = proposed()
+        self.assertEqual(kernels.problems(before), [])
         some = names("recommended")[:3]
         for change in (
             lambda m: m["corpus"].update(approved=some),
             lambda m: m.update(lock={"sha256": "0" * 64, "approved_on": "2026-11-10", "approved_in": "#0"}),
             lambda m: m.update(amendment=[{"on": "2026-11-10"}]),
         ):
-            self.assertTrue(kernels.problems(changed(MANIFEST, change)))
+            self.assertTrue(kernels.problems(changed(before, change)))
 
     def test_each_rule_refuses_what_breaks_it(self) -> None:
         live = names("recommended")[0]
@@ -102,7 +117,7 @@ class Manifest(unittest.TestCase):
 
         cases: dict[str, Callable[[dict[str, Any]], Any]] = {
             "schema": lambda m: m.update(schema="ir-lean.kernels.manifest/2"),
-            "isn't one of proposed": lambda m: m["corpus"].update(state="approved"),
+            "isn't one of proposed": lambda m: m["corpus"].update(state="settled"),
             "corpus.llvm_tag": lambda m: m["corpus"].update(llvm_tag="llvmorg-99.0.0"),
             "corpus.opt": lambda m: m["corpus"].update(opt="-O2"),
             "corpus.target": lambda m: m["corpus"].update(target="aarch64-unknown-linux-gnu"),
@@ -137,6 +152,46 @@ class Manifest(unittest.TestCase):
         }
         for message, change in cases.items():
             found = kernels.problems(changed(MANIFEST, change))
+            self.assertTrue([line for line in found if message in line], f"{message}: {found}")
+
+
+class Approved(unittest.TestCase):
+    def test_the_six_of_2026_11_10_are_approved_and_not_yet_fixed(self) -> None:
+        corpus = MANIFEST["corpus"]
+        if corpus["state"] == "fixed":
+            self.skipTest("the corpus is fixed: its lock holds the list")
+        self.assertEqual(corpus["state"], "approved")
+        self.assertEqual(sorted(corpus["approved"]), SIX)
+        self.assertEqual(sorted(corpus["approved"]), names("recommended"))
+        self.assertEqual(corpus["approved_on"], APPROVED_ON)
+
+    def test_the_approval_points_to_where_its_recorded(self) -> None:
+        path, _, anchor = MANIFEST["corpus"]["decided_in"].partition("#")
+        doc = ROOT / path
+        self.assertTrue(doc.is_file(), path)
+        headings = [line.lstrip("#").strip() for line in doc.read_text().splitlines() if line.startswith("#")]
+        slugs = {"".join(c for c in h.lower().replace(" ", "-") if c.isalnum() or c == "-") for h in headings}
+        self.assertIn(anchor, slugs, f"{path} has no heading #{anchor}")
+
+    def test_an_approved_corpus_needs_three_projects_its_date_and_where_and_no_lock(self) -> None:
+        m = changed(
+            proposed(),
+            lambda m: m["corpus"].update(
+                state="approved", approved=SIX, approved_on=APPROVED_ON, decided_in="docs/roadmap.md"
+            ),
+        )
+        self.assertEqual(kernels.problems(m), [])
+        lock = {"sha256": "0" * 64, "approved_on": APPROVED_ON, "approved_in": "#0"}
+        cases: dict[str, Callable[[dict[str, Any]], Any]] = {
+            "an approved corpus has at least 3 projects": lambda m: m["corpus"].update(approved=SIX[:2]),
+            "corpus.approved_on isn't a date": lambda m: m["corpus"].update(approved_on="today"),
+            "corpus.decided_in is empty": lambda m: m["corpus"].pop("decided_in"),
+            "while the corpus is only approved: fixing": lambda m: m.update(lock=lock),
+            "while the corpus is only approved: nothing": lambda m: m.update(amendment=[{"on": APPROVED_ON}]),
+            "which is rejected": lambda m: m["corpus"]["approved"].append(names("rejected")[0]),
+        }
+        for message, change in cases.items():
+            found = kernels.problems(changed(m, change))
             self.assertTrue([line for line in found if message in line], f"{message}: {found}")
 
 

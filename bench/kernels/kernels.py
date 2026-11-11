@@ -8,11 +8,13 @@ docs/corpus.md, the pairs of IR tools/corpus/capture.py takes from `opt`.
 The manifest names each project's pinned source, by commit and Nix hash, the units its hot kernels are
 compiled from, the flags the project builds them with, the kernels, and the workload wall time is measured
 on, with the hash of each input. While `corpus.state` is `proposed` it's a proposal, and nothing is approved.
-Once the maintainer approves a list, `state` is `fixed`, `corpus.approved` names the projects, and `[lock]`
-records the digest of what was approved. From then on any change to an approved project, or to what the
-corpus compiles with, changes the digest, and `problems` reports it unless an `[[amendment]]` records the
-change, its date and its reason, each amendment starting from the digest the one before it ended on. So the
-corpus can't change quietly.
+Once the maintainer approves a list, `state` is `approved`, `corpus.approved` names the projects, and
+`corpus.approved_on` and `corpus.decided_in` say when and where, with nothing locked yet, since what the
+decision asks for before fixing can still change an entry. Then `state` is `fixed`, and `[lock]` records the
+digest of what was approved. From then on any change to an approved project, or to what the corpus compiles
+with, changes the digest, and `problems` reports it unless an `[[amendment]]` records the change, its date and
+its reason, each amendment starting from the digest the one before it ended on. So the corpus can't change
+quietly.
 
 usage: bench/kernels/kernels.py check          the manifest meets every rule
        bench/kernels/kernels.py digest         the digest of the projects named, or of `corpus.approved`
@@ -44,7 +46,7 @@ MANIFEST = Path(__file__).resolve().parent / "manifest.toml"
 # Decision 7 of 2026-11-09: inference, compression, codecs, hashing and crypto.
 DOMAINS = ("inference", "compression", "codecs", "hashing", "crypto")
 STATUSES = ("recommended", "alternate", "rejected")
-STATES = ("proposed", "fixed")
+STATES = ("proposed", "approved", "fixed")
 # S3's bar is wins from at least 3 projects, so a fixed corpus can't have fewer.
 MIN_PROJECTS = 3
 # Licenses that let this repo commit IR generated from the source and publish a rewrite of it, as README.md's
@@ -308,6 +310,20 @@ def problems(manifest: dict[str, Any]) -> list[str]:
         if amendments:
             out.append("there's an [[amendment]] while the corpus is only proposed")
         return out
+    if state == "approved":
+        # The list is chosen and nothing is locked: fixing is one act, the state and the lock together.
+        if len(approved) < MIN_PROJECTS:
+            out.append(f"an approved corpus has at least {MIN_PROJECTS} projects, not {len(approved)}")
+        on = corpus.get("approved_on")
+        if not isinstance(on, str) or not re.fullmatch(r"\d{4}-\d\d-\d\d", on):
+            out.append("corpus.approved_on isn't a date, YYYY-MM-DD: an approved corpus says when it was")
+        if not isinstance(corpus.get("decided_in"), str) or not corpus["decided_in"]:
+            out.append("corpus.decided_in is empty: an approved corpus says where the decision is recorded")
+        if lock is not None:
+            out.append("there's a [lock] while the corpus is only approved: fixing sets both at once")
+        if amendments:
+            out.append("there's an [[amendment]] while the corpus is only approved: nothing is fixed")
+        return out
     if state != "fixed":
         return out
 
@@ -460,6 +476,8 @@ def main(argv: list[str]) -> int:
     print(f"ok   {MANIFEST.relative_to(ROOT)}: {corpus['state']}, {len(projects)} projects")
     for status in STATUSES:
         print(f"     {status}: {', '.join(by[status]) or 'none'}")
+    if corpus["state"] == "approved":
+        print(f"     approved on {corpus['approved_on']}, not fixed: {', '.join(corpus['approved'])}")
     if corpus["state"] == "fixed":
         print(f"     approved: {', '.join(corpus['approved'])}, digest {digest(manifest)}")
     return 0
