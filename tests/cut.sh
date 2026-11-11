@@ -167,18 +167,21 @@ done
 # own line for running out of memory, or every error it reported naming a limit on the error's own line. A goal or a
 # string Lean shows under an error isn't read, so a proof whose goal mentions a limit still fails.
 # usage: stopped_at_limit STATUS OUTPUT
+# An ordinary error decides, whatever else stopped the run. An error's own line can still quote text that names a
+# limit, such as `#check «out of memory»`; no file this checks has one.
 stopped_at_limit() {
   local errors
-  if [ "$1" = 124 ] || [ "$1" = 137 ] ||
-    grep -qE '^(libc\+\+abi: terminating due to uncaught exception of type lean::memory_exception|INTERNAL PANIC: out of memory)' <<<"$2"; then
-    return 0
-  fi
   errors=$(grep -E '^[^ ]+:[0-9]+:[0-9]+: error' <<<"$2" || true)
-  [ -n "$errors" ] && ! grep -vqE "$limit" <<<"$errors"
+  if [ -n "$errors" ] && grep -vqE "$limit" <<<"$errors"; then
+    return 1
+  fi
+  [ "$1" = 124 ] || [ "$1" = 137 ] || [ -n "$errors" ] ||
+    grep -qE '^(libc\+\+abi: terminating due to uncaught exception of type lean::memory_exception|INTERNAL PANIC: out of memory)' <<<"$2"
 }
 # usage: check MODULE GENERATED THEOREMS
 check() {
   local out replay status=0
+  axioms=
   out=$(lean -DwarningAsError=true -R tests/cut -o "$work/$1.olean" "tests/cut/$1.lean" 2>&1) || status=$?
   if [ "$status" != 0 ]; then
     if stopped_at_limit "$status" "$out"; then
@@ -212,30 +215,57 @@ check() {
 }
 built=1
 axioms=
-check CutCases drop_nuw_loop_ir $'drop_nuw_cut drop_nuw_loop_ir.cut_src\ndrop_nuw_cut drop_nuw_loop_ir.cut_tgt
+# After a check that passed: its module rests on the standard axioms alone. A check that didn't has said why.
+# usage: standard MODULE
+standard() {
+  grep -q 'and 0 from bv_decide' <<<"$axioms" || fail "$1 rests on more than the standard axioms: $axioms"
+}
+if check CutCases drop_nuw_loop_ir $'drop_nuw_cut drop_nuw_loop_ir.cut_src\ndrop_nuw_cut drop_nuw_loop_ir.cut_tgt
 drop_nuw_loop drop_nuw_loop_ir.src\ndrop_nuw_loop drop_nuw_loop_ir.tgt
-drop_nuw_loop_converse drop_nuw_loop_ir.src\ndrop_nuw_loop_converse drop_nuw_loop_ir.tgt' || built=0
-grep -q 'and 0 from bv_decide' <<<"$axioms" || fail "CutCases rests on more than the standard axioms: $axioms"
-check CutPromisedCases drop_nuw_promised_ir $'drop_nuw_promised drop_nuw_promised_ir.src
-drop_nuw_promised drop_nuw_promised_ir.tgt' || built=0
-grep -q 'and 0 from bv_decide' <<<"$axioms" || fail "CutPromisedCases rests on more than the standard axioms: $axioms"
-check ClangSum clang_sum_ir $'clang_sum clang_sum_ir.src\nclang_sum clang_sum_ir.tgt
-cut clang_sum_ir.cut_src\ncut clang_sum_ir.cut_tgt' || built=0
-grep -q 'and 0 from bv_decide' <<<"$axioms" || fail "ClangSum rests on more than the standard axioms: $axioms"
+drop_nuw_loop_converse drop_nuw_loop_ir.src\ndrop_nuw_loop_converse drop_nuw_loop_ir.tgt'; then
+  standard CutCases
+else
+  built=0
+fi
+if check CutPromisedCases drop_nuw_promised_ir $'drop_nuw_promised drop_nuw_promised_ir.src
+drop_nuw_promised drop_nuw_promised_ir.tgt'; then
+  standard CutPromisedCases
+else
+  built=0
+fi
+if check ClangSum clang_sum_ir $'clang_sum clang_sum_ir.src\nclang_sum clang_sum_ir.tgt
+cut clang_sum_ir.cut_src\ncut clang_sum_ir.cut_tgt'; then
+  standard ClangSum
+else
+  built=0
+fi
 # A kernel of the corpus, with its own cap: its blocks are long, and Lean needs more than 4 GB for them.
 saved_mb=$mb
 mb=$kernel_mb
-check GhAdBlocks gh_ad_blocks_ir $'gh_ad_blocks gh_ad_blocks_ir.src\ngh_ad_blocks gh_ad_blocks_ir.tgt
-cut gh_ad_blocks_ir.cut_src\ncut gh_ad_blocks_ir.cut_tgt' || built=0
+if check GhAdBlocks gh_ad_blocks_ir $'gh_ad_blocks gh_ad_blocks_ir.src\ngh_ad_blocks gh_ad_blocks_ir.tgt
+cut gh_ad_blocks_ir.cut_src\ncut gh_ad_blocks_ir.cut_tgt'; then
+  standard GhAdBlocks
+else
+  built=0
+fi
 mb=$saved_mb
-grep -q 'and 0 from bv_decide' <<<"$axioms" || fail "GhAdBlocks rests on more than the standard axioms: $axioms"
-check Q5Kernel 'q5_kernel_ir LlamaBitspreadIR' $'q5_kernel q5_kernel_ir.src\nq5_kernel q5_kernel_ir.tgt
-slice LlamaBitspreadIR.src\nslice LlamaBitspreadIR.tgt' || built=0
-kernel=$(grep -oE 'and [0-9]+ from bv_decide' <<<"$axioms" || true)
-check Q5KernelMemory 'q5_kernel_memory_ir LlamaBitspreadIR' \
-  $'q5_kernel_memory q5_kernel_memory_ir.src\nq5_kernel_memory q5_kernel_memory_ir.tgt' || built=0
-memory=$(grep -oE 'and [0-9]+ from bv_decide' <<<"$axioms" || true)
-if ! out=$(IRLEAN_CHECK_MODULE=LlamaBitspread lean tests/check_axioms.lean 2>&1) || [ -z "$kernel" ] ||
+kernels=1
+if check Q5Kernel 'q5_kernel_ir LlamaBitspreadIR' $'q5_kernel q5_kernel_ir.src\nq5_kernel q5_kernel_ir.tgt
+slice LlamaBitspreadIR.src\nslice LlamaBitspreadIR.tgt'; then
+  kernel=$(grep -oE 'and [0-9]+ from bv_decide' <<<"$axioms" || true)
+else
+  built=0 kernels=0
+fi
+if check Q5KernelMemory 'q5_kernel_memory_ir LlamaBitspreadIR' \
+  $'q5_kernel_memory q5_kernel_memory_ir.src\nq5_kernel_memory q5_kernel_memory_ir.tgt'; then
+  memory=$(grep -oE 'and [0-9]+ from bv_decide' <<<"$axioms" || true)
+else
+  built=0 kernels=0
+fi
+# Only when both kernels checked: one that didn't has said why, unknown or failed.
+if [ "$kernels" = 0 ]; then
+  :
+elif ! out=$(IRLEAN_CHECK_MODULE=LlamaBitspread lean tests/check_axioms.lean 2>&1) || [ -z "$kernel" ] ||
   [ "$(grep -oE 'and [0-9]+ from bv_decide' <<<"$out")" != "$kernel" ] || [ "$memory" != "$kernel" ]; then
   fail "a kernel's theorem doesn't rest on exactly its slice's axioms: $kernel and $memory, and the slice's proof: $out"
 else
