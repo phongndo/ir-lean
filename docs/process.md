@@ -79,9 +79,9 @@ Whoever runs the change, not the one fixing it, sorts each finding first:
 ### 4. A budget, and a stop
 
 - A fix that adds a mechanism, a new module, file format, record or check of its own, is a design change. So is one
-  bigger than 30% of the change review 1 read, counting added and removed lines as `git diff --shortstat` does: the
-  fix's commits, against the base to the head review 1 read. That piece goes back to step 0 as a change of its own,
-  or out.
+  bigger than 30% of the change review 1 read, counting added and removed lines of code and tests, not docs, as
+  `git diff --shortstat` does: the fix's commits, against the base to the head review 1 read. That piece goes back
+  to step 0 as a change of its own, or out.
 - **Two strikes.** If the second review finds a class still open, or a new blocker in code the fix wrote, the fixing
   stops. That piece is designed again as a change of its own, or cut from this one. There's no third round of
   patches.
