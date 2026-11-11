@@ -4,11 +4,14 @@ bench/kernels/kernels.py, without LLVM, Lean or the network. docs/kernels.md.
 
 It fails if the manifest breaks a rule, if a corpus that's only proposed approves anything, if an approved one
 isn't the maintainer's list of 2026-11-10 with its date and where it's recorded, or if a fixed corpus's digest
-isn't the one its lock and amendments end at: so a pin, a hash, a flag, a kernel or a workload input of an
-approved project can't change without an amendment that says why. Cases built to break each rule
-show it's refused. It also checks docs/kernels.md names every project with its commit and standing, that
-bench/kernels/results/demand.json is about the manifest's pins and kernels, and how bench/kernels/demand.py
-reads IR and the emitter's refusals. Only the standard library and tools/irlean, in under a second.
+isn't the one its lock and amendments end at: so a pin, a hash, a flag, a kernel, a workload, its check or an
+input of an approved project, or the driver a workload runs, can't change without an amendment that says why.
+The corpus is fixed: the six of 2026-11-10, each workload saying what's measured, rates among them, and how a
+candidate is checked, by its output or by the project's own test against known answers. Cases built to break
+each rule show it's refused. It also checks docs/kernels.md names every project with its commit and standing,
+that bench/kernels/results/demand.json is about the manifest's pins and kernels, and how
+bench/kernels/demand.py reads IR and the emitter's refusals. Only the standard library and tools/irlean, in
+under a second.
 
 usage: tests/kernels_test.py
 """
@@ -41,6 +44,7 @@ def load(name: str, path: Path) -> Any:
 
 kernels = load("kernels", HERE / "kernels.py")
 demand = load("demand", HERE / "demand.py")
+reference = load("reference", HERE / "libsodium" / "reference.py")
 MANIFEST = kernels.load()
 DOC = ROOT / "docs" / "kernels.md"
 RESULTS = HERE / "results" / "demand.json"
@@ -48,10 +52,28 @@ WORD = {"recommended": "**Recommended**", "alternate": "Alternate", "rejected": 
 # What the maintainer approved on 2026-11-10: the proposal's six recommended projects. docs/roadmap.md.
 APPROVED_ON = "2026-11-10"
 SIX = ["flac", "libsodium", "libwebp", "llama.cpp", "xxhash", "zlib-ng"]
+# The workloads whose own figure is the measure, because the benchmark runs for a fixed time: docs/kernels.md.
+RATES = {("llama.cpp", "pp512"), ("llama.cpp", "tg128"), ("xxhash", "bench")}
+# Those that print only timings, which the project's own test checks against known answers.
+TIMINGS = {("libsodium", "argon2id"), ("xxhash", "bench")}
 
 
 def names(status: str) -> list[str]:
     return sorted(n for n, p in MANIFEST["project"].items() if p["status"] == status)
+
+
+def workload(m: dict[str, Any], project: str, name: str) -> dict[str, Any]:
+    return next(w for w in m["project"][project]["workload"] if w["name"] == name)
+
+
+def anchored(where: str) -> None:
+    """Fails unless `where`, PATH#ANCHOR, is a heading of a file in the repo."""
+    path, _, anchor = where.partition("#")
+    doc = ROOT / path
+    assert doc.is_file(), path
+    headings = [line.lstrip("#").strip() for line in doc.read_text().splitlines() if line.startswith("#")]
+    slugs = {"".join(c for c in h.lower().replace(" ", "-") if c.isalnum() or c == "-") for h in headings}
+    assert anchor in slugs, f"{path} has no heading #{anchor}"
 
 
 def proposed() -> dict[str, Any]:
@@ -115,8 +137,22 @@ class Manifest(unittest.TestCase):
         def project(m: dict[str, Any], name: str = live) -> dict[str, Any]:
             return m["project"][name]
 
+        def first(m: dict[str, Any]) -> dict[str, Any]:
+            return project(m)["workload"][0]
+
+        def bench(m: dict[str, Any]) -> dict[str, Any]:
+            return workload(m, "xxhash", "bench")
+
+        def driven(m: dict[str, Any]) -> dict[str, Any]:
+            return workload(m, "libsodium", "secretstream")
+
+        def known(m: dict[str, Any]) -> dict[str, Any]:
+            return workload(m, "libsodium", "argon2id")["check"][0]
+
+        output = {"kind": "output", "what": "its output", "output": ["stdout"]}
         cases: dict[str, Callable[[dict[str, Any]], Any]] = {
-            "schema": lambda m: m.update(schema="ir-lean.kernels.manifest/2"),
+            # A manifest of the first version, whose workload was one table, is refused rather than misread.
+            "schema": lambda m: m.update(schema="ir-lean.kernels.manifest/1"),
             "isn't one of proposed": lambda m: m["corpus"].update(state="settled"),
             "corpus.llvm_tag": lambda m: m["corpus"].update(llvm_tag="llvmorg-99.0.0"),
             "corpus.opt": lambda m: m["corpus"].update(opt="-O2"),
@@ -136,13 +172,38 @@ class Manifest(unittest.TestCase):
             "isn't a unit's to set": lambda m: project(m)["unit"][0].update(flags=["-O2"]),
             "names the processor": lambda m: project(m).update(flags=["-march=native"]),
             "no workload": lambda m: project(m).pop("workload"),
-            "no command": lambda m: project(m)["workload"].pop("command"),
-            "no SHA-256": lambda m: project(m)["workload"].update(
+            "no run": lambda m: first(m).pop("run"),
+            "two workloads have that name": lambda m: project(m)["workload"].append(copy.deepcopy(first(m))),
+            "no SHA-256": lambda m: project(m).update(
                 input=[{"name": "a", "url": "https://example.org/a", "sha256": "abc"}]
             ),
-            "no https url": lambda m: project(m)["workload"].update(
+            "no https url": lambda m: project(m).update(
                 input=[{"name": "a", "url": "http://example.org/a", "sha256": "0" * 64}]
             ),
+            "{input:nothing} in": lambda m: first(m)["run"][0].append("{input:nothing}"),
+            "{nowhere} in": lambda m: first(m)["run"][0].append("{nowhere}/a"),
+            "threads isn't a count": lambda m: first(m).update(threads=0),
+            "measure 'cycles'": lambda m: first(m).update(measure="cycles"),
+            "a rate says what figure": lambda m: bench(m).pop("rate"),
+            "only a workload measured as a rate": lambda m: first(m).update(rate="MB/s"),
+            "so its output check runs its own": lambda m: bench(m).update(check=[output]),
+            "kind 'maybe'": lambda m: first(m)["check"][0].update(kind="maybe"),
+            "no what, saying": lambda m: first(m)["check"][0].pop("what"),
+            "names what's hashed": lambda m: first(m).update(check=[{**output, "output": []}]),
+            "isn't stdout or a file in": lambda m: first(m).update(check=[{**output, "output": ["/tmp/a"]}]),
+            "sha256 isn't a SHA-256": lambda m: first(m).update(check=[{**output, "sha256": "abc"}]),
+            "only a known-answers check names a test": lambda m: first(m).update(
+                check=[{**output, "test": ["a.c"]}]
+            ),
+            "runs the project's test, in `run`": lambda m: known(m).pop("run"),
+            "names the project's test and its answers": lambda m: known(m).pop("test"),
+            "isn't a path in the project": lambda m: known(m).update(test=["../a.c"]),
+            "only an output check has sha256": lambda m: known(m).update(sha256="0" * 64),
+            "driver_sha256 isn't the SHA-256": lambda m: driven(m).update(driver_sha256="0" * 64),
+            "driver isn't a path in bench/kernels/": lambda m: driven(m).update(driver="/etc/hosts"),
+            "doesn't exist": lambda m: driven(m).update(driver="bench/kernels/libsodium/nothing.c"),
+            "build doesn't compile the driver": lambda m: driven(m).update(build=[["true"]]),
+            "driver_sha256 without a driver": lambda m: first(m).update(driver_sha256="0" * 64),
             "no project_opt": lambda m: project(m).pop("project_opt"),
             "has no SIMD kernel to compile": lambda m: project(m).update(simd="assembly"),
             "only a rejected project has": lambda m: project(m).update(fails=[2]),
@@ -156,22 +217,8 @@ class Manifest(unittest.TestCase):
 
 
 class Approved(unittest.TestCase):
-    def test_the_six_of_2026_11_10_are_approved_and_not_yet_fixed(self) -> None:
-        corpus = MANIFEST["corpus"]
-        if corpus["state"] == "fixed":
-            self.skipTest("the corpus is fixed: its lock holds the list")
-        self.assertEqual(corpus["state"], "approved")
-        self.assertEqual(sorted(corpus["approved"]), SIX)
-        self.assertEqual(sorted(corpus["approved"]), names("recommended"))
-        self.assertEqual(corpus["approved_on"], APPROVED_ON)
-
     def test_the_approval_points_to_where_its_recorded(self) -> None:
-        path, _, anchor = MANIFEST["corpus"]["decided_in"].partition("#")
-        doc = ROOT / path
-        self.assertTrue(doc.is_file(), path)
-        headings = [line.lstrip("#").strip() for line in doc.read_text().splitlines() if line.startswith("#")]
-        slugs = {"".join(c for c in h.lower().replace(" ", "-") if c.isalnum() or c == "-") for h in headings}
-        self.assertIn(anchor, slugs, f"{path} has no heading #{anchor}")
+        anchored(MANIFEST["corpus"]["decided_in"])
 
     def test_an_approved_corpus_needs_three_projects_its_date_and_where_and_no_lock(self) -> None:
         m = changed(
@@ -193,6 +240,59 @@ class Approved(unittest.TestCase):
         for message, change in cases.items():
             found = kernels.problems(changed(m, change))
             self.assertTrue([line for line in found if message in line], f"{message}: {found}")
+
+
+class Locked(unittest.TestCase):
+    """The corpus as it was fixed on 2026-11-10, once decision 7's driver was written."""
+
+    def test_the_six_of_2026_11_10_are_fixed_by_the_lock(self) -> None:
+        corpus, lock = MANIFEST["corpus"], MANIFEST["lock"]
+        self.assertEqual(corpus["state"], "fixed")
+        self.assertEqual(sorted(corpus["approved"]), SIX)
+        self.assertEqual(sorted(corpus["approved"]), names("recommended"))
+        self.assertEqual(corpus["approved_on"], APPROVED_ON)
+        self.assertEqual(lock["approved_on"], APPROVED_ON)
+        anchored(lock["approved_in"])
+        if not MANIFEST.get("amendment"):
+            self.assertEqual(lock["sha256"], kernels.digest(MANIFEST))
+
+    def test_every_workload_of_the_six_says_whats_measured_and_how_its_checked(self) -> None:
+        rates, timings = set(), set()
+        for name in SIX:
+            for w in MANIFEST["project"][name]["workload"]:
+                self.assertIn(w["measure"], kernels.MEASURES, (name, w["name"]))
+                self.assertTrue(w["check"], (name, w["name"]))
+                if w["measure"] == "rate":
+                    rates.add((name, w["name"]))
+                if any(c["kind"] == "known-answers" for c in w["check"]):
+                    timings.add((name, w["name"]))
+        self.assertEqual(rates, RATES)
+        self.assertEqual(timings, TIMINGS)
+
+    def test_libsodiums_workloads_are_decision_7s(self) -> None:
+        workloads = MANIFEST["project"]["libsodium"]["workload"]
+        self.assertEqual([w["name"] for w in workloads], ["argon2id", "secretstream"])
+        driver = workload(MANIFEST, "libsodium", "secretstream")
+        self.assertEqual(driver["driver"], "bench/kernels/libsodium/secretstream.c")
+        self.assertIn("crypto_secretstream_xchacha20poly1305_push", (ROOT / driver["driver"]).read_text())
+        # Its check compares output, and benchmark mode's is checked by the test in its checking mode.
+        self.assertEqual([c["kind"] for c in driver["check"]], ["output"])
+        argon2id = workload(MANIFEST, "libsodium", "argon2id")
+        self.assertIn("CPPFLAGS=-DBENCHMARKS -DITERATIONS=200", argon2id["build"][-1])
+        check = argon2id["check"][0]["run"]
+        self.assertEqual(check[0][-1], "clean")
+        self.assertFalse([arg for command in check for arg in command if "BENCHMARKS" in arg])
+
+    def test_a_fixed_corpus_needs_a_check_and_a_measure_for_every_workload(self) -> None:
+        for m in (MANIFEST, fixed()):
+            for message, change in {
+                "it has no check": lambda m: workload(m, "zlib-ng", "decompress").pop("check"),
+                "says what's measured": lambda m: workload(m, "flac", "encode-8").pop("measure"),
+            }.items():
+                found = kernels.problems(changed(m, change))
+                self.assertTrue([line for line in found if message in line], f"{message}: {found}")
+        # An alternate isn't in the fixed corpus, and needs neither until an amendment adds it.
+        self.assertFalse([w for w in MANIFEST["project"]["zstd"]["workload"] if "check" in w])
 
 
 class Fixed(unittest.TestCase):
@@ -217,12 +317,16 @@ class Fixed(unittest.TestCase):
             self.assertTrue([line for line in found if message in line], f"{message}: {found}")
 
     def test_any_change_to_what_was_approved_fails(self) -> None:
-        m = fixed()
-        name = m["corpus"]["approved"][0]
         other = names("alternate")[0]
 
         def project(m: dict[str, Any]) -> dict[str, Any]:
-            return m["project"][name]
+            return m["project"][m["corpus"]["approved"][0]]
+
+        def first(m: dict[str, Any]) -> dict[str, Any]:
+            return project(m)["workload"][0]
+
+        def driven(m: dict[str, Any]) -> dict[str, Any]:
+            return workload(m, "libsodium", "secretstream")
 
         changes: dict[str, Callable[[dict[str, Any]], Any]] = {
             "the commit": lambda m: project(m).update(rev="0" * 40),
@@ -232,8 +336,21 @@ class Fixed(unittest.TestCase):
             "a unit's flags": lambda m: project(m)["unit"][0].update(flags=["-mavx512f"]),
             "a kernel": lambda m: project(m)["unit"][0].update(kernels=["another"]),
             "a unit": lambda m: project(m)["unit"].append({"source": "new.c", "kernels": ["new"]}),
-            "the workload's command": lambda m: project(m)["workload"].update(command=["true"]),
-            "a workload input": lambda m: project(m)["workload"].update(
+            "a workload's run": lambda m: first(m).update(run=[["true"]]),
+            "a workload's setup": lambda m: first(m).update(setup=[["true"]]),
+            "a workload dropped": lambda m: project(m)["workload"].pop(),
+            "what's measured": lambda m: first(m).update(measure="rate", rate="runs a second"),
+            "a check": lambda m: first(m)["check"][0].update(output=["{out}/another"]),
+            "a check dropped": lambda m: first(m)["check"].pop(),
+            "a known answer": lambda m: workload(m, "zlib-ng", "decompress")["check"][0].update(
+                sha256="0" * 64
+            ),
+            "a known-answers test": lambda m: workload(m, "xxhash", "bench")["check"][1].update(
+                run=[["true"]]
+            ),
+            "the driver's hash": lambda m: driven(m).update(driver_sha256="0" * 64),
+            "how the driver is built": lambda m: driven(m)["build"][0].insert(1, "-O0"),
+            "an input": lambda m: project(m).update(
                 input=[{"name": "a", "url": "https://example.org/a", "sha256": "0" * 64}]
             ),
             "the corpus's flags": lambda m: m["corpus"].update(flags=[]),
@@ -241,11 +358,13 @@ class Fixed(unittest.TestCase):
             "a project added": lambda m: m["corpus"]["approved"].append(other),
             "a project dropped": lambda m: m["corpus"]["approved"].pop(),
         }
-        for what, change in changes.items():
-            found = kernels.problems(changed(m, change))
-            self.assertTrue(
-                [line for line in found if "the fixed corpus changed" in line], f"{what}: {found}"
-            )
+        # The lock in the manifest, and one made the same way.
+        for m in (MANIFEST, fixed()):
+            for what, change in changes.items():
+                found = kernels.problems(changed(m, change))
+                self.assertTrue(
+                    [line for line in found if "the fixed corpus changed" in line], f"{what}: {found}"
+                )
 
     def test_what_isnt_approved_can_change(self) -> None:
         m = fixed()
@@ -278,6 +397,26 @@ class Fixed(unittest.TestCase):
         # And one that records a change made after it doesn't cover the change.
         later = changed(once, lambda m: m["project"][name].update(rev="3" * 40))
         self.assertTrue([line for line in kernels.problems(later) if "the fixed corpus changed" in line])
+
+
+class Driver(unittest.TestCase):
+    """bench/kernels/libsodium: decision 7's driver, and reference.py, what it prints computed without
+    libsodium, which libsodium's own test of crypto_secretstream doesn't give."""
+
+    def test_the_reference_meets_its_documents_vectors(self) -> None:
+        reference.check_vectors()
+
+    def test_the_reference_starts_from_the_drivers_seeds_and_pattern(self) -> None:
+        driver = (HERE / "libsodium" / "secretstream.c").read_text()
+        computed = (HERE / "libsodium" / "reference.py").read_text()
+        for shared in (
+            '"ir-lean kernel corpus: key"',
+            '"ir-lean kernel corpus: header"',
+            "2654435761",
+            "4096",
+        ):
+            self.assertIn(shared, driver)
+            self.assertIn(shared, computed)
 
 
 class Records(unittest.TestCase):

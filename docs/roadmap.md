@@ -310,8 +310,8 @@ Why: it's this page's own test of [whether the goal matters to anyone](#how-we-m
 
 **7. The corpus is hot numeric kernels with SIMD, on x86-64 first.** Inference, compression, codecs, hashing and
 crypto. A pull request proposes the projects, the maintainer approves the list, and it's fixed before the search runs.
-AArch64's NEON waits until the board exists. The list is [the kernel corpus](kernels.md), approved on 2026-11-10 with
-[seven decisions](#the-kernel-corpus-decided-on-2026-11-10).
+AArch64's NEON waits until the board exists. The list is [the kernel corpus](kernels.md), approved and fixed on
+2026-11-10 with [seven decisions](#the-kernel-corpus-decided-on-2026-11-10).
 
 Why:
 
@@ -440,8 +440,10 @@ between calls and caching answers are open ([irl](irl.md#what-it-doesnt-do-yet))
 
 Also on 2026-11-10 the maintainer approved [the kernel corpus](kernels.md), the list of real projects decisions 6 to 8
 [after #103](#thirteen-decisions-of-2026-11-09-after-103) judge the superoptimizer on, with all seven of its decisions
-as the proposal recommended. Its [manifest](../bench/kernels/manifest.toml) says `state = "approved"`. It's fixed, with
-a lock, once decision 7's driver is written, and the rule search runs on it after that.
+as the proposal recommended. It was fixed the same day, once decision 7's driver was written and each workload's
+check was in its [manifest](../bench/kernels/manifest.toml), which says `state = "fixed"`, with a lock that
+`tests/kernels_test.py` holds it to. A change to it now needs an amendment with its date and reason. The rule search
+runs on it.
 
 1. **The projects are llama.cpp, zlib-ng, xxHash, libsodium, FLAC and libwebp.** Why: one or two from each of the five
    domains, and in all but llama.cpp a kernel the profile calls hot already translates.
@@ -460,7 +462,9 @@ a lock, once decision 7's driver is written, and the rule search runs on it afte
    [the pairs of IR taken from `opt`](corpus.md).
 7. **libsodium's workload is its Argon2id test in benchmark mode, and a bulk-encryption driver of ours over its
    documented `crypto_secretstream` example, written before the list is fixed.** Why: libsodium has no bulk benchmark
-   of its own, and without one ChaCha20-Poly1305 and BLAKE2b have no workload a win could be measured on.
+   of its own, and without one ChaCha20-Poly1305 and BLAKE2b have no workload a win could be measured on. Done:
+   [the driver](kernels.md#libsodiums-bulk-encryption-driver) encrypts a gibibyte, and spends its time in BLAKE2b,
+   ChaCha20 and Poly1305.
 
 ### The flywheel
 
@@ -599,7 +603,7 @@ Since the [thirteen decisions after #103](#thirteen-decisions-of-2026-11-09-afte
 
 | Horizon | Platform track | Superoptimization | Supply: LLVM's rewrites |
 | --- | --- | --- | --- |
-| **Now** | F4, memory in `Refines` (SEM-06), and the lemma that a refined cut gives a refined function, first. x86 SIMD intrinsics in the model, each checked against the processor. Coverage lanes as [the kernel corpus](kernels.md) needs them. BIND-02 to gate B2's number, then binding stops | The kernel corpus, fixed: it was proposed and approved on 2026-11-10 ([decisions](#the-kernel-corpus-decided-on-2026-11-10)), and libsodium's bulk-encryption driver comes before its lock. The rule format, one source for a rule's Lean statement and its matcher. The rule search. The results board | Chunk 1's rewrites ranked by how often each fires on the corpus, and G2 in that order |
+| **Now** | F4, memory in `Refines` (SEM-06), and the lemma that a refined cut gives a refined function, first. x86 SIMD intrinsics in the model, each checked against the processor. Coverage lanes as [the kernel corpus](kernels.md) needs them. BIND-02 to gate B2's number, then binding stops | The rule format, one source for a rule's Lean statement and its matcher. The rule search, on [the kernel corpus](kernels.md), fixed on 2026-11-10 ([decisions](#the-kernel-corpus-decided-on-2026-11-10)). The results board | Chunk 1's rewrites ranked by how often each fires on the corpus, and G2 in that order |
 | **Next** | E2, the executable memory model, which is also the search's refuter for code with memory. The reviewer on another provider's model, and a must-break mutant for each counted statement | The checkpoint, S7, by about 2026-12-09. The plugin, with its certify mode in CI over the corpus. S3's bar by about 2027-02-09 | Chunks 2 to 6's rewrites, as the search asks for them |
 | **Later** | The safety bridge, S4. The other bases' own lanes, once the board exists: a memory-safety checker, leak checking, and proof-test tiers 2 and 3 | The paper. A few patches upstream, each read by the maintainer. Outside engagement. AArch64's NEON, MLIR | `inflate`, contracts, C++ and Rust, the unit-test milestone, and adoption, which wait on milestones or [aren't in the plan's order yet](#not-in-the-plans-order-yet) |
 
@@ -985,7 +989,7 @@ the table below no longer hold:
 
 | First | Then | Why |
 | --- | --- | --- |
-| The corpus, approved and fixed | The rule search, and the results board | Decision 7. S3 asks for a corpus fixed before the search runs, so the wins aren't chosen after the fact. [The kernel corpus](kernels.md) was approved on 2026-11-10, and isn't fixed yet |
+| The corpus, approved and fixed | The rule search, and the results board | Decision 7. S3 asks for a corpus fixed before the search runs, so the wins aren't chosen after the fact. [The kernel corpus](kernels.md) was approved and fixed on 2026-11-10 |
 | The rule format | The plugin | Decision 10: a rule's Lean statement and its matcher come from one source |
 | F4, and the lemma that a refined cut gives a refined function | A whole-function win | Decision 9. A slice-proved win counts without them |
 | An intrinsic checked against the processor | A rule that uses it | Decision 7: each is trusted semantics |
@@ -1133,7 +1137,7 @@ binding gates B0 to B5. The record of 2026-11-08 [above](#the-goal-changed-on-20
 | F5 | Phase 0B done: full inventory, semantic mutation, two-machine determinism | 0 | F1 | Platform, semantics, and honesty: NEG-03 and NEG-05 | In progress: promises, model stops and Alive2 are done |
 | S1 | Stage 1: proved wins on integer code, and no known-wrong rewrite certified | 4 | | Chunk 1. Its metric is chunk 1's G1 for InstCombine | Exit criteria met for stage 1 as [the gate](prior-art.md#the-gate) narrowed it, on 2026-11-09, on `main` at `dbfd710` ([stage 1](stage1.md)): no rewrite of 104 known miscompilations Alive2 confirms wrong is proved or certified, and on a uniform sample of 4,000 of InstCombine's 31,158 changed pairs, Alive2 agrees with 1,101 of the 1,104 the model proves and has no verdict on the other 3. G1 for InstCombine, its metric: 0.11%, 34 of 31,240 pairs certified, and G0 40.2%, with `main` at `b9446de`; Alive2 calls none of the 75 pairs G1 tries incorrect. 2 proved wins over `clang -O3` ([#30](https://github.com/phongndo/ir-lean/pull/30)) |
 | S2 | A proved win on real code, on `main` | 4 | | Superoptimization, on the platform | The q4_K rewrite landed in [#57](https://github.com/phongndo/ir-lean/pull/57) (`b59d862`), and the Q5 rewrite in [#58](https://github.com/phongndo/ir-lean/pull/58) |
-| S3 | Superoptimizer v2: on the fixed corpus, at least 10 proved wins from at least 3 projects | 4 | The study. Python consolidation. [The kernel corpus](kernels.md), fixed first: approved on 2026-11-10, and not fixed yet. The rule format and the rule search. E1, soft. F4, for whole-function wins | The envelope's target, by about 2027-02-09, by [decision 8 after #103](#thirteen-decisions-of-2026-11-09-after-103). Until then, deferred until chunk 1's G2 was producing lemmas | Not started. The two llama.cpp rewrites don't count toward it yet, by [decision 2 of the kernel corpus](#the-kernel-corpus-decided-on-2026-11-10) |
+| S3 | Superoptimizer v2: on the fixed corpus, at least 10 proved wins from at least 3 projects | 4 | The study. Python consolidation. [The kernel corpus](kernels.md), fixed first: done, on 2026-11-10. The rule format and the rule search. E1, soft. F4, for whole-function wins | The envelope's target, by about 2027-02-09, by [decision 8 after #103](#thirteen-decisions-of-2026-11-09-after-103). Until then, deferred until chunk 1's G2 was producing lemmas | Not started. The two llama.cpp rewrites don't count toward it yet, by [decision 2 of the kernel corpus](#the-kernel-corpus-decided-on-2026-11-10) |
 | S4 | The safety bridge proved | 4 | F2, F4 | Platform, semantics, after F4 | Not started |
 | S5 | A proved win on LLVM IR exported from MLIR | 4 | S3 | After S3 | Not started |
 | S6 | A proved rewrite accepted upstream | 4 | S2 or S3 | Last of the four outside results, each patch read and owned by the maintainer, by [decision 10 after #103](#thirteen-decisions-of-2026-11-09-after-103) | Not started |
@@ -1704,7 +1708,7 @@ that produced it. Current values live in [status](status.md).
 
 | Metric | Measured yet | Why it matters |
 | --- | --- | --- |
-| Proved wins over `clang -O3` on the fixed corpus, and the speedup each measures | Not yet: [the kernel corpus](kernels.md) is approved and not fixed, and the board doesn't exist. On `main` are 2 wins on compiler-rt's fallbacks, which real programs on x86-64 don't call, and the two llama.cpp rewrites, which no search found, and which don't count toward S3's bar yet ([decision 2](#the-kernel-corpus-decided-on-2026-11-10)) | The headline, since [decision 6 after #103](#thirteen-decisions-of-2026-11-09-after-103) |
+| Proved wins over `clang -O3` on the fixed corpus, and the speedup each measures | Not yet: [the kernel corpus](kernels.md) is fixed, and the board doesn't exist. On `main` are 2 wins on compiler-rt's fallbacks, which real programs on x86-64 don't call, and the two llama.cpp rewrites, which no search found, and which don't count toward S3's bar yet ([decision 2](#the-kernel-corpus-decided-on-2026-11-10)) | The headline, since [decision 6 after #103](#thirteen-decisions-of-2026-11-09-after-103) |
 | Speedup on a real workload, from proved rewrites | Yes, for the two llama.cpp rewrites ([status](status.md#measured)) | Whether the goal matters to anyone |
 | Share of rewrite firings on the corpus that a proved rule covers | No. It needs the corpus, and a way to tell which rewrite fired | The supply gauge, under the headline, by [decision 3 after #103](#thirteen-decisions-of-2026-11-09-after-103) |
 | Passes counted done, of the 1,162, and each chunk's percentage at each gate | 0 done, and it stays 0 while G3 and G4 are paused. G0 and G1 are measured for InstCombine ([chunks](chunks.md)), and G2 for chunk 1, 244 of 3,174 ([rewrite proofs](rewrite-proofs.md#the-scoreboard)) | The headline from [2026-11-09](#six-decisions-of-2026-11-09-after-69) until later that day. G0 to G2 still say what the supply has |

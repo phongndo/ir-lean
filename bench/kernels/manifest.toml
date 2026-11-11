@@ -1,17 +1,29 @@
 # The kernel corpus: the fixed list of real projects the superoptimizer is judged on. docs/kernels.md.
 # It isn't docs/corpus.md's corpus, the pairs of IR tools/corpus/capture.py takes from `opt`.
 #
-# It was proposed, and the maintainer approved the six recommended projects on 2026-11-10, with the seven
-# decisions docs/roadmap.md records. It's "approved" and not yet "fixed": decision 7 asks for a bulk-encryption
-# driver for libsodium first. To fix it, set `state` to "fixed" and add a [lock] with the digest
-# `bench/kernels/kernels.py digest` prints, the date and the pull request. After that, tests/kernels_test.py
-# fails on any change to an approved project, or to what the corpus compiles with, that no [[amendment]]
-# records with its reason.
+# It was proposed, the maintainer approved the six recommended projects on 2026-11-10, with the seven decisions
+# docs/roadmap.md records, and it was fixed the same day, once decision 7's bulk-encryption driver for libsodium
+# was written: `state` is "fixed", and [lock] holds the digest `bench/kernels/kernels.py digest` prints. Since
+# then tests/kernels_test.py fails on any change to an approved project, or to what the corpus compiles with,
+# that no [[amendment]] records with its date and reason.
+#
+# A project's workloads are what wall time is measured on, by docs/kernels.md's protocol. Their commands name
+# {src}, the source at its pin, {build}, the project's build, {out}, a directory for what a run writes, {repo},
+# this repository, and {input:NAME}, one of the project's inputs, as `bench/kernels/kernels.py inputs` fetches
+# it. {input:NAME}/FILE is a file made from that archive: a member of a zip, or for silesia.zip, silesia.tar,
+# the tar of its members that `inputs` makes beside it.
+#
+# `run` is what's timed. `setup` runs once before the timed runs, on the same build, and `build` makes what the
+# project's own build doesn't. `measure` is "time", the wall time of `run`, or "rate", a speed the benchmark
+# prints, which `rate` names, where it runs for a fixed time or times its own repetitions. Each [[check]] is how
+# a candidate is shown to compute what the baseline does before it's timed: "output", what the run writes,
+# hashed and compared bit for bit with the baseline's, or "known-answers", the project's own test of the same
+# functions in its checking mode.
 
-schema = "ir-lean.kernels.manifest/1"
+schema = "ir-lean.kernels.manifest/2"
 
 [corpus]
-state = "approved"
+state = "fixed"
 approved = ["llama.cpp", "zlib-ng", "xxhash", "libsodium", "flac", "libwebp"]
 approved_on = "2026-11-10"
 decided_in = "docs/roadmap.md#the-kernel-corpus-decided-on-2026-11-10"
@@ -23,6 +35,12 @@ opt = "-O3"
 # What the dev shell's compiler wrapper adds and stock clang doesn't, undone, as tests/llama.py does.
 flags = ["-fomit-frame-pointer", "-momit-leaf-frame-pointer"]
 machine = "z: AMD Ryzen 9 9950X, znver5, AVX-512 with VNNI, 32 threads, 30 GB"
+
+# Fixed on 2026-11-10: the digest of [corpus]'s settings and the six projects' entries, as approved.
+[lock]
+sha256 = "5fcc0c9080e132266426321bfd591f9554d8bd2f4bab9a3428d7be9ccaaa061f"
+approved_on = "2026-11-10"
+approved_in = "docs/roadmap.md#the-kernel-corpus-decided-on-2026-11-10"
 
 # ---------------------------------------------------------------------------------------------------------------
 # Inference
@@ -76,31 +94,157 @@ kernels = [
   "ggml_vec_dot_q6_K_q8_K",
 ]
 
-[project."llama.cpp".workload]
-what = "Reading a 512-token prompt and generating 128 tokens with a Q4_K_M model, and perplexity on WikiText-2"
-benchmark = "llama-bench and llama-perplexity, llama.cpp's own, as tests/llama_bench.py runs them"
-command = [
-  "tests/llama_bench.py",
-  "{input:qwen2.5-1.5b-instruct-q4_k_m.gguf}",
-  "--text",
-  "{input:wikitext-2-raw-v1.zip}/wiki.test.raw",
-  "--rounds",
-  "10",
-  "--cpus",
-  "8-15",
-  "--threads",
-  "8",
-]
-
-[[project."llama.cpp".workload.input]]
+[[project."llama.cpp".input]]
 name = "qwen2.5-1.5b-instruct-q4_k_m.gguf"
 url = "https://huggingface.co/Qwen/Qwen2.5-1.5B-Instruct-GGUF/resolve/main/qwen2.5-1.5b-instruct-q4_k_m.gguf"
 sha256 = "6a1a2eb6d15622bf3c96857206351ba97e1af16c30d7a74ee38970e434e9407e"
 
-[[project."llama.cpp".workload.input]]
+[[project."llama.cpp".input]]
 name = "wikitext-2-raw-v1.zip"
 url = "https://huggingface.co/datasets/ggml-org/ci/resolve/main/wikitext-2-raw-v1.zip"
 sha256 = "ef7edb566e3e2b2d31b29c1fdb0c89a4cc683597484c3dc2517919c615435a11"
+
+# The three workloads tests/llama_bench.py times, each with 8 threads, as it runs them.
+[[project."llama.cpp".workload]]
+name = "pp512"
+what = "Reading a 512-token prompt with a Q4_K_M model"
+benchmark = "llama-bench, llama.cpp's own, as tests/llama_bench.py runs it"
+threads = 8
+run = [
+  [
+    "{build}/bin/llama-bench",
+    "-m",
+    "{input:qwen2.5-1.5b-instruct-q4_k_m.gguf}",
+    "-t",
+    "8",
+    "-p",
+    "512",
+    "-n",
+    "0",
+    "-r",
+    "3",
+    "-o",
+    "csv",
+  ],
+]
+measure = "rate"
+rate = "Tokens a second: avg_ts, in the last row of the CSV llama-bench prints"
+
+# llama.cpp has no test that compares these kernels with known answers: tests/test-quantize-fns.cpp compares
+# them with a float reference within an error bound, and test-backend-ops compares one backend with another.
+[[project."llama.cpp".workload.check]]
+kind = "output"
+what = "The logits of 16 chunks of 512 tokens, compared bit for bit with the baseline's, as tests/llama_bench.py does"
+run = [
+  [
+    "{build}/bin/llama-perplexity",
+    "-m",
+    "{input:qwen2.5-1.5b-instruct-q4_k_m.gguf}",
+    "-f",
+    "{input:wikitext-2-raw-v1.zip}/wikitext-2-raw/wiki.test.raw",
+    "-t",
+    "8",
+    "-c",
+    "512",
+    "--chunks",
+    "16",
+    "--kl-divergence-base",
+    "{out}/logits.bin",
+  ],
+]
+output = ["{out}/logits.bin"]
+
+[[project."llama.cpp".workload]]
+name = "tg128"
+what = "Generating 128 tokens with it"
+benchmark = "llama-bench, llama.cpp's own, as tests/llama_bench.py runs it"
+threads = 8
+run = [
+  [
+    "{build}/bin/llama-bench",
+    "-m",
+    "{input:qwen2.5-1.5b-instruct-q4_k_m.gguf}",
+    "-t",
+    "8",
+    "-p",
+    "0",
+    "-n",
+    "128",
+    "-r",
+    "3",
+    "-o",
+    "csv",
+  ],
+]
+measure = "rate"
+rate = "Tokens a second: avg_ts, in the last row of the CSV llama-bench prints"
+
+[[project."llama.cpp".workload.check]]
+kind = "output"
+what = "The logits of 16 chunks of 512 tokens, compared bit for bit with the baseline's, as tests/llama_bench.py does"
+run = [
+  [
+    "{build}/bin/llama-perplexity",
+    "-m",
+    "{input:qwen2.5-1.5b-instruct-q4_k_m.gguf}",
+    "-f",
+    "{input:wikitext-2-raw-v1.zip}/wikitext-2-raw/wiki.test.raw",
+    "-t",
+    "8",
+    "-c",
+    "512",
+    "--chunks",
+    "16",
+    "--kl-divergence-base",
+    "{out}/logits.bin",
+  ],
+]
+output = ["{out}/logits.bin"]
+
+[[project."llama.cpp".workload]]
+name = "ppl"
+what = "Perplexity on WikiText-2, 24 chunks of 512 tokens"
+benchmark = "llama-perplexity, llama.cpp's own, as tests/llama_bench.py runs it"
+threads = 8
+run = [
+  [
+    "{build}/bin/llama-perplexity",
+    "-m",
+    "{input:qwen2.5-1.5b-instruct-q4_k_m.gguf}",
+    "-f",
+    "{input:wikitext-2-raw-v1.zip}/wikitext-2-raw/wiki.test.raw",
+    "-t",
+    "8",
+    "-c",
+    "512",
+    "--chunks",
+    "24",
+  ],
+]
+measure = "time"
+
+# What it prints mixes the perplexity with timings, so the logits are what's compared.
+[[project."llama.cpp".workload.check]]
+kind = "output"
+what = "The logits of 16 chunks of 512 tokens, compared bit for bit with the baseline's, as tests/llama_bench.py does"
+run = [
+  [
+    "{build}/bin/llama-perplexity",
+    "-m",
+    "{input:qwen2.5-1.5b-instruct-q4_k_m.gguf}",
+    "-f",
+    "{input:wikitext-2-raw-v1.zip}/wikitext-2-raw/wiki.test.raw",
+    "-t",
+    "8",
+    "-c",
+    "512",
+    "--chunks",
+    "16",
+    "--kl-divergence-base",
+    "{out}/logits.bin",
+  ],
+]
+output = ["{out}/logits.bin"]
 
 [project.xnnpack]
 what = "Neural-network operators for CPUs, as thousands of generated microkernels"
@@ -155,13 +299,11 @@ kernels = ["xnn_qd8_f32_qc8w_gemm_minmax_ukernel_10x16c8__avx512vnni_prfm"]
 source = "src/qs8-rsum/gen/qs8-rsum-avx512vnni-u128-acc2.c"
 kernels = ["xnn_qs8_rsum_ukernel__avx512vnni_u128_acc2"]
 
-[project.xnnpack.workload]
+[[project.xnnpack.workload]]
+name = "models"
 what = "Its end-to-end model benchmarks, quantized MobileNet v2 among them, with generated weights"
 benchmark = "bench/models, XNNPACK's own, on Google Benchmark"
-command = [
-  "{build}/bench/models/benchmark",
-  "--benchmark_filter=QS8MobileNetV2",
-]
+run = [["{build}/bench/models/benchmark", "--benchmark_filter=QS8MobileNetV2"]]
 
 # ---------------------------------------------------------------------------------------------------------------
 # Compression
@@ -284,15 +426,42 @@ flags = [
 ]
 kernels = ["crc32_fold_vpclmulqdq"]
 
-[project.zlib-ng.workload]
-what = "Compressing the Silesia corpus as one tar at level 6, and decompressing it"
-benchmark = "minigzip, zlib-ng's own, which its deflatebench runs on silesia.tar"
-command = ["{build}/minigzip", "-6", "-c", "{input:silesia.zip}/silesia.tar"]
-
-[[project.zlib-ng.workload.input]]
+[[project.zlib-ng.input]]
 name = "silesia.zip"
 url = "https://sun.aei.polsl.pl/~sdeor/corpus/silesia.zip"
 sha256 = "0626e25f45c0ffb5dc801f13b7c82a3b75743ba07e3a71835a41e3d9f63c77af"
+
+[[project.zlib-ng.workload]]
+name = "compress"
+what = "Compressing the Silesia corpus as one tar at level 6"
+benchmark = "minigzip, zlib-ng's own, which its deflatebench runs on silesia.tar"
+run = [["{build}/minigzip", "-6", "-c", "{input:silesia.zip}/silesia.tar"]]
+measure = "time"
+
+[[project.zlib-ng.workload.check]]
+kind = "output"
+what = "The gzip stream it writes, compared bit for bit with the baseline's"
+output = ["stdout"]
+
+[[project.zlib-ng.workload]]
+name = "decompress"
+what = "Decompressing it again"
+benchmark = "minigzip -d, zlib-ng's own"
+setup = [
+  [
+    "sh",
+    "-c",
+    "'{build}/minigzip' -6 -c '{input:silesia.zip}/silesia.tar' >'{out}/silesia.tar.gz'",
+  ],
+]
+run = [["{build}/minigzip", "-d", "-c", "{out}/silesia.tar.gz"]]
+measure = "time"
+
+[[project.zlib-ng.workload.check]]
+kind = "output"
+what = "What it writes, compared bit for bit with the baseline's, and known: silesia.tar itself"
+output = ["stdout"]
+sha256 = "0b5ec70c8048321525f820bc1d76429840bd22ee2c7a116175253a0fec2c724d"
 
 [project.zstd]
 what = "Zstandard, a fast compressor with a wide range of ratios"
@@ -340,20 +509,23 @@ kernels = [
   "ZSTD_insertBt1",
 ]
 
-[project.zstd.workload]
-what = "Compressing the Silesia corpus as one tar at level 3, and decompressing it"
-benchmark = "zstd -b, its own in-memory benchmark, which its README's table uses on Silesia"
-command = [
-  "{build}/programs/zstd",
-  "-b3",
-  "-i5",
-  "{input:silesia.zip}/silesia.tar",
-]
-
-[[project.zstd.workload.input]]
+[[project.zstd.input]]
 name = "silesia.zip"
 url = "https://sun.aei.polsl.pl/~sdeor/corpus/silesia.zip"
 sha256 = "0626e25f45c0ffb5dc801f13b7c82a3b75743ba07e3a71835a41e3d9f63c77af"
+
+[[project.zstd.workload]]
+name = "level3"
+what = "Compressing the Silesia corpus as one tar at level 3, and decompressing it"
+benchmark = "zstd -b, its own in-memory benchmark, which its README's table uses on Silesia"
+run = [
+  [
+    "{build}/programs/zstd",
+    "-b3",
+    "-i5",
+    "{input:silesia.zip}/silesia.tar",
+  ],
+]
 
 [project.libdeflate]
 what = "A whole-buffer DEFLATE, zlib and gzip library"
@@ -380,19 +552,16 @@ kernels = ["deflate_compress_lazy", "deflate_flush_block"]
 source = "lib/deflate_decompress.c"
 kernels = ["deflate_decompress_bmi2"]
 
-[project.libdeflate.workload]
-what = "Compressing the Silesia corpus as one tar at level 6, and decompressing it"
-benchmark = "programs/benchmark, libdeflate's own"
-command = [
-  "{build}/programs/benchmark",
-  "-6",
-  "{input:silesia.zip}/silesia.tar",
-]
-
-[[project.libdeflate.workload.input]]
+[[project.libdeflate.input]]
 name = "silesia.zip"
 url = "https://sun.aei.polsl.pl/~sdeor/corpus/silesia.zip"
 sha256 = "0626e25f45c0ffb5dc801f13b7c82a3b75743ba07e3a71835a41e3d9f63c77af"
+
+[[project.libdeflate.workload]]
+name = "level6"
+what = "Compressing the Silesia corpus as one tar at level 6, and decompressing it"
+benchmark = "programs/benchmark, libdeflate's own"
+run = [["{build}/programs/benchmark", "-6", "{input:silesia.zip}/silesia.tar"]]
 
 [project.lz4]
 what = "A very fast LZ77 compressor"
@@ -521,23 +690,98 @@ kernels = ["FLAC__crc16_update_words64", "FLAC__crc16"]
 source = "src/libFLAC/fixed.c"
 kernels = ["FLAC__fixed_compute_residual"]
 
-[project.flac.workload]
-what = "Decoding the Sintel film's stereo master, and encoding it again at levels 5 and 8"
-benchmark = "The flac command line, the project's own, as bench/kernels/profile.sh runs it"
-command = [
-  "{build}/src/flac/flac",
-  "-s",
-  "-8",
-  "-f",
-  "-o",
-  "{out}/a.flac",
-  "{out}/sintel.wav",
-]
-
-[[project.flac.workload.input]]
+[[project.flac.input]]
 name = "sintel-master-st.flac"
 url = "https://media.xiph.org/sintel/sintel-master-st.flac"
 sha256 = "49b279400b6fcad23f6a8862ae65a2a22f21f249cd7576b09991880da221412b"
+
+[[project.flac.workload]]
+name = "decode"
+what = "Decoding the Sintel film's stereo master to WAV"
+benchmark = "The flac command line, the project's own, as bench/kernels/profile.sh runs it"
+run = [
+  [
+    "{build}/src/flac/flac",
+    "-s",
+    "-d",
+    "-f",
+    "-o",
+    "{out}/sintel.wav",
+    "{input:sintel-master-st.flac}",
+  ],
+]
+measure = "time"
+
+[[project.flac.workload.check]]
+kind = "output"
+what = "The WAV, compared bit for bit with the baseline's. flac also compares the audio with the MD5 its input carries, and fails if they differ"
+output = ["{out}/sintel.wav"]
+
+[[project.flac.workload]]
+name = "encode-5"
+what = "Encoding it again at level 5, flac's default"
+benchmark = "The flac command line, the project's own, as bench/kernels/profile.sh runs it"
+setup = [
+  [
+    "{build}/src/flac/flac",
+    "-s",
+    "-d",
+    "-f",
+    "-o",
+    "{out}/sintel.wav",
+    "{input:sintel-master-st.flac}",
+  ],
+]
+run = [
+  [
+    "{build}/src/flac/flac",
+    "-s",
+    "-5",
+    "-f",
+    "-o",
+    "{out}/sintel-5.flac",
+    "{out}/sintel.wav",
+  ],
+]
+measure = "time"
+
+[[project.flac.workload.check]]
+kind = "output"
+what = "The FLAC file it writes, compared bit for bit with the baseline's"
+output = ["{out}/sintel-5.flac"]
+
+[[project.flac.workload]]
+name = "encode-8"
+what = "Encoding it again at level 8, its highest"
+benchmark = "The flac command line, the project's own, as bench/kernels/profile.sh runs it"
+setup = [
+  [
+    "{build}/src/flac/flac",
+    "-s",
+    "-d",
+    "-f",
+    "-o",
+    "{out}/sintel.wav",
+    "{input:sintel-master-st.flac}",
+  ],
+]
+run = [
+  [
+    "{build}/src/flac/flac",
+    "-s",
+    "-8",
+    "-f",
+    "-o",
+    "{out}/sintel-8.flac",
+    "{out}/sintel.wav",
+  ],
+]
+measure = "time"
+
+[[project.flac.workload.check]]
+kind = "output"
+what = "The FLAC file it writes, compared bit for bit with the baseline's"
+output = ["{out}/sintel-8.flac"]
 
 [project.libwebp]
 what = "The reference WebP image encoder and decoder"
@@ -635,60 +879,361 @@ kernels = ["QuantizeBlock_SSE41"]
 source = "src/dsp/enc_sse2.c"
 kernels = ["FTransform_SSE2", "ITransform_SSE2", "SSE4x4_SSE2"]
 
-[project.libwebp.workload]
-what = "Decoding the WebP gallery's five lossy and five lossless images, and encoding the lossless ones' pixels"
-benchmark = "dwebp and cwebp, the project's own tools, on Google's own WebP gallery, as bench/kernels/profile.sh runs them"
-command = ["{build}/dwebp", "{input:1.webp}", "-ppm", "-o", "{out}/1.ppm"]
-
-[[project.libwebp.workload.input]]
+[[project.libwebp.input]]
 name = "1.webp"
 url = "https://www.gstatic.com/webp/gallery/1.webp"
 sha256 = "4a5afeaff8483923da964bc7896f02d0283e8bff99b5b8f82a31ae3214dab1d0"
 
-[[project.libwebp.workload.input]]
+[[project.libwebp.input]]
 name = "2.webp"
 url = "https://www.gstatic.com/webp/gallery/2.webp"
 sha256 = "1ac427ad555ba5898015e8b60396e1852bfc1e9cd7ae5da6dd42c85ea3e169f7"
 
-[[project.libwebp.workload.input]]
+[[project.libwebp.input]]
 name = "3.webp"
 url = "https://www.gstatic.com/webp/gallery/3.webp"
 sha256 = "82747f0d9a39830fb3b6a21b0b08a04a80e7c539446ee5ccfc4b50b304a8b7ee"
 
-[[project.libwebp.workload.input]]
+[[project.libwebp.input]]
 name = "4.webp"
 url = "https://www.gstatic.com/webp/gallery/4.webp"
 sha256 = "0858d0afcb2921ded36b05586204f2459d965feb7db54cb083e3cfa059589dd9"
 
-[[project.libwebp.workload.input]]
+[[project.libwebp.input]]
 name = "5.webp"
 url = "https://www.gstatic.com/webp/gallery/5.webp"
 sha256 = "eb4f6043f17a868cb6618a97fb5ba9a130c7f10b13b1db83fcf2df10ecbe1f23"
 
-[[project.libwebp.workload.input]]
+[[project.libwebp.input]]
 name = "1_webp_ll.webp"
 url = "https://www.gstatic.com/webp/gallery3/1_webp_ll.webp"
 sha256 = "49a902b9c35bd2031bf26234c59ff369dd3ae18a3b58247285104a23346ba2d4"
 
-[[project.libwebp.workload.input]]
+[[project.libwebp.input]]
 name = "2_webp_ll.webp"
 url = "https://www.gstatic.com/webp/gallery3/2_webp_ll.webp"
 sha256 = "67d332b637d19997ca95359099067205ce28226d15320ae8f17da51e4f814c95"
 
-[[project.libwebp.workload.input]]
+[[project.libwebp.input]]
 name = "3_webp_ll.webp"
 url = "https://www.gstatic.com/webp/gallery3/3_webp_ll.webp"
 sha256 = "764f01c6f3e50ce4002004073cc01dc9960882925cdf775a4ddb000c8ec74bf2"
 
-[[project.libwebp.workload.input]]
+[[project.libwebp.input]]
 name = "4_webp_ll.webp"
 url = "https://www.gstatic.com/webp/gallery3/4_webp_ll.webp"
 sha256 = "b3ad6ddb0c1e64557dfdd31721fcbfb5bdaac5eff5a77f15c105881e0b7f2579"
 
-[[project.libwebp.workload.input]]
+[[project.libwebp.input]]
 name = "5_webp_ll.webp"
 url = "https://www.gstatic.com/webp/gallery3/5_webp_ll.webp"
 sha256 = "6853c4f14122fe2ad8bf6926f5e294a0528c60f20f3dcbd9e9b781d6260a8850"
+
+[[project.libwebp.workload]]
+name = "decode-lossy"
+what = "Decoding the WebP gallery's five lossy images"
+benchmark = "dwebp and cwebp, the project's own tools, on Google's own WebP gallery, as bench/kernels/profile.sh runs them"
+run = [
+  [
+    "{build}/dwebp",
+    "{input:1.webp}",
+    "-ppm",
+    "-o",
+    "{out}/1.ppm",
+  ],
+  [
+    "{build}/dwebp",
+    "{input:2.webp}",
+    "-ppm",
+    "-o",
+    "{out}/2.ppm",
+  ],
+  [
+    "{build}/dwebp",
+    "{input:3.webp}",
+    "-ppm",
+    "-o",
+    "{out}/3.ppm",
+  ],
+  [
+    "{build}/dwebp",
+    "{input:4.webp}",
+    "-ppm",
+    "-o",
+    "{out}/4.ppm",
+  ],
+  [
+    "{build}/dwebp",
+    "{input:5.webp}",
+    "-ppm",
+    "-o",
+    "{out}/5.ppm",
+  ],
+]
+measure = "time"
+
+[[project.libwebp.workload.check]]
+kind = "output"
+what = "The five PPM images it writes, compared bit for bit with the baseline's"
+output = [
+  "{out}/1.ppm",
+  "{out}/2.ppm",
+  "{out}/3.ppm",
+  "{out}/4.ppm",
+  "{out}/5.ppm",
+]
+
+[[project.libwebp.workload]]
+name = "decode-lossless"
+what = "Decoding the gallery's five lossless images"
+benchmark = "dwebp and cwebp, the project's own tools, on Google's own WebP gallery, as bench/kernels/profile.sh runs them"
+run = [
+  [
+    "{build}/dwebp",
+    "{input:1_webp_ll.webp}",
+    "-pam",
+    "-o",
+    "{out}/1.pam",
+  ],
+  [
+    "{build}/dwebp",
+    "{input:2_webp_ll.webp}",
+    "-pam",
+    "-o",
+    "{out}/2.pam",
+  ],
+  [
+    "{build}/dwebp",
+    "{input:3_webp_ll.webp}",
+    "-pam",
+    "-o",
+    "{out}/3.pam",
+  ],
+  [
+    "{build}/dwebp",
+    "{input:4_webp_ll.webp}",
+    "-pam",
+    "-o",
+    "{out}/4.pam",
+  ],
+  [
+    "{build}/dwebp",
+    "{input:5_webp_ll.webp}",
+    "-pam",
+    "-o",
+    "{out}/5.pam",
+  ],
+]
+measure = "time"
+
+[[project.libwebp.workload.check]]
+kind = "output"
+what = "The five PAM images it writes, compared bit for bit with the baseline's"
+output = [
+  "{out}/1.pam",
+  "{out}/2.pam",
+  "{out}/3.pam",
+  "{out}/4.pam",
+  "{out}/5.pam",
+]
+
+# dwebp's PAM is the encoder's input: cwebp in the dev shell is built without libpng.
+[[project.libwebp.workload]]
+name = "encode-lossy"
+what = "Encoding the lossless images' pixels at quality 75"
+benchmark = "dwebp and cwebp, the project's own tools, on Google's own WebP gallery, as bench/kernels/profile.sh runs them"
+setup = [
+  [
+    "{build}/dwebp",
+    "{input:1_webp_ll.webp}",
+    "-pam",
+    "-o",
+    "{out}/1.pam",
+  ],
+  [
+    "{build}/dwebp",
+    "{input:2_webp_ll.webp}",
+    "-pam",
+    "-o",
+    "{out}/2.pam",
+  ],
+  [
+    "{build}/dwebp",
+    "{input:3_webp_ll.webp}",
+    "-pam",
+    "-o",
+    "{out}/3.pam",
+  ],
+  [
+    "{build}/dwebp",
+    "{input:4_webp_ll.webp}",
+    "-pam",
+    "-o",
+    "{out}/4.pam",
+  ],
+  [
+    "{build}/dwebp",
+    "{input:5_webp_ll.webp}",
+    "-pam",
+    "-o",
+    "{out}/5.pam",
+  ],
+]
+run = [
+  [
+    "{build}/cwebp",
+    "-quiet",
+    "-q",
+    "75",
+    "{out}/1.pam",
+    "-o",
+    "{out}/1-q75.webp",
+  ],
+  [
+    "{build}/cwebp",
+    "-quiet",
+    "-q",
+    "75",
+    "{out}/2.pam",
+    "-o",
+    "{out}/2-q75.webp",
+  ],
+  [
+    "{build}/cwebp",
+    "-quiet",
+    "-q",
+    "75",
+    "{out}/3.pam",
+    "-o",
+    "{out}/3-q75.webp",
+  ],
+  [
+    "{build}/cwebp",
+    "-quiet",
+    "-q",
+    "75",
+    "{out}/4.pam",
+    "-o",
+    "{out}/4-q75.webp",
+  ],
+  [
+    "{build}/cwebp",
+    "-quiet",
+    "-q",
+    "75",
+    "{out}/5.pam",
+    "-o",
+    "{out}/5-q75.webp",
+  ],
+]
+measure = "time"
+
+[[project.libwebp.workload.check]]
+kind = "output"
+what = "The five WebP files it writes, compared bit for bit with the baseline's"
+output = [
+  "{out}/1-q75.webp",
+  "{out}/2-q75.webp",
+  "{out}/3-q75.webp",
+  "{out}/4-q75.webp",
+  "{out}/5-q75.webp",
+]
+
+[[project.libwebp.workload]]
+name = "encode-lossless"
+what = "Encoding the lossless images' pixels losslessly"
+benchmark = "dwebp and cwebp, the project's own tools, on Google's own WebP gallery, as bench/kernels/profile.sh runs them"
+setup = [
+  [
+    "{build}/dwebp",
+    "{input:1_webp_ll.webp}",
+    "-pam",
+    "-o",
+    "{out}/1.pam",
+  ],
+  [
+    "{build}/dwebp",
+    "{input:2_webp_ll.webp}",
+    "-pam",
+    "-o",
+    "{out}/2.pam",
+  ],
+  [
+    "{build}/dwebp",
+    "{input:3_webp_ll.webp}",
+    "-pam",
+    "-o",
+    "{out}/3.pam",
+  ],
+  [
+    "{build}/dwebp",
+    "{input:4_webp_ll.webp}",
+    "-pam",
+    "-o",
+    "{out}/4.pam",
+  ],
+  [
+    "{build}/dwebp",
+    "{input:5_webp_ll.webp}",
+    "-pam",
+    "-o",
+    "{out}/5.pam",
+  ],
+]
+run = [
+  [
+    "{build}/cwebp",
+    "-quiet",
+    "-lossless",
+    "{out}/1.pam",
+    "-o",
+    "{out}/1-ll.webp",
+  ],
+  [
+    "{build}/cwebp",
+    "-quiet",
+    "-lossless",
+    "{out}/2.pam",
+    "-o",
+    "{out}/2-ll.webp",
+  ],
+  [
+    "{build}/cwebp",
+    "-quiet",
+    "-lossless",
+    "{out}/3.pam",
+    "-o",
+    "{out}/3-ll.webp",
+  ],
+  [
+    "{build}/cwebp",
+    "-quiet",
+    "-lossless",
+    "{out}/4.pam",
+    "-o",
+    "{out}/4-ll.webp",
+  ],
+  [
+    "{build}/cwebp",
+    "-quiet",
+    "-lossless",
+    "{out}/5.pam",
+    "-o",
+    "{out}/5-ll.webp",
+  ],
+]
+measure = "time"
+
+[[project.libwebp.workload.check]]
+kind = "output"
+what = "The five WebP files it writes, compared bit for bit with the baseline's"
+output = [
+  "{out}/1-ll.webp",
+  "{out}/2-ll.webp",
+  "{out}/3-ll.webp",
+  "{out}/4-ll.webp",
+  "{out}/5-ll.webp",
+]
 
 [project.opus]
 what = "The reference Opus audio codec, for speech and music"
@@ -773,24 +1318,27 @@ source = "celt/x86/pitch_avx.c"
 flags = ["-mavx2", "-mfma", "-mavx"]
 kernels = ["celt_pitch_xcorr_avx2"]
 
-[project.opus.workload]
-what = "Encoding the Sintel film's stereo master at 96 kb/s, and decoding it"
-benchmark = "opus_demo, the project's own, as bench/kernels/profile.sh runs it"
-command = [
-  "{build}/opus_demo",
-  "-e",
-  "audio",
-  "48000",
-  "2",
-  "96000",
-  "{out}/sintel.raw",
-  "{out}/a.bit",
-]
-
-[[project.opus.workload.input]]
+[[project.opus.input]]
 name = "sintel-master-st.flac"
 url = "https://media.xiph.org/sintel/sintel-master-st.flac"
 sha256 = "49b279400b6fcad23f6a8862ae65a2a22f21f249cd7576b09991880da221412b"
+
+[[project.opus.workload]]
+name = "encode"
+what = "Encoding the Sintel film's stereo master at 96 kb/s, and decoding it"
+benchmark = "opus_demo, the project's own, as bench/kernels/profile.sh runs it"
+run = [
+  [
+    "{build}/opus_demo",
+    "-e",
+    "audio",
+    "48000",
+    "2",
+    "96000",
+    "{out}/sintel.raw",
+    "{out}/a.bit",
+  ],
+]
 
 [project.dav1d]
 what = "The fastest AV1 video decoder"
@@ -838,15 +1386,43 @@ kernels = [
 source = "xxhash.c"
 kernels = ["XXH64", "XXH32"]
 
-[project.xxhash.workload]
-what = "Hashing a 100 KB buffer over and over with XXH32, XXH64, XXH3 and XXH128, and the Silesia corpus as one tar"
-benchmark = "xxhsum -b, its own benchmark, and xxhsum -H3 on a file"
-command = ["{build}/xxhsum", "-b", "-i5"]
-
-[[project.xxhash.workload.input]]
+[[project.xxhash.input]]
 name = "silesia.zip"
 url = "https://sun.aei.polsl.pl/~sdeor/corpus/silesia.zip"
 sha256 = "0626e25f45c0ffb5dc801f13b7c82a3b75743ba07e3a71835a41e3d9f63c77af"
+
+# {build} is a copy of the source: its Makefile builds in the source tree.
+[[project.xxhash.workload]]
+name = "bench"
+what = "Hashing a 100 KB buffer over and over with XXH32, XXH64, XXH3 and XXH128"
+benchmark = "xxhsum -b, its own benchmark"
+run = [["{build}/xxhsum", "-b", "-i5"]]
+measure = "rate"
+rate = "MiB/s, for each of XXH32, XXH64, XXH3_64b and XXH128: xxhsum -b hashes with each for a fixed time and prints its speed, and each is compared on its own"
+
+[[project.xxhash.workload.check]]
+kind = "known-answers"
+what = "xxhsum's own sanity check, which compares XXH32 and XXH64, the kernels in xxhash.c, and XXH3 and XXH128 through xxhash.c, with its tables of known values, and exits 1 on a wrong one. Every xxhsum -b runs it before it times anything, and -V runs it alone"
+test = ["cli/xsum_sanity_check.c"]
+run = [["{build}/xxhsum", "-V"]]
+
+[[project.xxhash.workload.check]]
+kind = "known-answers"
+what = "Its test of XXH3 and XXH128 through the x86 dispatcher, one-shot and streamed, on 2048 bytes, against reference values: on z, the AVX-512 kernels of xxh_x86dispatch.c"
+test = ["tests/inlineDispatch.c"]
+run = [["make", "-C", "{build}", "test-inline-dispatch"]]
+
+[[project.xxhash.workload]]
+name = "file"
+what = "Hashing the Silesia corpus as one tar with XXH3, streamed from the file"
+benchmark = "xxhsum -H3, its own command line"
+run = [["{build}/xxhsum", "-H3", "{input:silesia.zip}/silesia.tar"]]
+measure = "time"
+
+[[project.xxhash.workload.check]]
+kind = "output"
+what = "The XXH3 hash it prints, compared with the baseline's"
+output = ["stdout"]
 
 [project.blake3]
 what = "The BLAKE3 cryptographic hash, in C"
@@ -959,12 +1535,82 @@ source = "src/libsodium/crypto_aead/aes256gcm/aesni/aead_aes256gcm_aesni.c"
 flags = ["-mavx", "-maes", "-mpclmul"]
 kernels = ["gh_ad_blocks"]
 
-# Decision 7 of 2026-11-10: a bulk-encryption driver of ours, over libsodium's documented crypto_secretstream
-# example, joins this workload before the corpus is fixed. It isn't written yet.
-[project.libsodium.workload]
-what = "Hashing passwords with Argon2id, and its other tests of bulk encryption and hashing, in benchmark mode"
-benchmark = "test/default built with -DBENCHMARKS, libsodium's own, as bench/kernels/profile.sh runs it"
-command = ["{build}/test/default/pwhash_argon2id"]
+# Decision 7 of 2026-11-10: its Argon2id test in benchmark mode, and a bulk-encryption driver of ours.
+[[project.libsodium.workload]]
+name = "argon2id"
+what = "Hashing passwords with Argon2id: libsodium's test of it, 200 times over"
+benchmark = "test/default/pwhash_argon2id built with -DBENCHMARKS, libsodium's own, as bench/kernels/profile.sh runs it"
+# Built in benchmark mode, a test runs its body ITERATIONS times and prints the time: test/default/cmptest.h.
+build = [
+  [
+    "make",
+    "-C",
+    "{build}/test/default",
+    "clean",
+  ],
+  [
+    "make",
+    "-C",
+    "{build}/test/default",
+    "CPPFLAGS=-DBENCHMARKS -DITERATIONS=200",
+    "pwhash_argon2id",
+  ],
+]
+run = [["{build}/test/default/pwhash_argon2id"]]
+measure = "time"
+
+# A test built in benchmark mode prints only times, and make check passes it whatever it computes, so the tests
+# are cleaned first, and built again in checking mode.
+[[project.libsodium.workload.check]]
+kind = "known-answers"
+what = "The same test in its checking mode, which writes what it computes for its test vectors and compares it with its .exp file"
+test = ["test/default/pwhash_argon2id.c", "test/default/pwhash_argon2id.exp"]
+run = [
+  [
+    "make",
+    "-C",
+    "{build}/test/default",
+    "clean",
+  ],
+  [
+    "make",
+    "-C",
+    "{build}/test/default",
+    "check",
+    "TESTS=pwhash_argon2id",
+    "check_PROGRAMS=pwhash_argon2id",
+  ],
+]
+
+[[project.libsodium.workload]]
+name = "secretstream"
+what = "Encrypting a gibibyte with XChaCha20-Poly1305 in 4096-byte chunks, pulling each chunk back, and hashing what was encrypted with BLAKE2b"
+benchmark = "bench/kernels/libsodium/secretstream.c, ours, over libsodium's documented crypto_secretstream example"
+driver = "bench/kernels/libsodium/secretstream.c"
+driver_sha256 = "fb2325af27c91577f1806de1a006bb5f945bb70e71eaf3e06ae5764f835dd4b6"
+build = [
+  [
+    "clang",
+    "-O3",
+    "-I{src}/src/libsodium/include/sodium",
+    "-I{build}/src/libsodium/include/sodium",
+    "-I{src}/src/libsodium/include",
+    "-I{build}/src/libsodium/include",
+    "{repo}/bench/kernels/libsodium/secretstream.c",
+    "{build}/src/libsodium/.libs/libsodium.a",
+    "-pthread",
+    "-o",
+    "{build}/secretstream",
+  ],
+]
+run = [["{build}/secretstream"]]
+measure = "time"
+
+[[project.libsodium.workload.check]]
+kind = "output"
+what = "The BLAKE2b-256 it prints of the stream's header and every encrypted chunk, compared bit for bit with the baseline's. It's known: bench/kernels/libsodium/reference.py computes it without libsodium, from ChaCha20, HChaCha20, Poly1305 and BLAKE2b written from their RFCs. And the driver exits 1 if a chunk doesn't decrypt to what went in"
+output = ["stdout"]
+sha256 = "46bf47eae5ef94a179f0ab1dcd13b9d8967977fea4108ca87789159b120b436b"
 
 [project.openssl]
 what = "The TLS and general-purpose cryptography library most servers run"
@@ -1018,7 +1664,8 @@ source = "lib/arch/avx512/codec.c"
 flags = ["-mavx512vl", "-mavx512vbmi"]
 kernels = ["base64_stream_decode_avx512", "base64_stream_encode_avx512"]
 
-[project.base64.workload]
+[[project.base64.workload]]
+name = "benchmark"
 what = "Encoding and decoding buffers from 1 kB to 10 MB"
 benchmark = "test/benchmark, its own"
-command = ["{build}/bin/benchmark"]
+run = [["{build}/bin/benchmark"]]

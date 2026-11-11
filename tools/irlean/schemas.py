@@ -76,7 +76,7 @@ NEGATIVE_ENVELOPE = "ir-lean.verification-negative.envelope/1"
 NEGATIVE_REPORT = "ir-lean.verification-negative.report/1"
 # bench/kernels: the kernel corpus's manifest, and what the emitter makes of its candidates' kernels.
 # docs/kernels.md.
-KERNELS_MANIFEST = "ir-lean.kernels.manifest/1"
+KERNELS_MANIFEST = "ir-lean.kernels.manifest/2"
 KERNELS_DEMAND = "ir-lean.kernels.demand/1"
 
 ALL = {

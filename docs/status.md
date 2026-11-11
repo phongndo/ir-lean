@@ -312,3 +312,8 @@ reads it. That difference is itself a thing [Phase 3](roadmap.md#phase-3-c-and-r
     the model's memory gaps, is partly done: each has its side, and four aren't closed. Stage 3, a target that
     allocates differently, so removing an `alloca` has no claim, and stage 6, `tools/binding.py` on memory, which
     still refuses it, haven't started. The `cut` and `memory_refine` tests check it.
+19. [The kernel corpus](kernels.md), the real projects the superoptimizer is judged on, fixed on 2026-11-10: the six
+    the maintainer approved that day, llama.cpp, zlib-ng, xxHash, libsodium, FLAC and libwebp, with sixteen
+    workloads, each saying what's measured and how a candidate is checked before it's timed, and a bulk-encryption
+    driver of ours for libsodium. A lock holds the list, and `tests/kernels_test.py` fails on any change to it that no
+    amendment records. No search or rewrite has run on it yet.
