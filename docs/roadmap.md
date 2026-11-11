@@ -1017,6 +1017,10 @@ platform track nor a chunk holds them yet. Where they go is the maintainer's cal
 - **The rest of Phase 0:** slices 8, 10, 12 and 16 [below](#near-term-pull-requests). Slice 12, semantic mutation, is
   NEG-03, in the platform track's honesty work.
 - **Phases 2, 3 and 5,** which wait on milestones not reached yet.
+- **Reading `!tbaa`, `noalias` and the like as dropped on a refinement's source,** [proposed](source-annotations.md) on
+  2026-11-10 so sopt can read default `-O3` builds: it holds for the rewritten function, with rules, but a rewrite of
+  a function with memory can't be installed until F4 keeps what callers promise about a call, and it needs five
+  decisions.
 
 Two items left this list earlier on 2026-11-09. The `undef` decision was made,
 [decision 1](#three-decisions-of-2026-11-09), and SEM-06, memory refinement, is F4, now next in the platform track.
