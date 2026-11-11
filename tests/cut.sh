@@ -113,9 +113,11 @@ compile_sodium() {
 sodium_rev=77e1ce5d6dee871c49ef211222ba18ef0c486bda
 sodium_hash=sha256-k8u7iNqvjLA0PptbneDyE8zCtutJlV2LirrRb41tmBY=
 if ! sodium=$(timeout 1800 nix eval --raw --expr "(builtins.fetchTree { type = \"github\"; owner = \"jedisct1\";
-  repo = \"libsodium\"; rev = \"$sodium_rev\"; narHash = \"$sodium_hash\"; }).outPath" 2>&1) ||
+  repo = \"libsodium\"; rev = \"$sodium_rev\"; narHash = \"$sodium_hash\"; }).outPath" 2>"$work/sodium.err") ||
   [ ! -d "$sodium/src/libsodium" ]; then
-  fail "Nix can't fetch libsodium at $sodium_rev, so tests/cut/gh_ad_blocks.ll's @src can't be checked" "$sodium"
+  # Only stdout is the path: on a fetch, Nix says what it's unpacking on stderr, which isn't part of it.
+  fail "Nix can't fetch libsodium at $sodium_rev, so tests/cut/gh_ad_blocks.ll's @src can't be checked" \
+    "$(cat "$work/sodium.err") $sodium"
 elif ! out=$(compile_sodium "$sodium" "$work/aead_aes256gcm_aesni.ll" 2>&1); then
   fail "clang doesn't compile libsodium's aead_aes256gcm_aesni.c" "$out"
 elif [ -z "$(fn_text gh_ad_blocks "$work/aead_aes256gcm_aesni.ll")" ] ||
