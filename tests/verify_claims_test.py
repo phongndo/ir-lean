@@ -13,6 +13,11 @@ another: a wrong statement, stale anchors, an extra axiom, `sorry`, a theorem ad
 rest in CASES. Claims that can't be complete, or whose coverage nothing can decide yet, are refused before any
 replay.
 
+And its guard, docs/verdicts.md's test 8: a replay is `replayed` only with every check of REPLAYED passed
+once, over every module it planned, and a claim `verified` only with each evidence file's replay so. A check
+skipped, passed twice or over a module short is `error`, `incomplete`; IRLEAN_DENY_ALL takes every grant away,
+with a non-zero exit; and files changed while the evidence's code ran are `error`, exit 5.
+
 usage: tests/verify_claims_test.py [--tier static|live|all] [--only NAME ...] [--jobs N]
 
 `static` needs only Python. `live` needs the dev shell, build/ir-lean and `lake build IRLean`.
@@ -30,9 +35,10 @@ import sys
 import tempfile
 import time
 import tomllib
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from pathlib import Path
 from typing import Any
+from unittest import mock
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "tools"))
@@ -41,6 +47,7 @@ from irlean import hashing, proc  # noqa: E402
 
 TARGETS = ROOT / "tests" / "llvm" / "targets.toml"
 WORK = ROOT / "build" / "verify-claims-test"
+DENY_ALL = "IRLEAN_DENY_ALL"
 
 
 def sha(path: Path) -> str:
@@ -171,6 +178,108 @@ def run_static() -> list[str]:
     )
     if not ok:
         failures.append("tests/llvm_scope.py's VERIFIERS doesn't use tools/verify_claims.py")
+    return failures + run_guard()
+
+
+# --- The guard: only a whole replay grants, docs/verdicts.md's test 8 ---------------------------------------
+
+# The checks a replay needs, each passed exactly once, fixed here so that taking one off vc.REPLAYED fails.
+REPLAYED = (
+    "pin", "anchors", "ir_replay", "translation_replay", "compile_generated", "compile_evidence",
+    "statements", "axioms", "kernel_replay", "unchanged",
+)  # fmt: skip
+# A plan of one generated module and two of the evidence's own, and what each check over modules has to cover.
+PLAN = {"units": [{"namespace": "Gen"}], "lean": {"files": {"Kit": "", "Proof": ""}}}
+WHOLE = {
+    "compile_generated": ["Gen"],
+    "compile_evidence": ["Kit", "Proof"],
+    "kernel_replay": ["Gen", "Kit", "Proof"],
+}
+INCOMPLETE = ("error", "incomplete")
+
+
+def replay_of(checks: Sequence[str] = REPLAYED, modules: dict[str, list[str]] = WHOLE) -> vc.Replay:
+    """A replay of PLAN that passed `checks` and covered `modules`, with no process run."""
+    nowhere = Path("/nonexistent")
+    t = vc.Tools(nowhere, nowhere, nowhere, nowhere, "", [])
+    r = vc.Replay(copy.deepcopy(PLAN), t, nowhere, 1, 1, 1.0, False)
+    for c in checks:
+        r.passed(c)
+    for step, done in modules.items():
+        r.observed[step] += done
+    return r
+
+
+def outcome(f: Callable[[], dict[str, Any]], deny: str = "") -> tuple[str, str]:
+    """The status and reason `f` gives with IRLEAN_DENY_ALL set to `deny`, or the exception it raises."""
+    try:
+        with mock.patch.dict(os.environ, {DENY_ALL: deny}):
+            v = f()
+    except vc.Stop as s:
+        return s.status, s.reason
+    except Exception as e:
+        return "raised", type(e).__name__
+    return v["status"], v["reason"]
+
+
+def replayed() -> list[dict[str, Any]]:
+    """A whole replay's verdict, asked with IRLEAN_DENY_ALL unset."""
+    with mock.patch.dict(os.environ, {DENY_ALL: ""}):
+        return [vc.complete(replay_of(), "x")]
+
+
+def guard_cases() -> list[tuple[str, Callable[[], dict[str, Any]], str, tuple[str, str]]]:
+    """(name, what's asked, IRLEAN_DENY_ALL, the status and reason it gives) for the guard's functions."""
+    whole = ("replayed", "replayed")
+    cases: list[tuple[str, Callable[[], dict[str, Any]], str, tuple[str, str]]] = [
+        ("a whole replay", lambda: vc.complete(replay_of(), "x"), "", whole),
+        ("a whole replay, IRLEAN_DENY_ALL=0", lambda: vc.complete(replay_of(), "x"), "0", whole),
+        (
+            "a whole replay, IRLEAN_DENY_ALL=1",
+            lambda: vc.complete(replay_of(), "x"),
+            "1",
+            ("error", "denied"),
+        ),
+        ("a check no one lists", lambda: vc.complete(replay_of([*REPLAYED, "extra"]), "x"), "", INCOMPLETE),
+    ]
+    for c in REPLAYED:
+        rest = [k for k in REPLAYED if k != c]
+        cases.append((f"{c} left out", lambda rest=rest: vc.complete(replay_of(rest), "x"), "", INCOMPLETE))
+        twice = [*REPLAYED, c]
+        cases.append((f"{c} passed twice", lambda t=twice: vc.complete(replay_of(t), "x"), "", INCOMPLETE))
+    for step, done in WHOLE.items():
+        changed = [(f"{step} on a module not planned", WHOLE | {step: [*done, "Other"]})]
+        for m in done:
+            changed.append((f"{step} without {m}", WHOLE | {step: [k for k in done if k != m]}))
+            changed.append((f"{step} on {m} twice", WHOLE | {step: [*done, m]}))
+        for name, modules in changed:
+            cases.append((name, lambda ms=modules: vc.complete(replay_of(modules=ms), "x"), "", INCOMPLETE))
+    raised = ("raised", "ValueError")
+    for word in ("replayed", "verified"):
+        cases.append((f"verdict asked for {word}", lambda w=word: vc.verdict(w, w, "x"), "", raised))
+    # A claim is verified only with each evidence file it plans replayed, each by complete.
+    for name, results, planned, deny, want in [
+        ("verified, each evidence file replayed", replayed, 1, "", ("verified", "verified")),
+        ("verified, IRLEAN_DENY_ALL=1", replayed, 1, "1", ("error", "denied")),
+        ("verified, an evidence file planned and not replayed", replayed, 2, "", INCOMPLETE),
+        ("verified, no evidence", list, 0, "", INCOMPLETE),
+        ("verified, one refused", lambda: [vc.verdict("refused", "x", "y")], 1, "", INCOMPLETE),
+    ]:  # fmt: skip
+        cases.append((name, lambda r=results, p=planned: vc.verified(r(), p, "x"), deny, want))
+    return cases
+
+
+def run_guard() -> list[str]:
+    failures = []
+    fixed = getattr(vc, "REPLAYED", None) == REPLAYED
+    print(f"{'ok  ' if fixed else 'FAIL'} static: guard: REPLAYED is the design's fixed list of checks")
+    if not fixed:
+        failures.append(f"guard: vc.REPLAYED is {getattr(vc, 'REPLAYED', None)}, not {REPLAYED}")
+    for name, f, deny, want in guard_cases():
+        got = outcome(f, deny)
+        print(f"{'ok  ' if got == want else 'FAIL'} static: guard: {name}: {' '.join(got)}")
+        if got != want:
+            failures.append(f"guard {name}: wanted {' '.join(want)}, got {' '.join(got)}")
     return failures
 
 
@@ -349,8 +458,8 @@ CASES: list[tuple[str, Callable[[dict[str, Any], Path], None], str, str]] = [
     ("other flags", edit_evidence(other_flags), "refused", "ir_replay_mismatch"),
     ("edited translation", edit_evidence(edited_lean), "refused", "translation_replay_mismatch"),
     ("an extra field", edit_evidence(extra_field), "refused", "evidence_invalid"),
-    ("proof rewrites a generated module", edit_proof(REWRITES_GENERATED), "refused", "artifacts_modified"),
-    ("proof adds a module where Lean looks", edit_proof(MAKES_INIT), "refused", "artifacts_modified"),
+    ("proof rewrites a generated module", edit_proof(REWRITES_GENERATED), "error", "artifacts_modified"),
+    ("proof adds a module where Lean looks", edit_proof(MAKES_INIT), "error", "artifacts_modified"),
     ("a call cut out", edit_evidence(cut), "partial", "cut"),
     (
         "a theorem listed twice, about another function",
@@ -376,6 +485,24 @@ class Live:
         v, out = vc.replay_evidence(copy.deepcopy(ev), work=d, jobs=self.jobs, record=record, **opts)
         print(f"     {name}: {v['status']} {v['reason']} in {time.monotonic() - started:.1f} s")
         return v, out
+
+    def cli(self, ev: dict[str, Any], name: str, *args: str, deny: str = "") -> tuple[dict[str, Any], int]:
+        """Replays `ev` as a reader does, with tools/verify_claims.py evidence and IRLEAN_DENY_ALL set to
+        `deny`: the verdict it prints, and its exit code."""
+        started = time.monotonic()
+        d = self.work / re.sub(r"[^A-Za-z0-9_.-]+", "_", name)
+        d.mkdir(parents=True, exist_ok=True)
+        (d / "evidence.json").write_text(json.dumps(ev))
+        argv = [str(ROOT / "tools" / "verify_claims.py"), "evidence", str(d / "evidence.json"),
+                "--work", str(d / "work"), "--jobs", str(self.jobs), *args]  # fmt: skip
+        r = proc.run(argv, env={**os.environ, DENY_ALL: deny}, timeout=1800)
+        try:
+            v = json.loads(r.out)
+        except json.JSONDecodeError:
+            v = {"status": "no answer", "reason": f"exit {r.exit}", "detail": r.err[-2000:]}
+        took = time.monotonic() - started
+        print(f"     {name}: {v['status']} {v['reason']}, exit {r.exit}, in {took:.1f} s")
+        return v, r.exit
 
     def good(self) -> dict[str, Any]:
         v, ev = self.replay(corpus(["CrtAshldi3"], model_proofs=False), "record ashldi3", record=True)
@@ -448,12 +575,52 @@ class Live:
             shutil.copytree(ROOT / "tests" / "llvm", lean_dir)
             ev["lean"]["root"] = str(lean_dir.relative_to(ROOT))
             change(ev, lean_dir)
-            v, _ = self.replay(ev, name)
-            ok = (v["status"], v["reason"]) == (status, reason)
-            print(f"{'ok  ' if ok else 'FAIL'} forged: {name}: {v['status']} {v['reason']}")
+            v, code = self.cli(ev, name)
+            ok = (v["status"], v["reason"], code) == (status, reason, vc.EXIT[status])
+            print(f"{'ok  ' if ok else 'FAIL'} forged: {name}: {v['status']} {v['reason']}, exit {code}")
             if not ok:
-                got = f"{v['status']} {v['reason']}: {v['detail'][:2000]}"
-                failures.append(f"forged {name}: wanted {status} {reason}, got {got}")
+                got = f"{v['status']} {v['reason']}, exit {code}: {v['detail'][:2000]}"
+                want = f"{status} {reason}, exit {vc.EXIT[status]}"
+                failures.append(f"forged {name}: wanted {want}, got {got}")
+
+    def guard(self, good: dict[str, Any], only: list[str] | None, failures: list[str]) -> None:
+        """docs/verdicts.md's test 8, through replay_evidence and main: a replay that skipped a step, by a bug
+        here or a caller's, isn't replayed, and IRLEAN_DENY_ALL takes the grant away, with no record and a
+        non-zero exit."""
+        kernel = vc.Replay.kernel
+
+        def one_short(r: vc.Replay) -> None:
+            # leanchecker replays every module but the evidence's last, as a list built short would.
+            files = r.ev["lean"]["files"]
+            last = list(files)[-1]
+            h = files.pop(last)
+            try:
+                kernel(r)
+            finally:
+                files[last] = h
+
+        for name, step in [("the kernel's replay skipped", lambda r: None),
+                           ("the kernel's replay a module short", one_short)]:  # fmt: skip
+            if only and not any(o in name for o in only):
+                continue
+            with mock.patch.object(vc.Replay, "kernel", step):
+                v, _ = self.replay(good, name)
+            ok = (v["status"], v["reason"]) == INCOMPLETE
+            print(f"{'ok  ' if ok else 'FAIL'} guard: {name}: {v['status']} {v['reason']}")
+            if not ok:
+                failures.append(f"guard {name}: wanted error incomplete, got {v['status']} {v['reason']}")
+        if only and not any(o in DENY_ALL for o in only):
+            return
+        for deny, want, code in [("", ("replayed", "replayed"), 0), ("1", ("error", "denied"), 5)]:
+            record = self.work / f"deny-{deny or 'unset'}.json"
+            v, got = self.cli(good, f"{DENY_ALL}={deny}", "--record", str(record), deny=deny)
+            ok = (v["status"], v["reason"], got, record.exists()) == (*want, code, code == 0)
+            said = (
+                f"{v['status']} {v['reason']}, exit {got}, record {'written' if record.exists() else 'none'}"
+            )
+            print(f"{'ok  ' if ok else 'FAIL'} guard: {DENY_ALL}={deny}: {said}")
+            if not ok:
+                failures.append(f"guard {DENY_ALL}={deny}: wanted {' '.join(want)}, exit {code}, got {said}")
 
     def limits(self, good: dict[str, Any], failures: list[str]) -> None:
         """A proof that outlasts the time it's given is unknown, never refused or replayed."""
@@ -516,6 +683,8 @@ def main() -> int:
     ap.add_argument("--only", nargs="*")
     ap.add_argument("--jobs", type=int, default=int(os.environ.get("LEAN_JOBS", "4")))
     args = ap.parse_args()
+    # Set where this runs, it would take every grant away the tests expect.
+    os.environ.pop(DENY_ALL, None)
     failures: list[str] = []
     if args.tier in ("static", "all"):
         failures += run_static()
@@ -528,6 +697,7 @@ def main() -> int:
                 live.scorer(failures)
                 live.limits(good, failures)
                 live.claims(good, failures)
+            live.guard(good, args.only, failures)
             live.cases(good, args.only, failures)
         finally:
             shutil.rmtree(live.work, ignore_errors=True)
