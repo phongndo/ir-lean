@@ -33,6 +33,15 @@ fail() {
   [ -n "${2:-}" ] && printf '%s\n' "${2:0:4000}"
   failed=1
 }
+# A check that stopped at a limit decides nothing, so it's unknown, with the limit, and not a failure of the proof.
+# The test still fails, since the evidence it asks for isn't there.
+limited=0
+unknown() {
+  printf 'UNKNOWN  %s\n' "$1"
+  [ -n "${2:-}" ] && printf '%s\n' "${2:0:4000}"
+  failed=1
+  limited=1
+}
 # Resource limits say a proof might check with more, so they never count as a failure of its own.
 limit='maximum number of heartbeats|deterministic\)? timeout|maximum recursion depth|deep recursion|stack overflow|'
 limit+='excessive memory|out of memory|maximum number of steps'
@@ -154,19 +163,32 @@ done
 # kernel's theorem rests on what its slice's proof does, and adds nothing: every bv_decide axiom is the slice's.
 # usage: check MODULE GENERATED THEOREMS
 check() {
-  local out replay
-  if ! out=$(lean -DwarningAsError=true -R tests/cut -o "$work/$1.olean" "tests/cut/$1.lean" 2>&1); then
-    fail "tests/cut/$1.lean" "$out"
+  local out replay status=0
+  out=$(lean -DwarningAsError=true -R tests/cut -o "$work/$1.olean" "tests/cut/$1.lean" 2>&1) || status=$?
+  if [ "$status" != 0 ]; then
+    # timeout exits 124, and a process the kernel killed for memory 137.
+    if [ "$status" = 124 ] || [ "$status" = 137 ] || grep -qE "$limit" <<<"$out"; then
+      unknown "tests/cut/$1.lean stopped at a limit (exit $status), so it's neither proved nor refuted" "$out"
+    else
+      fail "tests/cut/$1.lean" "$out"
+    fi
     return 1
   fi
-  if out=$(IRLEAN_CHECK_MODULE=$1 IRLEAN_CHECK_GENERATED=$2 IRLEAN_CHECK_THEOREMS=$3 lean tests/check_axioms.lean 2>&1) &&
-    replay=$(timeout "$secs" leanchecker "$1" 2>&1); then
-    printf 'ok    %s: %s, and leanchecker replays it\n' "$1" "$out"
-    axioms=$out
-  else
-    fail "$1: axioms and replay" "$out ${replay:-}"
+  if ! out=$(IRLEAN_CHECK_MODULE=$1 IRLEAN_CHECK_GENERATED=$2 IRLEAN_CHECK_THEOREMS=$3 lean tests/check_axioms.lean 2>&1); then
+    fail "$1: axioms" "$out"
     return 1
   fi
+  replay=$(timeout "$secs" leanchecker "$1" 2>&1) || status=$?
+  if [ "$status" != 0 ]; then
+    if [ "$status" = 124 ] || [ "$status" = 137 ] || grep -qE "$limit" <<<"$replay"; then
+      unknown "$1: leanchecker stopped at a limit (exit $status), so its replay decided nothing" "$replay"
+    else
+      fail "$1: replay" "$replay"
+    fi
+    return 1
+  fi
+  printf 'ok    %s: %s, and leanchecker replays it\n' "$1" "$out"
+  axioms=$out
 }
 built=1
 axioms=
@@ -233,7 +255,11 @@ must_fail() {
 }
 
 if [ "$built" = 0 ]; then
-  fail "the wrong versions can't be checked, since the right ones didn't build"
+  if [ "$limited" = 1 ]; then
+    unknown "the wrong versions can't be checked, since a right one stopped at a limit"
+  else
+    fail "the wrong versions can't be checked, since the right ones didn't build"
+  fi
   exit 1
 fi
 

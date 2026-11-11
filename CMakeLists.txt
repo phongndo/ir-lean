@@ -218,7 +218,8 @@ set_tests_properties(calls PROPERTIES TIMEOUT 900)
 # proof. One Lean or Alive2 process at a time, each Lean process capped at 4 GB, the kernel's at 8 GB. See
 # docs/refinement.md.
 add_test(NAME cut COMMAND ${CMAKE_SOURCE_DIR}/tests/cut.sh $<TARGET_FILE:ir-lean>)
-set_tests_properties(cut PROPERTIES TIMEOUT 900)
+# Alone, since the GHASH kernel's proof takes up to 8 GB, more than a CTest slot's share of a runner.
+set_tests_properties(cut PROPERTIES TIMEOUT 900 RUN_SERIAL TRUE)
 # `Refines` for functions with memory, SEM-06, on what ir-lean emits: right rewrites refine on every memory
 # the model has an answer for, wrong ones provably don't, a changed rule of the relation stops the law that
 # pins it, and Alive2 gives each case the verdict it says. One Lean or Alive2 process at a time, each Lean
