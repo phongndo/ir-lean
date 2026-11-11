@@ -24,9 +24,11 @@ a proposal's numbers, and the [estimate](#what-it-would-buy) built on them is ma
   call, installing a whole-function rewrite of a function with memory is unsound, in this mode or without it.** A
   caller can put `!noalias` on its call and a matching `!alias.scope` on another access, put the call in an access
   group, or take a `noalias` argument, and each promises something of every access the call makes. A target that
-  refines the function can access a location the source didn't, and break it ([below](#callers-promises)). F4 has to
-  require that every access the target makes, the source makes ([decision 5](#decisions-for-the-maintainer)). Nothing
-  with memory is certified before F4, so nothing is installed this way today.
+  refines the function can access a location the source didn't, and break it, and so can one that writes a byte and
+  puts its value back, under a `!invariant.load` anywhere in the program ([below](#callers-promises)). F4 has to require
+  that the target's accesses are the source's: the same bytes, read or written with the same values, in the same order
+  ([decision 5](#decisions-for-the-maintainer)). Nothing with memory is certified before F4, so nothing is installed
+  this way today.
 - **The rules that make it hold:** the target is read by the emitter as it is today, which refuses every one of these,
   so the rewritten function, and every function it can call in the module, is emitted with all of them dropped; a
   family is dropped whole, never in part; and certificates, verdicts and the board record that the source was read
@@ -53,7 +55,7 @@ a proposal's numbers, and the [estimate](#what-it-would-buy) built on them is ma
 | 2 | What the target keeps | **Nothing in scope, in the rewritten function and every function it can call in the module: each drops every one, and their `noalias` arguments go from their definitions and from every call to them in the module** | Keep them on instructions the rewrite didn't touch. That rests on an argument about LLVM the model can't check, and it fails as stated for scope declarations and `noalias` arguments ([below](#a-rewrite-of-part-of-a-function)). Or drop them in the rewritten function alone, which leaves it unsupported on the target wherever it calls a function that keeps one: 4 of the 15 kernels the estimate counts ([what it calls](#what-it-calls)) |
 | 3 | Value metadata: `!range`, `!nonnull`, `!align`, `!dereferenceable` and `!dereferenceable_or_null` on a load, and `!range` on a call | **Model them**, as their attribute forms are. Then the target may keep them, and the search may use them | Drop them with the rest. Sound, and the search loses facts it could have used |
 | 4 | How a win proved this way is labeled | **A third value for the source IR, "as built, read with its annotations dropped"**, beside the kernel corpus's "as built" and "relaxed", with the kinds dropped and the drop-only control's result on the board | Count it as "as built". That hides that the theorem rests on LangRef's rule for dropping, and that the target lost alias facts |
-| 5 | What callers promise about a call | **F4's refinement for memory also requires that every access the target makes, the source makes: the same location, read or written the same way, through a pointer based on the same argument, by LangRef's *based on* or the model's provenance, whichever F4 says.** Before any whole-function win with memory counts, in this mode or not. It refuses a rewrite that adds an access, such as a load speculated where `dereferenceable` allows it, which LLVM's own passes make | Drop every such promise before installing a rewrite: scoped metadata and access groups on every call that can reach the function, and `noalias` on every function that can. That works only where nothing outside the module can reach it, and costs each caller its alias facts. Or leave it as a stated assumption on each win, which the roadmap calls "the last resort, and doesn't work for refinement" ([Phase 0](roadmap.md#phase-0-semantic-fidelity-and-trust-infrastructure)) |
+| 5 | What callers promise about a call | **F4's refinement for memory also requires that, on every run the source doesn't make undefined, the target's accesses are the source's: each reads the same bytes, or writes the same bytes with the same values, through a pointer based on the same argument, by LangRef's *based on* or the model's provenance, whichever F4 says, and each byte takes the same values in the same order, so none holds, even for a moment, a value the source never gave it. Volatile and atomic accesses stay refused.** Before any whole-function win with memory counts, in this mode or not. That keeps every caller's promise about the call, and every `!invariant.load` in the program. It refuses a rewrite that adds an access, such as a load speculated where `dereferenceable` allows it, which LLVM's own passes make | Drop every such promise before installing a rewrite: scoped metadata and access groups on every call that can reach the function, `noalias` on every function that can, and `!invariant.load` on every load that can read a byte the function writes, which can be in a function that never calls it. That works only where nothing outside the module can reach the function or read what it writes, and costs the module those facts. Or leave it as a stated assumption on each win, which the roadmap calls "the last resort, and doesn't work for refinement" ([Phase 0](roadmap.md#phase-0-semantic-fidelity-and-trust-infrastructure)) |
 
 ## The claim
 
@@ -251,15 +253,23 @@ own `noalias`, and under whatever its callers promise about a call to it. Two co
   memory meets them, and dropping annotations in `f` and what it calls doesn't reach a promise in its callers. So
   until F4 settles them, installing such a rewrite is unsound, and [the claim](#in-the-repos-terms) is about `f` alone.
 
-What F4 has to add is that on every run the source doesn't make undefined, every access the target makes, the source
-makes too: the same location, read or written the same way, through a pointer based on the same argument
-([decision 5](#decisions-for-the-maintainer)). Each promise above is about which accesses a call makes, so that keeps
-them all. It refuses a rewrite that adds an access, such as a load speculated where `dereferenceable` allows it, which
-LLVM's own passes make: LICM hoists a load out of a loop that may not run it when `isSafeToSpeculativelyExecute`, in
-`llvm/lib/Analysis/ValueTracking.cpp`, finds its pointer dereferenceable. A caller's `!invariant.load` also sees what
-a location holds during the call, which the condition doesn't keep, so F4 has to settle that too. The other way,
-dropping every such promise before installing a rewrite, has to reach every function that can call `f`, so it works
-only where nothing outside the module can.
+What F4 has to add is that on every run the source doesn't make undefined, the target's accesses are the source's
+([decision 5](#decisions-for-the-maintainer)): each reads the same bytes, or writes the same bytes with the same
+values, through a pointer based on the same argument, and each byte takes the same values in the same order. Volatile
+and atomic accesses stay refused, as they are now. Each promise above is about which bytes a call reads and writes, so
+that keeps them all. It refuses a rewrite that adds an access, such as a load speculated where `dereferenceable`
+allows it, which LLVM's own passes make: LICM hoists a load out of a loop that may not run it when
+`isSafeToSpeculativelyExecute`, in `llvm/lib/Analysis/ValueTracking.cpp`, finds its pointer dereferenceable.
+
+Matching the bytes read and written isn't enough without the values and their order, because of `!invariant.load`:
+the program is undefined if a location such a load reads holds another value "at all points in the program where that
+memory is dereferenceable". A target of `f(ptr dereferenceable(1) writable %p)` that stores another value to `%p` and
+then the old one back returns the same and leaves memory the same, and Alive2 finds it a correct rewrite of `f` alone
+(checked with the pinned `alive-tv` on 2026-11-10). A program that ran an invariant load of that byte is then
+undefined, whether the load is in a caller of `f` or in a function that never calls it. The other way, dropping every
+such promise before installing a rewrite, has to reach every call that can reach `f`, every `noalias` on a function
+that can, and every `!invariant.load` that can read a byte `f` writes, so it works only where nothing outside the
+module can reach `f` or read what it writes.
 
 For the base, F4 also has to say which relation it compares. The plain case doesn't refine: `Mem.base` lets two
 allocations share addresses ([memory](memory.md#what-it-leaves-out-or-does-differently)), so swapping one argument for
