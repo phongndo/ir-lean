@@ -144,7 +144,7 @@ haven't started, so F4 isn't finished:
 | 1 | [The cut lemma](#the-cut-lemma), for functions without memory | Done |
 | 2 | `Refines` for functions with memory, by the simplest sound relation: [the claim](#the-claim) | Done, for a target that allocates as its source does, with the claim [guarded](#a-claim-says-where-the-source-has-an-answer) |
 | 3 | A target that allocates differently, which takes a renaming of allocations | Not started: removing an `alloca` has no claim, as [below](#what-it-leaves-out) |
-| 4 | The cut lemma [with memory](#with-memory): the memory operations keep the relation | Done for the operations with a lemma. A `load` or `store` of a pointer, a `load` of a vector, `getelementptr` with several indices, `memset`, `memcpy`, `llvm.lifetime`, `malloc`, `free`, `strlen`, `initializes`, `returned` and a `noalias` result have none |
+| 4 | The cut lemma [with memory](#with-memory): the memory operations keep the relation | Done, for every memory operation the emitter translates, since 2026-11-10 in [`IRLean/MemRefineOps.lean`](../IRLean/MemRefineOps.lean) as well. Three hold only as LLVM allows: `llvm.lifetime` and `initializes` through the same pointer on both sides, `returned` for an argument that isn't poison, and a `noalias` result for one that isn't poison in the source. A load keeps the relation on `Mem.le` unless the target's bytes hold a pointer where the source's were poison, and outright on `Mem.leData`, memories related by their data |
 | 5 | The model's [memory gaps](#memorys-gaps-each-with-its-side), each closed or given its side | Partly: each has its side written down, and four aren't closed: reading uninitialized memory, a stack object after its function returns, `inbounds` on a freed allocation, and `tail` calls |
 | 6 | `tools/verify.py` and `tools/binding.py` on claims about memory | Not started, on purpose: `tools/binding.py` refuses a function with memory as `memory_unsupported`, since until stage 5 closes the gaps the model can have more undefined behavior than LLVM in a source |
 
@@ -276,12 +276,16 @@ What other code may rely on. These names are stable. A change to any of them is 
 | `Outcome.answered`, `Refine.answered_iff`, `answered_of_ne_stop`, `answered_of_le` | A run with a model stop read as undefined, for a claim that covers only the inputs the model has an answer for |
 | `run_ne_stop`, `jump_ne_stop`, `ret_ne_stop`, `br_ne_stop`, `andThen_ne_stop`, `runFuel`, `run_of_runFuel`, `runFuel_of_run`, `Next.run`, `run_eq`, `andThen_ret_run`, `andThen_assoc` | A run stops the model only where a block does, `run` for a bounded number of blocks, and a run as its first block and then the rest |
 | `Refine.PoisonLeast`, `Mono.*`, `refine_mono` | The model's operations keep refinement, one lemma each, and the tactic that chains them. In [`IRLean/Mono.lean`](../IRLean/Mono.lean) |
+| `Mono.map_strict`, `map2_strict`, `map3_strict`, `strict₃`, `foldl`, `foldr`, `Refine.DefinedEq` | An operation lane by lane, from a function on a lane that's poison for poison, a fold of a step that keeps a relation, and the types where a value with no poison part allows only itself. In [`IRLean/Mono.lean`](../IRLean/Mono.lean) |
+| `Mono.X86.*`, `refine_mono_simd`, `refine_mono_ext` | x86's intrinsics keep refinement, and `refine_mono` with every lemma since, which a module extends through `refine_mono_ext`. In [`IRLean/MonoX86.lean`](../IRLean/MonoX86.lean) |
 | `Byte.le`, `Alloc.le`, `Call.le`, `Mem.le`, their `refl` and `trans`, `Byte.le.poison_le`, `uninit_le_iff`, `not_uninit_le_poison`, `val_le_iff`, `ptr_le_iff`, `Mem.le.next_eq`, `alloc`, `gone`, `addr` | [Memory's relation](#functions-with-memory), and the laws that pin it. In [`IRLean/MemRefine.lean`](../IRLean/MemRefine.lean) |
 | `Refine.ptr_none`, `ptr_some`, `ptr_iff`, `mem_iff`, `Mem.lift` | The instances for a pointer and a memory, unfolded, and a function with no memory as one with |
 | `Mem.storeInt_overwritten`, `Mem.loadInt_of_storeInt` | A store that's overwritten can go, and a load after a store gives what was stored |
 | `Mem.le.storeInt`, `storeVec`, `loadInt`, `loadInt_some`, `gep`, `gep_eq`, `alloca`, `withFrame`, `toVal`, `nonnull`, `aligned`, `dereferenceable`, `observeAddress`, and `Mem.le.write`, `access`, `check`, `visible`, `collect`, `isRunning` | [Memory's operations keep the relation](#with-memory), and what that takes |
 | `Mem.le.call`, `endCall`, `enterCall`, `tag`, and `Mem.enterCall`, `Mem.endCall`, `Mem.call_eq` | A function's promises about memory keep the relation, and `Mem.call` as its body inside the call and then the call's end |
 | `Mono.loadInt`, `Mono.gep`, `Mono.noundefPtr`, `Mono.call` | The same, for the same memory on both sides |
+| `Mem.le.loadVec`, `loadPtr`, `storePtr`, `gepSteps`, `memset`, `memcpy`, `lifetime`, `malloc`, `free`, `strlen`, `addInitializes`, `noaliasResult`, `assumeNonnull`, `setAlloc`, and `Mono.loadVec`, `loadPtr`, `gepSteps`, `returnedInt`, `returnedArgument` | The rest of memory's operations keep the relation. In [`IRLean/MemRefineOps.lean`](../IRLean/MemRefineOps.lean) |
+| `Mem.leData`, and its `refl`, `toLe`, `loadVec`, `loadInt`, `storeVec`, `storeInt`, `memset`, `memcpy`, `lifetime`, `write`; `sim_mono` | Memories related by their data, under which a load keeps refinement outright, and the tactic that walks two blocks' code with it. In the same file |
 | `Mem.intBytes`, `storeInt_eq`, `storeInt_ok`, `storeInt_ok_of_ok`, `storeInt_error_or_ok`, `storeInt_write_self`, `loadInt_write_self`, `access_ok_iff`, `access_write_self`, `check_write`, `check_congr`, `write_write_le`, `Mem.Alloc.overlay` | What a store needs and leaves, for proofs about any memory |
 | `Mem.check_ne_model`, `Mem.storeInt_ne_stop`, `Mem.unrestricted_write`, `unrestricted_storeInt`, `andThen_ne_stop_of` | Where no running call restricts memory, a store has an answer |
 
@@ -316,12 +320,14 @@ fails without it:
 
 - **The rest of the function keeps refinement.** The same code on both sides isn't enough: it runs on a value where
   the source had poison, and `returned` on an integer, say, stops the model on a value that isn't its argument
-  (`rest_has_to_keep_refinement`). [`IRLean/Mono.lean`](../IRLean/Mono.lean) proves it of most of the model's
-  integer and vector operations, `select`, `noundef`, `llvm.assume`, `switch` and branches, one lemma each, and the
-  tactic `refine_mono` chains them. `sdiv`, `srem`, the funnel shifts, the overflow intrinsics and `Vec.reduce` have
-  no lemma yet, and nor do floating point, `IRLean/Lanes.lean`'s lane-wise forms and x86's intrinsics, so code after a
-  cut that uses one needs its own, unless the cut's replacement returns the same values, where the two sides are the
-  same run.
+  (`rest_has_to_keep_refinement`). [`IRLean/Mono.lean`](../IRLean/Mono.lean) proves it of every integer, vector,
+  floating-point and control operation of the model's, one lemma each, and the tactic `refine_mono` chains them.
+  Since 2026-11-10 that includes `sdiv`, `srem`, the funnel shifts, the overflow intrinsics, `Vec.reduce`,
+  `IRLean/Lanes.lean`'s lane-wise forms, `noundef` on vectors and structs, scalable vectors' lane moves, and floating
+  point, for the same choice on both sides. [`IRLean/MonoX86.lean`](../IRLean/MonoX86.lean) proves it of all 250 x86
+  intrinsics, the 41 functions of the model they're translated to, and `refine_mono_simd` chains everything.
+  [Below](#x86s-intrinsics) is how. What has no lemma can't have one: `freeze`, and what stops the model on a value
+  and not on poison, which code after a cut can use only where the cut's replacement returns the same values.
 - **The replacement keeps refinement of its inputs.** A cut's proof is at one input for both. In the function the two
   get different inputs, the target's refining the source's, since code before the cut may already have run its
   replacement: in a loop, the round before (`replacement_has_to_keep_refinement`).
@@ -333,6 +339,24 @@ fails without it:
   (`CutPromisedCases.promise_has_to_agree`). A target that drops the promise needs nothing more
   (`Outcome.Sim.promised_dropped`), and one that adds it isn't covered, and isn't right.
 
+### x86's intrinsics
+
+Each of the 41 functions the emitter translates x86's 250 intrinsics to is poison in a lane of its result where a lane
+it reads is, and otherwise a function of those lanes' values, so each keeps refinement. Which lanes it reads decides
+the proof:
+
+| Reads | Intrinsics | Lemma |
+| --- | --- | --- |
+| The same lane of each operand | PTERNLOG, PBLENDVB, PAVG, PSIGN, PMULHW, PMULHUW, PMULHRSW, GF2P8MULB, PSLLV, PSRLV, PSRAV, AESIMC, AESKEYGENASSIST, and on scalars BZHI, BEXTR and CRC32 | The general one: `Mono.map_strict`, `map2_strict` and `map3_strict`, an operation lane by lane from a function on a lane that's poison for poison, and `Refine.val_map₂_mono` on scalars |
+| Other lanes, at fixed places | PMADDUBSW, PMADDWD, VPDPBUSD, VPDPBUSDS, VPDPWSSD, VPDPWSSDS, PACKSS, PACKUS, PHADD, PHADDS, PHSUB, PHSUBS, PCLMULQDQ, the four AES rounds, GF2P8AFFINEQB, GF2P8AFFINEINVQB, PSADBW, PTEST's three flags and PHMINPOSUW | Their own, one each, from `strict_lane` on each lane read, and `Mono.foldl` and `foldr` for those that fold over lanes |
+| A lane a value picks | PSHUFB | Its own: where the source's byte of `b` is a value the target's is the same, so both pick the same byte of `a` |
+| A count or a mask for every lane | PSLL, PSRL and PSRA by an immediate or a vector's low quadword, and VPMOV, VPMOVS and VPMOVUS with a mask | Their own: poison in the count or the mask is poison in every lane |
+
+`vzeroupper` is translated as nothing. Each lemma holds of the model's poison rule, which [`IRLean/X86.lean`](../IRLean/X86.lean)
+and the files beside it give, and which `tests/x86check.py` checks against Alive2 and LLVM's constant folder where they
+know the intrinsic. A rule that forgot a lane an intrinsic reads would break it: `tests/cut/must_fail/X86PoisonRule.lean`
+is PCLMULQDQ reading a quadword of `b` through `getD 0`, and the lemma's proof stops at that quadword.
+
 ### Its uses
 
 | Theorem | Cut | Function | Rests on |
@@ -342,12 +366,26 @@ fails without it:
 | `CutCases.drop_nuw_loop` | `add nuw %x, 3` to `add %x, 3`, which is refined and not equal | [`tests/cut/drop_nuw_loop.ll`](../tests/cut/drop_nuw_loop.ll): a loop that divides and `xor`s what the cut gives | The standard axioms |
 | `CutPromisedCases.drop_nuw_promised` | The same | [`tests/cut/drop_nuw_promised.ll`](../tests/cut/drop_nuw_promised.ll): that loop, marked `llvm.loop.mustprogress` on both sides | The standard axioms |
 | `ClangSum.clang_sum`, in [`tests/cut/ClangSum.lean`](../tests/cut/ClangSum.lean) | `mul %x, 3` to `add (shl %x, 1), %x` | [`tests/cut/clang_sum.ll`](../tests/cut/clang_sum.ll): **a function as clang compiled it**, from [`clang_sum.c`](../tests/cut/clang_sum.c) at `-O1`, a loop that adds up three times each word it loads. It has `memory(argmem: read)`, a pointer that's `noundef`, `readonly`, `nofree` and `captures(none)`, and a loop marked `llvm.loop.mustprogress` | The standard axioms |
+| `GhAdBlocks.gh_ad_blocks`, in [`tests/cut/GhAdBlocks.lean`](../tests/cut/GhAdBlocks.lean) | `add nuw i64 %23, 112` to `add i64 %23, 112`, the bound check before the 112-byte loop, refined and not equal | [`tests/cut/gh_ad_blocks.ll`](../tests/cut/gh_ad_blocks.ll): **a kernel of the corpus as clang compiled it**, libsodium 1.0.22's `gh_ad_blocks`, AES-GCM's GHASH over the associated data, at the corpus's pin and flags. 494 instructions in 15 blocks: four loops, each loading the hash key's powers and 16-byte blocks as vectors, reversing their bytes, multiplying with 122 PCLMULQDQs, reducing, and storing the accumulator that the next loop loads again. The cut's value is the 112-byte loop's first offset and counter | The standard axioms |
+
+`gh_ad_blocks` is `Refines (fun a0 a1 a2 a3 m => (src a0 a1 a2 a3 m).answered) tgt`. Its proof knows one thing about
+the cut, `cut`, and nothing about the kernel but what `sim_mono` and `refine_mono_simd` read off each block: the two
+memories are related by `Mem.leData` throughout, so the accumulator a loop stores, which the target may have computed
+where the source's was poison, is loaded back by the next loop with refinement kept. Lean checks it in about 25 s and
+5.4 GB. `tests/cut.sh` compiles libsodium's unit again and checks the function and its attributes are the fixture's
+`@src`, to the letter, and a target that stores the main loop's accumulator 16 bytes past its pointer stops the proof
+at that loop's block. Alive2 has no verdict on it: it doesn't take `nofree`.
 
 `q5_kernel` is `Refines q5_kernel_ir.src q5_kernel_ir.tgt`, on every input, poison included. Its proof knows one thing
 about the slice, `slice : Refines LlamaBitspreadIR.src LlamaBitspreadIR.tgt`, so it's the slice's proof and the lemma.
 It isn't a theorem about `ggml_vec_dot_q5_0_q8_0`: the fixtures have the kernel's shape, [with](#with-memory) and
 without its loads, and not its floating point or its vector loads, and
-[the Q5 rewrite](llama-q5.md#what-is-proved-and-checked) says what that leaves trusted.
+[the Q5 rewrite](llama-q5.md#what-is-proved-and-checked) says what that leaves trusted. Every operation of the kernel's the
+emitter translates now has its lemma, the vector loads, VPDPBUSD, PSIGN and the conversions between integers and
+floats included. Three things still stop a theorem about the kernel itself: the emitter refuses `llvm.fma`, which the
+kernel's `_mm256_fmadd_ps` is, and every llama.cpp kernel of the corpus has, since the model has no fused
+multiply-add; its floating point chooses NaNs, so its run returns `Outcomes`, which the cut lemma doesn't cover yet;
+and as built, without `-fno-strict-aliasing`, its `!tbaa`.
 `drop_nuw_loop_converse` proves the lemma is one-way: from 253 the loop with `add nuw` returns poison where the one
 with `add` returns 0.
 
@@ -369,13 +407,23 @@ has an answer for.
 | `ptrtoint` and pointer comparison, `nonnull`, `align`, `dereferenceable`, `noundef` on a pointer | `Mem.le.toVal`, `nonnull`, `aligned`, `dereferenceable`, `Mono.noundefPtr` | The layout is the same on both sides |
 | A look at a pointer's address | `Mem.le.observeAddress` | For the same pointer on both sides only: one the target has for the source's poison could carry a tag that stops the model |
 | A function's promises about memory, `memory(...)`, and a pointer argument's, `readonly`, `captures` and the rest | `Mem.le.call`, `endCall`, `enterCall`, `Mono.call` for the same memory, and `Mem.le.tag` | Both sides give the call the same number and its pointer the same tag, and what `initializes` covers and nothing wrote goes back to uninitialized on both |
+| `load` of a vector, of a pointer | `Mem.le.loadVec`, `loadPtr`, and `Mono.loadVec`, `loadPtr` for the same memory | As a load of an integer: related, **or the target's stops the model** where it reads a pointer the source's poison allowed. Since 2026-11-10, as is the rest of this table, in [`IRLean/MemRefineOps.lean`](../IRLean/MemRefineOps.lean) |
+| `store` of a pointer | `Mem.le.storePtr` | A pointer stored where the source stored poison leaves bytes the source's allow |
+| `getelementptr` with several indices | `Mem.le.gepSteps`, `gepSteps'`, `Mono.gepSteps` | Offsets related one by one, and their running total |
+| `llvm.memset`, `llvm.memcpy` | `Mem.le.memset`, `memcpy` | The target sets or copies bytes the source's allow |
+| `llvm.lifetime.start` and `.end` | `Mem.le.lifetime` | **The same pointer on both sides.** On poison it does nothing, and through the pointer the target has for it, it would end an allocation's life the source's memory still has. `tests/memory_refine/must_fail/LifetimeRefinedPointer.lean` |
+| `malloc`, `free`, `strlen` | `Mem.le.malloc`, `free`, `strlen` | Both sides give a new allocation the same number and fail alike, free the same one, and find a string's end at the same place |
+| `initializes` | `Mem.le.addInitializes` | **The same pointer**, for the same reason as `lifetime`: on poison it adds no range |
+| `returned` | `Mono.returnedInt`, `returnedArgument` | **An argument that isn't poison.** For a poison one the source may return poison and the target a value, which isn't the argument. `tests/memory_refine/must_fail/ReturnedPoisonArgument.lean` |
+| A `noalias` result, `llvm.assume` with `nonnull` | `Mem.le.noaliasResult`, `assumeNonnull` | **A result that isn't poison in the source**, for `noalias`: poison passes the check, and the pointer the target has for it might not be new |
+| Any of the stores, `memset`, `memcpy` and `lifetime`, then a load, on memories related by their data | `Mem.leData`, and its `loadVec`, `loadInt`, `storeVec`, `storeInt`, `memset`, `memcpy`, `lifetime` | `Mem.le`, with the same running calls and no pointer in the target's bytes that isn't in the source's at the same place. A load then keeps refinement outright, which is what code that stores refined values and loads them back needs, as a kernel's accumulator does |
 
-Not proved to keep the relation yet: `load` and `store` of a pointer, `load` of a vector, `getelementptr` with several
-indices, `memset`, `memcpy`, `llvm.lifetime`, `malloc`, `free`, `strlen`, and of what attributes add, the range
-`initializes` names, `returned` and a `noalias` result. Code after a cut that uses one needs its lemma first, or a cut
-that leaves the memory and the values it reads the same, where it's the same run on both sides: that's how
-`q5_kernel_memory` and `clang_sum` handle their loads, by relating the two loops' blocks with their memories equal,
-since their cuts write nothing.
+Every memory operation the emitter translates keeps the relation, the three in bold only as LLVM allows. What still
+takes care is a load after the target's bytes were refined in kind: on `Mem.le` a load of what a pointer was stored
+over the source's poison stops the target's model, so a proof relates its memories by `Mem.leData` instead, as
+`gh_ad_blocks` does, or keeps them equal, as `q5_kernel_memory` and `clang_sum` do, since their cuts write nothing.
+`Mem.leData` doesn't survive a store of a pointer that's poison in the source, by design: that's the case it rules
+out.
 
 `clang_sum` is the lemma on what clang emits, not on a loop written for it. `tests/cut.sh` compiles `clang_sum.c`
 again and checks the function and its attributes are the fixture's `@src`, to the letter. Its proof goes through
@@ -386,8 +434,9 @@ the tag on its pointer, and the run under its loop's promise. Alive2 has no verd
 
 - A target that adds a promise to progress, or two sides whose blocks aren't under one together.
 - A function whose run makes choices or calls outside the module, which return `Outcomes` or `Talks`.
-- Floating point, `IRLean/Lanes.lean`'s lane-wise forms and x86's intrinsics after a cut, and the memory operations
-  [above](#with-memory) with no lemma.
+- Code after a cut that uses `freeze`, or what stops the model on a value and not on poison, unless the cut's
+  replacement returns the same values there. Floating point's lemmas hold for the same choice on both sides, and a
+  run that makes choices is the case above.
 - A cut that changes control flow, or spans blocks.
 - A cut that takes several values in: `Refines.sim_cut` is for one, and a cut emitted with more arguments is used
   through `Refine.sim_of_le` and `Outcome.Sim.trans` by hand.

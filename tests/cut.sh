@@ -4,13 +4,16 @@
 # holding llama.cpp's q5_0 bit-spreading slice refines from the slice's own proof, tests/proofs/LlamaBitspread.lean,
 # tests/cut/Q5KernelMemory.lean the same of the loop that loads each word and stores its result,
 # tests/cut/ClangSum.lean a cut in a loop as clang compiled it, with its attributes and its promise to progress,
+# tests/cut/GhAdBlocks.lean a cut in a kernel of the corpus as clang compiled it, libsodium's gh_ad_blocks, whose
+# loops load vectors, multiply them with PCLMULQDQ and store an accumulator the next loop loads again,
 # tests/cut/CutPromisedCases.lean a loop under that promise, and tests/cut/CutCases.lean a loop whose cut is refined
 # and not equal, that it doesn't refine the other way, and that the lemma needs each of its hypotheses. They build
 # with warnings as errors, rest on the axioms their slices' proofs do, and replay in the kernel. A wrong cut, a wrong
-# loop and a wrong lemma each have to stop a proof with an error of its own. Alive2 gives each loop the theorem's
-# verdict. See docs/refinement.md.
+# loop, a wrong lemma and a wrong operation each have to stop a proof with an error of its own, where it's wrong.
+# Alive2 gives each loop the theorem's verdict. See docs/refinement.md.
 # Bounded: one Lean or Alive2 process at a time, each Lean process with a memory cap and a time limit, writing only to
-# a temporary directory. Needs `lake build`.
+# a temporary directory. GhAdBlocks.lean's cap is its own, KERNEL_MAX_MB, since it needs more than the rest. Needs
+# `lake build`, and libsodium's source, which Nix fetches at the corpus's pin if the store doesn't have it.
 # usage: tests/cut.sh path/to/ir-lean
 set -euo pipefail
 tool=$(realpath "$1")
@@ -19,6 +22,7 @@ cd "$root"
 work=$(mktemp -d)
 trap 'rm -rf "$work"' EXIT
 mb=${LEAN_MAX_MB:-4000}
+kernel_mb=${KERNEL_MAX_MB:-8000}
 secs=${CUT_TIMEOUT:-600}
 export LEAN_PATH="$work:$root/.lake/build/lib/lean"
 lean_bin=$(command -v lean)
@@ -29,13 +33,22 @@ fail() {
   [ -n "${2:-}" ] && printf '%s\n' "${2:0:4000}"
   failed=1
 }
+# A check that stopped at a limit decides nothing, so it's unknown, with the limit, and not a failure of the proof.
+# The test still fails, since the evidence it asks for isn't there.
+limited=0
+unknown() {
+  printf 'UNKNOWN  %s\n' "$1"
+  [ -n "${2:-}" ] && printf '%s\n' "${2:0:4000}"
+  failed=1
+  limited=1
+}
 # Resource limits say a proof might check with more, so they never count as a failure of its own.
 limit='maximum number of heartbeats|deterministic\)? timeout|maximum recursion depth|deep recursion|stack overflow|'
 limit+='excessive memory|out of memory|maximum number of steps'
 slice=tests/real/llama_q5_bitspread.ll
 
 # The lemma and the operations that keep refinement: on the standard axioms alone, replayed in the kernel.
-for module in IRLean.Cut IRLean.CutPromised IRLean.Mono; do
+for module in IRLean.Cut IRLean.CutPromised IRLean.Mono IRLean.MonoX86; do
   if out=$(IRLEAN_CHECK_MODULE=$module lean tests/check_axioms.lean 2>&1) && grep -q 'and 0 from bv_decide' <<<"$out" &&
     replay=$(timeout "$secs" leanchecker "$module" 2>&1); then
     printf 'ok    %s: %s, and leanchecker replays it\n' "$module" "$out"
@@ -82,6 +95,42 @@ else
     "$(clang --version | head -1)"
 fi
 
+# The corpus's kernel is what clang makes of libsodium's AES-GCM unit at the corpus's pin, with the corpus's flags, the
+# project's and the unit's, as bench/kernels/manifest.toml has them: compiled again, gh_ad_blocks and its attributes
+# are the fixture's @src and #10, to the letter.
+# usage: compile_sodium SOURCE OUT
+compile_sodium() {
+  # shellcheck disable=SC2086 # PROOF_CFLAGS is several flags.
+  NIX_HARDENING_ENABLE='' NIX_ENFORCE_NO_NATIVE=0 clang -O3 -fomit-frame-pointer -momit-leaf-frame-pointer \
+    -DCONFIGURED=1 -DHAVE_MMINTRIN_H=1 -DHAVE_EMMINTRIN_H=1 -DHAVE_PMMINTRIN_H=1 -DHAVE_TMMINTRIN_H=1 \
+    -DHAVE_SMMINTRIN_H=1 -DHAVE_AVXINTRIN_H=1 -DHAVE_AVX2INTRIN_H=1 -DHAVE_AVX512FINTRIN_H=1 -DHAVE_WMMINTRIN_H=1 \
+    -DHAVE_RDRAND=1 -DNATIVE_LITTLE_ENDIAN=1 -DHAVE_INLINE_ASM=1 -DHAVE_AMD64_ASM=1 -DHAVE_AVX_ASM=1 -DHAVE_TI_MODE=1 \
+    -DHAVE_CPUID=1 -DHAVE_WEAK_SYMBOLS=1 -DHAVE_ATOMIC_OPS=1 -D_GNU_SOURCE=1 -D_FORTIFY_SOURCE=3 -pthread \
+    -fvisibility=hidden -fPIC -fno-strict-aliasing -fno-strict-overflow -fstack-protector -ftls-model=global-dynamic \
+    -mavx -maes -mpclmul -I"$1/src/libsodium/include/sodium" -I"$1/src/libsodium/include" ${PROOF_CFLAGS:-} \
+    -S -emit-llvm -o "$2" "$1/src/libsodium/crypto_aead/aes256gcm/aesni/aead_aes256gcm_aesni.c"
+}
+sodium_rev=77e1ce5d6dee871c49ef211222ba18ef0c486bda
+sodium_hash=sha256-k8u7iNqvjLA0PptbneDyE8zCtutJlV2LirrRb41tmBY=
+if ! sodium=$(timeout 1800 nix eval --raw --expr "(builtins.fetchTree { type = \"github\"; owner = \"jedisct1\";
+  repo = \"libsodium\"; rev = \"$sodium_rev\"; narHash = \"$sodium_hash\"; }).outPath" 2>"$work/sodium.err") ||
+  [ ! -d "$sodium/src/libsodium" ]; then
+  # Only stdout is the path: on a fetch, Nix says what it's unpacking on stderr, which isn't part of it.
+  fail "Nix can't fetch libsodium at $sodium_rev, so tests/cut/gh_ad_blocks.ll's @src can't be checked" \
+    "$(cat "$work/sodium.err") $sodium"
+elif ! out=$(compile_sodium "$sodium" "$work/aead_aes256gcm_aesni.ll" 2>&1); then
+  fail "clang doesn't compile libsodium's aead_aes256gcm_aesni.c" "$out"
+elif [ -z "$(fn_text gh_ad_blocks "$work/aead_aes256gcm_aesni.ll")" ] ||
+  ! diff <(fn_text gh_ad_blocks "$work/aead_aes256gcm_aesni.ll" | sed 's/@gh_ad_blocks(/@src(/') \
+    <(fn_text src tests/cut/gh_ad_blocks.ll) >"$work/sodium.diff" ||
+  ! diff <(grep '^attributes #10 ' "$work/aead_aes256gcm_aesni.ll") <(grep '^attributes #10 ' tests/cut/gh_ad_blocks.ll) \
+    >>"$work/sodium.diff"; then
+  fail "tests/cut/gh_ad_blocks.ll's @src isn't what clang makes of libsodium's gh_ad_blocks" "$(cat "$work/sodium.diff")"
+else
+  printf 'ok    tests/cut/gh_ad_blocks.ll holds what %s makes of libsodium %s'"'"'s gh_ad_blocks\n' \
+    "$(clang --version | head -1)" "${sodium_rev:0:12}"
+fi
+
 # Each case as the module CASE_ir, the slice as LlamaBitspreadIR, and the slice's own proof.
 # usage: translate FILE NAMESPACE DIR
 translate() {
@@ -114,41 +163,109 @@ done
 
 # The theorems, with warnings as errors, replayed in the kernel. The cases rest on the standard axioms alone. The
 # kernel's theorem rests on what its slice's proof does, and adds nothing: every bv_decide axiom is the slice's.
+# Whether a Lean step that failed stopped at a limit, and so decided nothing: timeout's exit 124, a kill's 137, Lean's
+# own line for running out of memory, or every error it reported naming a limit on the error's own line. A goal or a
+# string Lean shows under an error isn't read, so a proof whose goal mentions a limit still fails.
+# usage: stopped_at_limit STATUS OUTPUT
+# An ordinary error decides, whatever else stopped the run. An error's own line can still quote text that names a
+# limit, such as `#check «out of memory»`; no file this checks has one.
+stopped_at_limit() {
+  local errors
+  errors=$(grep -E '^[^ ]+:[0-9]+:[0-9]+: error' <<<"$2" || true)
+  if [ -n "$errors" ] && grep -vqE "$limit" <<<"$errors"; then
+    return 1
+  fi
+  [ "$1" = 124 ] || [ "$1" = 137 ] || [ -n "$errors" ] ||
+    grep -qE '^(libc\+\+abi: terminating due to uncaught exception of type lean::memory_exception|INTERNAL PANIC: out of memory)' <<<"$2"
+}
 # usage: check MODULE GENERATED THEOREMS
 check() {
-  local out replay
-  if ! out=$(lean -DwarningAsError=true -R tests/cut -o "$work/$1.olean" "tests/cut/$1.lean" 2>&1); then
-    fail "tests/cut/$1.lean" "$out"
+  local out replay status=0
+  axioms=
+  out=$(lean -DwarningAsError=true -R tests/cut -o "$work/$1.olean" "tests/cut/$1.lean" 2>&1) || status=$?
+  if [ "$status" != 0 ]; then
+    if stopped_at_limit "$status" "$out"; then
+      unknown "tests/cut/$1.lean stopped at a limit (exit $status), so it's neither proved nor refuted" "$out"
+    else
+      fail "tests/cut/$1.lean" "$out"
+    fi
     return 1
   fi
-  if out=$(IRLEAN_CHECK_MODULE=$1 IRLEAN_CHECK_GENERATED=$2 IRLEAN_CHECK_THEOREMS=$3 lean tests/check_axioms.lean 2>&1) &&
-    replay=$(timeout "$secs" leanchecker "$1" 2>&1); then
-    printf 'ok    %s: %s, and leanchecker replays it\n' "$1" "$out"
-    axioms=$out
-  else
-    fail "$1: axioms and replay" "$out ${replay:-}"
+  out=$(IRLEAN_CHECK_MODULE=$1 IRLEAN_CHECK_GENERATED=$2 IRLEAN_CHECK_THEOREMS=$3 lean tests/check_axioms.lean 2>&1) ||
+    status=$?
+  if [ "$status" != 0 ]; then
+    if stopped_at_limit "$status" "$out"; then
+      unknown "$1: the axiom check stopped at a limit (exit $status), so it decided nothing" "$out"
+    else
+      fail "$1: axioms" "$out"
+    fi
     return 1
   fi
+  replay=$(timeout "$secs" leanchecker "$1" 2>&1) || status=$?
+  if [ "$status" != 0 ]; then
+    if stopped_at_limit "$status" "$replay"; then
+      unknown "$1: leanchecker stopped at a limit (exit $status), so its replay decided nothing" "$replay"
+    else
+      fail "$1: replay" "$replay"
+    fi
+    return 1
+  fi
+  printf 'ok    %s: %s, and leanchecker replays it\n' "$1" "$out"
+  axioms=$out
 }
 built=1
 axioms=
-check CutCases drop_nuw_loop_ir $'drop_nuw_cut drop_nuw_loop_ir.cut_src\ndrop_nuw_cut drop_nuw_loop_ir.cut_tgt
+# After a check that passed: its module rests on the standard axioms alone. A check that didn't has said why.
+# usage: standard MODULE
+standard() {
+  grep -q 'and 0 from bv_decide' <<<"$axioms" || fail "$1 rests on more than the standard axioms: $axioms"
+}
+if check CutCases drop_nuw_loop_ir $'drop_nuw_cut drop_nuw_loop_ir.cut_src\ndrop_nuw_cut drop_nuw_loop_ir.cut_tgt
 drop_nuw_loop drop_nuw_loop_ir.src\ndrop_nuw_loop drop_nuw_loop_ir.tgt
-drop_nuw_loop_converse drop_nuw_loop_ir.src\ndrop_nuw_loop_converse drop_nuw_loop_ir.tgt' || built=0
-grep -q 'and 0 from bv_decide' <<<"$axioms" || fail "CutCases rests on more than the standard axioms: $axioms"
-check CutPromisedCases drop_nuw_promised_ir $'drop_nuw_promised drop_nuw_promised_ir.src
-drop_nuw_promised drop_nuw_promised_ir.tgt' || built=0
-grep -q 'and 0 from bv_decide' <<<"$axioms" || fail "CutPromisedCases rests on more than the standard axioms: $axioms"
-check ClangSum clang_sum_ir $'clang_sum clang_sum_ir.src\nclang_sum clang_sum_ir.tgt
-cut clang_sum_ir.cut_src\ncut clang_sum_ir.cut_tgt' || built=0
-grep -q 'and 0 from bv_decide' <<<"$axioms" || fail "ClangSum rests on more than the standard axioms: $axioms"
-check Q5Kernel 'q5_kernel_ir LlamaBitspreadIR' $'q5_kernel q5_kernel_ir.src\nq5_kernel q5_kernel_ir.tgt
-slice LlamaBitspreadIR.src\nslice LlamaBitspreadIR.tgt' || built=0
-kernel=$(grep -oE 'and [0-9]+ from bv_decide' <<<"$axioms" || true)
-check Q5KernelMemory 'q5_kernel_memory_ir LlamaBitspreadIR' \
-  $'q5_kernel_memory q5_kernel_memory_ir.src\nq5_kernel_memory q5_kernel_memory_ir.tgt' || built=0
-memory=$(grep -oE 'and [0-9]+ from bv_decide' <<<"$axioms" || true)
-if ! out=$(IRLEAN_CHECK_MODULE=LlamaBitspread lean tests/check_axioms.lean 2>&1) || [ -z "$kernel" ] ||
+drop_nuw_loop_converse drop_nuw_loop_ir.src\ndrop_nuw_loop_converse drop_nuw_loop_ir.tgt'; then
+  standard CutCases
+else
+  built=0
+fi
+if check CutPromisedCases drop_nuw_promised_ir $'drop_nuw_promised drop_nuw_promised_ir.src
+drop_nuw_promised drop_nuw_promised_ir.tgt'; then
+  standard CutPromisedCases
+else
+  built=0
+fi
+if check ClangSum clang_sum_ir $'clang_sum clang_sum_ir.src\nclang_sum clang_sum_ir.tgt
+cut clang_sum_ir.cut_src\ncut clang_sum_ir.cut_tgt'; then
+  standard ClangSum
+else
+  built=0
+fi
+# A kernel of the corpus, with its own cap: its blocks are long, and Lean needs more than 4 GB for them.
+saved_mb=$mb
+mb=$kernel_mb
+if check GhAdBlocks gh_ad_blocks_ir $'gh_ad_blocks gh_ad_blocks_ir.src\ngh_ad_blocks gh_ad_blocks_ir.tgt
+cut gh_ad_blocks_ir.cut_src\ncut gh_ad_blocks_ir.cut_tgt'; then
+  standard GhAdBlocks
+else
+  built=0
+fi
+mb=$saved_mb
+kernels=1
+if check Q5Kernel 'q5_kernel_ir LlamaBitspreadIR' $'q5_kernel q5_kernel_ir.src\nq5_kernel q5_kernel_ir.tgt
+slice LlamaBitspreadIR.src\nslice LlamaBitspreadIR.tgt'; then
+  kernel=$(grep -oE 'and [0-9]+ from bv_decide' <<<"$axioms" || true)
+else
+  built=0 kernels=0
+fi
+if check Q5KernelMemory 'q5_kernel_memory_ir LlamaBitspreadIR' \
+  $'q5_kernel_memory q5_kernel_memory_ir.src\nq5_kernel_memory q5_kernel_memory_ir.tgt'; then
+  memory=$(grep -oE 'and [0-9]+ from bv_decide' <<<"$axioms" || true)
+else
+  built=0 kernels=0
+fi
+# Only when both kernels checked: one that didn't has said why, unknown or failed.
+if [ "$kernels" = 0 ]; then
+  :
+elif ! out=$(IRLEAN_CHECK_MODULE=LlamaBitspread lean tests/check_axioms.lean 2>&1) || [ -z "$kernel" ] ||
   [ "$(grep -oE 'and [0-9]+ from bv_decide' <<<"$out")" != "$kernel" ] || [ "$memory" != "$kernel" ]; then
   fail "a kernel's theorem doesn't rest on exactly its slice's axioms: $kernel and $memory, and the slice's proof: $out"
 else
@@ -188,12 +305,28 @@ must_fail() {
 }
 
 if [ "$built" = 0 ]; then
-  fail "the wrong versions can't be checked, since the right ones didn't build"
+  if [ "$limited" = 1 ]; then
+    unknown "the wrong versions can't be checked, since a right one stopped at a limit"
+  else
+    fail "the wrong versions can't be checked, since the right ones didn't build"
+  fi
   exit 1
 fi
 
 # A cut that isn't refined: the cut's proof, with its sides swapped.
 must_fail 'a cut that is not refined' tests/cut/must_fail/AddNuwLoop.lean add_nuw_cut
+
+# A wrong operation stops the lemma about it, where the operation is wrong. Each is an operation changed so that it
+# no longer keeps refinement, and the proof that it does, as the right one's is written, has to stop at the
+# obligation it breaks: a lane-wise function that isn't poison for poison, an x86 intrinsic whose poison rule
+# forgets a lane it reads, and `sdiv` with a poison dividend that can't overflow.
+must_fail 'a lane-wise operation whose function on a lane is not poison for poison' \
+  tests/cut/must_fail/LanewiseNotStrict.lean pavg_frozen_mono "$LEAN_PATH" '⊢ some .*none\.getD 0.* = none'
+must_fail 'PCLMULQDQ with a poison rule that forgets a quadword it reads' \
+  tests/cut/must_fail/X86PoisonRule.lean pclmulqdq_forgets_mono "$LEAN_PATH" 'clmul64 x \(none\.getD 0\)'
+must_fail 'sdiv with a poison dividend that never overflows' \
+  tests/cut/must_fail/SdivPoisonDividend.lean divOverflowsWrong_mono "$LEAN_PATH" \
+  "x' = BitVec.intMin w → ¬y = BitVec.allOnes w"
 
 # A loop that isn't the slice and then the rest stops its kernel's proof. Each is a kernel with its target changed,
 # translated again, under the unchanged proof and the unchanged modules it imports. EXPECT, if given, is what Lean's
@@ -229,6 +362,12 @@ edits = {
     ],
     # clang's loop, with four times the word and the word, which is five times it and not three.
     "five times": [("  %twice = shl i32 %12, 1", "  %twice = shl i32 %12, 2")],
+    # The corpus's kernel, with the main loop's accumulator stored 16 bytes past where the next loop loads it. %1
+    # stays in use, so the blocks take the same values on both sides, and the proof can only stop at the store.
+    "accumulator elsewhere": [
+        ("  store <2 x i64> %229, ptr %1, align 16",
+         "  %past = getelementptr i8, ptr %1, i64 16\n  store <2 x i64> %229, ptr %past, align 16"),
+    ],
 }
 for old, new in edits[sys.argv[3]]:
     assert tail.count(old) == 1, old
@@ -251,6 +390,11 @@ wrong_kernel 'loads the next word' q5_kernel_memory Q5KernelMemory tgt_body 'nex
 wrong_kernel 'stores past its pointer' q5_kernel_memory Q5KernelMemory step_sim 'other pointer' \
   "storeVec \\(m\\.gep dst' \\(some 32#64\\)\\)"
 wrong_kernel 'adds up five times each word, as clang compiled it' clang_sum ClangSum tgt_body 'five times'
+saved_mb=$mb
+mb=$kernel_mb
+wrong_kernel 'stores its accumulator past its pointer, in a kernel of the corpus' gh_ad_blocks GhAdBlocks step_bb5 \
+  'accumulator elsewhere' "Refine\\.le a1 \\(m'\\.gep a1' \\(some 16#64\\)\\)"
+mb=$saved_mb
 
 # A wrong lemma. Each mutant changes a definition in a copy of IRLean/Cut.lean, so that something wrong would be
 # allowed, and the copy's own lemmas have to stop on it.
