@@ -44,9 +44,12 @@ which replays modules two at a time, or `LEAN_JOBS` up to four:
   certificate that states another claim, and one by `sorry`. A checker killed after answering certifies
   nothing: `error`. A certificate whose code rewrites the checker and the audit as it compiles: `error`,
   `artifacts_modified`, and the process it started in a session of its own is gone when the compile ends, and
-  the record says whether the compile was contained. The states written over after ir-lean translated them:
-  `error`, `artifacts_modified`, and the record names the IR translated. With LEAN_SYSROOT naming an empty
-  directory, every rule is still proved and the chain certified, by the stamped toolchain.
+  the record says whether the compile was contained. The states written over where ir-lean translated them,
+  after it did, or written over and put back: `error`, `artifacts_modified`, and the record names the IR
+  translated. False states, with an editor writing into `--out`, saving the right states over them while
+  ir-lean translates them and undoing it, or saving an older generated module over the one ir-lean wrote:
+  `refused`, about the states given. With LEAN_SYSROOT naming an empty directory, every rule is still proved
+  and the chain certified, by the stamped toolchain.
 - The search on tests/rules/search.ll finds what tests/rules/expect.json says, each certified, a chain of
   three rules as a whole function and one of two as a slice, and a second run writes the same bytes.
   `llvm-mca` drops every candidate against `opt -O3`, and keeps exactly one against `llc` alone. Alive2,
@@ -1358,36 +1361,8 @@ def live_certify(work: Path) -> None:
         "and the right certificate for the same states is certified, about the IR it was given",
         json.dumps(verdict)[:1500],
     )
+    live_rewritten(work, good, false, by_name["or_zero"])
     real_run = proved.run
-
-    # The IR written over after ir-lean translated it and before the verdict, with `add x 1` to `x`.
-    def rewriting(
-        argv: list[str],
-        env: dict[str, str] | None = None,
-        cwd: Path = ROOT,
-        timeout: float = proved.TIMEOUT,
-        stdin: str | None = None,
-        scope: proc.Scope | None = None,
-    ) -> proc.Ran:
-        ran = real_run(argv, env, cwd, timeout, stdin, scope)
-        if "--no-code" in argv:
-            (Path(cwd) / "chain.ll").write_text(false)
-        return ran
-
-    proved.run = rewriting  # ty: ignore[invalid-assignment]
-    try:
-        verdict = certify.check(good, [by_name["or_zero"]], work / "rewritten", "slice")
-    finally:
-        proved.run = real_run
-    report(
-        verdict["status"] == "error"
-        and verdict["reason"] == "artifacts_modified"
-        and str(work / "rewritten" / "chain.ll") in verdict["detail"]
-        and verdict["files"]["chain.ll"] == hashing.sha256_text(good),
-        "the same states, written over with `add x 1` to `x` after ir-lean translated them, aren't "
-        "certified: error, artifacts_modified, and the record names the IR that was translated",
-        json.dumps(verdict)[:1500],
-    )
     # LEAN_SYSROOT, from the caller, naming another directory for Lean's own modules, here an empty one, where
     # a Lean process that took it would find no `Init`. Each gate runs every Lean process from the toolchain
     # it stamps, by its path, with LEAN_SYSROOT naming it.
@@ -1465,6 +1440,93 @@ def live_certify(work: Path) -> None:
         "states that read memory: unsupported, never certified",
         json.dumps(verdict)[:800],
     )
+
+
+def live_rewritten(work: Path, good: str, false: str, rule: lang.Rule) -> None:
+    """The states and the module ir-lean generates from them, written over as certify runs: `good` is `or x 0`
+    to `x`, which `rule` proves, and `false` is `add x 1` to `x`. In the directory ir-lean translated the
+    states in, after it did, as code that knew it could: `error`. And as an editor could, in `--out`: the
+    right states saved over the false ones while ir-lean translates them, then undone, or the module ir-lean
+    generated saved over, right after it's written, with an older one of the right states. Before certify
+    worked in a directory of its own, each of those two had the false states certified."""
+    real_run = proved.run
+    # The writes before and after ir-lean generates the module, each a file's name and its text, into the
+    # directory given, or the one ir-lean runs in if that's None.
+    plan: list[tuple[Path | None, list[tuple[str, str]], list[tuple[str, str]]]] = []
+    translated_in: list[Path] = []
+
+    def editing(
+        argv: list[str],
+        env: dict[str, str] | None = None,
+        cwd: Path = ROOT,
+        timeout: float = proved.TIMEOUT,
+        stdin: str | None = None,
+        scope: proc.Scope | None = None,
+    ) -> proc.Ran:
+        generating = "--no-code" in argv
+        where, before, after = plan[-1]
+        into = Path(cwd) if where is None else where
+        if generating:
+            translated_in.append(Path(cwd))
+            for name, text in before:
+                (into / name).write_text(text)
+        ran = real_run(argv, env, cwd, timeout, stdin, scope)
+        if generating:
+            for name, text in after:
+                (into / name).write_text(text)
+        return ran
+
+    inside = [
+        ("written over with `add x 1` to `x`", [("chain.ll", false)]),
+        ("written over with `add x 1` to `x` and put back", [("chain.ll", false), ("chain.ll", good)]),
+    ]
+    for i, (what, writes) in enumerate(inside):
+        plan.append((None, [], writes))
+        proved.run = editing  # ty: ignore[invalid-assignment]
+        try:
+            verdict = certify.check(good, [rule], work / f"rewritten{i}", "slice")
+        finally:
+            proved.run = real_run
+        report(
+            verdict["status"] == "error"
+            and verdict["reason"] == "artifacts_modified"
+            and str(translated_in[-1] / "chain.ll") in verdict["detail"]
+            and verdict["files"]["chain.ll"] == hashing.sha256_text(good),
+            f"the same states, {what} where ir-lean translated them, after it did, aren't certified: error, "
+            "artifacts_modified, and the record names the IR that was translated",
+            json.dumps(verdict)[:1500],
+        )
+    older = (work / "good" / f"{certify.NAMESPACE}.lean").read_text()
+    editor = [
+        (
+            "the right states saved over them while ir-lean translates them, then undone",
+            [("chain.ll", good)],
+            [("chain.ll", false)],
+        ),
+        (
+            "the module ir-lean generated saved over, right after, with an older one of the right states",
+            [],
+            [(f"{certify.NAMESPACE}.lean", older)],
+        ),
+    ]
+    for i, (what, before, after) in enumerate(editor):
+        out = work / f"edited{i}"
+        plan.append((out, before, after))
+        proved.run = editing  # ty: ignore[invalid-assignment]
+        try:
+            verdict = certify.check(false, [rule], out, "slice")
+        finally:
+            proved.run = real_run
+        published = {n: hashing.sha256_file(out / n) for n in verdict["files"] if (out / n).is_file()}
+        report(
+            verdict["status"] == "refused"
+            and verdict["reason"] == "proof_failed"
+            and verdict["files"]["chain.ll"] == hashing.sha256_text(false)
+            and published == verdict["files"],
+            f"`add x 1` to `x`, with an editor writing into --out: {what}: refused, proof_failed, about the "
+            "IR given, and --out holds what the record names",
+            json.dumps({"sha256 of the IR given": hashing.sha256_text(false), "verdict": verdict})[:1500],
+        )
 
 
 def summarize(record: dict[str, Any]) -> list[Any]:

@@ -149,19 +149,20 @@ tools/rules/rules.py certify tests/rules/chain.ll --rule or_zero --rule and_allO
    `leanchecker` replays the certificate, the generated module and every module they import that declares something
    and isn't Lean's own, one process each, and [`irlean.verdict`](trust.md#where-python-decides-a-verdict) decides.
    The checker's answer counts only if its process then ended on its own with 0.
-5. **What the gate reads, held.** Lean runs the certificate's code as it compiles it, and the code of what it
-   imports, the `Rules` library's and `Peephole`'s, and anything else running as the user, another build in the
-   checkout or an editor, can write files too. So before it compiles, `IRLean`, `Peephole` and `Rules` are copied
-   into a private directory, and the checks read those copies, and copies of the generated module and the
-   certificate, with nothing else on `LEAN_PATH`. Every Lean process runs from the toolchain `lean --print-prefix`
-   names, by its path, with `LEAN_SYSROOT` naming that toolchain too, so Lean's own modules come from the toolchain
-   that's held, whatever `LEAN_SYSROOT` the caller set. The certificate compiles in a systemd scope, which kills
-   whatever its code started when Lean ends, in whatever session; the record's `contained` says whether systemd
-   could make one. The copies, each directory of them itself, the toolchain and the two checkers are held from
-   before the compile to after the last check, by `lstat` and the copies by hash. The IR, the generated module,
-   the certificate and the checker's own files are each held by their hash when they were written, which is what
-   the record's `files` names. If anything there changed, even if it was put back, the answer is `error`,
-   `artifacts_modified`. [What the gates promise](#what-the-gates-promise) says against what.
+5. **What the gate reads, held.** Lean runs the certificate's code as it compiles it, and the code of what it imports,
+   the `Rules` library's and `Peephole`'s, and anything else running as the user, another build in the checkout or an
+   editor, can write files too. So the gate writes the IR, translates it, and writes and compiles the certificate in a
+   private directory, and `--out` gets copies of them and of the verdict, which nothing reads back. Before it compiles,
+   `IRLean`, `Peephole` and `Rules` are copied into a private directory too, and the checks read those copies, and
+   copies of the generated module and the certificate, with nothing else on `LEAN_PATH`. Every Lean process runs from
+   the toolchain `lean --print-prefix` names, by its path, with `LEAN_SYSROOT` naming that toolchain too, so Lean's own
+   modules come from the toolchain that's held, whatever `LEAN_SYSROOT` the caller set. The certificate compiles in a
+   systemd scope, which kills whatever its code started when Lean ends, in whatever session; the record's `contained`
+   says whether systemd could make one. The copies, each directory of them itself, the toolchain and the two checkers
+   are held from before the compile to after the last check, by `lstat` and the copies by hash. The IR, the generated
+   module, the certificate and the checker's own files are each held by their hash when they were written, which is what
+   the record's `files` names, and by `lstat`. If anything there changed, even if it was put back, the answer is
+   `error`, `artifacts_modified`. [What the gates promise](#what-the-gates-promise) says against what.
 
 The answer is JSON, schema `ir-lean.rules.certificate/1`, and the exit code is 0 only for `certified`:
 

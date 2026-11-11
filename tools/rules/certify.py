@@ -14,7 +14,8 @@ IRLean.Refines Chain.s0 Chain.sk` from them by `IRLean.Refines.trans`, and the g
 6. nothing they read changed from before the certificate compiled to after the last of them ended: the
    modules, copied before any of the libraries' code ran, the toolchain, every Lean process run from it by
    path with LEAN_SYSROOT naming it, the two checkers, and the IR, the generated module, the certificate and
-   the checker's own files, each by its hash when it was written. Lean runs the certificate's code, and its
+   the checker's own files, written in a private directory, each by its hash and `lstat` when it was written.
+   The output directory gets copies, which nothing reads back. Lean runs the certificate's code, and its
    imports', as it compiles it, in a scope that kills whatever it started when it ends, where systemd can
    make one: the record says whether it did, `contained`;
 7. `irlean.verdict` grants `certified`, or doesn't. `refused` is only for what a check diagnosed, and a tool
@@ -242,7 +243,8 @@ def check(
     overlay: Path | None = None,
 ) -> dict[str, Any]:
     """Runs the gate on a chain: `module`'s functions `@s0` to `@sk` are its states, and `rules[i]` is the
-    rule applied from `@s<i>` to the next. Works in `out`, and returns the verdict, schema RULES_CERTIFICATE.
+    rule applied from `@s<i>` to the next. Works in a private directory, writes copies of what it checked
+    and the verdict to `out`, and returns the verdict, schema RULES_CERTIFICATE.
     For tests: `proof_text` replaces the certificate this would write, and `overlay` is a directory holding
     another build of the `Rules` library, read in place of the repo's."""
     with tempfile.TemporaryDirectory(prefix="ir-lean-certify-") as modules:
@@ -258,12 +260,18 @@ def gate(
     overlay: Path | None,
     modules: Path,
 ) -> dict[str, Any]:
-    """`check`, with `modules`, a private directory, for the copies the checks read."""
+    """`check`, with `modules`, a private directory: for the copies the checks read, and `work`, where the IR
+    is written, translated, and the certificate written and compiled. Nothing outside the process knows it, so
+    an editor or another build writing into `out` changes nothing the verdict is about. `out` gets copies, of
+    the IR, the generated module and the certificate as they were bound, and the verdict, which nothing
+    reads back."""
     started = time.monotonic()
     out = out.resolve()
     out.mkdir(parents=True, exist_ok=True)
     for stale in out.glob("*.olean"):
         stale.unlink()
+    work = modules / "work"
+    work.mkdir()
     names = [f"s{i}" for i in range(len(rules) + 1)]
     record: dict[str, Any] = {
         "schema": schemas.RULES_CERTIFICATE,
@@ -284,32 +292,45 @@ def gate(
     }
     checks: dict[str, bool | None] = {}
     record["checks"] = checks
-    # The IR, the generated module and the certificate, each by its hash when it was written, before anything
-    # read it: what the record names, and what each has to still be when the verdict is given.
+    # The IR, the generated module and the certificate in `work`, each by its hash when it was written, before
+    # anything read it: what the record names, and what each has to still be when the verdict is given. And
+    # each by `lstat` then, so a write that was put back shows too. `published` is their bytes, for `out`.
     written: dict[str, str] = record["files"]
+    stamped: dict[str, dict[str, tuple[int, ...]]] = {}
+    published: dict[str, bytes] = {}
+
+    def bind(name: str, data: bytes) -> None:
+        """Holds `work / name`, which is `data`, as `written`, `stamped` and `published` say."""
+        stamped[name] = hashing.stamp(work / name)
+        written[name] = hashing.sha256(data)
+        published[name] = data
 
     def differ() -> list[str]:
-        """Each file of `written` that isn't, now, what it was when it was written."""
+        """Each file of `written` that isn't, now, what it was when it was written, by hash or by `lstat`."""
         return [
-            str(out / name)
+            str(work / name)
             for name, digest in written.items()
-            if not (out / name).is_file() or hashing.sha256_file(out / name) != digest
+            if not (work / name).is_file()
+            or hashing.stamp(work / name) != stamped[name]
+            or hashing.sha256_file(work / name) != digest
         ]
 
     def done(status: str, reason: str, detail: str = "") -> dict[str, Any]:
         record.update(
             status=status, reason=reason, detail=detail[:2000], seconds=round(time.monotonic() - started, 2)
         )
+        for name, data in published.items():
+            (out / name).write_bytes(data)
         schemas.write(out / "verdict.json", record, schemas.RULES_CERTIFICATE, indent=1, ensure_ascii=False)
         return record
 
-    (out / "chain.ll").write_text(module)
-    written["chain.ll"] = hashing.sha256_text(module)
-    verified = proved.run(["opt", "-passes=verify", "-disable-output", "chain.ll"], cwd=out)
+    (work / "chain.ll").write_bytes(module.encode())
+    bind("chain.ll", module.encode())
+    verified = proved.run(["opt", "-passes=verify", "-disable-output", "chain.ll"], cwd=work)
     checks["opt verifies each state"] = verified.exit == 0
     if verified.exit != 0:
         return done("error", "ir_invalid", verified.output)
-    reported = proved.run([str(TOOL), "chain.ll", "--report"], cwd=out)
+    reported = proved.run([str(TOOL), "chain.ll", "--report"], cwd=work)
     rows = {r[1]: r for r in (line.split("\t") for line in reported.out.splitlines()) if len(r) >= 7}
     lean_names = []
     for name in names:
@@ -319,14 +340,14 @@ def gate(
             return done("unsupported", "state_unsupported", f"{name}: {(row or ['not translated'])[-1]}")
         lean_names.append(row[2])
     checks["ir-lean translates each state, as one block without memory"] = True
-    generated = out / f"{NAMESPACE}.lean"
+    generated = work / f"{NAMESPACE}.lean"
     emitted = proved.run(
-        [str(TOOL), "chain.ll", "--no-code", "--namespace", NAMESPACE, "-o", generated.name], cwd=out
+        [str(TOOL), "chain.ll", "--no-code", "--namespace", NAMESPACE, "-o", generated.name], cwd=work
     )
     if emitted.exit != 0 or not generated.is_file():
         return done("error", "tool_failed", emitted.output)
     emitted_text = generated.read_bytes()
-    written[generated.name] = hashing.sha256(emitted_text)
+    bind(generated.name, emitted_text)
     shapes = [shape(emitted_text.decode(), name) for name in lean_names]
     if any(s is None for s in shapes) or len(set(shapes)) != 1:
         return done("unsupported", "shape_unsupported", "a state isn't one block run after `noundef` checks")
@@ -340,36 +361,36 @@ def gate(
         )
     except (Uncertifiable, ir.IRError) as error:
         return done("unsupported", "proof_not_written", str(error))
-    (out / f"{CERT}.lean").write_text(text)
-    written[f"{CERT}.lean"] = hashing.sha256_text(text)
+    (work / f"{CERT}.lean").write_bytes(text.encode())
+    bind(f"{CERT}.lean", text.encode())
 
     # Lean runs the certificate's code as it compiles it, and the code of what it imports, the Rules library's
     # and Peephole's. Everything a check reads is held from before then to after the last check, against that
     # code and anything else running, such as another build in the checkout: the libraries, copied into `lib`
     # first, the toolchain and the two checkers. The generated module, compiled first, is held by its hash,
-    # and the checks read it and the certificate from copies in `own`, so nothing the compile left in `out`
+    # and the checks read it and the certificate from copies in `own`, so nothing the compile left in `work`
     # can stand in for them. docs/rules.md's "What the gates promise" says what this holds against.
     lib = proved.copy_libraries(modules / "lib", overlay)
     prefix = proved.toolchain()
     trusted = (lib, prefix, proved.CHECK, lean.AXIOM_AUDIT)
     sealed = proved.seal(*trusted)
-    env = proved.lean_env(prefix, out, lib)
+    env = proved.lean_env(prefix, work, lib)
     compiled = proved.run(
         lean.argv(
             proved.LEAN_MB, "-o", f"{NAMESPACE}.olean", generated.name, lean=proved.binary(env, "lean")
         ),
         env,
-        cwd=out,
+        cwd=work,
     )
     if compiled.exit != 0:
         return done("error", "generated_module_failed", compiled.output)
-    generated_sha256 = hashing.sha256_file(out / f"{NAMESPACE}.olean")
+    generated_sha256 = hashing.sha256_file(work / f"{NAMESPACE}.olean")
     # In a scope, so whatever the certificate's code started is killed when Lean ends, in whatever session.
     # Where systemd can't make one, a process it started in a session of its own can outlive it unseen.
     cert = proved.run(
         lean.argv(proved.LEAN_MB, "-o", f"{CERT}.olean", f"{CERT}.lean", lean=proved.binary(env, "lean")),
         env,
-        cwd=out,
+        cwd=work,
         scope=proc.Scope("ir-lean-certify", proved.LEAN_MB + 512),
     )
     record["contained"] = cert.unit is not None
@@ -377,12 +398,12 @@ def gate(
     own = modules / "own"
     own.mkdir()
     for name in (NAMESPACE, CERT):
-        if (out / f"{name}.olean").is_file():
-            shutil.copyfile(out / f"{name}.olean", own / f"{name}.olean")
+        if (work / f"{name}.olean").is_file():
+            shutil.copyfile(work / f"{name}.olean", own / f"{name}.olean")
     moved = proved.unsealed(sealed, *trusted) + differ()
     copied = own / f"{NAMESPACE}.olean"
     if not copied.is_file() or hashing.sha256_file(copied) != generated_sha256:
-        moved.append(f"{out / NAMESPACE}.olean")
+        moved.append(f"{work / NAMESPACE}.olean")
     if moved:
         return done(
             "error",
@@ -406,7 +427,7 @@ def gate(
         },
         f"import IRLean\nimport {NAMESPACE}\n",
         env,
-        out,
+        work,
     )
     if asked_moved:
         return done(
@@ -438,14 +459,14 @@ def gate(
     audit = proved.run(
         lean.audit_argv(proved.LEAN_MB, lean=proved.binary(env, "lean")),
         lean.audit_env(CERT, base=env),
-        cwd=out,
+        cwd=work,
     )
-    replay = proved.replay(listed, env, cwd=out)
+    replay = proved.replay(listed, env, cwd=work)
     moved = proved.unsealed(sealed, *trusted) + proved.unsealed(bound, own) + differ()
     checks[proved.UNCHANGED] = not moved
     if moved:
         return done("error", "artifacts_modified", "changed while they were checked:\n" + "\n".join(moved))
-    files = {name: (out / name).exists() for name in ("chain.ll", f"{NAMESPACE}.lean", f"{CERT}.lean")}
+    files = {name: (work / name).exists() for name in ("chain.ll", f"{NAMESPACE}.lean", f"{CERT}.lean")}
     return done(*conclude(cert_step, core.Step.of("check_axioms", audit), replay, files, checks))
 
 
