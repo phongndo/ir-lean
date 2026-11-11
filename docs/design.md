@@ -76,9 +76,13 @@ not run, can use `--no-code`, so Lean doesn't generate code for it: `inflate` ch
 - **Lean holds at most 244 constructors per type**, and checking a type gets slower faster than it grows,
   so functions over 32 blocks nest their blocks in groups of 16. Recursive functions can't, which limits
   them to 200.
-- **Tests run the library natively**, and the compiler replaces `Mem.write` with `Mem.writeCompacting`, which
-  keeps a load from walking back through every earlier store. `write_eq_writeCompacting` proves the two equal,
-  so a test still runs what the proofs are about, and proofs never see the replacement.
+- **Tests run the library natively, and on executable memory.** `ir-lean --executable-memory` prints the module
+  proofs are about with `IRLean.ExecMem` for `Mem`, whose bytes are arrays changed in place, and each of whose
+  operations is proved to agree with `Mem`'s. `Mem`'s bytes are functions, so a load walks back through earlier
+  stores, which kept tests to inputs of about 800 bytes. `implemented_by` would have run other code under `Mem`'s
+  names, which the trust rules refuse. [Memory](memory.md#executable-memory) has the alternatives, and why a test on
+  `ExecMem` is one of `Mem`. Run on `Mem`, as `--model-memory` does, the compiler replaces `Mem.write` with
+  `Mem.writeCompacting`, which flattens the stores now and then, and `write_eq_writeCompacting` proves the two equal.
 - **Choices the program can't see are oracles in `Mem`:** where each allocation lives, and whether each
   `malloc` fails. A theorem that holds for every `Mem` holds whatever those choices are.
 - **Function addresses are allocations that hold nothing.** A call through a pointer tries each function in the

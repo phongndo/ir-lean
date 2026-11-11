@@ -38,6 +38,9 @@ options:
                     importing them in dependency order
   --no-code         don't have Lean generate code, so the output checks far faster but can
                     only be proved about, not run
+  --executable-memory
+                    the same Lean, with IRLean.ExecMem in place of IRLean.Mem, for running tests:
+                    each operation on memory is proved to agree with Mem's, and runs far faster
 
 exit codes:
   0  every function was translated
@@ -56,11 +59,43 @@ std::string defaultNamespace(StringRef Input) {
   return Name;
 }
 
+// Whether `C` can be part of a Lean identifier, apart from the dots between its components.
+bool identifierChar(char C) {
+  return std::isalnum(static_cast<unsigned char>(C)) || C == '_' || C == '\'' || C == '!' || C == '?' ||
+         static_cast<unsigned char>(C) >= 0x80;
+}
+
+// Whether `Lean` has `Word` as a whole word, as `executableMemory` reads one.
+bool hasWord(const std::string &Lean, const std::string &Word) {
+  for (size_t I = Lean.find(Word); I != std::string::npos; I = Lean.find(Word, I + 1))
+    if ((I == 0 || !identifierChar(Lean[I - 1])) &&
+        (I + Word.size() == Lean.size() || !identifierChar(Lean[I + Word.size()])))
+      return true;
+  return false;
+}
+
+// The same Lean with every `Mem` that names IRLean's memory, the type or its namespace, as `ExecMem`. Emitted
+// names never are `Mem` or `ExecMem`, which are reserved, so a whole word `Mem` is always IRLean's.
+std::string executableMemory(const std::string &Lean) {
+  std::string Out;
+  Out.reserve(Lean.size() + Lean.size() / 16);
+  for (size_t I = 0; I < Lean.size(); ++I) {
+    if (Lean.compare(I, 3, "Mem") == 0 && (I == 0 || !identifierChar(Lean[I - 1])) &&
+        (I + 3 == Lean.size() || !identifierChar(Lean[I + 3]))) {
+      Out += "ExecMem";
+      I += 2;
+    } else {
+      Out += Lean[I];
+    }
+  }
+  return Out;
+}
+
 } // namespace
 
 int main(int Argc, char **Argv) {
   std::string Input, Output, Namespace, SplitDir;
-  bool Report = false, NoCode = false;
+  bool Report = false, NoCode = false, Executable = false;
   for (int I = 1; I < Argc; ++I) {
     StringRef A = Argv[I];
     auto Value = [&](const char *Flag) -> std::string {
@@ -80,6 +115,8 @@ int main(int Argc, char **Argv) {
       SplitDir = Value("--split");
     } else if (A == "--no-code") {
       NoCode = true;
+    } else if (A == "--executable-memory") {
+      Executable = true;
     } else if (A == "-h" || A == "--help") {
       printUsage(outs());
       return ExitOk;
@@ -100,6 +137,13 @@ int main(int Argc, char **Argv) {
   }
   if (Namespace.empty())
     Namespace = defaultNamespace(Input);
+  // `--executable-memory` renames every whole word `Mem`, so it refuses a namespace the rename would change,
+  // such as `Mem`, `A.Mem` or `«A-Mem-B»`, and one already naming `ExecMem`, which would clash with IRLean's.
+  if (Executable && (hasWord(Namespace, "Mem") || hasWord(Namespace, "ExecMem"))) {
+    errs() << "ir-lean: --executable-memory can't take the namespace " << Namespace
+           << ", which names Mem or ExecMem\n";
+    return ExitUsage;
+  }
 
   LLVMContext Context;
   SMDiagnostic Diagnostic;
@@ -122,6 +166,12 @@ int main(int Argc, char **Argv) {
   }
 
   ir_lean::Emitted E = ir_lean::emitModule(*M, Namespace, sys::path::filename(Input).str(), NoCode);
+  if (Executable) {
+    E.Lean = executableMemory(E.Lean);
+    E.Globals = executableMemory(E.Globals);
+    for (ir_lean::Piece &P : E.Pieces)
+      P.Lean = executableMemory(P.Lean);
+  }
 
   unsigned Translated = 0;
   for (const ir_lean::FunctionReport &F : E.Functions)

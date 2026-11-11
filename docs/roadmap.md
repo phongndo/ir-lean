@@ -1151,7 +1151,7 @@ binding gates B0 to B5. The record of 2026-11-08 [above](#the-goal-changed-on-20
 | S8 | The results board: every proved win on the corpus, labeled by tier, with its measured speedup, reproducible from the repo | 4 | The kernel corpus, fixed. A first win | First of the four outside results | Not started |
 | S9 | The plugin: rules from one source, and its certify mode in CI over the corpus | 4 | The rule format. S8 | Second of the four outside results | Not started |
 | E1 | Lemma store v1 | 6 | #48 | Platform, lemma engine | Done in [#60](https://github.com/phongndo/ir-lean/pull/60): 163 lemmas in `lake build` and CI, each meeting rules 1 to 3, and 16 all four ([lemma store](lemma-store.md)) |
-| E2 | Executable memory model | 6 | F4 | Platform, semantics, after F4 | Not started |
+| E2 | Executable memory model | 6 | F4 | Platform, semantics, after F4 | Exit criteria met in [#114](https://github.com/phongndo/ir-lean/pull/114), on 2026-11-11: `IRLean.ExecMem`, with each operation proved to agree with `Mem`'s and runs of blocks that agree proved to agree, on the standard axioms, and the differential harness on it, where `zlib_big` gives native code's 12 results on inputs of 128 KiB to 128.5 KiB, with none skipped. Each block's agreement is proved for two functions and argued for the rest, and proof tests and the search don't run on it yet ([memory](memory.md#whats-left-of-e2)) |
 | E3 | The store makes proofs cheaper, measured | 6 | E1. Python consolidation | Chunk 1's G2, in the order the corpus needs, by [decision 3 after #103](#thirteen-decisions-of-2026-11-09-after-103). Until then, its burn-down | Not started |
 | T1 | Tier-1 proof tests | 7 | | Proof tests, on the platform | Done in [#66](https://github.com/phongndo/ir-lean/pull/66): every injected bug it can run refuted, at a median of 9.1 ms to a counterexample the kernel checked, and `prooftest_t1` checks T1's set in CI ([proof tests](proof-tests.md#t1-measured)) |
 | T2 | Tiers 2 and 3 | 7 | T1. Python consolidation. The results board, S8. E1, soft, for tier 3 | After the results board exists, by [decision 12 after #103](#thirteen-decisions-of-2026-11-09-after-103). Until then, deferred until chunk 1's G2 was producing lemmas | Not started |
@@ -1380,7 +1380,9 @@ makes each proof cheaper than the last.
   run, with targets for peak memory on big proofs, which [Phase 8](#phase-8-speed) records.
 - **Executable memory model,** slice 15, in the platform track after F4: an executable representation of memory, proved
   to agree with `Mem`, for the differential tests, the search's refuting step, and tier-1 proof tests on code with
-  memory. `inflate`'s window is 32 KiB, so inputs under that never exercise its full distance range.
+  memory. `inflate`'s window is 32 KiB, so inputs under that never exercise its full distance range. Its exit
+  criteria were met in [#114](https://github.com/phongndo/ir-lean/pull/114), for the differential tests:
+  [executable memory](memory.md#executable-memory).
 
 **Exit criteria:**
 
@@ -1564,7 +1566,8 @@ every track that runs code with memory needs it.
 - At least 10 bound-related mutants across `inftrees.c`, `inffast.c` and `inflate.c` each break the proof,
   including, where they're in scope, reverting the fixes for CVE-2016-9840, CVE-2016-9841 and
   CVE-2022-37434.
-- The differential harness runs on inputs of at least 128 KiB, with no mismatches and none skipped, which is E2.
+- The differential harness runs on inputs of at least 128 KiB, with no mismatches and none skipped, which is E2. Met
+  in [#114](https://github.com/phongndo/ir-lean/pull/114) by `zlib_big`.
 - Cost is published: lines per IR instruction, invariant lines, check time and peak memory per module.
 
 **Risks:** the invariant is the unknown. It might not be expressible per mode, and table links may need
