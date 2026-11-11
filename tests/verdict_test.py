@@ -18,7 +18,7 @@ And the old form, until it goes:
   and each check can pass, fail or not run, that `decide` grants a claim only when everything it rests on is
   clean, calls it `unknown` only when a limit could explain it, and never grants a different claim.
 - Adversarially, that breaking any one or two things in evidence it grants, in each way it can break, always
-  takes the grant away, including values that only look right, such as `False` for exit code 0.
+  takes the grant away; and that a value that only looks right, such as `False` for an exit, can't be made.
 - That the three verdicts Python got wrong before can't come back: a crashed native check counting as catching
   a wrong rewrite, and a slice that didn't compile counting as a refutation, both in #57, and a cached result
   whose certificate is gone counting as certified, in #51.
@@ -88,24 +88,19 @@ STEPS: dict[str, tuple[Step | None, str, str | None]] = {
     "segfault": (Step("p", -11), "crash", None),
     "segfault_from_a_shell": (Step("p", 139), "crash", None),
     "abort": (Step("p", -6), "crash", None),
-    "exit_false": (Step("p", False), "crash", None),
-    "exit_text": (Step("p", "0"), "crash", None),  # ty: ignore[invalid-argument-type]
 }
 FILES: dict[str, Any] = {
     "none": {},
     "there": {"a": True},
     "gone": {"a": True, "b": False},
-    "truthy": {"a": 1},
-    "unknown": {"a": None},
 }
 CHECKS: dict[str, Any] = {
     "none": {},
     "passed": {"c": True},
     "failed": {"c": False},
     "not_run": {"c": None},
-    "truthy": {"c": "yes"},
 }
-FLAGS: dict[str, Any] = {"absent": None, "true": True, "false": False, "truthy": 1}
+FLAGS: dict[str, Any] = {"absent": None, "true": True, "false": False}
 
 
 def clean(step: Step | None) -> bool:
@@ -117,7 +112,7 @@ def limited(step: Step | None) -> bool:
 
 
 def name_of(step: Step) -> str:
-    # By identity: a step that exits `False` equals one that exits 0, as False == 0.
+    # By identity, as two steps that end alike are equal.
     return next(n for n, (s, _, _) in STEPS.items() if s is step)
 
 
@@ -174,7 +169,7 @@ class Exhaustive(unittest.TestCase):
             for kernel, evaluated, cached, (lean, _, _), files, checks in itertools.product(
                 FLAGS.values(),
                 FLAGS.values(),
-                FLAGS.values(),
+                (True, False),
                 STEPS.values(),
                 FILES.values(),
                 CHECKS.values(),
@@ -274,15 +269,12 @@ def breakages(e: Evidence) -> list[tuple[str, Evidence]]:
                     continue
                 replaced = None if s is None else dataclasses.replace(s, name=current.name)
                 out.append((f"{field}={n}", dataclasses.replace(e, **{field: replaced})))
-    if e.axioms is True:
-        for v in (False, None, 1, "yes"):
-            out.append((f"axioms={v!r}", dataclasses.replace(e, axioms=v)))
-    for field in ("kernel", "evaluated", "cached"):
+    for field in ("axioms", "kernel", "evaluated", "cached"):
         if getattr(e, field) is True:
-            for v in (False, None, 1, "yes"):
+            for v in (False, None)[: 1 if field == "cached" else 2]:
                 out.append((f"{field}={v!r}", dataclasses.replace(e, **{field: v})))
-    for v in (False, None, 0, 1, "yes"):
-        out.append((f"a file {v!r}", dataclasses.replace(e, files={**e.files, "extra": v})))
+    out.append(("a file False", dataclasses.replace(e, files={**e.files, "extra": False})))
+    for v in (False, None):
         out.append((f"a check {v!r}", dataclasses.replace(e, checks={**e.checks, "extra": v})))
     if e.upstream is not None and isinstance(e.upstream[1], dict):
         step, record = e.upstream
@@ -334,7 +326,7 @@ class Adversarial(unittest.TestCase):
                 d = decide(claim, broken)
                 self.assertFalse(d.granted, f"{claim} still granted with {name}: {d}")
                 count += 1
-        self.assertGreater(count, 500)
+        self.assertGreater(count, 450)
 
     def test_breaking_two_things_takes_the_grant_away(self) -> None:
         count = 0
@@ -482,14 +474,10 @@ CHECK_VALUES: dict[str, Any] = {
     "false": False,
     "not_run": None,
     "left_out": LEFT_OUT,
-    "one": 1,
-    "yes": "yes",
 }
 FILE_VALUES: dict[str, dict[str, Any]] = {
     "there": {"out.olean": True},
     "one_gone": {"out.olean": True, "other.olean": False},
-    "unknown": {"out.olean": None},
-    "truthy": {"out.olean": 1},
     "left_out": {},
 }
 VALUES = {"step": list(STEPS), "check": list(CHECK_VALUES), "files": list(FILE_VALUES)}
@@ -640,7 +628,7 @@ class Bounded(unittest.TestCase):
 
     def test_an_axiom_audit_needs_its_process(self) -> None:
         e = evidence(clean_values("verify.proved"))
-        for answer in (True, 1):
+        for answer in (True, False):
             d = decide("verify.proved", dataclasses.replace(e, axioms=answer))
             self.assertEqual((d.verdict, d.reason), (Verdict.ERROR, "internal_error"))
 
@@ -827,13 +815,64 @@ class ManyCases(unittest.TestCase):
             (None, (Verdict.ERROR, "internal_error")),
             (Plan((), 1), (Verdict.UNKNOWN, "nothing_planned")),
             (Plan(("a",), 0), (Verdict.ERROR, "internal_error")),
-            (Plan(("a",), False), (Verdict.ERROR, "internal_error")),
-            (Plan(("a",), "1"), (Verdict.ERROR, "internal_error")),  # ty: ignore[invalid-argument-type]
             (Plan(("a", "a"), 1), (Verdict.ERROR, "incomplete")),
             (Plan(("a",), 1), (Verdict.GRANTED, "sampled")),
         ):
             d = decide("t.passed", Evidence(steps=harness, plan=plan, cases=holds))
             self.assertEqual((d.verdict, d.reason), want, plan)
+
+
+# Something made right, and values of each of its fields that only look right, each of which has to raise
+# where it's made: in Python, True is an int, "false" is truthy, and a str is a sequence of its letters.
+MALFORMED: dict[str, tuple[Any, dict[str, list[Any]]]] = {
+    "Step": (Step("p", 0), {"name": [None], "exit": [False, "0", 256], "limit": ["", 1], "output": [b""]}),
+    "Plan": (Plan(("a",)), {"cases": ["abc", ["a"]], "at_least": [True, "1", -1], "whole": ["false", 1]}),
+    "Cases": (Cases((1,)), {"holds": [[1], (True,)], "discards": [(0.0,)], "stops": ["4"], "at_least": [""]}),
+    "Grant": (
+        Grant("w", 0, "s"),
+        {"word": [""], "exit": [False], "schema": [None], "steps": [["lean"]], "checks": [("c", 1)]}
+        | {"files": [1], "excludes": ["x.y"], "cases": [{}]},
+    ),
+    "Evidence": (
+        Evidence(),
+        {"lean": [True], "replay": ["ok"], "axioms": [1], "kernel": [1], "evaluated": ["yes"]}
+        | {"cached": [None], "upstream": [(True, {}), [Step("u", 0), {}]], "step": [0], "found_exit": [True]}
+        | {"finding": [1], "files": [{"a": 1}, {"a": None}], "checks": [{"c": "yes"}, {1: True}]}
+        | {"steps": [{"s": None}], "plan": [("a",)], "cases": [[Step("a", 1)]]},
+    ),
+    "Decision": (
+        decide("verify.proved", Evidence()),
+        {"verdict": ["proved"], "reason": [1], "detail": [1], "grant": [1]},
+    ),
+}
+
+
+class Malformed(unittest.TestCase):
+    """Review 1's S1: evidence that isn't what its fields say can't be made, so `decide` never reads a field,
+    by truthiness, comparison or arithmetic, that only looks right."""
+
+    def test_each_field_of_each_kind(self) -> None:
+        for kind, (made, values) in MALFORMED.items():
+            self.assertEqual(set(values), {f.name for f in dataclasses.fields(made)}, kind)
+            for name, bad in values.items():
+                for value in bad:
+                    with self.assertRaises(TypeError, msg=(kind, name, value)):
+                        dataclasses.replace(made, **{name: value})
+
+    def test_s1(self) -> None:
+        # Three planned, one that holds and two discarded, at a minimum of three: `whole` decides.
+        cases = observed(("holds", "discarded", "discarded"), "as_planned")
+        with mock.patch.dict(GRANTS, {"t.passed": TIER}):
+            for whole, want in ((False, "too_few_satisfying"), (True, "exhaustive")):
+                self.assertEqual(decide("t.passed", run_over("clean", cases, 3, whole)).reason, want)
+        with self.assertRaises(TypeError):
+            run_over("clean", cases, 3, "false")  # ty: ignore[invalid-argument-type]
+
+    def test_a_mapping_changed_after_is_not_read(self) -> None:
+        checks: dict[str, Any] = {"c": True}
+        e = Evidence(checks=checks)
+        checks["c"] = "yes"
+        self.assertIs(e.checks["c"], True)
 
 
 class OneLimitReader(unittest.TestCase):

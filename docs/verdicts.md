@@ -150,7 +150,8 @@ requirement that isn't clean, and a grant it excludes that the same evidence gra
 | A time, memory, heartbeat, stack, recursion, step or solver limit; `SIGKILL`, 137, 124 | `unknown`, its reason |
 | The model stopped where the property needs an answer | `unknown`, `model_stopped` |
 | Too few cases met the hypotheses, and the domain didn't all run | `unknown`, `too_few_satisfying` |
-| A crash: another signal, an exit of 128 or more not named, or one not an integer | `error`, `tool_failed` |
+| A crash: another signal, or an exit of 128 or more not named | `error`, `tool_failed` |
+| Evidence whose field isn't what it's declared as, such as an exit that isn't an integer, or a `whole` of `"false"` | Can't be built: it raises `TypeError` where it's made, and the tool's own handler answers `unknown` or `error` |
 | A required step, check or file absent | `error`, its reason or `internal_error` |
 | A planned case missing or observed twice, or a case not planned | `error`, `incomplete` |
 | Files a check read changed while it ran | `error`, `artifacts_modified`, in every tool |

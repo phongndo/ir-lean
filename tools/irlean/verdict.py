@@ -29,22 +29,68 @@ form's calls, and the count can only fall. What each claim of the old form needs
   of its own: what it found, which isn't a resource limit.
 
 `limit_of` alone says which limit stopped a process, in either form. IRLEAN_DENY_ALL takes every grant away.
+And evidence that isn't what its fields say can't be made: each raises TypeError where it's built.
 """
 
 from __future__ import annotations
 
 import collections
+import functools
 import itertools
 import os
 import re
 import signal
+import types
+import typing
 from collections.abc import Mapping
 from dataclasses import dataclass, field
 from enum import StrEnum
-from typing import Any
+from typing import Annotated, Any
 
 from . import lean as lean_
 from . import schemas
+
+# What a field's annotation adds to its type: an exit code, or minus the signal that ended a process; a count;
+# and a name, which isn't empty.
+Code = Annotated[int, lambda v: -64 <= v <= 255]
+Count = Annotated[int, lambda v: v >= 0]
+Name = Annotated[str, lambda v: v != ""]
+
+
+def _fits(value: Any, hint: Any) -> bool:
+    """Whether `value` is what `hint`, a field's annotation, says, by exact type: in Python, True is an int,
+    "false" is truthy, and a str is a sequence of its letters."""
+    origin, args = _parts(hint)
+    if hint is Any:
+        return True
+    if origin is Annotated:
+        return _fits(value, args[0]) and all(ok(value) for ok in args[1:])
+    if origin in (typing.Union, types.UnionType):
+        return any(_fits(value, a) for a in args)
+    if origin is tuple:
+        each = args[:1] * len(value) if type(value) is tuple and args[-1:] == (...,) else args
+        return type(value) is tuple and len(each) == len(value) and all(map(_fits, value, each))
+    if origin is Mapping:
+        return isinstance(value, Mapping) and all(all(map(_fits, kv, args)) for kv in value.items())
+    return type(value) is hint
+
+
+@functools.cache
+def _parts(hint: Any) -> tuple[Any, tuple[Any, ...]]:
+    return typing.get_origin(hint), typing.get_args(hint)
+
+
+@functools.cache
+def _hints(kind: type) -> dict[str, Any]:
+    return typing.get_type_hints(kind, include_extras=True)
+
+
+def _made(self: Any) -> None:
+    """Raises TypeError if a field of `self` isn't exactly what it's declared as, so `decide` never reads one
+    that only looks right, such as a `whole` of "false", which is truthy."""
+    for name, hint in _hints(type(self)).items():
+        if not _fits(getattr(self, name), hint):
+            raise TypeError(f"{type(self).__name__} can't have {name}={getattr(self, name)!r}"[:500])
 
 
 class Verdict(StrEnum):
@@ -78,13 +124,15 @@ class Cases:
     says what it found. An exit none of these name is a case that failed."""
 
     # It met the hypotheses, and the property held.
-    holds: tuple[int, ...]
+    holds: tuple[Code, ...]
     # It didn't meet the hypotheses.
-    discards: tuple[int, ...] = ()
+    discards: tuple[Code, ...] = ()
     # The model stopped where the property needs an answer.
-    stops: tuple[int, ...] = ()
+    stops: tuple[Code, ...] = ()
     # The request's field that says how many cases have to hold, unless the plan is the whole domain.
-    at_least: str | None = None
+    at_least: Name | None = None
+
+    __post_init__ = _made
 
 
 @dataclass(frozen=True)
@@ -94,14 +142,16 @@ class Grant:
     observed once if `cases`, and none of `excludes` granted on the same evidence."""
 
     # The status it's reported as, the exit code it ends with, and the schema of the record that says it.
-    word: str
-    exit: int
-    schema: str
+    word: Name
+    exit: Code
+    schema: Name
     steps: tuple[str, ...] = ()
     checks: tuple[str, ...] = ()
     files: bool = False
     excludes: tuple[str, ...] = ()
     cases: Cases | None = None
+
+    __post_init__ = _made
 
 
 # The check that the files a grant's checks read didn't change while they ran.
@@ -154,11 +204,13 @@ class Step:
 
     name: str
     # Its exit code, minus the signal that killed it, or None if it didn't run or never ended.
-    exit: int | None
+    exit: Code | None
     # A limit its runner enforced and that stopped it, such as `time_limit`.
-    limit: str | None = None
+    limit: Name | None = None
     # What it printed, both streams, which Lean's own limit messages are read from.
     output: str = ""
+
+    __post_init__ = _made
 
     @classmethod
     def of(cls, name: str, ran: Any) -> Step:
@@ -173,9 +225,11 @@ class Plan:
     # Each case's identity.
     cases: tuple[str, ...]
     # How many have to hold, as the request's field its grant's Cases names says.
-    at_least: int = 0
+    at_least: Count = 0
     # Whether the cases are the whole domain, so how many hold doesn't matter.
     whole: bool = False
+
+    __post_init__ = _made
 
 
 @dataclass(frozen=True)
@@ -200,7 +254,7 @@ class Evidence:
     # For caught: the check that has to fail on wrong code, the exit code that says it found something, and
     # what it found.
     step: Step | None = None
-    found_exit: int = 1
+    found_exit: Code = 1
     finding: str | None = None
     # Each file the verdict is about, and whether it's there, as recorded.
     files: Mapping[str, bool] = field(default_factory=dict)
@@ -214,6 +268,13 @@ class Evidence:
     plan: Plan | None = None
     cases: tuple[Step, ...] = ()
 
+    def __post_init__(self) -> None:
+        for name in ("files", "checks", "steps"):
+            # A copy no caller holds, so what's checked here is what `decide` reads.
+            if isinstance(value := getattr(self, name), Mapping):
+                object.__setattr__(self, name, types.MappingProxyType(dict(value)))
+        _made(self)
+
 
 @dataclass(frozen=True)
 class Decision:
@@ -223,6 +284,8 @@ class Decision:
     detail: str = ""
     # The grant's name, if it was asked for by name.
     grant: str = ""
+
+    __post_init__ = _made
 
     @property
     def granted(self) -> bool:

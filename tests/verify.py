@@ -833,13 +833,18 @@ def contract_checks() -> list[str]:
         lambda r: r.steps.clear(),
         lambda r: r.steps.update(compile_proof=v.verdict.Step("compile_proof", -11)),
         lambda r: r.steps.update(kernel_replay=v.verdict.Step("kernel_replay", 0, limit="time_limit")),
-        lambda r: r.steps.update(kernel_replay=v.verdict.Step("kernel_replay", False)),
         lambda r: r.outputs.update(compile_proof=Path("/nonexistent/P.olean")),
     ):
         run = run_with()
         change(run)
         if v.decide(run)[0] == "proved":
             failures.append("proved, with every check passing, on processes or modules that don't hold it up")
+    # A step whose exit isn't an integer can't even be built, so it can't hold a proof up.
+    try:
+        v.verdict.Step("kernel_replay", False)
+        failures.append("a step whose exit is False was built")
+    except TypeError:
+        pass
     for name in v.REQUIRED:
         for value in ("fail", "not_run", "skip", "inconclusive"):
             status = v.decide(run_with(**{name: value}))[0]
