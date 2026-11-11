@@ -104,10 +104,16 @@ class Workload:
     command: list[str]
     measure: str = protocol.TIME
     output: str = "result"
+    # A rate's pattern, whose groups `figure` and `value` match each figure's name and number, and the
+    # figures it has to print, each compared on its own.
     rate: str | None = None
-    check: list[str] | None = None
+    figures: list[str] | None = None
+    # The commands the candidate's build has to pass before it's timed.
+    check: list[list[str]] | None = None
     setup: list[str] | None = None
     threads: int = 1
+    # The SHA-256 the manifest fixes for what a run prints, where it does.
+    stdout_sha256: str | None = None
     # Where each field came from: the manifest or harness.toml, as a record says which.
     sources: dict[str, str] = field(default_factory=dict)
 
@@ -118,9 +124,11 @@ class Workload:
             "measure": self.measure,
             "output": self.output,
             "rate": self.rate,
+            "figures": self.figures,
             "check": self.check,
             "setup": self.setup,
             "threads": self.threads,
+            "stdout_sha256": self.stdout_sha256,
             "from": self.sources,
         }
 
@@ -153,17 +161,20 @@ def opt_tag(opt: str) -> str:
 def workloads(raw: dict[str, Any], listed: list[dict[str, Any]] | None) -> dict[str, Workload]:
     """A project's workloads, from harness.toml's table. One that's the manifest's, `manifest = true`, takes
     from the manifest's workload of its name what the harness can run as the manifest says: its one command,
-    its setup, its threads and measure, and, from a check of what it prints, that its output is its result. A
-    rate's pattern and a check of known answers stay harness.toml's: the manifest names a rate's figure in
-    words, and the harness doesn't run the manifest's known-answers checks."""
+    its setup, its threads and measure, its known-answers checks, and, from a check of what it prints, that
+    its output is its result. It refuses one with a check it can't run. Any workload the manifest has by its
+    name takes the SHA-256 the manifest fixes for what it prints, where it does. A rate's pattern stays
+    harness.toml's, with the names of the figures it reads: the manifest names them in words."""
     by_name = {w.get("name"): w for w in listed or [] if isinstance(w, dict)}
     out: dict[str, Workload] = {}
     for name, w in raw.items():
         fields = dict(w)
         sources = dict.fromkeys(fields, "harness")
+        check = fields.get("check")
+        fields["check"] = [list(check)] if check else None
+        m = by_name.get(name)
         if fields.pop("manifest", False):
             sources.pop("manifest", None)
-            m = by_name.get(name)
             if m is None:
                 raise Refused(f"workload {name} is the manifest's, and the manifest has no workload {name}")
             for key, ours in (("run", "command"), ("setup", "setup")):
@@ -178,32 +189,58 @@ def workloads(raw: dict[str, Any], listed: list[dict[str, Any]] | None) -> dict[
                 if key in m:
                     fields[key], sources[key] = m[key], "manifest"
             checks = m.get("check", [])
-            if any(
-                c.get("kind") == "output" and c.get("output") == ["stdout"] and "run" not in c for c in checks
-            ):
+            printed = [c for c in checks if printed_check(c)]
+            known = [c for c in checks if c.get("kind") == "known-answers" and c.get("run")]
+            if cannot := [c for c in checks if c not in printed and c not in known]:
+                what = cannot[0].get("what", cannot[0].get("kind"))
+                raise Refused(f"{name}: the harness can't run the manifest's check {what!r} yet")
+            if printed:
                 fields["output"], sources["output"] = "result", "manifest"
-        check = fields.get("check")
+            if known:
+                if check:
+                    raise Refused(f"{name}: the manifest fixes its checks, and harness.toml gives another")
+                fields["check"] = [list(cmd) for c in known for cmd in c["run"]]
+                sources["check"] = "manifest"
+        for c in (m or {}).get("check", []):
+            if printed_check(c) and c.get("sha256"):
+                fields["stdout_sha256"], sources["stdout_sha256"] = c["sha256"], "manifest"
         workload = Workload(
             name=name,
             command=list(fields["command"]),
             measure=fields.get("measure", protocol.TIME),
             output=fields.get("output", "result"),
             rate=fields.get("rate"),
-            check=list(check) if check else None,
+            figures=sorted(fields["figures"]) if fields.get("figures") else None,
+            check=fields["check"],
             setup=list(fields["setup"]) if fields.get("setup") else None,
             threads=int(fields.get("threads", 1)),
+            stdout_sha256=fields.get("stdout_sha256"),
             sources=sources,
         )
         if workload.measure not in protocol.MEASURES:
             raise Refused(f"{name}: measure {workload.measure!r} isn't one of {', '.join(protocol.MEASURES)}")
         if workload.output not in ("result", "timings"):
             raise Refused(f"{name}: output {workload.output!r} isn't result or timings")
-        if workload.measure == protocol.RATE and not workload.rate:
-            raise Refused(f"{name}: a rate needs `rate`, a pattern that matches the figure")
+        if workload.measure == protocol.RATE and (
+            not workload.rate or set(re.compile(workload.rate).groupindex) != {"figure", "value"}
+        ):
+            raise Refused(
+                f"{name}: a rate needs `rate`, a pattern whose groups `figure` and `value` match each "
+                "figure's name and number"
+            )
+        if (workload.measure == protocol.RATE) != bool(workload.figures):
+            raise Refused(f"{name}: a rate, and only a rate, names the figures it prints, in `figures`")
         if workload.output == "timings" and not workload.check:
             raise Refused(f"{name}: its output is only timings, so it needs a check of the functions it runs")
+        if workload.stdout_sha256 and workload.output != "result":
+            raise Refused(f"{name}: the manifest fixes what it prints, and the harness doesn't compare it")
         out[name] = workload
     return out
+
+
+def printed_check(c: dict[str, Any]) -> bool:
+    """Whether a manifest's check is of what the workload's own run prints, not of a command of its own."""
+    return c.get("kind") == "output" and c.get("output") == ["stdout"] and "run" not in c
 
 
 def project_from_manifest(name: str, offline: bool = False) -> Project:
@@ -986,7 +1023,12 @@ def make_candidate(
     def unchanged(after: str) -> None:
         intact(project, {"baseline": base_build, "candidate": build}, kept, objects, after)
 
-    checks = run_checks(project, opt, work, base_build, build, unchanged)
+    # Each source of the unit, with the candidate's object of it, for a check that compiles its own copy.
+    units: dict[Path, list[tuple[Path, str]]] = {}
+    for c, r in replaced:
+        for source in sources_of(c):
+            units.setdefault(source, []).append((c.obj, r["candidate_object_sha256"]))
+    checks = run_checks(project, opt, work, base_build, build, unchanged, units)
     record = {
         "schema": schemas.KERNELS_BUILD,
         "project": project.name,
@@ -1042,10 +1084,19 @@ def intact(
 
 
 def run_checks(
-    project: Project, opt: str, work: Path, base: Path, cand: Path, unchanged: Any = None
+    project: Project,
+    opt: str,
+    work: Path,
+    base: Path,
+    cand: Path,
+    unchanged: Any = None,
+    units: dict[Path, list[tuple[Path, str]]] | None = None,
 ) -> dict[str, Any]:
-    """Each workload's check on the candidate, and for one whose output is its result, its output against the
-    baseline's, once, before anything is timed. `unchanged(what)` refuses if what just ran changed a build."""
+    """Each workload's checks on the candidate, and for one whose output is its result, its output against the
+    baseline's, and against what the manifest fixes where it does, once, before anything is timed.
+    `unchanged(what)` refuses if what just ran changed a build. A check that compiles its own copy of the
+    rewritten unit, as xxHash's `make test-inline-dispatch` does, gets the candidate's object of it, from
+    `units`, there first, and is refused if it compiles it again: see `own_objects`."""
     out: dict[str, Any] = {}
     args = build_args(project, opt)
     for w in project.workloads.values():
@@ -1055,16 +1106,24 @@ def run_checks(
                 sh(fill(w.setup, places(project, base, scratch, scratch, w), args), timeout=RUN_LIMIT_S)
                 if unchanged:
                     unchanged(f"{w.name}'s setup")
-            if w.check:
-                where = places(project, cand, scratch, scratch, w)
-                sh(fill(w.check, where, args), timeout=RUN_LIMIT_S)
+            ran = []
+            for check in w.check or []:
+                argv = fill(check, places(project, cand, scratch, scratch, w), args)
+                placed = own_objects(argv, units or {}, cand)
+                sh(argv, timeout=RUN_LIMIT_S)
                 if unchanged:
-                    unchanged(f"{w.name}'s check, {shlex.join(w.check)},")
-                entry["check"] = {
-                    "command": w.check,
-                    "from": w.sources.get("check", "harness"),
-                    "passed": True,
-                }
+                    unchanged(f"{w.name}'s check, {shlex.join(check)},")
+                for obj, sha in placed:
+                    if not obj.is_file() or hashing.sha256_file(obj) != sha:
+                        raise Refused(
+                            f"{w.name}'s check, {shlex.join(check)}, compiled its own {obj.name} again, over "
+                            "the candidate's, so it didn't test the candidate's code"
+                        )
+                ran.append(
+                    {"command": check, "candidate_objects": [str(o.relative_to(cand)) for o, _ in placed]}
+                )
+            if ran:
+                entry["check"] = {"commands": ran, "from": w.sources.get("check", "harness"), "passed": True}
             if w.output == "result":
                 hashes = {}
                 for variant, build in (("baseline", base), ("candidate", cand)):
@@ -1080,9 +1139,65 @@ def run_checks(
                 same = hashes["baseline"]["output_sha256"] == hashes["candidate"]["output_sha256"]
                 if not same:
                     raise Refused(f"{w.name}'s output with the candidate isn't the baseline's")
-                entry["output"] = {"sha256": hashes["baseline"]["output_sha256"], "same": True}
+                # What both print has to be what the manifest fixes, so a mistake both share can't pass.
+                if w.stdout_sha256 and hashes["baseline"]["output_sha256"] != written(
+                    {"stdout": w.stdout_sha256}
+                ):
+                    raise Refused(
+                        f"{w.name}'s output isn't what the manifest fixes, a stdout of SHA-256 "
+                        f"{w.stdout_sha256}"
+                    )
+                entry["output"] = {
+                    "sha256": hashes["baseline"]["output_sha256"],
+                    "same": True,
+                    "known": bool(w.stdout_sha256),
+                }
         out[w.name] = entry
     return out
+
+
+def own_objects(
+    argv: list[str], units: dict[Path, list[tuple[Path, str]]], cand: Path
+) -> list[tuple[Path, str]]:
+    """Puts the candidate's object of its unit wherever a check that runs make compiles its own copy of the
+    unit, as a dry run of it shows: xxHash's `make test-inline-dispatch` compiles xxh_x86dispatch.c again in
+    tests/, which would otherwise test the baseline's code. The object is made newer than its sources, so
+    make links it and doesn't compile it. Returns each object it put, with its hash."""
+    if not units or Path(argv[0]).name != "make":
+        return []
+    text = sh([*argv, "-n", "-B", "-w"], env={**environment(), "LC_ALL": "C"}, timeout=RUN_LIMIT_S).out
+    dirs: list[Path] = []
+    placed = []
+    for line in text.splitlines():
+        if m := re.search(r"make(\[\d+\])?: (Entering|Leaving) directory [`'](.*)'$", line):
+            if m[2] == "Entering":
+                dirs.append(Path(m[3]))
+            elif dirs:
+                dirs.pop()
+            continue
+        try:
+            a = shlex.split(line)
+        except ValueError:
+            continue
+        if not dirs or "-c" not in a or "-o" not in a:
+            continue
+        c = Compile(a, dirs[-1], (dirs[-1] / a[a.index("-o") + 1]).resolve())
+        for source in (s for s in sources_of(c) if s in units):
+            if len({sha for _, sha in units[source]}) != 1:
+                raise Refused(
+                    f"{shlex.join(argv)} compiles its own {source.name}, and the candidate has more than one "
+                    "object of it to put there"
+                )
+            obj, sha = units[source][0]
+            if c.obj == obj.resolve():
+                continue
+            if not c.obj.is_relative_to(cand.resolve()):
+                raise Refused(f"{shlex.join(argv)} compiles its own {source.name} outside the build, {c.obj}")
+            c.obj.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy(obj, c.obj)
+            os.utime(c.obj)
+            placed.append((c.obj, sha))
+    return placed
 
 
 # ------------------------------------------------------------------------------------------------------------
@@ -1145,7 +1260,12 @@ def repeated(argv: list[str], times: int) -> list[str]:
 def output_hash(run: Path) -> str:
     """What a run wrote: its stdout and every file it left in its directory, but its stderr."""
     names = sorted(p for p in files(run) if p.name != "stderr")
-    return hashing.sha256_parts(*(f"{p.relative_to(run)}\0{hashing.sha256_file(p)}" for p in names))
+    return written({str(p.relative_to(run)): hashing.sha256_file(p) for p in names})
+
+
+def written(found: dict[str, str]) -> str:
+    """The hash of what a run wrote, from each file's name and SHA-256, in the order given."""
+    return hashing.sha256_parts(*(f"{name}\0{sha}" for name, sha in found.items()))
 
 
 def run_once(argv: list[str], times: int, run: Path, w: Workload | None = None) -> dict[str, Any]:
@@ -1172,9 +1292,9 @@ def run_once(argv: list[str], times: int, run: Path, w: Workload | None = None) 
     if w is not None and w.measure == protocol.RATE:
         assert w.rate is not None
         text = (run / "stdout").read_text(errors="replace") + (run / "stderr").read_text(errors="replace")
-        figures = [float(m) for m in re.findall(w.rate, text)]
-        record["rate"] = statistics.fmean(figures) if figures else None
-        record["figures"] = figures
+        found = [(m["figure"], float(m["value"])) for m in re.finditer(w.rate, text)]
+        # Each figure by its name, once: one printed twice is two numbers the run can't tell apart.
+        record["figures"] = dict(found) if len(dict(found)) == len(found) else None
     for p in sorted(run.iterdir()):
         if p.is_dir():
             shutil.rmtree(p)
@@ -1183,9 +1303,23 @@ def run_once(argv: list[str], times: int, run: Path, w: Workload | None = None) 
     return record
 
 
-def value(run: dict[str, Any], measure: str) -> float:
-    """What a run measured: its rate, or its wall time."""
-    return float(run["rate"] if measure == protocol.RATE else run["wall_s"])
+def value(run: dict[str, Any], measure: str, figure: str | None = None) -> float:
+    """What a run measured: a figure of its rate, or its wall time."""
+    return float(run["figures"][figure] if measure == protocol.RATE else run["wall_s"])
+
+
+def pair_ratio(baseline: dict[str, Any], candidate: dict[str, Any], measure: str) -> float | dict[str, float]:
+    """A pair's ratio: of its times, or each figure of its rate's on its own, by name."""
+    if measure != protocol.RATE:
+        return protocol.ratio(value(baseline, measure), value(candidate, measure), measure)
+    return {
+        f: protocol.ratio(value(baseline, measure, f), value(candidate, measure, f), measure)
+        for f in sorted(baseline["figures"])
+    }
+
+
+def shown(ratio: float | dict[str, float]) -> str:
+    return ", ".join(f"{f} {r:.4f}" for f, r in ratio.items()) if isinstance(ratio, dict) else f"{ratio:.4f}"
 
 
 def ccds() -> list[list[int]]:
@@ -1364,8 +1498,11 @@ def session(
             )
             if got["exit"] != 0 or got["limit"]:
                 raise Refused(f"{w.name} failed with the {role}: exit {got['exit']} {got['limit'] or ''}")
-            if w.measure == protocol.RATE and not got.get("rate"):
-                raise Refused(f"{w.name} printed no figure {w.rate!r} matches, with the {role}")
+            if w.measure == protocol.RATE and sorted(got["figures"] or {}) != w.figures:
+                raise Refused(
+                    f"{w.name} printed figures {sorted(got['figures'] or {})}, each once, with the {role}, "
+                    f"and it measures {w.figures}"
+                )
             return got
 
         warm = {role: one(role, 1) for role in ("baseline", "candidate")}
@@ -1399,14 +1536,12 @@ def session(
                     "pair": i,
                     "order": order,
                     **runs,
-                    "ratio": protocol.ratio(
-                        value(runs["baseline"], w.measure), value(runs["candidate"], w.measure), w.measure
-                    ),
+                    "ratio": pair_ratio(runs["baseline"], runs["candidate"], w.measure),
                 }
             )
             short = [role for role, r in runs.items() if r["wall_s"] < plan["min_seconds"]]
             print(
-                f"     pair {i}/{plan['pairs']}: ratio {pairs[-1]['ratio']:.4f}, "
+                f"     pair {i}/{plan['pairs']}: ratio {shown(pairs[-1]['ratio'])}, "
                 f"load {runs[order[0]]['load'][0]}"
                 + (f", under {plan['min_seconds']} s: {short}" if short else ""),
                 flush=True,
@@ -1508,10 +1643,30 @@ def canonical(sessions: list[dict[str, Any]]) -> list[dict[str, Any]]:
     return sorted(sessions, key=lambda s: (s["plan_sha256"], s["session"]))
 
 
-def ratios(s: dict[str, Any]) -> list[float]:
-    """A session's paired ratios, worked out from its runs, not read from what it stored."""
+def ratios(s: dict[str, Any], figure: str | None = None) -> list[float]:
+    """A session's paired ratios, of its time or of one figure of its rate, worked out from its runs, not
+    read from what it stored."""
     m = s["measure"]
-    return [protocol.ratio(value(p["baseline"], m), value(p["candidate"], m), m) for p in s["pairs"]]
+    return [
+        protocol.ratio(value(p["baseline"], m, figure), value(p["candidate"], m, figure), m)
+        for p in s["pairs"]
+    ]
+
+
+def figures_of(sessions: list[dict[str, Any]]) -> list[str | None]:
+    """What sessions measured, each compared on its own: their time, None, or each figure of a rate, by
+    name, which every one of their runs has to have printed."""
+    if sessions[0]["measure"] != protocol.RATE:
+        return [None]
+    names = {
+        tuple(sorted(r.get("figures") or {}))
+        for s in sessions
+        for p in s["pairs"]
+        for r in (p["baseline"], p["candidate"])
+    }
+    if len(names) != 1 or not (found := names.pop()):
+        raise Refused("the sessions' runs don't all print the same figures of their rate")
+    return list(found)
 
 
 def same_builds(main: dict[str, Any] | None, other: dict[str, Any] | None) -> list[str]:
@@ -1538,22 +1693,29 @@ def compare(
 ) -> dict[str, Any]:
     """The verdict on `main`'s sessions, all of one plan, with the project's other workloads' sessions, each
     of the same builds and kind. What it compares is its plan's, and its statistic is worked out from each
-    run's measure, in one order."""
+    run's measure, in one order. A rate's figures are each compared on its own, by the protocol's strictest
+    reading, `protocol.figures_verdict`, and for condition 4 each figure of another workload's rate is one
+    that mustn't be slower."""
     main = canonical(main)
     plans = plans or {}
     plan = plans.get(main[0]["plan_sha256"])
+    if len({s["workload"] for s in main}) != 1 or len({s["measure"] for s in main}) != 1:
+        raise Refused("a comparison is of one workload")
+    figures = figures_of(main)
     problems = protocol_problems(main, rule, plans)
     if plan is not None:
         problems += plan_problems(plan)
-    if len({s["workload"] for s in main}) != 1:
-        raise Refused("a comparison is of one workload")
     workload = main[0]["workload"]
+    # Each other workload's pooled interval, or each figure's of a rate, or None for one not measured.
     pooled_others: dict[str, list[float] | None] = {}
     other_records = {}
     for name, given in sorted(others.items()):
         if name == workload:
             raise Refused(f"{name} is the workload compared, not another")
         sessions = canonical(given)
+        if len({s["measure"] for s in sessions}) != 1:
+            raise Refused(f"the sessions given as {name}'s aren't of one measure")
+        theirs_figures = figures_of(sessions)
         # What workload sessions measured is theirs and their plans' to say, not the name they're given under,
         # so no measurement stands for two workloads.
         of = {s["workload"] for s in sessions} | {
@@ -1569,16 +1731,32 @@ def compare(
             # Not evidence about these builds, so the workload counts as not measured.
             problems += apart
             pooled_others[name] = None
-        else:
+        elif theirs_figures == [None]:
             s = protocol.summary([r for x in sessions for r in ratios(x)], seed_of(sessions), rule)
             pooled_others[name] = s["interval"]
             record.update(s)
+        else:
+            record["figures"] = {}
+            for f in theirs_figures:
+                s = protocol.summary([r for x in sessions for r in ratios(x, f)], seed_of(sessions), rule)
+                pooled_others[f"{name} {f}"] = s["interval"]
+                record["figures"][f] = s
         other_records[name] = {**record, "sessions": [x.get("_sha256") for x in sessions]}
     for name in names:
-        if name != workload and name not in pooled_others:
+        if name != workload and name not in other_records:
             pooled_others[name] = None
     kinds = [plan["kind"] if plan is not None else s["kind"] for s in main]
-    got = protocol.verdict([ratios(s) for s in main], kinds, seed_of(main), pooled_others, rule)
+    if figures == [None]:
+        got = protocol.verdict([ratios(s) for s in main], kinds, seed_of(main), pooled_others, rule)
+    else:
+        got = protocol.figures_verdict(
+            {f: [ratios(s, f) for s in main] for f in figures if f is not None},
+            kinds,
+            seed_of(main),
+            pooled_others,
+            rule,
+        )
+    each = {"figure": got["figure"], "figures": got["figures"]} if "figures" in got else {}
     return {
         "schema": schemas.KERNELS_COMPARISON,
         "project": plan["project"] if plan is not None else main[0]["project"],
@@ -1603,6 +1781,7 @@ def compare(
             for s, statistic in zip(main, got["sessions"], strict=True)
         ],
         "pooled": got["pooled"],
+        **each,
         "others": other_records,
         "unmeasured": sorted(w for w, i in pooled_others.items() if i is None),
         "by_the_protocol": not problems,
@@ -1660,7 +1839,9 @@ def protocol_problems(
             out.append(f"{label}: its pairs aren't numbered 1 to {len(s['pairs'])}, once each, in order")
         if [p["order"] for p in s["pairs"]] != orders(s["seed"], len(s["pairs"])):
             out.append(f"{label}: its pairs' order isn't the one its seed draws")
-        if [p["ratio"] for p in s["pairs"]] != ratios(s):
+        if [p["ratio"] for p in s["pairs"]] != [
+            pair_ratio(p["baseline"], p["candidate"], s["measure"]) for p in s["pairs"]
+        ]:
             out.append(f"{label}: a pair's ratio isn't what its runs give")
         plan = plans.get(s["plan_sha256"])
         if plan is None:
@@ -1680,6 +1861,8 @@ def protocol_problems(
             "min_seconds": plan["min_seconds"],
         }
         out += [f"{label}: its {k} isn't its plan's" for k, want in expected.items() if s[k] != want]
+        if w.get("figures") and figures_of([s]) != w["figures"]:
+            out.append(f"{label}: its runs' figures aren't {w['figures']}, its plan's")
         if w["output"] == "result" and any(
             r["output_sha256"] != s["output_sha256"]
             for p in s["pairs"]
@@ -1822,8 +2005,10 @@ def main(argv: list[str]) -> int:
                     lambda r, n=s["session"]: session(project, plan, digest, n, args.work, r),
                     args.work,
                 )
-                got = [p["ratio"] for p in record["pairs"]]
-                print(f"ok   {out}: median {statistics.median(got):.4f} over {len(got)} pairs")
+                names = [f for f in figures_of([record]) if f is not None]
+                each = {f: statistics.median(ratios(record, f)) for f in names}
+                got = each or statistics.median(ratios(record))
+                print(f"ok   {out}: median {shown(got)} over {len(record['pairs'])} pairs")
         elif args.cmd == "compare":
 
             def read(path: Path) -> dict[str, Any]:
@@ -1931,7 +2116,14 @@ def describe(c: dict[str, Any]) -> str:
         f"{c['project']}, {c['workload']}{' (control: ' + c['control'] + ')' if c['control'] else ''}: "
         f"{c['verdict']}, median {p['median']:.4f} [{p['interval'][0]:.4f}, {p['interval'][1]:.4f}] over "
         f"{p['pairs']} pairs in {len(c['sessions'])} sessions"
+        + (f", of {c['figure']}, the figure closest to failing" if c.get("figure") else "")
     ]
+    for name, f in c.get("figures", {}).items():
+        q = f["pooled"]
+        lines.append(
+            f"     {name}: {f['verdict']}, median {q['median']:.4f} [{q['interval'][0]:.4f}, "
+            f"{q['interval'][1]:.4f}]"
+        )
     for name, cond in c["conditions"].items():
         lines.append(f"     {'held' if cond['held'] else 'not '} {name}: {cond['says']}")
     lines += [f"     not by the protocol: {problem}" for problem in c["protocol_problems"]]

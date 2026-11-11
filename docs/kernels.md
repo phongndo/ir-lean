@@ -869,7 +869,14 @@ Each step, and what it checks:
   A check that drives the build again takes the build's own arguments as `{build_args}`, and the candidate is
   refused if a check, a setup or a run changes either build's binaries or the candidate's objects: xxHash's
   `Makefile` keeps its objects under a hash of its flags, and `make check` without them built `xxhsum` again from
-  the source, over the candidate, which would then have been timed. The record is `ir-lean.kernels.build/2`.
+  the source, over the candidate, which would then have been timed. A check that runs make and compiles its own
+  copy of the rewritten unit, as xxHash's `make test-inline-dispatch` compiles `xxh_x86dispatch.c` again in
+  `tests/`, would test the baseline's code. So a dry run of it, `make -n -B -w`, finds where it compiles the
+  unit, and the candidate's object is put there first, newer than its sources, so make links it. The candidate is
+  refused if the check compiles it again, and its record names each object put there. Where the manifest fixes
+  what a workload prints, as `decompress`'s is `silesia.tar`, whose SHA-256 it gives, the baseline's output has to
+  be that too, so a mistake both builds share can't pass as the same output. The record is
+  `ir-lean.kernels.build/2`.
 - **`plan`** writes down what's compared before it runs: both builds, by their records, which it copies beside
   itself, the workload, the threads, the cores, the pairs, and a new seed for each session. The cores are one per
   thread, one hardware thread a core, in one CCD, by default the first cores of the last: CPU 8 on z, as the Q5
@@ -900,32 +907,47 @@ Each step, and what it checks:
   them. Another workload's sessions count for condition 4 only if their plan is of the same builds, level, kind and
   control, and otherwise that workload is as good as unmeasured. Only a comparison with no problem, read by the
   protocol's own rule, can put a win on the board.
+- **A rate with several figures,** as `xxhsum -b` prints one MiB/s for each of four hashes, is compared figure by
+  figure, as the manifest says: each run records each figure by its name, every run has to print the ones
+  `harness.toml` names, once each, and each figure has its own ratios, medians and interval. The rule doesn't say
+  how a workload's figures combine, so the harness reads it strictest: a win needs every figure measurably faster
+  by all four conditions, so one hash faster can't hide another slower, and it's slower only if every figure is.
+  For condition 4, each figure of another workload's rate has to reach 1. A comparison shows the figure with the
+  lowest interval, the one a win is closest to failing on, and records every figure's. So a rewrite that speeds up
+  one hash and leaves the other three as they were can't win on `bench`: that would take the protocol saying how
+  a workload's figures combine.
 
 **What it reads.** The manifest gives each project's pin, flags and level, and, since it was fixed, each workload's
 commands, what's measured and its checks: [each workload's check](#each-workloads-check). What the harness needs
 beyond that is in [`bench/kernels/harness.toml`](../bench/kernels/harness.toml), apart so the digest that fixes the
 corpus doesn't change: how to drive each project's build, which binaries its workloads run, and each workload. One
 there with `manifest = true` is the manifest's of its name: the harness runs its one `run` command, and takes its
-`setup`, `threads` and `measure`, and from a check of what it prints that its output is its result, and every record
-says where each came from. zlib-ng's `compress` and xxHash's `bench` are the manifest's, with the commands it fixed.
-What the harness doesn't take from the manifest yet:
+`setup`, `threads` and `measure`, its known-answers checks, and from a check of what it prints that its output is its
+result, and it refuses one with a check it can't run yet. Any workload the manifest has by its name is held to the
+SHA-256 the manifest fixes for what it prints, where it does. Every record says where each field came from. zlib-ng's
+`compress` and xxHash's `bench` are the manifest's, with the commands and checks it fixed: `bench`'s are `xxhsum -V`,
+on the candidate's `xxhsum`, and `make test-inline-dispatch`, on the candidate's object, put where it compiles its
+own. Where the harness doesn't run the manifest's workload as it's written:
 
-- **A rate's figure.** The manifest names `xxhsum -b`'s in words, and compares each of its four hashes on its own.
-  `harness.toml` gives a pattern for the four, and the harness takes their mean.
-- **Its known-answers checks.** xxHash's `bench` runs `make check` with the build's arguments, and not the manifest's
-  `xxhsum -V` and `make test-inline-dispatch`. The second builds its own `xxh_x86dispatch.o` in `tests/`, which the
-  harness doesn't replace, so on a candidate it would test the baseline's code.
+- **A rate's figures.** The manifest names `xxhsum -b`'s in words, MiB/s for each of XXH32, XXH64, XXH3_64b and
+  XXH128, each compared on its own. `harness.toml` gives a pattern that reads each by its name, and the four names,
+  and the harness compares each on its own, by its strictest reading of the rule, above.
 - **zlib-ng's `decompress`,** whose setup writes the stream to `{out}` and whose run reads it from there. The harness
   gives each run an `{out}` of its own, emptied after it, so `harness.toml` keeps the stream in the session's `{work}`.
-  Its output is checked against the baseline's, as the manifest's is, and not against `silesia.tar`'s known hash.
+  Its output is checked against the baseline's and against the SHA-256 the manifest fixes, `silesia.tar`'s.
+
+xxHash's `file` is written out in `harness.toml` as the manifest has it: its command, its measure and its output.
 
 **What it can build.** zlib-ng, with CMake and Ninja, measured below. Its own `-O2` build too: with `--opt project`
 it built, and a candidate the same as it passed every check, and no session was timed on it. xxHash, with make: its
-baseline built, and a candidate the same as it, for each of its two units, passed every check, `make check`
-included. One exploratory session of 3 pairs on `xxhsum -b` read the four MiB/s figures it prints, one a hash, whose
-mean is the measure, and it hasn't been timed by the protocol. llama.cpp, FLAC and libwebp build with CMake too and
-need only an entry in `harness.toml`. libsodium builds with autotools and libtool, whose objects the harness can't
-replace yet.
+baseline built, and a candidate the same as it, for each of its two units, passed every check, the manifest's two
+known-answers checks included. A candidate of `xxh_x86dispatch.c` with the low bit of `XXHL128_default_avx512`'s
+result flipped, given as IR, failed `make test-inline-dispatch` on `XXH3_128bits`, and the harness's earlier check,
+`make check`, had passed the same candidate. An exploratory session of one pair on `xxhsum -b` read the four MiB/s
+figures it prints, one a hash, and compared each on its own, and none has been timed by the protocol. A zlib-ng
+candidate the same as its baseline gave `decompress`'s output the SHA-256 the manifest fixes. llama.cpp, FLAC and
+libwebp build with CMake too and need only an entry in `harness.toml`. libsodium builds with autotools and libtool,
+whose objects the harness can't replace yet.
 
 **One thing `llc` can't read.** The pinned clang, asked for use lists, can write a `uselistorder` directive for an
 inline `asm` value, and the pinned `llc` refuses it: "invalid type for inline asm constraint string". Each of
@@ -1042,8 +1064,9 @@ a rule.
   but the driver's 2.4 s, which is two runs under `time` on a loaded machine, not a measurement by the protocol. Only
   zlib-ng's compressing and decompressing have been timed, for [the harness's controls](#the-harnesss-controls), so
   nothing yet says how noisy the other workloads are on z, which the protocol's 30 pairs assume is enough.
-- **The harness doesn't run every check the manifest fixed yet,** and takes `xxhsum -b`'s rate as the mean of its
-  four hashes: [what it reads](#the-harness).
+- **The harness runs two of the manifest's workloads its own way,** `decompress`'s stream and `xxhsum -b`'s figures
+  read by a pattern: [what it reads](#the-harness). Under its reading of how a workload's figures combine, a rewrite
+  of one of `xxhsum -b`'s hashes can't win on `bench` while the other three stay as they were.
 - **llama.cpp's workloads weren't timed from the manifest** when it was fixed, and its check ran with the 0.5B model,
   not the manifest's 1.5B, which wasn't fetched: [above](#llamacpps-check-reaches-the-kernels-it-times). Its commands
   are `tests/llama_bench.py`'s, and the build its check needs is that script's, which writes `compile_commands.json`.

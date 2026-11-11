@@ -17,6 +17,10 @@ Measurably faster, decision 5 of the kernel corpus, needs all of:
 The rule doesn't say when a candidate is slower, only that the board says so. Here it's the mirror of the
 first three: at least 30 pairs in at least 2 confirmation sessions, the pooled interval's upper end at or
 below 1 / 1.005, and every session's median below 1. Anything else is inconclusive.
+
+Nor does it say how a workload that measures several figures combines them, as `xxhsum -b` gives one for each
+of four hashes, which the manifest compares each on its own. `figures_verdict` is its strictest reading: a win
+needs every figure to be one, by all four conditions, so that one faster can't hide another slower.
 """
 
 from __future__ import annotations
@@ -173,5 +177,45 @@ def verdict(
         "conditions": conditions,
         "sessions": per,
         "pooled": pooled,
+        "rule": rule.as_record(),
+    }
+
+
+def figures_verdict(
+    figures: dict[str, Sequence[Sequence[float]]],
+    kinds: Sequence[str],
+    seed: int,
+    others: dict[str, list[float] | None] | None = None,
+    rule: Rule = PROTOCOL,
+) -> dict[str, Any]:
+    """Reads a workload that measures several figures, each compared on its own: `figures` gives each its
+    sessions of paired ratios, as `verdict` takes them. It's faster only if every figure is, and slower, the
+    mirror, only if every figure is; each condition holds only if it holds for every figure. The statistic
+    it gives is the figure with the lowest pooled interval's lower end, the one a win is closest to failing
+    on, named in `figure`, and `figures` has each figure's verdict and statistic."""
+    if not figures:
+        raise ValueError("no figure")
+    per = {name: verdict(sessions, kinds, seed, others, rule) for name, sessions in sorted(figures.items())}
+    outcomes = {v["verdict"] for v in per.values()}
+    conditions = {}
+    for key in next(iter(per.values()))["conditions"]:
+        says = {name: v["conditions"][key]["says"] for name, v in per.items()}
+        conditions[key] = {
+            "held": all(v["conditions"][key]["held"] for v in per.values()),
+            "says": next(iter(says.values()))
+            if len(set(says.values())) == 1
+            else "; ".join(f"{name}: {text}" for name, text in says.items()),
+        }
+    weakest = min(per, key=lambda name: per[name]["pooled"]["interval"][0])
+    return {
+        "verdict": outcomes.pop() if len(outcomes) == 1 else INCONCLUSIVE,
+        "conditions": conditions,
+        "sessions": per[weakest]["sessions"],
+        "pooled": per[weakest]["pooled"],
+        "figure": weakest,
+        "figures": {
+            name: {"verdict": v["verdict"], "sessions": v["sessions"], "pooled": v["pooled"]}
+            for name, v in per.items()
+        },
         "rule": rule.as_record(),
     }

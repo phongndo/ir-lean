@@ -1,0 +1,17 @@
+# The synthetic project with a workload whose output is only timings, checked by the project's own test of
+# kernel.c against a known answer, `make known`, which compiles its own copy of kernel.c, as xxHash's `make
+# test-inline-dispatch` compiles its own xxh_x86dispatch.c. tests/kernels_bench_test.py checks
+# bench/kernels/harness.py puts the candidate's object there, so a wrong kernel fails the check.
+name = "known"
+src = "project"
+system = "make"
+targets = ["hot"]
+binaries = ["hot"]
+project_opt = "-O3"
+flags = ["-fomit-frame-pointer", "-momit-leaf-frame-pointer"]
+
+[workload.sum]
+command = ["{build}/hot", "sum", "5"]
+measure = "time"
+output = "timings"
+check = ["make", "-C", "{build}", "known"]

@@ -6,7 +6,8 @@ First, on numbers alone: a ratio is above 1 when the candidate is faster, for a 
 bootstrap gives the interval tests/llama/measure.py recorded for the Q5 rewrite from the same pairs and seed;
 the Q5 rewrite's confirmation sessions are measurably faster by the rule, as docs/kernels.md says; each of
 the rule's four conditions, and the protocol's minimums, turns a win into an inconclusive verdict when it
-fails; and a mirror image of a win is slower.
+fails; a mirror image of a win is slower; and xxhsum -b's four hashes, read from what it prints, are each
+compared on their own, so one faster can't hide another slower.
 
 Then, on Linux, the harness end to end on tests/kernels_bench/, a tiny make project whose hot unit is
 kernel.c. It builds the baseline, and candidates, each through the checks a real one passes: a control the
@@ -14,11 +15,13 @@ same as the baseline, which has to differ from it in nothing, and a rewrite of `
 extra loop, given as IR. A rewrite that declares the wrong function, one whose output is wrong, one that
 also changes what another function loads, or a table's contents, named or a switch's with no name, and a
 check that builds the candidate again without the build's arguments, as xxHash's `make check` would, have to
-be refused. Then it times them by the protocol, on one core of the first CCD, with runs repeated to 0.05 s
-instead of 2 s, so it takes seconds: the control the same as the baseline has to come out inconclusive, the
-extra loop slower, and the baseline against the extra loop faster, with the project's other workload measured
-and not slower. Read by the protocol's own rule, none of these is by the protocol, and the board refuses a
-win that cites one.
+be refused. A check that compiles its own copy of the unit, as xxHash's `make test-inline-dispatch` does, has
+to test the candidate's object, so a wrong kernel fails it, and an output the same as the baseline's has to
+be what the manifest fixes, where it does. Then it times them by the protocol, on one core of the first CCD,
+with runs repeated to 0.05 s instead of 2 s, so it takes seconds: the control the same as the baseline has to
+come out inconclusive, the extra loop slower, and the baseline against the extra loop faster, with the
+project's other workload measured and not slower. Read by the protocol's own rule, none of these is by the
+protocol, and the board refuses a win that cites one.
 
 Then what a comparison or the board must not take, made from those sessions by hand: another workload's
 evidence from other builds or an exploratory plan, a planned session left out, a seed, an order, a kind or a
@@ -187,6 +190,71 @@ def numbers() -> None:
     expect(again == protocol.verdict(win, kinds, 7, {}), "the same seed gives the same verdict and intervals")
 
 
+def figures_apart() -> None:
+    """xxhsum -b's four hashes, read by harness.toml's pattern from what it prints, each compared on its own:
+    one hash faster can't hide another slower, as their mean did."""
+    manifest = kernels.load()
+    table = tomllib.loads(harness.HARNESS.read_text())
+    bench = harness.workloads(table["xxhash"]["workload"], manifest["project"]["xxhash"]["workload"])["bench"]
+
+    def printed(rates: list[float]) -> dict[str, Any]:
+        # A run as xxhsum -b prints it, on stderr, with a line of progress before each hash's last.
+        text = "".join(
+            f"{n:2d}-{name:<30}:     102400 ->\r{n:2d}#{name:<30}:     102400 ->   157691 it/s "
+            f"({rate:7.1f} MiB/s) \n"
+            for n, name, rate in zip(
+                (1, 3, 5, 11), ("XXH32", "XXH64", "XXH3_64b", "XXH128"), rates, strict=True
+            )
+        )
+        with tempfile.TemporaryDirectory() as d:
+            return harness.run_once(["sh", "-c", 'printf "%s" "$0" >&2', text], 1, Path(d), bench)
+
+    base = printed([100.0] * 4)
+
+    def compared(rates: list[float]) -> dict[str, Any]:
+        cand = printed(rates)
+        sessions = [
+            {
+                "plan_sha256": "e" * 64,
+                "session": n,
+                "seed": n,
+                "kind": protocol.CONFIRMATION,
+                "control": None,
+                "project": "xxhash",
+                "workload": "bench",
+                "measure": protocol.RATE,
+                "threads": 1,
+                "cpus": [0],
+                "ccd": [0],
+                "min_seconds": 2.0,
+                "started": "",
+                "repeats": 1,
+                "pairs": [
+                    {
+                        "pair": i,
+                        "order": ["baseline", "candidate"],
+                        "baseline": base,
+                        "candidate": cand,
+                        "ratio": 0,
+                    }
+                    for i in range(1, 16)
+                ],
+            }
+            for n in (1, 2)
+        ]
+        return harness.compare(sessions, {}, ["bench"])
+
+    got = compared([150.0, 90.0, 100.0, 100.0])
+    expect(
+        got["verdict"] != protocol.FASTER
+        and got.get("figures", {}).get("XXH64", {}).get("verdict") == protocol.SLOWER,
+        "xxhsum -b's XXH32 50% faster doesn't hide its XXH64 10% slower: each hash is compared on its own",
+        harness.describe(got),
+    )
+    up = compared([110.0] * 4)
+    expect(up["verdict"] == protocol.FASTER, "and every hash 10% faster is faster", harness.describe(up))
+
+
 def pieces() -> None:
     where = {"build": "/b", "src": "/s", "inputs": "/i", "work": "/w", "out": "/o", "threads": "1"}
     filled = harness.fill(
@@ -237,6 +305,19 @@ def pieces() -> None:
             ok = False
             print(f"     {error}")
         expect(ok, f"harness.toml's {name} is an approved project, with workloads the harness can run")
+    zlib = harness.workloads(table["zlib-ng"]["workload"], manifest["project"]["zlib-ng"]["workload"])
+    xxh = harness.workloads(table["xxhash"]["workload"], manifest["project"]["xxhash"]["workload"])
+    expect(
+        getattr(zlib["decompress"], "stdout_sha256", None)
+        == manifest["project"]["zlib-ng"]["workload"][1]["check"][0]["sha256"],
+        "zlib-ng's decompress is checked against the SHA-256 the manifest fixes for what it prints",
+    )
+    expect(
+        xxh["bench"].check
+        == [cmd for c in manifest["project"]["xxhash"]["workload"][0]["check"] for cmd in c["run"]],
+        "xxHash's bench is checked by the manifest's two known-answers checks",
+        xxh["bench"].check,
+    )
 
 
 # ------------------------------------------------------------------------------------------------------------
@@ -343,6 +424,44 @@ def end_to_end(work: Path) -> None:
         "a check that builds the candidate again is refused",
         r.output[-2000:],
     )
+    # A check that compiles its own copy of the unit, as xxHash's `make test-inline-dispatch` does, gets the
+    # candidate's object there first. With a workload whose output is only timings, so only the check can
+    # catch it, a wrong kernel fails it, and the A/A control passes it, with where the object went on record.
+    known = ["--spec", SPEC.with_name("known.toml"), "--work", work]
+    ok_run("build", *known)
+    r = run("candidate", *known, "same", "--unit", "kernel.c", "--unchanged", "--control", "a/a")
+    built = schemas.read(work / "known" / "O3" / "same" / "build.json", schemas.KERNELS_BUILD) if r.ok else {}
+    checked = (((built.get("candidate") or {}).get("checks") or {}).get("sum") or {}).get("check") or {}
+    expect(
+        r.ok and [c.get("candidate_objects") for c in checked.get("commands", [])] == [["own/kernel.o"]],
+        "a check that compiles its own copy of the unit gets the candidate's object, and the A/A passes it",
+        (r.output[-2000:], checked),
+    )
+    r = run("candidate", *known, "wrong", "--unit", "kernel.c", "--ir", wrong, "--functions", "kernel")
+    expect(
+        not r.ok and "and the known answer is 3afa5581390eef7f" in r.err,
+        "a wrong kernel fails the project's own test of it, which compiles its own copy of the unit",
+        r.output[-2000:],
+    )
+    # What a workload prints is checked against the SHA-256 the manifest fixes for it, where it does, as for
+    # zlib-ng's decompress, silesia.tar's: a mistake both builds share can't pass as the same output.
+    project = harness.project_from_spec(SPEC)
+    trees = [work / "synthetic" / "O3" / variant / "src" for variant in ("baseline", "same")]
+    printed = hashing.sha256(proc.run([trees[0] / "hot", "sum", "5"], timeout=300).stdout)
+    for digest, what in (
+        ("0" * 64, "an output the same as the baseline's, and not what the manifest fixes, is refused"),
+        (printed, "and one that's what the manifest fixes is taken"),
+    ):
+        project.workloads = harness.workloads(
+            {"sum": {"command": ["{build}/hot", "sum", "5"], "measure": "time", "output": "result"}},
+            [{"name": "sum", "check": [{"kind": "output", "output": ["stdout"], "sha256": digest}]}],
+        )
+        try:
+            harness.run_checks(project, harness.CORPUS_OPT, work, *trees)
+            why = ""
+        except harness.Refused as error:
+            why = str(error)
+        expect("isn't what the manifest fixes" in why if digest != printed else not why, what, why)
 
     # Timed, on one core of the first CCD, so it stays off the last, where real measurements run.
     cpu = str(harness.ccds()[0][0])
@@ -814,6 +933,7 @@ def again(work: Path, common: list[Any], plans: Path) -> None:
 
 def main() -> int:
     numbers()
+    figures_apart()
     pieces()
     why = can_run()
     if why is None:

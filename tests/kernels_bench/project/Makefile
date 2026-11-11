@@ -19,4 +19,16 @@ flags: FORCE
 check: hot
 	./hot mix 1 > /dev/null
 
-.PHONY: FORCE check
+# Its test of kernel.c against a known answer, which, as xxHash's `make test-inline-dispatch` does, compiles its
+# own copy of the unit, in own/, and links the test with it.
+known: own/known
+	./own/known
+
+own/known: known.c own/kernel.o
+	$(CC) $(CFLAGS) -o $@ known.c own/kernel.o
+
+own/kernel.o: kernel.c
+	mkdir -p own
+	$(CC) $(CFLAGS) -c -o $@ kernel.c
+
+.PHONY: FORCE check known

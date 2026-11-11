@@ -4,21 +4,26 @@
 #
 # It's apart from bench/kernels/manifest.toml so that it doesn't change the digest that fixes the corpus. A
 # workload with `manifest = true` is the manifest's workload of its name: it runs that workload's one `run`
-# command, and takes its `setup`, `threads` and `measure`, and, from a check of what it prints, that its output
-# is its result, over what's here. A rate's pattern and a check of known answers stay this file's: the manifest
-# names a rate's figure in words, and the harness doesn't run the manifest's known-answers checks yet.
+# command, and takes its `setup`, `threads` and `measure`, its known-answers checks, and, from a check of what it
+# prints, that its output is its result, over what's here. Any workload the manifest has by its name is checked
+# against the SHA-256 the manifest fixes for what it prints, where it does. A rate's pattern stays this file's,
+# with the names of its figures: the manifest names them in words.
 #
 # Each workload:
 #   command   what's timed, with {build}, {src}, {inputs}, {input:NAME}, {work}, {out} and {threads} filled in,
 #             and an argument that's {build_args} replaced by the build's own: make's CFLAGS, CXXFLAGS and
 #             configure, nothing for CMake
-#   measure   "time", the command's wall time, or "rate", the number `rate` matches in what it prints
+#   measure   "time", the command's wall time, or "rate", the numbers `rate` matches in what it prints
+#   rate      a pattern whose groups `figure` and `value` match each figure's name and number
+#   figures   the names of a rate's figures, which every run has to print once each: each is compared on its own
 #   output    "result": every timed run's output is hashed, and has to be the baseline's, bit for bit; or
 #             "timings": it's recorded and not compared, and the workload needs a `check`
 #   check     a command the candidate's build has to pass before it's timed, as the project's own test of the
 #             functions it changes. One that drives the build again takes {build_args}, so it tests what was
-#             built: the harness refuses a candidate if a check changes either build's binaries or its objects
-#   setup     a command run once a session, with the baseline, before the warm-up
+#             built: the harness refuses a candidate if a check changes either build's binaries or its objects.
+#             One that runs make and compiles its own copy of the rewritten unit gets the candidate's object
+#             there first, and the candidate is refused if the check compiles it again
+#   setup    a command run once a session, with the baseline, before the warm-up
 #   threads   how many threads it runs, and how many cores it's pinned to: one unless it says otherwise
 #
 # Only projects with a [build] here can be measured. The others are listed in docs/kernels.md's "The harness".
@@ -35,7 +40,8 @@ measure = "time"
 output = "result"
 
 # The manifest's decompress writes its stream to {out} in setup and reads it from there in run. The harness gives
-# each run an {out} of its own, emptied after it, so here the stream is in the session's {work}.
+# each run an {out} of its own, emptied after it, so here the stream is in the session's {work}. What it prints is
+# checked against the SHA-256 the manifest fixes, silesia.tar's.
 [zlib-ng.workload.decompress]
 setup = [
   "sh",
@@ -51,17 +57,16 @@ system = "make"
 targets = ["xxhsum"]
 binaries = ["xxhsum"]
 
+# Its checks are the manifest's: xxhsum -V, and make test-inline-dispatch, which compiles its own copy of
+# xxh_x86dispatch.c in tests/, where the harness puts the candidate's object first.
 [xxhash.workload.bench]
 manifest = true
 measure = "rate"
 # The figure xxhsum -b gives each hash when it's done, on its line numbered with a `#`, in MiB/s, and not the
-# ones it prints while it runs. The measure is their mean: a candidate that changes one hash would pick it with
-# -b and its number.
-rate = '\d+#\S+\s+:[^(\r\n]*\(\s*([0-9.]+) MiB/s\)'
+# ones it prints while it runs. Each of the four is compared on its own, as the manifest says.
+rate = '\d+#(?P<figure>\S+)\s+:[^(\r\n]*\(\s*(?P<value>[0-9.]+) MiB/s\)'
+figures = ["XXH32", "XXH64", "XXH3_64b", "XXH128"]
 output = "timings"
-# Its own known answers, in its checking mode. Its Makefile keeps each build's objects under a hash of its
-# flags, and builds xxhsum again from the source when it's run with others, so the check takes the build's.
-check = ["make", "-C", "{build}", "{build_args}", "check"]
 
 [xxhash.workload.file]
 command = ["{build}/xxhsum", "-H3", "{inputs}/silesia.tar"]
