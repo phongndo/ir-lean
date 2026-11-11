@@ -3,7 +3,8 @@
 Everything the pinned LLVM IR can contain, each item modeled, refused or assumed, and a test that the emitter does
 what each item's class says. This is SEM-08 in the [task list](llvm-verification-tasks.md), and the first half of
 [Phase 0B](roadmap.md#phase-0-semantic-fidelity-and-trust-infrastructure)'s exit criterion. For what any theorem
-means, read [trust](trust.md) first. Facts here were checked on 2026-11-09 at LLVM `llvmorg-23.1.3`.
+means, read [trust](trust.md) first. Facts here were checked on 2026-11-09 at LLVM `llvmorg-23.1.3`, and the counts
+again on 2026-11-10, once the model had [more of x86's intrinsics](x86-intrinsics.md).
 
 **This is a map, not a semantics.** A modeled item has a meaning in `IRLean`; how well that meaning matches LLVM is
 what the rest of the tests are for. The classification says what the emitter does with each item, and checks it.
@@ -19,7 +20,7 @@ the `ir_features` test.
 | --- | --- | ---: | ---: | ---: | ---: |
 | Instruction | `Instruction.def`, every opcode | 69 | 51 | 0 | 18 |
 | Type | `Type.h`, every `TypeID` | 22 | 13 | 1 | 8 |
-| Intrinsic | `Intrinsics*.td`, every `Intrinsic` record, through `llvm-tblgen` | 16,423 | 155 | 4 | 16,264 |
+| Intrinsic | `Intrinsics*.td`, every `Intrinsic` record, through `llvm-tblgen` | 16,423 | 306 | 4 | 16,113 |
 | Attribute | `Attributes.td`, each attribute at each place it can go: a function, a parameter, a return value, and each at a call | 244 | 43 | 116 | 85 |
 | String attribute | `Attributes.td`'s string attributes, the ones the emitter allows, and any other, at each place | 48 | 0 | 40 | 8 |
 | Metadata | `FixedMetadataKinds.def`, two kinds clang names by string that the emitter allows, and any other | 58 | 2 | 20 | 36 |
@@ -28,7 +29,7 @@ the `ir_features` test.
 | Constant | `Value.def`, every `HANDLE_CONSTANT` and `HANDLE_GLOBAL_VALUE` | 23 | 13 | 0 | 10 |
 | Operand bundle | `LLVMContext.cpp`'s bundle tags, and `BundleAttributes.def`'s `llvm.assume` bundles | 19 | 1 | 0 | 18 |
 | Form | Forms of these the emitter treats differently, such as `udiv` of vectors, listed in the script | 52 | 12 | 3 | 37 |
-| **Total** | | **17,045** | **295** | **260** | **16,490** |
+| **Total** | | **17,045** | **446** | **260** | **16,339** |
 
 ## The classes
 
@@ -47,7 +48,7 @@ A refused item is refused whatever it means, so refusing is always sound. What i
 | Floating point (SEM-05) | 127 | `x86_fp80`, `llvm.sqrt`, `llvm.fma`, `denormal_fpenv`, `!fpmath` |
 | External calls and globals | 63 | `call` attributes such as `memory(...)` on calls to the module's own functions, `weak` linkage, `ptrtoint` constant expressions. A call to a declaration is modeled since [calls](calls.md) slice 2, and an external global since slice 3 |
 | Memory (F4, SEM-06) | 122 | `!tbaa`, `noalias` parameters, `byval`, `inttoptr`, masked loads, `llvm.objectsize`, pointers in another address space or in a vector, a layout whose pointers aren't what `Mem` assumes |
-| Long tail | 1,811 | 1,580 x86 intrinsics, the scalable intrinsics but five, exception handling, `freeze` of a vector, `nocreateundeforpoison` |
+| Long tail | 1,660 | 1,429 x86 intrinsics, which [x86 intrinsics](x86-intrinsics.md) ranks by how often real kernels call them, the scalable intrinsics but five, exception handling, `freeze` of a vector, `nocreateundeforpoison` |
 | None | 14,367 | 14,207 intrinsics of other targets, coroutines, garbage collection, sanitizers, atomics |
 
 ## What the check does
@@ -197,7 +198,8 @@ a change to the classification, and shows in review as lines of the file.
 ## What it doesn't show
 
 - **That a modeled item is modeled right.** The probes show the emitter translates it and Lean accepts what it prints.
-  Whether that matches LLVM is what `opcheck`, `gepcheck`, `x86check`, `vecopcheck`, the differential tests and Alive2 are for.
+  Whether that matches LLVM is what `opcheck`, `gepcheck`, `x86check`, `vecopcheck`, the differential tests and Alive2
+  are for, and for an x86 intrinsic, whether it matches the processor is what `x86native` is for.
 - **Every way an item can appear.** A probe uses an item once, in one place, at one type or a few. An attribute is
   probed on `i32`, a pointer and a vector, and a form is listed only where the emitter treats it differently.
 - **134 items have no probe.** 117 are intrinsics no call the generator builds passes LLVM's verifier, such as

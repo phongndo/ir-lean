@@ -55,6 +55,9 @@ STAGE1_KNOWN_WRONG = "ir-lean.stage1.known-wrong/1"
 # tests/ir_features.py: everything the pinned IR can contain, each item modeled, refused or assumed (SEM-08).
 # docs/ir-features.md.
 IR_FEATURES = "ir-lean.ir-features/1"
+# tools/x86_rank.py: how often clang -O3 leaves a call to each x86 intrinsic in real kernels.
+# docs/x86-intrinsics.md.
+X86_RANK = "ir-lean.x86-rank/1"
 # tests/llvm_rewrites.py: the inventory of chunk 1's rewrites, one file per pass. docs/rewrite-inventory.md.
 REWRITES = "ir-lean.rewrites/1"
 # tests/peephole.py: a family's registry of folds, a model's comparison with opt, the scoreboard, and E3's
