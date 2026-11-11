@@ -28,6 +28,11 @@ usage:
 statements it found, and writes the evidence to OUT.json, after every other check has passed. `claim` decides
 each complete claim in the coverage manifest, or the one at --index. Exit codes: 0 replayed or verified, 1
 refused, 2 partial, 4 unknown (a limit stopped it), 5 error.
+
+It decides its own verdicts, and denies by default, as docs/verdicts.md says: only `complete` gives
+`replayed`, when every check of REPLAYED passed exactly once over every module the evidence plans, and only
+`verified` gives `verified`, when each evidence file's replay is so. Anything else is `error`, `incomplete`,
+and IRLEAN_DENY_ALL, set to anything but 0, takes every grant away.
 """
 
 from __future__ import annotations
@@ -63,6 +68,13 @@ COVERAGE = ROOT / "tests" / "llvm_scope" / "coverage.json"
 CLOSURES = ROOT / "tests" / "llvm_scope" / "closure"
 REWRITES = ROOT / "tests" / "llvm_scope" / "rewrites"
 EXIT = {"replayed": 0, "verified": 0, "refused": 1, "partial": 2, "unknown": 4, "error": 5}
+# The grants, which only `complete` and `verified` give, and the checks a replay needs for one.
+GRANTED = ("replayed", "verified")
+REPLAYED = (
+    "pin", "anchors", "ir_replay", "translation_replay", "compile_generated", "compile_evidence",
+    "statements", "axioms", "kernel_replay", "unchanged",
+)  # fmt: skip
+DENY_ALL = "IRLEAN_DENY_ALL"
 HEX = re.compile(r"[0-9a-f]{64}")
 FLAG = re.compile(
     r"-(O[0-3sz]|D[A-Za-z_]\w*(=[\w.+-]*)?|U[A-Za-z_]\w*|std=[\w+]+|f[A-Za-z][\w=.+-]*|W[\w=-]*|m[\w=.-]+)"
@@ -400,6 +412,15 @@ class Replay:
         self.ev, self.t, self.work, self.jobs, self.memory, self.timeout = ev, t, work, jobs, memory, timeout
         self.record = record
         self.checks: list[dict[str, str]] = []
+        # The modules each check over modules has to cover, each once, from the evidence before anything ran,
+        # and those it did cover.
+        generated, own = [u["namespace"] for u in ev["units"]], list(ev["lean"]["files"])
+        self.plan = {
+            "compile_generated": generated,
+            "compile_evidence": own,
+            "kernel_replay": generated + own,
+        }
+        self.observed: dict[str, list[str]] = {step: [] for step in self.plan}
         # Lean's memory limit, and a thread stack of 64 MB, as tests/llvm.py gives it: Lean commits about
         # 1 GiB of stack for each thread, and bv_decide forks Lean to start its solver, which fails with
         # ENOMEM on a machine with less memory than that commit, such as a CI runner.
@@ -525,9 +546,10 @@ class Replay:
             timeout=self.timeout,
         )
 
-    def compile(self, module: str, reason: str) -> None:
+    def compile(self, module: str, step: str, reason: str) -> None:
         path = module.replace(".", "/")
         need(self.lean("-R", str(self.work), "-o", f"{path}.olean", f"{path}.lean"), reason, f"lean {module}")
+        self.observed[step].append(module)
 
     def waves(self, files: dict[str, str]) -> list[list[str]]:
         """The evidence's modules in waves, each importing only modules of earlier waves, read from the import
@@ -563,7 +585,9 @@ class Replay:
         self.passed("translation_replay", "ir-lean gives the recorded Lean, byte for byte")
         generated = [u["namespace"] for u in ev["units"]]
         with self.pool() as pool:
-            list(pool.map(lambda m: self.compile(m, "generated_module_failed"), generated))
+            list(
+                pool.map(lambda m: self.compile(m, "compile_generated", "generated_module_failed"), generated)
+            )
         self.passed("compile_generated", "Lean compiles every generated module")
 
         # The evidence's own modules, copied from the repo with the recorded hashes. Their code runs while
@@ -582,7 +606,7 @@ class Replay:
         before_files = self.hashes()
         for wave in self.waves(ev["lean"]["files"]):
             with self.pool() as pool:
-                list(pool.map(lambda m: self.compile(m, "proof_compile_failed"), wave))
+                list(pool.map(lambda m: self.compile(m, "compile_evidence", "proof_compile_failed"), wave))
         self.passed("compile_evidence", "Lean compiles the evidence's modules")
         after_compile = self.hashes()
         self.unchanged(before_files, after_compile, before, expected_new=True)
@@ -611,11 +635,13 @@ class Replay:
         allowed |= {str(Path(a).parent) for a in allowed if "/" in a}
         for path in sorted(old.keys() | new.keys()):
             if old.get(path) != new.get(path) and not (path in allowed and path not in old):
-                raise refuse("artifacts_modified", f"{path} changed while the evidence's code could run")
+                raise Stop(
+                    "error", "artifacts_modified", f"{path} changed while the evidence's code could run"
+                )
         now = stamp([self.t.irlean_lib, self.t.toolchain, HERE, CHECKER, self.t.irlean_tool])
         if now != stamped:
             changed = sorted(k for k in now.keys() | stamped.keys() if now.get(k) != stamped.get(k))
-            raise refuse("artifacts_modified", f"{changed[:3]} changed while the evidence's code ran")
+            raise Stop("error", "artifacts_modified", f"{changed[:3]} changed while the evidence's code ran")
 
     def statements(self) -> list[dict[str, Any]]:
         ev = self.ev
@@ -713,6 +739,7 @@ class Replay:
             # One module at a time, for the same reason as the checker.
             r = run([self.t.leanchecker, module], cwd=self.work, env=self.lean_env, timeout=self.timeout)
             need(r, "kernel_replay_failed", f"leanchecker {module}")
+            self.observed["kernel_replay"].append(module)
 
         with self.pool() as pool:
             list(pool.map(check, modules))
@@ -720,8 +747,47 @@ class Replay:
 
 
 def verdict(status: str, reason: str, detail: str, **extra: Any) -> dict[str, Any]:
+    """Any verdict but a grant, which only `complete` and `verified` give."""
+    if status in GRANTED:
+        raise ValueError(f"{status} is given only by complete and verified")
     return {"schema": VERDICT_SCHEMA, "status": status, "reason": reason, "detail": detail, **extra,
             "trusted": TRUSTED}  # fmt: skip
+
+
+def deny() -> None:
+    """IRLEAN_DENY_ALL, set to anything but 0, takes every grant away, as irlean.verdict's does. It's read
+    here, since this shares no code with that."""
+    if os.environ.get(DENY_ALL, "") not in ("", "0"):
+        raise Stop("error", "denied", f"{DENY_ALL} is set, and nothing is granted")
+
+
+def complete(replay: Replay, detail: str, **extra: Any) -> dict[str, Any]:
+    """The one place a replay is `replayed`: every check of REPLAYED passed exactly once, and Lean compiled
+    and leanchecker replayed every module the evidence planned, each once. Anything else is `error`,
+    `incomplete`, so a step skipped, by a bug here or a caller's, can't grant."""
+    names = [c["name"] for c in replay.checks]
+    if sorted(names) != sorted(REPLAYED):
+        raise Stop("error", "incomplete", f"the checks passed are {names}, not each of {list(REPLAYED)} once")
+    for step, plan in replay.plan.items():
+        if sorted(replay.observed[step]) != sorted(plan):
+            got = replay.observed[step]
+            raise Stop("error", "incomplete", f"{step} covered {got}, not each of {plan} once")
+    deny()
+    return {"schema": VERDICT_SCHEMA, "status": "replayed", "reason": "replayed", "detail": detail,
+            "checks": replay.checks, **extra, "trusted": TRUSTED}  # fmt: skip
+
+
+def verified(results: list[dict[str, Any]], planned: int, detail: str) -> dict[str, Any]:
+    """The one place a claim is `verified`: each of the `planned` evidence files it names replayed, and
+    `complete` said so of each. Anything else is `error`, `incomplete`."""
+    said = [v.get("status") for v in results]
+    if not planned or len(results) != planned or any(s != "replayed" for s in said):
+        raise Stop(
+            "error", "incomplete", f"{planned} evidence files are planned, and their replays say {said}"
+        )
+    deny()
+    return {"schema": VERDICT_SCHEMA, "status": "verified", "reason": "verified", "detail": detail,
+            "evidence": results, "trusted": TRUSTED}  # fmt: skip
 
 
 def replay_evidence(ev: Any, *, work: Path | None = None, jobs: int = 4, memory: int = 4000,
@@ -753,8 +819,7 @@ def replay_evidence(ev: Any, *, work: Path | None = None, jobs: int = 4, memory:
         for u in ev["units"]:
             u.pop("_functions", None)
         detail = "every check passed" + (", and the evidence is recorded" if record else "")
-        return verdict("replayed", "replayed", detail, checks=replay.checks, theorems=theorems,
-                       contexts=ev["contexts"]), ev  # fmt: skip
+        return complete(replay, detail, theorems=theorems, contexts=ev["contexts"]), ev
     except Stop as s:
         return verdict(s.status, s.reason, s.detail, checks=replay.checks if replay else []), ev
     except Exception as e:
@@ -892,7 +957,7 @@ def _decide_claim(claim: dict[str, Any], root: Path, inventory: Path, closures: 
             why = f"no theorem is about {len(missing)} functions of the closure, such as {missing[:3]}"
             raise refuse("closure_uncovered", why)
     detail = f"{len(results)} evidence files replay and cover {item_id}'s {dim}"
-    return verdict("verified", "verified", detail, evidence=results)
+    return verified(results, len(evidence), detail)
 
 
 def check_claim(claim: dict[str, Any], item: dict[str, Any], contexts: set[str], root: Path) -> str | None:

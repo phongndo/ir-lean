@@ -158,9 +158,10 @@ set_tests_properties(llvm_heap PROPERTIES TIMEOUT 900)
 # gives: every pass in exactly one, against tests/llvm_scope/inventory.json. Under a second, and no Lean or
 # LLVM.
 add_test(NAME chunks COMMAND ${CMAKE_SOURCE_DIR}/tests/chunks_test.py)
-# BIND-03's verifier, tools/verify_claims.py: claims refused before any replay, in Python, then every function
-# tests/llvm.py proves replayed as one piece of evidence, tools/verify.py's controls, and forged claims, each
-# refused for its own reason. docs/verify-claims.md.
+# BIND-03's verifier, tools/verify_claims.py: claims refused before any replay, and its guard, in Python, then
+# every function tests/llvm.py proves replayed as one piece of evidence, tools/verify.py's controls, forged
+# claims, each answered for its own reason with its exit code, and a replay with a step skipped, a module
+# short or a check twice, or under IRLEAN_DENY_ALL, granting nothing. docs/verify-claims.md.
 add_test(NAME verify_claims_static COMMAND ${CMAKE_SOURCE_DIR}/tests/verify_claims_test.py --tier static)
 add_test(NAME verify_claims COMMAND ${CMAKE_SOURCE_DIR}/tests/verify_claims_test.py --tier live)
 set_tests_properties(verify_claims_static PROPERTIES TIMEOUT 600)

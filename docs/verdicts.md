@@ -2,9 +2,9 @@
 
 The design of stage A: one default-deny place that decides every verdict a tool gives, which closes
 [bug class 1](bug-classes.md#1-a-limit-or-a-failure-counted-as-a-pass), a limit or a failure counted as a pass. Its
-first pull request, the core, is built; the rest isn't. This is its revision after the design review, under
-[the process](process.md), step 0. Facts were checked on 2026-11-11 at `9a11118`, and for the harness at `5258d5a`, the
-head of #117's unmerged branch.
+first two pull requests, the core and `tools/verify_claims.py`'s guard, are built; the rest isn't. This is its revision
+after the design review, under [the process](process.md), step 0. Facts were checked on 2026-11-11 at `9a11118`, and
+for the harness at `5258d5a`, the head of #117's unmerged branch.
 
 ## The claim
 
@@ -194,11 +194,11 @@ ledger in the test's work directory. A test's own `FAIL` lines, such as a case w
 ### `tools/verify_claims.py`
 
 It imports nothing of `irlean`, for BIND-03, and gets a default-deny guard of its own. `REPLAYED` lists the checks a
-replay needs: `pin`, `anchors`, `ir_replay`, `translation_replay`, `compile_generated`, `compile_evidence`, `axioms`,
-`unchanged` and `kernel_replay`. `complete(replay)` alone writes `replayed`: each check passed exactly once, and the
-compiles and `kernel_replay` over every planned module, the units' namespaces and the evidence's files. `verified`
-needs each evidence file's replay `complete`. `verdict` refuses a grant's status. `artifacts_modified` is `error`,
-exit 5. It reads `IRLEAN_DENY_ALL` itself.
+replay needs: `pin`, `anchors`, `ir_replay`, `translation_replay`, `compile_generated`, `compile_evidence`,
+`statements`, `axioms`, `unchanged` and `kernel_replay`. `complete(replay)` alone writes `replayed`: each check passed
+exactly once, and the compiles and `kernel_replay` over every planned module, the units' namespaces and the evidence's
+files. `verified` needs each evidence file's replay `complete`. `verdict` refuses a grant's status.
+`artifacts_modified` is `error`, exit 5. It reads `IRLEAN_DENY_ALL` itself.
 
 ## Classes touched, and the guard each reuses
 

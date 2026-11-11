@@ -30,8 +30,9 @@ is that only clean evidence gives a positive verdict.
 - **Guard now:** one function decides, `decide` in `tools/irlean/verdict.py`, since 2026-11-09, and
   `tests/verdict_test.py` checks it over every way the processes a verdict rests on can end:
   [where Python decides a verdict](trust.md#where-python-decides-a-verdict). `tools/verify_claims.py` decides on its
-  own on purpose, and the shell tests and `tests/alive.py` decide on their own, each with its own tests. The bugs
-  since were in what reached `decide`, or in what doesn't go through it:
+  own on purpose, with a default-deny guard of its own since stage A's second pull request, and the shell tests and
+  `tests/alive.py` decide on their own, each with its own tests. The bugs since were in what reached `decide`, or in
+  what doesn't go through it:
   - a tool that filtered its evidence before `decide` saw it: #118 dropped model stops as unmet hypotheses;
   - a harness that decides a win on its own, in #117, still open: S9 counted crashed runs, and S11 averaged rates;
   - a test that decides in shell: #115's `tests/cut.sh`.
