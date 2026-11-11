@@ -15,37 +15,45 @@ a proposal's numbers, and the [estimate](#what-it-would-buy) built on them is ma
 
 ## The conclusion
 
-- **It holds, with rules.** Reading these annotations as dropped is sound on a refinement's source: LangRef requires
-  a transformation to drop any metadata attachment it can't preserve, and lets optimization attributes be "freely
-  dropped", so the IR without them refines the IR with them, and a target that refines the first refines the second.
-  It's unsound anywhere else: on a target, in a memory-safety theorem, or in any claim about what the source itself
-  does.
+- **It holds for the rewritten function, with rules.** Reading these annotations as dropped is sound on a
+  refinement's source: LangRef requires a transformation to drop any metadata attachment it can't preserve, and lets
+  optimization attributes be "freely dropped", so the IR without them refines the IR with them, and a target that
+  refines the first refines the second. It's unsound anywhere else: on a target, in a memory-safety theorem, or in any
+  claim about what the source itself does.
+- **It doesn't yet hold for a program the rewrite is put into. Until F4 settles what a caller can promise about a
+  call, installing a whole-function rewrite of a function with memory is unsound, in this mode or without it.** A
+  caller can put `!noalias` on its call and a matching `!alias.scope` on another access, put the call in an access
+  group, or take a `noalias` argument, and each promises something of every access the call makes. A target that
+  refines the function can access a location the source didn't, and break it ([below](#callers-promises)). F4 has to
+  require that every access the target makes, the source makes ([decision 5](#decisions-for-the-maintainer)). Nothing
+  with memory is certified before F4, so nothing is installed this way today.
 - **The rules that make it hold:** the target is read by the emitter as it is today, which refuses every one of these,
-  so the rewritten function is emitted with all of them dropped; a family is dropped whole, never in part; and
-  certificates, verdicts and the board record that the source was read this way, while msc, ptf and every claim that
-  isn't a refinement's source refuse it.
-- **It buys nothing before F4.** Every annotation in scope sits on a memory access or a pointer, and a function with
-  memory has no `Refines` claim until F4 ([refinement](refinement.md#the-relation)). A slice win doesn't need it: a
+  so the rewritten function, and every function it can call in the module, is emitted with all of them dropped; a
+  family is dropped whole, never in part; and certificates, verdicts and the board record that the source was read
+  this way, while msc, ptf and every claim that isn't a refinement's source refuse it.
+- **Before F4 it buys almost nothing.** The aliasing annotations, and every annotation in the measured kernels, sit on
+  a memory access or a pointer, and a function with memory has no `Refines` claim until F4
+  ([refinement](refinement.md#the-relation)). The exception is `!range` on a call that returns an integer, which a
+  function without memory can have; none of the corpus's as-built IR has one. A slice win doesn't need the mode: a
   slice has no loads, and the llama.cpp slices are already cut from a default `-O3` build.
 - **After F4, by the proposal's numbers,** about 13 more of its 85 named kernels, and at most 15, would get past
-  every refusal the proposal saw when read as built, besides the 3 that translate as built today. That's an estimate:
-  the proposal records a function's first reason only, and the IR a default build gives isn't the relaxed IR it
-  measured.
-- **What it costs isn't known.** The rewritten function loses the alias facts later passes and code generation use.
-  [What it costs](#what-it-costs) says how to measure that.
-- **One break isn't this note's, and F4 has to settle it either way:** `noalias` on a caller's argument covers
-  every access during the call, so a rewrite that changes which pointer an access is *based* on can make a caller
-  undefined, whether or not the rewritten function has any annotation.
+  every refusal the proposal saw when read as built, besides the 3 that translate as built today, if the target drops
+  the annotations in every function a kernel calls too. Dropped in the kernel alone, it's 10, and at most 11, since 4 of
+  the 15 call a function in their module that carries `!tbaa` ([what it calls](#what-it-calls)). Either way it's an
+  estimate: the proposal records a function's first reason only, and the IR a default build gives isn't the relaxed IR
+  it measured.
+- **What it costs isn't known.** The rewritten function, and every function it calls, loses the alias facts later
+  passes and code generation use. [What it costs](#what-it-costs) says how to measure that.
 
 ## Decisions for the maintainer
 
 | # | Decision | Recommendation | The alternative, and what it costs |
 | --- | --- | --- | --- |
 | 1 | Whether to adopt the reading at all | **Yes, with the rules here, built with or after F4.** It gives whole-function wins on the IR a project ships, without modeling type-based and scoped aliasing | Model them instead, which the roadmap's [open questions](roadmap.md#open-questions) leave open and which needs a tag on every byte for `!tbaa` ([trust](trust.md#known-gaps-in-the-model)). Or prove only on IR compiled with `-fno-strict-aliasing`, as the kernel corpus proposes, about a different IR from the one that ships |
-| 2 | What the target keeps | **Nothing in scope: the rewritten function drops every one, and its own `noalias` arguments go from its definition and from every call to it in the module** | Keep them on instructions the rewrite didn't touch. That rests on an argument about LLVM the model can't check, and it fails as stated for scope declarations and `noalias` arguments ([below](#a-rewrite-of-part-of-a-function)) |
-| 3 | Value metadata: `!range`, `!nonnull`, `!align`, `!dereferenceable` and `!dereferenceable_or_null` on a load | **Model them**, as their attribute forms are. Then the target may keep them, and the search may use them | Drop them with the rest. Sound, and the search loses facts it could have used |
+| 2 | What the target keeps | **Nothing in scope, in the rewritten function and every function it can call in the module: each drops every one, and their `noalias` arguments go from their definitions and from every call to them in the module** | Keep them on instructions the rewrite didn't touch. That rests on an argument about LLVM the model can't check, and it fails as stated for scope declarations and `noalias` arguments ([below](#a-rewrite-of-part-of-a-function)). Or drop them in the rewritten function alone, which leaves it unsupported on the target wherever it calls a function that keeps one: 4 of the 15 kernels the estimate counts ([what it calls](#what-it-calls)) |
+| 3 | Value metadata: `!range`, `!nonnull`, `!align`, `!dereferenceable` and `!dereferenceable_or_null` on a load, and `!range` on a call | **Model them**, as their attribute forms are. Then the target may keep them, and the search may use them | Drop them with the rest. Sound, and the search loses facts it could have used |
 | 4 | How a win proved this way is labeled | **A third value for the source IR, "as built, read with its annotations dropped"**, beside the kernel corpus's "as built" and "relaxed", with the kinds dropped and the drop-only control's result on the board | Count it as "as built". That hides that the theorem rests on LangRef's rule for dropping, and that the target lost alias facts |
-| 5 | Callers' `noalias` | **F4 says which relation its refinement keeps for pointers**, LangRef's *based on* or the model's provenance, before any whole-function win with memory counts | Leave it as a stated assumption on each win, which the roadmap calls "the last resort, and doesn't work for refinement" ([Phase 0](roadmap.md#phase-0-semantic-fidelity-and-trust-infrastructure)) |
+| 5 | What callers promise about a call | **F4's refinement for memory also requires that every access the target makes, the source makes: the same location, read or written the same way, through a pointer based on the same argument, by LangRef's *based on* or the model's provenance, whichever F4 says.** Before any whole-function win with memory counts, in this mode or not. It refuses a rewrite that adds an access, such as a load speculated where `dereferenceable` allows it, which LLVM's own passes make | Drop every such promise before installing a rewrite: scoped metadata and access groups on every call that can reach the function, and `noalias` on every function that can. That works only where nothing outside the module can reach it, and costs each caller its alias facts. Or leave it as a stated assumption on each win, which the roadmap calls "the last resort, and doesn't work for refinement" ([Phase 0](roadmap.md#phase-0-semantic-fidelity-and-trust-infrastructure)) |
 
 ## The claim
 
@@ -68,6 +76,10 @@ less." The mode reads the source as `drop(src)` and the target as it is, and the
 So `⟦tgt⟧` only does what `⟦src⟧` allows. Steps 1 and 3 are the model's fidelity, as for any theorem, and step 4 is a
 reading of LangRef, which can't be a theorem. Nothing in it needs LangRef to say exactly what each annotation means,
 only that dropping it is allowed, and the table below checks each one's own wording points the same way.
+
+That's a claim about the function compared alone, as every refinement here is. Putting `tgt` into a program also needs
+every promise its callers make about the call to hold of `tgt`'s accesses, which no step above gives
+([below](#callers-promises)).
 
 It runs one way. `Src.f` has less undefined behavior than `⟦src⟧`, which is the dangerous direction for anything that
 says what the source does: a theorem that the source returns, is safe, or meets a spec, is about `drop(src)`, and
@@ -132,19 +144,21 @@ the pin doesn't mention, so the rule above says nothing about it. `!noundef` is 
 
 ## Where it breaks
 
-Nine places to look, each with whether it sinks the idea and what fixes it. None sinks it.
+Ten places to look, each with whether it sinks the idea and what fixes it. One sinks installing a rewrite of a function
+with memory until F4 settles it, with the mode or without it. None sinks the claim about the function alone.
 
 | # | Where | Sinks it? | Fixed by |
 | --- | --- | --- | --- |
 | 1 | A target that keeps an annotation | No | Reading the target as today, which refuses them |
 | 2 | Part of a family dropped | No | Dropping a family whole |
 | 3 | A rewrite of part of a function, the rest keeping theirs | No | Dropping in the whole function |
-| 4 | `noalias` and which pointer an access goes through | Not this note's | In its own function, dropping it ([decision 2](#decisions-for-the-maintainer)). In its callers, F4 |
-| 5 | Certificates and binding | No | A field in the manifest, and the replay that's already there |
-| 6 | msc, ptf and claims about the source | No | Refusing the mode there, with tests |
-| 7 | Inside a pipeline | No: a cost | Measuring it |
-| 8 | What the search can no longer prove | No: a cost | Modeling the value metadata |
-| 9 | Memory has no refinement yet | No: it waits | F4 |
+| 4 | A function it calls, keeping theirs | No: without the fix, the target doesn't translate | Dropping in every function it can call ([decision 2](#decisions-for-the-maintainer)) |
+| 5 | `noalias`, and what callers promise about a call | In its own function, no: dropping it ([decision 2](#decisions-for-the-maintainer)). In its callers, yes, until F4 keeps every access within the source's ([decision 5](#decisions-for-the-maintainer)). Not this mode's: any whole-function rewrite with memory meets it | F4 |
+| 6 | Certificates and binding | No | A field in the manifest, and the replay that's already there |
+| 7 | msc, ptf and claims about the source | No | Refusing the mode there, with tests |
+| 8 | Inside a pipeline | No: a cost | Measuring it |
+| 9 | What the search can no longer prove | No: a cost | Modeling the value metadata |
+| 10 | Memory has no refinement yet | No: it waits | F4 |
 
 ### A target that keeps them
 
@@ -174,42 +188,87 @@ model's source is that same run, and the target's run refines it, so the tagged 
 source's. But it's an argument about LLVM's semantics that the model can't check, since the model never sees a tag.
 And it fails as stated in two places: a rewrite that moves, deletes or duplicates a scope declaration changes which
 accesses a scope covers, and `noalias` on an argument isn't about tagged accesses at all
-([next](#noalias-and-which-pointer-an-access-goes-through)).
+([below](#callers-promises)).
 
 So the rule is the whole function. The source is the whole function read with the mode, and the target is the whole
-function with every annotation in scope dropped. Where a proof is about a region of it, the lemma that a refined cut
-gives a refined function, which goes with F4 by [decision 9](roadmap.md#thirteen-decisions-of-2026-11-09-after-103),
-turns it into this whole-function claim. Keeping tags outside the region is a later decision, worth taking only if the
-drop-only control [below](#what-it-costs) shows a cost, and only with that argument checked somehow.
+function with every annotation in scope dropped, and so is every function it calls ([next](#what-it-calls)). Where a
+proof is about a region of it, the lemma that a refined cut gives a refined function, which goes with F4 by
+[decision 9](roadmap.md#thirteen-decisions-of-2026-11-09-after-103), turns it into this whole-function claim. Keeping
+tags outside the region is a later decision, worth taking only if the drop-only control [below](#what-it-costs) shows a
+cost, and only with that argument checked somehow.
 
 A slice win is different, and unaffected. A slice computes values, with no memory access, and putting its result back
 is trusted, as decision 9's lower tier says. [`tests/llama/slices.py`](../tests/llama/slices.py) cuts the llama.cpp
 slices from clang's `-O3` IR, which carries `!tbaa`, and drops metadata from a slice's lines, which a slice that
 stops at loads doesn't need.
 
-### `noalias` and which pointer an access goes through
+### What it calls
+
+The emitter translates a function only if it translates every function in the module it can call, directly or through
+a pointer, and otherwise refuses the call as one "which isn't translated" ([`src/Emitter.cpp`](../src/Emitter.cpp)).
+Read with the mode, the source's callees lose their annotations too. The target is read as today, so a callee the
+rewrite didn't touch, still carrying `!tbaa`, is refused, and the rewritten function with it: the source translates
+and the target doesn't. In the as-built IR the proposal's `demand.py` wrote on 2026-11-10, 4 of the 15 kernels the
+[estimate](#what-it-would-buy) counts are like that: zlib-ng's `build_tree` calls `gen_codes`, zstd's
+`ZSTD_btGetAllMatches_noDict_3` calls `ZSTD_insertBt1`, which calls `ZSTD_count_2segments`, and libdeflate's
+`deflate_decompress_bmi2` calls `build_decode_table`, each of them with `!tbaa`.
+
+So the target drops them in the rewritten function and in every function it can call in the module, the closure the
+emitter follows, cycles included. That's sound for the same reason as anywhere: LangRef lets any transformation drop
+them, and dropping one changes no access, so no caller's promise [below](#callers-promises) sees it. The claim is about
+the rewritten function, so a callee its other callers also run can change in nothing else: certify mode and binding
+check that each function in the closure is, on the target, the source's with them dropped, where `uncovered_changes`
+would otherwise list it. The cost is each callee's alias facts too: in every caller, if the plugin drops them in place,
+or only in the rewritten function, if the plugin gives that a private copy to call, at the cost of code size. The
+drop-only control drops them from the same functions, so it measures that.
+
+### Callers' promises
 
 LangRef's `noalias` on an argument is about every access "during the execution of the function", so it reaches into
-everything the function calls. Two consequences:
+everything the function calls. Scoped metadata covers "memory-accessing calls" as it covers loads and stores, and an
+access group "any instruction that potentially accesses memory". So the rewritten function's accesses are under its
+own `noalias`, and under whatever its callers promise about a call to it. Two consequences:
 
 - **The rewritten function's own `noalias`.** The source reads it as dropped, so the model lets the two pointers
   alias, and a target can access a location through a pointer *based* on another argument than the source did, which
   the model can't tell apart. If the target kept the attribute, that could be undefined. So the target drops it, from
   the definition and from every call to the function in the module, since a call's own `noalias` applies to the call
   as well ("the intersection of their implied semantics applies").
-- **A caller's `noalias`.** If `g(ptr noalias %p, ptr %q)` calls the rewritten `f(%p, %q)`, `g`'s promise covers
-  `f`'s accesses. A target of `f` that reads through `%p` where the source read through `%q`, at the same address, can
-  make `g` undefined: if `g`'s run modifies that location, it's then accessed both through `%p` and not. Nothing in `f`
-  can fix that, and it doesn't depend on the mode: any whole-function rewrite of a function with memory meets it.
+- **What a caller promises.** Its own `noalias` arguments, and `!alias.scope`, `!noalias` and `llvm.access.group` on
+  its call, each cover every access `f` makes during the call, and LLVM's inliner copies the last three onto each
+  access of an inlined callee (`PropagateCallSiteMetadata`, in `llvm/lib/Transforms/Utils/InlineFunction.cpp`). A
+  target of `f` that refines its source can break one in two ways:
+  - **Through another argument.** If `g(ptr noalias %p, ptr %q)` calls `f(%p, %q)`, a target that reads through `%p`
+    where the source read through `%q`, at the same address, can make `g` undefined: if `g`'s run modifies that
+    location, it's then accessed both through `%p` and not.
+  - **At a location the source didn't access.** If `f(ptr dereferenceable(8) %p)` reads only `%p+4`, a target that
+    also loads `%p` and ignores the value returns the same and leaves memory the same, so it refines. But if `g`
+    stores to `%p` with `!alias.scope !S` and calls `f(%p)` with `!noalias !S`, the source's call never touches what
+    the store did, and the target's does: "If accesses from different collections alias, the behavior is undefined."
+    Keeping each access's base doesn't prevent it: the new load is based on `%p`.
 
-How often a refinement in the model can do that isn't known. The plain case doesn't refine: `Mem.base` lets two
+  Nothing in `f` can fix either, and neither depends on the mode: any whole-function rewrite of a function with
+  memory meets them, and dropping annotations in `f` and what it calls doesn't reach a promise in its callers. So
+  until F4 settles them, installing such a rewrite is unsound, and [the claim](#in-the-repos-terms) is about `f` alone.
+
+What F4 has to add is that on every run the source doesn't make undefined, every access the target makes, the source
+makes too: the same location, read or written the same way, through a pointer based on the same argument
+([decision 5](#decisions-for-the-maintainer)). Each promise above is about which accesses a call makes, so that keeps
+them all. It refuses a rewrite that adds an access, such as a load speculated where `dereferenceable` allows it, which
+LLVM's own passes make: LICM hoists a load out of a loop that may not run it when `isSafeToSpeculativelyExecute`, in
+`llvm/lib/Analysis/ValueTracking.cpp`, finds its pointer dereferenceable. A caller's `!invariant.load` also sees what
+a location holds during the call, which the condition doesn't keep, so F4 has to settle that too. The other way,
+dropping every such promise before installing a rewrite, has to reach every function that can call `f`, so it works
+only where nothing outside the module can.
+
+For the base, F4 also has to say which relation it compares. The plain case doesn't refine: `Mem.base` lets two
 allocations share addresses ([memory](memory.md#what-it-leaves-out-or-does-differently)), so swapping one argument for
 another because they compare equal reads the wrong allocation on some input. But the model's provenance and LangRef's
 *based on* are different relations. LangRef's rules for *based* name `getelementptr`, `bitcast` and `inttoptr`, and not
 a load, while the model's pointer keeps its allocation through memory. Where they differ, a rewrite can refine in the
-model and change what an access is based on. F4 has to say which relation its refinement keeps: compare the arguments
-each access is based on, which the model's tags could carry, as they carry [promises](design.md#decisions) now, or
-restrict the search to rewrites that keep each access's base.
+model and change what an access is based on. So F4 compares the arguments each access is based on, which the model's
+tags could carry, as they carry [promises](design.md#decisions) now, or restricts the search to rewrites that keep
+each access's base.
 
 ### Certificates and binding
 
@@ -251,11 +310,17 @@ would need. How much that is isn't known until the search runs: neither llama.cp
 
 ### Memory has no refinement yet
 
-Every annotation in scope is on a memory access or a pointer, and of memory [refinement](refinement.md#the-relation)
-says: "There's no instance for `Mem`, `Ptr` or `PtrVal`." So the mode makes functions translate that still have no
-`Refines` claim. F4 also has to give the source no more undefined behavior than LLVM in memory, which it doesn't have
-today: a load from a dead stack object, `inbounds` on a freed allocation and uninitialized memory are all stricter than
-LLVM ([trust](trust.md#known-gaps-in-the-model)). The mode adds nothing to those, and they hold it up.
+Every aliasing annotation in scope, and every annotation in the measured kernels, is on a memory access or a pointer,
+and of memory [refinement](refinement.md#the-relation) says: "There's no instance for `Mem`, `Ptr` or `PtrVal`." So
+for them the mode makes functions translate that still have no `Refines` claim. F4 also has to give the source no more
+undefined behavior than LLVM in memory, which it doesn't have today: a load from a dead stack object, `inbounds` on a
+freed allocation and uninitialized memory are all stricter than LLVM ([trust](trust.md#known-gaps-in-the-model)). The
+mode adds nothing to those, and they hold it up.
+
+`!range` on a call is the exception. LangRef allows it on "`call` and `invoke` of integer or vector of integer types",
+so a function without memory can carry one, and has a `Refines` claim today, with no caller's promise about memory to
+break. Dropping it would help such a function before F4, and modeling it, [decision 3](#decisions-for-the-maintainer),
+would help more. None of the corpus's as-built IR has one.
 
 ## The change, if adopted
 
@@ -279,7 +344,10 @@ None of this is written. It's what it would take.
   manifest's keys are exact, so that's `ir-lean.binding.manifest/3`, and a version 2 manifest is `manifest_invalid`, to
   be recorded again, as version 1's was. `"annotations_dropped"` is allowed only with `ir_instance_refinement`, and
   with `ir_instance_equivalence` it's `manifest_invalid`. `translation_replay` runs the emitter with the mode on
-  `src_ir` and without it on `tgt_ir`, always.
+  `src_ir` if and only if `source_reading` is `"annotations_dropped"`, and always without it on `tgt_ir`, so an
+  `"exact"` manifest of either kind reads its source as it is. Each other function the rewritten one can call in the
+  module has to be, on the target, the source's with the annotations dropped and nothing else
+  ([what it calls](#what-it-calls)).
 - **The verdict says so.** A `bound` one's `establishes` says the target refines the input IR with those annotations
   dropped, `trusted` gains LangRef's rule for dropping, and `does_not_establish` gains anything about what the source
   does. The kinds dropped are in the verdict.
@@ -291,7 +359,7 @@ None of this is written. It's what it would take.
 [Decision 9](roadmap.md#thirteen-decisions-of-2026-11-09-after-103) labels a win by what's proved and what the proof
 rests on, and the kernel corpus proposes a third label, the source IR, "as built" or "relaxed with
 `-fno-strict-aliasing`". This adds a value to it: **as built, read with its annotations dropped.** The board shows the
-kinds dropped in the rewritten function, and the drop-only control's result.
+kinds dropped in the rewritten function and what it calls, and the drop-only control's result.
 
 ### Tests
 
@@ -307,10 +375,18 @@ What would show the mode can't reach a target, msc or ptf:
 - **The cost of the reading is visible.** A rewrite that reorders a load past a store only `!tbaa` keeps apart is
   correct in LLVM and doesn't refine `drop(src)`: a proof fails with an error that isn't a resource limit, and a
   `¬ Refines` theorem shows the input where the two alias.
+- **A callee can't keep one.** A rewritten function calling one with `!tbaa` is `unsupported` with the annotation
+  dropped in the rewritten function only, binds with it dropped in the callee too, and is refused if the callee also
+  changes otherwise.
 - **Everything else refuses it.** `verify` and `ptf` with the mode, or given a module that records it, answer
   `invalid_request`; msc does too once it's built; `ir_instance_equivalence` with it is `manifest_invalid`.
+- **An exact manifest reads its source exactly.** An `ir_instance_equivalence` bundle, and an `ir_instance_refinement`
+  one, with `source_reading` `"exact"`, whose source has `!range` on a call in a function without memory, which needs
+  no F4: with Lean generated in the mode it's `translation_replay_mismatch`, and with Lean generated without it,
+  `function_unsupported`. Neither binds.
 - **Must-break mutants.** An emitter that applies the mode to the target, one that drops a scope declaration and keeps
-  its metadata, and a `tools/binding.py` that reads `source_reading` as `"exact"`, each make a test fail.
+  its metadata, a `tools/binding.py` that reads `source_reading` as `"exact"`, and one that reads the source in the
+  mode whatever `source_reading` says, each make a test fail.
 
 If it's adopted, SEM-06's trust gap in the [task list](llvm-verification-tasks.md#sem-06-memory-for-refinement),
 "`tbaa` and scoped `noalias` are refused, and stay refused until modeled", changes to say they're dropped on a
@@ -324,8 +400,8 @@ libsodium's, and 19 relaxed.
 
 | Kernels | As built, first reason | Relaxed, first reason | With the mode, as built |
 | ---: | --- | --- | --- |
-| 13 | `!tbaa`, or a cycle with a function refused for it | None: they translate | Past every reason seen. Whether they translate is the estimate |
-| 2 | `!tbaa` | `!range`, or `noalias` on an argument | Past both. What's behind them wasn't recorded, and no intrinsic they call is refused |
+| 13 | `!tbaa`, or a cycle with a function refused for it | None: they translate | Past every reason seen. Whether they translate is the estimate. On the target, 3 of them do only if what they call drops them too |
+| 2 | `!tbaa` | `!range`, or `noalias` on an argument | Past both. What's behind them wasn't recorded, and no intrinsic they call is refused. On the target, 1 of them translates only if what it calls drops them too |
 | 6 | A scope declaration, or a cycle with a function refused for `!tbaa` | A scope declaration, or a cycle with one refused for `noalias` | Still stopped: each calls an intrinsic the model refuses, `llvm.prefetch` or an x86 pack or multiply |
 | 2 | FLAC's string attribute | `noalias`, `!alias.scope` | Still stopped by the string attribute, which LangRef doesn't define |
 | 20 | `!tbaa` | Something else: an intrinsic, inline assembly, a call, or a promise at a call | Still stopped by that |
@@ -338,28 +414,33 @@ The 13 are libwebp's `BuildHuffmanTable` and `VectorMismatch_AVX2`, xxHash's `XX
 2 are libdeflate's `deflate_decompress_bmi2` and libwebp's `SSE4x4_SSE2`.
 
 **The estimate:** with the mode, as built, about 16 of the 85 translate, the 3 and the 13, and at most 18 with the 2.
-That's 16 of the relaxed run's 19, all but FLAC's three, whose string attribute is outside this argument. It is an
-estimate for three reasons: the proposal recorded only each function's first reason; IR built with strict aliasing is
-a different program, which LLVM may have vectorized or reordered further, so it can meet a refusal the relaxed IR
-didn't; and translating isn't elaborating, which the proposal didn't check. Running the proposal's
-`bench/kernels/demand.py` with the mode would replace it with a count.
+That's 16 of the relaxed run's 19, all but FLAC's three, whose string attribute is outside this argument. It counts on
+the target dropping the annotations in every function a kernel calls ([decision 2](#decisions-for-the-maintainer)).
+Dropped in the kernel alone, the target still refuses `build_tree`, `ZSTD_btGetAllMatches_noDict_3` and
+`ZSTD_insertBt1` of the 13, and `deflate_decompress_bmi2` of the 2, so about 13 translate, and at most 14
+([what it calls](#what-it-calls)). It is an estimate for three reasons: the proposal recorded only each function's
+first reason; IR built with strict aliasing is a different program, which LLVM may have vectorized or reordered
+further, so it can meet a refusal the relaxed IR didn't; and translating isn't elaborating, which the proposal didn't
+check. Running the proposal's `bench/kernels/demand.py` with the mode would replace it with a count.
 
 Over whole units the same holds. As built, 24 of the 798 functions in the units named translate, and `!tbaa` is the
 first reason for 294 more and in a cycle with 27. Relaxed, 241 translate, 105 of them FLAC's, so by the same proxy about
 136 would as built. Relaxed, 117 more stop first at a scope declaration, `noalias` or `!range`, which the mode drops. 15
-of them are FLAC's, and what's behind the other 102 is unknown.
+of them are FLAC's, and what's behind the other 102 is unknown. These count the source. The target matches them only
+with what each function calls dropped too, and how many depend on that wasn't counted for whole units.
 
 **None of it is a win before F4.** All 16 kernels take pointers and read memory through them, so each would translate
-and have no `Refines` claim until F4. A slice win doesn't need the mode.
+and have no `Refines` claim until F4, and couldn't be installed until F4 keeps what callers promise
+([callers' promises](#callers-promises)). A slice win doesn't need the mode.
 
 ## What it costs
 
-The rewritten function loses its alias facts from the point the rewrite is applied, and its `noalias` arguments. No
-number for that exists. To measure it, build each win three ways:
+The rewritten function, and every function it calls in the module, loses its alias facts from the point the rewrite
+is applied, and its `noalias` arguments. No number for that exists. To measure it, build each win three ways:
 
 1. **The baseline:** the project as built, by the kernel corpus's decision 3.
 2. **The drop-only control:** the same build, with the plugin dropping every annotation in scope from the rewritten
-   function at the point it would rewrite it, and rewriting nothing.
+   function and every function it calls, at the point it would rewrite it, and rewriting nothing.
 3. **The win:** the plugin dropping them and rewriting.
 
 The win is 3 against 1, by the corpus's rule for measurably faster, as for any win, so the drop's cost is already inside
@@ -369,11 +450,12 @@ control that's measurably slower is the evidence that would make keeping tags ou
 argument ([decision 2](#decisions-for-the-maintainer)).
 
 Against the relaxed route: `-fno-strict-aliasing` loses `!tbaa` in the whole program from the front end on, and the mode
-loses every annotation in scope in one function from the rewrite on. Neither has been measured.
+loses every annotation in scope in one function and what it calls, from the rewrite on. Neither has been measured.
 
 ## What this doesn't settle
 
-- **F4,** and its relation for pointers, which [`noalias`](#noalias-and-which-pointer-an-access-goes-through) needs.
+- **F4,** its rule for what callers promise about a call and its relation for pointers, which
+  [callers' promises](#callers-promises) need. Until then no rewrite of a function with memory is installed.
 - **Modeling `!tbaa` and scoped aliasing,** which the roadmap's open questions keep. The mode doesn't replace it: a
   model would let the target keep them, and the search use them.
 - **Call-site promises and FLAC's string attribute,** each out of scope [above](#each-annotation).
