@@ -428,6 +428,35 @@ def run_identity() -> list[str]:
     finally:
         shutil.rmtree(root, ignore_errors=True)
 
+    # read_once itself: normalizing a path can't change which file it names, and with `held`, a file is read
+    # once for the whole replay.
+    t = Path(tempfile.mkdtemp(prefix="verify-claims-read-"))
+    try:
+        (t / "real" / "sub").mkdir(parents=True)
+        (t / "empty").mkdir()
+        (t / "common.h").write_text("#define V 7\n")
+        (t / "real" / "common.h").write_text("#define V 9\n")
+        (t / "link").symlink_to(t / "real" / "sub")
+        for name, path, want in [
+            ("a symlink, then ..", t / "link" / ".." / "common.h", ("refused", "r")),
+            ("an empty directory, then ..", t / "empty" / ".." / "common.h", ("ok", "#define V 7\n")),
+        ]:
+            try:
+                got = ("ok", vc.read_once(path, t, "r", "x").data.decode())
+            except vc.Stop as stop:
+                got = (stop.status, stop.reason)
+            expect(f"read_once: {name}", got == want, " ".join(got))
+        held, opens = vc.Held(), []
+        real_os_open = os.open
+        with mock.patch("os.open", lambda f, *a, **k: opens.append(f) or real_os_open(f, *a, **k)):
+            first = vc.read_once(t / "common.h", t, "r", "x", held=held)
+            (t / "common.h").write_text("#define V 8\n")
+            second = vc.read_once(t / "empty" / ".." / "common.h", t, "r", "x", held=held)
+        expect("read_once: a file read twice in one replay", second is first and len(opens) == 1,
+               f"{len(opens)} opens, the same bytes: {second.data == first.data}")  # fmt: skip
+    finally:
+        shutil.rmtree(t, ignore_errors=True)
+
     # The trees: llvm-project has to be the Nix store's, and the work area outside both trees.
     writable = Path(tempfile.mkdtemp(prefix="verify-claims-src-"))
     try:
@@ -980,6 +1009,24 @@ class Identity:
         }  # fmt: skip
         ev["units"].append(c_unit)
         self.c_ev = self.record(ev, "record the evidence with the repo's own C")
+        # Two more units: one including the same header, and one reaching it through an empty directory and
+        # `..`. Each file has to be read once for the whole replay, and the copy has to have the empty
+        # directory.
+        ev = copy.deepcopy(self.c_ev)
+        for n, unit_ in enumerate(["k2.c", "k3.c"]):
+            ev["units"].append(c_unit | {"source": str((self.c / "src" / unit_).relative_to(ROOT)),
+                                         "namespace": f"ReproK{n + 2}"})  # fmt: skip
+        self.many_ev = self.record(ev, "record three units of the repo's C sharing a header")
+        # A header reached through a symlink to a directory, then `..`, which the kernel resolves to another
+        # file than the path's normal form names. A copy can't reproduce that, so it's refused, not replayed.
+        ev = copy.deepcopy(self.c_ev)
+        ev["units"].append(
+            c_unit | {"source": str((self.c / "src" / "k4.c").relative_to(ROOT)), "namespace": "ReproV"}
+        )
+        self.lay_out()
+        v, _ = self.live.replay(ev, "record a header through a symlink, then ..", record=True)
+        self.check("a header through a symlink, then ..: refused when recording", v["status"] == "refused",
+                   f"{v['status']} {v['reason']}: {v['detail'][:500]}")  # fmt: skip
         case = sorted((ROOT / "tests" / "verification_negative" / "cases").glob("control_*"))[0]
         manifest = json.loads((case / "case.json").read_text())
         request, pin = manifest["request"], tomllib.loads(TARGETS.read_text())["project"]
@@ -1007,6 +1054,17 @@ class Identity:
         (self.c / "src" / "inc").mkdir(parents=True)
         (self.c / "src" / "inc" / "k.h").write_text("#define K 7\n")
         (self.c / "src" / "k.c").write_text('#include "inc/k.h"\nint plus_k(int a) { return a + K; }\n')
+        (self.c / "src" / "k2.c").write_text('#include "inc/k.h"\nint times_k(int a) { return a * K; }\n')
+        (self.c / "src" / "empty").mkdir()
+        (self.c / "src" / "k3.c").write_text(
+            '#include "empty/../inc/k.h"\nint minus_k(int a) { return a - K; }\n'
+        )
+        (self.c / "src" / "real" / "sub").mkdir(parents=True)
+        (self.c / "src" / "real" / "sub" / "inside.h").write_text('#include "../common.h"\n')
+        (self.c / "src" / "real" / "common.h").write_text("#define V 9\n")
+        (self.c / "src" / "common.h").write_text("#define V 7\n")
+        (self.c / "src" / "link").symlink_to(self.c / "src" / "real" / "sub")
+        (self.c / "src" / "k4.c").write_text('#include "link/inside.h"\nint v(void) { return V; }\n')
         if hasattr(self, "case"):
             shutil.copytree(self.case, self.ir)
 
@@ -1024,18 +1082,22 @@ class Identity:
     def rewritten(self, name: str, ev: dict[str, Any], mine: Path, expect: set[Path]) -> None:
         """Test 7: tools/verify_claims.py evidence, in this process, with each file under `mine` that
         read_once reads overwritten right after its read. It has to be `replayed`, and read_once has to have
-        read exactly `expect` under `mine`, and the pin."""
+        read exactly `expect` under `mine`, and the pin, each once."""
         self.lay_out()
         evidence = mine / "evidence.json"
         evidence.write_text(json.dumps(ev))
-        seen: set[Path] = set()
+        reads: dict[Path, list[vc.Read]] = {}
         real = vc.read_once
 
         def read_once(path: Path, *args: Any, **kw: Any) -> vc.Read:
             r = real(path, *args, **kw)
-            seen.add(r.path)
-            if r.path.is_relative_to(mine):
-                r.path.write_bytes(OTHER.get(r.path.suffix, b"rewritten after its read\n"))
+            # A read from the file gives a new Read; one the replay holds gives the same one again. Units run
+            # at once, so that's the only way to tell them apart that doesn't race.
+            known = reads.setdefault(r.path, [])
+            if not any(x is r for x in known):
+                known.append(r)
+                if r.path.is_relative_to(mine):
+                    r.path.write_bytes(OTHER.get(r.path.suffix, b"rewritten after its read\n"))
             return r
 
         out = io.StringIO()
@@ -1054,12 +1116,15 @@ class Identity:
               contextlib.redirect_stdout(out)):  # fmt: skip
             code = vc.main()
         v = json.loads(out.getvalue())
-        read = {p for p in seen if p.is_relative_to(mine)} | ({vc.PIN} & seen)
+        seen = Counter({p: len(rs) for p, rs in reads.items()})
+        read = {p for p in seen if p.is_relative_to(mine)} | ({vc.PIN} & set(seen))
         want = expect | {evidence, vc.PIN}
         missed, extra = sorted(map(str, want - read)), sorted(map(str, read - want))
-        self.check(f"{name}: each file rewritten right after its read",
-                   (v["status"], code, read) == ("replayed", 0, want),
-                   f"{v['status']} {v['reason']}, exit {code}, unread {missed}, extra {extra}")  # fmt: skip
+        twice = sorted(str(p) for p in read if seen[p] != 1)
+        self.check(f"{name}: each file rewritten right after its read, and read once",
+                   (v["status"], code, read, twice) == ("replayed", 0, want, []),
+                   f"{v['status']} {v['reason']}, exit {code}: unread {missed}, extra {extra}, "
+                   f"twice {twice}")  # fmt: skip
 
     def during_clang(
         self, name: str, flag: str, change: Callable[[], None], want: set[tuple[str, str]]
@@ -1086,6 +1151,9 @@ class Identity:
             "the repo's C", self.c_ev, self.c, lean | {self.c / "src" / "k.c", self.c / "src" / "inc" / "k.h"}
         )
         self.rewritten("IR only", self.ir_ev, self.ir, {self.ir / f"{self.proof}.lean", self.ir_file})
+        src = self.c / "src"
+        self.rewritten("three units of the repo's C sharing a header", self.many_ev, self.c,
+                       lean | {src / "k.c", src / "k2.c", src / "k3.c", src / "inc" / "k.h"})  # fmt: skip
         inc = self.c / "src" / "inc"
 
         def swapped() -> None:

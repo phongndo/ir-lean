@@ -55,6 +55,7 @@ import stat
 import subprocess
 import sys
 import tempfile
+import threading
 import time
 import tomllib
 from concurrent.futures import ThreadPoolExecutor
@@ -202,8 +203,8 @@ def sha256(path: Path) -> str:
 
 
 def dependencies(text: str, cwd: Path) -> list[Path]:
-    """The files a make rule from clang's -M or -MD lists, as clang named them, made absolute and normalized
-    but not resolved, with its escapes for spaces read back."""
+    """The files a make rule from clang's -M or -MD lists, as clang named them, made absolute, with its
+    escapes for spaces read back. Not normalized: a `..` after a symlink means what the kernel says."""
     body = text.replace("\\\n", " ").split(":", 1)[1] if ":" in text else ""
     files, word, chars = [], "", iter(body)
     for ch in chars:
@@ -217,7 +218,7 @@ def dependencies(text: str, cwd: Path) -> list[Path]:
             word += ch
     if word:
         files.append(word)
-    return [Path(os.path.normpath(cwd / f)) for f in files]
+    return [cwd / f for f in files]
 
 
 def stamp(paths: list[Path]) -> dict[str, tuple[int, int, int, int]]:
@@ -243,28 +244,47 @@ class Read:
     sha256: str
 
 
+class Held:
+    """The files a replay has read, by normalized path, so each is read once for the whole replay however many
+    units read it, and every unit gets the same bytes."""
+
+    def __init__(self) -> None:
+        self.lock = threading.Lock()
+        self.reads: dict[Path, Read] = {}
+
+
 def read_once(path: Path, tree: Path | None, reason: str, what: str, *, links: bool = True,
-              status: str = "refused") -> Read:  # fmt: skip
+              status: str = "refused", held: Held | None = None) -> Read:  # fmt: skip
     """The one place this reads a file of the repo or llvm-project for what's in it, so each is read once and
-    every later step uses these bytes, never the path again. The path is taken as written, made absolute and
-    normalized, and has to stay inside `tree`, as written and resolved. Without `links`, it can't be a
-    symlink.
-    Anything else ends the replay as `status`, with `reason`."""
-    p = Path(os.path.normpath(Path(path).absolute()))
+    every later step uses these bytes, never the path again; with `held`, once for the whole replay. The path
+    is taken as written, made absolute and normalized, and has to stay inside `tree`, as written and resolved.
+    Normalizing can't change which file it names: a `..` after a symlink, which the kernel follows and
+    normalizing doesn't, is refused. Without `links`, it can't be a symlink. Anything else ends the replay as
+    `status`, with `reason`."""
+    raw = Path(path).absolute()
+    p = Path(os.path.normpath(raw))
     if tree is not None:
         top = Path(os.path.normpath(tree.absolute()))
         if not p.is_relative_to(top) or not p.resolve().is_relative_to(top.resolve()):
             raise Stop(status, reason, f"{what} isn't a path inside {tree}")
-    flags = os.O_RDONLY | os.O_NONBLOCK | (0 if links else os.O_NOFOLLOW)
-    try:
-        fd = os.open(p, flags)
-    except OSError as e:
-        raise Stop(status, reason, f"{what} can't be read: {e.strerror}") from None
-    with os.fdopen(fd, "rb") as f:
-        if not stat.S_ISREG(os.fstat(f.fileno()).st_mode):
-            raise Stop(status, reason, f"{what} isn't a file")
-        data = f.read()
-    return Read(p, data, hashlib.sha256(data).hexdigest())
+    if os.path.realpath(raw) != os.path.realpath(p):
+        raise Stop(status, reason, f"{what}, as {raw}, goes through a symlink and back up with `..`")
+    with held.lock if held is not None else contextlib.nullcontext():
+        if held is not None and p in held.reads:
+            return held.reads[p]
+        flags = os.O_RDONLY | os.O_NONBLOCK | (0 if links else os.O_NOFOLLOW)
+        try:
+            fd = os.open(p, flags)
+        except OSError as e:
+            raise Stop(status, reason, f"{what} can't be read: {e.strerror}") from None
+        with os.fdopen(fd, "rb") as f:
+            if not stat.S_ISREG(os.fstat(f.fileno()).st_mode):
+                raise Stop(status, reason, f"{what} isn't a file")
+            data = f.read()
+        r = Read(p, data, hashlib.sha256(data).hexdigest())
+        if held is not None:
+            held.reads[p] = r
+        return r
 
 
 def immutable(src: Path) -> Path:
@@ -488,6 +508,7 @@ class Replay:
             "kernel_replay": generated + own,
         }
         self.observed: dict[str, list[str]] = {step: [] for step in self.plan}
+        self.held = Held()  # every file of the repo or llvm-project this replay read, each once
         # Lean's memory limit, and a thread stack of 64 MB, as tests/llvm.py gives it: Lean commits about
         # 1 GiB of stack for each thread, and bv_decide forks Lean to start its solver, which fails with
         # ENOMEM on a machine with less memory than that commit, such as a CI runner.
@@ -550,10 +571,18 @@ class Replay:
         need(run([*argv, "-M", "-MF", str(found), u["source"]], cwd=self.t.src if in_llvm else ROOT,
                  timeout=self.timeout), "ir_replay_mismatch", f"clang -M {u['source']}")  # fmt: skip
         repo: dict[str, str] = {}
+        for i in u["local_include"]:
+            (copy / i).mkdir(parents=True, exist_ok=True)
         for d in dependencies(found.read_text(), self.t.src if in_llvm else ROOT):
-            if d.is_relative_to(ROOT):
-                rel = str(d.relative_to(ROOT))
-                r = read_once(d, ROOT, "stale_evidence", f"{rel}, which {u['source']} reads")
+            if Path(os.path.normpath(d)).is_relative_to(ROOT):
+                r = read_once(d, ROOT, "stale_evidence", f"a file {u['source']} reads", held=self.held)
+                rel = str(r.path.relative_to(ROOT))
+                # Every directory the path as clang named it goes through, so `x/../y.h` resolves in the copy.
+                tail = d.parts[len(ROOT.parts) :] if d.parts[: len(ROOT.parts)] == ROOT.parts else ()
+                for n in range(1, len(tail)):
+                    up = Path(os.path.normpath(ROOT.joinpath(*tail[:n])))
+                    if up.is_relative_to(ROOT):
+                        (copy / up.relative_to(ROOT)).mkdir(parents=True, exist_ok=True)
                 (copy / rel).parent.mkdir(parents=True, exist_ok=True)
                 (copy / rel).write_bytes(r.data)
                 repo[rel] = r.sha256
@@ -564,12 +593,16 @@ class Replay:
         need(run(argv, cwd=home, timeout=self.timeout), "ir_replay_mismatch", f"clang {u['source']}")
         anchors, read = {}, set()
         for d in dependencies(deps.read_text(), home):
-            if d.is_relative_to(copy):
-                read.add(str(d.relative_to(copy)))
-            elif d.is_relative_to(self.t.src):
-                rel = str(d.relative_to(self.t.src))
-                anchors[rel] = read_once(d, self.t.src, "stale_anchors", f"llvm-project's {rel}").sha256
-            elif not d.is_relative_to(STORE):
+            # The copy has no symlinks, and the store's files are read where the kernel resolves them, which
+            # is what clang read.
+            plain, resolved = Path(os.path.normpath(d)), Path(os.path.realpath(d))
+            if plain.is_relative_to(copy):
+                read.add(str(plain.relative_to(copy)))
+            elif resolved.is_relative_to(self.t.src):
+                rel = str(resolved.relative_to(self.t.src))
+                what = f"llvm-project's {rel}"
+                anchors[rel] = read_once(resolved, self.t.src, "stale_anchors", what, held=self.held).sha256
+            elif not resolved.is_relative_to(STORE):
                 raise Stop("error", "artifacts_modified",
                            f"clang read {d}, neither the copy of the repo nor in {STORE}")  # fmt: skip
         if read != set(repo):
@@ -593,7 +626,9 @@ class Replay:
         compiled = self.work / f"{ns}.compiled.ll"
         if u["language"] == "ir":
             # IR written by hand, or by a run of a pass: what it says is all there is to replay.
-            r = read_once(ROOT / u["source"], ROOT, "stale_anchors", f"{u['source']} in the repo")
+            r = read_once(
+                ROOT / u["source"], ROOT, "stale_anchors", f"{u['source']} in the repo", held=self.held
+            )
             compiled.write_bytes(r.data)
             anchors, repo = {}, {str(r.path.relative_to(ROOT)): r.sha256}
         else:
@@ -702,7 +737,8 @@ class Replay:
             raise refuse("evidence_invalid", f"lean.root {ev['lean']['root']} isn't a directory here")
         for m, h in ev["lean"]["files"].items():
             what = f"{m}.lean under {ev['lean']['root']}"
-            r = read_once(root / f"{m.replace('.', '/')}.lean", root, "evidence_invalid", what, links=False)
+            path = root / f"{m.replace('.', '/')}.lean"
+            r = read_once(path, root, "evidence_invalid", what, links=False, held=self.held)
             ev["lean"]["files"][m] = self.same(r.sha256, h, "stale_evidence", f"{m}.lean")
             dest = self.work / f"{m.replace('.', '/')}.lean"
             dest.parent.mkdir(parents=True, exist_ok=True)

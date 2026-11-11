@@ -51,16 +51,19 @@ granted is `error`, `denied`, exit 5, and `--record` writes nothing. It reads th
 ### Evidence identity
 
 Each file a replay rests on is read once, by `read_once`, and every later step uses those bytes, never the path again.
-That's the evidence itself, its Lean files, its IR, and every file of the repo clang reads. So what's hashed and
-compared with the record is what's replayed. When recording, it's what's recorded.
+That's the evidence itself, its Lean files, its IR, and every file of the repo clang reads. Once means once for the
+whole replay: two units that read one header get the same bytes. So what's hashed and compared with the record is
+what's replayed. When recording, it's what's recorded. Normalizing a path can't change which file it names: a `..`
+after a symlink, which the kernel follows and normalizing doesn't, is refused.
 
 - **A claim's plan.** The plan is its evidence files, each read once before any replay, and known from then on by the
   SHA-256 of those bytes. Two entries that are one file, by an alias such as `./a.json`, `x/../a.json` or a symlink,
   or two files with the same bytes, are `refused`, `claim_invalid`, before anything is replayed.
 - **What clang reads.** `clang -M` lists the files a unit reads. The repo's go through `read_once` into a private
-  copy, and clang compiles from that copy. Every file the compile's `-MD` list names has to be in the copy, and listed
-  before, or in the Nix store. Anything else is `error`, `artifacts_modified`: the trees changed in between. A header
-  swapped for a symlink, or its directory swapped, while clang runs changes nothing.
+  copy, with every directory the paths clang named go through, and clang compiles from that copy. Every file the
+  compile's `-MD` list names has to be in the copy, and listed before, or in the Nix store, read where the kernel
+  resolves it. Anything else is `error`, `artifacts_modified`: the trees changed in between. A header swapped for a
+  symlink, or its directory swapped, while clang runs changes nothing.
 - **llvm-project.** `LLVM_PROJECT_SRC` has to be in the Nix store and not writable, as `nix develop` gives it, else
   it's `error`, `toolchain_missing`. Then the NAR hash the pin check compares and the files clang reads are the same
   bytes.
