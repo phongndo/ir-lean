@@ -1,9 +1,10 @@
 # Verdicts
 
 The design of stage A: one default-deny place that decides every verdict a tool gives, which closes
-[bug class 1](bug-classes.md#1-a-limit-or-a-failure-counted-as-a-pass), a limit or a failure counted as a pass. Nothing
-here is built. This is its revision after the design review, under [the process](process.md), step 0. Facts were
-checked on 2026-11-11 at `9a11118`, and for the harness at `5258d5a`, the head of #117's unmerged branch.
+[bug class 1](bug-classes.md#1-a-limit-or-a-failure-counted-as-a-pass), a limit or a failure counted as a pass. Its
+first pull request, the core, is built; the rest isn't. This is its revision after the design review, under
+[the process](process.md), step 0. Facts were checked on 2026-11-11 at `9a11118`, and for the harness at `5258d5a`, the
+head of #117's unmerged branch.
 
 ## The claim
 

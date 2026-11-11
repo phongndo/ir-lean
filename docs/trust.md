@@ -88,6 +88,11 @@ one only on clean evidence: each process it rests on ended on its own, with the 
 stopped it. Anything else is `unknown`, if a limit could explain it and more time or memory might decide it, or `error`.
 Never success.
 
+It's asked in two forms. A grant by name, from `GRANTS`, whose requirements are fixed there and not by its caller, as
+[the verdicts design](verdicts.md) says; and the old form, one of the four claims below, whose caller picks the checks
+it passes. Each tool keeps the old form until [its pull request](verdicts.md#the-migration) moves it onto its grants.
+`IRLEAN_DENY_ALL=1` takes every grant away, in either form.
+
 | Claim | What it needs, besides every file it's about being there and every other check passing |
 | --- | --- |
 | Proved | A module that `lean` compiled, `leanchecker` replayed and the axiom audit, [`tests/check_axioms.lean`](../tests/check_axioms.lean) or the policy it applies, passed, each exiting 0. Or a record from `tools/verify.py` saying `proved`, from a process that exited 0 |
@@ -95,10 +100,11 @@ Never success.
 | Refuted | A module, as for proved, of a theorem that the claim is false. Or the kernel accepting such a theorem inside a Lean process, as [proof tests](proof-tests.md) do, or the model's compiled code finding the claim false at an input, as `tools/verify.py`'s witnesses do, each only if the process that answered then ended cleanly. Or a record saying `counterexample`, from a process that exited 2 |
 | Caught | A check that has to fail on wrong code, ending on its own with the exit code that says it found something, and saying what it found, which isn't a resource limit: a Lean error of its own, a native check that exits 3, or Alive2's count of an incorrect transformation |
 
-What counts as a limit, and so `unknown`: a time limit or memory cap its runner enforced, a process killed by `SIGKILL`,
-which is how a cap or the OOM killer stops one, or one of Lean's limit errors in the output of a Lean process that
-failed. Exit codes count only as exact integers, since in Python `False == 0`, and a checker's record has to say the
-exit code its process ended with.
+What counts as a limit, and so `unknown`, is what `limit_of` says: a time limit or memory cap its runner enforced, a
+process killed by `SIGKILL`, which is how a cap or the OOM killer stops one, or that a shell reports as 137, `timeout`'s
+124, Lean's memory exception, panic or stack guard, or a limit in the first error of a process that failed, since what
+fails after a limit often fails because of it. Exit codes count only as exact integers, since in Python `False == 0`,
+and a checker's record has to say the exit code its process ended with.
 
 The caller still chooses the file, the theorem and the finding. What `decide` makes sure of is that nothing a verdict
 rests on crashed, ran out of something or failed, and that nothing it needs is missing. These ask it:
@@ -128,7 +134,9 @@ that a limit is `unknown` there too.
 verdict too: that's `ir-lean.binding.manifest/2`. The shell tests, such as `tests/proofs.sh`, decide in shell, and
 reading Alive2's own output is `tests/alive.py`'s; each has its own tests. `tests/verdict_test.py` checks `decide` over
 more than 100,000 combinations of how each process ended, each file and each check, breaks each grant in every way
-listed, one and two at a time, and checks each place above asks it.
+listed, one and two at a time, and checks each place above asks it. It also fails on any function in `tools/`, `tests/`
+or `bench/` that gives a grant's word, or makes a `Decision`, outside `irlean.verdict`, and on a shell test that runs
+Lean and grants itself, but those on lists that can only shrink, each with why.
 
 ## Known gaps in the model
 
