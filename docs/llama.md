@@ -224,7 +224,10 @@ C++ source or the machine code. On top of that:
   the rewritten value keeps its name.
   The instructions the rewrite adds or takes out are `vpdpbusd`, `pmaddubsw`, `pmaddwd`, `add`, `mul`, `shl`, `ashr`
   and `bitcast`, which don't touch memory and aren't undefined on any input. Replacing such a value with an equal one
-  doesn't change a program, but no proof says that here.
+  doesn't change a program, but no proof says that here. Since 2026-11-10 [the cut lemma](refinement.md#the-cut-lemma)
+  says it of a function the model translates, and it's used on the Q5 slice in two loops, one with loads and a
+  store, and neither with floating point, and on a loop as clang compiled it. It hasn't been used on these kernels,
+  which have floating point and vector loads.
 - **x86's intrinsics are as Intel describes them**, and as `X86.lean` writes them. The processor agrees on every input
   tried, and so do Alive2 and LLVM's constant folder for PMADDUBSW and PMADDWD, which isn't a proof. Only the processor
   checks VPDPBUSD, and LLVM's own reading of it, in `createVPDPBUSD`, is the same sum.

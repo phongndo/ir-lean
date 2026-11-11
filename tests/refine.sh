@@ -22,7 +22,7 @@ fail() {
 # Resource limits say a proof might check with more, so they never count as a failure of its own.
 limit='maximum number of heartbeats|deterministic\)? timeout|maximum recursion depth|deep recursion|stack overflow|'
 limit+='excessive memory|out of memory|maximum number of steps'
-model=(Attr Basic Promise Int Mem Vec Lemmas Refine)
+model=(Attr Basic Promise Int Mem Vec Lemmas Refine Safety Cut Mono MemRefine)
 
 # Copies the modules the cases import into DIR, with MODULE.lean from FILE, and compiles them there. Lean finds every
 # IRLean module in the first directory on its path that has one, so DIR has its own.

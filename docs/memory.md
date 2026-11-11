@@ -144,6 +144,25 @@ qualify.
 | `realloc`, `calloc`, other allocators, objects that grow | Calls to them are refused, or stop the model through a pointer | Refused, so sound |
 | Leaks | Not a safety property here, and not tracked | Out of scope |
 
+### Memory in a refinement
+
+A safety theorem is about one function. A [refinement](refinement.md#functions-with-memory) compares two, and since
+2026-11-10 `IRLean.Refines` has an instance for functions with memory: both get the same memory, and the memories they
+leave are related by `Mem.le`, in [`MemRefine.lean`](../IRLean/MemRefine.lean), which asks for the same allocations and
+bytes the source's allow. For a refinement the direction of each difference above matters by side: more undefined
+behavior than LLVM is conservative for safety and for a target, and wrong for a source.
+
+| Aspect above | For a refinement |
+| --- | --- |
+| Uninitialized memory read as poison | Wrong in a source that reads it. In the memory a run leaves, an uninitialized byte allows any byte but poison, which is right whether it's `undef` or poison |
+| A stack object after its function returns | Wrong in a source that loads through a pointer to one |
+| `inbounds` on an allocation that's gone | Wrong in a source that does it |
+| Addresses, `Mem.base` | Fine on both sides: a claim for every layout covers the real ones |
+| A stored pointer read as an integer, and the other way | No claim: a source that stops the model allows nothing, and a target that does isn't allowed |
+| The allocator's choices | Both sides face the same `base` and `failAlloc`, and number their allocations the same. A target that allocates differently has no claim yet |
+
+[Refinement](refinement.md#memorys-gaps-each-with-its-side) has what a claim has to assume for each.
+
 ## Writing a memory-safety proof
 
 [`Safety.lean`](../IRLean/Safety.lean) keeps memory abstract, so a proof never unfolds a chain of writes:
@@ -157,6 +176,17 @@ qualify.
 | `Object.loadInt`, `.loadPtr`, `.storeInt`, `.memcpy`, `.gep`, `.gep_back` | Each operation on memory described this way, giving its result and a `Changes` |
 | `access_past_end`, `access_gone`, `memcpy_past_end`, `Object.gep_back_out`, `dereferenceable_gone` | The same, for what the model rules out |
 | `call_unrestricted`, `call_stop` | Through `Mem.call`, for a function that promised nothing about memory |
+
+[`MemRefine.lean`](../IRLean/MemRefine.lean) adds lemmas that hold on any memory, with calls that track writes and
+restrict access among those running, which the ones above assume away with `Mem.Unrestricted`:
+
+| Piece | What it is |
+| --- | --- |
+| `Mem.storeInt_eq`, `storeInt_ok`, `storeInt_error_or_ok`, `access_ok_iff` | What a store is, what one that returns did, and what a valid access says |
+| `Mem.check_write`, `access_write_self`, `storeInt_write_self` | A store leaves every check and the same access as they were, so a second store through the pointer returns too |
+| `Mem.loadInt_write_self`, `loadInt_of_storeInt` | A load of what was just stored gives it back, if a promise lets it read |
+| `Mem.storeInt_overwritten`, `write_write_le` | Two stores through one pointer leave what the second alone would |
+| `Mem.check_ne_model`, `storeInt_ne_stop` | Where no running call restricts memory, a check and a store never stop the model |
 
 A store goes like this, and the memory after it stays a variable:
 
