@@ -78,6 +78,16 @@ NEGATIVE_REPORT = "ir-lean.verification-negative.report/1"
 # docs/kernels.md.
 KERNELS_MANIFEST = "ir-lean.kernels.manifest/1"
 KERNELS_DEMAND = "ir-lean.kernels.demand/1"
+# bench/kernels/harness.py, the benchmark harness: a baseline's or a candidate's build and the checks it
+# passed, a comparison's plan, written before it runs, one session's timed pairs, and the verdict the rule
+# gives them. docs/kernels.md.
+KERNELS_BUILD = "ir-lean.kernels.build/1"
+KERNELS_PLAN = "ir-lean.kernels.plan/1"
+KERNELS_SESSION = "ir-lean.kernels.session/1"
+KERNELS_COMPARISON = "ir-lean.kernels.comparison/1"
+# bench/kernels/board.py: an entry on the results board, a proved win or a rewrite that doesn't count, with
+# its labels, proof and measurements. docs/board.md.
+BOARD_WIN = "ir-lean.board.win/1"
 
 ALL = {
     value: key

@@ -29,6 +29,7 @@ KNOWN_READERS = {
     "docs/llvm-cpp-correspondence.md": "tests/cpp_correspondence.py",
     "docs/verify.md": "tests/verify.py",
     "docs/chunks.md": "tests/chunks_test.py",
+    "docs/board.md": "bench/kernels/board.py",
 }
 
 # The scratch repo's first commit.

@@ -1,0 +1,29 @@
+{
+  "schema": "ir-lean.board.win/1",
+  "id": "llama-q4k",
+  "project": "llama.cpp",
+  "unit": "ggml/src/ggml-cpu/arch/x86/repack.cpp",
+  "functions": ["ggml_gemm_q4_K_8x8_q8_K", "ggml_gemv_q4_K_8x8_q8_K"],
+  "what": "Each block's eight PMADDUBSW, their 16-bit add tree and PMADDWD become eight VPDPBUSD and a 32-bit multiply, at 34 places",
+  "doc": "docs/llama.md",
+  "counts": false,
+  "why_not": "Decision 2 of the kernel corpus: it was chosen and found by hand before the corpus existed, and was measured in rounds, without pairs or an interval. It counts once the rule search finds it again on the fixed corpus and it's measured by the protocol, labeled as resting on a rule written for its site",
+  "labels": {
+    "proved": "slice",
+    "axioms": "standard and bv_decide",
+    "source_ir": "as built",
+    "found_by": "by hand"
+  },
+  "proof": {
+    "theorems": "s00_same to s33_same, one for each of the 34 slices, that the rewritten slice computes exactly what clang's does, poison included",
+    "modules": ["tests/llama/Vnni.lean"],
+    "test": "llama",
+    "mutants": "Three wrong rewrites, each refuted at all 34 places, and a changed mask that stops every theorem: the llama and llama_mutants tests"
+  },
+  "review": null,
+  "measured": {
+    "summary": "10 rounds on 8 threads, against the pinned clang -O3, in 2026-11-07's runs: medians 1.055 to 1.072 for reading a prompt and for perplexity, and 0.999 to 1.000 for generating, with no pairs or interval",
+    "comparisons": []
+  },
+  "found": {"on": "2026-11-07", "after_lock": false}
+}

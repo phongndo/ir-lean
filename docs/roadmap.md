@@ -17,9 +17,11 @@ compiler produced, and Lean proves that it refines the original, so on every inp
 original allows. The engine's core is a deterministic search over rules already proved for every input, so what it
 finds carries its proof, and agents propose new rules offline. The headline is the results board: the proved wins over
 `clang -O3` on a corpus of real hot code fixed before the search runs, hot numeric kernels with SIMD on x86-64 first,
-and the speedup each measures. The board doesn't exist yet. On `main` today are two proved rewrites of llama.cpp,
-neither found by a search ([status](status.md#llamacpp)). The target, within an envelope of about three months, is at
-least 10 proved wins from at least 3 projects, with a checkpoint a third of the way in.
+and the speedup each measures. The [board](board.md) and the harness that measures for it are built, since
+2026-11-10, and the board has no wins: the corpus isn't fixed and no search has run on it. On `main` today are two
+proved rewrites of llama.cpp, neither found by a search ([status](status.md#llamacpp)), and the board lists both as
+not counting. The target, within an envelope of about three months, is at least 10 proved wins from at least 3
+projects, with a checkpoint a third of the way in.
 
 **Proving LLVM's rewrites supplies it.** The pinned LLVM's passes stay in [chunks](chunks.md), and a chunk's rewrites go
 through three gates: the model can express them, their test transformations are certified, and each is proved for every
@@ -1138,7 +1140,7 @@ binding gates B0 to B5. The record of 2026-11-08 [above](#the-goal-changed-on-20
 | S5 | A proved win on LLVM IR exported from MLIR | 4 | S3 | After S3 | Not started |
 | S6 | A proved rewrite accepted upstream | 4 | S2 or S3 | Last of the four outside results, each patch read and owned by the maintainer, by [decision 10 after #103](#thirteen-decisions-of-2026-11-09-after-103) | Not started |
 | S7 | The checkpoint: one new proved win on real code that the rule search found from stored rules, with no rule written by hand for its site | 4 | The kernel corpus, fixed. The rule format and the rule search | By about 2026-12-09, by decision 8 after #103. If it's missed, the engine's core becomes an agent proposer | Not started |
-| S8 | The results board: every proved win on the corpus, labeled by tier, with its measured speedup, reproducible from the repo | 4 | The kernel corpus, fixed. A first win | First of the four outside results | Not started |
+| S8 | The results board: every proved win on the corpus, labeled by tier, with its measured speedup, reproducible from the repo | 4 | The kernel corpus, fixed. A first win | First of the four outside results | The harness and the page are built, with no wins on it ([board](board.md)) |
 | S9 | The plugin: rules from one source, and its certify mode in CI over the corpus | 4 | The rule format. S8 | Second of the four outside results | Not started |
 | E1 | Lemma store v1 | 6 | #48 | Platform, lemma engine | Done in [#60](https://github.com/phongndo/ir-lean/pull/60): 163 lemmas in `lake build` and CI, each meeting rules 1 to 3, and 16 all four ([lemma store](lemma-store.md)) |
 | E2 | Executable memory model | 6 | F4 | Platform, semantics, after F4 | Not started |
@@ -1704,7 +1706,7 @@ that produced it. Current values live in [status](status.md).
 
 | Metric | Measured yet | Why it matters |
 | --- | --- | --- |
-| Proved wins over `clang -O3` on the fixed corpus, and the speedup each measures | Not yet: [the kernel corpus](kernels.md) is approved and not fixed, and the board doesn't exist. On `main` are 2 wins on compiler-rt's fallbacks, which real programs on x86-64 don't call, and the two llama.cpp rewrites, which no search found, and which don't count toward S3's bar yet ([decision 2](#the-kernel-corpus-decided-on-2026-11-10)) | The headline, since [decision 6 after #103](#thirteen-decisions-of-2026-11-09-after-103) |
+| Proved wins over `clang -O3` on the fixed corpus, and the speedup each measures | Not yet: [the kernel corpus](kernels.md) is approved and not fixed, and [the board](board.md) has no wins. On `main` are 2 wins on compiler-rt's fallbacks, which real programs on x86-64 don't call, and the two llama.cpp rewrites, which no search found, and which don't count toward S3's bar yet ([decision 2](#the-kernel-corpus-decided-on-2026-11-10)) | The headline, since [decision 6 after #103](#thirteen-decisions-of-2026-11-09-after-103) |
 | Speedup on a real workload, from proved rewrites | Yes, for the two llama.cpp rewrites ([status](status.md#measured)) | Whether the goal matters to anyone |
 | Share of rewrite firings on the corpus that a proved rule covers | No. It needs the corpus, and a way to tell which rewrite fired | The supply gauge, under the headline, by [decision 3 after #103](#thirteen-decisions-of-2026-11-09-after-103) |
 | Passes counted done, of the 1,162, and each chunk's percentage at each gate | 0 done, and it stays 0 while G3 and G4 are paused. G0 and G1 are measured for InstCombine ([chunks](chunks.md)), and G2 for chunk 1, 244 of 3,174 ([rewrite proofs](rewrite-proofs.md#the-scoreboard)) | The headline from [2026-11-09](#six-decisions-of-2026-11-09-after-69) until later that day. G0 to G2 still say what the supply has |

@@ -1,0 +1,63 @@
+{
+  "schema": "ir-lean.kernels.plan/1",
+  "project": "zlib-ng",
+  "opt": "-O3",
+  "workload": {
+    "name": "compress",
+    "command": [
+      "{build}/minigzip",
+      "-6",
+      "-c",
+      "{input:silesia.zip}/silesia.tar"
+    ],
+    "measure": "time",
+    "output": "result",
+    "rate": null,
+    "check": null,
+    "setup": null,
+    "threads": 1,
+    "from": {
+      "measure": "harness",
+      "output": "harness",
+      "command": "manifest"
+    }
+  },
+  "baseline": {
+    "variant": "o0",
+    "record_sha256": "1c45eb3066f499f8f3b9e331f39568685801166200d2f2844abfa2bfddf05bd7"
+  },
+  "candidate": {
+    "variant": "baseline",
+    "record_sha256": "5de7f9e3356eb9a23e48d07aa70a89d1297ecb7f140918096cd1e9da048c98be"
+  },
+  "control": "faster",
+  "kind": "confirmation",
+  "sessions": [
+    {
+      "session": 1,
+      "seed": 4169984484
+    },
+    {
+      "session": 2,
+      "seed": 2153349478
+    }
+  ],
+  "pairs": 20,
+  "threads": 1,
+  "cpus": [
+    8
+  ],
+  "min_seconds": 2.0,
+  "written": "2026-11-11T03:48:26+00:00",
+  "repo": {
+    "commit": "ad0f6cde481d190ad662b78d416db76a384152eb",
+    "dirty": true
+  },
+  "host": {
+    "name": "z",
+    "platform": "linux",
+    "machine": "x86_64",
+    "release": "6.18.60",
+    "cpus": 32
+  }
+}

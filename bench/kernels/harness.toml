@@ -1,0 +1,61 @@
+# What bench/kernels/harness.py needs to build and run a project of the kernel corpus that the manifest doesn't say:
+# how to drive the project's own build, which binaries its workloads run, and the workloads beyond the manifest's
+# one. docs/kernels.md, "The harness".
+#
+# It's apart from bench/kernels/manifest.toml so that it doesn't change the digest that fixes the corpus. A
+# workload with `manifest = true` runs the manifest's `workload.command`, and takes the manifest's `check`,
+# `threads`, `measure` and `output` wherever the manifest gives them, over what's here.
+#
+# Each workload:
+#   command   what's timed, with {build}, {src}, {inputs}, {input:NAME}, {work}, {out} and {threads} filled in
+#   measure   "time", the command's wall time, or "rate", the number `rate` matches in what it prints
+#   output    "result": every timed run's output is hashed, and has to be the baseline's, bit for bit; or
+#             "timings": it's recorded and not compared, and the workload needs a `check`
+#   check     a command the candidate's build has to pass before it's timed, as the project's own test of the
+#             functions it changes
+#   setup     a command run once a session, with the baseline, before the warm-up
+#   threads   how many threads it runs, and how many cores it's pinned to: one unless it says otherwise
+#
+# Only projects with a [build] here can be measured. The others are listed in docs/kernels.md's "The harness".
+
+[zlib-ng.build]
+system = "cmake"
+configure = ["-DWITH_GTEST=OFF", "-DBUILD_TESTING=ON"]
+targets = ["minigzip"]
+binaries = ["minigzip"]
+
+[zlib-ng.workload.compress]
+manifest = true
+measure = "time"
+output = "result"
+
+[zlib-ng.workload.decompress]
+setup = [
+  "sh",
+  "-c",
+  "'{build}/minigzip' -6 -c '{inputs}/silesia.tar' > '{work}/silesia.tar.gz'",
+]
+command = ["{build}/minigzip", "-d", "-c", "{work}/silesia.tar.gz"]
+measure = "time"
+output = "result"
+
+[xxhash.build]
+system = "make"
+targets = ["xxhsum"]
+binaries = ["xxhsum"]
+
+[xxhash.workload.bench]
+manifest = true
+measure = "rate"
+# The figure xxhsum -b gives each hash when it's done, on its line numbered with a `#`, in MiB/s, and not the
+# ones it prints while it runs. The measure is their mean: a candidate that changes one hash would pick it with
+# -b and its number.
+rate = '\d+#\S+\s+:[^(\r\n]*\(\s*([0-9.]+) MiB/s\)'
+output = "timings"
+# Its own known answers, in its checking mode.
+check = ["make", "-C", "{build}", "check"]
+
+[xxhash.workload.file]
+command = ["{build}/xxhsum", "-H3", "{inputs}/silesia.tar"]
+measure = "time"
+output = "result"

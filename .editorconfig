@@ -14,3 +14,7 @@ indent_size = 4
 # gofmt indents with tabs.
 [*.go]
 indent_style = tab
+
+# make reads a recipe only after a tab.
+[Makefile]
+indent_style = tab

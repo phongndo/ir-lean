@@ -1,0 +1,29 @@
+{
+  "schema": "ir-lean.board.win/1",
+  "id": "llama-q5",
+  "project": "llama.cpp",
+  "unit": "ggml/src/ggml-cpu/arch/x86/quants.c",
+  "functions": ["ggml_vec_dot_q5_0_q8_0"],
+  "what": "The Q5 kernel's high bits become a mask by a bitcast to <32 x i1> and one select, at 3 places",
+  "doc": "docs/llama-q5.md",
+  "counts": false,
+  "why_not": "Decision 2 of the kernel corpus: it was chosen and found by hand before the corpus existed, and was timed against clang 23.1.5, not the pinned 23.1.3. It counts once the rule search finds it again on the fixed corpus and it's measured by the protocol, which needs its matcher's pattern stated as a rule",
+  "labels": {
+    "proved": "slice",
+    "axioms": "standard and bv_decide",
+    "source_ir": "as built",
+    "found_by": "by hand"
+  },
+  "proof": {
+    "theorems": "same_successful, that both helpers return the same vector for every 32-bit word, poison included, and defined_certificate, its exact result",
+    "modules": ["tests/proofs/LlamaBitspread.lean"],
+    "test": "llama_bitspread",
+    "mutants": "Changing output lane zero to read bit one makes the proof fail with a counterexample: the llama_bitspread test"
+  },
+  "review": null,
+  "measured": {
+    "summary": "1.049 [1.029, 1.057] in inference time, over 30 pairs in 2 confirmation sessions on one thread, against clang 23.1.5 -O3; on 8 threads, 1.004 [0.979, 1.351]",
+    "comparisons": []
+  },
+  "found": {"on": "2026-11-07", "after_lock": false}
+}

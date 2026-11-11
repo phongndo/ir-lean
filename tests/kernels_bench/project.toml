@@ -1,0 +1,19 @@
+# A tiny project for tests/kernels_bench_test.py: bench/kernels/harness.py builds, checks and times it as it
+# would a project of the kernel corpus, with nothing to download. Its one hot unit is kernel.c.
+name = "synthetic"
+src = "project"
+system = "make"
+targets = ["hot"]
+binaries = ["hot"]
+project_opt = "-O3"
+flags = ["-fomit-frame-pointer", "-momit-leaf-frame-pointer"]
+
+[workload.sum]
+command = ["{build}/hot", "sum", "5"]
+measure = "time"
+output = "result"
+
+[workload.mix]
+command = ["{build}/hot", "mix", "5"]
+measure = "time"
+output = "result"

@@ -171,6 +171,16 @@ add_test(NAME kernels COMMAND ${CMAKE_SOURCE_DIR}/tests/kernels_test.py)
 # skips where the Nix store doesn't hold the sources, as in CI: `bench/kernels/demand.py check` fetches them.
 add_test(NAME kernels_demand COMMAND ${CMAKE_SOURCE_DIR}/bench/kernels/demand.py check --offline)
 set_tests_properties(kernels_demand PROPERTIES SKIP_RETURN_CODE 77 TIMEOUT 1800)
+# The kernel corpus's benchmark harness, bench/kernels/harness.py, and the rule it reads comparisons by: on
+# numbers, then end to end on a tiny project in tests/kernels_bench, built, checked and timed, with an A/A
+# control inconclusive, an extra loop slower and the baseline against it faster. About 30 s, no Lean and no
+# download. It skips where it can't pin a process to a core, as off Linux.
+add_test(NAME kernels_bench COMMAND ${CMAKE_SOURCE_DIR}/tests/kernels_bench_test.py)
+set_tests_properties(kernels_bench PROPERTIES SKIP_RETURN_CODE 77 TIMEOUT 600)
+# The results board, docs/board.md: every entry meets what it claims, every comparison and control it shows
+# gives again what's recorded from its sessions, and the page is what bench/kernels/board.py writes. Python
+# only.
+add_test(NAME board COMMAND ${CMAKE_SOURCE_DIR}/bench/kernels/board.py check)
 # tools/irlean, the shared Python library, and tools/measure.py on it: about 3 s, and no Lean or LLVM.
 # docs/python.md.
 add_test(NAME irlean COMMAND ${CMAKE_SOURCE_DIR}/tests/irlean_test.py)

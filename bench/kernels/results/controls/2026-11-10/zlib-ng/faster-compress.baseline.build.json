@@ -1,0 +1,160 @@
+{
+  "schema": "ir-lean.kernels.build/1",
+  "project": "zlib-ng",
+  "pin": {
+    "rev": "12731092979c6d07f42da27da673a9f6c7b13586",
+    "nix_hash": "sha256-6GlHCnx9dQtmViPnvHnMS+l9Z+g6M8ynrSxLhLtmAKU=",
+    "tag": "2.3.3"
+  },
+  "variant": "o0",
+  "opt": "-O3",
+  "level": "-O3",
+  "system": "cmake",
+  "configure": [
+    "-DWITH_GTEST=OFF",
+    "-DBUILD_TESTING=ON"
+  ],
+  "flags": [
+    "-fomit-frame-pointer",
+    "-momit-leaf-frame-pointer"
+  ],
+  "targets": [
+    "minigzip"
+  ],
+  "build": "build",
+  "binaries": {
+    "minigzip": "90587fac14c89f1c4f7c70f015d9754877121fb5b60291d4b9eabc572bd90418"
+  },
+  "control": "slower",
+  "candidate": {
+    "second_build_same_bytes": true,
+    "unit": "deflate_medium.c",
+    "form": "recompile",
+    "declared": [],
+    "input_sha256": null,
+    "recompiled_at": "-O0",
+    "objects": [
+      {
+        "compile": {
+          "argv": [
+            "/nix/store/q5hx5j4n0c1nyxaxfgd1dzca3r3q3c25-clang-wrapper-23.1.3/bin/clang",
+            "-DHAVE_ATTRIBUTE_ALIGNED",
+            "-DHAVE_BUILTIN_ASSUME_ALIGNED",
+            "-DHAVE_BUILTIN_CTZ",
+            "-DHAVE_BUILTIN_CTZLL",
+            "-DHAVE_CPUID_GNU",
+            "-DHAVE_LINUX_AUXVEC_H",
+            "-DHAVE_SYMVER",
+            "-DHAVE_SYS_AUXV_H",
+            "-DHAVE_VISIBILITY_HIDDEN",
+            "-DHAVE_VISIBILITY_INTERNAL",
+            "-DWITH_GZFILEOP",
+            "-DWITH_OPTIM",
+            "-DX86_AVX2",
+            "-DX86_AVX512",
+            "-DX86_AVX512VNNI",
+            "-DX86_FEATURES",
+            "-DX86_HAVE_XSAVE_INTRIN",
+            "-DX86_PCLMULQDQ_CRC",
+            "-DX86_SSE2",
+            "-DX86_SSE41",
+            "-DX86_SSE42",
+            "-DX86_SSSE3",
+            "-DX86_VPCLMULQDQ_CRC",
+            "-DZLIBNG_NATIVE_API",
+            "-D_LARGEFILE64_SOURCE=1",
+            "-D__USE_LARGEFILE64",
+            "-I/home/dp/.t3/worktrees/ir-lean/t3-3ced5779-e2ef7cfed21825a5/build/kernels/bench/zlib-ng/O3/o0/build",
+            "-I/nix/store/33xaky5rw48z5g4xyhrns1cmdg96jb6i-source",
+            "-O3",
+            "-fomit-frame-pointer",
+            "-momit-leaf-frame-pointer",
+            "-O3",
+            "-DNDEBUG",
+            "-std=c11",
+            "-Wall",
+            "-MD",
+            "-MT",
+            "CMakeFiles/zlib-ng-static.dir/deflate_medium.c.o",
+            "-MF",
+            "CMakeFiles/zlib-ng-static.dir/deflate_medium.c.o.d",
+            "-o",
+            "CMakeFiles/zlib-ng-static.dir/deflate_medium.c.o",
+            "-c",
+            "/nix/store/33xaky5rw48z5g4xyhrns1cmdg96jb6i-source/deflate_medium.c"
+          ],
+          "object": "CMakeFiles/zlib-ng-static.dir/deflate_medium.c.o",
+          "level": "-O3"
+        },
+        "ir_sha256": "bc8d401fa32d802285440f9f64e7bdf6dabdaceb7c911543ee6ab562940425e2",
+        "llc_reproduces": true,
+        "baseline_object_sha256": "cdc664f883b4c94ad9922851aa6f7d7778252c4ed6f633d10308632e5790bee3",
+        "candidate_object_sha256": "c37697d770858076da70de8f39d19b8c9232dbb461aa4fe265219442c74d83d2",
+        "functions_changed": [
+          "deflate_medium",
+          "emit_match",
+          "fizzle_matches",
+          "insert_match",
+          "zng_tr_tally_dist",
+          "zng_tr_tally_lit"
+        ]
+      }
+    ],
+    "baseline_record_sha256": "5de7f9e3356eb9a23e48d07aa70a89d1297ecb7f140918096cd1e9da048c98be",
+    "differ_from_baseline_in": {
+      "minigzip": [
+        "deflate_medium",
+        "emit_match",
+        "fizzle_matches",
+        "insert_match",
+        "zng_tr_tally_dist",
+        "zng_tr_tally_lit"
+      ]
+    },
+    "checks": {
+      "compress": {
+        "check": null,
+        "output": {
+          "sha256": "8e27d114768369cb7826bedb7d86ba1cb17470f439875e418cac712a499f7f04",
+          "same": true
+        }
+      },
+      "decompress": {
+        "check": null,
+        "output": {
+          "sha256": "95570891af56a72731489d66b5aa3e91791ba667f4f205ec07883d7150cdf40f",
+          "same": true
+        }
+      }
+    }
+  },
+  "tools": {
+    "clang": {
+      "path": "/nix/store/q5hx5j4n0c1nyxaxfgd1dzca3r3q3c25-clang-wrapper-23.1.3/bin/clang",
+      "sha256": "df27616a19ca2c6c9cca5a44efab51e940d04a434149d3bbe2af9b3a38ec116b",
+      "version": "clang version 23.1.3\nTarget: x86_64-unknown-linux-gnu\nThread model: posix\nInstalledDir: /nix/store/gxjpbn30h1an7ywffxrsn7czxwczcpqz-clang-23.1.3/bin"
+    },
+    "llc": {
+      "path": "/nix/store/8lg1k2kl3dazk3s0ppqvnqp17y1032cb-llvm-23.1.3/bin/llc",
+      "sha256": "2c96be33ccfeec3a8b8b1ac33974d120c779b2394039a2bd42138aca14d7a432",
+      "version": "LLVM (http://llvm.org/):\n  LLVM version 23.1.3\n  Optimized build.\n  Default target: x86_64-unknown-linux-gnu\n  Host CPU: znver5\n\n  Registered Targets:\n    aarch64     - AArch64 (little endian)\n    aarch64_32  - AArch64 (little endian ILP32)\n    aarch64_be  - AArch64 (big endian)\n    amdgcn      - legacy name for amdgpu\n    amdgpu      - AMDGPU gfx6+\n    arm         - ARM\n    arm64       - ARM64 (little endian)\n    arm64_32    - ARM64 (little endian ILP32)\n    armeb       - ARM (big endian)\n    avr         - Atmel AVR Microcontroller\n    bpf         - BPF (host endian)\n    bpfeb       - BPF (big endian)\n    bpfel       - BPF (little endian)\n    hexagon     - Hexagon\n    lanai       - Lanai\n    loongarch32 - 32-bit LoongArch\n    loongarch64 - 64-bit LoongArch\n    mips        - MIPS (32-bit big endian)\n    mips64      - MIPS (64-bit big endian)\n    mips64el    - MIPS (64-bit little endian)\n    mipsel      - MIPS (32-bit little endian)\n    msp430      - MSP430 [experimental]\n    nvptx       - NVIDIA PTX 32-bit\n    nvptx64     - NVIDIA PTX 64-bit\n    ppc32       - PowerPC 32\n    ppc32le     - PowerPC 32 LE\n    ppc64       - PowerPC 64\n    ppc64le     - PowerPC 64 LE\n    r600        - AMD GPUs HD2XXX-HD6XXX\n    riscv32     - 32-bit RISC-V\n    riscv32be   - 32-bit big endian RISC-V\n    riscv64     - 64-bit RISC-V\n    riscv64be   - 64-bit big endian RISC-V\n    sparc       - Sparc\n    sparcel     - Sparc LE\n    sparcv9     - Sparc V9\n    spirv       - SPIR-V Logical\n    spirv32     - SPIR-V 32-bit\n    spirv64     - SPIR-V 64-bit\n    systemz     - SystemZ\n    thumb       - Thumb\n    thumbeb     - Thumb (big endian)\n    ve          - VE\n    wasm32      - WebAssembly 32-bit\n    wasm64      - WebAssembly 64-bit\n    x86         - 32-bit X86: Pentium-Pro and above\n    x86-64      - 64-bit X86: EM64T and AMD64\n    xcore       - XCore"
+    },
+    "objdump": {
+      "path": "/nix/store/y6ri2r743ckh5kk160r461czl9n2f2wf-binutils-2.46/bin/objdump",
+      "sha256": "8a97ab50321a398eb22a1659edef0ee5f0f5c2a3136be28aea0345baac9d00f0",
+      "version": "GNU objdump (GNU Binutils) 2.46\nCopyright (C) 2026 Free Software Foundation, Inc.\nThis program is free software; you may redistribute it under the terms of\nthe GNU General Public License version 3 or (at your option) any later version.\nThis program has absolutely no warranty."
+    }
+  },
+  "repo": {
+    "commit": "ad0f6cde481d190ad662b78d416db76a384152eb",
+    "dirty": true
+  },
+  "host": {
+    "name": "z",
+    "platform": "linux",
+    "machine": "x86_64",
+    "release": "6.18.60",
+    "cpus": 32
+  },
+  "built": "2026-11-11T03:48:08+00:00"
+}

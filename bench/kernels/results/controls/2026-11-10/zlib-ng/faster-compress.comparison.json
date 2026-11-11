@@ -1,0 +1,146 @@
+{
+  "schema": "ir-lean.kernels.comparison/1",
+  "project": "zlib-ng",
+  "workload": "compress",
+  "plan_sha256": "c6e35459dd8c3c265b371cf3d93ce23649e32faff3799d72d56eb345da5934f4",
+  "opt": "-O3",
+  "baseline": {
+    "variant": "o0",
+    "record_sha256": "1c45eb3066f499f8f3b9e331f39568685801166200d2f2844abfa2bfddf05bd7"
+  },
+  "candidate": {
+    "variant": "baseline",
+    "record_sha256": "5de7f9e3356eb9a23e48d07aa70a89d1297ecb7f140918096cd1e9da048c98be"
+  },
+  "control": "faster",
+  "sessions": [
+    {
+      "session": 1,
+      "seed": 4169984484,
+      "kind": "confirmation",
+      "started": "2026-11-11T03:54:00+00:00",
+      "repeats": 2,
+      "cpus": [
+        8
+      ],
+      "sha256": "03ebcf29c50d191ef80b2943fe052704f76ea317b2783f1aa4c8245a8608d002",
+      "load": {
+        "min": 2.5,
+        "median": 3.25,
+        "max": 3.62
+      },
+      "pairs": 20,
+      "median": 1.2896445927214608,
+      "interval": [
+        1.2871358366090346,
+        1.2915942838433183
+      ],
+      "bootstrap_seed": 3864678722,
+      "resamples": 20000,
+      "range": [
+        1.2811499616753759,
+        1.3015261725452718
+      ],
+      "faster_pairs": 20
+    },
+    {
+      "session": 2,
+      "seed": 2153349478,
+      "kind": "confirmation",
+      "started": "2026-11-11T04:04:19+00:00",
+      "repeats": 2,
+      "cpus": [
+        8
+      ],
+      "sha256": "f324a9ce65e48f293191f2a9a2e9c730e9822e242f07134873bfd78d246dbaa1",
+      "load": {
+        "min": 1.37,
+        "median": 2.085,
+        "max": 2.56
+      },
+      "pairs": 20,
+      "median": 1.2898774615189306,
+      "interval": [
+        1.2882615852741797,
+        1.2910218260677275
+      ],
+      "bootstrap_seed": 3864678723,
+      "resamples": 20000,
+      "range": [
+        1.2717148166786794,
+        1.3125014430974362
+      ],
+      "faster_pairs": 20
+    }
+  ],
+  "pooled": {
+    "pairs": 40,
+    "median": 1.2897105549575958,
+    "interval": [
+      1.288439406719085,
+      1.2910218260677275
+    ],
+    "bootstrap_seed": 3864678721,
+    "resamples": 20000,
+    "range": [
+      1.2717148166786794,
+      1.3125014430974362
+    ],
+    "faster_pairs": 40
+  },
+  "others": {
+    "decompress": {
+      "pairs": 40,
+      "median": 1.003352609282738,
+      "interval": [
+        1.0020949397676526,
+        1.004084195677832
+      ],
+      "bootstrap_seed": 114653631,
+      "resamples": 20000,
+      "range": [
+        0.9392154031133602,
+        1.0245687969960748
+      ],
+      "faster_pairs": 30,
+      "sessions": [
+        "a827b093a1f11248a5b21891202344418d7a9e16b2bed854c71e185ece4632df",
+        "f4017d2bf34921dca1b9877a349d59b840f9af803c66da55734a867583b9fe99"
+      ]
+    }
+  },
+  "unmeasured": [],
+  "by_the_protocol": true,
+  "protocol_problems": [],
+  "verdict": "faster",
+  "conditions": {
+    "confirmation": {
+      "held": true,
+      "says": "only confirmation sessions count"
+    },
+    "pairs": {
+      "held": true,
+      "says": "at least 30 pairs in at least 2 sessions: 40 in 2"
+    },
+    "interval": {
+      "held": true,
+      "says": "the pooled interval's lower end at or above 1.005: 1.2884"
+    },
+    "sessions": {
+      "held": true,
+      "says": "every session's median above 1: 1.2896, 1.2899"
+    },
+    "others": {
+      "held": true,
+      "says": "no other workload slower: each of decompress reaches 1"
+    }
+  },
+  "rule": {
+    "min_pairs": 30,
+    "min_sessions": 2,
+    "threshold": 1.005,
+    "resamples": 20000,
+    "confidence": 0.95,
+    "min_seconds": 2.0
+  }
+}

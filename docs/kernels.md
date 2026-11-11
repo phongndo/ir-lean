@@ -661,6 +661,122 @@ interval of 1.029 to 1.057 over 30 pairs in 2 sessions, is measurably faster on 
 1.004 with an interval of 0.979 to 1.351, isn't. The q4_K rewrite was measured in rounds, without pairs or an
 interval, so it would be measured again.
 
+## The harness
+
+[`bench/kernels/harness.py`](../bench/kernels/harness.py) runs the protocol, and
+[`bench/kernels/protocol.py`](../bench/kernels/protocol.py) holds its statistic and the rule. [The board](board.md)
+reads what they write. Built on 2026-11-10, and checked on zlib-ng and on a project of its own, with no rewrite yet:
+[its controls](#the-harnesss-controls) are below.
+
+```console
+nix develop -c bench/kernels/kernels.py inputs build/kernels/inputs zlib-ng
+nix develop -c bench/kernels/harness.py build zlib-ng
+nix develop -c bench/kernels/harness.py candidate zlib-ng NAME --unit deflate_medium.c --ir REWRITTEN.ll --functions deflate_medium
+nix develop -c bench/kernels/harness.py plan zlib-ng --candidate NAME --workload compress --pairs 15 --out PLAN.json
+nix develop -c bench/kernels/harness.py measure PLAN.json
+nix develop -c bench/kernels/harness.py compare PLAN.session-1.json PLAN.session-2.json --other OTHER.session-1.json --other OTHER.session-2.json --out PLAN.comparison.json
+```
+
+Each step, and what it checks:
+
+- **`build`** is the baseline: the project's own build, its CMake or its `Makefile`, with the dev shell's clang, the
+  pinned 23.1.3, the manifest's flags and `-O3`, as [`profile.sh`](../bench/kernels/profile.sh) builds it. `--opt
+  project` builds it at the project's own level instead, `-O2` for zlib-ng, which [decision 3](#what-the-maintainer-decided-on-2026-11-10)
+  asks a win to beat too. It refuses a build where any compile isn't at the level asked for.
+- **`candidate`** builds the same tree a second time and replaces the rewritten unit's object, and the build links
+  the binaries again with its own commands: Ninja, after the object keeps its time and what's linked from it is
+  removed, since its deps log would otherwise compile the object again, and make, after the object is made newer.
+  The candidate is the unit's IR with the functions named by `--functions` rewritten, or an object. Before anything
+  is timed it checks that `llc` on the unit's unchanged IR, emitted from the build's own compile command with its use
+  lists, gives the build's machine code, function by function, as `tests/llama_bench.py` does; that the two builds'
+  binaries differ in exactly the functions declared, by each function's disassembly without addresses; that each
+  workload's check passes on the candidate; and that each workload whose output is its result gives the baseline's
+  output, bit for bit.
+- **`plan`** writes down what's compared before it runs: both builds, by their records, which it copies beside
+  itself, the workload, the threads, the cores, the pairs, and a new seed for each session. The cores are one per
+  thread, one hardware thread a core, in one CCD, by default the first cores of the last: CPU 8 on z, as the Q5
+  rewrite was measured on.
+- **`measure`** runs a plan's sessions. Each pins itself to the plan's cores, checks both builds' binaries are the
+  ones their records hash, warms each once, and repeats a run inside one timed command, as `sh` running it that
+  many times, until it takes at least 2 s. Then it runs its pairs, baseline and candidate back to back in an order
+  drawn from its seed. Each run records its wall time from start to exit, its CPU time, the load average, the cores
+  and the hash of everything it wrote. A run whose output isn't the baseline's stops the session, and no pair is
+  removed.
+- **`compare`** takes the ratios, their median and the 95% percentile bootstrap from 20,000 resamples, per session
+  and pooled, with a seed taken from the sessions' own, and reads them by [the rule](#measurably-faster). The rule
+  doesn't say when a candidate is slower, so the harness takes the mirror of a win: at least 30 pairs in at least 2
+  confirmation sessions, the pooled interval at or under 1 / 1.005, and every session's median under 1. A comparison
+  also lists how its sessions fall short of the protocol: runs repeated to under 2 s, cores not in one CCD, a plan
+  written after a session started, a pair missing, or two sessions with one seed. Only one with none, read by the
+  protocol's own rule, can put a win on the board.
+
+**What it reads.** The manifest gives each project's pin, flags, level and workload command. What the manifest
+doesn't say is in [`bench/kernels/harness.toml`](../bench/kernels/harness.toml), apart so the digest that fixes the
+corpus doesn't change: how to drive each project's build, which binaries its workloads run, and the workloads beyond
+the manifest's one, such as zlib-ng's decompressing. "Each workload's check is written into the manifest when the list
+is fixed", and another lane is writing them. The harness takes a workload's `check`, a command or a table with one,
+and its `threads`, `measure` and `output`, from the manifest wherever the manifest gives them, and from
+`harness.toml` until then, and every record says which each came from. Today `harness.toml` has them all: zlib-ng's
+two workloads hash their output, and xxHash's `xxhsum -b`, whose output is only timings, runs `make check` first.
+
+**What it can build.** zlib-ng, with CMake and Ninja, measured below. Its own `-O2` build too: with `--opt project`
+it built, and a candidate the same as it passed every check, and no session was timed on it. xxHash, with make: its
+baseline built, and a candidate the same as it, for each of its two units, passed every check, `make check`
+included. One exploratory session of 3 pairs on `xxhsum -b` read the four MiB/s figures it prints, one a hash, whose
+mean is the measure, and it hasn't been timed by the protocol. llama.cpp, FLAC and libwebp build with CMake too and
+need only an entry in `harness.toml`. libsodium builds with autotools and libtool, whose objects the harness can't
+replace yet.
+
+**One thing `llc` can't read.** The pinned clang, asked for use lists, can write a `uselistorder` directive for an
+inline `asm` value, and the pinned `llc` refuses it: "invalid type for inline asm constraint string". Each of
+xxHash's units has one. The harness drops those directives, and only those, records how many, and
+leaves it to the check that `llc` gives the build's machine code to say whether that changed anything. It didn't, for
+either unit.
+
+### The harness's controls
+
+There's no win to measure yet, so the harness was checked on candidates whose answer is known. These are checks on
+the harness, not on any rewrite, and none is a win. [The board](board.md#harness-controls) shows each, worked out again
+from its sessions every time it's written.
+
+**On zlib-ng,** on 2026-11-10 from 19:48 to 20:09 PST, on z, at `-O3`, compressing `silesia.tar` at level 6, the
+manifest's workload. One run took about 1.8 s, so each timed run was two, about 3.7 s. Every session was pinned to
+CPU 8, in the second CCD, with a one-minute load average of 1.3 to 6.1 from other lanes building and checking Lean
+on the same machine. Each control was planned before it ran, as a confirmation would be, with 2 sessions of 20 pairs,
+and the first session of each of the four plans ran, and then the second of each:
+
+| Control | Baseline against candidate | Verdict | Ratio, median [95% interval] | Each session's median | Pairs above 1 | Load average |
+| --- | --- | --- | --- | --- | --- | --- |
+| The same | The baseline against `aa` | Inconclusive | 1.0001 [0.9994, 1.0009] | 1.0013, 0.9998 | 21 of 40 | 1.6 to 6.1 |
+| Slower | The baseline against `o0` | Slower | 0.7745 [0.7734, 0.7755] | 0.7738, 0.7751 | 0 of 40 | 1.4 to 5.3 |
+| Faster | `o0` against the baseline | Faster | 1.2897 [1.2884, 1.2910] | 1.2896, 1.2899 | 40 of 40 | 1.4 to 3.6 |
+| Faster, decompressing, the project's other workload | `o0` against the baseline | Not slower: its interval reaches 1 | 1.0034 [1.0021, 1.0041] | 1.0037, 1.0031 | 30 of 40 | 1.3 to 3.6 |
+
+- **The same:** `deflate_medium.c`'s object made again by `llc` from its unchanged IR, which the checks found the same
+  as the baseline's in every function.
+- **Slower:** `deflate_medium.c` compiled at `-O0`, 18% of compressing by the profile, which changes `deflate_medium`
+  and the five helpers inlined into it at `-O3`.
+- **Faster:** the same two builds the other way round, the `-O0` one as the baseline. It's a check that the harness
+  calls a known gain faster, by every condition of the rule, decompressing included as the project's other workload.
+  It isn't a win: nothing was rewritten.
+
+What they say about the harness and z:
+
+- **The same is inconclusive, and close to 1.** Its single pairs ranged from 0.983 to 1.029, and the median of 40 is
+  within a tenth of a percent of 1, with the load average from 1.6 to 6.1.
+- **Moving code shows.** Decompressing never runs `deflate_medium`, and the `-O3` build was 0.3% faster at it than the
+  one with the `-O0` object, with an interval clear of 1. What changed for it is where code is: the `-O0` object is
+  bigger, and what's linked after it moves. So relinking alone can move a workload by a few tenths of a percent, which
+  the rule's 1.005 is above.
+- **Every comparison is by the protocol,** with no problem listed: pinned to one CCD, runs of at least 2 s, the plan
+  written first, no pair missing, and a new seed for each session. The first five sessions' records give their CCD as
+  CPU 8 alone, from a bug in how the harness read it that was fixed before the other three ran, which give CPUs 8 to
+  15 and 24 to 31. CPU 8 is in that CCD in all eight.
+
+**On a project of its own,** [`tests/kernels_bench`](../tests/kernels_bench), the `kernels_bench` test runs the same
+three in about 30 s in CI, with the slower one a rewrite of its kernel with an extra loop, given as IR, and runs
+repeated to 0.05 s instead of 2. Those aren't by the protocol, which the test checks the board says.
+
 ## What a win is
 
 One win is one rewrite, proved, reviewed and measured:
@@ -718,8 +834,9 @@ a rule.
 
 ## What isn't done, and what couldn't be found out
 
-- **No timing.** Every number here is a share of cycles, or a count. No baseline was timed, so nothing says how noisy
-  each workload is on z, which the protocol's 30 pairs assume is enough.
+- **Little timing.** Every number in the sections before [the harness](#the-harness) is a share of cycles, or a count.
+  Only zlib-ng's compressing and decompressing have been timed, for [the harness's controls](#the-harnesss-controls),
+  so nothing yet says how noisy the other workloads are on z, which the protocol's 30 pairs assume is enough.
 - **No bulk workload for libsodium yet.** [Decision 7](#what-the-maintainer-decided-on-2026-11-10)'s driver, over its
   `crypto_secretstream` example, isn't written, so the corpus is approved and not fixed.
 - **Whether the translated kernels elaborate in Lean** wasn't checked. `tests/ir_features.py` checks that for its
