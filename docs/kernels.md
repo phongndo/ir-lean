@@ -5,12 +5,15 @@ decisions of 2026-11-09, after #103, in the [roadmap](roadmap.md): the headline 
 wall time on a real workload, on a corpus fixed before the search runs, and the bar is at least 10 proved wins from at
 least 3 projects.
 
-**Approved on 2026-11-10.** The maintainer approved the proposal as it recommended: the six projects, llama.cpp,
-zlib-ng, xxHash, libsodium, FLAC and libwebp, and all seven [decisions](#what-the-maintainer-decided-on-2026-11-10),
-which the roadmap records in [the kernel corpus, decided on 2026-11-10](roadmap.md#the-kernel-corpus-decided-on-2026-11-10).
-[`bench/kernels/manifest.toml`](../bench/kernels/manifest.toml) says `state = "approved"`, and names the six. It isn't
-fixed yet: decision 7 asks for libsodium's bulk-encryption driver to be written first, and then the manifest's `[lock]`
-fixes the list ([how](#the-manifest)). No search or candidate rewrite has been run on any of these projects.
+**Approved and fixed on 2026-11-10.** The maintainer approved the proposal as it recommended: the six projects,
+llama.cpp, zlib-ng, xxHash, libsodium, FLAC and libwebp, and all seven
+[decisions](#what-the-maintainer-decided-on-2026-11-10), which the roadmap records in
+[the kernel corpus, decided on 2026-11-10](roadmap.md#the-kernel-corpus-decided-on-2026-11-10). Then decision 7's
+[driver for libsodium](#libsodiums-bulk-encryption-driver) was written, each workload's
+[check](#each-workloads-check) went into the manifest, and the list was fixed the same day:
+[`bench/kernels/manifest.toml`](../bench/kernels/manifest.toml) says `state = "fixed"`, and its `[lock]` holds the
+digest of the six as approved, which the roadmap's record of the decision holds too ([how](#the-manifest)). No search
+or candidate rewrite has been run on any of these projects.
 
 Until then this page was the proposal, and it reads as one where it gives the case for each choice.
 
@@ -40,7 +43,9 @@ all modeled, and decision 4's 24 and 241 of 798 functions are 31 and 279
 | 6 | The names | "The kernel corpus", `docs/kernels.md`, `bench/kernels/` | Any other name that isn't "corpus" alone |
 | 7 | libsodium's workload | Its Argon2id test in benchmark mode, which is its own and 99% kernel time. Bulk encryption needs a driver of ours, about 30 lines over its documented `crypto_secretstream` example, written before the list is fixed | Argon2id only: ChaCha20-Poly1305 and BLAKE2b then have no workload a win could be measured on |
 
-Decisions 3 to 5 are rules the board is read by, which is why they were settled with the list.
+Decisions 3 to 5 are rules the board is read by, which is why they were settled with the list. Decision 7's driver
+is [`bench/kernels/libsodium/secretstream.c`](../bench/kernels/libsodium/secretstream.c), written before the list
+was fixed, as it asked.
 
 ## The criteria
 
@@ -134,7 +139,8 @@ The first fetches the inputs the manifest pins, through Nix, each checked agains
 from the Silesia corpus's zip, the same bytes every time: SHA-256 `0b5ec70c8048321525f820bc1d76429840bd22ee2c7a116175253a0fec2c724d`.
 It leaves out llama.cpp's model, over a gigabyte, unless asked for by name. Shares are of the cycles spent
 in user code, on z on 2026-11-10, in one run each, with other lanes' work on the machine. A share says where the time
-is. It isn't a timing.
+is. It isn't a timing. The driver's row is from a later run that day, after #112, with a load average of 5.6 to 6.1,
+and the driver is linked statically, so its kernels are in its own binary.
 
 | Project | Workload | Functions at 1.5% or more, with their share |
 | --- | --- | --- |
@@ -146,6 +152,7 @@ is. It isn't a timing.
 | | `aead_chacha20poly1305` | `chacha20_encrypt_bytes` 42.2, `poly1305_blocks` 11.1, `crypto_onetimeauth_poly1305_sse2_update` 9.3, `poly1305_finish_ext` 6.7 |
 | | `generichash` | `sodium_hex2bin` 53.7, `blake2b_compress_avx2` 37.1 |
 | | `aead_aes256gcm` | `chacha20_encrypt_bytes` 31.0, from its random bytes, `crypto_aead_aes256gcm_beforenm` 14.1, `gh_ad_blocks` 11.2 |
+| | `secretstream`, [the driver](#libsodiums-bulk-encryption-driver), on 1 GiB | `blake2b_compress_avx2` 46.6, `chacha20_encrypt_bytes` 31.9, `poly1305_blocks` 19.4 |
 | FLAC | `flac -8` on the Sintel master | `FLAC__lpc_compute_autocorrelation_intrin_fma_lag_16` 22.2, `FLAC__lpc_compute_residual_from_qlp_coefficients_16_intrin_avx2` 15.4, `FLAC__MD5Transform` 13.4, `find_best_partition_order_` 10.2, `FLAC__bitwriter_write_rice_signed_block` 8.1, `FLAC__lpc_compute_residual_from_qlp_coefficients_intrin_avx2` 5.1, `FLAC__fixed_compute_best_predictor_wide_intrin_avx2` 4.4, `FLAC__precompute_partition_info_sums_intrin_avx2` 4.1 |
 | | `flac -5` | `FLAC__MD5Transform` 31.8, `FLAC__bitwriter_write_rice_signed_block` 16.9, `FLAC__fixed_compute_best_predictor_wide_intrin_avx2` 9.4, `FLAC__lpc_compute_autocorrelation_intrin_fma_lag_12` 9.4 |
 | | `flac -d` | `FLAC__MD5Transform` 34.6, `FLAC__lpc_restore_signal` 27.2, `FLAC__bitreader_read_rice_signed_block_bmi2` 23.4, `read_frame_` 7.3, `FLAC__crc16_update_words64` 4.1 |
@@ -174,7 +181,8 @@ Three weren't profiled here:
 What the profiles say that the list doesn't:
 
 - **libsodium has no bulk benchmark of its own.** Its tests in benchmark mode run through libtool's wrapper script, and
-  all but Argon2id spend much of their time parsing hex test vectors. Only `pwhash_argon2id` is a workload as it is.
+  all but Argon2id spend much of their time parsing hex test vectors. Only `pwhash_argon2id` is a workload as it is, and
+  [decision 7's driver](#libsodiums-bulk-encryption-driver), ours, is its bulk encryption.
 - **libwebp's lossy decoder is scalar.** 78% of it is the boolean decoder, in `GetCoeffsFast`, `GetLargeValue` and
   `VP8ParseIntraModeRow`. Its SIMD is in the encoder and the lossless predictors.
 - **FLAC spends 13% to 35% in MD5,** which it computes over the audio to detect corruption. It's scalar, and it
@@ -182,6 +190,36 @@ What the profiles say that the list doesn't:
 - **Opus is flat and mostly scalar floating point.** No SIMD kernel reaches 2% of decoding.
 - **zlib-ng's Adler-32 kernels aren't hot here,** since gzip uses CRC-32. A zlib-format workload would make
   `adler32_avx512_vnni` hot, and it calls only intrinsics the model has.
+
+### libsodium's bulk-encryption driver
+
+libsodium has no bulk benchmark of its own, so [decision 7](#what-the-maintainer-decided-on-2026-11-10) asked for one
+of ours. [`bench/kernels/libsodium/secretstream.c`](../bench/kernels/libsodium/secretstream.c) is libsodium's
+documented [`crypto_secretstream` example](https://doc.libsodium.org/secret-key_cryptography/secretstream), with
+memory in place of its files:
+
+- **What it does.** It encrypts 1 GiB with XChaCha20-Poly1305 in the example's 4096-byte chunks, the last one tagged
+  final: a fixed pattern, with each chunk's number in its first 8 bytes. It pulls each chunk back with libsodium's own
+  decryption as it goes, and exits 1 unless that gives back what went in, with its tag. It prints the BLAKE2b-256 of
+  the stream's header and every encrypted chunk.
+- **Nothing in it is random.** The key is `randombytes_buf_deterministic` of one fixed seed. The header `init_push`
+  draws comes from a random-number source of the driver's, set with `randombytes_set_implementation`, that gives the
+  same bytes of another seed every time. Every run prints
+  `a9acac2669b207c1c334ef1eb0cbeb4b9f9cbdc905ab94bd9df767529cdf81c1  1073741824 bytes in 262144 chunks`.
+- **That answer is known.** libsodium's own `secretstream_xchacha20poly1305` test checks a round trip under a random
+  key and has no known answers. [`bench/kernels/libsodium/reference.py`](../bench/kernels/libsodium/reference.py)
+  computes what the driver prints without libsodium: ChaCha20 and Poly1305 written from RFC 8439, HChaCha20 from the
+  XChaCha draft and BLAKE2b from RFC 7693, each checked against its document's vector, and the stream built as
+  libsodium's `push` builds it. It gives the driver's line at 1 MiB, in about a second, and an earlier version of it,
+  with `hashlib`'s BLAKE2b, gave the driver's lines at 16 and at 1,024 MiB, the latter in 17 minutes.
+- **It's kernel time.** It took 2.4 s in each of two runs under `time` on z, at a load average of 5.4, which isn't a
+  measurement by [the protocol](#the-benchmark-protocol), and 97.8% of its cycles in user code are in three kernels the
+  manifest names: `blake2b_compress_avx2` 46.6%, `chacha20_encrypt_bytes` 31.9% and `poly1305_blocks` 19.4%
+  ([above](#where-the-time-goes)). Hashing what was encrypted is what gives BLAKE2b, which decision 7 names beside
+  ChaCha20-Poly1305, a workload.
+- **How it's built:** with the pinned clang at `-O3`, linked with the `libsodium.a` the project's own build makes, as
+  the manifest's `build` for it says and `bench/kernels/profile.sh libsodium` does. The manifest pins the driver by its
+  SHA-256, so it can't change after the lock without an amendment either.
 
 ## How each project builds its kernels
 
@@ -551,7 +589,7 @@ live page. The roadmap has said what llama.cpp's live page does since #104
 | llama.cpp | Every kernel mixes integer SIMD with floating point, so a whole-function win needs the floating-point lane, and so far its wins are slices. It releases several times a day, so the pin ages fastest. Models are 1 GB and more, and aren't in CI |
 | zlib-ng | `-mtune=cascadelake` on its AVX-512 files, on a Zen 5. Its baseline is `-O2`. gzip never reaches its Adler-32 kernels |
 | xxHash | Its kernels are short and already tight, so wins may be scarce. `xxhsum -b` runs for a fixed time, not a fixed amount of work, so its own figure, MB/s, is the measure, not wall time |
-| libsodium | No bulk benchmark of its own: [decision 7](#what-the-maintainer-decided-on-2026-11-10)'s driver, ours, is still to be written. A rewrite of cryptographic code can break constant-time behaviour, which `Refines` doesn't see: a win here needs that said beside it |
+| libsodium | No bulk benchmark of its own: its bulk workload is [decision 7](#what-the-maintainer-decided-on-2026-11-10)'s driver, ours, in which BLAKE2b, hashing the result, takes more of the time than ChaCha20. A rewrite of cryptographic code can break constant-time behaviour, which `Refines` doesn't see: a win here needs that said beside it |
 | FLAC | As built, every function is refused for its fast-math attributes. Its hottest kernel at level 8, the autocorrelation, is floating point with reassociation allowed, which the model refuses |
 | libwebp | The scalar boolean decoder dominates lossy decoding. The 14 intrinsics the model lacked in the proposal's run are modeled since #107. `cwebp` in the dev shell has no libpng, so the encoder's input is the lossless images' pixels |
 | zstd | Little SIMD. `ZSTD_decompressSequences_bmi2` holds an inline `.p2align` directive, which the emitter refuses as inline assembly |
@@ -567,43 +605,84 @@ the [protocol](#the-benchmark-protocol)'s pairing. And every pin goes stale.
 ### The manifest
 
 [`bench/kernels/manifest.toml`](../bench/kernels/manifest.toml) holds, for each project: its repository, tag, commit
-and Nix hash, the units its kernels are compiled from, the flags the project builds each with, the kernels, and the
-workload, with the SHA-256 of each input. `[corpus]` holds what every project is compiled with: the LLVM tag, the
-target, `-O3`, and the machine.
+and Nix hash, the units its kernels are compiled from, the flags the project builds each with, the kernels, its
+inputs, each with its SHA-256, and its workloads. `[corpus]` holds what every project is compiled with: the pinned
+LLVM, by its tag and by the commit and source hash `tests/llvm/targets.toml` pins under it, which could move while the
+tag doesn't, the target, `-O3`, and the machine.
 
-The proposal had approving and fixing as one act. Decision 7 puts libsodium's driver between them, so they're two:
+Each workload has a name and says what it runs, as commands: `run`, the part that's timed, `setup`, run once before,
+and `build`, for what the project's own build doesn't make, as libsodium's tests in benchmark mode and the driver.
+Commands name the source at its pin, `{src}`, the project's build, `{build}`, a directory for what a run writes,
+`{out}`, this repository, `{repo}`, and an input, `{input:NAME}`. A workload says what's `measure`d, `"time"` or a
+`"rate"` the benchmark prints, and which, and has one [check](#each-workloads-check) or more. A driver of ours is
+pinned by its SHA-256, and so is every other file of this repository a workload or a check runs, in a `pinned` table
+of its path and hash: a `{repo}/PATH` that's neither is refused, and so is `{repo}` other than as `{repo}/PATH`, as
+`env -C {repo}` would use it to run a file by a relative path that names nothing to pin.
 
-1. **Approved,** on 2026-11-10. `corpus.state` is `"approved"`, `corpus.approved` names the six, `corpus.approved_on`
-   gives the date, and `corpus.decided_in` points to where the roadmap records the decisions. Nothing is locked, so an
-   approved project's entry can still change, as the driver will change libsodium's workload.
-2. **Fixed,** once the driver is written, in one pull request: `corpus.state` becomes `"fixed"`, and `[lock]` records
-   the digest `bench/kernels/kernels.py digest` prints, the date, and the pull request. The search runs after that.
+The proposal had approving and fixing as one act. Decision 7 put libsodium's driver between them, so they were two,
+and both were done on 2026-11-10:
+
+1. **Approved.** `corpus.state` was `"approved"`, `corpus.approved` named the six, `corpus.approved_on` gives the date,
+   and `corpus.decided_in` points to where the roadmap records the decisions. Nothing was locked, so an approved
+   project's entry could still change, as the driver changed libsodium's workloads.
+2. **Fixed,** once the driver was written, in one pull request: `corpus.state` is `"fixed"`, every workload of the
+   six says what's measured and how it's checked, and `[lock]` records the digest `bench/kernels/kernels.py digest`
+   prints, `d58e280b3e19bf21a75927a9ca408a695f4a52fb8bdfdfc97db3d8c685be45eb`, the date, and where the roadmap records
+   the decision. The search runs after that.
 
 The digest is a SHA-256 over `[corpus]`'s settings and each approved project's whole entry: its pin, hash, units,
-flags, kernels, workload and input hashes. So after that, a change to any of them, or to the pinned LLVM, changes the
-digest.
+flags, kernels, inputs, and workloads with their commands, measures and checks, and the hashes of the driver and of
+every other file of ours they run. So now a change to any of them, or to the pinned LLVM, changes the digest, and
+needs an `[[amendment]]`.
+
+**What holds the lock.** A digest that's only compared with the manifest's own lock would let a change and a new lock
+pass together. So the lock is held to the decision: it has to be in the roadmap's
+[record of it](roadmap.md#the-kernel-corpus-decided-on-2026-11-10), the section `lock.approved_in` points to, which
+`bench/kernels/kernels.py check` reads, and `tests/kernels_test.py` keeps it as the digest approved too. An amendment
+starts from it. Replacing the lock means changing that record, the test and the manifest, each a visible change to a
+reviewed decision.
+
+It's the original lock, the one the corpus was first fixed with. The review of the pull request that fixed it changed
+llama.cpp's checks, libsodium's Argon2id workload and what the lock covers before it merged, so no amendment precedes
+it.
 
 ### The test that fails when it changes
 
 `tests/kernels_test.py`, the `kernels` test, in under a second, with no Lean or LLVM:
 
 - The manifest meets every rule in [`bench/kernels/kernels.py`](../bench/kernels/kernels.py): each project pinned by
-  a full commit and an SRI hash, in one of the five domains, under a listed license, with units, kernels, a workload
-  and hashed inputs, or rejected with the criteria it fails.
+  a full commit and an SRI hash, in one of the five domains, under a listed license, with units, kernels, hashed
+  inputs and workloads, or rejected with the criteria it fails. A workload's commands name only the places and inputs
+  the project has. A rate names its figure, and its output check runs a command of its own, since what a rate's run
+  prints is timings. A known-answers check names the project's test and runs it. A driver is in `bench/kernels/`,
+  its build compiles it, and its SHA-256 is the manifest's.
 - While it's proposed, nothing is approved and there's no lock, so approving can't happen by halves.
 - While it's approved, it names at least 3 projects, none rejected, with the date and where it was decided, and has no
-  lock or amendment, so fixing it is one act too. The list is the six of 2026-11-10.
-- Once it's fixed, the digest has to be the lock's, or reached from it by `[[amendment]]`s, each with its date, its
-  reason, the pull request, and the digest it starts from and ends on. So the corpus can change, and never quietly:
-  the roadmap's rule for a gate.
-- A fixed corpus has at least 3 projects, and `corpus.llvm_tag` is `tests/llvm/targets.toml`'s pin.
-- Cases built to break each rule are refused: a pin, a hash, a flag, a kernel or an input changed under a lock, an
-  amendment that starts from the wrong digest, an approved project that's rejected.
+  lock or amendment, so fixing it is one act too.
+- Once it's fixed, every workload of an approved project says what's measured and has a check, and the digest has to
+  be the lock's, or reached from it by `[[amendment]]`s, each with its date, its reason, the pull request, and the
+  digest it starts from and ends on. So the corpus can change, and never quietly: the roadmap's rule for a gate.
+- The lock is the digest approved, `d58e280b…45eb`, which the test keeps, and which the roadmap's record of the
+  decision has to hold. A change made with the lock replaced by its own digest, as zlib-ng's level changed to `-9`
+  with a new lock, is refused, and the same change made by an amendment from the digest approved isn't.
+- It is fixed: the six of 2026-11-10, with the lock's date and where the roadmap records them. llama.cpp's `pp512` and
+  `tg128` and xxHash's `bench` are the rates, and libsodium's `argon2id` and xxHash's `bench` are checked against
+  known answers. libsodium's workloads are decision 7's two, and what `argon2id` times is its own copy of the test,
+  out of the directory its check cleans. llama.cpp's three are each checked by raw logits at every step of greedy
+  decoding, with their thread count, and not by `llama-perplexity`'s saved log-probabilities.
+- A fixed corpus has at least 3 projects, and `corpus.llvm_tag`, `corpus.llvm_commit` and `corpus.llvm_nix_hash` are
+  `tests/llvm/targets.toml`'s pin.
+- Cases built to break each rule are refused: a pin, a hash, a flag, a kernel, a workload's commands, its measure, a
+  check, an input, the driver, a file of ours a check runs, or the LLVM commit changed under the lock, in the manifest
+  as it is and in one locked the same way, a workload left without a check, a `{repo}` file that isn't pinned or
+  `{repo}` named without a path, an amendment that starts from the wrong digest, a lock that isn't in its record, an
+  approved project that's rejected.
+- `reference.py` meets its documents' vectors and starts from the driver's seeds and pattern.
 - This page names every project with its commit, and `bench/kernels/results/demand.json` is about the manifest's pins.
 
 `kernels_demand` runs `bench/kernels/demand.py check --offline`: every unit compiles at the pin, and defines the
-kernels the manifest names. It skips where the sources aren't in the Nix store, as in CI, and
-`bench/kernels/demand.py check` fetches them.
+kernels the manifest names, and the project's own tests that its known-answers checks name are in its source. It skips
+where the sources aren't in the Nix store, as in CI, and `bench/kernels/demand.py check` fetches them.
 
 ### What the corpus doesn't fix
 
@@ -630,7 +709,11 @@ rule for every win.
   run's output is hashed, and has to be the baseline's, bit for bit. Where it's only timings, as for libsodium's
   Argon2id test in benchmark mode and `xxhsum -b`, the candidate's build first has to pass the project's own test of
   the same functions in its checking mode, which compares against known answers, and the timed runs' output is
-  recorded and not compared. Each workload's check is written into the manifest when the list is fixed.
+  recorded and not compared. Where a project has no such test, as llama.cpp's tests compare its kernels with a float
+  reference within a bound, a command of its own whose output is a result is run instead, and compared bit for bit:
+  llama.cpp's raw logits, at each step of decoding, as [llama.cpp's Q5](llama-q5.md) compared them. The check has to
+  run the code the workload times: a batched pass doesn't reach the kernels decoding one token runs. Each workload's
+  check is in the manifest, as it was fixed: [below](#each-workloads-check).
 
 **What's measured.** Wall time of the workload's command, from start to exit, on z, pinned to cores of one CCD, with
 the thread count the manifest gives, one unless the workload says otherwise. A run shorter than 2 seconds is repeated
@@ -660,6 +743,91 @@ Otherwise it's inconclusive, or slower, and the board says which. By this rule t
 interval of 1.029 to 1.057 over 30 pairs in 2 sessions, is measurably faster on one thread. Its eight-thread trial, at
 1.004 with an interval of 0.979 to 1.351, isn't. The q4_K rewrite was measured in rounds, without pairs or an
 interval, so it would be measured again.
+
+### Each workload's check
+
+Sixteen workloads, as the manifest fixed them on 2026-11-10, each with what's measured and how a candidate is shown to
+compute what the baseline does before it's timed. Each runs with one thread, but llama.cpp's, with eight.
+
+| Project | Workload | Measured | Check |
+| --- | --- | --- | --- |
+| llama.cpp | `pp512`: `llama-bench`, reading a 512-token prompt with Qwen2.5 1.5B at Q4_K_M | Rate: tokens a second, `avg_ts` | Output: the raw FP32 logits at each of 128 steps of greedy decoding after [the Q5 work's prompt](../tests/llama/prompt.txt), with the prompt's tokens, each token chosen and its position, from `tests/llama`'s capture, bit for bit. The prompt's 98 tokens are one batch, through the matrix-matrix kernels |
+| | `tg128`: `llama-bench`, generating 128 tokens | Rate: the same | Output: the same, whose 127 steps after the first each decode one token, through the matrix-vector kernels |
+| | `ppl`: `llama-perplexity`, 24 chunks | Time | Output: the same, since what it prints mixes the perplexity with timings |
+| zlib-ng | `compress`: `minigzip -6` on `silesia.tar` | Time | Output: the gzip stream |
+| | `decompress`: `minigzip -d` on that stream | Time | Output: `silesia.tar` itself, whose SHA-256 is known |
+| xxHash | `bench`: `xxhsum -b -i5` | Rate: MiB/s, for each of XXH32, XXH64, XXH3 and XXH128 | Known answers: xxhsum's sanity check, `cli/xsum_sanity_check.c`, by `xxhsum -V`, for XXH32 and XXH64, which every `xxhsum -b` also runs first. And `make test-inline-dispatch`, `tests/inlineDispatch.c`, for XXH3 and XXH128 through the dispatcher, which on z takes the AVX-512 kernels |
+| | `file`: `xxhsum -H3` on `silesia.tar` | Time | Output: the hash it prints |
+| libsodium | `argon2id`: `test/default/pwhash_argon2id` in benchmark mode, 200 times over, from its own copy | Time | Known answers: the same test in its checking mode, by `make check TESTS=pwhash_argon2id`, against `pwhash_argon2id.exp` |
+| | `secretstream`: [the driver](#libsodiums-bulk-encryption-driver) | Time | Output: the BLAKE2b-256 it prints, which is known |
+| FLAC | `decode`: `flac -d` on the Sintel master | Time | Output: the WAV. flac also compares the audio with the MD5 its input carries |
+| | `encode-5` and `encode-8`: `flac -5` and `flac -8` on that WAV | Time | Output: the FLAC file |
+| libwebp | `decode-lossy` and `decode-lossless`: `dwebp` on the gallery's five lossy and five lossless images | Time | Output: the five images it writes |
+| | `encode-lossy` and `encode-lossless`: `cwebp -q 75` and `cwebp -lossless` on the lossless images' pixels | Time | Output: the five files it writes |
+
+What's behind it:
+
+- **Every command is the manifest's.** On z on 2026-11-10, each workload of the five projects but llama.cpp ran from
+  the manifest's own commands, twice, at the pins: each output was the same both times, `decompress`'s was
+  `silesia.tar` and the driver's its known line, and the three known-answers checks passed. llama.cpp's check ran from
+  the manifest's commands too, with [the Q5 work's](llama-q5.md) Qwen2.5 0.5B at Q4_K_M in place of the 1.5B model,
+  which is over a gigabyte: [below](#llamacpps-check-reaches-the-kernels-it-times).
+- **A test built in benchmark mode passes `make check` whatever it computes:** `test/default/cmptest.h` then prints
+  times and exits 0. And make doesn't see `CPPFLAGS` change. So libsodium's check cleans the tests first, and builds
+  this one again in its checking mode, and its workload's `build` cleans them before benchmark mode, as
+  `bench/kernels/profile.sh` does now.
+- **And the check builds the test where the workload's build did,** so with the program run from there, a check run
+  after the build would leave its own checking-mode program to be timed: on z, at the pin, `build`, check and `run` in
+  that order timed a program that printed no time and wrote `pwhash_argon2id.res`. So the workload's `build` copies
+  the benchmark program out, the one libtool's wrapper script runs, to `{build}/pwhash_argon2id-benchmark`, which the
+  check's `make clean` doesn't touch, and its `run` runs it with the library path the wrapper sets, the build's
+  `libsodium.so`, which the check's test links with too. In both orders, `build` then the check and the check then
+  `build`, the timed run printed its time, about 12 s for 200 rounds, and the check passed.
+- **A known-answers test is linked with the candidate's code,** as the workload is: the rewritten unit's object
+  replaces the baseline's. libsodium's tests link with the library the build makes. xxHash's `tests/Makefile` compiles
+  its own `xxh_x86dispatch.o`, which is the object to replace.
+- **Known answers that don't depend on the build are written down:** `silesia.tar`'s SHA-256, and the SHA-256 of the
+  driver's line. Every other output depends on how the baseline is built, FLAC's on its fast-math flags among them, so
+  it's compared with the baseline's, as the protocol says, and not written down.
+- **Rates are xxHash's and llama.cpp's.** `xxhsum -b` and `llama-bench` run for a fixed time or a fixed number of
+  repetitions and print a speed, so the speed is the measure, and the ratio is the candidate's over the baseline's.
+
+#### llama.cpp's check reaches the kernels it times
+
+llama.cpp has no test of its kernels against known answers, so each of its workloads is checked by a run of its own,
+and the run has to reach the code the workload times:
+
+- **What `llama-perplexity` saves isn't logits.** `--kl-divergence-base` writes, for each token of the second half of
+  each chunk, the logits as 16-bit steps between the largest and 16 below it, with everything lower written as 0
+  (`tools/perplexity/perplexity.cpp`, `log_softmax`, at the pin). Two runs whose logits differ can write the same file.
+- **And it doesn't decode.** It reads each chunk as one batch of 512 tokens, and ggml's repacked q4_K matrix product
+  takes the matrix-matrix kernel, `ggml_gemm_q4_K_8x8_q8_K`, for each four rows, and the matrix-vector one,
+  `ggml_gemv_q4_K_8x8_q8_K`, only for the rows left over (`ggml/src/ggml-cpu/repack.cpp`,
+  `forward_mul_mat_one_chunk`). 512 leaves none. `tg128` times decoding, one row at a time, which is the
+  matrix-vector kernel, at 54% of generating ([above](#where-the-time-goes)).
+- **So the check is [the Q5 work's](llama-q5.md) raw-logit capture.** `tests/llama/build_capture.py` builds a private
+  copy of llama.cpp's own completion driver against `{build}`, which writes the FP32 logits it samples from at every
+  step, before sampling touches them, with the prompt, each token chosen and its position. The manifest runs it
+  greedily for 128 steps, with the end of text ignored, on the workloads' 8 threads, on
+  [the Q5 work's prompt](../tests/llama/prompt.txt): its 98 tokens are one batch, 96 rows through the matrix-matrix
+  kernel and 2 through the matrix-vector one, and each of the 127 steps after the first decodes one token. All three
+  workloads have that check. The four files of ours it runs are `pinned` by their hashes.
+- **What a run showed,** on z, at the pin, built as `tests/llama_bench.py` builds it, with Qwen2.5 0.5B at Q4_K_M,
+  `74a4da8c…a9db`, in place of the 1.5B model. Each candidate was the build's own `libggml-cpu.so` linked again by its
+  own link command with one kernel wrapped to change its first output on every call:
+
+  | Candidate | Calls under the old check | `--kl-divergence-base`, 16 chunks | Calls under the capture | Raw logits, 128 steps |
+  | --- | ---: | --- | ---: | --- |
+  | The baseline, run again | | Same | | Same, 77,791,232 bytes |
+  | Matrix-vector kernel, +1.0 | 736 | Same, perplexity 18.8182 | 50,240 | Differ from the first byte, and so do the tokens |
+  | Matrix-matrix kernel, +1.0 | 5,888 | Differ, perplexity 18.9355 | 352 | Differ from the first byte |
+  | Either, its lowest bit flipped | 736 or 5,888 | Same | 50,240 or 352 | Same |
+
+  The 736 calls under the old check are its warm-up's, whose result isn't saved: with `--no-warmup` there were none.
+  So a wrong matrix-vector kernel passed the old check, and the capture catches it. The last row is a limit of any
+  check by output: llama.cpp quantizes what it multiplies to 8 bits before each q4_K product, so an error of one bit
+  in one output can be rounded away before it reaches a logit. The check is evidence a candidate computes what the
+  baseline does. The proof is what says it.
 
 ## What a win is
 
@@ -718,10 +886,15 @@ a rule.
 
 ## What isn't done, and what couldn't be found out
 
-- **No timing.** Every number here is a share of cycles, or a count. No baseline was timed, so nothing says how noisy
-  each workload is on z, which the protocol's 30 pairs assume is enough.
-- **No bulk workload for libsodium yet.** [Decision 7](#what-the-maintainer-decided-on-2026-11-10)'s driver, over its
-  `crypto_secretstream` example, isn't written, so the corpus is approved and not fixed.
+- **No timing.** Every number here is a share of cycles, or a count, but the driver's 2.4 s, which is two runs under
+  `time` on a loaded machine, not a measurement by the protocol. No baseline was timed, so nothing says how noisy each
+  workload is on z, which the protocol's 30 pairs assume is enough.
+- **No harness runs the protocol yet.** The manifest says what each workload runs and how it's checked, with
+  `{build}` for the project's build, and `bench/kernels/profile.sh` says how each is built. No tool yet builds a
+  baseline and a candidate, runs a workload's checks on the candidate, and times the pairs.
+- **llama.cpp's workloads weren't timed from the manifest** when it was fixed, and its check ran with the 0.5B model,
+  not the manifest's 1.5B, which wasn't fetched: [above](#llamacpps-check-reaches-the-kernels-it-times). Its commands
+  are `tests/llama_bench.py`'s, and the build its check needs is that script's, which writes `compile_commands.json`.
 - **Whether the translated kernels elaborate in Lean** wasn't checked. `tests/ir_features.py` checks that for its
   probes, not for these.
 - **What's behind each first reason.** The emitter reports one reason per function.
@@ -743,12 +916,13 @@ done elsewhere first says where:
 - **`docs/roadmap.md`, decisions 7 and 8 after #103:** each links to
   [the kernel corpus, decided on 2026-11-10](roadmap.md#the-kernel-corpus-decided-on-2026-11-10), the seven decisions
   with a reason for each, and decision 8's open question says how it was decided. "Now, next, later", the dependency
-  on the corpus, S3, S7, S8 and "How we measure" name the kernel corpus, approved and not yet fixed.
+  on the corpus, S3, S7, S8 and "How we measure" name the kernel corpus as fixed on 2026-11-10.
 - **`docs/roadmap.md`, "The flywheel",** "the [corpus](corpus.md) of `opt`'s rewrites": unchanged.
 - **`README.md`, the Docs table:** a row for the kernel corpus.
 - **`docs/status.md`, [llama.cpp](llama.md) and [llama.cpp's Q5](llama-q5.md):** nothing. None of them says whether
-  the two rewrites count toward S3's bar, so none needs decision 2. When the list is fixed, `docs/status.md` gets a
-  line under "What's been built".
+  the two rewrites count toward S3's bar, so none needs decision 2. With the list fixed, `docs/status.md` has a line
+  under "What's been built".
 - **`docs/x86-intrinsics.md`:** its comparison with this page's demand calls the projects approved.
-- **`docs/testing.md`:** two rows in its Tests table, `kernels` and `kernels_demand`.
+- **`docs/testing.md`:** two rows in its Tests table, `kernels` and `kernels_demand`, which say what they check of
+  the fixed corpus.
 - **`docs/chunks.md`:** nothing.
