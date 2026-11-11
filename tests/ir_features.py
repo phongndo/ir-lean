@@ -149,7 +149,8 @@ REASONS: dict[str, Reason] = {
         "modeled",
         None,
         "Memory, in IRLean/Mem.lean. A function that uses it takes and returns a "
-        "Mem, and has no Refines instance until F4",
+        "Mem, and its Refines claim, in IRLean/MemRefine.lean, is for a target that "
+        "allocates as its source does, until F4's stage 3",
     ),
     "x86 dot product": Reason(
         "modeled",

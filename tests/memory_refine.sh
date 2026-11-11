@@ -25,7 +25,7 @@ fail() {
   failed=1
 }
 # Resource limits say a proof might check with more, so they never count as a failure of its own.
-limit='maximum number of heartbeats|\(deterministic\) timeout|maximum recursion depth|deep recursion|stack overflow|'
+limit='maximum number of heartbeats|deterministic\)? timeout|maximum recursion depth|deep recursion|stack overflow|'
 limit+='excessive memory|out of memory|maximum number of steps'
 
 # The relation and what keeps it: on the standard axioms alone, replayed in the kernel.
@@ -101,6 +101,8 @@ must_fail() {
     fail "$what checks, so something wrong was certified" "$out"
   elif [ -z "$errors" ]; then
     fail "$what stops only at a resource limit, at its imports, or never says why" "$out"
+  elif grep -qiE 'unknown (identifier|constant|tactic|namespace)|unexpected (token|identifier)' <<<"$errors"; then
+    fail "$what fails because the proof text can't be read (a renamed or removed name), not because it's wrong" "$out"
   elif ! hit=$(theorems_with_errors "$file" <<<"$errors" | grep -xF "$theorem"); then
     fail "$what doesn't stop $theorem with an error of its own, only $(theorems_with_errors "$file" <<<"$errors" |
       tr '\n' ' ')" "$out"
@@ -137,8 +139,10 @@ relation_mutant 'an uninitialized byte allows poison' 's/^  | .uninit, b => b â‰
 relation_mutant 'a byte of a value allows any byte' 's/^  | .val x, b => b = .val x$/  | .val _, _ => True/' val_le_iff
 # A target could then return a pointer into another allocation.
 relation_mutant 'a pointer allows any pointer' 's/^    | some p => b = some p$/    | some _ => True/' ptr_some
-# The two sides could then number their allocations differently, which nothing here relates.
-relation_mutant 'memories need not agree on the next allocation' '/^  next : m'"'"'.next = m.next$/d' next_eq
+# The two sides could then number their allocations differently, which nothing here relates. The rule is weakened,
+# not deleted, so the law stops on what it says, not on a field that's gone.
+relation_mutant 'memories need not agree on the next allocation' \
+  's/^  next : m'"'"'.next = m.next$/  next : True/' next_eq
 
 # Alive2 gives each case the verdict the case says it does.
 if ! tests/calls_alive.py tests/memory_refine tests/memory_refine/MemoryRefine.lean; then

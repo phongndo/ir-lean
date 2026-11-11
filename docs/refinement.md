@@ -136,8 +136,20 @@ that way, and `Refine.outcomes_det_left` and `outcomes_det_right` unfold it.
 
 ## Functions with memory
 
-SEM-06, F4, in stages. This is what's done, on 2026-11-10: the simplest sound relation, and what it covers. What's
-left is [below](#what-it-leaves-out).
+SEM-06, F4, in six stages. On 2026-11-10 stages 1, 2 and 4 are done, stage 5 is partly done, and stages 3 and 6
+haven't started, so F4 isn't finished:
+
+| Stage | What | State |
+| --- | --- | --- |
+| 1 | [The cut lemma](#the-cut-lemma), for functions without memory | Done |
+| 2 | `Refines` for functions with memory, by the simplest sound relation: [the claim](#the-claim) | Done, for a target that allocates as its source does, with the claim [guarded](#a-claim-says-where-the-source-has-an-answer) |
+| 3 | A target that allocates differently, which takes a renaming of allocations | Not started: removing an `alloca` has no claim, as [below](#what-it-leaves-out) |
+| 4 | The cut lemma [with memory](#with-memory): the memory operations keep the relation | Done for the operations with a lemma. A `load` or `store` of a pointer, a `load` of a vector, `getelementptr` with several indices, `memset`, `memcpy`, `llvm.lifetime`, `malloc`, `free`, `strlen`, `initializes`, `returned` and a `noalias` result have none |
+| 5 | The model's [memory gaps](#memorys-gaps-each-with-its-side), each closed or given its side | Partly: each has its side written down, and four aren't closed: reading uninitialized memory, a stack object after its function returns, `inbounds` on a freed allocation, and `tail` calls |
+| 6 | `tools/verify.py` and `tools/binding.py` on claims about memory | Not started, on purpose: `tools/binding.py` refuses a function with memory as `memory_unsupported`, since until stage 5 closes the gaps the model can have more undefined behavior than LLVM in a source |
+
+Provenance and exposure for `ptrtoint` and `inttoptr`, in SEM-06's scope too, are in none of these yet: `inttoptr`
+is refused. The rest of this section is stage 2, and what it leaves out is [below](#what-it-leaves-out).
 
 ### The claim
 

@@ -30,7 +30,7 @@ fail() {
   failed=1
 }
 # Resource limits say a proof might check with more, so they never count as a failure of its own.
-limit='maximum number of heartbeats|\(deterministic\) timeout|maximum recursion depth|deep recursion|stack overflow|'
+limit='maximum number of heartbeats|deterministic\)? timeout|maximum recursion depth|deep recursion|stack overflow|'
 limit+='excessive memory|out of memory|maximum number of steps'
 slice=tests/real/llama_q5_bitspread.ll
 
@@ -175,6 +175,8 @@ must_fail() {
     fail "$what checks, so something wrong was certified" "$out"
   elif [ -z "$errors" ]; then
     fail "$what stops only at a resource limit, at its imports, or never says why" "$out"
+  elif grep -qiE 'unknown (identifier|constant|tactic|namespace)|unexpected (token|identifier)' <<<"$errors"; then
+    fail "$what fails because the proof text can't be read (a renamed or removed name), not because it's wrong" "$out"
   elif ! hit=$(theorems_with_errors "$file" <<<"$errors" | grep -xF "$theorem"); then
     fail "$what doesn't stop $theorem with an error of its own, only $(theorems_with_errors "$file" <<<"$errors" |
       tr '\n' ' ')" "$out"

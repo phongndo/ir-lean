@@ -31,7 +31,7 @@ jobs. The InstSimplify families' scoreboard, store and E3 were checked the same 
 - **The store took all 11 of the worked example's value lemmas:** 4 meet all four rules of the bar and 7 are
   candidates. None was refused as `trivial`. Two were refused until their counterexamples were written.
 - **E3 so far:** 192 of the 247 site proofs use a stored rewrite lemma, but only 28 one cut from another family's
-  proofs, so reuse across families is small so far. 73 stored lemmas meet all four rules, 47 of them rewrites. The
+  proofs, so reuse across families is small so far. 75 stored lemmas meet all four rules, 47 of them rewrites. The
   kernel checks a proof using a stored lemma faster than the same proof with the lemma's proof inlined, at the median
   0.54 ms against 1.19 ms over 206 pairs. [Below](#over-the-instsimplify-families).
 - **Peak memory is what importing costs:** each module of the library peaks between 803 and 1,192 MiB on Linux, and
@@ -356,7 +356,7 @@ test of that.
 | E3's criterion | Over the seven families |
 | --- | --- |
 | At least half the proofs use a stored lemma | 192 of 247 use a stored rewrite lemma. Of those, 28 use one cut from other proofs: 21 use #48's generic rewrites, 4 of `is-icmp-b`'s use `is-icmp`'s, and 3 of `is-logic`'s use `is-add`'s. The rest use their own family's, stored after the proofs were written |
-| At least 10 lemmas meet all four rules | 73 do, 47 of them rewrites |
+| At least 10 lemmas meet all four rules | 75 do, 47 of them rewrites |
 | A proof using the store checks faster than without it, at the median | Yes: 0.54 ms against 1.19 ms, over 206 pairs of a site and a stored lemma its proof names |
 
 So the store makes checking cheaper, and a later family reaches for an earlier one's lemmas where they fit, but
