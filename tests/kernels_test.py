@@ -18,14 +18,18 @@ under a second.
 usage: tests/kernels_test.py
 """
 
+import argparse
 import copy
 import importlib.util
+import io
 import sys
 import typing
 import unittest
 from collections.abc import Callable
+from contextlib import redirect_stdout
 from pathlib import Path
 from typing import Any
+from unittest import mock
 
 ROOT = Path(__file__).resolve().parent.parent
 HERE = ROOT / "bench" / "kernels"
@@ -228,6 +232,10 @@ class Manifest(unittest.TestCase):
             "{repo}/tests/llama/other.txt isn't pinned": lambda m: captured(m)["run"][1].append(
                 "{repo}/tests/llama/other.txt"
             ),
+            # A file of ours run by a relative path from {repo}, which names nothing the lock could pin.
+            "names {repo} but not as {repo}/PATH": lambda m: captured(m)["run"].insert(
+                0, ["env", "-C", "{repo}", "python3", "tests/llama/build_capture.py"]
+            ),
             "isn't a path in this repository": lambda m: captured(m)["pinned"].update({"../x": "0" * 64}),
             "pinned tests/llama/nothing doesn't exist": lambda m: captured(m)["pinned"].update(
                 {"tests/llama/nothing": "0" * 64}
@@ -309,11 +317,20 @@ class Locked(unittest.TestCase):
 
         # A change with its lock replaced by the digest it ends at: the chain from the lock holds, so only the
         # record shows it, and this test's ORIGINAL.
+        # Amendments made since start from the lock replaced, so a re-lock drops them, as `fixed` does.
         relocked = changed(MANIFEST, level)
+        relocked.pop("amendment", None)
         relocked["lock"]["sha256"] = kernels.digest(relocked)
         self.assertEqual(kernels.problems(relocked), [])
         self.assertNotEqual(relocked["lock"]["sha256"], ORIGINAL)
         self.assertTrue([line for line in kernels.recorded(relocked) if "isn't in docs/roadmap.md#" in line])
+        # Every reader refuses it before using it: demand.py's run and check too, not only `kernels.py check`.
+        self.assertTrue([line for line in kernels.validate(relocked) if "isn't in docs/roadmap.md#" in line])
+        for command in (demand.run, demand.check):
+            out = io.StringIO()
+            with mock.patch.object(demand.kernels, "load", return_value=relocked), redirect_stdout(out):
+                self.assertEqual(command(argparse.Namespace()), 1, command.__name__)
+            self.assertIn("isn't in docs/roadmap.md#", out.getvalue(), command.__name__)
         # The same change by an amendment from the digest approved meets every rule.
         honest = amended(MANIFEST, changed(MANIFEST, level), reason="level 9")
         self.assertEqual(honest["amendment"][0]["from"], ORIGINAL)

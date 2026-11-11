@@ -94,6 +94,8 @@ PLACES = ("src", "build", "out", "repo")
 PLACEHOLDER = re.compile(r"\{([^{}]*)\}")
 # A file of this repository a command names, which has to be pinned by its hash.
 REPO_FILE = re.compile(r"\{repo\}/(\S+)")
+# {repo} alone, as `env -C {repo}` would use it: a way to run a file of ours that names no path to pin.
+BARE_REPO = re.compile(r"\{repo\}(?!/)")
 
 
 def load(path: Path = MANIFEST) -> dict[str, Any]:
@@ -335,13 +337,19 @@ def _pinned(label: str, value: Any) -> tuple[set[str], list[str]]:
 
 
 def _unpinned(label: str, strings: list[str], pinned: set[str]) -> list[str]:
-    """Each file of this repository `strings` name, as {repo}/PATH, that isn't in `pinned`."""
+    """Each file of this repository `strings` name, as {repo}/PATH, that isn't in `pinned`, and each string
+    that names {repo} other than as {repo}/PATH, so that every file of ours a command runs is named."""
     return [
         f"{label}: {{repo}}/{path} isn't pinned: a file of this repository that a workload runs is its "
         "driver or in `pinned`, with its SHA-256"
         for s in strings
         for path in REPO_FILE.findall(s)
         if path not in pinned
+    ] + [
+        f"{label}: {s!r} names {{repo}} but not as {{repo}}/PATH: a file of this repository is named by its "
+        "path, so the lock can pin it"
+        for s in strings
+        if BARE_REPO.search(s)
     ]
 
 
@@ -616,6 +624,11 @@ def recorded(manifest: dict[str, Any]) -> list[str]:
     return []
 
 
+def validate(manifest: dict[str, Any]) -> list[str]:
+    """Everything wrong with a manifest and its lock's record: what every reader checks before using it."""
+    return problems(manifest) + recorded(manifest)
+
+
 def fixed(manifest: dict[str, Any], names: list[str], on: str, where: str) -> dict[str, Any]:
     """`manifest` as it stands once the maintainer approves `names`: fixed, with its lock."""
     m = copy.deepcopy(manifest)
@@ -718,7 +731,7 @@ def main(argv: list[str]) -> int:
             return 2
         print(source(argv[1], manifest["project"][argv[1]]))
         return 0
-    found = problems(manifest) + recorded(manifest)
+    found = validate(manifest)
     for line in found:
         print(f"FAIL {line}")
     if found:

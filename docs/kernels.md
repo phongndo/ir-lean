@@ -616,7 +616,8 @@ Commands name the source at its pin, `{src}`, the project's build, `{build}`, a 
 `{out}`, this repository, `{repo}`, and an input, `{input:NAME}`. A workload says what's `measure`d, `"time"` or a
 `"rate"` the benchmark prints, and which, and has one [check](#each-workloads-check) or more. A driver of ours is
 pinned by its SHA-256, and so is every other file of this repository a workload or a check runs, in a `pinned` table
-of its path and hash: a `{repo}/PATH` that's neither is refused.
+of its path and hash: a `{repo}/PATH` that's neither is refused, and so is `{repo}` other than as `{repo}/PATH`, as
+`env -C {repo}` would use it to run a file by a relative path that names nothing to pin.
 
 The proposal had approving and fixing as one act. Decision 7 put libsodium's driver between them, so they were two,
 and both were done on 2026-11-10:
@@ -673,8 +674,9 @@ it.
   `tests/llvm/targets.toml`'s pin.
 - Cases built to break each rule are refused: a pin, a hash, a flag, a kernel, a workload's commands, its measure, a
   check, an input, the driver, a file of ours a check runs, or the LLVM commit changed under the lock, in the manifest
-  as it is and in one locked the same way, a workload left without a check, a `{repo}` file that isn't pinned, an
-  amendment that starts from the wrong digest, a lock that isn't in its record, an approved project that's rejected.
+  as it is and in one locked the same way, a workload left without a check, a `{repo}` file that isn't pinned or
+  `{repo}` named without a path, an amendment that starts from the wrong digest, a lock that isn't in its record, an
+  approved project that's rejected.
 - `reference.py` meets its documents' vectors and starts from the driver's seeds and pattern.
 - This page names every project with its commit, and `bench/kernels/results/demand.json` is about the manifest's pins.
 

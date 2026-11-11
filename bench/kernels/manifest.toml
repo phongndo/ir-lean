@@ -20,7 +20,8 @@
 # a candidate is shown to compute what the baseline does before it's timed: "output", what the run writes,
 # hashed and compared bit for bit with the baseline's, or "known-answers", the project's own test of the same
 # functions in its checking mode. Every file of this repository a workload or a check runs, {repo}/PATH, is its
-# `driver`, pinned by `driver_sha256`, or in a `pinned` table of its path and SHA-256, so the lock covers it.
+# `driver`, pinned by `driver_sha256`, or in a `pinned` table of its path and SHA-256, so the lock covers it, and
+# {repo} appears only as {repo}/PATH.
 
 schema = "ir-lean.kernels.manifest/2"
 

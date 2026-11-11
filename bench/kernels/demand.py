@@ -343,7 +343,7 @@ def kept(old: dict[str, Any] | None, keep: list[str]) -> dict[str, Any]:
 
 def run(args: argparse.Namespace) -> int:
     manifest = kernels.load()
-    if found := kernels.problems(manifest):
+    if found := kernels.validate(manifest):
         print("\n".join(f"FAIL {line}" for line in found))
         return 1
     with_units = [n for n, p in manifest["project"].items() if p.get("unit")]
@@ -396,7 +396,7 @@ def check(args: argparse.Namespace) -> int:
     """Every unit compiles at the pin and defines the kernels the manifest names, and every file of the
     project's own tests that a workload's known-answers check names is in its source."""
     manifest = kernels.load()
-    if found := kernels.problems(manifest):
+    if found := kernels.validate(manifest):
         print("\n".join(f"FAIL {line}" for line in found))
         return 1
     if not EMITTER.exists() or pinned_clang() is None:
