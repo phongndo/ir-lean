@@ -29,6 +29,8 @@ pkgs.mkShell.override { inherit (llvmPackages) stdenv; } {
       cmake
       # Provides lean and lake; lean-toolchain picks the version.
       elan
+      # Builds irl, the command line and MCP server, from irl/. docs/irl.md.
+      go
       hyperfine
       llvmPackages.clang-tools
       llvmPackages.lld
@@ -45,6 +47,7 @@ pkgs.mkShell.override { inherit (llvmPackages) stdenv; } {
       deadnix
       editorconfig-checker
       gersemi
+      gopls
       neocmakelsp
       nixd
       nixfmt
@@ -69,6 +72,8 @@ pkgs.mkShell.override { inherit (llvmPackages) stdenv; } {
   # uv uses this Python instead of downloading its own.
   UV_PYTHON = "${pkgs.python3}/bin/python3";
   UV_PYTHON_DOWNLOADS = "never";
+  # Go builds irl with the shell's Go, and never downloads another toolchain.
+  GOTOOLCHAIN = "local";
   # Python tools in this shell put their dependencies here, which isn't what uv's Python should see.
   # Tests and Lean processes at once: every core, unless memory runs out first, as a Lean process can take 3 GB.
   shellHook = ''

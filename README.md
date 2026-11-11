@@ -53,6 +53,14 @@ theorem popcount_correct (x : BitVec 32) :
     popcount (some x) = Outcome.ok (some (pop x))
 ```
 
+`build/irl` runs every tool, as `irl emit`, `irl verify`, `irl ptf` and `irl store`, and `irl mcp` serves them to
+agents. To check that proof against what clang produced, with a JSON answer:
+
+```console
+build/irl verify check --c tests/real/bi_reverse.c --namespace Real --function popcount \
+  --proof tests/proofs/Popcount.lean --theorem popcount_correct --pretty
+```
+
 ## Docs
 
 | Doc | Read it for |
@@ -63,6 +71,7 @@ theorem popcount_correct (x : BitVec 32) :
 | [Scalable vectors](docs/scalable-vectors.md) | How the model reads `<vscale x N x iM>` and `vscale`, and why `vscale` is a parameter `Refines` quantifies over, not a choice |
 | [Refinement](docs/refinement.md) | What `IRLean.Refines` says, its laws, and what a refinement certificate says about LLVM |
 | [Memory safety](docs/memory.md) | What a memory-safety theorem claims, the model of memory, and what it leaves out |
+| [irl](docs/irl.md) | The `irl` command, and the MCP server agents use: each tool it runs, and what a call answers |
 | [Verify](docs/verify.md) | Checking a claim from a script or an agent, with a JSON answer: proved, counterexample, unsupported, timeout or error |
 | [Lemma store](docs/lemma-store.md) | Checked lemmas later proofs can find and reuse, the bar each meets, and looking one up from a script or an agent |
 | [Proof tests](docs/proof-tests.md) | Tier 1: a property run on generated inputs, with each counterexample shrunk, checked by the kernel and stored. What it measured, and the design of tiers 2 and 3 |

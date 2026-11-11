@@ -13,6 +13,7 @@ files() { git ls-files --cached --others --exclude-standard "$@" | while read -r
 mapfile -t cpp < <(files 'src/*.cpp' 'src/*.h')
 mapfile -t wrappers < <(files 'tests/llvm/wrappers/*.cpp' 'tests/llvm/include/**/*.h')
 mapfile -t c < <(files 'tests/real/*.c')
+mapfile -t go < <(files 'irl/*.go')
 mapfile -t ll < <(files 'tests/real/*.ll' 'tests/llvm/rewrites/*.ll' 'tests/verification_negative/cases/*/*.ll' 'tests/llvm_scope/*.ll' 'bench/instcombine/fixture/*.ll')
 mapfile -t shell < <(files '*.sh')
 mapfile -t toml < <(files '*.toml')
@@ -23,6 +24,7 @@ mapfile -t nix < <(files '*.nix')
 if [ "${1:-}" = --fix ]; then
   clang-format -i "${cpp[@]}" "${wrappers[@]}" "${c[@]}"
   uv run --quiet ruff format
+  gofmt -w "${go[@]}"
   shfmt -w -i 2 "${shell[@]}"
   nixfmt "${nix[@]}"
   gersemi -i --quiet CMakeLists.txt
@@ -82,6 +84,18 @@ check 'Python lockfile' uv lock --check
 check 'Python format' uv run --quiet ruff format --check
 check 'Python lint' uv run --quiet ruff check
 check 'Python types' uv run --quiet ty check
+
+# gofmt -l lists what it would change, and exits 0 either way.
+unformatted() {
+  local found
+  found=$("$@") || return 1
+  [ -z "$found" ] || {
+    echo "$found"
+    return 1
+  }
+}
+check 'Go format' unformatted gofmt -l "${go[@]}"
+check 'Go lint' go -C irl vet ./...
 
 check 'Shell format' shfmt -d -i 2 "${shell[@]}"
 check 'Shell lint' shellcheck "${shell[@]}"

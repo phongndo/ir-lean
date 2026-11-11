@@ -10,11 +10,14 @@ the same property tries it first. docs/proof-tests.md has the design, the contra
 Tier 1 never proves anything. `passed_tier1` means no input it tried made the statement false: tested, not
 proved.
 
-usage: tools/prooftest/prooftest.py run [REQUEST.json] [--ir FILE | --c FILE [--cflags FLAGS]] [--function F]
-                                    [--statement S] [--namespace NS] [--seed N] [--max-inputs N] [--timeout S]
-                                    [--memory-mb MB] [--input-timeout S] [--store DIR | --no-store]
-                                    [--no-shrink] [--work-dir DIR] [--pretty]
+usage: tools/prooftest/prooftest.py run [REQUEST.json|-] [--ir FILE | --c FILE [--cflags FLAGS]]
+                                    [--function F] [--statement S] [--namespace NS] [--seed N]
+                                    [--max-inputs N] [--timeout S] [--memory-mb MB] [--input-timeout S]
+                                    [--store DIR | --no-store] [--no-shrink] [--work-dir DIR] [--pretty]
        tools/prooftest/prooftest.py capabilities [--pretty]
+
+With `-`, the request is read from stdin, with paths relative to the working directory, as irl's MCP server
+sends it.
 """
 
 from __future__ import annotations
@@ -199,6 +202,40 @@ REQUEST_FIELDS = {
     "Default build/prooftest/store",
     "verify_confirm": "auto, always or never: when tools/verify.py confirms a counterexample. Default auto",
     "limits": "{timeout_seconds, memory_mb, input_timeout_seconds}",
+}
+
+# REQUEST_FIELDS as a JSON Schema, which irl's MCP server gives as `ptf_run`'s input. load_request is still
+# what decides a request is valid: this is what a client checks before it asks. irl/schema_test.go checks
+# its properties are REQUEST_FIELDS.
+REQUEST_JSON_SCHEMA: dict[str, Any] = {
+    "type": "object",
+    "properties": {
+        name: {**schema, "description": REQUEST_FIELDS[name]}
+        for name, schema in {
+            "schema": {"const": REQUEST_SCHEMA},
+            "input": verify.REQUEST_JSON_SCHEMA["properties"]["input"],
+            "function": {"type": "string", "minLength": 1},
+            "namespace": {"type": "string", "minLength": 1},
+            "statement": {"type": "string", "minLength": 1},
+            "seed": {"type": "integer", "minimum": 0, "maximum": 2**63},
+            "max_inputs": {"type": "integer", "minimum": 1, "maximum": 10_000_000},
+            "min_satisfied": {"type": "integer", "minimum": 1, "maximum": 10_000_000},
+            "shrink": {"type": "boolean"},
+            "store": {"type": ["string", "null"], "minLength": 1},
+            "verify_confirm": {"enum": ["auto", "always", "never"]},
+            "limits": {
+                "type": "object",
+                "properties": {
+                    "timeout_seconds": {"type": "number", "minimum": 1, "maximum": 86400},
+                    "memory_mb": {"type": "integer", "minimum": 64, "maximum": 1048576},
+                    "input_timeout_seconds": {"type": "number", "minimum": 0.05, "maximum": 3600},
+                },
+                "additionalProperties": False,
+            },
+        }.items()
+    },
+    "required": ["input", "function", "statement"],
+    "additionalProperties": False,
 }
 
 
@@ -1411,6 +1448,7 @@ def capabilities() -> dict[str, Any]:
         "reasons": {code: {"status": s, "meaning": m} for code, (s, m) in REASONS.items()},
         "evidence": EVIDENCE,
         "request_fields": REQUEST_FIELDS,
+        "request_json_schema": REQUEST_JSON_SCHEMA,
         "defaults": {**DEFAULTS, "store": str(DEFAULT_STORE)},
         "binders": "BitVec w, IRLean.Val w (poison included) and Bool. Hypotheses are binders whose "
         "type is a "
@@ -1439,7 +1477,9 @@ def main(argv: list[str] | None = None) -> int:
     caps = sub.add_parser("capabilities", help="print the contract as JSON")
     caps.add_argument("--pretty", action="store_true")
     go = sub.add_parser("run", help="run one property")
-    go.add_argument("request_file", nargs="?", type=Path, help="a request as JSON")
+    go.add_argument(
+        "request_file", nargs="?", type=Path, help="a request as JSON, or - to read it from stdin"
+    )
     source = go.add_mutually_exclusive_group()
     source.add_argument("--ir", help="LLVM IR, .ll or .bc")
     source.add_argument("--c", help="C source, compiled with clang")
@@ -1497,13 +1537,16 @@ def main(argv: list[str] | None = None) -> int:
         if given:
             raw = "a request file and request flags together"
         else:
-            base = args.request_file.resolve().parent
+            # From stdin, paths are relative to the working directory, as they are for flags.
+            stdin = str(args.request_file) == "-"
+            if not stdin:
+                base = args.request_file.resolve().parent
             try:
-                raw = json.loads(args.request_file.read_text())
+                raw = json.loads(sys.stdin.read() if stdin else args.request_file.read_text())
             except OSError as error:
                 raw = f"can't read {args.request_file}: {error}"
             except json.JSONDecodeError as error:
-                raw = f"{args.request_file} isn't JSON: {error}"
+                raw = f"{'stdin' if stdin else args.request_file} isn't JSON: {error}"
     else:
         raw = {k: v for k, v in flags.items() if v is not None}
         if args.ir is not None:

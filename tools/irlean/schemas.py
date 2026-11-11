@@ -63,6 +63,9 @@ PEEPHOLE_FOLDS = "ir-lean.peephole.folds/1"
 PEEPHOLE_COMPARISON = "ir-lean.peephole.comparison/1"
 PEEPHOLE_SCORE = "ir-lean.peephole.score/1"
 PEEPHOLE_MEASURE = "ir-lean.peephole.measure/1"
+# irl, the command line and MCP server, in Go: every command's contract, from `irl capabilities`. Go can't
+# import this, so irl/schema_test.go checks irl names the same one. docs/irl.md.
+IRL_CAPABILITIES = "ir-lean.irl.capabilities/1"
 # tests/verify_negative.py: a case, the envelope around a checker's answer, and the report.
 # docs/llvm-negative-verification.md.
 NEGATIVE_CASE = "ir-lean.verification-negative.case/1"
