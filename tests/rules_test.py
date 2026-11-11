@@ -12,6 +12,8 @@
 - The IR reader: instructions the format has are read, and the rest are leaves; a cut stops at its depth; a
   term printed and read again is the same term; a slice's lines are the function's own; a rewritten function
   has the new value at each use and none of the dead cut.
+- A certificate Lean didn't compile is `refused` only for an error Lean reported and exited on: a limit or
+  SIGKILL is `unknown`, and any other crash an `error`, even after Lean printed an error.
 - rules/Rules/Statements.lean is what rules/src generates, and the importer's record names the rules imported.
 - The search's core finds the chain it should, the same way each time.
 
@@ -45,6 +47,7 @@ import argparse
 import json
 import re
 import shutil
+import signal
 import sys
 import tempfile
 from pathlib import Path
@@ -454,6 +457,21 @@ def static_certificates() -> None:
         report(False, "states that differ where no rule applied have no proof")
     except certify.Uncertifiable:
         report(True, "states that differ where no rule applied have no proof")
+    # Only an error Lean reported and exited on refuses a certificate. A crash after printing one doesn't, so
+    # a negative case can't pass because Lean died.
+    mismatch = "ChainCert.lean:3:2: error: type mismatch\n"
+    for code, said, want in [
+        (1, mismatch, ("refused", "proof_failed")),
+        (-signal.SIGSEGV, mismatch, ("error", "tool_failed")),
+        (134, mismatch, ("error", "tool_failed")),
+        (-signal.SIGKILL, "", ("unknown", "killed")),
+        (137, "", ("unknown", "killed")),
+        (1, "ChainCert.lean:3:2: error: (kernel) deterministic timeout\n", ("unknown", "heartbeat_limit")),
+    ]:
+        got = certify.failed(proc.Ran(["lean"], code, b"", said.encode(), 0.0))[:2]
+        report(
+            got == want, f"a certificate's compile that ended with {code} is {want[0]}: {want[1]}", str(got)
+        )
 
 
 def static_search() -> None:

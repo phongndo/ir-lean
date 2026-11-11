@@ -6,11 +6,13 @@ page is the format, what the statement claims, how the two are tied, what's trus
 rewrites are rules now. [Rule search](rule-search.md) is the search that uses them. For what any theorem here means,
 read [trust](trust.md) first.
 
-It's [decision 10 after #103](roadmap.md)'s rule format and certify mode, and decision 4's rules. The plugin that will
-generate its C++ matcher from the same source isn't built: [below](#the-plugin) says how the format allows it.
+It's the rule format and certify mode of decision 10, and the rules of decision 4, of the
+[thirteen decisions after #103](roadmap.md#thirteen-decisions-of-2026-11-09-after-103). The plugin that will generate
+its C++ matcher from the same source isn't built: [below](#the-plugin) says how the format allows it.
 
 Facts here were checked on 2026-11-10 on top of `df3e997`, on z, x86-64 Linux, in the dev shell, with Lean 4.35.0 and
-LLVM 23.1.3.
+LLVM 23.1.3. On top of `c0d070c`, the importer's counts, `rules.py check`, certify mode's example and the tests were
+run again, with the same results.
 
 ## What's there
 
@@ -253,7 +255,8 @@ slice out of the functions it ran on, which the search does for its own rewrites
   agent, and stored.
 - **Certify mode needs every state.** Given only the function before and after a chain, it doesn't find the states
   between.
-- **The second agent's review of each statement,** [decision 11](roadmap.md), hasn't happened for these 182.
+- **The second agent's review of each statement,** by
+  [decision 11](roadmap.md#thirteen-decisions-of-2026-11-09-after-103), hasn't happened for these 182.
 - **`rules.py check` reads the library `lake` built.** It checks `lake` has nothing left to build, and doesn't build.
 
 ## Reproducing

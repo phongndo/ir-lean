@@ -2,22 +2,28 @@
 
 A deterministic search that rewrites real LLVM IR using only [rules](rules.md) already proved for every input, so what
 it finds carries its proof: a chain of proved rules, composed by `IRLean.Refines.trans`. It calls no model. It's the
-engine's core, by [decision 4 after #103](roadmap.md), and this page is what it does, what it found on the fixtures it
-was built on, what each part costs, and what it can't do. For what any theorem here means, read [trust](trust.md)
-first.
+engine's core, by decision 4 of the
+[thirteen decisions after #103](roadmap.md#thirteen-decisions-of-2026-11-09-after-103), whose numbers this page uses.
+This page is what it does, what it found on the fixtures it was built on, what each part costs, and what it can't do.
+For what any theorem here means, read [trust](trust.md) first.
 
 Facts here were checked on 2026-11-10 on top of `df3e997`, on z, a Linux machine with 32 cores and 30 GB shared with
-four other lanes through the machine's pool of heavy jobs, in the dev shell, with Lean 4.35.0 and LLVM 23.1.3.
+four other lanes through the machine's pool of heavy jobs, in the dev shell, with Lean 4.35.0 and LLVM 23.1.3. On top
+of `c0d070c`, the tests and the first three runs [below](#what-it-found-on-the-fixtures) were run again, with the same
+results. The run on LLVM's InstSimplify tests wasn't, after [#105](https://github.com/phongndo/ir-lean/pull/105)
+changed what the emitter refuses.
 
 ## What it found
 
-- **Nothing that counts as a win, and nothing here is counted toward [S3's bar or the checkpoint](roadmap.md).** The
-  search was run only on small files in the repo and on LLVM's own regression tests, never on the corpus, which isn't
-  fixed yet, on zlib, on llama.cpp or on any outside project.
+- **Nothing that counts as a win, and nothing here is counted toward S3's bar or the checkpoint, of
+  [decision 8](roadmap.md#thirteen-decisions-of-2026-11-09-after-103).** The search was run only on small files in the
+  repo and on LLVM's own regression tests, never on the corpus, which isn't fixed yet, on zlib, on llama.cpp or on any
+  outside project.
 - **Against `opt -O3`, `llvm-mca` kept none of what it found.** Every rule it has today was cut from InstSimplify's
   proofs, so `opt -O3` makes the same rewrites itself: on all 225 rewrites found in LLVM's InstSimplify tests, both
-  sides come out of `opt -O3` and `llc -O3` with the same uOps. That's [decision 3](roadmap.md)'s point, measured:
-  LLVM's rewrites are the base a search starts from, not its wins. A win needs a rule LLVM doesn't have.
+  sides come out of `opt -O3` and `llc -O3` with the same uOps. That's
+  [decision 3](roadmap.md#thirteen-decisions-of-2026-11-09-after-103)'s point, measured: LLVM's rewrites are the base a
+  search starts from, not its wins. A win needs a rule LLVM doesn't have.
 - **Everything it found was certified.** On LLVM's 190 InstSimplify test files, with every candidate kept, the search
   found 225 rewrites that aren't part of another, using 115 of the 144 rules it can apply, and Lean proved each
   again, as a slice, and 221 of them as the whole function too: [below](#on-llvms-instsimplify-tests). The longest
@@ -50,7 +56,7 @@ four other lanes through the machine's pool of heavy jobs, in the dev shell, wit
    `llvm-mca`, for `--mcpu`, `x86-64-v3` by default, and a candidate is kept only if it takes fewer uOps. So a rewrite
    `opt -O3` makes itself is dropped. `--baseline none` leaves `opt -O3` out, and `--keep all` keeps every candidate,
    labeled with what `llvm-mca` said. uOps only filter: a claim of speed needs wall time on the real workload, as
-   [decision 6](roadmap.md) says, which nothing here measures.
+   [decision 6](roadmap.md#thirteen-decisions-of-2026-11-09-after-103) says, which nothing here measures.
 6. **Certifies each kept rewrite,** in [certify mode](rules.md#how-the-matcher-and-the-statement-are-tied): the
    chain's states as IR, the rules' names, and a certificate the kernel checks.
 
@@ -74,7 +80,8 @@ instruction counts, `llvm-mca`'s uOps, and each certificate's status, claim, axi
 
 ### Tiers
 
-By [decision 9](roadmap.md), each result says what's proved and what the proof rests on:
+By [decision 9](roadmap.md#thirteen-decisions-of-2026-11-09-after-103), each result says what's proved and what the
+proof rests on:
 
 | Tier | When | What's proved | What's trusted beyond [the usual](rules.md#whats-trusted) |
 | --- | --- | --- | --- |
@@ -157,14 +164,14 @@ cost, and isn't done.
 ## What it can't do
 
 - **Find a win over `clang -O3`.** With only LLVM's own rewrites as rules, it finds what `opt -O3` finds. Rules from
-  elsewhere, an agent's or Minotaur's, each proved once and stored, are what [decision 4](roadmap.md) expects to
-  feed it, and none exists yet.
+  elsewhere, an agent's or Minotaur's, each proved once and stored, are what
+  [decision 4](roadmap.md#thirteen-decisions-of-2026-11-09-after-103) expects to feed it, and none exists yet.
 - **Divisions.** `udiv`, `sdiv`, `urem` and `srem` can be undefined, so they aren't values, and a cut stops at one.
   38 of the 182 rules have a division in their pattern: each is proved, and none is applied. Following a division
   takes a congruence lemma for runs that can be undefined, which isn't written.
 - **Vectors, floating point, memory, calls, `freeze` and `phi`.** Each is a leaf. So nothing here rewrites SIMD code,
-  which is where [decision 7](roadmap.md)'s corpus is. Vector rules need lane-wise statements and congruence, and
-  the x86 intrinsics another lane is adding.
+  which is where [decision 7](roadmap.md#thirteen-decisions-of-2026-11-09-after-103)'s corpus is. Vector rules need
+  lane-wise statements and congruence, and the x86 intrinsics another lane is adding.
 - **Whole functions of more than one block, or with memory.** Slices only, until F4's cut lemma and memory in
   `Refines`.
 - **Operands the other way round.** A pattern isn't commutative, and the search has commutativity as a rule only
@@ -178,9 +185,8 @@ cost, and isn't done.
 - **More than its bounds.** Past `--depth`, `--steps` or `--states` it doesn't look. A step's proof follows the state
   as a tree, so a cut where one instruction is read many times over gets a long proof, and past 4,000 nodes none.
 - **Everything in a function's text.** It reads IR as text. Constant expressions, `undef`, vector operands and metadata
-on an
-  instruction make that instruction a leaf, which loses rewrites and can't make a wrong one pass: a certificate is
-  about what `build/ir-lean` reads from the IR the search wrote.
+  on an instruction make that instruction a leaf, which loses rewrites and can't make a wrong one pass: a certificate
+  is about what `build/ir-lean` reads from the IR the search wrote.
 
 ## Reproducing
 

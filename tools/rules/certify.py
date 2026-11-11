@@ -25,6 +25,7 @@ from __future__ import annotations
 
 import json
 import re
+import signal
 import sys
 import time
 from dataclasses import dataclass
@@ -38,7 +39,7 @@ import proved
 ROOT = Path(__file__).resolve().parent.parent.parent
 sys.path.append(str(ROOT / "tools"))
 
-from irlean import hashing, lean, schemas  # noqa: E402
+from irlean import hashing, lean, proc, schemas  # noqa: E402
 from irlean import verdict as core  # noqa: E402
 
 TOOL = ROOT / "build" / "ir-lean"
@@ -299,11 +300,7 @@ def check(
     cert = proved.run(lean.argv(proved.LEAN_MB, "-o", f"{CERT}.olean", f"{CERT}.lean"), env, cwd=out)
     cert_step = core.Step.of("lean", cert)
     if cert.exit != 0 or cert.limit is not None:
-        limit = cert.limit or lean.limit_of(cert.output)
-        if limit:
-            return done("unknown", str(limit), cert.output)
-        errors = [m.text for m in lean.messages(cert.output) if m.severity == "error"]
-        return done("refused", "proof_failed", "\n".join(errors) or cert.output)
+        return done(*failed(cert))
     asked, answers = proved.ask(
         {
             "mode": "cert",
@@ -357,6 +354,22 @@ def check(
     if decision.reason == "no_evidence":
         detail += "\n" + (audit.output if audit.exit != 0 else replay.output)
     return done(status, decision.reason, detail)
+
+
+def failed(ran: proc.Ran) -> tuple[str, str, str]:
+    """The status, reason and detail of a certificate Lean didn't compile. A limit is `unknown`, and SIGKILL
+    is how a cap or the OOM killer stops a process. Any other signal or crash is no answer from Lean, so it's
+    an `error` and never a refusal, even after Lean printed an error: what it printed may be a part. Only an
+    error Lean reported and then exited on is `refused`."""
+    limit = ran.limit or lean.limit_of(ran.output)
+    if limit is None and ran.exit in (-signal.SIGKILL, 128 + signal.SIGKILL):
+        limit = "killed"
+    if limit:
+        return "unknown", str(limit), ran.output
+    if ran.exit < 0 or ran.exit >= 128:
+        return "error", "tool_failed", f"lean ended with {ran.exit}\n{ran.output}"
+    errors = [m.text for m in lean.messages(ran.output) if m.severity == "error"]
+    return "refused", "proof_failed", "\n".join(errors) or ran.output
 
 
 def chain_module(preamble: str, texts: list[tuple[str, list[str]]]) -> str:
