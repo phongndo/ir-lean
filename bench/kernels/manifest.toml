@@ -1,0 +1,1018 @@
+# The kernel corpus: the fixed list of real projects the superoptimizer is judged on. docs/kernels.md.
+# It isn't docs/corpus.md's corpus, the pairs of IR tools/corpus/capture.py takes from `opt`.
+#
+# While `state` is "proposed" this is a proposal, and nothing here is approved. To approve a list, the
+# maintainer names the projects in `approved`, sets `state` to "fixed", and adds a [lock] with the digest
+# `bench/kernels/kernels.py digest NAME...` prints. After that, tests/kernels_test.py fails on any change to an
+# approved project, or to what the corpus compiles with, that no [[amendment]] records with its reason.
+
+schema = "ir-lean.kernels.manifest/1"
+
+[corpus]
+state = "proposed"
+approved = []
+# The compiler the baseline is built with: tests/llvm/targets.toml's pin.
+llvm_tag = "llvmorg-23.1.3"
+target = "x86_64-unknown-linux-gnu"
+# Decision 6's baseline. A project that builds at a lower level is compiled at this one.
+opt = "-O3"
+# What the dev shell's compiler wrapper adds and stock clang doesn't, undone, as tests/llama.py does.
+flags = ["-fomit-frame-pointer", "-momit-leaf-frame-pointer"]
+machine = "z: AMD Ryzen 9 9950X, znver5, AVX-512 with VNNI, 32 threads, 30 GB"
+
+# ---------------------------------------------------------------------------------------------------------------
+# Inference
+
+[project."llama.cpp"]
+what = "LLM inference in C and C++, with ggml's quantized matrix kernels"
+users = "Ollama pins and builds it"
+domain = "inference"
+status = "recommended"
+repository = "https://github.com/ggml-org/llama.cpp"
+tag = "b12189"
+rev = "80d2c0c2c56e4a1bbf74be98f64b99927bf230bc"
+nix_hash = "sha256-Y57pW8G1grsd6QD+mIQ7F7b2S5bwWdSlH39eRRYr0b0="
+license = "MIT"
+simd = "intrinsics"
+project_opt = "-O3"
+# What llama.cpp's CMake passes in a Release build with GGML_NATIVE, its default, as tests/llama.py records.
+# -march=native on z is znver5, and naming it makes the IR the same on any host.
+flags = [
+  "-DGGML_BACKEND_BUILD",
+  "-DGGML_BACKEND_SHARED",
+  "-DGGML_SCHED_MAX_COPIES=4",
+  "-DGGML_SHARED",
+  "-DGGML_USE_CPU_REPACK",
+  "-DGGML_USE_LLAMAFILE",
+  "-D_GNU_SOURCE",
+  "-D_XOPEN_SOURCE=600",
+  "-Dggml_cpu_EXPORTS",
+  "-DNDEBUG",
+  "-fPIC",
+  "-march=znver5",
+]
+include = [
+  "{src}/ggml/src/..",
+  "{src}/ggml/src/.",
+  "{src}/ggml/src/ggml-cpu",
+  "{src}/ggml/src/../include",
+]
+
+[[project."llama.cpp".unit]]
+source = "ggml/src/ggml-cpu/arch/x86/repack.cpp"
+flags = ["-std=gnu++17"]
+kernels = ["ggml_gemm_q4_K_8x8_q8_K", "ggml_gemv_q4_K_8x8_q8_K"]
+
+[[project."llama.cpp".unit]]
+source = "ggml/src/ggml-cpu/arch/x86/quants.c"
+flags = ["-std=gnu11"]
+kernels = [
+  "ggml_vec_dot_q4_K_q8_K",
+  "ggml_vec_dot_q5_0_q8_0",
+  "ggml_vec_dot_q6_K_q8_K",
+]
+
+[project."llama.cpp".workload]
+what = "Reading a 512-token prompt and generating 128 tokens with a Q4_K_M model, and perplexity on WikiText-2"
+benchmark = "llama-bench and llama-perplexity, llama.cpp's own, as tests/llama_bench.py runs them"
+command = [
+  "tests/llama_bench.py",
+  "{input:qwen2.5-1.5b-instruct-q4_k_m.gguf}",
+  "--text",
+  "{input:wikitext-2-raw-v1.zip}/wiki.test.raw",
+  "--rounds",
+  "10",
+  "--cpus",
+  "8-15",
+  "--threads",
+  "8",
+]
+
+[[project."llama.cpp".workload.input]]
+name = "qwen2.5-1.5b-instruct-q4_k_m.gguf"
+url = "https://huggingface.co/Qwen/Qwen2.5-1.5B-Instruct-GGUF/resolve/main/qwen2.5-1.5b-instruct-q4_k_m.gguf"
+sha256 = "6a1a2eb6d15622bf3c96857206351ba97e1af16c30d7a74ee38970e434e9407e"
+
+[[project."llama.cpp".workload.input]]
+name = "wikitext-2-raw-v1.zip"
+url = "https://huggingface.co/datasets/ggml-org/ci/resolve/main/wikitext-2-raw-v1.zip"
+sha256 = "ef7edb566e3e2b2d31b29c1fdb0c89a4cc683597484c3dc2517919c615435a11"
+
+[project.xnnpack]
+what = "Neural-network operators for CPUs, as thousands of generated microkernels"
+users = "TensorFlow Lite, PyTorch Mobile, ONNX Runtime Mobile and MediaPipe, by its README, and Chromium"
+domain = "inference"
+status = "alternate"
+repository = "https://github.com/google/XNNPACK"
+# It tags no releases: this is its default branch on 2026-11-09.
+tag = "none"
+rev = "8a7926edb1b57eb12abcefd81f653f818db80585"
+nix_hash = "sha256-sx1fQcC4FuEtq9c//tEf/8sRDdsFgmHODRgEMeVJfl4="
+license = "BSD-3-Clause"
+simd = "intrinsics"
+project_opt = "-O2"
+# CMakeLists.txt, lines 1288 to 1298: the flags for the AVX-512 VNNI microkernels.
+flags = [
+  "-DXNN_ENABLE_AVX512VNNI=1",
+  "-DNDEBUG",
+  "-std=c99",
+  "-fPIC",
+  "-mf16c",
+  "-mfma",
+  "-mavx512f",
+  "-mavx512cd",
+  "-mavx512bw",
+  "-mavx512dq",
+  "-mavx512vl",
+  "-mavx512vnni",
+]
+include = ["{src}", "{src}/include", "{src}/src", "{dep:pthreadpool}/include"]
+
+# include/xnnpack.h includes pthreadpool.h, which XNNPACK's CMake downloads: cmake/DownloadPThreadPool.cmake's pin.
+[[project.xnnpack.dep]]
+name = "pthreadpool"
+repository = "https://github.com/google/pthreadpool"
+rev = "15a6644ba1c45f1acc16ac1e883efc3e56c6bed2"
+nix_hash = "sha256-YJD9n8cxoqTrTQJHKuZFW2qnlNcNmh5rQlBpnlF46to="
+
+[[project.xnnpack.unit]]
+source = "src/qs8-qc8w-igemm/gen/qs8-qc8w-igemm-7x16c8-minmax-avx512vnni-prfm.c"
+kernels = ["xnn_qs8_qc8w_igemm_minmax_fp32_ukernel_7x16c8__avx512vnni_prfm"]
+
+[[project.xnnpack.unit]]
+source = "src/qs8-qc8w-gemm/gen/qs8-qc8w-gemm-7x16c8-minmax-fp32-avx512vnni-prfm.c"
+kernels = ["xnn_qs8_qc8w_gemm_minmax_fp32_ukernel_7x16c8__avx512vnni_prfm"]
+
+[[project.xnnpack.unit]]
+source = "src/qd8-f32-qc8w-gemm/gen/qd8-f32-qc8w-gemm-10x16c8-minmax-avx512vnni-prfm.c"
+kernels = ["xnn_qd8_f32_qc8w_gemm_minmax_ukernel_10x16c8__avx512vnni_prfm"]
+
+[[project.xnnpack.unit]]
+source = "src/qs8-rsum/gen/qs8-rsum-avx512vnni-u128-acc2.c"
+kernels = ["xnn_qs8_rsum_ukernel__avx512vnni_u128_acc2"]
+
+[project.xnnpack.workload]
+what = "Its end-to-end model benchmarks, quantized MobileNet v2 among them, with generated weights"
+benchmark = "bench/models, XNNPACK's own, on Google Benchmark"
+command = [
+  "{build}/bench/models/benchmark",
+  "--benchmark_filter=QS8MobileNetV2",
+]
+
+# ---------------------------------------------------------------------------------------------------------------
+# Compression
+
+[project.zlib-ng]
+what = "zlib rewritten for modern processors, with a zlib-compatible API"
+users = "Fedora's system zlib since Fedora 40, as zlib-ng-compat"
+domain = "compression"
+status = "recommended"
+repository = "https://github.com/zlib-ng/zlib-ng"
+tag = "2.3.3"
+rev = "12731092979c6d07f42da27da673a9f6c7b13586"
+nix_hash = "sha256-6GlHCnx9dQtmViPnvHnMS+l9Z+g6M8ynrSxLhLtmAKU="
+license = "Zlib"
+simd = "intrinsics"
+project_opt = "-O2"
+configure = [
+  "cmake",
+  "-S",
+  "{src}",
+  "-B",
+  "{build}",
+  "-G",
+  "Ninja",
+  "-DCMAKE_BUILD_TYPE=Release",
+  "-DZLIB_ENABLE_TESTS=OFF",
+  "-DZLIBNG_ENABLE_TESTS=OFF",
+  "-DWITH_GTEST=OFF",
+]
+# Its CMake's flags for a Release build on x86-64 Linux, read from compile_commands.json on 2026-11-10.
+flags = [
+  "-DHAVE_ATTRIBUTE_ALIGNED",
+  "-DHAVE_BUILTIN_ASSUME_ALIGNED",
+  "-DHAVE_BUILTIN_CTZ",
+  "-DHAVE_BUILTIN_CTZLL",
+  "-DHAVE_CPUID_GNU",
+  "-DHAVE_LINUX_AUXVEC_H",
+  "-DHAVE_SYMVER",
+  "-DHAVE_SYS_AUXV_H",
+  "-DHAVE_VISIBILITY_HIDDEN",
+  "-DHAVE_VISIBILITY_INTERNAL",
+  "-DWITH_GZFILEOP",
+  "-DWITH_OPTIM",
+  "-DX86_AVX2",
+  "-DX86_AVX512",
+  "-DX86_AVX512VNNI",
+  "-DX86_FEATURES",
+  "-DX86_HAVE_XSAVE_INTRIN",
+  "-DX86_PCLMULQDQ_CRC",
+  "-DX86_SSE2",
+  "-DX86_SSE41",
+  "-DX86_SSE42",
+  "-DX86_SSSE3",
+  "-DX86_VPCLMULQDQ_CRC",
+  "-DZLIBNG_NATIVE_API",
+  "-DZLIB_DLL",
+  "-D_LARGEFILE64_SOURCE=1",
+  "-D__USE_LARGEFILE64",
+  "-DNDEBUG",
+  "-std=c11",
+  "-fPIC",
+  "-fno-semantic-interposition",
+]
+include = ["{build}", "{src}"]
+
+[[project.zlib-ng.unit]]
+source = "arch/x86/compare256_avx512.c"
+flags = [
+  "-mavx512f",
+  "-mavx512dq",
+  "-mavx512bw",
+  "-mavx512vl",
+  "-mbmi2",
+  "-mtune=cascadelake",
+  "-fno-lto",
+]
+kernels = ["longest_match_avx512"]
+
+[[project.zlib-ng.unit]]
+source = "deflate_medium.c"
+kernels = ["deflate_medium"]
+
+[[project.zlib-ng.unit]]
+source = "trees.c"
+kernels = ["compress_block", "build_tree"]
+
+[[project.zlib-ng.unit]]
+source = "insert_string.c"
+kernels = ["insert_string", "quick_insert_string"]
+
+[[project.zlib-ng.unit]]
+source = "arch/x86/chunkset_avx512.c"
+flags = [
+  "-mavx512f",
+  "-mavx512dq",
+  "-mavx512bw",
+  "-mavx512vl",
+  "-mbmi2",
+  "-mtune=cascadelake",
+  "-fno-lto",
+]
+kernels = ["inflate_fast_avx512", "chunkmemset_avx512"]
+
+[[project.zlib-ng.unit]]
+source = "inftrees.c"
+kernels = ["zng_inflate_table"]
+
+[[project.zlib-ng.unit]]
+source = "arch/x86/crc32_vpclmulqdq.c"
+flags = [
+  "-mpclmul",
+  "-mvpclmulqdq",
+  "-mavx512f",
+  "-mavx512dq",
+  "-mavx512bw",
+  "-mavx512vl",
+  "-mbmi2",
+  "-mtune=cascadelake",
+  "-fno-lto",
+]
+kernels = ["crc32_fold_vpclmulqdq"]
+
+[project.zlib-ng.workload]
+what = "Compressing the Silesia corpus as one tar at level 6, and decompressing it"
+benchmark = "minigzip, zlib-ng's own, which its deflatebench runs on silesia.tar"
+command = ["{build}/minigzip", "-6", "-c", "{input:silesia.zip}/silesia.tar"]
+
+[[project.zlib-ng.workload.input]]
+name = "silesia.zip"
+url = "https://sun.aei.polsl.pl/~sdeor/corpus/silesia.zip"
+sha256 = "0626e25f45c0ffb5dc801f13b7c82a3b75743ba07e3a71835a41e3d9f63c77af"
+
+[project.zstd]
+what = "Zstandard, a fast compressor with a wide range of ratios"
+users = "The Linux kernel, as lib/zstd, and Chromium, as third_party/zstd"
+domain = "compression"
+status = "alternate"
+repository = "https://github.com/facebook/zstd"
+tag = "v1.5.7"
+rev = "f8745da6ff1ad1e7bab384bd1f9d742439278e99"
+nix_hash = "sha256-tNFWIT9ydfozB8dWcmTMuZLCQmQudTFJIkSr0aG7S44="
+license = "BSD-3-Clause OR GPL-2.0-only"
+simd = "intrinsics"
+project_opt = "-O3"
+# Its CMake's flags for a Release build, read from compile_commands.json on 2026-11-10.
+flags = [
+  "-DXXH_NAMESPACE=ZSTD_",
+  "-DZSTD_LEGACY_SUPPORT=5",
+  "-DZSTD_MULTITHREAD",
+  "-DNDEBUG",
+  "-fPIC",
+]
+include = ["{src}/lib", "{src}/lib/common"]
+
+[[project.zstd.unit]]
+source = "lib/compress/zstd_double_fast.c"
+kernels = ["ZSTD_compressBlock_doubleFast"]
+
+[[project.zstd.unit]]
+source = "lib/decompress/zstd_decompress_block.c"
+kernels = ["ZSTD_decompressSequences_bmi2"]
+
+[[project.zstd.unit]]
+source = "lib/compress/zstd_compress_sequences.c"
+kernels = ["ZSTD_encodeSequences_bmi2"]
+
+[[project.zstd.unit]]
+source = "lib/compress/hist.c"
+kernels = ["HIST_count_parallel_wksp"]
+
+[[project.zstd.unit]]
+source = "lib/compress/zstd_opt.c"
+kernels = [
+  "ZSTD_btGetAllMatches_noDict_3",
+  "ZSTD_compressBlock_opt2",
+  "ZSTD_insertBt1",
+]
+
+[project.zstd.workload]
+what = "Compressing the Silesia corpus as one tar at level 3, and decompressing it"
+benchmark = "zstd -b, its own in-memory benchmark, which its README's table uses on Silesia"
+command = [
+  "{build}/programs/zstd",
+  "-b3",
+  "-i5",
+  "{input:silesia.zip}/silesia.tar",
+]
+
+[[project.zstd.workload.input]]
+name = "silesia.zip"
+url = "https://sun.aei.polsl.pl/~sdeor/corpus/silesia.zip"
+sha256 = "0626e25f45c0ffb5dc801f13b7c82a3b75743ba07e3a71835a41e3d9f63c77af"
+
+[project.libdeflate]
+what = "A whole-buffer DEFLATE, zlib and gzip library"
+users = "htslib, which recommends it for gzip"
+domain = "compression"
+status = "alternate"
+repository = "https://github.com/ebiggers/libdeflate"
+tag = "v1.26"
+rev = "92e6a0db9fa848d742f9eb286c92afc60f2c3dda"
+nix_hash = "sha256-QVF2XL8Qu3mTszKKtx+8BExkTGkpMANXjkAe3XXPUJQ="
+license = "MIT"
+simd = "intrinsics"
+project_opt = "-O2"
+# Its CMake's flags for a Release build, read from compile_commands.json on 2026-11-10. It names no -m flags:
+# each SIMD function carries a target attribute.
+flags = ["-DNDEBUG", "-std=gnu11"]
+include = ["{src}"]
+
+[[project.libdeflate.unit]]
+source = "lib/deflate_compress.c"
+kernels = ["deflate_compress_lazy", "deflate_flush_block"]
+
+[[project.libdeflate.unit]]
+source = "lib/deflate_decompress.c"
+kernels = ["deflate_decompress_bmi2"]
+
+[project.libdeflate.workload]
+what = "Compressing the Silesia corpus as one tar at level 6, and decompressing it"
+benchmark = "programs/benchmark, libdeflate's own"
+command = [
+  "{build}/programs/benchmark",
+  "-6",
+  "{input:silesia.zip}/silesia.tar",
+]
+
+[[project.libdeflate.workload.input]]
+name = "silesia.zip"
+url = "https://sun.aei.polsl.pl/~sdeor/corpus/silesia.zip"
+sha256 = "0626e25f45c0ffb5dc801f13b7c82a3b75743ba07e3a71835a41e3d9f63c77af"
+
+[project.lz4]
+what = "A very fast LZ77 compressor"
+users = "The Linux kernel, as lib/lz4"
+domain = "compression"
+status = "rejected"
+repository = "https://github.com/lz4/lz4"
+tag = "v1.11.0"
+rev = "c72c7c0ec132ad2ce2fe9fad7b0c728d9faee2fc"
+nix_hash = "sha256-wvZI4uWDI3eLEK8GIHPQIsSFtOz2JCeR9M6EZfcJikw="
+license = "BSD-2-Clause"
+simd = "none"
+fails = [3]
+why = "No SIMD in its kernels: lib/*.c has no intrinsic, and its hot loops copy and compare bytes a word at a time"
+
+# ---------------------------------------------------------------------------------------------------------------
+# Codecs
+
+[project.flac]
+what = "The reference FLAC lossless audio encoder and decoder"
+users = "It's the FLAC reference implementation, which distributions ship as flac and libFLAC"
+domain = "codecs"
+status = "recommended"
+repository = "https://github.com/xiph/flac"
+tag = "1.5.0"
+rev = "1507800de4b70e21be71f38caa0d9079d0bc6e45"
+nix_hash = "sha256-B6XRai5UOAtY/7JXNbI3YuBgazi1Xd2ZOs6vvLq9LIs="
+license = "BSD-3-Clause"
+simd = "intrinsics"
+project_opt = "-O3"
+configure = [
+  "cmake",
+  "-S",
+  "{src}",
+  "-B",
+  "{build}",
+  "-G",
+  "Ninja",
+  "-DCMAKE_BUILD_TYPE=Release",
+  "-DWITH_OGG=OFF",
+  "-DBUILD_TESTING=OFF",
+  "-DBUILD_EXAMPLES=OFF",
+  "-DBUILD_DOCS=OFF",
+  "-DINSTALL_MANPAGES=OFF",
+  "-DBUILD_CXXLIBS=OFF",
+]
+# Its CMake's flags for a Release build, read from compile_commands.json on 2026-11-10. It names no -m flags:
+# each SIMD function carries a target attribute.
+flags = [
+  "-DFLAC__NO_DLL",
+  "-DHAVE_CONFIG_H",
+  "-D_DARWIN_C_SOURCE",
+  "-D_FORTIFY_SOURCE=2",
+  "-D_POSIX_PTHREAD_SEMANTICS",
+  "-D_TANDEM_SOURCE",
+  "-D__STDC_WANT_IEC_60559_BFP_EXT__",
+  "-D__STDC_WANT_IEC_60559_DFP_EXT__",
+  "-D__STDC_WANT_IEC_60559_FUNCS_EXT__",
+  "-D__STDC_WANT_IEC_60559_TYPES_EXT__",
+  "-D__STDC_WANT_LIB_EXT2__",
+  "-D__STDC_WANT_MATH_SPEC_FUNCS__",
+  "-DNDEBUG",
+  "-fassociative-math",
+  "-fno-signed-zeros",
+  "-fno-trapping-math",
+  "-freciprocal-math",
+  "-fstack-protector-strong",
+]
+include = ["{src}/include", "{build}", "{src}/src/libFLAC/include"]
+# Not how FLAC is built: bench/kernels/demand.py's relaxed run drops three of its fast-math flags, which put an
+# attribute on every function that the emitter refuses, to say what stops its kernels after that. It keeps
+# -fno-trapping-math, clang's default: -ftrapping-math would make every function strictfp.
+relax = ["-fsigned-zeros", "-fno-associative-math", "-fno-reciprocal-math"]
+
+[[project.flac.unit]]
+source = "src/libFLAC/lpc_intrin_fma.c"
+kernels = [
+  "FLAC__lpc_compute_autocorrelation_intrin_fma_lag_12",
+  "FLAC__lpc_compute_autocorrelation_intrin_fma_lag_16",
+]
+
+[[project.flac.unit]]
+source = "src/libFLAC/lpc_intrin_avx2.c"
+kernels = [
+  "FLAC__lpc_compute_residual_from_qlp_coefficients_16_intrin_avx2",
+  "FLAC__lpc_compute_residual_from_qlp_coefficients_intrin_avx2",
+]
+
+[[project.flac.unit]]
+source = "src/libFLAC/fixed_intrin_avx2.c"
+kernels = ["FLAC__fixed_compute_best_predictor_wide_intrin_avx2"]
+
+[[project.flac.unit]]
+source = "src/libFLAC/stream_encoder_intrin_avx2.c"
+kernels = ["FLAC__precompute_partition_info_sums_intrin_avx2"]
+
+[[project.flac.unit]]
+source = "src/libFLAC/md5.c"
+kernels = ["FLAC__MD5Transform"]
+
+[[project.flac.unit]]
+source = "src/libFLAC/lpc.c"
+kernels = ["FLAC__lpc_restore_signal", "FLAC__lpc_compute_lp_coefficients"]
+
+[[project.flac.unit]]
+source = "src/libFLAC/bitreader.c"
+kernels = ["FLAC__bitreader_read_rice_signed_block_bmi2"]
+
+[[project.flac.unit]]
+source = "src/libFLAC/bitwriter.c"
+kernels = ["FLAC__bitwriter_write_rice_signed_block"]
+
+[[project.flac.unit]]
+source = "src/libFLAC/stream_encoder.c"
+kernels = ["find_best_partition_order_"]
+
+[[project.flac.unit]]
+source = "src/libFLAC/stream_decoder.c"
+kernels = ["read_frame_"]
+
+[[project.flac.unit]]
+source = "src/libFLAC/crc.c"
+kernels = ["FLAC__crc16_update_words64", "FLAC__crc16"]
+
+[[project.flac.unit]]
+source = "src/libFLAC/fixed.c"
+kernels = ["FLAC__fixed_compute_residual"]
+
+[project.flac.workload]
+what = "Decoding the Sintel film's stereo master, and encoding it again at levels 5 and 8"
+benchmark = "The flac command line, the project's own, as bench/kernels/profile.sh runs it"
+command = [
+  "{build}/src/flac/flac",
+  "-s",
+  "-8",
+  "-f",
+  "-o",
+  "{out}/a.flac",
+  "{out}/sintel.wav",
+]
+
+[[project.flac.workload.input]]
+name = "sintel-master-st.flac"
+url = "https://media.xiph.org/sintel/sintel-master-st.flac"
+sha256 = "49b279400b6fcad23f6a8862ae65a2a22f21f249cd7576b09991880da221412b"
+
+[project.libwebp]
+what = "The reference WebP image encoder and decoder"
+users = "Chromium, as third_party/libwebp"
+domain = "codecs"
+status = "recommended"
+repository = "https://github.com/webmproject/libwebp"
+tag = "v1.6.0"
+rev = "4fa21912338357f89e4fd51cf2368325b59e9bd9"
+nix_hash = "sha256-7i4fGBTsTjAkBzCjVqXqX4n22j6dLgF/0mz4ajNA45U="
+license = "BSD-3-Clause"
+simd = "intrinsics"
+project_opt = "-O3"
+configure = [
+  "cmake",
+  "-S",
+  "{src}",
+  "-B",
+  "{build}",
+  "-G",
+  "Ninja",
+  "-DCMAKE_BUILD_TYPE=Release",
+]
+# Its CMake's flags for a Release build, read from compile_commands.json on 2026-11-10.
+flags = [
+  "-DHAVE_CONFIG_H",
+  "-DNDEBUG",
+  "-pthread",
+  "-fPIC",
+  "-fvisibility=hidden",
+]
+include = ["{build}", "{src}"]
+
+[[project.libwebp.unit]]
+source = "src/dec/vp8_dec.c"
+kernels = ["GetCoeffsFast", "GetLargeValue"]
+
+[[project.libwebp.unit]]
+source = "src/dec/tree_dec.c"
+kernels = ["VP8ParseIntraModeRow"]
+
+[[project.libwebp.unit]]
+source = "src/dsp/dec_sse2.c"
+kernels = ["Transform_SSE2"]
+
+[[project.libwebp.unit]]
+source = "src/dsp/yuv_sse41.c"
+flags = ["-msse4.1"]
+kernels = ["VP8YuvToRgb32_SSE41"]
+
+[[project.libwebp.unit]]
+source = "src/dec/vp8l_dec.c"
+kernels = ["DecodeImageData"]
+
+[[project.libwebp.unit]]
+source = "src/utils/huffman_utils.c"
+kernels = ["BuildHuffmanTable"]
+
+[[project.libwebp.unit]]
+source = "src/dsp/lossless_sse2.c"
+kernels = ["PredictorAdd13_SSE2"]
+
+[[project.libwebp.unit]]
+source = "src/dsp/lossless_avx2.c"
+flags = ["-mavx2"]
+kernels = ["TransformColorInverse_AVX2", "PredictorAdd12_AVX2"]
+
+[[project.libwebp.unit]]
+source = "src/enc/backward_references_enc.c"
+kernels = ["VP8LHashChainFill", "VP8LGetBackwardReferences"]
+
+[[project.libwebp.unit]]
+source = "src/dsp/lossless_enc.c"
+kernels = ["GetCombinedEntropyUnrefined_C"]
+
+[[project.libwebp.unit]]
+source = "src/enc/predictor_enc.c"
+kernels = ["VP8LResidualImage"]
+
+[[project.libwebp.unit]]
+source = "src/dsp/lossless_enc_avx2.c"
+flags = ["-mavx2"]
+kernels = [
+  "CombinedShannonEntropy_AVX2",
+  "VectorMismatch_AVX2",
+  "CollectColorBlueTransforms_AVX2",
+]
+
+[[project.libwebp.unit]]
+source = "src/dsp/enc_sse41.c"
+flags = ["-msse4.1"]
+kernels = ["QuantizeBlock_SSE41"]
+
+[[project.libwebp.unit]]
+source = "src/dsp/enc_sse2.c"
+kernels = ["FTransform_SSE2", "ITransform_SSE2", "SSE4x4_SSE2"]
+
+[project.libwebp.workload]
+what = "Decoding the WebP gallery's five lossy and five lossless images, and encoding the lossless ones' pixels"
+benchmark = "dwebp and cwebp, the project's own tools, on Google's own WebP gallery, as bench/kernels/profile.sh runs them"
+command = ["{build}/dwebp", "{input:1.webp}", "-ppm", "-o", "{out}/1.ppm"]
+
+[[project.libwebp.workload.input]]
+name = "1.webp"
+url = "https://www.gstatic.com/webp/gallery/1.webp"
+sha256 = "4a5afeaff8483923da964bc7896f02d0283e8bff99b5b8f82a31ae3214dab1d0"
+
+[[project.libwebp.workload.input]]
+name = "2.webp"
+url = "https://www.gstatic.com/webp/gallery/2.webp"
+sha256 = "1ac427ad555ba5898015e8b60396e1852bfc1e9cd7ae5da6dd42c85ea3e169f7"
+
+[[project.libwebp.workload.input]]
+name = "3.webp"
+url = "https://www.gstatic.com/webp/gallery/3.webp"
+sha256 = "82747f0d9a39830fb3b6a21b0b08a04a80e7c539446ee5ccfc4b50b304a8b7ee"
+
+[[project.libwebp.workload.input]]
+name = "4.webp"
+url = "https://www.gstatic.com/webp/gallery/4.webp"
+sha256 = "0858d0afcb2921ded36b05586204f2459d965feb7db54cb083e3cfa059589dd9"
+
+[[project.libwebp.workload.input]]
+name = "5.webp"
+url = "https://www.gstatic.com/webp/gallery/5.webp"
+sha256 = "eb4f6043f17a868cb6618a97fb5ba9a130c7f10b13b1db83fcf2df10ecbe1f23"
+
+[[project.libwebp.workload.input]]
+name = "1_webp_ll.webp"
+url = "https://www.gstatic.com/webp/gallery3/1_webp_ll.webp"
+sha256 = "49a902b9c35bd2031bf26234c59ff369dd3ae18a3b58247285104a23346ba2d4"
+
+[[project.libwebp.workload.input]]
+name = "2_webp_ll.webp"
+url = "https://www.gstatic.com/webp/gallery3/2_webp_ll.webp"
+sha256 = "67d332b637d19997ca95359099067205ce28226d15320ae8f17da51e4f814c95"
+
+[[project.libwebp.workload.input]]
+name = "3_webp_ll.webp"
+url = "https://www.gstatic.com/webp/gallery3/3_webp_ll.webp"
+sha256 = "764f01c6f3e50ce4002004073cc01dc9960882925cdf775a4ddb000c8ec74bf2"
+
+[[project.libwebp.workload.input]]
+name = "4_webp_ll.webp"
+url = "https://www.gstatic.com/webp/gallery3/4_webp_ll.webp"
+sha256 = "b3ad6ddb0c1e64557dfdd31721fcbfb5bdaac5eff5a77f15c105881e0b7f2579"
+
+[[project.libwebp.workload.input]]
+name = "5_webp_ll.webp"
+url = "https://www.gstatic.com/webp/gallery3/5_webp_ll.webp"
+sha256 = "6853c4f14122fe2ad8bf6926f5e294a0528c60f20f3dcbd9e9b781d6260a8850"
+
+[project.opus]
+what = "The reference Opus audio codec, for speech and music"
+users = "Chromium, as third_party/opus, for WebRTC"
+domain = "codecs"
+status = "alternate"
+repository = "https://github.com/xiph/opus"
+tag = "v1.6.1"
+rev = "22244de5a79bd1d6d623c32e72bf1954b56235be"
+nix_hash = "sha256-I1f+J//ZJBMj88+PQhsYBjz3fm4Ll3ckZD+fYa6/3Y0="
+license = "BSD-3-Clause"
+simd = "intrinsics"
+project_opt = "-O3"
+configure = [
+  "cmake",
+  "-S",
+  "{src}",
+  "-B",
+  "{build}",
+  "-G",
+  "Ninja",
+  "-DCMAKE_BUILD_TYPE=Release",
+]
+# Its CMake's flags for a Release build, read from compile_commands.json on 2026-11-10.
+flags = [
+  "-DCPU_INFO_BY_ASM",
+  "-DDISABLE_DEBUG_FLOAT",
+  "-DENABLE_HARDENING",
+  "-DHAVE_ALLOCA_H",
+  "-DHAVE_CONFIG_H",
+  "-DHAVE_LRINT",
+  "-DHAVE_LRINTF",
+  "-DOPUS_BUILD",
+  "-DOPUS_HAVE_RTCD",
+  "-DOPUS_X86_MAY_HAVE_AVX2",
+  "-DOPUS_X86_MAY_HAVE_SSE",
+  "-DOPUS_X86_MAY_HAVE_SSE2",
+  "-DOPUS_X86_MAY_HAVE_SSE4_1",
+  "-DOPUS_X86_PRESUME_SSE",
+  "-DOPUS_X86_PRESUME_SSE2",
+  "-DVAR_ARRAYS",
+  "-D_FORTIFY_SOURCE=2",
+  "-DNDEBUG",
+  "-std=gnu99",
+  "-fstack-protector-strong",
+  "-msse",
+  "-msse2",
+]
+include = [
+  "{src}/include",
+  "{build}",
+  "{src}",
+  "{src}/dnn",
+  "{src}/celt",
+  "{src}/silk",
+  "{src}/silk/float",
+]
+
+[[project.opus.unit]]
+source = "celt/x86/vq_sse2.c"
+flags = ["-msse2"]
+kernels = ["op_pvq_search_sse2"]
+
+[[project.opus.unit]]
+source = "celt/vq.c"
+kernels = ["exp_rotation"]
+
+[[project.opus.unit]]
+source = "celt/kiss_fft.c"
+kernels = ["opus_fft_impl"]
+
+[[project.opus.unit]]
+source = "celt/cwrs.c"
+kernels = ["encode_pulses", "decode_pulses"]
+
+[[project.opus.unit]]
+source = "celt/bands.c"
+kernels = ["quant_partition"]
+
+[[project.opus.unit]]
+source = "celt/x86/pitch_avx.c"
+flags = ["-mavx2", "-mfma", "-mavx"]
+kernels = ["celt_pitch_xcorr_avx2"]
+
+[project.opus.workload]
+what = "Encoding the Sintel film's stereo master at 96 kb/s, and decoding it"
+benchmark = "opus_demo, the project's own, as bench/kernels/profile.sh runs it"
+command = [
+  "{build}/opus_demo",
+  "-e",
+  "audio",
+  "48000",
+  "2",
+  "96000",
+  "{out}/sintel.raw",
+  "{out}/a.bit",
+]
+
+[[project.opus.workload.input]]
+name = "sintel-master-st.flac"
+url = "https://media.xiph.org/sintel/sintel-master-st.flac"
+sha256 = "49b279400b6fcad23f6a8862ae65a2a22f21f249cd7576b09991880da221412b"
+
+[project.dav1d]
+what = "The fastest AV1 video decoder"
+users = "Chromium, as third_party/dav1d"
+domain = "codecs"
+status = "rejected"
+# Its home is code.videolan.org. This is VideoLAN's mirror on GitHub.
+repository = "https://github.com/videolan/dav1d"
+tag = "1.5.4"
+rev = "54706fc6bc0cdecab7e9593974a4039cc038fca7"
+nix_hash = "sha256-L3a9MmPWJlxmRa19glWDLvkXHev5oiM5/fxtKOBPMxI="
+license = "BSD-2-Clause"
+simd = "assembly"
+fails = [2]
+why = "Its hot kernels on x86-64 are hand-written assembly: 160,805 lines of src/x86/*.asm, against 30,546 of C"
+
+# ---------------------------------------------------------------------------------------------------------------
+# Hashing
+
+[project.xxhash]
+what = "XXH3 and the older XXH32 and XXH64, non-cryptographic hashes"
+users = "The Linux kernel, as lib/xxhash.c, and zstd, which vendors it"
+domain = "hashing"
+status = "recommended"
+repository = "https://github.com/Cyan4973/xxHash"
+tag = "v0.8.4"
+rev = "c87183a77d67f7d37e3d2d1b7eaac5e7c695e4f0"
+nix_hash = "sha256-YbWK23lU2/DiKQFPWioMHLgEt8vBtDpjBakT9ds3XpI="
+license = "BSD-2-Clause"
+simd = "intrinsics"
+project_opt = "-O3"
+# Its Makefile: CFLAGS ?= -O3, and DISPATCH ?= 1 on x86, which adds xxh_x86dispatch.c to xxhsum.
+flags = ["-DXXHSUM_DISPATCH=1"]
+include = ["{src}"]
+
+[[project.xxhash.unit]]
+source = "xxh_x86dispatch.c"
+kernels = [
+  "XXHL64_default_avx512",
+  "XXHL128_default_avx512",
+  "XXH3_update_avx512",
+]
+
+[[project.xxhash.unit]]
+source = "xxhash.c"
+kernels = ["XXH64", "XXH32"]
+
+[project.xxhash.workload]
+what = "Hashing a 100 KB buffer over and over with XXH32, XXH64, XXH3 and XXH128, and the Silesia corpus as one tar"
+benchmark = "xxhsum -b, its own benchmark, and xxhsum -H3 on a file"
+command = ["{build}/xxhsum", "-b", "-i5"]
+
+[[project.xxhash.workload.input]]
+name = "silesia.zip"
+url = "https://sun.aei.polsl.pl/~sdeor/corpus/silesia.zip"
+sha256 = "0626e25f45c0ffb5dc801f13b7c82a3b75743ba07e3a71835a41e3d9f63c77af"
+
+[project.blake3]
+what = "The BLAKE3 cryptographic hash, in C"
+users = "LLVM, which vendors it in llvm/lib/Support/BLAKE3, with the assembly"
+domain = "hashing"
+status = "rejected"
+repository = "https://github.com/BLAKE3-team/BLAKE3"
+tag = "1.8.7"
+rev = "f3149ec5bb5449af877ba20377a11008ff499fa2"
+nix_hash = "sha256-QWNdJh9wSKoc171t+rNei6OF3ANb2K4Oi+3VHEy1BiQ="
+license = "CC0-1.0 OR Apache-2.0"
+simd = "assembly"
+fails = [2]
+why = "Its default build on x86-64 is assembly: c/CMakeLists.txt picks amd64-asm. Its intrinsics build is an option"
+# The intrinsics build, which the default doesn't take, measured to say what choosing it would give.
+flags = ["-DNDEBUG"]
+include = ["{src}/c"]
+
+[[project.blake3.unit]]
+source = "c/blake3_avx2.c"
+flags = ["-mavx2"]
+kernels = ["blake3_hash_many_avx2"]
+
+[[project.blake3.unit]]
+source = "c/blake3_avx512.c"
+flags = ["-mavx512f", "-mavx512vl"]
+kernels = ["blake3_hash_many_avx512"]
+
+# ---------------------------------------------------------------------------------------------------------------
+# Crypto
+
+[project.libsodium]
+what = "A portable, packaged NaCl: authenticated encryption, hashing, password hashing and signatures"
+users = "PHP, whose sodium extension wraps it"
+domain = "crypto"
+status = "recommended"
+repository = "https://github.com/jedisct1/libsodium"
+tag = "1.0.22-RELEASE"
+rev = "77e1ce5d6dee871c49ef211222ba18ef0c486bda"
+nix_hash = "sha256-k8u7iNqvjLA0PptbneDyE8zCtutJlV2LirrRb41tmBY="
+license = "ISC"
+simd = "intrinsics"
+project_opt = "-O3"
+configure = ["{src}/configure", "--disable-dependency-tracking"]
+# Its configure's flags, read from the Makefile it wrote on 2026-11-10. -fno-strict-aliasing is the project's own.
+flags = [
+  "-DCONFIGURED=1",
+  "-DHAVE_MMINTRIN_H=1",
+  "-DHAVE_EMMINTRIN_H=1",
+  "-DHAVE_PMMINTRIN_H=1",
+  "-DHAVE_TMMINTRIN_H=1",
+  "-DHAVE_SMMINTRIN_H=1",
+  "-DHAVE_AVXINTRIN_H=1",
+  "-DHAVE_AVX2INTRIN_H=1",
+  "-DHAVE_AVX512FINTRIN_H=1",
+  "-DHAVE_WMMINTRIN_H=1",
+  "-DHAVE_RDRAND=1",
+  "-DNATIVE_LITTLE_ENDIAN=1",
+  "-DHAVE_INLINE_ASM=1",
+  "-DHAVE_AMD64_ASM=1",
+  "-DHAVE_AVX_ASM=1",
+  "-DHAVE_TI_MODE=1",
+  "-DHAVE_CPUID=1",
+  "-DHAVE_WEAK_SYMBOLS=1",
+  "-DHAVE_ATOMIC_OPS=1",
+  "-D_GNU_SOURCE=1",
+  "-D_FORTIFY_SOURCE=3",
+  "-pthread",
+  "-fvisibility=hidden",
+  "-fPIC",
+  "-fno-strict-aliasing",
+  "-fno-strict-overflow",
+  "-fstack-protector",
+  "-ftls-model=global-dynamic",
+]
+include = [
+  "{src}/src/libsodium/include/sodium",
+  "{build}/src/libsodium/include/sodium",
+  "{src}/src/libsodium/include",
+  "{build}/src/libsodium/include",
+]
+
+[[project.libsodium.unit]]
+source = "src/libsodium/crypto_stream/chacha20/dolbeau/chacha20_dolbeau-avx2.c"
+flags = ["-msse2", "-mssse3", "-msse4.1", "-mavx", "-mavx2"]
+kernels = ["chacha20_encrypt_bytes"]
+
+[[project.libsodium.unit]]
+source = "src/libsodium/crypto_onetimeauth/poly1305/sse2/poly1305_sse2.c"
+flags = ["-msse2"]
+kernels = ["poly1305_blocks"]
+
+[[project.libsodium.unit]]
+source = "src/libsodium/crypto_generichash/blake2b/ref/blake2b-compress-avx2.c"
+flags = ["-msse2", "-mssse3", "-msse4.1", "-mavx", "-mavx2"]
+kernels = ["blake2b_compress_avx2"]
+
+[[project.libsodium.unit]]
+source = "src/libsodium/crypto_pwhash/argon2/argon2-fill-block-avx512f.c"
+flags = ["-msse2", "-mssse3", "-msse4.1", "-mavx", "-mavx2", "-mavx512f"]
+kernels = ["fill_block_with_xor", "argon2_fill_segment_avx512f"]
+
+[[project.libsodium.unit]]
+source = "src/libsodium/crypto_stream/salsa20/xmm6int/salsa20_xmm6int-avx2.c"
+flags = ["-msse2", "-mssse3", "-msse4.1", "-mavx", "-mavx2"]
+kernels = ["salsa20_encrypt_bytes"]
+
+[[project.libsodium.unit]]
+source = "src/libsodium/crypto_aead/aes256gcm/aesni/aead_aes256gcm_aesni.c"
+flags = ["-mavx", "-maes", "-mpclmul"]
+kernels = ["gh_ad_blocks"]
+
+[project.libsodium.workload]
+what = "Hashing passwords with Argon2id, and its other tests of bulk encryption and hashing, in benchmark mode"
+benchmark = "test/default built with -DBENCHMARKS, libsodium's own, as bench/kernels/profile.sh runs it"
+command = ["{build}/test/default/pwhash_argon2id"]
+
+[project.openssl]
+what = "The TLS and general-purpose cryptography library most servers run"
+users = "Most TLS on Linux servers"
+domain = "crypto"
+status = "rejected"
+repository = "https://github.com/openssl/openssl"
+tag = "openssl-4.1.0"
+rev = "2f4e3a5fec05394068cfa7379890ab552483a8a6"
+nix_hash = "sha256-adqRWTdNKPwBnwMnIeFThSoiwc3sZpBX/3AWNpWUeGw="
+license = "Apache-2.0"
+simd = "assembly"
+fails = [2]
+why = "Its hot kernels on x86-64 are perlasm: 31 crypto/*/asm/*-x86_64.pl generators, for AES, GHASH, ChaCha, SHA"
+
+[project.base64]
+what = "A base64 encoder and decoder with SIMD codecs"
+users = "None confirmed on 2026-11-10: Node.js's deps/base64 isn't on its main branch"
+domain = "codecs"
+status = "rejected"
+repository = "https://github.com/aklomp/base64"
+tag = "v0.5.3"
+rev = "5d5074cb856b9a53fe64f04ddf47812a85f4fb5a"
+nix_hash = "sha256-iJ7MPDSQ5RFLqli0dSQ6vndSRu8YkVgUrSdkLJDhE1g="
+license = "BSD-2-Clause"
+simd = "intrinsics"
+fails = [1, 2]
+why = "No user confirmed, and its AVX2 encoder is inline assembly under GCC and clang (lib/arch/avx2/codec.c)"
+project_opt = "-O3"
+configure = [
+  "cmake",
+  "-S",
+  "{src}",
+  "-B",
+  "{build}",
+  "-G",
+  "Ninja",
+  "-DCMAKE_BUILD_TYPE=Release",
+]
+# Its CMake's flags for a Release build, read from compile_commands.json on 2026-11-10.
+flags = ["-DBASE64_STATIC_DEFINE", "-DNDEBUG", "-std=c99"]
+include = ["{src}/include", "{build}"]
+
+[[project.base64.unit]]
+source = "lib/arch/avx2/codec.c"
+flags = ["-mavx2"]
+kernels = ["base64_stream_decode_avx2", "base64_stream_encode_avx2"]
+
+[[project.base64.unit]]
+source = "lib/arch/avx512/codec.c"
+flags = ["-mavx512vl", "-mavx512vbmi"]
+kernels = ["base64_stream_decode_avx512", "base64_stream_encode_avx512"]
+
+[project.base64.workload]
+what = "Encoding and decoding buffers from 1 kB to 10 MB"
+benchmark = "test/benchmark, its own"
+command = ["{build}/bin/benchmark"]

@@ -1,0 +1,469 @@
+#!/usr/bin/env python3
+"""The kernel corpus's manifest, bench/kernels/manifest.toml: reading it, the rules it has to meet, and the
+digest that fixes it. docs/kernels.md.
+
+The kernel corpus is the fixed list of real projects the superoptimizer is judged on. It isn't the corpus of
+docs/corpus.md, the pairs of IR tools/corpus/capture.py takes from `opt`.
+
+The manifest names each project's pinned source, by commit and Nix hash, the units its hot kernels are
+compiled from, the flags the project builds them with, the kernels, and the workload wall time is measured
+on, with the hash of each input. While `corpus.state` is `proposed` it's a proposal, and nothing is approved.
+Once the maintainer approves a list, `state` is `fixed`, `corpus.approved` names the projects, and `[lock]`
+records the digest of what was approved. From then on any change to an approved project, or to what the
+corpus compiles with, changes the digest, and `problems` reports it unless an `[[amendment]]` records the
+change, its date and its reason, each amendment starting from the digest the one before it ended on. So the
+corpus can't change quietly.
+
+usage: bench/kernels/kernels.py check          the manifest meets every rule
+       bench/kernels/kernels.py digest         the digest of the projects named, or of `corpus.approved`
+       bench/kernels/kernels.py digest NAME...
+       bench/kernels/kernels.py source NAME    fetch a project's source through Nix at its pin, and say where
+       bench/kernels/kernels.py inputs DIR [NAME...]   fetch workload inputs into DIR, by their hashes
+"""
+
+from __future__ import annotations
+
+import base64
+import binascii
+import copy
+import io
+import re
+import sys
+import tarfile
+import tomllib
+import zipfile
+from pathlib import Path
+from typing import Any
+
+ROOT = Path(__file__).resolve().parent.parent.parent
+sys.path.append(str(ROOT / "tools"))
+from irlean import hashing, pins, proc, schemas  # noqa: E402
+
+MANIFEST = Path(__file__).resolve().parent / "manifest.toml"
+
+# Decision 7 of 2026-11-09: inference, compression, codecs, hashing and crypto.
+DOMAINS = ("inference", "compression", "codecs", "hashing", "crypto")
+STATUSES = ("recommended", "alternate", "rejected")
+STATES = ("proposed", "fixed")
+# S3's bar is wins from at least 3 projects, so a fixed corpus can't have fewer.
+MIN_PROJECTS = 3
+# Licenses that let this repo commit IR generated from the source and publish a rewrite of it, as README.md's
+# table does for zlib and llama.cpp. A project under anything else needs the maintainer to add it here.
+LICENSES = {
+    "Apache-2.0",
+    "BSD-2-Clause",
+    "BSD-3-Clause",
+    "CC0-1.0",
+    "ISC",
+    "MIT",
+    "Zlib",
+}
+# How a project's hot kernels reach the processor. Only the first two give the pinned clang IR to work on.
+SIMD = ("intrinsics", "vectorizer", "assembly", "none")
+# The criteria of docs/kernels.md, by number. A rejected project names the ones it fails.
+CRITERIA = range(1, 9)
+
+REV = re.compile(r"[0-9a-f]{40}")
+SHA256 = re.compile(r"[0-9a-f]{64}")
+REPOSITORY = re.compile(r"https://github\.com/([A-Za-z0-9_.-]+)/([A-Za-z0-9_.-]+)")
+NAME = re.compile(r"[a-z0-9][a-z0-9.+-]*")
+# What a unit's flags mustn't set: the corpus sets the optimization level, and `native` would make the IR
+# depend on the host, where naming the processor makes it the same on any.
+BANNED_FLAG = re.compile(r"-O.*|-march=native|-mtune=native|-mcpu=native")
+
+
+def load(path: Path = MANIFEST) -> dict[str, Any]:
+    """The manifest, as TOML gives it."""
+    return tomllib.loads(path.read_text())
+
+
+def nix_hash_ok(value: Any) -> bool:
+    """Whether `value` is an SRI SHA-256, as Nix prints a source's hash."""
+    if not isinstance(value, str) or not value.startswith("sha256-"):
+        return False
+    try:
+        return len(base64.b64decode(value.removeprefix("sha256-"), validate=True)) == 32
+    except (binascii.Error, ValueError):
+        return False
+
+
+def licenses(expression: Any) -> list[str]:
+    """The licenses an SPDX expression of `OR`s names, or nothing if it isn't one."""
+    if not isinstance(expression, str) or not expression:
+        return []
+    return [part.strip() for part in expression.split(" OR ")]
+
+
+def digest(manifest: dict[str, Any], names: list[str] | None = None) -> str:
+    """The SHA-256 that fixes the corpus: over what every project is compiled with and measured on, and over
+    each named project's whole entry but the fields that only say how the proposal ranks it. With no names,
+    over `corpus.approved`."""
+    corpus = manifest.get("corpus", {})
+    chosen = sorted(corpus.get("approved", []) if names is None else names)
+    projects = manifest.get("project", {})
+    fixed = {
+        "schema": manifest.get("schema"),
+        "corpus": {k: corpus.get(k) for k in ("llvm_tag", "target", "opt", "flags", "machine")},
+        "projects": {
+            name: {k: v for k, v in projects.get(name, {}).items() if k not in ("status", "note")}
+            for name in chosen
+        },
+    }
+    return hashing.sha256(hashing.canonical(fixed))
+
+
+def _strings(value: Any) -> bool:
+    return isinstance(value, list) and all(isinstance(v, str) and v for v in value)
+
+
+def _project_problems(name: str, p: Any) -> list[str]:
+    """What's wrong with one project's entry."""
+    if not isinstance(p, dict):
+        return [f"{name}: not a table"]
+    out: list[str] = []
+    if not NAME.fullmatch(name):
+        out.append(f"{name}: a project's name is lower case letters, digits, `.`, `+` and `-`")
+    for key in (
+        "what",
+        "users",
+        "repository",
+        "tag",
+        "rev",
+        "nix_hash",
+        "license",
+        "domain",
+        "status",
+        "simd",
+    ):
+        if not isinstance(p.get(key), str) or not p[key]:
+            out.append(f"{name}: no {key}")
+    if isinstance(p.get("repository"), str) and not REPOSITORY.fullmatch(p["repository"]):
+        out.append(
+            f"{name}: repository isn't https://github.com/OWNER/REPO, which is what `source` can fetch"
+        )
+    if isinstance(p.get("rev"), str) and not REV.fullmatch(p["rev"]):
+        out.append(f"{name}: rev isn't a full commit hash, so it doesn't pin the source")
+    if "nix_hash" in p and not nix_hash_ok(p["nix_hash"]):
+        out.append(f"{name}: nix_hash isn't an SRI SHA-256, so the source fetched isn't checked")
+    if p.get("domain") not in DOMAINS:
+        out.append(f"{name}: domain {p.get('domain')!r} isn't one of {', '.join(DOMAINS)}")
+    if p.get("status") not in STATUSES:
+        out.append(f"{name}: status {p.get('status')!r} isn't one of {', '.join(STATUSES)}")
+    if p.get("simd") not in SIMD:
+        out.append(f"{name}: simd {p.get('simd')!r} isn't one of {', '.join(SIMD)}")
+    named = licenses(p.get("license"))
+    if named and not any(one in LICENSES for one in named):
+        out.append(f"{name}: license {p['license']!r} offers none of {', '.join(sorted(LICENSES))}")
+
+    if p.get("status") == "rejected":
+        fails = p.get("fails")
+        if not isinstance(fails, list) or not fails or not all(f in CRITERIA for f in fails):
+            out.append(f"{name}: a rejected project names the criteria it fails, by number, in `fails`")
+        if not isinstance(p.get("why"), str) or not p["why"]:
+            out.append(f"{name}: a rejected project says why, in `why`")
+        return out
+
+    # From here on, a project the maintainer could approve.
+    if "fails" in p:
+        out.append(f"{name}: only a rejected project has `fails`")
+    if p.get("simd") in ("assembly", "none"):
+        out.append(
+            f"{name}: simd is {p['simd']!r}, so the pinned clang has no SIMD kernel to compile: reject it"
+        )
+    if "flags" in p and not _strings(p["flags"]) and p["flags"] != []:
+        out.append(f"{name}: flags isn't a list of strings")
+    if "relax" in p and not _strings(p["relax"]):
+        out.append(f"{name}: relax isn't a list of flags")
+    if "include" in p and not _strings(p["include"]):
+        out.append(f"{name}: include isn't a list of strings")
+    if "configure" in p and not _strings(p["configure"]):
+        out.append(f"{name}: configure isn't a command, a list of strings")
+    deps = p.get("dep", [])
+    if not isinstance(deps, list):
+        out.append(f"{name}: dep isn't a list of tables")
+        deps = []
+    for d in deps:
+        # Another source a unit's headers come from, pinned as the project's own is.
+        label = f"{name}: dep {d.get('name') if isinstance(d, dict) else d!r}"
+        if not isinstance(d, dict) or not isinstance(d.get("name"), str) or not NAME.fullmatch(d["name"]):
+            out.append(f"{label}: no name")
+            continue
+        if not isinstance(d.get("repository"), str) or not REPOSITORY.fullmatch(d["repository"]):
+            out.append(f"{label}: repository isn't https://github.com/OWNER/REPO")
+        if not isinstance(d.get("rev"), str) or not REV.fullmatch(d["rev"]):
+            out.append(f"{label}: rev isn't a full commit hash")
+        if not nix_hash_ok(d.get("nix_hash")):
+            out.append(f"{label}: nix_hash isn't an SRI SHA-256")
+    if not isinstance(p.get("project_opt"), str) or not re.fullmatch(r"-O[0-3s]", p["project_opt"]):
+        out.append(f"{name}: no project_opt, the level the project's own release build compiles at")
+
+    units = p.get("unit")
+    if not isinstance(units, list) or not units:
+        out.append(f"{name}: no unit, so nothing says which code its kernels are compiled from")
+        units = []
+    seen: dict[str, str] = {}
+    kernels = 0
+    for u in units:
+        source = u.get("source") if isinstance(u, dict) else None
+        if not isinstance(source, str) or not source or source.startswith("/") or ".." in Path(source).parts:
+            out.append(f"{name}: a unit's source is a path inside the project, not {source!r}")
+            continue
+        label = f"{name}: {source}"
+        flags = u.get("flags", [])
+        if flags != [] and not _strings(flags):
+            out.append(f"{label}: flags isn't a list of strings")
+            flags = []
+        shared = p.get("flags", []) if isinstance(p.get("flags", []), list) else []
+        for flag in [*shared, *flags]:
+            if isinstance(flag, str) and BANNED_FLAG.fullmatch(flag):
+                out.append(
+                    f"{label}: {flag} isn't a unit's to set: the corpus sets -O, and names the processor"
+                )
+        names = u.get("kernels", [])
+        if names != [] and not _strings(names):
+            out.append(f"{label}: kernels isn't a list of function names")
+            names = []
+        for k in names:
+            kernels += 1
+            if k in seen:
+                out.append(f"{label}: kernel {k} is also in {seen[k]}")
+            seen[k] = source
+    if units and not kernels:
+        out.append(f"{name}: no kernel named in any unit, so nothing says which functions are hot")
+
+    w = p.get("workload")
+    if not isinstance(w, dict):
+        out.append(f"{name}: no workload, so nothing says what wall time is measured on")
+        return out
+    for key in ("what", "benchmark"):
+        if not isinstance(w.get(key), str) or not w[key]:
+            out.append(f"{name}: workload has no {key}")
+    if not _strings(w.get("command")):
+        out.append(f"{name}: workload has no command, a list of strings")
+    inputs = w.get("input", [])
+    if not isinstance(inputs, list):
+        out.append(f"{name}: workload's inputs aren't a list")
+        inputs = []
+    for i in inputs:
+        if not isinstance(i, dict) or not isinstance(i.get("name"), str):
+            out.append(f"{name}: a workload input has no name")
+            continue
+        if not isinstance(i.get("url"), str) or not i["url"].startswith("https://"):
+            out.append(f"{name}: workload input {i['name']} has no https url")
+        if not isinstance(i.get("sha256"), str) or not SHA256.fullmatch(i["sha256"]):
+            out.append(f"{name}: workload input {i['name']} has no SHA-256, so the workload isn't pinned")
+    return out
+
+
+def problems(manifest: dict[str, Any]) -> list[str]:
+    """Everything wrong with a manifest, or nothing."""
+    out: list[str] = []
+    if manifest.get("schema") != schemas.KERNELS_MANIFEST:
+        return [f"schema {manifest.get('schema')!r}, not {schemas.KERNELS_MANIFEST}"]
+    corpus = manifest.get("corpus")
+    if not isinstance(corpus, dict):
+        return ["no [corpus]"]
+    state = corpus.get("state")
+    if state not in STATES:
+        out.append(f"corpus.state {state!r} isn't one of {', '.join(STATES)}")
+    # The baseline is the pinned clang's, so the pin moving is a change to the corpus.
+    if corpus.get("llvm_tag") != pins.llvm()["tag"]:
+        out.append(
+            f"corpus.llvm_tag {corpus.get('llvm_tag')!r} isn't tests/llvm/targets.toml's {pins.llvm()['tag']}"
+        )
+    if corpus.get("opt") != "-O3":
+        out.append("corpus.opt isn't -O3, the level decision 6's baseline names")
+    if corpus.get("target") != "x86_64-unknown-linux-gnu":
+        out.append("corpus.target isn't x86_64-unknown-linux-gnu: decision 7 puts x86-64 first")
+    if not isinstance(corpus.get("machine"), str) or not corpus["machine"]:
+        out.append("corpus.machine doesn't name the machine wall time is measured on")
+    if corpus.get("flags", []) != [] and not _strings(corpus.get("flags")):
+        out.append("corpus.flags isn't a list of strings")
+
+    projects = manifest.get("project")
+    if not isinstance(projects, dict) or not projects:
+        return [*out, "no [project.NAME]"]
+    for name in sorted(projects):
+        out += _project_problems(name, projects[name])
+
+    approved = corpus.get("approved")
+    if not isinstance(approved, list) or not all(isinstance(a, str) for a in approved):
+        return [*out, "corpus.approved isn't a list of project names"]
+    if len(set(approved)) != len(approved):
+        out.append("corpus.approved names a project twice")
+    for name in approved:
+        if name not in projects:
+            out.append(f"corpus.approved names {name}, which has no [project.{name}]")
+        elif projects[name].get("status") == "rejected":
+            out.append(f"corpus.approved names {name}, which is rejected")
+
+    lock = manifest.get("lock")
+    amendments = manifest.get("amendment", [])
+    if state == "proposed":
+        # Approving is one act: the list, the lock and the state together.
+        if approved:
+            out.append("corpus.approved names projects while the corpus is only proposed")
+        if lock is not None:
+            out.append("there's a [lock] while the corpus is only proposed")
+        if amendments:
+            out.append("there's an [[amendment]] while the corpus is only proposed")
+        return out
+    if state != "fixed":
+        return out
+
+    if len(approved) < MIN_PROJECTS:
+        out.append(
+            f"a fixed corpus has at least {MIN_PROJECTS} projects, as S3's bar asks, not {len(approved)}"
+        )
+    if not isinstance(lock, dict):
+        return [*out, "the corpus is fixed and has no [lock]"]
+    for key in ("sha256", "approved_on", "approved_in"):
+        if not isinstance(lock.get(key), str) or not lock[key]:
+            out.append(f"lock has no {key}")
+    if isinstance(lock.get("sha256"), str) and not SHA256.fullmatch(lock["sha256"]):
+        out.append("lock.sha256 isn't a SHA-256")
+    if isinstance(lock.get("approved_on"), str) and not re.fullmatch(r"\d{4}-\d\d-\d\d", lock["approved_on"]):
+        out.append("lock.approved_on isn't a date, YYYY-MM-DD")
+
+    # The digest approved, then each amendment from the last one's digest to its own, ending at today's.
+    now = digest(manifest)
+    at = lock.get("sha256")
+    if not isinstance(amendments, list):
+        return [*out, "amendment isn't a list of tables"]
+    for n, a in enumerate(amendments, 1):
+        if not isinstance(a, dict):
+            out.append(f"amendment {n} isn't a table")
+            continue
+        for key in ("on", "reason", "approved_in", "from", "to"):
+            if not isinstance(a.get(key), str) or not a[key]:
+                out.append(f"amendment {n} has no {key}")
+        if a.get("from") != at:
+            out.append(f"amendment {n} starts from {a.get('from')}, not from {at}, where the corpus stood")
+        at = a.get("to")
+    if at != now:
+        out.append(
+            f"the fixed corpus changed: its digest is {now}, and the lock and its amendments end at {at}. "
+            "A change to a fixed corpus needs an [[amendment]] with its date, its reason and both digests"
+        )
+    return out
+
+
+def fixed(manifest: dict[str, Any], names: list[str], on: str, where: str) -> dict[str, Any]:
+    """`manifest` as it stands once the maintainer approves `names`: fixed, with its lock."""
+    m = copy.deepcopy(manifest)
+    m["corpus"]["state"] = "fixed"
+    m["corpus"]["approved"] = list(names)
+    m.pop("amendment", None)
+    m["lock"] = {"sha256": digest(m), "approved_on": on, "approved_in": where}
+    return m
+
+
+def stored(project: dict[str, Any]) -> Path | None:
+    """Where the Nix store holds a source with this hash, if it does. Asks no network: a source's path is a
+    function of its hash."""
+    digest = base64.b64decode(project["nix_hash"].removeprefix("sha256-")).hex()
+    r = proc.run(["nix-store", "--print-fixed-path", "--recursive", "sha256", digest, "source"], timeout=60)
+    if not r.ok or not r.out.strip().startswith("/nix/store/"):
+        return None
+    path = Path(r.out.strip())
+    return (
+        path if proc.run(["nix-store", "--check-validity", path], timeout=60).ok and path.is_dir() else None
+    )
+
+
+def source(name: str, project: dict[str, Any], offline: bool = False) -> Path | None:
+    """A project's source in the Nix store, at its pin and checked against its hash, or one of its `dep`s',
+    which has the same fields. Fetches it unless `offline`, when it's None if the store doesn't hold it.
+    Raises RuntimeError if Nix can't give it."""
+    if offline:
+        return stored(project)
+    m = REPOSITORY.fullmatch(project["repository"])
+    if m is None:
+        raise RuntimeError(f"{name}: can't fetch {project['repository']}")
+    expr = (
+        f'(builtins.fetchTree {{ type = "github"; owner = "{m[1]}"; repo = "{m[2]}"; '
+        f'rev = "{project["rev"]}"; narHash = "{project["nix_hash"]}"; }}).outPath'
+    )
+    r = proc.run(["nix", "eval", "--raw", "--expr", expr], timeout=1800)
+    path = Path(r.out.strip()) if r.ok and r.out.strip().startswith("/nix/store/") else None
+    if path is not None and path.is_dir():
+        return path
+    raise RuntimeError(f"{name}: nix couldn't fetch it at its pin\n{r.err[-2000:]}")
+
+
+def inputs(manifest: dict[str, Any], where: Path, names: list[str]) -> list[Path]:
+    """Fetches the workload inputs of the projects named through Nix, each checked against the manifest's
+    SHA-256, and links them into `where` by the names the manifest gives them. A zip is also unpacked beside
+    itself as a tar, the same bytes every time: names sorted, no times or owners."""
+    where.mkdir(parents=True, exist_ok=True)
+    out: list[Path] = []
+    seen: dict[str, str] = {}
+    for name in names:
+        for i in manifest["project"][name].get("workload", {}).get("input", []):
+            if seen.setdefault(i["name"], i["sha256"]) != i["sha256"]:
+                raise RuntimeError(f"two inputs are named {i['name']}, with different hashes")
+            link = where / i["name"]
+            if link not in out:
+                expr = f'builtins.fetchurl {{ url = "{i["url"]}"; sha256 = "{i["sha256"]}"; }}'
+                r = proc.run(["nix", "eval", "--raw", "--expr", expr], timeout=3600)
+                if not r.ok or not r.out.strip().startswith("/nix/store/"):
+                    raise RuntimeError(
+                        f"{name}: nix couldn't fetch {i['url']} with that hash\n{r.err[-2000:]}"
+                    )
+                link.unlink(missing_ok=True)
+                link.symlink_to(r.out.strip())
+                out.append(link)
+            if link.suffix == ".zip" and (tar := link.with_suffix(".tar")) not in out:
+                with zipfile.ZipFile(link) as z, tarfile.open(tar, "w", format=tarfile.USTAR_FORMAT) as t:
+                    for member in sorted(z.namelist()):
+                        data = z.read(member)
+                        info = tarfile.TarInfo(member)
+                        info.size, info.mode = len(data), 0o644
+                        t.addfile(info, io.BytesIO(data))
+                out.append(tar)
+    return out
+
+
+def main(argv: list[str]) -> int:
+    if argv and argv[0] == "inputs" and len(argv) >= 2:
+        manifest = load()
+        # llama.cpp's model is over a gigabyte, so it's fetched only when asked for by name.
+        default = [
+            n for n, p in manifest["project"].items() if p["status"] != "rejected" and n != "llama.cpp"
+        ]
+        if unknown := [n for n in argv[2:] if n not in manifest["project"]]:
+            print(f"no project {', '.join(unknown)}", file=sys.stderr)
+            return 2
+        for path in inputs(manifest, Path(argv[1]), argv[2:] or default):
+            print(f"{hashing.sha256_file(path)}  {path}")
+        return 0
+    if not argv or argv[0] not in ("check", "digest", "source"):
+        print(__doc__, file=sys.stderr)
+        return 2
+    manifest = load()
+    if argv[0] == "digest":
+        print(digest(manifest, argv[1:] or None))
+        return 0
+    if argv[0] == "source":
+        if len(argv) != 2 or argv[1] not in manifest.get("project", {}):
+            print(__doc__, file=sys.stderr)
+            return 2
+        print(source(argv[1], manifest["project"][argv[1]]))
+        return 0
+    found = problems(manifest)
+    for line in found:
+        print(f"FAIL {line}")
+    if found:
+        return 1
+    corpus, projects = manifest["corpus"], manifest["project"]
+    by = {s: sorted(n for n, p in projects.items() if p["status"] == s) for s in STATUSES}
+    print(f"ok   {MANIFEST.relative_to(ROOT)}: {corpus['state']}, {len(projects)} projects")
+    for status in STATUSES:
+        print(f"     {status}: {', '.join(by[status]) or 'none'}")
+    if corpus["state"] == "fixed":
+        print(f"     approved: {', '.join(corpus['approved'])}, digest {digest(manifest)}")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv[1:]))
