@@ -78,8 +78,10 @@ Under that, each chunk's percentage at each gate:
   that pass on it. The function the pass changes is cut into a module of its own with `llvm-extract`, and the pass runs
   again on that alone, so the pair is a run a certificate can bind. Functions the pass leaves unchanged aren't pairs.
   The share is the pairs where `ir-lean --report` refuses neither side, over every pair. A function with memory or
-  pointers translates, and counts here, but `IRLean.Refines` can't state its claim until F4, so it can't count at G1
-  until then. S1's harness, [`bench/instcombine/stage1.py`](../bench/instcombine/stage1.py), makes InstCombine's pairs this way.
+  pointers translates, and counts here, but can't count at G1 until F4 is done: since 2026-11-10 `IRLean.Refines` can
+  state its claim, [guarded](refinement.md#functions-with-memory), if both sides allocate alike, and `tools/binding.py`
+  still refuses it, until F4's stage 6. S1's harness,
+  [`bench/instcombine/stage1.py`](../bench/instcombine/stage1.py), makes InstCombine's pairs this way.
 - **G1.** The same pairs as G0, so a chunk's G1 is never above its G0. The share is the pairs whose verdict is
   `certified`: `tools/binding.py verify` said `bound` about the pair's `ir_instance_refinement` claim, as
   [binding](llvm-proof-binding.md) defines it. A pair Lean proves and nothing binds doesn't count. S1's metric, the
@@ -212,7 +214,7 @@ means for one of them, that every pass reading it is right whatever it answers, 
 The decision's seven, the other transforms of memory and pointers, such as `gvn-hoist`, `gvn-sink`, `mldst-motion`,
 `reg2mem`, `expand-memcmp`, `mergeicmps`, lowering atomics, inferring alignment and address spaces, splitting GEP
 offsets, and GC statepoints, and alias analysis, MemDep and MemorySSA. A pair with memory can't count at G1 until F4
-gives `IRLean.Refines` an instance for memory.
+is done: `IRLean.Refines` has an instance for memory since 2026-11-10, and no tool binds a claim with it yet.
 
 ### 4. Loops
 

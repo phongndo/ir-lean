@@ -80,7 +80,9 @@ A second rewrite, of the bit unpacking in llama.cpp's Q5 kernel, replaces six in
 [`LlamaBitspread.lean`](../tests/proofs/LlamaBitspread.lean) proves the exact slice and its replacement give the same
 result for every input, poison included, and that every byte is defined for a defined input. Extracting the slice and
 substituting its result are trusted, as for q4_K. [llama.cpp's Q5](llama-q5.md) has the details. Recorded on
-2026-11-07, and the proof checked again on 2026-11-08 with the q4_K rewrite and `main` at `0330cd7`.
+2026-11-07, and the proof checked again on 2026-11-08 with the q4_K rewrite and `main` at `0330cd7`. Since
+2026-11-10 [the cut lemma](refinement.md#the-cut-lemma) proves substituting it right in two loops written to hold the
+slice, one with memory, but not in the kernel, which hasn't been translated, so there it's still trusted.
 
 ## Tested
 
@@ -95,9 +97,10 @@ Evidence and not proof. A pass here means no disagreement was found on the input
   of at most about 800 bytes, because the semantics are slow to run: each memory access walks back through
   earlier writes. The harness reaches all but 5 of zlib's functions, counted without optimization so
   nothing is inlined away: two for big-endian machines, `crc32_combine_gen`, `_tr_align` and `_tr_tally`.
-- **What the emitter accepts:** all 17,045 items the pinned IR can contain are classified, 295 modeled, 260
-  assumed and 16,490 refused, and a probe of each shows the emitter does what its class says, with the Lean it
-  prints for each it translates elaborating ([IR features](ir-features.md)). Since 2026-11-09.
+- **What the emitter accepts:** all 17,045 items the pinned IR can contain are classified, 446 modeled, 260
+  assumed and 16,339 refused, and a probe of each shows the emitter does what its class says, with the Lean it
+  prints for each it translates elaborating ([IR features](ir-features.md)). Since 2026-11-09, and these counts
+  since 2026-11-10.
 - **Vector forms of integer operations:** the vector forms of 16 intrinsics, vector division and remainder,
   `noundef` and `range` on vectors and structs, and x86's VPTERNLOG, PSHUFB and shifts agree with Alive2 both ways,
   undefined behavior included, and with LLVM's constant folder, on 3,972 inputs to 195 operations, with a wrong
@@ -126,11 +129,20 @@ Evidence and not proof. A pass here means no disagreement was found on the input
   ([`stops.ll`](../tests/real/stops.ll)).
 - **Promises kept:** 25 functions that keep their promises match native code with no input skipped
   ([`promises.ll`](../tests/real/promises.ll)).
-- **x86 intrinsics and vector bitcasts:** PMADDUBSW, PMADDWD and VPDPBUSD at all three widths, and `bitcast` between
-  vectors, agree with the processor on 8,800 results ([`x86.ll`](../tests/real/x86.ll)), which needs AVX-512 VNNI. On
-  any processor, the bitcasts, PMADDUBSW and PMADDWD agree with Alive2 both ways and LLVM's constant folder, poison
-  included, on 617 inputs to 38 operations, scalar bitcasts among them ([`x86check.py`](../tests/x86check.py)).
-  Checked on 2026-11-08.
+- **x86 intrinsics and vector bitcasts:** all 250 x86 intrinsics the model has, at every width and for each
+  immediate tried, agree with the processor on 674,668 lanes of 45,726 results, and the processor disagrees with a
+  wrong version of each ([`x86native.py`](../tests/x86native.py)). That's the dot products, VPTERNLOG, PSHUFB and the
+  shifts the model had, and 151 more, which [the ranking](x86-intrinsics.md) put first: PCLMULQDQ, the AES rounds,
+  PAVG, the packs, PSIGN, PMULHW, PMULHUW, PMULHRSW, PSADBW, PHADD, PHSUB, PBLENDVB, VPDPBUSDS, VPDPWSSD, VPDPWSSDS,
+  BZHI, BEXTR, the masked down-converting moves, PTEST, CRC32, PHMINPOSUW, GFNI and VZEROUPPER. The families modeled
+  hold 99.5% of the integer `llvm.x86.*` calls `clang -O3` leaves in ten projects' kernels. PMADDUBSW, PMADDWD and
+  VPDPBUSD, and `bitcast` between vectors, also agree with the processor on 8,800 results through
+  [`x86.ll`](../tests/real/x86.ll). On any processor, the bitcasts and the 157 of those intrinsics outside
+  `vecopcheck` and VZEROUPPER agree with Alive2 both ways, on 4,953 inputs to the 52 it knows, and with
+  InstCombine's folds, on 60,042 lanes, poison included, with a wrong version of each refuted
+  ([`x86check.py`](../tests/x86check.py)). Neither computes 99 of them, so only the processor checks their values,
+  on one model of processor: [x86 intrinsics](x86-intrinsics.md#what-the-model-has) says which. Checked on
+  2026-11-10, on z.
 - **llama.cpp's rewrite natively:** each of the 34 pairs of slices gives the same results on the processor, on 200,000
   inputs each, and each wrong rewrite differs ([llama.cpp](llama.md#checked-another-way)). With the two libraries,
   `llama-perplexity` gives the same logits bit for bit on two models, on 2026-11-07.
@@ -267,7 +279,7 @@ reads it. That difference is itself a thing [Phase 3](roadmap.md#phase-3-c-and-r
    `llvm.loop.mustprogress` [since SEM-07](trust.md#promises-to-progress).
 10. `inflate`: [measured](#measured). Its next step is [its invariant](roadmap.md#phase-1-zlib-inflate-memory-safety).
 11. A [lemma store](lemma-store.md): 437 checked lemmas from #42, #46, #48, F3 and #103 that later proofs can find, in
-    `lake build` and CI, 73 of them used by two proofs. Done in [#60](https://github.com/phongndo/ir-lean/pull/60).
+    `lake build` and CI, 75 of them used by two proofs. Done in [#60](https://github.com/phongndo/ir-lean/pull/60).
 12. Tier-1 proof tests, which run a property on generated inputs and have the kernel check each counterexample. Done,
     for functions without memory: [proof tests](proof-tests.md) has what they refute, and what they can't run.
 13. `freeze` in the model, F3: `freeze` of poison is a value each run chooses, and `IRLean.Refines` quantifies over each
@@ -293,7 +305,14 @@ reads it. That difference is itself a thing [Phase 3](roadmap.md#phase-3-c-and-r
     LLVM's `Value`, `Use`, `ConstantInt`, `APInt` and `Type`, as the matchers read them, proved kept by
     `ConstantInt::get`, `PoisonValue::get` and `BinaryOperator::Create` as specifications of what each does to memory,
     and a layout probe agrees with it on the pinned `libLLVM`. See [LLVM's IR in memory](llvm-heap.md).
-18. The rule format, certify mode and the rule search, on 2026-11-10: 182 rules, each a pattern, a replacement and
+18. Memory in `IRLean.Refines`, and the lemma that a refined cut gives a refined function, F4 (SEM-06), on 2026-11-10:
+    in progress, not finished. Of its six [stages](refinement.md#functions-with-memory), 1, 2 and 4 are done: the cut
+    lemma, `Refines` for functions with memory where both sides allocate alike, guarded by `Outcome.answered` where the
+    model has no answer for the source, and the cut lemma with memory for the operations that have a lemma. Stage 5,
+    the model's memory gaps, is partly done: each has its side, and four aren't closed. Stage 3, a target that
+    allocates differently, so removing an `alloca` has no claim, and stage 6, `tools/binding.py` on memory, which
+    still refuses it, haven't started. The `cut` and `memory_refine` tests check it.
+19. The rule format, certify mode and the rule search, on 2026-11-10: 182 rules, each a pattern, a replacement and
     side conditions in one source, with its Lean statement generated from that source and proved for every input on
     the standard three axioms, all imported from the lemmas chunk 1's rewrites are proved from. Certify mode has
     Lean prove each application of a rule again, from the IR before and after and the rule's name. A deterministic

@@ -117,6 +117,20 @@ the semantic model, backend, linker and hardware retain the [documented trust bo
 The surrounding memory operations, target intrinsics and floating-point program are not translated
 or claimed to be proved. Inference checks supply empirical evidence for that integration.
 
+Since 2026-11-10 substitution has a lemma, [the cut lemma](refinement.md#the-cut-lemma): a function with the slice
+replaced refines the function with the slice. It's used once on this slice, in
+[`tests/cut/Q5Kernel.lean`](../tests/cut/Q5Kernel.lean), on [`tests/cut/q5_kernel.ll`](../tests/cut/q5_kernel.ll): a loop
+whose body holds these six instructions word for word, joins the low nibbles and adds the bytes up, and the same loop
+with the two-instruction replacement. `q5_kernel` proves the second refines the first on every input, from `same` and
+nothing else about the slice. [`q5_kernel_memory`](../tests/cut/Q5KernelMemory.lean) proves the same of that loop
+[with memory](refinement.md#with-memory): it loads each word through a pointer and stores what it adds up through
+another, and the claim is for every memory the model has an answer for. Neither loop is `ggml_vec_dot_q5_0_q8_0`. The
+kernel also computes in floating point on vectors and loads vectors, and it hasn't been translated, so for the
+kernel itself extraction and substitution stay trusted. What a theorem about it still needs is in
+[refinement](refinement.md#what-it-doesnt-cover): the kernel translating, and lemmas that its floating-point and x86
+operations and its vector loads keep refinement. What clang wraps a function in is covered: the lemma is used on
+[a loop as clang compiled it](refinement.md#with-memory), with its attributes and its promise to progress.
+
 ## Performance and variance
 
 Each session warms both variants once, then runs randomized adjacent baseline/target pairs. The

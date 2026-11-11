@@ -24,7 +24,9 @@ shell, while other work ran on the same machine.
   each lemma's entry names, in `rewrites`, the rewrites of chunk 1 whose theorems use it. InstSimplify's
   `simplifyAddInst` gave it 11 lemmas, as family `peephole-is-add`: 4 meet all four rules and 7 are candidates, so it
   holds 175 lemmas, 21 meeting all four and 154 candidates. Since InstSimplify's other six families, in
-  [#103](https://github.com/phongndo/ir-lean/pull/103), it holds 437: 73 meeting all four and 364 candidates.
+  [#103](https://github.com/phongndo/ir-lean/pull/103), it holds 437: 73 meeting all four and 364 candidates. Since
+  F4, on 2026-11-10, `IRLean/Mono.lean` uses `Refine.val_map_mono` and `val_map₂_mono`, which then meet all four:
+  75 and 362.
   [Rewrite proofs](rewrite-proofs.md#the-lemma-store-and-the-rewrites) has the details.
 - **Seeding refused 6 of 169.** Two of #48's lemmas, `shl_lshr_eq_iff` and `shl_sshr_eq_iff`, hold without their
   bound on the shift, so their hypothesis is one nothing needs. `grind` alone closes two more and `Refines.of_eq`, and

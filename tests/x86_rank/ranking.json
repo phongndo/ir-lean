@@ -1,0 +1,4537 @@
+{
+ "schema": "ir-lean.x86-rank/1",
+ "generated_by": "tools/x86_rank.py count",
+ "pin": {
+  "tag": "llvmorg-23.1.3",
+  "commit": "0d261d1ca552c95a8f007e061c787ac7132fbcbc"
+ },
+ "clang": "clang version 23.1.3",
+ "nixpkgs": "1d060086d60cb76a40cf37109f979d88a5bd6396",
+ "integer": [
+  "llvm.x86.addcarry.32",
+  "llvm.x86.addcarry.64",
+  "llvm.x86.aesni.aesdec",
+  "llvm.x86.aesni.aesdec.256",
+  "llvm.x86.aesni.aesdec.512",
+  "llvm.x86.aesni.aesdeclast",
+  "llvm.x86.aesni.aesdeclast.256",
+  "llvm.x86.aesni.aesdeclast.512",
+  "llvm.x86.aesni.aesenc",
+  "llvm.x86.aesni.aesenc.256",
+  "llvm.x86.aesni.aesenc.512",
+  "llvm.x86.aesni.aesenclast",
+  "llvm.x86.aesni.aesenclast.256",
+  "llvm.x86.aesni.aesenclast.512",
+  "llvm.x86.aesni.aesimc",
+  "llvm.x86.aesni.aeskeygenassist",
+  "llvm.x86.avx.ptestc.256",
+  "llvm.x86.avx.ptestnzc.256",
+  "llvm.x86.avx.ptestz.256",
+  "llvm.x86.avx10.vmpsadbw.512",
+  "llvm.x86.avx10.vpdpbssd.512",
+  "llvm.x86.avx10.vpdpbssds.512",
+  "llvm.x86.avx10.vpdpbsud.512",
+  "llvm.x86.avx10.vpdpbsuds.512",
+  "llvm.x86.avx10.vpdpbuud.512",
+  "llvm.x86.avx10.vpdpbuuds.512",
+  "llvm.x86.avx10.vpdpwsud.512",
+  "llvm.x86.avx10.vpdpwsuds.512",
+  "llvm.x86.avx10.vpdpwusd.512",
+  "llvm.x86.avx10.vpdpwusds.512",
+  "llvm.x86.avx10.vpdpwuud.512",
+  "llvm.x86.avx10.vpdpwuuds.512",
+  "llvm.x86.avx2.mpsadbw",
+  "llvm.x86.avx2.packssdw",
+  "llvm.x86.avx2.packsswb",
+  "llvm.x86.avx2.packusdw",
+  "llvm.x86.avx2.packuswb",
+  "llvm.x86.avx2.pavg.b",
+  "llvm.x86.avx2.pavg.w",
+  "llvm.x86.avx2.pblendvb",
+  "llvm.x86.avx2.permd",
+  "llvm.x86.avx2.phadd.d",
+  "llvm.x86.avx2.phadd.sw",
+  "llvm.x86.avx2.phadd.w",
+  "llvm.x86.avx2.phsub.d",
+  "llvm.x86.avx2.phsub.sw",
+  "llvm.x86.avx2.phsub.w",
+  "llvm.x86.avx2.pmadd.ub.sw",
+  "llvm.x86.avx2.pmadd.wd",
+  "llvm.x86.avx2.pmovmskb",
+  "llvm.x86.avx2.pmul.hr.sw",
+  "llvm.x86.avx2.pmulh.w",
+  "llvm.x86.avx2.pmulhu.w",
+  "llvm.x86.avx2.psad.bw",
+  "llvm.x86.avx2.pshuf.b",
+  "llvm.x86.avx2.psign.b",
+  "llvm.x86.avx2.psign.d",
+  "llvm.x86.avx2.psign.w",
+  "llvm.x86.avx2.psll.d",
+  "llvm.x86.avx2.psll.q",
+  "llvm.x86.avx2.psll.w",
+  "llvm.x86.avx2.pslli.d",
+  "llvm.x86.avx2.pslli.q",
+  "llvm.x86.avx2.pslli.w",
+  "llvm.x86.avx2.psllv.d",
+  "llvm.x86.avx2.psllv.d.256",
+  "llvm.x86.avx2.psllv.q",
+  "llvm.x86.avx2.psllv.q.256",
+  "llvm.x86.avx2.psra.d",
+  "llvm.x86.avx2.psra.w",
+  "llvm.x86.avx2.psrai.d",
+  "llvm.x86.avx2.psrai.w",
+  "llvm.x86.avx2.psrav.d",
+  "llvm.x86.avx2.psrav.d.256",
+  "llvm.x86.avx2.psrl.d",
+  "llvm.x86.avx2.psrl.q",
+  "llvm.x86.avx2.psrl.w",
+  "llvm.x86.avx2.psrli.d",
+  "llvm.x86.avx2.psrli.q",
+  "llvm.x86.avx2.psrli.w",
+  "llvm.x86.avx2.psrlv.d",
+  "llvm.x86.avx2.psrlv.d.256",
+  "llvm.x86.avx2.psrlv.q",
+  "llvm.x86.avx2.psrlv.q.256",
+  "llvm.x86.avx2.vpdpbssd.128",
+  "llvm.x86.avx2.vpdpbssd.256",
+  "llvm.x86.avx2.vpdpbssds.128",
+  "llvm.x86.avx2.vpdpbssds.256",
+  "llvm.x86.avx2.vpdpbsud.128",
+  "llvm.x86.avx2.vpdpbsud.256",
+  "llvm.x86.avx2.vpdpbsuds.128",
+  "llvm.x86.avx2.vpdpbsuds.256",
+  "llvm.x86.avx2.vpdpbuud.128",
+  "llvm.x86.avx2.vpdpbuud.256",
+  "llvm.x86.avx2.vpdpbuuds.128",
+  "llvm.x86.avx2.vpdpbuuds.256",
+  "llvm.x86.avx2.vpdpwsud.128",
+  "llvm.x86.avx2.vpdpwsud.256",
+  "llvm.x86.avx2.vpdpwsuds.128",
+  "llvm.x86.avx2.vpdpwsuds.256",
+  "llvm.x86.avx2.vpdpwusd.128",
+  "llvm.x86.avx2.vpdpwusd.256",
+  "llvm.x86.avx2.vpdpwusds.128",
+  "llvm.x86.avx2.vpdpwusds.256",
+  "llvm.x86.avx2.vpdpwuud.128",
+  "llvm.x86.avx2.vpdpwuud.256",
+  "llvm.x86.avx2.vpdpwuuds.128",
+  "llvm.x86.avx2.vpdpwuuds.256",
+  "llvm.x86.avx512.conflict.d.128",
+  "llvm.x86.avx512.conflict.d.256",
+  "llvm.x86.avx512.conflict.d.512",
+  "llvm.x86.avx512.conflict.q.128",
+  "llvm.x86.avx512.conflict.q.256",
+  "llvm.x86.avx512.conflict.q.512",
+  "llvm.x86.avx512.dbpsadbw.128",
+  "llvm.x86.avx512.dbpsadbw.256",
+  "llvm.x86.avx512.dbpsadbw.512",
+  "llvm.x86.avx512.kadd.b",
+  "llvm.x86.avx512.kadd.d",
+  "llvm.x86.avx512.kadd.q",
+  "llvm.x86.avx512.kadd.w",
+  "llvm.x86.avx512.ktestc.b",
+  "llvm.x86.avx512.ktestc.d",
+  "llvm.x86.avx512.ktestc.q",
+  "llvm.x86.avx512.ktestc.w",
+  "llvm.x86.avx512.ktestz.b",
+  "llvm.x86.avx512.ktestz.d",
+  "llvm.x86.avx512.ktestz.q",
+  "llvm.x86.avx512.ktestz.w",
+  "llvm.x86.avx512.mask.compress",
+  "llvm.x86.avx512.mask.expand",
+  "llvm.x86.avx512.mask.pmov.db.128",
+  "llvm.x86.avx512.mask.pmov.db.256",
+  "llvm.x86.avx512.mask.pmov.db.512",
+  "llvm.x86.avx512.mask.pmov.dw.128",
+  "llvm.x86.avx512.mask.pmov.dw.256",
+  "llvm.x86.avx512.mask.pmov.dw.512",
+  "llvm.x86.avx512.mask.pmov.qb.128",
+  "llvm.x86.avx512.mask.pmov.qb.256",
+  "llvm.x86.avx512.mask.pmov.qb.512",
+  "llvm.x86.avx512.mask.pmov.qd.128",
+  "llvm.x86.avx512.mask.pmov.qw.128",
+  "llvm.x86.avx512.mask.pmov.qw.256",
+  "llvm.x86.avx512.mask.pmov.qw.512",
+  "llvm.x86.avx512.mask.pmov.wb.128",
+  "llvm.x86.avx512.mask.pmovs.db.128",
+  "llvm.x86.avx512.mask.pmovs.db.256",
+  "llvm.x86.avx512.mask.pmovs.db.512",
+  "llvm.x86.avx512.mask.pmovs.dw.128",
+  "llvm.x86.avx512.mask.pmovs.dw.256",
+  "llvm.x86.avx512.mask.pmovs.dw.512",
+  "llvm.x86.avx512.mask.pmovs.qb.128",
+  "llvm.x86.avx512.mask.pmovs.qb.256",
+  "llvm.x86.avx512.mask.pmovs.qb.512",
+  "llvm.x86.avx512.mask.pmovs.qd.128",
+  "llvm.x86.avx512.mask.pmovs.qd.256",
+  "llvm.x86.avx512.mask.pmovs.qd.512",
+  "llvm.x86.avx512.mask.pmovs.qw.128",
+  "llvm.x86.avx512.mask.pmovs.qw.256",
+  "llvm.x86.avx512.mask.pmovs.qw.512",
+  "llvm.x86.avx512.mask.pmovs.wb.128",
+  "llvm.x86.avx512.mask.pmovs.wb.256",
+  "llvm.x86.avx512.mask.pmovs.wb.512",
+  "llvm.x86.avx512.mask.pmovus.db.128",
+  "llvm.x86.avx512.mask.pmovus.db.256",
+  "llvm.x86.avx512.mask.pmovus.db.512",
+  "llvm.x86.avx512.mask.pmovus.dw.128",
+  "llvm.x86.avx512.mask.pmovus.dw.256",
+  "llvm.x86.avx512.mask.pmovus.dw.512",
+  "llvm.x86.avx512.mask.pmovus.qb.128",
+  "llvm.x86.avx512.mask.pmovus.qb.256",
+  "llvm.x86.avx512.mask.pmovus.qb.512",
+  "llvm.x86.avx512.mask.pmovus.qd.128",
+  "llvm.x86.avx512.mask.pmovus.qd.256",
+  "llvm.x86.avx512.mask.pmovus.qd.512",
+  "llvm.x86.avx512.mask.pmovus.qw.128",
+  "llvm.x86.avx512.mask.pmovus.qw.256",
+  "llvm.x86.avx512.mask.pmovus.qw.512",
+  "llvm.x86.avx512.mask.pmovus.wb.128",
+  "llvm.x86.avx512.mask.pmovus.wb.256",
+  "llvm.x86.avx512.mask.pmovus.wb.512",
+  "llvm.x86.avx512.packssdw.512",
+  "llvm.x86.avx512.packsswb.512",
+  "llvm.x86.avx512.packusdw.512",
+  "llvm.x86.avx512.packuswb.512",
+  "llvm.x86.avx512.pavg.b.512",
+  "llvm.x86.avx512.pavg.w.512",
+  "llvm.x86.avx512.permvar.di.256",
+  "llvm.x86.avx512.permvar.di.512",
+  "llvm.x86.avx512.permvar.hi.128",
+  "llvm.x86.avx512.permvar.hi.256",
+  "llvm.x86.avx512.permvar.hi.512",
+  "llvm.x86.avx512.permvar.qi.128",
+  "llvm.x86.avx512.permvar.qi.256",
+  "llvm.x86.avx512.permvar.qi.512",
+  "llvm.x86.avx512.permvar.si.512",
+  "llvm.x86.avx512.pmaddubs.w.512",
+  "llvm.x86.avx512.pmaddw.d.512",
+  "llvm.x86.avx512.pmul.hr.sw.512",
+  "llvm.x86.avx512.pmulh.w.512",
+  "llvm.x86.avx512.pmulhu.w.512",
+  "llvm.x86.avx512.pmultishift.qb.128",
+  "llvm.x86.avx512.pmultishift.qb.256",
+  "llvm.x86.avx512.pmultishift.qb.512",
+  "llvm.x86.avx512.psad.bw.512",
+  "llvm.x86.avx512.pshuf.b.512",
+  "llvm.x86.avx512.psll.d.512",
+  "llvm.x86.avx512.psll.q.512",
+  "llvm.x86.avx512.psll.w.512",
+  "llvm.x86.avx512.pslli.d.512",
+  "llvm.x86.avx512.pslli.q.512",
+  "llvm.x86.avx512.pslli.w.512",
+  "llvm.x86.avx512.psllv.d.512",
+  "llvm.x86.avx512.psllv.q.512",
+  "llvm.x86.avx512.psllv.w.128",
+  "llvm.x86.avx512.psllv.w.256",
+  "llvm.x86.avx512.psllv.w.512",
+  "llvm.x86.avx512.psra.d.512",
+  "llvm.x86.avx512.psra.q.128",
+  "llvm.x86.avx512.psra.q.256",
+  "llvm.x86.avx512.psra.q.512",
+  "llvm.x86.avx512.psra.w.512",
+  "llvm.x86.avx512.psrai.d.512",
+  "llvm.x86.avx512.psrai.q.128",
+  "llvm.x86.avx512.psrai.q.256",
+  "llvm.x86.avx512.psrai.q.512",
+  "llvm.x86.avx512.psrai.w.512",
+  "llvm.x86.avx512.psrav.d.512",
+  "llvm.x86.avx512.psrav.q.128",
+  "llvm.x86.avx512.psrav.q.256",
+  "llvm.x86.avx512.psrav.q.512",
+  "llvm.x86.avx512.psrav.w.128",
+  "llvm.x86.avx512.psrav.w.256",
+  "llvm.x86.avx512.psrav.w.512",
+  "llvm.x86.avx512.psrl.d.512",
+  "llvm.x86.avx512.psrl.q.512",
+  "llvm.x86.avx512.psrl.w.512",
+  "llvm.x86.avx512.psrli.d.512",
+  "llvm.x86.avx512.psrli.q.512",
+  "llvm.x86.avx512.psrli.w.512",
+  "llvm.x86.avx512.psrlv.d.512",
+  "llvm.x86.avx512.psrlv.q.512",
+  "llvm.x86.avx512.psrlv.w.128",
+  "llvm.x86.avx512.psrlv.w.256",
+  "llvm.x86.avx512.psrlv.w.512",
+  "llvm.x86.avx512.pternlog.d.128",
+  "llvm.x86.avx512.pternlog.d.256",
+  "llvm.x86.avx512.pternlog.d.512",
+  "llvm.x86.avx512.pternlog.q.128",
+  "llvm.x86.avx512.pternlog.q.256",
+  "llvm.x86.avx512.pternlog.q.512",
+  "llvm.x86.avx512.vbmacor.v16hi",
+  "llvm.x86.avx512.vbmacor.v32hi",
+  "llvm.x86.avx512.vbmacxor.v16hi",
+  "llvm.x86.avx512.vbmacxor.v32hi",
+  "llvm.x86.avx512.vp2intersect.d.128",
+  "llvm.x86.avx512.vp2intersect.d.256",
+  "llvm.x86.avx512.vp2intersect.d.512",
+  "llvm.x86.avx512.vp2intersect.q.128",
+  "llvm.x86.avx512.vp2intersect.q.256",
+  "llvm.x86.avx512.vp2intersect.q.512",
+  "llvm.x86.avx512.vpdpbusd.128",
+  "llvm.x86.avx512.vpdpbusd.256",
+  "llvm.x86.avx512.vpdpbusd.512",
+  "llvm.x86.avx512.vpdpbusds.128",
+  "llvm.x86.avx512.vpdpbusds.256",
+  "llvm.x86.avx512.vpdpbusds.512",
+  "llvm.x86.avx512.vpdpwssd.128",
+  "llvm.x86.avx512.vpdpwssd.256",
+  "llvm.x86.avx512.vpdpwssd.512",
+  "llvm.x86.avx512.vpdpwssds.128",
+  "llvm.x86.avx512.vpdpwssds.256",
+  "llvm.x86.avx512.vpdpwssds.512",
+  "llvm.x86.avx512.vpermi2var.d.128",
+  "llvm.x86.avx512.vpermi2var.d.256",
+  "llvm.x86.avx512.vpermi2var.d.512",
+  "llvm.x86.avx512.vpermi2var.hi.128",
+  "llvm.x86.avx512.vpermi2var.hi.256",
+  "llvm.x86.avx512.vpermi2var.hi.512",
+  "llvm.x86.avx512.vpermi2var.q.128",
+  "llvm.x86.avx512.vpermi2var.q.256",
+  "llvm.x86.avx512.vpermi2var.q.512",
+  "llvm.x86.avx512.vpermi2var.qi.128",
+  "llvm.x86.avx512.vpermi2var.qi.256",
+  "llvm.x86.avx512.vpermi2var.qi.512",
+  "llvm.x86.avx512.vpmadd52h.uq.128",
+  "llvm.x86.avx512.vpmadd52h.uq.256",
+  "llvm.x86.avx512.vpmadd52h.uq.512",
+  "llvm.x86.avx512.vpmadd52l.uq.128",
+  "llvm.x86.avx512.vpmadd52l.uq.256",
+  "llvm.x86.avx512.vpmadd52l.uq.512",
+  "llvm.x86.avx512.vpshufbitqmb.128",
+  "llvm.x86.avx512.vpshufbitqmb.256",
+  "llvm.x86.avx512.vpshufbitqmb.512",
+  "llvm.x86.bmi.bextr.32",
+  "llvm.x86.bmi.bextr.64",
+  "llvm.x86.bmi.bzhi.32",
+  "llvm.x86.bmi.bzhi.64",
+  "llvm.x86.mmx.packssdw",
+  "llvm.x86.mmx.packsswb",
+  "llvm.x86.mmx.packuswb",
+  "llvm.x86.mmx.padd.b",
+  "llvm.x86.mmx.padd.d",
+  "llvm.x86.mmx.padd.q",
+  "llvm.x86.mmx.padd.w",
+  "llvm.x86.mmx.padds.b",
+  "llvm.x86.mmx.padds.w",
+  "llvm.x86.mmx.paddus.b",
+  "llvm.x86.mmx.paddus.w",
+  "llvm.x86.mmx.palignr.b",
+  "llvm.x86.mmx.pand",
+  "llvm.x86.mmx.pandn",
+  "llvm.x86.mmx.pavg.b",
+  "llvm.x86.mmx.pavg.w",
+  "llvm.x86.mmx.pcmpeq.b",
+  "llvm.x86.mmx.pcmpeq.d",
+  "llvm.x86.mmx.pcmpeq.w",
+  "llvm.x86.mmx.pcmpgt.b",
+  "llvm.x86.mmx.pcmpgt.d",
+  "llvm.x86.mmx.pcmpgt.w",
+  "llvm.x86.mmx.pextr.w",
+  "llvm.x86.mmx.pinsr.w",
+  "llvm.x86.mmx.pmadd.wd",
+  "llvm.x86.mmx.pmaxs.w",
+  "llvm.x86.mmx.pmaxu.b",
+  "llvm.x86.mmx.pmins.w",
+  "llvm.x86.mmx.pminu.b",
+  "llvm.x86.mmx.pmovmskb",
+  "llvm.x86.mmx.pmulh.w",
+  "llvm.x86.mmx.pmulhu.w",
+  "llvm.x86.mmx.pmull.w",
+  "llvm.x86.mmx.pmulu.dq",
+  "llvm.x86.mmx.por",
+  "llvm.x86.mmx.psad.bw",
+  "llvm.x86.mmx.psll.d",
+  "llvm.x86.mmx.psll.q",
+  "llvm.x86.mmx.psll.w",
+  "llvm.x86.mmx.pslli.d",
+  "llvm.x86.mmx.pslli.q",
+  "llvm.x86.mmx.pslli.w",
+  "llvm.x86.mmx.psra.d",
+  "llvm.x86.mmx.psra.w",
+  "llvm.x86.mmx.psrai.d",
+  "llvm.x86.mmx.psrai.w",
+  "llvm.x86.mmx.psrl.d",
+  "llvm.x86.mmx.psrl.q",
+  "llvm.x86.mmx.psrl.w",
+  "llvm.x86.mmx.psrli.d",
+  "llvm.x86.mmx.psrli.q",
+  "llvm.x86.mmx.psrli.w",
+  "llvm.x86.mmx.psub.b",
+  "llvm.x86.mmx.psub.d",
+  "llvm.x86.mmx.psub.q",
+  "llvm.x86.mmx.psub.w",
+  "llvm.x86.mmx.psubs.b",
+  "llvm.x86.mmx.psubs.w",
+  "llvm.x86.mmx.psubus.b",
+  "llvm.x86.mmx.psubus.w",
+  "llvm.x86.mmx.punpckhbw",
+  "llvm.x86.mmx.punpckhdq",
+  "llvm.x86.mmx.punpckhwd",
+  "llvm.x86.mmx.punpcklbw",
+  "llvm.x86.mmx.punpckldq",
+  "llvm.x86.mmx.punpcklwd",
+  "llvm.x86.mmx.pxor",
+  "llvm.x86.pclmulqdq",
+  "llvm.x86.pclmulqdq.256",
+  "llvm.x86.pclmulqdq.512",
+  "llvm.x86.sha1msg1",
+  "llvm.x86.sha1msg2",
+  "llvm.x86.sha1nexte",
+  "llvm.x86.sha1rnds4",
+  "llvm.x86.sha256msg1",
+  "llvm.x86.sha256msg2",
+  "llvm.x86.sha256rnds2",
+  "llvm.x86.sse.pshuf.w",
+  "llvm.x86.sse2.packssdw.128",
+  "llvm.x86.sse2.packsswb.128",
+  "llvm.x86.sse2.packuswb.128",
+  "llvm.x86.sse2.pavg.b",
+  "llvm.x86.sse2.pavg.w",
+  "llvm.x86.sse2.pmadd.wd",
+  "llvm.x86.sse2.pmovmskb.128",
+  "llvm.x86.sse2.pmulh.w",
+  "llvm.x86.sse2.pmulhu.w",
+  "llvm.x86.sse2.psad.bw",
+  "llvm.x86.sse2.psll.d",
+  "llvm.x86.sse2.psll.q",
+  "llvm.x86.sse2.psll.w",
+  "llvm.x86.sse2.pslli.d",
+  "llvm.x86.sse2.pslli.q",
+  "llvm.x86.sse2.pslli.w",
+  "llvm.x86.sse2.psra.d",
+  "llvm.x86.sse2.psra.w",
+  "llvm.x86.sse2.psrai.d",
+  "llvm.x86.sse2.psrai.w",
+  "llvm.x86.sse2.psrl.d",
+  "llvm.x86.sse2.psrl.q",
+  "llvm.x86.sse2.psrl.w",
+  "llvm.x86.sse2.psrli.d",
+  "llvm.x86.sse2.psrli.q",
+  "llvm.x86.sse2.psrli.w",
+  "llvm.x86.sse41.mpsadbw",
+  "llvm.x86.sse41.packusdw",
+  "llvm.x86.sse41.pblendvb",
+  "llvm.x86.sse41.phminposuw",
+  "llvm.x86.sse41.ptestc",
+  "llvm.x86.sse41.ptestnzc",
+  "llvm.x86.sse41.ptestz",
+  "llvm.x86.sse42.crc32.32.16",
+  "llvm.x86.sse42.crc32.32.32",
+  "llvm.x86.sse42.crc32.32.8",
+  "llvm.x86.sse42.crc32.64.64",
+  "llvm.x86.sse42.pcmpestri128",
+  "llvm.x86.sse42.pcmpestria128",
+  "llvm.x86.sse42.pcmpestric128",
+  "llvm.x86.sse42.pcmpestrio128",
+  "llvm.x86.sse42.pcmpestris128",
+  "llvm.x86.sse42.pcmpestriz128",
+  "llvm.x86.sse42.pcmpestrm128",
+  "llvm.x86.sse42.pcmpistri128",
+  "llvm.x86.sse42.pcmpistria128",
+  "llvm.x86.sse42.pcmpistric128",
+  "llvm.x86.sse42.pcmpistrio128",
+  "llvm.x86.sse42.pcmpistris128",
+  "llvm.x86.sse42.pcmpistriz128",
+  "llvm.x86.sse42.pcmpistrm128",
+  "llvm.x86.sse4a.extrq",
+  "llvm.x86.sse4a.extrqi",
+  "llvm.x86.sse4a.insertq",
+  "llvm.x86.sse4a.insertqi",
+  "llvm.x86.ssse3.pabs.b",
+  "llvm.x86.ssse3.pabs.d",
+  "llvm.x86.ssse3.pabs.w",
+  "llvm.x86.ssse3.phadd.d",
+  "llvm.x86.ssse3.phadd.d.128",
+  "llvm.x86.ssse3.phadd.sw",
+  "llvm.x86.ssse3.phadd.sw.128",
+  "llvm.x86.ssse3.phadd.w",
+  "llvm.x86.ssse3.phadd.w.128",
+  "llvm.x86.ssse3.phsub.d",
+  "llvm.x86.ssse3.phsub.d.128",
+  "llvm.x86.ssse3.phsub.sw",
+  "llvm.x86.ssse3.phsub.sw.128",
+  "llvm.x86.ssse3.phsub.w",
+  "llvm.x86.ssse3.phsub.w.128",
+  "llvm.x86.ssse3.pmadd.ub.sw",
+  "llvm.x86.ssse3.pmadd.ub.sw.128",
+  "llvm.x86.ssse3.pmul.hr.sw",
+  "llvm.x86.ssse3.pmul.hr.sw.128",
+  "llvm.x86.ssse3.pshuf.b",
+  "llvm.x86.ssse3.pshuf.b.128",
+  "llvm.x86.ssse3.psign.b",
+  "llvm.x86.ssse3.psign.b.128",
+  "llvm.x86.ssse3.psign.d",
+  "llvm.x86.ssse3.psign.d.128",
+  "llvm.x86.ssse3.psign.w",
+  "llvm.x86.ssse3.psign.w.128",
+  "llvm.x86.subborrow.32",
+  "llvm.x86.subborrow.64",
+  "llvm.x86.tbm.bextri.u32",
+  "llvm.x86.tbm.bextri.u64",
+  "llvm.x86.vgf2p8affineinvqb.128",
+  "llvm.x86.vgf2p8affineinvqb.256",
+  "llvm.x86.vgf2p8affineinvqb.512",
+  "llvm.x86.vgf2p8affineqb.128",
+  "llvm.x86.vgf2p8affineqb.256",
+  "llvm.x86.vgf2p8affineqb.512",
+  "llvm.x86.vgf2p8mulb.128",
+  "llvm.x86.vgf2p8mulb.256",
+  "llvm.x86.vgf2p8mulb.512",
+  "llvm.x86.vsha512msg1",
+  "llvm.x86.vsha512msg2",
+  "llvm.x86.vsha512rnds2",
+  "llvm.x86.vsm3msg1",
+  "llvm.x86.vsm3msg2",
+  "llvm.x86.vsm3rnds2",
+  "llvm.x86.vsm4key4128",
+  "llvm.x86.vsm4key4256",
+  "llvm.x86.vsm4key4512",
+  "llvm.x86.vsm4rnds4128",
+  "llvm.x86.vsm4rnds4256",
+  "llvm.x86.vsm4rnds4512",
+  "llvm.x86.xop.vphaddbd",
+  "llvm.x86.xop.vphaddbq",
+  "llvm.x86.xop.vphaddbw",
+  "llvm.x86.xop.vphadddq",
+  "llvm.x86.xop.vphaddubd",
+  "llvm.x86.xop.vphaddubq",
+  "llvm.x86.xop.vphaddubw",
+  "llvm.x86.xop.vphaddudq",
+  "llvm.x86.xop.vphadduwd",
+  "llvm.x86.xop.vphadduwq",
+  "llvm.x86.xop.vphaddwd",
+  "llvm.x86.xop.vphaddwq",
+  "llvm.x86.xop.vphsubbw",
+  "llvm.x86.xop.vphsubdq",
+  "llvm.x86.xop.vphsubwd",
+  "llvm.x86.xop.vpmacsdd",
+  "llvm.x86.xop.vpmacsdqh",
+  "llvm.x86.xop.vpmacsdql",
+  "llvm.x86.xop.vpmacssdd",
+  "llvm.x86.xop.vpmacssdqh",
+  "llvm.x86.xop.vpmacssdql",
+  "llvm.x86.xop.vpmacsswd",
+  "llvm.x86.xop.vpmacssww",
+  "llvm.x86.xop.vpmacswd",
+  "llvm.x86.xop.vpmacsww",
+  "llvm.x86.xop.vpmadcsswd",
+  "llvm.x86.xop.vpmadcswd",
+  "llvm.x86.xop.vpperm",
+  "llvm.x86.xop.vpshab",
+  "llvm.x86.xop.vpshad",
+  "llvm.x86.xop.vpshaq",
+  "llvm.x86.xop.vpshaw",
+  "llvm.x86.xop.vpshlb",
+  "llvm.x86.xop.vpshld",
+  "llvm.x86.xop.vpshlq",
+  "llvm.x86.xop.vpshlw"
+ ],
+ "projects": [
+  {
+   "name": "llama.cpp",
+   "domain": "inference",
+   "version": "b12189",
+   "source": "/nix/store/xyvikf9mlja3nb1pbql7s8iq2m8gql8h-source",
+   "files": 17,
+   "not_compiled": [],
+   "calls": {
+    "llvm.abs.i32|integer": {
+     "calls": 1,
+     "functions": 1
+    },
+    "llvm.abs.i64|integer": {
+     "calls": 3,
+     "functions": 3
+    },
+    "llvm.abs.v64i8|integer": {
+     "calls": 96,
+     "functions": 3
+    },
+    "llvm.assume|other": {
+     "calls": 317,
+     "functions": 164
+    },
+    "llvm.ceil.f32|float": {
+     "calls": 10,
+     "functions": 2
+    },
+    "llvm.ceil.v16f32|float": {
+     "calls": 8,
+     "functions": 1
+    },
+    "llvm.ceil.v32f32|float": {
+     "calls": 1,
+     "functions": 1
+    },
+    "llvm.ceil.v8f32|float": {
+     "calls": 3,
+     "functions": 1
+    },
+    "llvm.ctlz.i64|integer": {
+     "calls": 1,
+     "functions": 1
+    },
+    "llvm.ctpop.i64|integer": {
+     "calls": 3,
+     "functions": 2
+    },
+    "llvm.cttz.i64|integer": {
+     "calls": 1,
+     "functions": 1
+    },
+    "llvm.experimental.noalias.scope.decl|other": {
+     "calls": 123,
+     "functions": 35
+    },
+    "llvm.fabs.f32|float": {
+     "calls": 337,
+     "functions": 55
+    },
+    "llvm.fabs.v16f32|float": {
+     "calls": 20,
+     "functions": 8
+    },
+    "llvm.fabs.v2f32|float": {
+     "calls": 2,
+     "functions": 2
+    },
+    "llvm.fabs.v32f32|float": {
+     "calls": 20,
+     "functions": 20
+    },
+    "llvm.fabs.v4f32|float": {
+     "calls": 10,
+     "functions": 8
+    },
+    "llvm.fabs.v8f32|float": {
+     "calls": 85,
+     "functions": 23
+    },
+    "llvm.floor.f32|float": {
+     "calls": 33,
+     "functions": 5
+    },
+    "llvm.floor.f64|float": {
+     "calls": 3,
+     "functions": 3
+    },
+    "llvm.floor.v16f32|float": {
+     "calls": 8,
+     "functions": 1
+    },
+    "llvm.floor.v32f32|float": {
+     "calls": 1,
+     "functions": 1
+    },
+    "llvm.floor.v8f32|float": {
+     "calls": 3,
+     "functions": 1
+    },
+    "llvm.fma.v16f32|float": {
+     "calls": 2263,
+     "functions": 65
+    },
+    "llvm.fma.v4f32|float": {
+     "calls": 1,
+     "functions": 1
+    },
+    "llvm.fma.v8f32|float": {
+     "calls": 631,
+     "functions": 97
+    },
+    "llvm.fmuladd.f32|float": {
+     "calls": 427,
+     "functions": 68
+    },
+    "llvm.fmuladd.v16f32|float": {
+     "calls": 101,
+     "functions": 14
+    },
+    "llvm.fmuladd.v2f32|float": {
+     "calls": 12,
+     "functions": 2
+    },
+    "llvm.fmuladd.v32f32|float": {
+     "calls": 1,
+     "functions": 1
+    },
+    "llvm.fmuladd.v4f32|float": {
+     "calls": 120,
+     "functions": 23
+    },
+    "llvm.fmuladd.v8f32|float": {
+     "calls": 108,
+     "functions": 34
+    },
+    "llvm.lifetime.end.p0|other": {
+     "calls": 294,
+     "functions": 85
+    },
+    "llvm.lifetime.start.p0|other": {
+     "calls": 261,
+     "functions": 85
+    },
+    "llvm.masked.gather.v16f32.v16p0|float": {
+     "calls": 25,
+     "functions": 8
+    },
+    "llvm.masked.gather.v16i32.v16p0|other": {
+     "calls": 1,
+     "functions": 1
+    },
+    "llvm.masked.gather.v4f32.v4p0|float": {
+     "calls": 25,
+     "functions": 22
+    },
+    "llvm.masked.gather.v4i32.v4p0|other": {
+     "calls": 21,
+     "functions": 3
+    },
+    "llvm.masked.gather.v4i64.v4p0|other": {
+     "calls": 128,
+     "functions": 7
+    },
+    "llvm.masked.gather.v8f32.v8p0|float": {
+     "calls": 50,
+     "functions": 22
+    },
+    "llvm.masked.gather.v8i32.v8p0|other": {
+     "calls": 26,
+     "functions": 3
+    },
+    "llvm.masked.gather.v8i64.v8p0|other": {
+     "calls": 6,
+     "functions": 1
+    },
+    "llvm.masked.load.v13i16.p0|other": {
+     "calls": 6,
+     "functions": 3
+    },
+    "llvm.masked.load.v16f32.p0|float": {
+     "calls": 265,
+     "functions": 22
+    },
+    "llvm.masked.load.v16i16.p0|other": {
+     "calls": 225,
+     "functions": 19
+    },
+    "llvm.masked.load.v18i8.p0|other": {
+     "calls": 1,
+     "functions": 1
+    },
+    "llvm.masked.load.v225i8.p0|other": {
+     "calls": 128,
+     "functions": 4
+    },
+    "llvm.masked.load.v25i8.p0|other": {
+     "calls": 9,
+     "functions": 3
+    },
+    "llvm.masked.load.v32i16.p0|other": {
+     "calls": 247,
+     "functions": 20
+    },
+    "llvm.masked.load.v4i32.p0|other": {
+     "calls": 12,
+     "functions": 3
+    },
+    "llvm.masked.load.v6i8.p0|other": {
+     "calls": 8,
+     "functions": 1
+    },
+    "llvm.masked.load.v7i8.p0|other": {
+     "calls": 20,
+     "functions": 2
+    },
+    "llvm.masked.load.v8f32.p0|float": {
+     "calls": 3,
+     "functions": 3
+    },
+    "llvm.masked.load.v8i16.p0|other": {
+     "calls": 2,
+     "functions": 2
+    },
+    "llvm.masked.load.v97i8.p0|other": {
+     "calls": 64,
+     "functions": 2
+    },
+    "llvm.masked.load.v9i8.p0|other": {
+     "calls": 1,
+     "functions": 1
+    },
+    "llvm.masked.scatter.v16f32.v16p0|float": {
+     "calls": 13,
+     "functions": 9
+    },
+    "llvm.masked.scatter.v16i32.v16p0|other": {
+     "calls": 1,
+     "functions": 1
+    },
+    "llvm.masked.scatter.v4f32.v4p0|float": {
+     "calls": 12,
+     "functions": 8
+    },
+    "llvm.masked.scatter.v4i32.v4p0|other": {
+     "calls": 1,
+     "functions": 1
+    },
+    "llvm.masked.scatter.v8f32.v8p0|float": {
+     "calls": 1,
+     "functions": 1
+    },
+    "llvm.masked.scatter.v8i32.v8p0|other": {
+     "calls": 1,
+     "functions": 1
+    },
+    "llvm.masked.scatter.v8p0.v8p0|other": {
+     "calls": 1,
+     "functions": 1
+    },
+    "llvm.masked.store.v16f32.p0|float": {
+     "calls": 4,
+     "functions": 1
+    },
+    "llvm.maxnum.f32|float": {
+     "calls": 25,
+     "functions": 4
+    },
+    "llvm.maxnum.v16f32|float": {
+     "calls": 4,
+     "functions": 2
+    },
+    "llvm.maxnum.v32f32|float": {
+     "calls": 2,
+     "functions": 2
+    },
+    "llvm.maxnum.v4f32|float": {
+     "calls": 6,
+     "functions": 2
+    },
+    "llvm.memcpy.p0.p0.i64|other": {
+     "calls": 593,
+     "functions": 78
+    },
+    "llvm.memmove.p0.p0.i64|other": {
+     "calls": 9,
+     "functions": 3
+    },
+    "llvm.memset.p0.i64|other": {
+     "calls": 1722,
+     "functions": 129
+    },
+    "llvm.minnum.f32|float": {
+     "calls": 23,
+     "functions": 3
+    },
+    "llvm.minnum.v16f32|float": {
+     "calls": 4,
+     "functions": 2
+    },
+    "llvm.minnum.v32f32|float": {
+     "calls": 2,
+     "functions": 2
+    },
+    "llvm.minnum.v4f32|float": {
+     "calls": 6,
+     "functions": 2
+    },
+    "llvm.pdep.i64|integer": {
+     "calls": 36,
+     "functions": 2
+    },
+    "llvm.round.f32|float": {
+     "calls": 9,
+     "functions": 1
+    },
+    "llvm.round.v16f32|float": {
+     "calls": 16,
+     "functions": 2
+    },
+    "llvm.round.v32f32|float": {
+     "calls": 1,
+     "functions": 1
+    },
+    "llvm.round.v8f32|float": {
+     "calls": 19,
+     "functions": 2
+    },
+    "llvm.smax.i32|integer": {
+     "calls": 33,
+     "functions": 4
+    },
+    "llvm.smax.i64|integer": {
+     "calls": 81,
+     "functions": 20
+    },
+    "llvm.smax.v4i64|integer": {
+     "calls": 2,
+     "functions": 1
+    },
+    "llvm.smin.i32|integer": {
+     "calls": 90,
+     "functions": 44
+    },
+    "llvm.smin.i64|integer": {
+     "calls": 595,
+     "functions": 217
+    },
+    "llvm.smin.v4i64|integer": {
+     "calls": 2,
+     "functions": 1
+    },
+    "llvm.threadlocal.address.p0|other": {
+     "calls": 58,
+     "functions": 4
+    },
+    "llvm.trap|other": {
+     "calls": 2,
+     "functions": 2
+    },
+    "llvm.trunc.f32|float": {
+     "calls": 9,
+     "functions": 1
+    },
+    "llvm.trunc.v16f32|float": {
+     "calls": 8,
+     "functions": 1
+    },
+    "llvm.trunc.v32f32|float": {
+     "calls": 1,
+     "functions": 1
+    },
+    "llvm.trunc.v8f32|float": {
+     "calls": 3,
+     "functions": 1
+    },
+    "llvm.umax.i32|integer": {
+     "calls": 27,
+     "functions": 2
+    },
+    "llvm.umax.i64|integer": {
+     "calls": 37,
+     "functions": 6
+    },
+    "llvm.umin.i64|integer": {
+     "calls": 45,
+     "functions": 4
+    },
+    "llvm.umul.with.overflow.i64|integer": {
+     "calls": 4,
+     "functions": 4
+    },
+    "llvm.usub.sat.v32i8|integer": {
+     "calls": 8,
+     "functions": 1
+    },
+    "llvm.usub.sat.v4i64|integer": {
+     "calls": 3,
+     "functions": 2
+    },
+    "llvm.va_end.p0|other": {
+     "calls": 3,
+     "functions": 3
+    },
+    "llvm.va_start.p0|other": {
+     "calls": 3,
+     "functions": 3
+    },
+    "llvm.vector.reduce.add.v16i32|integer": {
+     "calls": 23,
+     "functions": 8
+    },
+    "llvm.vector.reduce.add.v32i32|integer": {
+     "calls": 29,
+     "functions": 15
+    },
+    "llvm.vector.reduce.add.v4i32|integer": {
+     "calls": 8,
+     "functions": 5
+    },
+    "llvm.vector.reduce.add.v4i64|integer": {
+     "calls": 3,
+     "functions": 2
+    },
+    "llvm.vector.reduce.add.v8i32|integer": {
+     "calls": 11,
+     "functions": 10
+    },
+    "llvm.vector.reduce.add.v8i64|integer": {
+     "calls": 4,
+     "functions": 1
+    },
+    "llvm.vector.reduce.fadd.v16f32|float": {
+     "calls": 1271,
+     "functions": 63
+    },
+    "llvm.vector.reduce.fadd.v4f32|float": {
+     "calls": 2,
+     "functions": 2
+    },
+    "llvm.vector.reduce.or.v4i16|integer": {
+     "calls": 6,
+     "functions": 3
+    },
+    "llvm.x86.avx.cvt.ps2dq.256|float": {
+     "calls": 40,
+     "functions": 4
+    },
+    "llvm.x86.avx.max.ps.256|float": {
+     "calls": 55,
+     "functions": 4
+    },
+    "llvm.x86.avx.round.ps.256|float": {
+     "calls": 40,
+     "functions": 4
+    },
+    "llvm.x86.avx2.packssdw|integer": {
+     "calls": 20,
+     "functions": 4
+    },
+    "llvm.x86.avx2.packsswb|integer": {
+     "calls": 10,
+     "functions": 4
+    },
+    "llvm.x86.avx2.pavg.b|integer": {
+     "calls": 16,
+     "functions": 1
+    },
+    "llvm.x86.avx2.pmadd.ub.sw|integer": {
+     "calls": 606,
+     "functions": 26
+    },
+    "llvm.x86.avx2.pmadd.wd|integer": {
+     "calls": 275,
+     "functions": 25
+    },
+    "llvm.x86.avx2.pshuf.b|integer": {
+     "calls": 74,
+     "functions": 7
+    },
+    "llvm.x86.avx2.psign.b|integer": {
+     "calls": 1218,
+     "functions": 82
+    },
+    "llvm.x86.avx512.mask.gather.dps.512|float": {
+     "calls": 4,
+     "functions": 1
+    },
+    "llvm.x86.avx512.mask.scalef.ps.512|float": {
+     "calls": 5,
+     "functions": 5
+    },
+    "llvm.x86.avx512.mask.vcvtps2ph.512|float": {
+     "calls": 17,
+     "functions": 2
+    },
+    "llvm.x86.avx512.pmaddubs.w.512|integer": {
+     "calls": 384,
+     "functions": 2
+    },
+    "llvm.x86.avx512.pmaddw.d.512|integer": {
+     "calls": 120,
+     "functions": 2
+    },
+    "llvm.x86.avx512.pshuf.b.512|integer": {
+     "calls": 48,
+     "functions": 3
+    },
+    "llvm.x86.avx512.vpdpbusd.256|integer": {
+     "calls": 753,
+     "functions": 75
+    },
+    "llvm.x86.avx512.vpdpbusd.512|integer": {
+     "calls": 704,
+     "functions": 15
+    },
+    "llvm.x86.avx512bf16.dpbf16ps.512|float": {
+     "calls": 874,
+     "functions": 19
+    },
+    "llvm.x86.sse.max.ps|float": {
+     "calls": 18,
+     "functions": 4
+    },
+    "llvm.x86.sse.max.ss|float": {
+     "calls": 9,
+     "functions": 4
+    },
+    "llvm.x86.sse2.packuswb.128|integer": {
+     "calls": 33,
+     "functions": 2
+    },
+    "llvm.x86.sse2.pause|other": {
+     "calls": 6,
+     "functions": 5
+    },
+    "llvm.x86.sse2.pmadd.wd|integer": {
+     "calls": 18,
+     "functions": 3
+    },
+    "llvm.x86.ssse3.phadd.d.128|integer": {
+     "calls": 50,
+     "functions": 3
+    },
+    "llvm.x86.ssse3.phadd.w.128|integer": {
+     "calls": 7,
+     "functions": 4
+    },
+    "llvm.x86.ssse3.pmadd.ub.sw.128|integer": {
+     "calls": 16,
+     "functions": 1
+    },
+    "llvm.x86.ssse3.pshuf.b.128|integer": {
+     "calls": 208,
+     "functions": 21
+    },
+    "llvm.x86.vcvtps2ph.128|float": {
+     "calls": 292,
+     "functions": 63
+    },
+    "llvm.x86.vcvtps2ph.256|float": {
+     "calls": 1,
+     "functions": 1
+    },
+    "llvm.x86.vgf2p8affineqb.256|integer": {
+     "calls": 82,
+     "functions": 2
+    }
+   }
+  },
+  {
+   "name": "ncnn",
+   "domain": "inference",
+   "version": "20250503",
+   "source": "/nix/store/87rzwc3zd5z6w53b5v4f7jdacnf1qcbb-source",
+   "files": 362,
+   "not_compiled": [],
+   "calls": {
+    "llvm.abs.i32|integer": {
+     "calls": 6,
+     "functions": 3
+    },
+    "llvm.abs.i64|integer": {
+     "calls": 2,
+     "functions": 1
+    },
+    "llvm.acos.f32|float": {
+     "calls": 7,
+     "functions": 6
+    },
+    "llvm.acos.v16f32|float": {
+     "calls": 1,
+     "functions": 1
+    },
+    "llvm.acos.v4f32|float": {
+     "calls": 4,
+     "functions": 3
+    },
+    "llvm.acos.v8f32|float": {
+     "calls": 2,
+     "functions": 2
+    },
+    "llvm.asin.f32|float": {
+     "calls": 7,
+     "functions": 6
+    },
+    "llvm.asin.v16f32|float": {
+     "calls": 1,
+     "functions": 1
+    },
+    "llvm.asin.v4f32|float": {
+     "calls": 4,
+     "functions": 3
+    },
+    "llvm.asin.v8f32|float": {
+     "calls": 2,
+     "functions": 2
+    },
+    "llvm.assume|other": {
+     "calls": 3680,
+     "functions": 680
+    },
+    "llvm.atan.f32|float": {
+     "calls": 7,
+     "functions": 6
+    },
+    "llvm.atan.v16f32|float": {
+     "calls": 1,
+     "functions": 1
+    },
+    "llvm.atan.v4f32|float": {
+     "calls": 4,
+     "functions": 3
+    },
+    "llvm.atan.v8f32|float": {
+     "calls": 2,
+     "functions": 2
+    },
+    "llvm.atan2.f32|float": {
+     "calls": 194,
+     "functions": 7
+    },
+    "llvm.atan2.v16f32|float": {
+     "calls": 2,
+     "functions": 1
+    },
+    "llvm.atan2.v2f32|float": {
+     "calls": 4,
+     "functions": 1
+    },
+    "llvm.atan2.v4f32|float": {
+     "calls": 20,
+     "functions": 5
+    },
+    "llvm.atan2.v8f32|float": {
+     "calls": 10,
+     "functions": 3
+    },
+    "llvm.ceil.f32|float": {
+     "calls": 48,
+     "functions": 18
+    },
+    "llvm.ceil.v16f32|float": {
+     "calls": 16,
+     "functions": 1
+    },
+    "llvm.ceil.v2f32|float": {
+     "calls": 4,
+     "functions": 4
+    },
+    "llvm.ceil.v4f32|float": {
+     "calls": 3,
+     "functions": 2
+    },
+    "llvm.ceil.v8f32|float": {
+     "calls": 34,
+     "functions": 3
+    },
+    "llvm.copysign.v16f32|float": {
+     "calls": 362,
+     "functions": 16
+    },
+    "llvm.copysign.v4f32|float": {
+     "calls": 705,
+     "functions": 61
+    },
+    "llvm.copysign.v8f32|float": {
+     "calls": 617,
+     "functions": 48
+    },
+    "llvm.cos.f32|float": {
+     "calls": 14,
+     "functions": 11
+    },
+    "llvm.cos.v16f32|float": {
+     "calls": 1,
+     "functions": 1
+    },
+    "llvm.cos.v4f32|float": {
+     "calls": 12,
+     "functions": 7
+    },
+    "llvm.cos.v8f32|float": {
+     "calls": 2,
+     "functions": 2
+    },
+    "llvm.cosh.f32|float": {
+     "calls": 1,
+     "functions": 1
+    },
+    "llvm.ctlz.i32|integer": {
+     "calls": 14,
+     "functions": 8
+    },
+    "llvm.ctpop.i32|integer": {
+     "calls": 75,
+     "functions": 39
+    },
+    "llvm.cttz.i32|integer": {
+     "calls": 88,
+     "functions": 51
+    },
+    "llvm.cttz.i64|integer": {
+     "calls": 3,
+     "functions": 3
+    },
+    "llvm.cttz.i8|integer": {
+     "calls": 1,
+     "functions": 1
+    },
+    "llvm.exp.f32|float": {
+     "calls": 546,
+     "functions": 143
+    },
+    "llvm.exp.v16f32|float": {
+     "calls": 17,
+     "functions": 8
+    },
+    "llvm.exp.v2f32|float": {
+     "calls": 16,
+     "functions": 13
+    },
+    "llvm.exp.v4f32|float": {
+     "calls": 92,
+     "functions": 36
+    },
+    "llvm.exp.v8f32|float": {
+     "calls": 31,
+     "functions": 14
+    },
+    "llvm.experimental.noalias.scope.decl|other": {
+     "calls": 368,
+     "functions": 82
+    },
+    "llvm.fabs.f32|float": {
+     "calls": 451,
+     "functions": 67
+    },
+    "llvm.fabs.v16f32|float": {
+     "calls": 220,
+     "functions": 18
+    },
+    "llvm.fabs.v2f32|float": {
+     "calls": 220,
+     "functions": 37
+    },
+    "llvm.fabs.v4f32|float": {
+     "calls": 214,
+     "functions": 43
+    },
+    "llvm.fabs.v8f32|float": {
+     "calls": 701,
+     "functions": 55
+    },
+    "llvm.floor.f32|float": {
+     "calls": 260,
+     "functions": 79
+    },
+    "llvm.floor.v16f32|float": {
+     "calls": 129,
+     "functions": 33
+    },
+    "llvm.floor.v2f32|float": {
+     "calls": 240,
+     "functions": 121
+    },
+    "llvm.floor.v4f32|float": {
+     "calls": 96,
+     "functions": 31
+    },
+    "llvm.floor.v8f32|float": {
+     "calls": 64,
+     "functions": 13
+    },
+    "llvm.fma.v16f32|float": {
+     "calls": 6601,
+     "functions": 51
+    },
+    "llvm.fma.v4f32|float": {
+     "calls": 8118,
+     "functions": 108
+    },
+    "llvm.fma.v8f32|float": {
+     "calls": 11029,
+     "functions": 172
+    },
+    "llvm.fptosi.sat.i16.f32|float": {
+     "calls": 20,
+     "functions": 5
+    },
+    "llvm.fptosi.sat.v8i16.v8f32|float": {
+     "calls": 10,
+     "functions": 5
+    },
+    "llvm.lifetime.end.p0|other": {
+     "calls": 7390,
+     "functions": 616
+    },
+    "llvm.lifetime.start.p0|other": {
+     "calls": 3747,
+     "functions": 616
+    },
+    "llvm.log.f32|float": {
+     "calls": 169,
+     "functions": 82
+    },
+    "llvm.log.v16f32|float": {
+     "calls": 1,
+     "functions": 1
+    },
+    "llvm.log.v4f32|float": {
+     "calls": 9,
+     "functions": 7
+    },
+    "llvm.log.v8f32|float": {
+     "calls": 2,
+     "functions": 2
+    },
+    "llvm.log10.f32|float": {
+     "calls": 7,
+     "functions": 6
+    },
+    "llvm.log10.v16f32|float": {
+     "calls": 1,
+     "functions": 1
+    },
+    "llvm.log10.v4f32|float": {
+     "calls": 4,
+     "functions": 3
+    },
+    "llvm.log10.v8f32|float": {
+     "calls": 2,
+     "functions": 2
+    },
+    "llvm.masked.gather.v16f32.v16p0|float": {
+     "calls": 130,
+     "functions": 14
+    },
+    "llvm.masked.gather.v16i32.v16p0|other": {
+     "calls": 483,
+     "functions": 32
+    },
+    "llvm.masked.gather.v4f32.v4p0|float": {
+     "calls": 89,
+     "functions": 12
+    },
+    "llvm.masked.gather.v4i32.v4p0|other": {
+     "calls": 91,
+     "functions": 21
+    },
+    "llvm.masked.gather.v8f32.v8p0|float": {
+     "calls": 98,
+     "functions": 7
+    },
+    "llvm.masked.gather.v8i32.v8p0|other": {
+     "calls": 276,
+     "functions": 9
+    },
+    "llvm.masked.gather.v8i64.v8p0|other": {
+     "calls": 10,
+     "functions": 1
+    },
+    "llvm.masked.load.v3i32.p0|other": {
+     "calls": 3,
+     "functions": 1
+    },
+    "llvm.masked.load.v3i8.p0|other": {
+     "calls": 4,
+     "functions": 2
+    },
+    "llvm.masked.scatter.v16f32.v16p0|float": {
+     "calls": 333,
+     "functions": 27
+    },
+    "llvm.masked.scatter.v16i32.v16p0|other": {
+     "calls": 568,
+     "functions": 13
+    },
+    "llvm.masked.scatter.v4f32.v4p0|float": {
+     "calls": 112,
+     "functions": 8
+    },
+    "llvm.masked.scatter.v4i32.v4p0|other": {
+     "calls": 24,
+     "functions": 3
+    },
+    "llvm.masked.scatter.v8f32.v8p0|float": {
+     "calls": 273,
+     "functions": 16
+    },
+    "llvm.masked.scatter.v8i32.v8p0|other": {
+     "calls": 370,
+     "functions": 8
+    },
+    "llvm.masked.scatter.v8i64.v8p0|other": {
+     "calls": 48,
+     "functions": 1
+    },
+    "llvm.masked.store.v16f32.p0|float": {
+     "calls": 25,
+     "functions": 7
+    },
+    "llvm.masked.store.v16i8.p0|other": {
+     "calls": 1,
+     "functions": 1
+    },
+    "llvm.masked.store.v2f32.p0|float": {
+     "calls": 1,
+     "functions": 1
+    },
+    "llvm.masked.store.v4f32.p0|float": {
+     "calls": 9,
+     "functions": 9
+    },
+    "llvm.masked.store.v64i8.p0|other": {
+     "calls": 4,
+     "functions": 1
+    },
+    "llvm.masked.store.v8f32.p0|float": {
+     "calls": 73,
+     "functions": 12
+    },
+    "llvm.maxnum.f32|float": {
+     "calls": 941,
+     "functions": 165
+    },
+    "llvm.maxnum.v16f32|float": {
+     "calls": 207,
+     "functions": 22
+    },
+    "llvm.maxnum.v2f32|float": {
+     "calls": 149,
+     "functions": 53
+    },
+    "llvm.maxnum.v4f32|float": {
+     "calls": 261,
+     "functions": 56
+    },
+    "llvm.maxnum.v8f32|float": {
+     "calls": 325,
+     "functions": 33
+    },
+    "llvm.memcpy.p0.p0.i64|other": {
+     "calls": 760,
+     "functions": 235
+    },
+    "llvm.memmove.p0.p0.i64|other": {
+     "calls": 19,
+     "functions": 7
+    },
+    "llvm.memset.p0.i64|other": {
+     "calls": 7239,
+     "functions": 987
+    },
+    "llvm.minnum.f32|float": {
+     "calls": 477,
+     "functions": 111
+    },
+    "llvm.minnum.v16f32|float": {
+     "calls": 116,
+     "functions": 12
+    },
+    "llvm.minnum.v2f32|float": {
+     "calls": 114,
+     "functions": 44
+    },
+    "llvm.minnum.v4f32|float": {
+     "calls": 82,
+     "functions": 28
+    },
+    "llvm.minnum.v8f32|float": {
+     "calls": 88,
+     "functions": 4
+    },
+    "llvm.nearbyint.f32|float": {
+     "calls": 13,
+     "functions": 5
+    },
+    "llvm.nearbyint.v16f32|float": {
+     "calls": 16,
+     "functions": 1
+    },
+    "llvm.nearbyint.v4f32|float": {
+     "calls": 3,
+     "functions": 2
+    },
+    "llvm.nearbyint.v8f32|float": {
+     "calls": 34,
+     "functions": 3
+    },
+    "llvm.pow.f32|float": {
+     "calls": 287,
+     "functions": 14
+    },
+    "llvm.pow.v16f32|float": {
+     "calls": 3,
+     "functions": 2
+    },
+    "llvm.pow.v2f32|float": {
+     "calls": 4,
+     "functions": 1
+    },
+    "llvm.pow.v4f32|float": {
+     "calls": 25,
+     "functions": 10
+    },
+    "llvm.pow.v8f32|float": {
+     "calls": 12,
+     "functions": 5
+    },
+    "llvm.round.f32|float": {
+     "calls": 285,
+     "functions": 77
+    },
+    "llvm.round.v16f32|float": {
+     "calls": 57,
+     "functions": 22
+    },
+    "llvm.round.v2f32|float": {
+     "calls": 4,
+     "functions": 2
+    },
+    "llvm.round.v32f32|float": {
+     "calls": 4,
+     "functions": 4
+    },
+    "llvm.round.v4f32|float": {
+     "calls": 27,
+     "functions": 23
+    },
+    "llvm.round.v64f32|float": {
+     "calls": 1,
+     "functions": 1
+    },
+    "llvm.round.v8f32|float": {
+     "calls": 69,
+     "functions": 32
+    },
+    "llvm.roundeven.v4f32|float": {
+     "calls": 7,
+     "functions": 3
+    },
+    "llvm.roundeven.v8f32|float": {
+     "calls": 12,
+     "functions": 3
+    },
+    "llvm.scmp.i32.i32|integer": {
+     "calls": 1,
+     "functions": 1
+    },
+    "llvm.sin.f32|float": {
+     "calls": 10,
+     "functions": 9
+    },
+    "llvm.sin.v16f32|float": {
+     "calls": 1,
+     "functions": 1
+    },
+    "llvm.sin.v4f32|float": {
+     "calls": 8,
+     "functions": 5
+    },
+    "llvm.sin.v8f32|float": {
+     "calls": 2,
+     "functions": 2
+    },
+    "llvm.sinh.f32|float": {
+     "calls": 1,
+     "functions": 1
+    },
+    "llvm.smax.i32|integer": {
+     "calls": 1089,
+     "functions": 267
+    },
+    "llvm.smax.i64|integer": {
+     "calls": 18,
+     "functions": 8
+    },
+    "llvm.smax.v16i16|integer": {
+     "calls": 178,
+     "functions": 20
+    },
+    "llvm.smax.v16i32|integer": {
+     "calls": 59,
+     "functions": 23
+    },
+    "llvm.smax.v16i8|integer": {
+     "calls": 395,
+     "functions": 14
+    },
+    "llvm.smax.v2i32|integer": {
+     "calls": 3,
+     "functions": 2
+    },
+    "llvm.smax.v32i32|integer": {
+     "calls": 4,
+     "functions": 4
+    },
+    "llvm.smax.v32i8|integer": {
+     "calls": 4,
+     "functions": 2
+    },
+    "llvm.smax.v4i32|integer": {
+     "calls": 47,
+     "functions": 31
+    },
+    "llvm.smax.v64i32|integer": {
+     "calls": 1,
+     "functions": 1
+    },
+    "llvm.smax.v8i16|integer": {
+     "calls": 671,
+     "functions": 59
+    },
+    "llvm.smax.v8i32|integer": {
+     "calls": 81,
+     "functions": 35
+    },
+    "llvm.smax.v8i8|integer": {
+     "calls": 5,
+     "functions": 3
+    },
+    "llvm.smin.i32|integer": {
+     "calls": 1562,
+     "functions": 256
+    },
+    "llvm.smin.i64|integer": {
+     "calls": 2,
+     "functions": 2
+    },
+    "llvm.smin.v16i16|integer": {
+     "calls": 178,
+     "functions": 20
+    },
+    "llvm.smin.v16i32|integer": {
+     "calls": 71,
+     "functions": 23
+    },
+    "llvm.smin.v32i32|integer": {
+     "calls": 4,
+     "functions": 4
+    },
+    "llvm.smin.v4i32|integer": {
+     "calls": 61,
+     "functions": 27
+    },
+    "llvm.smin.v64i32|integer": {
+     "calls": 1,
+     "functions": 1
+    },
+    "llvm.smin.v8i16|integer": {
+     "calls": 671,
+     "functions": 59
+    },
+    "llvm.smin.v8i32|integer": {
+     "calls": 87,
+     "functions": 34
+    },
+    "llvm.sqrt.f32|float": {
+     "calls": 138,
+     "functions": 56
+    },
+    "llvm.sqrt.f64|float": {
+     "calls": 2,
+     "functions": 2
+    },
+    "llvm.sqrt.v16f32|float": {
+     "calls": 27,
+     "functions": 1
+    },
+    "llvm.sqrt.v4f32|float": {
+     "calls": 38,
+     "functions": 8
+    },
+    "llvm.sqrt.v8f32|float": {
+     "calls": 34,
+     "functions": 3
+    },
+    "llvm.tan.f32|float": {
+     "calls": 7,
+     "functions": 6
+    },
+    "llvm.tan.v16f32|float": {
+     "calls": 1,
+     "functions": 1
+    },
+    "llvm.tan.v4f32|float": {
+     "calls": 4,
+     "functions": 3
+    },
+    "llvm.tan.v8f32|float": {
+     "calls": 2,
+     "functions": 2
+    },
+    "llvm.tanh.f32|float": {
+     "calls": 229,
+     "functions": 102
+    },
+    "llvm.tanh.v16f32|float": {
+     "calls": 9,
+     "functions": 6
+    },
+    "llvm.tanh.v4f32|float": {
+     "calls": 28,
+     "functions": 22
+    },
+    "llvm.tanh.v8f32|float": {
+     "calls": 8,
+     "functions": 8
+    },
+    "llvm.trap|other": {
+     "calls": 1,
+     "functions": 1
+    },
+    "llvm.trunc.f32|float": {
+     "calls": 13,
+     "functions": 5
+    },
+    "llvm.trunc.v16f32|float": {
+     "calls": 16,
+     "functions": 1
+    },
+    "llvm.trunc.v4f32|float": {
+     "calls": 10,
+     "functions": 5
+    },
+    "llvm.trunc.v8f32|float": {
+     "calls": 46,
+     "functions": 3
+    },
+    "llvm.umax.i64|integer": {
+     "calls": 187,
+     "functions": 101
+    },
+    "llvm.umin.i32|integer": {
+     "calls": 51,
+     "functions": 4
+    },
+    "llvm.umin.i64|integer": {
+     "calls": 100,
+     "functions": 56
+    },
+    "llvm.umin.v4i32|integer": {
+     "calls": 6,
+     "functions": 1
+    },
+    "llvm.umin.v8i32|integer": {
+     "calls": 8,
+     "functions": 1
+    },
+    "llvm.umin.v8i64|integer": {
+     "calls": 16,
+     "functions": 1
+    },
+    "llvm.umul.with.overflow.i32|integer": {
+     "calls": 17,
+     "functions": 17
+    },
+    "llvm.umul.with.overflow.i64|integer": {
+     "calls": 6,
+     "functions": 4
+    },
+    "llvm.va_end.p0|other": {
+     "calls": 37,
+     "functions": 37
+    },
+    "llvm.va_start.p0|other": {
+     "calls": 37,
+     "functions": 37
+    },
+    "llvm.vector.reduce.add.v16i32|integer": {
+     "calls": 149,
+     "functions": 10
+    },
+    "llvm.vector.reduce.add.v2i32|integer": {
+     "calls": 8,
+     "functions": 7
+    },
+    "llvm.vector.reduce.add.v4i32|integer": {
+     "calls": 375,
+     "functions": 41
+    },
+    "llvm.vector.reduce.add.v8i32|integer": {
+     "calls": 242,
+     "functions": 21
+    },
+    "llvm.vector.reduce.fadd.v16f32|float": {
+     "calls": 52,
+     "functions": 15
+    },
+    "llvm.vector.reduce.fadd.v2f32|float": {
+     "calls": 51,
+     "functions": 13
+    },
+    "llvm.vector.reduce.fadd.v4f32|float": {
+     "calls": 400,
+     "functions": 102
+    },
+    "llvm.vector.reduce.fadd.v8f32|float": {
+     "calls": 142,
+     "functions": 58
+    },
+    "llvm.vector.reduce.fmax.v16f32|float": {
+     "calls": 14,
+     "functions": 7
+    },
+    "llvm.vector.reduce.fmax.v4f32|float": {
+     "calls": 49,
+     "functions": 22
+    },
+    "llvm.vector.reduce.fmax.v8f32|float": {
+     "calls": 57,
+     "functions": 20
+    },
+    "llvm.vector.reduce.fmin.v4f32|float": {
+     "calls": 7,
+     "functions": 3
+    },
+    "llvm.vector.reduce.fmul.v2f32|float": {
+     "calls": 12,
+     "functions": 6
+    },
+    "llvm.vector.reduce.fmul.v2f64|float": {
+     "calls": 2,
+     "functions": 1
+    },
+    "llvm.vector.reduce.fmul.v4f32|float": {
+     "calls": 7,
+     "functions": 3
+    },
+    "llvm.vector.reduce.mul.v4i32|integer": {
+     "calls": 1,
+     "functions": 1
+    },
+    "llvm.vector.reduce.or.v8i64|integer": {
+     "calls": 1,
+     "functions": 1
+    },
+    "llvm.vector.reduce.smin.v16i32|integer": {
+     "calls": 2,
+     "functions": 1
+    },
+    "llvm.vector.reduce.smin.v4i32|integer": {
+     "calls": 8,
+     "functions": 2
+    },
+    "llvm.vector.reduce.smin.v8i32|integer": {
+     "calls": 6,
+     "functions": 2
+    },
+    "llvm.vector.reduce.umin.v8i64|integer": {
+     "calls": 4,
+     "functions": 1
+    },
+    "llvm.x86.avx.blendv.ps.256|float": {
+     "calls": 288,
+     "functions": 36
+    },
+    "llvm.x86.avx.cvt.ps2dq.256|float": {
+     "calls": 1080,
+     "functions": 90
+    },
+    "llvm.x86.avx.cvtt.ps2dq.256|float": {
+     "calls": 1316,
+     "functions": 114
+    },
+    "llvm.x86.avx.hadd.ps.256|float": {
+     "calls": 63,
+     "functions": 9
+    },
+    "llvm.x86.avx.ldu.dq.256|other": {
+     "calls": 58,
+     "functions": 6
+    },
+    "llvm.x86.avx.max.ps.256|float": {
+     "calls": 2563,
+     "functions": 163
+    },
+    "llvm.x86.avx.min.ps.256|float": {
+     "calls": 1622,
+     "functions": 137
+    },
+    "llvm.x86.avx.round.ps.256|float": {
+     "calls": 1108,
+     "functions": 164
+    },
+    "llvm.x86.avx.rsqrt.ps.256|float": {
+     "calls": 30,
+     "functions": 11
+    },
+    "llvm.x86.avx2.gather.d.d.256|other": {
+     "calls": 529,
+     "functions": 29
+    },
+    "llvm.x86.avx2.gather.d.d|other": {
+     "calls": 189,
+     "functions": 23
+    },
+    "llvm.x86.avx2.gather.d.ps.256|float": {
+     "calls": 169,
+     "functions": 15
+    },
+    "llvm.x86.avx2.gather.d.ps|float": {
+     "calls": 144,
+     "functions": 22
+    },
+    "llvm.x86.avx2.gather.d.q.256|other": {
+     "calls": 18,
+     "functions": 5
+    },
+    "llvm.x86.avx2.packssdw|integer": {
+     "calls": 211,
+     "functions": 23
+    },
+    "llvm.x86.avx2.packsswb|integer": {
+     "calls": 178,
+     "functions": 20
+    },
+    "llvm.x86.avx2.packusdw|integer": {
+     "calls": 4,
+     "functions": 2
+    },
+    "llvm.x86.avx2.phadd.d|integer": {
+     "calls": 87,
+     "functions": 11
+    },
+    "llvm.x86.avx2.pmadd.wd|integer": {
+     "calls": 380,
+     "functions": 11
+    },
+    "llvm.x86.avx2.psrl.d|integer": {
+     "calls": 5,
+     "functions": 5
+    },
+    "llvm.x86.avx2.vpdpbssd.128|integer": {
+     "calls": 34,
+     "functions": 1
+    },
+    "llvm.x86.avx2.vpdpbssd.256|integer": {
+     "calls": 54,
+     "functions": 1
+    },
+    "llvm.x86.avx512.mask.cvttps2dq.512|float": {
+     "calls": 720,
+     "functions": 36
+    },
+    "llvm.x86.avx512.mask.gather.dpi.512|other": {
+     "calls": 294,
+     "functions": 13
+    },
+    "llvm.x86.avx512.mask.gather.dpq.512|other": {
+     "calls": 4,
+     "functions": 2
+    },
+    "llvm.x86.avx512.mask.gather.dps.512|float": {
+     "calls": 206,
+     "functions": 8
+    },
+    "llvm.x86.avx512.mask.pmovs.db.256|integer": {
+     "calls": 67,
+     "functions": 14
+    },
+    "llvm.x86.avx512.mask.pmovs.db.512|integer": {
+     "calls": 341,
+     "functions": 14
+    },
+    "llvm.x86.avx512.mask.rndscale.ps.512|float": {
+     "calls": 388,
+     "functions": 23
+    },
+    "llvm.x86.avx512.mask.scatter.dpi.512|other": {
+     "calls": 33,
+     "functions": 7
+    },
+    "llvm.x86.avx512.mask.scatter.dps.512|float": {
+     "calls": 6,
+     "functions": 1
+    },
+    "llvm.x86.avx512.mask.scattersiv4.sf|float": {
+     "calls": 3,
+     "functions": 1
+    },
+    "llvm.x86.avx512.mask.scattersiv4.si|other": {
+     "calls": 59,
+     "functions": 7
+    },
+    "llvm.x86.avx512.mask.scattersiv8.sf|float": {
+     "calls": 3,
+     "functions": 1
+    },
+    "llvm.x86.avx512.mask.scattersiv8.si|other": {
+     "calls": 59,
+     "functions": 7
+    },
+    "llvm.x86.avx512.mask.vcvtps2ph.512|float": {
+     "calls": 29,
+     "functions": 2
+    },
+    "llvm.x86.avx512.max.ps.512|float": {
+     "calls": 1078,
+     "functions": 37
+    },
+    "llvm.x86.avx512.min.ps.512|float": {
+     "calls": 634,
+     "functions": 28
+    },
+    "llvm.x86.avx512.packusdw.512|integer": {
+     "calls": 3,
+     "functions": 1
+    },
+    "llvm.x86.avx512.pmaddw.d.512|integer": {
+     "calls": 315,
+     "functions": 5
+    },
+    "llvm.x86.avx512.psrl.d.512|integer": {
+     "calls": 2,
+     "functions": 2
+    },
+    "llvm.x86.avx512.vpdpbusd.128|integer": {
+     "calls": 226,
+     "functions": 14
+    },
+    "llvm.x86.avx512.vpdpbusd.256|integer": {
+     "calls": 185,
+     "functions": 14
+    },
+    "llvm.x86.avx512.vpdpbusd.512|integer": {
+     "calls": 110,
+     "functions": 7
+    },
+    "llvm.x86.avx512.vpdpwssd.128|integer": {
+     "calls": 152,
+     "functions": 9
+    },
+    "llvm.x86.avx512.vpdpwssd.256|integer": {
+     "calls": 373,
+     "functions": 9
+    },
+    "llvm.x86.avx512.vpdpwssd.512|integer": {
+     "calls": 340,
+     "functions": 4
+    },
+    "llvm.x86.avx512bf16.cvtneps2bf16.512|float": {
+     "calls": 7,
+     "functions": 1
+    },
+    "llvm.x86.sse.max.ps|float": {
+     "calls": 2371,
+     "functions": 164
+    },
+    "llvm.x86.sse.max.ss|float": {
+     "calls": 115,
+     "functions": 34
+    },
+    "llvm.x86.sse.min.ps|float": {
+     "calls": 1312,
+     "functions": 131
+    },
+    "llvm.x86.sse.rcp.ps|float": {
+     "calls": 8,
+     "functions": 4
+    },
+    "llvm.x86.sse.rsqrt.ps|float": {
+     "calls": 25,
+     "functions": 15
+    },
+    "llvm.x86.sse2.cvtps2dq|float": {
+     "calls": 5,
+     "functions": 1
+    },
+    "llvm.x86.sse2.cvttps2dq|float": {
+     "calls": 2126,
+     "functions": 158
+    },
+    "llvm.x86.sse2.packssdw.128|integer": {
+     "calls": 638,
+     "functions": 59
+    },
+    "llvm.x86.sse2.packsswb.128|integer": {
+     "calls": 552,
+     "functions": 59
+    },
+    "llvm.x86.sse2.packuswb.128|integer": {
+     "calls": 30,
+     "functions": 5
+    },
+    "llvm.x86.sse2.pmadd.wd|integer": {
+     "calls": 747,
+     "functions": 23
+    },
+    "llvm.x86.sse2.pmulh.w|integer": {
+     "calls": 452,
+     "functions": 45
+    },
+    "llvm.x86.sse2.psrl.d|integer": {
+     "calls": 60,
+     "functions": 8
+    },
+    "llvm.x86.sse3.ldu.dq|other": {
+     "calls": 91,
+     "functions": 6
+    },
+    "llvm.x86.sse41.packusdw|integer": {
+     "calls": 12,
+     "functions": 4
+    },
+    "llvm.x86.sse41.round.ps|float": {
+     "calls": 14,
+     "functions": 3
+    },
+    "llvm.x86.ssse3.phadd.d.128|integer": {
+     "calls": 45,
+     "functions": 19
+    },
+    "llvm.x86.vcvtneps2bf16256|float": {
+     "calls": 1,
+     "functions": 1
+    },
+    "llvm.x86.vcvtps2ph.128|float": {
+     "calls": 6,
+     "functions": 3
+    },
+    "llvm.x86.vcvtps2ph.256|float": {
+     "calls": 57,
+     "functions": 6
+    },
+    "llvm.x86.xop.vpmacswd|integer": {
+     "calls": 74,
+     "functions": 4
+    },
+    "llvm.x86.xop.vpmadcswd|integer": {
+     "calls": 213,
+     "functions": 4
+    }
+   }
+  },
+  {
+   "name": "zlib-ng",
+   "domain": "compression",
+   "version": "2.3.3",
+   "source": "/nix/store/33xaky5rw48z5g4xyhrns1cmdg96jb6i-source",
+   "files": 98,
+   "not_compiled": [],
+   "calls": {
+    "llvm.abs.i64|integer": {
+     "calls": 44,
+     "functions": 20
+    },
+    "llvm.assume|other": {
+     "calls": 36,
+     "functions": 26
+    },
+    "llvm.bswap.i16|integer": {
+     "calls": 2,
+     "functions": 2
+    },
+    "llvm.bswap.i32|integer": {
+     "calls": 8,
+     "functions": 4
+    },
+    "llvm.ctpop.i64|integer": {
+     "calls": 6,
+     "functions": 6
+    },
+    "llvm.cttz.i32|integer": {
+     "calls": 36,
+     "functions": 18
+    },
+    "llvm.cttz.i64|integer": {
+     "calls": 32,
+     "functions": 14
+    },
+    "llvm.lifetime.end.p0|other": {
+     "calls": 84,
+     "functions": 64
+    },
+    "llvm.lifetime.start.p0|other": {
+     "calls": 84,
+     "functions": 64
+    },
+    "llvm.masked.load.v16i8.p0|other": {
+     "calls": 8,
+     "functions": 2
+    },
+    "llvm.masked.load.v32i8.p0|other": {
+     "calls": 8,
+     "functions": 6
+    },
+    "llvm.masked.load.v64i8.p0|other": {
+     "calls": 2,
+     "functions": 2
+    },
+    "llvm.masked.store.v16i8.p0|other": {
+     "calls": 2,
+     "functions": 2
+    },
+    "llvm.masked.store.v32i8.p0|other": {
+     "calls": 8,
+     "functions": 6
+    },
+    "llvm.masked.store.v64i8.p0|other": {
+     "calls": 2,
+     "functions": 2
+    },
+    "llvm.memcpy.p0.p0.i64|other": {
+     "calls": 308,
+     "functions": 60
+    },
+    "llvm.memmove.p0.p0.i64|other": {
+     "calls": 12,
+     "functions": 12
+    },
+    "llvm.memset.p0.i64|other": {
+     "calls": 106,
+     "functions": 86
+    },
+    "llvm.smax.i32|integer": {
+     "calls": 8,
+     "functions": 6
+    },
+    "llvm.smin.i32|integer": {
+     "calls": 2,
+     "functions": 2
+    },
+    "llvm.smin.i64|integer": {
+     "calls": 10,
+     "functions": 8
+    },
+    "llvm.umax.i32|integer": {
+     "calls": 8,
+     "functions": 6
+    },
+    "llvm.umax.i64|integer": {
+     "calls": 4,
+     "functions": 4
+    },
+    "llvm.umax.i8|integer": {
+     "calls": 2,
+     "functions": 2
+    },
+    "llvm.umin.i16|integer": {
+     "calls": 6,
+     "functions": 6
+    },
+    "llvm.umin.i32|integer": {
+     "calls": 102,
+     "functions": 48
+    },
+    "llvm.umin.i64|integer": {
+     "calls": 124,
+     "functions": 42
+    },
+    "llvm.umul.with.overflow.i64|integer": {
+     "calls": 4,
+     "functions": 4
+    },
+    "llvm.usub.sat.i32|integer": {
+     "calls": 6,
+     "functions": 6
+    },
+    "llvm.usub.sat.v16i16|integer": {
+     "calls": 18,
+     "functions": 2
+    },
+    "llvm.usub.sat.v8i16|integer": {
+     "calls": 20,
+     "functions": 2
+    },
+    "llvm.va_end.p0|other": {
+     "calls": 6,
+     "functions": 6
+    },
+    "llvm.va_start.p0|other": {
+     "calls": 6,
+     "functions": 6
+    },
+    "llvm.vector.reduce.add.v16i32|integer": {
+     "calls": 6,
+     "functions": 6
+    },
+    "llvm.vector.reduce.add.v4i32|integer": {
+     "calls": 10,
+     "functions": 10
+    },
+    "llvm.vector.reduce.add.v8i32|integer": {
+     "calls": 12,
+     "functions": 12
+    },
+    "llvm.x86.avx2.pmadd.ub.sw|integer": {
+     "calls": 20,
+     "functions": 4
+    },
+    "llvm.x86.avx2.pmadd.wd|integer": {
+     "calls": 20,
+     "functions": 4
+    },
+    "llvm.x86.avx2.psad.bw|integer": {
+     "calls": 34,
+     "functions": 6
+    },
+    "llvm.x86.avx2.pshuf.b|integer": {
+     "calls": 4,
+     "functions": 4
+    },
+    "llvm.x86.avx512.pmaddubs.w.512|integer": {
+     "calls": 20,
+     "functions": 4
+    },
+    "llvm.x86.avx512.pmaddw.d.512|integer": {
+     "calls": 20,
+     "functions": 4
+    },
+    "llvm.x86.avx512.psad.bw.512|integer": {
+     "calls": 42,
+     "functions": 6
+    },
+    "llvm.x86.avx512.pternlog.d.512|integer": {
+     "calls": 64,
+     "functions": 4
+    },
+    "llvm.x86.avx512.vpdpbusd.256|integer": {
+     "calls": 14,
+     "functions": 2
+    },
+    "llvm.x86.avx512.vpdpbusd.512|integer": {
+     "calls": 22,
+     "functions": 2
+    },
+    "llvm.x86.bmi.bzhi.32|integer": {
+     "calls": 14,
+     "functions": 4
+    },
+    "llvm.x86.pclmulqdq.512|integer": {
+     "calls": 128,
+     "functions": 4
+    },
+    "llvm.x86.pclmulqdq|integer": {
+     "calls": 480,
+     "functions": 16
+    },
+    "llvm.x86.sse2.pmadd.wd|integer": {
+     "calls": 16,
+     "functions": 4
+    },
+    "llvm.x86.sse2.psad.bw|integer": {
+     "calls": 16,
+     "functions": 4
+    },
+    "llvm.x86.ssse3.pmadd.ub.sw.128|integer": {
+     "calls": 16,
+     "functions": 4
+    },
+    "llvm.x86.ssse3.pshuf.b.128|integer": {
+     "calls": 158,
+     "functions": 18
+    },
+    "llvm.x86.xgetbv|integer": {
+     "calls": 2,
+     "functions": 2
+    }
+   }
+  },
+  {
+   "name": "libdeflate",
+   "domain": "compression",
+   "version": "1.26",
+   "source": "/nix/store/yzwzrzdffqsvg3bmm2yv35vb2scayw6y-source",
+   "files": 22,
+   "not_compiled": [],
+   "calls": {
+    "llvm.assume|other": {
+     "calls": 38,
+     "functions": 26
+    },
+    "llvm.bswap.i16|integer": {
+     "calls": 6,
+     "functions": 6
+    },
+    "llvm.bswap.i32|integer": {
+     "calls": 6,
+     "functions": 6
+    },
+    "llvm.ctlz.i32|integer": {
+     "calls": 16,
+     "functions": 6
+    },
+    "llvm.cttz.i64|integer": {
+     "calls": 34,
+     "functions": 10
+    },
+    "llvm.experimental.noalias.scope.decl|other": {
+     "calls": 4,
+     "functions": 4
+    },
+    "llvm.lifetime.end.p0|other": {
+     "calls": 34,
+     "functions": 26
+    },
+    "llvm.lifetime.start.p0|other": {
+     "calls": 34,
+     "functions": 26
+    },
+    "llvm.masked.load.v16i8.p0|other": {
+     "calls": 4,
+     "functions": 4
+    },
+    "llvm.masked.load.v32i8.p0|other": {
+     "calls": 2,
+     "functions": 2
+    },
+    "llvm.masked.load.v64i8.p0|other": {
+     "calls": 2,
+     "functions": 2
+    },
+    "llvm.memcpy.p0.p0.i64|other": {
+     "calls": 26,
+     "functions": 12
+    },
+    "llvm.memmove.p0.p0.i64|other": {
+     "calls": 6,
+     "functions": 4
+    },
+    "llvm.memset.p0.i64|other": {
+     "calls": 82,
+     "functions": 30
+    },
+    "llvm.prefetch.p0|other": {
+     "calls": 56,
+     "functions": 10
+    },
+    "llvm.sadd.sat.v8i16|integer": {
+     "calls": 240,
+     "functions": 10
+    },
+    "llvm.smax.i32|integer": {
+     "calls": 2,
+     "functions": 2
+    },
+    "llvm.smin.i64|integer": {
+     "calls": 10,
+     "functions": 6
+    },
+    "llvm.umax.i32|integer": {
+     "calls": 14,
+     "functions": 8
+    },
+    "llvm.umax.i64|integer": {
+     "calls": 4,
+     "functions": 4
+    },
+    "llvm.umin.i32|integer": {
+     "calls": 48,
+     "functions": 18
+    },
+    "llvm.umin.i64|integer": {
+     "calls": 32,
+     "functions": 22
+    },
+    "llvm.vector.reduce.add.v16i32|integer": {
+     "calls": 4,
+     "functions": 4
+    },
+    "llvm.vector.reduce.add.v32i32|integer": {
+     "calls": 2,
+     "functions": 2
+    },
+    "llvm.vector.reduce.add.v4i32|integer": {
+     "calls": 52,
+     "functions": 22
+    },
+    "llvm.vector.reduce.add.v8i32|integer": {
+     "calls": 8,
+     "functions": 6
+    },
+    "llvm.vector.reduce.add.v8i64|integer": {
+     "calls": 2,
+     "functions": 2
+    },
+    "llvm.x86.avx2.pmadd.wd|integer": {
+     "calls": 8,
+     "functions": 2
+    },
+    "llvm.x86.avx2.psad.bw|integer": {
+     "calls": 4,
+     "functions": 2
+    },
+    "llvm.x86.avx512.pternlog.d.256|integer": {
+     "calls": 48,
+     "functions": 4
+    },
+    "llvm.x86.avx512.pternlog.d.512|integer": {
+     "calls": 44,
+     "functions": 2
+    },
+    "llvm.x86.avx512.vpdpbusd.256|integer": {
+     "calls": 68,
+     "functions": 4
+    },
+    "llvm.x86.avx512.vpdpbusd.512|integer": {
+     "calls": 34,
+     "functions": 2
+    },
+    "llvm.x86.pclmulqdq.256|integer": {
+     "calls": 184,
+     "functions": 6
+    },
+    "llvm.x86.pclmulqdq.512|integer": {
+     "calls": 88,
+     "functions": 2
+    },
+    "llvm.x86.pclmulqdq|integer": {
+     "calls": 338,
+     "functions": 10
+    },
+    "llvm.x86.sse2.pmadd.wd|integer": {
+     "calls": 8,
+     "functions": 2
+    },
+    "llvm.x86.sse2.psad.bw|integer": {
+     "calls": 4,
+     "functions": 2
+    },
+    "llvm.x86.sse41.pblendvb|integer": {
+     "calls": 20,
+     "functions": 10
+    },
+    "llvm.x86.ssse3.pshuf.b.128|integer": {
+     "calls": 44,
+     "functions": 10
+    }
+   }
+  },
+  {
+   "name": "zstd",
+   "domain": "compression",
+   "version": "1.5.7",
+   "source": "/nix/store/w0fyq7vdpja3yawg943an3zr644cqx1v-source",
+   "files": 74,
+   "not_compiled": [],
+   "calls": {
+    "llvm.abs.i16|integer": {
+     "calls": 14,
+     "functions": 14
+    },
+    "llvm.abs.i32|integer": {
+     "calls": 2,
+     "functions": 2
+    },
+    "llvm.abs.i64|integer": {
+     "calls": 4,
+     "functions": 2
+    },
+    "llvm.abs.v2i64|integer": {
+     "calls": 12,
+     "functions": 2
+    },
+    "llvm.assume|other": {
+     "calls": 296,
+     "functions": 150
+    },
+    "llvm.bswap.i32|integer": {
+     "calls": 4,
+     "functions": 4
+    },
+    "llvm.bswap.i64|integer": {
+     "calls": 4,
+     "functions": 4
+    },
+    "llvm.ctlz.i32|integer": {
+     "calls": 942,
+     "functions": 238
+    },
+    "llvm.ctpop.i32|integer": {
+     "calls": 2,
+     "functions": 2
+    },
+    "llvm.cttz.i32|integer": {
+     "calls": 10,
+     "functions": 6
+    },
+    "llvm.cttz.i64|integer": {
+     "calls": 1120,
+     "functions": 208
+    },
+    "llvm.experimental.noalias.scope.decl|other": {
+     "calls": 20,
+     "functions": 14
+    },
+    "llvm.fshl.i32|integer": {
+     "calls": 80,
+     "functions": 6
+    },
+    "llvm.fshl.i64|integer": {
+     "calls": 110,
+     "functions": 8
+    },
+    "llvm.fshr.i16|integer": {
+     "calls": 30,
+     "functions": 24
+    },
+    "llvm.fshr.i32|integer": {
+     "calls": 30,
+     "functions": 24
+    },
+    "llvm.fshr.i64|integer": {
+     "calls": 24,
+     "functions": 24
+    },
+    "llvm.lifetime.end.p0|other": {
+     "calls": 2084,
+     "functions": 542
+    },
+    "llvm.lifetime.start.p0|other": {
+     "calls": 1490,
+     "functions": 542
+    },
+    "llvm.load.relative.i64|other": {
+     "calls": 2,
+     "functions": 2
+    },
+    "llvm.memcpy.p0.p0.i64|other": {
+     "calls": 668,
+     "functions": 312
+    },
+    "llvm.memmove.p0.p0.i64|other": {
+     "calls": 146,
+     "functions": 48
+    },
+    "llvm.memset.p0.i64|other": {
+     "calls": 756,
+     "functions": 464
+    },
+    "llvm.prefetch.p0|other": {
+     "calls": 2572,
+     "functions": 124
+    },
+    "llvm.smax.i32|integer": {
+     "calls": 74,
+     "functions": 42
+    },
+    "llvm.smax.i64|integer": {
+     "calls": 30,
+     "functions": 26
+    },
+    "llvm.smax.v2i32|integer": {
+     "calls": 2,
+     "functions": 2
+    },
+    "llvm.smin.i32|integer": {
+     "calls": 42,
+     "functions": 26
+    },
+    "llvm.smin.i64|integer": {
+     "calls": 174,
+     "functions": 36
+    },
+    "llvm.ucmp.i32.i64|integer": {
+     "calls": 4,
+     "functions": 4
+    },
+    "llvm.umax.i16|integer": {
+     "calls": 2,
+     "functions": 2
+    },
+    "llvm.umax.i32|integer": {
+     "calls": 330,
+     "functions": 204
+    },
+    "llvm.umax.i64|integer": {
+     "calls": 266,
+     "functions": 108
+    },
+    "llvm.umax.i8|integer": {
+     "calls": 8,
+     "functions": 2
+    },
+    "llvm.umax.v4i32|integer": {
+     "calls": 36,
+     "functions": 12
+    },
+    "llvm.umin.i32|integer": {
+     "calls": 536,
+     "functions": 226
+    },
+    "llvm.umin.i64|integer": {
+     "calls": 204,
+     "functions": 108
+    },
+    "llvm.umin.v2i32|integer": {
+     "calls": 2,
+     "functions": 2
+    },
+    "llvm.usub.sat.i32|integer": {
+     "calls": 78,
+     "functions": 62
+    },
+    "llvm.usub.sat.i64|integer": {
+     "calls": 6,
+     "functions": 6
+    },
+    "llvm.va_end.p0|other": {
+     "calls": 6,
+     "functions": 6
+    },
+    "llvm.va_start.p0|other": {
+     "calls": 6,
+     "functions": 6
+    },
+    "llvm.vector.reduce.add.v28i32|integer": {
+     "calls": 2,
+     "functions": 2
+    },
+    "llvm.vector.reduce.add.v2i64|integer": {
+     "calls": 32,
+     "functions": 18
+    },
+    "llvm.vector.reduce.add.v32i32|integer": {
+     "calls": 12,
+     "functions": 4
+    },
+    "llvm.vector.reduce.add.v4i32|integer": {
+     "calls": 14,
+     "functions": 8
+    },
+    "llvm.vector.reduce.or.v2i32|integer": {
+     "calls": 2,
+     "functions": 2
+    },
+    "llvm.vector.reduce.umax.v4i32|integer": {
+     "calls": 12,
+     "functions": 12
+    }
+   }
+  },
+  {
+   "name": "libwebp",
+   "domain": "codecs",
+   "version": "1.6.0",
+   "source": "/nix/store/dsm886c0v97mbm4kpk8lqlwi8b7hcxxw-source",
+   "files": 179,
+   "not_compiled": [],
+   "calls": {
+    "llvm.abs.i16|integer": {
+     "calls": 17,
+     "functions": 7
+    },
+    "llvm.abs.i32|integer": {
+     "calls": 115,
+     "functions": 28
+    },
+    "llvm.abs.v2i16|integer": {
+     "calls": 8,
+     "functions": 1
+    },
+    "llvm.abs.v2i32|integer": {
+     "calls": 4,
+     "functions": 2
+    },
+    "llvm.abs.v4i32|integer": {
+     "calls": 31,
+     "functions": 1
+    },
+    "llvm.abs.v8i16|integer": {
+     "calls": 30,
+     "functions": 10
+    },
+    "llvm.assume|other": {
+     "calls": 130,
+     "functions": 76
+    },
+    "llvm.bswap.i32|integer": {
+     "calls": 4,
+     "functions": 2
+    },
+    "llvm.bswap.i64|integer": {
+     "calls": 43,
+     "functions": 11
+    },
+    "llvm.ceil.f32|float": {
+     "calls": 2,
+     "functions": 2
+    },
+    "llvm.ctlz.i32|integer": {
+     "calls": 48,
+     "functions": 17
+    },
+    "llvm.ctpop.i40|integer": {
+     "calls": 1,
+     "functions": 1
+    },
+    "llvm.ctpop.i4|integer": {
+     "calls": 1,
+     "functions": 1
+    },
+    "llvm.cttz.i32|integer": {
+     "calls": 2,
+     "functions": 2
+    },
+    "llvm.experimental.cttz.elts.i64.v4i1|integer": {
+     "calls": 1,
+     "functions": 1
+    },
+    "llvm.experimental.noalias.scope.decl|other": {
+     "calls": 538,
+     "functions": 72
+    },
+    "llvm.fabs.f32|float": {
+     "calls": 3,
+     "functions": 2
+    },
+    "llvm.floor.f32|float": {
+     "calls": 5,
+     "functions": 3
+    },
+    "llvm.floor.v2f32|float": {
+     "calls": 2,
+     "functions": 1
+    },
+    "llvm.floor.v4f32|float": {
+     "calls": 1,
+     "functions": 1
+    },
+    "llvm.fmuladd.f32|float": {
+     "calls": 9,
+     "functions": 4
+    },
+    "llvm.fmuladd.f64|float": {
+     "calls": 19,
+     "functions": 9
+    },
+    "llvm.fmuladd.v2f32|float": {
+     "calls": 4,
+     "functions": 2
+    },
+    "llvm.fmuladd.v4f32|float": {
+     "calls": 1,
+     "functions": 1
+    },
+    "llvm.fshl.i32|integer": {
+     "calls": 3,
+     "functions": 1
+    },
+    "llvm.fshl.i64|integer": {
+     "calls": 42,
+     "functions": 10
+    },
+    "llvm.lifetime.end.p0|other": {
+     "calls": 537,
+     "functions": 145
+    },
+    "llvm.lifetime.start.p0|other": {
+     "calls": 460,
+     "functions": 145
+    },
+    "llvm.load.relative.i64|other": {
+     "calls": 1,
+     "functions": 1
+    },
+    "llvm.log10.f64|float": {
+     "calls": 2,
+     "functions": 1
+    },
+    "llvm.memcpy.p0.p0.i64|other": {
+     "calls": 485,
+     "functions": 117
+    },
+    "llvm.memmove.p0.p0.i64|other": {
+     "calls": 3,
+     "functions": 3
+    },
+    "llvm.memset.p0.i64|other": {
+     "calls": 891,
+     "functions": 200
+    },
+    "llvm.sadd.sat.v16i8|integer": {
+     "calls": 188,
+     "functions": 22
+    },
+    "llvm.sadd.sat.v8i16|integer": {
+     "calls": 4,
+     "functions": 1
+    },
+    "llvm.smax.i32|integer": {
+     "calls": 203,
+     "functions": 52
+    },
+    "llvm.smax.i64|integer": {
+     "calls": 8,
+     "functions": 6
+    },
+    "llvm.smax.v16i32|integer": {
+     "calls": 7,
+     "functions": 5
+    },
+    "llvm.smax.v4i32|integer": {
+     "calls": 58,
+     "functions": 14
+    },
+    "llvm.smax.v8i16|integer": {
+     "calls": 4,
+     "functions": 2
+    },
+    "llvm.smax.v8i32|integer": {
+     "calls": 22,
+     "functions": 4
+    },
+    "llvm.smin.i32|integer": {
+     "calls": 102,
+     "functions": 42
+    },
+    "llvm.smin.i64|integer": {
+     "calls": 8,
+     "functions": 4
+    },
+    "llvm.smin.v2i32|integer": {
+     "calls": 5,
+     "functions": 3
+    },
+    "llvm.smin.v4i32|integer": {
+     "calls": 9,
+     "functions": 3
+    },
+    "llvm.smin.v8i16|integer": {
+     "calls": 24,
+     "functions": 10
+    },
+    "llvm.smin.v8i32|integer": {
+     "calls": 2,
+     "functions": 1
+    },
+    "llvm.ssub.sat.v16i8|integer": {
+     "calls": 110,
+     "functions": 22
+    },
+    "llvm.ssub.sat.v8i16|integer": {
+     "calls": 4,
+     "functions": 1
+    },
+    "llvm.uadd.sat.v16i8|integer": {
+     "calls": 52,
+     "functions": 22
+    },
+    "llvm.uadd.sat.v8i16|integer": {
+     "calls": 80,
+     "functions": 32
+    },
+    "llvm.umax.i16|integer": {
+     "calls": 2,
+     "functions": 1
+    },
+    "llvm.umax.i32|integer": {
+     "calls": 34,
+     "functions": 9
+    },
+    "llvm.umax.i64|integer": {
+     "calls": 35,
+     "functions": 25
+    },
+    "llvm.umax.v16i8|integer": {
+     "calls": 96,
+     "functions": 16
+    },
+    "llvm.umax.v4i32|integer": {
+     "calls": 6,
+     "functions": 1
+    },
+    "llvm.umin.i16|integer": {
+     "calls": 4,
+     "functions": 2
+    },
+    "llvm.umin.i32|integer": {
+     "calls": 89,
+     "functions": 31
+    },
+    "llvm.umin.i64|integer": {
+     "calls": 14,
+     "functions": 9
+    },
+    "llvm.umin.v16i32|integer": {
+     "calls": 7,
+     "functions": 5
+    },
+    "llvm.umin.v16i8|integer": {
+     "calls": 2,
+     "functions": 1
+    },
+    "llvm.umin.v2i16|integer": {
+     "calls": 8,
+     "functions": 1
+    },
+    "llvm.umin.v4i32|integer": {
+     "calls": 34,
+     "functions": 11
+    },
+    "llvm.umin.v8i32|integer": {
+     "calls": 22,
+     "functions": 4
+    },
+    "llvm.umul.with.overflow.i32|integer": {
+     "calls": 5,
+     "functions": 5
+    },
+    "llvm.usub.sat.i32|integer": {
+     "calls": 2,
+     "functions": 2
+    },
+    "llvm.usub.sat.v16i8|integer": {
+     "calls": 345,
+     "functions": 38
+    },
+    "llvm.usub.sat.v8i16|integer": {
+     "calls": 80,
+     "functions": 32
+    },
+    "llvm.va_end.p0|other": {
+     "calls": 2,
+     "functions": 2
+    },
+    "llvm.va_start.p0|other": {
+     "calls": 2,
+     "functions": 2
+    },
+    "llvm.vector.reduce.add.v12i32|integer": {
+     "calls": 8,
+     "functions": 2
+    },
+    "llvm.vector.reduce.add.v16i16|integer": {
+     "calls": 3,
+     "functions": 3
+    },
+    "llvm.vector.reduce.add.v16i32|integer": {
+     "calls": 3,
+     "functions": 3
+    },
+    "llvm.vector.reduce.add.v2i32|integer": {
+     "calls": 2,
+     "functions": 2
+    },
+    "llvm.vector.reduce.add.v2i64|integer": {
+     "calls": 2,
+     "functions": 2
+    },
+    "llvm.vector.reduce.add.v4i32|integer": {
+     "calls": 38,
+     "functions": 25
+    },
+    "llvm.vector.reduce.add.v8i16|integer": {
+     "calls": 4,
+     "functions": 3
+    },
+    "llvm.vector.reduce.add.v8i32|integer": {
+     "calls": 11,
+     "functions": 3
+    },
+    "llvm.vector.reduce.and.v16i8|integer": {
+     "calls": 2,
+     "functions": 2
+    },
+    "llvm.vector.reduce.and.v4i32|integer": {
+     "calls": 6,
+     "functions": 4
+    },
+    "llvm.vector.reduce.and.v8i8|integer": {
+     "calls": 2,
+     "functions": 2
+    },
+    "llvm.vector.reduce.or.v4i32|integer": {
+     "calls": 1,
+     "functions": 1
+    },
+    "llvm.vector.reduce.or.v4i8|integer": {
+     "calls": 2,
+     "functions": 2
+    },
+    "llvm.vector.reduce.or.v8i32|integer": {
+     "calls": 1,
+     "functions": 1
+    },
+    "llvm.vector.reduce.smax.v4i32|integer": {
+     "calls": 6,
+     "functions": 3
+    },
+    "llvm.vector.reduce.smin.v4i32|integer": {
+     "calls": 1,
+     "functions": 1
+    },
+    "llvm.vector.reduce.umax.v4i32|integer": {
+     "calls": 2,
+     "functions": 1
+    },
+    "llvm.x86.avx2.packssdw|integer": {
+     "calls": 8,
+     "functions": 4
+    },
+    "llvm.x86.avx2.packsswb|integer": {
+     "calls": 2,
+     "functions": 1
+    },
+    "llvm.x86.avx2.packuswb|integer": {
+     "calls": 18,
+     "functions": 4
+    },
+    "llvm.x86.avx2.pavg.b|integer": {
+     "calls": 47,
+     "functions": 12
+    },
+    "llvm.x86.avx2.pmadd.wd|integer": {
+     "calls": 3,
+     "functions": 1
+    },
+    "llvm.x86.avx2.pmulh.w|integer": {
+     "calls": 9,
+     "functions": 4
+    },
+    "llvm.x86.avx2.psad.bw|integer": {
+     "calls": 24,
+     "functions": 3
+    },
+    "llvm.x86.sse2.maskmov.dqu|other": {
+     "calls": 12,
+     "functions": 2
+    },
+    "llvm.x86.sse2.packssdw.128|integer": {
+     "calls": 161,
+     "functions": 49
+    },
+    "llvm.x86.sse2.packsswb.128|integer": {
+     "calls": 88,
+     "functions": 31
+    },
+    "llvm.x86.sse2.packuswb.128|integer": {
+     "calls": 637,
+     "functions": 102
+    },
+    "llvm.x86.sse2.pavg.b|integer": {
+     "calls": 743,
+     "functions": 65
+    },
+    "llvm.x86.sse2.pmadd.wd|integer": {
+     "calls": 417,
+     "functions": 38
+    },
+    "llvm.x86.sse2.pmulh.w|integer": {
+     "calls": 63,
+     "functions": 19
+    },
+    "llvm.x86.sse2.pmulhu.w|integer": {
+     "calls": 432,
+     "functions": 46
+    },
+    "llvm.x86.sse2.psad.bw|integer": {
+     "calls": 34,
+     "functions": 13
+    },
+    "llvm.x86.ssse3.phadd.d.128|integer": {
+     "calls": 1,
+     "functions": 1
+    },
+    "llvm.x86.ssse3.psign.w.128|integer": {
+     "calls": 8,
+     "functions": 3
+    }
+   }
+  },
+  {
+   "name": "libaom",
+   "domain": "codecs",
+   "version": "3.15.1",
+   "source": "/nix/store/mvj6agx0vz29mh779253alk0s805cji4-source",
+   "files": 362,
+   "not_compiled": [],
+   "calls": {
+    "llvm.abs.i16|integer": {
+     "calls": 290,
+     "functions": 34
+    },
+    "llvm.abs.i32|integer": {
+     "calls": 939,
+     "functions": 157
+    },
+    "llvm.abs.i64|integer": {
+     "calls": 14,
+     "functions": 5
+    },
+    "llvm.abs.v12i32|integer": {
+     "calls": 5,
+     "functions": 3
+    },
+    "llvm.abs.v16i16|integer": {
+     "calls": 2248,
+     "functions": 160
+    },
+    "llvm.abs.v16i32|integer": {
+     "calls": 204,
+     "functions": 51
+    },
+    "llvm.abs.v28i32|integer": {
+     "calls": 3,
+     "functions": 3
+    },
+    "llvm.abs.v2i16|integer": {
+     "calls": 47,
+     "functions": 10
+    },
+    "llvm.abs.v2i32|integer": {
+     "calls": 9,
+     "functions": 3
+    },
+    "llvm.abs.v32i16|integer": {
+     "calls": 27,
+     "functions": 18
+    },
+    "llvm.abs.v32i32|integer": {
+     "calls": 24,
+     "functions": 15
+    },
+    "llvm.abs.v44i32|integer": {
+     "calls": 1,
+     "functions": 1
+    },
+    "llvm.abs.v4i16|integer": {
+     "calls": 86,
+     "functions": 6
+    },
+    "llvm.abs.v4i32|integer": {
+     "calls": 5337,
+     "functions": 163
+    },
+    "llvm.abs.v8i16|integer": {
+     "calls": 1278,
+     "functions": 98
+    },
+    "llvm.abs.v8i32|integer": {
+     "calls": 542,
+     "functions": 95
+    },
+    "llvm.assume|other": {
+     "calls": 722,
+     "functions": 317
+    },
+    "llvm.bswap.i64|integer": {
+     "calls": 1,
+     "functions": 1
+    },
+    "llvm.ceil.f64|float": {
+     "calls": 5,
+     "functions": 5
+    },
+    "llvm.ctlz.i32|integer": {
+     "calls": 154,
+     "functions": 66
+    },
+    "llvm.ctpop.i32|integer": {
+     "calls": 65,
+     "functions": 45
+    },
+    "llvm.ctpop.i4|integer": {
+     "calls": 2,
+     "functions": 1
+    },
+    "llvm.cttz.i32|integer": {
+     "calls": 65,
+     "functions": 45
+    },
+    "llvm.experimental.cttz.elts.i64.v4i1|integer": {
+     "calls": 1,
+     "functions": 1
+    },
+    "llvm.experimental.noalias.scope.decl|other": {
+     "calls": 65,
+     "functions": 18
+    },
+    "llvm.fabs.f32|float": {
+     "calls": 14,
+     "functions": 4
+    },
+    "llvm.fabs.f64|float": {
+     "calls": 52,
+     "functions": 20
+    },
+    "llvm.fabs.v2f32|float": {
+     "calls": 1,
+     "functions": 1
+    },
+    "llvm.fabs.v2f64|float": {
+     "calls": 3,
+     "functions": 3
+    },
+    "llvm.fabs.v4f32|float": {
+     "calls": 4,
+     "functions": 3
+    },
+    "llvm.fabs.v4f64|float": {
+     "calls": 1,
+     "functions": 1
+    },
+    "llvm.floor.f64|float": {
+     "calls": 16,
+     "functions": 9
+    },
+    "llvm.floor.v2f64|float": {
+     "calls": 2,
+     "functions": 1
+    },
+    "llvm.fmuladd.f32|float": {
+     "calls": 60,
+     "functions": 15
+    },
+    "llvm.fmuladd.f64|float": {
+     "calls": 325,
+     "functions": 90
+    },
+    "llvm.fmuladd.v2f32|float": {
+     "calls": 7,
+     "functions": 3
+    },
+    "llvm.fmuladd.v2f64|float": {
+     "calls": 113,
+     "functions": 37
+    },
+    "llvm.fmuladd.v4f32|float": {
+     "calls": 13,
+     "functions": 6
+    },
+    "llvm.fmuladd.v4f64|float": {
+     "calls": 8,
+     "functions": 4
+    },
+    "llvm.fmuladd.v8f32|float": {
+     "calls": 6,
+     "functions": 1
+    },
+    "llvm.fptosi.sat.i8.f64|float": {
+     "calls": 12,
+     "functions": 1
+    },
+    "llvm.fshl.i32|integer": {
+     "calls": 65,
+     "functions": 2
+    },
+    "llvm.fshl.v16i16|integer": {
+     "calls": 12,
+     "functions": 3
+    },
+    "llvm.fshl.v8i16|integer": {
+     "calls": 16,
+     "functions": 4
+    },
+    "llvm.lifetime.end.p0|other": {
+     "calls": 6066,
+     "functions": 1834
+    },
+    "llvm.lifetime.start.p0|other": {
+     "calls": 5316,
+     "functions": 1834
+    },
+    "llvm.load.relative.i64|other": {
+     "calls": 4,
+     "functions": 4
+    },
+    "llvm.log10.f64|float": {
+     "calls": 1,
+     "functions": 1
+    },
+    "llvm.log2.f64|float": {
+     "calls": 5,
+     "functions": 3
+    },
+    "llvm.maxnum.f64|float": {
+     "calls": 5,
+     "functions": 3
+    },
+    "llvm.memcpy.p0.p0.i64|other": {
+     "calls": 3137,
+     "functions": 676
+    },
+    "llvm.memmove.p0.p0.i64|other": {
+     "calls": 77,
+     "functions": 26
+    },
+    "llvm.memset.p0.i64|other": {
+     "calls": 4453,
+     "functions": 733
+    },
+    "llvm.rint.f64|float": {
+     "calls": 12,
+     "functions": 5
+    },
+    "llvm.rint.v2f64|float": {
+     "calls": 1,
+     "functions": 1
+    },
+    "llvm.round.f32|float": {
+     "calls": 4,
+     "functions": 1
+    },
+    "llvm.round.f64|float": {
+     "calls": 30,
+     "functions": 13
+    },
+    "llvm.round.v2f32|float": {
+     "calls": 2,
+     "functions": 1
+    },
+    "llvm.roundeven.v2f64|float": {
+     "calls": 8,
+     "functions": 2
+    },
+    "llvm.sadd.sat.i8|integer": {
+     "calls": 10,
+     "functions": 4
+    },
+    "llvm.sadd.sat.v16i16|integer": {
+     "calls": 1488,
+     "functions": 42
+    },
+    "llvm.sadd.sat.v16i8|integer": {
+     "calls": 104,
+     "functions": 24
+    },
+    "llvm.sadd.sat.v8i16|integer": {
+     "calls": 2354,
+     "functions": 91
+    },
+    "llvm.scmp.i32.i32|integer": {
+     "calls": 2,
+     "functions": 2
+    },
+    "llvm.scmp.i32.i64|integer": {
+     "calls": 1,
+     "functions": 1
+    },
+    "llvm.smax.i16|integer": {
+     "calls": 17,
+     "functions": 6
+    },
+    "llvm.smax.i32|integer": {
+     "calls": 1698,
+     "functions": 440
+    },
+    "llvm.smax.i64|integer": {
+     "calls": 65,
+     "functions": 24
+    },
+    "llvm.smax.i8|integer": {
+     "calls": 34,
+     "functions": 9
+    },
+    "llvm.smax.v16i16|integer": {
+     "calls": 175,
+     "functions": 34
+    },
+    "llvm.smax.v16i32|integer": {
+     "calls": 12,
+     "functions": 7
+    },
+    "llvm.smax.v2i16|integer": {
+     "calls": 4,
+     "functions": 1
+    },
+    "llvm.smax.v2i32|integer": {
+     "calls": 26,
+     "functions": 7
+    },
+    "llvm.smax.v4i16|integer": {
+     "calls": 5,
+     "functions": 2
+    },
+    "llvm.smax.v4i32|integer": {
+     "calls": 1717,
+     "functions": 64
+    },
+    "llvm.smax.v8i16|integer": {
+     "calls": 727,
+     "functions": 74
+    },
+    "llvm.smax.v8i32|integer": {
+     "calls": 1637,
+     "functions": 61
+    },
+    "llvm.smin.i16|integer": {
+     "calls": 12,
+     "functions": 3
+    },
+    "llvm.smin.i32|integer": {
+     "calls": 1531,
+     "functions": 341
+    },
+    "llvm.smin.i64|integer": {
+     "calls": 766,
+     "functions": 73
+    },
+    "llvm.smin.v16i16|integer": {
+     "calls": 250,
+     "functions": 28
+    },
+    "llvm.smin.v16i32|integer": {
+     "calls": 1,
+     "functions": 1
+    },
+    "llvm.smin.v2i16|integer": {
+     "calls": 4,
+     "functions": 1
+    },
+    "llvm.smin.v2i32|integer": {
+     "calls": 37,
+     "functions": 11
+    },
+    "llvm.smin.v4i16|integer": {
+     "calls": 6,
+     "functions": 2
+    },
+    "llvm.smin.v4i32|integer": {
+     "calls": 1657,
+     "functions": 37
+    },
+    "llvm.smin.v8i16|integer": {
+     "calls": 678,
+     "functions": 61
+    },
+    "llvm.smin.v8i32|integer": {
+     "calls": 1328,
+     "functions": 25
+    },
+    "llvm.sqrt.f64|float": {
+     "calls": 6,
+     "functions": 3
+    },
+    "llvm.ssub.sat.i8|integer": {
+     "calls": 15,
+     "functions": 4
+    },
+    "llvm.ssub.sat.v16i16|integer": {
+     "calls": 1008,
+     "functions": 19
+    },
+    "llvm.ssub.sat.v16i8|integer": {
+     "calls": 112,
+     "functions": 24
+    },
+    "llvm.ssub.sat.v8i16|integer": {
+     "calls": 1278,
+     "functions": 47
+    },
+    "llvm.trap|other": {
+     "calls": 2,
+     "functions": 2
+    },
+    "llvm.uadd.sat.i8|integer": {
+     "calls": 9,
+     "functions": 3
+    },
+    "llvm.uadd.sat.v16i16|integer": {
+     "calls": 43,
+     "functions": 2
+    },
+    "llvm.uadd.sat.v16i8|integer": {
+     "calls": 68,
+     "functions": 28
+    },
+    "llvm.uadd.sat.v32i8|integer": {
+     "calls": 9,
+     "functions": 2
+    },
+    "llvm.uadd.sat.v4i8|integer": {
+     "calls": 6,
+     "functions": 2
+    },
+    "llvm.uadd.sat.v8i16|integer": {
+     "calls": 53,
+     "functions": 18
+    },
+    "llvm.uadd.with.overflow.i64|integer": {
+     "calls": 1,
+     "functions": 1
+    },
+    "llvm.ucmp.i32.i32|integer": {
+     "calls": 1,
+     "functions": 1
+    },
+    "llvm.umax.i16|integer": {
+     "calls": 5,
+     "functions": 4
+    },
+    "llvm.umax.i32|integer": {
+     "calls": 97,
+     "functions": 42
+    },
+    "llvm.umax.i64|integer": {
+     "calls": 31,
+     "functions": 18
+    },
+    "llvm.umax.i8|integer": {
+     "calls": 100,
+     "functions": 26
+    },
+    "llvm.umax.v16i16|integer": {
+     "calls": 38,
+     "functions": 1
+    },
+    "llvm.umax.v16i8|integer": {
+     "calls": 205,
+     "functions": 26
+    },
+    "llvm.umax.v32i8|integer": {
+     "calls": 31,
+     "functions": 3
+    },
+    "llvm.umax.v8i16|integer": {
+     "calls": 8,
+     "functions": 2
+    },
+    "llvm.umin.i16|integer": {
+     "calls": 43,
+     "functions": 15
+    },
+    "llvm.umin.i32|integer": {
+     "calls": 1408,
+     "functions": 251
+    },
+    "llvm.umin.i64|integer": {
+     "calls": 77,
+     "functions": 20
+    },
+    "llvm.umin.i8|integer": {
+     "calls": 209,
+     "functions": 61
+    },
+    "llvm.umin.v16i16|integer": {
+     "calls": 29,
+     "functions": 6
+    },
+    "llvm.umin.v16i32|integer": {
+     "calls": 12,
+     "functions": 7
+    },
+    "llvm.umin.v16i8|integer": {
+     "calls": 190,
+     "functions": 5
+    },
+    "llvm.umin.v2i32|integer": {
+     "calls": 6,
+     "functions": 2
+    },
+    "llvm.umin.v2i64|integer": {
+     "calls": 12,
+     "functions": 2
+    },
+    "llvm.umin.v32i8|integer": {
+     "calls": 8,
+     "functions": 1
+    },
+    "llvm.umin.v4i16|integer": {
+     "calls": 7,
+     "functions": 4
+    },
+    "llvm.umin.v4i32|integer": {
+     "calls": 74,
+     "functions": 25
+    },
+    "llvm.umin.v4i8|integer": {
+     "calls": 5,
+     "functions": 3
+    },
+    "llvm.umin.v8i16|integer": {
+     "calls": 19,
+     "functions": 6
+    },
+    "llvm.umin.v8i32|integer": {
+     "calls": 325,
+     "functions": 40
+    },
+    "llvm.umul.with.overflow.i32|integer": {
+     "calls": 6,
+     "functions": 2
+    },
+    "llvm.umul.with.overflow.i64|integer": {
+     "calls": 6,
+     "functions": 6
+    },
+    "llvm.usub.sat.i16|integer": {
+     "calls": 1,
+     "functions": 1
+    },
+    "llvm.usub.sat.i32|integer": {
+     "calls": 28,
+     "functions": 13
+    },
+    "llvm.usub.sat.i64|integer": {
+     "calls": 4,
+     "functions": 1
+    },
+    "llvm.usub.sat.i8|integer": {
+     "calls": 2,
+     "functions": 2
+    },
+    "llvm.usub.sat.v16i16|integer": {
+     "calls": 197,
+     "functions": 8
+    },
+    "llvm.usub.sat.v16i8|integer": {
+     "calls": 331,
+     "functions": 27
+    },
+    "llvm.usub.sat.v32i8|integer": {
+     "calls": 18,
+     "functions": 2
+    },
+    "llvm.usub.sat.v4i8|integer": {
+     "calls": 5,
+     "functions": 1
+    },
+    "llvm.usub.sat.v8i16|integer": {
+     "calls": 455,
+     "functions": 27
+    },
+    "llvm.usub.sat.v8i32|integer": {
+     "calls": 3,
+     "functions": 2
+    },
+    "llvm.va_end.p0|other": {
+     "calls": 40,
+     "functions": 40
+    },
+    "llvm.va_start.p0|other": {
+     "calls": 40,
+     "functions": 40
+    },
+    "llvm.vector.reduce.add.v12i32|integer": {
+     "calls": 6,
+     "functions": 4
+    },
+    "llvm.vector.reduce.add.v16i16|integer": {
+     "calls": 10,
+     "functions": 10
+    },
+    "llvm.vector.reduce.add.v16i32|integer": {
+     "calls": 230,
+     "functions": 101
+    },
+    "llvm.vector.reduce.add.v16i64|integer": {
+     "calls": 4,
+     "functions": 4
+    },
+    "llvm.vector.reduce.add.v20i32|integer": {
+     "calls": 2,
+     "functions": 2
+    },
+    "llvm.vector.reduce.add.v24i32|integer": {
+     "calls": 3,
+     "functions": 3
+    },
+    "llvm.vector.reduce.add.v28i32|integer": {
+     "calls": 3,
+     "functions": 3
+    },
+    "llvm.vector.reduce.add.v2i16|integer": {
+     "calls": 10,
+     "functions": 10
+    },
+    "llvm.vector.reduce.add.v2i32|integer": {
+     "calls": 63,
+     "functions": 43
+    },
+    "llvm.vector.reduce.add.v2i64|integer": {
+     "calls": 206,
+     "functions": 117
+    },
+    "llvm.vector.reduce.add.v32i16|integer": {
+     "calls": 8,
+     "functions": 8
+    },
+    "llvm.vector.reduce.add.v32i32|integer": {
+     "calls": 86,
+     "functions": 61
+    },
+    "llvm.vector.reduce.add.v4i16|integer": {
+     "calls": 55,
+     "functions": 33
+    },
+    "llvm.vector.reduce.add.v4i32|integer": {
+     "calls": 979,
+     "functions": 279
+    },
+    "llvm.vector.reduce.add.v4i64|integer": {
+     "calls": 84,
+     "functions": 23
+    },
+    "llvm.vector.reduce.add.v64i16|integer": {
+     "calls": 3,
+     "functions": 3
+    },
+    "llvm.vector.reduce.add.v64i32|integer": {
+     "calls": 3,
+     "functions": 3
+    },
+    "llvm.vector.reduce.add.v8i16|integer": {
+     "calls": 10,
+     "functions": 10
+    },
+    "llvm.vector.reduce.add.v8i32|integer": {
+     "calls": 625,
+     "functions": 108
+    },
+    "llvm.vector.reduce.add.v8i64|integer": {
+     "calls": 20,
+     "functions": 5
+    },
+    "llvm.vector.reduce.and.v4i16|integer": {
+     "calls": 1,
+     "functions": 1
+    },
+    "llvm.vector.reduce.fadd.v4f64|float": {
+     "calls": 1,
+     "functions": 1
+    },
+    "llvm.vector.reduce.or.v4i32|integer": {
+     "calls": 10,
+     "functions": 6
+    },
+    "llvm.vector.reduce.or.v4i8|integer": {
+     "calls": 6,
+     "functions": 3
+    },
+    "llvm.vector.reduce.or.v8i32|integer": {
+     "calls": 1,
+     "functions": 1
+    },
+    "llvm.vector.reduce.or.v8i8|integer": {
+     "calls": 6,
+     "functions": 3
+    },
+    "llvm.vector.reduce.smax.v12i32|integer": {
+     "calls": 1,
+     "functions": 1
+    },
+    "llvm.vector.reduce.smax.v16i32|integer": {
+     "calls": 1,
+     "functions": 1
+    },
+    "llvm.vector.reduce.smax.v4i32|integer": {
+     "calls": 12,
+     "functions": 10
+    },
+    "llvm.vector.reduce.smax.v8i16|integer": {
+     "calls": 1,
+     "functions": 1
+    },
+    "llvm.vector.reduce.smin.v4i32|integer": {
+     "calls": 3,
+     "functions": 2
+    },
+    "llvm.vector.reduce.umin.v16i8|integer": {
+     "calls": 5,
+     "functions": 3
+    },
+    "llvm.vector.reduce.umin.v4i32|integer": {
+     "calls": 2,
+     "functions": 1
+    },
+    "llvm.vector.reduce.umin.v4i8|integer": {
+     "calls": 5,
+     "functions": 3
+    },
+    "llvm.vector.reduce.xor.v4i32|integer": {
+     "calls": 3,
+     "functions": 2
+    },
+    "llvm.x86.avx.cvt.pd2.ps.256|float": {
+     "calls": 2,
+     "functions": 1
+    },
+    "llvm.x86.avx.cvtt.ps2dq.256|float": {
+     "calls": 2,
+     "functions": 1
+    },
+    "llvm.x86.avx.hadd.ps.256|float": {
+     "calls": 23,
+     "functions": 2
+    },
+    "llvm.x86.avx.ldu.dq.256|other": {
+     "calls": 935,
+     "functions": 79
+    },
+    "llvm.x86.avx.max.ps.256|float": {
+     "calls": 6,
+     "functions": 1
+    },
+    "llvm.x86.avx.min.ps.256|float": {
+     "calls": 1,
+     "functions": 1
+    },
+    "llvm.x86.avx.vzeroupper|other": {
+     "calls": 32,
+     "functions": 27
+    },
+    "llvm.x86.avx2.gather.d.d.256|other": {
+     "calls": 2,
+     "functions": 1
+    },
+    "llvm.x86.avx2.maskload.d|other": {
+     "calls": 2,
+     "functions": 1
+    },
+    "llvm.x86.avx2.packssdw|integer": {
+     "calls": 1395,
+     "functions": 109
+    },
+    "llvm.x86.avx2.packsswb|integer": {
+     "calls": 4,
+     "functions": 1
+    },
+    "llvm.x86.avx2.packusdw|integer": {
+     "calls": 165,
+     "functions": 25
+    },
+    "llvm.x86.avx2.packuswb|integer": {
+     "calls": 563,
+     "functions": 79
+    },
+    "llvm.x86.avx2.pavg.b|integer": {
+     "calls": 300,
+     "functions": 24
+    },
+    "llvm.x86.avx2.pavg.w|integer": {
+     "calls": 153,
+     "functions": 12
+    },
+    "llvm.x86.avx2.pblendvb|integer": {
+     "calls": 15,
+     "functions": 9
+    },
+    "llvm.x86.avx2.phadd.d|integer": {
+     "calls": 318,
+     "functions": 109
+    },
+    "llvm.x86.avx2.phadd.sw|integer": {
+     "calls": 3,
+     "functions": 2
+    },
+    "llvm.x86.avx2.phadd.w|integer": {
+     "calls": 88,
+     "functions": 8
+    },
+    "llvm.x86.avx2.pmadd.ub.sw|integer": {
+     "calls": 1276,
+     "functions": 67
+    },
+    "llvm.x86.avx2.pmadd.wd|integer": {
+     "calls": 4999,
+     "functions": 210
+    },
+    "llvm.x86.avx2.pmul.hr.sw|integer": {
+     "calls": 514,
+     "functions": 39
+    },
+    "llvm.x86.avx2.pmulh.w|integer": {
+     "calls": 44,
+     "functions": 8
+    },
+    "llvm.x86.avx2.pmulhu.w|integer": {
+     "calls": 22,
+     "functions": 2
+    },
+    "llvm.x86.avx2.psad.bw|integer": {
+     "calls": 1337,
+     "functions": 94
+    },
+    "llvm.x86.avx2.pshuf.b|integer": {
+     "calls": 18,
+     "functions": 9
+    },
+    "llvm.x86.avx2.psign.d|integer": {
+     "calls": 28,
+     "functions": 6
+    },
+    "llvm.x86.avx2.psign.w|integer": {
+     "calls": 232,
+     "functions": 19
+    },
+    "llvm.x86.avx2.psll.d|integer": {
+     "calls": 5,
+     "functions": 2
+    },
+    "llvm.x86.avx2.psll.w|integer": {
+     "calls": 5,
+     "functions": 1
+    },
+    "llvm.x86.avx2.pslli.d|integer": {
+     "calls": 1810,
+     "functions": 19
+    },
+    "llvm.x86.avx2.pslli.w|integer": {
+     "calls": 531,
+     "functions": 34
+    },
+    "llvm.x86.avx2.psra.d|integer": {
+     "calls": 110,
+     "functions": 19
+    },
+    "llvm.x86.avx2.psra.w|integer": {
+     "calls": 19,
+     "functions": 4
+    },
+    "llvm.x86.avx2.psrai.d|integer": {
+     "calls": 3959,
+     "functions": 59
+    },
+    "llvm.x86.avx2.psrai.w|integer": {
+     "calls": 509,
+     "functions": 18
+    },
+    "llvm.x86.avx2.psrl.d|integer": {
+     "calls": 4,
+     "functions": 1
+    },
+    "llvm.x86.avx2.psrl.w|integer": {
+     "calls": 103,
+     "functions": 7
+    },
+    "llvm.x86.avx2.psrli.q|integer": {
+     "calls": 4,
+     "functions": 1
+    },
+    "llvm.x86.avx2.psrli.w|integer": {
+     "calls": 38,
+     "functions": 1
+    },
+    "llvm.x86.sse.max.ps|float": {
+     "calls": 32,
+     "functions": 4
+    },
+    "llvm.x86.sse2.cvtpd2dq|float": {
+     "calls": 8,
+     "functions": 2
+    },
+    "llvm.x86.sse2.cvtps2dq|float": {
+     "calls": 4,
+     "functions": 1
+    },
+    "llvm.x86.sse2.packssdw.128|integer": {
+     "calls": 2928,
+     "functions": 310
+    },
+    "llvm.x86.sse2.packsswb.128|integer": {
+     "calls": 68,
+     "functions": 26
+    },
+    "llvm.x86.sse2.packuswb.128|integer": {
+     "calls": 2302,
+     "functions": 222
+    },
+    "llvm.x86.sse2.pavg.b|integer": {
+     "calls": 721,
+     "functions": 46
+    },
+    "llvm.x86.sse2.pavg.w|integer": {
+     "calls": 3064,
+     "functions": 143
+    },
+    "llvm.x86.sse2.pmadd.wd|integer": {
+     "calls": 8428,
+     "functions": 458
+    },
+    "llvm.x86.sse2.pmulh.w|integer": {
+     "calls": 85,
+     "functions": 10
+    },
+    "llvm.x86.sse2.pmulhu.w|integer": {
+     "calls": 24,
+     "functions": 1
+    },
+    "llvm.x86.sse2.psad.bw|integer": {
+     "calls": 304,
+     "functions": 77
+    },
+    "llvm.x86.sse2.psll.d|integer": {
+     "calls": 19,
+     "functions": 4
+    },
+    "llvm.x86.sse2.psll.w|integer": {
+     "calls": 12,
+     "functions": 2
+    },
+    "llvm.x86.sse2.pslli.d|integer": {
+     "calls": 1136,
+     "functions": 29
+    },
+    "llvm.x86.sse2.pslli.w|integer": {
+     "calls": 1067,
+     "functions": 69
+    },
+    "llvm.x86.sse2.psra.d|integer": {
+     "calls": 186,
+     "functions": 24
+    },
+    "llvm.x86.sse2.psra.w|integer": {
+     "calls": 23,
+     "functions": 5
+    },
+    "llvm.x86.sse2.psrai.d|integer": {
+     "calls": 4617,
+     "functions": 91
+    },
+    "llvm.x86.sse2.psrai.w|integer": {
+     "calls": 819,
+     "functions": 30
+    },
+    "llvm.x86.sse2.psrl.d|integer": {
+     "calls": 4,
+     "functions": 1
+    },
+    "llvm.x86.sse2.psrl.q|integer": {
+     "calls": 2,
+     "functions": 1
+    },
+    "llvm.x86.sse2.psrl.w|integer": {
+     "calls": 197,
+     "functions": 7
+    },
+    "llvm.x86.sse2.psrli.q|integer": {
+     "calls": 16,
+     "functions": 1
+    },
+    "llvm.x86.sse2.psrli.w|integer": {
+     "calls": 5,
+     "functions": 2
+    },
+    "llvm.x86.sse3.hadd.ps|float": {
+     "calls": 39,
+     "functions": 6
+    },
+    "llvm.x86.sse3.ldu.dq|other": {
+     "calls": 440,
+     "functions": 57
+    },
+    "llvm.x86.sse41.packusdw|integer": {
+     "calls": 153,
+     "functions": 24
+    },
+    "llvm.x86.sse41.pblendvb|integer": {
+     "calls": 206,
+     "functions": 22
+    },
+    "llvm.x86.sse41.phminposuw|integer": {
+     "calls": 3,
+     "functions": 3
+    },
+    "llvm.x86.sse41.ptestz|integer": {
+     "calls": 4,
+     "functions": 2
+    },
+    "llvm.x86.sse42.crc32.32.16|integer": {
+     "calls": 1,
+     "functions": 1
+    },
+    "llvm.x86.sse42.crc32.32.32|integer": {
+     "calls": 1,
+     "functions": 1
+    },
+    "llvm.x86.sse42.crc32.32.8|integer": {
+     "calls": 9,
+     "functions": 1
+    },
+    "llvm.x86.sse42.crc32.64.64|integer": {
+     "calls": 9,
+     "functions": 1
+    },
+    "llvm.x86.ssse3.phadd.d.128|integer": {
+     "calls": 736,
+     "functions": 268
+    },
+    "llvm.x86.ssse3.phadd.sw.128|integer": {
+     "calls": 7,
+     "functions": 3
+    },
+    "llvm.x86.ssse3.phadd.w.128|integer": {
+     "calls": 376,
+     "functions": 33
+    },
+    "llvm.x86.ssse3.pmadd.ub.sw.128|integer": {
+     "calls": 2031,
+     "functions": 112
+    },
+    "llvm.x86.ssse3.pmul.hr.sw.128|integer": {
+     "calls": 650,
+     "functions": 64
+    },
+    "llvm.x86.ssse3.pshuf.b.128|integer": {
+     "calls": 91,
+     "functions": 21
+    },
+    "llvm.x86.ssse3.psign.d.128|integer": {
+     "calls": 16,
+     "functions": 2
+    },
+    "llvm.x86.ssse3.psign.w.128|integer": {
+     "calls": 577,
+     "functions": 32
+    }
+   }
+  },
+  {
+   "name": "xxHash",
+   "domain": "hashing",
+   "version": "0.8.3",
+   "source": "/nix/store/gx0fh4kbcxj8fidrilblyrrmkzfp6qxh-source",
+   "files": 2,
+   "not_compiled": [],
+   "calls": {
+    "llvm.assume|other": {
+     "calls": 182,
+     "functions": 56
+    },
+    "llvm.bswap.i32|integer": {
+     "calls": 15,
+     "functions": 12
+    },
+    "llvm.bswap.i64|integer": {
+     "calls": 23,
+     "functions": 19
+    },
+    "llvm.experimental.noalias.scope.decl|other": {
+     "calls": 175,
+     "functions": 25
+    },
+    "llvm.fshl.i32|integer": {
+     "calls": 47,
+     "functions": 10
+    },
+    "llvm.fshl.i64|integer": {
+     "calls": 66,
+     "functions": 10
+    },
+    "llvm.lifetime.end.p0|other": {
+     "calls": 24,
+     "functions": 19
+    },
+    "llvm.lifetime.start.p0|other": {
+     "calls": 24,
+     "functions": 19
+    },
+    "llvm.memcpy.p0.p0.i64|other": {
+     "calls": 32,
+     "functions": 14
+    },
+    "llvm.memset.p0.i64|other": {
+     "calls": 12,
+     "functions": 10
+    },
+    "llvm.prefetch.p0|other": {
+     "calls": 86,
+     "functions": 30
+    },
+    "llvm.ucmp.i32.i64|integer": {
+     "calls": 2,
+     "functions": 1
+    },
+    "llvm.umin.i64|integer": {
+     "calls": 1,
+     "functions": 1
+    },
+    "llvm.vector.reduce.add.v4i64|integer": {
+     "calls": 9,
+     "functions": 7
+    },
+    "llvm.vector.reduce.add.v8i64|integer": {
+     "calls": 2,
+     "functions": 2
+    },
+    "llvm.x86.avx512.pternlog.d.512|integer": {
+     "calls": 10,
+     "functions": 7
+    }
+   }
+  },
+  {
+   "name": "BLAKE3",
+   "domain": "hashing",
+   "version": "1.8.7",
+   "source": "/nix/store/awa143cx4mh6nizigpcpvcxvcbklamvv-source",
+   "files": 7,
+   "not_compiled": [],
+   "calls": {
+    "llvm.ctlz.i64|integer": {
+     "calls": 2,
+     "functions": 2
+    },
+    "llvm.ctpop.i64|integer": {
+     "calls": 5,
+     "functions": 1
+    },
+    "llvm.fshl.i32|integer": {
+     "calls": 448,
+     "functions": 2
+    },
+    "llvm.fshl.v16i32|integer": {
+     "calls": 448,
+     "functions": 2
+    },
+    "llvm.fshl.v4i32|integer": {
+     "calls": 1064,
+     "functions": 10
+    },
+    "llvm.fshl.v8i32|integer": {
+     "calls": 560,
+     "functions": 3
+    },
+    "llvm.lifetime.end.p0|other": {
+     "calls": 39,
+     "functions": 7
+    },
+    "llvm.lifetime.start.p0|other": {
+     "calls": 39,
+     "functions": 7
+    },
+    "llvm.memcpy.p0.p0.i64|other": {
+     "calls": 67,
+     "functions": 9
+    },
+    "llvm.memset.p0.i64|other": {
+     "calls": 12,
+     "functions": 7
+    },
+    "llvm.prefetch.p0|other": {
+     "calls": 44,
+     "functions": 4
+    },
+    "llvm.umin.i64|integer": {
+     "calls": 9,
+     "functions": 3
+    }
+   }
+  },
+  {
+   "name": "libsodium",
+   "domain": "crypto",
+   "version": "1.0.22-unstable-2026-09-28",
+   "source": "/nix/store/6z7srkn642gwmdripgcgc5m9gczp6dzl-source",
+   "files": 270,
+   "not_compiled": [],
+   "calls": {
+    "llvm.assume|other": {
+     "calls": 14,
+     "functions": 11
+    },
+    "llvm.ctpop.i64|integer": {
+     "calls": 6,
+     "functions": 6
+    },
+    "llvm.fshl.i32|integer": {
+     "calls": 650,
+     "functions": 18
+    },
+    "llvm.fshl.i64|integer": {
+     "calls": 3519,
+     "functions": 24
+    },
+    "llvm.fshl.i8|integer": {
+     "calls": 30,
+     "functions": 2
+    },
+    "llvm.fshl.v16i32|integer": {
+     "calls": 128,
+     "functions": 4
+    },
+    "llvm.fshl.v2i64|integer": {
+     "calls": 228,
+     "functions": 11
+    },
+    "llvm.fshl.v4i32|integer": {
+     "calls": 784,
+     "functions": 14
+    },
+    "llvm.fshl.v4i64|integer": {
+     "calls": 80,
+     "functions": 6
+    },
+    "llvm.fshl.v8i32|integer": {
+     "calls": 192,
+     "functions": 8
+    },
+    "llvm.fshl.v8i64|integer": {
+     "calls": 128,
+     "functions": 4
+    },
+    "llvm.lifetime.end.p0|other": {
+     "calls": 1527,
+     "functions": 474
+    },
+    "llvm.lifetime.start.p0|other": {
+     "calls": 1481,
+     "functions": 474
+    },
+    "llvm.memcpy.p0.p0.i64|other": {
+     "calls": 421,
+     "functions": 187
+    },
+    "llvm.memmove.p0.p0.i64|other": {
+     "calls": 28,
+     "functions": 24
+    },
+    "llvm.memset.p0.i64|other": {
+     "calls": 337,
+     "functions": 175
+    },
+    "llvm.prefetch.p0|other": {
+     "calls": 32,
+     "functions": 10
+    },
+    "llvm.threadlocal.address.p0|other": {
+     "calls": 4,
+     "functions": 4
+    },
+    "llvm.umax.i32|integer": {
+     "calls": 16,
+     "functions": 4
+    },
+    "llvm.umax.i64|integer": {
+     "calls": 22,
+     "functions": 12
+    },
+    "llvm.umin.i32|integer": {
+     "calls": 4,
+     "functions": 2
+    },
+    "llvm.umin.i64|integer": {
+     "calls": 49,
+     "functions": 37
+    },
+    "llvm.usub.sat.i64|integer": {
+     "calls": 2,
+     "functions": 2
+    },
+    "llvm.vector.reduce.and.v16i8|integer": {
+     "calls": 4,
+     "functions": 4
+    },
+    "llvm.vector.reduce.or.v16i8|integer": {
+     "calls": 10,
+     "functions": 10
+    },
+    "llvm.vector.reduce.or.v4i8|integer": {
+     "calls": 32,
+     "functions": 8
+    },
+    "llvm.vector.reduce.or.v8i32|integer": {
+     "calls": 6,
+     "functions": 2
+    },
+    "llvm.x86.aesni.aesdeclast|integer": {
+     "calls": 6,
+     "functions": 6
+    },
+    "llvm.x86.aesni.aesdec|integer": {
+     "calls": 54,
+     "functions": 6
+    },
+    "llvm.x86.aesni.aesenclast|integer": {
+     "calls": 170,
+     "functions": 18
+    },
+    "llvm.x86.aesni.aesenc|integer": {
+     "calls": 3626,
+     "functions": 26
+    },
+    "llvm.x86.aesni.aesimc|integer": {
+     "calls": 56,
+     "functions": 6
+    },
+    "llvm.x86.aesni.aeskeygenassist|integer": {
+     "calls": 346,
+     "functions": 18
+    },
+    "llvm.x86.pclmulqdq|integer": {
+     "calls": 980,
+     "functions": 8
+    },
+    "llvm.x86.rdrand.32|integer": {
+     "calls": 2,
+     "functions": 2
+    }
+   }
+  }
+ ]
+}

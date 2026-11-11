@@ -149,12 +149,51 @@ REASONS: dict[str, Reason] = {
         "modeled",
         None,
         "Memory, in IRLean/Mem.lean. A function that uses it takes and returns a "
-        "Mem, and has no Refines instance until F4",
+        "Mem, and its Refines claim, in IRLean/MemRefine.lean, is for a target that "
+        "allocates as its source does, until F4's stage 3",
     ),
     "x86 dot product": Reason(
         "modeled",
         None,
-        "x86's integer dot products, in IRLean/X86.lean, checked by tests/x86check.py and tests/real/x86.ll",
+        "x86's integer dot products, in IRLean/X86.lean, checked against the processor by tests/x86native.py "
+        "and tests/real/x86.ll, and against Alive2 and LLVM's constant folder by tests/x86check.py, where "
+        "they know it",
+    ),
+    "x86 carry-less product": Reason(
+        "modeled",
+        None,
+        "PCLMULQDQ, in IRLean/X86Crypto.lean, checked against the processor by tests/x86native.py. Neither "
+        "Alive2 nor LLVM's constant folder computes it, and tests/x86check.py checks which quadwords poison "
+        "reaches the result from against what InstCombine does",
+    ),
+    "x86 GFNI": Reason(
+        "modeled",
+        None,
+        "GF2P8AFFINEQB, GF2P8AFFINEINVQB or GF2P8MULB, in IRLean/X86Crypto.lean, checked against the "
+        "processor by tests/x86native.py, on every byte value. Neither Alive2 nor LLVM's constant folder "
+        "computes it",
+    ),
+    "x86 register state": Reason(
+        "modeled",
+        None,
+        "VZEROUPPER, which zeroes the upper halves of YMM0 to YMM15. No IR value is in one across it: LLVM "
+        "gives the instruction those sixteen registers as definitions, so it changes no value, and the model "
+        "does nothing. tests/x86native.py checks 256-bit values live across it on the processor, saved "
+        "around it with AVX2 and kept in YMM16 and up with AVX-512",
+    ),
+    "x86 arithmetic": Reason(
+        "modeled",
+        None,
+        "x86's integer arithmetic that isn't a generic operation lane by lane, in IRLean/X86Arith.lean, "
+        "checked against the processor by tests/x86native.py, and against Alive2 and LLVM's constant folder "
+        "by tests/x86check.py, where they know it",
+    ),
+    "x86 AES": Reason(
+        "modeled",
+        None,
+        "An AES round, AESIMC or AESKEYGENASSIST, in IRLean/X86Crypto.lean, checked against the processor by "
+        "tests/x86native.py, on every byte value. Neither Alive2 nor LLVM's constant folder computes it, so "
+        "nothing but the model says what poison does to it",
     ),
     "value promise": Reason(
         "modeled",
@@ -314,7 +353,8 @@ REASONS: dict[str, Reason] = {
         "modeled",
         None,
         "One of x86's pure bit functions, VPTERNLOG, PSHUFB and the shifts, in IRLean/X86Bits.lean, checked "
-        "by tests/vecopcheck.py against Alive2, both ways, and LLVM's constant folder with x86's own folds",
+        "by tests/vecopcheck.py against Alive2, both ways, and LLVM's constant folder with x86's own folds, "
+        "and by tests/x86native.py against the processor",
     ),
     "scalable vector": Reason(
         "modeled",
@@ -367,8 +407,9 @@ REASONS: dict[str, Reason] = {
     "x86": Reason(
         "refused",
         "long tail",
-        "An x86 intrinsic besides those IRLean/X86.lean and IRLean/X86Bits.lean model. It stays refused, by "
-        "name, until it's modeled and checked against Alive2 and LLVM's constant folder",
+        "An x86 intrinsic the model doesn't have. It stays refused, by name, until it's modeled and checked "
+        "against the processor, and against Alive2 and LLVM's constant folder where they know it. "
+        "docs/x86-intrinsics.md ranks them",
     ),
     "layout": Reason(
         "refused",
@@ -528,6 +569,75 @@ INTRINSIC_RULES = [
         "llvm.x86.sse2.pmadd.wd llvm.x86.avx2.pmadd.wd llvm.x86.avx512.pmaddw.d.512 "
         "llvm.x86.avx512.vpdpbusd.128 "
         "llvm.x86.avx512.vpdpbusd.256 llvm.x86.avx512.vpdpbusd.512",
+    ),
+    R("x86 carry-less product", "llvm.x86.pclmulqdq llvm.x86.pclmulqdq.256 llvm.x86.pclmulqdq.512"),
+    R(
+        "x86 arithmetic",
+        "llvm.x86.sse2.pavg.b llvm.x86.sse2.pavg.w llvm.x86.avx2.pavg.b llvm.x86.avx2.pavg.w "
+        "llvm.x86.avx512.pavg.b.512 llvm.x86.avx512.pavg.w.512 "
+        "llvm.x86.sse2.packsswb.128 llvm.x86.avx2.packsswb llvm.x86.avx512.packsswb.512 "
+        "llvm.x86.sse2.packuswb.128 llvm.x86.avx2.packuswb llvm.x86.avx512.packuswb.512 "
+        "llvm.x86.sse2.packssdw.128 llvm.x86.avx2.packssdw llvm.x86.avx512.packssdw.512 "
+        "llvm.x86.sse41.packusdw llvm.x86.avx2.packusdw llvm.x86.avx512.packusdw.512 "
+        "llvm.x86.ssse3.psign.b.128 llvm.x86.ssse3.psign.w.128 llvm.x86.ssse3.psign.d.128 "
+        "llvm.x86.avx2.psign.b llvm.x86.avx2.psign.w llvm.x86.avx2.psign.d "
+        "llvm.x86.sse2.pmulh.w llvm.x86.avx2.pmulh.w llvm.x86.avx512.pmulh.w.512 "
+        "llvm.x86.sse2.pmulhu.w llvm.x86.avx2.pmulhu.w llvm.x86.avx512.pmulhu.w.512 "
+        "llvm.x86.ssse3.pmul.hr.sw.128 llvm.x86.avx2.pmul.hr.sw llvm.x86.avx512.pmul.hr.sw.512 "
+        "llvm.x86.sse2.psad.bw llvm.x86.avx2.psad.bw llvm.x86.avx512.psad.bw.512 "
+        "llvm.x86.avx512.vpdpbusds.128 llvm.x86.avx512.vpdpbusds.256 llvm.x86.avx512.vpdpbusds.512 "
+        "llvm.x86.avx512.vpdpwssd.128 llvm.x86.avx512.vpdpwssd.256 llvm.x86.avx512.vpdpwssd.512 "
+        "llvm.x86.avx512.vpdpwssds.128 llvm.x86.avx512.vpdpwssds.256 llvm.x86.avx512.vpdpwssds.512 "
+        "llvm.x86.ssse3.phadd.w.128 llvm.x86.ssse3.phadd.d.128 llvm.x86.ssse3.phadd.sw.128 "
+        "llvm.x86.avx2.phadd.w llvm.x86.avx2.phadd.d llvm.x86.avx2.phadd.sw "
+        "llvm.x86.ssse3.phsub.w.128 llvm.x86.ssse3.phsub.d.128 llvm.x86.ssse3.phsub.sw.128 "
+        "llvm.x86.avx2.phsub.w llvm.x86.avx2.phsub.d llvm.x86.avx2.phsub.sw "
+        "llvm.x86.sse41.pblendvb llvm.x86.avx2.pblendvb "
+        "llvm.x86.bmi.bzhi.32 llvm.x86.bmi.bzhi.64 llvm.x86.bmi.bextr.32 llvm.x86.bmi.bextr.64 "
+        "llvm.x86.sse41.ptestz llvm.x86.sse41.ptestc llvm.x86.sse41.ptestnzc "
+        "llvm.x86.avx.ptestz.256 llvm.x86.avx.ptestc.256 llvm.x86.avx.ptestnzc.256 "
+        "llvm.x86.sse42.crc32.32.8 llvm.x86.sse42.crc32.32.16 llvm.x86.sse42.crc32.32.32 "
+        "llvm.x86.sse42.crc32.64.64 llvm.x86.sse41.phminposuw "
+        "llvm.x86.avx512.mask.pmov.db.128 llvm.x86.avx512.mask.pmov.db.256 "
+        "llvm.x86.avx512.mask.pmov.db.512 llvm.x86.avx512.mask.pmov.dw.128 "
+        "llvm.x86.avx512.mask.pmov.dw.256 llvm.x86.avx512.mask.pmov.dw.512 "
+        "llvm.x86.avx512.mask.pmov.qb.128 llvm.x86.avx512.mask.pmov.qb.256 "
+        "llvm.x86.avx512.mask.pmov.qb.512 llvm.x86.avx512.mask.pmov.qd.128 "
+        "llvm.x86.avx512.mask.pmov.qw.128 llvm.x86.avx512.mask.pmov.qw.256 "
+        "llvm.x86.avx512.mask.pmov.qw.512 llvm.x86.avx512.mask.pmov.wb.128 "
+        "llvm.x86.avx512.mask.pmovs.db.128 llvm.x86.avx512.mask.pmovs.db.256 "
+        "llvm.x86.avx512.mask.pmovs.db.512 llvm.x86.avx512.mask.pmovs.dw.128 "
+        "llvm.x86.avx512.mask.pmovs.dw.256 llvm.x86.avx512.mask.pmovs.dw.512 "
+        "llvm.x86.avx512.mask.pmovs.qb.128 llvm.x86.avx512.mask.pmovs.qb.256 "
+        "llvm.x86.avx512.mask.pmovs.qb.512 llvm.x86.avx512.mask.pmovs.qd.128 "
+        "llvm.x86.avx512.mask.pmovs.qd.256 llvm.x86.avx512.mask.pmovs.qd.512 "
+        "llvm.x86.avx512.mask.pmovs.qw.128 llvm.x86.avx512.mask.pmovs.qw.256 "
+        "llvm.x86.avx512.mask.pmovs.qw.512 llvm.x86.avx512.mask.pmovs.wb.128 "
+        "llvm.x86.avx512.mask.pmovs.wb.256 llvm.x86.avx512.mask.pmovs.wb.512 "
+        "llvm.x86.avx512.mask.pmovus.db.128 llvm.x86.avx512.mask.pmovus.db.256 "
+        "llvm.x86.avx512.mask.pmovus.db.512 llvm.x86.avx512.mask.pmovus.dw.128 "
+        "llvm.x86.avx512.mask.pmovus.dw.256 llvm.x86.avx512.mask.pmovus.dw.512 "
+        "llvm.x86.avx512.mask.pmovus.qb.128 llvm.x86.avx512.mask.pmovus.qb.256 "
+        "llvm.x86.avx512.mask.pmovus.qb.512 llvm.x86.avx512.mask.pmovus.qd.128 "
+        "llvm.x86.avx512.mask.pmovus.qd.256 llvm.x86.avx512.mask.pmovus.qd.512 "
+        "llvm.x86.avx512.mask.pmovus.qw.128 llvm.x86.avx512.mask.pmovus.qw.256 "
+        "llvm.x86.avx512.mask.pmovus.qw.512 llvm.x86.avx512.mask.pmovus.wb.128 "
+        "llvm.x86.avx512.mask.pmovus.wb.256 llvm.x86.avx512.mask.pmovus.wb.512",
+    ),
+    R("x86 register state", "llvm.x86.avx.vzeroupper"),
+    R(
+        "x86 GFNI",
+        "llvm.x86.vgf2p8affineqb.128 llvm.x86.vgf2p8affineqb.256 llvm.x86.vgf2p8affineqb.512 "
+        "llvm.x86.vgf2p8affineinvqb.128 llvm.x86.vgf2p8affineinvqb.256 llvm.x86.vgf2p8affineinvqb.512 "
+        "llvm.x86.vgf2p8mulb.128 llvm.x86.vgf2p8mulb.256 llvm.x86.vgf2p8mulb.512",
+    ),
+    R(
+        "x86 AES",
+        "llvm.x86.aesni.aesenc llvm.x86.aesni.aesenc.256 llvm.x86.aesni.aesenc.512 "
+        "llvm.x86.aesni.aesenclast llvm.x86.aesni.aesenclast.256 llvm.x86.aesni.aesenclast.512 "
+        "llvm.x86.aesni.aesdec llvm.x86.aesni.aesdec.256 llvm.x86.aesni.aesdec.512 "
+        "llvm.x86.aesni.aesdeclast llvm.x86.aesni.aesdeclast.256 llvm.x86.aesni.aesdeclast.512 "
+        "llvm.x86.aesni.aesimc llvm.x86.aesni.aeskeygenassist",
     ),
     R("upgraded debug", "llvm.dbg.assign llvm.dbg.declare llvm.dbg.label llvm.dbg.value"),
     R(

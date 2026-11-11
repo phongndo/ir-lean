@@ -237,7 +237,8 @@ agreement on which axioms a certificate may use. The value types `Option (BitVec
 
 **Search.** Cut around each instruction with a depth bound, as Minotaur does (§2.4), so the search stays small while the
 certificate is about the whole function. That needs a lemma that refinement of the cut gives refinement of the
-function. `Refine.andThen_mono` and `val_map₂_mono` are the start of it. Rank candidates by where code runs (Souper §3).
+function. `Refine.andThen_mono` and `val_map₂_mono` were the start of it, and since 2026-11-10 it's
+[the cut lemma](refinement.md#the-cut-lemma). Rank candidates by where code runs (Souper §3).
 Accept on `llvm-mca` uOps per target, which Minotaur found "a better performance predictor than cycles" (§4.3), and keep
 `superopt.py --bench`'s timings for claims.
 

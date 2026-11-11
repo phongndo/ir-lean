@@ -2268,6 +2268,11 @@ bool FunctionEmitter::emitIntrinsic(const IntrinsicInst &C, std::vector<Line> &O
     return true;
   };
   auto Lanes = [&] { return std::to_string(cast<FixedVectorType>(C.getType())->getNumElements()); };
+  auto LaneBits = [&] { return std::to_string(C.getType()->getScalarSizeInBits()); };
+  // An immediate operand, which LLVM's verifier makes a constant, as an unsigned number.
+  auto Immediate = [&](unsigned N) {
+    return std::to_string(cast<ConstantInt>(C.getArgOperand(N))->getZExtValue());
+  };
   // A length in bytes, which LangRef reads as unsigned, as the 64 bits `Mem` counts in.
   auto Length = [&](unsigned N) {
     unsigned Width = C.getArgOperand(N)->getType()->getIntegerBitWidth();
@@ -2421,6 +2426,241 @@ bool FunctionEmitter::emitIntrinsic(const IntrinsicInst &C, std::vector<Line> &O
   case Intrinsic::x86_avx512_vpdpbusd_256:
   case Intrinsic::x86_avx512_vpdpbusd_512:
     addLet(C, Out, "X86.vpdpbusd " + Op(0) + " " + Op(1) + " " + Op(2));
+    return true;
+  // Carry-less multiplication, IRLean/X86Crypto.lean. Only bits 0 and 4 of the immediate are read.
+  case Intrinsic::x86_pclmulqdq:
+  case Intrinsic::x86_pclmulqdq_256:
+  case Intrinsic::x86_pclmulqdq_512:
+    addLet(C, Out, "X86.pclmulqdq " + Immediate(2) + " " + Op(0) + " " + Op(1));
+    return true;
+  // AES rounds, in the same file, each on every 128-bit block of the state and the round key.
+  case Intrinsic::x86_aesni_aesenc:
+  case Intrinsic::x86_aesni_aesenc_256:
+  case Intrinsic::x86_aesni_aesenc_512:
+    addLet(C, Out, "X86.aesenc " + Op(0) + " " + Op(1));
+    return true;
+  case Intrinsic::x86_aesni_aesenclast:
+  case Intrinsic::x86_aesni_aesenclast_256:
+  case Intrinsic::x86_aesni_aesenclast_512:
+    addLet(C, Out, "X86.aesenclast " + Op(0) + " " + Op(1));
+    return true;
+  case Intrinsic::x86_aesni_aesdec:
+  case Intrinsic::x86_aesni_aesdec_256:
+  case Intrinsic::x86_aesni_aesdec_512:
+    addLet(C, Out, "X86.aesdec " + Op(0) + " " + Op(1));
+    return true;
+  case Intrinsic::x86_aesni_aesdeclast:
+  case Intrinsic::x86_aesni_aesdeclast_256:
+  case Intrinsic::x86_aesni_aesdeclast_512:
+    addLet(C, Out, "X86.aesdeclast " + Op(0) + " " + Op(1));
+    return true;
+  case Intrinsic::x86_aesni_aesimc:
+    addLet(C, Out, "X86.aesimc " + Op(0));
+    return true;
+  case Intrinsic::x86_aesni_aeskeygenassist:
+    addLet(C, Out, "X86.aeskeygenassist " + Immediate(1) + " " + Op(0));
+    return true;
+  // VZEROUPPER zeroes the upper halves of YMM0 to YMM15, for the cost of switching between AVX and SSE code.
+  // No IR value is in one across it, since LLVM gives the instruction those sixteen registers as
+  // definitions, so it changes nothing the model has.
+  case Intrinsic::x86_avx_vzeroupper:
+    return true;
+  // GFNI, in the same file: affine maps over GF(2) and multiplication in GF(2^8), on each byte.
+  case Intrinsic::x86_vgf2p8affineqb_128:
+  case Intrinsic::x86_vgf2p8affineqb_256:
+  case Intrinsic::x86_vgf2p8affineqb_512:
+    addLet(C, Out, "X86.gf2p8affineqb " + Immediate(2) + " " + Op(0) + " " + Op(1));
+    return true;
+  case Intrinsic::x86_vgf2p8affineinvqb_128:
+  case Intrinsic::x86_vgf2p8affineinvqb_256:
+  case Intrinsic::x86_vgf2p8affineinvqb_512:
+    addLet(C, Out, "X86.gf2p8affineinvqb " + Immediate(2) + " " + Op(0) + " " + Op(1));
+    return true;
+  case Intrinsic::x86_vgf2p8mulb_128:
+  case Intrinsic::x86_vgf2p8mulb_256:
+  case Intrinsic::x86_vgf2p8mulb_512:
+    addLet(C, Out, "X86.gf2p8mulb " + Op(0) + " " + Op(1));
+    return true;
+  // x86's integer arithmetic that isn't a generic operation, IRLean/X86Arith.lean.
+  case Intrinsic::x86_sse2_pavg_b:
+  case Intrinsic::x86_sse2_pavg_w:
+  case Intrinsic::x86_avx2_pavg_b:
+  case Intrinsic::x86_avx2_pavg_w:
+  case Intrinsic::x86_avx512_pavg_b_512:
+  case Intrinsic::x86_avx512_pavg_w_512:
+    addLet(C, Out, "X86.pavg " + Op(0) + " " + Op(1));
+    return true;
+  case Intrinsic::x86_ssse3_psign_b_128:
+  case Intrinsic::x86_ssse3_psign_w_128:
+  case Intrinsic::x86_ssse3_psign_d_128:
+  case Intrinsic::x86_avx2_psign_b:
+  case Intrinsic::x86_avx2_psign_w:
+  case Intrinsic::x86_avx2_psign_d:
+    addLet(C, Out, "X86.psign " + Op(0) + " " + Op(1));
+    return true;
+  case Intrinsic::x86_sse2_pmulh_w:
+  case Intrinsic::x86_avx2_pmulh_w:
+  case Intrinsic::x86_avx512_pmulh_w_512:
+    addLet(C, Out, "X86.pmulhw " + Op(0) + " " + Op(1));
+    return true;
+  case Intrinsic::x86_sse2_pmulhu_w:
+  case Intrinsic::x86_avx2_pmulhu_w:
+  case Intrinsic::x86_avx512_pmulhu_w_512:
+    addLet(C, Out, "X86.pmulhuw " + Op(0) + " " + Op(1));
+    return true;
+  case Intrinsic::x86_ssse3_pmul_hr_sw_128:
+  case Intrinsic::x86_avx2_pmul_hr_sw:
+  case Intrinsic::x86_avx512_pmul_hr_sw_512:
+    addLet(C, Out, "X86.pmulhrsw " + Op(0) + " " + Op(1));
+    return true;
+  case Intrinsic::x86_sse2_psad_bw:
+  case Intrinsic::x86_avx2_psad_bw:
+  case Intrinsic::x86_avx512_psad_bw_512:
+    addLet(C, Out, "X86.psadbw " + Lanes() + " " + Op(0) + " " + Op(1));
+    return true;
+  case Intrinsic::x86_avx512_vpdpbusds_128:
+  case Intrinsic::x86_avx512_vpdpbusds_256:
+  case Intrinsic::x86_avx512_vpdpbusds_512:
+    addLet(C, Out, "X86.vpdpbusds " + Op(0) + " " + Op(1) + " " + Op(2));
+    return true;
+  case Intrinsic::x86_avx512_vpdpwssd_128:
+  case Intrinsic::x86_avx512_vpdpwssd_256:
+  case Intrinsic::x86_avx512_vpdpwssd_512:
+    addLet(C, Out, "X86.vpdpwssd " + Op(0) + " " + Op(1) + " " + Op(2));
+    return true;
+  case Intrinsic::x86_avx512_vpdpwssds_128:
+  case Intrinsic::x86_avx512_vpdpwssds_256:
+  case Intrinsic::x86_avx512_vpdpwssds_512:
+    addLet(C, Out, "X86.vpdpwssds " + Op(0) + " " + Op(1) + " " + Op(2));
+    return true;
+  // Sums and differences of neighbouring lanes, by the generic operation on each pair.
+  case Intrinsic::x86_ssse3_phadd_w_128:
+  case Intrinsic::x86_ssse3_phadd_d_128:
+  case Intrinsic::x86_avx2_phadd_w:
+  case Intrinsic::x86_avx2_phadd_d:
+    addLet(C, Out, "X86.horizontal (fun x y => Val.add x y) " + Op(0) + " " + Op(1));
+    return true;
+  case Intrinsic::x86_ssse3_phadd_sw_128:
+  case Intrinsic::x86_avx2_phadd_sw:
+    addLet(C, Out, "X86.horizontal (fun x y => Val.saddSat x y) " + Op(0) + " " + Op(1));
+    return true;
+  case Intrinsic::x86_ssse3_phsub_w_128:
+  case Intrinsic::x86_ssse3_phsub_d_128:
+  case Intrinsic::x86_avx2_phsub_w:
+  case Intrinsic::x86_avx2_phsub_d:
+    addLet(C, Out, "X86.horizontal (fun x y => Val.sub x y) " + Op(0) + " " + Op(1));
+    return true;
+  case Intrinsic::x86_ssse3_phsub_sw_128:
+  case Intrinsic::x86_avx2_phsub_sw:
+    addLet(C, Out, "X86.horizontal (fun x y => Val.ssubSat x y) " + Op(0) + " " + Op(1));
+    return true;
+  case Intrinsic::x86_sse41_pblendvb:
+  case Intrinsic::x86_avx2_pblendvb:
+    addLet(C, Out, "X86.pblendvb " + Op(0) + " " + Op(1) + " " + Op(2));
+    return true;
+  case Intrinsic::x86_bmi_bzhi_32:
+  case Intrinsic::x86_bmi_bzhi_64:
+    addLet(C, Out, "X86.bzhi " + Op(0) + " " + Op(1));
+    return true;
+  case Intrinsic::x86_bmi_bextr_32:
+  case Intrinsic::x86_bmi_bextr_64:
+    addLet(C, Out, "X86.bextr " + Op(0) + " " + Op(1));
+    return true;
+  // The down-converting moves with a mask: the lane's low bits, or it saturated, signed or unsigned.
+  case Intrinsic::x86_avx512_mask_pmov_db_128:
+  case Intrinsic::x86_avx512_mask_pmov_db_256:
+  case Intrinsic::x86_avx512_mask_pmov_db_512:
+  case Intrinsic::x86_avx512_mask_pmov_dw_128:
+  case Intrinsic::x86_avx512_mask_pmov_dw_256:
+  case Intrinsic::x86_avx512_mask_pmov_dw_512:
+  case Intrinsic::x86_avx512_mask_pmov_qb_128:
+  case Intrinsic::x86_avx512_mask_pmov_qb_256:
+  case Intrinsic::x86_avx512_mask_pmov_qb_512:
+  case Intrinsic::x86_avx512_mask_pmov_qd_128:
+  case Intrinsic::x86_avx512_mask_pmov_qw_128:
+  case Intrinsic::x86_avx512_mask_pmov_qw_256:
+  case Intrinsic::x86_avx512_mask_pmov_qw_512:
+  case Intrinsic::x86_avx512_mask_pmov_wb_128:
+    addLet(C, Out, "X86.pmov " + Op(0) + " " + Op(1) + " " + Op(2));
+    return true;
+  case Intrinsic::x86_avx512_mask_pmovs_db_128:
+  case Intrinsic::x86_avx512_mask_pmovs_db_256:
+  case Intrinsic::x86_avx512_mask_pmovs_db_512:
+  case Intrinsic::x86_avx512_mask_pmovs_dw_128:
+  case Intrinsic::x86_avx512_mask_pmovs_dw_256:
+  case Intrinsic::x86_avx512_mask_pmovs_dw_512:
+  case Intrinsic::x86_avx512_mask_pmovs_qb_128:
+  case Intrinsic::x86_avx512_mask_pmovs_qb_256:
+  case Intrinsic::x86_avx512_mask_pmovs_qb_512:
+  case Intrinsic::x86_avx512_mask_pmovs_qd_128:
+  case Intrinsic::x86_avx512_mask_pmovs_qd_256:
+  case Intrinsic::x86_avx512_mask_pmovs_qd_512:
+  case Intrinsic::x86_avx512_mask_pmovs_qw_128:
+  case Intrinsic::x86_avx512_mask_pmovs_qw_256:
+  case Intrinsic::x86_avx512_mask_pmovs_qw_512:
+  case Intrinsic::x86_avx512_mask_pmovs_wb_128:
+  case Intrinsic::x86_avx512_mask_pmovs_wb_256:
+  case Intrinsic::x86_avx512_mask_pmovs_wb_512:
+    addLet(C, Out, "X86.pmovs " + Op(0) + " " + Op(1) + " " + Op(2));
+    return true;
+  case Intrinsic::x86_avx512_mask_pmovus_db_128:
+  case Intrinsic::x86_avx512_mask_pmovus_db_256:
+  case Intrinsic::x86_avx512_mask_pmovus_db_512:
+  case Intrinsic::x86_avx512_mask_pmovus_dw_128:
+  case Intrinsic::x86_avx512_mask_pmovus_dw_256:
+  case Intrinsic::x86_avx512_mask_pmovus_dw_512:
+  case Intrinsic::x86_avx512_mask_pmovus_qb_128:
+  case Intrinsic::x86_avx512_mask_pmovus_qb_256:
+  case Intrinsic::x86_avx512_mask_pmovus_qb_512:
+  case Intrinsic::x86_avx512_mask_pmovus_qd_128:
+  case Intrinsic::x86_avx512_mask_pmovus_qd_256:
+  case Intrinsic::x86_avx512_mask_pmovus_qd_512:
+  case Intrinsic::x86_avx512_mask_pmovus_qw_128:
+  case Intrinsic::x86_avx512_mask_pmovus_qw_256:
+  case Intrinsic::x86_avx512_mask_pmovus_qw_512:
+  case Intrinsic::x86_avx512_mask_pmovus_wb_128:
+  case Intrinsic::x86_avx512_mask_pmovus_wb_256:
+  case Intrinsic::x86_avx512_mask_pmovus_wb_512:
+    addLet(C, Out, "X86.pmovus " + Op(0) + " " + Op(1) + " " + Op(2));
+    return true;
+  case Intrinsic::x86_sse42_crc32_32_8:
+  case Intrinsic::x86_sse42_crc32_32_16:
+  case Intrinsic::x86_sse42_crc32_32_32:
+  case Intrinsic::x86_sse42_crc32_64_64:
+    addLet(C, Out, "X86.crc32 " + Op(0) + " " + Op(1));
+    return true;
+  case Intrinsic::x86_sse41_phminposuw:
+    addLet(C, Out, "X86.phminposuw " + Op(0));
+    return true;
+  // PTEST's flags, each as 0 or 1.
+  case Intrinsic::x86_sse41_ptestz:
+  case Intrinsic::x86_avx_ptestz_256:
+    addLet(C, Out, "X86.ptestz " + Op(0) + " " + Op(1));
+    return true;
+  case Intrinsic::x86_sse41_ptestc:
+  case Intrinsic::x86_avx_ptestc_256:
+    addLet(C, Out, "X86.ptestc " + Op(0) + " " + Op(1));
+    return true;
+  case Intrinsic::x86_sse41_ptestnzc:
+  case Intrinsic::x86_avx_ptestnzc_256:
+    addLet(C, Out, "X86.ptestnzc " + Op(0) + " " + Op(1));
+    return true;
+  // Packing needs the number of lanes it produces, and their width.
+  case Intrinsic::x86_sse2_packsswb_128:
+  case Intrinsic::x86_avx2_packsswb:
+  case Intrinsic::x86_avx512_packsswb_512:
+  case Intrinsic::x86_sse2_packssdw_128:
+  case Intrinsic::x86_avx2_packssdw:
+  case Intrinsic::x86_avx512_packssdw_512:
+    addLet(C, Out, "X86.packss " + Lanes() + " " + LaneBits() + " " + Op(0) + " " + Op(1));
+    return true;
+  case Intrinsic::x86_sse2_packuswb_128:
+  case Intrinsic::x86_avx2_packuswb:
+  case Intrinsic::x86_avx512_packuswb_512:
+  case Intrinsic::x86_sse41_packusdw:
+  case Intrinsic::x86_avx2_packusdw:
+  case Intrinsic::x86_avx512_packusdw_512:
+    addLet(C, Out, "X86.packus " + Lanes() + " " + LaneBits() + " " + Op(0) + " " + Op(1));
     return true;
   // x86's pure bit functions, IRLean/X86Bits.lean, each of which Alive2 knows.
   case Intrinsic::x86_avx512_pternlog_d_128:

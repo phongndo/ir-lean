@@ -8,8 +8,14 @@ import IRLean.Vec
 import IRLean.Lanes
 import IRLean.X86Bits
 import IRLean.X86
+import IRLean.X86Crypto
+import IRLean.X86Arith
 import IRLean.Lemmas
 import IRLean.Safety
 import IRLean.Refine
 import IRLean.World
+import IRLean.Cut
+import IRLean.CutPromised
+import IRLean.Mono
+import IRLean.MemRefine
 import IRLean.Scalable

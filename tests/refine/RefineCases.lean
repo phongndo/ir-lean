@@ -1,4 +1,5 @@
 import IRLean.Lemmas
+import IRLean.MemRefine
 import IRLean.Promise
 import IRLean.Refine
 import IRLean.Vec
@@ -8,7 +9,8 @@ known-wrong ones provably don't: each `¬ Refines` names the input where the tar
 `tests/refine.sh` builds this with warnings as errors, checks it rests on the standard axioms, and replays it.
 
 The functions are written by hand in the shape ir-lean emits for code without memory, from the model's own operations.
-They aren't generated from IR, so these say what the relation does, not what any pass did. -/
+They aren't generated from IR, so these say what the relation does, not what any pass did. The last section pins what
+the claim is for a function with memory. Its cases, on what ir-lean emits, are in `tests/memory_refine`. -/
 
 namespace RefineCases
 
@@ -370,5 +372,49 @@ theorem inContext (x : Val 8) : Refine.le (andThen (addZeroSrc x) square) (andTh
   Refine.andThen_mono (addZero x) fun a b hab =>
     (Refine.outcome_ok_ok _ _).2 (Refine.val_map₂_mono (f := fun a b => Val.mul a b)
       (fun b => by cases b <;> rfl) (fun a => by cases a <;> rfl) hab hab)
+
+/-! ### Memory
+
+Until F4, on 2026-11-10, memory had no `Refine` instance, and `RefineClaims.lean` checked that it had none. These say
+what the instance it has now claims, so a change to it fails here. -/
+
+/-- What the claim is, so a change to an instance fails here: for every pointer and every memory, the same for both
+sides, the source's run allows the target's. -/
+theorem memory_claim (f g : PtrVal → Mem → Outcome (Val 8 × Mem)) :
+    Refines f g ↔ ∀ p m, Refine.le (f p m) (g p m) := Iff.rfl
+
+/-- Two runs that return are related in what they return and in the memory they leave, which is `Mem.le`: the same
+allocations, by number, with bytes the source's allow. -/
+theorem memory_result (x y : Val 8) (m m' : Mem) :
+    Refine.le (Outcome.ok (x, m)) (Outcome.ok (y, m')) ↔ Refine.le x y ∧ Mem.le m m' :=
+  Refine.outcome_ok_ok (x, m) (y, m')
+
+/-- A pointer is compared whole: poison allows any, and a pointer only itself, tags included. -/
+theorem pointer_result (p q : Ptr) : Refine.le (some p : PtrVal) (some q) ↔ q = p :=
+  ⟨fun h => Option.some.inj h, fun h => congrArg some h⟩
+
+/-- One writable byte, inside a call of a function marked `memory(none)`. -/
+def restricted : Mem :=
+  { allocs := fun b => if b == 1 then some { size := 1, readonly := false, bytes := fun _ => .uninit } else none
+    next := 2, base := fun _ => 0#64, frame := []
+    calls := [{ id := 1, effects := { other := .none }, start := 2, tracked := false }], nextCall := 2 }
+
+/-- A store of a byte, as a function with memory. -/
+def storeByte (p : PtrVal) (m : Mem) : Outcome (Unit × Mem) :=
+  andThen (m.storeInt p (some 0#8) 1) fun m => Outcome.ok ((), m)
+
+/-- And a function that touches memory doesn't refine itself on every memory, so its claim has to say
+`Outcome.answered`: with a call running whose `memory(...)` leaves a store open, the store stops the model. -/
+theorem memory_claim_needs_its_guard : ¬ Refines storeByte storeByte := fun h => by
+  have h := h (some ⟨1, 0#64, []⟩) restricted
+  have hacc : restricted.access (some ⟨1, 0#64, []⟩) (8 / 8) 1 = .ok (⟨1, 0#64, []⟩, _) :=
+    Mem.access_ok_iff.2 ⟨rfl, rfl, by decide, .inl rfl⟩
+  simp only [storeByte] at h
+  rw [Mem.storeInt_eq, hacc] at h
+  exact h
+
+/-- With the guard, it does. -/
+theorem memory_claim_with_its_guard : Refines (fun p m => (storeByte p m).answered) storeByte := fun _ _ =>
+  (Refine.answered_iff _ _).2 (Outcome.Sim.refl (fun x => Refine.Reflexive.refl x) _)
 
 end RefineCases
