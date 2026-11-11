@@ -300,6 +300,10 @@ the same table has. An audit on 2026-11-10 found one more, a failed proof forgin
   `arcp`, `contract` and `afn` on `fcmp`, which it approximates, or `uitofp ninf`, which crashes it at the pin. The
   processor runs `fp128` and `i128` only where the backend and the host have a library for them, which x86-64 Linux
   does, and where AArch64 doesn't, as for `uitofp i128` to `bfloat`.
+- Tests with memory run on [`ExecMem`](memory.md#executable-memory), not `Mem`. Each of its operations is proved to
+  agree with `Mem`'s, and so are runs of blocks that agree, but each block's agreement is argued, not proved: the
+  emitter prints the same Lean with only the name changed, which `exec_memory` checks, and blocks reach memory only
+  through those operations. `model_memory` runs the memory-heavy inputs on `Mem` itself.
 - `tests/proofs.sh` pins x86-64 Linux, but `tests/zlib.sh` compiles for the host, so on any other host the
   differential evidence isn't about the IR the proofs are about. The flake lists three systems, while CI runs
   only on x86-64 Linux.

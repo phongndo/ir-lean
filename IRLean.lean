@@ -19,3 +19,4 @@ import IRLean.CutPromised
 import IRLean.Mono
 import IRLean.MemRefine
 import IRLean.Scalable
+import IRLean.ExecMem

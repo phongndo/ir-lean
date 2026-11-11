@@ -49,6 +49,10 @@ already allocated. Four more theorems there show four of the preconditions are n
 [Memory safety](memory.md) has the statement, its preconditions, and what it leaves out. These were checked on top of
 `6293d34`: 955 lines, about 2 seconds and 0.9 GB, and 223 lines for the model's.
 
+`ExecMem`, the memory tests run on, is proved to agree with `Mem` operation by operation, and from blocks to whole
+runs, in [`ExecMem.lean`](../IRLean/ExecMem.lean), on the standard axioms, since 2026-11-11. That each block of a
+function agrees is argued, not proved: [memory](memory.md#why-a-test-on-execmem-is-a-test-of-mem) says how.
+
 ### LLVM's own code
 
 87 functions from `llvm-project` at `llvmorg-23.1.3` are also proved, under the same rules, and each with its own injected bug
@@ -93,10 +97,13 @@ Evidence and not proof. A pass here means no disagreement was found on the input
   accepted them, not that the translation is right.
 - **Against native code:** [the harness](../tests/real/zlib_harness.c) calls real zlib through every
   compression strategy, a window small enough to slide, `inflate_fast`, `inflateBack`, dictionaries, gzip
-  headers and damaged streams. Lean and native code agree on all 117 results, with none skipped, on inputs
-  of at most about 800 bytes, because the semantics are slow to run: each memory access walks back through
-  earlier writes. The harness reaches all but 5 of zlib's functions, counted without optimization so
-  nothing is inlined away: two for big-endian machines, `crc32_combine_gen`, `_tr_align` and `_tr_tally`.
+  headers and damaged streams. Lean and native code agree on all 117 results, with none skipped. Those inputs are of
+  at most about 800 bytes, because `Mem` is slow to run: each memory access walks back through earlier writes. Since
+  2026-11-11 the tests run on [executable memory](memory.md#executable-memory), whose operations are proved to agree
+  with `Mem`'s, and `zlib_big` adds inputs of 128 KiB to 128.5 KiB, which reach across `inflate`'s whole 32 KiB
+  window: they agree on all 12 results, with none skipped, which is E2's exit criterion. The harness reaches all but 5
+  of zlib's functions, counted without optimization so nothing is inlined away: two for big-endian machines,
+  `crc32_combine_gen`, `_tr_align` and `_tr_tally`.
 - **What the emitter accepts:** all 17,045 items the pinned IR can contain are classified, 446 modeled, 260
   assumed and 16,339 refused, and a probe of each shows the emitter does what its class says, with the Lean it
   prints for each it translates elaborating ([IR features](ir-features.md)). Since 2026-11-09, and these counts
@@ -156,6 +163,11 @@ Evidence and not proof. A pass here means no disagreement was found on the input
   checked directly in Lean, and 1 is implied by the others, with a proof.
 
 ## Measured
+
+Running code with memory: on [`ExecMem`](memory.md#executable-memory), one round trip of real zlib through `deflate`
+and `inflate` on 128 KiB takes 6.4 s, where on `Mem` 8 KiB took 313 s, and each doubling four to five times as long.
+The tests' own inputs run 2.2 and 12 times faster. [Memory](memory.md#what-it-costs) has the tables and the commands.
+Measured on 2026-11-11 on z.
 
 The q4_K rewrite makes reading a prompt with llama.cpp 5.5% to 7.2% faster on two models, on a Ryzen 9 9950X with 8
 threads, in every round, and generating isn't faster with 8 threads. [llama.cpp](llama.md#measured) has the tables, the
