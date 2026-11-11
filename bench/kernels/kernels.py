@@ -94,8 +94,9 @@ PLACES = ("src", "build", "out", "repo")
 PLACEHOLDER = re.compile(r"\{([^{}]*)\}")
 # A file of this repository a command names, which has to be pinned by its hash.
 REPO_FILE = re.compile(r"\{repo\}/(\S+)")
-# {repo} alone, as `env -C {repo}` would use it: a way to run a file of ours that names no path to pin.
-BARE_REPO = re.compile(r"\{repo\}(?!/)")
+# {repo} without a path after it, as `env -C {repo}` or `env -C {repo}/` would use it: a way to run a file of
+# ours that names no path to pin.
+BARE_REPO = re.compile(r"\{repo\}(?!/\S)")
 
 
 def load(path: Path = MANIFEST) -> dict[str, Any]:
@@ -604,8 +605,8 @@ def recorded(manifest: dict[str, Any]) -> list[str]:
     """What's wrong with a fixed corpus's lock as a record: its digest has to be in the section of the doc
     `lock.approved_in` points to, docs/roadmap.md's record of the decision. The lock is the digest approved,
     and every amendment starts from it, so replacing it means changing a decision that was reviewed."""
-    lock = manifest.get("lock")
-    if manifest.get("corpus", {}).get("state") != "fixed" or not isinstance(lock, dict):
+    lock, corpus = manifest.get("lock"), manifest.get("corpus")
+    if not isinstance(corpus, dict) or corpus.get("state") != "fixed" or not isinstance(lock, dict):
         return []
     where, sha256 = lock.get("approved_in"), lock.get("sha256")
     path, _, anchor = where.partition("#") if isinstance(where, str) else ("", "", "")

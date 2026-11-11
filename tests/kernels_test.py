@@ -236,6 +236,9 @@ class Manifest(unittest.TestCase):
             "names {repo} but not as {repo}/PATH": lambda m: captured(m)["run"].insert(
                 0, ["env", "-C", "{repo}", "python3", "tests/llama/build_capture.py"]
             ),
+            "'env -C {repo}/ python3 bench/kernels/kernels.py check' names {repo}": lambda m: captured(m)[
+                "run"
+            ].insert(0, ["env -C {repo}/ python3 bench/kernels/kernels.py check"]),
             "isn't a path in this repository": lambda m: captured(m)["pinned"].update({"../x": "0" * 64}),
             "pinned tests/llama/nothing doesn't exist": lambda m: captured(m)["pinned"].update(
                 {"tests/llama/nothing": "0" * 64}
@@ -326,11 +329,13 @@ class Locked(unittest.TestCase):
         self.assertTrue([line for line in kernels.recorded(relocked) if "isn't in docs/roadmap.md#" in line])
         # Every reader refuses it before using it: demand.py's run and check too, not only `kernels.py check`.
         self.assertTrue([line for line in kernels.validate(relocked) if "isn't in docs/roadmap.md#" in line])
+        malformed = {"schema": MANIFEST["schema"], "corpus": "fixed"}
         for command in (demand.run, demand.check):
-            out = io.StringIO()
-            with mock.patch.object(demand.kernels, "load", return_value=relocked), redirect_stdout(out):
-                self.assertEqual(command(argparse.Namespace()), 1, command.__name__)
-            self.assertIn("isn't in docs/roadmap.md#", out.getvalue(), command.__name__)
+            for manifest, expected in ((relocked, "isn't in docs/roadmap.md#"), (malformed, "no [corpus]")):
+                out = io.StringIO()
+                with mock.patch.object(demand.kernels, "load", return_value=manifest), redirect_stdout(out):
+                    self.assertEqual(command(argparse.Namespace()), 1, command.__name__)
+                self.assertIn(expected, out.getvalue(), command.__name__)
         # The same change by an amendment from the digest approved meets every rule.
         honest = amended(MANIFEST, changed(MANIFEST, level), reason="level 9")
         self.assertEqual(honest["amendment"][0]["from"], ORIGINAL)
