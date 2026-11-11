@@ -16,7 +16,7 @@ mapfile -t c < <(files 'tests/real/*.c')
 # The kernel corpus's drivers, formatted like the rest. They include a project's headers, so the C lint skips them.
 mapfile -t drivers < <(files 'bench/kernels/**/*.c')
 mapfile -t go < <(files 'irl/*.go')
-mapfile -t ll < <(files 'tests/real/*.ll' 'tests/llvm/rewrites/*.ll' 'tests/verification_negative/cases/*/*.ll' 'tests/llvm_scope/*.ll' 'bench/instcombine/fixture/*.ll')
+mapfile -t ll < <(files 'tests/real/*.ll' 'tests/llvm/rewrites/*.ll' 'tests/verification_negative/cases/*/*.ll' 'tests/llvm_scope/*.ll' 'bench/instcombine/fixture/*.ll' 'tests/rules/*.ll')
 mapfile -t shell < <(files '*.sh')
 mapfile -t toml < <(files '*.toml')
 mapfile -t yaml < <(files '*.yml' '*.yaml')
@@ -122,7 +122,7 @@ check 'Whitespace, in every language' editorconfig-checker -disable-indent-size
 # The Lean lint needs the modules this writes.
 check 'Lean generated modules' tests/proofs.sh build/ir-lean --generate build/generated
 wait "$!"
-check 'Lean lint' lake build --wfail IRLean Proofs Peephole
+check 'Lean lint' lake build --wfail IRLean Proofs Peephole Rules
 
 wait
 for ((i = 1; i <= checks; i++)); do

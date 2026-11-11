@@ -331,7 +331,15 @@ reads it. That difference is itself a thing [Phase 3](roadmap.md#phase-3-c-and-r
     side, and four aren't closed. Stage 3, a target that allocates differently, so removing an `alloca` has no claim,
     and stage 6, `tools/binding.py` on memory, which still refuses it, haven't started. The `cut` and `memory_refine`
     tests check it.
-19. [The kernel corpus](kernels.md), the real projects the superoptimizer is judged on, fixed on 2026-11-10: the six
+19. The rule format, certify mode and the rule search, on 2026-11-10: 182 rules, each a pattern, a replacement and
+    side conditions in one source, with its Lean statement generated from that source and proved for every input on
+    the standard three axioms, all imported from the lemmas chunk 1's rewrites are proved from. Certify mode has
+    Lean prove each application of a rule again, from the IR before and after and the rule's name. A deterministic
+    search rewrites scalar integer IR by chains of those rules and certifies each chain, as a slice, and as the
+    whole function where it's one block. On LLVM's InstSimplify tests it found 225 rewrites, and none is cheaper
+    than what `opt -O3` gives, since every rule is one of InstSimplify's own: no win over `clang -O3` is found or
+    claimed, and it hasn't been run on the corpus. See [rules](rules.md) and [rule search](rule-search.md).
+20. [The kernel corpus](kernels.md), the real projects the superoptimizer is judged on, fixed on 2026-11-10: the six
     the maintainer approved that day, llama.cpp, zlib-ng, xxHash, libsodium, FLAC and libwebp, with sixteen
     workloads, each saying what's measured and how a candidate is checked before it's timed, and a bulk-encryption
     driver of ours for libsodium. A lock holds the list, which the roadmap's record of the decision holds too, and

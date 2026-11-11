@@ -1,0 +1,95 @@
+{
+ "results": [
+  {
+   "function": "masked",
+   "root": "%o",
+   "rules": [
+    "or_zero",
+    "and_allOnes",
+    "add_sub_cancel"
+   ],
+   "at": [
+    "%o",
+    "%m",
+    "%e"
+   ],
+   "instructions": [
+    4,
+    0
+   ],
+   "kept": true,
+   "slice": "certified",
+   "function_status": "certified"
+  },
+  {
+   "function": "sum",
+   "root": "%u",
+   "rules": [
+    "xor_xor_cancel",
+    "umin_umax_left"
+   ],
+   "at": [
+    "%u",
+    "%lo"
+   ],
+   "instructions": [
+    4,
+    0
+   ],
+   "kept": true,
+   "slice": "certified",
+   "function_status": "not attempted"
+  },
+  {
+   "function": "mask",
+   "root": "%s",
+   "rules": [
+    "sub_mask_xor_nuw"
+   ],
+   "at": [
+    "%s"
+   ],
+   "instructions": [
+    2,
+    0
+   ],
+   "kept": true,
+   "slice": "certified",
+   "function_status": "certified"
+  },
+  {
+   "function": "widths",
+   "root": "%t",
+   "rules": [
+    "trunc_zext"
+   ],
+   "at": [
+    "%t"
+   ],
+   "instructions": [
+    2,
+    0
+   ],
+   "kept": true,
+   "slice": "certified",
+   "function_status": "certified"
+  },
+  {
+   "function": "twice",
+   "root": "%a",
+   "rules": [
+    "or_zero"
+   ],
+   "at": [
+    "%a"
+   ],
+   "instructions": [
+    1,
+    0
+   ],
+   "kept": true,
+   "slice": "certified",
+   "function_status": "certified"
+  }
+ ]
+}
