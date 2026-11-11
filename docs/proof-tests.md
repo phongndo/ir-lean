@@ -535,14 +535,14 @@ sources, which CI's doesn't ([testing](testing.md#tests)).
 ## Memory and SIMD, measured
 
 The equivalence property on scalar and SIMD versions of one function from the [kernel corpus](kernels.md), on
-2026-11-10 on z, on top of `5c6b5d6`, with
+2026-11-10 on z, on top of `95939b8`, with
 
 ```console
 nix develop -c tools/measure.py run --heavy --label ptf-pairs -- \
     bench/kernels/pairs.py --max-inputs 10000 --max-length 2048 --workers 2 --check
 ```
 
-in 104 s, two proof tests at a time. [`bench/kernels/pairs.py`](../bench/kernels/pairs.py) fetches each project at its
+in 116 s, two proof tests at a time. [`bench/kernels/pairs.py`](../bench/kernels/pairs.py) fetches each project at its
 pin, compiles each file with the flags the project's build gives it, at the corpus's `-O3` and relaxed, as
 [demand](kernels.md#what-the-emitter-does-with-them-today) compiles the corpus, and links a project's files into one
 module with `llvm-link`, so both functions of a pair are in it. Nothing it fetches is written into the repo.
@@ -565,16 +565,18 @@ either function rewritten to run there:
 
 | Pair | Result | Inputs where the reference returned | What they covered | Search |
 | --- | --- | --- | --- | --- |
-| `crc32_braid` = `crc32_pclmulqdq` | `passed_tier1/sampled` | 10,000 of 10,000 | Lengths 0 to 2,048, 1,884 of them: 79 of 0, 711 of 1 to 15, 2,027 of 16 to 63, 1,100 of 64 to 255, 2,682 of 256 to 1,023, 3,401 of 1,024 or more. Pointers 0 to 63 bytes in, 4,514 not 16-byte aligned | 53.8 s |
-| `crc32_braid` = `crc32_vpclmulqdq` | `passed_tier1/sampled` | 10,000 of 10,000 | The same inputs | 56.6 s |
-| `blake2b_compress_ref` = `blake2b_compress_avx2` | `passed_tier1/sampled` | 4,796 of 10,000 | States of 96 to 2,048 bytes and blocks of 128 to 2,048, each pointer 0 to 63 bytes in, 2,229 states not 16-byte aligned | 13.0 s |
+| `crc32_braid` = `crc32_pclmulqdq` | `passed_tier1/sampled` | 10,000 of 10,000 | Lengths 0 to 2,048, 1,884 of them: 79 of 0, 711 of 1 to 15, 2,027 of 16 to 63, 1,100 of 64 to 255, 2,682 of 256 to 1,023, 3,401 of 1,024 or more. Pointers 0 to 63 bytes in, 4,514 not 16-byte aligned | 64.5 s |
+| `crc32_braid` = `crc32_vpclmulqdq` | `passed_tier1/sampled` | 10,000 of 10,000 | The same inputs | 68.1 s |
+| `blake2b_compress_ref` = `blake2b_compress_avx2` | `passed_tier1/sampled` | 4,796 of 10,000 | States of 96 to 2,048 bytes and blocks of 128 to 2,048, each pointer 0 to 63 bytes in, 2,229 states not 16-byte aligned | 13.9 s |
 
 Each of the CRC-32's paths has inputs that take it, by their lengths and pointers: under 16 bytes, the table; 16 and
 up, the folds, with a pointer off 16-byte alignment and with one 13 to 15 bytes off, which with a CRC that isn't 0 takes
 the branch that loads 16 more bytes; 704 and up, `crc32_pclmulqdq`'s Chorba loop; and 256 and up,
 `crc32_vpclmulqdq`'s 512-bit folds. That's from the inputs, not from measuring which blocks ran. The 5,204 BLAKE2b
 inputs discarded had a state or a block too short past its pointer for what the reference reads, so it was undefined.
-Setting up took 5.8 s for BLAKE2b and 9.5 s for each CRC-32, of which 2.0 s and 3.8 s compiled the copy on
+On no input did either function stop the model: each pair's `inputs.model_stopped` is 0. The search takes 7% to 20%
+longer than when the property had two hypotheses, since the reference's call is now in three places, not two. Setting
+up took 5.8 s for BLAKE2b, and 9.6 s and 9.7 s for the CRC-32s, of which 2.0 s, 3.8 s and 3.9 s compiled the copy on
 `ExecMem`.
 
 So no input found zlib-ng's or libsodium's SIMD code doing anything but what the scalar code does. That's a test, not a

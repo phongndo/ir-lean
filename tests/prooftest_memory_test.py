@@ -296,7 +296,7 @@ def cases() -> list[Case]:
             extra={"max_inputs": 1000},
             check=lambda r: expect(
                 r["inputs"]["satisfied"] == 1000
-                and on_exec_memory(r, 4)
+                and on_exec_memory(r, 5)
                 and r["inputs"]["memory"]["met_hypotheses"]["n1"]["max"] == 256
                 and r["inputs"]["memory"]["met_hypotheses"]["p0"]["unaligned_16"] > 0
                 and "search.executable_memory" in {t["id"] for t in r["trusted"]},
@@ -330,7 +330,7 @@ def cases() -> list[Case]:
             "sampled",
             equivalent="xor_vec",
             extra={"max_inputs": 1000, "store": None},
-            check=lambda r: expect(on_exec_memory(r, 4), f"run on ExecMem: {r['memory']}"),
+            check=lambda r: expect(on_exec_memory(r, 5), f"run on ExecMem: {r['memory']}"),
         ),
         Case(
             "xor_lane_stored_wrong",
