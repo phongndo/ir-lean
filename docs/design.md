@@ -44,8 +44,8 @@ has the rules.
 
 ## What the model covers
 
-The model covers integers, pointers, structs, vectors of integers and the bitcasts between them, x86's integer
-dot-product intrinsics, memory, globals, function pointers, recursion, and `malloc`, `free` and `strlen`. [Memory
+The model covers integers, pointers, structs, vectors of integers and the bitcasts between them, 250 of x86's
+integer intrinsics, memory, globals, function pointers, recursion, and `malloc`, `free` and `strlen`. [Memory
 safety](memory.md) says what of memory it covers, exactly. It doesn't cover floating point, atomics, volatile,
 exceptions, or calls to anything else outside the module, and the emitter leaves those functions out
 and says why.
@@ -98,11 +98,13 @@ not run, can use `--no-code`, so Lean doesn't generate code for it: `inflate` ch
   splits or joins lanes, the first lowest, as LangRef says a little-endian target lays them out, so a big-endian
   module is refused. A scalar is a vector of one lane. A result lane is poison if any lane it takes bits from is.
   Other bitcasts are refused. [`x86check.py`](../tests/x86check.py) checks this against Alive2.
-- **x86's integer dot products are modeled, and nothing else of x86's.** PMADDUBSW, PMADDWD and VPDPBUSD, as
-  `llvm.x86.*` intrinsics at 128, 256 and 512 bits, follow Intel's pseudo-code in [`X86.lean`](../IRLean/X86.lean).
-  LangRef says nothing about poison in target intrinsics, so a result lane is poison when a lane it's computed from
-  is, as for every other vector operation, and as LLVM's constant folds do. [`x86.ll`](../tests/real/x86.ll) runs each
-  against the processor, and [`x86check.py`](../tests/x86check.py) the first two against Alive2.
+- **x86's integer intrinsics are modeled one by one, 250 of them so far.** Each `llvm.x86.*` intrinsic, at 128, 256
+  and 512 bits, follows Intel's pseudo-code, in [`X86.lean`](../IRLean/X86.lean) and the files beside it, in the
+  order [the ranking](x86-intrinsics.md) gives. LangRef says nothing about poison in target intrinsics, so a result
+  lane is poison when a lane it's computed from is, as for every other vector operation, and as LLVM's constant folds
+  do. [`x86native.py`](../tests/x86native.py) runs each against the processor, and
+  [`x86check.py`](../tests/x86check.py) and [`vecopcheck.py`](../tests/vecopcheck.py) against Alive2 and InstCombine,
+  where they know it.
 
 ## IR and Lean, both ways
 

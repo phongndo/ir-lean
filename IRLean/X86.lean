@@ -13,8 +13,9 @@ PMADDUBSW on constants as shuffles, extensions, `mul` and `add` or `sadd.sat`, l
 zero-extended and `B` sign-extended. So does Alive2's `x86_intrinsics.cpp`, for the first two.
 
 `tests/x86check.py` checks PMADDUBSW and PMADDWD at every width against Alive2, both ways, and against LLVM's
-constant folder, poison included. Neither knows VPDPBUSD, so only `tests/real/x86.ll` checks it, against the
-processor, which needs AVX-512 VNNI and can't see poison. -/
+constant folder, poison included. Neither knows VPDPBUSD, so only `tests/x86native.py` and `tests/real/x86.ll`
+check it, against the processor, which needs AVX-512 VNNI and can't see poison. `tests/x86native.py` checks the
+other two against the processor too. -/
 
 namespace IRLean.X86
 
