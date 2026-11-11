@@ -60,7 +60,8 @@ audited aren't the files replayed, or the IR certified isn't the IR translated.
   `tools/verify_claims.py` reads each file a replay rests on once, through `read_once`, compiles from a private copy,
   and counts replays by the hash of the bytes read, as
   [evidence identity](verify-claims.md#evidence-identity) says. A lint in `tests/verify_claims_test.py` fails on any
-  other read of a file there.
+  other read of a file there. Still open there: a file reached by two paths, through a symlink, is read once by
+  each, not once.
 - **Guard planned:** stage C, one content-addressed work area in `tools/irlean`. A step reads its inputs by hash, and
   writes each output once.
 

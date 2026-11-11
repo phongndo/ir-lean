@@ -51,9 +51,11 @@ granted is `error`, `denied`, exit 5, and `--record` writes nothing. It reads th
 ### Evidence identity
 
 Each file a replay rests on is read once, by `read_once`, and every later step uses those bytes, never the path again.
-That's the evidence itself, its Lean files, its IR, and every file of the repo clang reads. Once means once for the
-whole replay: two units that read one header get the same bytes. So what's hashed and compared with the record is
-what's replayed. When recording, it's what's recorded. Normalizing a path can't change which file it names: a `..`
+That's the evidence itself, its Lean files, its IR, and every file of the repo clang reads. Once means once for each
+path, as normalized, for the whole replay: two units that read one header by one path get the same bytes. A file
+reached by two paths, such as through a symlink, is read once by each, and each read is hashed and checked on its
+own: reading once by the file's identity, its device and inode, is a follow-up. So what's hashed and compared with the
+record is what's replayed. When recording, it's what's recorded. Normalizing a path can't change which file it names: a `..`
 after a symlink, which the kernel follows and normalizing doesn't, is refused.
 
 - **A claim's plan.** The plan is its evidence files, each read once before any replay, and known from then on by the

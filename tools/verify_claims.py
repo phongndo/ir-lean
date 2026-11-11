@@ -245,8 +245,9 @@ class Read:
 
 
 class Held:
-    """The files a replay has read, by normalized path, so each is read once for the whole replay however many
-    units read it, and every unit gets the same bytes."""
+    """The files a replay has read, by normalized path, so each path is read once for the whole replay however
+    many units read it, and every unit gets the same bytes. A file reached by two paths, through a symlink, is
+    read once by each: reading by the file's identity is a follow-up."""
 
     def __init__(self) -> None:
         self.lock = threading.Lock()
@@ -256,7 +257,7 @@ class Held:
 def read_once(path: Path, tree: Path | None, reason: str, what: str, *, links: bool = True,
               status: str = "refused", held: Held | None = None) -> Read:  # fmt: skip
     """The one place this reads a file of the repo or llvm-project for what's in it, so each is read once and
-    every later step uses these bytes, never the path again; with `held`, once for the whole replay. The path
+    every later step uses these bytes, never the path again; with `held`, once a path for the replay. The path
     is taken as written, made absolute and normalized, and has to stay inside `tree`, as written and resolved.
     Normalizing can't change which file it names: a `..` after a symlink, which the kernel follows and
     normalizing doesn't, is refused. Without `links`, it can't be a symlink. Anything else ends the replay as
