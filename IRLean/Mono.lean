@@ -12,9 +12,10 @@ This proves it of the model's operations, one lemma each, named for the operatio
 `Refine.le` on values. Ones that can be undefined give `Refine.le` on runs where they can't stop the model, and
 `Outcome.Sim` where they can. `refine_mono` chains them.
 
-What's here is what the model's integer, vector and control operations are. `IRLean/MemRefine.lean` has memory's.
-Floating point, `IRLean/Lanes.lean`'s lane-wise forms and x86's intrinsics have none yet, so code after a cut that
-uses one needs its own lemma, or a cut whose replacement returns the same values, where reflexivity is enough. -/
+What's here is most of the model's integer, vector and control operations. `IRLean/MemRefine.lean` has memory's.
+`sdiv`, `srem`, the funnel shifts, the overflow intrinsics and `Vec.reduce` have none yet, and nor do floating point,
+`IRLean/Lanes.lean`'s lane-wise forms and x86's intrinsics, so code after a cut that uses one needs its own lemma, or a
+cut whose replacement returns the same values, where reflexivity is enough. -/
 
 namespace IRLean
 

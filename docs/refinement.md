@@ -316,11 +316,12 @@ fails without it:
 
 - **The rest of the function keeps refinement.** The same code on both sides isn't enough: it runs on a value where
   the source had poison, and `returned` on an integer, say, stops the model on a value that isn't its argument
-  (`rest_has_to_keep_refinement`). [`IRLean/Mono.lean`](../IRLean/Mono.lean) proves it of the model's integer and
-  vector operations, `select`, `noundef`, `llvm.assume`, `switch` and branches, one lemma each, and the tactic
-  `refine_mono` chains them. Floating point, `IRLean/Lanes.lean`'s lane-wise forms and x86's intrinsics have no lemma
-  yet, so code after a cut that uses one needs its own, unless the cut's replacement returns the same values, where
-  the two sides are the same run.
+  (`rest_has_to_keep_refinement`). [`IRLean/Mono.lean`](../IRLean/Mono.lean) proves it of most of the model's
+  integer and vector operations, `select`, `noundef`, `llvm.assume`, `switch` and branches, one lemma each, and the
+  tactic `refine_mono` chains them. `sdiv`, `srem`, the funnel shifts, the overflow intrinsics and `Vec.reduce` have
+  no lemma yet, and nor do floating point, `IRLean/Lanes.lean`'s lane-wise forms and x86's intrinsics, so code after a
+  cut that uses one needs its own, unless the cut's replacement returns the same values, where the two sides are the
+  same run.
 - **The replacement keeps refinement of its inputs.** A cut's proof is at one input for both. In the function the two
   get different inputs, the target's refining the source's, since code before the cut may already have run its
   replacement: in a loop, the round before (`replacement_has_to_keep_refinement`).

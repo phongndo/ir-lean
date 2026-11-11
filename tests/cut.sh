@@ -168,7 +168,7 @@ theorems_with_errors() {
 # imports.
 # usage: must_fail WHAT FILE THEOREM [LEAN_PATH]
 must_fail() {
-  local what=$1 file=$2 theorem=$3 status=0 out errors hit
+  local what=$1 file=$2 theorem=$3 expect=${5:-} status=0 out errors hit
   out=$(LEAN_PATH=${4:-$LEAN_PATH} lean -R "$(dirname "$file")" "$file" 2>&1) || status=$?
   errors=$(grep -E "^$file:[0-9]+:[0-9]+: error" <<<"$out" | grep -v "^$file:1:0:" | grep -vE "$limit" || true)
   if [ "$status" = 0 ]; then
@@ -180,6 +180,8 @@ must_fail() {
   elif ! hit=$(theorems_with_errors "$file" <<<"$errors" | grep -xF "$theorem"); then
     fail "$what doesn't stop $theorem with an error of its own, only $(theorems_with_errors "$file" <<<"$errors" |
       tr '\n' ' ')" "$out"
+  elif [ -n "$expect" ] && ! grep -qE "$expect" <<<"$out"; then
+    fail "$what stops $theorem, but not where it should: nothing Lean says matches $expect" "$out"
   else
     printf 'ok    %s stops %s: %s\n' "$what" "$hit" "$(head -1 <<<"$errors" | sed "s|$work/||" | cut -c1-140)"
   fi
@@ -194,8 +196,9 @@ fi
 must_fail 'a cut that is not refined' tests/cut/must_fail/AddNuwLoop.lean add_nuw_cut
 
 # A loop that isn't the slice and then the rest stops its kernel's proof. Each is a kernel with its target changed,
-# translated again, under the unchanged proof and the unchanged modules it imports.
-# usage: wrong_kernel WHAT CASE PROOF THEOREM EDIT
+# translated again, under the unchanged proof and the unchanged modules it imports. EXPECT, if given, is what Lean's
+# error has to say, for a mutant that could stop the proof somewhere other than where it's wrong.
+# usage: wrong_kernel WHAT CASE PROOF THEOREM EDIT [EXPECT]
 wrong_kernel() {
   local what=$1 case=$2 proof=$3 theorem=$4 dir out
   dir=$(mktemp -d -p "$work")
@@ -218,8 +221,12 @@ edits = {
     "skips a round": [("  %i1 = add i32 %i, 1", "  %i1 = add i32 %i, 2")],
     # The replacement is right, and each round loads the word after the one the source loads.
     "next word": [("  %at = zext i32 %i to i64", "  %to = zext i32 %i to i64\n  %at = add i64 %to, 1")],
-    # The replacement is right, and what's added up goes through the pointer the words are read through.
-    "other pointer": [("store <32 x i8> %acc, ptr %dst, align 1", "store <32 x i8> %acc, ptr %qh, align 1")],
+    # The replacement is right, and what's added up goes 32 bytes past the pointer it should. %dst stays in use, so
+    # the target's blocks take the same values as the source's, and the proof can only stop at the store.
+    "other pointer": [
+        ("  store <32 x i8> %acc, ptr %dst, align 1",
+         "  %past = getelementptr i8, ptr %dst, i64 32\n  store <32 x i8> %acc, ptr %past, align 1"),
+    ],
     # clang's loop, with four times the word and the word, which is five times it and not three.
     "five times": [("  %twice = shl i32 %12, 1", "  %twice = shl i32 %12, 2")],
 }
@@ -235,13 +242,14 @@ PY
     return
   fi
   cp "tests/cut/$proof.lean" "$dir/"
-  must_fail "a kernel whose target $what" "$dir/$proof.lean" "$theorem" "$dir:$root/.lake/build/lib/lean"
+  must_fail "a kernel whose target $what" "$dir/$proof.lean" "$theorem" "$dir:$root/.lake/build/lib/lean" "${6:-}"
 }
 wrong_kernel 'reads the wrong bit' q5_kernel Q5Kernel tgt_body 'wrong bit'
 wrong_kernel 'skips a round' q5_kernel Q5Kernel tgt_body 'skips a round'
 wrong_kernel 'reads the wrong bit, with memory' q5_kernel_memory Q5KernelMemory tgt_body 'wrong bit'
 wrong_kernel 'loads the next word' q5_kernel_memory Q5KernelMemory tgt_body 'next word'
-wrong_kernel 'stores through the other pointer' q5_kernel_memory Q5KernelMemory step_sim 'other pointer'
+wrong_kernel 'stores past its pointer' q5_kernel_memory Q5KernelMemory step_sim 'other pointer' \
+  "storeVec \\(m\\.gep dst' \\(some 32#64\\)\\)"
 wrong_kernel 'adds up five times each word, as clang compiled it' clang_sum ClangSum tgt_body 'five times'
 
 # A wrong lemma. Each mutant changes a definition in a copy of IRLean/Cut.lean, so that something wrong would be
