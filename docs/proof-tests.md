@@ -313,12 +313,12 @@ to be the same, both using memory or neither. For zlib-ng's `crc32_braid` and `c
 The result's `property.equivalence` has the functions, their signature and the arguments, and `trusted` has
 `property.equivalence`, with what `Same` compares. irl's `ptf_run` takes the same request.
 
-**What a pass means.** On every input tried, neither function stopped the model, and on each where the reference
-returned, the other returned the same value and left the same bytes, run on `ExecMem`. It doesn't say they agree on
-an input not tried, on a buffer longer than `max_length`, on poison, on a layout other than `Mem.spacedOut`, or in
-native code: it's about the model, and native code agrees with the model as far as the
-[differential tests](testing.md#tests) show. It rests on each block of each function agreeing with its copy on
-`ExecMem`, which is argued, not proved, as above. And it's a test, not a proof.
+**What a pass means.** On every input tried, the reference didn't stop the model, and on each where it returned, the
+other didn't stop it either, and returned the same value and left the same bytes, run on `ExecMem`. Where the reference
+was undefined, the other wasn't run. It doesn't say they agree on an input not tried, on a buffer longer than
+`max_length`, on poison, on a layout other than `Mem.spacedOut`, or in native code: it's about the model, and native
+code agrees with the model as far as the [differential tests](testing.md#tests) show. It rests on each block of each
+function agreeing with its copy on `ExecMem`, which is argued, not proved, as above. And it's a test, not a proof.
 
 ### Confirming a counterexample
 
