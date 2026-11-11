@@ -65,6 +65,15 @@ bool identifierChar(char C) {
          static_cast<unsigned char>(C) >= 0x80;
 }
 
+// Whether `Lean` has `Word` as a whole word, as `executableMemory` reads one.
+bool hasWord(const std::string &Lean, const std::string &Word) {
+  for (size_t I = Lean.find(Word); I != std::string::npos; I = Lean.find(Word, I + 1))
+    if ((I == 0 || !identifierChar(Lean[I - 1])) &&
+        (I + Word.size() == Lean.size() || !identifierChar(Lean[I + Word.size()])))
+      return true;
+  return false;
+}
+
 // The same Lean with every `Mem` that names IRLean's memory, the type or its namespace, as `ExecMem`. Emitted
 // names never are `Mem` or `ExecMem`, which are reserved, so a whole word `Mem` is always IRLean's.
 std::string executableMemory(const std::string &Lean) {
@@ -128,18 +137,12 @@ int main(int Argc, char **Argv) {
   }
   if (Namespace.empty())
     Namespace = defaultNamespace(Input);
-  // `--executable-memory` renames every whole word `Mem`, so a namespace with `Mem` or `ExecMem` in it would
-  // change too, or clash with IRLean's.
-  if (Executable) {
-    for (StringRef Rest = Namespace; !Rest.empty();) {
-      auto [Part, Tail] = Rest.split('.');
-      if (Part == "Mem" || Part == "ExecMem") {
-        errs() << "ir-lean: --executable-memory can't take the namespace " << Namespace << ", which names "
-               << Part << "\n";
-        return ExitUsage;
-      }
-      Rest = Tail;
-    }
+  // `--executable-memory` renames every whole word `Mem`, so it refuses a namespace the rename would change,
+  // such as `Mem`, `A.Mem` or `«A-Mem-B»`, and one already naming `ExecMem`, which would clash with IRLean's.
+  if (Executable && (hasWord(Namespace, "Mem") || hasWord(Namespace, "ExecMem"))) {
+    errs() << "ir-lean: --executable-memory can't take the namespace " << Namespace
+           << ", which names Mem or ExecMem\n";
+    return ExitUsage;
   }
 
   LLVMContext Context;

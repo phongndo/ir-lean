@@ -143,7 +143,7 @@ for ll in heap gep promises memory_errors stops ub; do
 done
 # A namespace the rename would change is refused, whole or split, with or without a dot around it.
 refused=1
-for ns in Mem ExecMem A.Mem Mem.B; do
+for ns in Mem ExecMem A.Mem Mem.B '«A-Mem-B»'; do
   for split in "" "--split $work/refused"; do
     # shellcheck disable=SC2086 # $split is a flag and its value, or nothing.
     "$tool" tests/real/heap.ll --namespace "$ns" --executable-memory -o "$work/refused.lean" $split 2>/dev/null

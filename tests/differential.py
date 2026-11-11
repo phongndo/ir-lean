@@ -39,6 +39,7 @@ import shutil
 import sys
 import tempfile
 import threading
+import time
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.append(os.path.join(ROOT, "tools"))
@@ -192,7 +193,13 @@ def prune_results():
     with os.scandir(RESULTS) as entries:
         for entry in entries:
             with contextlib.suppress(FileNotFoundError):
-                files.append((entry.stat().st_mtime, entry.path))
+                mtime = entry.stat().st_mtime
+                # A result being written is a file beside its name, with a dot, until os.replace publishes it.
+                # Removing it then would fail that, so only one left more than an hour ago, by a run that
+                # stopped, is pruned.
+                if "." in entry.name and time.time() - mtime < 3600:
+                    continue
+                files.append((mtime, entry.path))
     for _, path in sorted(files, reverse=True)[RESULTS_KEPT:]:
         with contextlib.suppress(FileNotFoundError):
             os.remove(path)
