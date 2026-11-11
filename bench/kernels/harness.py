@@ -499,12 +499,22 @@ class Elf:
     sections: dict[int, dict[str, Any]]
     symbols: list[dict[str, Any]]
     relocations: dict[int, dict[int, dict[str, Any]]]
+    # Where a symbol with a size starts, or a reference points to with no name, in each section: where data
+    # with no name that `place` reads ends.
+    starts: dict[int, set[int]] = field(default_factory=dict)
     # `within`'s symbols with a size, by where they start, for each section and kind of name.
     _index: dict[Any, Any] = field(default_factory=dict, repr=False)
 
     def named(self, s: dict[str, Any]) -> bool:
         """A symbol with a name of its own: not a section's, a file's, or a private `.L` label's."""
         return bool(s["name"]) and s["type"] not in ("Section", "File") and not s["name"].startswith(".L")
+
+    def refer(self, r: dict[str, Any], pc: int) -> None:
+        """Notes where relocation `r` points, as `target` reads it, if it's by no name of its own."""
+        sym = self.symbols[r["symbol"]]
+        if not self.named(sym):
+            at = sym["value"] + r["addend"] + (pc if PC_RELATIVE.match(r["type"]) else 0)
+            self.starts.setdefault(sym["section"], set()).add(at)
 
     def within(self, section: int | None, at: int, named: bool) -> dict[str, Any] | None:
         """The symbol with a size that `at` is in, in `section`, or anywhere in a linked binary, whose
@@ -553,6 +563,7 @@ def elf(path: Path) -> Elf:
             "flags": {f["Name"] for f in s["Flags"]["Flags"]},
             "entsize": s["EntrySize"],
             "info": s["Info"],
+            "size": s["Size"],
             "data": bytes(s.get("SectionData", {}).get("Bytes", [])),
         }
     symbols = [
@@ -576,7 +587,17 @@ def elf(path: Path) -> Elf:
                 "symbol": r["Symbol"]["Value"],
                 "addend": addend - (1 << 64) if addend >= 1 << 63 else addend,
             }
-    return Elf(relocatable, sections, symbols, relocations)
+    e = Elf(relocatable, sections, symbols, relocations)
+    if relocatable:
+        for sym in symbols:
+            if sym["size"] > 0 and sym["type"] not in ("Section", "File"):
+                e.starts.setdefault(sym["section"], set()).add(sym["value"])
+        # Where data points. Where an instruction points, `code` adds, from where the instruction ends.
+        for at, relocs in relocations.items():
+            if "SHF_EXECINSTR" not in sections[at]["flags"]:
+                for r in relocs.values():
+                    e.refer(r, 0)
+    return e
 
 
 def place(e: Elf, section: int, at: int, depth: int = 1) -> str:
@@ -589,21 +610,32 @@ def place(e: Elf, section: int, at: int, depth: int = 1) -> str:
     if (sym := e.within(section, at, named=True)) is not None:
         return f"{sym['name']}+{at - sym['value']:#x}"
     if (sym := e.within(section, at, named=False)) is not None:
-        lo, hi = sym["value"], sym["value"] + sym["size"]
-        relocs = [
-            f"{off - lo:#x}:{r['type']}:{target(e, r, 0, depth - 1) if depth > 0 else r['addend']}"
-            for off, r in sorted(e.relocations.get(section, {}).items())
-            if lo <= off < hi
-        ]
-        return f"<{s['data'][lo:hi].hex()}{''.join(' ' + x for x in relocs)}>+{at - lo:#x}"
+        lo = sym["value"]
+        return f"{held(e, section, lo, lo + sym['size'], depth)}+{at - lo:#x}"
     if "SHF_MERGE" in s["flags"] and "SHF_STRINGS" in s["flags"]:
         end = s["data"].find(b"\0", at)
         return f"<{s['data'][at : end if end >= 0 else None].hex()}>"
     if "SHF_MERGE" in s["flags"] and s["entsize"]:
         return f"<{s['data'][at : at + s['entsize']].hex()}>"
-    # Data with no name or size to tell it by, as a jump table is: where it is, which only changes if the
-    # section before it does, so a difference here can only make a function look changed when it isn't.
-    return f"{s['name']}+{at:#x}"
+    # Data with no name or size to tell it by, as a switch's table of results or a jump table is: what it
+    # holds from `at` to where a symbol starts or anything else points, or the section ends. In a baseline
+    # whose compiler gave each table of its own, that's all of what a function reads there, and a candidate
+    # that moves where that ends gives other bytes. Writable data is where it is too: which a function
+    # writes matters, and not only what it held.
+    hi = min((x for x in e.starts.get(section, ()) if x > at), default=s["size"])
+    return (f"{s['name']}+{at:#x}" if "SHF_WRITE" in s["flags"] else "") + held(e, section, at, hi, depth)
+
+
+def held(e: Elf, section: int, lo: int, hi: int, depth: int) -> str:
+    """What `section` holds from `lo` to `hi`, and where its relocations there point, `depth` deep."""
+    s = e.sections[section]
+    body = f"{hi - lo} zero bytes" if s["type"] == "SHT_NOBITS" else s["data"][lo:hi].hex()
+    relocs = [
+        f"{off - lo:#x}:{r['type']}:{target(e, r, 0, depth - 1) if depth > 0 else r['addend']}"
+        for off, r in sorted(e.relocations.get(section, {}).items())
+        if lo <= off < hi
+    ]
+    return f"<{body}{''.join(' ' + x for x in relocs)}>"
 
 
 def target(e: Elf, r: dict[str, Any], pc: int, depth: int = 1) -> str:
@@ -643,6 +675,13 @@ def code(path: Path) -> dict[str, str]:
     # Where each instruction ends: where the next one in its section starts.
     flat = [(sec, insn) for _, sec, insns in functions for insn in insns]
     ends = {id(insn): (nxt[1][0] if nxt[0] == sec else None) for (sec, insn), nxt in itertools.pairwise(flat)}
+    # Where every instruction points, before any is read, so that data with no name ends where the next
+    # thing anything points to starts.
+    if e.relocatable:
+        for sec, insn in flat:
+            for p in insn[3]:
+                if sec is not None and (r := e.relocations.get(sec, {}).get(p)) is not None:
+                    e.refer(r, (ends.get(id(insn)) or p + 4) - p)
     out: dict[str, str] = {}
     for name, sec, insns in functions:
         if not name:
@@ -1395,6 +1434,25 @@ def read_plans(*dirs: Path) -> dict[str, dict[str, Any]]:
     return out
 
 
+def recorded_twice(sessions: list[dict[str, Any]], *dirs: Path) -> list[str]:
+    """Each of `sessions` that `dirs` hold more than one record of, a session's or an attempt's, under any
+    name: a session is run once, so a second record of one, of a copy of its plan say, is a second try."""
+    found: dict[tuple[str, int], list[str]] = {}
+    for d in dict.fromkeys(dirs):
+        for path in sorted(d.glob("*.json")):
+            for schema in (schemas.KERNELS_SESSION, schemas.KERNELS_ATTEMPT):
+                with contextlib.suppress(schemas.SchemaError, OSError):
+                    r = schemas.read(path, schema)
+                    found.setdefault((r["plan_sha256"], r["session"]), []).append(path.name)
+    out = []
+    for key in dict.fromkeys((s["plan_sha256"], s["session"]) for s in sessions):
+        if len(names := found.get(key, [])) > 1:
+            out.append(
+                f"session {key[1]} of its plan has {len(names)} records, {', '.join(names)}: a second try"
+            )
+    return out
+
+
 def control_of(baseline: str, records: dict[str, dict[str, Any]]) -> str | None:
     """What control a comparison of these builds is, as `make_plan` writes it down: faster when the baseline
     isn't the baseline build, and otherwise a control build's own."""
@@ -1482,6 +1540,13 @@ def compare(
         if name == workload:
             raise Refused(f"{name} is the workload compared, not another")
         sessions = canonical(given)
+        # What workload sessions measured is theirs and their plans' to say, not the name they're given under,
+        # so no measurement stands for two workloads.
+        of = {s["workload"] for s in sessions} | {
+            plans[s["plan_sha256"]]["workload"]["name"] for s in sessions if s["plan_sha256"] in plans
+        }
+        if of != {name}:
+            raise Refused(f"the sessions given as {name}'s are {' and '.join(sorted(of))}'s")
         theirs = plans.get(sessions[0]["plan_sha256"])
         record: dict[str, Any] = {"plan_sha256": sessions[0]["plan_sha256"]}
         apart = [f"{name}: {p}" for p in protocol_problems(sessions, rule, plans)]
@@ -1567,11 +1632,12 @@ def protocol_problems(
         label = f"session {s['session']}"
         if s["min_seconds"] < rule.min_seconds:
             out.append(f"{label}: runs were repeated to {s['min_seconds']} s, not {rule.min_seconds}")
-        short = sum(
-            r["wall_s"] < rule.min_seconds for p in s["pairs"] for r in (p["baseline"], p["candidate"])
-        )
-        if short:
+        runs = [r for p in s["pairs"] for r in (p["baseline"], p["candidate"])]
+        if short := sum(r["wall_s"] < rule.min_seconds for r in runs):
             out.append(f"{label}: {short} of its runs took under {rule.min_seconds} s")
+        # A run that crashed or was stopped at a limit measured nothing. Its pair stays, as every pair does.
+        if failed := sum(r.get("exit") != 0 or r.get("limit") is not None for r in runs):
+            out.append(f"{label}: {failed} of its runs didn't exit 0 within its limits")
         if s["cpus"] is None or s.get("ccd") is None or not set(s["cpus"]) <= set(s["ccd"]):
             out.append(f"{label}: it wasn't pinned to cores of one CCD")
         if s["cpus"] is not None and len(s["cpus"]) != s["threads"]:
@@ -1612,6 +1678,8 @@ def protocol_problems(
             out.append(f"{label}: {len(s['pairs'])} pairs, and the plan has {plan['pairs']}")
         if s["cpus"] != plan["cpus"]:
             out.append(f"{label}: run on {s['cpus']}, and the plan wrote down {plan['cpus']}")
+        if elsewhere := sum(r.get("cpus") != plan["cpus"] for r in runs):
+            out.append(f"{label}: {elsewhere} of its runs weren't on its plan's cores, {plan['cpus']}")
     return out
 
 
@@ -1734,7 +1802,11 @@ def main(argv: list[str]) -> int:
                 print(f"     session {s['session']} of {args.plan}", flush=True)
                 out = args.plan.with_name(f"{args.plan.stem}.session-{s['session']}.json")
                 record = attempt(
-                    out, digest, s, lambda r, n=s["session"]: session(project, plan, digest, n, args.work, r)
+                    out,
+                    digest,
+                    s,
+                    lambda r, n=s["session"]: session(project, plan, digest, n, args.work, r),
+                    args.work,
                 )
                 got = [p["ratio"] for p in record["pairs"]]
                 print(f"ok   {out}: median {statistics.median(got):.4f} over {len(got)} pairs")
@@ -1756,7 +1828,10 @@ def main(argv: list[str]) -> int:
             for p in args.other:
                 s = read(p)
                 others.setdefault(s["workload"], []).append(s)
-            plans = read_plans(*(path.parent for path in [*args.sessions, *args.other]))
+            dirs = [path.parent for path in [*args.sessions, *args.other]]
+            if twice := recorded_twice([*main_sessions, *(s for x in others.values() for s in x)], *dirs):
+                raise Refused("; ".join(twice))
+            plans = read_plans(*dirs)
             names = required_workloads(
                 plans.get(main_sessions[0]["plan_sha256"]), main_sessions[0]["project"], args.spec
             )
@@ -1771,11 +1846,24 @@ def main(argv: list[str]) -> int:
     return 0
 
 
-def attempt(out: Path, plan_sha256: str, planned: dict[str, Any], run: Any) -> dict[str, Any]:
+def attempt(out: Path, plan_sha256: str, planned: dict[str, Any], run: Any, work: Path) -> dict[str, Any]:
     """Runs one session of a plan into `out`, which it takes first, so that each session is attempted once:
     a session's seed is drawn once, and running it again until it gives the answer wanted isn't the protocol.
-    `run(record)` runs it, filling in `record`. One that fails, or is stopped, is left at `out` as an attempt,
-    with what it had done, and another try is another plan, with new seeds."""
+    Before `out`, it takes the session itself, by its plan's hash and its number, in `work`, so a copy of the
+    plan under another name, which has the same hash and seeds, can't run it again either. `run(record)`
+    runs it, filling in `record`. One that fails, or is stopped, is left at `out` as an attempt, with what it
+    had done, and another try is another plan, with new seeds."""
+    taken = work / "attempts" / f"{plan_sha256}.session-{planned['session']}"
+    taken.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        with taken.open("x") as f:
+            f.write(f"{out.resolve()}\n")
+    except FileExistsError:
+        raise Refused(
+            f"session {planned['session']} of this plan was attempted already, as "
+            f"{taken.read_text().strip()}: a copy of a plan has its hash and seeds, so another try is "
+            "another plan, with new seeds"
+        ) from None
     try:
         with out.open("x") as f:
             f.write(

@@ -54,3 +54,28 @@ double scale(double x) {
 }
 
 uint32_t lookup(size_t i) { return third[i & 3]; }
+
+// A switch that clang makes a table of its results, which has no name or size in the object. With
+// -DOTHER_SWITCH, case 0 gives 7, not 19: only the table changes, and no instruction.
+#ifdef OTHER_SWITCH
+#define FIRST_PICK 7
+#else
+#define FIRST_PICK 19
+#endif
+
+uint32_t table_pick(uint32_t i) {
+  switch (i) {
+  case 0:
+    return FIRST_PICK;
+  case 1:
+    return 23;
+  case 2:
+    return 29;
+  case 3:
+    return 31;
+  case 4:
+    return 37;
+  default:
+    return 0;
+  }
+}

@@ -52,3 +52,6 @@ worked out again from its sessions when this page was written. A ratio above 1 i
 4. An entry in `bench/kernels/board/` cites the comparisons, the proof, with the source and target IR it's
    about, and the review, and `bench/kernels/board.py check` refuses it unless all of that holds, and the
    candidate each comparison measured is that rewrite, of that IR, built from the corpus's pin.
+5. Only a rewrite given to the harness as IR, which it compiles with the pinned `llc`, can count. A candidate
+   given as an object can be a control or an exploration, and never a win: the proof is about IR, and nothing
+   proves an object is that IR compiled.

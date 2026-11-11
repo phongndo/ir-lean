@@ -686,15 +686,18 @@ Each step, and what it checks:
 - **`candidate`** builds the same tree a second time and replaces the rewritten unit's object, and the build links
   the binaries again with its own commands: Ninja, after the object keeps its time and what's linked from it is
   removed, since its deps log would otherwise compile the object again, and make, after the object is made newer.
-  The candidate is the unit's IR with the functions named by `--functions` rewritten, or an object. Before anything
+  The candidate is the unit's IR with the functions named by `--functions` rewritten, or an object, which can be a
+  control or an exploration and never a win: a proof is about IR, and nothing proves an object is it. Before anything
   is timed it checks that `llc` on the unit's unchanged IR, emitted from the build's own compile command with its use
   lists, gives the build's machine code, function by function, as `tests/llama_bench.py` does; that the two builds
   differ in exactly the functions declared; that each workload's check passes on the candidate; and that each
   workload whose output is its result gives the baseline's output, bit for bit. A function's code is compared
   without addresses, and with what each instruction refers to: in the binaries, the named symbol a RIP-relative
   operand is in and the offset in it, and in the unit's objects, where each relocation points, a named symbol by its
-  name and a constant by what it holds. Every named datum of the unit's object has to hold the same bytes, so a
-  rewrite that also has another function load another table or constant, or changes a table's contents, is refused.
+  name and a constant by what it holds. Data with no name or size, as a switch's table of results or a jump table,
+  is what it holds from where it's pointed to up to where anything else is, a symbol or what another reference points
+  to. Every named datum of the unit's object has to hold the same bytes, so a rewrite that also has another function
+  load another table or constant, or changes a table's contents, named or not, is refused.
   A check that drives the build again takes the build's own arguments as `{build_args}`, and the candidate is
   refused if a check, a setup or a run changes either build's binaries or the candidate's objects: xxHash's
   `Makefile` keeps its objects under a hash of its flags, and `make check` without them built `xxhsum` again from
@@ -709,20 +712,24 @@ Each step, and what it checks:
   session's calibration. Then it runs its pairs, baseline and candidate back to back in an order drawn from its
   seed. Each run records its wall time from start to exit, its CPU time, the load average, the cores and the hash of
   everything it wrote. A run whose output isn't the baseline's stops the session, and no pair is removed. A session
-  is run once: `measure` takes its file before it starts, as an `ir-lean.kernels.attempt/1` record, refuses a
-  session whose file is there, and leaves one that fails or is stopped there as a failed or interrupted attempt,
-  with what it had done. Another try is another plan, with new seeds.
+  is run once: before it starts, `measure` takes the session, by its plan's hash and its number, in the work
+  directory, so a copy of the plan under another name can't run it again, and then its file, as an
+  `ir-lean.kernels.attempt/1` record. If either is taken already, it refuses. A session that fails or is stopped
+  is left as a failed or interrupted attempt, with what it had done. Another try is another plan, with new seeds,
+  and `compare` and the board refuse a session with two records beside it, under any names.
 - **`compare`** takes the ratios, their median and the 95% percentile bootstrap from 20,000 resamples, per session
   and pooled, with a seed taken from the sessions' own, and reads them by [the rule](#measurably-faster). The rule
   doesn't say when a candidate is slower, so the harness takes the mirror of a win: at least 30 pairs in at least 2
   confirmation sessions, the pooled interval at or under 1 / 1.005, and every session's median under 1. What it
   compares, its level and whether it's a control are its plan's, checked against the build records beside the
-  plan, and the workloads condition 4 needs are the project's, from its configuration. Each ratio is worked out
-  from its pair's runs, and the sessions are read in one order whatever order they're given in. A comparison also
-  lists how its sessions fall short of the protocol: a session of its plan missing, or one given twice; a seed, an
-  order, a kind or a ratio that isn't what the plan and the runs give; runs repeated to under 2 s, or any timed run
-  under 2 s; cores not in one CCD; a plan written after a session started; a pair missing; or two sessions with one
-  seed. Another workload's sessions count for condition 4 only if their plan is of the same builds, level, kind and
+  plan, and the workloads condition 4 needs are the project's, from its configuration. Which workload sessions
+  measured is theirs and their plan's to say, not the name they're given under. Each ratio is worked out from its
+  pair's runs, and the sessions are read in one order whatever order they're given in. A comparison also lists how
+  its sessions fall short of the protocol: a session of its plan missing, or one given twice; a seed, an order, a
+  kind or a ratio that isn't what the plan and the runs give; runs repeated to under 2 s, or any timed run under
+  2 s, or one that didn't exit 0, was stopped at a limit, or wasn't on the plan's cores; cores not in one CCD; a plan
+  written after a session started; a pair missing; or two sessions with one seed. No pair is removed for any of
+  them. Another workload's sessions count for condition 4 only if their plan is of the same builds, level, kind and
   control, and otherwise that workload is as good as unmeasured. Only a comparison with no problem, read by the
   protocol's own rule, can put a win on the board.
 

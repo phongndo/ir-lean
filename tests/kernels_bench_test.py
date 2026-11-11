@@ -12,18 +12,21 @@ Then, on Linux, the harness end to end on tests/kernels_bench/, a tiny make proj
 kernel.c. It builds the baseline, and candidates, each through the checks a real one passes: a control the
 same as the baseline, which has to differ from it in nothing, and a rewrite of `kernel` with a deliberate
 extra loop, given as IR. A rewrite that declares the wrong function, one whose output is wrong, one that
-also changes what another function loads, or a table's contents, and a check that builds the candidate again
-without the build's arguments, as xxHash's `make check` would, have to be refused. Then it times them by the
-protocol, on one core of the first CCD, with runs repeated to 0.05 s instead of 2 s, so it takes seconds:
-the control the same as the baseline has to come out inconclusive, the extra loop slower, and the baseline
-against the extra loop faster, with the project's other workload measured and not slower. Read by the
-protocol's own rule, none of these is by the protocol, and the board refuses a win that cites one.
+also changes what another function loads, or a table's contents, named or a switch's with no name, and a
+check that builds the candidate again without the build's arguments, as xxHash's `make check` would, have to
+be refused. Then it times them by the protocol, on one core of the first CCD, with runs repeated to 0.05 s
+instead of 2 s, so it takes seconds: the control the same as the baseline has to come out inconclusive, the
+extra loop slower, and the baseline against the extra loop faster, with the project's other workload measured
+and not slower. Read by the protocol's own rule, none of these is by the protocol, and the board refuses a
+win that cites one.
 
 Then what a comparison or the board must not take, made from those sessions by hand: another workload's
 evidence from other builds or an exploratory plan, a planned session left out, a seed, an order, a kind or a
-ratio that isn't what the plan and the runs give, a run under the minimum, and the sessions in another
-order; a session run a second time, or after it failed; a comparison relabeled, copied to another level, or
-leaving out a workload; and an entry whose proof or functions aren't its candidate's, or that's another's.
+ratio that isn't what the plan and the runs give, a run under the minimum, one that failed or ran on other
+cores, and the sessions in another order; the compared workload's sessions given as another's; a session run
+a second time, after it failed, or from a copy of its plan, and a second record of one; a comparison
+relabeled, copied to another level, or leaving out a workload; and an entry whose proof or functions aren't
+its candidate's, that's another's, or whose candidate is an object.
 
 Exits 77, which ctest takes as a skip, if the numbers pass and the end-to-end part can't run here: not on
 Linux, or without clang, llc, opt, objdump and make on PATH.
@@ -321,6 +324,15 @@ def end_to_end(work: Path) -> None:
         "a rewrite that also changes a table another function reads is refused",
         r.output[-2000:],
     )
+    # `table_pick`'s switch is a table of its results with no name or size, which only an offset in .rodata
+    # points to: what it holds is compared, and with -DOTHER_SWITCH its first entry is 7, not 19.
+    switch = rewrite("switch", "-DEXTRA_LOOP", "-DOTHER_SWITCH")
+    r = run("candidate", *common, "switch", "--unit", "kernel.c", "--ir", switch, "--functions", "kernel")
+    expect(
+        not r.ok and "the builds differ in ['kernel', 'table_pick']" in r.err,
+        "a rewrite that also changes another function's switch table, which has no name, is refused",
+        r.output[-2000:],
+    )
     # A check that drives make without the build's arguments builds hot again from the source, as xxHash's
     # flag-keyed Makefile would, so what would be timed isn't what was checked.
     unflagged = ["--spec", SPEC.with_name("unflagged.toml"), "--work", work]
@@ -526,6 +538,34 @@ def by_hand(work: Path, plans_dir: Path, fast: list[Path], other: list[Path], sl
     )
     problem("a pair given twice", "aren't numbered 1 to", lambda s: s[0]["pairs"].append(s[0]["pairs"][-1]))
     problem("a run under the minimum", "2 of its runs took under 0.05 s", short)
+
+    # A timed run that crashed or hit a limit, or ran on other cores than its plan's, isn't by the protocol,
+    # and its pair stays.
+    def failed(s: list[dict[str, Any]]) -> None:
+        s[0]["pairs"][0]["candidate"].update(exit=1, limit="time_limit")
+
+    problem("a run that failed", "1 of its runs didn't exit 0 within its limits", failed)
+    problem(
+        "a run on other cores",
+        "1 of its runs weren't on its plan's cores",
+        lambda s: s[0]["pairs"][0]["baseline"].update(cpus=[s[0]["cpus"][0] + 1]),
+    )
+    forged = copy.deepcopy(main)
+    failed(forged)
+    expect(compared(forged, mix)["pooled"] == good["pooled"], "and no pair is dropped for a failed run")
+
+    # The compared workload's own sessions, given again as mix's: what a workload's sessions are of is theirs
+    # and their plan's to say, not the name they're given under.
+    try:
+        relabeled = harness.compare(copy.deepcopy(main), {"mix": copy.deepcopy(main)}, names, FAST, plans)
+        why = f"{relabeled['verdict']}, by the protocol: {relabeled['by_the_protocol']}"
+    except harness.Refused as error:
+        relabeled, why = None, str(error)
+    expect(
+        relabeled is None and "the sessions given as mix's are sum's" in why,
+        "a comparison refuses the compared workload's sessions given as another workload's",
+        why,
+    )
     forged = copy.deepcopy(main)
     ratio(forged)
     got = compared(forged, mix)
@@ -559,6 +599,21 @@ def by_hand(work: Path, plans_dir: Path, fast: list[Path], other: list[Path], sl
             "a workload left out",
             harness.compare(read_sessions(fast), {}, ["sum"], FAST, plans),
             "its unmeasured isn't",
+        ),
+        (
+            "relabeled-mix",
+            "the compared workload's sessions cited as mix's",
+            {
+                **stored,
+                "others": {
+                    "mix": {
+                        **stored["others"]["mix"],
+                        "plan_sha256": stored["plan_sha256"],
+                        "sessions": [s["sha256"] for s in stored["sessions"]],
+                    }
+                },
+            },
+            "the sessions given as mix's are sum's",
         ),
     ]
     for name, what, record, want in forgeries:
@@ -606,6 +661,22 @@ def by_hand(work: Path, plans_dir: Path, fast: list[Path], other: list[Path], sl
     expect(
         any("isn't built from zlib-ng at the corpus's pin" in p for p in found),
         "and a build that isn't the corpus's pin is refused",
+        found,
+    )
+    # The same candidate given as the object llc made of its IR: nothing proves an object is its proof's
+    # target compiled, so only a rewrite given as IR counts, and the board says so.
+    as_object = copy.deepcopy(cand)
+    made = work / "synthetic" / "O3" / "extra" / "unit" / "1.candidate.o"
+    as_object["candidate"].update(form="object", input_sha256=hashing.sha256_file(made))
+    plan = board.plan_of(slower)
+    assert plan is not None
+    got = board.built("x", entry, manifest["project"]["zlib-ng"], manifest["corpus"], plan)
+    plan["_builds"]["candidate"] = as_object
+    found = board.built("x", entry, manifest["project"]["zlib-ng"], manifest["corpus"], plan)
+    expect(
+        not any("is an object" in p for p in got)
+        and any("its candidate is an object, and only a rewrite given as IR" in p for p in found),
+        "the board doesn't count a candidate given as an object, and says why",
         found,
     )
     for what, change, want in (
@@ -702,6 +773,42 @@ def again(work: Path, common: list[Any], plans: Path) -> None:
         not r.ok and "attempt, failed, not a session" in r.err,
         "and isn't compared as a session",
         r.output[-1000:],
+    )
+
+    # A copy of a plan under another name has its hash, so its sessions are the plan's, which ran already.
+    copied = plans / "same-copy.json"
+    shutil.copy(plans / "same.json", copied)
+    r = run("measure", *common, copied, "--session", "1")
+    expect(
+        not r.ok
+        and "attempted already" in r.err
+        and not copied.with_name("same-copy.session-1.json").exists(),
+        "a copy of a plan under another name can't run its sessions again",
+        r.output[-2000:],
+    )
+    # A second record of one session, as running the copy from another work directory would leave, with
+    # other times: compare and the board refuse both.
+    second = schemas.read(first, schemas.KERNELS_SESSION)
+    for p in second["pairs"]:
+        p["candidate"]["wall_s"] *= 0.9
+        p["ratio"] = protocol.ratio(p["baseline"]["wall_s"], p["candidate"]["wall_s"], protocol.TIME)
+    schemas.write(copied.with_name("same-copy.session-1.json"), second, schemas.KERNELS_SESSION, indent=2)
+    r = run(
+        "compare",
+        "--spec",
+        SPEC,
+        "--min-seconds",
+        str(FAST.min_seconds),
+        first,
+        plans / "same.session-2.json",
+    )
+    found = board.recompute(plans / "same.comparison.json")
+    expect(
+        not r.ok
+        and "session 1 of its plan has 2 records" in r.err
+        and any("session 1 of its plan has 2 records" in p for p in found),
+        "compare and the board refuse two records of one session of a plan",
+        (r.output[-1000:], found),
     )
 
 

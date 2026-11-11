@@ -14,7 +14,8 @@ toward S3's bar has to be everything docs/kernels.md's "What a win is" asks, and
   level where that isn't -O3, with every other workload of the project measured and none slower;
 - the rewrite measured: each comparison's candidate, by the build records beside its plan, is built from
   the corpus's pin with its flags and clang, rewrites the entry's unit and declares its functions, from the
-  proof's source IR to its target;
+  proof's source IR to its target, and is given as that IR, which the harness compiles with the pinned llc:
+  a candidate given as an object can be a control or an exploration, and never a win;
 - labeled: what's proved, what it rests on, the source IR, and how it was found.
 
 No two entries are one rewrite, or cite one comparison. Every comparison the board cites, and every harness
@@ -96,6 +97,8 @@ def recompute(path: Path) -> list[str]:
         others[name] = [sessions[sha] for sha in summary["sessions"]]
     plans = harness.read_plans(where)
     found = [s for s in main if s is not None]
+    if twice := harness.recorded_twice([*found, *(s for x in others.values() for s in x)], where):
+        return [f"{show(path)}: {p}" for p in twice]
     names = harness.required_workloads(plans.get(found[0]["plan_sha256"]), stored["project"])
     try:
         again = harness.compare(found, others, names, protocol.Rule(**stored["rule"]), plans)
@@ -157,6 +160,11 @@ def built(
     info = cand.get("candidate") or {}
     if cand["control"] is not None or info.get("form") not in ("ir", "object"):
         out.append(f"{what}: its candidate isn't a rewrite")
+    elif info["form"] == "object":
+        out.append(
+            f"{what}: its candidate is an object, and only a rewrite given as IR, which the harness compiles "
+            "with the pinned llc, can count: nothing proves an object is its proof's target compiled"
+        )
     if info.get("unit") != e.get("unit"):
         out.append(
             f"{what}: its candidate rewrites {info.get('unit')!r}, and the entry's unit is {e.get('unit')!r}"
@@ -381,6 +389,9 @@ HOW = """\
 4. An entry in `bench/kernels/board/` cites the comparisons, the proof, with the source and target IR it's
    about, and the review, and `bench/kernels/board.py check` refuses it unless all of that holds, and the
    candidate each comparison measured is that rewrite, of that IR, built from the corpus's pin.
+5. Only a rewrite given to the harness as IR, which it compiles with the pinned `llc`, can count. A candidate
+   given as an object can be a control or an exploration, and never a win: the proof is about IR, and nothing
+   proves an object is that IR compiled.
 """
 
 
