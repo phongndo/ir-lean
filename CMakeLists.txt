@@ -223,10 +223,13 @@ set_tests_properties(float PROPERTIES TIMEOUT 900)
 add_test(NAME calls COMMAND ${CMAKE_SOURCE_DIR}/tests/calls.sh $<TARGET_FILE:ir-lean>)
 set_tests_properties(calls PROPERTIES TIMEOUT 900)
 # The cut lemma, on what ir-lean emits: a proof about a slice becomes a theorem about the loop that holds it,
-# llama.cpp's q5_0 bit-spreading slice among them, and a wrong cut, a wrong loop and a wrong lemma each stop a
-# proof. One Lean or Alive2 process at a time, each Lean process capped at 4 GB. See docs/refinement.md.
+# llama.cpp's q5_0 bit-spreading slice among them, and about a kernel of the corpus as clang compiled it,
+# libsodium's gh_ad_blocks, and a wrong cut, a wrong loop, a wrong lemma and a wrong operation each stop a
+# proof. One Lean or Alive2 process at a time, each Lean process capped at 4 GB, the kernel's at 8 GB. See
+# docs/refinement.md.
 add_test(NAME cut COMMAND ${CMAKE_SOURCE_DIR}/tests/cut.sh $<TARGET_FILE:ir-lean>)
-set_tests_properties(cut PROPERTIES TIMEOUT 900)
+# Alone, since the GHASH kernel's proof takes up to 8 GB, more than a CTest slot's share of a runner.
+set_tests_properties(cut PROPERTIES TIMEOUT 900 RUN_SERIAL TRUE)
 # `Refines` for functions with memory, SEM-06, on what ir-lean emits: right rewrites refine on every memory
 # the model has an answer for, wrong ones provably don't, a changed rule of the relation stops the law that
 # pins it, and Alive2 gives each case the verdict it says. One Lean or Alive2 process at a time, each Lean
@@ -350,6 +353,15 @@ add_test(NAME peephole_compare COMMAND ${CMAKE_SOURCE_DIR}/tests/peephole.py com
 add_test(NAME peephole_score COMMAND ${CMAKE_SOURCE_DIR}/tests/peephole.py score --check)
 add_test(NAME peephole COMMAND ${CMAKE_SOURCE_DIR}/tests/peephole_test.py --tier live)
 set_tests_properties(peephole_compare peephole_score peephole PROPERTIES TIMEOUT 900)
+# Rules and the rule search, docs/rules.md and docs/rule-search.md. `lake build` checks each rule's proof.
+# The static tier checks the format, the matcher and the IR reader in Python, under a second, with no Lean
+# or LLVM. The live tier checks that every rule is proved, that a wrong statement generator, a wrong matcher
+# and a false rule are each refused for their own reason, certify mode, and the search on
+# tests/rules/search.ll, twice, byte for byte. One Lean process at a time, each capped at 4 GB, but for
+# leanchecker, two modules at a time, or LEAN_JOBS up to four, about three and a half minutes.
+add_test(NAME rules_static COMMAND ${CMAKE_SOURCE_DIR}/tests/rules_test.py --tier static)
+add_test(NAME rules COMMAND ${CMAKE_SOURCE_DIR}/tests/rules_test.py --tier live)
+set_tests_properties(rules PROPERTIES TIMEOUT 1800)
 add_test(
     NAME zlib
     COMMAND
@@ -450,6 +462,7 @@ set_tests_properties(binding_2 PROPERTIES LABELS binding_2)
 set_tests_properties(proofs verify_negative PROPERTIES LABELS proofs)
 set_tests_properties(llvm llvm_closure PROPERTIES LABELS llvm)
 set_tests_properties(verify_claims PROPERTIES LABELS verify_claims)
+set_tests_properties(rules PROPERTIES LABELS rules)
 set_tests_properties(
     replay_challenge
     contracts

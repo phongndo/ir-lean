@@ -88,7 +88,9 @@ result for every input, poison included, and that every byte is defined for a de
 substituting its result are trusted, as for q4_K. [llama.cpp's Q5](llama-q5.md) has the details. Recorded on
 2026-11-07, and the proof checked again on 2026-11-08 with the q4_K rewrite and `main` at `0330cd7`. Since
 2026-11-10 [the cut lemma](refinement.md#the-cut-lemma) proves substituting it right in two loops written to hold the
-slice, one with memory, but not in the kernel, which hasn't been translated, so there it's still trusted.
+slice, one with memory, but not in the kernel, which hasn't been translated, so there it's still trusted. What stops
+it is the emitter's refusing `llvm.fma`, the kernel's floating point choosing NaNs, which the cut lemma doesn't cover
+yet, and, as built, `!tbaa`; every other operation of the kernel's has its lemma.
 
 ## Tested
 
@@ -326,7 +328,26 @@ reads it. That difference is itself a thing [Phase 3](roadmap.md#phase-3-c-and-r
 18. Memory in `IRLean.Refines`, and the lemma that a refined cut gives a refined function, F4 (SEM-06), on 2026-11-10:
     in progress, not finished. Of its six [stages](refinement.md#functions-with-memory), 1, 2 and 4 are done: the cut
     lemma, `Refines` for functions with memory where both sides allocate alike, guarded by `Outcome.answered` where the
-    model has no answer for the source, and the cut lemma with memory for the operations that have a lemma. Stage 5,
-    the model's memory gaps, is partly done: each has its side, and four aren't closed. Stage 3, a target that
-    allocates differently, so removing an `alloca` has no claim, and stage 6, `tools/binding.py` on memory, which
-    still refuses it, haven't started. The `cut` and `memory_refine` tests check it.
+    model has no answer for the source, and the cut lemma with memory. Since the same day every operation the emitter
+    translates has its lemma that it keeps refinement, every memory operation, x86's 250 intrinsics, floating point
+    and `IRLean/Lanes.lean`'s forms among them, except what can't, `freeze`, and so the cut lemma reaches a kernel of
+    the corpus as clang compiled it: [`GhAdBlocks.gh_ad_blocks`](../tests/cut/GhAdBlocks.lean) proves libsodium's
+    AES-GCM GHASH with a cut's replacement refines it, through its vector loads, PCLMULQDQ and the accumulator its
+    loops store and load again, on the standard axioms. Stage 5, the model's memory gaps, is partly done: each has its
+    side, and four aren't closed. Stage 3, a target that allocates differently, so removing an `alloca` has no claim,
+    and stage 6, `tools/binding.py` on memory, which still refuses it, haven't started. The `cut` and `memory_refine`
+    tests check it.
+19. The rule format, certify mode and the rule search, on 2026-11-10: 182 rules, each a pattern, a replacement and
+    side conditions in one source, with its Lean statement generated from that source and proved for every input on
+    the standard three axioms, all imported from the lemmas chunk 1's rewrites are proved from. Certify mode has
+    Lean prove each application of a rule again, from the IR before and after and the rule's name. A deterministic
+    search rewrites scalar integer IR by chains of those rules and certifies each chain, as a slice, and as the
+    whole function where it's one block. On LLVM's InstSimplify tests it found 225 rewrites, and none is cheaper
+    than what `opt -O3` gives, since every rule is one of InstSimplify's own: no win over `clang -O3` is found or
+    claimed, and it hasn't been run on the corpus. See [rules](rules.md) and [rule search](rule-search.md).
+20. [The kernel corpus](kernels.md), the real projects the superoptimizer is judged on, fixed on 2026-11-10: the six
+    the maintainer approved that day, llama.cpp, zlib-ng, xxHash, libsodium, FLAC and libwebp, with sixteen
+    workloads, each saying what's measured and how a candidate is checked before it's timed, and a bulk-encryption
+    driver of ours for libsodium. A lock holds the list, which the roadmap's record of the decision holds too, and
+    `tests/kernels_test.py` fails on any change to it that no amendment from that lock records. No search or rewrite
+    has run on it yet.

@@ -20,9 +20,9 @@ arguments, terminal, signals and exit code:
 | `irl capabilities` | Each tool's `capabilities` | Every command's contract, and which commands are built, as JSON |
 | `irl mcp` | The tools above | Serves them to an agent, over MCP |
 
-Two more have names and nothing built yet: `irl sopt`, the superoptimizer, and `irl msc`, the memory-safety checker.
-Each says so and exits 1. [The roadmap](roadmap.md#names-and-languages-decided-on-2026-11-10) has where the names come
-from.
+Two more have names and no command yet: `irl sopt`, the superoptimizer, whose rule search is `tools/rules/rules.py`
+for now ([rule search](rule-search.md)), and `irl msc`, the memory-safety checker. Each says so and exits 1.
+[The roadmap](roadmap.md#names-and-languages-decided-on-2026-11-10) has where the names come from.
 
 ```console
 $ build/irl verify check --c tests/real/bi_reverse.c --namespace Real --function popcount \

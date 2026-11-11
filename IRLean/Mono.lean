@@ -1,5 +1,7 @@
 import IRLean.Cut
-import IRLean.Vec
+import IRLean.Float
+import IRLean.Lanes
+import IRLean.Scalable
 
 /-! # Operations that keep refinement
 
@@ -12,10 +14,17 @@ This proves it of the model's operations, one lemma each, named for the operatio
 `Refine.le` on values. Ones that can be undefined give `Refine.le` on runs where they can't stop the model, and
 `Outcome.Sim` where they can. `refine_mono` chains them.
 
-What's here is most of the model's integer, vector and control operations. `IRLean/MemRefine.lean` has memory's.
-`sdiv`, `srem`, the funnel shifts, the overflow intrinsics and `Vec.reduce` have none yet, and nor do floating point,
-`IRLean/Lanes.lean`'s lane-wise forms and x86's intrinsics, so code after a cut that uses one needs its own lemma, or a
-cut whose replacement returns the same values, where reflexivity is enough. -/
+What's here is every integer, vector, floating-point and control operation of the model's, and `IRLean/Scalable.lean`'s.
+Since 2026-11-10 that includes `sdiv`, `srem`, the funnel shifts, the overflow intrinsics, `Vec.reduce`, the lane-wise
+forms of `IRLean/Lanes.lean`, `noundef` on vectors and structs, and floating point, for one choice on both sides: a run
+that makes choices returns `Outcomes`, which the cut lemma doesn't cover. Where an operation's poison rule is lane by
+lane, the lemma is `map_strict`, `map2_strict` or `map3_strict`, from its function on a lane being poison for poison.
+`IRLean/MonoX86.lean` has x86's intrinsics, all 250, and `refine_mono_simd`, which chains these too.
+`IRLean/MemRefine.lean` and `IRLean/MemRefineOps.lean` have memory's.
+
+What has no lemma, and can't: `freeze`, which isn't monotone, and anything that stops the model on a value and not on
+poison, such as `returned` with a poison argument. Code after a cut that uses one needs a cut whose replacement returns
+the same values there, where reflexivity is enough. -/
 
 namespace IRLean
 
@@ -343,6 +352,447 @@ theorem join {m v k : Nat} (ha : Refine.le a a') : Refine.le (Vec.join m v k a) 
         | some y => rw [(val_some _ _).1 ih]; exact refl_val _
 
 end Vec
+
+/-! ### Operations lane by lane, from a function on one lane
+
+`map`, `map2` and `Lanes.lean`'s `map3` keep refinement when the function on a lane does, and a function on a lane
+does when it's poison wherever an operand is: `Refine.val_map_mono`, `val_map₂_mono` and `strict₃`. That's every
+operation whose poison rule is lane by lane, and `IRLean/MonoX86.lean` uses these two steps for each x86 intrinsic
+that has one. -/
+
+section Lanewise
+
+/-- A function of three operands that's poison where any of them is keeps refinement. -/
+theorem strict₃ {t : Nat} {f : Val w → Val u → Val v → Val t} (h₁ : ∀ b c, f none b c = none)
+    (h₂ : ∀ a c, f a none c = none) (h₃ : ∀ a b, f a b none = none) {a a' : Val w} {b b' : Val u} {c c' : Val v}
+    (ha : Refine.le a a') (hb : Refine.le b b') (hc : Refine.le c c') : Refine.le (f a b c) (f a' b' c') := by
+  cases a with
+  | none => rw [h₁]; trivial
+  | some x =>
+    cases ha
+    cases b with
+    | none => rw [h₂]; trivial
+    | some y =>
+      cases hb
+      cases c with
+      | none => rw [h₃]; trivial
+      | some z => cases hc; exact refl_val _
+
+theorem map3 {f f' : Val w → Val w → Val w → Val v} {a a' b b' c c' : Vec n w}
+    (hf : ∀ x x' y y' z z', Refine.le x x' → Refine.le y y' → Refine.le z z' → Refine.le (f x y z) (f' x' y' z'))
+    (ha : Refine.le a a') (hb : Refine.le b b') (hc : Refine.le c c') :
+    Refine.le (Vec.map3 f a b c) (Vec.map3 f' a' b' c') := fun i => by
+  show Refine.le (Vector.ofFn fun i => f a[i] b[i] c[i])[i] (Vector.ofFn fun i => f' a'[i] b'[i] c'[i])[i]
+  rw [Fin.getElem_fin, Fin.getElem_fin, Vector.getElem_ofFn, Vector.getElem_ofFn]
+  exact hf _ _ _ _ _ _ (ha i) (hb i) (hc i)
+
+/-- An operation with two results, such as `llvm.uadd.with.overflow`, lane by lane. -/
+theorem map2Pair {t : Nat} {f f' : Val w → Val w → Val u × Val t} {a a' b b' : Vec n w}
+    (hf : ∀ x x' y y', Refine.le x x' → Refine.le y y' → Refine.le (f x y) (f' x' y')) (ha : Refine.le a a')
+    (hb : Refine.le b b') : Refine.le (Vec.map2Pair f a b) (Vec.map2Pair f' a' b') :=
+  ⟨fun i => by
+    show Refine.le (Vector.ofFn fun i => (f a[i] b[i]).1)[i] (Vector.ofFn fun i => (f' a'[i] b'[i]).1)[i]
+    rw [Fin.getElem_fin, Fin.getElem_fin, Vector.getElem_ofFn, Vector.getElem_ofFn]
+    exact (hf _ _ _ _ (ha i) (hb i)).1,
+   fun i => by
+    show Refine.le (Vector.ofFn fun i => (f a[i] b[i]).2)[i] (Vector.ofFn fun i => (f' a'[i] b'[i]).2)[i]
+    rw [Fin.getElem_fin, Fin.getElem_fin, Vector.getElem_ofFn, Vector.getElem_ofFn]
+    exact (hf _ _ _ _ (ha i) (hb i)).2⟩
+
+/-- `map` of a function that's poison where its operand is: every lane-wise operation with LangRef's poison rule. -/
+theorem map_strict {f : Val w → Val v} (hf : f none = none) {a a' : Vec n w} (ha : Refine.le a a') :
+    Refine.le (Vec.map f a) (Vec.map f a') :=
+  map (fun _ _ h => val_map_mono hf h) ha
+
+/-- `map2` of a function that's poison where either operand is. -/
+theorem map2_strict {f : Val w → Val u → Val v} (hl : ∀ b, f none b = none) (hr : ∀ a, f a none = none)
+    {a a' : Vec n w} {b b' : Vec n u} (ha : Refine.le a a') (hb : Refine.le b b') :
+    Refine.le (Vec.map2 f a b) (Vec.map2 f a' b') :=
+  map2 (fun _ _ _ _ hx hy => val_map₂_mono hl hr hx hy) ha hb
+
+/-- `map3` of a function that's poison where any operand is. -/
+theorem map3_strict {f : Val w → Val w → Val w → Val v} (h₁ : ∀ b c, f none b c = none)
+    (h₂ : ∀ a c, f a none c = none) (h₃ : ∀ a b, f a b none = none) {a a' b b' c c' : Vec n w}
+    (ha : Refine.le a a') (hb : Refine.le b b') (hc : Refine.le c c') :
+    Refine.le (Vec.map3 f a b c) (Vec.map3 f a' b' c') :=
+  map3 (fun _ _ _ _ _ _ hx hy hz => strict₃ h₁ h₂ h₃ hx hy hz) ha hb hc
+
+/-- A lane by its number, as a vector's elements are read. -/
+theorem getElem {a a' : Vec n w} (ha : Refine.le a a') (i : Nat) (hi : i < n) : Refine.le a[i] a'[i] := ha ⟨i, hi⟩
+
+end Lanewise
+
+/-! ### More integer operations -/
+
+section Int2
+variable {a a' b b' c c' : Val w}
+
+theorem fshl (ha : Refine.le a a') (hb : Refine.le b b') (hc : Refine.le c c') :
+    Refine.le (Val.fshl a b c) (Val.fshl a' b' c') :=
+  strict₃ (f := Val.fshl) (fun b c => rfl) (fun a c => by cases a <;> rfl)
+    (fun a b => by cases a <;> cases b <;> rfl) ha hb hc
+
+theorem fshr (ha : Refine.le a a') (hb : Refine.le b b') (hc : Refine.le c c') :
+    Refine.le (Val.fshr a b c) (Val.fshr a' b' c') :=
+  strict₃ (f := Val.fshr) (fun b c => rfl) (fun a c => by cases a <;> rfl)
+    (fun a b => by cases a <;> cases b <;> rfl) ha hb hc
+
+/-- A signed division overflows only by `-1`, so a dividend that's a value where the source's was poison can't make it
+overflow where the source's didn't: the model makes a poison dividend overflow by `-1` already. -/
+theorem divOverflows (ha : Refine.le a a') (y : BitVec w) (h : Val.divOverflows a y = false) :
+    Val.divOverflows a' y = false := by
+  cases a with
+  | some x => cases ha; exact h
+  | none =>
+    cases a' with
+    | none => exact h
+    | some x' =>
+      simp only [Val.divOverflows, beq_eq_false_iff_ne, ne_eq] at h
+      simp [Val.divOverflows, BitVec.sdivOverflow_eq, h]
+
+/-- `sdiv`: a poison or zero divisor, or an overflow, is undefined in the source, and it never stops the model. -/
+theorem sdiv {exact : Bool} (ha : Refine.le a a') (hb : Refine.le b b') :
+    Refine.le (Val.sdiv a b exact) (Val.sdiv a' b' exact) := by
+  cases b with
+  | none => exact outcome_ub _ _
+  | some y =>
+    cases hb
+    simp only [Val.sdiv]
+    split
+    · exact outcome_ub _ _
+    · cases hov : Val.divOverflows a y with
+      | true => exact outcome_ub _ _
+      | false =>
+        simp only [divOverflows ha y hov, Bool.false_eq_true, ite_false]
+        cases a with
+        | none => cases a' <;> exact (outcome_ok_ok _ _).2 trivial
+        | some x => cases ha; exact (outcome_ok_ok _ _).2 (refl_val _)
+
+theorem srem (ha : Refine.le a a') (hb : Refine.le b b') : Refine.le (Val.srem a b) (Val.srem a' b') := by
+  cases b with
+  | none => exact outcome_ub _ _
+  | some y =>
+    cases hb
+    simp only [Val.srem]
+    split
+    · exact outcome_ub _ _
+    · cases hov : Val.divOverflows a y with
+      | true => exact outcome_ub _ _
+      | false =>
+        simp only [divOverflows ha y hov, Bool.false_eq_true, ite_false]
+        cases a with
+        | none => cases a' <;> exact (outcome_ok_ok _ _).2 trivial
+        | some x => cases ha; exact (outcome_ok_ok _ _).2 (refl_val _)
+
+/-- The overflow intrinsics: the result and the bit are both poison where an operand is. -/
+theorem withOverflow {f : BitVec w → BitVec w → BitVec w} {o : BitVec w → BitVec w → Bool} (ha : Refine.le a a')
+    (hb : Refine.le b b') : Refine.le (Val.withOverflow f o a b) (Val.withOverflow f o a' b') := by
+  cases a with
+  | none => exact ⟨trivial, trivial⟩
+  | some x =>
+    cases ha
+    cases b with
+    | none => exact ⟨trivial, trivial⟩
+    | some y => cases hb; exact Reflexive.refl _
+
+theorem uaddWithOverflow (ha : Refine.le a a') (hb : Refine.le b b') :
+    Refine.le (Val.uaddWithOverflow a b) (Val.uaddWithOverflow a' b') := withOverflow ha hb
+theorem saddWithOverflow (ha : Refine.le a a') (hb : Refine.le b b') :
+    Refine.le (Val.saddWithOverflow a b) (Val.saddWithOverflow a' b') := withOverflow ha hb
+theorem usubWithOverflow (ha : Refine.le a a') (hb : Refine.le b b') :
+    Refine.le (Val.usubWithOverflow a b) (Val.usubWithOverflow a' b') := withOverflow ha hb
+theorem ssubWithOverflow (ha : Refine.le a a') (hb : Refine.le b b') :
+    Refine.le (Val.ssubWithOverflow a b) (Val.ssubWithOverflow a' b') := withOverflow ha hb
+theorem umulWithOverflow (ha : Refine.le a a') (hb : Refine.le b b') :
+    Refine.le (Val.umulWithOverflow a b) (Val.umulWithOverflow a' b') := withOverflow ha hb
+theorem smulWithOverflow (ha : Refine.le a a') (hb : Refine.le b b') :
+    Refine.le (Val.smulWithOverflow a b) (Val.smulWithOverflow a' b') := withOverflow ha hb
+
+end Int2
+
+/-! ### Folds over lanes -/
+
+/-- `foldl` of a step that keeps a relation keeps it. -/
+theorem foldl {β β' γ : Type} (R : β → β' → Prop) {f : β → γ → β} {f' : β' → γ → β'}
+    (hf : ∀ acc acc' x, R acc acc' → R (f acc x) (f' acc' x)) :
+    ∀ (l : List γ) {x : β} {x' : β'}, R x x' → R (l.foldl f x) (l.foldl f' x')
+  | [], _, _, h => h
+  | y :: l, _, _, h => foldl R hf l (hf _ _ y h)
+
+/-- `foldr` of a step that keeps a relation keeps it. -/
+theorem foldr {β β' γ : Type} (R : β → β' → Prop) {f : γ → β → β} {f' : γ → β' → β'}
+    (hf : ∀ x acc acc', R acc acc' → R (f x acc) (f' x acc')) :
+    ∀ (l : List γ) {x : β} {x' : β'}, R x x' → R (l.foldr f x) (l.foldr f' x')
+  | [], _, _, h => h
+  | y :: l, _, _, h => hf y _ _ (foldr R hf l h)
+
+/-- `foldl` over two lists related entry by entry, by `Refine.le`. -/
+theorem foldl_lists {f f' : Val w → Val w → Val w}
+    (hf : ∀ x x' y y', Refine.le x x' → Refine.le y y' → Refine.le (f x y) (f' x' y')) :
+    ∀ (l l' : List (Val w)), l.length = l'.length →
+      (∀ i (h : i < l.length) (h' : i < l'.length), Refine.le l[i] l'[i]) →
+      ∀ {x x' : Val w}, Refine.le x x' → Refine.le (l.foldl f x) (l'.foldl f' x')
+  | [], [], _, _, _, _, h => h
+  | _ :: l, _ :: l', hlen, hl, _, _, h =>
+    foldl_lists hf l l' (Nat.succ.inj hlen) (fun i hi hi' => hl (i + 1) (Nat.succ_lt_succ hi) (Nat.succ_lt_succ hi'))
+      (hf _ _ _ _ h (hl 0 (Nat.zero_lt_succ _) (Nat.zero_lt_succ _)))
+  | [], _ :: _, hlen, _, _, _, _ => nomatch hlen
+  | _ :: _, [], hlen, _, _, _, _ => nomatch hlen
+
+/-- `llvm.vector.reduce.*`: an operation that keeps refinement, over the lanes, keeps it. -/
+theorem reduce {f f' : Val w → Val w → Val w} {a a' : Vec n w}
+    (hf : ∀ x x' y y', Refine.le x x' → Refine.le y y' → Refine.le (f x y) (f' x' y')) (ha : Refine.le a a') :
+    Refine.le (Vec.reduce f a) (Vec.reduce f' a') := by
+  have hlen : a.toList.length = a'.toList.length := by simp
+  have hl : ∀ i (h : i < a.toList.length) (h' : i < a'.toList.length), Refine.le a.toList[i] a'.toList[i] := by
+    intro i h h'
+    simp only [Vector.getElem_toList]
+    exact ha ⟨i, by simpa using h⟩
+  simp only [Vec.reduce]
+  revert hlen hl
+  generalize a.toList = l
+  generalize a'.toList = l'
+  intro hlen hl
+  match l, l', hlen, hl with
+  | [], [], _, _ => trivial
+  | x :: rest, x' :: rest', hlen, hl =>
+    exact foldl_lists hf rest rest' (Nat.succ.inj hlen)
+      (fun i hi hi' => hl (i + 1) (Nat.succ_lt_succ hi) (Nat.succ_lt_succ hi'))
+      (hl 0 (Nat.zero_lt_succ _) (Nat.zero_lt_succ _))
+
+/-! ### Undefined behavior lane by lane, and `noundef` on vectors and structs -/
+
+/-- Lanes' runs, with the source's first that isn't a value deciding: where it's a run that never finishes, the
+target's first is the same, and where none is, none of the target's is. `P` and `P'` give `none` for a value, and the
+run otherwise. -/
+theorem findSome_runs {ι : Type} {P P' : ι → Option (Outcome α)}
+    (h : ∀ i, (P i = none ∧ P' i = none) ∨ (P i = some none ∧ P' i = some none) ∨
+      ∃ u, P i = some (Outcome.ub u)) :
+    ∀ l : List ι, (l.findSome? P = none ∧ l.findSome? P' = none) ∨
+      (l.findSome? P = some none ∧ l.findSome? P' = some none) ∨ ∃ u, l.findSome? P = some (Outcome.ub u)
+  | [] => .inl ⟨rfl, rfl⟩
+  | i :: l => by
+    simp only [List.findSome?_cons]
+    rcases h i with ⟨hp, hp'⟩ | ⟨hp, hp'⟩ | ⟨u, hp⟩
+    · rw [hp, hp']; exact findSome_runs h l
+    · rw [hp, hp']; exact .inr (.inl ⟨rfl, rfl⟩)
+    · rw [hp]; exact .inr (.inr ⟨u, rfl⟩)
+
+/-- `udiv`, `sdiv`, `urem` and `srem` on vectors: undefined if any lane is, lane by lane otherwise. -/
+theorem mapOutcome2 {f f' : Val w → Val w → Outcome (Val v)} {a a' b b' : Vec n w}
+    (hf : ∀ x x' y y', Refine.le x x' → Refine.le y y' → Refine.le (f x y) (f' x' y')) (ha : Refine.le a a')
+    (hb : Refine.le b b') : Refine.le (Vec.mapOutcome2 f a b) (Vec.mapOutcome2 f' a' b') := by
+  have hl : ∀ i : Fin n, Refine.le (f a[i] b[i]) (f' a'[i] b'[i]) := fun i => hf _ _ _ _ (ha i) (hb i)
+  unfold Vec.mapOutcome2
+  -- Each side's test of a lane, as the definition has it.
+  generalize hP : (fun (i : Fin n) => (_ : Option (Outcome (Val v)))) = P
+  generalize hP' : (fun (i : Fin n) => (_ : Option (Outcome (Val v)))) = P'
+  have hp : ∀ i, (P i = none ∧ P' i = none) ∨ (P i = some none ∧ P' i = some none) ∨
+      ∃ u, P i = some (Outcome.ub u) := fun i => by
+    rw [← hP, ← hP']
+    dsimp only
+    have hi := hl i
+    revert hi
+    cases f a[i] b[i] with
+    | none => intro hi; rw [(outcome_none _).1 hi]; exact .inr (.inl ⟨rfl, rfl⟩)
+    | some r =>
+      cases r with
+      | error e =>
+        cases e with
+        | undefined u => intro _; exact .inr (.inr ⟨u, rfl⟩)
+        | model s => intro hi; exact absurd hi id
+      | ok x => intro ⟨y, hy, _⟩; rw [hy]; exact .inl ⟨rfl, rfl⟩
+  rcases findSome_runs hp (List.finRange n) with ⟨hs, ht⟩ | ⟨hs, ht⟩ | ⟨u, hs⟩
+  · rw [hs, ht]
+    refine (outcome_ok_ok _ _).2 fun i => ?_
+    rw [Fin.getElem_fin, Fin.getElem_fin, Vector.getElem_ofFn, Vector.getElem_ofFn]
+    have hi := hl i
+    have hn := List.findSome?_eq_none_iff.1 hs i (List.mem_finRange i)
+    rw [← hP] at hn
+    dsimp only at hn
+    revert hi hn
+    cases f a[i] b[i] with
+    | none => intro _ _; trivial
+    | some r =>
+      cases r with
+      | error e => intro _ hn; exact nomatch hn
+      | ok x => intro ⟨y, hy, hxy⟩ _; rw [hy]; exact hxy
+  · rw [hs, ht]; exact rfl
+  · rw [hs]; trivial
+
+end Mono
+
+/-- Types where a value with no poison part allows only itself: what `noundef` on a vector or a struct needs. -/
+class Refine.DefinedEq (α : Type) [Refine α] [Defined α] : Prop where
+  eq : ∀ {x x' : α}, Defined.defined x = true → Refine.le x x' → x' = x
+
+instance : Refine.DefinedEq (Val w) := ⟨fun {x x'} hd h => by
+  cases x with
+  | none => cases hd
+  | some y => exact h⟩
+
+instance : Refine.DefinedEq Unit := ⟨fun _ _ => rfl⟩
+
+instance [Refine α] [Defined α] [Refine.DefinedEq α] : Refine.DefinedEq (Vector α n) := ⟨fun {x x'} hd h => by
+  apply Vector.ext
+  intro i hi
+  have hall : ∀ y ∈ x.toList, Defined.defined y = true := List.all_eq_true.1 hd
+  exact Refine.DefinedEq.eq (hall _ (by simp [Vector.getElem_mem])) (h ⟨i, hi⟩)⟩
+
+instance [Refine α] [Refine β] [Defined α] [Defined β] [Refine.DefinedEq α] [Refine.DefinedEq β] :
+    Refine.DefinedEq (α × β) := ⟨fun {x x'} hd h => by
+  have hd : Defined.defined x.1 = true ∧ Defined.defined x.2 = true :=
+    (Bool.and_eq_true _ _).mp hd
+  exact Prod.ext (Refine.DefinedEq.eq hd.1 h.1) (Refine.DefinedEq.eq hd.2 h.2)⟩
+
+namespace Mono
+
+open Refine
+
+variable {w v u n : Nat}
+
+/-- `noundef` on a vector or a struct: a poison lane or field anywhere is undefined in the source. -/
+theorem noundefAll [Refine τ] [Defined τ] [Refine.DefinedEq τ] {r : α → β → Prop} {x x' : τ} {k : Outcome α}
+    {k' : Outcome β} (hx : Refine.le x x') (hk : Outcome.Sim r k k') :
+    Outcome.Sim r (IRLean.noundefAll x k) (IRLean.noundefAll x' k') := by
+  simp only [IRLean.noundefAll]
+  cases hd : Defined.defined x with
+  | false => trivial
+  | true => rw [Refine.DefinedEq.eq hd hx, hd]; exact hk
+
+/-! ### Floating point
+
+Each operation is poison where an operand is, and otherwise a function of the operands' bits and of `pick`, its choice
+of a NaN or of a zero's sign. So each keeps refinement for one `pick` on both sides: a run that makes choices returns
+`Outcomes`, which the cut lemma doesn't cover, and these are for the operation inside it. -/
+
+section Float
+variable {e m : Nat} {nnan ninf nsz : Bool} {pick : Nat} {a a' b b' : Val (1 + e + m)}
+
+theorem fneg (ha : Refine.le a a') :
+    Refine.le (FP.fneg e m a nnan ninf nsz pick) (FP.fneg e m a' nnan ninf nsz pick) :=
+  val_map_mono (f := fun a => FP.fneg e m a nnan ninf nsz pick) rfl ha
+theorem fabs (ha : Refine.le a a') : Refine.le (FP.fabs e m a nnan ninf) (FP.fabs e m a' nnan ninf) :=
+  val_map_mono (f := fun a => FP.fabs e m a nnan ninf) rfl ha
+theorem selected (ha : Refine.le a a') :
+    Refine.le (FP.selected e m a nnan ninf nsz pick) (FP.selected e m a' nnan ninf nsz pick) :=
+  val_map_mono (f := fun a => FP.selected e m a nnan ninf nsz pick) rfl ha
+theorem isFPClass {mask : Nat} (ha : Refine.le a a') : Refine.le (FP.isFPClass e m a mask) (FP.isFPClass e m a' mask) :=
+  val_map_mono (f := fun a => FP.isFPClass e m a mask) rfl ha
+theorem nofpclass {mask : Nat} (ha : Refine.le a a') : Refine.le (FP.nofpclass e m mask a) (FP.nofpclass e m mask a') :=
+  val_map_mono (f := FP.nofpclass e m mask) rfl ha
+theorem fconv {e' m' : Nat} (ha : Refine.le a a') :
+    Refine.le (FP.fconv e m e' m' pick a nnan ninf nsz) (FP.fconv e m e' m' pick a' nnan ninf nsz) :=
+  val_map_mono (f := fun a => FP.fconv e m e' m' pick a nnan ninf nsz) rfl ha
+theorem fptoui {v : Nat} (ha : Refine.le a a') : Refine.le (FP.fptoui e m v a) (FP.fptoui e m v a') :=
+  val_map_mono (f := FP.fptoui e m v) rfl ha
+theorem fptosi {v : Nat} (ha : Refine.le a a') : Refine.le (FP.fptosi e m v a) (FP.fptosi e m v a') :=
+  val_map_mono (f := FP.fptosi e m v) rfl ha
+theorem fptouiSat {v : Nat} (ha : Refine.le a a') : Refine.le (FP.fptouiSat e m v a) (FP.fptouiSat e m v a') :=
+  val_map_mono (f := FP.fptouiSat e m v) rfl ha
+theorem fptosiSat {v : Nat} (ha : Refine.le a a') : Refine.le (FP.fptosiSat e m v a) (FP.fptosiSat e m v a') :=
+  val_map_mono (f := FP.fptosiSat e m v) rfl ha
+theorem uitofp {x x' : Val w} {nneg : Bool} (hx : Refine.le x x') :
+    Refine.le (FP.uitofp e m x nneg nnan ninf nsz pick) (FP.uitofp e m x' nneg nnan ninf nsz pick) :=
+  val_map_mono (f := fun x => FP.uitofp e m x nneg nnan ninf nsz pick) rfl hx
+theorem sitofp {x x' : Val w} (hx : Refine.le x x') :
+    Refine.le (FP.sitofp e m x nnan ninf nsz pick) (FP.sitofp e m x' nnan ninf nsz pick) :=
+  val_map_mono (f := fun x => FP.sitofp e m x nnan ninf nsz pick) rfl hx
+
+theorem copysign (ha : Refine.le a a') (hb : Refine.le b b') :
+    Refine.le (FP.copysign e m a b nnan ninf nsz pick) (FP.copysign e m a' b' nnan ninf nsz pick) :=
+  val_map₂_mono (f := fun a b => FP.copysign e m a b nnan ninf nsz pick) (fun _ => rfl)
+    (fun a => by cases a <;> rfl) ha hb
+theorem fcmp {pred : Nat} (ha : Refine.le a a') (hb : Refine.le b b') :
+    Refine.le (FP.fcmp e m pred a b nnan ninf) (FP.fcmp e m pred a' b' nnan ninf) :=
+  val_map₂_mono (f := fun a b => FP.fcmp e m pred a b nnan ninf) (fun _ => rfl) (fun a => by cases a <;> rfl) ha hb
+theorem fadd (ha : Refine.le a a') (hb : Refine.le b b') :
+    Refine.le (FP.fadd e m pick a b nnan ninf nsz) (FP.fadd e m pick a' b' nnan ninf nsz) :=
+  val_map₂_mono (f := fun a b => FP.fadd e m pick a b nnan ninf nsz) (fun _ => rfl) (fun a => by cases a <;> rfl)
+    ha hb
+theorem fsub (ha : Refine.le a a') (hb : Refine.le b b') :
+    Refine.le (FP.fsub e m pick a b nnan ninf nsz) (FP.fsub e m pick a' b' nnan ninf nsz) :=
+  val_map₂_mono (f := fun a b => FP.fsub e m pick a b nnan ninf nsz) (fun _ => rfl) (fun a => by cases a <;> rfl)
+    ha hb
+theorem fmul (ha : Refine.le a a') (hb : Refine.le b b') :
+    Refine.le (FP.fmul e m pick a b nnan ninf nsz) (FP.fmul e m pick a' b' nnan ninf nsz) :=
+  val_map₂_mono (f := fun a b => FP.fmul e m pick a b nnan ninf nsz) (fun _ => rfl) (fun a => by cases a <;> rfl)
+    ha hb
+theorem fdiv (ha : Refine.le a a') (hb : Refine.le b b') :
+    Refine.le (FP.fdiv e m pick a b nnan ninf nsz) (FP.fdiv e m pick a' b' nnan ninf nsz) :=
+  val_map₂_mono (f := fun a b => FP.fdiv e m pick a b nnan ninf nsz) (fun _ => rfl) (fun a => by cases a <;> rfl)
+    ha hb
+theorem frem (ha : Refine.le a a') (hb : Refine.le b b') :
+    Refine.le (FP.frem e m pick a b nnan ninf nsz) (FP.frem e m pick a' b' nnan ninf nsz) :=
+  val_map₂_mono (f := fun a b => FP.frem e m pick a b nnan ninf nsz) (fun _ => rfl) (fun a => by cases a <;> rfl)
+    ha hb
+
+/-- A floating-point operation on each lane, with the same choices on both sides. -/
+theorem lanes1 {c : Choice} {f f' : Nat → Val w → Val v} {x x' : Vec n w}
+    (hf : ∀ p y y', Refine.le y y' → Refine.le (f p y) (f' p y')) (hx : Refine.le x x') :
+    Refine.le (FP.lanes1 c f x) (FP.lanes1 c f' x') := fun i => by
+  show Refine.le (Vector.ofFn fun i => f (c.pick i) x[i])[i] (Vector.ofFn fun i => f' (c.pick i) x'[i])[i]
+  rw [Fin.getElem_fin, Fin.getElem_fin, Vector.getElem_ofFn, Vector.getElem_ofFn]
+  exact hf _ _ _ (hx i)
+
+theorem lanes2 {c : Choice} {f f' : Nat → Val w → Val w → Val v} {x x' y y' : Vec n w}
+    (hf : ∀ p z z' t t', Refine.le z z' → Refine.le t t' → Refine.le (f p z t) (f' p z' t')) (hx : Refine.le x x')
+    (hy : Refine.le y y') : Refine.le (FP.lanes2 c f x y) (FP.lanes2 c f' x' y') := fun i => by
+  show Refine.le (Vector.ofFn fun i => f (c.pick i) x[i] y[i])[i] (Vector.ofFn fun i => f' (c.pick i) x'[i] y'[i])[i]
+  rw [Fin.getElem_fin, Fin.getElem_fin, Vector.getElem_ofFn, Vector.getElem_ofFn]
+  exact hf _ _ _ _ _ (hx i) (hy i)
+
+end Float
+
+/-! ### Scalable vectors' lane moves, `vscale_range`, and a call through a pointer -/
+
+theorem reverse {a a' : Vec n w} (ha : Refine.le a a') : Refine.le (Vec.reverse a) (Vec.reverse a') := fun i => by
+  simp only [Vec.reverse, Fin.getElem_fin, Vector.getElem_ofFn]
+  exact lane ha _
+
+theorem insertSub {start : Nat} {a a' : Vec n w} {b b' : Vec u w} (ha : Refine.le a a') (hb : Refine.le b b') :
+    Refine.le (Vec.insertSub start a b) (Vec.insertSub start a' b') := by
+  simp only [Vec.insertSub]
+  split
+  · intro i
+    simp only [Fin.getElem_fin, Vector.getElem_ofFn]
+    split
+    · exact lane hb _
+    · exact getElem ha i.val i.isLt
+  · exact PoisonLeast.poison_le _
+
+theorem extractSub {k start : Nat} {a a' : Vec n w} (ha : Refine.le a a') :
+    Refine.le (Vec.extractSub k start a) (Vec.extractSub k start a') := by
+  simp only [Vec.extractSub]
+  split
+  · intro i
+    simp only [Fin.getElem_fin, Vector.getElem_ofFn]
+    exact lane ha _
+  · exact PoisonLeast.poison_le _
+
+theorem splat0 {k : Nat} {a a' : Vec n w} (ha : Refine.le a a') :
+    Refine.le (Vec.splat0 k a) (Vec.splat0 k a') := fun i => by
+  simp only [Vec.splat0, Fin.getElem_fin, Vector.getElem_replicate]
+  exact lane ha 0
+
+/-- `vscale_range`: the same `vscale` on both sides, which is a fact about the machine. -/
+theorem vscaleRange {lo hi : Nat} {vs : VScale} {r : α → β → Prop} {k : Outcome α} {k' : Outcome β}
+    (hk : Outcome.Sim r k k') : Outcome.Sim r (VScale.range lo hi vs k) (VScale.range lo hi vs k') := by
+  simp only [VScale.range]
+  split
+  · exact hk
+  · trivial
+
+/-- A call through a pointer: a poison one is undefined in the source, and otherwise both sides call the same. -/
+theorem indirect {τ : Type} {p p' : Option τ} (hp : p = none ∨ p' = p) {r : α → β → Prop} {k : τ → Outcome α}
+    {k' : τ → Outcome β} (hk : ∀ q, Outcome.Sim r (k q) (k' q)) :
+    Outcome.Sim r (IRLean.indirect p k) (IRLean.indirect p' k') := by
+  rcases hp with h | h
+  · subst h; trivial
+  · rw [h]
+    cases p with
+    | none => trivial
+    | some q => exact hk q
 
 end Mono
 

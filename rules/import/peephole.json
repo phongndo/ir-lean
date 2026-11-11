@@ -1,0 +1,991 @@
+{
+ "schema": "ir-lean.rules.import/1",
+ "sources": [
+  "tests/passes-proofs/peephole/Peephole/Lemmas/Add.lean",
+  "tests/passes-proofs/peephole/Peephole/Lemmas/Arith.lean",
+  "tests/passes-proofs/peephole/Peephole/Lemmas/ICmp.lean",
+  "tests/passes-proofs/peephole/Peephole/Lemmas/ICmpB.lean",
+  "tests/passes-proofs/peephole/Peephole/Lemmas/Intrinsic.lean",
+  "tests/passes-proofs/peephole/Peephole/Lemmas/Logic.lean",
+  "tests/passes-proofs/peephole/Peephole/Lemmas/Shift.lean",
+  "IRLean/Generic/Arith.lean",
+  "IRLean/Generic/Bitwise.lean"
+ ],
+ "considered": 243,
+ "imported": [
+  {
+   "lemma": "Peephole.Lemmas.add_refines_of_sum",
+   "rule": "add_of_sum"
+  },
+  {
+   "lemma": "Peephole.Lemmas.add_sub_cancel_refines",
+   "rule": "add_sub_cancel"
+  },
+  {
+   "lemma": "Peephole.Lemmas.add_sub_sub_refines",
+   "rule": "add_sub_sub"
+  },
+  {
+   "lemma": "Peephole.Lemmas.add_not_left_refines",
+   "rule": "add_not_left"
+  },
+  {
+   "lemma": "Peephole.Lemmas.add_not_right_refines",
+   "rule": "add_not_right"
+  },
+  {
+   "lemma": "Peephole.Lemmas.add_xor_signMask_refines",
+   "rule": "add_xor_signMask"
+  },
+  {
+   "lemma": "Peephole.Lemmas.add_nuw_allOnes_refines",
+   "rule": "add_nuw_allOnes"
+  },
+  {
+   "lemma": "Peephole.Lemmas.sub_zero_left_nuw_refines",
+   "rule": "sub_zero_left_nuw"
+  },
+  {
+   "lemma": "Peephole.Lemmas.sub_zero_left_nsw_refines",
+   "rule": "sub_zero_left_nsw"
+  },
+  {
+   "lemma": "Peephole.Lemmas.sub_zero_left_refines_self",
+   "rule": "sub_zero_left_self"
+  },
+  {
+   "lemma": "Peephole.Lemmas.sub_mask_xor_nuw_refines",
+   "rule": "sub_mask_xor_nuw"
+  },
+  {
+   "lemma": "Peephole.Lemmas.mul_udiv_exact_refines",
+   "rule": "mul_udiv_exact"
+  },
+  {
+   "lemma": "Peephole.Lemmas.mul_sdiv_exact_refines",
+   "rule": "mul_sdiv_exact"
+  },
+  {
+   "lemma": "Peephole.Lemmas.mul_nsw_one_bit_refines",
+   "rule": "mul_nsw_one_bit"
+  },
+  {
+   "lemma": "Peephole.Lemmas.udiv_self_refines",
+   "rule": "udiv_self"
+  },
+  {
+   "lemma": "Peephole.Lemmas.urem_self_refines",
+   "rule": "urem_self"
+  },
+  {
+   "lemma": "Peephole.Lemmas.sdiv_self_refines",
+   "rule": "sdiv_self"
+  },
+  {
+   "lemma": "Peephole.Lemmas.srem_self_refines",
+   "rule": "srem_self"
+  },
+  {
+   "lemma": "Peephole.Lemmas.udiv_zero_left_refines",
+   "rule": "udiv_zero_left"
+  },
+  {
+   "lemma": "Peephole.Lemmas.urem_zero_left_refines",
+   "rule": "urem_zero_left"
+  },
+  {
+   "lemma": "Peephole.Lemmas.sdiv_zero_left_refines",
+   "rule": "sdiv_zero_left"
+  },
+  {
+   "lemma": "Peephole.Lemmas.srem_zero_left_refines",
+   "rule": "srem_zero_left"
+  },
+  {
+   "lemma": "Peephole.Lemmas.udiv_mul_nuw_refines",
+   "rule": "udiv_mul_nuw"
+  },
+  {
+   "lemma": "Peephole.Lemmas.urem_mul_nuw_refines",
+   "rule": "urem_mul_nuw"
+  },
+  {
+   "lemma": "Peephole.Lemmas.sdiv_mul_nsw_refines",
+   "rule": "sdiv_mul_nsw"
+  },
+  {
+   "lemma": "Peephole.Lemmas.srem_mul_nsw_refines",
+   "rule": "srem_mul_nsw"
+  },
+  {
+   "lemma": "Peephole.Lemmas.udiv_mul_udiv_refines",
+   "rule": "udiv_mul_udiv"
+  },
+  {
+   "lemma": "Peephole.Lemmas.urem_mul_udiv_refines",
+   "rule": "urem_mul_udiv"
+  },
+  {
+   "lemma": "Peephole.Lemmas.sdiv_mul_sdiv_refines",
+   "rule": "sdiv_mul_sdiv"
+  },
+  {
+   "lemma": "Peephole.Lemmas.srem_mul_sdiv_refines",
+   "rule": "srem_mul_sdiv"
+  },
+  {
+   "lemma": "Peephole.Lemmas.udiv_of_lt_refines",
+   "rule": "udiv_of_lt"
+  },
+  {
+   "lemma": "Peephole.Lemmas.urem_of_lt_refines",
+   "rule": "urem_of_lt"
+  },
+  {
+   "lemma": "Peephole.Lemmas.udiv_exact_mul_nsw_refines",
+   "rule": "udiv_exact_mul_nsw"
+  },
+  {
+   "lemma": "Peephole.Lemmas.sdiv_exact_mul_nuw_refines",
+   "rule": "sdiv_exact_mul_nuw"
+  },
+  {
+   "lemma": "Peephole.Lemmas.urem_shl_nuw_refines",
+   "rule": "urem_shl_nuw"
+  },
+  {
+   "lemma": "Peephole.Lemmas.srem_shl_nsw_refines",
+   "rule": "srem_shl_nsw"
+  },
+  {
+   "lemma": "Peephole.Lemmas.urem_mul_nuw_of_umod_refines",
+   "rule": "urem_mul_nuw_of_umod"
+  },
+  {
+   "lemma": "Peephole.Lemmas.srem_mul_nsw_of_srem_refines",
+   "rule": "srem_mul_nsw_of_srem"
+  },
+  {
+   "lemma": "Peephole.Lemmas.sdiv_neg_nsw_left_refines",
+   "rule": "sdiv_neg_nsw_left"
+  },
+  {
+   "lemma": "Peephole.Lemmas.sdiv_neg_nsw_right_refines",
+   "rule": "sdiv_neg_nsw_right"
+  },
+  {
+   "lemma": "Peephole.Lemmas.sdiv_sub_nsw_swap_refines",
+   "rule": "sdiv_sub_nsw_swap"
+  },
+  {
+   "lemma": "Peephole.Lemmas.srem_sext_one_bit_refines",
+   "rule": "srem_sext_one_bit"
+  },
+  {
+   "lemma": "Peephole.Lemmas.srem_neg_left_refines",
+   "rule": "srem_neg_left"
+  },
+  {
+   "lemma": "Peephole.Lemmas.srem_neg_right_refines",
+   "rule": "srem_neg_right"
+  },
+  {
+   "lemma": "Peephole.Lemmas.srem_sub_swap_refines",
+   "rule": "srem_sub_swap"
+  },
+  {
+   "lemma": "Peephole.Lemmas.cttz_shl_one_refines",
+   "rule": "cttz_shl_one"
+  },
+  {
+   "lemma": "Peephole.Lemmas.ctlz_lshr_negative_refines",
+   "rule": "ctlz_lshr_negative"
+  },
+  {
+   "lemma": "Peephole.Lemmas.ctlz_ashr_negative_refines",
+   "rule": "ctlz_ashr_negative"
+  },
+  {
+   "lemma": "Peephole.Lemmas.ctpop_of_isPowerOfTwo",
+   "rule": "ctpop_of_isPowerOfTwo"
+  },
+  {
+   "lemma": "Peephole.Lemmas.abs_abs_refines",
+   "rule": "abs_abs"
+  },
+  {
+   "lemma": "Peephole.Lemmas.bitreverse_bitreverse",
+   "rule": "bitreverse_bitreverse"
+  },
+  {
+   "lemma": "Peephole.Lemmas.umax_self",
+   "rule": "umax_self"
+  },
+  {
+   "lemma": "Peephole.Lemmas.umin_self",
+   "rule": "umin_self"
+  },
+  {
+   "lemma": "Peephole.Lemmas.smax_self",
+   "rule": "smax_self"
+  },
+  {
+   "lemma": "Peephole.Lemmas.smin_self",
+   "rule": "smin_self"
+  },
+  {
+   "lemma": "Peephole.Lemmas.umax_comm",
+   "rule": "umax_comm"
+  },
+  {
+   "lemma": "Peephole.Lemmas.umin_comm",
+   "rule": "umin_comm"
+  },
+  {
+   "lemma": "Peephole.Lemmas.smax_comm",
+   "rule": "smax_comm"
+  },
+  {
+   "lemma": "Peephole.Lemmas.smin_comm",
+   "rule": "smin_comm"
+  },
+  {
+   "lemma": "Peephole.Lemmas.umax_allOnes_refines",
+   "rule": "umax_allOnes"
+  },
+  {
+   "lemma": "Peephole.Lemmas.umin_zero_refines",
+   "rule": "umin_zero"
+  },
+  {
+   "lemma": "Peephole.Lemmas.smax_intMax_refines",
+   "rule": "smax_intMax"
+  },
+  {
+   "lemma": "Peephole.Lemmas.smin_intMin_refines",
+   "rule": "smin_intMin"
+  },
+  {
+   "lemma": "Peephole.Lemmas.umax_zero",
+   "rule": "umax_zero"
+  },
+  {
+   "lemma": "Peephole.Lemmas.umin_allOnes",
+   "rule": "umin_allOnes"
+  },
+  {
+   "lemma": "Peephole.Lemmas.smax_intMin",
+   "rule": "smax_intMin"
+  },
+  {
+   "lemma": "Peephole.Lemmas.smin_intMax",
+   "rule": "smin_intMax"
+  },
+  {
+   "lemma": "Peephole.Lemmas.umax_umax_of_ule",
+   "rule": "umax_umax_of_ule"
+  },
+  {
+   "lemma": "Peephole.Lemmas.umin_umin_of_ule",
+   "rule": "umin_umin_of_ule"
+  },
+  {
+   "lemma": "Peephole.Lemmas.smax_smax_of_sle",
+   "rule": "smax_smax_of_sle"
+  },
+  {
+   "lemma": "Peephole.Lemmas.smin_smin_of_sle",
+   "rule": "smin_smin_of_sle"
+  },
+  {
+   "lemma": "Peephole.Lemmas.umax_umax_left",
+   "rule": "umax_umax_left"
+  },
+  {
+   "lemma": "Peephole.Lemmas.umax_umax_right",
+   "rule": "umax_umax_right"
+  },
+  {
+   "lemma": "Peephole.Lemmas.umin_umin_left",
+   "rule": "umin_umin_left"
+  },
+  {
+   "lemma": "Peephole.Lemmas.umin_umin_right",
+   "rule": "umin_umin_right"
+  },
+  {
+   "lemma": "Peephole.Lemmas.smax_smax_left",
+   "rule": "smax_smax_left"
+  },
+  {
+   "lemma": "Peephole.Lemmas.smax_smax_right",
+   "rule": "smax_smax_right"
+  },
+  {
+   "lemma": "Peephole.Lemmas.smin_smin_left",
+   "rule": "smin_smin_left"
+  },
+  {
+   "lemma": "Peephole.Lemmas.smin_smin_right",
+   "rule": "smin_smin_right"
+  },
+  {
+   "lemma": "Peephole.Lemmas.umax_umin_left_refines",
+   "rule": "umax_umin_left"
+  },
+  {
+   "lemma": "Peephole.Lemmas.umax_umin_right_refines",
+   "rule": "umax_umin_right"
+  },
+  {
+   "lemma": "Peephole.Lemmas.umin_umax_left_refines",
+   "rule": "umin_umax_left"
+  },
+  {
+   "lemma": "Peephole.Lemmas.umin_umax_right_refines",
+   "rule": "umin_umax_right"
+  },
+  {
+   "lemma": "Peephole.Lemmas.smax_smin_left_refines",
+   "rule": "smax_smin_left"
+  },
+  {
+   "lemma": "Peephole.Lemmas.smax_smin_right_refines",
+   "rule": "smax_smin_right"
+  },
+  {
+   "lemma": "Peephole.Lemmas.smin_smax_left_refines",
+   "rule": "smin_smax_left"
+  },
+  {
+   "lemma": "Peephole.Lemmas.smin_smax_right_refines",
+   "rule": "smin_smax_right"
+  },
+  {
+   "lemma": "Peephole.Lemmas.umax_some_of_ule",
+   "rule": "umax_some_of_ule"
+  },
+  {
+   "lemma": "Peephole.Lemmas.umin_some_of_ule",
+   "rule": "umin_some_of_ule"
+  },
+  {
+   "lemma": "Peephole.Lemmas.smax_some_of_sle",
+   "rule": "smax_some_of_sle"
+  },
+  {
+   "lemma": "Peephole.Lemmas.smin_some_of_sle",
+   "rule": "smin_some_of_sle"
+  },
+  {
+   "lemma": "Peephole.Lemmas.uaddSat_allOnes_left_refines",
+   "rule": "uaddSat_allOnes_left"
+  },
+  {
+   "lemma": "Peephole.Lemmas.uaddSat_allOnes_right_refines",
+   "rule": "uaddSat_allOnes_right"
+  },
+  {
+   "lemma": "Peephole.Lemmas.uaddSat_zero",
+   "rule": "uaddSat_zero"
+  },
+  {
+   "lemma": "Peephole.Lemmas.zero_uaddSat",
+   "rule": "zero_uaddSat"
+  },
+  {
+   "lemma": "Peephole.Lemmas.saddSat_zero",
+   "rule": "saddSat_zero"
+  },
+  {
+   "lemma": "Peephole.Lemmas.zero_saddSat",
+   "rule": "zero_saddSat"
+  },
+  {
+   "lemma": "Peephole.Lemmas.zero_usubSat_refines",
+   "rule": "zero_usubSat"
+  },
+  {
+   "lemma": "Peephole.Lemmas.usubSat_allOnes_refines",
+   "rule": "usubSat_allOnes"
+  },
+  {
+   "lemma": "Peephole.Lemmas.usubSat_self_refines",
+   "rule": "usubSat_self"
+  },
+  {
+   "lemma": "Peephole.Lemmas.ssubSat_self_refines",
+   "rule": "ssubSat_self"
+  },
+  {
+   "lemma": "Peephole.Lemmas.usubSat_zero",
+   "rule": "usubSat_zero"
+  },
+  {
+   "lemma": "Peephole.Lemmas.ssubSat_zero",
+   "rule": "ssubSat_zero"
+  },
+  {
+   "lemma": "Peephole.Lemmas.fshl_zero_zero_refines",
+   "rule": "fshl_zero_zero"
+  },
+  {
+   "lemma": "Peephole.Lemmas.fshr_zero_zero_refines",
+   "rule": "fshr_zero_zero"
+  },
+  {
+   "lemma": "Peephole.Lemmas.fshl_allOnes_allOnes_refines",
+   "rule": "fshl_allOnes_allOnes"
+  },
+  {
+   "lemma": "Peephole.Lemmas.fshr_allOnes_allOnes_refines",
+   "rule": "fshr_allOnes_allOnes"
+  },
+  {
+   "lemma": "Peephole.Lemmas.Logic.and_some",
+   "rule": "and_some"
+  },
+  {
+   "lemma": "Peephole.Lemmas.Logic.xor_some",
+   "rule": "xor_some"
+  },
+  {
+   "lemma": "Peephole.Lemmas.Logic.and_comm",
+   "rule": "and_comm"
+  },
+  {
+   "lemma": "Peephole.Lemmas.Logic.xor_comm",
+   "rule": "xor_comm"
+  },
+  {
+   "lemma": "Peephole.Lemmas.and_not_self_refines",
+   "rule": "and_not_self"
+  },
+  {
+   "lemma": "Peephole.Lemmas.and_or_not_or_refines",
+   "rule": "and_or_not_or"
+  },
+  {
+   "lemma": "Peephole.Lemmas.and_xor_or_xor_or_refines",
+   "rule": "and_xor_or_xor_or"
+  },
+  {
+   "lemma": "Peephole.Lemmas.and_xor_xor_not_refines",
+   "rule": "and_xor_xor_not"
+  },
+  {
+   "lemma": "Peephole.Lemmas.and_add_sub_not_refines",
+   "rule": "and_add_sub_not"
+  },
+  {
+   "lemma": "Peephole.Lemmas.or_add_sub_not_refines",
+   "rule": "or_add_sub_not"
+  },
+  {
+   "lemma": "Peephole.Lemmas.xor_add_sub_not_refines",
+   "rule": "xor_add_sub_not"
+  },
+  {
+   "lemma": "Peephole.Lemmas.and_select_refines",
+   "rule": "and_select"
+  },
+  {
+   "lemma": "Peephole.Lemmas.or_select_refines",
+   "rule": "or_select"
+  },
+  {
+   "lemma": "Peephole.Lemmas.or_not_self_refines",
+   "rule": "or_not_self"
+  },
+  {
+   "lemma": "Peephole.Lemmas.or_not_and_refines",
+   "rule": "or_not_and"
+  },
+  {
+   "lemma": "Peephole.Lemmas.or_and_absorb_refines",
+   "rule": "or_and_absorb"
+  },
+  {
+   "lemma": "Peephole.Lemmas.or_xor_or_refines",
+   "rule": "or_xor_or"
+  },
+  {
+   "lemma": "Peephole.Lemmas.or_not_xor_or_refines",
+   "rule": "or_not_xor_or"
+  },
+  {
+   "lemma": "Peephole.Lemmas.or_and_not_xor_refines",
+   "rule": "or_and_not_xor"
+  },
+  {
+   "lemma": "Peephole.Lemmas.or_xor_not_and_refines",
+   "rule": "or_xor_not_and"
+  },
+  {
+   "lemma": "Peephole.Lemmas.or_or_not_xor_refines",
+   "rule": "or_or_not_xor"
+  },
+  {
+   "lemma": "Peephole.Lemmas.or_and_not_not_or_refines",
+   "rule": "or_and_not_not_or"
+  },
+  {
+   "lemma": "Peephole.Lemmas.or_not_xor_and_refines",
+   "rule": "or_not_xor_and"
+  },
+  {
+   "lemma": "Peephole.Lemmas.or_not_and_xor_refines",
+   "rule": "or_not_and_xor"
+  },
+  {
+   "lemma": "Peephole.Lemmas.or_fshl_shl_refines",
+   "rule": "or_fshl_shl"
+  },
+  {
+   "lemma": "Peephole.Lemmas.or_fshr_lshr_refines",
+   "rule": "or_fshr_lshr"
+  },
+  {
+   "lemma": "Peephole.Lemmas.or_xor_xor_not_refines",
+   "rule": "or_xor_xor_not"
+  },
+  {
+   "lemma": "Peephole.Lemmas.xor_not_self_refines",
+   "rule": "xor_not_self"
+  },
+  {
+   "lemma": "Peephole.Lemmas.xor_and_not_or_refines",
+   "rule": "xor_and_not_or"
+  },
+  {
+   "lemma": "Peephole.Lemmas.xor_or_not_and_refines",
+   "rule": "xor_or_not_and"
+  },
+  {
+   "lemma": "Peephole.Lemmas.xor_sub_nuw_lowMask_refines",
+   "rule": "xor_sub_nuw_lowMask"
+  },
+  {
+   "lemma": "Peephole.Lemmas.shl_zero_left_refines",
+   "rule": "shl_zero_left"
+  },
+  {
+   "lemma": "Peephole.Lemmas.lshr_zero_left_refines",
+   "rule": "lshr_zero_left"
+  },
+  {
+   "lemma": "Peephole.Lemmas.ashr_zero_left_refines",
+   "rule": "ashr_zero_left"
+  },
+  {
+   "lemma": "Peephole.Lemmas.lshr_self_refines",
+   "rule": "lshr_self"
+  },
+  {
+   "lemma": "Peephole.Lemmas.ashr_self_refines",
+   "rule": "ashr_self"
+  },
+  {
+   "lemma": "Peephole.Lemmas.lshr_exact_of_getLsbD_refines",
+   "rule": "lshr_exact_of_getLsbD"
+  },
+  {
+   "lemma": "Peephole.Lemmas.ashr_exact_of_getLsbD_refines",
+   "rule": "ashr_exact_of_getLsbD"
+  },
+  {
+   "lemma": "Peephole.Lemmas.shl_nuw_of_msb_refines",
+   "rule": "shl_nuw_of_msb"
+  },
+  {
+   "lemma": "Peephole.Lemmas.ashr_allOnes_refines",
+   "rule": "ashr_allOnes"
+  },
+  {
+   "lemma": "Peephole.Lemmas.ashr_shl_allOnes_refines",
+   "rule": "ashr_shl_allOnes"
+  },
+  {
+   "lemma": "Peephole.Lemmas.trunc_zext_refines",
+   "rule": "trunc_zext"
+  },
+  {
+   "lemma": "Peephole.Lemmas.trunc_sext_refines",
+   "rule": "trunc_sext"
+  },
+  {
+   "lemma": "Peephole.Lemmas.zext_trunc_nuw_refines",
+   "rule": "zext_trunc_nuw"
+  },
+  {
+   "lemma": "Peephole.Lemmas.sext_trunc_nsw_refines",
+   "rule": "sext_trunc_nsw"
+  },
+  {
+   "lemma": "IRLean.Generic.add_zero",
+   "rule": "add_zero"
+  },
+  {
+   "lemma": "IRLean.Generic.sub_zero",
+   "rule": "sub_zero"
+  },
+  {
+   "lemma": "IRLean.Generic.mul_one_refines",
+   "rule": "mul_one"
+  },
+  {
+   "lemma": "IRLean.Generic.sub_self_refines",
+   "rule": "sub_self"
+  },
+  {
+   "lemma": "IRLean.Generic.mul_zero_refines",
+   "rule": "mul_zero"
+  },
+  {
+   "lemma": "IRLean.Generic.or_disjoint_refines_add",
+   "rule": "or_disjoint_add"
+  },
+  {
+   "lemma": "IRLean.Generic.udiv_one",
+   "rule": "udiv_one"
+  },
+  {
+   "lemma": "IRLean.Generic.urem_one_refines",
+   "rule": "urem_one"
+  },
+  {
+   "lemma": "IRLean.Generic.sdiv_one",
+   "rule": "sdiv_one"
+  },
+  {
+   "lemma": "IRLean.Generic.sdiv_one_refines",
+   "rule": "sdiv_one_refines"
+  },
+  {
+   "lemma": "IRLean.Generic.srem_one_refines",
+   "rule": "srem_one"
+  },
+  {
+   "lemma": "IRLean.Generic.and_self",
+   "rule": "and_self"
+  },
+  {
+   "lemma": "IRLean.Generic.or_self_disjoint_refines",
+   "rule": "or_self_disjoint"
+  },
+  {
+   "lemma": "IRLean.Generic.xor_self_refines",
+   "rule": "xor_self"
+  },
+  {
+   "lemma": "IRLean.Generic.and_allOnes",
+   "rule": "and_allOnes"
+  },
+  {
+   "lemma": "IRLean.Generic.or_zero",
+   "rule": "or_zero"
+  },
+  {
+   "lemma": "IRLean.Generic.xor_zero",
+   "rule": "xor_zero"
+  },
+  {
+   "lemma": "IRLean.Generic.and_zero_refines",
+   "rule": "and_zero"
+  },
+  {
+   "lemma": "IRLean.Generic.or_allOnes_refines",
+   "rule": "or_allOnes"
+  },
+  {
+   "lemma": "IRLean.Generic.not_and",
+   "rule": "not_and"
+  },
+  {
+   "lemma": "IRLean.Generic.not_or_refines",
+   "rule": "not_or"
+  },
+  {
+   "lemma": "IRLean.Generic.xor_xor_cancel_refines",
+   "rule": "xor_xor_cancel"
+  },
+  {
+   "lemma": "IRLean.Generic.and_or_absorb_refines",
+   "rule": "and_or_absorb"
+  },
+  {
+   "lemma": "IRLean.Generic.shl_zero",
+   "rule": "shl_zero"
+  },
+  {
+   "lemma": "IRLean.Generic.lshr_zero",
+   "rule": "lshr_zero"
+  },
+  {
+   "lemma": "IRLean.Generic.ashr_zero",
+   "rule": "ashr_zero"
+  },
+  {
+   "lemma": "IRLean.Generic.lshr_shl_nuw_refines",
+   "rule": "lshr_shl_nuw"
+  },
+  {
+   "lemma": "IRLean.Generic.ashr_shl_nsw_refines",
+   "rule": "ashr_shl_nsw"
+  },
+  {
+   "lemma": "IRLean.Generic.shl_lshr_exact_refines",
+   "rule": "shl_lshr_exact"
+  },
+  {
+   "lemma": "IRLean.Generic.shl_ashr_exact_refines",
+   "rule": "shl_ashr_exact"
+  }
+ ],
+ "refused": [
+  {
+   "lemma": "IRLean.Generic.add_self",
+   "reason": "the replacement's nuw depends on a matched flag"
+  },
+  {
+   "lemma": "IRLean.Generic.lshr_shl",
+   "reason": "the pattern needs nuw unset on shl, which the format can't ask"
+  },
+  {
+   "lemma": "IRLean.Generic.mul_one",
+   "reason": "a hypothesis about a flag: nsw = false ∨ w ≠ 1"
+  },
+  {
+   "lemma": "IRLean.Generic.mul_twoPow",
+   "reason": "a hypothesis the format has no side condition for: c = BitVec.twoPow w k"
+  },
+  {
+   "lemma": "IRLean.Generic.mul_twoPow_refines",
+   "reason": "a hypothesis the format has no side condition for: c = BitVec.twoPow w k"
+  },
+  {
+   "lemma": "IRLean.Generic.not_or",
+   "reason": "the pattern needs disjoint unset on or, which the format can't ask"
+  },
+  {
+   "lemma": "IRLean.Generic.or_self",
+   "reason": "the pattern needs disjoint unset on or, which the format can't ask"
+  },
+  {
+   "lemma": "IRLean.Generic.shl_lshr",
+   "reason": "the pattern needs exact unset on lshr, which the format can't ask"
+  },
+  {
+   "lemma": "Peephole.Lemmas.Logic.add_cases",
+   "reason": "an operation the format doesn't have: none ∨ Val.add (some x) (some y) nuw nsw = some (x + y)"
+  },
+  {
+   "lemma": "Peephole.Lemmas.Logic.add_sub_not_cases",
+   "reason": "an operation the format doesn't have: none ∨ Val.sub (some (~~~ k)) x f3 f4 = none ∨ ∃ t, Val.add "
+  },
+  {
+   "lemma": "Peephole.Lemmas.Logic.and_none_left",
+   "reason": "poison as an operand, which no pattern matches"
+  },
+  {
+   "lemma": "Peephole.Lemmas.Logic.and_none_right",
+   "reason": "poison as an operand, which no pattern matches"
+  },
+  {
+   "lemma": "Peephole.Lemmas.Logic.fshlRaw_or_shiftLeft",
+   "reason": "a hypothesis the format has no side condition for: s.toNat < w"
+  },
+  {
+   "lemma": "Peephole.Lemmas.Logic.fshrRaw_or_ushiftRight",
+   "reason": "a hypothesis the format has no side condition for: s.toNat < w"
+  },
+  {
+   "lemma": "Peephole.Lemmas.Logic.lshr_cases",
+   "reason": "an operation the format doesn't have: none ∨ (y.toNat < w ∧ Val.lshr (some x) (some y) exact = som"
+  },
+  {
+   "lemma": "Peephole.Lemmas.Logic.or_cases",
+   "reason": "an operation the format doesn't have: none ∨ Val.or (some x) (some y) d = some (x ||| y)"
+  },
+  {
+   "lemma": "Peephole.Lemmas.Logic.or_comm",
+   "reason": "the replacement's disjoint depends on a matched flag"
+  },
+  {
+   "lemma": "Peephole.Lemmas.Logic.or_none_left",
+   "reason": "poison as an operand, which no pattern matches"
+  },
+  {
+   "lemma": "Peephole.Lemmas.Logic.or_none_right",
+   "reason": "poison as an operand, which no pattern matches"
+  },
+  {
+   "lemma": "Peephole.Lemmas.Logic.or_some",
+   "reason": "an operation the format doesn't have: if d x &&& y ! = 0#w then none else some (x ||| y)"
+  },
+  {
+   "lemma": "Peephole.Lemmas.Logic.shl_cases",
+   "reason": "an operation the format doesn't have: none ∨ (y.toNat < w ∧ Val.shl (some x) (some y) nuw nsw = so"
+  },
+  {
+   "lemma": "Peephole.Lemmas.Logic.sub_cases",
+   "reason": "an operation the format doesn't have: none ∨ ((nuw = true → y.toNat ≤ x.toNat) ∧ Val.sub (some x) "
+  },
+  {
+   "lemma": "Peephole.Lemmas.Logic.xor_none_left",
+   "reason": "poison as an operand, which no pattern matches"
+  },
+  {
+   "lemma": "Peephole.Lemmas.Logic.xor_none_right",
+   "reason": "poison as an operand, which no pattern matches"
+  },
+  {
+   "lemma": "Peephole.Lemmas.add_comm",
+   "reason": "the replacement's nuw depends on a matched flag"
+  },
+  {
+   "lemma": "Peephole.Lemmas.add_none_right",
+   "reason": "poison as an operand, which no pattern matches"
+  },
+  {
+   "lemma": "Peephole.Lemmas.and_add_allOnes_self_refines",
+   "reason": "a hypothesis about a value, which takes an analysis: ∀ x, a = some x → x.toNat.isPowerOfTwo ∨ x = 0#w"
+  },
+  {
+   "lemma": "Peephole.Lemmas.and_add_allOnes_twoPow_refines",
+   "reason": "a hypothesis about a value, which takes an analysis: ∀ x, a = some x → x.toNat.isPowerOfTwo ∧ x.toNat < 2 * c.toNat"
+  },
+  {
+   "lemma": "Peephole.Lemmas.and_lshr_mask",
+   "reason": "a hypothesis the format has no side condition for: ~~~m <<< s.toNat = 0#w"
+  },
+  {
+   "lemma": "Peephole.Lemmas.and_neg_self_refines",
+   "reason": "a hypothesis about a value, which takes an analysis: ∀ x, a = some x → x.toNat.isPowerOfTwo ∨ x = 0#w"
+  },
+  {
+   "lemma": "Peephole.Lemmas.and_or_shl_mask_refines_left",
+   "reason": "a hypothesis about a value, which takes an analysis: ∀ v, y = some v → v &&& m = 0#w"
+  },
+  {
+   "lemma": "Peephole.Lemmas.and_or_shl_mask_refines_right",
+   "reason": "a hypothesis about a value, which takes an analysis: ∀ v, y = some v → v &&& m = v"
+  },
+  {
+   "lemma": "Peephole.Lemmas.and_refines_false_of_implies",
+   "reason": "a hypothesis about a value, which takes an analysis: a = some 1#1 → b = none ∨ b = some 0#1"
+  },
+  {
+   "lemma": "Peephole.Lemmas.and_refines_left_of_implies",
+   "reason": "a hypothesis about a value, which takes an analysis: a = some 1#1 → b = none ∨ b = some 1#1"
+  },
+  {
+   "lemma": "Peephole.Lemmas.and_refines_right_of_false",
+   "reason": "a hypothesis about a value, which takes an analysis: a = some 0#1 → b = none ∨ b = some 0#1"
+  },
+  {
+   "lemma": "Peephole.Lemmas.and_shl_mask",
+   "reason": "a hypothesis the format has no side condition for: ~~~m >>> s.toNat = 0#w"
+  },
+  {
+   "lemma": "Peephole.Lemmas.and_shl_shl_add_allOnes_refines",
+   "reason": "a hypothesis about a value, which takes an analysis: ∀ x, a = some x → x.toNat.isPowerOfTwo ∨ x = 0#w"
+  },
+  {
+   "lemma": "Peephole.Lemmas.ashr_of_getMsbD_refines",
+   "reason": "a hypothesis about a value, which takes an analysis: ∀ i, i < w → x.getMsbD i = x.msb"
+  },
+  {
+   "lemma": "Peephole.Lemmas.ashr_of_le_toNat",
+   "reason": "a hypothesis the format has no side condition for: w ≤ y.toNat"
+  },
+  {
+   "lemma": "Peephole.Lemmas.bswap_bswap",
+   "reason": "a hypothesis the format has no side condition for: w % 8 = 0"
+  },
+  {
+   "lemma": "Peephole.Lemmas.ctpop_of_and_eq_zero",
+   "reason": "a hypothesis the format has no side condition for: x &&& (BitVec.allOnes w <<< 1) = 0#w"
+  },
+  {
+   "lemma": "Peephole.Lemmas.fshl_lshr_shl_refines",
+   "reason": "a hypothesis the format has no side condition for: c1 + c2 = BitVec.ofNat w w"
+  },
+  {
+   "lemma": "Peephole.Lemmas.fshl_of_toNat_mod_eq_zero",
+   "reason": "a hypothesis the format has no side condition for: s.toNat % w = 0"
+  },
+  {
+   "lemma": "Peephole.Lemmas.fshr_lshr_shl_refines",
+   "reason": "a hypothesis the format has no side condition for: c1 + c2 = BitVec.ofNat w w"
+  },
+  {
+   "lemma": "Peephole.Lemmas.fshr_of_toNat_mod_eq_zero",
+   "reason": "a hypothesis the format has no side condition for: s.toNat % w = 0"
+  },
+  {
+   "lemma": "Peephole.Lemmas.lshr_of_le_toNat",
+   "reason": "a hypothesis the format has no side condition for: w ≤ y.toNat"
+  },
+  {
+   "lemma": "Peephole.Lemmas.lshr_or_shl_nuw_refines",
+   "reason": "a hypothesis the format has no side condition for: y.toNat < 2 ^ c.toNat"
+  },
+  {
+   "lemma": "Peephole.Lemmas.mul_comm",
+   "reason": "the replacement's nuw depends on a matched flag"
+  },
+  {
+   "lemma": "Peephole.Lemmas.or_and_add_and_lowMask_refines",
+   "reason": "a hypothesis about a value, which takes an analysis: ∀ v, n = some v → v &&& c = 0#w"
+  },
+  {
+   "lemma": "Peephole.Lemmas.or_logicalAnd_not_logicalOr_refines",
+   "reason": "a hypothesis about a value, which takes an analysis: IsLogicalAnd x (Val.xor a (some 1#1)) b"
+  },
+  {
+   "lemma": "Peephole.Lemmas.or_refines_left_of_implies",
+   "reason": "a hypothesis about a value, which takes an analysis: a = some 0#1 → b = none ∨ b = some 0#1"
+  },
+  {
+   "lemma": "Peephole.Lemmas.or_refines_right_of_true",
+   "reason": "a hypothesis about a value, which takes an analysis: a = some 1#1 → b = none ∨ b = some 1#1"
+  },
+  {
+   "lemma": "Peephole.Lemmas.or_refines_true_of_implies",
+   "reason": "a hypothesis about a value, which takes an analysis: a = some 0#1 → b = none ∨ b = some 1#1"
+  },
+  {
+   "lemma": "Peephole.Lemmas.or_shl_lshr_allOnes_sub_left_refines",
+   "reason": "a hypothesis the format has no side condition for: c.toNat ≤ w"
+  },
+  {
+   "lemma": "Peephole.Lemmas.or_shl_lshr_allOnes_sub_right_refines",
+   "reason": "a hypothesis the format has no side condition for: c.toNat ≤ w"
+  },
+  {
+   "lemma": "Peephole.Lemmas.sdiv_exact_of_low_bit_refines",
+   "reason": "a hypothesis the format has no side condition for: x.getLsbD k = true"
+  },
+  {
+   "lemma": "Peephole.Lemmas.sdiv_of_natAbs_lt_refines",
+   "reason": "a hypothesis the format has no side condition for: x.toInt.natAbs < y.toInt.natAbs"
+  },
+  {
+   "lemma": "Peephole.Lemmas.shl_nuw_nsw_of_toNat_eq_refines",
+   "reason": "a hypothesis the format has no side condition for: c.toNat = w - 1"
+  },
+  {
+   "lemma": "Peephole.Lemmas.shl_of_le_toNat",
+   "reason": "a hypothesis the format has no side condition for: w ≤ y.toNat"
+  },
+  {
+   "lemma": "Peephole.Lemmas.srem_of_natAbs_lt_refines",
+   "reason": "a hypothesis the format has no side condition for: x.toInt.natAbs < y.toInt.natAbs"
+  },
+  {
+   "lemma": "Peephole.Lemmas.udiv_exact_of_low_bit_refines",
+   "reason": "a hypothesis the format has no side condition for: x.getLsbD k = true"
+  }
+ ]
+}
