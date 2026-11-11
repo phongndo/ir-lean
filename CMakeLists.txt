@@ -184,8 +184,9 @@ set_tests_properties(kernels_demand PROPERTIES SKIP_RETURN_CODE 77 TIMEOUT 1800)
 # tools/irlean, the shared Python library, and tools/measure.py on it: about 3 s, and no Lean or LLVM.
 # docs/python.md.
 add_test(NAME irlean COMMAND ${CMAKE_SOURCE_DIR}/tests/irlean_test.py)
-# tools/irlean/verdict.py, the one place Python decides a verdict: every combination of how the processes
-# it rests on end, and each tool and test asking it. About 4 s, and no Lean. docs/trust.md.
+# tools/irlean/verdict.py, the one place Python decides a verdict: what each grant requires, every
+# combination of how the processes it rests on end, one lint for every grant's word, and each tool and test
+# asking it. About 7 s, and no Lean. docs/verdicts.md and docs/trust.md.
 add_test(NAME verdict COMMAND ${CMAKE_SOURCE_DIR}/tests/verdict_test.py)
 # tests/alive.py on three small rewrites through alive-tv: a source that's undefined on every input is
 # unknown, never correct. About a second, and no Lean.
