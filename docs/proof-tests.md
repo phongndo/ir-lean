@@ -224,10 +224,11 @@ IR says, are outside this, as [trust](trust.md#what-a-theorem-covers) says.
 ### Limits
 
 - **Memory.** A function that takes memory has a `Mem` or a pointer among its binders, and comes back
-  `unknown/binder_unsupported`. Tier 1 can't generate memory, and running the model on it is slow: `Mem` is a chain
+  `unknown/binder_unsupported`. Tier 1 can't generate memory. Running the model on it was slow, since `Mem` is a chain
   of closures, so each access walks back through earlier writes, which kept the zlib differential test to inputs of
-  about 800 bytes ([status](status.md)). The executable memory model, milestone E2, is the fix, and generators for
-  buffers come after it.
+  about 800 bytes. Since 2026-11-11 [`ExecMem`](memory.md#executable-memory), milestone E2, runs the same code in time
+  that grows with the input, proved to agree with `Mem` operation by operation, and the differential tests run on it.
+  Generators for buffers, and tier 1 running on it, come next.
 - **Statements** can name Lean's libraries, `IRLean` and the generated module, and nothing else, as verify's pinned
   statements can. A spec written with definitions of its own, such as `pop` in `tests/proofs/Popcount.lean`, has to be
   stated with core's, such as `BitVec.cpop`, or it comes back `unknown/statement_invalid`.
@@ -376,9 +377,9 @@ later run, with both.
 
 Running the model on integer code is cheap: over the 79 properties that passed, a median of 9.9 µs an input, and at
 most 35.7 µs, for `__ffsti2` on 128 bits, which is why the default is 10,000 inputs. What limits input size
-is memory. Tier 1 doesn't generate memory at all yet, and when it does, `Mem` as a chain of closures makes each access
-walk back through earlier writes, which kept the zlib differential test to about 800 bytes. The executable memory
-model, E2, is the fix.
+is memory. Tier 1 doesn't generate memory at all yet. When it does, it can run on `ExecMem`, the executable memory of
+E2, which runs zlib on 128 KiB in about 6 s where `Mem`, as a chain of closures, took about a minute on 4 KiB
+([memory](memory.md#what-it-costs)).
 
 ### In CI
 
