@@ -233,10 +233,7 @@ add_test(
     COMMAND ${GO_EXECUTABLE} test -count=1 -run Live ./...
     WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/irl
 )
-set_tests_properties(
-    irl_live
-    PROPERTIES ENVIRONMENT "IRL_LIVE=1;IRL_BIN=${CMAKE_BINARY_DIR}/irl" TIMEOUT 600
-)
+set_tests_properties(irl_live PROPERTIES ENVIRONMENT "IRL_LIVE=1;IRL_BIN=${CMAKE_BINARY_DIR}/irl" TIMEOUT 600)
 # What counts as a certificate: the gate on stored and broken results, in Python, and then a corpus of
 # wrong and right rewrites through tools/verify.py, one Lean process at a time.
 add_test(NAME verify_negative_static COMMAND ${CMAKE_SOURCE_DIR}/tests/verify_negative.py --tier static)
