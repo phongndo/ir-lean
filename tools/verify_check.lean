@@ -71,8 +71,10 @@ def emit (nonce : String) (fields : List (String × Json)) : IO Unit := do
 def pp (e : Expr) : MetaM String := do
   return toString (← withOptions (fun o => o.setBool `pp.fullNames true) (ppExpr e))
 
-/-- A statement or a witness, which may not run code while it elaborates: a tactic block, `by ...` or
-`show T by ...`, can run any, `run_tac` among them, and so can `by_elab`, here where the nonce is. -/
+/-- A statement or a witness, refused if it has a tactic block, `by ...` or `show T by ...`, which can run any code,
+`run_tac` among them, or `by_elab`, here where the nonce is. That doesn't make elaborating a term run no code:
+`include_str` with a path an `unsafeIO` computes still does. So only the request's own terms, trusted as the request
+is, and the literals `bv_decide` printed, which tools/verify.py checks, get here. docs/verify.md has why. -/
 def parseTerm (text what : String) : TermElabM Syntax := do
   match Parser.runParserCategory (← getEnv) `term text s!"<{what}>" with
   | .ok s =>

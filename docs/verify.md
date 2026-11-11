@@ -219,7 +219,8 @@ proof or its support modules would run the proof's own code, so a witness for a 
 A witness is a Lean term, such as `3#32`, `0xff#8` or `some 5#32`. It's elaborated against its binder's type and
 then run, in the process that prints the answers. A tactic block, `(by ...)` or `(show T by ...)`, and `by_elab`
 run code while they elaborate, so a witness with one comes back `unsupported`, and a pinned statement with one is
-`statement_invalid`. That doesn't make a witness safe to take from anyone: running it runs whatever it computes,
+`statement_invalid`. They aren't the only terms that do, `include_str` with a computed path is another, so that
+doesn't make a witness safe to take from anyone: running it runs whatever it computes,
 `unsafe` code included. So the witnesses evaluated are the request's own, trusted as the rest of the request is,
 and the literals `bv_decide` printed. Nothing else a proof writes becomes one.
 
