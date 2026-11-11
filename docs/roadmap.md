@@ -445,6 +445,12 @@ check was in its [manifest](../bench/kernels/manifest.toml), which says `state =
 `tests/kernels_test.py` holds it to. A change to it now needs an amendment with its date and reason. The rule search
 runs on it.
 
+**The lock is `d58e280b3e19bf21a75927a9ca408a695f4a52fb8bdfdfc97db3d8c685be45eb`,** the digest
+`bench/kernels/kernels.py digest` printed of the corpus as it was fixed. This record is what holds it: the manifest's
+`[lock]` has to be the digest written here, which `bench/kernels/kernels.py check` reads from this section and
+`tests/kernels_test.py` also keeps, and every amendment starts from it. So the lock can't be replaced to cover a
+change without changing this record of a reviewed decision.
+
 1. **The projects are llama.cpp, zlib-ng, xxHash, libsodium, FLAC and libwebp.** Why: one or two from each of the five
    domains, and in all but llama.cpp a kernel the profile calls hot already translates.
 2. **The two llama.cpp rewrites on `main` don't count toward the ten yet.** Each counts once the rule search finds it

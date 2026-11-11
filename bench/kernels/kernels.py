@@ -10,7 +10,8 @@ compiled from, the flags the project builds them with, the kernels, its inputs, 
 workloads wall time is measured on. A workload says what it runs, what's measured, its wall time or a rate it
 prints, and how a candidate is checked before it's timed: its output, compared bit for bit with the
 baseline's, or the project's own test of the same functions against known answers. A driver of ours that a
-workload runs is pinned by its hash too.
+workload runs is pinned by its hash too, and so is every other file of this repository a workload or a check
+runs.
 
 While `corpus.state` is `proposed` it's a proposal, and nothing is approved. Once the maintainer approves a
 list, `state` is `approved`, `corpus.approved` names the projects, and `corpus.approved_on` and
@@ -19,7 +20,9 @@ fixing can still change an entry. Then `state` is `fixed`, every workload of an 
 measured and has a check, and `[lock]` records the digest of what was approved. From then on any change to an
 approved project, or to what the corpus compiles with, changes the digest, and `problems` reports it unless an
 `[[amendment]]` records the change, its date and its reason, each amendment starting from the digest the one
-before it ended on. So the corpus can't change quietly.
+before it ended on. The lock itself is held to the decision it records: its digest has to be in the section of
+the doc `lock.approved_in` points to, docs/roadmap.md's record, so replacing it is a change to a reviewed
+decision, and tests/kernels_test.py holds it to the digest approved too. So the corpus can't change quietly.
 
 usage: bench/kernels/kernels.py check          the manifest meets every rule
        bench/kernels/kernels.py digest         the digest of the projects named, or of `corpus.approved`
@@ -89,6 +92,8 @@ CHECKS = ("output", "known-answers")
 # run writes, and this repository. {input:NAME} names one of the project's inputs.
 PLACES = ("src", "build", "out", "repo")
 PLACEHOLDER = re.compile(r"\{([^{}]*)\}")
+# A file of this repository a command names, which has to be pinned by its hash.
+REPO_FILE = re.compile(r"\{repo\}/(\S+)")
 
 
 def load(path: Path = MANIFEST) -> dict[str, Any]:
@@ -122,7 +127,10 @@ def digest(manifest: dict[str, Any], names: list[str] | None = None) -> str:
     projects = manifest.get("project", {})
     fixed = {
         "schema": manifest.get("schema"),
-        "corpus": {k: corpus.get(k) for k in ("llvm_tag", "target", "opt", "flags", "machine")},
+        "corpus": {
+            k: corpus.get(k)
+            for k in ("llvm_tag", "llvm_commit", "llvm_nix_hash", "target", "opt", "flags", "machine")
+        },
         "projects": {
             name: {k: v for k, v in projects.get(name, {}).items() if k not in ("status", "note")}
             for name in chosen
@@ -305,6 +313,38 @@ def _places(label: str, strings: list[str], inputs: set[str]) -> list[str]:
     return out
 
 
+def _pinned(label: str, value: Any) -> tuple[set[str], list[str]]:
+    """The files of this repository a workload's or a check's `pinned` pins, a table of each path to its
+    SHA-256, and what's wrong with it. The lock covers them by their hashes, as it covers a driver."""
+    if value is None:
+        return set(), []
+    if not isinstance(value, dict) or not all(isinstance(v, str) for v in value.values()):
+        return set(), [f"{label}: pinned isn't a table of paths in this repository to their SHA-256"]
+    out = []
+    for path, sha256 in value.items():
+        if not path or path.startswith("/") or ".." in Path(path).parts:
+            out.append(f"{label}: pinned {path!r} isn't a path in this repository")
+        elif not (ROOT / path).is_file():
+            out.append(f"{label}: pinned {path} doesn't exist")
+        elif sha256 != (actual := hashing.sha256_file(ROOT / path)):
+            out.append(
+                f"{label}: pinned {path}'s SHA-256 isn't the file's, {actual}: "
+                "a change to a file of ours that a workload runs is a change to the corpus"
+            )
+    return set(value), out
+
+
+def _unpinned(label: str, strings: list[str], pinned: set[str]) -> list[str]:
+    """Each file of this repository `strings` name, as {repo}/PATH, that isn't in `pinned`."""
+    return [
+        f"{label}: {{repo}}/{path} isn't pinned: a file of this repository that a workload runs is its "
+        "driver or in `pinned`, with its SHA-256"
+        for s in strings
+        for path in REPO_FILE.findall(s)
+        if path not in pinned
+    ]
+
+
 def _workload_problems(label: str, w: dict[str, Any], inputs: set[str]) -> list[str]:
     """What's wrong with one workload. A fixed corpus asks more of an approved project's: `problems`."""
     out: list[str] = []
@@ -347,6 +387,11 @@ def _workload_problems(label: str, w: dict[str, Any], inputs: set[str]) -> list[
             out.append(f"{label}: build doesn't compile the driver, {{repo}}/{driver}")
     elif "driver_sha256" in w:
         out.append(f"{label}: driver_sha256 without a driver")
+    pinned, wrong = _pinned(label, w.get("pinned"))
+    out += wrong
+    if isinstance(w.get("driver"), str):
+        pinned.add(w["driver"])
+    out += _unpinned(label, strings, pinned)
 
     checks = w.get("check", [])
     if not isinstance(checks, list) or not all(isinstance(c, dict) for c in checks):
@@ -362,6 +407,8 @@ def _workload_problems(label: str, w: dict[str, Any], inputs: set[str]) -> list[
         if "run" in c and not _commands(c["run"]):
             out.append(f"{at}: run isn't a list of commands, each a list of strings")
         strings += _words(c.get("run"))
+        its, wrong = _pinned(at, c.get("pinned"))
+        out += wrong + _unpinned(at, _words(c.get("run")), pinned | its)
         if kind == "output":
             output = c.get("output")
             if not _strings(output) or not output:
@@ -424,11 +471,12 @@ def problems(manifest: dict[str, Any]) -> list[str]:
     state = corpus.get("state")
     if state not in STATES:
         out.append(f"corpus.state {state!r} isn't one of {', '.join(STATES)}")
-    # The baseline is the pinned clang's, so the pin moving is a change to the corpus.
-    if corpus.get("llvm_tag") != pins.llvm()["tag"]:
-        out.append(
-            f"corpus.llvm_tag {corpus.get('llvm_tag')!r} isn't tests/llvm/targets.toml's {pins.llvm()['tag']}"
-        )
+    # The baseline is the pinned clang's, so the pin moving is a change to the corpus: its tag, and the commit
+    # and source hash under it, which can move while the tag doesn't.
+    llvm = pins.llvm()
+    for key, pin in (("llvm_tag", "tag"), ("llvm_commit", "commit"), ("llvm_nix_hash", "nix_hash")):
+        if corpus.get(key) != llvm[pin]:
+            out.append(f"corpus.{key} {corpus.get(key)!r} isn't tests/llvm/targets.toml's {pin}, {llvm[pin]}")
     if corpus.get("opt") != "-O3":
         out.append("corpus.opt isn't -O3, the level decision 6's baseline names")
     if corpus.get("target") != "x86_64-unknown-linux-gnu":
@@ -519,6 +567,53 @@ def problems(manifest: dict[str, Any]) -> list[str]:
             "A change to a fixed corpus needs an [[amendment]] with its date, its reason and both digests"
         )
     return out
+
+
+def _slug(heading: str) -> str:
+    """A heading's anchor, as GitHub makes it."""
+    return "".join(c for c in heading.lower().replace(" ", "-") if c.isalnum() or c in "-_")
+
+
+def section(text: str, anchor: str) -> str | None:
+    """The section of a Markdown document under the heading whose anchor is `anchor`, to the next heading at
+    its level or above, or None if there's no such heading. A line in a fenced code block isn't a heading."""
+    lines = text.splitlines()
+    levels: list[int] = []
+    fenced = False
+    for line in lines:
+        if line.startswith("```"):
+            fenced = not fenced
+        level = len(line) - len(line.lstrip("#"))
+        levels.append(level if level and not fenced and line[level:].startswith(" ") else 0)
+    for n, level in enumerate(levels):
+        if level and _slug(lines[n][level:].strip()) == anchor:
+            end = next((m for m in range(n + 1, len(lines)) if 0 < levels[m] <= level), len(lines))
+            return "\n".join(lines[n:end])
+    return None
+
+
+def recorded(manifest: dict[str, Any]) -> list[str]:
+    """What's wrong with a fixed corpus's lock as a record: its digest has to be in the section of the doc
+    `lock.approved_in` points to, docs/roadmap.md's record of the decision. The lock is the digest approved,
+    and every amendment starts from it, so replacing it means changing a decision that was reviewed."""
+    lock = manifest.get("lock")
+    if manifest.get("corpus", {}).get("state") != "fixed" or not isinstance(lock, dict):
+        return []
+    where, sha256 = lock.get("approved_in"), lock.get("sha256")
+    path, _, anchor = where.partition("#") if isinstance(where, str) else ("", "", "")
+    if not path or not anchor or path.startswith("/") or ".." in Path(path).parts:
+        return [f"lock.approved_in {where!r} isn't PATH#HEADING, a section of a doc in this repository"]
+    if not (ROOT / path).is_file():
+        return [f"lock.approved_in names {path}, which doesn't exist"]
+    text = section((ROOT / path).read_text(), anchor)
+    if text is None:
+        return [f"lock.approved_in names #{anchor}, which isn't a heading of {path}"]
+    if not isinstance(sha256, str) or sha256 not in text:
+        return [
+            f"lock.sha256 {sha256} isn't in {where}, the record of the decision it locks: the lock is the "
+            "digest approved, and a change from it is an [[amendment]] that starts from it"
+        ]
+    return []
 
 
 def fixed(manifest: dict[str, Any], names: list[str], on: str, where: str) -> dict[str, Any]:
@@ -623,7 +718,7 @@ def main(argv: list[str]) -> int:
             return 2
         print(source(argv[1], manifest["project"][argv[1]]))
         return 0
-    found = problems(manifest)
+    found = problems(manifest) + recorded(manifest)
     for line in found:
         print(f"FAIL {line}")
     if found:

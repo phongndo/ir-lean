@@ -315,5 +315,6 @@ reads it. That difference is itself a thing [Phase 3](roadmap.md#phase-3-c-and-r
 19. [The kernel corpus](kernels.md), the real projects the superoptimizer is judged on, fixed on 2026-11-10: the six
     the maintainer approved that day, llama.cpp, zlib-ng, xxHash, libsodium, FLAC and libwebp, with sixteen
     workloads, each saying what's measured and how a candidate is checked before it's timed, and a bulk-encryption
-    driver of ours for libsodium. A lock holds the list, and `tests/kernels_test.py` fails on any change to it that no
-    amendment records. No search or rewrite has run on it yet.
+    driver of ours for libsodium. A lock holds the list, which the roadmap's record of the decision holds too, and
+    `tests/kernels_test.py` fails on any change to it that no amendment from that lock records. No search or rewrite
+    has run on it yet.

@@ -12,8 +12,8 @@ llama.cpp, zlib-ng, xxHash, libsodium, FLAC and libwebp, and all seven
 [driver for libsodium](#libsodiums-bulk-encryption-driver) was written, each workload's
 [check](#each-workloads-check) went into the manifest, and the list was fixed the same day:
 [`bench/kernels/manifest.toml`](../bench/kernels/manifest.toml) says `state = "fixed"`, and its `[lock]` holds the
-digest of the six as approved ([how](#the-manifest)). No search or candidate rewrite has been run on any of these
-projects.
+digest of the six as approved, which the roadmap's record of the decision holds too ([how](#the-manifest)). No search
+or candidate rewrite has been run on any of these projects.
 
 Until then this page was the proposal, and it reads as one where it gives the case for each choice.
 
@@ -606,15 +606,17 @@ the [protocol](#the-benchmark-protocol)'s pairing. And every pin goes stale.
 
 [`bench/kernels/manifest.toml`](../bench/kernels/manifest.toml) holds, for each project: its repository, tag, commit
 and Nix hash, the units its kernels are compiled from, the flags the project builds each with, the kernels, its
-inputs, each with its SHA-256, and its workloads. `[corpus]` holds what every project is compiled with: the LLVM tag,
-the target, `-O3`, and the machine.
+inputs, each with its SHA-256, and its workloads. `[corpus]` holds what every project is compiled with: the pinned
+LLVM, by its tag and by the commit and source hash `tests/llvm/targets.toml` pins under it, which could move while the
+tag doesn't, the target, `-O3`, and the machine.
 
 Each workload has a name and says what it runs, as commands: `run`, the part that's timed, `setup`, run once before,
 and `build`, for what the project's own build doesn't make, as libsodium's tests in benchmark mode and the driver.
 Commands name the source at its pin, `{src}`, the project's build, `{build}`, a directory for what a run writes,
 `{out}`, this repository, `{repo}`, and an input, `{input:NAME}`. A workload says what's `measure`d, `"time"` or a
 `"rate"` the benchmark prints, and which, and has one [check](#each-workloads-check) or more. A driver of ours is
-pinned by its SHA-256.
+pinned by its SHA-256, and so is every other file of this repository a workload or a check runs, in a `pinned` table
+of its path and hash: a `{repo}/PATH` that's neither is refused.
 
 The proposal had approving and fixing as one act. Decision 7 put libsodium's driver between them, so they were two,
 and both were done on 2026-11-10:
@@ -624,12 +626,24 @@ and both were done on 2026-11-10:
    project's entry could still change, as the driver changed libsodium's workloads.
 2. **Fixed,** once the driver was written, in one pull request: `corpus.state` is `"fixed"`, every workload of the
    six says what's measured and how it's checked, and `[lock]` records the digest `bench/kernels/kernels.py digest`
-   prints, `5fcc0c9080e132266426321bfd591f9554d8bd2f4bab9a3428d7be9ccaaa061f`, the date, and where the roadmap records
+   prints, `d58e280b3e19bf21a75927a9ca408a695f4a52fb8bdfdfc97db3d8c685be45eb`, the date, and where the roadmap records
    the decision. The search runs after that.
 
 The digest is a SHA-256 over `[corpus]`'s settings and each approved project's whole entry: its pin, hash, units,
-flags, kernels, inputs, and workloads with their commands, measures and checks, and the driver's hash. So now a change
-to any of them, or to the pinned LLVM, changes the digest, and needs an `[[amendment]]`.
+flags, kernels, inputs, and workloads with their commands, measures and checks, and the hashes of the driver and of
+every other file of ours they run. So now a change to any of them, or to the pinned LLVM, changes the digest, and
+needs an `[[amendment]]`.
+
+**What holds the lock.** A digest that's only compared with the manifest's own lock would let a change and a new lock
+pass together. So the lock is held to the decision: it has to be in the roadmap's
+[record of it](roadmap.md#the-kernel-corpus-decided-on-2026-11-10), the section `lock.approved_in` points to, which
+`bench/kernels/kernels.py check` reads, and `tests/kernels_test.py` keeps it as the digest approved too. An amendment
+starts from it. Replacing the lock means changing that record, the test and the manifest, each a visible change to a
+reviewed decision.
+
+It's the original lock, the one the corpus was first fixed with. The review of the pull request that fixed it changed
+llama.cpp's checks, libsodium's Argon2id workload and what the lock covers before it merged, so no amendment precedes
+it.
 
 ### The test that fails when it changes
 
@@ -647,13 +661,20 @@ to any of them, or to the pinned LLVM, changes the digest, and needs an `[[amend
 - Once it's fixed, every workload of an approved project says what's measured and has a check, and the digest has to
   be the lock's, or reached from it by `[[amendment]]`s, each with its date, its reason, the pull request, and the
   digest it starts from and ends on. So the corpus can change, and never quietly: the roadmap's rule for a gate.
+- The lock is the digest approved, `d58e280b…45eb`, which the test keeps, and which the roadmap's record of the
+  decision has to hold. A change made with the lock replaced by its own digest, as zlib-ng's level changed to `-9`
+  with a new lock, is refused, and the same change made by an amendment from the digest approved isn't.
 - It is fixed: the six of 2026-11-10, with the lock's date and where the roadmap records them. llama.cpp's `pp512` and
   `tg128` and xxHash's `bench` are the rates, and libsodium's `argon2id` and xxHash's `bench` are checked against
-  known answers. libsodium's workloads are decision 7's two.
-- A fixed corpus has at least 3 projects, and `corpus.llvm_tag` is `tests/llvm/targets.toml`'s pin.
+  known answers. libsodium's workloads are decision 7's two, and what `argon2id` times is its own copy of the test,
+  out of the directory its check cleans. llama.cpp's three are each checked by raw logits at every step of greedy
+  decoding, with their thread count, and not by `llama-perplexity`'s saved log-probabilities.
+- A fixed corpus has at least 3 projects, and `corpus.llvm_tag`, `corpus.llvm_commit` and `corpus.llvm_nix_hash` are
+  `tests/llvm/targets.toml`'s pin.
 - Cases built to break each rule are refused: a pin, a hash, a flag, a kernel, a workload's commands, its measure, a
-  check, an input or the driver changed under the lock, in the manifest as it is and in one locked the same way, a
-  workload left without a check, an amendment that starts from the wrong digest, an approved project that's rejected.
+  check, an input, the driver, a file of ours a check runs, or the LLVM commit changed under the lock, in the manifest
+  as it is and in one locked the same way, a workload left without a check, a `{repo}` file that isn't pinned, an
+  amendment that starts from the wrong digest, a lock that isn't in its record, an approved project that's rejected.
 - `reference.py` meets its documents' vectors and starts from the driver's seeds and pattern.
 - This page names every project with its commit, and `bench/kernels/results/demand.json` is about the manifest's pins.
 
@@ -688,8 +709,9 @@ rule for every win.
   the same functions in its checking mode, which compares against known answers, and the timed runs' output is
   recorded and not compared. Where a project has no such test, as llama.cpp's tests compare its kernels with a float
   reference within a bound, a command of its own whose output is a result is run instead, and compared bit for bit:
-  llama.cpp's logits, as `tests/llama_bench.py` compares them. Each workload's check is in the manifest, as it was
-  fixed: [below](#each-workloads-check).
+  llama.cpp's raw logits, at each step of decoding, as [llama.cpp's Q5](llama-q5.md) compared them. The check has to
+  run the code the workload times: a batched pass doesn't reach the kernels decoding one token runs. Each workload's
+  check is in the manifest, as it was fixed: [below](#each-workloads-check).
 
 **What's measured.** Wall time of the workload's command, from start to exit, on z, pinned to cores of one CCD, with
 the thread count the manifest gives, one unless the workload says otherwise. A run shorter than 2 seconds is repeated
@@ -727,14 +749,14 @@ compute what the baseline does before it's timed. Each runs with one thread, but
 
 | Project | Workload | Measured | Check |
 | --- | --- | --- | --- |
-| llama.cpp | `pp512`: `llama-bench`, reading a 512-token prompt with Qwen2.5 1.5B at Q4_K_M | Rate: tokens a second, `avg_ts` | Output: the logits of 16 chunks of 512 tokens of WikiText-2, from `llama-perplexity --kl-divergence-base`, bit for bit |
-| | `tg128`: `llama-bench`, generating 128 tokens | Rate: the same | Output: the same logits |
-| | `ppl`: `llama-perplexity`, 24 chunks | Time | Output: the same logits, since what it prints mixes the perplexity with timings |
+| llama.cpp | `pp512`: `llama-bench`, reading a 512-token prompt with Qwen2.5 1.5B at Q4_K_M | Rate: tokens a second, `avg_ts` | Output: the raw FP32 logits at each of 128 steps of greedy decoding after [the Q5 work's prompt](../tests/llama/prompt.txt), with the prompt's tokens, each token chosen and its position, from `tests/llama`'s capture, bit for bit. The prompt's 98 tokens are one batch, through the matrix-matrix kernels |
+| | `tg128`: `llama-bench`, generating 128 tokens | Rate: the same | Output: the same, whose 127 steps after the first each decode one token, through the matrix-vector kernels |
+| | `ppl`: `llama-perplexity`, 24 chunks | Time | Output: the same, since what it prints mixes the perplexity with timings |
 | zlib-ng | `compress`: `minigzip -6` on `silesia.tar` | Time | Output: the gzip stream |
 | | `decompress`: `minigzip -d` on that stream | Time | Output: `silesia.tar` itself, whose SHA-256 is known |
 | xxHash | `bench`: `xxhsum -b -i5` | Rate: MiB/s, for each of XXH32, XXH64, XXH3 and XXH128 | Known answers: xxhsum's sanity check, `cli/xsum_sanity_check.c`, by `xxhsum -V`, for XXH32 and XXH64, which every `xxhsum -b` also runs first. And `make test-inline-dispatch`, `tests/inlineDispatch.c`, for XXH3 and XXH128 through the dispatcher, which on z takes the AVX-512 kernels |
 | | `file`: `xxhsum -H3` on `silesia.tar` | Time | Output: the hash it prints |
-| libsodium | `argon2id`: `test/default/pwhash_argon2id` in benchmark mode, 200 times over | Time | Known answers: the same test in its checking mode, by `make check TESTS=pwhash_argon2id`, against `pwhash_argon2id.exp` |
+| libsodium | `argon2id`: `test/default/pwhash_argon2id` in benchmark mode, 200 times over, from its own copy | Time | Known answers: the same test in its checking mode, by `make check TESTS=pwhash_argon2id`, against `pwhash_argon2id.exp` |
 | | `secretstream`: [the driver](#libsodiums-bulk-encryption-driver) | Time | Output: the BLAKE2b-256 it prints, which is known |
 | FLAC | `decode`: `flac -d` on the Sintel master | Time | Output: the WAV. flac also compares the audio with the MD5 its input carries |
 | | `encode-5` and `encode-8`: `flac -5` and `flac -8` on that WAV | Time | Output: the FLAC file |
@@ -745,13 +767,20 @@ What's behind it:
 
 - **Every command is the manifest's.** On z on 2026-11-10, each workload of the five projects but llama.cpp ran from
   the manifest's own commands, twice, at the pins: each output was the same both times, `decompress`'s was
-  `silesia.tar` and the driver's its known line, and the three known-answers checks passed. llama.cpp's weren't run
-  for this, since its model is over a gigabyte. Its check is the one `tests/llama_bench.py` made of two builds' logits
-  for the q4_K rewrite, which were the same bit for bit ([llama.cpp](llama.md)).
+  `silesia.tar` and the driver's its known line, and the three known-answers checks passed. llama.cpp's check ran from
+  the manifest's commands too, with [the Q5 work's](llama-q5.md) Qwen2.5 0.5B at Q4_K_M in place of the 1.5B model,
+  which is over a gigabyte: [below](#llamacpps-check-reaches-the-kernels-it-times).
 - **A test built in benchmark mode passes `make check` whatever it computes:** `test/default/cmptest.h` then prints
   times and exits 0. And make doesn't see `CPPFLAGS` change. So libsodium's check cleans the tests first, and builds
   this one again in its checking mode, and its workload's `build` cleans them before benchmark mode, as
   `bench/kernels/profile.sh` does now.
+- **And the check builds the test where the workload's build did,** so with the program run from there, a check run
+  after the build would leave its own checking-mode program to be timed: on z, at the pin, `build`, check and `run` in
+  that order timed a program that printed no time and wrote `pwhash_argon2id.res`. So the workload's `build` copies
+  the benchmark program out, the one libtool's wrapper script runs, to `{build}/pwhash_argon2id-benchmark`, which the
+  check's `make clean` doesn't touch, and its `run` runs it with the library path the wrapper sets, the build's
+  `libsodium.so`, which the check's test links with too. In both orders, `build` then the check and the check then
+  `build`, the timed run printed its time, about 12 s for 200 rounds, and the check passed.
 - **A known-answers test is linked with the candidate's code,** as the workload is: the rewritten unit's object
   replaces the baseline's. libsodium's tests link with the library the build makes. xxHash's `tests/Makefile` compiles
   its own `xxh_x86dispatch.o`, which is the object to replace.
@@ -760,6 +789,43 @@ What's behind it:
   it's compared with the baseline's, as the protocol says, and not written down.
 - **Rates are xxHash's and llama.cpp's.** `xxhsum -b` and `llama-bench` run for a fixed time or a fixed number of
   repetitions and print a speed, so the speed is the measure, and the ratio is the candidate's over the baseline's.
+
+#### llama.cpp's check reaches the kernels it times
+
+llama.cpp has no test of its kernels against known answers, so each of its workloads is checked by a run of its own,
+and the run has to reach the code the workload times:
+
+- **What `llama-perplexity` saves isn't logits.** `--kl-divergence-base` writes, for each token of the second half of
+  each chunk, the logits as 16-bit steps between the largest and 16 below it, with everything lower written as 0
+  (`tools/perplexity/perplexity.cpp`, `log_softmax`, at the pin). Two runs whose logits differ can write the same file.
+- **And it doesn't decode.** It reads each chunk as one batch of 512 tokens, and ggml's repacked q4_K matrix product
+  takes the matrix-matrix kernel, `ggml_gemm_q4_K_8x8_q8_K`, for each four rows, and the matrix-vector one,
+  `ggml_gemv_q4_K_8x8_q8_K`, only for the rows left over (`ggml/src/ggml-cpu/repack.cpp`,
+  `forward_mul_mat_one_chunk`). 512 leaves none. `tg128` times decoding, one row at a time, which is the
+  matrix-vector kernel, at 54% of generating ([above](#where-the-time-goes)).
+- **So the check is [the Q5 work's](llama-q5.md) raw-logit capture.** `tests/llama/build_capture.py` builds a private
+  copy of llama.cpp's own completion driver against `{build}`, which writes the FP32 logits it samples from at every
+  step, before sampling touches them, with the prompt, each token chosen and its position. The manifest runs it
+  greedily for 128 steps, with the end of text ignored, on the workloads' 8 threads, on
+  [the Q5 work's prompt](../tests/llama/prompt.txt): its 98 tokens are one batch, 96 rows through the matrix-matrix
+  kernel and 2 through the matrix-vector one, and each of the 127 steps after the first decodes one token. All three
+  workloads have that check. The four files of ours it runs are `pinned` by their hashes.
+- **What a run showed,** on z, at the pin, built as `tests/llama_bench.py` builds it, with Qwen2.5 0.5B at Q4_K_M,
+  `74a4da8c…a9db`, in place of the 1.5B model. Each candidate was the build's own `libggml-cpu.so` linked again by its
+  own link command with one kernel wrapped to change its first output on every call:
+
+  | Candidate | Calls under the old check | `--kl-divergence-base`, 16 chunks | Calls under the capture | Raw logits, 128 steps |
+  | --- | ---: | --- | ---: | --- |
+  | The baseline, run again | | Same | | Same, 77,791,232 bytes |
+  | Matrix-vector kernel, +1.0 | 736 | Same, perplexity 18.8182 | 50,240 | Differ from the first byte, and so do the tokens |
+  | Matrix-matrix kernel, +1.0 | 5,888 | Differ, perplexity 18.9355 | 352 | Differ from the first byte |
+  | Either, its lowest bit flipped | 736 or 5,888 | Same | 50,240 or 352 | Same |
+
+  The 736 calls under the old check are its warm-up's, whose result isn't saved: with `--no-warmup` there were none.
+  So a wrong matrix-vector kernel passed the old check, and the capture catches it. The last row is a limit of any
+  check by output: llama.cpp quantizes what it multiplies to 8 bits before each q4_K product, so an error of one bit
+  in one output can be rounded away before it reaches a logit. The check is evidence a candidate computes what the
+  baseline does. The proof is what says it.
 
 ## What a win is
 
@@ -824,8 +890,9 @@ a rule.
 - **No harness runs the protocol yet.** The manifest says what each workload runs and how it's checked, with
   `{build}` for the project's build, and `bench/kernels/profile.sh` says how each is built. No tool yet builds a
   baseline and a candidate, runs a workload's checks on the candidate, and times the pairs.
-- **llama.cpp's workloads weren't run from the manifest** when it was fixed: its model wasn't fetched. Its commands are
-  `tests/llama_bench.py`'s, and its check is the logits comparison that script made for the q4_K rewrite.
+- **llama.cpp's workloads weren't timed from the manifest** when it was fixed, and its check ran with the 0.5B model,
+  not the manifest's 1.5B, which wasn't fetched: [above](#llamacpps-check-reaches-the-kernels-it-times). Its commands
+  are `tests/llama_bench.py`'s, and the build its check needs is that script's, which writes `compile_commands.json`.
 - **Whether the translated kernels elaborate in Lean** wasn't checked. `tests/ir_features.py` checks that for its
   probes, not for these.
 - **What's behind each first reason.** The emitter reports one reason per function.

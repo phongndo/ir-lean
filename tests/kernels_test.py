@@ -5,7 +5,9 @@ bench/kernels/kernels.py, without LLVM, Lean or the network. docs/kernels.md.
 It fails if the manifest breaks a rule, if a corpus that's only proposed approves anything, if an approved one
 isn't the maintainer's list of 2026-11-10 with its date and where it's recorded, or if a fixed corpus's digest
 isn't the one its lock and amendments end at: so a pin, a hash, a flag, a kernel, a workload, its check or an
-input of an approved project, or the driver a workload runs, can't change without an amendment that says why.
+input of an approved project, or a file of ours a workload runs, can't change without an amendment that says
+why. And the lock has to be the digest approved, ORIGINAL below, which docs/roadmap.md's record of the
+decision holds too, so it can't be replaced to cover a change: every amendment starts from it.
 The corpus is fixed: the six of 2026-11-10, each workload saying what's measured, rates among them, and how a
 candidate is checked, by its output or by the project's own test against known answers. Cases built to break
 each rule show it's refused. It also checks docs/kernels.md names every project with its commit and standing,
@@ -51,6 +53,12 @@ RESULTS = HERE / "results" / "demand.json"
 WORD = {"recommended": "**Recommended**", "alternate": "Alternate", "rejected": "Rejected"}
 # What the maintainer approved on 2026-11-10: the proposal's six recommended projects. docs/roadmap.md.
 APPROVED_ON = "2026-11-10"
+# The digest of the corpus as it was fixed on 2026-11-10: `bench/kernels/kernels.py digest` then. The
+# manifest's lock has to be it, and docs/roadmap.md's record of the decision says it too, so replacing the
+# lock means changing this, that record and the manifest, each a visible change to a reviewed decision. A
+# change to the corpus is an [[amendment]] starting from it.
+ORIGINAL = "d58e280b3e19bf21a75927a9ca408a695f4a52fb8bdfdfc97db3d8c685be45eb"
+ROADMAP = ROOT / "docs" / "roadmap.md"
 SIX = ["flac", "libsodium", "libwebp", "llama.cpp", "xxhash", "zlib-ng"]
 # The workloads whose own figure is the measure, because the benchmark runs for a fixed time: docs/kernels.md.
 RATES = {("llama.cpp", "pp512"), ("llama.cpp", "tg128"), ("xxhash", "bench")}
@@ -149,12 +157,18 @@ class Manifest(unittest.TestCase):
         def known(m: dict[str, Any]) -> dict[str, Any]:
             return workload(m, "libsodium", "argon2id")["check"][0]
 
+        def captured(m: dict[str, Any]) -> dict[str, Any]:
+            return workload(m, "llama.cpp", "tg128")["check"][0]
+
         output = {"kind": "output", "what": "its output", "output": ["stdout"]}
         cases: dict[str, Callable[[dict[str, Any]], Any]] = {
             # A manifest of the first version, whose workload was one table, is refused rather than misread.
             "schema": lambda m: m.update(schema="ir-lean.kernels.manifest/1"),
             "isn't one of proposed": lambda m: m["corpus"].update(state="settled"),
             "corpus.llvm_tag": lambda m: m["corpus"].update(llvm_tag="llvmorg-99.0.0"),
+            # The same tag at another commit, or with another source hash.
+            "corpus.llvm_commit": lambda m: m["corpus"].update(llvm_commit="0" * 40),
+            "corpus.llvm_nix_hash": lambda m: m["corpus"].update(llvm_nix_hash="sha256-" + "A" * 43 + "="),
             "corpus.opt": lambda m: m["corpus"].update(opt="-O2"),
             "corpus.target": lambda m: m["corpus"].update(target="aarch64-unknown-linux-gnu"),
             "rev isn't a full commit hash": lambda m: project(m).update(rev="80d2c0c"),
@@ -204,6 +218,25 @@ class Manifest(unittest.TestCase):
             "doesn't exist": lambda m: driven(m).update(driver="bench/kernels/libsodium/nothing.c"),
             "build doesn't compile the driver": lambda m: driven(m).update(build=[["true"]]),
             "driver_sha256 without a driver": lambda m: first(m).update(driver_sha256="0" * 64),
+            # A file of ours a check runs: pinned by its hash, and every one it names is pinned.
+            "build_capture.py's SHA-256 isn't the file's": lambda m: captured(m)["pinned"].update(
+                {"tests/llama/build_capture.py": "0" * 64}
+            ),
+            "{repo}/tests/llama/prompt.txt isn't pinned": lambda m: captured(m)["pinned"].pop(
+                "tests/llama/prompt.txt"
+            ),
+            "{repo}/tests/llama/other.txt isn't pinned": lambda m: captured(m)["run"][1].append(
+                "{repo}/tests/llama/other.txt"
+            ),
+            "isn't a path in this repository": lambda m: captured(m)["pinned"].update({"../x": "0" * 64}),
+            "pinned tests/llama/nothing doesn't exist": lambda m: captured(m)["pinned"].update(
+                {"tests/llama/nothing": "0" * 64}
+            ),
+            "pinned isn't a table": lambda m: captured(m).update(pinned=["tests/llama/prompt.txt"]),
+            # And one a workload's own commands name, which is its driver or pinned by the workload.
+            "{repo}/bench/kernels/kernels.py isn't pinned": lambda m: first(m)["run"][0].append(
+                "{repo}/bench/kernels/kernels.py"
+            ),
             "no project_opt": lambda m: project(m).pop("project_opt"),
             "has no SIMD kernel to compile": lambda m: project(m).update(simd="assembly"),
             "only a rejected project has": lambda m: project(m).update(fails=[2]),
@@ -256,6 +289,81 @@ class Locked(unittest.TestCase):
         if not MANIFEST.get("amendment"):
             self.assertEqual(lock["sha256"], kernels.digest(MANIFEST))
 
+    def test_the_lock_is_the_digest_approved_and_its_record_says_so(self) -> None:
+        lock = MANIFEST["lock"]
+        self.assertEqual(
+            lock["sha256"], ORIGINAL, "the lock is the digest approved: change the corpus by amendment"
+        )
+        self.assertTrue(lock["approved_in"].startswith("docs/roadmap.md#"))
+        record = kernels.section(ROADMAP.read_text(), lock["approved_in"].partition("#")[2])
+        self.assertIsNotNone(record)
+        self.assertIn(ORIGINAL, typing.cast(str, record))
+        self.assertEqual(kernels.recorded(MANIFEST), [])
+
+    def test_a_replaced_lock_is_refused_and_an_amendment_from_it_isnt(self) -> None:
+        def level(m: dict[str, Any]) -> None:
+            w = workload(m, "zlib-ng", "compress")
+            for command in w["run"]:
+                command[:] = ["-9" if arg == "-6" else arg for arg in command]
+            self.assertIn("-9", [arg for command in w["run"] for arg in command])
+
+        # A change with its lock replaced by the digest it ends at: the chain from the lock holds, so only the
+        # record shows it, and this test's ORIGINAL.
+        relocked = changed(MANIFEST, level)
+        relocked["lock"]["sha256"] = kernels.digest(relocked)
+        self.assertEqual(kernels.problems(relocked), [])
+        self.assertNotEqual(relocked["lock"]["sha256"], ORIGINAL)
+        self.assertTrue([line for line in kernels.recorded(relocked) if "isn't in docs/roadmap.md#" in line])
+        # The same change by an amendment from the digest approved meets every rule.
+        honest = amended(MANIFEST, changed(MANIFEST, level), reason="level 9")
+        self.assertEqual(honest["amendment"][0]["from"], ORIGINAL)
+        self.assertEqual(kernels.problems(honest), [])
+        self.assertEqual(kernels.recorded(honest), [])
+        # And one that starts from a replaced lock is refused by the record, if not by the chain.
+        chained = amended(relocked, changed(relocked, lambda m: m["corpus"].update(machine="another")))
+        self.assertEqual(kernels.problems(chained), [])
+        self.assertTrue(kernels.recorded(chained))
+
+    def test_the_record_a_lock_points_to_has_to_hold_it(self) -> None:
+        for message, change in {
+            "isn't PATH#HEADING": lambda m: m["lock"].update(approved_in="docs/roadmap.md"),
+            "which doesn't exist": lambda m: m["lock"].update(approved_in="docs/nothing.md#a"),
+            "which isn't a heading of docs/roadmap.md": lambda m: m["lock"].update(
+                approved_in="docs/roadmap.md#a"
+            ),
+            "isn't in docs/roadmap.md#the-flywheel": lambda m: m["lock"].update(
+                approved_in="docs/roadmap.md#the-flywheel"
+            ),
+        }.items():
+            found = kernels.recorded(changed(MANIFEST, change))
+            self.assertTrue([line for line in found if message in line], f"{message}: {found}")
+        # A section runs to the next heading at its level or above.
+        text = "# A\n\nx\n\n## B b\n\ny\n\n### C\n\n```\n# z\n```\n\n## D\n\nw\n"
+        self.assertEqual(kernels.section(text, "b-b"), "## B b\n\ny\n\n### C\n\n```\n# z\n```\n")
+        self.assertIsNone(kernels.section(text, "z"))
+        self.assertIsNone(kernels.section(text, "e"))
+
+    def test_llama_cpps_workloads_are_checked_by_raw_logits_at_every_decoding_step(self) -> None:
+        for w in MANIFEST["project"]["llama.cpp"]["workload"]:
+            (check,) = w["check"]
+            build, decode = check["run"]
+            self.assertEqual(build[1], "{repo}/tests/llama/build_capture.py", w["name"])
+            # Greedy, 128 steps whatever's sampled, on the workload's threads, from the Q5 work's prompt.
+            for flag, value in {
+                "--temp": "0",
+                "-n": "128",
+                "-t": str(w["threads"]),
+                "-tb": str(w["threads"]),
+            }.items():
+                self.assertEqual(decode[decode.index(flag) + 1], value, (w["name"], flag))
+            self.assertIn("--ignore-eos", decode)
+            self.assertEqual(decode[decode.index("-f") + 1], "{repo}/tests/llama/prompt.txt")
+            self.assertIn("{out}/decode.logits.f32", check["output"])
+            # Not llama-perplexity's saved log-probabilities, which are clipped and quantized to 16 bits.
+            self.assertNotIn("--kl-divergence-base", [arg for command in check["run"] for arg in command])
+            for path in ("build_capture.py", "capture.h", "capture_main.cpp", "prompt.txt"):
+                self.assertIn(f"tests/llama/{path}", check["pinned"], w["name"])
+
     def test_every_workload_of_the_six_says_whats_measured_and_how_its_checked(self) -> None:
         rates, timings = set(), set()
         for name in SIX:
@@ -278,10 +386,16 @@ class Locked(unittest.TestCase):
         # Its check compares output, and benchmark mode's is checked by the test in its checking mode.
         self.assertEqual([c["kind"] for c in driver["check"]], ["output"])
         argon2id = workload(MANIFEST, "libsodium", "argon2id")
-        self.assertIn("CPPFLAGS=-DBENCHMARKS -DITERATIONS=200", argon2id["build"][-1])
+        self.assertIn("CPPFLAGS=-DBENCHMARKS -DITERATIONS=200", argon2id["build"][1])
         check = argon2id["check"][0]["run"]
         self.assertEqual(check[0][-1], "clean")
         self.assertFalse([arg for command in check for arg in command if "BENCHMARKS" in arg])
+        # What's timed is its own copy of the benchmark, out of the directory the check cleans and builds the
+        # test again in, so the check can't replace it, in whichever order they run.
+        (run,) = argon2id["run"]
+        self.assertEqual(argon2id["build"][-1], ["cp", "{build}/test/default/.libs/pwhash_argon2id", run[-1]])
+        self.assertFalse(run[-1].startswith("{build}/test/"))
+        self.assertFalse([arg for command in check for arg in command if run[-1] in arg])
 
     def test_a_fixed_corpus_needs_a_check_and_a_measure_for_every_workload(self) -> None:
         for m in (MANIFEST, fixed()):
@@ -349,11 +463,16 @@ class Fixed(unittest.TestCase):
                 run=[["true"]]
             ),
             "the driver's hash": lambda m: driven(m).update(driver_sha256="0" * 64),
+            "a pinned file's hash": lambda m: workload(m, "llama.cpp", "tg128")["check"][0]["pinned"].update(
+                {"tests/llama/capture.h": "0" * 64}
+            ),
             "how the driver is built": lambda m: driven(m)["build"][0].insert(1, "-O0"),
             "an input": lambda m: project(m).update(
                 input=[{"name": "a", "url": "https://example.org/a", "sha256": "0" * 64}]
             ),
             "the corpus's flags": lambda m: m["corpus"].update(flags=[]),
+            "the LLVM commit": lambda m: m["corpus"].update(llvm_commit="0" * 40),
+            "the LLVM source's hash": lambda m: m["corpus"].update(llvm_nix_hash="sha256-" + "A" * 43 + "="),
             "the machine": lambda m: m["corpus"].update(machine="another"),
             "a project added": lambda m: m["corpus"]["approved"].append(other),
             "a project dropped": lambda m: m["corpus"]["approved"].pop(),
