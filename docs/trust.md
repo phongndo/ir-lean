@@ -179,6 +179,7 @@ in the model on a run LLVM calls undefined.
 | The emitter reported the vector forms of 16 integer intrinsics, `noundef` on a struct, and `llvm.memcpy` and `llvm.memset` with a length narrower than 64 bits, as translated, and printed Lean that doesn't elaborate. Lean rejected it, so nothing was proved wrong | The vector forms and struct `noundef` are modeled lane by lane, in `IRLean/Lanes.lean`, the length is zero-extended, and `tests/ir_features.py` elaborates what the emitter prints for every probe it translates | SEM-08. [IR features](ir-features.md#what-it-found), `vecopcheck` |
 | The emitter crashed on a vector-typed constant expression and on a `getelementptr` over a scalable type, so a module with either got no report at all | Both are refused, and `tests/ir_features.py` fails if the emitter crashes on a probe | [IR features](ir-features.md#what-it-found) |
 | `freeze` of poison stopped the model, so a source that froze poison allowed nothing, inserting a `freeze` couldn't be certified, and two functions that both stopped there were equal though LLVM tells them apart | It's a value the run chooses, through `IRLean.Choice`, and `Refines` quantifies over each side's choices. See [above](#freeze-and-what-a-run-chooses) | F3. [`tests/freeze.sh`](../tests/freeze.sh), `tests/refine.sh`, the `freeze` runs in `tests/binding.py`, and the choices in [`tests/emitter.sh`](../tests/emitter.sh) |
+| A proof that failed to compile could make `tools/verify.py` answer `counterexample` for a true statement. It took any error reading like `bv_decide`'s counterexample as a witness, and a tactic block in a value ran in the process deciding witnesses, which holds the run's nonce, so it could print a false answer of its own, or hide a real one. It could never make a run say `proved`. Found by an audit on 2026-11-10 | `tools/verify.py` takes a value from such an error only if it's a literal as `bv_decide` prints one, and `tools/verify_check.lean` refuses a witness or a pinned statement with a tactic block or `by_elab`. Either alone stops the forged answer. See [what a witness may be](verify.md#what-a-witness-may-be) | `proof_failed_forged_counterexample`, `counterexample_witness_runs_no_code` and `statement_runs_tactic` in [`tests/verify.py`](../tests/verify.py) |
 
 For safety proofs, more UB than LLVM is conservative and less is unsound. For refinement it splits by
 side: the source must have no more UB than LLVM, and the target no less. So a single conservative
@@ -257,7 +258,8 @@ the proof the model allowed before.
 
 None known. An audit on 2026-11-07 at `6293d34` found ten, and each is [closed](#closed) with the test that pins it. None
 changed a theorem proved so far. Two mutants turned out to have counted only by running a proof out of resources, which
-the same table has.
+the same table has. An audit on 2026-11-10 found one more, a failed proof forging a counterexample in
+`tools/verify.py`, which could never make a run say `proved`, and it's closed in the same table.
 
 ## Gaps in how we check
 

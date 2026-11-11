@@ -237,6 +237,9 @@ MODULE_NAME = re.compile(r"[A-Za-z_][A-Za-z0-9_]*(\.[A-Za-z_][A-Za-z0-9_]*)*")
 
 BV_COUNTEREXAMPLE = re.compile(r"found a (potentially spurious )?counterexample", re.I)
 BV_ASSIGNMENT = re.compile(r"^\s*([^\s=]+) = (\S.*?)\s*$")
+# The values bv_decide prints: a bit vector, `0x1f#8` or `31#8`, or a Bool. The proof chose the message they
+# came from, and tools/verify_check.lean elaborates and runs each value, so anything else could be its code.
+BV_VALUE = re.compile(r"(0x[0-9a-fA-F]+|[0-9]+)#[0-9]+|true|false")
 
 TRUNCATE = 4000
 DIAGNOSTICS_KEPT = 50
@@ -808,7 +811,8 @@ def compile_module(run: Run, source: Path, check: str, failure: str) -> bool:
 
 def candidates_from(run: Run, messages: list[dict[str, Any]]) -> None:
     """Assignments bv_decide printed when it found a counterexample to some goal. They only count once they
-    make the claim itself false."""
+    make the claim itself false, and only if every value is a literal as bv_decide prints one: the proof's
+    code can print any error, and a value is Lean that the witness check elaborates and runs."""
     for message in messages:
         if message["severity"] != "error" or not BV_COUNTEREXAMPLE.search(message["message"]):
             continue
@@ -817,7 +821,7 @@ def candidates_from(run: Run, messages: list[dict[str, Any]]) -> None:
             m = BV_ASSIGNMENT.match(line)
             if m:
                 assignment[m[1]] = m[2]
-        if assignment:
+        if assignment and all(BV_VALUE.fullmatch(value) for value in assignment.values()):
             run.candidates.append(
                 {
                     "assignment": assignment,

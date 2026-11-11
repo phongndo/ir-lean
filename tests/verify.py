@@ -6,7 +6,8 @@ Each case writes its inputs to a directory of its own and runs `tools/verify.py 
 would, then checks the status, the reason, the exit code and what else the case is about. Many of them are
 proofs that cheat: `sorry`, an axiom, `native_decide`, a theorem about a look-alike function, one the kernel
 never checked, one that rewrites what it's checked against, and one that prints an answer of its own. None may
-come back proved. A first group
+come back proved, and one that fails to compile, with an error forging a counterexample, may not come back
+refuted either. A first group
 checks the decision in tools/verify.py directly, for every required check that could be missing.
 
 usage: tests/verify.py path/to/ir-lean [--only NAME ...]
@@ -64,6 +65,27 @@ INC_STATEMENT = "∀ (x : BitVec 32), Small.inc (Option.some x) = IRLean.Outcome
 INC_OR = "∀ x : BitVec 32, Small.inc (some x) = IRLean.Outcome.ok (some (x ||| 1#32))"
 POPCOUNT = "∀ (x : BitVec 32), Real.popcount (Option.some x) = IRLean.Outcome.ok (Option.some (pop x))"
 
+
+def lean_string(text: str) -> str:
+    """A Lean string literal: JSON's escapes are Lean's."""
+    return json.dumps(text, ensure_ascii=False)
+
+
+# A witness that, elaborated where witnesses are evaluated, prints that witness 0 makes the statement false,
+# with the run's nonce, and exits before the real answer.
+FORGED_WITNESS = (
+    "(by (run_tac (do "
+    'let p := (← IO.getEnv "IRLEAN_VERIFY_CONFIG").getD ""; '
+    "let j := (Lean.Json.parse (← IO.FS.readFile p)).toOption.getD Lean.Json.null; "
+    'let n := (j.getObjValAs? String "nonce").toOption.getD ""; '
+    'let h ← IO.FS.Handle.mk "/dev/stdout" IO.FS.Mode.append; '
+    'h.putStrLn ("IRLEAN_VERIFY " ++ n ++ '
+    + lean_string(' {"kind":"witness_start","count":1,"source":"statement"}')
+    + '); h.putStrLn ("IRLEAN_VERIFY " ++ n ++ '
+    + lean_string(' {"kind":"witness","index":0,"result":"fails","instance":"forged"}')
+    + "); h.flush; (IO.Process.exit 0 : IO Unit))); exact 0#32)"
+)
+
 PROOFS = {
     "ok": HEADER + INC_OK,
     "or_bv_decide": HEADER
@@ -120,6 +142,13 @@ PROOFS = {
     "vacuous": HEADER
     + "theorem inc_false (h : False) (x : BitVec 32) : inc (some x) = Outcome.ok (some 0#32) :=\n"
     "  h.elim\n",
+    # True of every `inc`: the left side only mentions it.
+    "mentions_only": HEADER + "theorem inc_const (x : BitVec 32) :\n"
+    "    (fun _ => Outcome.ok (some 0#32)) (inc (some x)) = Outcome.ok (some 0#32) := rfl\n",
+    # Fails to compile with an error that reads like bv_decide's, whose value is code that forges an answer
+    # where the counterexample would be checked.
+    "forged_counterexample": "import Small\nimport Lean\nopen IRLean Small Lean Elab Command\n\n"
+    "run_cmd logError " + lean_string("found a counterexample\n#0 = " + FORGED_WITNESS) + "\n\n" + INC_OK,
     # Prints an answer of its own wherever it's imported, with the run's nonce, and exits: that a theorem of
     # True is about inc. A checker that imports the proof runs it.
     "forge": "import Small\nopen IRLean Small\n\n"
@@ -311,6 +340,18 @@ def cases() -> list[Case]:
                 "the hypothesis False isn't listed",
             ),
         ),
+        Case(
+            "proved_mentions_only",
+            "proved",
+            "kernel_checked",
+            proof("mentions_only", "inc_const"),
+            files_for("mentions_only"),
+            check=lambda r, _: expect(
+                r["claim"]["shape"] == "other"
+                and any(a["id"] == "statement.shape" for a in r["assumptions"]),
+                f"shape {r['claim']['shape']}, for a conclusion that only mentions inc",
+            ),
+        ),
         # counterexample
         Case(
             "counterexample_statement",
@@ -332,6 +373,32 @@ def cases() -> list[Case]:
             ),
             {"Small.ll": SMALL_LL},
             check=check_counterexample({"x": "3#32"}, "request"),
+        ),
+        # A witness that would run code while it elaborates is refused, and one that doesn't is still decided.
+        Case(
+            "counterexample_witness_runs_no_code",
+            "counterexample",
+            "witness_falsifies",
+            small(
+                statement="∀ x : IRLean.Val 32, Small.inc x = IRLean.Outcome.ok x",
+                witnesses=[
+                    {"x": "(by exact some 1#32)"},
+                    {"x": "(show IRLean.Val 32 by exact some 1#32)"},
+                    {"x": "(by_elab return Lean.toExpr (some 1#32 : Option (BitVec 32)))"},
+                    {"x": "some 5#32"},
+                ],
+            ),
+            {"Small.ll": SMALL_LL},
+            check=check_all(
+                check_counterexample({"x": "some 5#32"}, "request"),
+                lambda r, _: expect(
+                    all(
+                        w["result"] == "unsupported" and "tactic block" in w.get("error", "")
+                        for w in r["witnesses"][:3]
+                    ),
+                    str(r["witnesses"][:3]),
+                ),
+            ),
         ),
         Case(
             "counterexample_to_pinned_statement",
@@ -526,6 +593,21 @@ def cases() -> list[Case]:
             files_for("or_bv_decide"),
             check=check_unconfirmed,
         ),
+        # The proof's error reads like bv_decide's, and its value is code. Only literals are taken from one.
+        Case(
+            "proof_failed_forged_counterexample",
+            "error",
+            "proof_failed",
+            proof("forged_counterexample", "inc_ok", statement=INC_STATEMENT, witnesses=[{"x": "5#32"}]),
+            files_for("forged_counterexample"),
+            check=check_all(
+                check_check("witnesses", "pass"),
+                lambda r, _: expect(
+                    r["counterexample"] is None and all(w["source"] == "request" for w in r["witnesses"]),
+                    f"took {r['witnesses']}",
+                ),
+            ),
+        ),
         Case(
             "proof_failed_witnesses_hold",
             "error",
@@ -554,6 +636,18 @@ def cases() -> list[Case]:
             "statement_invalid",
             small(statement="∀ x : BitVec 32, Small.inc (some x) =", witnesses=[{"x": "1#32"}]),
             {"Small.ll": SMALL_LL},
+        ),
+        Case(
+            "statement_runs_tactic",
+            "error",
+            "statement_invalid",
+            small(
+                statement="∀ x : BitVec 32, "
+                "Small.inc (some x) = IRLean.Outcome.ok (some (x + (by exact 1#32)))",
+                witnesses=[{"x": "1#32"}],
+            ),
+            {"Small.ll": SMALL_LL},
+            check=lambda r, _: expect("tactic block" in r["detail"], r["detail"]),
         ),
         Case(
             "statement_unrelated",
