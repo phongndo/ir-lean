@@ -10,14 +10,15 @@
   flag, a constant that fails a side condition, or a cast the wrong way.
 - Constants are computed as Lean's `BitVec` computes them.
 - The IR reader: instructions the format has are read, and the rest are leaves; a cut stops at its depth; a
-  term printed and read again is the same term; a new instruction is named apart from the parameters; a
-  slice's lines are the function's own; a rewritten function has the new value at each use and none of the
-  dead cut.
+  term printed and read again is the same term; a new instruction is named apart from the parameters, and in
+  a rewritten function from its parameters and blocks; a slice's lines are the function's own; a rewritten
+  function has the new value at each use and none of the dead cut.
 - A certificate Lean didn't compile is `refused` only for an error Lean reported and exited on: a limit or
   SIGKILL is `unknown`, and any other crash, empty output or a module Lean couldn't read an `error`, even
   after Lean printed an error. Past the compile, it's `refused` only for a diagnosis: the axiom audit's
   policy, the kernel rejecting a declaration, or the checker's answer. An audit or a replay that crashed,
   didn't run or failed without saying why, or a missing file, is an `error`.
+- What the gates hold: the directory of copies moved aside, replaced and put back shows.
 - rules/Rules/Statements.lean is what rules/src generates, and the importer's record names the rules imported.
 - The search's core finds the chain it should, the same way each time.
 
@@ -31,7 +32,8 @@ which replays modules two at a time, or `LEAN_JOBS` up to four:
   proved. Proved from `False` that a module outside the library added past the kernel: not proved, as
   leanchecker replays that module, and an application of it `refused`: `kernel_replay_failed`. With that
   module swapped for one where `False` is an axiom, between the checker and the replay: not proved, and an
-  application `error`, `artifacts_modified`, as what they read changed.
+  application `error`, `artifacts_modified`, as what they read changed. With the checker `check` generated
+  written over, before Lean reads it, by one that says every rule is proved: a rule with no theorem isn't.
 - The statement of a comparison of two divisions, each at its own width, compiles.
 - A statement that isn't the pattern's but is still true, with a proof of its own, is refused twice over: the
   library's statements aren't what the source generates, and no application of the rule is certified.
@@ -41,7 +43,10 @@ which replays modules two at a time, or `LEAN_JOBS` up to four:
   value, a side condition skipped, a flag not checked, another replacement, and another rule named. So is a
   certificate that states another claim, and one by `sorry`. A checker killed after answering certifies
   nothing: `error`. A certificate whose code rewrites the checker and the audit as it compiles: `error`,
-  `artifacts_modified`, and the process it started in a session of its own is gone when the compile ends.
+  `artifacts_modified`, and the process it started in a session of its own is gone when the compile ends, and
+  the record says whether the compile was contained. The states written over after ir-lean translated them:
+  `error`, `artifacts_modified`, and the record names the IR translated. With LEAN_SYSROOT naming an empty
+  directory, every rule is still proved and the chain certified, by the stamped toolchain.
 - The search on tests/rules/search.ll finds what tests/rules/expect.json says, each certified, a chain of
   three rules as a whole function and one of two as a slice, and a second run writes the same bytes.
   `llvm-mca` drops every candidate against `opt -O3`, and keeps exactly one against `llc` alone. Alive2,
@@ -79,7 +84,7 @@ import lang  # noqa: E402
 import proved  # noqa: E402
 import rules_alive  # noqa: E402
 import search  # noqa: E402
-from irlean import lean, proc, schemas  # noqa: E402
+from irlean import hashing, lean, proc, schemas  # noqa: E402
 from irlean import verdict as core  # noqa: E402
 
 FIXTURES = ROOT / "tests" / "rules"
@@ -420,6 +425,21 @@ def static_ir() -> None:
         "a new instruction's name isn't a parameter's, `%t0` among them",
         printed,
     )
+    # A rewritten function's new value is named apart from its parameters and blocks too: an unused parameter
+    # `%r.rs0` once got `%r.rs0 = add nuw nsw i8 %x, %y`, which opt refuses.
+    named = ir.functions(
+        "define i8 @f(i8 %x, i8 %y, i8 %r.rs0) {\nentry:\n  %r = or disjoint i8 %x, %y\n  br label %r.rs1\n\n"
+        "r.rs1:\n  ret i8 %r\n}\n"
+    )[0]
+    new = ir.rewritten(
+        named, "%r", ir.members(named, "%r", 4), op("add", leaf("x"), leaf("y"), flags=("nsw", "nuw"))
+    )
+    report(
+        [line.split(" = ")[0].strip() for line in new.splitlines() if " = " in line] == ["%r.rs2"]
+        and "ret i8 %r.rs2" in new,
+        "a rewritten function's new value isn't named as a parameter or a block is, `%r.rs0` and `%r.rs1`",
+        new,
+    )
     # A rewritten function.
     new = ir.rewritten(total, "%u", cut, a)
     report(
@@ -590,6 +610,28 @@ def static_certificates() -> None:
         report(got == want, f"a certificate when {what}: {want[0]}, {want[1]}", str(got))
 
 
+def static_seal() -> None:
+    """What the gates hold, taken again: the directory of copies moved aside, another put in its place, as a
+    replay would read it, and the first put back, shows, though every file in it is as it was."""
+    with tempfile.TemporaryDirectory() as temporary:
+        held, aside = Path(temporary) / "modules", Path(temporary) / "aside"
+        (held / "Peephole").mkdir(parents=True)
+        (held / "Peephole" / "Hack.olean").write_bytes(b"the module the checker read")
+        sealed = proved.seal(held)
+        report(proved.unsealed(sealed, held) == [], "a seal taken again of what didn't change is the same")
+        held.rename(aside)
+        (held / "Peephole").mkdir(parents=True)
+        (held / "Peephole" / "Hack.olean").write_bytes(b"another the replay would read")
+        shutil.rmtree(held)
+        aside.rename(held)
+        moved = proved.unsealed(sealed, held)
+        report(
+            moved == [str(held)],
+            "the held directory moved aside, replaced and put back shows, by its own change time",
+            str(moved),
+        )
+
+
 def static_search() -> None:
     rules = search.usable(gen.load_all())
     all_rules = gen.load_all()
@@ -646,6 +688,7 @@ def static() -> None:
     static_constants()
     static_ir()
     static_certificates()
+    static_seal()
     static_search()
     static_sources()
 
@@ -702,6 +745,23 @@ HACK = (
     "  { name := `Peephole.Hack.bad, levelParams := [], type := mkConst ``False,\n"
     "    value := mkConst ``True.intro })\n"
 )
+
+# A checker that says every rule it's asked about is proved, on no axioms, with only `Rules.Statements` to
+# replay, which something else running could write over the one `rules.py check` generated, before Lean reads
+# it.
+YES = """import Lean
+
+open Lean
+
+#eval show IO Unit from do
+  let config ← IO.ofExcept (Json.parse (← IO.FS.readFile ((← IO.getEnv "IRLEAN_RULES_CONFIG").getD "")))
+  let nonce ← IO.ofExcept (config.getObjValAs? String "nonce")
+  let say (fields : List (String × Json)) : IO Unit :=
+    IO.println s!"IRLEAN_RULES {nonce} {(Json.mkObj fields).compress}"
+  say [("replay", toJson #["Rules.Statements"])]
+  for rule in (← IO.ofExcept (config.getObjValAs? (Array String) "rules")) do
+    say [("rule", toJson rule), ("ok", toJson true), ("axioms", toJson ([] : List String))]
+"""
 
 
 def live_rules() -> None:
@@ -816,6 +876,34 @@ def live_rules() -> None:
             "xor_and_xor_i8",
             "disallowed_axiom",
             "a true rule proved at one width by `bv_decide` isn't proved: disallowed_axiom",
+        )
+
+        # The checker `check` generated, written over after `check` wrote it and before Lean read it, with one
+        # that says every rule is proved: what Lean ran isn't what `check` wrote.
+        real_run = proved.run
+
+        def forging(
+            argv: list[str],
+            env: dict[str, str] | None = None,
+            cwd: Path = ROOT,
+            timeout: float = proved.TIMEOUT,
+            stdin: str | None = None,
+            scope: proc.Scope | None = None,
+        ) -> proc.Ran:
+            if argv[-1].endswith("RulesCheck.lean"):
+                Path(argv[-1]).write_text(YES)
+            return real_run(argv, env, cwd, timeout, stdin, scope)
+
+        proved.run = forging  # ty: ignore[invalid-assignment]
+        try:
+            got = {e["name"]: e for e in proved.check(more, base / "none")["rules"]}
+        finally:
+            proved.run = real_run
+        report(
+            not got["add_one_wrong"]["proved"] and "RulesCheck.lean" in got["add_one_wrong"]["detail"],
+            "a rule with no theorem isn't proved when the generated checker is written over, before Lean "
+            "reads it, with one that says every rule is: what Lean ran changed",
+            json.dumps(got["add_one_wrong"])[:1500],
         )
 
         # A false rule proved from `False`, which a module the library imports added past the kernel. Its
@@ -1251,6 +1339,11 @@ def live_certify(work: Path) -> None:
         "`add x 1` to `x`, isn't certified: error, artifacts_modified",
         json.dumps(verdict)[:1500],
     )
+    report(
+        verdict.get("contained") is proc.scopes_work(),
+        f"and the record says whether the compile was contained in a systemd scope: {proc.scopes_work()}",
+        json.dumps(verdict)[:1500],
+    )
     if proc.scopes_work():
         report(
             started is not None and not left,
@@ -1261,18 +1354,85 @@ def live_certify(work: Path) -> None:
         print("skip  and the process it started is gone when the compile ends: no systemd user scopes here")
     verdict = certify.check(good, [by_name["or_zero"]], work / "good", "slice")
     report(
-        verdict["status"] == "certified",
-        "and the right certificate for the same states is certified",
+        verdict["status"] == "certified" and verdict["files"]["chain.ll"] == hashing.sha256_text(good),
+        "and the right certificate for the same states is certified, about the IR it was given",
         json.dumps(verdict)[:1500],
+    )
+    real_run = proved.run
+
+    # The IR written over after ir-lean translated it and before the verdict, with `add x 1` to `x`.
+    def rewriting(
+        argv: list[str],
+        env: dict[str, str] | None = None,
+        cwd: Path = ROOT,
+        timeout: float = proved.TIMEOUT,
+        stdin: str | None = None,
+        scope: proc.Scope | None = None,
+    ) -> proc.Ran:
+        ran = real_run(argv, env, cwd, timeout, stdin, scope)
+        if "--no-code" in argv:
+            (Path(cwd) / "chain.ll").write_text(false)
+        return ran
+
+    proved.run = rewriting  # ty: ignore[invalid-assignment]
+    try:
+        verdict = certify.check(good, [by_name["or_zero"]], work / "rewritten", "slice")
+    finally:
+        proved.run = real_run
+    report(
+        verdict["status"] == "error"
+        and verdict["reason"] == "artifacts_modified"
+        and str(work / "rewritten" / "chain.ll") in verdict["detail"]
+        and verdict["files"]["chain.ll"] == hashing.sha256_text(good),
+        "the same states, written over with `add x 1` to `x` after ir-lean translated them, aren't "
+        "certified: error, artifacts_modified, and the record names the IR that was translated",
+        json.dumps(verdict)[:1500],
+    )
+    # LEAN_SYSROOT, from the caller, naming another directory for Lean's own modules, here an empty one, where
+    # a Lean process that took it would find no `Init`. Each gate runs every Lean process from the toolchain
+    # it stamps, by its path, with LEAN_SYSROOT naming it.
+    prefix = proved.toolchain()
+    elsewhere = work / "sysroot"
+    (elsewhere / "lib" / "lean").mkdir(parents=True)
+    started_from: list[tuple[str, str | None]] = []
+
+    def recording(
+        argv: list[str],
+        env: dict[str, str] | None = None,
+        cwd: Path = ROOT,
+        timeout: float = proved.TIMEOUT,
+        stdin: str | None = None,
+        scope: proc.Scope | None = None,
+    ) -> proc.Ran:
+        if Path(argv[0]).name in ("lean", "leanchecker", "lake") and "--print-prefix" not in argv:
+            started_from.append((argv[0], (os.environ if env is None else env).get("LEAN_SYSROOT")))
+        return real_run(argv, env, cwd, timeout, stdin, scope)
+
+    os.environ["LEAN_SYSROOT"] = str(elsewhere)
+    proved.run = recording  # ty: ignore[invalid-assignment]
+    try:
+        record = proved.check()
+        verdict = certify.check(good, [by_name["or_zero"]], work / "sysroot-cert", "slice")
+    finally:
+        proved.run = real_run
+        del os.environ["LEAN_SYSROOT"]
+    report(
+        all(e["proved"] for e in record["rules"])
+        and verdict["status"] == "certified"
+        and len(started_from) > 3
+        and all(Path(a).parent == prefix / "bin" and r == str(prefix) for a, r in started_from),
+        "with LEAN_SYSROOT naming another directory, every rule is still proved and the chain certified: "
+        "each Lean process the gates start is the stamped toolchain's, with LEAN_SYSROOT naming it",
+        json.dumps({"started": started_from[:8], "verdict": verdict})[:1500],
     )
     # The same, with the checker crashing after its answer: what it answered counts for nothing.
     real = proved.ask
 
     def crashed(
         config: dict[str, Any], header: str, env: dict[str, str], work: Path
-    ) -> tuple[proc.Ran, list[Any]]:
-        ran, answers = real(config, header, env, work)
-        return dataclasses.replace(ran, exit=-signal.SIGSEGV), answers
+    ) -> tuple[proc.Ran, list[Any], list[str]]:
+        ran, answers, changed = real(config, header, env, work)
+        return dataclasses.replace(ran, exit=-signal.SIGSEGV), answers, changed
 
     proved.ask = crashed  # ty: ignore[invalid-assignment]
     try:

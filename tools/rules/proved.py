@@ -6,9 +6,11 @@ from the rule's source, on the standard three axioms, in a library `lake` has no
 to the matcher, so the search never applies a rule whose theorem is missing, false, or rests on `sorry` or
 `bv_decide`.
 
-The checker and every `leanchecker` read the same files: a copy of the libraries, held still while they run.
-A proof's code can run wherever Lean compiles it, and what it left running could otherwise change a module
-between the checker reading it and the kernel replaying it.
+The checker and every `leanchecker` read the same files: a copy of the libraries, held still while they run,
+the checker as it was written for them, and Lean's own modules from the toolchain that's stamped, whatever
+LEAN_SYSROOT the caller set. Anything else running as the user, another build in the checkout or an editor,
+could otherwise change a module between the checker reading it and the kernel replaying it. What this holds
+against, and what it doesn't, is docs/rules.md's "What the gates promise".
 """
 
 from __future__ import annotations
@@ -65,11 +67,26 @@ def run(
 
 
 def toolchain() -> Path:
-    """The pinned toolchain's directory: the `lean` and `leanchecker` the checks run, and Lean's modules."""
+    """The pinned toolchain's directory, as elan finds it: the `lean`, `leanchecker` and `lake` the checks
+    run, and Lean's own modules. `lean --print-prefix` doesn't read LEAN_SYSROOT, which the toolchain's
+    processes do."""
     ran = run(["lean", "--print-prefix"], lean.env(pin=True))
     if ran.exit != 0 or not ran.out.strip():
         raise ToolError(f"lean --print-prefix failed: {ran.output[-300:]}")
     return Path(ran.out.strip()).resolve()
+
+
+def lean_env(prefix: Path, *dirs: Path) -> dict[str, str]:
+    """The environment of each Lean process a gate starts: only `dirs` on LEAN_PATH, and LEAN_SYSROOT the
+    toolchain `prefix`, the one that's stamped, so Lean's own modules are read from there and not from a
+    directory a LEAN_SYSROOT the caller set names."""
+    return lean.env(*dirs, library=False, pin=True, LEAN_SYSROOT=str(prefix))
+
+
+def binary(env: dict[str, str], name: str) -> str:
+    """The toolchain's `name`, such as `lean` or `leanchecker`, by its path in the toolchain `env`'s
+    LEAN_SYSROOT names, which lean_env set."""
+    return str(Path(env["LEAN_SYSROOT"]) / "bin" / name)
 
 
 def copy_libraries(into: Path, overlay: Path | None = None) -> Path:
@@ -100,9 +117,10 @@ def copy_libraries(into: Path, overlay: Path | None = None) -> Path:
 
 def seal(copies: Path, *also: Path) -> dict[str, dict[str, Any]]:
     """What the checks read, as it is now: every file under `copies` by its hash, and what `lstat` says of
-    every entry under `copies` and `also`, such as the toolchain, too large to hash each time. Taken again, it
-    differs after any write, replacement, new file or removal, even one put back: a write moves the change
-    time, which a process without root can't set back. `lstat` first, so a change while it hashes shows."""
+    `copies`, `also`, such as the toolchain, too large to hash each time, and every entry under them. Taken
+    again, it differs after any write, replacement, new file or removal, even one put back, and after one of
+    them is moved aside and put back: each moves a change time, which a process without root can't set back.
+    `lstat` first, so a change while it hashes shows."""
     stamps = hashing.stamp(copies, *also)
     return {"lstat": stamps, "sha256": hashing.snapshot(copies)}
 
@@ -120,20 +138,33 @@ def unsealed(sealed: dict[str, dict[str, Any]], copies: Path, *also: Path) -> li
     )
 
 
-def ask(config: dict[str, Any], header: str, env: dict[str, str], work: Path) -> tuple[proc.Ran, list[Any]]:
-    """Runs tools/rules/rules_check.lean under `header`, its imports, and returns what it answered."""
+def ask(
+    config: dict[str, Any], header: str, env: dict[str, str], work: Path
+) -> tuple[proc.Ran, list[Any], list[str]]:
+    """Runs tools/rules/rules_check.lean under `header`, its imports, and returns what it answered, and each
+    of the two files it wrote for Lean, the checker and its configuration, that then wasn't what it wrote, by
+    hash or by `lstat`: an answer counts only if that's none, as Lean ran what was there."""
     nonce = secrets.token_hex(16)
-    source = work / "RulesCheck.lean"
-    source.write_text(header + CHECK.read_text())
-    (work / "rules_check.json").write_text(json.dumps({**config, "nonce": nonce}))
+    source, configuration = work / "RulesCheck.lean", work / "rules_check.json"
+    written = {source: header + CHECK.read_text(), configuration: json.dumps({**config, "nonce": nonce})}
+    for path, text in written.items():
+        path.write_text(text)
+    stamped = hashing.stamp(*written)
     ran = run(
-        lean.argv(LEAN_MB, str(source)),
-        {**env, "IRLEAN_RULES_CONFIG": str(work / "rules_check.json")},
+        lean.argv(LEAN_MB, str(source), lean=binary(env, "lean")),
+        {**env, "IRLEAN_RULES_CONFIG": str(configuration)},
         cwd=work,
     )
+    changed = [
+        str(path)
+        for path, text in written.items()
+        if not path.is_file()
+        or hashing.sha256_file(path) != hashing.sha256_text(text)
+        or hashing.stamp(path)[str(path)] != stamped[str(path)]
+    ]
     marker = f"{MARK} {nonce} "
     answers = [json.loads(line[len(marker) :]) for line in ran.out.splitlines() if line.startswith(marker)]
-    return ran, answers
+    return ran, answers, changed
 
 
 def replay(modules: Any, env: dict[str, str], cwd: Path = ROOT) -> core.Step:
@@ -145,7 +176,11 @@ def replay(modules: Any, env: dict[str, str], cwd: Path = ROOT) -> core.Step:
         return core.Step("leanchecker", None, output=f"no modules to replay: {modules!r}")
     jobs = max(1, min(int(os.environ.get("LEAN_JOBS", "2")), 4))
     with concurrent.futures.ThreadPoolExecutor(max_workers=jobs) as pool:
-        ran = list(pool.map(lambda m: run(lean.checker(m), env, cwd=cwd), modules))
+        ran = list(
+            pool.map(
+                lambda m: run(lean.checker(m, leanchecker=binary(env, "leanchecker")), env, cwd=cwd), modules
+            )
+        )
     steps = [core.Step.of(f"leanchecker {m}", r) for m, r in zip(modules, ran, strict=True)]
     return next((s for s in steps if s.exit != 0 or s.limit is not None), steps[-1])
 
@@ -157,21 +192,24 @@ def check(rules: list[lang.Rule] | None = None, overlay: Path | None = None) -> 
     rules = gen.load_all() if rules is None else rules
     statements = gen.STATEMENTS if overlay is None else overlay / "Rules" / "Statements.lean"
     stale = not statements.exists() or statements.read_text() != gen.statements_text(rules)
+    prefix = toolchain()
     if overlay is None:
-        current = run(["lake", "build", "--no-build", "Rules"]).exit == 0
+        lake = [str(prefix / "bin" / "lake"), "build", "--no-build", "Rules"]
+        current = run(lake, {**os.environ, "LEAN_SYSROOT": str(prefix)}).exit == 0
     else:
         current = (overlay / "Rules.olean").exists()
-    prefix = toolchain()
     with tempfile.TemporaryDirectory() as temporary:
         work = Path(temporary)
         modules = copy_libraries(work / "modules", overlay)
         held = (modules, prefix, CHECK)
         sealed = seal(*held)
-        env = lean.env(modules, library=False, pin=True)
-        asked, answers = ask({"mode": "rules", "rules": [r.name for r in rules]}, "import Lean\n", env, work)
+        env = lean_env(prefix, modules)
+        asked, answers, rewritten = ask(
+            {"mode": "rules", "rules": [r.name for r in rules]}, "import Lean\n", env, work
+        )
         listed = [a["replay"] for a in answers if isinstance(a, dict) and "replay" in a]
         replayed = replay(listed[0] if len(listed) == 1 else None, env)
-        moved = unsealed(sealed, *held)
+        moved = unsealed(sealed, *held) + rewritten
     by_name = {a["rule"]: a for a in answers if isinstance(a, dict) and "rule" in a}
     out: list[dict[str, Any]] = []
     for rule in rules:

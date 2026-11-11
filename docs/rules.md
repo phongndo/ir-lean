@@ -150,12 +150,18 @@ tools/rules/rules.py certify tests/rules/chain.ll --rule or_zero --rule and_allO
    and isn't Lean's own, one process each, and [`irlean.verdict`](trust.md#where-python-decides-a-verdict) decides.
    The checker's answer counts only if its process then ended on its own with 0.
 5. **What the gate reads, held.** Lean runs the certificate's code as it compiles it, and the code of what it
-   imports, the `Rules` library's and `Peephole`'s, which an agent may have written. So before it compiles, `IRLean`,
-   `Peephole` and `Rules` are copied into a private directory, and the checks read those copies, and copies of the
-   generated module and the certificate, with nothing else on `LEAN_PATH`. The certificate compiles in a systemd
-   scope, which kills whatever its code started when Lean ends, in whatever session. The copies, the toolchain and
-   the two checkers are held from before the compile to after the last check, and the generated module by its hash:
-   if anything there changed, even if it was put back, the answer is `error`, `artifacts_modified`.
+   imports, the `Rules` library's and `Peephole`'s, and anything else running as the user, another build in the
+   checkout or an editor, can write files too. So before it compiles, `IRLean`, `Peephole` and `Rules` are copied
+   into a private directory, and the checks read those copies, and copies of the generated module and the
+   certificate, with nothing else on `LEAN_PATH`. Every Lean process runs from the toolchain `lean --print-prefix`
+   names, by its path, with `LEAN_SYSROOT` naming that toolchain too, so Lean's own modules come from the toolchain
+   that's held, whatever `LEAN_SYSROOT` the caller set. The certificate compiles in a systemd scope, which kills
+   whatever its code started when Lean ends, in whatever session; the record's `contained` says whether systemd
+   could make one. The copies, each directory of them itself, the toolchain and the two checkers are held from
+   before the compile to after the last check, by `lstat` and the copies by hash. The IR, the generated module,
+   the certificate and the checker's own files are each held by their hash when they were written, which is what
+   the record's `files` names. If anything there changed, even if it was put back, the answer is `error`,
+   `artifacts_modified`. [What the gates promise](#what-the-gates-promise) says against what.
 
 The answer is JSON, schema `ir-lean.rules.certificate/1`, and the exit code is 0 only for `certified`:
 
@@ -188,7 +194,10 @@ machine, and 2.9 s before the replay reached every module the certificate import
 | A certificate by `sorry` | `refused`: its axioms aren't allowed |
 | A false rule proved from `False`, which a module outside the library, `Peephole.Hack`, added past the kernel with `debug.skipKernelTC`, so its proof rests on no axiom | `check`: not proved, as `leanchecker` rejects `Peephole.Hack`. An application of the rule: `refused`, `kernel_replay_failed` |
 | The same, with `Peephole.Hack` swapped for one where `False` is an axiom, which `leanchecker` replays, after the checker and the audit read the first and before the replay, wherever the replay reads modules from, as a process a proof's code left running could | `check`: not proved, as what it read changed. An application: `error`, `artifacts_modified` |
-| A certificate by `sorry` whose code, as it compiles, rewrites the checker and the audit to pass it, here copies of them, and starts a process in a session of its own | `error`, `artifacts_modified`, and the process is gone when the compile ends |
+| A certificate by `sorry` whose code, as it compiles, rewrites the checker and the audit to pass it, here copies of them, and starts a process in a session of its own | `error`, `artifacts_modified`, and the process is gone when the compile ends. The record says it was `contained` |
+| The checker `check` generated, written over after `check` wrote it and before Lean read it, with one that says every rule is proved | `check`: a rule with no theorem isn't proved, as what Lean ran changed |
+| The states, written over with `add x 1` to `x` after `build/ir-lean` translated them | `error`, `artifacts_modified`, and the record's `files` names the IR that was translated |
+| `LEAN_SYSROOT`, set by the caller, naming another directory for Lean's own modules | Nothing is refused that shouldn't be: every rule is proved and the chain certified, as each Lean process reads the toolchain that's held. Before, `check` proved none and the chain was `refused`, `module_shadowed`, as `lean` read `Init` from the toolchain and the checker and `leanchecker` looked for it in that directory |
 | The checker killed by `SIGSEGV` after it answered that a right certificate states its claim | `error`: `tool_failed` |
 
 The matchers are wrong in two ways there: as states a wrong matcher would give, handed to certify mode, and as
@@ -245,9 +254,31 @@ and not about instructions, so no lemma there has a pattern on its left. The for
 those rewrites needs a proof written from those facts, which isn't done. The other 52, in the five other families,
 use only lemmas that were refused or that aren't about one instruction. This page doesn't break them down.
 
+## What the gates promise
+
+`rules.py check`, which says a rule is proved, and certify mode, which says a chain is certified, promise that the
+verdict is about the files that were checked: the `IRLean`, `Peephole` and `Rules` libraries as `lake` built them,
+the pinned toolchain, the IR given, and the Lean the tools generated, the statements and the certificate. Something
+else changing a file while they run, another build in the same checkout or an editor, or a process crashing or
+stopped at a limit, can't make either say `proved` or `certified` about anything else: it's an `error` or `unknown`.
+
+They don't hold against code running as the same user that rewrites files, directories, the tools or the toolchain
+on purpose while they run. Nothing inside the same account can: such code could rewrite the gate itself. For
+example, a directory above the copies, or above the toolchain, moved aside and another put in its place for the
+replay, then put back, leaves everything the gates hold as it was. That's outside the promise.
+
+Nothing untrusted runs in them today. Every rule's proof is a reviewed lemma in the repo, which `lake build`
+compiles, and the build is trusted, as [what's trusted](#whats-trusted) says. A certificate is Lean the tools write
+from the IR. That changes with the rules agents will propose, by
+[decision 4 after #103](roadmap.md#thirteen-decisions-of-2026-11-09-after-103): a proof from an untrusted author has
+to be compiled in a sandbox the operating system enforces before anything it built reaches these gates. That isn't
+built, and it's a requirement before a proposer's proofs are accepted.
+
 ## What's trusted
 
 - **The emitter and the model,** as for every theorem here ([trust](trust.md)).
+- **The rules' proofs as `lake build` compiled them,** and everything running as the user while a gate runs, as
+  [what the gates promise](#what-the-gates-promise) says.
 - **Cutting a slice out and putting its result back.** For a function with more than one block, memory or a call, the
   certificate is about the slice: the instructions the rewrite reads, as a function of what they read. That the slice
   is what the function computes there, and that replacing it keeps the function's meaning, isn't proved, as for
@@ -283,10 +314,18 @@ slice out of the functions it ran on, which the search does for its own rewrites
 - **`rules.py check` reads the library `lake` built.** It checks `lake` has nothing left to build, and doesn't build.
   A rule's proof runs code as `lake` compiles it, before the check starts, and that code can rewrite any file the user
   can, an `IRLean` module or `Rules.Statements` among them. The check holds what it read from when it copies it, and
-  can't tell a module from one rewritten before then. Certify mode copies the libraries before it compiles a
-  certificate, which closes that for the certificate's code and for what its imports run then, not for what ran in
-  `lake build`. Compiling an agent's proof apart from the shared build, after copying the libraries it imports, would
-  close it.
+  can't tell a module from one rewritten before then. Today every proof is a reviewed lemma, so that's trusted.
+- **No sandbox for an untrusted proof.** A proof an agent proposes has to be compiled where the operating system stops
+  its code writing anything outside its own directory, and only what it built handed to the gates. That isn't built:
+  `bwrap` isn't in the dev shell, as [binding](llvm-proof-binding.md) found. It's a requirement before a proposer's
+  proofs are accepted.
+- **Same-user tampering on purpose is outside the promise.** A held directory moved aside, replaced and put back shows,
+  by its own change time, but one above it doesn't, and nothing stops code running as the user from rewriting the gate
+  itself: [what the gates promise](#what-the-gates-promise).
+- **Without systemd user scopes, containment isn't checked.** Where `systemd-run --user --scope` doesn't work, such as
+  on macOS, a process a certificate's code started in a session of its own can outlive the compile, and nothing finds
+  it. The record says so: `contained` is `false`. A certificate the tools generate starts no process, so this matters
+  once certificates or their imports come from an untrusted author, and the sandbox above covers it then.
 
 ## Reproducing
 

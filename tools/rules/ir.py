@@ -399,13 +399,12 @@ def one_block(f: Function) -> tuple[str, int] | None:
 
 def rewritten(f: Function, root: str, cut: dict[str, int], final: Term) -> str:
     """`f` with `root` replaced by `final`: the new instructions before `root`, each use of `root` now a use
-    of the new value, and every instruction of the cut nothing reads any more removed."""
+    of the new value, and every instruction of the cut nothing reads any more removed. A new value's name is
+    none the function has: a parameter's, an instruction's or a block's, which share one namespace."""
     known = {term(f, name, f.defs[name].width, cut): name for name in cut if name != root}
     stem = re.sub(r"[^-a-zA-Z$._0-9]", "_", root[1:])
-    lines, value, _ = body(final, prefix=f"%{stem}.rs", known=known)
-    taken = set(f.defs)
-    if any(line.split(" = ")[0] in taken for line in lines):
-        raise IRError(f"a new name for {root} is taken")
+    taken = {*re.findall(NAME, f.header), *f.defs, *(f"%{label}" for label, _ in f.blocks if label)}
+    lines, value, _ = body(final, prefix=f"%{stem}.rs", known=known, taken=taken)
     use = re.compile(re.escape(root) + r"(?![-a-zA-Z$._0-9\"])")
     out: list[tuple[str | None, list[str]]] = []
     for label, insts in f.blocks:

@@ -587,6 +587,27 @@ class Hashing(unittest.TestCase):
             self.assertEqual(hashing.snapshot(root)[str(root / "l")], "link a")
             self.assertTrue(stat.S_ISLNK(hashing.stamp(root)[str(root / "l")][0]))
 
+    def test_a_stamp_holds_its_roots_and_where_links_lead(self) -> None:
+        with tempfile.TemporaryDirectory() as d:
+            root, aside, outside = Path(d) / "root", Path(d) / "aside", Path(d) / "outside"
+            root.mkdir()
+            (root / "a").write_bytes(b"x")
+            outside.write_bytes(b"x")
+            (root / "l").symlink_to(outside)
+            before = hashing.stamp(root)
+            self.assertIn(str(root), before)
+            # What a link leads to, outside the root, rewritten.
+            outside.write_bytes(b"y")
+            self.assertNotEqual(hashing.stamp(root), before)
+            # The root moved aside, replaced and put back, every entry under it as it was.
+            before = hashing.stamp(root)
+            root.rename(aside)
+            root.mkdir()
+            root.rmdir()
+            aside.rename(root)
+            after = hashing.stamp(root)
+            self.assertEqual([p for p in before if before[p] != after[p]], [str(root)])
+
     def test_a_directory_that_cant_be_listed_isnt_an_empty_one(self) -> None:
         if os.geteuid() == 0:
             self.skipTest("root can list any directory")

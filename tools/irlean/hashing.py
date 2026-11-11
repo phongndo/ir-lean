@@ -139,14 +139,23 @@ def files_hash(base: Path, paths: list[Path]) -> str:
     return digest.hexdigest()
 
 
+def _lstat(path: Path) -> tuple[int, ...]:
+    st = path.lstat()
+    return (st.st_mode, st.st_ino, st.st_size, st.st_ctime_ns, st.st_mtime_ns, st.st_dev)
+
+
 def stamp(*roots: Path) -> dict[str, tuple[int, ...]]:
-    """What `lstat` says of every entry under `roots`. Any write, replacement, new file or removal changes it:
-    a write moves the change time, which a process without root can't set back. It checks that nothing changed
-    while untrusted code could run, as hashing it all again each time would take seconds."""
-    out = {}
-    for path in walk(*roots):
-        st = path.lstat()
-        out[str(path)] = (st.st_mode, st.st_ino, st.st_size, st.st_ctime_ns, st.st_mtime_ns)
+    """What `lstat` says of each of `roots`, every entry under them, and what each link among them leads to,
+    followed to the end. Any write, replacement, new file or removal changes it, a root's own too, so a
+    directory moved aside, replaced and put back shows: a write or a rename moves the change time, which a
+    process without root can't set back. It checks that nothing changed while untrusted code could run, as
+    hashing it all again each time would take seconds. Of a directory a link leads to, it stamps only the
+    directory, and nothing above a root: a directory above one, moved aside and put back, doesn't show."""
+    entries = [*roots, *walk(*roots)]
+    out = {str(path): _lstat(path) for path in entries}
+    for path in entries:
+        if stat.S_ISLNK(out[str(path)][0]) and (target := path.resolve()).exists():
+            out[str(target)] = _lstat(target)
     return out
 
 
