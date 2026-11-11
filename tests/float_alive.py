@@ -6,7 +6,9 @@
 """Alive2's verdict on each rewrite in tests/float, against the one its name says: `_right` has to be proved
 and `_wrong` refuted. Anything else, such as a timeout or an approximation, is a failure, not agreement.
 Alive2 runs with `undef` inputs off, since an argument of the model is a value or poison, one process at a
-time, on two files, so that it prints the summary tests/alive.py reads. Run by tests/float.sh.
+time, on two files, so that it prints the summary tests/alive.py reads, and with each SMT query allowed 60 s
+instead of its default 10: floating-point multiplication takes about a second here, and on a loaded CI runner
+`fmul_one_right` ran past 10 s, which Alive2 reports as a timeout, and so as unknown. Run by tests/float.sh.
 
 usage: tests/float_alive.py CASE.ll ..."""
 
@@ -17,6 +19,9 @@ import tempfile
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import alive
+
+# Each SMT query's limit, in ms. A query past it is a timeout, which is still a failure here, never agreement.
+FLAGS = (*alive.FLAGS, "--smt-to=60000")
 
 
 def main() -> int:
@@ -35,7 +40,7 @@ def main() -> int:
                 print(f"FAIL  {path} doesn't define @src and @tgt")
                 failed = 1
                 continue
-            got = alive.verdict(alive.run(decls + found["src"], decls + found["tgt"], work))
+            got = alive.verdict(alive.run(decls + found["src"], decls + found["tgt"], work, FLAGS))
             want = "incorrect" if name.endswith("_wrong") else "correct"
             if got == want:
                 print(f"ok    alive2: {name} is {got}")

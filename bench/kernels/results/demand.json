@@ -1,0 +1,4989 @@
+{
+ "schema": "ir-lean.kernels.demand/1",
+ "generated_by": "bench/kernels/demand.py run",
+ "date": "2026-11-11",
+ "commit": "5c99def23e8fa670dccb97bc9b6eaca7bbb3cd77",
+ "clang": "clang version 23.1.3",
+ "opt": "-O3",
+ "variants": {
+  "as-built": [],
+  "relaxed": [
+   "-fno-strict-aliasing"
+  ]
+ },
+ "projects": {
+  "base64": {
+   "rev": "5d5074cb856b9a53fe64f04ddf47812a85f4fb5a",
+   "nix_hash": "sha256-iJ7MPDSQ5RFLqli0dSQ6vndSRu8YkVgUrSdkLJDhE1g=",
+   "units": [
+    {
+     "source": "lib/arch/avx2/codec.c",
+     "flags": [
+      "-mavx2"
+     ],
+     "variants": {
+      "as-built": {
+       "functions": 2,
+       "translated": 0,
+       "refused": {
+        "metadata !tbaa": 2
+       }
+      },
+      "relaxed": {
+       "functions": 2,
+       "translated": 1,
+       "refused": {
+        "inline assembly": 1
+       }
+      }
+     },
+     "instructions": 719,
+     "intrinsics": {
+      "llvm.x86.avx.ptestz.256": 14,
+      "llvm.x86.avx2.pmadd.ub.sw": 15,
+      "llvm.x86.avx2.pmadd.wd": 15,
+      "llvm.x86.avx2.pshuf.b": 43
+     },
+     "kernels": {
+      "base64_stream_decode_avx2": {
+       "instructions": 619,
+       "vector": true,
+       "float": false,
+       "intrinsics": {
+        "llvm.x86.avx.ptestz.256": 14,
+        "llvm.x86.avx2.pmadd.ub.sw": 15,
+        "llvm.x86.avx2.pmadd.wd": 15,
+        "llvm.x86.avx2.pshuf.b": 43
+       },
+       "as-built": "metadata !tbaa",
+       "relaxed": "ok"
+      },
+      "base64_stream_encode_avx2": {
+       "instructions": 100,
+       "vector": true,
+       "float": false,
+       "intrinsics": {},
+       "as-built": "metadata !tbaa",
+       "relaxed": "inline assembly"
+      }
+     }
+    },
+    {
+     "source": "lib/arch/avx512/codec.c",
+     "flags": [
+      "-mavx512vl",
+      "-mavx512vbmi"
+     ],
+     "variants": {
+      "as-built": {
+       "functions": 2,
+       "translated": 0,
+       "refused": {
+        "metadata !tbaa": 2
+       }
+      },
+      "relaxed": {
+       "functions": 2,
+       "translated": 1,
+       "refused": {
+        "intrinsic llvm.x86.avx512.pmultishift.qb.512": 1
+       }
+      }
+     },
+     "instructions": 809,
+     "intrinsics": {
+      "llvm.x86.avx.ptestz.256": 14,
+      "llvm.x86.avx2.pmadd.ub.sw": 15,
+      "llvm.x86.avx2.pmadd.wd": 15,
+      "llvm.x86.avx2.pshuf.b": 43,
+      "llvm.x86.avx512.permvar.qi.512": 10,
+      "llvm.x86.avx512.pmultishift.qb.512": 10
+     },
+     "kernels": {
+      "base64_stream_decode_avx512": {
+       "instructions": 619,
+       "vector": true,
+       "float": false,
+       "intrinsics": {
+        "llvm.x86.avx.ptestz.256": 14,
+        "llvm.x86.avx2.pmadd.ub.sw": 15,
+        "llvm.x86.avx2.pmadd.wd": 15,
+        "llvm.x86.avx2.pshuf.b": 43
+       },
+       "as-built": "metadata !tbaa",
+       "relaxed": "ok"
+      },
+      "base64_stream_encode_avx512": {
+       "instructions": 190,
+       "vector": true,
+       "float": false,
+       "intrinsics": {
+        "llvm.x86.avx512.permvar.qi.512": 10,
+        "llvm.x86.avx512.pmultishift.qb.512": 10
+       },
+       "as-built": "metadata !tbaa",
+       "relaxed": "intrinsic llvm.x86.avx512.pmultishift.qb.512"
+      }
+     }
+    }
+   ],
+   "totals": {
+    "units": 2,
+    "instructions": 1528,
+    "as-built": {
+     "functions": 4,
+     "translated": 0,
+     "refused": {
+      "metadata !tbaa": 4
+     }
+    },
+    "relaxed": {
+     "functions": 4,
+     "translated": 2,
+     "refused": {
+      "inline assembly": 1,
+      "intrinsic llvm.x86.avx512.pmultishift.qb.512": 1
+     }
+    },
+    "intrinsics": {
+     "llvm.x86.avx.ptestz.256": {
+      "calls": 28,
+      "class": "modeled"
+     },
+     "llvm.x86.avx2.pmadd.ub.sw": {
+      "calls": 30,
+      "class": "modeled"
+     },
+     "llvm.x86.avx2.pmadd.wd": {
+      "calls": 30,
+      "class": "modeled"
+     },
+     "llvm.x86.avx2.pshuf.b": {
+      "calls": 86,
+      "class": "modeled"
+     },
+     "llvm.x86.avx512.permvar.qi.512": {
+      "calls": 10,
+      "class": "refused",
+      "lane": "long tail"
+     },
+     "llvm.x86.avx512.pmultishift.qb.512": {
+      "calls": 10,
+      "class": "refused",
+      "lane": "long tail"
+     }
+    },
+    "kernels": {
+     "named": 4,
+     "as-built": 0,
+     "relaxed": 2
+    }
+   },
+   "measured": {
+    "date": "2026-11-11",
+    "commit": "5c99def23e8fa670dccb97bc9b6eaca7bbb3cd77",
+    "clang": "clang version 23.1.3"
+   }
+  },
+  "blake3": {
+   "rev": "f3149ec5bb5449af877ba20377a11008ff499fa2",
+   "nix_hash": "sha256-QWNdJh9wSKoc171t+rNei6OF3ANb2K4Oi+3VHEy1BiQ=",
+   "units": [
+    {
+     "source": "c/blake3_avx2.c",
+     "flags": [
+      "-mavx2"
+     ],
+     "variants": {
+      "as-built": {
+       "functions": 1,
+       "translated": 0,
+       "refused": {
+        "metadata !tbaa": 1
+       }
+      },
+      "relaxed": {
+       "functions": 1,
+       "translated": 0,
+       "refused": {
+        "intrinsic llvm.prefetch": 1
+       }
+      }
+     },
+     "instructions": 1327,
+     "intrinsics": {
+      "llvm.fshl": 112,
+      "llvm.prefetch": 8
+     },
+     "kernels": {
+      "blake3_hash_many_avx2": {
+       "instructions": 1327,
+       "vector": true,
+       "float": false,
+       "intrinsics": {
+        "llvm.fshl": 112,
+        "llvm.prefetch": 8
+       },
+       "as-built": "metadata !tbaa",
+       "relaxed": "intrinsic llvm.prefetch"
+      }
+     }
+    },
+    {
+     "source": "c/blake3_avx512.c",
+     "flags": [
+      "-mavx512f",
+      "-mavx512vl"
+     ],
+     "variants": {
+      "as-built": {
+       "functions": 4,
+       "translated": 0,
+       "refused": {
+        "metadata !tbaa": 4
+       }
+      },
+      "relaxed": {
+       "functions": 4,
+       "translated": 3,
+       "refused": {
+        "intrinsic llvm.prefetch": 1
+       }
+      }
+     },
+     "instructions": 7156,
+     "intrinsics": {
+      "llvm.fshl": 1512,
+      "llvm.prefetch": 28
+     },
+     "kernels": {
+      "blake3_hash_many_avx512": {
+       "instructions": 3494,
+       "vector": true,
+       "float": true,
+       "intrinsics": {
+        "llvm.fshl": 728,
+        "llvm.prefetch": 28
+       },
+       "as-built": "metadata !tbaa",
+       "relaxed": "intrinsic llvm.prefetch"
+      }
+     }
+    }
+   ],
+   "totals": {
+    "units": 2,
+    "instructions": 8483,
+    "as-built": {
+     "functions": 5,
+     "translated": 0,
+     "refused": {
+      "metadata !tbaa": 5
+     }
+    },
+    "relaxed": {
+     "functions": 5,
+     "translated": 3,
+     "refused": {
+      "intrinsic llvm.prefetch": 2
+     }
+    },
+    "intrinsics": {
+     "llvm.fshl": {
+      "calls": 1624,
+      "class": "modeled"
+     },
+     "llvm.prefetch": {
+      "calls": 36,
+      "class": "refused"
+     }
+    },
+    "kernels": {
+     "named": 2,
+     "as-built": 0,
+     "relaxed": 0
+    }
+   },
+   "measured": {
+    "date": "2026-11-11",
+    "commit": "5c99def23e8fa670dccb97bc9b6eaca7bbb3cd77",
+    "clang": "clang version 23.1.3"
+   }
+  },
+  "flac": {
+   "rev": "1507800de4b70e21be71f38caa0d9079d0bc6e45",
+   "nix_hash": "sha256-B6XRai5UOAtY/7JXNbI3YuBgazi1Xd2ZOs6vvLq9LIs=",
+   "units": [
+    {
+     "source": "src/libFLAC/lpc_intrin_fma.c",
+     "flags": [],
+     "variants": {
+      "as-built": {
+       "functions": 3,
+       "translated": 0,
+       "refused": {
+        "function attribute \"no-signed-zeros-fp-math\"": 3
+       }
+      },
+      "relaxed": {
+       "functions": 3,
+       "translated": 0,
+       "refused": {
+        "intrinsic llvm.fmuladd": 3
+       }
+      }
+     },
+     "instructions": 1010,
+     "intrinsics": {
+      "llvm.fmuladd": 177,
+      "llvm.memset": 2,
+      "llvm.vector.reduce.fadd": 36
+     },
+     "kernels": {
+      "FLAC__lpc_compute_autocorrelation_intrin_fma_lag_12": {
+       "instructions": 338,
+       "vector": true,
+       "float": true,
+       "intrinsics": {
+        "llvm.fmuladd": 50,
+        "llvm.memset": 1,
+        "llvm.vector.reduce.fadd": 12
+       },
+       "as-built": "function attribute \"no-signed-zeros-fp-math\"",
+       "relaxed": "intrinsic llvm.fmuladd"
+      },
+      "FLAC__lpc_compute_autocorrelation_intrin_fma_lag_16": {
+       "instructions": 464,
+       "vector": true,
+       "float": true,
+       "intrinsics": {
+        "llvm.fmuladd": 103,
+        "llvm.memset": 1,
+        "llvm.vector.reduce.fadd": 16
+       },
+       "as-built": "function attribute \"no-signed-zeros-fp-math\"",
+       "relaxed": "intrinsic llvm.fmuladd"
+      }
+     }
+    },
+    {
+     "source": "src/libFLAC/lpc_intrin_avx2.c",
+     "flags": [],
+     "variants": {
+      "as-built": {
+       "functions": 3,
+       "translated": 0,
+       "refused": {
+        "function attribute \"no-signed-zeros-fp-math\"": 3
+       }
+      },
+      "relaxed": {
+       "functions": 3,
+       "translated": 3,
+       "refused": {}
+      }
+     },
+     "instructions": 3667,
+     "intrinsics": {
+      "llvm.vector.reduce.add": 3,
+      "llvm.x86.avx.vzeroupper": 3,
+      "llvm.x86.avx2.pmadd.wd": 78,
+      "llvm.x86.avx2.psra.d": 24,
+      "llvm.x86.avx2.psrl.q": 12
+     },
+     "kernels": {
+      "FLAC__lpc_compute_residual_from_qlp_coefficients_16_intrin_avx2": {
+       "instructions": 1309,
+       "vector": true,
+       "float": false,
+       "intrinsics": {
+        "llvm.vector.reduce.add": 1,
+        "llvm.x86.avx.vzeroupper": 1,
+        "llvm.x86.avx2.pmadd.wd": 78,
+        "llvm.x86.avx2.psra.d": 12
+       },
+       "as-built": "function attribute \"no-signed-zeros-fp-math\"",
+       "relaxed": "ok"
+      },
+      "FLAC__lpc_compute_residual_from_qlp_coefficients_intrin_avx2": {
+       "instructions": 963,
+       "vector": true,
+       "float": false,
+       "intrinsics": {
+        "llvm.vector.reduce.add": 1,
+        "llvm.x86.avx.vzeroupper": 1,
+        "llvm.x86.avx2.psra.d": 12
+       },
+       "as-built": "function attribute \"no-signed-zeros-fp-math\"",
+       "relaxed": "ok"
+      }
+     }
+    },
+    {
+     "source": "src/libFLAC/fixed_intrin_avx2.c",
+     "flags": [],
+     "variants": {
+      "as-built": {
+       "functions": 2,
+       "translated": 0,
+       "refused": {
+        "function attribute \"no-signed-zeros-fp-math\"": 2
+       }
+      },
+      "relaxed": {
+       "functions": 2,
+       "translated": 0,
+       "refused": {
+        "function attribute norecurse on a function that calls outside the module": 2
+       }
+      }
+     },
+     "instructions": 720,
+     "intrinsics": {
+      "llvm.abs": 30,
+      "llvm.smax": 1,
+      "llvm.umin": 9,
+      "llvm.vector.reduce.add": 15,
+      "llvm.vector.reduce.or": 10
+     },
+     "kernels": {
+      "FLAC__fixed_compute_best_predictor_wide_intrin_avx2": {
+       "instructions": 233,
+       "vector": true,
+       "float": true,
+       "intrinsics": {
+        "llvm.abs": 5,
+        "llvm.umin": 6,
+        "llvm.vector.reduce.add": 5
+       },
+       "as-built": "function attribute \"no-signed-zeros-fp-math\"",
+       "relaxed": "function attribute norecurse on a function that calls outside the module"
+      }
+     }
+    },
+    {
+     "source": "src/libFLAC/stream_encoder_intrin_avx2.c",
+     "flags": [],
+     "variants": {
+      "as-built": {
+       "functions": 1,
+       "translated": 0,
+       "refused": {
+        "function attribute \"no-signed-zeros-fp-math\"": 1
+       }
+      },
+      "relaxed": {
+       "functions": 1,
+       "translated": 1,
+       "refused": {}
+      }
+     },
+     "instructions": 258,
+     "intrinsics": {
+      "llvm.abs": 10,
+      "llvm.assume": 1,
+      "llvm.ctlz": 1,
+      "llvm.vector.reduce.add": 2,
+      "llvm.x86.avx.vzeroupper": 1
+     },
+     "kernels": {
+      "FLAC__precompute_partition_info_sums_intrin_avx2": {
+       "instructions": 258,
+       "vector": true,
+       "float": false,
+       "intrinsics": {
+        "llvm.abs": 10,
+        "llvm.assume": 1,
+        "llvm.ctlz": 1,
+        "llvm.vector.reduce.add": 2,
+        "llvm.x86.avx.vzeroupper": 1
+       },
+       "as-built": "function attribute \"no-signed-zeros-fp-math\"",
+       "relaxed": "ok"
+      }
+     }
+    },
+    {
+     "source": "src/libFLAC/md5.c",
+     "flags": [],
+     "variants": {
+      "as-built": {
+       "functions": 4,
+       "translated": 0,
+       "refused": {
+        "function attribute \"no-signed-zeros-fp-math\"": 4
+       }
+      },
+      "relaxed": {
+       "functions": 4,
+       "translated": 3,
+       "refused": {
+        "function attribute memory on a function whose calls outside the module access memory": 1
+       }
+      }
+     },
+     "instructions": 2183,
+     "intrinsics": {
+      "llvm.assume": 12,
+      "llvm.fshl": 65,
+      "llvm.memcpy": 5,
+      "llvm.memset": 4,
+      "llvm.umul.with.overflow": 1
+     },
+     "kernels": {
+      "FLAC__MD5Transform": {
+       "instructions": 542,
+       "vector": false,
+       "float": false,
+       "intrinsics": {
+        "llvm.fshl": 64
+       },
+       "as-built": "function attribute \"no-signed-zeros-fp-math\"",
+       "relaxed": "ok"
+      }
+     }
+    },
+    {
+     "source": "src/libFLAC/lpc.c",
+     "flags": [],
+     "variants": {
+      "as-built": {
+       "functions": 20,
+       "translated": 0,
+       "refused": {
+        "function attribute \"no-signed-zeros-fp-math\"": 20
+       }
+      },
+      "relaxed": {
+       "functions": 20,
+       "translated": 2,
+       "refused": {
+        "parameter attribute noalias": 8,
+        "call to external functions in a function with a stack frame or promises about memory, which IRLean.World doesn't wrap yet": 3,
+        "function attribute norecurse on a function that calls outside the module": 3,
+        "metadata !alias": 3,
+        "intrinsic llvm.fmuladd": 1
+       }
+      }
+     },
+     "instructions": 7671,
+     "intrinsics": {
+      "llvm.abs": 9,
+      "llvm.assume": 8,
+      "llvm.fabs": 3,
+      "llvm.fmuladd": 186,
+      "llvm.lifetime.end": 3,
+      "llvm.lifetime.start": 2,
+      "llvm.memset": 3,
+      "llvm.smax": 2,
+      "llvm.umax": 3,
+      "llvm.umin": 4,
+      "llvm.vector.reduce.add": 22,
+      "llvm.vector.reduce.fadd": 37
+     },
+     "kernels": {
+      "FLAC__lpc_restore_signal": {
+       "instructions": 721,
+       "vector": true,
+       "float": false,
+       "intrinsics": {
+        "llvm.assume": 3,
+        "llvm.vector.reduce.add": 9
+       },
+       "as-built": "function attribute \"no-signed-zeros-fp-math\"",
+       "relaxed": "parameter attribute noalias"
+      },
+      "FLAC__lpc_compute_lp_coefficients": {
+       "instructions": 155,
+       "vector": true,
+       "float": true,
+       "intrinsics": {
+        "llvm.fmuladd": 7,
+        "llvm.lifetime.end": 1,
+        "llvm.lifetime.start": 1,
+        "llvm.umax": 1,
+        "llvm.vector.reduce.fadd": 1
+       },
+       "as-built": "function attribute \"no-signed-zeros-fp-math\"",
+       "relaxed": "intrinsic llvm.fmuladd"
+      }
+     }
+    },
+    {
+     "source": "src/libFLAC/bitreader.c",
+     "flags": [],
+     "variants": {
+      "as-built": {
+       "functions": 30,
+       "translated": 0,
+       "refused": {
+        "function attribute \"no-signed-zeros-fp-math\"": 30
+       }
+      },
+      "relaxed": {
+       "functions": 30,
+       "translated": 13,
+       "refused": {
+        "call to external functions in a function with a stack frame or promises about memory, which IRLean.World doesn't wrap yet": 13,
+        "llvm.loop.mustprogress off a loop's latch, in a function with irreducible control flow": 2,
+        "call return attribute dereferenceable_or_null": 1,
+        "function attribute nofree on a function whose calls outside the module have effects": 1
+       }
+      }
+     },
+     "instructions": 1864,
+     "intrinsics": {
+      "llvm.bswap": 6,
+      "llvm.ctlz": 6,
+      "llvm.lifetime.end": 19,
+      "llvm.lifetime.start": 17,
+      "llvm.memmove": 1,
+      "llvm.memset": 4,
+      "llvm.umax": 2,
+      "llvm.umin": 1
+     },
+     "kernels": {
+      "FLAC__bitreader_read_rice_signed_block_bmi2": {
+       "instructions": 205,
+       "vector": false,
+       "float": false,
+       "intrinsics": {
+        "llvm.ctlz": 2,
+        "llvm.lifetime.end": 2,
+        "llvm.lifetime.start": 2,
+        "llvm.umax": 1
+       },
+       "as-built": "function attribute \"no-signed-zeros-fp-math\"",
+       "relaxed": "llvm.loop.mustprogress off a loop's latch, in a function with irreducible control flow"
+      }
+     }
+    },
+    {
+     "source": "src/libFLAC/bitwriter.c",
+     "flags": [],
+     "variants": {
+      "as-built": {
+       "functions": 24,
+       "translated": 0,
+       "refused": {
+        "function attribute \"no-signed-zeros-fp-math\"": 24
+       }
+      },
+      "relaxed": {
+       "functions": 24,
+       "translated": 6,
+       "refused": {
+        "function attribute memory on a function whose calls outside the module access memory": 14,
+        "call to external functions in a function with a stack frame or promises about memory, which IRLean.World doesn't wrap yet": 2,
+        "call return attribute dereferenceable_or_null": 1,
+        "function attribute nofree on a function whose calls outside the module have effects": 1
+       }
+      }
+     },
+     "instructions": 3892,
+     "intrinsics": {
+      "llvm.bswap": 48,
+      "llvm.fshl": 6,
+      "llvm.umin": 3
+     },
+     "kernels": {
+      "FLAC__bitwriter_write_rice_signed_block": {
+       "instructions": 351,
+       "vector": false,
+       "float": false,
+       "intrinsics": {
+        "llvm.bswap": 7,
+        "llvm.fshl": 6
+       },
+       "as-built": "function attribute \"no-signed-zeros-fp-math\"",
+       "relaxed": "function attribute memory on a function whose calls outside the module access memory"
+      }
+     }
+    },
+    {
+     "source": "src/libFLAC/stream_encoder.c",
+     "flags": [],
+     "variants": {
+      "as-built": {
+       "functions": 82,
+       "translated": 0,
+       "refused": {
+        "function attribute \"no-signed-zeros-fp-math\"": 82
+       }
+      },
+      "relaxed": {
+       "functions": 84,
+       "translated": 53,
+       "refused": {
+        "call to external functions in a function with a stack frame or promises about memory, which IRLean.World doesn't wrap yet": 22,
+        "call to @_, which isn't translated": 3,
+        "function attribute norecurse on a function that calls outside the module": 3,
+        "function attribute nofree on a function whose calls outside the module have effects": 2,
+        "call to external @_, which touches memory: F4": 1
+       }
+      }
+     },
+     "instructions": 8501,
+     "intrinsics": {
+      "llvm.abs": 22,
+      "llvm.assume": 9,
+      "llvm.ctlz": 6,
+      "llvm.lifetime.end": 16,
+      "llvm.lifetime.start": 14,
+      "llvm.memcpy": 11,
+      "llvm.memmove": 6,
+      "llvm.memset": 25,
+      "llvm.uadd.sat": 3,
+      "llvm.umax": 5,
+      "llvm.umin": 18,
+      "llvm.usub.sat": 2,
+      "llvm.vector.reduce.add": 4,
+      "llvm.vector.reduce.or": 1
+     },
+     "kernels": {
+      "find_best_partition_order_": {
+       "instructions": 307,
+       "vector": true,
+       "float": false,
+       "intrinsics": {
+        "llvm.ctlz": 2,
+        "llvm.memcpy": 2,
+        "llvm.uadd.sat": 1,
+        "llvm.umax": 1,
+        "llvm.umin": 1,
+        "llvm.vector.reduce.or": 1
+       },
+       "as-built": "function attribute \"no-signed-zeros-fp-math\"",
+       "relaxed": "call to external functions in a function with a stack frame or promises about memory, which IRLean.World doesn't wrap yet"
+      }
+     }
+    },
+    {
+     "source": "src/libFLAC/stream_decoder.c",
+     "flags": [],
+     "variants": {
+      "as-built": {
+       "functions": 64,
+       "translated": 0,
+       "refused": {
+        "function attribute \"no-signed-zeros-fp-math\"": 64
+       }
+      },
+      "relaxed": {
+       "functions": 63,
+       "translated": 22,
+       "refused": {
+        "call to external functions in a function with a stack frame or promises about memory, which IRLean.World doesn't wrap yet": 24,
+        "function attribute nofree on a function whose calls outside the module have effects": 6,
+        "call to @_, which isn't translated": 3,
+        "call to external @_, which touches memory: F4": 3,
+        "function attribute memory on a function whose calls outside the module access memory": 2,
+        "indirect call that can reach @_, which isn't translated": 2,
+        "function attribute norecurse on a function that calls outside the module": 1
+       }
+      }
+     },
+     "instructions": 6787,
+     "intrinsics": {
+      "llvm.assume": 1,
+      "llvm.lifetime.end": 65,
+      "llvm.lifetime.start": 48,
+      "llvm.memcpy": 7,
+      "llvm.memset": 17,
+      "llvm.smax": 2,
+      "llvm.smin": 2,
+      "llvm.umax": 3,
+      "llvm.umin": 2,
+      "llvm.usub.sat": 1
+     },
+     "kernels": {
+      "read_frame_": {
+       "instructions": 1888,
+       "vector": true,
+       "float": false,
+       "intrinsics": {
+        "llvm.assume": 1,
+        "llvm.lifetime.end": 31,
+        "llvm.lifetime.start": 15,
+        "llvm.memcpy": 2,
+        "llvm.memset": 2,
+        "llvm.umax": 1,
+        "llvm.umin": 2
+       },
+       "as-built": "function attribute \"no-signed-zeros-fp-math\"",
+       "relaxed": "call to external functions in a function with a stack frame or promises about memory, which IRLean.World doesn't wrap yet"
+      }
+     }
+    },
+    {
+     "source": "src/libFLAC/crc.c",
+     "flags": [],
+     "variants": {
+      "as-built": {
+       "functions": 4,
+       "translated": 0,
+       "refused": {
+        "function attribute \"no-signed-zeros-fp-math\"": 4
+       }
+      },
+      "relaxed": {
+       "functions": 4,
+       "translated": 4,
+       "refused": {}
+      }
+     },
+     "instructions": 318,
+     "intrinsics": {
+      "llvm.assume": 1
+     },
+     "kernels": {
+      "FLAC__crc16_update_words64": {
+       "instructions": 54,
+       "vector": false,
+       "float": false,
+       "intrinsics": {},
+       "as-built": "function attribute \"no-signed-zeros-fp-math\"",
+       "relaxed": "ok"
+      },
+      "FLAC__crc16": {
+       "instructions": 117,
+       "vector": false,
+       "float": false,
+       "intrinsics": {},
+       "as-built": "function attribute \"no-signed-zeros-fp-math\"",
+       "relaxed": "ok"
+      }
+     }
+    },
+    {
+     "source": "src/libFLAC/fixed.c",
+     "flags": [],
+     "variants": {
+      "as-built": {
+       "functions": 10,
+       "translated": 0,
+       "refused": {
+        "function attribute \"no-signed-zeros-fp-math\"": 10
+       }
+      },
+      "relaxed": {
+       "functions": 10,
+       "translated": 2,
+       "refused": {
+        "function attribute norecurse on a function that calls outside the module": 4,
+        "metadata !alias": 4
+       }
+      }
+     },
+     "instructions": 2692,
+     "intrinsics": {
+      "llvm.abs": 50,
+      "llvm.assume": 12,
+      "llvm.memcpy": 4,
+      "llvm.umin": 12,
+      "llvm.vector.reduce.add": 10
+     },
+     "kernels": {
+      "FLAC__fixed_compute_residual": {
+       "instructions": 374,
+       "vector": true,
+       "float": false,
+       "intrinsics": {
+        "llvm.memcpy": 1
+       },
+       "as-built": "function attribute \"no-signed-zeros-fp-math\"",
+       "relaxed": "metadata !alias"
+      }
+     }
+    }
+   ],
+   "totals": {
+    "units": 12,
+    "instructions": 39563,
+    "as-built": {
+     "functions": 247,
+     "translated": 0,
+     "refused": {
+      "function attribute \"no-signed-zeros-fp-math\"": 247
+     }
+    },
+    "relaxed": {
+     "functions": 248,
+     "translated": 109,
+     "refused": {
+      "call to external functions in a function with a stack frame or promises about memory, which IRLean.World doesn't wrap yet": 64,
+      "function attribute memory on a function whose calls outside the module access memory": 17,
+      "function attribute norecurse on a function that calls outside the module": 13,
+      "function attribute nofree on a function whose calls outside the module have effects": 10,
+      "parameter attribute noalias": 8,
+      "metadata !alias": 7,
+      "call to @_, which isn't translated": 6,
+      "call to external @_, which touches memory: F4": 4,
+      "intrinsic llvm.fmuladd": 4,
+      "call return attribute dereferenceable_or_null": 2,
+      "indirect call that can reach @_, which isn't translated": 2,
+      "llvm.loop.mustprogress off a loop's latch, in a function with irreducible control flow": 2
+     }
+    },
+    "intrinsics": {
+     "llvm.abs": {
+      "calls": 121,
+      "class": "modeled"
+     },
+     "llvm.assume": {
+      "calls": 44,
+      "class": "modeled"
+     },
+     "llvm.bswap": {
+      "calls": 54,
+      "class": "modeled"
+     },
+     "llvm.ctlz": {
+      "calls": 13,
+      "class": "modeled"
+     },
+     "llvm.fabs": {
+      "calls": 3,
+      "class": "modeled"
+     },
+     "llvm.fmuladd": {
+      "calls": 363,
+      "class": "refused",
+      "lane": "floating point"
+     },
+     "llvm.fshl": {
+      "calls": 71,
+      "class": "modeled"
+     },
+     "llvm.lifetime.end": {
+      "calls": 103,
+      "class": "modeled"
+     },
+     "llvm.lifetime.start": {
+      "calls": 81,
+      "class": "modeled"
+     },
+     "llvm.memcpy": {
+      "calls": 27,
+      "class": "modeled"
+     },
+     "llvm.memmove": {
+      "calls": 7,
+      "class": "refused",
+      "lane": "memory"
+     },
+     "llvm.memset": {
+      "calls": 55,
+      "class": "modeled"
+     },
+     "llvm.smax": {
+      "calls": 5,
+      "class": "modeled"
+     },
+     "llvm.smin": {
+      "calls": 2,
+      "class": "modeled"
+     },
+     "llvm.uadd.sat": {
+      "calls": 3,
+      "class": "modeled"
+     },
+     "llvm.umax": {
+      "calls": 13,
+      "class": "modeled"
+     },
+     "llvm.umin": {
+      "calls": 49,
+      "class": "modeled"
+     },
+     "llvm.umul.with.overflow": {
+      "calls": 1,
+      "class": "modeled"
+     },
+     "llvm.usub.sat": {
+      "calls": 3,
+      "class": "modeled"
+     },
+     "llvm.vector.reduce.add": {
+      "calls": 56,
+      "class": "modeled"
+     },
+     "llvm.vector.reduce.fadd": {
+      "calls": 73,
+      "class": "refused",
+      "lane": "floating point"
+     },
+     "llvm.vector.reduce.or": {
+      "calls": 11,
+      "class": "modeled"
+     },
+     "llvm.x86.avx.vzeroupper": {
+      "calls": 4,
+      "class": "modeled"
+     },
+     "llvm.x86.avx2.pmadd.wd": {
+      "calls": 78,
+      "class": "modeled"
+     },
+     "llvm.x86.avx2.psra.d": {
+      "calls": 24,
+      "class": "modeled"
+     },
+     "llvm.x86.avx2.psrl.q": {
+      "calls": 12,
+      "class": "modeled"
+     }
+    },
+    "kernels": {
+     "named": 16,
+     "as-built": 0,
+     "relaxed": 6
+    }
+   },
+   "measured": {
+    "date": "2026-11-11",
+    "commit": "5c99def23e8fa670dccb97bc9b6eaca7bbb3cd77",
+    "clang": "clang version 23.1.3"
+   }
+  },
+  "libdeflate": {
+   "rev": "92e6a0db9fa848d742f9eb286c92afc60f2c3dda",
+   "nix_hash": "sha256-QVF2XL8Qu3mTszKKtx+8BExkTGkpMANXjkAe3XXPUJQ=",
+   "units": [
+    {
+     "source": "lib/deflate_compress.c",
+     "flags": [],
+     "variants": {
+      "as-built": {
+       "functions": 19,
+       "translated": 1,
+       "refused": {
+        "metadata !tbaa": 13,
+        "call to @_, which isn't translated": 2,
+        "intrinsic llvm.experimental.noalias.scope.decl": 2,
+        "call to external functions in a function with a stack frame or promises about memory, which IRLean.World doesn't wrap yet": 1
+       }
+      },
+      "relaxed": {
+       "functions": 19,
+       "translated": 5,
+       "refused": {
+        "call to @_, which isn't translated": 3,
+        "call parameter attribute readonly": 2,
+        "intrinsic llvm.experimental.noalias.scope.decl": 2,
+        "intrinsic llvm.prefetch": 2,
+        "call to external @_, which touches memory: F4": 1,
+        "call to external functions in a function with a stack frame or promises about memory, which IRLean.World doesn't wrap yet": 1,
+        "indirect call that can reach @_, which isn't translated": 1,
+        "intrinsic llvm.memmove": 1,
+        "metadata !range": 1
+       }
+      }
+     },
+     "instructions": 12936,
+     "intrinsics": {
+      "llvm.assume": 11,
+      "llvm.ctlz": 6,
+      "llvm.cttz": 17,
+      "llvm.experimental.noalias.scope.decl": 2,
+      "llvm.lifetime.end": 10,
+      "llvm.lifetime.start": 10,
+      "llvm.memcpy": 7,
+      "llvm.memmove": 3,
+      "llvm.memset": 23,
+      "llvm.prefetch": 28,
+      "llvm.sadd.sat": 120,
+      "llvm.smax": 1,
+      "llvm.smin": 5,
+      "llvm.umax": 7,
+      "llvm.umin": 30,
+      "llvm.vector.reduce.add": 25
+     },
+     "kernels": {
+      "deflate_compress_lazy": {
+       "instructions": 1764,
+       "vector": true,
+       "float": false,
+       "intrinsics": {
+        "llvm.assume": 1,
+        "llvm.ctlz": 2,
+        "llvm.cttz": 4,
+        "llvm.experimental.noalias.scope.decl": 1,
+        "llvm.lifetime.end": 1,
+        "llvm.lifetime.start": 1,
+        "llvm.memset": 2,
+        "llvm.prefetch": 8,
+        "llvm.sadd.sat": 32,
+        "llvm.smin": 2,
+        "llvm.umin": 4,
+        "llvm.vector.reduce.add": 3
+       },
+       "as-built": "intrinsic llvm.experimental.noalias.scope.decl",
+       "relaxed": "intrinsic llvm.experimental.noalias.scope.decl"
+      },
+      "deflate_flush_block": {
+       "instructions": 1506,
+       "vector": true,
+       "float": false,
+       "intrinsics": {
+        "llvm.assume": 1,
+        "llvm.memcpy": 2,
+        "llvm.smin": 1,
+        "llvm.umax": 2,
+        "llvm.umin": 2,
+        "llvm.vector.reduce.add": 9
+       },
+       "as-built": "metadata !tbaa",
+       "relaxed": "call to @_, which isn't translated"
+      }
+     }
+    },
+    {
+     "source": "lib/deflate_decompress.c",
+     "flags": [],
+     "variants": {
+      "as-built": {
+       "functions": 9,
+       "translated": 0,
+       "refused": {
+        "metadata !tbaa": 9
+       }
+      },
+      "relaxed": {
+       "functions": 9,
+       "translated": 4,
+       "refused": {
+        "instruction load volatile": 3,
+        "metadata !range": 2
+       }
+      }
+     },
+     "instructions": 2931,
+     "intrinsics": {
+      "llvm.assume": 5,
+      "llvm.ctlz": 2,
+      "llvm.lifetime.end": 2,
+      "llvm.lifetime.start": 2,
+      "llvm.memcpy": 6,
+      "llvm.memset": 15,
+      "llvm.umax": 2,
+      "llvm.umin": 5
+     },
+     "kernels": {
+      "deflate_decompress_bmi2": {
+       "instructions": 1223,
+       "vector": true,
+       "float": false,
+       "intrinsics": {
+        "llvm.assume": 1,
+        "llvm.memcpy": 1,
+        "llvm.memset": 6,
+        "llvm.umax": 1,
+        "llvm.umin": 2
+       },
+       "as-built": "metadata !tbaa",
+       "relaxed": "metadata !range"
+      }
+     }
+    }
+   ],
+   "totals": {
+    "units": 2,
+    "instructions": 15867,
+    "as-built": {
+     "functions": 28,
+     "translated": 1,
+     "refused": {
+      "metadata !tbaa": 22,
+      "call to @_, which isn't translated": 2,
+      "intrinsic llvm.experimental.noalias.scope.decl": 2,
+      "call to external functions in a function with a stack frame or promises about memory, which IRLean.World doesn't wrap yet": 1
+     }
+    },
+    "relaxed": {
+     "functions": 28,
+     "translated": 9,
+     "refused": {
+      "call to @_, which isn't translated": 3,
+      "instruction load volatile": 3,
+      "metadata !range": 3,
+      "call parameter attribute readonly": 2,
+      "intrinsic llvm.experimental.noalias.scope.decl": 2,
+      "intrinsic llvm.prefetch": 2,
+      "call to external @_, which touches memory: F4": 1,
+      "call to external functions in a function with a stack frame or promises about memory, which IRLean.World doesn't wrap yet": 1,
+      "indirect call that can reach @_, which isn't translated": 1,
+      "intrinsic llvm.memmove": 1
+     }
+    },
+    "intrinsics": {
+     "llvm.assume": {
+      "calls": 16,
+      "class": "modeled"
+     },
+     "llvm.ctlz": {
+      "calls": 8,
+      "class": "modeled"
+     },
+     "llvm.cttz": {
+      "calls": 17,
+      "class": "modeled"
+     },
+     "llvm.experimental.noalias.scope.decl": {
+      "calls": 2,
+      "class": "refused",
+      "lane": "memory"
+     },
+     "llvm.lifetime.end": {
+      "calls": 12,
+      "class": "modeled"
+     },
+     "llvm.lifetime.start": {
+      "calls": 12,
+      "class": "modeled"
+     },
+     "llvm.memcpy": {
+      "calls": 13,
+      "class": "modeled"
+     },
+     "llvm.memmove": {
+      "calls": 3,
+      "class": "refused",
+      "lane": "memory"
+     },
+     "llvm.memset": {
+      "calls": 38,
+      "class": "modeled"
+     },
+     "llvm.prefetch": {
+      "calls": 28,
+      "class": "refused"
+     },
+     "llvm.sadd.sat": {
+      "calls": 120,
+      "class": "modeled"
+     },
+     "llvm.smax": {
+      "calls": 1,
+      "class": "modeled"
+     },
+     "llvm.smin": {
+      "calls": 5,
+      "class": "modeled"
+     },
+     "llvm.umax": {
+      "calls": 9,
+      "class": "modeled"
+     },
+     "llvm.umin": {
+      "calls": 35,
+      "class": "modeled"
+     },
+     "llvm.vector.reduce.add": {
+      "calls": 25,
+      "class": "modeled"
+     }
+    },
+    "kernels": {
+     "named": 3,
+     "as-built": 0,
+     "relaxed": 0
+    }
+   },
+   "measured": {
+    "date": "2026-11-11",
+    "commit": "5c99def23e8fa670dccb97bc9b6eaca7bbb3cd77",
+    "clang": "clang version 23.1.3"
+   }
+  },
+  "libsodium": {
+   "rev": "77e1ce5d6dee871c49ef211222ba18ef0c486bda",
+   "nix_hash": "sha256-k8u7iNqvjLA0PptbneDyE8zCtutJlV2LirrRb41tmBY=",
+   "units": [
+    {
+     "source": "src/libsodium/crypto_stream/chacha20/dolbeau/chacha20_dolbeau-avx2.c",
+     "flags": [
+      "-msse2",
+      "-mssse3",
+      "-msse4.1",
+      "-mavx",
+      "-mavx2"
+     ],
+     "variants": {
+      "as-built": {
+       "functions": 5,
+       "translated": 0,
+       "refused": {
+        "call to external functions in a function with a stack frame or promises about memory, which IRLean.World doesn't wrap yet": 5
+       }
+      },
+      "relaxed": {
+       "functions": 5,
+       "translated": 0,
+       "refused": {
+        "call to external functions in a function with a stack frame or promises about memory, which IRLean.World doesn't wrap yet": 5
+       }
+      }
+     },
+     "instructions": 1185,
+     "intrinsics": {
+      "llvm.fshl": 40,
+      "llvm.lifetime.end": 5,
+      "llvm.lifetime.start": 5,
+      "llvm.memset": 2
+     },
+     "kernels": {
+      "chacha20_encrypt_bytes": {
+       "instructions": 1096,
+       "vector": true,
+       "float": false,
+       "intrinsics": {
+        "llvm.fshl": 40,
+        "llvm.lifetime.end": 1,
+        "llvm.lifetime.start": 1
+       },
+       "as-built": "call to external functions in a function with a stack frame or promises about memory, which IRLean.World doesn't wrap yet",
+       "relaxed": "call to external functions in a function with a stack frame or promises about memory, which IRLean.World doesn't wrap yet"
+      }
+     }
+    },
+    {
+     "source": "src/libsodium/crypto_onetimeauth/poly1305/sse2/poly1305_sse2.c",
+     "flags": [
+      "-msse2"
+     ],
+     "variants": {
+      "as-built": {
+       "functions": 8,
+       "translated": 2,
+       "refused": {
+        "call to external functions in a function with a stack frame or promises about memory, which IRLean.World doesn't wrap yet": 3,
+        "call to @_, which isn't translated": 2,
+        "instruction load volatile": 1
+       }
+      },
+      "relaxed": {
+       "functions": 8,
+       "translated": 2,
+       "refused": {
+        "call to external functions in a function with a stack frame or promises about memory, which IRLean.World doesn't wrap yet": 3,
+        "call to @_, which isn't translated": 2,
+        "instruction load volatile": 1
+       }
+      }
+     },
+     "instructions": 1071,
+     "intrinsics": {
+      "llvm.assume": 2,
+      "llvm.fshl": 3,
+      "llvm.lifetime.end": 4,
+      "llvm.lifetime.start": 4,
+      "llvm.memset": 4,
+      "llvm.umin": 1,
+      "llvm.usub.sat": 1
+     },
+     "kernels": {
+      "poly1305_blocks": {
+       "instructions": 584,
+       "vector": true,
+       "float": false,
+       "intrinsics": {
+        "llvm.fshl": 2
+       },
+       "as-built": "instruction load volatile",
+       "relaxed": "instruction load volatile"
+      }
+     }
+    },
+    {
+     "source": "src/libsodium/crypto_generichash/blake2b/ref/blake2b-compress-avx2.c",
+     "flags": [
+      "-msse2",
+      "-mssse3",
+      "-msse4.1",
+      "-mavx",
+      "-mavx2"
+     ],
+     "variants": {
+      "as-built": {
+       "functions": 1,
+       "translated": 1,
+       "refused": {}
+      },
+      "relaxed": {
+       "functions": 1,
+       "translated": 1,
+       "refused": {}
+      }
+     },
+     "instructions": 689,
+     "intrinsics": {
+      "llvm.fshl": 24
+     },
+     "kernels": {
+      "blake2b_compress_avx2": {
+       "instructions": 689,
+       "vector": true,
+       "float": false,
+       "intrinsics": {
+        "llvm.fshl": 24
+       },
+       "as-built": "ok",
+       "relaxed": "ok"
+      }
+     }
+    },
+    {
+     "source": "src/libsodium/crypto_pwhash/argon2/argon2-fill-block-avx512f.c",
+     "flags": [
+      "-msse2",
+      "-mssse3",
+      "-msse4.1",
+      "-mavx",
+      "-mavx2",
+      "-mavx512f"
+     ],
+     "variants": {
+      "as-built": {
+       "functions": 2,
+       "translated": 2,
+       "refused": {}
+      },
+      "relaxed": {
+       "functions": 2,
+       "translated": 2,
+       "refused": {}
+      }
+     },
+     "instructions": 1308,
+     "intrinsics": {
+      "llvm.fshl": 64,
+      "llvm.lifetime.end": 6,
+      "llvm.lifetime.start": 6,
+      "llvm.memcpy": 1,
+      "llvm.memset": 6
+     },
+     "kernels": {
+      "fill_block_with_xor": {
+       "instructions": 561,
+       "vector": true,
+       "float": false,
+       "intrinsics": {
+        "llvm.fshl": 32
+       },
+       "as-built": "ok",
+       "relaxed": "ok"
+      },
+      "argon2_fill_segment_avx512f": {
+       "instructions": 747,
+       "vector": true,
+       "float": false,
+       "intrinsics": {
+        "llvm.fshl": 32,
+        "llvm.lifetime.end": 6,
+        "llvm.lifetime.start": 6,
+        "llvm.memcpy": 1,
+        "llvm.memset": 6
+       },
+       "as-built": "ok",
+       "relaxed": "ok"
+      }
+     }
+    },
+    {
+     "source": "src/libsodium/crypto_stream/salsa20/xmm6int/salsa20_xmm6int-avx2.c",
+     "flags": [
+      "-msse2",
+      "-mssse3",
+      "-msse4.1",
+      "-mavx",
+      "-mavx2"
+     ],
+     "variants": {
+      "as-built": {
+       "functions": 3,
+       "translated": 0,
+       "refused": {
+        "call to external functions in a function with a stack frame or promises about memory, which IRLean.World doesn't wrap yet": 3
+       }
+      },
+      "relaxed": {
+       "functions": 3,
+       "translated": 0,
+       "refused": {
+        "call to external functions in a function with a stack frame or promises about memory, which IRLean.World doesn't wrap yet": 3
+       }
+      }
+     },
+     "instructions": 1431,
+     "intrinsics": {
+      "llvm.fshl": 84,
+      "llvm.lifetime.end": 3,
+      "llvm.lifetime.start": 3,
+      "llvm.memset": 1
+     },
+     "kernels": {
+      "salsa20_encrypt_bytes": {
+       "instructions": 1333,
+       "vector": true,
+       "float": false,
+       "intrinsics": {
+        "llvm.fshl": 84,
+        "llvm.lifetime.end": 1,
+        "llvm.lifetime.start": 1
+       },
+       "as-built": "call to external functions in a function with a stack frame or promises about memory, which IRLean.World doesn't wrap yet",
+       "relaxed": "call to external functions in a function with a stack frame or promises about memory, which IRLean.World doesn't wrap yet"
+      }
+     }
+    },
+    {
+     "source": "src/libsodium/crypto_aead/aes256gcm/aesni/aead_aes256gcm_aesni.c",
+     "flags": [
+      "-mavx",
+      "-maes",
+      "-mpclmul"
+     ],
+     "variants": {
+      "as-built": {
+       "functions": 11,
+       "translated": 2,
+       "refused": {
+        "call to external functions in a function with a stack frame or promises about memory, which IRLean.World doesn't wrap yet": 6,
+        "function attribute norecurse on a function that calls outside the module": 2,
+        "call to external @_, which may be null": 1
+       }
+      },
+      "relaxed": {
+       "functions": 11,
+       "translated": 2,
+       "refused": {
+        "call to external functions in a function with a stack frame or promises about memory, which IRLean.World doesn't wrap yet": 6,
+        "function attribute norecurse on a function that calls outside the module": 2,
+        "call to external @_, which may be null": 1
+       }
+      }
+     },
+     "instructions": 4807,
+     "intrinsics": {
+      "llvm.fshl": 1,
+      "llvm.lifetime.end": 16,
+      "llvm.lifetime.start": 16,
+      "llvm.memcpy": 4,
+      "llvm.memset": 9,
+      "llvm.prefetch": 16,
+      "llvm.x86.aesni.aesenc": 988,
+      "llvm.x86.aesni.aesenclast": 76,
+      "llvm.x86.aesni.aeskeygenassist": 13,
+      "llvm.x86.pclmulqdq": 490
+     },
+     "kernels": {
+      "gh_ad_blocks": {
+       "instructions": 494,
+       "vector": true,
+       "float": false,
+       "intrinsics": {
+        "llvm.x86.pclmulqdq": 122
+       },
+       "as-built": "ok",
+       "relaxed": "ok"
+      }
+     }
+    }
+   ],
+   "totals": {
+    "units": 6,
+    "instructions": 10491,
+    "as-built": {
+     "functions": 30,
+     "translated": 7,
+     "refused": {
+      "call to external functions in a function with a stack frame or promises about memory, which IRLean.World doesn't wrap yet": 17,
+      "call to @_, which isn't translated": 2,
+      "function attribute norecurse on a function that calls outside the module": 2,
+      "call to external @_, which may be null": 1,
+      "instruction load volatile": 1
+     }
+    },
+    "relaxed": {
+     "functions": 30,
+     "translated": 7,
+     "refused": {
+      "call to external functions in a function with a stack frame or promises about memory, which IRLean.World doesn't wrap yet": 17,
+      "call to @_, which isn't translated": 2,
+      "function attribute norecurse on a function that calls outside the module": 2,
+      "call to external @_, which may be null": 1,
+      "instruction load volatile": 1
+     }
+    },
+    "intrinsics": {
+     "llvm.assume": {
+      "calls": 2,
+      "class": "modeled"
+     },
+     "llvm.fshl": {
+      "calls": 216,
+      "class": "modeled"
+     },
+     "llvm.lifetime.end": {
+      "calls": 34,
+      "class": "modeled"
+     },
+     "llvm.lifetime.start": {
+      "calls": 34,
+      "class": "modeled"
+     },
+     "llvm.memcpy": {
+      "calls": 5,
+      "class": "modeled"
+     },
+     "llvm.memset": {
+      "calls": 22,
+      "class": "modeled"
+     },
+     "llvm.prefetch": {
+      "calls": 16,
+      "class": "refused"
+     },
+     "llvm.umin": {
+      "calls": 1,
+      "class": "modeled"
+     },
+     "llvm.usub.sat": {
+      "calls": 1,
+      "class": "modeled"
+     },
+     "llvm.x86.aesni.aesenc": {
+      "calls": 988,
+      "class": "modeled"
+     },
+     "llvm.x86.aesni.aesenclast": {
+      "calls": 76,
+      "class": "modeled"
+     },
+     "llvm.x86.aesni.aeskeygenassist": {
+      "calls": 13,
+      "class": "modeled"
+     },
+     "llvm.x86.pclmulqdq": {
+      "calls": 490,
+      "class": "modeled"
+     }
+    },
+    "kernels": {
+     "named": 7,
+     "as-built": 4,
+     "relaxed": 4
+    }
+   },
+   "measured": {
+    "date": "2026-11-11",
+    "commit": "5c99def23e8fa670dccb97bc9b6eaca7bbb3cd77",
+    "clang": "clang version 23.1.3"
+   }
+  },
+  "libwebp": {
+   "rev": "4fa21912338357f89e4fd51cf2368325b59e9bd9",
+   "nix_hash": "sha256-7i4fGBTsTjAkBzCjVqXqX4n22j6dLgF/0mz4ajNA45U=",
+   "units": [
+    {
+     "source": "src/dec/vp8_dec.c",
+     "flags": [],
+     "variants": {
+      "as-built": {
+       "functions": 20,
+       "translated": 2,
+       "refused": {
+        "call to external functions in a function with a stack frame or promises about memory, which IRLean.World doesn't wrap yet": 7,
+        "metadata !tbaa": 7,
+        "call to external @_, which touches memory: F4": 4
+       }
+      },
+      "relaxed": {
+       "functions": 20,
+       "translated": 8,
+       "refused": {
+        "call to external functions in a function with a stack frame or promises about memory, which IRLean.World doesn't wrap yet": 7,
+        "call to external @_, which touches memory: F4": 4,
+        "call to @_, which isn't translated": 1
+       }
+      }
+     },
+     "instructions": 2357,
+     "intrinsics": {
+      "llvm.bswap": 19,
+      "llvm.ctlz": 14,
+      "llvm.experimental.noalias.scope.decl": 38,
+      "llvm.fshl": 19,
+      "llvm.lifetime.end": 1,
+      "llvm.lifetime.start": 1,
+      "llvm.memset": 10,
+      "llvm.umax": 1,
+      "llvm.umin": 1
+     },
+     "kernels": {
+      "GetCoeffsFast": {
+       "instructions": 252,
+       "vector": false,
+       "float": false,
+       "intrinsics": {
+        "llvm.bswap": 4,
+        "llvm.ctlz": 3,
+        "llvm.experimental.noalias.scope.decl": 8,
+        "llvm.fshl": 4
+       },
+       "as-built": "call to external functions in a function with a stack frame or promises about memory, which IRLean.World doesn't wrap yet",
+       "relaxed": "call to external functions in a function with a stack frame or promises about memory, which IRLean.World doesn't wrap yet"
+      },
+      "GetLargeValue": {
+       "instructions": 603,
+       "vector": false,
+       "float": false,
+       "intrinsics": {
+        "llvm.bswap": 11,
+        "llvm.ctlz": 11,
+        "llvm.experimental.noalias.scope.decl": 22,
+        "llvm.fshl": 11
+       },
+       "as-built": "call to external functions in a function with a stack frame or promises about memory, which IRLean.World doesn't wrap yet",
+       "relaxed": "call to external functions in a function with a stack frame or promises about memory, which IRLean.World doesn't wrap yet"
+      }
+     }
+    },
+    {
+     "source": "src/dec/tree_dec.c",
+     "flags": [],
+     "variants": {
+      "as-built": {
+       "functions": 3,
+       "translated": 1,
+       "refused": {
+        "call to external functions in a function with a stack frame or promises about memory, which IRLean.World doesn't wrap yet": 1,
+        "metadata !tbaa": 1
+       }
+      },
+      "relaxed": {
+       "functions": 3,
+       "translated": 1,
+       "refused": {
+        "call to external functions in a function with a stack frame or promises about memory, which IRLean.World doesn't wrap yet": 1,
+        "intrinsic llvm.experimental.noalias.scope.decl": 1
+       }
+      }
+     },
+     "instructions": 1023,
+     "intrinsics": {
+      "llvm.bswap": 16,
+      "llvm.ctlz": 15,
+      "llvm.experimental.noalias.scope.decl": 32,
+      "llvm.fshl": 16,
+      "llvm.memset": 3
+     },
+     "kernels": {
+      "VP8ParseIntraModeRow": {
+       "instructions": 743,
+       "vector": false,
+       "float": false,
+       "intrinsics": {
+        "llvm.bswap": 13,
+        "llvm.ctlz": 12,
+        "llvm.experimental.noalias.scope.decl": 26,
+        "llvm.fshl": 13,
+        "llvm.memset": 2
+       },
+       "as-built": "call to external functions in a function with a stack frame or promises about memory, which IRLean.World doesn't wrap yet",
+       "relaxed": "call to external functions in a function with a stack frame or promises about memory, which IRLean.World doesn't wrap yet"
+      }
+     }
+    },
+    {
+     "source": "src/dsp/dec_sse2.c",
+     "flags": [],
+     "variants": {
+      "as-built": {
+       "functions": 33,
+       "translated": 5,
+       "refused": {
+        "metadata !tbaa": 26,
+        "parameter attribute noalias": 2
+       }
+      },
+      "relaxed": {
+       "functions": 33,
+       "translated": 27,
+       "refused": {
+        "parameter attribute noalias": 5,
+        "constant ptr getelementptr inbounds nuw (i8, ptr @_, i64 8) with flags that don't plainly hold": 1
+       }
+      }
+     },
+     "instructions": 4496,
+     "intrinsics": {
+      "llvm.sadd.sat": 100,
+      "llvm.ssub.sat": 58,
+      "llvm.uadd.sat": 28,
+      "llvm.umax": 48,
+      "llvm.usub.sat": 157,
+      "llvm.x86.sse2.packsswb.128": 40,
+      "llvm.x86.sse2.packuswb.128": 32,
+      "llvm.x86.sse2.pavg.b": 16,
+      "llvm.x86.sse2.pmulh.w": 16,
+      "llvm.x86.sse2.psad.bw": 4
+     },
+     "kernels": {
+      "Transform_SSE2": {
+       "instructions": 206,
+       "vector": true,
+       "float": false,
+       "intrinsics": {
+        "llvm.x86.sse2.packuswb.128": 4,
+        "llvm.x86.sse2.pmulh.w": 8
+       },
+       "as-built": "metadata !tbaa",
+       "relaxed": "parameter attribute noalias"
+      }
+     }
+    },
+    {
+     "source": "src/dsp/yuv_sse41.c",
+     "flags": [
+      "-msse4.1"
+     ],
+     "variants": {
+      "as-built": {
+       "functions": 11,
+       "translated": 0,
+       "refused": {
+        "metadata !tbaa": 11
+       }
+      },
+      "relaxed": {
+       "functions": 11,
+       "translated": 1,
+       "refused": {
+        "metadata !alias": 9,
+        "constant ptr getelementptr inbounds nuw (i8, ptr @_, i64 16) with flags that don't plainly hold": 1
+       }
+      }
+     },
+     "instructions": 2374,
+     "intrinsics": {
+      "llvm.uadd.sat": 16,
+      "llvm.usub.sat": 16,
+      "llvm.x86.sse2.packssdw.128": 24,
+      "llvm.x86.sse2.packuswb.128": 33,
+      "llvm.x86.sse2.pavg.b": 2,
+      "llvm.x86.sse2.pmadd.wd": 84,
+      "llvm.x86.sse2.pmulhu.w": 80
+     },
+     "kernels": {
+      "VP8YuvToRgb32_SSE41": {
+       "instructions": 177,
+       "vector": true,
+       "float": false,
+       "intrinsics": {
+        "llvm.uadd.sat": 4,
+        "llvm.usub.sat": 4,
+        "llvm.x86.sse2.packuswb.128": 6,
+        "llvm.x86.sse2.pmulhu.w": 20
+       },
+       "as-built": "metadata !tbaa",
+       "relaxed": "metadata !alias"
+      }
+     }
+    },
+    {
+     "source": "src/dec/vp8l_dec.c",
+     "flags": [],
+     "variants": {
+      "as-built": {
+       "functions": 16,
+       "translated": 0,
+       "refused": {
+        "metadata !tbaa": 7,
+        "call to external functions in a function with a stack frame or promises about memory, which IRLean.World doesn't wrap yet": 6,
+        "call to external @_, which touches memory: F4": 2,
+        "call to @_, which isn't translated": 1
+       }
+      },
+      "relaxed": {
+       "functions": 16,
+       "translated": 2,
+       "refused": {
+        "call to external @_, which touches memory: F4": 7,
+        "call to external functions in a function with a stack frame or promises about memory, which IRLean.World doesn't wrap yet": 6,
+        "call to @_, which isn't translated": 1
+       }
+      }
+     },
+     "instructions": 3551,
+     "intrinsics": {
+      "llvm.assume": 1,
+      "llvm.fshl": 4,
+      "llvm.lifetime.end": 9,
+      "llvm.lifetime.start": 5,
+      "llvm.memcpy": 6,
+      "llvm.memset": 6,
+      "llvm.smax": 51,
+      "llvm.smin": 3,
+      "llvm.umin": 1,
+      "llvm.vector.reduce.smax": 5
+     },
+     "kernels": {
+      "DecodeImageData": {
+       "instructions": 652,
+       "vector": false,
+       "float": false,
+       "intrinsics": {
+        "llvm.memcpy": 2,
+        "llvm.smax": 1,
+        "llvm.smin": 1
+       },
+       "as-built": "call to external functions in a function with a stack frame or promises about memory, which IRLean.World doesn't wrap yet",
+       "relaxed": "call to external functions in a function with a stack frame or promises about memory, which IRLean.World doesn't wrap yet"
+      }
+     }
+    },
+    {
+     "source": "src/utils/huffman_utils.c",
+     "flags": [],
+     "variants": {
+      "as-built": {
+       "functions": 6,
+       "translated": 0,
+       "refused": {
+        "call to external @_, which touches memory: F4": 2,
+        "call to external functions in a function with a stack frame or promises about memory, which IRLean.World doesn't wrap yet": 2,
+        "metadata !tbaa": 2
+       }
+      },
+      "relaxed": {
+       "functions": 6,
+       "translated": 1,
+       "refused": {
+        "call to external @_, which touches memory: F4": 3,
+        "call to external functions in a function with a stack frame or promises about memory, which IRLean.World doesn't wrap yet": 2
+       }
+      }
+     },
+     "instructions": 644,
+     "intrinsics": {
+      "llvm.assume": 1,
+      "llvm.lifetime.end": 3,
+      "llvm.lifetime.start": 3,
+      "llvm.memset": 1,
+      "llvm.smax": 1,
+      "llvm.smin": 1
+     },
+     "kernels": {
+      "BuildHuffmanTable": {
+       "instructions": 541,
+       "vector": true,
+       "float": false,
+       "intrinsics": {
+        "llvm.assume": 1,
+        "llvm.lifetime.end": 2,
+        "llvm.lifetime.start": 2,
+        "llvm.memset": 1,
+        "llvm.smin": 1
+       },
+       "as-built": "metadata !tbaa",
+       "relaxed": "ok"
+      }
+     }
+    },
+    {
+     "source": "src/dsp/lossless_sse2.c",
+     "flags": [],
+     "variants": {
+      "as-built": {
+       "functions": 31,
+       "translated": 0,
+       "refused": {
+        "metadata !tbaa": 21,
+        "in a cycle with a function refused for: call to external functions in a function with a stack frame or promises about memory, which IRLean.World doesn't wrap yet": 10
+       }
+      },
+      "relaxed": {
+       "functions": 31,
+       "translated": 10,
+       "refused": {
+        "in a cycle with a function refused for: call to external functions in a function with a stack frame or promises about memory, which IRLean.World doesn't wrap yet": 10,
+        "call to external @_, which touches memory: F4": 7,
+        "parameter attribute noalias": 4
+       }
+      }
+     },
+     "instructions": 1437,
+     "intrinsics": {
+      "llvm.memcpy": 1,
+      "llvm.usub.sat": 4,
+      "llvm.vector.reduce.add": 1,
+      "llvm.x86.sse2.packssdw.128": 1,
+      "llvm.x86.sse2.packuswb.128": 40,
+      "llvm.x86.sse2.pavg.b": 17,
+      "llvm.x86.sse2.pmulh.w": 2,
+      "llvm.x86.sse2.psad.bw": 6
+     },
+     "kernels": {
+      "PredictorAdd13_SSE2": {
+       "instructions": 52,
+       "vector": true,
+       "float": false,
+       "intrinsics": {
+        "llvm.x86.sse2.packuswb.128": 1
+       },
+       "as-built": "metadata !tbaa",
+       "relaxed": "parameter attribute noalias"
+      }
+     }
+    },
+    {
+     "source": "src/dsp/lossless_avx2.c",
+     "flags": [
+      "-mavx2"
+     ],
+     "variants": {
+      "as-built": {
+       "functions": 14,
+       "translated": 0,
+       "refused": {
+        "in a cycle with a function refused for: metadata !tbaa": 13,
+        "metadata !tbaa": 1
+       }
+      },
+      "relaxed": {
+       "functions": 14,
+       "translated": 1,
+       "refused": {
+        "in a cycle with a function refused for: parameter attribute noalias": 13
+       }
+      }
+     },
+     "instructions": 916,
+     "intrinsics": {
+      "llvm.x86.avx2.packssdw": 1,
+      "llvm.x86.avx2.packuswb": 8,
+      "llvm.x86.avx2.pavg.b": 19,
+      "llvm.x86.avx2.pmulh.w": 2,
+      "llvm.x86.avx2.psad.bw": 10
+     },
+     "kernels": {
+      "TransformColorInverse_AVX2": {
+       "instructions": 63,
+       "vector": true,
+       "float": false,
+       "intrinsics": {
+        "llvm.x86.avx2.pmulh.w": 2
+       },
+       "as-built": "in a cycle with a function refused for: metadata !tbaa",
+       "relaxed": "in a cycle with a function refused for: parameter attribute noalias"
+      },
+      "PredictorAdd12_AVX2": {
+       "instructions": 131,
+       "vector": true,
+       "float": false,
+       "intrinsics": {
+        "llvm.x86.avx2.packuswb": 8
+       },
+       "as-built": "in a cycle with a function refused for: metadata !tbaa",
+       "relaxed": "in a cycle with a function refused for: parameter attribute noalias"
+      }
+     }
+    },
+    {
+     "source": "src/enc/backward_references_enc.c",
+     "flags": [],
+     "variants": {
+      "as-built": {
+       "functions": 12,
+       "translated": 0,
+       "refused": {
+        "call to external functions in a function with a stack frame or promises about memory, which IRLean.World doesn't wrap yet": 6,
+        "metadata !tbaa": 6
+       }
+      },
+      "relaxed": {
+       "functions": 12,
+       "translated": 4,
+       "refused": {
+        "call to external functions in a function with a stack frame or promises about memory, which IRLean.World doesn't wrap yet": 6,
+        "call to external @_, which touches memory: F4": 1,
+        "parameter attribute dead_on_unwind": 1
+       }
+      }
+     },
+     "instructions": 2986,
+     "intrinsics": {
+      "llvm.assume": 2,
+      "llvm.ctlz": 1,
+      "llvm.lifetime.end": 19,
+      "llvm.lifetime.start": 12,
+      "llvm.memcpy": 11,
+      "llvm.memset": 9,
+      "llvm.smax": 5,
+      "llvm.smin": 5,
+      "llvm.umin": 2,
+      "llvm.usub.sat": 1
+     },
+     "kernels": {
+      "VP8LHashChainFill": {
+       "instructions": 373,
+       "vector": false,
+       "float": false,
+       "intrinsics": {
+        "llvm.memset": 2,
+        "llvm.smax": 2,
+        "llvm.smin": 3,
+        "llvm.usub.sat": 1
+       },
+       "as-built": "call to external functions in a function with a stack frame or promises about memory, which IRLean.World doesn't wrap yet",
+       "relaxed": "call to external functions in a function with a stack frame or promises about memory, which IRLean.World doesn't wrap yet"
+      },
+      "VP8LGetBackwardReferences": {
+       "instructions": 2229,
+       "vector": false,
+       "float": false,
+       "intrinsics": {
+        "llvm.assume": 2,
+        "llvm.ctlz": 1,
+        "llvm.lifetime.end": 19,
+        "llvm.lifetime.start": 12,
+        "llvm.memcpy": 11,
+        "llvm.memset": 6,
+        "llvm.smin": 1,
+        "llvm.umin": 2
+       },
+       "as-built": "call to external functions in a function with a stack frame or promises about memory, which IRLean.World doesn't wrap yet",
+       "relaxed": "call to external functions in a function with a stack frame or promises about memory, which IRLean.World doesn't wrap yet"
+      }
+     }
+    },
+    {
+     "source": "src/dsp/lossless_enc.c",
+     "flags": [],
+     "variants": {
+      "as-built": {
+       "functions": 32,
+       "translated": 0,
+       "refused": {
+        "call to external functions in a function with a stack frame or promises about memory, which IRLean.World doesn't wrap yet": 15,
+        "metadata !tbaa": 12,
+        "function attribute norecurse on a function that calls outside the module": 2,
+        "more than one parameter with attribute initializes": 2,
+        "call to external @_, which touches memory: F4": 1
+       }
+      },
+      "relaxed": {
+       "functions": 32,
+       "translated": 4,
+       "refused": {
+        "call to external functions in a function with a stack frame or promises about memory, which IRLean.World doesn't wrap yet": 15,
+        "parameter attribute noalias": 8,
+        "function attribute norecurse on a function that calls outside the module": 2,
+        "more than one parameter with attribute initializes": 2,
+        "call to external @_, which touches memory: F4": 1
+       }
+      }
+     },
+     "instructions": 1578,
+     "intrinsics": {
+      "llvm.assume": 2,
+      "llvm.ctlz": 2,
+      "llvm.experimental.noalias.scope.decl": 8,
+      "llvm.fmuladd": 2,
+      "llvm.memset": 6,
+      "llvm.vector.reduce.add": 1
+     },
+     "kernels": {
+      "GetCombinedEntropyUnrefined_C": {
+       "instructions": 156,
+       "vector": false,
+       "float": false,
+       "intrinsics": {
+        "llvm.experimental.noalias.scope.decl": 4,
+        "llvm.memset": 2
+       },
+       "as-built": "more than one parameter with attribute initializes",
+       "relaxed": "more than one parameter with attribute initializes"
+      }
+     }
+    },
+    {
+     "source": "src/enc/predictor_enc.c",
+     "flags": [],
+     "variants": {
+      "as-built": {
+       "functions": 6,
+       "translated": 0,
+       "refused": {
+        "metadata !tbaa": 3,
+        "call to external functions in a function with a stack frame or promises about memory, which IRLean.World doesn't wrap yet": 2,
+        "function attribute norecurse on a function that calls outside the module": 1
+       }
+      },
+      "relaxed": {
+       "functions": 6,
+       "translated": 3,
+       "refused": {
+        "call to external functions in a function with a stack frame or promises about memory, which IRLean.World doesn't wrap yet": 2,
+        "function attribute norecurse on a function that calls outside the module": 1
+       }
+      }
+     },
+     "instructions": 2421,
+     "intrinsics": {
+      "llvm.abs": 16,
+      "llvm.assume": 3,
+      "llvm.lifetime.end": 12,
+      "llvm.lifetime.start": 10,
+      "llvm.memcpy": 28,
+      "llvm.memset": 8,
+      "llvm.smax": 1,
+      "llvm.smin": 15,
+      "llvm.umax": 16
+     },
+     "kernels": {
+      "VP8LResidualImage": {
+       "instructions": 1082,
+       "vector": true,
+       "float": false,
+       "intrinsics": {
+        "llvm.assume": 2,
+        "llvm.lifetime.end": 5,
+        "llvm.lifetime.start": 3,
+        "llvm.memcpy": 28,
+        "llvm.memset": 2,
+        "llvm.smax": 1,
+        "llvm.smin": 5,
+        "llvm.umax": 1
+       },
+       "as-built": "call to external functions in a function with a stack frame or promises about memory, which IRLean.World doesn't wrap yet",
+       "relaxed": "call to external functions in a function with a stack frame or promises about memory, which IRLean.World doesn't wrap yet"
+      }
+     }
+    },
+    {
+     "source": "src/dsp/lossless_enc_avx2.c",
+     "flags": [
+      "-mavx2"
+     ],
+     "variants": {
+      "as-built": {
+       "functions": 24,
+       "translated": 0,
+       "refused": {
+        "in a cycle with a function refused for: metadata !tbaa": 14,
+        "metadata !tbaa": 10
+       }
+      },
+      "relaxed": {
+       "functions": 24,
+       "translated": 4,
+       "refused": {
+        "in a cycle with a function refused for: parameter attribute noalias": 14,
+        "parameter attribute noalias": 5,
+        "indirect call that can reach @_, which isn't translated": 1
+       }
+      }
+     },
+     "instructions": 1752,
+     "intrinsics": {
+      "llvm.cttz": 1,
+      "llvm.x86.avx2.packssdw": 6,
+      "llvm.x86.avx2.packsswb": 2,
+      "llvm.x86.avx2.packuswb": 2,
+      "llvm.x86.avx2.pavg.b": 9,
+      "llvm.x86.avx2.pmadd.wd": 3,
+      "llvm.x86.avx2.pmulh.w": 5,
+      "llvm.x86.avx2.psad.bw": 4
+     },
+     "kernels": {
+      "CombinedShannonEntropy_AVX2": {
+       "instructions": 118,
+       "vector": true,
+       "float": false,
+       "intrinsics": {
+        "llvm.cttz": 1,
+        "llvm.x86.avx2.packssdw": 4,
+        "llvm.x86.avx2.packsswb": 2
+       },
+       "as-built": "metadata !tbaa",
+       "relaxed": "ok"
+      },
+      "VectorMismatch_AVX2": {
+       "instructions": 80,
+       "vector": true,
+       "float": false,
+       "intrinsics": {},
+       "as-built": "metadata !tbaa",
+       "relaxed": "ok"
+      },
+      "CollectColorBlueTransforms_AVX2": {
+       "instructions": 240,
+       "vector": true,
+       "float": false,
+       "intrinsics": {
+        "llvm.x86.avx2.pmulh.w": 3
+       },
+       "as-built": "metadata !tbaa",
+       "relaxed": "parameter attribute noalias"
+      }
+     }
+    },
+    {
+     "source": "src/dsp/enc_sse41.c",
+     "flags": [
+      "-msse4.1"
+     ],
+     "variants": {
+      "as-built": {
+       "functions": 7,
+       "translated": 0,
+       "refused": {
+        "metadata !tbaa": 6,
+        "call to external functions in a function with a stack frame or promises about memory, which IRLean.World doesn't wrap yet": 1
+       }
+      },
+      "relaxed": {
+       "functions": 7,
+       "translated": 1,
+       "refused": {
+        "parameter attribute noalias": 4,
+        "call to external functions in a function with a stack frame or promises about memory, which IRLean.World doesn't wrap yet": 1,
+        "metadata !alias": 1
+       }
+      }
+     },
+     "instructions": 648,
+     "intrinsics": {
+      "llvm.abs": 20,
+      "llvm.experimental.noalias.scope.decl": 3,
+      "llvm.lifetime.end": 2,
+      "llvm.lifetime.start": 2,
+      "llvm.memset": 1,
+      "llvm.smin": 10,
+      "llvm.vector.reduce.add": 2,
+      "llvm.x86.sse2.packssdw.128": 8,
+      "llvm.x86.sse2.packsswb.128": 4,
+      "llvm.x86.sse2.pmadd.wd": 8,
+      "llvm.x86.sse2.pmulhu.w": 8,
+      "llvm.x86.ssse3.psign.w.128": 8
+     },
+     "kernels": {
+      "QuantizeBlock_SSE41": {
+       "instructions": 75,
+       "vector": true,
+       "float": false,
+       "intrinsics": {
+        "llvm.abs": 2,
+        "llvm.smin": 2,
+        "llvm.x86.sse2.packssdw.128": 2,
+        "llvm.x86.sse2.packsswb.128": 1,
+        "llvm.x86.sse2.pmulhu.w": 2,
+        "llvm.x86.ssse3.psign.w.128": 2
+       },
+       "as-built": "metadata !tbaa",
+       "relaxed": "parameter attribute noalias"
+      }
+     }
+    },
+    {
+     "source": "src/dsp/enc_sse2.c",
+     "flags": [],
+     "variants": {
+      "as-built": {
+       "functions": 19,
+       "translated": 0,
+       "refused": {
+        "intrinsic llvm.experimental.noalias.scope.decl": 9,
+        "metadata !tbaa": 9,
+        "call to external functions in a function with a stack frame or promises about memory, which IRLean.World doesn't wrap yet": 1
+       }
+      },
+      "relaxed": {
+       "functions": 19,
+       "translated": 1,
+       "refused": {
+        "intrinsic llvm.experimental.noalias.scope.decl": 10,
+        "metadata !alias": 4,
+        "parameter attribute noalias": 2,
+        "call to external functions in a function with a stack frame or promises about memory, which IRLean.World doesn't wrap yet": 1,
+        "instruction freeze of a vector": 1
+       }
+      }
+     },
+     "instructions": 3450,
+     "intrinsics": {
+      "llvm.abs": 12,
+      "llvm.experimental.noalias.scope.decl": 80,
+      "llvm.lifetime.end": 1,
+      "llvm.lifetime.start": 1,
+      "llvm.memset": 5,
+      "llvm.sadd.sat": 4,
+      "llvm.smin": 10,
+      "llvm.ssub.sat": 4,
+      "llvm.usub.sat": 25,
+      "llvm.vector.reduce.add": 6,
+      "llvm.x86.sse2.packssdw.128": 26,
+      "llvm.x86.sse2.packsswb.128": 4,
+      "llvm.x86.sse2.packuswb.128": 41,
+      "llvm.x86.sse2.pavg.b": 12,
+      "llvm.x86.sse2.pmadd.wd": 66,
+      "llvm.x86.sse2.pmulh.w": 12,
+      "llvm.x86.sse2.pmulhu.w": 8,
+      "llvm.x86.sse2.psad.bw": 10
+     },
+     "kernels": {
+      "FTransform_SSE2": {
+       "instructions": 111,
+       "vector": true,
+       "float": false,
+       "intrinsics": {
+        "llvm.x86.sse2.packssdw.128": 4,
+        "llvm.x86.sse2.pmadd.wd": 6
+       },
+       "as-built": "metadata !tbaa",
+       "relaxed": "metadata !alias"
+      },
+      "ITransform_SSE2": {
+       "instructions": 256,
+       "vector": true,
+       "float": false,
+       "intrinsics": {
+        "llvm.experimental.noalias.scope.decl": 5,
+        "llvm.x86.sse2.packuswb.128": 5,
+        "llvm.x86.sse2.pmulh.w": 12
+       },
+       "as-built": "intrinsic llvm.experimental.noalias.scope.decl",
+       "relaxed": "intrinsic llvm.experimental.noalias.scope.decl"
+      },
+      "SSE4x4_SSE2": {
+       "instructions": 53,
+       "vector": true,
+       "float": false,
+       "intrinsics": {
+        "llvm.vector.reduce.add": 1,
+        "llvm.x86.sse2.pmadd.wd": 2
+       },
+       "as-built": "metadata !tbaa",
+       "relaxed": "parameter attribute noalias"
+      }
+     }
+    }
+   ],
+   "totals": {
+    "units": 14,
+    "instructions": 29633,
+    "as-built": {
+     "functions": 234,
+     "translated": 8,
+     "refused": {
+      "metadata !tbaa": 122,
+      "call to external functions in a function with a stack frame or promises about memory, which IRLean.World doesn't wrap yet": 41,
+      "in a cycle with a function refused for: metadata !tbaa": 27,
+      "in a cycle with a function refused for: call to external functions in a function with a stack frame or promises about memory, which IRLean.World doesn't wrap yet": 10,
+      "call to external @_, which touches memory: F4": 9,
+      "intrinsic llvm.experimental.noalias.scope.decl": 9,
+      "function attribute norecurse on a function that calls outside the module": 3,
+      "more than one parameter with attribute initializes": 2,
+      "parameter attribute noalias": 2,
+      "call to @_, which isn't translated": 1
+     }
+    },
+    "relaxed": {
+     "functions": 234,
+     "translated": 68,
+     "refused": {
+      "call to external functions in a function with a stack frame or promises about memory, which IRLean.World doesn't wrap yet": 41,
+      "parameter attribute noalias": 28,
+      "in a cycle with a function refused for: parameter attribute noalias": 27,
+      "call to external @_, which touches memory: F4": 23,
+      "metadata !alias": 14,
+      "intrinsic llvm.experimental.noalias.scope.decl": 11,
+      "in a cycle with a function refused for: call to external functions in a function with a stack frame or promises about memory, which IRLean.World doesn't wrap yet": 10,
+      "function attribute norecurse on a function that calls outside the module": 3,
+      "call to @_, which isn't translated": 2,
+      "more than one parameter with attribute initializes": 2,
+      "constant ptr getelementptr inbounds nuw (i8, ptr @_, i64 16) with flags that don't plainly hold": 1,
+      "constant ptr getelementptr inbounds nuw (i8, ptr @_, i64 8) with flags that don't plainly hold": 1,
+      "indirect call that can reach @_, which isn't translated": 1,
+      "instruction freeze of a vector": 1,
+      "parameter attribute dead_on_unwind": 1
+     }
+    },
+    "intrinsics": {
+     "llvm.abs": {
+      "calls": 48,
+      "class": "modeled"
+     },
+     "llvm.assume": {
+      "calls": 9,
+      "class": "modeled"
+     },
+     "llvm.bswap": {
+      "calls": 35,
+      "class": "modeled"
+     },
+     "llvm.ctlz": {
+      "calls": 32,
+      "class": "modeled"
+     },
+     "llvm.cttz": {
+      "calls": 1,
+      "class": "modeled"
+     },
+     "llvm.experimental.noalias.scope.decl": {
+      "calls": 161,
+      "class": "refused",
+      "lane": "memory"
+     },
+     "llvm.fmuladd": {
+      "calls": 2,
+      "class": "refused",
+      "lane": "floating point"
+     },
+     "llvm.fshl": {
+      "calls": 39,
+      "class": "modeled"
+     },
+     "llvm.lifetime.end": {
+      "calls": 47,
+      "class": "modeled"
+     },
+     "llvm.lifetime.start": {
+      "calls": 34,
+      "class": "modeled"
+     },
+     "llvm.memcpy": {
+      "calls": 46,
+      "class": "modeled"
+     },
+     "llvm.memset": {
+      "calls": 49,
+      "class": "modeled"
+     },
+     "llvm.sadd.sat": {
+      "calls": 104,
+      "class": "modeled"
+     },
+     "llvm.smax": {
+      "calls": 58,
+      "class": "modeled"
+     },
+     "llvm.smin": {
+      "calls": 44,
+      "class": "modeled"
+     },
+     "llvm.ssub.sat": {
+      "calls": 62,
+      "class": "modeled"
+     },
+     "llvm.uadd.sat": {
+      "calls": 44,
+      "class": "modeled"
+     },
+     "llvm.umax": {
+      "calls": 65,
+      "class": "modeled"
+     },
+     "llvm.umin": {
+      "calls": 4,
+      "class": "modeled"
+     },
+     "llvm.usub.sat": {
+      "calls": 203,
+      "class": "modeled"
+     },
+     "llvm.vector.reduce.add": {
+      "calls": 10,
+      "class": "modeled"
+     },
+     "llvm.vector.reduce.smax": {
+      "calls": 5,
+      "class": "modeled"
+     },
+     "llvm.x86.avx2.packssdw": {
+      "calls": 7,
+      "class": "modeled"
+     },
+     "llvm.x86.avx2.packsswb": {
+      "calls": 2,
+      "class": "modeled"
+     },
+     "llvm.x86.avx2.packuswb": {
+      "calls": 10,
+      "class": "modeled"
+     },
+     "llvm.x86.avx2.pavg.b": {
+      "calls": 28,
+      "class": "modeled"
+     },
+     "llvm.x86.avx2.pmadd.wd": {
+      "calls": 3,
+      "class": "modeled"
+     },
+     "llvm.x86.avx2.pmulh.w": {
+      "calls": 7,
+      "class": "modeled"
+     },
+     "llvm.x86.avx2.psad.bw": {
+      "calls": 14,
+      "class": "modeled"
+     },
+     "llvm.x86.sse2.packssdw.128": {
+      "calls": 59,
+      "class": "modeled"
+     },
+     "llvm.x86.sse2.packsswb.128": {
+      "calls": 48,
+      "class": "modeled"
+     },
+     "llvm.x86.sse2.packuswb.128": {
+      "calls": 146,
+      "class": "modeled"
+     },
+     "llvm.x86.sse2.pavg.b": {
+      "calls": 47,
+      "class": "modeled"
+     },
+     "llvm.x86.sse2.pmadd.wd": {
+      "calls": 158,
+      "class": "modeled"
+     },
+     "llvm.x86.sse2.pmulh.w": {
+      "calls": 30,
+      "class": "modeled"
+     },
+     "llvm.x86.sse2.pmulhu.w": {
+      "calls": 96,
+      "class": "modeled"
+     },
+     "llvm.x86.sse2.psad.bw": {
+      "calls": 20,
+      "class": "modeled"
+     },
+     "llvm.x86.ssse3.psign.w.128": {
+      "calls": 8,
+      "class": "modeled"
+     }
+    },
+    "kernels": {
+     "named": 21,
+     "as-built": 0,
+     "relaxed": 3
+    }
+   },
+   "measured": {
+    "date": "2026-11-11",
+    "commit": "5c99def23e8fa670dccb97bc9b6eaca7bbb3cd77",
+    "clang": "clang version 23.1.3"
+   }
+  },
+  "llama.cpp": {
+   "rev": "80d2c0c2c56e4a1bbf74be98f64b99927bf230bc",
+   "nix_hash": "sha256-Y57pW8G1grsd6QD+mIQ7F7b2S5bwWdSlH39eRRYr0b0=",
+   "units": [
+    {
+     "source": "ggml/src/ggml-cpu/arch/x86/repack.cpp",
+     "flags": [
+      "-std=gnu++17"
+     ],
+     "variants": {
+      "as-built": {
+       "functions": 12,
+       "translated": 0,
+       "refused": {
+        "instruction freeze of a vector": 4,
+        "metadata !tbaa": 4,
+        "intrinsic llvm.experimental.noalias.scope.decl": 2,
+        "type: a vector of pointers": 2
+       }
+      },
+      "relaxed": {
+       "functions": 12,
+       "translated": 0,
+       "refused": {
+        "instruction freeze of a vector": 4,
+        "intrinsic llvm.experimental.noalias.scope.decl": 2,
+        "intrinsic llvm.fma": 2,
+        "intrinsic llvm.x86.avx.max.ps.256": 2,
+        "type: a vector of pointers": 2
+       }
+      }
+     },
+     "instructions": 15749,
+     "intrinsics": {
+      "llvm.abs": 96,
+      "llvm.assume": 13,
+      "llvm.experimental.noalias.scope.decl": 18,
+      "llvm.fabs": 48,
+      "llvm.fma": 119,
+      "llvm.lifetime.end": 27,
+      "llvm.lifetime.start": 27,
+      "llvm.masked.gather": 5,
+      "llvm.masked.load": 12,
+      "llvm.memset": 371,
+      "llvm.smax": 9,
+      "llvm.x86.avx.cvt.ps2dq.256": 24,
+      "llvm.x86.avx.max.ps.256": 43,
+      "llvm.x86.avx.round.ps.256": 24,
+      "llvm.x86.avx2.packssdw": 12,
+      "llvm.x86.avx2.packsswb": 6,
+      "llvm.x86.avx2.pmadd.ub.sw": 440,
+      "llvm.x86.avx2.pmadd.wd": 135,
+      "llvm.x86.avx2.pshuf.b": 72,
+      "llvm.x86.avx2.psign.b": 336,
+      "llvm.x86.avx512.pmaddubs.w.512": 384,
+      "llvm.x86.avx512.pmaddw.d.512": 120,
+      "llvm.x86.avx512.pshuf.b.512": 48,
+      "llvm.x86.avx512.vpdpbusd.256": 216,
+      "llvm.x86.avx512.vpdpbusd.512": 192,
+      "llvm.x86.sse.max.ps": 10,
+      "llvm.x86.sse.max.ss": 5,
+      "llvm.x86.ssse3.phadd.w.128": 5,
+      "llvm.x86.vcvtps2ph.128": 4
+     },
+     "kernels": {
+      "ggml_gemm_q4_K_8x8_q8_K": {
+       "instructions": 3034,
+       "vector": true,
+       "float": true,
+       "intrinsics": {
+        "llvm.assume": 1,
+        "llvm.fma": 32,
+        "llvm.lifetime.end": 6,
+        "llvm.lifetime.start": 6,
+        "llvm.memset": 4,
+        "llvm.x86.avx2.pmadd.ub.sw": 128,
+        "llvm.x86.avx2.pmadd.wd": 24,
+        "llvm.x86.avx512.pmaddubs.w.512": 128,
+        "llvm.x86.avx512.pmaddw.d.512": 24,
+        "llvm.x86.ssse3.phadd.w.128": 4
+       },
+       "as-built": "metadata !tbaa",
+       "relaxed": "intrinsic llvm.fma"
+      },
+      "ggml_gemv_q4_K_8x8_q8_K": {
+       "instructions": 386,
+       "vector": true,
+       "float": true,
+       "intrinsics": {
+        "llvm.assume": 1,
+        "llvm.fma": 2,
+        "llvm.memset": 9,
+        "llvm.x86.avx2.pmadd.ub.sw": 16,
+        "llvm.x86.avx2.pmadd.wd": 3,
+        "llvm.x86.ssse3.phadd.w.128": 1
+       },
+       "as-built": "instruction freeze of a vector",
+       "relaxed": "instruction freeze of a vector"
+      }
+     }
+    },
+    {
+     "source": "ggml/src/ggml-cpu/arch/x86/quants.c",
+     "flags": [
+      "-std=gnu11"
+     ],
+     "variants": {
+      "as-built": {
+       "functions": 28,
+       "translated": 0,
+       "refused": {
+        "metadata !tbaa": 20,
+        "type: a vector of pointers": 7,
+        "call to external @_, which touches memory: F4": 1
+       }
+      },
+      "relaxed": {
+       "functions": 28,
+       "translated": 0,
+       "refused": {
+        "intrinsic llvm.fma": 13,
+        "type: a vector of pointers": 7,
+        "intrinsic llvm.fmuladd": 3,
+        "intrinsic llvm.x86.avx.max.ps.256": 2,
+        "parameter attribute noalias": 2,
+        "call to external @_, which touches memory: F4": 1
+       }
+      }
+     },
+     "instructions": 6421,
+     "intrinsics": {
+      "llvm.assume": 6,
+      "llvm.fabs": 16,
+      "llvm.fma": 53,
+      "llvm.fmuladd": 24,
+      "llvm.masked.gather": 72,
+      "llvm.pdep": 36,
+      "llvm.usub.sat": 8,
+      "llvm.vector.reduce.add": 13,
+      "llvm.vector.reduce.or": 1,
+      "llvm.x86.avx.cvt.ps2dq.256": 16,
+      "llvm.x86.avx.max.ps.256": 12,
+      "llvm.x86.avx.round.ps.256": 16,
+      "llvm.x86.avx2.packssdw": 8,
+      "llvm.x86.avx2.packsswb": 4,
+      "llvm.x86.avx2.pavg.b": 16,
+      "llvm.x86.avx2.pmadd.ub.sw": 158,
+      "llvm.x86.avx2.pmadd.wd": 132,
+      "llvm.x86.avx2.pshuf.b": 2,
+      "llvm.x86.avx2.psign.b": 118,
+      "llvm.x86.avx512.vpdpbusd.256": 21,
+      "llvm.x86.sse.max.ps": 8,
+      "llvm.x86.sse.max.ss": 4,
+      "llvm.x86.sse2.packuswb.128": 1,
+      "llvm.x86.sse2.pmadd.wd": 2,
+      "llvm.x86.ssse3.phadd.d.128": 2,
+      "llvm.x86.ssse3.phadd.w.128": 2,
+      "llvm.x86.ssse3.pshuf.b.128": 28,
+      "llvm.x86.vcvtps2ph.128": 5
+     },
+     "kernels": {
+      "ggml_vec_dot_q4_K_q8_K": {
+       "instructions": 172,
+       "vector": true,
+       "float": true,
+       "intrinsics": {
+        "llvm.fma": 2,
+        "llvm.x86.avx2.pmadd.ub.sw": 8,
+        "llvm.x86.avx2.pmadd.wd": 8,
+        "llvm.x86.sse2.pmadd.wd": 1,
+        "llvm.x86.ssse3.phadd.w.128": 1
+       },
+       "as-built": "metadata !tbaa",
+       "relaxed": "intrinsic llvm.fma"
+      },
+      "ggml_vec_dot_q5_0_q8_0": {
+       "instructions": 146,
+       "vector": true,
+       "float": true,
+       "intrinsics": {
+        "llvm.assume": 1,
+        "llvm.fma": 3,
+        "llvm.x86.avx2.psign.b": 6,
+        "llvm.x86.avx512.vpdpbusd.256": 3
+       },
+       "as-built": "metadata !tbaa",
+       "relaxed": "intrinsic llvm.fma"
+      },
+      "ggml_vec_dot_q6_K_q8_K": {
+       "instructions": 162,
+       "vector": true,
+       "float": true,
+       "intrinsics": {
+        "llvm.fma": 1,
+        "llvm.x86.avx2.pmadd.ub.sw": 8,
+        "llvm.x86.avx2.pmadd.wd": 9
+       },
+       "as-built": "metadata !tbaa",
+       "relaxed": "intrinsic llvm.fma"
+      }
+     }
+    }
+   ],
+   "totals": {
+    "units": 2,
+    "instructions": 22170,
+    "as-built": {
+     "functions": 40,
+     "translated": 0,
+     "refused": {
+      "metadata !tbaa": 24,
+      "type: a vector of pointers": 9,
+      "instruction freeze of a vector": 4,
+      "intrinsic llvm.experimental.noalias.scope.decl": 2,
+      "call to external @_, which touches memory: F4": 1
+     }
+    },
+    "relaxed": {
+     "functions": 40,
+     "translated": 0,
+     "refused": {
+      "intrinsic llvm.fma": 15,
+      "type: a vector of pointers": 9,
+      "instruction freeze of a vector": 4,
+      "intrinsic llvm.x86.avx.max.ps.256": 4,
+      "intrinsic llvm.fmuladd": 3,
+      "intrinsic llvm.experimental.noalias.scope.decl": 2,
+      "parameter attribute noalias": 2,
+      "call to external @_, which touches memory: F4": 1
+     }
+    },
+    "intrinsics": {
+     "llvm.abs": {
+      "calls": 96,
+      "class": "modeled"
+     },
+     "llvm.assume": {
+      "calls": 19,
+      "class": "modeled"
+     },
+     "llvm.experimental.noalias.scope.decl": {
+      "calls": 18,
+      "class": "refused",
+      "lane": "memory"
+     },
+     "llvm.fabs": {
+      "calls": 64,
+      "class": "modeled"
+     },
+     "llvm.fma": {
+      "calls": 172,
+      "class": "refused",
+      "lane": "floating point"
+     },
+     "llvm.fmuladd": {
+      "calls": 24,
+      "class": "refused",
+      "lane": "floating point"
+     },
+     "llvm.lifetime.end": {
+      "calls": 27,
+      "class": "modeled"
+     },
+     "llvm.lifetime.start": {
+      "calls": 27,
+      "class": "modeled"
+     },
+     "llvm.masked.gather": {
+      "calls": 77,
+      "class": "refused",
+      "lane": "memory"
+     },
+     "llvm.masked.load": {
+      "calls": 12,
+      "class": "refused",
+      "lane": "memory"
+     },
+     "llvm.memset": {
+      "calls": 371,
+      "class": "modeled"
+     },
+     "llvm.pdep": {
+      "calls": 36,
+      "class": "refused",
+      "lane": "long tail"
+     },
+     "llvm.smax": {
+      "calls": 9,
+      "class": "modeled"
+     },
+     "llvm.usub.sat": {
+      "calls": 8,
+      "class": "modeled"
+     },
+     "llvm.vector.reduce.add": {
+      "calls": 13,
+      "class": "modeled"
+     },
+     "llvm.vector.reduce.or": {
+      "calls": 1,
+      "class": "modeled"
+     },
+     "llvm.x86.avx.cvt.ps2dq.256": {
+      "calls": 40,
+      "class": "refused",
+      "lane": "long tail"
+     },
+     "llvm.x86.avx.max.ps.256": {
+      "calls": 55,
+      "class": "refused",
+      "lane": "long tail"
+     },
+     "llvm.x86.avx.round.ps.256": {
+      "calls": 40,
+      "class": "refused",
+      "lane": "long tail"
+     },
+     "llvm.x86.avx2.packssdw": {
+      "calls": 20,
+      "class": "modeled"
+     },
+     "llvm.x86.avx2.packsswb": {
+      "calls": 10,
+      "class": "modeled"
+     },
+     "llvm.x86.avx2.pavg.b": {
+      "calls": 16,
+      "class": "modeled"
+     },
+     "llvm.x86.avx2.pmadd.ub.sw": {
+      "calls": 598,
+      "class": "modeled"
+     },
+     "llvm.x86.avx2.pmadd.wd": {
+      "calls": 267,
+      "class": "modeled"
+     },
+     "llvm.x86.avx2.pshuf.b": {
+      "calls": 74,
+      "class": "modeled"
+     },
+     "llvm.x86.avx2.psign.b": {
+      "calls": 454,
+      "class": "modeled"
+     },
+     "llvm.x86.avx512.pmaddubs.w.512": {
+      "calls": 384,
+      "class": "modeled"
+     },
+     "llvm.x86.avx512.pmaddw.d.512": {
+      "calls": 120,
+      "class": "modeled"
+     },
+     "llvm.x86.avx512.pshuf.b.512": {
+      "calls": 48,
+      "class": "modeled"
+     },
+     "llvm.x86.avx512.vpdpbusd.256": {
+      "calls": 237,
+      "class": "modeled"
+     },
+     "llvm.x86.avx512.vpdpbusd.512": {
+      "calls": 192,
+      "class": "modeled"
+     },
+     "llvm.x86.sse.max.ps": {
+      "calls": 18,
+      "class": "refused",
+      "lane": "long tail"
+     },
+     "llvm.x86.sse.max.ss": {
+      "calls": 9,
+      "class": "refused",
+      "lane": "long tail"
+     },
+     "llvm.x86.sse2.packuswb.128": {
+      "calls": 1,
+      "class": "modeled"
+     },
+     "llvm.x86.sse2.pmadd.wd": {
+      "calls": 2,
+      "class": "modeled"
+     },
+     "llvm.x86.ssse3.phadd.d.128": {
+      "calls": 2,
+      "class": "modeled"
+     },
+     "llvm.x86.ssse3.phadd.w.128": {
+      "calls": 7,
+      "class": "modeled"
+     },
+     "llvm.x86.ssse3.pshuf.b.128": {
+      "calls": 28,
+      "class": "modeled"
+     },
+     "llvm.x86.vcvtps2ph.128": {
+      "calls": 9,
+      "class": "refused",
+      "lane": "long tail"
+     }
+    },
+    "kernels": {
+     "named": 5,
+     "as-built": 0,
+     "relaxed": 0
+    }
+   },
+   "measured": {
+    "date": "2026-11-11",
+    "commit": "5c99def23e8fa670dccb97bc9b6eaca7bbb3cd77",
+    "clang": "clang version 23.1.3"
+   }
+  },
+  "opus": {
+   "rev": "22244de5a79bd1d6d623c32e72bf1954b56235be",
+   "nix_hash": "sha256-I1f+J//ZJBMj88+PQhsYBjz3fm4Ll3ckZD+fYa6/3Y0=",
+   "units": [
+    {
+     "source": "celt/x86/vq_sse2.c",
+     "flags": [
+      "-msse2"
+     ],
+     "variants": {
+      "as-built": {
+       "functions": 1,
+       "translated": 0,
+       "refused": {
+        "metadata !tbaa": 1
+       }
+      },
+      "relaxed": {
+       "functions": 1,
+       "translated": 0,
+       "refused": {
+        "intrinsic llvm.x86.sse.rcp.ps": 1
+       }
+      }
+     },
+     "instructions": 335,
+     "intrinsics": {
+      "llvm.assume": 3,
+      "llvm.fabs": 3,
+      "llvm.fmuladd": 2,
+      "llvm.memcpy": 1,
+      "llvm.memset": 3,
+      "llvm.smax": 6,
+      "llvm.vector.reduce.add": 1,
+      "llvm.x86.sse.max.ps": 5,
+      "llvm.x86.sse.rcp.ps": 1,
+      "llvm.x86.sse.rsqrt.ps": 3,
+      "llvm.x86.sse2.cvttps2dq": 1
+     },
+     "kernels": {
+      "op_pvq_search_sse2": {
+       "instructions": 335,
+       "vector": true,
+       "float": true,
+       "intrinsics": {
+        "llvm.assume": 3,
+        "llvm.fabs": 3,
+        "llvm.fmuladd": 2,
+        "llvm.memcpy": 1,
+        "llvm.memset": 3,
+        "llvm.smax": 6,
+        "llvm.vector.reduce.add": 1,
+        "llvm.x86.sse.max.ps": 5,
+        "llvm.x86.sse.rcp.ps": 1,
+        "llvm.x86.sse.rsqrt.ps": 3,
+        "llvm.x86.sse2.cvttps2dq": 1
+       },
+       "as-built": "metadata !tbaa",
+       "relaxed": "intrinsic llvm.x86.sse.rcp.ps"
+      }
+     }
+    },
+    {
+     "source": "celt/vq.c",
+     "flags": [],
+     "variants": {
+      "as-built": {
+       "functions": 6,
+       "translated": 0,
+       "refused": {
+        "call to external functions in a function with a stack frame or promises about memory, which IRLean.World doesn't wrap yet": 2,
+        "metadata !tbaa": 2,
+        "call to external @_, which touches memory: F4": 1,
+        "function attribute norecurse on a function that calls outside the module": 1
+       }
+      },
+      "relaxed": {
+       "functions": 6,
+       "translated": 0,
+       "refused": {
+        "call to external functions in a function with a stack frame or promises about memory, which IRLean.World doesn't wrap yet": 2,
+        "call to external @_, which touches memory: F4": 1,
+        "function attribute norecurse on a function that calls outside the module": 1,
+        "intrinsic llvm.fmuladd": 1,
+        "metadata !alias": 1
+       }
+      }
+     },
+     "instructions": 1510,
+     "intrinsics": {
+      "llvm.assume": 7,
+      "llvm.experimental.noalias.scope.decl": 4,
+      "llvm.fabs": 3,
+      "llvm.floor": 2,
+      "llvm.fmuladd": 58,
+      "llvm.memset": 2,
+      "llvm.smax": 3,
+      "llvm.vector.reduce.or": 2
+     },
+     "kernels": {
+      "exp_rotation": {
+       "instructions": 837,
+       "vector": true,
+       "float": true,
+       "intrinsics": {
+        "llvm.assume": 4,
+        "llvm.fmuladd": 36
+       },
+       "as-built": "function attribute norecurse on a function that calls outside the module",
+       "relaxed": "function attribute norecurse on a function that calls outside the module"
+      }
+     }
+    },
+    {
+     "source": "celt/kiss_fft.c",
+     "flags": [],
+     "variants": {
+      "as-built": {
+       "functions": 3,
+       "translated": 0,
+       "refused": {
+        "metadata !tbaa": 2,
+        "type: a vector of pointers": 1
+       }
+      },
+      "relaxed": {
+       "functions": 3,
+       "translated": 0,
+       "refused": {
+        "call to @_, which isn't translated": 2,
+        "type: a vector of pointers": 1
+       }
+      }
+     },
+     "instructions": 1632,
+     "intrinsics": {
+      "llvm.assume": 3,
+      "llvm.fmuladd": 30,
+      "llvm.lifetime.end": 1,
+      "llvm.lifetime.start": 1,
+      "llvm.smax": 1
+     },
+     "kernels": {
+      "opus_fft_impl": {
+       "instructions": 1422,
+       "vector": true,
+       "float": true,
+       "intrinsics": {
+        "llvm.fmuladd": 30,
+        "llvm.lifetime.end": 1,
+        "llvm.lifetime.start": 1,
+        "llvm.smax": 1
+       },
+       "as-built": "type: a vector of pointers",
+       "relaxed": "type: a vector of pointers"
+      }
+     }
+    },
+    {
+     "source": "celt/cwrs.c",
+     "flags": [],
+     "variants": {
+      "as-built": {
+       "functions": 2,
+       "translated": 0,
+       "refused": {
+        "call to external functions in a function with a stack frame or promises about memory, which IRLean.World doesn't wrap yet": 2
+       }
+      },
+      "relaxed": {
+       "functions": 2,
+       "translated": 0,
+       "refused": {
+        "call to external functions in a function with a stack frame or promises about memory, which IRLean.World doesn't wrap yet": 2
+       }
+      }
+     },
+     "instructions": 235,
+     "intrinsics": {
+      "llvm.abs": 2,
+      "llvm.fmuladd": 4,
+      "llvm.smax": 6,
+      "llvm.smin": 5
+     },
+     "kernels": {
+      "encode_pulses": {
+       "instructions": 73,
+       "vector": false,
+       "float": false,
+       "intrinsics": {
+        "llvm.abs": 2,
+        "llvm.smax": 4,
+        "llvm.smin": 3
+       },
+       "as-built": "call to external functions in a function with a stack frame or promises about memory, which IRLean.World doesn't wrap yet",
+       "relaxed": "call to external functions in a function with a stack frame or promises about memory, which IRLean.World doesn't wrap yet"
+      },
+      "decode_pulses": {
+       "instructions": 162,
+       "vector": false,
+       "float": true,
+       "intrinsics": {
+        "llvm.fmuladd": 4,
+        "llvm.smax": 2,
+        "llvm.smin": 2
+       },
+       "as-built": "call to external functions in a function with a stack frame or promises about memory, which IRLean.World doesn't wrap yet",
+       "relaxed": "call to external functions in a function with a stack frame or promises about memory, which IRLean.World doesn't wrap yet"
+      }
+     }
+    },
+    {
+     "source": "celt/bands.c",
+     "flags": [],
+     "variants": {
+      "as-built": {
+       "functions": 17,
+       "translated": 3,
+       "refused": {
+        "call to external functions in a function with a stack frame or promises about memory, which IRLean.World doesn't wrap yet": 7,
+        "metadata !tbaa": 6,
+        "fast-math flag nnan": 1
+       }
+      },
+      "relaxed": {
+       "functions": 17,
+       "translated": 8,
+       "refused": {
+        "call to external functions in a function with a stack frame or promises about memory, which IRLean.World doesn't wrap yet": 7,
+        "fast-math flag nnan": 1,
+        "parameter attribute noalias": 1
+       }
+      }
+     },
+     "instructions": 3861,
+     "intrinsics": {
+      "llvm.assume": 3,
+      "llvm.ctlz": 6,
+      "llvm.experimental.noalias.scope.decl": 8,
+      "llvm.fmuladd": 16,
+      "llvm.lifetime.end": 7,
+      "llvm.lifetime.start": 7,
+      "llvm.memcpy": 28,
+      "llvm.memset": 3,
+      "llvm.smax": 13,
+      "llvm.smin": 8,
+      "llvm.sqrt": 3,
+      "llvm.stackrestore": 1,
+      "llvm.stacksave": 1,
+      "llvm.umin": 1,
+      "llvm.vector.reduce.add": 3
+     },
+     "kernels": {
+      "quant_partition": {
+       "instructions": 491,
+       "vector": false,
+       "float": true,
+       "intrinsics": {
+        "llvm.assume": 2,
+        "llvm.lifetime.end": 1,
+        "llvm.lifetime.start": 1,
+        "llvm.memset": 1,
+        "llvm.smax": 1,
+        "llvm.smin": 2
+       },
+       "as-built": "call to external functions in a function with a stack frame or promises about memory, which IRLean.World doesn't wrap yet",
+       "relaxed": "call to external functions in a function with a stack frame or promises about memory, which IRLean.World doesn't wrap yet"
+      }
+     }
+    },
+    {
+     "source": "celt/x86/pitch_avx.c",
+     "flags": [
+      "-mavx2",
+      "-mfma",
+      "-mavx"
+     ],
+     "variants": {
+      "as-built": {
+       "functions": 1,
+       "translated": 0,
+       "refused": {
+        "call to external functions in a function with a stack frame or promises about memory, which IRLean.World doesn't wrap yet": 1
+       }
+      },
+      "relaxed": {
+       "functions": 1,
+       "translated": 0,
+       "refused": {
+        "call to external functions in a function with a stack frame or promises about memory, which IRLean.World doesn't wrap yet": 1
+       }
+      }
+     },
+     "instructions": 143,
+     "intrinsics": {
+      "llvm.fma": 16,
+      "llvm.x86.avx.hadd.ps.256": 3,
+      "llvm.x86.avx.maskload.ps.256": 9
+     },
+     "kernels": {
+      "celt_pitch_xcorr_avx2": {
+       "instructions": 143,
+       "vector": true,
+       "float": true,
+       "intrinsics": {
+        "llvm.fma": 16,
+        "llvm.x86.avx.hadd.ps.256": 3,
+        "llvm.x86.avx.maskload.ps.256": 9
+       },
+       "as-built": "call to external functions in a function with a stack frame or promises about memory, which IRLean.World doesn't wrap yet",
+       "relaxed": "call to external functions in a function with a stack frame or promises about memory, which IRLean.World doesn't wrap yet"
+      }
+     }
+    }
+   ],
+   "totals": {
+    "units": 6,
+    "instructions": 7716,
+    "as-built": {
+     "functions": 30,
+     "translated": 3,
+     "refused": {
+      "call to external functions in a function with a stack frame or promises about memory, which IRLean.World doesn't wrap yet": 12,
+      "metadata !tbaa": 11,
+      "call to external @_, which touches memory: F4": 1,
+      "fast-math flag nnan": 1,
+      "function attribute norecurse on a function that calls outside the module": 1,
+      "type: a vector of pointers": 1
+     }
+    },
+    "relaxed": {
+     "functions": 30,
+     "translated": 8,
+     "refused": {
+      "call to external functions in a function with a stack frame or promises about memory, which IRLean.World doesn't wrap yet": 12,
+      "call to @_, which isn't translated": 2,
+      "call to external @_, which touches memory: F4": 1,
+      "fast-math flag nnan": 1,
+      "function attribute norecurse on a function that calls outside the module": 1,
+      "intrinsic llvm.fmuladd": 1,
+      "intrinsic llvm.x86.sse.rcp.ps": 1,
+      "metadata !alias": 1,
+      "parameter attribute noalias": 1,
+      "type: a vector of pointers": 1
+     }
+    },
+    "intrinsics": {
+     "llvm.abs": {
+      "calls": 2,
+      "class": "modeled"
+     },
+     "llvm.assume": {
+      "calls": 16,
+      "class": "modeled"
+     },
+     "llvm.ctlz": {
+      "calls": 6,
+      "class": "modeled"
+     },
+     "llvm.experimental.noalias.scope.decl": {
+      "calls": 12,
+      "class": "refused",
+      "lane": "memory"
+     },
+     "llvm.fabs": {
+      "calls": 6,
+      "class": "modeled"
+     },
+     "llvm.floor": {
+      "calls": 2,
+      "class": "refused",
+      "lane": "floating point"
+     },
+     "llvm.fma": {
+      "calls": 16,
+      "class": "refused",
+      "lane": "floating point"
+     },
+     "llvm.fmuladd": {
+      "calls": 110,
+      "class": "refused",
+      "lane": "floating point"
+     },
+     "llvm.lifetime.end": {
+      "calls": 8,
+      "class": "modeled"
+     },
+     "llvm.lifetime.start": {
+      "calls": 8,
+      "class": "modeled"
+     },
+     "llvm.memcpy": {
+      "calls": 29,
+      "class": "modeled"
+     },
+     "llvm.memset": {
+      "calls": 8,
+      "class": "modeled"
+     },
+     "llvm.smax": {
+      "calls": 29,
+      "class": "modeled"
+     },
+     "llvm.smin": {
+      "calls": 13,
+      "class": "modeled"
+     },
+     "llvm.sqrt": {
+      "calls": 3,
+      "class": "refused",
+      "lane": "floating point"
+     },
+     "llvm.stackrestore": {
+      "calls": 1,
+      "class": "refused"
+     },
+     "llvm.stacksave": {
+      "calls": 1,
+      "class": "refused"
+     },
+     "llvm.umin": {
+      "calls": 1,
+      "class": "modeled"
+     },
+     "llvm.vector.reduce.add": {
+      "calls": 4,
+      "class": "modeled"
+     },
+     "llvm.vector.reduce.or": {
+      "calls": 2,
+      "class": "modeled"
+     },
+     "llvm.x86.avx.hadd.ps.256": {
+      "calls": 3,
+      "class": "refused",
+      "lane": "long tail"
+     },
+     "llvm.x86.avx.maskload.ps.256": {
+      "calls": 9,
+      "class": "refused",
+      "lane": "long tail"
+     },
+     "llvm.x86.sse.max.ps": {
+      "calls": 5,
+      "class": "refused",
+      "lane": "long tail"
+     },
+     "llvm.x86.sse.rcp.ps": {
+      "calls": 1,
+      "class": "refused",
+      "lane": "long tail"
+     },
+     "llvm.x86.sse.rsqrt.ps": {
+      "calls": 3,
+      "class": "refused",
+      "lane": "long tail"
+     },
+     "llvm.x86.sse2.cvttps2dq": {
+      "calls": 1,
+      "class": "refused",
+      "lane": "long tail"
+     }
+    },
+    "kernels": {
+     "named": 7,
+     "as-built": 0,
+     "relaxed": 0
+    }
+   },
+   "measured": {
+    "date": "2026-11-11",
+    "commit": "5c99def23e8fa670dccb97bc9b6eaca7bbb3cd77",
+    "clang": "clang version 23.1.3"
+   }
+  },
+  "xnnpack": {
+   "rev": "8a7926edb1b57eb12abcefd81f653f818db80585",
+   "nix_hash": "sha256-sx1fQcC4FuEtq9c//tEf/8sRDdsFgmHODRgEMeVJfl4=",
+   "units": [
+    {
+     "source": "src/qs8-qc8w-igemm/gen/qs8-qc8w-igemm-7x16c8-minmax-avx512vnni-prfm.c",
+     "flags": [],
+     "variants": {
+      "as-built": {
+       "functions": 1,
+       "translated": 0,
+       "refused": {
+        "instruction inttoptr": 1
+       }
+      },
+      "relaxed": {
+       "functions": 1,
+       "translated": 0,
+       "refused": {
+        "instruction inttoptr": 1
+       }
+      }
+     },
+     "instructions": 623,
+     "intrinsics": {
+      "llvm.lifetime.end": 2,
+      "llvm.lifetime.start": 2,
+      "llvm.masked.store": 7,
+      "llvm.prefetch": 6,
+      "llvm.smax": 7,
+      "llvm.x86.avx512.mask.cvtps2dq.512": 7,
+      "llvm.x86.avx512.mask.pmovs.db.512": 7,
+      "llvm.x86.avx512.min.ps.512": 7,
+      "llvm.x86.avx512.vpdpbusd.512": 42
+     },
+     "kernels": {
+      "xnn_qs8_qc8w_igemm_minmax_fp32_ukernel_7x16c8__avx512vnni_prfm": {
+       "instructions": 623,
+       "vector": true,
+       "float": true,
+       "intrinsics": {
+        "llvm.lifetime.end": 2,
+        "llvm.lifetime.start": 2,
+        "llvm.masked.store": 7,
+        "llvm.prefetch": 6,
+        "llvm.smax": 7,
+        "llvm.x86.avx512.mask.cvtps2dq.512": 7,
+        "llvm.x86.avx512.mask.pmovs.db.512": 7,
+        "llvm.x86.avx512.min.ps.512": 7,
+        "llvm.x86.avx512.vpdpbusd.512": 42
+       },
+       "as-built": "instruction inttoptr",
+       "relaxed": "instruction inttoptr"
+      }
+     }
+    },
+    {
+     "source": "src/qs8-qc8w-gemm/gen/qs8-qc8w-gemm-7x16c8-minmax-fp32-avx512vnni-prfm.c",
+     "flags": [],
+     "variants": {
+      "as-built": {
+       "functions": 1,
+       "translated": 0,
+       "refused": {
+        "instruction inttoptr": 1
+       }
+      },
+      "relaxed": {
+       "functions": 1,
+       "translated": 0,
+       "refused": {
+        "instruction inttoptr": 1
+       }
+      }
+     },
+     "instructions": 598,
+     "intrinsics": {
+      "llvm.lifetime.end": 1,
+      "llvm.lifetime.start": 1,
+      "llvm.masked.store": 7,
+      "llvm.prefetch": 6,
+      "llvm.smax": 7,
+      "llvm.x86.avx512.mask.cvtps2dq.512": 7,
+      "llvm.x86.avx512.mask.pmovs.db.512": 7,
+      "llvm.x86.avx512.min.ps.512": 7,
+      "llvm.x86.avx512.vpdpbusd.512": 42
+     },
+     "kernels": {
+      "xnn_qs8_qc8w_gemm_minmax_fp32_ukernel_7x16c8__avx512vnni_prfm": {
+       "instructions": 598,
+       "vector": true,
+       "float": true,
+       "intrinsics": {
+        "llvm.lifetime.end": 1,
+        "llvm.lifetime.start": 1,
+        "llvm.masked.store": 7,
+        "llvm.prefetch": 6,
+        "llvm.smax": 7,
+        "llvm.x86.avx512.mask.cvtps2dq.512": 7,
+        "llvm.x86.avx512.mask.pmovs.db.512": 7,
+        "llvm.x86.avx512.min.ps.512": 7,
+        "llvm.x86.avx512.vpdpbusd.512": 42
+       },
+       "as-built": "instruction inttoptr",
+       "relaxed": "instruction inttoptr"
+      }
+     }
+    },
+    {
+     "source": "src/qd8-f32-qc8w-gemm/gen/qd8-f32-qc8w-gemm-10x16c8-minmax-avx512vnni-prfm.c",
+     "flags": [],
+     "variants": {
+      "as-built": {
+       "functions": 1,
+       "translated": 0,
+       "refused": {
+        "instruction inttoptr": 1
+       }
+      },
+      "relaxed": {
+       "functions": 1,
+       "translated": 0,
+       "refused": {
+        "instruction inttoptr": 1
+       }
+      }
+     },
+     "instructions": 899,
+     "intrinsics": {
+      "llvm.fma": 10,
+      "llvm.masked.store": 10,
+      "llvm.prefetch": 6,
+      "llvm.x86.avx512.max.ps.512": 10,
+      "llvm.x86.avx512.min.ps.512": 10,
+      "llvm.x86.avx512.vpdpbusd.512": 60
+     },
+     "kernels": {
+      "xnn_qd8_f32_qc8w_gemm_minmax_ukernel_10x16c8__avx512vnni_prfm": {
+       "instructions": 899,
+       "vector": true,
+       "float": true,
+       "intrinsics": {
+        "llvm.fma": 10,
+        "llvm.masked.store": 10,
+        "llvm.prefetch": 6,
+        "llvm.x86.avx512.max.ps.512": 10,
+        "llvm.x86.avx512.min.ps.512": 10,
+        "llvm.x86.avx512.vpdpbusd.512": 60
+       },
+       "as-built": "instruction inttoptr",
+       "relaxed": "instruction inttoptr"
+      }
+     }
+    },
+    {
+     "source": "src/qs8-rsum/gen/qs8-rsum-avx512vnni-u128-acc2.c",
+     "flags": [],
+     "variants": {
+      "as-built": {
+       "functions": 1,
+       "translated": 0,
+       "refused": {
+        "metadata !tbaa": 1
+       }
+      },
+      "relaxed": {
+       "functions": 1,
+       "translated": 0,
+       "refused": {
+        "intrinsic llvm.masked.load": 1
+       }
+      }
+     },
+     "instructions": 94,
+     "intrinsics": {
+      "llvm.masked.load": 1,
+      "llvm.vector.reduce.add": 1,
+      "llvm.x86.avx512.vpdpbusd.512": 12
+     },
+     "kernels": {
+      "xnn_qs8_rsum_ukernel__avx512vnni_u128_acc2": {
+       "instructions": 94,
+       "vector": true,
+       "float": false,
+       "intrinsics": {
+        "llvm.masked.load": 1,
+        "llvm.vector.reduce.add": 1,
+        "llvm.x86.avx512.vpdpbusd.512": 12
+       },
+       "as-built": "metadata !tbaa",
+       "relaxed": "intrinsic llvm.masked.load"
+      }
+     }
+    }
+   ],
+   "totals": {
+    "units": 4,
+    "instructions": 2214,
+    "as-built": {
+     "functions": 4,
+     "translated": 0,
+     "refused": {
+      "instruction inttoptr": 3,
+      "metadata !tbaa": 1
+     }
+    },
+    "relaxed": {
+     "functions": 4,
+     "translated": 0,
+     "refused": {
+      "instruction inttoptr": 3,
+      "intrinsic llvm.masked.load": 1
+     }
+    },
+    "intrinsics": {
+     "llvm.fma": {
+      "calls": 10,
+      "class": "refused",
+      "lane": "floating point"
+     },
+     "llvm.lifetime.end": {
+      "calls": 3,
+      "class": "modeled"
+     },
+     "llvm.lifetime.start": {
+      "calls": 3,
+      "class": "modeled"
+     },
+     "llvm.masked.load": {
+      "calls": 1,
+      "class": "refused",
+      "lane": "memory"
+     },
+     "llvm.masked.store": {
+      "calls": 24,
+      "class": "refused",
+      "lane": "memory"
+     },
+     "llvm.prefetch": {
+      "calls": 18,
+      "class": "refused"
+     },
+     "llvm.smax": {
+      "calls": 14,
+      "class": "modeled"
+     },
+     "llvm.vector.reduce.add": {
+      "calls": 1,
+      "class": "modeled"
+     },
+     "llvm.x86.avx512.mask.cvtps2dq.512": {
+      "calls": 14,
+      "class": "refused",
+      "lane": "long tail"
+     },
+     "llvm.x86.avx512.mask.pmovs.db.512": {
+      "calls": 14,
+      "class": "modeled"
+     },
+     "llvm.x86.avx512.max.ps.512": {
+      "calls": 10,
+      "class": "refused",
+      "lane": "long tail"
+     },
+     "llvm.x86.avx512.min.ps.512": {
+      "calls": 24,
+      "class": "refused",
+      "lane": "long tail"
+     },
+     "llvm.x86.avx512.vpdpbusd.512": {
+      "calls": 156,
+      "class": "modeled"
+     }
+    },
+    "kernels": {
+     "named": 4,
+     "as-built": 0,
+     "relaxed": 0
+    }
+   },
+   "measured": {
+    "date": "2026-11-11",
+    "commit": "5c99def23e8fa670dccb97bc9b6eaca7bbb3cd77",
+    "clang": "clang version 23.1.3"
+   }
+  },
+  "xxhash": {
+   "rev": "c87183a77d67f7d37e3d2d1b7eaac5e7c695e4f0",
+   "nix_hash": "sha256-YbWK23lU2/DiKQFPWioMHLgEt8vBtDpjBakT9ds3XpI=",
+   "units": [
+    {
+     "source": "xxh_x86dispatch.c",
+     "flags": [],
+     "variants": {
+      "as-built": {
+       "functions": 34,
+       "translated": 0,
+       "refused": {
+        "intrinsic llvm.experimental.noalias.scope.decl": 15,
+        "metadata !tbaa": 13,
+        "intrinsic llvm.prefetch": 4,
+        "call attribute memory": 2
+       }
+      },
+      "relaxed": {
+       "functions": 34,
+       "translated": 0,
+       "refused": {
+        "intrinsic llvm.experimental.noalias.scope.decl": 15,
+        "call attribute memory": 9,
+        "intrinsic llvm.prefetch": 4,
+        "call parameter attribute captures(address)": 2,
+        "metadata !noalias": 2,
+        "metadata !alias": 1,
+        "parameter attribute noalias": 1
+       }
+      }
+     },
+     "instructions": 9679,
+     "intrinsics": {
+      "llvm.assume": 102,
+      "llvm.bswap": 11,
+      "llvm.experimental.noalias.scope.decl": 139,
+      "llvm.fshl": 9,
+      "llvm.lifetime.end": 15,
+      "llvm.lifetime.start": 15,
+      "llvm.memcpy": 14,
+      "llvm.prefetch": 62,
+      "llvm.vector.reduce.add": 5,
+      "llvm.x86.avx512.pternlog.d.512": 10
+     },
+     "kernels": {
+      "XXHL64_default_avx512": {
+       "instructions": 173,
+       "vector": true,
+       "float": false,
+       "intrinsics": {
+        "llvm.assume": 1,
+        "llvm.prefetch": 2,
+        "llvm.x86.avx512.pternlog.d.512": 1
+       },
+       "as-built": "intrinsic llvm.prefetch",
+       "relaxed": "intrinsic llvm.prefetch"
+      },
+      "XXHL128_default_avx512": {
+       "instructions": 161,
+       "vector": true,
+       "float": false,
+       "intrinsics": {
+        "llvm.assume": 1,
+        "llvm.experimental.noalias.scope.decl": 6,
+        "llvm.lifetime.end": 1,
+        "llvm.lifetime.start": 1,
+        "llvm.prefetch": 2,
+        "llvm.x86.avx512.pternlog.d.512": 1
+       },
+       "as-built": "intrinsic llvm.experimental.noalias.scope.decl",
+       "relaxed": "intrinsic llvm.experimental.noalias.scope.decl"
+      },
+      "XXH3_update_avx512": {
+       "instructions": 283,
+       "vector": true,
+       "float": false,
+       "intrinsics": {
+        "llvm.assume": 12,
+        "llvm.experimental.noalias.scope.decl": 9,
+        "llvm.memcpy": 4,
+        "llvm.prefetch": 4,
+        "llvm.x86.avx512.pternlog.d.512": 2
+       },
+       "as-built": "intrinsic llvm.experimental.noalias.scope.decl",
+       "relaxed": "intrinsic llvm.experimental.noalias.scope.decl"
+      }
+     }
+    },
+    {
+     "source": "xxhash.c",
+     "flags": [],
+     "variants": {
+      "as-built": {
+       "functions": 59,
+       "translated": 10,
+       "refused": {
+        "metadata !tbaa": 34,
+        "intrinsic llvm.experimental.noalias.scope.decl": 5,
+        "call attribute memory": 3,
+        "call return attribute dereferenceable_or_null": 3,
+        "call to @_, which isn't translated": 2,
+        "intrinsic llvm.prefetch": 2
+       }
+      },
+      "relaxed": {
+       "functions": 59,
+       "translated": 27,
+       "refused": {
+        "call attribute memory": 14,
+        "intrinsic llvm.experimental.noalias.scope.decl": 9,
+        "call return attribute dereferenceable_or_null": 3,
+        "call to @_, which isn't translated": 2,
+        "intrinsic llvm.prefetch": 2,
+        "metadata !noalias": 1,
+        "parameter attribute noalias": 1
+       }
+      }
+     },
+     "instructions": 8572,
+     "intrinsics": {
+      "llvm.assume": 80,
+      "llvm.bswap": 27,
+      "llvm.experimental.noalias.scope.decl": 40,
+      "llvm.fshl": 104,
+      "llvm.lifetime.end": 9,
+      "llvm.lifetime.start": 9,
+      "llvm.memcpy": 20,
+      "llvm.memset": 12,
+      "llvm.prefetch": 24,
+      "llvm.ucmp": 2,
+      "llvm.umin": 1,
+      "llvm.vector.reduce.add": 6
+     },
+     "kernels": {
+      "XXH64": {
+       "instructions": 220,
+       "vector": false,
+       "float": false,
+       "intrinsics": {
+        "llvm.assume": 1,
+        "llvm.fshl": 24
+       },
+       "as-built": "metadata !tbaa",
+       "relaxed": "ok"
+      },
+      "XXH32": {
+       "instructions": 196,
+       "vector": false,
+       "float": false,
+       "intrinsics": {
+        "llvm.assume": 1,
+        "llvm.fshl": 18
+       },
+       "as-built": "metadata !tbaa",
+       "relaxed": "ok"
+      }
+     }
+    }
+   ],
+   "totals": {
+    "units": 2,
+    "instructions": 18251,
+    "as-built": {
+     "functions": 93,
+     "translated": 10,
+     "refused": {
+      "metadata !tbaa": 47,
+      "intrinsic llvm.experimental.noalias.scope.decl": 20,
+      "intrinsic llvm.prefetch": 6,
+      "call attribute memory": 5,
+      "call return attribute dereferenceable_or_null": 3,
+      "call to @_, which isn't translated": 2
+     }
+    },
+    "relaxed": {
+     "functions": 93,
+     "translated": 27,
+     "refused": {
+      "intrinsic llvm.experimental.noalias.scope.decl": 24,
+      "call attribute memory": 23,
+      "intrinsic llvm.prefetch": 6,
+      "call return attribute dereferenceable_or_null": 3,
+      "metadata !noalias": 3,
+      "call parameter attribute captures(address)": 2,
+      "call to @_, which isn't translated": 2,
+      "parameter attribute noalias": 2,
+      "metadata !alias": 1
+     }
+    },
+    "intrinsics": {
+     "llvm.assume": {
+      "calls": 182,
+      "class": "modeled"
+     },
+     "llvm.bswap": {
+      "calls": 38,
+      "class": "modeled"
+     },
+     "llvm.experimental.noalias.scope.decl": {
+      "calls": 179,
+      "class": "refused",
+      "lane": "memory"
+     },
+     "llvm.fshl": {
+      "calls": 113,
+      "class": "modeled"
+     },
+     "llvm.lifetime.end": {
+      "calls": 24,
+      "class": "modeled"
+     },
+     "llvm.lifetime.start": {
+      "calls": 24,
+      "class": "modeled"
+     },
+     "llvm.memcpy": {
+      "calls": 34,
+      "class": "modeled"
+     },
+     "llvm.memset": {
+      "calls": 12,
+      "class": "modeled"
+     },
+     "llvm.prefetch": {
+      "calls": 86,
+      "class": "refused"
+     },
+     "llvm.ucmp": {
+      "calls": 2,
+      "class": "modeled"
+     },
+     "llvm.umin": {
+      "calls": 1,
+      "class": "modeled"
+     },
+     "llvm.vector.reduce.add": {
+      "calls": 11,
+      "class": "modeled"
+     },
+     "llvm.x86.avx512.pternlog.d.512": {
+      "calls": 10,
+      "class": "modeled"
+     }
+    },
+    "kernels": {
+     "named": 5,
+     "as-built": 0,
+     "relaxed": 2
+    }
+   },
+   "measured": {
+    "date": "2026-11-11",
+    "commit": "5c99def23e8fa670dccb97bc9b6eaca7bbb3cd77",
+    "clang": "clang version 23.1.3"
+   }
+  },
+  "zlib-ng": {
+   "rev": "12731092979c6d07f42da27da673a9f6c7b13586",
+   "nix_hash": "sha256-6GlHCnx9dQtmViPnvHnMS+l9Z+g6M8ynrSxLhLtmAKU=",
+   "units": [
+    {
+     "source": "arch/x86/compare256_avx512.c",
+     "flags": [
+      "-mavx512f",
+      "-mavx512dq",
+      "-mavx512bw",
+      "-mavx512vl",
+      "-mbmi2",
+      "-mtune=cascadelake",
+      "-fno-lto"
+     ],
+     "variants": {
+      "as-built": {
+       "functions": 3,
+       "translated": 0,
+       "refused": {
+        "metadata !tbaa": 3
+       }
+      },
+      "relaxed": {
+       "functions": 3,
+       "translated": 3,
+       "refused": {}
+      }
+     },
+     "instructions": 708,
+     "intrinsics": {
+      "llvm.cttz": 15,
+      "llvm.umin": 2,
+      "llvm.usub.sat": 1
+     },
+     "kernels": {
+      "longest_match_avx512": {
+       "instructions": 251,
+       "vector": true,
+       "float": false,
+       "intrinsics": {
+        "llvm.cttz": 5,
+        "llvm.usub.sat": 1
+       },
+       "as-built": "metadata !tbaa",
+       "relaxed": "ok"
+      }
+     }
+    },
+    {
+     "source": "deflate_medium.c",
+     "flags": [],
+     "variants": {
+      "as-built": {
+       "functions": 1,
+       "translated": 0,
+       "refused": {
+        "metadata !tbaa": 1
+       }
+      },
+      "relaxed": {
+       "functions": 1,
+       "translated": 0,
+       "refused": {
+        "call to external @_, which touches memory: F4": 1
+       }
+      }
+     },
+     "instructions": 476,
+     "intrinsics": {
+      "llvm.umin": 1
+     },
+     "kernels": {
+      "deflate_medium": {
+       "instructions": 476,
+       "vector": false,
+       "float": false,
+       "intrinsics": {
+        "llvm.umin": 1
+       },
+       "as-built": "metadata !tbaa",
+       "relaxed": "call to external @_, which touches memory: F4"
+      }
+     }
+    },
+    {
+     "source": "trees.c",
+     "flags": [],
+     "variants": {
+      "as-built": {
+       "functions": 9,
+       "translated": 0,
+       "refused": {
+        "metadata !tbaa": 9
+       }
+      },
+      "relaxed": {
+       "functions": 9,
+       "translated": 9,
+       "refused": {}
+      }
+     },
+     "instructions": 2652,
+     "intrinsics": {
+      "llvm.lifetime.end": 1,
+      "llvm.lifetime.start": 1,
+      "llvm.memcpy": 1,
+      "llvm.memset": 3,
+      "llvm.umax": 1,
+      "llvm.umin": 1
+     },
+     "kernels": {
+      "compress_block": {
+       "instructions": 232,
+       "vector": false,
+       "float": false,
+       "intrinsics": {},
+       "as-built": "metadata !tbaa",
+       "relaxed": "ok"
+      },
+      "build_tree": {
+       "instructions": 521,
+       "vector": false,
+       "float": false,
+       "intrinsics": {
+        "llvm.memset": 1,
+        "llvm.umax": 1
+       },
+       "as-built": "metadata !tbaa",
+       "relaxed": "ok"
+      }
+     }
+    },
+    {
+     "source": "insert_string.c",
+     "flags": [],
+     "variants": {
+      "as-built": {
+       "functions": 3,
+       "translated": 1,
+       "refused": {
+        "metadata !tbaa": 2
+       }
+      },
+      "relaxed": {
+       "functions": 3,
+       "translated": 3,
+       "refused": {}
+      }
+     },
+     "instructions": 68,
+     "intrinsics": {},
+     "kernels": {
+      "insert_string": {
+       "instructions": 38,
+       "vector": false,
+       "float": false,
+       "intrinsics": {},
+       "as-built": "metadata !tbaa",
+       "relaxed": "ok"
+      },
+      "quick_insert_string": {
+       "instructions": 27,
+       "vector": false,
+       "float": false,
+       "intrinsics": {},
+       "as-built": "metadata !tbaa",
+       "relaxed": "ok"
+      }
+     }
+    },
+    {
+     "source": "arch/x86/chunkset_avx512.c",
+     "flags": [
+      "-mavx512f",
+      "-mavx512dq",
+      "-mavx512bw",
+      "-mavx512vl",
+      "-mbmi2",
+      "-mtune=cascadelake",
+      "-fno-lto"
+     ],
+     "variants": {
+      "as-built": {
+       "functions": 3,
+       "translated": 0,
+       "refused": {
+        "call parameter attribute readonly": 1,
+        "call to @_, which isn't translated": 1,
+        "metadata !tbaa": 1
+       }
+      },
+      "relaxed": {
+       "functions": 3,
+       "translated": 0,
+       "refused": {
+        "call to @_, which isn't translated": 2,
+        "call parameter attribute readonly": 1
+       }
+      }
+     },
+     "instructions": 1153,
+     "intrinsics": {
+      "llvm.abs": 2,
+      "llvm.ctpop": 1,
+      "llvm.cttz": 1,
+      "llvm.lifetime.end": 1,
+      "llvm.lifetime.start": 1,
+      "llvm.masked.load": 7,
+      "llvm.masked.store": 4,
+      "llvm.memcpy": 21,
+      "llvm.memmove": 1,
+      "llvm.memset": 1,
+      "llvm.umin": 9,
+      "llvm.x86.avx2.pshuf.b": 1,
+      "llvm.x86.bmi.bzhi.32": 7,
+      "llvm.x86.ssse3.pshuf.b.128": 2
+     },
+     "kernels": {
+      "inflate_fast_avx512": {
+       "instructions": 923,
+       "vector": true,
+       "float": false,
+       "intrinsics": {
+        "llvm.abs": 1,
+        "llvm.masked.load": 1,
+        "llvm.masked.store": 1,
+        "llvm.memcpy": 20,
+        "llvm.umin": 8,
+        "llvm.x86.bmi.bzhi.32": 1
+       },
+       "as-built": "metadata !tbaa",
+       "relaxed": "call to @_, which isn't translated"
+      },
+      "chunkmemset_avx512": {
+       "instructions": 223,
+       "vector": true,
+       "float": false,
+       "intrinsics": {
+        "llvm.abs": 1,
+        "llvm.ctpop": 1,
+        "llvm.cttz": 1,
+        "llvm.lifetime.end": 1,
+        "llvm.lifetime.start": 1,
+        "llvm.masked.load": 6,
+        "llvm.masked.store": 3,
+        "llvm.memcpy": 1,
+        "llvm.memmove": 1,
+        "llvm.memset": 1,
+        "llvm.x86.avx2.pshuf.b": 1,
+        "llvm.x86.bmi.bzhi.32": 6,
+        "llvm.x86.ssse3.pshuf.b.128": 2
+       },
+       "as-built": "call parameter attribute readonly",
+       "relaxed": "call parameter attribute readonly"
+      }
+     }
+    },
+    {
+     "source": "inftrees.c",
+     "flags": [],
+     "variants": {
+      "as-built": {
+       "functions": 1,
+       "translated": 0,
+       "refused": {
+        "metadata !tbaa": 1
+       }
+      },
+      "relaxed": {
+       "functions": 1,
+       "translated": 1,
+       "refused": {}
+      }
+     },
+     "instructions": 562,
+     "intrinsics": {
+      "llvm.assume": 2,
+      "llvm.lifetime.end": 2,
+      "llvm.lifetime.start": 2,
+      "llvm.memset": 1,
+      "llvm.umax": 1,
+      "llvm.umin": 1
+     },
+     "kernels": {
+      "zng_inflate_table": {
+       "instructions": 562,
+       "vector": false,
+       "float": false,
+       "intrinsics": {
+        "llvm.assume": 2,
+        "llvm.lifetime.end": 2,
+        "llvm.lifetime.start": 2,
+        "llvm.memset": 1,
+        "llvm.umax": 1,
+        "llvm.umin": 1
+       },
+       "as-built": "metadata !tbaa",
+       "relaxed": "ok"
+      }
+     }
+    },
+    {
+     "source": "arch/x86/crc32_vpclmulqdq.c",
+     "flags": [
+      "-mpclmul",
+      "-mvpclmulqdq",
+      "-mavx512f",
+      "-mavx512dq",
+      "-mavx512bw",
+      "-mavx512vl",
+      "-mbmi2",
+      "-mtune=cascadelake",
+      "-fno-lto"
+     ],
+     "variants": {
+      "as-built": {
+       "functions": 5,
+       "translated": 0,
+       "refused": {
+        "metadata !tbaa": 5
+       }
+      },
+      "relaxed": {
+       "functions": 5,
+       "translated": 4,
+       "refused": {
+        "intrinsic llvm.memmove": 1
+       }
+      }
+     },
+     "instructions": 1216,
+     "intrinsics": {
+      "llvm.lifetime.end": 5,
+      "llvm.lifetime.start": 5,
+      "llvm.memcpy": 6,
+      "llvm.memmove": 1,
+      "llvm.memset": 2,
+      "llvm.x86.avx512.pternlog.d.512": 32,
+      "llvm.x86.pclmulqdq": 96,
+      "llvm.x86.pclmulqdq.512": 64,
+      "llvm.x86.ssse3.pshuf.b.128": 36
+     },
+     "kernels": {
+      "crc32_fold_vpclmulqdq": {
+       "instructions": 560,
+       "vector": true,
+       "float": false,
+       "intrinsics": {
+        "llvm.lifetime.end": 2,
+        "llvm.lifetime.start": 2,
+        "llvm.memcpy": 3,
+        "llvm.x86.avx512.pternlog.d.512": 16,
+        "llvm.x86.pclmulqdq": 52,
+        "llvm.x86.pclmulqdq.512": 32,
+        "llvm.x86.ssse3.pshuf.b.128": 18
+       },
+       "as-built": "metadata !tbaa",
+       "relaxed": "ok"
+      }
+     }
+    }
+   ],
+   "totals": {
+    "units": 7,
+    "instructions": 6835,
+    "as-built": {
+     "functions": 25,
+     "translated": 1,
+     "refused": {
+      "metadata !tbaa": 22,
+      "call parameter attribute readonly": 1,
+      "call to @_, which isn't translated": 1
+     }
+    },
+    "relaxed": {
+     "functions": 25,
+     "translated": 20,
+     "refused": {
+      "call to @_, which isn't translated": 2,
+      "call parameter attribute readonly": 1,
+      "call to external @_, which touches memory: F4": 1,
+      "intrinsic llvm.memmove": 1
+     }
+    },
+    "intrinsics": {
+     "llvm.abs": {
+      "calls": 2,
+      "class": "modeled"
+     },
+     "llvm.assume": {
+      "calls": 2,
+      "class": "modeled"
+     },
+     "llvm.ctpop": {
+      "calls": 1,
+      "class": "modeled"
+     },
+     "llvm.cttz": {
+      "calls": 16,
+      "class": "modeled"
+     },
+     "llvm.lifetime.end": {
+      "calls": 9,
+      "class": "modeled"
+     },
+     "llvm.lifetime.start": {
+      "calls": 9,
+      "class": "modeled"
+     },
+     "llvm.masked.load": {
+      "calls": 7,
+      "class": "refused",
+      "lane": "memory"
+     },
+     "llvm.masked.store": {
+      "calls": 4,
+      "class": "refused",
+      "lane": "memory"
+     },
+     "llvm.memcpy": {
+      "calls": 28,
+      "class": "modeled"
+     },
+     "llvm.memmove": {
+      "calls": 2,
+      "class": "refused",
+      "lane": "memory"
+     },
+     "llvm.memset": {
+      "calls": 7,
+      "class": "modeled"
+     },
+     "llvm.umax": {
+      "calls": 2,
+      "class": "modeled"
+     },
+     "llvm.umin": {
+      "calls": 14,
+      "class": "modeled"
+     },
+     "llvm.usub.sat": {
+      "calls": 1,
+      "class": "modeled"
+     },
+     "llvm.x86.avx2.pshuf.b": {
+      "calls": 1,
+      "class": "modeled"
+     },
+     "llvm.x86.avx512.pternlog.d.512": {
+      "calls": 32,
+      "class": "modeled"
+     },
+     "llvm.x86.bmi.bzhi.32": {
+      "calls": 7,
+      "class": "modeled"
+     },
+     "llvm.x86.pclmulqdq": {
+      "calls": 96,
+      "class": "modeled"
+     },
+     "llvm.x86.pclmulqdq.512": {
+      "calls": 64,
+      "class": "modeled"
+     },
+     "llvm.x86.ssse3.pshuf.b.128": {
+      "calls": 38,
+      "class": "modeled"
+     }
+    },
+    "kernels": {
+     "named": 10,
+     "as-built": 0,
+     "relaxed": 7
+    }
+   },
+   "measured": {
+    "date": "2026-11-11",
+    "commit": "5c99def23e8fa670dccb97bc9b6eaca7bbb3cd77",
+    "clang": "clang version 23.1.3"
+   }
+  },
+  "zstd": {
+   "rev": "f8745da6ff1ad1e7bab384bd1f9d742439278e99",
+   "nix_hash": "sha256-tNFWIT9ydfozB8dWcmTMuZLCQmQudTFJIkSr0aG7S44=",
+   "units": [
+    {
+     "source": "lib/compress/zstd_double_fast.c",
+     "flags": [],
+     "variants": {
+      "as-built": {
+       "functions": 6,
+       "translated": 0,
+       "refused": {
+        "metadata !tbaa": 6
+       }
+      },
+      "relaxed": {
+       "functions": 6,
+       "translated": 2,
+       "refused": {
+        "call to @_, which isn't translated": 2,
+        "call attribute memory": 1,
+        "intrinsic llvm.prefetch": 1
+       }
+      }
+     },
+     "instructions": 10777,
+     "intrinsics": {
+      "llvm.cttz": 84,
+      "llvm.lifetime.end": 4,
+      "llvm.lifetime.start": 4,
+      "llvm.memcpy": 4,
+      "llvm.prefetch": 24,
+      "llvm.umax": 1
+     },
+     "kernels": {
+      "ZSTD_compressBlock_doubleFast": {
+       "instructions": 4509,
+       "vector": true,
+       "float": false,
+       "intrinsics": {
+        "llvm.cttz": 40,
+        "llvm.lifetime.end": 4,
+        "llvm.lifetime.start": 4,
+        "llvm.memcpy": 4,
+        "llvm.prefetch": 16
+       },
+       "as-built": "metadata !tbaa",
+       "relaxed": "call attribute memory"
+      }
+     }
+    },
+    {
+     "source": "lib/decompress/zstd_decompress_block.c",
+     "flags": [],
+     "variants": {
+      "as-built": {
+       "functions": 20,
+       "translated": 0,
+       "refused": {
+        "metadata !tbaa": 12,
+        "call to external functions in a function with a stack frame or promises about memory, which IRLean.World doesn't wrap yet": 6,
+        "call to @_, which isn't translated": 1,
+        "type: a vector of pointers": 1
+       }
+      },
+      "relaxed": {
+       "functions": 20,
+       "translated": 5,
+       "refused": {
+        "call to external functions in a function with a stack frame or promises about memory, which IRLean.World doesn't wrap yet": 6,
+        "call to @_, which isn't translated": 3,
+        "inline assembly": 2,
+        "intrinsic llvm.memmove": 2,
+        "metadata !noalias": 1,
+        "type: a vector of pointers": 1
+       }
+      }
+     },
+     "instructions": 12776,
+     "intrinsics": {
+      "llvm.assume": 4,
+      "llvm.ctlz": 14,
+      "llvm.lifetime.end": 56,
+      "llvm.lifetime.start": 31,
+      "llvm.memcpy": 8,
+      "llvm.memmove": 51,
+      "llvm.memset": 3,
+      "llvm.prefetch": 127,
+      "llvm.smax": 6,
+      "llvm.smin": 8,
+      "llvm.umax": 63,
+      "llvm.umin": 19
+     },
+     "kernels": {
+      "ZSTD_decompressSequences_bmi2": {
+       "instructions": 829,
+       "vector": true,
+       "float": false,
+       "intrinsics": {
+        "llvm.ctlz": 2,
+        "llvm.lifetime.end": 5,
+        "llvm.lifetime.start": 3,
+        "llvm.memcpy": 1,
+        "llvm.memmove": 2,
+        "llvm.smax": 1,
+        "llvm.smin": 1,
+        "llvm.umax": 3,
+        "llvm.umin": 1
+       },
+       "as-built": "metadata !tbaa",
+       "relaxed": "inline assembly"
+      }
+     }
+    },
+    {
+     "source": "lib/compress/zstd_compress_sequences.c",
+     "flags": [],
+     "variants": {
+      "as-built": {
+       "functions": 6,
+       "translated": 0,
+       "refused": {
+        "metadata !tbaa": 3,
+        "call to external functions in a function with a stack frame or promises about memory, which IRLean.World doesn't wrap yet": 2,
+        "call to @_, which isn't translated": 1
+       }
+      },
+      "relaxed": {
+       "functions": 6,
+       "translated": 4,
+       "refused": {
+        "call to external functions in a function with a stack frame or promises about memory, which IRLean.World doesn't wrap yet": 2
+       }
+      }
+     },
+     "instructions": 1356,
+     "intrinsics": {
+      "llvm.assume": 2,
+      "llvm.lifetime.end": 2,
+      "llvm.lifetime.start": 2,
+      "llvm.memcpy": 1,
+      "llvm.umax": 3
+     },
+     "kernels": {
+      "ZSTD_encodeSequences_bmi2": {
+       "instructions": 489,
+       "vector": false,
+       "float": false,
+       "intrinsics": {},
+       "as-built": "metadata !tbaa",
+       "relaxed": "ok"
+      }
+     }
+    },
+    {
+     "source": "lib/compress/hist.c",
+     "flags": [],
+     "variants": {
+      "as-built": {
+       "functions": 8,
+       "translated": 1,
+       "refused": {
+        "metadata !tbaa": 7
+       }
+      },
+      "relaxed": {
+       "functions": 8,
+       "translated": 3,
+       "refused": {
+        "call to @_, which isn't translated": 4,
+        "intrinsic llvm.memmove": 1
+       }
+      }
+     },
+     "instructions": 628,
+     "intrinsics": {
+      "llvm.lifetime.end": 2,
+      "llvm.lifetime.start": 2,
+      "llvm.memmove": 1,
+      "llvm.memset": 7,
+      "llvm.umax": 23,
+      "llvm.vector.reduce.umax": 6
+     },
+     "kernels": {
+      "HIST_count_parallel_wksp": {
+       "instructions": 251,
+       "vector": true,
+       "float": false,
+       "intrinsics": {
+        "llvm.memmove": 1,
+        "llvm.memset": 2,
+        "llvm.umax": 3,
+        "llvm.vector.reduce.umax": 1
+       },
+       "as-built": "metadata !tbaa",
+       "relaxed": "intrinsic llvm.memmove"
+      }
+     }
+    },
+    {
+     "source": "lib/compress/zstd_opt.c",
+     "flags": [],
+     "variants": {
+      "as-built": {
+       "functions": 27,
+       "translated": 0,
+       "refused": {
+        "metadata !tbaa": 17,
+        "call to external functions in a function with a stack frame or promises about memory, which IRLean.World doesn't wrap yet": 10
+       }
+      },
+      "relaxed": {
+       "functions": 27,
+       "translated": 17,
+       "refused": {
+        "call to external functions in a function with a stack frame or promises about memory, which IRLean.World doesn't wrap yet": 10
+       }
+      }
+     },
+     "instructions": 12410,
+     "intrinsics": {
+      "llvm.assume": 4,
+      "llvm.ctlz": 84,
+      "llvm.cttz": 100,
+      "llvm.lifetime.end": 38,
+      "llvm.lifetime.start": 30,
+      "llvm.memcpy": 20,
+      "llvm.memmove": 4,
+      "llvm.memset": 4,
+      "llvm.umax": 14,
+      "llvm.umin": 32,
+      "llvm.usub.sat": 13,
+      "llvm.vector.reduce.add": 9
+     },
+     "kernels": {
+      "ZSTD_btGetAllMatches_noDict_3": {
+       "instructions": 739,
+       "vector": false,
+       "float": false,
+       "intrinsics": {
+        "llvm.cttz": 10,
+        "llvm.lifetime.end": 1,
+        "llvm.lifetime.start": 1,
+        "llvm.umax": 1,
+        "llvm.umin": 2,
+        "llvm.usub.sat": 1
+       },
+       "as-built": "metadata !tbaa",
+       "relaxed": "ok"
+      },
+      "ZSTD_compressBlock_opt2": {
+       "instructions": 1720,
+       "vector": true,
+       "float": false,
+       "intrinsics": {
+        "llvm.assume": 2,
+        "llvm.ctlz": 42,
+        "llvm.lifetime.end": 12,
+        "llvm.lifetime.start": 8,
+        "llvm.memcpy": 9,
+        "llvm.memmove": 2,
+        "llvm.memset": 2,
+        "llvm.umax": 1,
+        "llvm.umin": 1
+       },
+       "as-built": "call to external functions in a function with a stack frame or promises about memory, which IRLean.World doesn't wrap yet",
+       "relaxed": "call to external functions in a function with a stack frame or promises about memory, which IRLean.World doesn't wrap yet"
+      },
+      "ZSTD_insertBt1": {
+       "instructions": 245,
+       "vector": false,
+       "float": false,
+       "intrinsics": {
+        "llvm.cttz": 2,
+        "llvm.lifetime.end": 1,
+        "llvm.lifetime.start": 1,
+        "llvm.umax": 1,
+        "llvm.umin": 2,
+        "llvm.usub.sat": 1
+       },
+       "as-built": "metadata !tbaa",
+       "relaxed": "ok"
+      }
+     }
+    }
+   ],
+   "totals": {
+    "units": 5,
+    "instructions": 37947,
+    "as-built": {
+     "functions": 67,
+     "translated": 1,
+     "refused": {
+      "metadata !tbaa": 45,
+      "call to external functions in a function with a stack frame or promises about memory, which IRLean.World doesn't wrap yet": 18,
+      "call to @_, which isn't translated": 2,
+      "type: a vector of pointers": 1
+     }
+    },
+    "relaxed": {
+     "functions": 67,
+     "translated": 31,
+     "refused": {
+      "call to external functions in a function with a stack frame or promises about memory, which IRLean.World doesn't wrap yet": 18,
+      "call to @_, which isn't translated": 9,
+      "intrinsic llvm.memmove": 3,
+      "inline assembly": 2,
+      "call attribute memory": 1,
+      "intrinsic llvm.prefetch": 1,
+      "metadata !noalias": 1,
+      "type: a vector of pointers": 1
+     }
+    },
+    "intrinsics": {
+     "llvm.assume": {
+      "calls": 10,
+      "class": "modeled"
+     },
+     "llvm.ctlz": {
+      "calls": 98,
+      "class": "modeled"
+     },
+     "llvm.cttz": {
+      "calls": 184,
+      "class": "modeled"
+     },
+     "llvm.lifetime.end": {
+      "calls": 102,
+      "class": "modeled"
+     },
+     "llvm.lifetime.start": {
+      "calls": 69,
+      "class": "modeled"
+     },
+     "llvm.memcpy": {
+      "calls": 33,
+      "class": "modeled"
+     },
+     "llvm.memmove": {
+      "calls": 56,
+      "class": "refused",
+      "lane": "memory"
+     },
+     "llvm.memset": {
+      "calls": 14,
+      "class": "modeled"
+     },
+     "llvm.prefetch": {
+      "calls": 151,
+      "class": "refused"
+     },
+     "llvm.smax": {
+      "calls": 6,
+      "class": "modeled"
+     },
+     "llvm.smin": {
+      "calls": 8,
+      "class": "modeled"
+     },
+     "llvm.umax": {
+      "calls": 104,
+      "class": "modeled"
+     },
+     "llvm.umin": {
+      "calls": 51,
+      "class": "modeled"
+     },
+     "llvm.usub.sat": {
+      "calls": 13,
+      "class": "modeled"
+     },
+     "llvm.vector.reduce.add": {
+      "calls": 9,
+      "class": "modeled"
+     },
+     "llvm.vector.reduce.umax": {
+      "calls": 6,
+      "class": "modeled"
+     }
+    },
+    "kernels": {
+     "named": 7,
+     "as-built": 0,
+     "relaxed": 3
+    }
+   },
+   "measured": {
+    "date": "2026-11-11",
+    "commit": "5c99def23e8fa670dccb97bc9b6eaca7bbb3cd77",
+    "clang": "clang version 23.1.3"
+   }
+  }
+ }
+}

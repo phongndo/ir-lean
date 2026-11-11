@@ -164,6 +164,13 @@ set_tests_properties(llvm_rewrites llvm_rewrites_check PROPERTIES TIMEOUT 300)
 # tools/corpus/capture.py, in Python, with one seed through opt when the pinned one is on PATH: under a
 # second, and no Lean. docs/corpus.md.
 add_test(NAME corpus COMMAND ${CMAKE_SOURCE_DIR}/tests/corpus_test.py)
+# The kernel corpus, docs/kernels.md: its manifest meets its rules, and once it's fixed, nothing approved
+# changes without an amendment. Python only.
+add_test(NAME kernels COMMAND ${CMAKE_SOURCE_DIR}/tests/kernels_test.py)
+# Every unit the manifest names compiles at the pin and defines the kernels it names. It fetches nothing, and
+# skips where the Nix store doesn't hold the sources, as in CI: `bench/kernels/demand.py check` fetches them.
+add_test(NAME kernels_demand COMMAND ${CMAKE_SOURCE_DIR}/bench/kernels/demand.py check --offline)
+set_tests_properties(kernels_demand PROPERTIES SKIP_RETURN_CODE 77 TIMEOUT 1800)
 # tools/irlean, the shared Python library, and tools/measure.py on it: about 3 s, and no Lean or LLVM.
 # docs/python.md.
 add_test(NAME irlean COMMAND ${CMAKE_SOURCE_DIR}/tests/irlean_test.py)

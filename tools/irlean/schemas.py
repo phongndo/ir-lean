@@ -82,6 +82,10 @@ RULES_IMPORT = "ir-lean.rules.import/1"
 RULES_PROVED = "ir-lean.rules.proved/1"
 RULES_CERTIFICATE = "ir-lean.rules.certificate/1"
 RULE_SEARCH = "ir-lean.rule-search/1"
+# bench/kernels: the kernel corpus's manifest, and what the emitter makes of its candidates' kernels.
+# docs/kernels.md.
+KERNELS_MANIFEST = "ir-lean.kernels.manifest/1"
+KERNELS_DEMAND = "ir-lean.kernels.demand/1"
 
 ALL = {
     value: key

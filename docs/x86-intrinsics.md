@@ -258,9 +258,12 @@ with the processor on its first run.
 
 ## Against the corpus lane's demand
 
-The corpus lane measured the same thing another way, on 2026-11-10, in its `docs/kernels.md` and
-`bench/kernels/results/demand.json`, which aren't in this checkout yet: the intrinsics called by the units that hold
-each candidate project's hot kernels, for twelve projects, proposed and not approved. This page counts every file ten
+The corpus lane measured the same thing another way, on 2026-11-10, in [the kernel corpus](kernels.md) and
+`bench/kernels/results/demand.json`: the intrinsics called by the units that hold each candidate project's hot
+kernels, for twelve projects, six of which the maintainer approved that day. Its counts quoted here are from its
+first run, at `df3e997`. Its run after this page's intrinsics landed finds every one of them modeled, and every
+`llvm.x86.*` call left in the ten projects it didn't reject working on floating-point values
+([kernel corpus](kernels.md#the-x86-intrinsics)). This page counts every file ten
 projects build. Seven projects are in both: llama.cpp, zlib-ng, libdeflate, zstd, libwebp, xxHash and libsodium. It
 has base64, BLAKE3 at its default build, FLAC, Opus and XNNPACK besides, and this has ncnn, libaom and BLAKE3 from C.
 
@@ -290,12 +293,12 @@ has base64, BLAKE3 at its default build, FLAC, Opus and XNNPACK besides, and thi
   `avx512.permvar.qi.512`, VPERMB, and `avx512.pmultishift.qb.512`, VPMULTISHIFTQB, 10 calls each, aren't. Neither
   has a call in this page's ten projects.
 - **libaom and ncnn,** this page's and not its: PMULHRSW, PACKUSDW, PAVGW, VPDPWSSD, PBLENDVB, CRC32 and
-  PHMINPOSUW have calls only there. If neither project is approved, nothing in the corpus needs them yet.
+  PHMINPOSUW have calls only there. Neither project is in the approved list, so nothing in the corpus needs them yet.
 - **`llvm.pdep`,** 36 calls in llama.cpp. At this pin PDEP and PEXT reach IR as generic intrinsics, not as
   `llvm.x86.*`, so they aren't in this ranking, and the model refuses them as an integer operation it lacks.
 
 So the ranking by share was right about what to model first, and wrong, by a long way, about BZHI. What the corpus
-lane measures, the functions each refusal stands in front of, is the better order once the projects are approved.
+lane measures, the functions each refusal stands in front of, is the better order, now that the projects are approved.
 
 ## What's next
 
