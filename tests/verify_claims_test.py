@@ -202,7 +202,7 @@ def replay_of(checks: Sequence[str] = REPLAYED, modules: dict[str, list[str]] = 
     """A replay of PLAN that passed `checks` and covered `modules`, with no process run."""
     nowhere = Path("/nonexistent")
     t = vc.Tools(nowhere, nowhere, nowhere, nowhere, "", [])
-    r = vc.Replay(copy.deepcopy(PLAN), t, nowhere, 1, 1, 1.0, False)
+    r = vc.Replay(copy.deepcopy(PLAN), t, nowhere, 1, 1, 1.0, False, copy.deepcopy(PLAN))
     for c in checks:
         r.passed(c)
     for step, done in modules.items():
@@ -210,11 +210,12 @@ def replay_of(checks: Sequence[str] = REPLAYED, modules: dict[str, list[str]] = 
     return r
 
 
-def outcome(f: Callable[[], dict[str, Any]], deny: str = "") -> tuple[str, str]:
+def outcome(f: Callable[[], Any], deny: str = "") -> tuple[str, str]:
     """The status and reason `f` gives with IRLEAN_DENY_ALL set to `deny`, or the exception it raises."""
     try:
         with mock.patch.dict(os.environ, {DENY_ALL: deny}):
             v = f()
+            v = v.verdict if isinstance(v, vc.Replayed) else v
     except vc.Stop as s:
         return s.status, s.reason
     except Exception as e:
@@ -222,16 +223,16 @@ def outcome(f: Callable[[], dict[str, Any]], deny: str = "") -> tuple[str, str]:
     return v["status"], v["reason"]
 
 
-def replayed() -> list[dict[str, Any]]:
-    """A whole replay's verdict, asked with IRLEAN_DENY_ALL unset."""
+def replayed(path: str) -> vc.Replayed:
+    """A whole replay's result, for the evidence file `path`, asked with IRLEAN_DENY_ALL unset."""
     with mock.patch.dict(os.environ, {DENY_ALL: ""}):
-        return [vc.complete(replay_of(), "x")]
+        return vc.complete(replay_of(), "x", path=path)
 
 
-def guard_cases() -> list[tuple[str, Callable[[], dict[str, Any]], str, tuple[str, str]]]:
+def guard_cases() -> list[tuple[str, Callable[[], Any], str, tuple[str, str]]]:
     """(name, what's asked, IRLEAN_DENY_ALL, the status and reason it gives) for the guard's functions."""
     whole = ("replayed", "replayed")
-    cases: list[tuple[str, Callable[[], dict[str, Any]], str, tuple[str, str]]] = [
+    cases: list[tuple[str, Callable[[], Any], str, tuple[str, str]]] = [
         ("a whole replay", lambda: vc.complete(replay_of(), "x"), "", whole),
         ("a whole replay, IRLEAN_DENY_ALL=0", lambda: vc.complete(replay_of(), "x"), "0", whole),
         (
@@ -258,14 +259,18 @@ def guard_cases() -> list[tuple[str, Callable[[], dict[str, Any]], str, tuple[st
     for word in ("replayed", "verified"):
         cases.append((f"verdict asked for {word}", lambda w=word: vc.verdict(w, w, "x"), "", raised))
     # A claim is verified only with each evidence file it plans replayed, each by complete.
+    a, b, c, ab = replayed("a.json"), replayed("b.json"), replayed("c.json"), ["a.json", "b.json"]
     for name, results, planned, deny, want in [
-        ("verified, each evidence file replayed", replayed, 1, "", ("verified", "verified")),
-        ("verified, IRLEAN_DENY_ALL=1", replayed, 1, "1", ("error", "denied")),
-        ("verified, an evidence file planned and not replayed", replayed, 2, "", INCOMPLETE),
-        ("verified, no evidence", list, 0, "", INCOMPLETE),
-        ("verified, one refused", lambda: [vc.verdict("refused", "x", "y")], 1, "", INCOMPLETE),
+        ("verified, each evidence file replayed", [b, a], ab, "", ("verified", "verified")),
+        ("verified, IRLEAN_DENY_ALL=1", [a, b], ab, "1", ("error", "denied")),
+        ("verified, an evidence file planned and not replayed", [a], ab, "", INCOMPLETE),
+        ("verified, another file's replay in a planned one's place", [a, c], ab, "", INCOMPLETE),
+        ("verified, one file's replay twice", [a, a], ab, "", INCOMPLETE),
+        ("verified, a verdict saying replayed, not complete's result", [a, b.verdict], ab, "", INCOMPLETE),
+        ("verified, no evidence", [], [], "", INCOMPLETE),
+        ("verified, one refused", [vc.verdict("refused", "x", "y")], ["a.json"], "", INCOMPLETE),
     ]:  # fmt: skip
-        cases.append((name, lambda r=results, p=planned: vc.verified(r(), p, "x"), deny, want))
+        cases.append((name, lambda r=results, p=planned: vc.verified(r, p, "x"), deny, want))
     return cases
 
 
@@ -483,6 +488,7 @@ class Live:
         d = self.work / re.sub(r"[^A-Za-z0-9_.-]+", "_", name)
         d.mkdir(parents=True, exist_ok=True)
         v, out = vc.replay_evidence(copy.deepcopy(ev), work=d, jobs=self.jobs, record=record, **opts)
+        v = v.verdict if isinstance(v, vc.Replayed) else v
         print(f"     {name}: {v['status']} {v['reason']} in {time.monotonic() - started:.1f} s")
         return v, out
 

@@ -408,13 +408,13 @@ def check_pin(ev: dict[str, Any], t: Tools, timeout: float) -> None:
 
 class Replay:
     def __init__(self, ev: dict[str, Any], t: Tools, work: Path, jobs: int, memory: int, timeout: float,
-                 record: bool) -> None:  # fmt: skip
+                 record: bool, validated: dict[str, Any]) -> None:  # fmt: skip
         self.ev, self.t, self.work, self.jobs, self.memory, self.timeout = ev, t, work, jobs, memory, timeout
         self.record = record
         self.checks: list[dict[str, str]] = []
         # The modules each check over modules has to cover, each once, from the evidence before anything ran,
         # and those it did cover.
-        generated, own = [u["namespace"] for u in ev["units"]], list(ev["lean"]["files"])
+        generated, own = [u["namespace"] for u in validated["units"]], list(validated["lean"]["files"])
         self.plan = {
             "compile_generated": generated,
             "compile_evidence": own,
@@ -761,7 +761,15 @@ def deny() -> None:
         raise Stop("error", "denied", f"{DENY_ALL} is set, and nothing is granted")
 
 
-def complete(replay: Replay, detail: str, **extra: Any) -> dict[str, Any]:
+@dataclass(frozen=True)
+class Replayed:
+    """What only `complete` gives: the evidence file it replayed, by the path it's given, and its verdict."""
+
+    path: str
+    verdict: dict[str, Any]
+
+
+def complete(replay: Replay, detail: str, *, path: str = "", **extra: Any) -> Replayed:
     """The one place a replay is `replayed`: every check of REPLAYED passed exactly once, and Lean compiled
     and leanchecker replayed every module the evidence planned, each once. Anything else is `error`,
     `incomplete`, so a step skipped, by a bug here or a caller's, can't grant."""
@@ -773,31 +781,34 @@ def complete(replay: Replay, detail: str, **extra: Any) -> dict[str, Any]:
             got = replay.observed[step]
             raise Stop("error", "incomplete", f"{step} covered {got}, not each of {plan} once")
     deny()
-    return {"schema": VERDICT_SCHEMA, "status": "replayed", "reason": "replayed", "detail": detail,
-            "checks": replay.checks, **extra, "trusted": TRUSTED}  # fmt: skip
+    v = {"schema": VERDICT_SCHEMA, "status": "replayed", "reason": "replayed", "detail": detail,
+         "checks": replay.checks, **extra, "trusted": TRUSTED}  # fmt: skip
+    return Replayed(path, v)
 
 
-def verified(results: list[dict[str, Any]], planned: int, detail: str) -> dict[str, Any]:
+def verified(results: list[Any], planned: list[str], detail: str) -> dict[str, Any]:
     """The one place a claim is `verified`: each of the `planned` evidence files it names replayed, and
-    `complete` said so of each. Anything else is `error`, `incomplete`."""
-    said = [v.get("status") for v in results]
-    if not planned or len(results) != planned or any(s != "replayed" for s in said):
+    `complete`'s result said so of each, by its path, once, and of no other. Else `error`, `incomplete`."""
+    done = [r for r in results if isinstance(r, Replayed)]
+    if not planned or len(done) != len(results) or sorted(r.path for r in done) != sorted(set(planned)):
         raise Stop(
-            "error", "incomplete", f"{planned} evidence files are planned, and their replays say {said}"
+            "error", "incomplete", f"{planned} are planned, and complete replayed {[r.path for r in done]}"
         )
     deny()
     return {"schema": VERDICT_SCHEMA, "status": "verified", "reason": "verified", "detail": detail,
-            "evidence": results, "trusted": TRUSTED}  # fmt: skip
+            "evidence": [r.verdict for r in done], "trusted": TRUSTED}  # fmt: skip
 
 
-def replay_evidence(ev: Any, *, work: Path | None = None, jobs: int = 4, memory: int = 4000,
-                    timeout: float = 900, record: bool = False) -> tuple[dict[str, Any], Any]:  # fmt: skip
+def replay_evidence(ev: Any, *, path: str = "", work: Path | None = None, jobs: int = 4, memory: int = 4000,
+                    timeout: float = 900, record: bool = False,
+                    ) -> tuple[Replayed | dict[str, Any], Any]:  # fmt: skip
     """Replays evidence, given as parsed JSON. Returns the verdict, and the evidence with what's recorded."""
     replay: Replay | None = None
     owned = work is None
     work = Path(tempfile.mkdtemp(prefix="verify-claims-")) if work is None else work
     try:
         validate(ev, record)
+        validated = json.loads(json.dumps(ev))  # the evidence as validated, before any tool runs
         if ev["cuts"]:
             # A call the theorem rules out by stopping the model says nothing about the code it runs.
             return verdict("partial", "cut", f"calls out of the code are cut: {ev['cuts']}"), ev
@@ -813,13 +824,13 @@ def replay_evidence(ev: Any, *, work: Path | None = None, jobs: int = 4, memory:
         if run_dir.exists():
             shutil.rmtree(run_dir)
         run_dir.mkdir(parents=True)
-        replay = Replay(ev, t, run_dir, jobs, memory, timeout, record)
+        replay = Replay(ev, t, run_dir, jobs, memory, timeout, record, validated)
         replay.passed("pin", "llvm-project has the pinned NAR hash")
         theorems = replay.replay()
         for u in ev["units"]:
             u.pop("_functions", None)
         detail = "every check passed" + (", and the evidence is recorded" if record else "")
-        return complete(replay, detail, theorems=theorems, contexts=ev["contexts"]), ev
+        return complete(replay, detail, path=path, theorems=theorems, contexts=ev["contexts"]), ev
     except Stop as s:
         return verdict(s.status, s.reason, s.detail, checks=replay.checks if replay else []), ev
     except Exception as e:
@@ -919,6 +930,7 @@ def _decide_claim(claim: dict[str, Any], root: Path, inventory: Path, closures: 
     evidence = [e for e in claim["evidence"] if isinstance(e, dict) and e.get("kind") == kind]
     if not evidence:
         raise refuse("claim_invalid", f"a complete {dim} claim needs {kind} evidence")
+    planned = [str(e.get("path")) for e in evidence]  # read before any replay
     covered: set[tuple[str, str]] = set()
     anchors: dict[str, str] = {}
     compiled: set[str] = set()
@@ -930,9 +942,9 @@ def _decide_claim(claim: dict[str, Any], root: Path, inventory: Path, closures: 
         if sha256(path) != e.get("sha256"):
             raise refuse("stale_evidence", f"{e.get('path')} changed since the claim was made")
         ev = json.loads(path.read_text())
-        v, _ = replay_evidence(ev, **options)
+        v, _ = replay_evidence(ev, path=str(e.get("path")), **options)
         results.append(v)
-        if v["status"] != "replayed":
+        if not isinstance(v, Replayed):
             raise Stop(v["status"] if v["status"] != "partial" else "refused", v["reason"],
                        f"{e['path']}: {v['detail']}")  # fmt: skip
         if ev["contexts"] != "all":
@@ -942,7 +954,7 @@ def _decide_claim(claim: dict[str, Any], root: Path, inventory: Path, closures: 
             if u["source_in"] == "llvm-project":
                 compiled.add(u["source"])
         # A closure's function is covered by a theorem about it as compiled from its own file.
-        for t in v["theorems"]:
+        for t in v.verdict["theorems"]:
             covered |= {(c["source"], c["symbol"]) for c in t["covers"] if c["source_in"] == "llvm-project"}
     if closure is not None:
         for f, h in closure["files"].items():
@@ -957,7 +969,7 @@ def _decide_claim(claim: dict[str, Any], root: Path, inventory: Path, closures: 
             why = f"no theorem is about {len(missing)} functions of the closure, such as {missing[:3]}"
             raise refuse("closure_uncovered", why)
     detail = f"{len(results)} evidence files replay and cover {item_id}'s {dim}"
-    return verified(results, len(evidence), detail)
+    return verified(results, planned, detail)
 
 
 def check_claim(claim: dict[str, Any], item: dict[str, Any], contexts: set[str], root: Path) -> str | None:
@@ -998,8 +1010,9 @@ def main() -> int:
         if work is not None:
             work.mkdir(parents=True, exist_ok=True)
         v, recorded = replay_evidence(ev, work=work, record=args.record is not None, **options)
-        if args.record is not None and v["status"] == "replayed":
+        if args.record is not None and isinstance(v, Replayed):
             args.record.write_text(json.dumps(recorded, indent=1) + "\n")
+        v = v.verdict if isinstance(v, Replayed) else v
         print(json.dumps(v, indent=1))
         return EXIT[v["status"]]
     claims = json.loads(args.coverage.read_text()).get("claims", [])

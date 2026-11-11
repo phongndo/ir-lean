@@ -39,9 +39,11 @@ It denies by default, with a guard of its own, as [stage A's design](verdicts.md
 `REPLAYED` is the fixed list of checks a replay needs: `pin`, `anchors`, `ir_replay`, `translation_replay`,
 `compile_generated`, `compile_evidence`, `statements`, `axioms`, `kernel_replay` and `unchanged`. Only `complete` gives
 `replayed`: each check of the list passed exactly once, and no other, and Lean compiled and `leanchecker` replayed each
-module the evidence plans, its units' namespaces and its own files, each once, against a plan read before anything
-ran. Only `verified` gives `verified`: each evidence file the claim names replayed so. Anything else is `error`,
-`incomplete`, so a step skipped, by a bug here or a caller's, can't grant, and `verdict` raises if it's asked for
+module the evidence plans, its units' namespaces and its own files, each once, against a plan read from the evidence
+as it was validated, before any tool ran. `complete` gives a frozen `Replayed`, which carries the path of the evidence
+file it replayed. Only `verified` gives `verified`: a `Replayed` for each evidence file the claim names, by the paths
+read before any replay, each once, and for no other. Anything else is `error`, `incomplete`, so a step skipped, or a
+replay counted in another's place, by a bug here or a caller's, can't grant, and `verdict` raises if it's asked for
 either. `IRLEAN_DENY_ALL`, set to anything but `0`, takes every grant away: what would have been granted is `error`,
 `denied`, exit 5, and `--record` writes nothing. It reads that itself, since it imports nothing of `irlean`.
 
@@ -174,8 +176,9 @@ And its guard, on ashldi3's evidence:
 
 And without a process, for a plan of one generated module and two of the evidence's: each check of `REPLAYED` left
 out or passed twice, a check not on it, and for each check over modules, each module left out or covered twice and one
-not planned, are `incomplete`; `verdict` raises if it's asked for a grant; and `verified` needs every evidence file it
-plans replayed.
+not planned, are `incomplete`; `verdict` raises if it's asked for a grant; and `verified` is `incomplete` with an
+evidence file planned and not replayed, another file's replay in a planned one's place, one file's replay twice, or a
+verdict saying `replayed` in place of `complete`'s result.
 
 **A finding about the scorer.** `tools/verify.py` answers `timeout`, `heartbeat_limit` while reading the claim, on
 `tests/llvm`'s proofs, such as `ashldi3_correct` with the IR the verifier compiled. So it proves none of them, though

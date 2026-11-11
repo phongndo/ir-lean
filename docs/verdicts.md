@@ -197,7 +197,8 @@ It imports nothing of `irlean`, for BIND-03, and gets a default-deny guard of it
 replay needs: `pin`, `anchors`, `ir_replay`, `translation_replay`, `compile_generated`, `compile_evidence`,
 `statements`, `axioms`, `unchanged` and `kernel_replay`. `complete(replay)` alone writes `replayed`: each check passed
 exactly once, and the compiles and `kernel_replay` over every planned module, the units' namespaces and the evidence's
-files. `verified` needs each evidence file's replay `complete`. `verdict` refuses a grant's status.
+files. `verified` needs `complete`'s result for each evidence file the claim names, by path, and no other.
+`verdict` refuses a grant's status.
 `artifacts_modified` is `error`, exit 5. It reads `IRLEAN_DENY_ALL` itself.
 
 ## Classes touched, and the guard each reuses
