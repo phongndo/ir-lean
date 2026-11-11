@@ -250,7 +250,7 @@ def _code(value: Any) -> int | None:
     return value if type(value) is int else None
 
 
-def first_error(output: str) -> str | None:
+def _first_error(output: str) -> str | None:
     """The first error in `output`, with the lines that continue it, or None."""
     lines = output.splitlines()
     for i, line in enumerate(lines):
@@ -278,7 +278,7 @@ def limit_of(step: Step) -> str | None:
         return "time_limit"
     if runtime := RUNTIME.search(step.output):
         return "stack_limit" if runtime["stack"] else "memory_limit"
-    said = first_error(step.output)
+    said = _first_error(step.output)
     return lean_.limit_of(said) if said else None
 
 
@@ -330,7 +330,7 @@ def _crashed(step: Step) -> bool:
     return code is None or code < 0 or code >= 128
 
 
-def listed(name: str) -> set[str]:
+def _listed(name: str) -> set[str]:
     """The checks evidence for `name` can have: its own, and those of each grant it excludes, which the same
     evidence is asked for."""
     grant = GRANTS[name]
@@ -354,8 +354,9 @@ def _grant(name: str, e: Evidence, excluding: bool = True) -> Decision:
     """`decide` for a grant by name, in this order: a limit on any step or case it rests on, `unknown`; a
     crash, `error`; something it requires absent, or a check it doesn't list, `error`, `internal_error`; the
     plan against the cases, `error`, `incomplete`; each requirement that isn't clean, `error`, as its own
-    reason; a model stop, `unknown`; too few cases that hold; and a grant it excludes that the same evidence
-    grants, `error`, `contradiction`."""
+    reason; a model stop, `unknown`; too few cases that hold, unless the plan is the whole domain, `unknown`;
+    none that hold, `error`; and a grant it excludes that the same evidence grants, `error`,
+    `contradiction`."""
     grant = GRANTS[name]
     steps = [(r, _required(e, r)) for r in grant.steps]
     cases = list(e.cases) if grant.cases else []
@@ -369,7 +370,7 @@ def _grant(name: str, e: Evidence, excluding: bool = True) -> Decision:
 
     absent = [r for r, s in steps if not isinstance(s, Step) or s.exit is None]
     absent += [c for c in grant.checks if e.checks.get(c) is None]
-    absent += [f"{c}, which {name} doesn't list" for c in e.checks if c not in listed(name)]
+    absent += [f"{c}, which {name} doesn't list" for c in e.checks if c not in _listed(name)]
     if grant.files and not e.files:
         absent.append("files")
     if grant.cases:
@@ -408,11 +409,11 @@ def _grant(name: str, e: Evidence, excluding: bool = True) -> Decision:
                 Verdict.UNKNOWN, "model_stopped", f"the model stopped: {', '.join(stopped)}"[:500]
             )
         held = sum(c.exit in grant.cases.holds for c in cases)
-        if held == 0:
-            return Decision(Verdict.ERROR, "vacuous", f"none of {len(cases)} cases met the hypotheses")
         if not e.plan.whole and grant.cases.at_least and held < e.plan.at_least:
             why = f"{held} of {len(cases)} cases hold, and {grant.cases.at_least} is {e.plan.at_least}"
             return Decision(Verdict.UNKNOWN, "too_few_satisfying", why)
+        if held == 0:
+            return Decision(Verdict.ERROR, "vacuous", f"none of {len(cases)} cases met the hypotheses")
         reason = "exhaustive" if e.plan.whole else "sampled"
         detail = f"{held} of {len(cases)} cases hold, and none failed"
     if excluding:

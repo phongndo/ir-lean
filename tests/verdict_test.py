@@ -774,10 +774,10 @@ def expected_of_cases(
         return Verdict.ERROR, "case_failed"
     if "stop" in kinds:
         return Verdict.UNKNOWN, "model_stopped"
-    if not kinds.count("holds"):
-        return Verdict.ERROR, "vacuous"
     if not whole and kinds.count("holds") < at_least:
         return Verdict.UNKNOWN, "too_few_satisfying"
+    if not kinds.count("holds"):
+        return Verdict.ERROR, "vacuous"
     return Verdict.GRANTED, "exhaustive" if whole else "sampled"
 
 
