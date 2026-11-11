@@ -118,10 +118,22 @@ The review confirmed these on `main`. Each is closed by the pull request named, 
 
 ```python
 GRANTS = {
-    "verify.proved": Grant("proved", 0, schemas.VERIFY, steps=("lean", "axioms", "replay"), files=True,
-                           checks=VERIFY_CHECKS, excludes=("verify.counterexample",)),
-    "prooftest.passed_tier1": Grant("passed_tier1", 0, schemas.PROOFTEST, steps=("harness",),
-                                    cases=Cases(holds=..., discards=..., at_least="min_satisfied")),
+    "verify.proved": Grant(
+        "proved",
+        0,
+        schemas.VERIFY,
+        steps=("lean", "axioms", "replay"),
+        files=True,
+        checks=VERIFY_CHECKS,
+        excludes=("verify.counterexample",),
+    ),
+    "prooftest.passed_tier1": Grant(
+        "passed_tier1",
+        0,
+        schemas.PROOFTEST,
+        steps=("harness",),
+        cases=Cases(holds=..., discards=..., at_least="min_satisfied"),
+    ),
 }
 d = verdict.decide("verify.proved", verdict.Evidence(lean=..., axioms=..., replay=..., checks=..., files=...))
 status, reason, code = verdict.status(d, STATUSES)  # a grant's word only from a granted Decision
