@@ -60,8 +60,10 @@ $ tools/verify.py check --c tests/real/bi_reverse.c --namespace Real --function 
 }
 ```
 
-The same request can be a JSON file, with paths relative to it: `tools/verify.py check request.json`.
-`tools/verify.py capabilities` prints the whole contract below as JSON.
+The same request can be a JSON file, with paths relative to it: `tools/verify.py check request.json`. With
+`tools/verify.py check -` it's read from stdin, with paths relative to the working directory, which is how
+[irl](irl.md)'s MCP server sends it. `tools/verify.py capabilities` prints the whole contract below as JSON, with
+the request as a JSON Schema in `request_json_schema`. `irl verify` is `tools/verify.py`.
 
 ## The contract
 

@@ -14,10 +14,13 @@ The answer's `status` is one of five, and only `proved` says the claim holds:
 `reason` is a stable code saying which case it is. docs/verify.md has the contract, what each result rests on,
 and a worked example. Run `tools/verify.py capabilities` for the same, as JSON.
 
-usage: tools/verify.py check REQUEST.json [--tool PATH] [--work-dir DIR] [--pretty]
+usage: tools/verify.py check REQUEST.json|- [--tool PATH] [--work-dir DIR] [--pretty]
        tools/verify.py check --ir FILE.ll | --c FILE.c  --function NAME
                              (--proof FILE.lean --theorem NAME | --statement TEXT) [options]
        tools/verify.py capabilities [--pretty]
+
+With `-`, the request is read from stdin, with paths relative to the working directory, as irl's MCP server
+sends it.
 
 The exit code is 0 for proved, 2 for counterexample, 3 for unsupported, 4 for timeout, and 1 for error.
 """
@@ -161,6 +164,65 @@ REQUEST_FIELDS = {
     "statement": "Optional. A Lean proposition. Pins the theorem, or stands alone with witnesses",
     "witnesses": 'Optional. A list of {"binder": "Lean term"}, or "#0", "#1", ... for binders by position',
     "limits": '{"timeout_seconds": 600, "memory_mb": 4000} by default',
+}
+
+# REQUEST_FIELDS as a JSON Schema, which irl's MCP server gives as `verify_check`'s input. load_request is
+# still what decides a request is valid: this is what a client checks before it asks. irl/schema_test.go
+# checks its properties are REQUEST_FIELDS.
+
+
+def _path() -> dict[str, Any]:
+    return {"type": "string", "minLength": 1}
+
+
+REQUEST_JSON_SCHEMA: dict[str, Any] = {
+    "type": "object",
+    "properties": {
+        name: {**schema, "description": REQUEST_FIELDS[name]}
+        for name, schema in {
+            "schema": {"const": REQUEST_SCHEMA},
+            "input": {
+                "oneOf": [
+                    {
+                        "type": "object",
+                        "properties": {"ir": _path()},
+                        "required": ["ir"],
+                        "additionalProperties": False,
+                    },
+                    {
+                        "type": "object",
+                        "properties": {
+                            "c": _path(),
+                            "cflags": {"type": "array", "items": {"type": "string"}},
+                        },
+                        "required": ["c"],
+                        "additionalProperties": False,
+                    },
+                ]
+            },
+            "function": {"type": "string", "minLength": 1},
+            "namespace": {"type": "string", "minLength": 1},
+            "proof": _path(),
+            "theorem": {"type": "string", "minLength": 1},
+            "support": {"type": "array", "items": _path()},
+            "lean_root": _path(),
+            "statement": {"type": "string", "minLength": 1},
+            "witnesses": {
+                "type": "array",
+                "items": {"type": "object", "minProperties": 1, "additionalProperties": {"type": "string"}},
+            },
+            "limits": {
+                "type": "object",
+                "properties": {
+                    "timeout_seconds": {"type": "number", "minimum": 1, "maximum": 86400},
+                    "memory_mb": {"type": "integer", "minimum": 64, "maximum": 1048576},
+                },
+                "additionalProperties": False,
+            },
+        }.items()
+    },
+    "required": ["input", "function"],
+    "additionalProperties": False,
 }
 
 # Module names Lean, its libraries or this repo already use, which a request can't take.
@@ -1468,6 +1530,7 @@ def capabilities() -> dict[str, Any]:
         "reasons": {code: {"status": s, "meaning": m} for code, (s, m) in REASONS.items()},
         "checks": [{"name": n, "meaning": m, "required_for_proved": n in REQUIRED} for n, m in CHECKS],
         "request_fields": REQUEST_FIELDS,
+        "request_json_schema": REQUEST_JSON_SCHEMA,
         "defaults": {
             "timeout_seconds": DEFAULT_TIMEOUT,
             "memory_mb": DEFAULT_MEMORY_MB,
@@ -1506,7 +1569,9 @@ def main(argv: list[str] | None = None) -> int:
     caps = sub.add_parser("capabilities", help="print the contract as JSON")
     caps.add_argument("--pretty", action="store_true")
     check = sub.add_parser("check", help="check one claim")
-    check.add_argument("request_file", nargs="?", type=Path, help="a request as JSON")
+    check.add_argument(
+        "request_file", nargs="?", type=Path, help="a request as JSON, or - to read it from stdin"
+    )
     source = check.add_mutually_exclusive_group()
     source.add_argument("--ir", help="LLVM IR, .ll or .bc")
     source.add_argument("--c", help="C source, compiled with clang")
@@ -1543,13 +1608,16 @@ def main(argv: list[str] | None = None) -> int:
         if any(f is not None for f in flags):
             raw = "a request file and request flags together"
         else:
-            base = args.request_file.resolve().parent
+            # From stdin, paths are relative to the working directory, as they are for flags.
+            stdin = str(args.request_file) == "-"
+            if not stdin:
+                base = args.request_file.resolve().parent
             try:
-                raw = json.loads(args.request_file.read_text())
+                raw = json.loads(sys.stdin.read() if stdin else args.request_file.read_text())
             except OSError as error:
                 raw = f"can't read {args.request_file}: {error}"
             except json.JSONDecodeError as error:
-                raw = f"{args.request_file} isn't JSON: {error}"
+                raw = f"{'stdin' if stdin else args.request_file} isn't JSON: {error}"
     else:
         raw = {}
         if args.ir is not None:

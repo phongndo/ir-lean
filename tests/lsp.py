@@ -70,6 +70,7 @@ SERVERS = [
     ),
     (["uv", "run", "--quiet", "ruff", "server"], "python", ["tests/lsp.py"], PYTHON_INPUTS),
     (["bash-language-server", "start"], "shellscript", ["tests/proofs.sh"], ["tests/*.sh"]),
+    (["gopls"], "go", ["irl/main.go", "irl/mcp.go"], ["irl/*.go", "irl/go.mod"]),
     (["nixd"], "nix", ["flake.nix", "nix/shell.nix"], ["*.nix", "nix/*.nix", "flake.lock"]),
     (["neocmakelsp", "stdio"], "cmake", ["CMakeLists.txt"], ["CMakeLists.txt", ".gersemirc"]),
     (["taplo", "lsp", "stdio"], "toml", ["pyproject.toml", "lakefile.toml"], ["*.toml"]),

@@ -83,11 +83,12 @@ Give it a right statement, with `x &&& 0xFFFF#32`, and it answers `passed_tier1`
 | `verify_confirm` | `auto`, `always` or `never`: when `tools/verify.py` confirms a counterexample. `auto` asks it only when the kernel couldn't. Default `auto` |
 | `limits` | `timeout_seconds`, default 300, `memory_mb`, default 4,000, and `input_timeout_seconds`, default 2 |
 
-A request can be a JSON file: `tools/prooftest/prooftest.py run request.json`. `tools/prooftest/prooftest.py
-capabilities` prints the contract as JSON. The API is `prooftest(request, base, tool, work)` in
-`tools/prooftest/prooftest.py`, which the command line is a thin layer over. Each run keeps a directory, under
-`build/prooftest/runs/` unless `--work-dir` says where, with verify's setup run, the harness and its config, any
-confirmation run, `request.json` to rerun it and `result.json`.
+A request can be a JSON file: `tools/prooftest/prooftest.py run request.json`, or stdin, with `-`, as
+[irl](irl.md)'s MCP server sends it. `tools/prooftest/prooftest.py capabilities` prints the contract as JSON, with the
+request as a JSON Schema in `request_json_schema`. `irl ptf` is `tools/prooftest/prooftest.py`. The API is
+`prooftest(request, base, tool, work)` in `tools/prooftest/prooftest.py`, which the command line is a thin layer over.
+Each run keeps a directory, under `build/prooftest/runs/` unless `--work-dir` says where, with verify's setup run, the
+harness and its config, any confirmation run, `request.json` to rerun it and `result.json`.
 
 ### Statuses
 

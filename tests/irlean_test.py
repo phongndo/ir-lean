@@ -721,8 +721,9 @@ class Schemas(unittest.TestCase):
 
     def test_every_schema_in_the_repo_is_named_here(self) -> None:
         literal = re.compile(r"""["'](ir-lean\.[a-z0-9][a-z0-9_.-]*/\d+)["']""")
+        # irl, in Go, names its schema too.
         tracked = subprocess.run(
-            ["git", "ls-files", "--cached", "--others", "--exclude-standard", "*.py"],
+            ["git", "ls-files", "--cached", "--others", "--exclude-standard", "*.py", "*.go"],
             cwd=ROOT,
             capture_output=True,
             text=True,
@@ -731,7 +732,9 @@ class Schemas(unittest.TestCase):
         unknown = {}
         for name in tracked:
             path = ROOT / name
-            if not path.exists() or name.endswith("_test.py") or name == "tools/irlean/schemas.py":
+            if not path.exists() or name.endswith(("_test.py", "_test.go")):
+                continue
+            if name == "tools/irlean/schemas.py":
                 continue
             if independent(name):
                 continue

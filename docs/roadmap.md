@@ -406,6 +406,34 @@ don't reopen it either.
 Why: the goal changed on 2026-11-08 and again on 2026-11-09, and these decisions change it a third time. Each change
 rewrote this page.
 
+### Names and languages, decided on 2026-11-10
+
+On 2026-11-10 the maintainer named the tools, chose how agents reach them, and chose the languages they're written
+in. None of this changes the goal.
+
+**1. One command, `irl`, and a name for each tool.** `irl` is short for ir-lean.
+
+| Name | Command | What it is | Built |
+| --- | --- | --- | --- |
+| sopt | `irl sopt` | The superoptimizer: the rule search, its results and the plugin, decisions 4 and 10 above | No |
+| ptf | `irl ptf` | The proof-test framework, `tools/prooftest/` | Tier 1 |
+| msc | `irl msc` | The memory-safety checker | No |
+| emit | `irl emit` | The emitter, `build/ir-lean` | Yes |
+
+`verify` and `store` keep their names. Why: one short command for everything, and a short name for each product. The
+command isn't `ir-lean`, which is the emitter's binary.
+
+**2. Agents reach the tools through a command line and an MCP server, which are one program.** `irl mcp` serves them,
+and an MCP call is a command's request, answered with the JSON the command prints. See [irl](irl.md). Why: an agent
+with a shell uses the command line, one without uses MCP, and neither can be told anything the other isn't.
+
+**3. Go for the MCP server, C++ for most of the work, and Python only to orchestrate.** `irl`, the command line with
+the MCP server, is Go, with only its standard library. Most work is C++, as the emitter is, where its memory and speed
+aren't a problem. Python runs the tools, reads what they print and decides verdicts, as [Python](python.md) says.
+Measured first: starting Python costs 30 to 36 ms a command, against about 2.1 s for a check, whose own Python is
+0.07 s of CPU, so a compiled front end doesn't make a call faster. A call's time is Lean's, and keeping it loaded
+between calls and caching answers are open ([irl](irl.md#what-it-doesnt-do-yet)).
+
 ### The flywheel
 
 ```mermaid

@@ -25,6 +25,19 @@ target_compile_definitions(ir-lean-probe PRIVATE ${LLVM_DEFINITIONS_LIST})
 target_compile_options(ir-lean-probe PRIVATE -Wall -Wextra -fno-rtti)
 llvm_config(ir-lean-probe USE_SHARED core support)
 
+# irl, the command line and MCP server, in Go with only its standard library: build/irl. docs/irl.md.
+find_program(GO_EXECUTABLE go REQUIRED)
+file(GLOB IRL_SOURCES CONFIGURE_DEPENDS ${CMAKE_SOURCE_DIR}/irl/*.go ${CMAKE_SOURCE_DIR}/irl/go.mod)
+add_custom_command(
+    OUTPUT ${CMAKE_BINARY_DIR}/irl
+    COMMAND ${GO_EXECUTABLE} build -trimpath -o ${CMAKE_BINARY_DIR}/irl .
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/irl
+    DEPENDS ${IRL_SOURCES}
+    VERBATIM
+)
+# Not named irl, which Ninja would take for the file it builds.
+add_custom_target(irl-command ALL DEPENDS ${CMAKE_BINARY_DIR}/irl)
+
 # Tests need the Lean library: run `lake build` first.
 enable_testing()
 add_test(NAME opcheck COMMAND ${CMAKE_SOURCE_DIR}/tests/opcheck.py $<TARGET_FILE:ir-lean>)
@@ -206,6 +219,24 @@ add_test(
         --check-t1 --workers 2 --out ${CMAKE_BINARY_DIR}/prooftest-t1
 )
 set_tests_properties(prooftest_t1 PROPERTIES TIMEOUT 900)
+# irl's MCP server and command line against stub tools, and its schemas against the real tools' contracts:
+# about 3 s, and no Lean. docs/irl.md.
+add_test(
+    NAME irl
+    COMMAND ${GO_EXECUTABLE} test -count=1 -race ./...
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/irl
+)
+# build/irl against the real tools, with Lean: verify and ptf decide the same through the command line and
+# MCP, and a cancelled call leaves no Lean running. About 20 s.
+add_test(
+    NAME irl_live
+    COMMAND ${GO_EXECUTABLE} test -count=1 -run Live ./...
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/irl
+)
+set_tests_properties(
+    irl_live
+    PROPERTIES ENVIRONMENT "IRL_LIVE=1;IRL_BIN=${CMAKE_BINARY_DIR}/irl" TIMEOUT 600
+)
 # What counts as a certificate: the gate on stored and broken results, in Python, and then a corpus of
 # wrong and right rewrites through tools/verify.py, one Lean process at a time.
 add_test(NAME verify_negative_static COMMAND ${CMAKE_SOURCE_DIR}/tests/verify_negative.py --tier static)
