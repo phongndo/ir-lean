@@ -8,6 +8,7 @@ What a memory-safety theorem from `ir-lean` claims, the model of memory it's abo
 | Proof | About | What it says |
 | --- | --- | --- |
 | [`UpdateWindow.lean`](../tests/proofs/UpdateWindow.lean) | zlib's `updatewindow`, from `inflate.c` | It returns 0 with no undefined behavior or model stop, changes nothing but the window's first `wsize` bytes and three fields, and leaves its invariant holding for the next call. So the same holds across any number of calls |
+| [`ExecMem.lean`](../IRLean/ExecMem.lean) | The memory tests run on | Each operation agrees with `Mem`'s, and runs of blocks that agree agree, so a test on it is a test of `Mem`: [executable memory](#executable-memory) |
 | [`MemoryModel.lean`](../tests/proofs/MemoryModel.lean) | The model itself | What it does with accesses out of bounds, after a free or return, through null or poison, misaligned, and with bad frees and overlapping copies, each naming the undefined behavior it gives |
 
 `updatewindow` copies what `inflate` just wrote into the sliding window that later back-references read. At `-O2` it's
@@ -162,6 +163,162 @@ behavior than LLVM is conservative for safety and for a target, and wrong for a 
 | The allocator's choices | Both sides face the same `base` and `failAlloc`, and number their allocations the same. A target that allocates differently has no claim yet |
 
 [Refinement](refinement.md#memorys-gaps-each-with-its-side) has what a claim has to assume for each.
+
+## Executable memory
+
+Tests run code with memory on `ExecMem`, in [`ExecMem.lean`](../IRLean/ExecMem.lean), and not on `Mem`. This is E2,
+slice 15 of [Phase 6](roadmap.md#phase-6-the-engine-and-the-lemma-store). `Mem` stays what every theorem is about, and
+nothing in it changed.
+
+`Mem` holds an allocation's bytes as a function, and a store wraps that function in another, so a load walks back
+through every store to its allocation since the last time the compiler's `Mem.writeCompacting` flattened them. A run
+gets slower as it goes, about four times for each doubling of zlib's input, so the differential harness ran on inputs
+of at most about 800 bytes, and never reached across `inflate`'s 32 KiB window. `ExecMem` holds the bytes in a
+`ByteArray` and the allocations in an `Array`, which Lean changes in place when nothing else holds them, so a load or a
+store costs the same however long the run has been going. [Measured](#what-it-costs) below.
+
+### What it is, and what's proved
+
+| Piece | What it is |
+| --- | --- |
+| `ExecBytes` | An allocation's bytes: two entries of a `ByteArray` for each, what kind of byte it is (a value, uninitialized, poison, or a byte of a stored pointer) and its value, an `Array` saying which pointer for those, empty until one is stored, and a function for the bytes past 64 MiB, which only an allocation that big has. `get` reads a byte back as `Mem`'s `Byte` |
+| `ExecAlloc`, `ExecMem` | An allocation with those bytes, and memory: the allocations in an `Array` by number, and everything else as `Mem` has it |
+| `ExecMem.toMem` | The `Mem` one stands for. Its allocations are lookups into the arrays, so it's cheap to build and to read |
+
+Each operation on memory the model has comes in an `ExecMem` version, which agrees with `Mem`'s through `toMem`. For
+an operation that changes memory that's a theorem, an equation:
+`Mem.storeInt x.toMem p v align = Outcome.map toMem (x.storeInt p v align)`, the same outcome, and the same memory after.
+
+| Operations | Why they agree |
+| --- | --- |
+| `loadInt`, `loadPtr`, `loadVec`, `gep`, `gepSteps` with its provenance, `toVal`, `addr`, `nonnull`, `aligned`, `dereferenceable`, `assumeNonnull`, `noaliasResult` | By definition: each is `Mem`'s, run on `x.toMem`. Reading that reads `x`'s arrays, so a load costs what reading its bytes does |
+| `observeAddress`, `tag`, `returnedArgument`, `returnedInt`, `spacedOut` | By definition: `Mem`'s, which don't touch memory, under the names the emitter's copy uses |
+| `storeInt`, `storePtr`, `storeVec`, `memset`, `memcpy`, `lifetime` | `storeInt_agrees`, `storePtr_agrees`, `storeVec_agrees`, `memset_agrees`, `memcpy_agrees`, `lifetime_agrees`. Each checks what `Mem`'s does with `Mem`'s own checks on `x.toMem`, bounds, alignment, constants, tags, promises and overlap, and then writes in place |
+| `alloca`, `malloc` with its failures, `free`, `strlen` | `alloca_agrees`, `malloc_agrees`, `free_agrees`, `strlen_agrees`: the same, with the pointer or the value each returns |
+| `withFrame`, which frees a function's `alloca`s, and `call`, which runs a function under its promises and clears what `initializes` covered and nothing wrote | `withFrame_agrees`, `call_agrees`: the same, for bodies that agree |
+| `empty`, `addGlobal`, `addReloc`, `reserve`, which build a module's `initial`, and `addInitializes` | `toMem_empty`, `toMem_addGlobal`, `toMem_addReloc`, `toMem_reserve`, `toMem_addInitializes` |
+| Running blocks: `run`, `stay`, `runPromised`, and `promised` | `run_map`, `stay_map`, `runPromised_map`, `promised_map`: two functions whose blocks agree, block by block, agree on whole runs. `map_br`, `map_jump`, `map_ret`, `map_assume` and `map_noundef` take a block's equation apart |
+
+These rest on the standard three axioms and nothing else, not even `bv_decide`'s, and the module has no
+`implemented_by` or `extern`, which [`tests/check_axioms.lean`](../tests/check_axioms.lean) checks, with `leanchecker`
+replaying it. `Mem` has no `memmove`, `calloc` or `realloc`, so neither does this.
+
+The theorems are equations, and not a looser relation between the two, because nothing called for one: an
+`ExecBytes` keeps every byte `Mem` would, including those past an allocation's end, which nothing reads, so `toMem`
+gives back exactly the `Mem` the operation would have made.
+
+### How tests run it
+
+`ir-lean --executable-memory` prints the same Lean it prints without the flag, with `ExecMem` for each `Mem`: the type,
+and the namespace in each operation's name. Nothing else changes. `Mem` and `ExecMem` are names the emitter keeps for
+itself, so no name from the IR is either. [`tests/differential.py`](../tests/differential.py) runs every function on it,
+and so do `tests/zlib.sh` and every test built on them. `--model-memory` runs them on `Mem` instead.
+
+### Why a test on `ExecMem` is a test of `Mem`
+
+A differential test compares what a function returns in the model with what native code returns, from the module's
+`initial` memory. That says something about `Mem` if the run on `ExecMem` returns what the run on `Mem` would:
+
+1. **The two are the same Lean, but for the name.** `exec_memory` checks it on six modules that use memory, and on
+   one split into modules: renaming `ExecMem` back gives exactly what the emitter prints without the flag.
+2. **Each name agrees.** Every operation the copy calls agrees with `Mem`'s through `toMem`, by the theorems above, and
+   `initial` does too, by `toMem_empty`, `toMem_addGlobal`, `toMem_addReloc` and `toMem_reserve`. `exec_memory` checks
+   that every operation on memory the emitter can print has an `ExecMem` version.
+3. **So the runs go in step.** Emitted code reaches memory only through those operations: it passes a memory to them,
+   binds what they return, carries it from block to block, and returns it. So `f` run on `x.toMem` and the copy run on
+   `x` take the same steps, with each memory of the one `toMem` of the other's, and end the same way. From blocks to
+   whole runs that's proved, by `run_map`, `stay_map`, `runPromised_map` and `promised_map`, and through a call and a
+   frame, by `call_agrees` and `withFrame_agrees`. What's left is each block's equation,
+   `f.step (toBlock b) = Outcome.map (Next.map toBlock out) (f'.step b)`, where `toBlock` reads a block of the copy back
+   as the original's. For two functions it's proved:
+   [`Link.lean`](../tests/exec_memory/Link.lean) has `memory.c`'s `sum_bytes`, which loads in a loop, and `fill`,
+   which stores in one, each under a call with promises, agreeing whole with their copies, with every block's equation
+   proved by the same `simp`. For every other function the equation is argued here and not proved.
+   [What's left](#whats-left-of-e2) has the rest.
+
+`model_memory` runs `differential`'s and `vectors_pointers`' inputs that use memory most on `Mem` itself, so native
+code also checks the model with no step between them.
+
+### The alternatives
+
+| Design | Why not |
+| --- | --- |
+| `implemented_by` or `extern` on `Mem`'s operations, so other code runs in their place | Refused outside Lean's own modules ([trust](trust.md#trust-boundaries)): the code that ran would be code the kernel never checked |
+| `@[csimp]` on `Mem`'s operations, as `write_eq_writeCompacting` already does | Allowed, since the replacement is proved equal, but it can't change how memory is held. A replacement has the operation's type and has to equal it as a function, so it gets memory as functions it can only call. A faster structure would have to be rebuilt by calling them for each byte, which is the flattening `writeCompacting` does now and then, and that's what's measured below as `Mem` |
+| Generated modules taking the memory operations as an argument, a type class, with `Mem` for proofs and `ExecMem` for tests | Every proof about generated code unfolds it, and `simp` and `rw` don't see through an instance's methods unless told to, so every proof and tool would change. And it would still need a theorem for each function: Lean can't prove that a function treats two instances the same way for all functions at once |
+| A deep embedding: the memory a function does as a program of operations, run on either memory | One theorem would then cover every function. But every proof and tool here is about the functions the emitter prints, so it would be a second semantics to keep in step with the first |
+| A second representation, with the same module printed on it | Chosen. Proofs and `Mem` stay as they were, each operation agrees by a theorem the kernel checks, and runs agree from block to block by theorems too, leaving the equation for each block |
+
+### What it costs
+
+On z, an AMD Zen 5 with 32 cores and 30 GB, shared with other work, running x86-64 Linux, with Lean 4.35.0 and the
+library native, as tests run it. Each time is one `lean --run` of the function, and the memory its peak, which is
+mostly Lean and the library: neither counts compiling the module.
+
+One call of `harness_big_sized`, in [the harness](../tests/real/zlib_harness.c), on 2026-11-11: `n` bytes that repeat
+from about 32 KiB back, deflated at level 6 with a 32 KiB window, and inflated back 4 KiB at a time. Each result is
+native code's.
+
+| Bytes | `Mem` | Peak | `ExecMem` | Peak |
+| --- | --- | --- | --- | --- |
+| 1,024 | 4.42 s | 1,035 MiB | 0.35 s | 949 MiB |
+| 2,048 | 15.24 s | 1,118 MiB | 0.42 s | 949 MiB |
+| 4,096 | 62.46 s | 1,210 MiB | 0.58 s | 948 MiB |
+| 8,192 | 312.99 s | 1,428 MiB | 0.91 s | 946 MiB |
+| 16,384 | Over 900 s, and stopped | 1,700 MiB by then | 1.60 s | 947 MiB |
+| 32,768 | Not run | | 3.02 s | 944 MiB |
+| 65,536 | Not run | | 4.23 s | 947 MiB |
+| 131,072 | Not run | | 6.44 s | 945 MiB |
+
+On `Mem` each doubling took four or five times as long, as a load walks back through more stores, and the memory
+grew with what it held. At that rate 128 KiB would take more than a day. On `ExecMem` time grows with the input, and the peak doesn't: it's Lean and the library, about
+940 MiB, before the run starts.
+
+`nix develop -c tools/measure.py run --heavy --label scale -- tests/memory_scale.py build/ir-lean --sizes
+1024,2048,4096,8192,16384,32768,65536,131072 --memory exec,model --timeout 900`
+
+The same inputs as the tests, `--runs 10` as `zlib` runs them, and `zlib_slow`'s seven, which slide `deflate`'s window:
+
+| Inputs | Results | `Mem` | Peak | `ExecMem` | Peak |
+| --- | --- | --- | --- | --- | --- |
+| `zlib`'s, of at most 256 bytes | 110 | 7.12 s | 973 MiB | 3.24 s | 964 MiB |
+| `zlib_slow`'s, of 780 to 819 bytes | 7 | 22.19 s | 1,020 MiB | 1.85 s | 950 MiB |
+| `zlib_big`'s, of up to 128.5 KiB | 12 | Not run | | 56.50 s | 958 MiB |
+
+Every run gave native code's results, with none skipped.
+
+`DIFFERENTIAL_TIMES=1 tests/zlib.sh build/ir-lean --only harness_ --runs 10 --slow harness_slow=0 --slow
+harness_big=0`, and `--runs 1 --only harness_slow`, each with and without `--model-memory`, after deleting
+`build/result-cache`.
+
+E2's exit criterion: `zlib_big` runs `harness_big_default`, `_fast` and `_stored`, each on 128 KiB to 128.5 KiB, and
+`harness_big_sized` on up to 128.5 KiB, three times each: all 12 results are native code's, with none skipped, in
+56.5 s of running, and 58.5 s for the whole test under `ctest`, with its modules already compiled, on 2026-11-11.
+
+### What a wrong operation does
+
+[`tests/exec_memory.sh`](../tests/exec_memory.sh) puts a wrong operation into a copy of `ExecMem.lean`, one at a time,
+and each has to stop its own theorem, with an error that isn't a resource limit: a store one byte short stops
+`storeInt_agrees`, and a pointer stored one byte short `storePtr_agrees`. A `memset` of the wrong value, a `memcpy` from
+a byte further on, a `free` that leaves the allocation, a `malloc` that never fails, an `alloca` writable outside its
+lifetime, `llvm.lifetime` keeping the bytes, a frame never freed, a call that leaves what `initializes` covered, poison
+stored as uninitialized, a write the running calls don't record, and a global with the wrong contents each stop theirs.
+A copy of `fill` with one branch's targets swapped stops `fill_step` in `Link.lean`, so the copy can't drift from
+the original there either.
+
+### What's left of E2
+
+- **Each block's equation, for every function.** [`Link.lean`](../tests/exec_memory/Link.lean) proves it for two
+  functions, by hand: a map from the copy's blocks to the original's, one `simp` for every block's equation, then
+  `promised_map` and `call_agrees` for the whole function. The emitter could print that for each function, which would
+  make step 3 a theorem. The same `simp` doesn't do a block that binds a pair, as a call, `alloca` or `malloc` does:
+  each copy's `match` on the pair is its own auxiliary definition, so the two sides only meet once the pair is taken
+  apart, which needs a step of its own. Nor does it do switches, calls through pointers, functions whose blocks are
+  nested in groups, or recursive ones, which `run_map` doesn't cover.
+- **Proof tests, the search and `msc`.** Tier-1 proof tests in [`tools/prooftest`](../tools/prooftest) still refuse
+  functions with memory, since they can't generate it, and the search's refuting step doesn't run them either. Both
+  can now run on `ExecMem` the way the differential harness does, and neither does yet. Nor does `irl msc`, the
+  memory-safety checker, which has a name and nothing built ([irl](irl.md)).
 
 ## Writing a memory-safety proof
 

@@ -58,6 +58,16 @@ add_test(
         ${CMAKE_SOURCE_DIR}/tests/real/heap.ll ${CMAKE_SOURCE_DIR}/tests/real/gep.ll
         ${CMAKE_SOURCE_DIR}/tests/real/promises.ll ${CMAKE_SOURCE_DIR}/tests/real/lanes.ll --strict
 )
+# The inputs above that use memory most, run on IRLean.Mem itself rather than IRLean.ExecMem, so native code
+# checks the model directly too, not only through the agreement theorems.
+add_test(
+    NAME model_memory
+    COMMAND
+        ${CMAKE_SOURCE_DIR}/tests/differential.py $<TARGET_FILE:ir-lean>
+        ${CMAKE_SOURCE_DIR}/tests/real/memory.c ${CMAKE_SOURCE_DIR}/tests/real/pointers.c
+        ${CMAKE_SOURCE_DIR}/tests/real/heap.ll ${CMAKE_SOURCE_DIR}/tests/real/gep.ll
+        ${CMAKE_SOURCE_DIR}/tests/real/promises.ll --strict --model-memory
+)
 add_test(
     NAME undefined
     COMMAND
@@ -223,6 +233,12 @@ set_tests_properties(cut PROPERTIES TIMEOUT 900)
 # process capped at 2 GB and 300 s. See docs/refinement.md.
 add_test(NAME memory_refine COMMAND ${CMAKE_SOURCE_DIR}/tests/memory_refine.sh $<TARGET_FILE:ir-lean>)
 set_tests_properties(memory_refine PROPERTIES TIMEOUT 900)
+# E2, the executable memory every test runs on: IRLean.ExecMem agrees with Mem on the standard axioms and
+# replays in the kernel, a wrong version of each operation stops its own theorem, and `ir-lean
+# --executable-memory` is the Lean proofs are about with only Mem renamed. One Lean process at a time, capped
+# at 2 GB and 300 s. See docs/memory.md.
+add_test(NAME exec_memory COMMAND ${CMAKE_SOURCE_DIR}/tests/exec_memory.sh $<TARGET_FILE:ir-lean>)
+set_tests_properties(exec_memory PROPERTIES TIMEOUT 900)
 add_test(NAME verify COMMAND ${CMAKE_SOURCE_DIR}/tests/verify.py $<TARGET_FILE:ir-lean>)
 # Tier-1 proof tests: the contract in Python, then tools/prooftest/prooftest.py on
 # tests/prooftest/Cases.ll, at most four cases at a time, each with at most one Lean process running.
@@ -320,14 +336,20 @@ add_test(
     NAME zlib
     COMMAND
         ${CMAKE_SOURCE_DIR}/tests/zlib.sh $<TARGET_FILE:ir-lean> --only harness_ --runs 10 --slow
-        harness_slow=0
+        harness_slow=0 --slow harness_big=0
 )
 # These run far enough for `deflate` to slide its window, which takes the longest. Skip with `ctest -LE slow`.
 add_test(
     NAME zlib_slow
     COMMAND ${CMAKE_SOURCE_DIR}/tests/zlib.sh $<TARGET_FILE:ir-lean> --runs 1 --only harness_slow
 )
-set_tests_properties(zlib zlib_slow PROPERTIES TIMEOUT 5400)
+# E2's exit criterion: zlib on inputs of at least 128 KiB, which reach across inflate's whole 32 KiB window,
+# with no mismatch and none skipped. They run on IRLean.ExecMem, as every test does, in about a minute.
+add_test(
+    NAME zlib_big
+    COMMAND ${CMAKE_SOURCE_DIR}/tests/zlib.sh $<TARGET_FILE:ir-lean> --only harness_big --runs 3
+)
+set_tests_properties(zlib zlib_slow zlib_big PROPERTIES TIMEOUT 5400)
 # llama.cpp's q4_K rewrite. x86's dot-product intrinsics against the processor, which needs AVX-512 VNNI, so
 # it skips without it. Those and vector bitcasts against Alive2 and LLVM's constant folder, on any processor.
 # And the rewrite's proofs, which need llama.cpp's source, so they're labeled `llama`, run in
@@ -387,6 +409,7 @@ set_tests_properties(llama_bitspread PROPERTIES TIMEOUT 1800)
 set_tests_properties(
     differential
     vectors_pointers
+    model_memory
     undefined
     fuzz
     llvm
@@ -419,6 +442,7 @@ set_tests_properties(
     calls
     cut
     memory_refine
+    exec_memory
     generic_rewrites
     cpp_correspondence
     store
