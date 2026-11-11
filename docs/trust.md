@@ -102,6 +102,8 @@ rests on crashed, ran out of something or failed, and that nothing it needs is m
 | `tools/binding.py` | Certified, for a replay and for a cache hit |
 | `tools/prooftest/prooftest.py` | Refuted, by the kernel or by `tools/verify.py` |
 | `tools/store/store.py` | Proved, for each lemma the bar admits |
+| `tools/rules/proved.py` | Proved, for each [rule](rules.md) whose theorem states its generated statement |
+| `tools/rules/certify.py` | Certified, for a chain of rule applications Lean proves again |
 | `tests/llvm.py` | Proved, for each target, and caught, for each injected bug |
 | `tests/llama.py` | Proved, for each slice, refuted, for a wrong rewrite Lean shows differs, and caught, by a theorem stopping or the native check |
 | `tests/superopt.py` | Proved, for `Rewrites.lean`, and caught, by Lean and by Alive2, for the wrong rewrite |

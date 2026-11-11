@@ -400,6 +400,8 @@ class Routed(unittest.TestCase):
         "tools/binding.py": ["Verdict.CERTIFIED"],
         "tools/prooftest/prooftest.py": ["Verdict.REFUTED"],
         "tools/store/store.py": ["Verdict.PROVED"],
+        "tools/rules/proved.py": ["Verdict.PROVED"],
+        "tools/rules/certify.py": ["Verdict.CERTIFIED"],
         "tests/llvm.py": ["Verdict.PROVED", "Verdict.CAUGHT"],
         "tests/llama.py": ["Verdict.PROVED", "Verdict.REFUTED", "Verdict.CAUGHT"],
         "tests/superopt.py": ["Verdict.CAUGHT"],

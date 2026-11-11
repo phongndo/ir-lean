@@ -293,3 +293,11 @@ reads it. That difference is itself a thing [Phase 3](roadmap.md#phase-3-c-and-r
     LLVM's `Value`, `Use`, `ConstantInt`, `APInt` and `Type`, as the matchers read them, proved kept by
     `ConstantInt::get`, `PoisonValue::get` and `BinaryOperator::Create` as specifications of what each does to memory,
     and a layout probe agrees with it on the pinned `libLLVM`. See [LLVM's IR in memory](llvm-heap.md).
+18. The rule format, certify mode and the rule search, on 2026-11-10: 182 rules, each a pattern, a replacement and
+    side conditions in one source, with its Lean statement generated from that source and proved for every input on
+    the standard three axioms, all imported from the lemmas chunk 1's rewrites are proved from. Certify mode has
+    Lean prove each application of a rule again, from the IR before and after and the rule's name. A deterministic
+    search rewrites scalar integer IR by chains of those rules and certifies each chain, as a slice, and as the
+    whole function where it's one block. On LLVM's InstSimplify tests it found 225 rewrites, and none is cheaper
+    than what `opt -O3` gives, since every rule is one of InstSimplify's own: no win over `clang -O3` is found or
+    claimed, and it hasn't been run on the corpus. See [rules](rules.md) and [rule search](rule-search.md).

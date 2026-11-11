@@ -71,6 +71,14 @@ IRL_CAPABILITIES = "ir-lean.irl.capabilities/1"
 NEGATIVE_CASE = "ir-lean.verification-negative.case/1"
 NEGATIVE_ENVELOPE = "ir-lean.verification-negative.envelope/1"
 NEGATIVE_REPORT = "ir-lean.verification-negative.report/1"
+# tools/rules/: a file of rules, what the importer read from the Peephole library, which rules are proved, a
+# verdict on a certificate of a chain of rule applications, and what the rule search found. docs/rules.md and
+# docs/rule-search.md.
+RULES = "ir-lean.rules/1"
+RULES_IMPORT = "ir-lean.rules.import/1"
+RULES_PROVED = "ir-lean.rules.proved/1"
+RULES_CERTIFICATE = "ir-lean.rules.certificate/1"
+RULE_SEARCH = "ir-lean.rule-search/1"
 
 ALL = {
     value: key
