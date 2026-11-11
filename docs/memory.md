@@ -265,13 +265,13 @@ native code's.
 | 2,048 | 15.24 s | 1,118 MiB | 0.42 s | 949 MiB |
 | 4,096 | 62.46 s | 1,210 MiB | 0.58 s | 948 MiB |
 | 8,192 | 312.99 s | 1,428 MiB | 0.91 s | 946 MiB |
-| 16,384 | SCALE16 | | 1.60 s | 947 MiB |
+| 16,384 | Over 900 s, and stopped | 1,700 MiB by then | 1.60 s | 947 MiB |
 | 32,768 | Not run | | 3.02 s | 944 MiB |
 | 65,536 | Not run | | 4.23 s | 947 MiB |
 | 131,072 | Not run | | 6.44 s | 945 MiB |
 
 On `Mem` each doubling took four or five times as long, as a load walks back through more stores, and the memory
-grew with what it held. On `ExecMem` time grows with the input, and the peak doesn't: it's Lean and the library, about
+grew with what it held. At that rate 128 KiB would take more than a day. On `ExecMem` time grows with the input, and the peak doesn't: it's Lean and the library, about
 940 MiB, before the run starts.
 
 `nix develop -c tools/measure.py run --heavy --label scale -- tests/memory_scale.py build/ir-lean --sizes
