@@ -10,19 +10,21 @@ On 2026-11-10, five pull requests took 3 to 5 rounds of review each. They were
 [#109](https://github.com/phongndo/ir-lean/pull/109), [#110](https://github.com/phongndo/ir-lean/pull/110),
 [#115](https://github.com/phongndo/ir-lean/pull/115), [#116](https://github.com/phongndo/ir-lean/pull/116) and
 [#117](https://github.com/phongndo/ir-lean/pull/117), whose round 3 was its last. Every blocker or should that rounds
-2 and later raised in them was traced to where it came from:
+2 and later raised in them, as each pull request's Review section records it, was traced to where it came from. A
+finding a later round reported again as still open counts each time; one a round only pointed at others through
+counts once:
 
 | Pull request | Rounds | Raised in round 2 or later | A fix that didn't close it | In code a fix wrote | In the code reviewed first |
 | --- | ---: | ---: | ---: | ---: | ---: |
 | #109, the rule search | 5 | 9 | 4 | 4 | 1 |
 | #110, source annotations | 4 | 2 | 0 | 2 | 0 |
 | #115, F4 on SIMD | 4 | 4 | 3 | 1 | 0 |
-| #116, the corpus fixed | 4 | 8 | 3 | 5 | 0 |
+| #116, the corpus fixed | 4 | 6 | 2 | 4 | 0 |
 | #117, harness and board | 3 | 7 | 3 | 4 | 0 |
-| **All** | | **30** | **13** | **16** | **1** |
+| **All** | | **28** | **12** | **15** | **1** |
 
-Round 1 found the real problems. After it, 29 of the 30 findings were about the fixes. 13 times a fix closed the
-case it was shown and left its siblings open: `{repo}` was refused, then `env -C {repo}`, then `{repo}/`. 16 times a
+Round 1 found the real problems. After it, 27 of the 28 findings were about the fixes. 12 times a fix closed the
+case it was shown and left its siblings open: `{repo}` was refused, then `env -C {repo}`, then `{repo}/`. 15 times a
 fix added something new, such as a seal, a stamp, a reservation or a dry run of `make`, and the next round found the
 bug in that. One class, a limit or a failure counted as a pass, was fixed locally in six pull requests and came back
 each time.
@@ -59,8 +61,8 @@ change, never part of a merge commit.
 ### 2. Review, once, in full
 
 An independent reviewer, a model other than the author's, at its highest effort, reads the whole change with the
-design and [bug classes](bug-classes.md) beside it. A finding outside what the design holds against goes to the
-follow-ups, not into the loop.
+design and [bug classes](bug-classes.md) beside it. A finding outside what the design holds against is deferred: it
+goes to the follow-ups, not into the loop.
 
 ### 3. Triage, before fixing
 
@@ -76,20 +78,24 @@ Whoever runs the change, not the one fixing it, sorts each finding first:
 
 ### 4. A budget, and a stop
 
-- A fix that adds a mechanism, a new module, file format, record or check of its own, or that's bigger than about 30%
-  of the code it fixes, is a design change. That piece goes back to step 0 as a change of its own, or out.
-- **Two strikes.** If the second review finds a new blocker in code the fix wrote, the fixing stops. That piece is
-  designed again or cut. There's no third round of patches.
+- A fix that adds a mechanism, a new module, file format, record or check of its own, is a design change. So is one
+  bigger than 30% of the change review 1 read, counting added and removed lines as `git diff --shortstat` does: the
+  fix's commits, against the base to the head review 1 read. That piece goes back to step 0 as a change of its own,
+  or out.
+- **Two strikes.** If the second review finds a class still open, or a new blocker in code the fix wrote, the fixing
+  stops. That piece is designed again as a change of its own, or cut from this one. There's no third round of
+  patches.
 
 ### 5. Review the fix, for closure
 
 The second review reads only the fix, and answers one question for each finding: does this close the class? It lists
-any sibling still open. It doesn't look for new ground; anything new it sees anyway is a follow-up unless it's a
-blocker.
+any sibling still open. It doesn't look for new ground. Anything new it sees anyway is deferred unless it's a blocker,
+and a new blocker is a strike.
 
-A change merges when the reviewer approves the current head, every check passes on it, and no blocker or should is
-open. Its description ends with how many rounds it took, its findings by class, and how many were in code a fix wrote.
-The aim is two rounds at most, and none in a fix's code.
+A change merges when the reviewer approves the current head, every check passes on it, and nothing blocking is open.
+Blocking are review 1's blockers and shoulds, and any blocker. Deferred findings don't block: the description lists
+each, with its class, as a follow-up. The description ends with how many rounds the change took, its findings by
+class, and how many were in code a fix wrote. The aim is two rounds at most, and none in a fix's code.
 
 ## Across pull requests
 
