@@ -9,9 +9,10 @@ a pinned statement, so evaluating it runs no code but theirs.
 
 Two things happen here:
 
-- **Search.** The statement becomes one function from the inputs, as natural numbers, to `0` when a hypothesis is
-  false, `1` when the conclusion holds and `2` when it doesn't. It's compiled once, and then run on each input.
-  That trusts Lean's compiler, as `native_decide` does.
+- **Search.** The statement becomes one function from the inputs, as natural numbers, to `1` when the conclusion
+  holds, `2` when it doesn't, and otherwise which hypothesis is false: `0` for the first, and `2 + k` for hypothesis
+  `k` after it. It's compiled once, and then run on each input. That trusts Lean's compiler, as `native_decide`
+  does.
 - **Confirmation.** For a failing input, this builds a theorem `¬ statement` and has the kernel check it. Every
   emitted function runs its blocks through `IRLean.run`, a `partial_fixpoint` the kernel can't unfold. So each call of
   a generated function in the instance is rewritten to `runFuel`, which the kernel can, with `run_eq_runFuel`, which
@@ -315,6 +316,11 @@ def Copy.rewrite (copy : Copy) (stats : IO.Ref (Nat × Nat)) (e : Expr) : MetaM 
 
 def u8 (n : UInt8) : Expr := toExpr n
 
+/-- What the decision says when hypothesis `k`, counting from 0, is false: `0` for the first, as for any hypothesis
+before this said which, and `2 + k` for each after it, so `1` and `2` stay the conclusion's. `255` for the 254th
+and later. -/
+def falseCode (k : Nat) : UInt8 := if k == 0 then 0 else (min (2 + k) 255).toUInt8
+
 /-- What a decision is built from: the input, the generated module's copy on `ExecMem`, if there is one, and how
 many calls of a function with memory it rewrote to run there, and how many it left on `Mem`. -/
 structure Build where
@@ -328,28 +334,29 @@ def Build.prepare (b : Build) (p : Expr) : MetaM Expr := do
   | some copy => copy.rewrite b.stats (← zetaReduce (← instantiateMVars p))
   | none => return p
 
-/-- The statement as one decision: `0` if a hypothesis is false, `1` if the conclusion holds, `2` if it doesn't. Each
-binder that isn't a hypothesis takes the next input. `earlier` stand for the binders so far, with their kinds. -/
-partial def decision (build : Build) (e : Expr) (i : Nat) (acc : Array Binder) (earlier : Array (Expr × Kind)) :
+/-- The statement as one decision: `1` if the conclusion holds, `2` if it doesn't, and `falseCode k` if hypothesis
+`k` is false, the first one that is. Each binder that isn't a hypothesis takes the next input, and `hyp` counts the
+hypotheses so far. `earlier` stand for the binders so far, with their kinds. -/
+partial def decision (build : Build) (e : Expr) (i hyp : Nat) (acc : Array Binder) (earlier : Array (Expr × Kind)) :
     M (Expr × Array Binder) := do
   match e with
   | .forallE n ty body bi =>
     if ← isProp ty then
       if body.hasLooseBVar 0 then
         refuse "statement_unsupported" m!"the statement uses the proof of hypothesis {n}, which can't be decided"
-      let (rest, acc) ← decision build (body.lowerLooseBVars 1 1) i acc earlier
+      let (rest, acc) ← decision build (body.lowerLooseBVars 1 1) i (hyp + 1) acc earlier
       let d ← orRefuse (do mkDecide (← build.prepare ty)) "undecidable" m!"Lean can't decide the hypothesis {ty}"
-      return (← mkAppM ``cond #[d, rest, u8 0], acc)
+      return (← mkAppM ``cond #[d, rest, u8 (falseCode hyp)], acc)
     else if bi.isInstImplicit then
       let inst ← orRefuse (synthInstance ty) "statement_unsupported" m!"no instance of {ty}"
-      decision build (body.instantiate1 inst) i acc earlier
+      decision build (body.instantiate1 inst) i hyp acc earlier
     else
       let some k ← kindOf? ty earlier
         | refuse "binder_unsupported" m!"{n} : {ty}. Tier 1 generates `BitVec w`, `IRLean.Val w`, `Bool`, \
             `IRLean.Ptf.Buffer n`, and a `IRLean.Ptf.Pointer` and a `IRLean.Ptf.Length` into a buffer it binds"
       let b : Binder := { name := n.eraseMacroScopes.toString, kind := k, type := toString (← ppExpr ty) }
       withLetDecl n ty (← valueOf k build.args i (earlier.map (·.1))) fun x => do
-        let (rest, acc) ← decision build (body.instantiate1 x) (i + 1) (acc.push b) (earlier.push (x, k))
+        let (rest, acc) ← decision build (body.instantiate1 x) (i + 1) hyp (acc.push b) (earlier.push (x, k))
         return (← mkLetFVars #[x] rest, acc)
   | c =>
     let c' ← build.prepare c
@@ -597,7 +604,7 @@ unsafe def compile (cfg : Config) (stmt : Expr) : M ((Array Nat → UInt8) × Ar
   let stats ← IO.mkRef (0, 0)
   let copy := cfg.exec.map fun exec => { generated := cfg.generated, exec }
   let (body, binders) ← withLocalDeclD `args arrayNat fun args => do
-    let (body, binders) ← decision { args, copy, stats } stmt 0 #[] #[]
+    let (body, binders) ← decision { args, copy, stats } stmt 0 0 #[] #[]
     return (← mkLambdaFVars #[args] body, binders)
   for c in body.getUsedConstants do
     if (← collectAxioms c).contains ``sorryAx then

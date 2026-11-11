@@ -162,6 +162,7 @@ def summary(name: str, result: dict[str, Any]) -> dict[str, Any]:
         "tried": inputs.get("tried"),
         "satisfied": inputs.get("satisfied"),
         "discarded": inputs.get("discarded"),
+        "model_stopped": inputs.get("model_stopped"),
         "by_phase": inputs.get("by_phase"),
         "memory": inputs.get("memory"),
         "counterexample": counterexample.get("shown"),

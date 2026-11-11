@@ -226,3 +226,26 @@ entry:
   %r = add i32 %s, %m
   ret i32 %r
 }
+
+; sum_scalar up to 3 bytes. Past that, a call through the buffer's own pointer, which holds no function, so the model
+; stops where sum_scalar returns.
+define i32 @sum_stops(ptr %p, i64 %n) {
+entry:
+  %long = icmp ugt i64 %n, 3
+  br i1 %long, label %call, label %sum
+
+call:
+  %r = call i32 %p(ptr %p, i64 %n)
+  ret i32 %r
+
+sum:
+  %s = call i32 @sum_scalar(ptr %p, i64 %n)
+  ret i32 %s
+}
+
+; Undefined on every input: it reads its pointer, and then reaches unreachable.
+define i32 @sum_undefined(ptr %p, i64 %n) {
+entry:
+  %b = load i8, ptr %p, align 1
+  unreachable
+}

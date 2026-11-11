@@ -12,9 +12,10 @@ tests/prooftest/Buffers.ll, as a developer would: a scalar byte sum and a vector
 one agree, and a vector one with a lane masked off doesn't, at the least input, `00 00 01 00`, which the
 kernel confirms on `Mem`; the same for in-place XORs, where the planted bug returns the same and leaves
 different memory, and tools/verify.py confirms it too; a function that reads past what it's given is undefined
-where the reference returns; a statement written by hand over a buffer; a memory the search can't run on
-`ExecMem`, which runs on `Mem`; a pointer into no buffer the statement binds; two functions with different
-signatures; and a stored failure tried first.
+where the reference returns; a function that stops the model where the other returns, as the candidate or as
+the reference, is unknown, never a pass, and a reference undefined on every input is vacuous; a statement
+written by hand over a buffer; a memory the search can't run on `ExecMem`, which runs on `Mem`; a pointer into
+no buffer the statement binds; two functions with different signatures; and a stored failure tried first.
 
 usage: tests/prooftest_memory_test.py path/to/ir-lean [--only NAME ...] [--static]
 """
@@ -175,7 +176,7 @@ def static_checks(pt: Any) -> list[str]:
         except pt.Stop:
             pass
 
-    def built(signature: str, roles: list[str] | None = None, memory: bool = True) -> str:
+    def built(signature: str, roles: list[str] | None = None, memory: bool = True) -> tuple[str, Any]:
         run = pt.Run(
             {
                 "function": "f",
@@ -194,19 +195,25 @@ def static_checks(pt: Any) -> list[str]:
         original = pt.report
         pt.report = lambda _run: functions
         try:
-            return pt.equivalence_statement(run)
+            return pt.equivalence_statement(run), run
         finally:
             pt.report = original
 
-    statement = built("(i32,ptr,i64)->i32")
+    statement, run = built("(i32,ptr,i64)->i32")
+    f = "(M.f (some x0) (p1.into M.initial 0) n2.toVal (IRLean.Ptf.place M.initial [b1.bytes]))"
+    g = "(M.g (some x0) (p1.into M.initial 0) n2.toVal (IRLean.Ptf.place M.initial [b1.bytes]))"
     expected = (
         "∀ (b1 : IRLean.Ptf.Buffer 64) (p1 : IRLean.Ptf.Pointer b1) (n2 : IRLean.Ptf.Length p1) "
-        "(x0 : BitVec 32), IRLean.Ptf.Returns (M.f (some x0) (p1.into M.initial 0) n2.toVal "
-        "(IRLean.Ptf.place M.initial [b1.bytes])) → "
+        f"(x0 : BitVec 32), IRLean.Ptf.Answers {f} → IRLean.Ptf.Returns {f} → IRLean.Ptf.Answers {g} → "
     )
     check(
         statement.startswith(expected),
         f"the equivalence of (crc, buf, len) is built as expected: {statement}",
+    )
+    check(
+        run.model_hypotheses == {0: "f", 2: "g"},
+        "the first and third hypotheses are false only where a function stops the model: "
+        f"{run.model_hypotheses}",
     )
     check(
         statement.endswith(
@@ -216,10 +223,10 @@ def static_checks(pt: Any) -> list[str]:
         ),
         f"and it claims Same of the two calls: {statement}",
     )
-    pure = built("(i8,i8)->i8", memory=False)
+    pure, _ = built("(i8,i8)->i8", memory=False)
     check(
-        pure == "∀ (x0 : BitVec 8) (x1 : BitVec 8), IRLean.Ptf.Returns (M.f (some x0) (some x1)) → "
-        "IRLean.Ptf.Answers (M.g (some x0) (some x1)) → "
+        pure == "∀ (x0 : BitVec 8) (x1 : BitVec 8), IRLean.Ptf.Answers (M.f (some x0) (some x1)) → "
+        "IRLean.Ptf.Returns (M.f (some x0) (some x1)) → IRLean.Ptf.Answers (M.g (some x0) (some x1)) → "
         "(M.f (some x0) (some x1)) = (M.g (some x0) (some x1))",
         f"two functions without memory are equal where the first returns: {pure}",
     )
@@ -351,6 +358,48 @@ def cases() -> list[Case]:
                 and not r["counterexample"]["kernel"]["ok"],
                 "undefined where the reference returns, at the empty buffer, which tools/verify.py confirms "
                 f"since the kernel can't follow the call inside: {shown(r)}",
+            ),
+        ),
+        Case(
+            "candidate_stops_the_model",
+            "sum_scalar",
+            "unknown",
+            "model_stopped",
+            equivalent="sum_stops",
+            extra={"store": None, "max_inputs": 256},
+            check=lambda r: expect(
+                r["inputs"]["model_stopped"] > 200
+                and r["inputs"]["discarded"] == 0
+                and r["inputs"]["satisfied"] + r["inputs"]["model_stopped"] == r["inputs"]["tried"] == 256
+                and "@sum_stops on" in r["detail"],
+                "the candidate stops the model past 3 bytes, where the reference returns: those inputs are "
+                f"counted apart, not discarded, and aren't a pass: {r['inputs']}, {r['detail']}",
+            ),
+        ),
+        Case(
+            "reference_stops_the_model",
+            "sum_stops",
+            "unknown",
+            "model_stopped",
+            equivalent="sum_scalar",
+            extra={"store": None, "max_inputs": 256},
+            check=lambda r: expect(
+                r["inputs"]["model_stopped"] > 200
+                and r["inputs"]["discarded"] == 0
+                and "@sum_stops on" in r["detail"],
+                f"the same with the functions swapped: {r['inputs']}, {r['detail']}",
+            ),
+        ),
+        Case(
+            "reference_always_undefined",
+            "sum_undefined",
+            "vacuous",
+            "no_input_meets_hypotheses",
+            equivalent="sum_scalar",
+            extra={"store": None, "max_inputs": 256},
+            check=lambda r: expect(
+                r["inputs"]["discarded"] == r["inputs"]["tried"] == 256 and r["inputs"]["model_stopped"] == 0,
+                f"a reference undefined on every input discards every input: {r['inputs']}",
             ),
         ),
         Case(

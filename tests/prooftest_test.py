@@ -135,6 +135,11 @@ def static_checks(pt: Any) -> list[str]:
         decided(limit_hit="memory_limit", planned_all=False) == ("unknown", "memory_limit"), "a memory limit"
     )
     check(decided(planned_all=False) == ("unknown", "time_limit"), "a run that didn't finish its plan")
+    for satisfied in (100, 0):
+        check(
+            decided(model_stopped={"g": 3}, satisfied=satisfied) == ("unknown", "model_stopped"),
+            f"inputs where the model stopped, with {satisfied} that met the hypotheses",
+        )
     unconfirmed = {"evidence": [], "kernel": {"ok": False, "detail": "stuck"}, "shown": {}}
     check(decided(counterexample=unconfirmed) == ("unknown", "unconfirmed"), "a failure nothing confirmed")
     check(
@@ -147,6 +152,11 @@ def static_checks(pt: Any) -> list[str]:
     check(
         decided(counterexample=confirmed, confirmed_by=clean) == ("counterexample", "kernel_refuted"),
         "a confirmed failure",
+    )
+    check(
+        decided(counterexample=confirmed, confirmed_by=clean, model_stopped={"g": 3})
+        == ("counterexample", "kernel_refuted"),
+        "a confirmed failure, where the model stopped on other inputs",
     )
     # The answer counts only from a harness that then ended cleanly, and so does tools/verify.py's.
     for ended in (None, pt.core.Step("harness", -11), pt.core.Step("harness", -9, limit="stopped")):
@@ -193,6 +203,7 @@ def static_checks(pt: Any) -> list[str]:
             "a pass with a counterexample",
         ),
         ({"inputs": {**good["inputs"], "undecided": [{"index": 0}]}}, "a pass with an undecided input"),
+        ({"inputs": {**good["inputs"], "model_stopped": 1}}, "a pass with an input where the model stopped"),
     ):
         try:
             pt.assert_contract({**good, **broken})

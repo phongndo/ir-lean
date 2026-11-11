@@ -19,9 +19,10 @@ Tier 1 runs a property on `ExecMem` instead, which `placeExec` builds: `toMem_pl
 back. The rest of what makes that run a run on `Mem` is in `IRLean/ExecMem.lean`.
 
 `Same` is what an equivalence property claims of two runs: the same result, and the same memory, as a caller that
-held the memory both started from sees it. The property claims it where the reference `Returns` and the other
-function `Answers`, so an input where the reference is undefined, or either stops the model, says nothing, and
-tier 1 counts it as not meeting the hypotheses. -/
+held the memory both started from sees it. The property claims it where the reference `Answers` and `Returns`, and
+the other function `Answers`, three hypotheses. An input where the reference is undefined says nothing, and tier 1
+counts it as not meeting the hypotheses. One where either stops the model says nothing either, since the model
+doesn't know what LLVM does there, so tier 1 counts it apart, and never passes a property with one. -/
 
 namespace IRLean.Ptf
 

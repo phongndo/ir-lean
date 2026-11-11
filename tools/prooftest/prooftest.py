@@ -162,6 +162,11 @@ REASONS: dict[str, tuple[str, str]] = {
     "tool_failed": ("unknown", "A tool crashed or answered in a way this doesn't understand"),
     "invalid_request": ("unknown", "The request is malformed. `detail` says how"),
     "internal_error": ("unknown", "A bug in this tool"),
+    "model_stopped": (
+        "unknown",
+        "A function the property needs an answer from stopped the model on an input, which says nothing "
+        "there, and nothing failed",
+    ),
 }
 # What tools/verify.py answers that stops a proof test before it starts, as the reason here. Anything else is
 # tool_failed.
@@ -179,6 +184,7 @@ FROM_VERIFY = {
         "binder_unsupported",
         "undecidable",
         "statement_unsupported",
+        "model_stopped",
     }
 }
 EVIDENCE = {
@@ -1195,6 +1201,10 @@ class Run:
     exec_missing: str | None = None
     # For an equivalence: the two functions, their signature and what each argument is.
     equivalence: dict[str, Any] | None = None
+    # Hypotheses, by their place, that are false only where a function stops the model, and that function. An
+    # input that makes one false isn't discarded: it's counted here, by function, and is never part of a pass.
+    model_hypotheses: dict[int, str] = field(default_factory=dict)
+    model_stopped: dict[str, int] = field(default_factory=dict)
 
     def remaining(self) -> float:
         return self.deadline - time.monotonic()
@@ -1381,10 +1391,12 @@ def equivalence_statement(run: Run) -> str:
     """The property that wherever `function` returns, `equivalence.with` returns the same value and leaves the
     same memory, from the same memory and arguments: each pointer into a buffer of its own, each length one
     that fits past its pointer, and each other integer any value. The memory is the module's `initial`, which
-    holds its globals, with each buffer in an allocation of its own after them. An input where `function` is
-    undefined or stops the model, or the other function stops it, is discarded, and counted: there the model
-    says
-    nothing, or the reference allows anything. So a pass says how many inputs the reference returned on."""
+    holds its globals, with each buffer in an allocation of its own after them.
+
+    Its hypotheses are that `function` answers, that it returns, and that the other answers. An input where
+    `function` is undefined, or never finishes, makes the second false, and is discarded and counted: there
+    the reference allows anything. One where either stops the model makes the first or the third false, and
+    is counted in `run.model_stopped` instead: there the model says nothing, so a pass can't rest on it."""
     eq = run.request["equivalence"]
     functions = report(run)
     names = [run.request["function"], eq["with"]]
@@ -1443,7 +1455,11 @@ def equivalence_statement(run: Run) -> str:
         for name in names
     ]
     conclusion = f"IRLean.Ptf.Same {mem} {calls[0]} {calls[1]}" if memory else f"{calls[0]} = {calls[1]}"
-    body = f"IRLean.Ptf.Returns {calls[0]} → IRLean.Ptf.Answers {calls[1]} → {conclusion}"
+    body = (
+        f"IRLean.Ptf.Answers {calls[0]} → IRLean.Ptf.Returns {calls[0]} → IRLean.Ptf.Answers {calls[1]} → "
+        f"{conclusion}"
+    )
+    run.model_hypotheses = {0: names[0], 2: names[1]}
     run.equivalence = {
         "functions": names,
         "signature": first["signature"],
@@ -1545,8 +1561,13 @@ def search(run: Run, harness: Harness) -> None:
             phase = run.plan.phases[index]
             run.tried += 1
             run.by_phase[phase] = run.by_phase.get(phase, 0) + 1
-            if code == 0:
-                run.discarded += 1
+            if code not in (1, 2):
+                # Which hypothesis was false: 0 the first, and 2 + k hypothesis k after it.
+                stopped = run.model_hypotheses.get(0 if code == 0 else code - 2)
+                if stopped is None:
+                    run.discarded += 1
+                else:
+                    run.model_stopped[stopped] = run.model_stopped.get(stopped, 0) + 1
                 continue
             run.satisfied += 1
             if keep_met:
@@ -1784,8 +1805,8 @@ def prooftest(
 
 def decide(run: Run) -> tuple[str, str, str]:
     """The status, reason and a one-line detail, in this order of precedence: a confirmed counterexample, what
-    stopped the run, a failure nothing confirmed, an input that didn't finish, a limit, and then what the
-    inputs that ran say."""
+    stopped the run, a failure nothing confirmed, an input that didn't finish, a limit, an input where the
+    model stopped, and then what the inputs that met the hypotheses say."""
     counterexample = run.counterexample
     if counterexample and counterexample["evidence"]:
         # Each kind of evidence, as irlean.verdict grants it: the kernel first.
@@ -1823,6 +1844,14 @@ def decide(run: Run) -> tuple[str, str, str]:
             "unknown",
             "time_limit",
             f"stopped after {run.tried} of {len(run.plan.inputs) if run.plan else 0} inputs",
+        )
+    if run.model_stopped:
+        by = ", ".join(f"@{name} on {n}" for name, n in run.model_stopped.items())
+        return (
+            "unknown",
+            "model_stopped",
+            f"the model stopped on {sum(run.model_stopped.values())} of {run.tried} inputs, running {by}, "
+            "where the property needs an answer, and nothing failed",
         )
     if run.satisfied == 0:
         return "vacuous", "no_input_meets_hypotheses", f"none of {run.tried} inputs met the hypotheses"
@@ -1915,8 +1944,9 @@ def trusted(run: Run, status: str) -> list[dict[str, str]]:
                 "Wherever the first returns, the second has to return the same value and leave the same "
                 "sizes, flags and bytes in every allocation the memory they start from has, not counting the "
                 "bytes of a constant one, which the model makes writing undefined: IRLean.Ptf.Same. An input "
-                "where the first is undefined, or either stops the model, is discarded, and counted as not "
-                "meeting the hypotheses. Buffers hold at most "
+                "where the first is undefined is discarded, and counted as not meeting the hypotheses. One "
+                "where either stops the model is counted in inputs.model_stopped, and makes the result "
+                "unknown. Buffers hold at most "
                 f"{run.equivalence['max_length']} bytes, each in an allocation of its own after the module's "
                 "globals, and integers are never poison",
                 "see": "docs/proof-tests.md#equivalence",
@@ -2001,6 +2031,8 @@ def assert_contract(result: dict[str, Any]) -> None:
     inputs = result["inputs"]
     if status in ("passed_tier1", "vacuous") and (inputs["undecided"] or not inputs["planned_all"]):
         problems.append(f"{status} with inputs that didn't run")
+    if status in ("passed_tier1", "vacuous") and inputs["model_stopped"]:
+        problems.append(f"{status} with inputs where the model stopped")
     if status == "passed_tier1" and inputs["satisfied"] == 0:
         problems.append("a pass with no input that met the hypotheses")
     if status == "vacuous" and inputs["satisfied"] != 0:
@@ -2058,6 +2090,7 @@ def build_result(run: Run, started: float) -> dict[str, Any]:
             "tried": run.tried,
             "satisfied": run.satisfied,
             "discarded": run.discarded,
+            "model_stopped": sum(run.model_stopped.values()),
             "by_phase": run.by_phase,
             "replayed": len(run.stored),
             "exhaustive": bool(plan_ and plan_.exhaustive),

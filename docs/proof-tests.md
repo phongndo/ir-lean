@@ -44,7 +44,7 @@ That prints, shortened here:
     "found": {"phase": "edges", "index": 2, "assignment": {"x": "4294967295#32"}},
     "shrink_steps": 20
   },
-  "inputs": {"tried": 3, "satisfied": 3, "discarded": 0, "seed": 0, "max_inputs": 10000},
+  "inputs": {"tried": 3, "satisfied": 3, "discarded": 0, "model_stopped": 0, "seed": 0, "max_inputs": 10000},
   "timing": {"verify_setup_seconds": 1.01, "harness_start_seconds": 0.74, "search_ms": 0.15, "shrink_ms": 2.3,
              "kernel_ms": 2.95, "to_counterexample_ms": 5.71, "total_seconds": 1.84}
 }
@@ -66,10 +66,10 @@ Give it a right statement, with `x &&& 0xFFFF#32`, and it answers `passed_tier1`
    anything else stops the proof test with verify's reason, such as `function_unsupported`.
 2. **Start the harness.** [`tools/prooftest/Harness.lean`](../tools/prooftest/Harness.lean) runs in one Lean
    process, importing only Lean, `IRLean` and the generated module, as verify's pinned statements are elaborated. It
-   turns the statement into one compiled function from the inputs to `0` (a hypothesis is false), `1` (the
-   conclusion holds) or `2` (it doesn't), and answers requests on stdin, one a line. For a function that takes
-   memory, the module's copy on `ExecMem` is imported too, and that function runs on it:
-   [running on `ExecMem`](#running-on-execmem).
+   turns the statement into one compiled function from the inputs to `1` (the conclusion holds), `2` (it doesn't),
+   or which hypothesis is false, `0` for the first and `2 + k` for hypothesis `k` after it, and answers requests on
+   stdin, one a line. For a function that takes memory, the module's copy on `ExecMem` is imported too, and that
+   function runs on it: [running on `ExecMem`](#running-on-execmem).
 3. **Plan inputs** for each binder, in this order: failures stored for this property, then edge cases, then bit
    patterns, then every byte, then seeded random values, up to `max_inputs` after the stored ones. If every input
    fits in `max_inputs`, it plans every input instead, edges and patterns first.
@@ -119,6 +119,7 @@ Four statuses, each with an exit code. None of them is `proved`: tier 1 proves n
 | `too_few_satisfying` | `unknown` | Fewer than `min_satisfied` inputs met the hypotheses, which QuickCheck calls giving up |
 | `input_timeout` | `unknown` | An input's run didn't finish in `input_timeout_seconds`, and nothing failed |
 | `evaluation_crashed` | `unknown` | Evaluating an input stopped Lean, and nothing failed |
+| `model_stopped` | `unknown` | A function an [equivalence](#equivalence) needs an answer from stopped the model on an input, which says nothing there, and nothing failed |
 | `time_limit` | `unknown` | `timeout_seconds` ran out before the plan had run |
 | `memory_limit` | `unknown` | Lean ran past `memory_mb` |
 | `unconfirmed` | `unknown` | An input failed in the search, and neither the kernel nor `tools/verify.py` confirmed it |
@@ -131,16 +132,17 @@ Four statuses, each with an exit code. None of them is `proved`: tier 1 proves n
 | `invalid_request` | `unknown` | The request is malformed |
 | `internal_error` | `unknown` | A bug in this tool, including a result that breaks the contract below |
 
-In order of precedence: a confirmed counterexample, then what stopped the run, then a failure nothing confirmed,
-then an input that didn't finish, then a limit, and only then what the inputs that ran say. So a run that hit a limit,
-or had an input that never finished, is never a pass, even if every other input passed: a run that never ends is how
-the model says `none`, or, under a promise to progress, undefined behavior, and either makes a claim of
-`= Outcome.ok` false. Running can't show a run never ends, so such an input is `unknown`, never a counterexample. A
-counterexample found after an input that hung still counts, since it's decisive.
+In order of precedence: a confirmed counterexample, then what stopped the run, then a failure nothing confirmed, then an
+input that didn't finish, then a limit, then an input where the model stopped, and only then what the inputs that met
+the hypotheses say. So a run that hit a limit, or had an input that never finished, is never a pass, even if every other
+input passed: a run that never ends is how the model says `none`, or, under a promise to progress, undefined behavior,
+and either makes a claim of `= Outcome.ok` false. Running can't show a run never ends, so such an input is `unknown`,
+never a counterexample. A counterexample found after an input that hung still counts, since it's decisive.
 
 A second function, `assert_contract`, turns any result that breaks these rules into `unknown/internal_error` before
-it's printed: a pass with `proved` true, a pass or `vacuous` with an input that didn't run, a counterexample with no
-evidence or with kernel evidence the kernel didn't give, or a counterexample with any other status.
+it's printed: a pass with `proved` true, a pass or `vacuous` with an input that didn't run or one where the model
+stopped, a counterexample with no evidence or with kernel evidence the kernel didn't give, or a counterexample with any
+other status.
 
 ### Inputs
 
@@ -172,7 +174,8 @@ result. It proves that this decides the same thing, `okSomeThen_iff`, and the ke
 
 **The vacuity guard.** An input that makes a hypothesis false is discarded, and counted. If none meets them, the
 answer is `vacuous`, never a pass. If some do but fewer than `min_satisfied`, it's `unknown/too_few_satisfying`,
-unless every input ran.
+unless every input ran. An [equivalence](#equivalence)'s input where a function stops the model isn't discarded: it's
+counted in `inputs.model_stopped`, and makes the answer `unknown/model_stopped`.
 
 **Shrinking** replaces one value at a time with a simpler one that still fails, until none does: zero, one, half,
 the lowest or highest set bit cleared, one less, its negation, each set bit cleared, and shifts right. Simpler means
@@ -280,7 +283,8 @@ to be the same, both using memory or neither. For zlib-ng's `crc32_braid` and `c
 
 ```lean
 ∀ (b1 : IRLean.Ptf.Buffer 2048) (p1 : IRLean.Ptf.Pointer b1) (n2 : IRLean.Ptf.Length p1) (x0 : BitVec 32),
-  IRLean.Ptf.Returns F → IRLean.Ptf.Answers G → IRLean.Ptf.Same (IRLean.Ptf.place CrcPair.initial [b1.bytes]) F G
+  IRLean.Ptf.Answers F → IRLean.Ptf.Returns F → IRLean.Ptf.Answers G →
+    IRLean.Ptf.Same (IRLean.Ptf.place CrcPair.initial [b1.bytes]) F G
 -- F is CrcPair.crc32_braid (some x0) (p1.into CrcPair.initial 0) n2.toVal (IRLean.Ptf.place CrcPair.initial [b1.bytes])
 -- and G the same call of CrcPair.crc32_pclmulqdq
 ```
@@ -295,21 +299,26 @@ to be the same, both using memory or neither. For zlib-ng's `crc32_braid` and `c
   constant in `m₀`, which the model makes writing undefined. Allocations the functions made and left aren't compared.
   Both undefined, for any reasons, or both stopping the model for the same reason, is the same too, though the
   hypotheses don't let those through.
-- **Hypotheses.** `Returns` of the first function, the reference: an input where it's undefined, stops the model or
-  never finishes is discarded. `Answers` of the second: one where it stops the model is discarded. So wherever the
-  reference returns, the other has to return the same, and where the reference is undefined, the other may do
-  anything, as a target may in LLVM. Discards count, so a pass says how many inputs the reference returned on, and a
-  reference undefined on every input is `vacuous`, never a pass.
+- **Hypotheses.** `Answers` of the first function, the reference, then its `Returns`, then `Answers` of the second.
+  An input where the reference is undefined makes `Returns` false, and is discarded: there the other may do
+  anything, as a target may in LLVM. So wherever the reference returns, the other has to return the same. Discards
+  count, so a pass says how many inputs the reference returned on, and a reference undefined on every input is
+  `vacuous`, never a pass. An input where either function stops the model makes an `Answers` false, and isn't
+  discarded: the model says nothing there, so it's counted in `inputs.model_stopped`, and any is
+  `unknown/model_stopped`, never a pass. A counterexample on another input still counts, since it's confirmed on
+  `Mem`. A run that never finishes makes `Returns` false too, but the search can't see one: it's `input_timeout`, as
+  [above](#statuses).
 - Two functions without memory are compared by `=` instead, under the same hypotheses.
 
 The result's `property.equivalence` has the functions, their signature and the arguments, and `trusted` has
 `property.equivalence`, with what `Same` compares. irl's `ptf_run` takes the same request.
 
-**What a pass means.** On every input tried, the reference returned, and the other returned the same value and left
-the same bytes, run on `ExecMem`. It doesn't say they agree on an input not tried, on a buffer longer than
-`max_length`, on poison, on a layout other than `Mem.spacedOut`, or in native code: it's about the model, and native
-code agrees with the model as far as the [differential tests](testing.md#tests) show. It rests on each block of each
-function agreeing with its copy on `ExecMem`, which is argued, not proved, as above. And it's a test, not a proof.
+**What a pass means.** On every input tried, neither function stopped the model, and on each where the reference
+returned, the other returned the same value and left the same bytes, run on `ExecMem`. It doesn't say they agree on
+an input not tried, on a buffer longer than `max_length`, on poison, on a layout other than `Mem.spacedOut`, or in
+native code: it's about the model, and native code agrees with the model as far as the
+[differential tests](testing.md#tests) show. It rests on each block of each function agreeing with its copy on
+`ExecMem`, which is argued, not proved, as above. And it's a test, not a proof.
 
 ### Confirming a counterexample
 
