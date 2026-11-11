@@ -53,8 +53,14 @@ audited aren't the files replayed, or the IR certified isn't the IR translated.
     - an editor could change the IR during translation, then undo;
     - an inherited `LEAN_SYSROOT` pointed the replay at another toolchain.
   - #117 S5, in a pull request still open: a session run again under a copied plan.
+  - [#121](https://github.com/phongndo/ir-lean/pull/121): `tools/verify_claims.py` hashed an evidence file, then read
+    it again, and counted a claim's replays by path, so an alias or a file named twice could stand in.
 - **Guard now:** certify works in a private directory, with each file bound by its hash and `lstat` as it's written,
   since #109. That's the pattern. [The gates' promise](rules.md#what-the-gates-promise) says what's in scope.
+  `tools/verify_claims.py` reads each file a replay rests on once, through `read_once`, compiles from a private copy,
+  and counts replays by the hash of the bytes read, as
+  [evidence identity](verify-claims.md#evidence-identity) says. A lint in `tests/verify_claims_test.py` fails on any
+  other read of a file there.
 - **Guard planned:** stage C, one content-addressed work area in `tools/irlean`. A step reads its inputs by hash, and
   writes each output once.
 

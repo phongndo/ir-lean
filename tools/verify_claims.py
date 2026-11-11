@@ -20,6 +20,11 @@ ir-lean, lean and leanchecker. The evidence is replayed from the pinned llvm-pro
 - leanchecker replays every module that isn't Lean's or IRLean's through the kernel;
 - nothing the evidence's code could change while it compiled has changed.
 
+Each file the replay rests on is read once, by read_once, and the replay uses those bytes, never the path
+again: the evidence, its Lean files, its IR, and every file of the repo clang reads, which it compiles from a
+private copy. llvm-project has to be the Nix store's, which nothing changes, and the work area outside both
+trees. A claim's plan is its evidence files by the SHA-256 of the bytes read, each once.
+
 usage:
   tools/verify_claims.py evidence EVIDENCE.json [--record OUT.json] [--work DIR] [--jobs N] [--memory MB]
   tools/verify_claims.py claim [--coverage FILE] [--inventory FILE] [--closures DIR] [--index N]
@@ -31,8 +36,8 @@ refused, 2 partial, 4 unknown (a limit stopped it), 5 error.
 
 It decides its own verdicts, and denies by default, as docs/verdicts.md says: only `complete` gives
 `replayed`, when every check of REPLAYED passed exactly once over every module the evidence plans, and only
-`verified` gives `verified`, when each evidence file's replay is so. Anything else is `error`, `incomplete`,
-and IRLEAN_DENY_ALL, set to anything but 0, takes every grant away.
+`verified` gives `verified`, when the replays are of each planned evidence file's bytes, once. Anything else
+is `error`, `incomplete`, and IRLEAN_DENY_ALL, set to anything but 0, takes every grant away.
 """
 
 from __future__ import annotations
@@ -46,6 +51,7 @@ import re
 import secrets
 import shutil
 import signal
+import stat
 import subprocess
 import sys
 import tempfile
@@ -67,6 +73,8 @@ INVENTORY = ROOT / "tests" / "llvm_scope" / "inventory.json"
 COVERAGE = ROOT / "tests" / "llvm_scope" / "coverage.json"
 CLOSURES = ROOT / "tests" / "llvm_scope" / "closure"
 REWRITES = ROOT / "tests" / "llvm_scope" / "rewrites"
+# What no process without root can change: llvm-project, and every other file clang reads but the repo's.
+STORE = Path("/nix/store")
 EXIT = {"replayed": 0, "verified": 0, "refused": 1, "partial": 2, "unknown": 4, "error": 5}
 # The grants, which only `complete` and `verified` give, and the checks a replay needs for one.
 GRANTED = ("replayed", "verified")
@@ -184,6 +192,8 @@ def need(r: Ran, reason: str, what: str) -> Ran:
 
 
 def sha256(path: Path) -> str:
+    """The hash of a file this run wrote, in its private work area. Files of the repo or llvm-project go
+    through read_once."""
     h = hashlib.sha256()
     with path.open("rb") as f:
         for block in iter(lambda: f.read(1 << 20), b""):
@@ -192,7 +202,8 @@ def sha256(path: Path) -> str:
 
 
 def dependencies(text: str, cwd: Path) -> list[Path]:
-    """The files a make rule from clang's -MD lists, resolved, with its escapes for spaces read back."""
+    """The files a make rule from clang's -M or -MD lists, as clang named them, made absolute and normalized
+    but not resolved, with its escapes for spaces read back."""
     body = text.replace("\\\n", " ").split(":", 1)[1] if ":" in text else ""
     files, word, chars = [], "", iter(body)
     for ch in chars:
@@ -206,7 +217,7 @@ def dependencies(text: str, cwd: Path) -> list[Path]:
             word += ch
     if word:
         files.append(word)
-    return [(cwd / f).resolve() for f in files]
+    return [Path(os.path.normpath(cwd / f)) for f in files]
 
 
 def stamp(paths: list[Path]) -> dict[str, tuple[int, int, int, int]]:
@@ -221,6 +232,60 @@ def stamp(paths: list[Path]) -> dict[str, tuple[int, int, int, int]]:
             s = p.lstat()
             seen[str(p)] = (s.st_ino, s.st_size, s.st_ctime_ns, s.st_mtime_ns)
     return seen
+
+
+@dataclass(frozen=True)
+class Read:
+    """A file's bytes, read once, and their SHA-256, which is the file's identity from then on."""
+
+    path: Path
+    data: bytes
+    sha256: str
+
+
+def read_once(path: Path, tree: Path | None, reason: str, what: str, *, links: bool = True,
+              status: str = "refused") -> Read:  # fmt: skip
+    """The one place this reads a file of the repo or llvm-project for what's in it, so each is read once and
+    every later step uses these bytes, never the path again. The path is taken as written, made absolute and
+    normalized, and has to stay inside `tree`, as written and resolved. Without `links`, it can't be a
+    symlink.
+    Anything else ends the replay as `status`, with `reason`."""
+    p = Path(os.path.normpath(Path(path).absolute()))
+    if tree is not None:
+        top = Path(os.path.normpath(tree.absolute()))
+        if not p.is_relative_to(top) or not p.resolve().is_relative_to(top.resolve()):
+            raise Stop(status, reason, f"{what} isn't a path inside {tree}")
+    flags = os.O_RDONLY | os.O_NONBLOCK | (0 if links else os.O_NOFOLLOW)
+    try:
+        fd = os.open(p, flags)
+    except OSError as e:
+        raise Stop(status, reason, f"{what} can't be read: {e.strerror}") from None
+    with os.fdopen(fd, "rb") as f:
+        if not stat.S_ISREG(os.fstat(f.fileno()).st_mode):
+            raise Stop(status, reason, f"{what} isn't a file")
+        data = f.read()
+    return Read(p, data, hashlib.sha256(data).hexdigest())
+
+
+def immutable(src: Path) -> Path:
+    """llvm-project as the Nix store holds it, which no process without root can change, so the NAR hash
+    check_pin compares and the files clang reads are the same bytes."""
+    s = src.resolve()
+    if not s.is_relative_to(STORE) or os.access(s, os.W_OK):
+        raise Stop("error", "toolchain_missing",
+                   f"LLVM_PROJECT_SRC is {s}, not read-only in {STORE}: run inside nix develop")  # fmt: skip
+    return s
+
+
+def outside_trees(work: Path, src: Path) -> Path:
+    """Where a replay works: outside the repo and llvm-project, where nothing else working in them reaches."""
+    w = work.resolve()
+    for tree in (ROOT, src):
+        if w.is_relative_to(tree.resolve()):
+            raise Stop(
+                "error", "work_in_tree", f"the work area {w} is inside {tree}: put it outside both trees"
+            )
+    return w
 
 
 # --- The evidence -----------------------------------------------------------------------------------------
@@ -361,7 +426,9 @@ class Tools:
 
 
 def pinned() -> dict[str, str]:
-    project = tomllib.loads(PIN.read_text())["project"]
+    """The pin, read once for each decision, which passes it down."""
+    data = read_once(PIN, ROOT, "toolchain_missing", str(PIN.relative_to(ROOT)), status="error").data
+    project = tomllib.loads(data.decode())["project"]
     return {k: project[k] for k in ("tag", "commit", "nix_hash")}
 
 
@@ -372,6 +439,7 @@ def tools(timeout: float) -> Tools:
     src = os.environ.get("LLVM_PROJECT_SRC")
     if not src or not Path(src).is_dir():
         raise Stop("error", "toolchain_missing", "LLVM_PROJECT_SRC isn't set: run inside nix develop")
+    store = immutable(Path(src))
     tool = ROOT / "build" / "ir-lean"
     lib = ROOT / ".lake" / "build" / "lib" / "lean"
     if not tool.is_file() or not (lib / "IRLean.olean").is_file():
@@ -384,7 +452,7 @@ def tools(timeout: float) -> Tools:
         run([str(toolchain / "bin" / "lean"), "--version"], timeout=timeout), "toolchain_missing", "lean"
     )
     return Tools(
-        Path(src).resolve(),
+        store,
         tool,
         lib.resolve(),
         toolchain,
@@ -393,8 +461,7 @@ def tools(timeout: float) -> Tools:
     )
 
 
-def check_pin(ev: dict[str, Any], t: Tools, timeout: float) -> None:
-    pin = pinned()
+def check_pin(ev: dict[str, Any], t: Tools, timeout: float, pin: dict[str, str]) -> None:
     if ev["llvm"] != pin:
         raise refuse("stale_anchors", f"the evidence is for llvm-project {ev['llvm']}, the pin is {pin}")
     got = need(
@@ -450,49 +517,87 @@ class Replay:
 
     # Sources and IR -----------------------------------------------------------------------------------------
 
-    def clang(self, u: dict[str, Any], out: Path, home: Path) -> list[str]:
+    def clang(self, u: dict[str, Any], in_llvm: bool, repo: Path) -> list[str]:
+        """clang's command for a unit, up to what it writes and the source, with the repo's include
+        directories under `repo`: the repo itself, or this run's copy of it."""
         cflags = self.t.proof_cflags
         if u["language"] == "c++":
             # The C++ library's headers find the C library's with #include_next, so those come after.
             cflags = ["-idirafter" if f == "-isystem" else f for f in cflags]
-        includes = [i if home == self.t.src else str(self.t.src / i) for i in u["include"]]
+        includes = [i if in_llvm else str(self.t.src / i) for i in u["include"]]
         argv = ["clang", *cflags, *u["flags"], *[f"-I{i}" for i in includes]]
-        argv += [f"-I{ROOT / i}" for i in u["local_include"]]
+        argv += [f"-I{repo / i}" for i in u["local_include"]]
         if u["llvm_config"]:
             inc = need(
                 run(["llvm-config", "--includedir"], timeout=self.timeout), "toolchain_missing", "llvm-config"
             )
             argv.append(f"-I{inc.out.strip()}")
-        language = ["-x", "c++"] if u["language"] == "c++" else ["-x", "c"]
-        return [*argv, *language, "-S", "-emit-llvm", "-fno-discard-value-names", "-o", str(out), u["source"]]
+        return [*argv, "-x", "c++" if u["language"] == "c++" else "c"]
+
+    def compile_source(self, u: dict[str, Any], compiled: Path) -> tuple[dict[str, str], dict[str, str]]:
+        """Compiles a unit's source with clang from what's held still: every file of the repo it reads, read
+        once and written into a private copy of the repo, and llvm-project's, in the Nix store. Returns the
+        hashes of exactly what clang read, llvm-project's files and the repo's.
+
+        `clang -M` lists the files first, from the real trees. Then the compile, from the copy, has to read
+        each file of the repo listed, and nothing but those and the Nix store's: else the trees changed in
+        between, and it's `error`, `artifacts_modified`."""
+        ns, in_llvm = u["namespace"], u["source_in"] == "llvm-project"
+        copy = self.work.parent / "src" / ns  # one for each unit, since units are built at once
+        argv = self.clang(u, in_llvm, ROOT)
+        found = self.work / f"{ns}.found.d"
+        # From the source's own tree, with the source named relative to it, so the IR names no machine's path.
+        need(run([*argv, "-M", "-MF", str(found), u["source"]], cwd=self.t.src if in_llvm else ROOT,
+                 timeout=self.timeout), "ir_replay_mismatch", f"clang -M {u['source']}")  # fmt: skip
+        repo: dict[str, str] = {}
+        for d in dependencies(found.read_text(), self.t.src if in_llvm else ROOT):
+            if d.is_relative_to(ROOT):
+                rel = str(d.relative_to(ROOT))
+                r = read_once(d, ROOT, "stale_evidence", f"{rel}, which {u['source']} reads")
+                (copy / rel).parent.mkdir(parents=True, exist_ok=True)
+                (copy / rel).write_bytes(r.data)
+                repo[rel] = r.sha256
+        deps = self.work / f"{ns}.d"
+        argv = [*self.clang(u, in_llvm, copy), "-S", "-emit-llvm", "-fno-discard-value-names", "-o",
+                str(compiled), "-MD", "-MF", str(deps), u["source"]]  # fmt: skip
+        home = self.t.src if in_llvm else copy
+        need(run(argv, cwd=home, timeout=self.timeout), "ir_replay_mismatch", f"clang {u['source']}")
+        anchors, read = {}, set()
+        for d in dependencies(deps.read_text(), home):
+            if d.is_relative_to(copy):
+                read.add(str(d.relative_to(copy)))
+            elif d.is_relative_to(self.t.src):
+                rel = str(d.relative_to(self.t.src))
+                anchors[rel] = read_once(d, self.t.src, "stale_anchors", f"llvm-project's {rel}").sha256
+            elif not d.is_relative_to(STORE):
+                raise Stop("error", "artifacts_modified",
+                           f"clang read {d}, neither the copy of the repo nor in {STORE}")  # fmt: skip
+        if read != set(repo):
+            changed = sorted(read ^ set(repo))
+            raise Stop(
+                "error",
+                "artifacts_modified",
+                f"the repo changed while {u['source']} was copied: {changed[:5]}",
+            )
+        return anchors, repo
 
     def build(self, u: dict[str, Any]) -> None:
         """Compiles one unit's source as the evidence says, takes out the functions it names, and translates
         it. Its anchors are every file of llvm-project clang read, the source and its headers, each with the
-        recorded SHA-256, and no other."""
+        recorded SHA-256, and no other; so are the repo's files it read."""
         home = self.t.src if u["source_in"] == "llvm-project" else ROOT
         src = (home / u["source"]).resolve()
         if not src.is_relative_to(home) or not src.is_file():
             raise refuse("stale_anchors", f"{u['source']} isn't a file in {u['source_in']}")
         ns = u["namespace"]
         compiled = self.work / f"{ns}.compiled.ll"
-        deps = self.work / f"{ns}.d"
         if u["language"] == "ir":
             # IR written by hand, or by a run of a pass: what it says is all there is to replay.
-            shutil.copyfile(src, compiled)
-            deps.write_text(f"{compiled}: {src}\n")
+            r = read_once(ROOT / u["source"], ROOT, "stale_anchors", f"{u['source']} in the repo")
+            compiled.write_bytes(r.data)
+            anchors, repo = {}, {str(r.path.relative_to(ROOT)): r.sha256}
         else:
-            # From the source's own tree, with the source named relative to it, so the IR names no machine's
-            # path.
-            argv = self.clang(u, compiled, home)
-            argv[-1:-1] = ["-MD", "-MF", str(deps)]
-            need(run(argv, cwd=home, timeout=self.timeout), "ir_replay_mismatch", f"clang {u['source']}")
-        anchors, repo = {}, {}
-        for d in dependencies(deps.read_text(), home):
-            if d.is_relative_to(self.t.src):
-                anchors[str(d.relative_to(self.t.src))] = sha256(d)
-            elif d.is_relative_to(ROOT):
-                repo[str(d.relative_to(ROOT))] = sha256(d)
+            anchors, repo = self.compile_source(u, compiled)
         for got, k, why in ((anchors, "anchors", "stale_anchors"), (repo, "repo_files", "stale_evidence")):
             if self.record:
                 u[k] = got
@@ -590,19 +695,18 @@ class Replay:
             )
         self.passed("compile_generated", "Lean compiles every generated module")
 
-        # The evidence's own modules, copied from the repo with the recorded hashes. Their code runs while
+        # The evidence's own modules, read once from the repo, with the recorded hashes. Their code runs while
         # they compile, so everything a check reads is stamped first, and compared at the end.
         root = (ROOT / ev["lean"]["root"]).resolve()
         if not root.is_relative_to(ROOT) or not root.is_dir():
             raise refuse("evidence_invalid", f"lean.root {ev['lean']['root']} isn't a directory here")
         for m, h in ev["lean"]["files"].items():
-            f = (root / f"{m.replace('.', '/')}.lean").resolve()
-            if not f.is_relative_to(root) or not f.is_file() or f.is_symlink():
-                raise refuse("evidence_invalid", f"{m} isn't a file under {ev['lean']['root']}")
-            ev["lean"]["files"][m] = self.same(sha256(f), h, "stale_evidence", f"{m}.lean")
+            what = f"{m}.lean under {ev['lean']['root']}"
+            r = read_once(root / f"{m.replace('.', '/')}.lean", root, "evidence_invalid", what, links=False)
+            ev["lean"]["files"][m] = self.same(r.sha256, h, "stale_evidence", f"{m}.lean")
             dest = self.work / f"{m.replace('.', '/')}.lean"
             dest.parent.mkdir(parents=True, exist_ok=True)
-            shutil.copyfile(f, dest)
+            dest.write_bytes(r.data)
         before_files = self.hashes()
         for wave in self.waves(ev["lean"]["files"]):
             with self.pool() as pool:
@@ -763,13 +867,15 @@ def deny() -> None:
 
 @dataclass(frozen=True)
 class Replayed:
-    """What only `complete` gives: the evidence file it replayed, by the path it's given, and its verdict."""
+    """What only `complete` gives: the evidence it replayed, by the SHA-256 of the bytes it was given, the
+    path they were read from, for messages, and its verdict."""
 
     path: str
+    sha256: str
     verdict: dict[str, Any]
 
 
-def complete(replay: Replay, detail: str, *, path: str = "", **extra: Any) -> Replayed:
+def complete(replay: Replay, detail: str, *, path: str = "", digest: str = "", **extra: Any) -> Replayed:
     """The one place a replay is `replayed`: every check of REPLAYED passed exactly once, and Lean compiled
     and leanchecker replayed every module the evidence planned, each once. Anything else is `error`,
     `incomplete`, so a step skipped, by a bug here or a caller's, can't grant."""
@@ -783,32 +889,43 @@ def complete(replay: Replay, detail: str, *, path: str = "", **extra: Any) -> Re
     deny()
     v = {"schema": VERDICT_SCHEMA, "status": "replayed", "reason": "replayed", "detail": detail,
          "checks": replay.checks, **extra, "trusted": TRUSTED}  # fmt: skip
-    return Replayed(path, v)
+    return Replayed(path, digest, v)
 
 
-def verified(results: list[Any], planned: list[str], detail: str) -> dict[str, Any]:
-    """The one place a claim is `verified`: each of the `planned` evidence files it names replayed, and
-    `complete`'s result said so of each, by its path, once, and of no other. Else `error`, `incomplete`."""
+def verified(results: list[Any], planned: list[Read], detail: str) -> dict[str, Any]:
+    """The one place a claim is `verified`. The plan is the evidence files the claim names, each read once,
+    by the hash of those bytes, and none twice; and `complete`'s results are of exactly those bytes, each
+    once, and of no others. Else `error`, `incomplete`."""
+    want = [p.sha256 for p in planned if isinstance(p, Read)]
     done = [r for r in results if isinstance(r, Replayed)]
-    if not planned or len(done) != len(results) or sorted(r.path for r in done) != sorted(set(planned)):
-        raise Stop(
-            "error", "incomplete", f"{planned} are planned, and complete replayed {[r.path for r in done]}"
-        )
+    if (not want or len(want) != len(planned) or len(set(want)) != len(want) or len(done) != len(results)
+            or sorted(r.sha256 for r in done) != sorted(want)):  # fmt: skip
+        planned_ = [f"{p.path.name} {p.sha256[:12]}" if isinstance(p, Read) else repr(p) for p in planned]
+        replayed_ = [f"{r.path} {r.sha256[:12]}" for r in done]
+        raise Stop("error", "incomplete", f"{planned_} are planned, and complete replayed {replayed_}")
     deny()
     return {"schema": VERDICT_SCHEMA, "status": "verified", "reason": "verified", "detail": detail,
             "evidence": [r.verdict for r in done], "trusted": TRUSTED}  # fmt: skip
 
 
-def replay_evidence(ev: Any, *, path: str = "", work: Path | None = None, jobs: int = 4, memory: int = 4000,
-                    timeout: float = 900, record: bool = False,
-                    ) -> tuple[Replayed | dict[str, Any], Any]:  # fmt: skip
-    """Replays evidence, given as parsed JSON. Returns the verdict, and the evidence with what's recorded."""
+def replay_evidence(data: bytes, *, path: str = "", work: Path | None = None, jobs: int = 4,
+                    memory: int = 4000, timeout: float = 900, record: bool = False,
+                    pin: dict[str, str] | None = None) -> tuple[Replayed | dict[str, Any], Any]:  # fmt: skip
+    """Replays evidence, given as the bytes of its file, read once. Returns the verdict, and the evidence as
+    parsed from those bytes, with what's recorded. `pin` is the decision's, read once; by default, it's read
+    here. The work area is a fresh directory in `work`, or in the system's, outside both trees."""
+    if not isinstance(data, bytes):
+        raise TypeError("replay_evidence takes the bytes of the evidence file, as read once")
     replay: Replay | None = None
-    owned = work is None
-    work = Path(tempfile.mkdtemp(prefix="verify-claims-")) if work is None else work
+    ev: Any = None
+    top: Path | None = None
     try:
+        try:
+            ev = json.loads(data)
+        except (UnicodeDecodeError, json.JSONDecodeError) as err:
+            raise refuse("evidence_invalid", f"the evidence isn't JSON: {err}") from None
         validate(ev, record)
-        validated = json.loads(json.dumps(ev))  # the evidence as validated, before any tool runs
+        validated = json.loads(data)  # the evidence as validated, before any tool runs
         if ev["cuts"]:
             # A call the theorem rules out by stopping the model says nothing about the code it runs.
             return verdict("partial", "cut", f"calls out of the code are cut: {ev['cuts']}"), ev
@@ -819,25 +936,28 @@ def replay_evidence(ev: Any, *, path: str = "", work: Path | None = None, jobs: 
                 f"the evidence is for {ev['lean_version']!r}, and lean is {t.lean_version!r}",
             )
         ev["lean_version"] = t.lean_version
-        check_pin(ev, t, timeout)
-        run_dir = work / "run"
-        if run_dir.exists():
-            shutil.rmtree(run_dir)
-        run_dir.mkdir(parents=True)
+        check_pin(ev, t, timeout, pin if pin is not None else pinned())
+        area = outside_trees(work if work is not None else Path(tempfile.gettempdir()), t.src)
+        top = Path(tempfile.mkdtemp(prefix="verify-claims-", dir=area))
+        run_dir = top / "run"
+        run_dir.mkdir()
         replay = Replay(ev, t, run_dir, jobs, memory, timeout, record, validated)
         replay.passed("pin", "llvm-project has the pinned NAR hash")
         theorems = replay.replay()
         for u in ev["units"]:
             u.pop("_functions", None)
         detail = "every check passed" + (", and the evidence is recorded" if record else "")
-        return complete(replay, detail, path=path, theorems=theorems, contexts=ev["contexts"]), ev
+        digest = hashlib.sha256(data).hexdigest()
+        return complete(
+            replay, detail, path=path, digest=digest, theorems=theorems, contexts=ev["contexts"]
+        ), ev
     except Stop as s:
         return verdict(s.status, s.reason, s.detail, checks=replay.checks if replay else []), ev
     except Exception as e:
         return verdict("error", "internal_error", f"{type(e).__name__}: {e}"), ev
     finally:
-        if owned:
-            shutil.rmtree(work, ignore_errors=True)
+        if top is not None and work is None:
+            shutil.rmtree(top, ignore_errors=True)
 
 
 # --- Claims ---------------------------------------------------------------------------------------------
@@ -888,14 +1008,15 @@ def _decide_claim(claim: dict[str, Any], root: Path, inventory: Path, closures: 
         raise refuse(
             "dimension_unverifiable", f"{dim!r} is never done by itself: finite evidence isn't proof"
         )
-    inv = json.loads(inventory.read_text())
+    pin = pinned()  # once for the decision
+    inv = json.loads(read_once(inventory, None, "internal_error", str(inventory), status="error").data)
     items = {i["id"]: i for i in inv["items"]}
     item = items.get(item_id)
     if item is None:
         raise refuse("claim_invalid", f"{item_id} isn't in the inventory")
-    if inv["pin"]["tag"] != pinned()["tag"]:
+    if inv["pin"]["tag"] != pin["tag"]:
         raise refuse(
-            "stale_anchors", f"the inventory is for {inv['pin']['tag']}, and the pin is {pinned()['tag']}"
+            "stale_anchors", f"the inventory is for {inv['pin']['tag']}, and the pin is {pin['tag']}"
         )
     pass_name = item_id.removeprefix("pass:")
     # What the claim has to cover, which only a task that isn't done yet can say for these dimensions.
@@ -919,7 +1040,7 @@ def _decide_claim(claim: dict[str, Any], root: Path, inventory: Path, closures: 
         if not path.is_file():
             why = f"there's no closure for {pass_name} (BIND-02), so nothing says what its code can reach"
             raise refuse("coverage_undecidable", why)
-        closure = json.loads(path.read_text())
+        closure = json.loads(read_once(path, None, "coverage_undecidable", path.name).data)
         if closure.get("schema") != CLOSURE_SCHEMA or closure.get("complete") is not True:
             raise refuse("coverage_undecidable", f"{path.name} isn't a complete {CLOSURE_SCHEMA}")
         for f, h in closure["files"].items():
@@ -930,19 +1051,25 @@ def _decide_claim(claim: dict[str, Any], root: Path, inventory: Path, closures: 
     evidence = [e for e in claim["evidence"] if isinstance(e, dict) and e.get("kind") == kind]
     if not evidence:
         raise refuse("claim_invalid", f"a complete {dim} claim needs {kind} evidence")
-    planned = [str(e.get("path")) for e in evidence]  # read before any replay
+    # The plan: each evidence file read once, before any replay, and known from then on by the hash of those
+    # bytes. A file named twice, by an alias or a copy, is the claim's mistake, not a second replay.
+    planned: list[Read] = []
+    for e in evidence:
+        name = e.get("path")
+        if not isinstance(name, str) or not name:
+            raise refuse("claim_invalid", f"evidence {name!r} isn't a path")
+        r = read_once(root / name, root, "claim_invalid", f"evidence {name!r}")
+        if r.sha256 != e.get("sha256"):
+            raise refuse("stale_evidence", f"{name} changed since the claim was made")
+        if any(p.sha256 == r.sha256 or p.path.resolve() == r.path.resolve() for p in planned):
+            raise refuse("claim_invalid", f"{name} is evidence the claim already names")
+        planned.append(r)
     covered: set[tuple[str, str]] = set()
     anchors: dict[str, str] = {}
     compiled: set[str] = set()
     results = []
-    for e in evidence:
-        path = (root / str(e.get("path", ""))).resolve()
-        if not path.is_relative_to(root.resolve()) or not path.is_file():
-            raise refuse("claim_invalid", f"evidence {e.get('path')!r} isn't a file in the repo")
-        if sha256(path) != e.get("sha256"):
-            raise refuse("stale_evidence", f"{e.get('path')} changed since the claim was made")
-        ev = json.loads(path.read_text())
-        v, _ = replay_evidence(ev, path=str(e.get("path")), **options)
+    for e, r in zip(evidence, planned, strict=True):
+        v, ev = replay_evidence(r.data, path=e["path"], pin=pin, **options)
         results.append(v)
         if not isinstance(v, Replayed):
             raise Stop(v["status"] if v["status"] != "partial" else "refused", v["reason"],
@@ -1002,20 +1129,22 @@ def main() -> int:
     options = {"jobs": args.jobs, "memory": args.memory, "timeout": args.timeout}
     if args.cmd == "evidence":
         try:
-            ev = json.loads(args.path.read_text())
-        except (OSError, json.JSONDecodeError) as err:
-            print(json.dumps(verdict("refused", "evidence_invalid", str(err)), indent=1))
-            return EXIT["refused"]
+            data = read_once(args.path, None, "evidence_invalid", str(args.path)).data
+        except Stop as s:
+            print(json.dumps(verdict(s.status, s.reason, s.detail), indent=1))
+            return EXIT[s.status]
         work = args.work.resolve() if args.work else None
         if work is not None:
             work.mkdir(parents=True, exist_ok=True)
-        v, recorded = replay_evidence(ev, work=work, record=args.record is not None, **options)
+        v, recorded = replay_evidence(data, path=str(args.path), work=work, record=args.record is not None,
+                                      **options)  # fmt: skip
         if args.record is not None and isinstance(v, Replayed):
             args.record.write_text(json.dumps(recorded, indent=1) + "\n")
         v = v.verdict if isinstance(v, Replayed) else v
         print(json.dumps(v, indent=1))
         return EXIT[v["status"]]
-    claims = json.loads(args.coverage.read_text()).get("claims", [])
+    coverage = read_once(args.coverage, None, "internal_error", str(args.coverage), status="error")
+    claims = json.loads(coverage.data).get("claims", [])
     picked = [(args.index, claims[args.index])] if args.index is not None else list(enumerate(claims))
     worst = 0
     for n, claim in picked:
