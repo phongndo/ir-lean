@@ -11,7 +11,8 @@ Tier 1 never proves anything. `passed_tier1` means no input it tried made the st
 proved.
 
 usage: tools/prooftest/prooftest.py run [REQUEST.json|-] [--ir FILE | --c FILE [--cflags FLAGS]]
-                                    [--function F] [--statement S] [--namespace NS] [--seed N]
+                                    [--function F] [--statement S | --equivalent-to G [--arguments A,B,..]
+                                    [--max-length N]] [--namespace NS] [--seed N]
                                     [--max-inputs N] [--timeout S] [--memory-mb MB] [--input-timeout S]
                                     [--store DIR | --no-store] [--no-shrink] [--work-dir DIR] [--pretty]
        tools/prooftest/prooftest.py capabilities [--pretty]
@@ -88,6 +89,8 @@ DEFAULTS: dict[str, Any] = {
     "kernel_heartbeats": 2_000_000,
     # `auto` asks tools/verify.py only when the kernel couldn't confirm. `always` asks it too.
     "verify_confirm": "auto",
+    # The most bytes an equivalence's buffers hold.
+    "max_length": 256,
 }
 
 STATUSES = {
@@ -139,8 +142,8 @@ REASONS: dict[str, tuple[str, str]] = {
     ),
     "binder_unsupported": (
         "unknown",
-        "A binder isn't `BitVec w`, `IRLean.Val w` or `Bool`. Memory is one: it needs the executable "
-        "memory model",
+        "A binder isn't `BitVec w`, `IRLean.Val w`, `Bool`, or a buffer, pointer or length from "
+        "IRLean.Ptf. A `Mem` or a `PtrVal` is one",
     ),
     "undecidable": ("unknown", "Lean can't decide the statement at an input"),
     "statement_unsupported": (
@@ -159,6 +162,11 @@ REASONS: dict[str, tuple[str, str]] = {
     "tool_failed": ("unknown", "A tool crashed or answered in a way this doesn't understand"),
     "invalid_request": ("unknown", "The request is malformed. `detail` says how"),
     "internal_error": ("unknown", "A bug in this tool"),
+    "model_stopped": (
+        "unknown",
+        "A function the property needs an answer from stopped the model on an input, which says nothing "
+        "there, and nothing failed",
+    ),
 }
 # What tools/verify.py answers that stops a proof test before it starts, as the reason here. Anything else is
 # tool_failed.
@@ -176,6 +184,7 @@ FROM_VERIFY = {
         "binder_unsupported",
         "undecidable",
         "statement_unsupported",
+        "model_stopped",
     }
 }
 EVIDENCE = {
@@ -187,13 +196,22 @@ EVIDENCE = {
     "running the model's compiled code. That trusts Lean's compiler and runtime, as native_decide does",
 }
 
+# What each argument of a function in an equivalence is.
+ROLES = ("value", "buffer", "length")
+
 REQUEST_FIELDS = {
     "schema": "Optional. Must be " + REQUEST_SCHEMA,
     "input": '{"ir": PATH} for .ll or .bc, or {"c": PATH, "cflags": [...]}, as tools/verify.py takes it',
     "function": "The LLVM name, without @",
     "namespace": "The Lean namespace of the generated module. Defaults to the input's name",
     "statement": "The property: a Lean proposition naming the generated function, over `BitVec w`, "
-    "`IRLean.Val w` and `Bool` binders, with hypotheses as implications",
+    "`IRLean.Val w`, `Bool` and `IRLean.Ptf.Buffer n` binders, with a `IRLean.Ptf.Pointer` and a "
+    "`IRLean.Ptf.Length` into a buffer, and hypotheses as implications. Give this or `equivalence`",
+    "equivalence": "Instead of `statement`: {with, arguments, max_length}. The property that `function` "
+    "and the function `with`, in the same module, give the same result and leave the same memory on the "
+    "same inputs. `arguments` says what each argument is, `value`, `buffer` or `length`, by default a "
+    "buffer for a pointer, its length for an i64 right after it, and a value for any other integer. "
+    "Buffers hold at most `max_length` bytes, default 256",
     "seed": "The seed for random inputs. Default 0",
     "max_inputs": "How many inputs to plan, after stored ones. Default 10,000",
     "min_satisfied": "How many inputs have to meet the hypotheses for a pass. Default 10",
@@ -217,6 +235,16 @@ REQUEST_JSON_SCHEMA: dict[str, Any] = {
             "function": {"type": "string", "minLength": 1},
             "namespace": {"type": "string", "minLength": 1},
             "statement": {"type": "string", "minLength": 1},
+            "equivalence": {
+                "type": "object",
+                "properties": {
+                    "with": {"type": "string", "minLength": 1},
+                    "arguments": {"type": "array", "items": {"enum": list(ROLES)}},
+                    "max_length": {"type": "integer", "minimum": 0, "maximum": 1 << 20},
+                },
+                "required": ["with"],
+                "additionalProperties": False,
+            },
             "seed": {"type": "integer", "minimum": 0, "maximum": 2**63},
             "max_inputs": {"type": "integer", "minimum": 1, "maximum": 10_000_000},
             "min_satisfied": {"type": "integer", "minimum": 1, "maximum": 10_000_000},
@@ -234,7 +262,7 @@ REQUEST_JSON_SCHEMA: dict[str, Any] = {
             },
         }.items()
     },
-    "required": ["input", "function", "statement"],
+    "required": ["input", "function"],
     "additionalProperties": False,
 }
 
@@ -255,9 +283,21 @@ def width_of(binder: dict[str, Any]) -> int:
     return int(binder.get("width", 1))
 
 
+# A buffer, a pointer into it and a length past the pointer are generated together. A buffer's value is a
+# tuple of bytes, a pointer's its offset into the buffer's allocation, and a length's a number.
+MEMORY = {"buffer", "pointer", "length"}
+
+
+def is_memory(binder: dict[str, Any]) -> bool:
+    return binder["kind"] in MEMORY
+
+
 def domain_size(binder: dict[str, Any]) -> int:
     if binder["kind"] == "bool":
         return 2
+    if is_memory(binder):
+        # Never every input: a buffer of one byte already has 256.
+        return 1 << 64 if binder["kind"] == "buffer" else 1
     size = 1 << width_of(binder)
     return size + 1 if binder["kind"] == "val" else size
 
@@ -269,18 +309,52 @@ def encode(binder: dict[str, Any], value: int | None) -> int:
     return int(value)
 
 
-def lean_term(binder: dict[str, Any], value: int | None) -> str:
-    """A value as a Lean term, as tools/verify.py takes a witness."""
+def wire(binders: list[dict[str, Any]], values: tuple) -> list[int]:
+    """An input as the harness takes it: an entry for each binder, and after them each buffer's length and
+    bytes,
+    with the buffer's entry saying where they start."""
+    out: list[int] = []
+    tail: list[int] = []
+    for b, v in zip(binders, values, strict=True):
+        if b["kind"] == "buffer":
+            out.append(len(binders) + len(tail))
+            tail += [len(v), *v]
+        else:
+            out.append(encode(b, v))
+    return out + tail
+
+
+def jsonable(binders: list[dict[str, Any]], values: tuple) -> list[Any]:
+    """An input as JSON: poison as `2 ^ w`, as the harness takes it, and a buffer as a list of bytes."""
+    return [list(v) if b["kind"] == "buffer" else encode(b, v) for b, v in zip(binders, values, strict=True)]
+
+
+def lean_term(binder: dict[str, Any], value: Any) -> str:
+    """A value as a Lean term, as tools/verify.py takes a witness. A pointer's or a length's type names the
+    buffer
+    it's into, which Lean fills in for `_`."""
     if binder["kind"] == "bool":
         return "true" if value else "false"
+    if binder["kind"] == "buffer":
+        return f"IRLean.Ptf.Buffer.ofList {binder['max']} [{', '.join(f'{b}#8' for b in value)}]"
+    if binder["kind"] == "pointer":
+        return f"IRLean.Ptf.Pointer.ofNat _ {value}"
+    if binder["kind"] == "length":
+        return f"IRLean.Ptf.Length.ofNat _ {value}"
     w = width_of(binder)
     if binder["kind"] == "val":
         return "none" if value is None else f"some {value}#{w}"
     return f"{value}#{w}"
 
 
-def shown(binder: dict[str, Any], value: int | None) -> str:
-    """A value for people: hex for wide ones, and poison by name."""
+def shown(binder: dict[str, Any], value: Any) -> str:
+    """A value for people: hex for wide ones, and poison by name. A buffer's bytes in hex, with how many."""
+    if binder["kind"] == "buffer":
+        return f"{len(value)} bytes: {bytes(value).hex(' ') if value else '(none)'}"
+    if binder["kind"] == "pointer":
+        return f"{value} bytes in"
+    if binder["kind"] == "length":
+        return str(value)
     if value is None:
         return "poison"
     if binder["kind"] == "bool":
@@ -352,11 +426,260 @@ def random_value(binder: dict[str, Any], rng: random.Random) -> int | None:
     return (base + rng.randint(-3, 3)) & m
 
 
+def every_value(binder: dict[str, Any]) -> list[int | None]:
+    """Every value of a scalar binder, in order, poison last."""
+    if binder["kind"] == "bool":
+        return [0, 1]
+    return [*range(1 << width_of(binder)), *([None] if binder["kind"] == "val" else [])]
+
+
+# Buffers
+
+# Lengths a buffer's edges take, up to its most: the block sizes of SSE, AVX2 and AVX-512 and each side of
+# them.
+LENGTHS = (0, 1, 2, 3, 4, 7, 8, 15, 16, 17, 31, 32, 33, 47, 48, 63, 64, 65, 127, 128, 129, 255, 256, 257)
+LENGTHS += (511, 512, 513, 1023, 1024, 1025, 4095, 4096, 4097)
+# How far an unaligned pointer is from alignment, and the lengths that get one.
+MISALIGNED = (1, 3, 4, 8, 15)
+MISALIGNED_LENGTHS = (1, 16, 17, 32, 33, 64, 65)
+PATTERN_BYTES = (0x55, 0xAA, 0x0F, 0xF0, 0x01, 0x80, 0x7F, 0xFE, 0x11)
+
+
+def ascending(n: int) -> tuple[int, ...]:
+    """1, 2, 3, ...: no byte zero but every 256th, and each different from its neighbors, so a byte read from
+    the
+    wrong place, or left out, shows."""
+    return tuple((j + 1) & 0xFF for j in range(n))
+
+
+class Scalar:
+    """One `BitVec`, `Val` or `Bool` binder, generated as tier 1 always has."""
+
+    def __init__(self, index: int, binder: dict[str, Any]) -> None:
+        self.indices = [index]
+        self.binder = binder
+
+    def edges(self) -> list[tuple]:
+        return [(v,) for v in edges(self.binder)]
+
+    def patterns(self) -> list[tuple]:
+        return [(v,) for v in patterns(self.binder)]
+
+    def draw(self, rng: random.Random) -> tuple:
+        return (random_value(self.binder, rng),)
+
+    def domain(self) -> int:
+        return domain_size(self.binder)
+
+    def every(self) -> list[tuple]:
+        return [(v,) for v in every_value(self.binder)]
+
+    def bytes_phase(self) -> bool:
+        return self.binder["kind"] != "bool" and width_of(self.binder) > 8
+
+    def candidates(self, value: tuple) -> list[tuple]:
+        return [(c,) for c in shrink_candidates(self.binder, value[0])]
+
+
+class Memory:
+    """A buffer binder, the pointers into its allocation, and the lengths past each pointer, generated
+    together so
+    every pointer is into the buffer and every length fits. A value is theirs in binder order."""
+
+    def __init__(self, index: int, binders: list[dict[str, Any]]) -> None:
+        self.buffer = index
+        self.max = int(binders[index]["max"])
+        self.pointers = [i for i, b in enumerate(binders) if b["kind"] == "pointer" and b.get("of") == index]
+        self.lengths = {
+            p: [i for i, b in enumerate(binders) if b["kind"] == "length" and b.get("of") == p]
+            for p in self.pointers
+        }
+        self.indices = sorted([index, *self.pointers, *(i for ls in self.lengths.values() for i in ls)])
+
+    def make(self, data: tuple[int, ...], offsets: dict[int, int], lengths: dict[int, int]) -> tuple:
+        by_index = {self.buffer: tuple(data), **offsets, **lengths}
+        return tuple(by_index[i] for i in self.indices)
+
+    def split(self, value: tuple) -> tuple[tuple[int, ...], dict[int, int], dict[int, int]]:
+        by_index = dict(zip(self.indices, value, strict=True))
+        offsets = {p: by_index[p] for p in self.pointers}
+        lengths = {i: by_index[i] for ls in self.lengths.values() for i in ls}
+        return by_index[self.buffer], offsets, lengths
+
+    def shape(self, offset: int, length: int, slack: int, content: Callable[[int], tuple[int, ...]]) -> tuple:
+        """`offset` bytes before every pointer, `length` bytes past it, and `slack` more after."""
+        data = content(offset + length + slack)
+        return self.make(
+            data,
+            dict.fromkeys(self.pointers, offset),
+            {i: length for ls in self.lengths.values() for i in ls},
+        )
+
+    def edges(self) -> list[tuple]:
+        """The empty buffer, then each length at an aligned pointer, ascending and all ones, then the block
+        sizes at unaligned pointers, then a length of 0 in a buffer that isn't empty, bytes past the end of
+        what's read,
+        and zeros."""
+        n = self.max
+        lengths = sorted({x for x in LENGTHS if x <= n} | {n, max(n - 1, 0)})
+        ones: Callable[[int], tuple[int, ...]] = lambda k: (0xFF,) * k  # noqa: E731
+        zeros: Callable[[int], tuple[int, ...]] = lambda k: (0,) * k  # noqa: E731
+        out = [self.shape(0, 0, 0, ascending)]
+        out += [self.shape(0, x, 0, ascending) for x in lengths]
+        out += [self.shape(0, x, 0, ones) for x in lengths if x]
+        out += [
+            self.shape(k, x, 0, ascending)
+            for x in MISALIGNED_LENGTHS
+            for k in MISALIGNED
+            if k + x <= n and x <= n
+        ]
+        out += [self.shape(k, 0, s, ascending) for k, s in ((0, 16), (8, 8)) if k + s <= n]
+        out += [self.shape(0, x, 1, ascending) for x in (15, 16, 63) if x + 1 <= n]
+        out += [self.shape(0, x, 0, zeros) for x in (1, 16, 64, n) if 0 < x <= n]
+        return list(dict.fromkeys(out))
+
+    def patterns(self) -> list[tuple]:
+        """Repeated bytes at the block sizes, then one byte set at each place in 64, which finds a lane that's
+        wrong."""
+        n = self.max
+        out = [
+            self.shape(0, x, 0, lambda k, b=b: (b,) * k)
+            for x in (4, 16, 32, 64)
+            if x <= n
+            for b in PATTERN_BYTES
+        ]
+        width = min(n, 64)
+        for j in range(width):
+            out.append(self.shape(0, width, 0, lambda k, j=j: tuple(int(i == j) for i in range(k))))
+        return list(dict.fromkeys(out))
+
+    def draw(self, rng: random.Random) -> tuple:
+        """A length that's uniform, near a multiple of a block size, or small; an aligned pointer half the
+        time;
+        sometimes bytes past the end; and bytes that are uniform, mostly zero, extremes, or all one byte."""
+        n = self.max
+        pick = rng.random()
+        if pick < 0.35:
+            length = rng.randint(0, n)
+        elif pick < 0.75:
+            block = rng.choice((4, 8, 16, 32, 64))
+            length = min(max(block * rng.randint(0, max(n // block, 0)) + rng.randint(-2, 2), 0), n)
+        else:
+            length = rng.randint(0, min(n, 70))
+        offset = 0 if rng.random() < 0.5 else rng.randint(0, min(63, n - length))
+        room = n - length - offset
+        slack = rng.randint(1, min(32, room)) if room >= 1 and rng.random() < 0.2 else 0
+        total = offset + length + slack
+        kind = rng.random()
+        if kind < 0.6:
+            data = tuple(rng.getrandbits(8) for _ in range(total))
+        elif kind < 0.75:
+            data = tuple(rng.getrandbits(8) if rng.random() < 0.1 else 0 for _ in range(total))
+        elif kind < 0.9:
+            data = tuple(rng.choice((0, 0xFF, 0x80, 0x7F, 0x01)) for _ in range(total))
+        else:
+            data = (rng.getrandbits(8),) * total
+        offsets = {p: offset if k == 0 else rng.randint(0, total) for k, p in enumerate(self.pointers)}
+        lengths = {
+            i: length if k == 0 and j == 0 else rng.randint(0, total - offsets[p])
+            for k, (p, ls) in enumerate(self.lengths.items())
+            for j, i in enumerate(ls)
+        }
+        return self.make(data, offsets, lengths)
+
+    def domain(self) -> int:
+        return 1 << 64
+
+    def every(self) -> list[tuple]:
+        return []
+
+    def bytes_phase(self) -> bool:
+        return False
+
+    def remove(self, value: tuple, start: int, count: int) -> tuple:
+        """The bytes from `start` up to `start + count` taken out, with each pointer and the end of each
+        length moved
+        to where the same byte is, or to `start` if theirs is gone."""
+        data, offsets, lengths = self.split(value)
+
+        def moved(at: int) -> int:
+            return at - count if at >= start + count else min(at, start)
+
+        new_offsets = {p: moved(k) for p, k in offsets.items()}
+        new_lengths = {
+            i: moved(offsets[p] + lengths[i]) - new_offsets[p] for p, ls in self.lengths.items() for i in ls
+        }
+        return self.make(data[:start] + data[start + count :], new_offsets, new_lengths)
+
+    def candidates(self, value: tuple) -> list[tuple]:
+        """Shorter first: the whole buffer, halves and quarters of it, what's before each pointer and past
+        each length, halves of what each length covers, and a byte at each end of it. Then simpler bytes: all
+        zero,
+        each nonzero byte zero, and the first nonzero byte smaller."""
+        data, offsets, lengths = self.split(value)
+        total = len(data)
+        cuts = {
+            (0, total),
+            (0, total // 2),
+            (total // 2, total - total // 2),
+            (total - total // 4, total // 4),
+        }
+        cuts |= {(0, 1), (total - 1, 1)}
+        for p, k in offsets.items():
+            cuts.add((0, k))
+            for i in self.lengths[p]:
+                x = lengths[i]
+                end = k + x
+                cuts |= {(end, total - end), (k, x // 2), (k + x // 2, x - x // 2), (k, 1), (end - 1, 1)}
+                cuts |= {(end - 16, 16), (k, 16)}
+        out = [
+            self.remove(value, start, count)
+            for start, count in sorted(cuts)
+            if count > 0 and start >= 0 and start + count <= total
+        ]
+        if any(data):
+            out.append(self.make((0,) * total, offsets, lengths))
+        for j, b in enumerate(data):
+            if b:
+                out.append(self.make((*data[:j], 0, *data[j + 1 :]), offsets, lengths))
+        first = next((j for j, b in enumerate(data) if b), None)
+        if first is not None:
+            b = data[first]
+            for smaller in (b >> 1, b & (b - 1), b - 1):
+                out.append(self.make((*data[:first], smaller, *data[first + 1 :]), offsets, lengths))
+        return list(dict.fromkeys(out))
+
+
+def units_of(binders: list[dict[str, Any]]) -> list[Scalar | Memory]:
+    """The binders as they're generated: each scalar alone, and each buffer with its pointers and lengths, in
+    the
+    order of their first binder."""
+    units: list[Scalar | Memory] = []
+    for i, b in enumerate(binders):
+        if b["kind"] == "buffer":
+            units.append(Memory(i, binders))
+        elif not is_memory(b):
+            units.append(Scalar(i, b))
+    covered = {i for u in units for i in u.indices}
+    if covered != set(range(len(binders))):
+        raise Stop("binder_unsupported", "a pointer or a length that isn't into a buffer the statement binds")
+    return units
+
+
+def assemble(units: list[Scalar | Memory], parts: Iterable[tuple], size: int) -> tuple:
+    """One input, from each unit's part of it."""
+    out: list[Any] = [None] * size
+    for unit, part in zip(units, parts, strict=True):
+        for i, v in zip(unit.indices, part, strict=True):
+            out[i] = v
+    return tuple(out)
+
+
 @dataclass
 class Plan:
     """The inputs to try, in order, and where each came from."""
 
-    inputs: list[tuple[int | None, ...]] = field(default_factory=list)
+    inputs: list[tuple] = field(default_factory=list)
     phases: list[str] = field(default_factory=list)
     exhaustive: bool = False
     domain: int | None = None
@@ -376,7 +699,8 @@ EDGE_PRODUCT_CAP = 512
 def plan(binders: list[dict[str, Any]], seed: int, max_inputs: int, replay: Iterable[tuple] = ()) -> Plan:
     """Stored failures first, then edges, then bit patterns, then every byte, then random values, up to
     `max_inputs` after the stored ones. If every input fits in `max_inputs`, every input, edges and patterns
-    first."""
+    first. A buffer, its pointers and their lengths count as one binder here, whose edges, patterns and random
+    values `Memory` gives."""
     result = Plan()
     seen: set[tuple] = set()
 
@@ -389,59 +713,58 @@ def plan(binders: list[dict[str, Any]], seed: int, max_inputs: int, replay: Iter
     for values in replay:
         add("replay", tuple(values))
     budget = len(result.inputs) + max_inputs
-    domain = math.prod(domain_size(b) for b in binders)
+    units = units_of(binders)
+    domain = math.prod(u.domain() for u in units)
     result.domain = domain
     result.exhaustive = domain <= max_inputs
     if not binders:
         add("edges", ())
         return result
+
+    def whole(parts: Iterable[tuple]) -> tuple:
+        return assemble(units, parts, len(binders))
+
     rng = random.Random(seed)
-    edge_sets = [edges(b) for b in binders]
+    edge_sets = [u.edges() for u in units]
     product = math.prod(len(e) for e in edge_sets)
     if product <= EDGE_PRODUCT_CAP:
-        for values in itertools.product(*edge_sets):
-            add("edges", values)
+        for parts in itertools.product(*edge_sets):
+            add("edges", whole(parts))
     else:
         # Every edge of each binder at least once, the rest of each tuple drawn from the other binders' edges.
         for i, edge_set in enumerate(edge_sets):
             for v in edge_set:
-                add("edges", tuple(v if j == i else rng.choice(e) for j, e in enumerate(edge_sets)))
+                add("edges", whole(v if j == i else rng.choice(e) for j, e in enumerate(edge_sets)))
         while sum(p == "edges" for p in result.phases) < EDGE_PRODUCT_CAP:
-            add("edges", tuple(rng.choice(e) for e in edge_sets))
-    pattern_sets = [edges(b) + patterns(b) for b in binders]
-    for i, binder in enumerate(binders):
-        for k, v in enumerate(patterns(binder)):
+            add("edges", whole(rng.choice(e) for e in edge_sets))
+    pattern_sets = [u.edges() + u.patterns() for u in units]
+    for i, unit in enumerate(units):
+        for k, v in enumerate(unit.patterns()):
             others = [ps[(k * 7 + j) % len(ps)] for j, ps in enumerate(pattern_sets)]
             others[i] = v
-            add("patterns", tuple(others))
+            add("patterns", whole(others))
     # The same value everywhere, for properties that relate the binders.
-    if len({json.dumps({k: b.get(k) for k in ("kind", "width")}) for b in binders}) == 1 and len(binders) > 1:
+    kinds = {json.dumps({k: b.get(k) for k in ("kind", "width")}) for b in binders}
+    if len(kinds) == 1 and len(binders) > 1 and all(isinstance(u, Scalar) for u in units):
         for v in pattern_sets[0]:
-            add("patterns", tuple(v for _ in binders))
+            add("patterns", whole(v for _ in units))
     # Every byte, for code over characters and small counts, with the other binders cycling through edges.
-    for i, binder in enumerate(binders):
-        if binder["kind"] == "bool" or width_of(binder) <= 8:
+    for i, unit in enumerate(units):
+        if not unit.bytes_phase():
             continue
         for v in range(256):
-            others = [ps[(v * 7 + j) % len(ps)] for j, ps in enumerate(edge_sets)]
-            others[i] = v
-            add("bytes", tuple(others))
+            others = [es[(v * 7 + j) % len(es)] for j, es in enumerate(edge_sets)]
+            others[i] = (v,)
+            add("bytes", whole(others))
     if result.exhaustive:
         # Every input, in order, after the edges and patterns. Poison last.
-        def values_of(b: dict[str, Any]) -> list[int | None]:
-            return (
-                [0, 1]
-                if b["kind"] == "bool"
-                else [*range(1 << width_of(b)), *([None] if b["kind"] == "val" else [])]
-            )
-
-        for values in itertools.product(*(values_of(b) for b in binders)):
-            add("exhaustive", values)
+        for parts in itertools.product(*(u.every() for u in units)):
+            add("exhaustive", whole(parts))
     else:
         attempts = 0
         while len(result.inputs) < budget and attempts < 20 * max_inputs:
             attempts += 1
-            add("random", tuple(random_value(b, rng) for b in binders))
+            add("random", whole(u.draw(rng) for u in units))
     result.inputs = result.inputs[:budget]
     result.phases = result.phases[:budget]
     return result
@@ -450,10 +773,16 @@ def plan(binders: list[dict[str, Any]], seed: int, max_inputs: int, replay: Iter
 # Shrinking
 
 
-def simplicity(values: tuple[int | None, ...]) -> tuple:
-    """Smaller is simpler: fewer bits in all, then smaller values. Poison is left as it is."""
-    bits = sum((v or 0).bit_length() for v in values)
-    return (bits, tuple(-1 if v is None else v for v in values))
+def simplicity(values: tuple) -> tuple:
+    """Smaller is simpler: fewer bytes of buffers, then fewer bits in all, then smaller values. Poison is left
+    as
+    it is."""
+
+    def bits(v: Any) -> int:
+        return sum(b.bit_length() for b in v) if isinstance(v, tuple) else (v or 0).bit_length()
+
+    size = sum(len(v) for v in values if isinstance(v, tuple))
+    return (size, sum(bits(v) for v in values), tuple(-1 if v is None else v for v in values))
 
 
 def shrink_candidates(binder: dict[str, Any], value: int | None) -> list[int | None]:
@@ -473,23 +802,28 @@ def shrink_candidates(binder: dict[str, Any], value: int | None) -> list[int | N
 
 
 def shrink(
-    start: tuple[int | None, ...],
+    start: tuple,
     binders: list[dict[str, Any]],
     still_fails: Callable[[list[tuple]], int | None],
     rounds: int = 200,
-) -> tuple[tuple[int | None, ...], int]:
-    """Greedily replaces one value at a time with a simpler one that still fails, until none does.
-    `still_fails` takes candidates, simplest first, and returns the index of the first that fails, or None.
-    Deterministic: the same start and the same answers give the same result. Returns the input and how many
-    steps it took."""
-    current, steps = start, 0
+) -> tuple[tuple, int]:
+    """Greedily replaces one binder's value at a time, or one buffer's with its pointers and lengths, with a
+    simpler one that still fails, until none does. `still_fails` takes candidates, simplest first, and returns
+    the index of the first that fails, or None. Deterministic: the same start and the same answers give the
+    same
+    result. Returns the input and how many steps it took."""
+    units = units_of(binders)
+    current, steps = tuple(start), 0
     for _ in range(rounds):
         candidates = []
-        for i, binder in enumerate(binders):
-            for c in shrink_candidates(binder, current[i]):
-                t = (*current[:i], c, *current[i + 1 :])
-                if simplicity(t) < simplicity(current):
-                    candidates.append(t)
+        for unit in units:
+            part = tuple(current[i] for i in unit.indices)
+            for c in unit.candidates(part):
+                t = list(current)
+                for i, v in zip(unit.indices, c, strict=True):
+                    t[i] = v
+                if simplicity(tuple(t)) < simplicity(current):
+                    candidates.append(tuple(t))
         candidates = sorted(dict.fromkeys(candidates), key=simplicity)
         if not candidates:
             break
@@ -506,24 +840,56 @@ def shrink(
 def property_key(statement: str, binders: list[dict[str, Any]]) -> str:
     """Names a property by its elaborated statement and binders, and not by the code. So an input that once
     failed is tried again after the code changes, as Hypothesis keys its database by the test."""
-    shape = [[b["name"], b["kind"], b.get("width")] for b in binders]
+    shape = [
+        [b["name"], b["kind"], b.get("width"), *([b.get("max"), b.get("of")] if is_memory(b) else [])]
+        for b in binders
+    ]
     return hashing.sha256_text(json.dumps({"statement": statement, "binders": shape}, sort_keys=True))[:32]
+
+
+def natural(v: Any) -> bool:
+    return isinstance(v, int) and not isinstance(v, bool) and v >= 0
 
 
 def fits(binders: list[dict[str, Any]], values: list[Any]) -> bool:
     if len(values) != len(binders):
         return False
     for b, v in zip(binders, values, strict=True):
-        if v is None:
+        if b["kind"] == "buffer":
+            if (
+                not isinstance(v, list | tuple)
+                or len(v) > int(b["max"])
+                or not all(natural(x) and x < 256 for x in v)
+            ):
+                return False
+        elif b["kind"] == "pointer":
+            buffer = values[b["of"]] if 0 <= b["of"] < len(values) else None
+            if not natural(v) or not isinstance(buffer, list | tuple) or v > len(buffer):
+                return False
+        elif b["kind"] == "length":
+            pointer = values[b["of"]] if 0 <= b["of"] < len(values) else None
+            of = binders[b["of"]].get("of", -1) if 0 <= b["of"] < len(binders) else -1
+            buffer = values[of] if 0 <= of < len(values) else None
+            if not natural(v) or not natural(pointer) or not isinstance(buffer, list | tuple):
+                return False
+            if pointer + v > len(buffer):
+                return False
+        elif v is None:
             if b["kind"] != "val":
                 return False
-        elif (
-            not isinstance(v, int)
-            or isinstance(v, bool)
-            or not 0 <= v < domain_size(b) - (b["kind"] == "val")
-        ):
+        elif not natural(v) or not v < domain_size(b) - (b["kind"] == "val"):
             return False
     return True
+
+
+def stored_value(v: Any) -> Any:
+    """A value as JSON keeps it: a buffer as a list."""
+    return list(v) if isinstance(v, tuple) else v
+
+
+def value_of(v: Any) -> Any:
+    """A value as the plan keeps it: a buffer as a tuple, so an input can be a key."""
+    return tuple(v) if isinstance(v, list) else v
 
 
 class Store:
@@ -558,7 +924,7 @@ class Store:
         """The stored inputs that still fit the binders, newest first."""
         entries = self.read(key)["entries"]
         values = [e.get("values") for e in reversed(entries) if isinstance(e, dict)]
-        return [tuple(v) for v in values if isinstance(v, list) and fits(binders, v)]
+        return [tuple(value_of(x) for x in v) for v in values if isinstance(v, list) and fits(binders, v)]
 
     def add(self, key: str, entry: dict[str, Any], header: dict[str, Any]) -> bool:
         path = self.path(key)
@@ -617,8 +983,11 @@ class Harness:
         directory.mkdir(exist_ok=True)
         namespace = run.request["namespace"]
         source = directory / "Harness.lean"
+        # The copy on ExecMem, if there is one, is imported too, for the search. Statements see the same
+        # names.
+        copy = f"import {run.exec_namespace}\n" if run.exec_namespace else ""
         source.write_text(
-            f"import Lean\nimport IRLean\nimport {namespace}\nopen IRLean {namespace}\n\n"
+            f"import Lean\nimport IRLean\nimport {namespace}\n{copy}open IRLean {namespace}\n\n"
             + HARNESS.read_text()
         )
         config = directory / "config.json"
@@ -628,6 +997,7 @@ class Harness:
                     "nonce": run.nonce,
                     "statement": run.request["statement"],
                     "generated": namespace,
+                    "exec": run.exec_namespace,
                     "fuel": DEFAULTS["fuel"],
                     "kernel_heartbeats": DEFAULTS["kernel_heartbeats"],
                 },
@@ -824,6 +1194,17 @@ class Run:
     stop: Stop | None = None
     limit_hit: str | None = None
     planned_all: bool = False
+    # Which inputs met the hypotheses, by their place in the plan, kept for a property with memory.
+    met: list[int] = field(default_factory=list)
+    # The generated module's copy on ExecMem the search runs, if there is one, or why there isn't.
+    exec_namespace: str | None = None
+    exec_missing: str | None = None
+    # For an equivalence: the two functions, their signature and what each argument is.
+    equivalence: dict[str, Any] | None = None
+    # Hypotheses, by their place, that are false only where a function stops the model, and that function. An
+    # input that makes one false isn't discarded: it's counted here, by function, and is never part of a pass.
+    model_hypotheses: dict[int, str] = field(default_factory=dict)
+    model_stopped: dict[str, int] = field(default_factory=dict)
 
     def remaining(self) -> float:
         return self.deadline - time.monotonic()
@@ -840,11 +1221,16 @@ def load_request(raw: Any, base: Path) -> dict[str, Any]:
     if raw.get("schema", REQUEST_SCHEMA) != REQUEST_SCHEMA:
         raise Stop("invalid_request", f"schema must be {REQUEST_SCHEMA!r}")
     statement = raw.get("statement")
-    if not isinstance(statement, str) or not statement.strip():
+    equivalence = raw.get("equivalence")
+    if (statement is None) == (equivalence is None):
+        raise Stop("invalid_request", "give a statement, or an equivalence to build one, and not both")
+    if statement is not None and (not isinstance(statement, str) or not statement.strip()):
         raise Stop("invalid_request", "statement must be a Lean proposition about the function")
     try:
         checked = verify.load_request(
-            {k: raw[k] for k in ("input", "function", "namespace") if k in raw} | {"statement": statement},
+            {k: raw[k] for k in ("input", "function", "namespace") if k in raw}
+            # An equivalence's statement is built once the functions' signatures are known.
+            | {"statement": statement if statement is not None else "True"},
             base,
         )
     except verify.Stop as stop:
@@ -854,8 +1240,10 @@ def load_request(raw: Any, base: Path) -> dict[str, Any]:
         "input": checked["input"],
         "function": checked["function"],
         "namespace": checked["namespace"],
-        "statement": checked["statement"],
+        "statement": checked["statement"] if statement is not None else None,
     }
+    if equivalence is not None:
+        request["equivalence"] = load_equivalence(equivalence, checked["function"])
 
     def number(key: str, low: int, high: int) -> int:
         value = raw.get(key, DEFAULTS[key])
@@ -900,6 +1288,223 @@ def load_request(raw: Any, base: Path) -> dict[str, Any]:
     return request
 
 
+# Equivalence: a property built from two functions' signatures, with no spec written by hand
+
+LLVM_NAME = re.compile(r"[A-Za-z0-9_.$-]+")
+
+
+def load_equivalence(raw: Any, function: str) -> dict[str, Any]:
+    if not isinstance(raw, dict) or set(raw) - {"with", "arguments", "max_length"}:
+        raise Stop("invalid_request", "equivalence is {with, arguments, max_length}")
+    other = raw.get("with")
+    if not isinstance(other, str) or not LLVM_NAME.fullmatch(other.lstrip("@")):
+        raise Stop("invalid_request", "equivalence.with must be the LLVM name of the other function")
+    other = other.lstrip("@")
+    if other == function:
+        raise Stop("invalid_request", "equivalence.with must be another function than `function`")
+    arguments = raw.get("arguments")
+    if arguments is not None and (
+        not isinstance(arguments, list) or not all(isinstance(a, str) and a in ROLES for a in arguments)
+    ):
+        raise Stop("invalid_request", f"equivalence.arguments must be a list of {', '.join(ROLES)}")
+    max_length = raw.get("max_length", DEFAULTS["max_length"])
+    if not isinstance(max_length, int) or isinstance(max_length, bool) or not 0 <= max_length <= 1 << 20:
+        raise Stop("invalid_request", "equivalence.max_length must be a whole number from 0 to 1048576")
+    return {"with": other, "arguments": arguments, "max_length": max_length}
+
+
+def report(run: Run) -> dict[str, dict[str, Any]]:
+    """What `ir-lean --report` says of each function in the request's IR, compiling C first, as
+    tools/verify.py
+    does."""
+    source = Path(run.request["input"].get("ir") or run.request["input"]["c"])
+    ll = source
+    if "c" in run.request["input"]:
+        cflags = run.request["input"].get("cflags")
+        flags = [
+            *os.environ.get("PROOF_CFLAGS", "").split(),
+            *(verify.DEFAULT_CFLAGS if cflags is None else cflags),
+        ]
+        ll = run.work / "equivalence" / f"{run.request['namespace']}.ll"
+        ll.parent.mkdir(parents=True, exist_ok=True)
+        argv = ["clang", *flags, "-S", "-emit-llvm", "-fno-discard-value-names", "-o", str(ll), source.name]
+        run.commands.append({"step": "equivalence:compile_c", "argv": argv, "cwd": str(source.parent)})
+        ran = proc.run(argv, cwd=source.parent, timeout=max(1.0, run.remaining()))
+        if ran.limit == "time_limit":
+            raise Stop("time_limit", "clang didn't finish in time")
+        if not ran.ok:
+            raise Stop("compile_failed", f"clang exited with {ran.exit}: {ran.err[-1000:]}")
+    argv = [str(run.tool), str(ll), "--report"]
+    run.commands.append({"step": "equivalence:report", "argv": argv, "cwd": str(ROOT)})
+    ran = proc.run(argv, timeout=max(1.0, run.remaining()))
+    if ran.limit == "time_limit":
+        raise Stop("time_limit", "ir-lean --report didn't finish in time")
+    if not ran.ok:
+        raise Stop("ir_invalid" if ran.exit == 1 else "tool_failed", f"ir-lean --report: {ran.err[-1000:]}")
+    functions: dict[str, dict[str, Any]] = {}
+    for line in ran.out.splitlines():
+        parts = line.split("\t")
+        if parts[0] == "ok" and len(parts) == 7:
+            functions[parts[1]] = {
+                "lean_name": parts[2],
+                "signature": parts[3],
+                "uses_memory": parts[6] == "memory",
+            }
+        elif parts[0] == "unsupported" and len(parts) == 3:
+            functions[parts[1]] = {"unsupported": parts[2]}
+    return functions
+
+
+def roles(params: list[str], given: list[str] | None) -> list[str]:
+    """What each argument is: by default a pointer is a buffer, an `i64` right after one is its length, and
+    any
+    other integer is a value."""
+    if given is not None:
+        if len(given) != len(params):
+            raise Stop(
+                "invalid_request", f"equivalence.arguments has {len(given)} roles for {len(params)} arguments"
+            )
+        out = given
+    else:
+        out = [
+            "buffer"
+            if p == "ptr"
+            else "length"
+            if p == "i64" and i > 0 and params[i - 1] == "ptr"
+            else "value"
+            for i, p in enumerate(params)
+        ]
+    for i, (p, r) in enumerate(zip(params, out, strict=True)):
+        wanted = {"buffer": p == "ptr", "length": p == "i64", "value": bool(re.fullmatch(r"i\d+", p))}[r]
+        if not wanted:
+            raise Stop(
+                "binder_unsupported",
+                f"argument {i} is {p}, which can't be a {r}: a buffer is a ptr, a length an i64, and a value "
+                "an integer. Tier 1 generates no other argument",
+            )
+        if r == "length" and "buffer" not in out[:i]:
+            raise Stop("invalid_request", f"argument {i} is a length, and no buffer comes before it")
+    return out
+
+
+def equivalence_statement(run: Run) -> str:
+    """The property that wherever `function` returns, `equivalence.with` returns the same value and leaves the
+    same memory, from the same memory and arguments: each pointer into a buffer of its own, each length one
+    that fits past its pointer, and each other integer any value. The memory is the module's `initial`, which
+    holds its globals, with each buffer in an allocation of its own after them.
+
+    Its hypotheses are that `function` answers, that it returns, and that the other answers. An input where
+    `function` is undefined, or never finishes, makes the second false, and is discarded and counted: there
+    the reference allows anything. One where either stops the model makes the first or the third false, and
+    is counted in `run.model_stopped` instead: there the model says nothing, so a pass can't rest on it."""
+    eq = run.request["equivalence"]
+    functions = report(run)
+    names = [run.request["function"], eq["with"]]
+    for name in names:
+        if name not in functions:
+            raise Stop("function_not_found", f"the module has no function @{name}")
+        if "unsupported" in functions[name]:
+            raise Stop(
+                "function_unsupported", f"ir-lean leaves out @{name}: {functions[name]['unsupported']}"
+            )
+    first, second = (functions[n] for n in names)
+    if (first["signature"], first["uses_memory"]) != (second["signature"], second["uses_memory"]):
+        raise Stop(
+            "invalid_request",
+            f"@{names[0]} is {first['signature']} and @{names[1]} {second['signature']}: an equivalence "
+            "needs one signature, and both using memory or neither",
+        )
+    m = re.fullmatch(r"\((.*)\)->(.+)", first["signature"])
+    if m is None:
+        raise Stop(
+            "tool_failed", f"ir-lean --report gave a signature this doesn't read: {first['signature']}"
+        )
+    params = [p for p in m[1].split(",") if p]
+    kinds = roles(params, eq["arguments"])
+    memory = first["uses_memory"]
+    if "buffer" in kinds and not memory:
+        raise Stop("binder_unsupported", "a pointer argument of a function that doesn't use memory")
+    ns = run.request["namespace"]
+    n = eq["max_length"]
+    buffers = [i for i, k in enumerate(kinds) if k == "buffer"]
+    binders, args = [], []
+    for i in buffers:
+        binders += [f"(b{i} : IRLean.Ptf.Buffer {n})", f"(p{i} : IRLean.Ptf.Pointer b{i})"]
+    for i, k in enumerate(kinds):
+        if k == "length":
+            of = max(j for j in buffers if j < i)
+            binders.append(f"(n{i} : IRLean.Ptf.Length p{of})")
+    for i, k in enumerate(kinds):
+        if k == "value":
+            binders.append(f"(x{i} : BitVec {params[i][1:]})")
+    for i, k in enumerate(kinds):
+        args.append(
+            f"(p{i}.into {ns}.initial {buffers.index(i)})"
+            if k == "buffer"
+            else f"n{i}.toVal"
+            if k == "length"
+            else f"(some x{i})"
+        )
+    mem = (
+        f"(IRLean.Ptf.place {ns}.initial [{', '.join(f'b{i}.bytes' for i in buffers)}])"
+        if buffers
+        else f"{ns}.initial"
+    )
+    calls = [
+        " ".join([f"({ns}.{functions[name]['lean_name']}", *args, *([mem] if memory else [])]) + ")"
+        for name in names
+    ]
+    conclusion = f"IRLean.Ptf.Same {mem} {calls[0]} {calls[1]}" if memory else f"{calls[0]} = {calls[1]}"
+    body = (
+        f"IRLean.Ptf.Answers {calls[0]} → IRLean.Ptf.Returns {calls[0]} → IRLean.Ptf.Answers {calls[1]} → "
+        f"{conclusion}"
+    )
+    run.model_hypotheses = {0: names[0], 2: names[1]}
+    run.equivalence = {
+        "functions": names,
+        "signature": first["signature"],
+        "arguments": kinds,
+        "max_length": n,
+    }
+    return f"∀ {' '.join(binders)}, {body}" if binders else body
+
+
+def executable_copy(run: Run) -> None:
+    """For a function with memory, the generated module again on `ExecMem`, from `ir-lean
+    --executable-memory`, compiled next to the module, for the search to run. If it can't be made, the search
+    runs on `Mem`, and the
+    result says why."""
+    setup = run.setup or {}
+    if not (setup.get("target") or {}).get("uses_memory"):
+        return
+    artifacts = setup.get("artifacts") or {}
+    ir = (artifacts.get("ir") or {}).get("path") or ((artifacts.get("files") or {}).get("input") or {}).get(
+        "copy"
+    )
+    namespace = f"{run.request['namespace']}Exec"
+    lean_dir = run.work / "verify" / "lean"
+    source = lean_dir / f"{namespace}.lean"
+    started = time.monotonic()
+    emit = [str(run.tool), str(ir), "--namespace", namespace, "--executable-memory", "-o", str(source)]
+    run.commands.append({"step": "exec_copy:generate", "argv": emit, "cwd": str(ROOT)})
+    ran = proc.run(emit, timeout=max(1.0, run.remaining()))
+    if ran.exit not in (0, 3) or not source.exists():
+        run.exec_missing = f"ir-lean --executable-memory exited with {ran.exit}: {ran.err[-500:]}"
+        return
+    olean = source.with_suffix(".olean")
+    argv = lean.argv(run.request["limits"]["memory_mb"], "-R", str(lean_dir), "-o", str(olean), str(source))
+    env = {**os.environ, "LEAN_PATH": f"{lean_dir}{os.pathsep}{run.work / 'verify' / 'library'}"}
+    run.commands.append({"step": "exec_copy:compile", "argv": argv, "cwd": str(ROOT)})
+    ran = proc.run(argv, env=env, timeout=max(1.0, run.remaining()))
+    run.timing["exec_copy_seconds"] = round(time.monotonic() - started, 3)
+    if ran.limit == "time_limit":
+        raise Stop("time_limit", "compiling the module's copy on ExecMem didn't finish in time")
+    if not ran.ok or not olean.exists():
+        run.exec_missing = f"lean couldn't compile the copy on ExecMem, exit {ran.exit}: {ran.output[-500:]}"
+        return
+    run.exec_namespace = namespace
+
+
 def set_up(run: Run) -> None:
     """Has tools/verify.py check the input and the statement, and generate and compile the module, without a
     proof or a witness. Its answer is then `error/not_proved`, and its work directory has the module the
@@ -937,6 +1542,7 @@ def search(run: Run, harness: Harness) -> None:
     request = run.request
     per_input = request["limits"]["input_timeout_seconds"]
     inputs = run.plan.inputs
+    keep_met = any(is_memory(b) for b in run.binders)
     position = 0
     search_ns = 0
     size = FIRST_BATCH
@@ -947,17 +1553,25 @@ def search(run: Run, harness: Harness) -> None:
             break
         batch = inputs[position : position + size]
         size = min(size * 4, BATCH)
-        wire = [[encode(b, v) for b, v in zip(run.binders, values, strict=True)] for values in batch]
-        out = harness.evaluate(wire, stop=True, input_timeout=per_input)
+        out = harness.evaluate(
+            [wire(run.binders, values) for values in batch], stop=True, input_timeout=per_input
+        )
         for offset, code in enumerate(out.codes):
             index = position + offset
             phase = run.plan.phases[index]
             run.tried += 1
             run.by_phase[phase] = run.by_phase.get(phase, 0) + 1
-            if code == 0:
-                run.discarded += 1
+            if code not in (1, 2):
+                # Which hypothesis was false: 0 the first, and 2 + k hypothesis k after it.
+                stopped = run.model_hypotheses.get(0 if code == 0 else code - 2)
+                if stopped is None:
+                    run.discarded += 1
+                else:
+                    run.model_stopped[stopped] = run.model_stopped.get(stopped, 0) + 1
                 continue
             run.satisfied += 1
+            if keep_met:
+                run.met.append(index)
             if code == 2:
                 run.failing = {"index": index, "phase": phase, "values": inputs[index]}
                 run.timing["search_ns"] = search_ns + out.nanos[offset]
@@ -976,7 +1590,7 @@ def search(run: Run, harness: Harness) -> None:
                 "index": stuck,
                 "phase": run.plan.phases[stuck],
                 "result": out.stopped,
-                "values": [encode(b, v) for b, v in zip(run.binders, inputs[stuck], strict=True)],
+                "values": jsonable(run.binders, inputs[stuck]),
             }
         )
         if len(run.undecided) > DEFAULTS["restarts"]:
@@ -994,7 +1608,7 @@ def search(run: Run, harness: Harness) -> None:
     run.timing["search_wall_ms"] = round((time.monotonic() - started) * 1000, 3)
 
 
-def shrink_failing(run: Run, harness: Harness) -> tuple[int | None, ...]:
+def shrink_failing(run: Run, harness: Harness) -> tuple:
     assert run.failing is not None
     start = run.failing["values"]
     if not run.request["shrink"]:
@@ -1005,8 +1619,7 @@ def shrink_failing(run: Run, harness: Harness) -> tuple[int | None, ...]:
     def still_fails(candidates: list[tuple]) -> int | None:
         if run.remaining() <= 0 or harness.process is None:
             return None
-        wire = [[encode(b, v) for b, v in zip(run.binders, c, strict=True)] for c in candidates]
-        out = harness.evaluate(wire, stop=True, input_timeout=per_input)
+        out = harness.evaluate([wire(run.binders, c) for c in candidates], stop=True, input_timeout=per_input)
         if out.stopped is not None:
             # A candidate that doesn't finish ends shrinking. The harness has to be there for confirming.
             with contextlib.suppress(Stop):
@@ -1080,10 +1693,9 @@ def refutes(run: Run, how: str, said: bool) -> bool:
 
 def confirm(run: Run, harness: Harness, values: tuple) -> None:
     """Counts a failing input only once the kernel, or tools/verify.py, confirms it."""
-    wire = [encode(b, v) for b, v in zip(run.binders, values, strict=True)]
     started = time.monotonic()
     kernel = (
-        harness.kernel(wire, DEFAULTS["kernel_timeout_seconds"])
+        harness.kernel(wire(run.binders, values), DEFAULTS["kernel_timeout_seconds"])
         if harness.process is not None
         else {"ok": False, "reason": "harness_stopped"}
     )
@@ -1108,7 +1720,7 @@ def confirm(run: Run, harness: Harness, values: tuple) -> None:
         elif checked["result"] == "holds":
             run.disagreement = "tools/verify.py found the statement true at the input"
     run.counterexample = {
-        "values": list(values),
+        "values": [stored_value(v) for v in values],
         "assignment": assignment(run.binders, values),
         "shown": {b["name"]: shown(b, v) for b, v in zip(run.binders, values, strict=True)},
         "instance": kernel.get("instance") or (checked or {}).get("instance"),
@@ -1147,7 +1759,10 @@ def prooftest(
             raise Stop("invalid_request", f"work directory {work} isn't empty")
         work.mkdir(parents=True, exist_ok=True)
         (work / "request.json").write_text(json.dumps(request, indent=2, ensure_ascii=False) + "\n")
+        if request.get("equivalence"):
+            request["statement"] = equivalence_statement(run)
         set_up(run)
+        executable_copy(run)
         t0 = time.monotonic()
         run.ready = harness.start()
         run.timing["harness_start_seconds"] = round(time.monotonic() - t0, 3)
@@ -1190,8 +1805,8 @@ def prooftest(
 
 def decide(run: Run) -> tuple[str, str, str]:
     """The status, reason and a one-line detail, in this order of precedence: a confirmed counterexample, what
-    stopped the run, a failure nothing confirmed, an input that didn't finish, a limit, and then what the
-    inputs that ran say."""
+    stopped the run, a failure nothing confirmed, an input that didn't finish, a limit, an input where the
+    model stopped, and then what the inputs that met the hypotheses say."""
     counterexample = run.counterexample
     if counterexample and counterexample["evidence"]:
         # Each kind of evidence, as irlean.verdict grants it: the kernel first.
@@ -1229,6 +1844,14 @@ def decide(run: Run) -> tuple[str, str, str]:
             "unknown",
             "time_limit",
             f"stopped after {run.tried} of {len(run.plan.inputs) if run.plan else 0} inputs",
+        )
+    if run.model_stopped:
+        by = ", ".join(f"@{name} on {n}" for name, n in run.model_stopped.items())
+        return (
+            "unknown",
+            "model_stopped",
+            f"the model stopped on {sum(run.model_stopped.values())} of {run.tried} inputs, running {by}, "
+            "where the property needs an answer, and nothing failed",
         )
     if run.satisfied == 0:
         return "vacuous", "no_input_meets_hypotheses", f"none of {run.tried} inputs met the hypotheses"
@@ -1283,10 +1906,107 @@ def trusted(run: Run, status: str) -> list[dict[str, str]]:
                     "see": "docs/proof-tests.md#confirming-a-counterexample",
                 }
             )
+    calls = (run.ready or {}).get("calls") or {}
+    if calls.get("exec_memory"):
+        out.append(
+            {
+                "id": "search.executable_memory",
+                "text": f"The search ran {calls['exec_memory']} of the property's calls of functions with "
+                f"memory on the module's copy on ExecMem, from ir-lean --executable-memory, and "
+                f"{calls.get('mem', 0)} on Mem as written. The memory a call starts from is the one the "
+                "property names: IRLean.Ptf.toMem_placeExec for the buffers, and ExecMem.toMem_empty, "
+                "toMem_addGlobal, toMem_addReloc and toMem_reserve for the module's initial, whose copy is "
+                "the same Lean with ExecMem for Mem. That the copy then returns what the function does on "
+                "that memory, f args x.toMem = Outcome.map ExecMem.out (f' args x), follows from run_map, "
+                "stay_map, runPromised_map and promised_map, call_agrees, withFrame_agrees and each memory "
+                "operation's _agrees theorem once each block of each function it runs agrees with its copy, "
+                "which is argued for these functions, not proved. A counterexample doesn't rest on this: "
+                "it's confirmed on Mem",
+                "see": "docs/memory.md#why-a-test-on-execmem-is-a-test-of-mem",
+            }
+        )
+    if run.exec_missing:
+        out.append(
+            {
+                "id": "search.on_mem",
+                "text": "The search ran on Mem, as the property is written, since it had no copy on "
+                f"ExecMem: {run.exec_missing}",
+                "see": "docs/proof-tests.md#memory",
+            }
+        )
+    if run.equivalence:
+        f, g = run.equivalence["functions"]
+        out.append(
+            {
+                "id": "property.equivalence",
+                "text": f"The property was built from @{f} and @{g}'s signature, "
+                f"{run.equivalence['signature']}, with arguments {', '.join(run.equivalence['arguments'])}. "
+                "Wherever the first returns, the second has to return the same value and leave the same "
+                "sizes, flags and bytes in every allocation the memory they start from has, not counting the "
+                "bytes of a constant one, which the model makes writing undefined: IRLean.Ptf.Same. An input "
+                "where the first is undefined is discarded, and counted as not meeting the hypotheses. One "
+                "where either stops the model is counted in inputs.model_stopped, and makes the result "
+                "unknown. Buffers hold at most "
+                f"{run.equivalence['max_length']} bytes, each in an allocation of its own after the module's "
+                "globals, and integers are never poison",
+                "see": "docs/proof-tests.md#equivalence",
+            }
+        )
     for item in (run.setup or {}).get("assumptions", []):
         if item.get("id") not in {"scope.modeled_ir", "statement.unpinned", "proof.code_runs"}:
             out.append(item)
     return out
+
+
+def memory_inputs(run: Run) -> dict[str, Any] | None:
+    """What the inputs that ran held, and those that met the hypotheses, which are what was tested, for each
+    buffer, pointer and length: how many bytes, how far from 16- and 64-byte alignment, and how long, so a
+    pass
+    says which sizes it covered."""
+    if not run.plan or not any(is_memory(b) for b in run.binders):
+        return None
+    # The search runs the plan in order, and skips only an input that didn't finish.
+    skipped = {u["index"] for u in run.undecided}
+    tried = [v for k, v in enumerate(run.plan.inputs[: run.tried + len(skipped)]) if k not in skipped]
+    return {
+        "tried": described(run, tried),
+        "met_hypotheses": described(run, [run.plan.inputs[k] for k in run.met]),
+    }
+
+
+def described(run: Run, tried: list[tuple]) -> dict[str, Any]:
+    out: dict[str, Any] = {}
+    for i, b in enumerate(run.binders):
+        values = [v[i] for v in tried]
+        if b["kind"] == "buffer":
+            sizes = [len(v) for v in values]
+            out[b["name"]] = {"bytes": spread(sizes)}
+        elif b["kind"] == "pointer":
+            out[b["name"]] = {
+                "offsets": spread(values),
+                "unaligned_16": sum(v % 16 != 0 for v in values),
+                "unaligned_64": sum(v % 64 != 0 for v in values),
+            }
+        elif b["kind"] == "length":
+            out[b["name"]] = {
+                **spread(values),
+                "by_size": {
+                    label: sum(low <= v <= high for v in values)
+                    for label, (low, high) in {
+                        "0": (0, 0),
+                        "1-15": (1, 15),
+                        "16-63": (16, 63),
+                        "64-255": (64, 255),
+                        "256-1023": (256, 1023),
+                        "1024+": (1024, 1 << 62),
+                    }.items()
+                },
+            }
+    return out
+
+
+def spread(values: list[int]) -> dict[str, int]:
+    return {"min": min(values), "max": max(values), "distinct": len(set(values))} if values else {}
 
 
 def assert_contract(result: dict[str, Any]) -> None:
@@ -1311,6 +2031,8 @@ def assert_contract(result: dict[str, Any]) -> None:
     inputs = result["inputs"]
     if status in ("passed_tier1", "vacuous") and (inputs["undecided"] or not inputs["planned_all"]):
         problems.append(f"{status} with inputs that didn't run")
+    if status in ("passed_tier1", "vacuous") and inputs["model_stopped"]:
+        problems.append(f"{status} with inputs where the model stopped")
     if status == "passed_tier1" and inputs["satisfied"] == 0:
         problems.append("a pass with no input that met the hypotheses")
     if status == "vacuous" and inputs["satisfied"] != 0:
@@ -1348,6 +2070,13 @@ def build_result(run: Run, started: float) -> dict[str, Any]:
             "key": run.key,
             "binders": run.binders,
             "target": setup.get("target"),
+            "equivalence": run.equivalence,
+        },
+        # What the search ran a property with memory on: the copy on ExecMem, or Mem as written, and why.
+        "memory": {
+            "exec_copy": run.exec_namespace,
+            "exec_missing": run.exec_missing,
+            "calls": (run.ready or {}).get("calls"),
         },
         "counterexample": run.counterexample if status == "counterexample" else None,
         # A disagreement the kernel's proof outweighs is still a bug somewhere, and said here.
@@ -1361,11 +2090,13 @@ def build_result(run: Run, started: float) -> dict[str, Any]:
             "tried": run.tried,
             "satisfied": run.satisfied,
             "discarded": run.discarded,
+            "model_stopped": sum(run.model_stopped.values()),
             "by_phase": run.by_phase,
             "replayed": len(run.stored),
             "exhaustive": bool(plan_ and plan_.exhaustive),
             "domain": plan_.domain if plan_ else None,
             "undecided": run.undecided,
+            "memory": memory_inputs(run),
         },
         "store": {
             "directory": run.request.get("store"),
@@ -1450,9 +2181,10 @@ def capabilities() -> dict[str, Any]:
         "request_fields": REQUEST_FIELDS,
         "request_json_schema": REQUEST_JSON_SCHEMA,
         "defaults": {**DEFAULTS, "store": str(DEFAULT_STORE)},
-        "binders": "BitVec w, IRLean.Val w (poison included) and Bool. Hypotheses are binders whose "
-        "type is a "
-        "proposition. Anything else, such as memory, comes back unknown",
+        "binders": "BitVec w, IRLean.Val w (poison included), Bool, and memory: IRLean.Ptf.Buffer n, "
+        "the bytes of an allocation, and a IRLean.Ptf.Pointer and a IRLean.Ptf.Length into a buffer the "
+        "statement binds. Hypotheses are binders whose type is a proposition. Anything else, such as a Mem "
+        "or a PtrVal, comes back unknown",
     }
 
 
@@ -1487,6 +2219,13 @@ def main(argv: list[str] | None = None) -> int:
     go.add_argument("--function")
     go.add_argument("--namespace")
     go.add_argument("--statement")
+    go.add_argument(
+        "--equivalent-to", metavar="G", help="instead of --statement: that --function and G agree"
+    )
+    go.add_argument(
+        "--arguments", help="for --equivalent-to: value, buffer or length for each argument, by commas"
+    )
+    go.add_argument("--max-length", type=int, help="for --equivalent-to: the most bytes a buffer holds")
     go.add_argument("--seed", type=int)
     go.add_argument("--max-inputs", type=int)
     go.add_argument("--min-satisfied", type=int)
@@ -1532,6 +2271,16 @@ def main(argv: list[str] | None = None) -> int:
     }
     given = [v for v in flags.values() if v is not None] + list(limits.values())
     given += [x for x in (args.ir, args.c, args.cflags, args.store) if x is not None]
+    equivalence = {
+        k: v
+        for k, v in (
+            ("with", args.equivalent_to),
+            ("arguments", args.arguments.split(",") if args.arguments is not None else None),
+            ("max_length", args.max_length),
+        )
+        if v is not None
+    }
+    given += list(equivalence.values())
     given += [x for x in (args.no_store, args.no_shrink) if x]
     if args.request_file is not None:
         if given:
@@ -1564,6 +2313,8 @@ def main(argv: list[str] | None = None) -> int:
             raw["store"] = args.store
         if args.no_shrink:
             raw["shrink"] = False
+        if equivalence:
+            raw["equivalence"] = equivalence
     try:
         result = (
             invalid_result(raw, None)

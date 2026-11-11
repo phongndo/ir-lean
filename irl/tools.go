@@ -183,9 +183,11 @@ func newTools() []*mcpTool {
 			Name:  "ptf_run",
 			Title: "Run a proof test",
 			Description: "Runs a property of one function in LLVM IR on generated inputs, as `irl ptf run` does: " +
-				"tier 1 of a proof test. Answers passed_tier1, counterexample, vacuous or unknown. passed_tier1 " +
-				"means no input tried made the property false: tested, not proved. A counterexample is shrunk, " +
-				"checked by Lean's kernel, and stored, so the next run tries it first.",
+				"tier 1 of a proof test. Give `statement`, or `equivalence` for the property that two functions " +
+				"in the module, such as a scalar one and a SIMD one, give the same result and leave the same " +
+				"memory. Answers passed_tier1, counterexample, vacuous or unknown. passed_tier1 means no input " +
+				"tried made the property false: tested, not proved. A counterexample is shrunk, confirmed in the " +
+				"model by Lean's kernel or tools/verify.py, and stored, so the next run tries it first.",
 			Annotations:  annotations{},
 			command:      "ptf",
 			argv:         stdinRequest("run"),

@@ -9,9 +9,10 @@ a pinned statement, so evaluating it runs no code but theirs.
 
 Two things happen here:
 
-- **Search.** The statement becomes one function from the inputs, as natural numbers, to `0` when a hypothesis is
-  false, `1` when the conclusion holds and `2` when it doesn't. It's compiled once, and then run on each input.
-  That trusts Lean's compiler, as `native_decide` does.
+- **Search.** The statement becomes one function from the inputs, as natural numbers, to `1` when the conclusion
+  holds, `2` when it doesn't, and otherwise which hypothesis is false: `0` for the first, and `2 + k` for hypothesis
+  `k` after it. It's compiled once, and then run on each input. That trusts Lean's compiler, as `native_decide`
+  does.
 - **Confirmation.** For a failing input, this builds a theorem `¬ statement` and has the kernel check it. Every
   emitted function runs its blocks through `IRLean.run`, a `partial_fixpoint` the kernel can't unfold. So each call of
   a generated function in the instance is rewritten to `runFuel`, which the kernel can, with `run_eq_runFuel`, which
@@ -112,7 +113,11 @@ def okSomePattern? (c : Expr) : Option (Expr × Expr × Bool) := do
   guard !lhs.hasLooseBVars
   return (lhs, .lam n ty rest bi, bare)
 
-/-! ### Inputs -/
+/-! ### Inputs
+
+An input is an `Array Nat`, one entry for each binder that isn't a hypothesis, in order. A buffer's entry is where
+its bytes are in the same array instead: its length there, then a byte to an entry. So a property with memory is
+still one array, and the search, the kernel and the store take it the same way. -/
 
 def bitvecOf (w n : Nat) : BitVec w := BitVec.ofNat w n
 
@@ -121,11 +126,23 @@ def valOf (w n : Nat) : Option (BitVec w) := if n < 2 ^ w then some (BitVec.ofNa
 
 def boolOf (n : Nat) : Bool := n != 0
 
-/-- The binders tier 1 can generate values for. -/
+/-- The bytes of the buffer whose entry is `slot`: its length at `args[args[slot]]`, and its bytes after it. -/
+def bytesOf (args : Array Nat) (slot : Nat) (n : Nat) : List Nat :=
+  let start := args.getD slot 0
+  (List.range (min (args.getD start 0) n)).map fun i => args.getD (start + 1 + i) 0
+
+def bufferOf (n : Nat) (args : Array Nat) (slot : Nat) : IRLean.Ptf.Buffer n :=
+  IRLean.Ptf.Buffer.ofList n ((bytesOf args slot n).map (BitVec.ofNat 8))
+
+/-- The binders tier 1 can generate values for. A pointer is into a buffer, and a length is of a pointer: `of` is
+the binder it depends on, by its place among the binders. -/
 inductive Kind where
   | bitvec (w : Nat)
   | val (w : Nat)
   | bool
+  | buffer (max : Nat)
+  | pointer (of : Nat)
+  | length (of : Nat)
   deriving Inhabited
 
 structure Binder where
@@ -137,6 +154,9 @@ def Kind.json : Kind → List (String × Json)
   | .bitvec w => [("kind", "bitvec"), ("width", toJson w)]
   | .val w => [("kind", "val"), ("width", toJson w)]
   | .bool => [("kind", "bool")]
+  | .buffer n => [("kind", "buffer"), ("max", toJson n)]
+  | .pointer i => [("kind", "pointer"), ("of", toJson i)]
+  | .length i => [("kind", "length"), ("of", toJson i)]
 
 /-- A reason for an answer that isn't a verdict, and its detail. -/
 abbrev M := ExceptT (String × String) MetaM
@@ -159,23 +179,41 @@ def widthOf? (ty : Expr) : MetaM (Option Nat) := do
   unless ty.isAppOfArity ``BitVec 1 do return none
   evalNat (← instantiateMVars ty.appArg!) |>.run
 
-def kindOf? (ty : Expr) : MetaM (Option Kind) := do
+/-- The kind of a binder of type `ty`. `earlier` are the binders before it, as the terms that stand for them in `ty`,
+with their kinds, so a pointer can say which buffer it's into. -/
+def kindOf? (ty : Expr) (earlier : Array (Expr × Kind)) : MetaM (Option Kind) := do
   if let some w ← widthOf? ty then return some (.bitvec w)
   let ty' ← whnfR ty
   if ty'.isAppOfArity ``Option 1 then
     if let some w ← widthOf? ty'.appArg! then return some (.val w)
-  if (← whnfR ty).isConstOf ``Bool then return some .bool
+  if ty'.isConstOf ``Bool then return some .bool
+  let ty ← instantiateMVars ty
+  let dependsOn (e : Expr) (ok : Kind → Bool) : Option Nat :=
+    earlier.findIdx? fun (x, k) => x == e && ok k
+  if ty.isAppOfArity ``IRLean.Ptf.Buffer 1 then
+    if let some n ← (evalNat ty.appArg!).run then return some (.buffer n)
+  if ty.isAppOfArity ``IRLean.Ptf.Pointer 2 then
+    if let some i := dependsOn ty.appArg! (fun | .buffer _ => true | _ => false) then return some (.pointer i)
+  if ty.isAppOfArity ``IRLean.Ptf.Length 3 then
+    if let some i := dependsOn ty.appArg! (fun | .pointer _ => true | _ => false) then return some (.length i)
   return none
 
-/-- The value of a binder of kind `k` from the input `n`, a natural number. -/
-def valueOf (k : Kind) (n : Expr) : Expr :=
+/-- The value of a binder of kind `k`, from entry `i` of the input `args`. `earlier` stand for the binders before
+it. -/
+def valueOf (k : Kind) (args : Expr) (i : Nat) (earlier : Array Expr) : MetaM Expr := do
+  let n := mkApp4 (mkConst ``Array.getD [Level.zero]) (mkConst ``Nat) args (mkNatLit i) (mkNatLit 0)
   match k with
-  | .bitvec w => mkApp2 (mkConst ``bitvecOf) (mkNatLit w) n
-  | .val w => mkApp2 (mkConst ``valOf) (mkNatLit w) n
-  | .bool => mkApp (mkConst ``boolOf) n
+  | .bitvec w => return mkApp2 (mkConst ``bitvecOf) (mkNatLit w) n
+  | .val w => return mkApp2 (mkConst ``valOf) (mkNatLit w) n
+  | .bool => return mkApp (mkConst ``boolOf) n
+  | .buffer m => return mkApp3 (mkConst ``bufferOf) (mkNatLit m) args (mkNatLit i)
+  | .pointer j => mkAppM ``IRLean.Ptf.Pointer.ofNat #[earlier[j]!, n]
+  | .length j => mkAppM ``IRLean.Ptf.Length.ofNat #[earlier[j]!, n]
 
-/-- The same value as a literal, which is how it's shown, and what the kernel checks. -/
-def literalOf (k : Kind) (n : Nat) : MetaM Expr := do
+/-- The value of binder `i`, of type `ty`, from the input `values`, as a literal, which is how it's shown, and what
+the kernel checks. A pointer's or a length's type names the literal it depends on. -/
+def literalOf (k : Kind) (ty : Expr) (values : Array Nat) (i : Nat) : MetaM Expr := do
+  let n := values.getD i 0
   match k with
   | .bitvec w => return mkApp2 (mkConst ``BitVec.ofNat) (mkNatLit w) (mkNatLit (n % 2 ^ w))
   | .val w =>
@@ -183,37 +221,150 @@ def literalOf (k : Kind) (n : Nat) : MetaM Expr := do
     if n < 2 ^ w then mkSome ty (mkApp2 (mkConst ``BitVec.ofNat) (mkNatLit w) (mkNatLit n))
     else return mkApp (mkConst ``Option.none [Level.zero]) ty
   | .bool => return mkConst (if n != 0 then ``Bool.true else ``Bool.false)
+  | .buffer m =>
+    let byte := mkApp (mkConst ``BitVec) (mkNatLit 8)
+    let bytes := (bytesOf values i m).map fun b => mkApp2 (mkConst ``BitVec.ofNat) (mkNatLit 8) (mkNatLit (b % 256))
+    return mkApp2 (mkConst ``IRLean.Ptf.Buffer.ofList) (mkNatLit m) (← mkListLit byte bytes)
+  | .pointer _ => mkAppM ``IRLean.Ptf.Pointer.ofNat #[(← instantiateMVars ty).appArg!, mkNatLit n]
+  | .length _ => mkAppM ``IRLean.Ptf.Length.ofNat #[(← instantiateMVars ty).appArg!, mkNatLit n]
+
+/-! ### Running on `ExecMem`
+
+The statement is about `Mem`. To run it fast, the search rewrites each call of a generated function that takes
+memory into a call of its copy on `ExecMem`, from `ir-lean --executable-memory`, with the memory it's given read as
+the `ExecMem` it stands for, and the memory it gives back read back with `toMem`:
+
+  `f args m`  becomes  `Outcome.map ExecMem.out (f' args x)`, where `x.toMem = m`
+
+`x` is found for `Ptf.place m bufs`, which is `toMem` of `Ptf.placeExec x bufs` by `Ptf.toMem_placeExec`, for the
+module's `initial` and other memory it defines, whose copies build the same memory by `ExecMem.toMem_empty`,
+`toMem_addGlobal`, `toMem_addReloc` and `toMem_reserve`, for `Mem.empty`, by `toMem_empty`, and for `toMem x` itself.
+A call whose memory isn't one of those runs on `Mem`, as it's written. That the copy then returns what `f` does is
+`docs/memory.md#why-a-test-on-execmem-is-a-test-of-mem`: proved from block to whole run, and argued for each block.
+
+Only the search runs this. The kernel and `tools/verify.py` confirm a counterexample on the statement as written. -/
+
+/-- The generated module's namespace, and its copy's on `ExecMem`. -/
+structure Copy where
+  generated : Name
+  exec : Name
+
+def isMem (ty : Expr) : MetaM Bool := return (← whnfR ty).isConstOf ``IRLean.Mem
+
+/-- The copy's constant for `c`, a constant of the generated module, if the copy has one. -/
+def Copy.const? (copy : Copy) (c : Name) : MetaM (Option Name) := do
+  unless copy.generated.isPrefixOf c do return none
+  let c' := c.replacePrefix copy.generated copy.exec
+  return if (← getEnv).contains c' then some c' else none
+
+mutual
+/-- `e`, a memory, as the `ExecMem` whose `toMem` it is, if it's one this knows. -/
+partial def Copy.memory? (copy : Copy) (e : Expr) : MetaM (Option Expr) := do
+  if e.isAppOfArity ``IRLean.Ptf.place 2 then
+    let some x ← copy.memory? e.appFn!.appArg! | return none
+    return some (mkApp2 (mkConst ``IRLean.Ptf.placeExec) x e.appArg!)
+  if e.isAppOfArity ``IRLean.ExecMem.toMem 1 then return some e.appArg!
+  if e.isAppOfArity ``IRLean.Mem.empty 1 then return some (mkApp (mkConst ``IRLean.ExecMem.empty) e.appArg!)
+  let .const c lvls := e.getAppFn | return none
+  let some c' ← copy.const? c | return none
+  let some args ← copy.arguments? e.getAppArgs | return none
+  let x := mkAppN (mkConst c' lvls) args
+  return if (← isDefEq (← inferType x) (mkConst ``IRLean.ExecMem)) then some x else none
+
+/-- The arguments of a call, with each memory as its `ExecMem`. -/
+partial def Copy.arguments? (copy : Copy) (args : Array Expr) : MetaM (Option (Array Expr)) := do
+  let mut out := #[]
+  for a in args do
+    if ← isMem (← inferType a) then
+      let some x ← copy.memory? a | return none
+      out := out.push x
+    else out := out.push a
+  return some out
+end
+
+/-- `e`, a call of a generated function that takes memory, as a call of its copy with the result read back. `none`
+if it isn't one, and `some none` if it is but its memory isn't one this knows. -/
+def Copy.call? (copy : Copy) (e : Expr) : MetaM (Option (Option Expr)) := do
+  let .const c lvls := e.getAppFn | return none
+  let some c' ← copy.const? c | return none
+  let args := e.getAppArgs
+  let takesMemory ← args.anyM fun a => do isMem (← inferType a)
+  unless takesMemory do return none
+  let ty ← inferType e
+  let some args' ← copy.arguments? args | return some none
+  let call := mkAppN (mkConst c' lvls) args'
+  -- `Outcome (α × ExecMem)`, read back with `ExecMem.out`, or `Outcome ExecMem`, with `toMem`.
+  let ty' ← whnfR (← inferType call)
+  unless ty'.isAppOfArity ``Option 1 && ty'.appArg!.isAppOfArity ``Except 2 do return some none
+  let result := ty'.appArg!.appArg!
+  let back ←
+    if result.isAppOfArity ``Prod 2 && (← isDefEq result.appArg! (mkConst ``IRLean.ExecMem)) then
+      mkAppOptM ``IRLean.ExecMem.out #[some result.appFn!.appArg!]
+    else if ← isDefEq result (mkConst ``IRLean.ExecMem) then pure (mkConst ``IRLean.ExecMem.toMem)
+    else return some none
+  let read ← mkAppM ``IRLean.Outcome.map #[back, call]
+  return if ← isDefEq (← inferType read) ty then some (some read) else some none
+
+/-- `e` with every call of a generated function that takes memory run on `ExecMem` where the copy can. Counts calls
+rewritten and calls left on `Mem` in `stats`. -/
+def Copy.rewrite (copy : Copy) (stats : IO.Ref (Nat × Nat)) (e : Expr) : MetaM Expr :=
+  Meta.transform e (post := fun e => do
+    match ← copy.call? e with
+    | some (some e') => stats.modify (fun (a, b) => (a + 1, b)); return .done e'
+    | some none => stats.modify (fun (a, b) => (a, b + 1)); return .done e
+    | none => return .done e)
 
 def u8 (n : UInt8) : Expr := toExpr n
 
-/-- The statement as one decision: `0` if a hypothesis is false, `1` if the conclusion holds, `2` if it doesn't. Each
-binder that isn't a hypothesis takes the next input. -/
-partial def decision (e args : Expr) (i : Nat) (acc : Array Binder) : M (Expr × Array Binder) := do
+/-- What the decision says when hypothesis `k`, counting from 0, is false: `0` for the first, as for any hypothesis
+before this said which, and `2 + k` for each after it, so `1` and `2` stay the conclusion's. `255` for the 254th
+and later. -/
+def falseCode (k : Nat) : UInt8 := if k == 0 then 0 else (min (2 + k) 255).toUInt8
+
+/-- What a decision is built from: the input, the generated module's copy on `ExecMem`, if there is one, and how
+many calls of a function with memory it rewrote to run there, and how many it left on `Mem`. -/
+structure Build where
+  args : Expr
+  copy : Option Copy
+  stats : IO.Ref (Nat × Nat)
+
+/-- A proposition as it's decided: on `ExecMem` where it can be. -/
+def Build.prepare (b : Build) (p : Expr) : MetaM Expr := do
+  match b.copy with
+  | some copy => copy.rewrite b.stats (← zetaReduce (← instantiateMVars p))
+  | none => return p
+
+/-- The statement as one decision: `1` if the conclusion holds, `2` if it doesn't, and `falseCode k` if hypothesis
+`k` is false, the first one that is. Each binder that isn't a hypothesis takes the next input, and `hyp` counts the
+hypotheses so far. `earlier` stand for the binders so far, with their kinds. -/
+partial def decision (build : Build) (e : Expr) (i hyp : Nat) (acc : Array Binder) (earlier : Array (Expr × Kind)) :
+    M (Expr × Array Binder) := do
   match e with
   | .forallE n ty body bi =>
     if ← isProp ty then
       if body.hasLooseBVar 0 then
         refuse "statement_unsupported" m!"the statement uses the proof of hypothesis {n}, which can't be decided"
-      let (rest, acc) ← decision (body.lowerLooseBVars 1 1) args i acc
-      let d ← orRefuse (mkDecide ty) "undecidable" m!"Lean can't decide the hypothesis {ty}"
-      return (← mkAppM ``cond #[d, rest, u8 0], acc)
+      let (rest, acc) ← decision build (body.lowerLooseBVars 1 1) i (hyp + 1) acc earlier
+      let d ← orRefuse (do mkDecide (← build.prepare ty)) "undecidable" m!"Lean can't decide the hypothesis {ty}"
+      return (← mkAppM ``cond #[d, rest, u8 (falseCode hyp)], acc)
     else if bi.isInstImplicit then
       let inst ← orRefuse (synthInstance ty) "statement_unsupported" m!"no instance of {ty}"
-      decision (body.instantiate1 inst) args i acc
+      decision build (body.instantiate1 inst) i hyp acc earlier
     else
-      let some k ← kindOf? ty
-        | refuse "binder_unsupported" m!"{n} : {ty}. Tier 1 generates `BitVec w`, `IRLean.Val w` and `Bool`"
-      let input := mkApp4 (mkConst ``Array.getD [Level.zero]) (mkConst ``Nat) args (mkNatLit i) (mkNatLit 0)
+      let some k ← kindOf? ty earlier
+        | refuse "binder_unsupported" m!"{n} : {ty}. Tier 1 generates `BitVec w`, `IRLean.Val w`, `Bool`, \
+            `IRLean.Ptf.Buffer n`, and a `IRLean.Ptf.Pointer` and a `IRLean.Ptf.Length` into a buffer it binds"
       let b : Binder := { name := n.eraseMacroScopes.toString, kind := k, type := toString (← ppExpr ty) }
-      withLetDecl n ty (valueOf k input) fun x => do
-        let (rest, acc) ← decision (body.instantiate1 x) args (i + 1) (acc.push b)
+      withLetDecl n ty (← valueOf k build.args i (earlier.map (·.1))) fun x => do
+        let (rest, acc) ← decision build (body.instantiate1 x) (i + 1) hyp (acc.push b) (earlier.push (x, k))
         return (← mkLetFVars #[x] rest, acc)
   | c =>
-    let d ← match okSomePattern? c with
+    let c' ← build.prepare c
+    let d ← match okSomePattern? c' with
       | some (call, q, _) =>
         orRefuse (mkAppOptM ``okSomeThen #[none, some call, some q, none]) "undecidable"
           m!"Lean can't decide the conclusion {c}"
-      | none => orRefuse (mkDecide c) "undecidable" m!"Lean can't decide the conclusion {c}"
+      | none => orRefuse (mkDecide c') "undecidable" m!"Lean can't decide the conclusion {c}"
     return (← mkAppM ``cond #[d, u8 1, u8 2], acc)
 
 /-- The statement with each binder that isn't a hypothesis replaced by its input. Hypotheses stay as implications,
@@ -227,7 +378,7 @@ partial def instantiateWith (e : Expr) (kinds : Array Kind) (values : Array Nat)
       instantiateWith (body.instantiate1 (← synthInstance ty)) kinds values i
     else
       let some k := kinds[i]? | refuse "internal_error" m!"no binder {i}"
-      instantiateWith (body.instantiate1 (← literalOf k (values.getD i 0))) kinds values (i + 1)
+      instantiateWith (body.instantiate1 (← literalOf k ty values i)) kinds values (i + 1)
   | c => return c
 
 /-- A proof that a closed conclusion is false: by `decide`, or for `∃ r, f x = Outcome.ok (some r) ∧ q r` by running
@@ -264,7 +415,7 @@ partial def applyTo (e acc : Expr) (kinds : Array Kind) (values : Array Nat) (i 
       let inst ← synthInstance ty
       applyTo (body.instantiate1 inst) (mkApp acc inst) kinds values i
     else
-      let v ← literalOf kinds[i]! (values.getD i 0)
+      let v ← literalOf kinds[i]! ty values i
       applyTo (body.instantiate1 v) (mkApp acc v) kinds values (i + 1)
   | _ => return acc
 
@@ -350,6 +501,8 @@ structure Config where
   nonce : String
   statement : String
   generated : Name
+  /-- The namespace of the generated module's copy on `ExecMem`, if `tools/prooftest/prooftest.py` made one. -/
+  exec : Option Name
   fuel : Nat
   kernelHeartbeats : Nat
   /-- The process's own stdin and stdout. `#eval` gives its code an empty stdin, and keeps what it prints until it
@@ -366,6 +519,7 @@ def config : IO Config := do
     nonce := ← get "nonce"
     statement := ← get "statement"
     generated := (← get (α := String) "generated").toName
+    exec := ((j.getObjValAs? String "exec").toOption).map String.toName
     fuel := ← get "fuel"
     kernelHeartbeats := ← get "kernel_heartbeats"
     input := ← IO.FS.Handle.mk "/dev/stdin" .read
@@ -445,30 +599,35 @@ partial def loop (cfg : Config) (stmt : Expr) (kinds : Array Kind) (f : Array Na
   | _ => throwError "unknown request: {line}"
 
 /-- The decision for `stmt`, compiled, and its binders. -/
-unsafe def compile (stmt : Expr) : M ((Array Nat → UInt8) × Array Binder) := do
+unsafe def compile (cfg : Config) (stmt : Expr) : M ((Array Nat → UInt8) × Array Binder × Nat × Nat) := do
   let arrayNat := mkApp (mkConst ``Array [Level.zero]) (mkConst ``Nat)
+  let stats ← IO.mkRef (0, 0)
+  let copy := cfg.exec.map fun exec => { generated := cfg.generated, exec }
   let (body, binders) ← withLocalDeclD `args arrayNat fun args => do
-    let (body, binders) ← decision stmt args 0 #[]
+    let (body, binders) ← decision { args, copy, stats } stmt 0 0 #[] #[]
     return (← mkLambdaFVars #[args] body, binders)
   for c in body.getUsedConstants do
     if (← collectAxioms c).contains ``sorryAx then
       refuse "statement_invalid" m!"deciding it would use sorry, through {c}"
   let f ← orRefuse (evalExpr (Array Nat → UInt8) (← mkArrow arrayNat (mkConst ``UInt8)) body) "undecidable"
     m!"Lean couldn't compile the decision"
-  return (f, binders)
+  let (onExec, onMem) ← stats.get
+  return (f, binders, onExec, onMem)
 
 unsafe def serve (cfg : Config) : TermElabM Unit := do
   let started ← IO.monoNanosNow
   match ← attempt (elabStatement cfg.statement) with
   | .error ex => failure cfg "statement_invalid" (← ex.toMessageData.toString)
   | .ok stmt =>
-    match ← (compile stmt).run with
+    match ← (compile cfg stmt).run with
     | .error (reason, detail) => failure cfg reason detail
-    | .ok (f, binders) =>
+    | .ok (f, binders, onExec, onMem) =>
       answer cfg [("kind", "ready"), ("ns", toJson ((← IO.monoNanosNow) - started)),
         ("statement", toJson (toString (← withOptions (·.setBool `pp.fullNames true) (ppExpr stmt)))),
         ("binders", toJson (binders.map fun b =>
-          Json.mkObj ([("name", toJson b.name), ("type", toJson b.type)] ++ b.kind.json)))]
+          Json.mkObj ([("name", toJson b.name), ("type", toJson b.type)] ++ b.kind.json))),
+        -- Calls of functions with memory the search runs on the copy on `ExecMem`, and on `Mem` as written.
+        ("calls", Json.mkObj [("exec_memory", toJson onExec), ("mem", toJson onMem)])]
       loop cfg stmt (binders.map (·.kind)) f
 
 set_option maxHeartbeats 0 in

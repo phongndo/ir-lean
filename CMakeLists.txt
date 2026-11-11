@@ -256,6 +256,24 @@ add_test(
         --check-t1 --workers 2 --out ${CMAKE_BINARY_DIR}/prooftest-t1
 )
 set_tests_properties(prooftest_t1 PROPERTIES TIMEOUT 900)
+# Tier 1 on functions that take memory, and the equivalence property: buffers' inputs and shrinking in
+# Python, then tests/prooftest/Buffers.ll, a scalar and a vector version of each function, with a lane wrong
+# that has to be refuted. At most four cases at a time, each with one Lean process running.
+add_test(
+    NAME prooftest_memory
+    COMMAND ${CMAKE_SOURCE_DIR}/tests/prooftest_memory_test.py $<TARGET_FILE:ir-lean>
+)
+set_tests_properties(prooftest_memory PROPERTIES TIMEOUT 600)
+# zlib-ng's scalar CRC-32 against its two SIMD ones by the equivalence property, and a lane planted wrong
+# refuted. It fetches nothing, and skips where the Nix store doesn't hold zlib-ng, as in CI:
+# `bench/kernels/pairs.py` fetches it. Fewer inputs than docs/proof-tests.md's run, two pairs at a time.
+add_test(
+    NAME prooftest_pairs
+    COMMAND
+        ${CMAKE_SOURCE_DIR}/bench/kernels/pairs.py --offline --check --max-inputs 1000 --max-length 1024
+        --work ${CMAKE_BINARY_DIR}/prooftest-pairs
+)
+set_tests_properties(prooftest_pairs PROPERTIES SKIP_RETURN_CODE 77 TIMEOUT 1800)
 # irl's MCP server and command line against stub tools, and its schemas against the real tools' contracts:
 # about 3 s, and no Lean. docs/irl.md.
 add_test(
@@ -464,6 +482,7 @@ set_tests_properties(
     peephole
     prooftest
     prooftest_t1
+    prooftest_memory
     PROPERTIES LABELS semantics
 )
 # These compile the same modules, and the second finds them in the cache.
