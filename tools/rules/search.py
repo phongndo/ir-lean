@@ -314,7 +314,7 @@ def whole_function(preamble: str, f: ir.Function, chain: list[certify.Step], out
             lines = [inst.text for inst in f.lines]
             declares = ir.declarations(f, [inst.name for inst in f.lines if inst.name])
         else:
-            lines, value, declares = ir.body(t)
+            lines, value, declares = ir.body(t, taken=re.findall(ir.NAME, f.header))
             lines = [*lines, f"ret i{width} {value}"]
         texts.append((header + "\n" + "".join(f"  {line}\n" for line in lines) + "}\n", declares))
     return certify.check(certify.chain_module(preamble, texts), [s.rule for s in chain], out, "function")

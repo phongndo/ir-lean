@@ -114,7 +114,12 @@ the kernel never checked, with `debug.skipKernelTC`, and a proof resting on one 
 ordinary Lean, in [`rules/Rules`](../rules/Rules), which `lake build` checks. `tools/rules/rules.py check` reads each
 theorem's type and axioms from the compiled library, with
 [`tools/rules/rules_check.lean`](../tools/rules/rules_check.lean), and only a rule that passes is given to the
-matcher. It took 5.7 s, with a 2.9 GB peak, for the 182, replaying 18 modules: the library's root declares nothing.
+matcher. The checker and every `leanchecker` read one copy of the `IRLean`, `Peephole` and `Rules` libraries, in a
+private directory, with nothing else on `LEAN_PATH`, so the kernel replays the files the checker read. The copies, the
+toolchain and the checker are held from before the checker starts to after the last replay ends: a file there that's
+written, replaced, added or removed, even if it's put back, proves no rule. It took 7.6 s, with a 2.4 GB peak, for the
+182, replaying 18 modules: the library's root declares nothing. Copying and holding what it reads is about 0.5 s of that:
+the same check without them took 6.9 s that day, on the same machine.
 
 ## How the matcher and the statement are tied
 
@@ -144,6 +149,13 @@ tools/rules/rules.py certify tests/rules/chain.ll --rule or_zero --rule and_allO
    `leanchecker` replays the certificate, the generated module and every module they import that declares something
    and isn't Lean's own, one process each, and [`irlean.verdict`](trust.md#where-python-decides-a-verdict) decides.
    The checker's answer counts only if its process then ended on its own with 0.
+5. **What the gate reads, held.** Lean runs the certificate's code as it compiles it, and the code of what it
+   imports, the `Rules` library's and `Peephole`'s, which an agent may have written. So before it compiles, `IRLean`,
+   `Peephole` and `Rules` are copied into a private directory, and the checks read those copies, and copies of the
+   generated module and the certificate, with nothing else on `LEAN_PATH`. The certificate compiles in a systemd
+   scope, which kills whatever its code started when Lean ends, in whatever session. The copies, the toolchain and
+   the two checkers are held from before the compile to after the last check, and the generated module by its hash:
+   if anything there changed, even if it was put back, the answer is `error`, `artifacts_modified`.
 
 The answer is JSON, schema `ir-lean.rules.certificate/1`, and the exit code is 0 only for `certified`:
 
@@ -153,10 +165,11 @@ The answer is JSON, schema `ir-lean.rules.certificate/1`, and the exit code is 0
 | `refused` | A check diagnosed that the certificate doesn't prove the claim: its proof doesn't elaborate, with an error Lean reported, it states another claim, it rests on an axiom that isn't allowed, it uses other rules than the ones named, or the kernel rejects a declaration it rests on |
 | `unsupported` | A state isn't one block of integer instructions without memory, or its proof would be too long to write |
 | `unknown` | A limit stopped Lean. More time or memory might decide it |
-| `error` | The states aren't valid IR, or a tool failed: crashed, failed without saying why, or left a file missing. Never a refusal, even after a checker answered |
+| `error` | The states aren't valid IR, a tool failed: crashed, failed without saying why, or left a file missing, or something the gate reads changed while it ran. Never a refusal, even after a checker answered |
 
-The certificate's proof has no search in it and no `bv_decide`. It took 4.5 s for the chain above, replaying 29
-modules, where it took 2.9 s before the replay reached every module the certificate imports.
+The certificate's proof has no search in it and no `bv_decide`. It took 6.5 s for the chain above, replaying 29
+modules. Copying and holding what the gate reads is about 0.6 s of that: without them it took 5.9 s that day, on the same
+machine, and 2.9 s before the replay reached every module the certificate imports.
 
 ### What fails
 
@@ -174,6 +187,8 @@ modules, where it took 2.9 s before the replay reached every module the certific
 | A certificate whose theorem states something else | `refused`: `claim_type_mismatch` |
 | A certificate by `sorry` | `refused`: its axioms aren't allowed |
 | A false rule proved from `False`, which a module outside the library, `Peephole.Hack`, added past the kernel with `debug.skipKernelTC`, so its proof rests on no axiom | `check`: not proved, as `leanchecker` rejects `Peephole.Hack`. An application of the rule: `refused`, `kernel_replay_failed` |
+| The same, with `Peephole.Hack` swapped for one where `False` is an axiom, which `leanchecker` replays, after the checker and the audit read the first and before the replay, wherever the replay reads modules from, as a process a proof's code left running could | `check`: not proved, as what it read changed. An application: `error`, `artifacts_modified` |
+| A certificate by `sorry` whose code, as it compiles, rewrites the checker and the audit to pass it, here copies of them, and starts a process in a session of its own | `error`, `artifacts_modified`, and the process is gone when the compile ends |
 | The checker killed by `SIGSEGV` after it answered that a right certificate states its claim | `error`: `tool_failed` |
 
 The matchers are wrong in two ways there: as states a wrong matcher would give, handed to certify mode, and as
@@ -266,6 +281,12 @@ slice out of the functions it ran on, which the search does for its own rewrites
 - **The second agent's review of each statement,** by
   [decision 11](roadmap.md#thirteen-decisions-of-2026-11-09-after-103), hasn't happened for these 182.
 - **`rules.py check` reads the library `lake` built.** It checks `lake` has nothing left to build, and doesn't build.
+  A rule's proof runs code as `lake` compiles it, before the check starts, and that code can rewrite any file the user
+  can, an `IRLean` module or `Rules.Statements` among them. The check holds what it read from when it copies it, and
+  can't tell a module from one rewritten before then. Certify mode copies the libraries before it compiles a
+  certificate, which closes that for the certificate's code and for what its imports run then, not for what ran in
+  `lake build`. Compiling an agent's proof apart from the shared build, after copying the libraries it imports, would
+  close it.
 
 ## Reproducing
 

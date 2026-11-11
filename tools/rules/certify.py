@@ -11,8 +11,12 @@ IRLean.Refines Chain.s0 Chain.sk` from them by `IRLean.Refines.trans`, and the g
    expression, and reads the axioms it rests on and the rules its proof uses;
 4. `tests/check_axioms.lean` audits the certificate's module and everything it imports;
 5. `leanchecker` replays the certificate, the generated module and every module they import but Lean's own;
-6. `irlean.verdict` grants `certified`, or doesn't. `refused` is only for what a check diagnosed, and a tool
-   that failed is an `error`, or `unknown` at a limit.
+6. nothing they read changed from before the certificate compiled to after the last of them ended: the
+   modules, copied before any of the libraries' code ran, the toolchain and the two checkers. Lean runs the
+   certificate's code, and its imports', as it compiles it, in a scope that kills whatever it started when
+   it ends;
+7. `irlean.verdict` grants `certified`, or doesn't. `refused` is only for what a check diagnosed, and a tool
+   that failed, or a file that changed, is an `error`, or `unknown` at a limit.
 
 A step's proof is one term, written here from the two states as the IR has them: `Rules.Mono.<instruction>`
 down to where they differ, `Refine.refl_val _` for what's the same, and the rule's theorem at the instruction
@@ -26,8 +30,10 @@ from __future__ import annotations
 
 import json
 import re
+import shutil
 import signal
 import sys
+import tempfile
 import time
 from dataclasses import dataclass
 from pathlib import Path
@@ -235,6 +241,20 @@ def check(
     rule applied from `@s<i>` to the next. Works in `out`, and returns the verdict, schema RULES_CERTIFICATE.
     For tests: `proof_text` replaces the certificate this would write, and `overlay` is a directory holding
     another build of the `Rules` library, read in place of the repo's."""
+    with tempfile.TemporaryDirectory(prefix="ir-lean-certify-") as modules:
+        return gate(module, rules, out, scope, proof_text, overlay, Path(modules))
+
+
+def gate(
+    module: str,
+    rules: list[lang.Rule],
+    out: Path,
+    scope: str,
+    proof_text: str | None,
+    overlay: Path | None,
+    modules: Path,
+) -> dict[str, Any]:
+    """`check`, with `modules`, a private directory, for the copies the checks read."""
     started = time.monotonic()
     out = out.resolve()
     out.mkdir(parents=True, exist_ok=True)
@@ -306,14 +326,44 @@ def check(
         return done("unsupported", "proof_not_written", str(error))
     (out / f"{CERT}.lean").write_text(text)
 
-    env = lean.env(out, *([overlay] if overlay else []), pin=True)
+    # Lean runs the certificate's code as it compiles it, and the code of what it imports, the Rules library's
+    # and Peephole's, which an agent may have written. Everything a check reads is held from before then to
+    # after the last check: the libraries, copied into `lib` first, the toolchain and the two checkers. The
+    # generated module, compiled first, is held by its hash, and the checks read it and the certificate from
+    # copies in `own`, so nothing the compile left in `out` can stand in for them.
+    lib = proved.copy_libraries(modules / "lib", overlay)
+    trusted = (lib, proved.toolchain(), proved.CHECK, lean.AXIOM_AUDIT)
+    sealed = proved.seal(*trusted)
+    env = lean.env(out, lib, library=False, pin=True)
     compiled = proved.run(lean.argv(proved.LEAN_MB, "-o", f"{NAMESPACE}.olean", generated.name), env, cwd=out)
     if compiled.exit != 0:
         return done("error", "generated_module_failed", compiled.output)
-    cert = proved.run(lean.argv(proved.LEAN_MB, "-o", f"{CERT}.olean", f"{CERT}.lean"), env, cwd=out)
+    generated_sha256 = hashing.sha256_file(out / f"{NAMESPACE}.olean")
+    # In a scope, so whatever the certificate's code started is killed when Lean ends, in whatever session.
+    cert = proved.run(
+        lean.argv(proved.LEAN_MB, "-o", f"{CERT}.olean", f"{CERT}.lean"),
+        env,
+        cwd=out,
+        scope=proc.Scope("ir-lean-certify", proved.LEAN_MB + 512),
+    )
     cert_step = core.Step.of("lean", cert)
+    own = modules / "own"
+    own.mkdir()
+    for name in (NAMESPACE, CERT):
+        if (out / f"{name}.olean").is_file():
+            shutil.copyfile(out / f"{name}.olean", own / f"{name}.olean")
+    moved = proved.unsealed(sealed, *trusted)
+    copied = own / f"{NAMESPACE}.olean"
+    if not copied.is_file() or hashing.sha256_file(copied) != generated_sha256:
+        moved.append(f"{out / NAMESPACE}.olean")
+    if moved:
+        return done(
+            "error", "artifacts_modified", "changed while the certificate compiled:\n" + "\n".join(moved)
+        )
     if cert.exit != 0 or cert.limit is not None:
         return done(*failed(cert))
+    bound = proved.seal(own)
+    env = lean.env(own, lib, library=False, pin=True)
     asked, answers = proved.ask(
         {
             "mode": "cert",
@@ -322,8 +372,8 @@ def check(
             "generated_module": NAMESPACE,
             "certificate_module": CERT,
             "theorem": "Cert.cert",
-            "run_dir": str(out.resolve()),
-            "library_dirs": [str(d.resolve()) for d in ([overlay] if overlay else []) + [lean.LIBRARY]],
+            "run_dir": str(own.resolve()),
+            "library_dirs": [str(lib.resolve())],
         },
         f"import IRLean\nimport {NAMESPACE}\n",
         env,
@@ -354,6 +404,10 @@ def check(
     ) and {NAMESPACE, CERT} <= {m for m in listed if isinstance(m, str)}
     audit = proved.run(lean.audit_argv(proved.LEAN_MB), lean.audit_env(CERT, base=env), cwd=out)
     replay = proved.replay(listed, env, cwd=out)
+    moved = proved.unsealed(sealed, *trusted) + proved.unsealed(bound, own)
+    checks[proved.UNCHANGED] = not moved
+    if moved:
+        return done("error", "artifacts_modified", "changed while they were checked:\n" + "\n".join(moved))
     files = {name: (out / name).exists() for name in ("chain.ll", f"{NAMESPACE}.lean", f"{CERT}.lean")}
     return done(*conclude(cert_step, core.Step.of("check_axioms", audit), replay, files, checks))
 

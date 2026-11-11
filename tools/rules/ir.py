@@ -13,6 +13,7 @@ A division can be undefined, so the certifier doesn't follow one yet: it's a lea
 from __future__ import annotations
 
 import re
+from collections.abc import Iterable
 from dataclasses import dataclass, field
 
 import lang
@@ -311,12 +312,14 @@ def declarations(f: Function, names: list[str | None]) -> list[str]:
 
 
 def body(
-    t: Term, prefix: str = "%t", known: dict[Term, str] | None = None
+    t: Term, prefix: str = "%t", known: dict[Term, str] | None = None, taken: Iterable[str] = ()
 ) -> tuple[list[str], str, list[str]]:
     """Instructions computing `t`, operands before the instructions that read them, and the value they end
     with. An instruction in `known` isn't computed again: its name is used. Also the declarations they
-    need."""
+    need. A new instruction's name is none of `taken`, such as the function's parameters, `t`'s leaves or
+    `known`'s names."""
     names: dict[Term, str] = dict(known or {})
+    reserved = {*taken, *leaves(t), *names.values()}
     lines: list[str] = []
     declares: list[str] = []
     counter = 0
@@ -330,6 +333,8 @@ def body(
         if t in names:
             return names[t]
         operand = [value(a) for a in t[4]]
+        while f"{prefix}{counter}" in reserved:
+            counter += 1
         names[t] = f"{prefix}{counter}"
         counter += 1
         lines.append(print_inst(names[t], t, operand))
@@ -343,7 +348,7 @@ def body(
 
 def state(name: str, params: dict[str, int], t: Term) -> tuple[str, list[str]]:
     """A function `@name` of `params` that computes `t` and returns it, and the declarations it needs."""
-    lines, value, declares = body(t)
+    lines, value, declares = body(t, taken=params)
     given = ", ".join(f"i{w} {p}" for p, w in params.items())
     text = f"define i{width_of(t)} @{name}({given}) {{\n" + "".join(f"  {line}\n" for line in lines)
     return text + f"  ret i{width_of(t)} {value}\n}}\n", declares

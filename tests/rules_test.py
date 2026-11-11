@@ -10,8 +10,9 @@
   flag, a constant that fails a side condition, or a cast the wrong way.
 - Constants are computed as Lean's `BitVec` computes them.
 - The IR reader: instructions the format has are read, and the rest are leaves; a cut stops at its depth; a
-  term printed and read again is the same term; a slice's lines are the function's own; a rewritten function
-  has the new value at each use and none of the dead cut.
+  term printed and read again is the same term; a new instruction is named apart from the parameters; a
+  slice's lines are the function's own; a rewritten function has the new value at each use and none of the
+  dead cut.
 - A certificate Lean didn't compile is `refused` only for an error Lean reported and exited on: a limit or
   SIGKILL is `unknown`, and any other crash, empty output or a module Lean couldn't read an `error`, even
   after Lean printed an error. Past the compile, it's `refused` only for a diagnosis: the axiom audit's
@@ -28,7 +29,9 @@ which replays modules two at a time, or `LEAN_JOBS` up to four:
 - A rule whose statement is false has no proof: `not_proved`. Proved by `sorry`, or a true one at one width by
   `bv_decide`: `disallowed_axiom`. With a theorem of another statement: `statement_mismatch`. The others stay
   proved. Proved from `False` that a module outside the library added past the kernel: not proved, as
-  leanchecker replays that module, and an application of it `refused`: `kernel_replay_failed`.
+  leanchecker replays that module, and an application of it `refused`: `kernel_replay_failed`. With that
+  module swapped for one where `False` is an axiom, between the checker and the replay: not proved, and an
+  application `error`, `artifacts_modified`, as what they read changed.
 - The statement of a comparison of two divisions, each at its own width, compiles.
 - A statement that isn't the pattern's but is still true, with a proof of its own, is refused twice over: the
   library's statements aren't what the source generates, and no application of the rule is certified.
@@ -37,7 +40,8 @@ which replays modules two at a time, or `LEAN_JOBS` up to four:
 - States a broken matcher would give are refused, each for its own reason: a second occurrence that's another
   value, a side condition skipped, a flag not checked, another replacement, and another rule named. So is a
   certificate that states another claim, and one by `sorry`. A checker killed after answering certifies
-  nothing: `error`.
+  nothing: `error`. A certificate whose code rewrites the checker and the audit as it compiles: `error`,
+  `artifacts_modified`, and the process it started in a session of its own is gone when the compile ends.
 - The search on tests/rules/search.ll finds what tests/rules/expect.json says, each certified, a chain of
   three rules as a whole function and one of two as a slice, and a second run writes the same bytes.
   `llvm-mca` drops every candidate against `opt -O3`, and keeps exactly one against `llc` alone. Alive2,
@@ -53,11 +57,13 @@ from __future__ import annotations
 import argparse
 import dataclasses
 import json
+import os
 import re
 import shutil
 import signal
 import sys
 import tempfile
+import time
 from pathlib import Path
 from typing import Any
 
@@ -398,6 +404,22 @@ def static_ir() -> None:
         report(again == t, f"printed and read again, the same term: {t[1]}", f"{printed}\n{again}\n{t}")
     printed, _ = ir.state("s0", {"%x": 16}, op("mul", op("or", x, const(0, 16)), op("or", x, const(0, 16))))
     report(printed.count(" or ") == 1, "one instruction, read twice, is printed once", printed)
+    # A new instruction is named apart from the slice's parameters: one reading `%t0` once printed
+    # `%t0 = xor i8 %t0, -1`, which opt refuses.
+    clash = ir.functions(
+        "define i8 @f(i8 %t0, i8 %b) {\n  %n = xor i8 %t0, -1\n  %o = or i8 %n, %b\n  %a = and i8 %t0, %b\n"
+        "  %r = xor i8 %o, %a\n  ret i8 %r\n}\n"
+    )[0]
+    root = ir.term(clash, "%r", 8, ir.members(clash, "%r", 4))
+    chain, _, _ = search.best_chain(root, search.usable(gen.load_all()), search.Options())
+    params = ir.leaves(root)
+    printed = "".join(ir.state(f"s{i}", params, t)[0] for i, t in enumerate(certify.states(root, chain)) if i)
+    defined = {line.split(" = ")[0].strip() for line in printed.splitlines() if " = " in line}
+    report(
+        [s.rule.name for s in chain] == ["xor_or_not_and"] and not defined & set(params),
+        "a new instruction's name isn't a parameter's, `%t0` among them",
+        printed,
+    )
     # A rewritten function.
     new = ir.rewritten(total, "%u", cut, a)
     report(
@@ -845,6 +867,54 @@ def live_rules() -> None:
             json.dumps(verdict)[:1500],
         )
 
+        # What a process left running by a proof's code could do: put back a Peephole.Hack where `False` is an
+        # axiom, which leanchecker replays, after the checker and the audit read the one the kernel rejects
+        # and before the replay, wherever the replay reads modules from.
+        axiom = base / "axiom"
+        (axiom / "Peephole").mkdir(parents=True)
+        (axiom / "Peephole" / "Hack.lean").write_text("axiom Peephole.Hack.bad : False\n")
+        made = proc.run(
+            lean.argv(4096, "-o", "Peephole/Hack.olean", "Peephole/Hack.lean"),
+            cwd=axiom,
+            env=lean.env(axiom, pin=True),
+            timeout=600,
+        )
+        kept = (hack / "Peephole" / "Hack.olean").read_bytes()
+        real = proved.replay
+
+        def swapping(modules: Any, env: dict[str, str], cwd: Path = ROOT) -> core.Step:
+            for directory in env["LEAN_PATH"].split(os.pathsep):
+                target = Path(directory) / "Peephole" / "Hack.olean"
+                if target.is_file():
+                    shutil.copyfile(axiom / "Peephole" / "Hack.olean", target.with_suffix(".new"))
+                    os.replace(target.with_suffix(".new"), target)
+            return real(modules, env, cwd)
+
+        proved.replay = swapping  # ty: ignore[invalid-assignment]
+        try:
+            got = {e["name"]: e for e in proved.check(more, hack)["rules"]}
+            (hack / "Peephole" / "Hack.olean").write_bytes(kept)
+            verdict = certify.check(wrong, [lang.Rule(WRONG)], base / "swap-cert", "slice", overlay=hack)
+        finally:
+            proved.replay = real
+            (hack / "Peephole" / "Hack.olean").write_bytes(kept)
+        report(
+            made.ok
+            and not got["add_one_wrong"]["proved"]
+            and "Peephole/Hack.olean" in got["add_one_wrong"]["detail"],
+            "the false rule isn't proved when Peephole.Hack is swapped for one with an axiom between the "
+            "checker and the replay: what the checks read changed",
+            json.dumps(got["add_one_wrong"])[:1500],
+        )
+        report(
+            verdict["status"] == "error"
+            and verdict["reason"] == "artifacts_modified"
+            and "Peephole/Hack.olean" in verdict["detail"],
+            "and an application of it isn't certified when it's swapped between the audit and the replay: "
+            "error, artifacts_modified",
+            json.dumps(verdict)[:1500],
+        )
+
         # A division below the root has its own width, here not the root's, and the statement compiles.
         division = lang.Rule(
             {"name": "udiv_eq_self", "match": "(icmp.eq (udiv A B) (udiv A B))", "replace": "1"}
@@ -964,6 +1034,49 @@ BROKEN = [
         r"[Mm]ismatch",
     ),
 ]
+
+
+# A certificate by `sorry` whose code, run while Lean compiles it, as a module of the Rules library runs at
+# import, starts a process in a session of its own, which waits, and rewrites the checker and the axiom audit
+# from `{fake}` and to nothing, so that they pass it. `{pid}` gets the process's pid.
+CHEAT = """import Rules
+import Chain
+
+theorem Cert.cert : IRLean.Refines Chain.s0 Chain.s1 := sorry
+
+#eval show IO Unit from do
+  let child ← IO.Process.spawn
+    {{ cmd := "setsid",
+      args := #["--fork", "sh", "-c", "echo $$ > {pid}.new && mv {pid}.new {pid}; exec sleep 600"],
+      stdin := .null, stdout := .null, stderr := .null }}
+  discard child.wait
+  repeat
+    if (← System.FilePath.pathExists "{pid}") then break
+    IO.sleep 10
+  IO.FS.writeFile "{check}" (← IO.FS.readFile "{fake}")
+  IO.FS.writeFile "{audit}" ""
+"""
+# The checker it writes, which answers with the run's nonce that the claim is stated, by the chain's rule, on
+# no axioms, with nothing to replay but the certificate and the generated module: ANSWER.
+FORGED = """
+#eval show IO Unit from do
+  let config ← IO.FS.readFile ((← IO.getEnv "IRLEAN_RULES_CONFIG").getD "")
+  let nonce := (((config.splitOn "\\"nonce\\": \\"").getD 1 "").splitOn "\\"").headD ""
+  IO.println ("IRLEAN_RULES " ++ nonce ++ " " ++ ANSWER)
+"""
+
+
+def running(pid: int) -> bool:
+    """Whether process `pid` is there, and not a zombie, by /proc, waiting up to 5 s for it to go."""
+    for _ in range(50):
+        try:
+            state = Path(f"/proc/{pid}/stat").read_text().rsplit(")", 1)[1].split()[0]
+        except (OSError, IndexError):
+            return False
+        if state == "Z":
+            return False
+        time.sleep(0.1)
+    return True
 
 
 def live_certify(work: Path) -> None:
@@ -1093,6 +1206,59 @@ def live_certify(work: Path) -> None:
         "a certificate by `sorry`: refused, its axioms aren't allowed",
         json.dumps(verdict)[:1500],
     )
+    # The same certificate, whose code rewrites the checker and the audit to pass it, here copies of them, and
+    # leaves a process running.
+    held = work / "held"
+    held.mkdir()
+    check_copy, audit_copy, fake, pid = (
+        held / n for n in ("rules_check.lean", "check_axioms.lean", "fake", "pid")
+    )
+    shutil.copyfile(proved.CHECK, check_copy)
+    shutil.copyfile(lean.AXIOM_AUDIT, audit_copy)
+    answer = {
+        "ok": True,
+        "statement": "forged",
+        "axioms": [],
+        "rules": ["or_zero"],
+        "replay": ["Chain", "ChainCert"],
+    }
+    fake.write_text(FORGED.replace("ANSWER", json.dumps(json.dumps(answer))))
+    false = STATES.format(
+        width=8, params="i8 %x", before="  %r = add i8 %x, 1\n  ret i8 %r", after="  ret i8 %x"
+    )
+    real_check, real_audit = proved.CHECK, lean.AXIOM_AUDIT
+    proved.CHECK, lean.AXIOM_AUDIT = check_copy, audit_copy
+    try:
+        verdict = certify.check(
+            false,
+            [by_name["or_zero"]],
+            work / "cheat",
+            "slice",
+            CHEAT.format(pid=pid, check=check_copy, audit=audit_copy, fake=fake),
+        )
+    finally:
+        proved.CHECK, lean.AXIOM_AUDIT = real_check, real_audit
+    started = int(pid.read_text()) if pid.exists() else None
+    left = started is not None and running(started)
+    if left:
+        proc.kill_group(started)
+    report(
+        verdict["status"] == "error"
+        and verdict["reason"] == "artifacts_modified"
+        and str(check_copy) in verdict["detail"]
+        and str(audit_copy) in verdict["detail"],
+        "a certificate whose code rewrites the checker and the audit while it compiles, so they pass "
+        "`add x 1` to `x`, isn't certified: error, artifacts_modified",
+        json.dumps(verdict)[:1500],
+    )
+    if proc.scopes_work():
+        report(
+            started is not None and not left,
+            "and the process it started, in a session of its own, is gone when the compile ends",
+            f"pid {started}",
+        )
+    else:
+        print("skip  and the process it started is gone when the compile ends: no systemd user scopes here")
     verdict = certify.check(good, [by_name["or_zero"]], work / "good", "slice")
     report(
         verdict["status"] == "certified",

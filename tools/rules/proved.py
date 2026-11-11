@@ -5,6 +5,10 @@ from the rule's source, on the standard three axioms, in a library `lake` has no
 `leanchecker` replays, with every module it imports but Lean's own. docs/rules.md. Only a proved rule is given
 to the matcher, so the search never applies a rule whose theorem is missing, false, or rests on `sorry` or
 `bv_decide`.
+
+The checker and every `leanchecker` read the same files: a copy of the libraries, held still while they run.
+A proof's code can run wherever Lean compiles it, and what it left running could otherwise change a module
+between the checker reading it and the kernel replaying it.
 """
 
 from __future__ import annotations
@@ -13,6 +17,7 @@ import concurrent.futures
 import json
 import os
 import secrets
+import shutil
 import sys
 import tempfile
 from pathlib import Path
@@ -31,6 +36,12 @@ CHECK = Path(__file__).resolve().parent / "rules_check.lean"
 LEAN_MB = 4096
 TIMEOUT = 900.0
 MARK = "IRLEAN_RULES"
+# What a rule's proof or a certificate may import besides Lean's own, as rules_check.lean allows a
+# certificate. The checks read them from a copy.
+LIBRARIES = ("IRLean", "Peephole", "Rules")
+# The files Lean reads a module from. The repo's libraries have only `.olean`, and Lean's own all four.
+MODULE_FILES = (".olean", ".olean.server", ".olean.private", ".ir")
+UNCHANGED = "what the checks read didn't change while they ran"
 
 
 class ToolError(RuntimeError):
@@ -43,12 +54,70 @@ def run(
     cwd: Path = ROOT,
     timeout: float = TIMEOUT,
     stdin: str | None = None,
+    scope: proc.Scope | None = None,
 ) -> proc.Ran:
-    """Runs a command, under a time limit, with `stdin` as its input if given."""
+    """Runs a command, under a time limit, with `stdin` as its input if given, and in `scope` if given and
+    systemd can make one, which kills everything the command started when it ends, in whatever session."""
     try:
-        return proc.run(argv, cwd=cwd, env=env, timeout=timeout, stdin=stdin)
+        return proc.run(argv, cwd=cwd, env=env, timeout=timeout, stdin=stdin, scope=scope)
     except FileNotFoundError as error:
         raise ToolError(f"{argv[0]} isn't on PATH: run inside nix develop") from error
+
+
+def toolchain() -> Path:
+    """The pinned toolchain's directory: the `lean` and `leanchecker` the checks run, and Lean's modules."""
+    ran = run(["lean", "--print-prefix"], lean.env(pin=True))
+    if ran.exit != 0 or not ran.out.strip():
+        raise ToolError(f"lean --print-prefix failed: {ran.output[-300:]}")
+    return Path(ran.out.strip()).resolve()
+
+
+def copy_libraries(into: Path, overlay: Path | None = None) -> Path:
+    """Copies every module of LIBRARIES into `into`, and returns it: each library from `overlay` if it has it,
+    as Lean's search path finds a library in the first directory that has it, and otherwise from the repo's
+    build. With `into` alone on LEAN_PATH, a check reads only these copies and the toolchain."""
+    for name in LIBRARIES:
+        source = next(
+            (
+                d
+                for d in [*([overlay] if overlay else []), lean.LIBRARY]
+                if (d / name).is_dir() or (d / f"{name}.olean").is_file()
+            ),
+            None,
+        )
+        if source is None:
+            continue
+        files = [source / f"{name}{suffix}" for suffix in MODULE_FILES]
+        for directory, _, names in os.walk(source / name, followlinks=True):
+            files += [Path(directory) / n for n in names]
+        for path in files:
+            if path.name.endswith(MODULE_FILES) and path.is_file():
+                target = into / path.relative_to(source)
+                target.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copyfile(path, target)
+    return into
+
+
+def seal(copies: Path, *also: Path) -> dict[str, dict[str, Any]]:
+    """What the checks read, as it is now: every file under `copies` by its hash, and what `lstat` says of
+    every entry under `copies` and `also`, such as the toolchain, too large to hash each time. Taken again, it
+    differs after any write, replacement, new file or removal, even one put back: a write moves the change
+    time, which a process without root can't set back. `lstat` first, so a change while it hashes shows."""
+    stamps = hashing.stamp(copies, *also)
+    return {"lstat": stamps, "sha256": hashing.snapshot(copies)}
+
+
+def unsealed(sealed: dict[str, dict[str, Any]], copies: Path, *also: Path) -> list[str]:
+    """Every path whose hash or `lstat` differs from `sealed`, which `seal(copies, *also)` gave."""
+    now = seal(copies, *also)
+    return sorted(
+        {
+            p
+            for kind, was in sealed.items()
+            for p in was.keys() | now[kind].keys()
+            if was.get(p) != now[kind].get(p)
+        }
+    )
 
 
 def ask(config: dict[str, Any], header: str, env: dict[str, str], work: Path) -> tuple[proc.Ran, list[Any]]:
@@ -90,16 +159,19 @@ def check(rules: list[lang.Rule] | None = None, overlay: Path | None = None) -> 
     stale = not statements.exists() or statements.read_text() != gen.statements_text(rules)
     if overlay is None:
         current = run(["lake", "build", "--no-build", "Rules"]).exit == 0
-        env = lean.env(pin=True)
     else:
         current = (overlay / "Rules.olean").exists()
-        env = lean.env(overlay, pin=True)
+    prefix = toolchain()
     with tempfile.TemporaryDirectory() as temporary:
-        asked, answers = ask(
-            {"mode": "rules", "rules": [r.name for r in rules]}, "import Lean\n", env, Path(temporary)
-        )
-    listed = [a["replay"] for a in answers if isinstance(a, dict) and "replay" in a]
-    replayed = replay(listed[0] if len(listed) == 1 else None, env)
+        work = Path(temporary)
+        modules = copy_libraries(work / "modules", overlay)
+        held = (modules, prefix, CHECK)
+        sealed = seal(*held)
+        env = lean.env(modules, library=False, pin=True)
+        asked, answers = ask({"mode": "rules", "rules": [r.name for r in rules]}, "import Lean\n", env, work)
+        listed = [a["replay"] for a in answers if isinstance(a, dict) and "replay" in a]
+        replayed = replay(listed[0] if len(listed) == 1 else None, env)
+        moved = unsealed(sealed, *held)
     by_name = {a["rule"]: a for a in answers if isinstance(a, dict) and "rule" in a}
     out: list[dict[str, Any]] = []
     for rule in rules:
@@ -111,6 +183,7 @@ def check(rules: list[lang.Rule] | None = None, overlay: Path | None = None) -> 
                 "ok"
             )
             is True,
+            UNCHANGED: not moved,
         }
         decision = core.decide(
             core.Verdict.PROVED,
@@ -134,6 +207,8 @@ def check(rules: list[lang.Rule] | None = None, overlay: Path | None = None) -> 
         else:
             entry["reason"] = answer.get("reason") or decision.reason
             entry["detail"] = answer.get("detail") or decision.detail
+            if moved:
+                entry["detail"] += "\nchanged: " + ", ".join(moved[:20])
             if not answer.get("detail") and (replayed.exit != 0 or replayed.limit is not None):
                 entry["detail"] += f"\n{replayed.name}: {replayed.output[-1000:]}"
         out.append(entry)
