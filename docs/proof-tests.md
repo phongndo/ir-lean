@@ -6,10 +6,14 @@ pass it hasn't earned. That's the second product in the [roadmap](roadmap.md#one
 proved superoptimization, and [Phase 7](roadmap.md#phase-7-proof-tests) has its milestones.
 
 This page has tier 1, which is built, in [`tools/prooftest/`](../tools/prooftest), what it measured against milestone
-T1, and the design of tiers 2 and 3, which aren't built. For what any result here means, see [trust](trust.md).
+T1, and the design of tiers 2 and 3, which aren't built. Since 2026-11-10 tier 1 runs functions that take memory,
+[on `ExecMem`](#memory), and checks that two functions agree, a scalar one and a SIMD one, with no spec written by
+hand: [equivalence](#equivalence), [measured](#memory-and-simd-measured) on zlib-ng's CRC-32. For what any result here
+means, see [trust](trust.md).
 
 Facts here were checked on 2026-11-08, on top of commit `9d13699`, with Lean 4.35.0 and clang 23.1.3, on x86-64 Linux
-with 32 cores, in the dev shell.
+with 32 cores, in the dev shell. Those about memory and equivalence were checked on 2026-11-10, on top of `5c6b5d6`, the
+same way.
 
 ## An example
 
@@ -63,7 +67,9 @@ Give it a right statement, with `x &&& 0xFFFF#32`, and it answers `passed_tier1`
 2. **Start the harness.** [`tools/prooftest/Harness.lean`](../tools/prooftest/Harness.lean) runs in one Lean
    process, importing only Lean, `IRLean` and the generated module, as verify's pinned statements are elaborated. It
    turns the statement into one compiled function from the inputs to `0` (a hypothesis is false), `1` (the
-   conclusion holds) or `2` (it doesn't), and answers requests on stdin, one a line.
+   conclusion holds) or `2` (it doesn't), and answers requests on stdin, one a line. For a function that takes
+   memory, the module's copy on `ExecMem` is imported too, and that function runs on it:
+   [running on `ExecMem`](#running-on-execmem).
 3. **Plan inputs** for each binder, in this order: failures stored for this property, then edge cases, then bit
    patterns, then every byte, then seeded random values, up to `max_inputs` after the stored ones. If every input
    fits in `max_inputs`, it plans every input instead, edges and patterns first.
@@ -75,6 +81,7 @@ Give it a right statement, with `x &&& 0xFFFF#32`, and it answers `passed_tier1`
 | Field | Meaning |
 | --- | --- |
 | `input`, `function`, `namespace`, `statement` | As [`tools/verify.py`](verify.md#a-request) takes them. The statement is the property |
+| `equivalence` | In place of `statement`: `{with, arguments, max_length}`, the property that `function` and `with` agree. [Equivalence](#equivalence) |
 | `seed` | The seed for random inputs. Default 0 |
 | `max_inputs` | How many inputs to plan, after stored ones. Default 10,000 |
 | `min_satisfied` | How many inputs have to meet the hypotheses for a pass, unless every input ran. Default 10 |
@@ -116,7 +123,7 @@ Four statuses, each with an exit code. None of them is `proved`: tier 1 proves n
 | `memory_limit` | `unknown` | Lean ran past `memory_mb` |
 | `unconfirmed` | `unknown` | An input failed in the search, and neither the kernel nor `tools/verify.py` confirmed it |
 | `confirmation_disagrees` | `unknown` | An input failed in the search, and the confirmation found the statement true there: a bug in this tool, Lean's compiler or IRLean's code |
-| `binder_unsupported` | `unknown` | A binder isn't `BitVec w`, `IRLean.Val w` or `Bool`. Memory is one |
+| `binder_unsupported` | `unknown` | A binder isn't `BitVec w`, `IRLean.Val w`, `Bool`, or a [buffer, pointer or length](#memory). A `Mem` or a `PtrVal` is one |
 | `undecidable` | `unknown` | Lean can't decide the statement at an input |
 | `statement_unsupported` | `unknown` | The statement uses a hypothesis's proof, or needs an instance Lean can't find |
 | `statement_invalid`, `statement_not_about_target`, `function_unsupported`, `function_not_found`, `compile_failed`, `ir_invalid`, `input_not_found`, `toolchain_missing`, `generated_module_failed` | `unknown` | `tools/verify.py` gave this reason in setting up. [Verify](verify.md#the-contract) says what each means |
@@ -138,7 +145,8 @@ evidence or with kernel evidence the kernel didn't give, or a counterexample wit
 ### Inputs
 
 Binders whose type is a proposition are hypotheses. The others have to be `BitVec w`, `IRLean.Val w`, which is
-`Option (BitVec w)` with `none` as poison, or `Bool`, with `w` a numeral. Instance binders are synthesized.
+`Option (BitVec w)` with `none` as poison, or `Bool`, with `w` a numeral, or one of the kinds of [memory](#memory).
+Instance binders are synthesized.
 
 - **Edges:** 0, 1, all ones, the signed minimum and maximum, 2, all ones but the lowest bit, the signed minimum plus
   one, and 3, with poison third for `Val`. With several binders, every combination, up to 512, and past that each
@@ -176,6 +184,132 @@ its binders, and not the code: a fix to the code keeps its old failures, and the
 Hypothesis's database does. The prior-art study suggested keying by the generated module's hash too. That would never
 try an input again on the code that was meant to fix it, so each entry records the module's hash instead. A stored
 input that no longer fits the binders is skipped. Writes go through a rename.
+
+#### Memory
+
+A property names memory through `IRLean.Ptf`, in [`IRLean/Ptf.lean`](../IRLean/Ptf.lean), so it's still a statement
+about `Mem`, as every theorem is. Three kinds of binder are memory:
+
+| Binder | Is |
+| --- | --- |
+| `b : IRLean.Ptf.Buffer n` | The bytes of an allocation, at most `n` of them: `b.bytes` |
+| `p : IRLean.Ptf.Pointer b` | A pointer into the allocation holding `b`, `p.offset` bytes from its start, for a buffer `b` the statement binds |
+| `l : IRLean.Ptf.Length p` | A length that fits in `b` past `p`: `l.toVal` is it as an `i64` |
+
+The memory is `IRLean.Ptf.place m [b.bytes, ...]`: `m`, usually the module's `initial`, which holds its globals, with
+each buffer in a writable allocation of its own, made by `Mem.addGlobal`, buffer `i` as allocation `m.next + i`.
+`p.into m i` is `p` into buffer `i` there. `Mem.spacedOut`, the layout `initial` takes, starts each allocation at a
+multiple of `2 ^ 32`, so `p.offset` is how far the pointer is from whatever alignment a load asks for. For example, in
+[`tests/prooftest/Buffers.ll`](../tests/prooftest/Buffers.ll), a wrong claim that bytes never sum to 255:
+
+```lean
+∀ (b : IRLean.Ptf.Buffer 64) (p : IRLean.Ptf.Pointer b) (n : IRLean.Ptf.Length p),
+  IRLean.Outcome.map Prod.fst
+      (Buffers.sum_scalar (p.into Buffers.initial 0) n.toVal (IRLean.Ptf.place Buffers.initial [b.bytes])) ≠
+    IRLean.Outcome.ok (some 255#32)
+```
+
+That's `counterexample/kernel_refuted` at one byte, `ff`, with the pointer at the start and a length of 1.
+
+A buffer, the pointers into it and their lengths are generated together, as if they were one binder, with the other
+binders as above:
+
+- **Edges:** the empty buffer; each length at an aligned pointer, 0 to 4, 7, 8, each side of 16, 32, 48, 64, 128,
+  256, 512, 1,024 and 4,096, and `n` and `n - 1`, all up to `n`, with bytes 1, 2, 3, ..., and again all `0xFF`;
+  lengths 1, 16, 17, 32, 33, 64 and 65 at pointers 1, 3, 4, 8 and 15 bytes from alignment; a length of 0 in a buffer
+  that isn't empty; a byte past what's read; and zeros. Ascending bytes are so that a byte read from the wrong place,
+  or left out, changes the answer.
+- **Patterns:** each of `0x55`, `0xAA`, `0x0F`, `0xF0`, `0x01`, `0x80`, `0x7F`, `0xFE` and `0x11` repeated, 4, 16, 32
+  and 64 bytes of it, and 64 bytes with one set, at each place, which finds a lane that's wrong.
+- **Random,** seeded: a length uniform up to `n`, near a multiple of 4, 8, 16, 32 or 64, or under 70; an aligned
+  pointer half the time, and otherwise up to 63 bytes in; sometimes up to 32 bytes past what's read; and bytes
+  uniform, mostly zero, extremes, or one byte repeated.
+
+A buffer is never tried exhaustively. The result's `inputs.memory` says what the inputs that ran covered: the sizes of
+each buffer, how many pointers weren't 16- or 64-byte aligned, and how many lengths of each size.
+
+**Shrinking** a buffer takes bytes out first, and makes them simpler after: the whole buffer, a half or a quarter of
+it, what's before the pointer, what's past the length, a half of what the length covers, or a byte at either end of
+it; then every byte zero, each byte that isn't zero, and the first such byte smaller. Taking bytes out moves the
+pointer, and the end of the length, to where the same byte is. Simpler means fewer bytes in all, then fewer bits, then
+smaller values, so it ends, and the same input always shrinks to the same result, as for integers.
+
+**An input** is still one array of natural numbers, as the harness takes it: a buffer's entry says where its length and
+its bytes are, later in the same array. The store keeps a buffer as a list of bytes.
+
+#### Running on `ExecMem`
+
+The statement is about `Mem`, and the search runs it on [`ExecMem`](memory.md#executable-memory), which is fast. For
+a function that takes memory, `prooftest.py` has `ir-lean --executable-memory` print the module again, as
+`<namespace>Exec`, and compiles it next to the module. The harness then rewrites each call of a generated function that
+takes memory, in what it decides, into a call of the copy:
+
+```text
+f args m   becomes   Outcome.map ExecMem.out (f' args x)     where x.toMem = m
+```
+
+It finds `x` for `IRLean.Ptf.place m bufs`, as `IRLean.Ptf.placeExec x bufs`, by `IRLean.Ptf.toMem_placeExec`, which
+is proved; for the module's `initial`, whose copy is the same Lean with `ExecMem` for `Mem`, by
+`ExecMem.toMem_empty`, `toMem_addGlobal`, `toMem_addReloc` and `toMem_reserve`; for `Mem.empty`, by `toMem_empty`;
+and for `toMem x` itself. A call whose memory is anything else runs on `Mem`, as written. The result's
+`memory.calls` counts each.
+
+What connects a run of the copy to the statement about `Mem` is, for each function `f` it calls and its copy `f'`,
+`f args x.toMem = Outcome.map ExecMem.out (f' args x)`. From blocks to whole runs that's proved, by `run_map`,
+`stay_map`, `runPromised_map` and `promised_map`, and through a call and a frame by `call_agrees` and
+`withFrame_agrees`, with each memory operation's `_agrees` theorem, in [`ExecMem.lean`](../IRLean/ExecMem.lean). What's
+left is each block's equation, which for every function but `memory.c`'s `sum_bytes` and `fill` is argued, in
+[memory](memory.md#why-a-test-on-execmem-is-a-test-of-mem), and not proved. So a pass run on `ExecMem` rests on that
+argument, and says so: its `trusted` has `search.executable_memory`. A counterexample doesn't.
+
+**Confirming on `Mem`.** The kernel's theorem and `tools/verify.py`'s witness are both about the statement as written,
+on `Mem`, at the shrunk input, which is small, so `Mem`'s speed doesn't matter there. The kernel follows a call
+through `runFuel` only where the function's body is `run` or `promised (run ...)`, as `sum_scalar`'s is. A function
+with attributes about memory wraps its run in `Mem.call`, and one that calls another generated function runs blocks
+inside a block. The kernel follows neither yet, so `tools/verify.py` confirms those, by compiled evaluation on `Mem`,
+as it does every counterexample of zlib-ng's [below](#memory-and-simd-measured). A buffer's witness is
+`IRLean.Ptf.Buffer.ofList n [...]`, and a pointer's `IRLean.Ptf.Pointer.ofNat _ k`, which Lean fills in.
+
+### Equivalence
+
+`"equivalence": {"with": "g"}`, in place of a statement, or `--equivalent-to g`, builds the property that `function`
+and `g`, two functions in one module, give the same result and leave the same memory on the same inputs. No spec is
+written by hand: the statement is built from the two functions' signature, as `ir-lean --report` gives it, which has
+to be the same, both using memory or neither. For zlib-ng's `crc32_braid` and `crc32_pclmulqdq`, both
+`(i32,ptr,i64)->i32`, it's this, with `F` and `G` standing for the two calls:
+
+```lean
+∀ (b1 : IRLean.Ptf.Buffer 2048) (p1 : IRLean.Ptf.Pointer b1) (n2 : IRLean.Ptf.Length p1) (x0 : BitVec 32),
+  IRLean.Ptf.Returns F → IRLean.Ptf.Answers G → IRLean.Ptf.Same (IRLean.Ptf.place CrcPair.initial [b1.bytes]) F G
+-- F is CrcPair.crc32_braid (some x0) (p1.into CrcPair.initial 0) n2.toVal (IRLean.Ptf.place CrcPair.initial [b1.bytes])
+-- and G the same call of CrcPair.crc32_pclmulqdq
+```
+
+- **Arguments.** By default a pointer is a buffer, an `i64` right after one is its length, and any other integer is
+  a value, `some x`, never poison. `arguments` says otherwise, `value`, `buffer` or `length` for each argument in
+  order, and a length is of the last buffer before it. Each buffer has an allocation of its own, after the module's
+  globals, of at most `max_length` bytes, 256 by default. Another type of argument, such as a vector or a float, is
+  `unknown/binder_unsupported`.
+- **`IRLean.Ptf.Same m₀ r r'`:** both return the same value, and leave the same memory, as `sameMem` compares it:
+  every allocation `m₀` has, whether it's there, its size, its flags and its bytes, apart from the bytes of one that's
+  constant in `m₀`, which the model makes writing undefined. Allocations the functions made and left aren't compared.
+  Both undefined, for any reasons, or both stopping the model for the same reason, is the same too, though the
+  hypotheses don't let those through.
+- **Hypotheses.** `Returns` of the first function, the reference: an input where it's undefined, stops the model or
+  never finishes is discarded. `Answers` of the second: one where it stops the model is discarded. So wherever the
+  reference returns, the other has to return the same, and where the reference is undefined, the other may do
+  anything, as a target may in LLVM. Discards count, so a pass says how many inputs the reference returned on, and a
+  reference undefined on every input is `vacuous`, never a pass.
+- Two functions without memory are compared by `=` instead, under the same hypotheses.
+
+The result's `property.equivalence` has the functions, their signature and the arguments, and `trusted` has
+`property.equivalence`, with what `Same` compares. irl's `ptf_run` takes the same request.
+
+**What a pass means.** On every input tried, the reference returned, and the other returned the same value and left
+the same bytes, run on `ExecMem`. It doesn't say they agree on an input not tried, on a buffer longer than
+`max_length`, on poison, on a layout other than `Mem.spacedOut`, or in native code: it's about the model, and native
+code agrees with the model as far as the [differential tests](testing.md#tests) show. It rests on each block of each
+function agreeing with its copy on `ExecMem`, which is argued, not proved, as above. And it's a test, not a proof.
 
 ### Confirming a counterexample
 
@@ -223,12 +357,10 @@ IR says, are outside this, as [trust](trust.md#what-a-theorem-covers) says.
 
 ### Limits
 
-- **Memory.** A function that takes memory has a `Mem` or a pointer among its binders, and comes back
-  `unknown/binder_unsupported`. Tier 1 can't generate memory. Running the model on it was slow, since `Mem` is a chain
-  of closures, so each access walks back through earlier writes, which kept the zlib differential test to inputs of
-  about 800 bytes. Since 2026-11-11 [`ExecMem`](memory.md#executable-memory), milestone E2, runs the same code in time
-  that grows with the input, proved to agree with `Mem` operation by operation, and the differential tests run on it.
-  Generators for buffers, and tier 1 running on it, come next.
+- **Memory** is byte buffers, each in an allocation of its own, a pointer into each, and a length past it:
+  [memory](#memory). A property with a `Mem` or a `PtrVal` binder, or a pointer into something else, still comes back
+  `unknown/binder_unsupported`. Nothing generates a pointer stored in memory, a struct with fields, or memory the
+  function's globals point to, and every allocation is placed by `Mem.spacedOut`.
 - **Statements** can name Lean's libraries, `IRLean` and the generated module, and nothing else, as verify's pinned
   statements can. A spec written with definitions of its own, such as `pop` in `tests/proofs/Popcount.lean`, has to be
   stated with core's, such as `BitVec.cpop`, or it comes back `unknown/statement_invalid`.
@@ -376,10 +508,10 @@ later run, with both.
 ### Where the model's speed limits inputs
 
 Running the model on integer code is cheap: over the 79 properties that passed, a median of 9.9 µs an input, and at
-most 35.7 µs, for `__ffsti2` on 128 bits, which is why the default is 10,000 inputs. What limits input size
-is memory. Tier 1 doesn't generate memory at all yet. When it does, it can run on `ExecMem`, the executable memory of
-E2, which runs zlib on 128 KiB in about 6 s where `Mem`, as a chain of closures, took about a minute on 4 KiB
-([memory](memory.md#what-it-costs)).
+most 35.7 µs, for `__ffsti2` on 128 bits, which is why the default is 10,000 inputs. With memory, on `ExecMem`, it's
+the bytes: zlib-ng's two CRC-32s on up to 2 KiB took about 5.5 ms an input, [below](#memory-and-simd-measured), and
+`Buffers.ll`'s byte sums on up to 256 bytes 0.3 ms. `Mem`, as a chain of closures, took about a minute on 4 KiB of zlib
+where `ExecMem` takes 0.6 s ([memory](memory.md#what-it-costs)), which is why the search runs on `ExecMem`.
 
 ### In CI
 
@@ -387,6 +519,65 @@ E2, which runs zlib on 128 KiB in about 6 s where `Mem`, as a chain of closures,
 request, and fails unless each bug it can run is refuted, each one it can't is unknown, a true claim is never refuted,
 and the median is under 100 ms. `prooftest` shows a timeout, an unsupported function and a memory limit each come back
 unknown, never as a pass. The rest of the measurement above takes about 10 minutes on 32 cores, so it isn't in CI.
+`prooftest_memory` runs memory and the equivalence property on [`Buffers.ll`](../tests/prooftest/Buffers.ll), and
+`prooftest_pairs` runs [the pairs below](#memory-and-simd-measured) on fewer inputs, where the Nix store has their
+sources, which CI's doesn't ([testing](testing.md#tests)).
+
+## Memory and SIMD, measured
+
+The equivalence property on scalar and SIMD versions of one function from the [kernel corpus](kernels.md), on
+2026-11-10 on z, on top of `5c6b5d6`, with
+
+```console
+nix develop -c tools/measure.py run --heavy --label ptf-pairs -- \
+    bench/kernels/pairs.py --max-inputs 10000 --max-length 2048 --workers 2 --check
+```
+
+in 104 s, two proof tests at a time. [`bench/kernels/pairs.py`](../bench/kernels/pairs.py) fetches each project at its
+pin, compiles each file with the flags the project's build gives it, at the corpus's `-O3` and relaxed, as
+[demand](kernels.md#what-the-emitter-does-with-them-today) compiles the corpus, and links a project's files into one
+module with `llvm-link`, so both functions of a pair are in it. Nothing it fetches is written into the repo.
+
+**Which pairs.** What the emitter translates decided it:
+
+| Tried | Translates |
+| --- | --- |
+| zlib-ng's `crc32_braid`, the scalar CRC-32, `crc32_pclmulqdq`, with SSE4.2 and PCLMULQDQ, and `crc32_vpclmulqdq`, with AVX-512 and VPCLMULQDQ | All three, each `(i32,ptr,i64)->i32`. Two pairs |
+| libsodium's `blake2b_compress_ref` and `blake2b_compress_avx2`, BLAKE2b's compression function, which updates the state in place | Both, each `(ptr,ptr)->i32`. A pair that writes memory |
+| zlib-ng's `adler32_c` and `adler32_ssse3` | `adler32_c` does. `adler32_ssse3` doesn't: its `goto` into the middle of a loop makes its control flow irreducible, and a loop's `llvm.loop.mustprogress` needs it not to be |
+| zlib-ng's `adler32_avx2`, `adler32_avx512` and `adler32_avx512_vnni` | No: each calls `adler32_ssse3` for short inputs, from another file |
+| zlib-ng's `adler32_fold_copy_c` and `adler32_fold_copy_sse42` | Both do, but the scalar one calls `adler32` through zlib-ng's table of functions, a pointer to no function in the module, which stops the model |
+| zlib-ng's `crc32_chorba` and its SSE2 and SSE4.1 versions | No: each calls `crc32_braid_internal` from another file, or calls outside the module from a function with a stack frame |
+| xxHash's scalar and vector `XXH3` | No: none of `xxh_x86dispatch.c`'s 34 functions translates, for `llvm.experimental.noalias.scope.decl`, `memory` on calls and `llvm.prefetch` ([demand](kernels.md#what-stops-the-rest)) |
+| libsodium's Argon2 `fill_block_with_xor`, ref and AVX2 | The AVX2 one does. The ref one doesn't, for `readonly` on a call's parameter |
+
+**The results.** Each ran 10,000 inputs, seed 0, with buffers of at most 2,048 bytes, on `ExecMem`, every call of
+either function rewritten to run there:
+
+| Pair | Result | Inputs where the reference returned | What they covered | Search |
+| --- | --- | --- | --- | --- |
+| `crc32_braid` = `crc32_pclmulqdq` | `passed_tier1/sampled` | 10,000 of 10,000 | Lengths 0 to 2,048, 1,884 of them: 79 of 0, 711 of 1 to 15, 2,027 of 16 to 63, 1,100 of 64 to 255, 2,682 of 256 to 1,023, 3,401 of 1,024 or more. Pointers 0 to 63 bytes in, 4,514 not 16-byte aligned | 53.8 s |
+| `crc32_braid` = `crc32_vpclmulqdq` | `passed_tier1/sampled` | 10,000 of 10,000 | The same inputs | 56.6 s |
+| `blake2b_compress_ref` = `blake2b_compress_avx2` | `passed_tier1/sampled` | 4,796 of 10,000 | States of 96 to 2,048 bytes and blocks of 128 to 2,048, each pointer 0 to 63 bytes in, 2,229 states not 16-byte aligned | 13.0 s |
+
+Each of the CRC-32's paths has inputs that take it, by their lengths and pointers: under 16 bytes, the table; 16 and
+up, the folds, with a pointer off 16-byte alignment and with one 13 to 15 bytes off, which with a CRC that isn't 0 takes
+the branch that loads 16 more bytes; 704 and up, `crc32_pclmulqdq`'s Chorba loop; and 256 and up,
+`crc32_vpclmulqdq`'s 512-bit folds. That's from the inputs, not from measuring which blocks ran. The 5,204 BLAKE2b
+inputs discarded had a state or a block too short past its pointer for what the reference reads, so it was undefined.
+Setting up took 5.8 s for BLAKE2b and 9.5 s for each CRC-32, of which 2.0 s and 3.8 s compiled the copy on
+`ExecMem`.
+
+So no input found zlib-ng's or libsodium's SIMD code doing anything but what the scalar code does. That's a test, not a
+proof: it says nothing of an input not tried, a buffer over 2,048 bytes, or native code, and it rests on the copies
+on `ExecMem` agreeing with the functions, block by block, as [above](#running-on-execmem).
+
+**The planted bug.** `pairs.py` changes one 32-bit lane of the folding constant in `crc32_fold_pclmulqdq`,
+`_mm_set_epi32(1, 0x54442bd4, 1, 0xc6e41596)`, to `0x54442bd5`, in the IR, everywhere the function uses it, as a typo
+in the C would. Tier 1 refutes it: the 9th input, an edge of 16 ascending bytes, fails, and shrinking takes it to 16
+zero bytes and a CRC of 0, the shortest input that reaches the fold, in 52 ms from the first input to the shrunk one.
+The kernel can't follow `crc32_pclmulqdq`, which runs inside `Mem.call` and calls the fold, so `tools/verify.py`
+confirms it, `counterexample/compiled_evaluation`, by evaluating the statement on `Mem` at that input, in 5.3 s.
 
 ## Tier 2: bounded proofs
 
@@ -499,5 +690,8 @@ was producing lemmas. The waves are replaced by the roadmap's [platform track an
 - **The unit-test milestone,** T3: compiler-rt's builtins against their own unit tests in
   `compiler-rt/test/builtins/Unit`, scored by injected bugs, as the [prior-art study](prior-art.md#proof-tests)
   proposes. `popcountsi2_test.c` tries 6 edge values and 10,000 `rand()` values, which never set bit 31.
-- **Memory,** after the executable memory model, E2: generators for buffers, and a faster `Mem` to run them on.
+- **Memory, further:** the kernel following `Mem.call` and calls between generated functions, so it confirms what
+  `tools/verify.py` confirms for memory now, by replacing each generated function's `run` with fuel through a proved
+  equation; structs and pointers stored in memory as binders; and each block's equation proved for the copy on
+  `ExecMem`, so a pass rests on no argument.
 - **One harness for many properties,** to cut the 2 s of setup each pays, for C2.

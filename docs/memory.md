@@ -315,10 +315,10 @@ the original there either.
   each copy's `match` on the pair is its own auxiliary definition, so the two sides only meet once the pair is taken
   apart, which needs a step of its own. Nor does it do switches, calls through pointers, functions whose blocks are
   nested in groups, or recursive ones, which `run_map` doesn't cover.
-- **Proof tests, the search and `msc`.** Tier-1 proof tests in [`tools/prooftest`](../tools/prooftest) still refuse
-  functions with memory, since they can't generate it, and the search's refuting step doesn't run them either. Both
-  can now run on `ExecMem` the way the differential harness does, and neither does yet. Nor does `irl msc`, the
-  memory-safety checker, which has a name and nothing built ([irl](irl.md)).
+- **The search and `msc`.** Tier-1 proof tests run on `ExecMem` since 2026-11-10: they generate buffers, run a
+  property on the module's copy, and confirm a counterexample on `Mem` itself ([proof tests](proof-tests.md#memory)).
+  The search's refuting step doesn't run functions with memory yet, and `irl msc`, the memory-safety checker, has a
+  name and nothing built ([irl](irl.md)).
 
 ## Writing a memory-safety proof
 
