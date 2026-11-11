@@ -147,7 +147,7 @@ required one to pass and none of the others to fail. The decision is one functio
 | `support` | Lean files the proof imports, compiled in this order |
 | `lean_root` | The directory module names are relative to. Defaults to the proof's |
 | `statement` | A Lean proposition. Pins the theorem, or stands alone to be refuted with witnesses |
-| `witnesses` | A list of `{"x": "3#32"}`: a Lean term for each binder that isn't a hypothesis, by name or as `#0`, `#1`, ... |
+| `witnesses` | A list of `{"x": "3#32"}`: a Lean term for each binder that isn't a hypothesis, by name or as `#0`, `#1`, ..., without a tactic block or `by_elab`. See [what a witness may be](#what-a-witness-may-be) |
 | `limits` | `{"timeout_seconds": 600, "memory_mb": 4000}` by default |
 
 A field it doesn't know is an error, so a misspelling can't be ignored quietly. A proof can import `IRLean`,
@@ -161,8 +161,10 @@ pass by proving something else under the right name. The rest of `claim` takes i
 - `binders` lists each argument. A binder with `"hypothesis": true` is a precondition, and the theorem only
   covers inputs meeting it. A hypothesis of `False` makes any statement true, and still comes back `proved`.
 - `shape` is `returns_ok` when the conclusion is `target ... = Outcome.ok _`, perhaps under `∃`, which rules out
-  undefined behavior, model stops and runs that never end. Anything else is `other`, and gets an assumption saying
-  to read it. `inc = inc` is a theorem about `inc`, and comes back `proved` with shape `other`.
+  undefined behavior, model stops and runs that never end. The left side has to be a call of the target as
+  written: `(fun _ => Outcome.ok v) (target x) = Outcome.ok v` only mentions it, and holds whatever it does.
+  Anything else is `other`, and gets an assumption saying to read it. `inc = inc` is a theorem about `inc`, and
+  comes back `proved` with shape `other`.
 - `axioms` is everything the theorem rests on.
 
 `assumptions` lists what the answer rests on that nothing here checks, each with a link to where it's
@@ -195,9 +197,12 @@ proof or its support modules would run the proof's own code, so a witness for a 
 `unsupported`.
 
 - **With a proof that fails** and a pinned statement, witnesses are tried against the statement. So are the
-  assignments `bv_decide` prints when it finds a counterexample to some goal. Those count only if they make the
-  pinned statement false, since they're about a goal inside the proof. Without a pinned statement they're listed
-  with result `unsupported`.
+  assignments `bv_decide` prints when it finds a counterexample to some goal, read from Lean's errors, if every
+  value is a literal as `bv_decide` prints one: `0x1f#8`, `31#8`, `true` or `false`. Any other is dropped, since
+  the proof's code can log any error it likes, and a value is code that runs where the answers are printed: until
+  2026-11-10, a proof that failed could forge a counterexample to a true statement this way. Those count only if
+  they make the pinned statement false, since they're about a goal inside the proof. Without a pinned statement
+  they're listed with result `unsupported`.
 - **A run that never ends** shows up as `timeout`, never as a counterexample, though the model says `none` there,
   which does make a claim of `= Outcome.ok` false.
 - **A witness counts only if the Lean process that evaluated it ended cleanly.** All of a request's witnesses are
@@ -208,6 +213,16 @@ proof or its support modules would run the proof's own code, so a witness for a 
   Lean or `IRLean`, or the kernel is wrong. That's `evaluation_contradicts_proof`, never `proved`.
 - **What can be decided:** functions without memory, in practice, whose results have `DecidableEq`. Memory
   doesn't, so a witness for a function using memory comes back `unsupported`.
+
+### What a witness may be
+
+A witness is a Lean term, such as `3#32`, `0xff#8` or `some 5#32`. It's elaborated against its binder's type and
+then run, in the process that prints the answers. A tactic block, `(by ...)` or `(show T by ...)`, and `by_elab`
+run code while they elaborate, so a witness with one comes back `unsupported`, and a pinned statement with one is
+`statement_invalid`. They aren't the only terms that do, `include_str` with a computed path is another, so that
+doesn't make a witness safe to take from anyone: running it runs whatever it computes,
+`unsafe` code included. So the witnesses evaluated are the request's own, trusted as the rest of the request is,
+and the literals `bv_decide` printed. Nothing else a proof writes becomes one.
 
 ## What `proved` rests on
 
@@ -224,8 +239,8 @@ Everything in [trust](trust.md), and also:
 - **The checks catch cheating that's been tried:** `sorry`, an axiom, `native_decide`, a theorem about a
   function named like the target, a theorem about something else, a declaration added with
   `debug.skipKernelTC`, fake `bv_decide` axioms, a proof or support module that rewrites the module it's checked
-  against, and an initializer that prints an answer of its own. [`tests/verify.py`](../tests/verify.py) has
-  each one.
+  against, an initializer that prints an answer of its own, and an error that reads like `bv_decide`'s
+  counterexample with code for a value. [`tests/verify.py`](../tests/verify.py) has each one.
 - **Resource limits:** the first error decides. If Lean's first error is a resource limit, the answer is
   `timeout`, since what fails after a limit often fails because of it. Lean's later errors are still in
   `diagnostics`.
@@ -264,8 +279,10 @@ input's directory, so the IR names no path.
 - **What Lean is asked** is in [`tools/verify_check.lean`](../tools/verify_check.lean). It imports only Lean,
   `IRLean` and the generated module, and reads the proof's modules as data. It reads its question from a JSON
   file and prints its answers on lines tagged with a nonce, so nothing a request says is pasted into Lean, and
-  nothing Lean prints otherwise can pass for an answer. A new question about the proof has to be answered from
-  its declarations, never by importing it or running its code.
+  nothing Lean prints otherwise can pass for an answer. The only text it elaborates is the pinned statement and
+  the witnesses, in the process that holds the nonce, so none of it may come from the proof but
+  [literals](#what-a-witness-may-be). A new question about the proof has to be answered from its declarations,
+  never by importing it or running its code.
 - **A breaking change** to the result's shape changes `schema` to `ir-lean.verify/2`.
 
 ## Limits
