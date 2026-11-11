@@ -587,7 +587,7 @@ class Live:
         """docs/verdicts.md's test 8, through replay_evidence and main: a replay that skipped a step, by a bug
         here or a caller's, isn't replayed, and IRLEAN_DENY_ALL takes the grant away, with no record and a
         non-zero exit."""
-        kernel = vc.Replay.kernel
+        kernel, passed = vc.Replay.kernel, vc.Replay.passed
 
         def one_short(r: vc.Replay) -> None:
             # leanchecker replays every module but the evidence's last, as a list built short would.
@@ -599,11 +599,17 @@ class Live:
             finally:
                 files[last] = h
 
-        for name, step in [("the kernel's replay skipped", lambda r: None),
-                           ("the kernel's replay a module short", one_short)]:  # fmt: skip
+        def twice(r: vc.Replay, name: str, detail: str = "") -> None:
+            # The anchors' check counted twice, as one passed in a loop over units would be.
+            for _ in range(1 + (name == "anchors")):
+                passed(r, name, detail)
+
+        for name, method, step in [("the kernel's replay skipped", "kernel", lambda r: None),
+                                   ("the kernel's replay a module short", "kernel", one_short),
+                                   ("a check passed twice", "passed", twice)]:  # fmt: skip
             if only and not any(o in name for o in only):
                 continue
-            with mock.patch.object(vc.Replay, "kernel", step):
+            with mock.patch.object(vc.Replay, method, step):
                 v, _ = self.replay(good, name)
             ok = (v["status"], v["reason"]) == INCOMPLETE
             print(f"{'ok  ' if ok else 'FAIL'} guard: {name}: {v['status']} {v['reason']}")
