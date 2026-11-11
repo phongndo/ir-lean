@@ -154,4 +154,59 @@ else
   fail 'split, --executable-memory changed more than Mem'
 fi
 
+# Two functions of memory.c agree whole with their copies, by tests/exec_memory/Link.lean, on the standard axioms and
+# replayed in the kernel. A copy with a branch swapped in one block has to stop that block's equation.
+clang -O2 -fno-strict-aliasing -S -emit-llvm -fno-discard-value-names tests/real/memory.c -o "$work/memory.ll"
+"$tool" "$work/memory.ll" --namespace MemoryC -o "$work/MemoryC.lean" 2>/dev/null
+"$tool" "$work/memory.ll" --namespace MemoryCExec --executable-memory -o "$work/MemoryCExec.lean" 2>/dev/null
+linked=0
+if ! out=$(lean -R "$work" -o "$work/MemoryC.olean" "$work/MemoryC.lean" 2>&1) ||
+  ! out=$(lean -R "$work" -o "$work/MemoryCExec.olean" "$work/MemoryCExec.lean" 2>&1); then
+  fail 'memory.c, both ways, compiled' "$out"
+elif ! out=$(lean -DwarningAsError=true -R tests/exec_memory -o "$work/Link.olean" tests/exec_memory/Link.lean 2>&1); then
+  fail 'tests/exec_memory/Link.lean' "$out"
+elif out=$(IRLEAN_CHECK_MODULE=Link lean tests/check_axioms.lean 2>&1) &&
+  grep -q 'and 0 from bv_decide' <<<"$out" && replay=$(timeout "$secs" leanchecker Link 2>&1); then
+  printf 'ok    sum_bytes and fill agree whole with their copies: %s, and leanchecker replays it\n' "$out"
+  linked=1
+else
+  fail 'Link: axioms and replay' "$out ${replay:-}"
+fi
+if [ "$linked" = 1 ]; then
+  old='br epil_iter_cmp_not (.for_cond_cleanup m) (.for_body_epil m inc_epil add_epil epil_iter_next p xtraiter)'
+  new='br epil_iter_cmp_not (.for_body_epil m inc_epil add_epil epil_iter_next p xtraiter) (.for_cond_cleanup m)'
+  mkdir "$work/mutant"
+  if ! python3 -c '
+import sys
+text, old, new = open(sys.argv[1]).read(), sys.argv[2], sys.argv[3]
+if text.count(old) != 1:
+    sys.exit(f"{text.count(old)} occurrences of: {old}")
+open(sys.argv[4], "w").write(text.replace(old, new))
+' "$work/MemoryCExec.lean" "$old" "$new" "$work/mutant/MemoryCExec.lean"; then
+    fail 'a branch swapped in the copy: the mutant does not apply'
+  else
+    cp "$work/MemoryC.olean" "$work/mutant/"
+    status=0
+    if ! out=$(LEAN_PATH="$work/mutant:$LEAN_PATH" lean -R "$work/mutant" -o "$work/mutant/MemoryCExec.olean" \
+      "$work/mutant/MemoryCExec.lean" 2>&1); then
+      fail 'a branch swapped in the copy does not compile' "$out"
+    else
+      out=$(LEAN_PATH="$work/mutant:$LEAN_PATH" lean -R tests/exec_memory tests/exec_memory/Link.lean 2>&1) || status=$?
+      errors=$(grep -E ':[0-9]+:[0-9]+: error' <<<"$out" || true)
+      line=$(head -1 <<<"$errors" | sed -E 's/^.*Link\.lean:([0-9]+):.*$/\1/')
+      found=$(awk -v n="${line:-0}" 'NR <= n && match($0, /^theorem [^ ]+/) { name = $2 } END { print name }' \
+        tests/exec_memory/Link.lean)
+      if [ "$status" = 0 ]; then
+        fail 'a branch swapped in the copy: Link.lean still checks'
+      elif ! grep -qvE "$limit" <<<"$errors"; then
+        fail 'a branch swapped in the copy: stops only at a resource limit' "$out"
+      elif [ "$found" != fill_step ]; then
+        fail "a branch swapped in the copy: fails first in $found, not in fill_step" "$errors"
+      else
+        printf 'ok    a branch swapped in the copy stops fill_step\n'
+      fi
+    fi
+  fi
+fi
+
 exit "$failed"

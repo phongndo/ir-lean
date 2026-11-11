@@ -12,13 +12,15 @@ every earlier store to its allocation.
 through it: for one that changes memory, `Mem.op x.toMem args = Outcome.map toMem (ExecMem.op x args)`, and for one that
 doesn't, the two are equal. Operations that only read are `Mem`'s own, run on `x.toMem`, which is cheap to build and
 to read from, since its allocations are lookups into `x`'s arrays. So they agree by definition, and only the operations
-that make new memory are written again here.
+that make new memory are written again here. The last section takes agreement from blocks to whole runs.
+
+None of this uses `implemented_by` or `extern`: the code tests run is the code the kernel checked.
 
 `docs/memory.md#executable-memory` says how tests use this, and why what they find holds of `Mem`. -/
 
 namespace IRLean
 
-/-- What `k` returns, with `f` applied to a result. -/
+/-- An outcome with `f` applied to its result, if it has one. -/
 def Outcome.map (f : α → β) : Outcome α → Outcome β
   | none => none
   | some (.error e) => some (.error e)
@@ -94,7 +96,7 @@ def set (s : ExecBytes) (i : Nat) (b : Byte) : ExecBytes :=
     match s with
     | ⟨data, ptrs, rest⟩ => ⟨data, ptrs, fun k => if k = i then b else rest k⟩
 
-/-- Sets bytes `o + i` to `f i`, for `i` from `i` to `i + n`. -/
+/-- Sets bytes `o + j` to `f j`, for `j` from `i` up to `i + n`. -/
 def writeFrom (f : Nat → Byte) (o : Nat) : (i n : Nat) → ExecBytes → ExecBytes
   | _, 0, s => s
   | i, n + 1, s => writeFrom f o (i + 1) n (s.set (o + i) (f i))
@@ -117,7 +119,7 @@ def uninit (n : Nat) : ExecBytes := blank n fun _ => .uninit
 /-- Byte `i` is `f i`, holding the first `n` in `data`. -/
 def ofFn (n : Nat) (f : Nat → Byte) : ExecBytes := (blank n f).writeRange 0 (min n cap) f
 
-/-- Sets bytes `i` to `i + n` that `P` holds of to uninitialized. -/
+/-- Sets the bytes from `i` up to `i + n` that `P` holds of to uninitialized. -/
 def clearFrom (P : Nat → Bool) : (i n : Nat) → ExecBytes → ExecBytes
   | _, 0, s => s
   | i, n + 1, s => clearFrom P (i + 1) n (if P i then s.set i .uninit else s)
@@ -1145,6 +1147,31 @@ need, to be proved to agree with the original as a whole, is the equation for ea
 def Next.map (g : β' → β) (k : ρ' → ρ) : Next β' ρ' → Next β ρ
   | .jump b => .jump (g b)
   | .ret r => .ret (k r)
+
+/-! What a block ends with, read back. With `storeInt_agrees` and the rest, `Outcome.andThen_map` and
+`Outcome.map_andThen`, these take a block's equation apart by `simp`: `tests/exec_memory/Link.lean` does it. -/
+
+theorem map_jump (g : β' → β) (k : ρ' → ρ) (b : β') :
+    Outcome.map (Next.map g k) (jump b : Outcome (Next β' ρ')) = jump (g b) := rfl
+
+theorem map_ret (g : β' → β) (k : ρ' → ρ) (r : ρ') :
+    Outcome.map (Next.map g k) (ret r : Outcome (Next β' ρ')) = ret (k r) := rfl
+
+theorem map_br (g : β' → β) (k : ρ' → ρ) (c : Val 1) (t e : β') :
+    Outcome.map (Next.map g k) (br c t e : Outcome (Next β' ρ')) = br c (g t) (g e) := by
+  rcases c with _ | b
+  · rfl
+  · simp only [br, jump, Outcome.ok, Outcome.map, Next.map]; split <;> rfl
+
+theorem map_assume (f : α → β) (c : Val 1) (o : Outcome α) :
+    Outcome.map f (assume c o) = assume c (Outcome.map f o) := by
+  rcases c with _ | b
+  · rfl
+  · simp only [assume]; split <;> rfl
+
+theorem map_noundef {τ : Type} (f : α → β) (x : Option τ) (o : Outcome α) :
+    Outcome.map f (noundef x o) = noundef x (Outcome.map f o) := by
+  rcases x with _ | _ <;> rfl
 
 section Runs
 
