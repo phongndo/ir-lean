@@ -8,7 +8,8 @@ lane it's computed from is, as for `IRLean.X86`'s dot products, and as Alive2 re
 `llvm.x86.avx512.pternlog` is poison when that lane of any operand is, whatever the truth table uses, a byte of
 PSHUFB when the byte it picks is, even where it's zeroed, and a shift by a count that's poison is poison in every
 lane. Where the SDM's pseudo-code reads less than that, this is the more poisonous reading. `tests/vecopcheck.py`
-checks each against Alive2, both ways, and LLVM's constant folder with x86's own folds, poison included. -/
+checks each against Alive2, both ways, and LLVM's constant folder with x86's own folds, poison included, and
+`tests/x86native.py` against the processor. -/
 
 namespace IRLean.X86
 
