@@ -2,7 +2,9 @@
 # `Refines` for functions with memory, SEM-06, on what ir-lean emits. Each rewrite in tests/memory_refine is
 # translated, and tests/memory_refine/MemoryRefine.lean proves the case's verdict about it: it builds with warnings as
 # errors, rests on the standard axioms, and replays in the kernel. A proof that a wrong rewrite refines has to fail
-# with an error of its own, and so does each of the relation's rules, changed in a copy of IRLean/MemRefine.lean.
+# with an error of its own, and so does each of the relation's rules, changed in a copy of IRLean/MemRefine.lean, a
+# wrong version of each new kind of lemma in IRLean/MemRefineOps.lean, where it's wrong, and each rule of
+# `Mem.leData`, changed in a copy of that file.
 # Alive2 gives each case the verdict the case says, through tests/calls_alive.py. See docs/refinement.md.
 # Bounded: one Lean or Alive2 process at a time, each Lean process with a memory cap and a time limit, writing only to
 # a temporary directory. Needs `lake build`.
@@ -29,12 +31,14 @@ limit='maximum number of heartbeats|deterministic\)? timeout|maximum recursion d
 limit+='excessive memory|out of memory|maximum number of steps'
 
 # The relation and what keeps it: on the standard axioms alone, replayed in the kernel.
-if out=$(IRLEAN_CHECK_MODULE=IRLean.MemRefine lean tests/check_axioms.lean 2>&1) &&
-  grep -q 'and 0 from bv_decide' <<<"$out" && replay=$(timeout "$secs" leanchecker IRLean.MemRefine 2>&1); then
-  printf 'ok    IRLean.MemRefine: %s, and leanchecker replays it\n' "$out"
-else
-  fail 'IRLean.MemRefine: axioms and replay' "$out ${replay:-}"
-fi
+for module in IRLean.MemRefine IRLean.MemRefineOps; do
+  if out=$(IRLEAN_CHECK_MODULE=$module lean tests/check_axioms.lean 2>&1) &&
+    grep -q 'and 0 from bv_decide' <<<"$out" && replay=$(timeout "$secs" leanchecker "$module" 2>&1); then
+    printf 'ok    %s: %s, and leanchecker replays it\n' "$module" "$out"
+  else
+    fail "$module: axioms and replay" "$out ${replay:-}"
+  fi
+done
 
 # Each case, as the module CASE_ir.
 cases=(tests/memory_refine/*.ll)
@@ -91,10 +95,10 @@ theorems_with_errors() {
 }
 
 # FILE has to fail to check, at THEOREM, with an error that isn't a resource limit. An error at 1:0 is about its
-# imports.
-# usage: must_fail WHAT FILE THEOREM
+# imports. EXPECT, if given, is what Lean's error has to say, so that it can't fail for an unrelated reason.
+# usage: must_fail WHAT FILE THEOREM [EXPECT]
 must_fail() {
-  local what=$1 file=$2 theorem=$3 status=0 out errors hit
+  local what=$1 file=$2 theorem=$3 expect=${4:-} status=0 out errors hit
   out=$(lean -R "$(dirname "$file")" "$file" 2>&1) || status=$?
   errors=$(grep -E "^$file:[0-9]+:[0-9]+: error" <<<"$out" | grep -v "^$file:1:0:" | grep -vE "$limit" || true)
   if [ "$status" = 0 ]; then
@@ -106,6 +110,8 @@ must_fail() {
   elif ! hit=$(theorems_with_errors "$file" <<<"$errors" | grep -xF "$theorem"); then
     fail "$what doesn't stop $theorem with an error of its own, only $(theorems_with_errors "$file" <<<"$errors" |
       tr '\n' ' ')" "$out"
+  elif [ -n "$expect" ] && ! grep -qE "$expect" <<<"$out"; then
+    fail "$what stops $theorem, but not where it should: nothing Lean says matches $expect" "$out"
   else
     printf 'ok    %s stops %s: %s\n' "$what" "$hit" "$(head -1 <<<"$errors" | sed "s|$work/||" | cut -c1-140)"
   fi
@@ -119,18 +125,33 @@ else
   fail "the false proof can't be checked, since what it imports didn't build"
 fi
 
+# A wrong version of each new kind of lemma about memory, as the right one's proof is written, stops where it's
+# wrong: a load of a vector kept outright on `Mem.le`, where the target's bytes may hold a pointer, `lifetime` through
+# a refined pointer, `returned` with a poison argument, and `memset` setting a poison byte as 0.
+if [ "$built" = 1 ]; then
+  must_fail 'a load of a vector that keeps refinement outright on Mem.le' \
+    tests/memory_refine/must_fail/LoadVecOutright.lean loadVec_outright '\| some e => Outcome\.stop e'
+  must_fail 'lifetime through a pointer the target refines' \
+    tests/memory_refine/must_fail/LifetimeRefinedPointer.lean lifetime_refined 'm\.lifetime none alive'
+  must_fail 'returned with a poison argument' \
+    tests/memory_refine/must_fail/ReturnedPoisonArgument.lean returnedInt_any "none == res'"
+  must_fail 'memset setting a poison byte as 0' \
+    tests/memory_refine/must_fail/MemsetPoisonAsZero.lean memsetZero_mono 'Byte\.val \(none\.getD 0\)'
+fi
+
 # A wrong relation. Each mutant changes one of its rules in a copy of IRLean/MemRefine.lean, so that something wrong
 # would be allowed, and the law that pins the rule has to stop on it.
 # usage: relation_mutant NAME SED_EXPRESSION THEOREM
+# usage: relation_mutant NAME SED_EXPRESSION THEOREM [FILE] [EXPECT]
 relation_mutant() {
-  local dir
+  local dir file=${4:-IRLean/MemRefine.lean}
   dir=$(mktemp -d -p "$work")
-  sed "$2" IRLean/MemRefine.lean >"$dir/MemRefine.lean"
-  if cmp -s IRLean/MemRefine.lean "$dir/MemRefine.lean"; then
-    fail "relation mutant $1 doesn't change IRLean/MemRefine.lean"
+  sed "$2" "$file" >"$dir/$(basename "$file")"
+  if cmp -s "$file" "$dir/$(basename "$file")"; then
+    fail "relation mutant $1 doesn't change $file"
     return
   fi
-  must_fail "relation mutant $1" "$dir/MemRefine.lean" "$3"
+  must_fail "relation mutant $1" "$dir/$(basename "$file")" "$3" "${5:-}"
 }
 # LLVM reads an uninitialized byte as `undef`, which poison doesn't refine.
 relation_mutant 'an uninitialized byte allows poison' 's/^  | .uninit, b => b ≠ .poison$/  | .uninit, _ => True/' \
@@ -143,6 +164,13 @@ relation_mutant 'a pointer allows any pointer' 's/^    | some p => b = some p$/ 
 # not deleted, so the law stops on what it says, not on a field that's gone.
 relation_mutant 'memories need not agree on the next allocation' \
   's/^  next : m'"'"'.next = m.next$/  next : True/' next_eq
+# `Mem.leData` without its rule on pointers: a load could then read a pointer in the target where the source read
+# poison, and stop the model, which `Mem.le.loadVec` has as its second case.
+relation_mutant 'memories related by their data, where the target may gain a pointer' \
+  's/^  ptr : ∀ b a a'"'"', m.allocs b = some a → .*$/  ptr : True/' visible_ptr IRLean/MemRefineOps.lean 'h\.ptr'
+# `Mem.leData` without the same running calls: a promise could hide a byte in the source and not in the target.
+relation_mutant 'memories related by their data, with other calls running' \
+  's/^  calls : m'"'"'.calls = m.calls$/  calls : True/' unwritten IRLean/MemRefineOps.lean "m'\\.calls\\.any"
 
 # Alive2 gives each case the verdict the case says it does.
 if ! tests/calls_alive.py tests/memory_refine tests/memory_refine/MemoryRefine.lean; then

@@ -6,15 +6,23 @@ The kernel corpus is the fixed list of real projects the superoptimizer is judge
 docs/corpus.md, the pairs of IR tools/corpus/capture.py takes from `opt`.
 
 The manifest names each project's pinned source, by commit and Nix hash, the units its hot kernels are
-compiled from, the flags the project builds them with, the kernels, and the workload wall time is measured
-on, with the hash of each input. While `corpus.state` is `proposed` it's a proposal, and nothing is approved.
-Once the maintainer approves a list, `state` is `approved`, `corpus.approved` names the projects, and
-`corpus.approved_on` and `corpus.decided_in` say when and where, with nothing locked yet, since what the
-decision asks for before fixing can still change an entry. Then `state` is `fixed`, and `[lock]` records the
-digest of what was approved. From then on any change to an approved project, or to what the corpus compiles
-with, changes the digest, and `problems` reports it unless an `[[amendment]]` records the change, its date and
-its reason, each amendment starting from the digest the one before it ended on. So the corpus can't change
-quietly.
+compiled from, the flags the project builds them with, the kernels, its inputs, each with its hash, and the
+workloads wall time is measured on. A workload says what it runs, what's measured, its wall time or a rate it
+prints, and how a candidate is checked before it's timed: its output, compared bit for bit with the
+baseline's, or the project's own test of the same functions against known answers. A driver of ours that a
+workload runs is pinned by its hash too, and so is every other file of this repository a workload or a check
+runs.
+
+While `corpus.state` is `proposed` it's a proposal, and nothing is approved. Once the maintainer approves a
+list, `state` is `approved`, `corpus.approved` names the projects, and `corpus.approved_on` and
+`corpus.decided_in` say when and where, with nothing locked yet, since what the decision asks for before
+fixing can still change an entry. Then `state` is `fixed`, every workload of an approved project says what's
+measured and has a check, and `[lock]` records the digest of what was approved. From then on any change to an
+approved project, or to what the corpus compiles with, changes the digest, and `problems` reports it unless an
+`[[amendment]]` records the change, its date and its reason, each amendment starting from the digest the one
+before it ended on. The lock itself is held to the decision it records: its digest has to be in the section of
+the doc `lock.approved_in` points to, docs/roadmap.md's record, so replacing it is a change to a reviewed
+decision, and tests/kernels_test.py holds it to the digest approved too. So the corpus can't change quietly.
 
 usage: bench/kernels/kernels.py check          the manifest meets every rule
        bench/kernels/kernels.py digest         the digest of the projects named, or of `corpus.approved`
@@ -72,6 +80,23 @@ NAME = re.compile(r"[a-z0-9][a-z0-9.+-]*")
 # What a unit's flags mustn't set: the corpus sets the optimization level, and `native` would make the IR
 # depend on the host, where naming the processor makes it the same on any.
 BANNED_FLAG = re.compile(r"-O.*|-march=native|-mtune=native|-mcpu=native")
+# What's measured of a workload, by docs/kernels.md's protocol: the wall time of its run, or a speed the
+# benchmark prints, where it runs for a fixed time, as xxhsum -b does, or times its own repetitions, as
+# llama-bench does.
+MEASURES = ("time", "rate")
+# How a candidate is shown to compute what the baseline does before it's timed: what its run writes, hashed
+# and compared bit for bit with the baseline's, or the project's own test of the same functions, in its
+# checking mode.
+CHECKS = ("output", "known-answers")
+# The places a workload's commands name: the source at its pin, the project's build, a directory for what a
+# run writes, and this repository. {input:NAME} names one of the project's inputs.
+PLACES = ("src", "build", "out", "repo")
+PLACEHOLDER = re.compile(r"\{([^{}]*)\}")
+# A file of this repository a command names, which has to be pinned by its hash.
+REPO_FILE = re.compile(r"\{repo\}/(\S+)")
+# {repo} without a path after it, as `env -C {repo}` or `env -C {repo}/` would use it: a way to run a file of
+# ours that names no path to pin.
+BARE_REPO = re.compile(r"\{repo\}(?!/\S)")
 
 
 def load(path: Path = MANIFEST) -> dict[str, Any]:
@@ -105,7 +130,10 @@ def digest(manifest: dict[str, Any], names: list[str] | None = None) -> str:
     projects = manifest.get("project", {})
     fixed = {
         "schema": manifest.get("schema"),
-        "corpus": {k: corpus.get(k) for k in ("llvm_tag", "target", "opt", "flags", "machine")},
+        "corpus": {
+            k: corpus.get(k)
+            for k in ("llvm_tag", "llvm_commit", "llvm_nix_hash", "target", "opt", "flags", "machine")
+        },
         "projects": {
             name: {k: v for k, v in projects.get(name, {}).items() if k not in ("status", "note")}
             for name in chosen
@@ -233,27 +261,211 @@ def _project_problems(name: str, p: Any) -> list[str]:
     if units and not kernels:
         out.append(f"{name}: no kernel named in any unit, so nothing says which functions are hot")
 
-    w = p.get("workload")
-    if not isinstance(w, dict):
+    inputs = p.get("input", [])
+    if not isinstance(inputs, list):
+        out.append(f"{name}: inputs aren't a list")
+        inputs = []
+    named: set[str] = set()
+    for i in inputs:
+        if not isinstance(i, dict) or not isinstance(i.get("name"), str) or not i["name"]:
+            out.append(f"{name}: an input has no name")
+            continue
+        named.add(i["name"])
+        if not isinstance(i.get("url"), str) or not i["url"].startswith("https://"):
+            out.append(f"{name}: input {i['name']} has no https url")
+        if not isinstance(i.get("sha256"), str) or not SHA256.fullmatch(i["sha256"]):
+            out.append(f"{name}: input {i['name']} has no SHA-256, so the workload isn't pinned")
+
+    workloads = p.get("workload")
+    if not isinstance(workloads, list) or not workloads:
         out.append(f"{name}: no workload, so nothing says what wall time is measured on")
         return out
+    seen_workloads: set[str] = set()
+    for w in workloads:
+        label = f"{name}: workload {w.get('name') if isinstance(w, dict) else w!r}"
+        if not isinstance(w, dict) or not isinstance(w.get("name"), str) or not NAME.fullmatch(w["name"]):
+            out.append(f"{label}: a workload has a name, lower case letters, digits, `.`, `+` and `-`")
+            continue
+        if w["name"] in seen_workloads:
+            out.append(f"{label}: two workloads have that name")
+        seen_workloads.add(w["name"])
+        out += _workload_problems(label, w, named)
+    return out
+
+
+def _commands(value: Any) -> bool:
+    """Whether `value` is a list of commands, each a list of strings with a program."""
+    return isinstance(value, list) and bool(value) and all(_strings(c) and c for c in value)
+
+
+def _words(value: Any) -> list[str]:
+    """Every string of a list of commands, or none if it isn't one."""
+    return [s for c in value for s in c] if _commands(value) else []
+
+
+def _places(label: str, strings: list[str], inputs: set[str]) -> list[str]:
+    """What's wrong with the placeholders in a workload's strings: each names a place PLACES has, or one of
+    the project's inputs."""
+    out = []
+    for s in strings:
+        for place in PLACEHOLDER.findall(s):
+            kind, _, what = place.partition(":")
+            known = what in inputs if kind == "input" else place in PLACES
+            if not known:
+                out.append(f"{label}: {{{place}}} in {s!r} names no input of the project or place")
+    return out
+
+
+def _pinned(label: str, value: Any) -> tuple[set[str], list[str]]:
+    """The files of this repository a workload's or a check's `pinned` pins, a table of each path to its
+    SHA-256, and what's wrong with it. The lock covers them by their hashes, as it covers a driver."""
+    if value is None:
+        return set(), []
+    if not isinstance(value, dict) or not all(isinstance(v, str) for v in value.values()):
+        return set(), [f"{label}: pinned isn't a table of paths in this repository to their SHA-256"]
+    out = []
+    for path, sha256 in value.items():
+        if not path or path.startswith("/") or ".." in Path(path).parts:
+            out.append(f"{label}: pinned {path!r} isn't a path in this repository")
+        elif not (ROOT / path).is_file():
+            out.append(f"{label}: pinned {path} doesn't exist")
+        elif sha256 != (actual := hashing.sha256_file(ROOT / path)):
+            out.append(
+                f"{label}: pinned {path}'s SHA-256 isn't the file's, {actual}: "
+                "a change to a file of ours that a workload runs is a change to the corpus"
+            )
+    return set(value), out
+
+
+def _unpinned(label: str, strings: list[str], pinned: set[str]) -> list[str]:
+    """Each file of this repository `strings` name, as {repo}/PATH, that isn't in `pinned`, and each string
+    that names {repo} other than as {repo}/PATH, so that every file of ours a command runs is named."""
+    return [
+        f"{label}: {{repo}}/{path} isn't pinned: a file of this repository that a workload runs is its "
+        "driver or in `pinned`, with its SHA-256"
+        for s in strings
+        for path in REPO_FILE.findall(s)
+        if path not in pinned
+    ] + [
+        f"{label}: {s!r} names {{repo}} but not as {{repo}}/PATH: a file of this repository is named by its "
+        "path, so the lock can pin it"
+        for s in strings
+        if BARE_REPO.search(s)
+    ]
+
+
+def _workload_problems(label: str, w: dict[str, Any], inputs: set[str]) -> list[str]:
+    """What's wrong with one workload. A fixed corpus asks more of an approved project's: `problems`."""
+    out: list[str] = []
     for key in ("what", "benchmark"):
         if not isinstance(w.get(key), str) or not w[key]:
-            out.append(f"{name}: workload has no {key}")
-    if not _strings(w.get("command")):
-        out.append(f"{name}: workload has no command, a list of strings")
-    inputs = w.get("input", [])
-    if not isinstance(inputs, list):
-        out.append(f"{name}: workload's inputs aren't a list")
-        inputs = []
-    for i in inputs:
-        if not isinstance(i, dict) or not isinstance(i.get("name"), str):
-            out.append(f"{name}: a workload input has no name")
-            continue
-        if not isinstance(i.get("url"), str) or not i["url"].startswith("https://"):
-            out.append(f"{name}: workload input {i['name']} has no https url")
-        if not isinstance(i.get("sha256"), str) or not SHA256.fullmatch(i["sha256"]):
-            out.append(f"{name}: workload input {i['name']} has no SHA-256, so the workload isn't pinned")
+            out.append(f"{label}: no {key}")
+    if not _commands(w.get("run")):
+        out.append(f"{label}: no run, a list of commands, each a list of strings")
+    strings = _words(w.get("run"))
+    for key in ("setup", "build"):
+        if key in w and not _commands(w[key]):
+            out.append(f"{label}: {key} isn't a list of commands, each a list of strings")
+        strings += _words(w.get(key))
+    threads = w.get("threads", 1)
+    if not isinstance(threads, int) or isinstance(threads, bool) or threads < 1:
+        out.append(f"{label}: threads isn't a count")
+
+    measure = w.get("measure")
+    if measure is not None and measure not in MEASURES:
+        out.append(f"{label}: measure {measure!r} isn't one of {', '.join(MEASURES)}")
+    if measure == "rate" and (not isinstance(w.get("rate"), str) or not w["rate"]):
+        out.append(f"{label}: a rate says what figure it is, and in what unit, in `rate`")
+    if measure != "rate" and "rate" in w:
+        out.append(f"{label}: only a workload measured as a rate has `rate`")
+
+    if "driver" in w:
+        # A program of ours: the lock covers it by its hash, so it can't change quietly either.
+        driver = w["driver"]
+        path = ROOT / driver if isinstance(driver, str) else None
+        if path is None or not driver.startswith("bench/kernels/") or ".." in Path(driver).parts:
+            out.append(f"{label}: driver isn't a path in bench/kernels/")
+        elif not path.is_file():
+            out.append(f"{label}: driver {driver} doesn't exist")
+        elif w.get("driver_sha256") != hashing.sha256_file(path):
+            out.append(
+                f"{label}: driver_sha256 isn't the SHA-256 of {driver}, {hashing.sha256_file(path)}: "
+                "a change to a driver is a change to the corpus"
+            )
+        if isinstance(driver, str) and f"{{repo}}/{driver}" not in strings:
+            out.append(f"{label}: build doesn't compile the driver, {{repo}}/{driver}")
+    elif "driver_sha256" in w:
+        out.append(f"{label}: driver_sha256 without a driver")
+    pinned, wrong = _pinned(label, w.get("pinned"))
+    out += wrong
+    if isinstance(w.get("driver"), str):
+        pinned.add(w["driver"])
+    out += _unpinned(label, strings, pinned)
+
+    checks = w.get("check", [])
+    if not isinstance(checks, list) or not all(isinstance(c, dict) for c in checks):
+        out.append(f"{label}: check isn't a list of tables")
+        checks = []
+    for n, c in enumerate(checks, 1):
+        at = f"{label}: check {n}"
+        kind = c.get("kind")
+        if kind not in CHECKS:
+            out.append(f"{at}: kind {kind!r} isn't one of {', '.join(CHECKS)}")
+        if not isinstance(c.get("what"), str) or not c["what"]:
+            out.append(f"{at}: no what, saying what it compares and with what")
+        if "run" in c and not _commands(c["run"]):
+            out.append(f"{at}: run isn't a list of commands, each a list of strings")
+        strings += _words(c.get("run"))
+        its, wrong = _pinned(at, c.get("pinned"))
+        out += wrong + _unpinned(at, _words(c.get("run")), pinned | its)
+        if kind == "output":
+            output = c.get("output")
+            if not _strings(output) or not output:
+                out.append(f"{at}: an output check names what's hashed, in `output`")
+                output = []
+            for o in output:
+                if o != "stdout" and not o.startswith("{out}/"):
+                    out.append(f"{at}: {o!r} isn't stdout or a file in {{out}}, what a run writes")
+            strings += output
+            if "sha256" in c and (not isinstance(c["sha256"], str) or not SHA256.fullmatch(c["sha256"])):
+                out.append(f"{at}: sha256 isn't a SHA-256")
+            if measure == "rate" and "run" not in c:
+                out.append(f"{at}: a rate's run prints timings, so its output check runs its own, in `run`")
+            if "test" in c:
+                out.append(f"{at}: only a known-answers check names a test")
+        elif kind == "known-answers":
+            if "run" not in c:
+                out.append(f"{at}: a known-answers check runs the project's test, in `run`")
+            test = c.get("test")
+            if not _strings(test) or not test:
+                out.append(f"{at}: a known-answers check names the project's test and its answers, in `test`")
+                test = []
+            for t in test:
+                if t.startswith("/") or ".." in Path(t).parts:
+                    out.append(f"{at}: {t!r} isn't a path in the project")
+            for key in ("output", "sha256"):
+                if key in c:
+                    out.append(f"{at}: only an output check has {key}")
+    return out + _places(label, strings, inputs)
+
+
+def unchecked(manifest: dict[str, Any]) -> list[str]:
+    """What a fixed corpus asks of every workload of an approved project that it lacks: what's measured, and
+    how a candidate's correctness is checked before it's timed, docs/kernels.md's protocol."""
+    out = []
+    projects = manifest.get("project", {})
+    for name in manifest.get("corpus", {}).get("approved", []):
+        workloads = projects.get(name, {}).get("workload", [])
+        for w in workloads if isinstance(workloads, list) else []:
+            label = f"{name}: workload {w.get('name') if isinstance(w, dict) else w!r}"
+            if not isinstance(w, dict):
+                continue
+            if "measure" not in w:
+                out.append(f"{label}: a fixed corpus says what's measured, time or a rate, in `measure`")
+            if not w.get("check"):
+                out.append(
+                    f"{label}: a fixed corpus checks every workload of an approved project: it has no check"
+                )
     return out
 
 
@@ -268,11 +480,12 @@ def problems(manifest: dict[str, Any]) -> list[str]:
     state = corpus.get("state")
     if state not in STATES:
         out.append(f"corpus.state {state!r} isn't one of {', '.join(STATES)}")
-    # The baseline is the pinned clang's, so the pin moving is a change to the corpus.
-    if corpus.get("llvm_tag") != pins.llvm()["tag"]:
-        out.append(
-            f"corpus.llvm_tag {corpus.get('llvm_tag')!r} isn't tests/llvm/targets.toml's {pins.llvm()['tag']}"
-        )
+    # The baseline is the pinned clang's, so the pin moving is a change to the corpus: its tag, and the commit
+    # and source hash under it, which can move while the tag doesn't.
+    llvm = pins.llvm()
+    for key, pin in (("llvm_tag", "tag"), ("llvm_commit", "commit"), ("llvm_nix_hash", "nix_hash")):
+        if corpus.get(key) != llvm[pin]:
+            out.append(f"corpus.{key} {corpus.get(key)!r} isn't tests/llvm/targets.toml's {pin}, {llvm[pin]}")
     if corpus.get("opt") != "-O3":
         out.append("corpus.opt isn't -O3, the level decision 6's baseline names")
     if corpus.get("target") != "x86_64-unknown-linux-gnu":
@@ -331,6 +544,7 @@ def problems(manifest: dict[str, Any]) -> list[str]:
         out.append(
             f"a fixed corpus has at least {MIN_PROJECTS} projects, as S3's bar asks, not {len(approved)}"
         )
+    out += unchecked(manifest)
     if not isinstance(lock, dict):
         return [*out, "the corpus is fixed and has no [lock]"]
     for key in ("sha256", "approved_on", "approved_in"):
@@ -362,6 +576,58 @@ def problems(manifest: dict[str, Any]) -> list[str]:
             "A change to a fixed corpus needs an [[amendment]] with its date, its reason and both digests"
         )
     return out
+
+
+def _slug(heading: str) -> str:
+    """A heading's anchor, as GitHub makes it."""
+    return "".join(c for c in heading.lower().replace(" ", "-") if c.isalnum() or c in "-_")
+
+
+def section(text: str, anchor: str) -> str | None:
+    """The section of a Markdown document under the heading whose anchor is `anchor`, to the next heading at
+    its level or above, or None if there's no such heading. A line in a fenced code block isn't a heading."""
+    lines = text.splitlines()
+    levels: list[int] = []
+    fenced = False
+    for line in lines:
+        if line.startswith("```"):
+            fenced = not fenced
+        level = len(line) - len(line.lstrip("#"))
+        levels.append(level if level and not fenced and line[level:].startswith(" ") else 0)
+    for n, level in enumerate(levels):
+        if level and _slug(lines[n][level:].strip()) == anchor:
+            end = next((m for m in range(n + 1, len(lines)) if 0 < levels[m] <= level), len(lines))
+            return "\n".join(lines[n:end])
+    return None
+
+
+def recorded(manifest: dict[str, Any]) -> list[str]:
+    """What's wrong with a fixed corpus's lock as a record: its digest has to be in the section of the doc
+    `lock.approved_in` points to, docs/roadmap.md's record of the decision. The lock is the digest approved,
+    and every amendment starts from it, so replacing it means changing a decision that was reviewed."""
+    lock, corpus = manifest.get("lock"), manifest.get("corpus")
+    if not isinstance(corpus, dict) or corpus.get("state") != "fixed" or not isinstance(lock, dict):
+        return []
+    where, sha256 = lock.get("approved_in"), lock.get("sha256")
+    path, _, anchor = where.partition("#") if isinstance(where, str) else ("", "", "")
+    if not path or not anchor or path.startswith("/") or ".." in Path(path).parts:
+        return [f"lock.approved_in {where!r} isn't PATH#HEADING, a section of a doc in this repository"]
+    if not (ROOT / path).is_file():
+        return [f"lock.approved_in names {path}, which doesn't exist"]
+    text = section((ROOT / path).read_text(), anchor)
+    if text is None:
+        return [f"lock.approved_in names #{anchor}, which isn't a heading of {path}"]
+    if not isinstance(sha256, str) or sha256 not in text:
+        return [
+            f"lock.sha256 {sha256} isn't in {where}, the record of the decision it locks: the lock is the "
+            "digest approved, and a change from it is an [[amendment]] that starts from it"
+        ]
+    return []
+
+
+def validate(manifest: dict[str, Any]) -> list[str]:
+    """Everything wrong with a manifest and its lock's record: what every reader checks before using it."""
+    return problems(manifest) + recorded(manifest)
 
 
 def fixed(manifest: dict[str, Any], names: list[str], on: str, where: str) -> dict[str, Any]:
@@ -415,7 +681,7 @@ def inputs(manifest: dict[str, Any], where: Path, names: list[str]) -> list[Path
     out: list[Path] = []
     seen: dict[str, str] = {}
     for name in names:
-        for i in manifest["project"][name].get("workload", {}).get("input", []):
+        for i in manifest["project"][name].get("input", []):
             if seen.setdefault(i["name"], i["sha256"]) != i["sha256"]:
                 raise RuntimeError(f"two inputs are named {i['name']}, with different hashes")
             link = where / i["name"]
@@ -466,7 +732,7 @@ def main(argv: list[str]) -> int:
             return 2
         print(source(argv[1], manifest["project"][argv[1]]))
         return 0
-    found = problems(manifest)
+    found = validate(manifest)
     for line in found:
         print(f"FAIL {line}")
     if found:
@@ -480,6 +746,13 @@ def main(argv: list[str]) -> int:
         print(f"     approved on {corpus['approved_on']}, not fixed: {', '.join(corpus['approved'])}")
     if corpus["state"] == "fixed":
         print(f"     approved: {', '.join(corpus['approved'])}, digest {digest(manifest)}")
+        workloads = [w for n in corpus["approved"] for w in projects[n]["workload"]]
+        rates = sum(w["measure"] == "rate" for w in workloads)
+        by = {k: sum(any(c["kind"] == k for c in w["check"]) for w in workloads) for k in CHECKS}
+        print(
+            f"     {len(workloads)} workloads, {rates} of them rates, checked by "
+            + ", ".join(f"{k}: {n}" for k, n in by.items())
+        )
     return 0
 
 

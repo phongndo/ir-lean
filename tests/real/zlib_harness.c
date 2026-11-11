@@ -1,7 +1,8 @@
 // Calls real zlib from functions that only take integers, so tests/differential.py can compare them
-// against native code. The input repeats enough to compress, and is small because the semantics are
-// slow to run. It's linked with all of zlib before translating, and each function is there to reach
-// part of zlib the others don't.
+// against native code. The input repeats enough to compress. Most inputs are small, because the model's
+// own memory is slow to run, and `harness_big_` runs on at least 128 KiB, which needs IRLean.ExecMem. It's
+// linked with all of zlib before translating, and each function is there to reach part of zlib the
+// others don't.
 #define _LARGEFILE64_SOURCE 1
 #include "zlib.h"
 
@@ -313,4 +314,78 @@ unsigned harness_misc(unsigned x, unsigned y) {
   return status ^ digest(out, (unsigned)out_len, 1) ^ (unsigned)get_crc_table()[x & 255] ^
          (unsigned)adler32_combine(x, y, x) ^ (unsigned)crc32_combine(x, y, y) ^
          (unsigned)crc32_combine_op(x, y, crc32_combine_gen(x));
+}
+
+// At least 128 KiB, which E2 in docs/roadmap.md asks for: inflate's window is 32 KiB, so anything smaller
+// never reaches back across all of it.
+#define HARNESS_BIG 131072
+
+// Letters, where after the first `period` bytes, 63 of 64 repeat the byte `period` back. That's 32,000
+// to 32,499 bytes, short of 32,506, the furthest `deflate` looks with a 32 KiB window.
+static void fill_far(unsigned char *p, unsigned n, unsigned seed) {
+  unsigned period = 32000 + seed % 500;
+  for (unsigned i = 0; i < n; i++) {
+    seed = seed * 1664525u + 1013904223u;
+    if (i >= period && (seed >> 26) != 0)
+      p[i] = p[i - period];
+    else
+      p[i] = (unsigned char)((seed >> 24) & 15) + 'a';
+  }
+}
+
+// Deflates `n` bytes with a 32 KiB window, and inflates them back 4 KiB at a time, so the references from
+// far back come from inflate's window and not from its output. Returns a checksum of both, the number of
+// bytes inflated, and whether they're the input.
+static unsigned big_roundtrip(unsigned seed, unsigned n, int level, int strategy) {
+  unsigned char in[HARNESS_BIG + 512], packed[HARNESS_BIG + 1024], out[4096];
+  z_stream d = {}, i = {};
+  fill_far(in, n, seed);
+  if (deflateInit2(&d, level, Z_DEFLATED, 15, 8, strategy) != Z_OK)
+    return 0xE1000000u;
+  d.next_in = in;
+  d.avail_in = n;
+  d.next_out = packed;
+  d.avail_out = sizeof packed;
+  int r = deflate(&d, Z_FINISH);
+  unsigned packed_len = (unsigned)d.total_out;
+  deflateEnd(&d);
+  if (r != Z_STREAM_END)
+    return 0xE2000000u | (unsigned)(r & 0xff);
+  if (inflateInit2(&i, 15) != Z_OK)
+    return 0xE3000000u;
+  i.next_in = packed;
+  i.avail_in = packed_len;
+  unsigned sum = 0, total = 0, same = 1;
+  do {
+    i.next_out = out;
+    i.avail_out = sizeof out;
+    r = inflate(&i, Z_NO_FLUSH);
+    unsigned got = (unsigned)sizeof out - i.avail_out;
+    sum = (unsigned)crc32(sum, out, got);
+    for (unsigned k = 0; k < got; k++)
+      same &= total + k < n && out[k] == in[total + k];
+    total += got;
+  } while (r == Z_OK);
+  inflateEnd(&i);
+  return sum ^ digest(packed, packed_len, (unsigned)(r & 0xff)) ^ (total << 1) ^ same;
+}
+
+// The default level, which matches lazily.
+unsigned harness_big_default(unsigned seed, unsigned extra) {
+  return big_roundtrip(seed, HARNESS_BIG + extra % 512, Z_DEFAULT_COMPRESSION, Z_DEFAULT_STRATEGY);
+}
+
+// The fastest level, which takes the first match.
+unsigned harness_big_fast(unsigned seed, unsigned extra) {
+  return big_roundtrip(seed, HARNESS_BIG + extra % 512, 1, Z_DEFAULT_STRATEGY);
+}
+
+// Stored blocks, which are copies both ways.
+unsigned harness_big_stored(unsigned seed, unsigned extra) {
+  return big_roundtrip(seed, HARNESS_BIG + extra % 512, 0, Z_DEFAULT_STRATEGY);
+}
+
+// Any size up to 128.5 KiB, at levels 1 to 6, for measuring how long a run takes as inputs grow.
+unsigned harness_big_sized(unsigned seed, unsigned n, unsigned level) {
+  return big_roundtrip(seed, n % (HARNESS_BIG + 512), (int)(1 + level % 6), Z_DEFAULT_STRATEGY);
 }

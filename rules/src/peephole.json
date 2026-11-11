@@ -1,0 +1,1736 @@
+{
+ "schema": "ir-lean.rules/1",
+ "rules": [
+  {
+   "name": "add_of_sum",
+   "match": "(add C0 C1)",
+   "replace": "(c.add C0 C1)",
+   "from": "Peephole.Lemmas.add_refines_of_sum"
+  },
+  {
+   "name": "add_sub_cancel",
+   "match": "(add (sub B A) A)",
+   "replace": "B",
+   "from": "Peephole.Lemmas.add_sub_cancel_refines",
+   "sites": [
+    "IS.simplifyAddInst.L613",
+    "IS.simplifyAddInst.L621"
+   ]
+  },
+  {
+   "name": "add_sub_sub",
+   "match": "(add (sub A B) (sub B A))",
+   "replace": "0",
+   "from": "Peephole.Lemmas.add_sub_sub_refines",
+   "sites": [
+    "IS.simplifyAddInst.L613"
+   ]
+  },
+  {
+   "name": "add_not_left",
+   "match": "(add (xor -1 A) A)",
+   "replace": "-1",
+   "from": "Peephole.Lemmas.add_not_left_refines",
+   "sites": [
+    "IS.simplifyAddInst.L626"
+   ]
+  },
+  {
+   "name": "add_not_right",
+   "match": "(add (xor A -1) A)",
+   "replace": "-1",
+   "from": "Peephole.Lemmas.add_not_right_refines",
+   "sites": [
+    "IS.simplifyAddInst.L626"
+   ]
+  },
+  {
+   "name": "add_xor_signMask",
+   "match": "(add (xor Y intmin) intmin)",
+   "replace": "Y",
+   "from": "Peephole.Lemmas.add_xor_signMask_refines",
+   "sites": [
+    "IS.simplifyAddInst.L633"
+   ]
+  },
+  {
+   "name": "add_nuw_allOnes",
+   "match": "(add.nuw A -1)",
+   "replace": "-1",
+   "from": "Peephole.Lemmas.add_nuw_allOnes_refines",
+   "sites": [
+    "IS.simplifyAddInst.L637"
+   ]
+  },
+  {
+   "name": "sub_zero_left_nuw",
+   "match": "(sub.nuw 0 B)",
+   "replace": "0",
+   "from": "Peephole.Lemmas.sub_zero_left_nuw_refines",
+   "sites": [
+    "IS.simplifySubInst.L773"
+   ]
+  },
+  {
+   "name": "sub_zero_left_nsw",
+   "match": "(sub.nsw 0 C0)",
+   "replace": "0",
+   "where": [
+    "(eq (c.and C0 intmax) 0)"
+   ],
+   "from": "Peephole.Lemmas.sub_zero_left_nsw_refines",
+   "sites": [
+    "IS.simplifySubInst.L780"
+   ]
+  },
+  {
+   "name": "sub_zero_left_self",
+   "match": "(sub 0 C0)",
+   "replace": "C0",
+   "where": [
+    "(eq (c.and C0 intmax) 0)"
+   ],
+   "from": "Peephole.Lemmas.sub_zero_left_refines_self",
+   "sites": [
+    "IS.simplifySubInst.L783"
+   ]
+  },
+  {
+   "name": "sub_mask_xor_nuw",
+   "match": "(sub.nuw C (xor A C))",
+   "replace": "A",
+   "where": [
+    "(eq (c.and (c.add C 1) C) 0)"
+   ],
+   "from": "Peephole.Lemmas.sub_mask_xor_nuw_refines",
+   "sites": [
+    "IS.simplifySubInst.L886"
+   ]
+  },
+  {
+   "name": "mul_udiv_exact",
+   "match": "(mul (udiv.exact A B) B)",
+   "replace": "A",
+   "from": "Peephole.Lemmas.mul_udiv_exact_refines",
+   "sites": [
+    "IS.simplifyMulInst.L923"
+   ]
+  },
+  {
+   "name": "mul_sdiv_exact",
+   "match": "(mul (sdiv.exact A B) B)",
+   "replace": "A",
+   "from": "Peephole.Lemmas.mul_sdiv_exact_refines",
+   "sites": [
+    "IS.simplifyMulInst.L923"
+   ]
+  },
+  {
+   "name": "mul_nsw_one_bit",
+   "match": "(mul.nsw A:1 B:1)",
+   "replace": "0",
+   "from": "Peephole.Lemmas.mul_nsw_one_bit_refines",
+   "sites": [
+    "IS.simplifyMulInst.L929"
+   ]
+  },
+  {
+   "name": "udiv_self",
+   "match": "(udiv A A)",
+   "replace": "1",
+   "from": "Peephole.Lemmas.udiv_self_refines",
+   "sites": [
+    "IS.simplifyByDomEq.L731",
+    "IS.simplifyDivRem.L1083"
+   ]
+  },
+  {
+   "name": "urem_self",
+   "match": "(urem A A)",
+   "replace": "0",
+   "from": "Peephole.Lemmas.urem_self_refines",
+   "sites": [
+    "IS.simplifyByDomEq.L727",
+    "IS.simplifyDivRem.L1083"
+   ]
+  },
+  {
+   "name": "sdiv_self",
+   "match": "(sdiv A A)",
+   "replace": "1",
+   "from": "Peephole.Lemmas.sdiv_self_refines",
+   "sites": [
+    "IS.simplifyByDomEq.L731",
+    "IS.simplifyDivRem.L1083"
+   ]
+  },
+  {
+   "name": "srem_self",
+   "match": "(srem A A)",
+   "replace": "0",
+   "from": "Peephole.Lemmas.srem_self_refines",
+   "sites": [
+    "IS.simplifyByDomEq.L727",
+    "IS.simplifyDivRem.L1083"
+   ]
+  },
+  {
+   "name": "udiv_zero_left",
+   "match": "(udiv 0 B)",
+   "replace": "0",
+   "from": "Peephole.Lemmas.udiv_zero_left_refines",
+   "sites": [
+    "IS.simplifyDivRem.L1078"
+   ]
+  },
+  {
+   "name": "urem_zero_left",
+   "match": "(urem 0 B)",
+   "replace": "0",
+   "from": "Peephole.Lemmas.urem_zero_left_refines",
+   "sites": [
+    "IS.simplifyDivRem.L1078"
+   ]
+  },
+  {
+   "name": "sdiv_zero_left",
+   "match": "(sdiv 0 B)",
+   "replace": "0",
+   "from": "Peephole.Lemmas.sdiv_zero_left_refines",
+   "sites": [
+    "IS.simplifyDivRem.L1078"
+   ]
+  },
+  {
+   "name": "srem_zero_left",
+   "match": "(srem 0 B)",
+   "replace": "0",
+   "from": "Peephole.Lemmas.srem_zero_left_refines",
+   "sites": [
+    "IS.simplifyDivRem.L1078"
+   ]
+  },
+  {
+   "name": "udiv_mul_nuw",
+   "match": "(udiv (mul.nuw A B) B)",
+   "replace": "A",
+   "from": "Peephole.Lemmas.udiv_mul_nuw_refines",
+   "sites": [
+    "IS.simplifyDivRem.L1114"
+   ]
+  },
+  {
+   "name": "urem_mul_nuw",
+   "match": "(urem (mul.nuw A B) B)",
+   "replace": "0",
+   "from": "Peephole.Lemmas.urem_mul_nuw_refines",
+   "sites": [
+    "IS.simplifyDivRem.L1114"
+   ]
+  },
+  {
+   "name": "sdiv_mul_nsw",
+   "match": "(sdiv (mul.nsw A B) B)",
+   "replace": "A",
+   "from": "Peephole.Lemmas.sdiv_mul_nsw_refines",
+   "sites": [
+    "IS.simplifyDivRem.L1114"
+   ]
+  },
+  {
+   "name": "srem_mul_nsw",
+   "match": "(srem (mul.nsw A B) B)",
+   "replace": "0",
+   "from": "Peephole.Lemmas.srem_mul_nsw_refines",
+   "sites": [
+    "IS.simplifyDivRem.L1114"
+   ]
+  },
+  {
+   "name": "udiv_mul_udiv",
+   "match": "(udiv (mul (bind X (udiv A B)) B) B)",
+   "replace": "X",
+   "from": "Peephole.Lemmas.udiv_mul_udiv_refines",
+   "sites": [
+    "IS.simplifyDivRem.L1114"
+   ]
+  },
+  {
+   "name": "urem_mul_udiv",
+   "match": "(urem (mul (udiv A B) B) B)",
+   "replace": "0",
+   "from": "Peephole.Lemmas.urem_mul_udiv_refines",
+   "sites": [
+    "IS.simplifyDivRem.L1114"
+   ]
+  },
+  {
+   "name": "sdiv_mul_sdiv",
+   "match": "(sdiv (mul (bind X (sdiv A B)) B) B)",
+   "replace": "X",
+   "from": "Peephole.Lemmas.sdiv_mul_sdiv_refines",
+   "sites": [
+    "IS.simplifyDivRem.L1114"
+   ]
+  },
+  {
+   "name": "srem_mul_sdiv",
+   "match": "(srem (mul (sdiv A B) B) B)",
+   "replace": "0",
+   "from": "Peephole.Lemmas.srem_mul_sdiv_refines",
+   "sites": [
+    "IS.simplifyDivRem.L1114"
+   ]
+  },
+  {
+   "name": "udiv_of_lt",
+   "match": "(udiv C0 C1)",
+   "replace": "0",
+   "where": [
+    "(ult C0 C1)"
+   ],
+   "from": "Peephole.Lemmas.udiv_of_lt_refines",
+   "sites": [
+    "IS.simplifyDivRem.L1119"
+   ]
+  },
+  {
+   "name": "urem_of_lt",
+   "match": "(urem C0 C1)",
+   "replace": "C0",
+   "where": [
+    "(ult C0 C1)"
+   ],
+   "from": "Peephole.Lemmas.urem_of_lt_refines",
+   "sites": [
+    "IS.simplifyDivRem.L1119"
+   ]
+  },
+  {
+   "name": "udiv_exact_mul_nsw",
+   "match": "(udiv.exact (mul.nsw A C) C)",
+   "replace": "A",
+   "where": [
+    "(not (pow2 C))"
+   ],
+   "from": "Peephole.Lemmas.udiv_exact_mul_nsw_refines",
+   "sites": [
+    "IS.simplifyDiv.L1168"
+   ]
+  },
+  {
+   "name": "sdiv_exact_mul_nuw",
+   "match": "(sdiv.exact (mul.nuw A C) C)",
+   "replace": "A",
+   "where": [
+    "(not (pow2 C))"
+   ],
+   "from": "Peephole.Lemmas.sdiv_exact_mul_nuw_refines",
+   "sites": [
+    "IS.simplifyDiv.L1168"
+   ]
+  },
+  {
+   "name": "urem_shl_nuw",
+   "match": "(urem (shl.nuw A S) A)",
+   "replace": "0",
+   "from": "Peephole.Lemmas.urem_shl_nuw_refines",
+   "sites": [
+    "IS.simplifyRem.L1189"
+   ]
+  },
+  {
+   "name": "srem_shl_nsw",
+   "match": "(srem (shl.nsw A S) A)",
+   "replace": "0",
+   "from": "Peephole.Lemmas.srem_shl_nsw_refines",
+   "sites": [
+    "IS.simplifyRem.L1189"
+   ]
+  },
+  {
+   "name": "urem_mul_nuw_of_umod",
+   "match": "(urem (mul.nuw A C1) C0)",
+   "replace": "0",
+   "where": [
+    "(eq (c.urem C1 C0) 0)"
+   ],
+   "from": "Peephole.Lemmas.urem_mul_nuw_of_umod_refines",
+   "sites": [
+    "IS.simplifyRem.L1204"
+   ]
+  },
+  {
+   "name": "srem_mul_nsw_of_srem",
+   "match": "(srem (mul.nsw A C1) C0)",
+   "replace": "0",
+   "where": [
+    "(eq (c.srem C1 C0) 0)"
+   ],
+   "from": "Peephole.Lemmas.srem_mul_nsw_of_srem_refines",
+   "sites": [
+    "IS.simplifyRem.L1204"
+   ]
+  },
+  {
+   "name": "sdiv_neg_nsw_left",
+   "match": "(sdiv (sub.nsw 0 B) B)",
+   "replace": "-1",
+   "from": "Peephole.Lemmas.sdiv_neg_nsw_left_refines",
+   "sites": [
+    "IS.simplifySDivInst.L1216"
+   ]
+  },
+  {
+   "name": "sdiv_neg_nsw_right",
+   "match": "(sdiv A (sub.nsw 0 A))",
+   "replace": "-1",
+   "from": "Peephole.Lemmas.sdiv_neg_nsw_right_refines",
+   "sites": [
+    "IS.simplifySDivInst.L1216"
+   ]
+  },
+  {
+   "name": "sdiv_sub_nsw_swap",
+   "match": "(sdiv (sub.nsw A B) (sub.nsw B A))",
+   "replace": "-1",
+   "from": "Peephole.Lemmas.sdiv_sub_nsw_swap_refines",
+   "sites": [
+    "IS.simplifySDivInst.L1216"
+   ]
+  },
+  {
+   "name": "srem_sext_one_bit",
+   "match": "(srem A (sext B:1))",
+   "replace": "0",
+   "from": "Peephole.Lemmas.srem_sext_one_bit_refines",
+   "sites": [
+    "IS.simplifySRemInst.L1246"
+   ]
+  },
+  {
+   "name": "srem_neg_left",
+   "match": "(srem (sub 0 B) B)",
+   "replace": "0",
+   "from": "Peephole.Lemmas.srem_neg_left_refines",
+   "sites": [
+    "IS.simplifySRemInst.L1250"
+   ]
+  },
+  {
+   "name": "srem_neg_right",
+   "match": "(srem A (sub 0 A))",
+   "replace": "0",
+   "from": "Peephole.Lemmas.srem_neg_right_refines",
+   "sites": [
+    "IS.simplifySRemInst.L1250"
+   ]
+  },
+  {
+   "name": "srem_sub_swap",
+   "match": "(srem (sub A B) (sub B A))",
+   "replace": "0",
+   "from": "Peephole.Lemmas.srem_sub_swap_refines",
+   "sites": [
+    "IS.simplifySRemInst.L1250"
+   ]
+  },
+  {
+   "name": "cttz_shl_one",
+   "match": "(cttz (shl 1 A))",
+   "replace": "A",
+   "from": "Peephole.Lemmas.cttz_shl_one_refines",
+   "sites": [
+    "IS.simplifyBinaryIntrinsic.L6934"
+   ]
+  },
+  {
+   "name": "ctlz_lshr_negative",
+   "match": "(ctlz (lshr C A))",
+   "replace": "A",
+   "where": [
+    "(msb C)"
+   ],
+   "from": "Peephole.Lemmas.ctlz_lshr_negative_refines",
+   "sites": [
+    "IS.simplifyBinaryIntrinsic.L6940"
+   ]
+  },
+  {
+   "name": "ctlz_ashr_negative",
+   "match": "(ctlz (ashr C A))",
+   "replace": "0",
+   "where": [
+    "(msb C)"
+   ],
+   "from": "Peephole.Lemmas.ctlz_ashr_negative_refines",
+   "sites": [
+    "IS.simplifyBinaryIntrinsic.L6942"
+   ]
+  },
+  {
+   "name": "ctpop_of_isPowerOfTwo",
+   "match": "(ctpop C0)",
+   "replace": "1",
+   "where": [
+    "(pow2 C0)"
+   ],
+   "from": "Peephole.Lemmas.ctpop_of_isPowerOfTwo",
+   "sites": [
+    "IS.simplifyUnaryIntrinsic.L6614"
+   ]
+  },
+  {
+   "name": "abs_abs",
+   "match": "(abs (bind T (abs A)))",
+   "replace": "T",
+   "from": "Peephole.Lemmas.abs_abs_refines",
+   "sites": [
+    "IS.simplifyBinaryIntrinsic.L6928"
+   ]
+  },
+  {
+   "name": "bitreverse_bitreverse",
+   "match": "(bitreverse (bitreverse A))",
+   "replace": "A",
+   "from": "Peephole.Lemmas.bitreverse_bitreverse",
+   "sites": [
+    "IS.simplifyUnaryIntrinsic.L6609"
+   ]
+  },
+  {
+   "name": "umax_self",
+   "match": "(umax A A)",
+   "replace": "A",
+   "from": "Peephole.Lemmas.umax_self",
+   "sites": [
+    "IS.simplifyBinaryIntrinsic.L7004"
+   ]
+  },
+  {
+   "name": "umin_self",
+   "match": "(umin A A)",
+   "replace": "A",
+   "from": "Peephole.Lemmas.umin_self",
+   "sites": [
+    "IS.simplifyBinaryIntrinsic.L7004"
+   ]
+  },
+  {
+   "name": "smax_self",
+   "match": "(smax A A)",
+   "replace": "A",
+   "from": "Peephole.Lemmas.smax_self",
+   "sites": [
+    "IS.simplifyBinaryIntrinsic.L7004"
+   ]
+  },
+  {
+   "name": "smin_self",
+   "match": "(smin A A)",
+   "replace": "A",
+   "from": "Peephole.Lemmas.smin_self",
+   "sites": [
+    "IS.simplifyBinaryIntrinsic.L7004"
+   ]
+  },
+  {
+   "name": "umax_comm",
+   "match": "(umax A B)",
+   "replace": "(umax B A)",
+   "from": "Peephole.Lemmas.umax_comm",
+   "sites": [
+    "IS.simplifyBinaryIntrinsic.L7012",
+    "IS.simplifyBinaryIntrinsic.L7020",
+    "IS.simplifyBinaryIntrinsic.L7027",
+    "IS.simplifyBinaryIntrinsic.L7040",
+    "IS.simplifyBinaryIntrinsic.L7054"
+   ]
+  },
+  {
+   "name": "umin_comm",
+   "match": "(umin A B)",
+   "replace": "(umin B A)",
+   "from": "Peephole.Lemmas.umin_comm",
+   "sites": [
+    "IS.simplifyBinaryIntrinsic.L7012",
+    "IS.simplifyBinaryIntrinsic.L7020",
+    "IS.simplifyBinaryIntrinsic.L7027",
+    "IS.simplifyBinaryIntrinsic.L7040",
+    "IS.simplifyBinaryIntrinsic.L7054"
+   ]
+  },
+  {
+   "name": "smax_comm",
+   "match": "(smax A B)",
+   "replace": "(smax B A)",
+   "from": "Peephole.Lemmas.smax_comm",
+   "sites": [
+    "IS.simplifyBinaryIntrinsic.L7012",
+    "IS.simplifyBinaryIntrinsic.L7020",
+    "IS.simplifyBinaryIntrinsic.L7027",
+    "IS.simplifyBinaryIntrinsic.L7040",
+    "IS.simplifyBinaryIntrinsic.L7054"
+   ]
+  },
+  {
+   "name": "smin_comm",
+   "match": "(smin A B)",
+   "replace": "(smin B A)",
+   "from": "Peephole.Lemmas.smin_comm",
+   "sites": [
+    "IS.simplifyBinaryIntrinsic.L7012",
+    "IS.simplifyBinaryIntrinsic.L7020",
+    "IS.simplifyBinaryIntrinsic.L7027",
+    "IS.simplifyBinaryIntrinsic.L7040",
+    "IS.simplifyBinaryIntrinsic.L7054"
+   ]
+  },
+  {
+   "name": "umax_allOnes",
+   "match": "(umax A -1)",
+   "replace": "-1",
+   "from": "Peephole.Lemmas.umax_allOnes_refines",
+   "sites": [
+    "IS.simplifyBinaryIntrinsic.L7020"
+   ]
+  },
+  {
+   "name": "umin_zero",
+   "match": "(umin A 0)",
+   "replace": "0",
+   "from": "Peephole.Lemmas.umin_zero_refines",
+   "sites": [
+    "IS.simplifyBinaryIntrinsic.L7020"
+   ]
+  },
+  {
+   "name": "smax_intMax",
+   "match": "(smax A intmax)",
+   "replace": "intmax",
+   "from": "Peephole.Lemmas.smax_intMax_refines",
+   "sites": [
+    "IS.simplifyBinaryIntrinsic.L7020"
+   ]
+  },
+  {
+   "name": "smin_intMin",
+   "match": "(smin A intmin)",
+   "replace": "intmin",
+   "from": "Peephole.Lemmas.smin_intMin_refines",
+   "sites": [
+    "IS.simplifyBinaryIntrinsic.L7020"
+   ]
+  },
+  {
+   "name": "umax_zero",
+   "match": "(umax A 0)",
+   "replace": "A",
+   "from": "Peephole.Lemmas.umax_zero",
+   "sites": [
+    "IS.simplifyBinaryIntrinsic.L7027"
+   ]
+  },
+  {
+   "name": "umin_allOnes",
+   "match": "(umin A -1)",
+   "replace": "A",
+   "from": "Peephole.Lemmas.umin_allOnes",
+   "sites": [
+    "IS.simplifyBinaryIntrinsic.L7027"
+   ]
+  },
+  {
+   "name": "smax_intMin",
+   "match": "(smax A intmin)",
+   "replace": "A",
+   "from": "Peephole.Lemmas.smax_intMin",
+   "sites": [
+    "IS.simplifyBinaryIntrinsic.L7027"
+   ]
+  },
+  {
+   "name": "smin_intMax",
+   "match": "(smin A intmax)",
+   "replace": "A",
+   "from": "Peephole.Lemmas.smin_intMax",
+   "sites": [
+    "IS.simplifyBinaryIntrinsic.L7027"
+   ]
+  },
+  {
+   "name": "umax_umax_of_ule",
+   "match": "(umax (umax A C) C0)",
+   "replace": "(umax A C)",
+   "where": [
+    "(bule C0 C)"
+   ],
+   "from": "Peephole.Lemmas.umax_umax_of_ule",
+   "sites": [
+    "IS.simplifyBinaryIntrinsic.L7040"
+   ]
+  },
+  {
+   "name": "umin_umin_of_ule",
+   "match": "(umin (umin A C) C0)",
+   "replace": "(umin A C)",
+   "where": [
+    "(bule C C0)"
+   ],
+   "from": "Peephole.Lemmas.umin_umin_of_ule",
+   "sites": [
+    "IS.simplifyBinaryIntrinsic.L7040"
+   ]
+  },
+  {
+   "name": "smax_smax_of_sle",
+   "match": "(smax (smax A C) C0)",
+   "replace": "(smax A C)",
+   "where": [
+    "(bsle C0 C)"
+   ],
+   "from": "Peephole.Lemmas.smax_smax_of_sle",
+   "sites": [
+    "IS.simplifyBinaryIntrinsic.L7040"
+   ]
+  },
+  {
+   "name": "smin_smin_of_sle",
+   "match": "(smin (smin A C) C0)",
+   "replace": "(smin A C)",
+   "where": [
+    "(bsle C C0)"
+   ],
+   "from": "Peephole.Lemmas.smin_smin_of_sle",
+   "sites": [
+    "IS.simplifyBinaryIntrinsic.L7040"
+   ]
+  },
+  {
+   "name": "umax_umax_left",
+   "match": "(umax (umax A B) A)",
+   "replace": "(umax A B)",
+   "from": "Peephole.Lemmas.umax_umax_left",
+   "sites": [
+    "IS.foldMinMaxSharedOp.L6698"
+   ]
+  },
+  {
+   "name": "umax_umax_right",
+   "match": "(umax (umax A B) B)",
+   "replace": "(umax A B)",
+   "from": "Peephole.Lemmas.umax_umax_right",
+   "sites": [
+    "IS.foldMinMaxSharedOp.L6698"
+   ]
+  },
+  {
+   "name": "umin_umin_left",
+   "match": "(umin (umin A B) A)",
+   "replace": "(umin A B)",
+   "from": "Peephole.Lemmas.umin_umin_left",
+   "sites": [
+    "IS.foldMinMaxSharedOp.L6698"
+   ]
+  },
+  {
+   "name": "umin_umin_right",
+   "match": "(umin (umin A B) B)",
+   "replace": "(umin A B)",
+   "from": "Peephole.Lemmas.umin_umin_right",
+   "sites": [
+    "IS.foldMinMaxSharedOp.L6698"
+   ]
+  },
+  {
+   "name": "smax_smax_left",
+   "match": "(smax (smax A B) A)",
+   "replace": "(smax A B)",
+   "from": "Peephole.Lemmas.smax_smax_left",
+   "sites": [
+    "IS.foldMinMaxSharedOp.L6698"
+   ]
+  },
+  {
+   "name": "smax_smax_right",
+   "match": "(smax (smax A B) B)",
+   "replace": "(smax A B)",
+   "from": "Peephole.Lemmas.smax_smax_right",
+   "sites": [
+    "IS.foldMinMaxSharedOp.L6698"
+   ]
+  },
+  {
+   "name": "smin_smin_left",
+   "match": "(smin (smin A B) A)",
+   "replace": "(smin A B)",
+   "from": "Peephole.Lemmas.smin_smin_left",
+   "sites": [
+    "IS.foldMinMaxSharedOp.L6698"
+   ]
+  },
+  {
+   "name": "smin_smin_right",
+   "match": "(smin (smin A B) B)",
+   "replace": "(smin A B)",
+   "from": "Peephole.Lemmas.smin_smin_right",
+   "sites": [
+    "IS.foldMinMaxSharedOp.L6698"
+   ]
+  },
+  {
+   "name": "umax_umin_left",
+   "match": "(umax (umin A B) A)",
+   "replace": "A",
+   "from": "Peephole.Lemmas.umax_umin_left_refines",
+   "sites": [
+    "IS.foldMinMaxSharedOp.L6701"
+   ]
+  },
+  {
+   "name": "umax_umin_right",
+   "match": "(umax (umin A B) B)",
+   "replace": "B",
+   "from": "Peephole.Lemmas.umax_umin_right_refines",
+   "sites": [
+    "IS.foldMinMaxSharedOp.L6701"
+   ]
+  },
+  {
+   "name": "umin_umax_left",
+   "match": "(umin (umax A B) A)",
+   "replace": "A",
+   "from": "Peephole.Lemmas.umin_umax_left_refines",
+   "sites": [
+    "IS.foldMinMaxSharedOp.L6701"
+   ]
+  },
+  {
+   "name": "umin_umax_right",
+   "match": "(umin (umax A B) B)",
+   "replace": "B",
+   "from": "Peephole.Lemmas.umin_umax_right_refines",
+   "sites": [
+    "IS.foldMinMaxSharedOp.L6701"
+   ]
+  },
+  {
+   "name": "smax_smin_left",
+   "match": "(smax (smin A B) A)",
+   "replace": "A",
+   "from": "Peephole.Lemmas.smax_smin_left_refines",
+   "sites": [
+    "IS.foldMinMaxSharedOp.L6701"
+   ]
+  },
+  {
+   "name": "smax_smin_right",
+   "match": "(smax (smin A B) B)",
+   "replace": "B",
+   "from": "Peephole.Lemmas.smax_smin_right_refines",
+   "sites": [
+    "IS.foldMinMaxSharedOp.L6701"
+   ]
+  },
+  {
+   "name": "smin_smax_left",
+   "match": "(smin (smax A B) A)",
+   "replace": "A",
+   "from": "Peephole.Lemmas.smin_smax_left_refines",
+   "sites": [
+    "IS.foldMinMaxSharedOp.L6701"
+   ]
+  },
+  {
+   "name": "smin_smax_right",
+   "match": "(smin (smax A B) B)",
+   "replace": "B",
+   "from": "Peephole.Lemmas.smin_smax_right_refines",
+   "sites": [
+    "IS.foldMinMaxSharedOp.L6701"
+   ]
+  },
+  {
+   "name": "umax_some_of_ule",
+   "match": "(umax C0 C1)",
+   "replace": "C0",
+   "where": [
+    "(bule C1 C0)"
+   ],
+   "from": "Peephole.Lemmas.umax_some_of_ule",
+   "sites": [
+    "IS.simplifyBinaryIntrinsic.L7052",
+    "IS.simplifyBinaryIntrinsic.L7054"
+   ]
+  },
+  {
+   "name": "umin_some_of_ule",
+   "match": "(umin C0 C1)",
+   "replace": "C0",
+   "where": [
+    "(bule C0 C1)"
+   ],
+   "from": "Peephole.Lemmas.umin_some_of_ule",
+   "sites": [
+    "IS.simplifyBinaryIntrinsic.L7052",
+    "IS.simplifyBinaryIntrinsic.L7054"
+   ]
+  },
+  {
+   "name": "smax_some_of_sle",
+   "match": "(smax C0 C1)",
+   "replace": "C0",
+   "where": [
+    "(bsle C1 C0)"
+   ],
+   "from": "Peephole.Lemmas.smax_some_of_sle",
+   "sites": [
+    "IS.simplifyBinaryIntrinsic.L7052",
+    "IS.simplifyBinaryIntrinsic.L7054"
+   ]
+  },
+  {
+   "name": "smin_some_of_sle",
+   "match": "(smin C0 C1)",
+   "replace": "C0",
+   "where": [
+    "(bsle C0 C1)"
+   ],
+   "from": "Peephole.Lemmas.smin_some_of_sle",
+   "sites": [
+    "IS.simplifyBinaryIntrinsic.L7052",
+    "IS.simplifyBinaryIntrinsic.L7054"
+   ]
+  },
+  {
+   "name": "uaddSat_allOnes_left",
+   "match": "(uadd_sat -1 B)",
+   "replace": "-1",
+   "from": "Peephole.Lemmas.uaddSat_allOnes_left_refines",
+   "sites": [
+    "IS.simplifyBinaryIntrinsic.L7111"
+   ]
+  },
+  {
+   "name": "uaddSat_allOnes_right",
+   "match": "(uadd_sat A -1)",
+   "replace": "-1",
+   "from": "Peephole.Lemmas.uaddSat_allOnes_right_refines",
+   "sites": [
+    "IS.simplifyBinaryIntrinsic.L7111"
+   ]
+  },
+  {
+   "name": "uaddSat_zero",
+   "match": "(uadd_sat A 0)",
+   "replace": "A",
+   "from": "Peephole.Lemmas.uaddSat_zero",
+   "sites": [
+    "IS.simplifyBinaryIntrinsic.L7123"
+   ]
+  },
+  {
+   "name": "zero_uaddSat",
+   "match": "(uadd_sat 0 B)",
+   "replace": "B",
+   "from": "Peephole.Lemmas.zero_uaddSat",
+   "sites": [
+    "IS.simplifyBinaryIntrinsic.L7126"
+   ]
+  },
+  {
+   "name": "saddSat_zero",
+   "match": "(sadd_sat A 0)",
+   "replace": "A",
+   "from": "Peephole.Lemmas.saddSat_zero",
+   "sites": [
+    "IS.simplifyBinaryIntrinsic.L7123"
+   ]
+  },
+  {
+   "name": "zero_saddSat",
+   "match": "(sadd_sat 0 B)",
+   "replace": "B",
+   "from": "Peephole.Lemmas.zero_saddSat",
+   "sites": [
+    "IS.simplifyBinaryIntrinsic.L7126"
+   ]
+  },
+  {
+   "name": "zero_usubSat",
+   "match": "(usub_sat 0 B)",
+   "replace": "0",
+   "from": "Peephole.Lemmas.zero_usubSat_refines",
+   "sites": [
+    "IS.simplifyBinaryIntrinsic.L7131"
+   ]
+  },
+  {
+   "name": "usubSat_allOnes",
+   "match": "(usub_sat A -1)",
+   "replace": "0",
+   "from": "Peephole.Lemmas.usubSat_allOnes_refines",
+   "sites": [
+    "IS.simplifyBinaryIntrinsic.L7131"
+   ]
+  },
+  {
+   "name": "usubSat_self",
+   "match": "(usub_sat A A)",
+   "replace": "0",
+   "from": "Peephole.Lemmas.usubSat_self_refines",
+   "sites": [
+    "IS.simplifyBinaryIntrinsic.L7136"
+   ]
+  },
+  {
+   "name": "ssubSat_self",
+   "match": "(ssub_sat A A)",
+   "replace": "0",
+   "from": "Peephole.Lemmas.ssubSat_self_refines",
+   "sites": [
+    "IS.simplifyBinaryIntrinsic.L7136"
+   ]
+  },
+  {
+   "name": "usubSat_zero",
+   "match": "(usub_sat A 0)",
+   "replace": "A",
+   "from": "Peephole.Lemmas.usubSat_zero",
+   "sites": [
+    "IS.simplifyBinaryIntrinsic.L7139"
+   ]
+  },
+  {
+   "name": "ssubSat_zero",
+   "match": "(ssub_sat A 0)",
+   "replace": "A",
+   "from": "Peephole.Lemmas.ssubSat_zero",
+   "sites": [
+    "IS.simplifyBinaryIntrinsic.L7139"
+   ]
+  },
+  {
+   "name": "fshl_zero_zero",
+   "match": "(fshl 0 0 VC)",
+   "replace": "0",
+   "from": "Peephole.Lemmas.fshl_zero_zero_refines",
+   "sites": [
+    "IS.simplifyIntrinsic.L7401"
+   ]
+  },
+  {
+   "name": "fshr_zero_zero",
+   "match": "(fshr 0 0 VC)",
+   "replace": "0",
+   "from": "Peephole.Lemmas.fshr_zero_zero_refines",
+   "sites": [
+    "IS.simplifyIntrinsic.L7401"
+   ]
+  },
+  {
+   "name": "fshl_allOnes_allOnes",
+   "match": "(fshl -1 -1 VC)",
+   "replace": "-1",
+   "from": "Peephole.Lemmas.fshl_allOnes_allOnes_refines",
+   "sites": [
+    "IS.simplifyIntrinsic.L7405"
+   ]
+  },
+  {
+   "name": "fshr_allOnes_allOnes",
+   "match": "(fshr -1 -1 VC)",
+   "replace": "-1",
+   "from": "Peephole.Lemmas.fshr_allOnes_allOnes_refines",
+   "sites": [
+    "IS.simplifyIntrinsic.L7405"
+   ]
+  },
+  {
+   "name": "and_some",
+   "match": "(and C0 C1)",
+   "replace": "(c.and C0 C1)",
+   "from": "Peephole.Lemmas.Logic.and_some"
+  },
+  {
+   "name": "xor_some",
+   "match": "(xor C0 C1)",
+   "replace": "(c.xor C0 C1)",
+   "from": "Peephole.Lemmas.Logic.xor_some"
+  },
+  {
+   "name": "and_comm",
+   "match": "(and A B)",
+   "replace": "(and B A)",
+   "from": "Peephole.Lemmas.Logic.and_comm"
+  },
+  {
+   "name": "xor_comm",
+   "match": "(xor A B)",
+   "replace": "(xor B A)",
+   "from": "Peephole.Lemmas.Logic.xor_comm"
+  },
+  {
+   "name": "and_not_self",
+   "match": "(and (xor A -1) A)",
+   "replace": "0",
+   "from": "Peephole.Lemmas.and_not_self_refines",
+   "sites": [
+    "IS.simplifyAndCommutative.L2024"
+   ]
+  },
+  {
+   "name": "and_or_not_or",
+   "match": "(and (or X (xor Y -1)) (or X Y))",
+   "replace": "X",
+   "from": "Peephole.Lemmas.and_or_not_or_refines",
+   "sites": [
+    "IS.simplifyAndCommutative.L2034"
+   ]
+  },
+  {
+   "name": "and_xor_or_xor_or",
+   "match": "(and (xor (bind S0 (or X Y)) X) (xor S0 Y))",
+   "replace": "0",
+   "from": "Peephole.Lemmas.and_xor_or_xor_or_refines",
+   "sites": [
+    "IS.simplifyAndInst.L2216"
+   ]
+  },
+  {
+   "name": "and_xor_xor_not",
+   "match": "(and (xor A C) (xor A (c.not C)))",
+   "replace": "0",
+   "from": "Peephole.Lemmas.and_xor_xor_not_refines",
+   "sites": [
+    "IS.simplifyAndInst.L2223"
+   ]
+  },
+  {
+   "name": "and_add_sub_not",
+   "match": "(and (add X C0) (sub (c.not C0) X))",
+   "replace": "0",
+   "from": "Peephole.Lemmas.and_add_sub_not_refines",
+   "sites": [
+    "IS.simplifyLogicOfAddSub.L2011"
+   ]
+  },
+  {
+   "name": "or_add_sub_not",
+   "match": "(or (add X C0) (sub (c.not C0) X))",
+   "replace": "-1",
+   "from": "Peephole.Lemmas.or_add_sub_not_refines",
+   "sites": [
+    "IS.simplifyLogicOfAddSub.L2011"
+   ]
+  },
+  {
+   "name": "xor_add_sub_not",
+   "match": "(xor (add X C0) (sub (c.not C0) X))",
+   "replace": "-1",
+   "from": "Peephole.Lemmas.xor_add_sub_not_refines",
+   "sites": [
+    "IS.simplifyLogicOfAddSub.L2011"
+   ]
+  },
+  {
+   "name": "and_select",
+   "match": "(and A:1 (select A:1 T:1 0))",
+   "replace": "(select A T 0)",
+   "from": "Peephole.Lemmas.and_select_refines",
+   "sites": [
+    "IS.simplifyAndInst.L2157",
+    "IS.simplifyAndInst.L2159"
+   ]
+  },
+  {
+   "name": "or_select",
+   "match": "(or A:1 (select A:1 1 T:1))",
+   "replace": "(select A 1 T)",
+   "from": "Peephole.Lemmas.or_select_refines",
+   "sites": [
+    "IS.simplifyOrInst.L2448",
+    "IS.simplifyOrInst.L2450"
+   ]
+  },
+  {
+   "name": "or_not_self",
+   "match": "(or A (xor A -1))",
+   "replace": "-1",
+   "from": "Peephole.Lemmas.or_not_self_refines",
+   "sites": [
+    "IS.simplifyOrLogic.L2261"
+   ]
+  },
+  {
+   "name": "or_not_and",
+   "match": "(or A (xor (and A B) -1))",
+   "replace": "-1",
+   "from": "Peephole.Lemmas.or_not_and_refines",
+   "sites": [
+    "IS.simplifyOrLogic.L2265"
+   ]
+  },
+  {
+   "name": "or_and_absorb",
+   "match": "(or A (and A B))",
+   "replace": "A",
+   "from": "Peephole.Lemmas.or_and_absorb_refines",
+   "sites": [
+    "IS.simplifyOrLogic.L2269"
+   ]
+  },
+  {
+   "name": "or_xor_or",
+   "match": "(or (xor A B) (bind T (or A B)))",
+   "replace": "T",
+   "from": "Peephole.Lemmas.or_xor_or_refines",
+   "sites": [
+    "IS.simplifyOrLogic.L2277"
+   ]
+  },
+  {
+   "name": "or_not_xor_or",
+   "match": "(or (xor (xor A B) -1) (or A B))",
+   "replace": "-1",
+   "from": "Peephole.Lemmas.or_not_xor_or_refines",
+   "sites": [
+    "IS.simplifyOrLogic.L2283"
+   ]
+  },
+  {
+   "name": "or_and_not_xor",
+   "match": "(or (and A (xor B -1)) (xor A B))",
+   "replace": "(xor A B)",
+   "from": "Peephole.Lemmas.or_and_not_xor_refines",
+   "sites": [
+    "IS.simplifyOrLogic.L2291"
+   ]
+  },
+  {
+   "name": "or_xor_not_and",
+   "match": "(or (xor (xor A -1) B) (and A B))",
+   "replace": "(xor (xor A -1) B)",
+   "from": "Peephole.Lemmas.or_xor_not_and_refines",
+   "sites": [
+    "IS.simplifyOrLogic.L2299"
+   ]
+  },
+  {
+   "name": "or_or_not_xor",
+   "match": "(or (or (xor A -1) B) (xor A B))",
+   "replace": "-1",
+   "from": "Peephole.Lemmas.or_or_not_xor_refines",
+   "sites": [
+    "IS.simplifyOrLogic.L2307"
+   ]
+  },
+  {
+   "name": "or_and_not_not_or",
+   "match": "(or (and (xor A -1) B) (xor (or A B) -1))",
+   "replace": "(xor A -1)",
+   "from": "Peephole.Lemmas.or_and_not_not_or_refines",
+   "sites": [
+    "IS.simplifyOrLogic.L2317"
+   ]
+  },
+  {
+   "name": "or_not_xor_and",
+   "match": "(or (xor (xor A B) -1) (and A B))",
+   "replace": "(xor (xor A B) -1)",
+   "from": "Peephole.Lemmas.or_not_xor_and_refines",
+   "sites": [
+    "IS.simplifyOrLogic.L2332"
+   ]
+  },
+  {
+   "name": "or_not_and_xor",
+   "match": "(or (xor (and A B) -1) (xor A B))",
+   "replace": "(xor (and A B) -1)",
+   "from": "Peephole.Lemmas.or_not_and_xor_refines",
+   "sites": [
+    "IS.simplifyOrLogic.L2339"
+   ]
+  },
+  {
+   "name": "or_fshl_shl",
+   "match": "(or (fshl X Z S) (shl X S))",
+   "replace": "(fshl X Z S)",
+   "from": "Peephole.Lemmas.or_fshl_shl_refines",
+   "sites": [
+    "IS.simplifyOrInst.L2399",
+    "IS.simplifyOrInst.L2403"
+   ]
+  },
+  {
+   "name": "or_fshr_lshr",
+   "match": "(or (fshr Z X S) (lshr X S))",
+   "replace": "(fshr Z X S)",
+   "from": "Peephole.Lemmas.or_fshr_lshr_refines",
+   "sites": [
+    "IS.simplifyOrInst.L2410",
+    "IS.simplifyOrInst.L2414"
+   ]
+  },
+  {
+   "name": "or_xor_xor_not",
+   "match": "(or (xor A C) (xor A (c.not C)))",
+   "replace": "-1",
+   "from": "Peephole.Lemmas.or_xor_xor_not_refines",
+   "sites": [
+    "IS.simplifyOrInst.L2495"
+   ]
+  },
+  {
+   "name": "xor_not_self",
+   "match": "(xor (xor A -1) A)",
+   "replace": "-1",
+   "from": "Peephole.Lemmas.xor_not_self_refines",
+   "sites": [
+    "IS.simplifyXorInst.L2553"
+   ]
+  },
+  {
+   "name": "xor_and_not_or",
+   "match": "(xor (and (xor A -1) B) (or A B))",
+   "replace": "A",
+   "from": "Peephole.Lemmas.xor_and_not_or_refines",
+   "sites": [
+    "IS.simplifyXorInst.foldAndOrNot.L2560"
+   ]
+  },
+  {
+   "name": "xor_or_not_and",
+   "match": "(xor (or (xor A -1) B) (and A B))",
+   "replace": "(xor A -1)",
+   "from": "Peephole.Lemmas.xor_or_not_and_refines",
+   "sites": [
+    "IS.simplifyXorInst.foldAndOrNot.L2569"
+   ]
+  },
+  {
+   "name": "xor_sub_nuw_lowMask",
+   "match": "(xor (sub.nuw C X) C)",
+   "replace": "X",
+   "where": [
+    "(eq (c.and C (c.add C 1)) 0)"
+   ],
+   "from": "Peephole.Lemmas.xor_sub_nuw_lowMask_refines",
+   "sites": [
+    "IS.simplifyXorInst.L2603"
+   ]
+  },
+  {
+   "name": "shl_zero_left",
+   "match": "(shl 0 B)",
+   "replace": "0",
+   "from": "Peephole.Lemmas.shl_zero_left_refines",
+   "sites": [
+    "IS.simplifyShift.L1314"
+   ]
+  },
+  {
+   "name": "lshr_zero_left",
+   "match": "(lshr 0 B)",
+   "replace": "0",
+   "from": "Peephole.Lemmas.lshr_zero_left_refines",
+   "sites": [
+    "IS.simplifyShift.L1314"
+   ]
+  },
+  {
+   "name": "ashr_zero_left",
+   "match": "(ashr 0 B)",
+   "replace": "0",
+   "from": "Peephole.Lemmas.ashr_zero_left_refines",
+   "sites": [
+    "IS.simplifyShift.L1314"
+   ]
+  },
+  {
+   "name": "lshr_self",
+   "match": "(lshr A A)",
+   "replace": "0",
+   "from": "Peephole.Lemmas.lshr_self_refines",
+   "sites": [
+    "IS.simplifyRightShift.L1381"
+   ]
+  },
+  {
+   "name": "ashr_self",
+   "match": "(ashr A A)",
+   "replace": "0",
+   "from": "Peephole.Lemmas.ashr_self_refines",
+   "sites": [
+    "IS.simplifyRightShift.L1381"
+   ]
+  },
+  {
+   "name": "lshr_exact_of_getLsbD",
+   "match": "(lshr.exact C0 B)",
+   "replace": "C0",
+   "where": [
+    "(lsb C0)"
+   ],
+   "from": "Peephole.Lemmas.lshr_exact_of_getLsbD_refines",
+   "sites": [
+    "IS.simplifyRightShift.L1393"
+   ]
+  },
+  {
+   "name": "ashr_exact_of_getLsbD",
+   "match": "(ashr.exact C0 B)",
+   "replace": "C0",
+   "where": [
+    "(lsb C0)"
+   ],
+   "from": "Peephole.Lemmas.ashr_exact_of_getLsbD_refines",
+   "sites": [
+    "IS.simplifyRightShift.L1393"
+   ]
+  },
+  {
+   "name": "shl_nuw_of_msb",
+   "match": "(shl.nuw C0 B)",
+   "replace": "C0",
+   "where": [
+    "(msb C0)"
+   ],
+   "from": "Peephole.Lemmas.shl_nuw_of_msb_refines",
+   "sites": [
+    "IS.simplifyShlInst.L1421"
+   ]
+  },
+  {
+   "name": "ashr_allOnes",
+   "match": "(ashr -1 B)",
+   "replace": "-1",
+   "from": "Peephole.Lemmas.ashr_allOnes_refines",
+   "sites": [
+    "IS.simplifyAShrInst.L1490"
+   ]
+  },
+  {
+   "name": "ashr_shl_allOnes",
+   "match": "(ashr (shl -1 B) B)",
+   "replace": "-1",
+   "from": "Peephole.Lemmas.ashr_shl_allOnes_refines",
+   "sites": [
+    "IS.simplifyAShrInst.L1490"
+   ]
+  },
+  {
+   "name": "trunc_zext",
+   "match": "(trunc (zext A))",
+   "replace": "A",
+   "from": "Peephole.Lemmas.trunc_zext_refines",
+   "sites": [
+    "IS.simplifyCastInst.L5653"
+   ]
+  },
+  {
+   "name": "trunc_sext",
+   "match": "(trunc (sext A))",
+   "replace": "A",
+   "from": "Peephole.Lemmas.trunc_sext_refines",
+   "sites": [
+    "IS.simplifyCastInst.L5653"
+   ]
+  },
+  {
+   "name": "zext_trunc_nuw",
+   "match": "(zext (trunc.nuw A))",
+   "replace": "A",
+   "from": "Peephole.Lemmas.zext_trunc_nuw_refines",
+   "sites": [
+    "IS.simplifyCastInst.L5678"
+   ]
+  },
+  {
+   "name": "sext_trunc_nsw",
+   "match": "(sext (trunc.nsw A))",
+   "replace": "A",
+   "from": "Peephole.Lemmas.sext_trunc_nsw_refines",
+   "sites": [
+    "IS.simplifyCastInst.L5678"
+   ]
+  },
+  {
+   "name": "add_zero",
+   "match": "(add A 0)",
+   "replace": "A",
+   "from": "IRLean.Generic.add_zero",
+   "sites": [
+    "IS.simplifyAddInst.L609"
+   ]
+  },
+  {
+   "name": "sub_zero",
+   "match": "(sub A 0)",
+   "replace": "A",
+   "from": "IRLean.Generic.sub_zero",
+   "sites": [
+    "IS.simplifySubInst.L763"
+   ]
+  },
+  {
+   "name": "mul_one",
+   "match": "(mul A 1)",
+   "replace": "A",
+   "from": "IRLean.Generic.mul_one_refines",
+   "sites": [
+    "IS.simplifyMulInst.L915"
+   ]
+  },
+  {
+   "name": "sub_self",
+   "match": "(sub A A)",
+   "replace": "0",
+   "from": "IRLean.Generic.sub_self_refines",
+   "sites": [
+    "IS.simplifyByDomEq.L727",
+    "IS.simplifySubInst.L767"
+   ]
+  },
+  {
+   "name": "mul_zero",
+   "match": "(mul A 0)",
+   "replace": "0",
+   "from": "IRLean.Generic.mul_zero_refines",
+   "sites": [
+    "IS.simplifyMulInst.L911"
+   ]
+  },
+  {
+   "name": "or_disjoint_add",
+   "match": "(or.disjoint A B)",
+   "replace": "(add.nuw.nsw A B)",
+   "from": "IRLean.Generic.or_disjoint_refines_add"
+  },
+  {
+   "name": "udiv_one",
+   "match": "(udiv A 1)",
+   "replace": "A",
+   "where": [
+    "(wgt 0)"
+   ],
+   "from": "IRLean.Generic.udiv_one",
+   "sites": [
+    "IS.simplifyDivRem.L1100"
+   ]
+  },
+  {
+   "name": "urem_one",
+   "match": "(urem A 1)",
+   "replace": "0",
+   "from": "IRLean.Generic.urem_one_refines",
+   "sites": [
+    "IS.simplifyDivRem.L1100"
+   ]
+  },
+  {
+   "name": "sdiv_one",
+   "match": "(sdiv A 1)",
+   "replace": "A",
+   "where": [
+    "(wgt 1)"
+   ],
+   "from": "IRLean.Generic.sdiv_one"
+  },
+  {
+   "name": "sdiv_one_refines",
+   "match": "(sdiv A 1)",
+   "replace": "A",
+   "from": "IRLean.Generic.sdiv_one_refines",
+   "sites": [
+    "IS.simplifyDivRem.L1100"
+   ]
+  },
+  {
+   "name": "srem_one",
+   "match": "(srem A 1)",
+   "replace": "0",
+   "from": "IRLean.Generic.srem_one_refines",
+   "sites": [
+    "IS.simplifyDivRem.L1100"
+   ]
+  },
+  {
+   "name": "and_self",
+   "match": "(and A A)",
+   "replace": "A",
+   "from": "IRLean.Generic.and_self",
+   "sites": [
+    "IS.simplifyAndInst.L2086",
+    "IS.simplifyByDomEq.L736"
+   ]
+  },
+  {
+   "name": "or_self_disjoint",
+   "match": "(or A A)",
+   "replace": "A",
+   "from": "IRLean.Generic.or_self_disjoint_refines",
+   "sites": [
+    "IS.simplifyByDomEq.L736",
+    "IS.simplifyOrInst.L2364"
+   ]
+  },
+  {
+   "name": "xor_self",
+   "match": "(xor A A)",
+   "replace": "0",
+   "from": "IRLean.Generic.xor_self_refines",
+   "sites": [
+    "IS.simplifyByDomEq.L727",
+    "IS.simplifyXorInst.L2549"
+   ]
+  },
+  {
+   "name": "and_allOnes",
+   "match": "(and A -1)",
+   "replace": "A",
+   "from": "IRLean.Generic.and_allOnes",
+   "sites": [
+    "IS.simplifyAndInst.L2094"
+   ]
+  },
+  {
+   "name": "or_zero",
+   "match": "(or A 0)",
+   "replace": "A",
+   "from": "IRLean.Generic.or_zero",
+   "sites": [
+    "IS.simplifyOrInst.L2364"
+   ]
+  },
+  {
+   "name": "xor_zero",
+   "match": "(xor A 0)",
+   "replace": "A",
+   "from": "IRLean.Generic.xor_zero",
+   "sites": [
+    "IS.simplifyXorInst.L2545"
+   ]
+  },
+  {
+   "name": "and_zero",
+   "match": "(and A 0)",
+   "replace": "0",
+   "from": "IRLean.Generic.and_zero_refines",
+   "sites": [
+    "IS.simplifyAndInst.L2090"
+   ]
+  },
+  {
+   "name": "or_allOnes",
+   "match": "(or A -1)",
+   "replace": "-1",
+   "from": "IRLean.Generic.or_allOnes_refines",
+   "sites": [
+    "IS.simplifyOrInst.L2359"
+   ]
+  },
+  {
+   "name": "not_and",
+   "match": "(xor (and A B) -1)",
+   "replace": "(or (xor A -1) (xor B -1))",
+   "from": "IRLean.Generic.not_and"
+  },
+  {
+   "name": "not_or",
+   "match": "(xor (or A B) -1)",
+   "replace": "(and (xor A -1) (xor B -1))",
+   "from": "IRLean.Generic.not_or_refines"
+  },
+  {
+   "name": "xor_xor_cancel",
+   "match": "(xor (xor A B) B)",
+   "replace": "A",
+   "from": "IRLean.Generic.xor_xor_cancel_refines"
+  },
+  {
+   "name": "and_or_absorb",
+   "match": "(and A (or A B))",
+   "replace": "A",
+   "from": "IRLean.Generic.and_or_absorb_refines",
+   "sites": [
+    "IS.simplifyAndCommutative.L2028"
+   ]
+  },
+  {
+   "name": "shl_zero",
+   "match": "(shl A 0)",
+   "replace": "A",
+   "where": [
+    "(wgt 0)"
+   ],
+   "from": "IRLean.Generic.shl_zero",
+   "sites": [
+    "IS.simplifyShift.L1322",
+    "IS.simplifyShift.L1350"
+   ]
+  },
+  {
+   "name": "lshr_zero",
+   "match": "(lshr A 0)",
+   "replace": "A",
+   "where": [
+    "(wgt 0)"
+   ],
+   "from": "IRLean.Generic.lshr_zero",
+   "sites": [
+    "IS.simplifyShift.L1322",
+    "IS.simplifyShift.L1350"
+   ]
+  },
+  {
+   "name": "ashr_zero",
+   "match": "(ashr A 0)",
+   "replace": "A",
+   "where": [
+    "(wgt 0)"
+   ],
+   "from": "IRLean.Generic.ashr_zero",
+   "sites": [
+    "IS.simplifyShift.L1322",
+    "IS.simplifyShift.L1350"
+   ]
+  },
+  {
+   "name": "lshr_shl_nuw",
+   "match": "(lshr (shl.nuw A S) S)",
+   "replace": "A",
+   "from": "IRLean.Generic.lshr_shl_nuw_refines",
+   "sites": [
+    "IS.simplifyLShrInst.L1451"
+   ]
+  },
+  {
+   "name": "ashr_shl_nsw",
+   "match": "(ashr (shl.nsw A S) S)",
+   "replace": "A",
+   "from": "IRLean.Generic.ashr_shl_nsw_refines",
+   "sites": [
+    "IS.simplifyAShrInst.L1495"
+   ]
+  },
+  {
+   "name": "shl_lshr_exact",
+   "match": "(shl (lshr.exact A S) S)",
+   "replace": "A",
+   "from": "IRLean.Generic.shl_lshr_exact_refines",
+   "sites": [
+    "IS.simplifyShlInst.L1417"
+   ]
+  },
+  {
+   "name": "shl_ashr_exact",
+   "match": "(shl (ashr.exact A S) S)",
+   "replace": "A",
+   "from": "IRLean.Generic.shl_ashr_exact_refines",
+   "sites": [
+    "IS.simplifyShlInst.L1417"
+   ]
+  }
+ ]
+}

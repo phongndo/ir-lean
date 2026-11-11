@@ -312,8 +312,8 @@ Why: it's this page's own test of [whether the goal matters to anyone](#how-we-m
 
 **7. The corpus is hot numeric kernels with SIMD, on x86-64 first.** Inference, compression, codecs, hashing and
 crypto. A pull request proposes the projects, the maintainer approves the list, and it's fixed before the search runs.
-AArch64's NEON waits until the board exists. The list is [the kernel corpus](kernels.md), approved on 2026-11-10 with
-[seven decisions](#the-kernel-corpus-decided-on-2026-11-10).
+AArch64's NEON waits until the board exists. The list is [the kernel corpus](kernels.md), approved and fixed on
+2026-11-10 with [seven decisions](#the-kernel-corpus-decided-on-2026-11-10).
 
 Why:
 
@@ -419,7 +419,7 @@ in. None of this changes the goal.
 
 | Name | Command | What it is | Built |
 | --- | --- | --- | --- |
-| sopt | `irl sopt` | The superoptimizer: the rule search, its results and the plugin, decisions 4 and 10 above | No |
+| sopt | `irl sopt` | The superoptimizer: the rule search, its results and the plugin, decisions 4 and 10 above | Not as `irl sopt`. Since 2026-11-10 the rule search is `tools/rules/rules.py` ([rule search](rule-search.md)), and the plugin isn't built |
 | ptf | `irl ptf` | The proof-test framework, `tools/prooftest/` | Tier 1 |
 | msc | `irl msc` | The memory-safety checker | No |
 | emit | `irl emit` | The emitter, `build/ir-lean` | Yes |
@@ -442,8 +442,16 @@ between calls and caching answers are open ([irl](irl.md#what-it-doesnt-do-yet))
 
 Also on 2026-11-10 the maintainer approved [the kernel corpus](kernels.md), the list of real projects decisions 6 to 8
 [after #103](#thirteen-decisions-of-2026-11-09-after-103) judge the superoptimizer on, with all seven of its decisions
-as the proposal recommended. Its [manifest](../bench/kernels/manifest.toml) says `state = "approved"`. It's fixed, with
-a lock, once decision 7's driver is written, and the rule search runs on it after that.
+as the proposal recommended. It was fixed the same day, once decision 7's driver was written and each workload's
+check was in its [manifest](../bench/kernels/manifest.toml), which says `state = "fixed"`, with a lock that
+`tests/kernels_test.py` holds it to. A change to it now needs an amendment with its date and reason. The rule search
+runs on it.
+
+**The lock is `d58e280b3e19bf21a75927a9ca408a695f4a52fb8bdfdfc97db3d8c685be45eb`,** the digest
+`bench/kernels/kernels.py digest` printed of the corpus as it was fixed. This record is what holds it: the manifest's
+`[lock]` has to be the digest written here, which `bench/kernels/kernels.py check` reads from this section and
+`tests/kernels_test.py` also keeps, and every amendment starts from it. So the lock can't be replaced to cover a
+change without changing this record of a reviewed decision.
 
 1. **The projects are llama.cpp, zlib-ng, xxHash, libsodium, FLAC and libwebp.** Why: one or two from each of the five
    domains, and in all but llama.cpp a kernel the profile calls hot already translates.
@@ -462,7 +470,9 @@ a lock, once decision 7's driver is written, and the rule search runs on it afte
    [the pairs of IR taken from `opt`](corpus.md).
 7. **libsodium's workload is its Argon2id test in benchmark mode, and a bulk-encryption driver of ours over its
    documented `crypto_secretstream` example, written before the list is fixed.** Why: libsodium has no bulk benchmark
-   of its own, and without one ChaCha20-Poly1305 and BLAKE2b have no workload a win could be measured on.
+   of its own, and without one ChaCha20-Poly1305 and BLAKE2b have no workload a win could be measured on. Done:
+   [the driver](kernels.md#libsodiums-bulk-encryption-driver) encrypts a gibibyte, and spends its time in BLAKE2b,
+   ChaCha20 and Poly1305.
 
 ### The flywheel
 
@@ -601,7 +611,7 @@ Since the [thirteen decisions after #103](#thirteen-decisions-of-2026-11-09-afte
 
 | Horizon | Platform track | Superoptimization | Supply: LLVM's rewrites |
 | --- | --- | --- | --- |
-| **Now** | F4, memory in `Refines` (SEM-06), and the lemma that a refined cut gives a refined function, first. x86 SIMD intrinsics in the model, each checked against the processor. Coverage lanes as [the kernel corpus](kernels.md) needs them. BIND-02 to gate B2's number, then binding stops | The kernel corpus, fixed: it was proposed and approved on 2026-11-10 ([decisions](#the-kernel-corpus-decided-on-2026-11-10)), and libsodium's bulk-encryption driver comes before its lock. The rule format, one source for a rule's Lean statement and its matcher. The rule search. The results board | Chunk 1's rewrites ranked by how often each fires on the corpus, and G2 in that order |
+| **Now** | F4, memory in `Refines` (SEM-06), and the lemma that a refined cut gives a refined function, first. x86 SIMD intrinsics in the model, each checked against the processor. Coverage lanes as [the kernel corpus](kernels.md) needs them. BIND-02 to gate B2's number, then binding stops | The rule format, one source for a rule's Lean statement and its matcher. The rule search, on [the kernel corpus](kernels.md), fixed on 2026-11-10 ([decisions](#the-kernel-corpus-decided-on-2026-11-10)). The results board | Chunk 1's rewrites ranked by how often each fires on the corpus, and G2 in that order |
 | **Next** | E2, the executable memory model, which is also the search's refuter for code with memory. The reviewer on another provider's model, and a must-break mutant for each counted statement | The checkpoint, S7, by about 2026-12-09. The plugin, with its certify mode in CI over the corpus. S3's bar by about 2027-02-09 | Chunks 2 to 6's rewrites, as the search asks for them |
 | **Later** | The safety bridge, S4. The other bases' own lanes, once the board exists: a memory-safety checker, leak checking, and proof-test tiers 2 and 3 | The paper. A few patches upstream, each read by the maintainer. Outside engagement. AArch64's NEON, MLIR | `inflate`, contracts, C++ and Rust, the unit-test milestone, and adoption, which wait on milestones or [aren't in the plan's order yet](#not-in-the-plans-order-yet) |
 
@@ -987,7 +997,7 @@ the table below no longer hold:
 
 | First | Then | Why |
 | --- | --- | --- |
-| The corpus, approved and fixed | The rule search, and the results board | Decision 7. S3 asks for a corpus fixed before the search runs, so the wins aren't chosen after the fact. [The kernel corpus](kernels.md) was approved on 2026-11-10, and isn't fixed yet |
+| The corpus, approved and fixed | The rule search, and the results board | Decision 7. S3 asks for a corpus fixed before the search runs, so the wins aren't chosen after the fact. [The kernel corpus](kernels.md) was approved and fixed on 2026-11-10 |
 | The rule format | The plugin | Decision 10: a rule's Lean statement and its matcher come from one source |
 | F4, and the lemma that a refined cut gives a refined function | A whole-function win | Decision 9. A slice-proved win counts without them |
 | An intrinsic checked against the processor | A rule that uses it | Decision 7: each is trusted semantics |
@@ -1135,7 +1145,7 @@ binding gates B0 to B5. The record of 2026-11-08 [above](#the-goal-changed-on-20
 | F5 | Phase 0B done: full inventory, semantic mutation, two-machine determinism | 0 | F1 | Platform, semantics, and honesty: NEG-03 and NEG-05 | In progress: promises, model stops and Alive2 are done |
 | S1 | Stage 1: proved wins on integer code, and no known-wrong rewrite certified | 4 | | Chunk 1. Its metric is chunk 1's G1 for InstCombine | Exit criteria met for stage 1 as [the gate](prior-art.md#the-gate) narrowed it, on 2026-11-09, on `main` at `dbfd710` ([stage 1](stage1.md)): no rewrite of 104 known miscompilations Alive2 confirms wrong is proved or certified, and on a uniform sample of 4,000 of InstCombine's 31,158 changed pairs, Alive2 agrees with 1,101 of the 1,104 the model proves and has no verdict on the other 3. G1 for InstCombine, its metric: 0.11%, 34 of 31,240 pairs certified, and G0 40.2%, with `main` at `b9446de`; Alive2 calls none of the 75 pairs G1 tries incorrect. 2 proved wins over `clang -O3` ([#30](https://github.com/phongndo/ir-lean/pull/30)) |
 | S2 | A proved win on real code, on `main` | 4 | | Superoptimization, on the platform | The q4_K rewrite landed in [#57](https://github.com/phongndo/ir-lean/pull/57) (`b59d862`), and the Q5 rewrite in [#58](https://github.com/phongndo/ir-lean/pull/58) |
-| S3 | Superoptimizer v2: on the fixed corpus, at least 10 proved wins from at least 3 projects | 4 | The study. Python consolidation. [The kernel corpus](kernels.md), fixed first: approved on 2026-11-10, and not fixed yet. The rule format and the rule search. E1, soft. F4, for whole-function wins | The envelope's target, by about 2027-02-09, by [decision 8 after #103](#thirteen-decisions-of-2026-11-09-after-103). Until then, deferred until chunk 1's G2 was producing lemmas | Not started. The two llama.cpp rewrites don't count toward it yet, by [decision 2 of the kernel corpus](#the-kernel-corpus-decided-on-2026-11-10) |
+| S3 | Superoptimizer v2: on the fixed corpus, at least 10 proved wins from at least 3 projects | 4 | The study. Python consolidation. [The kernel corpus](kernels.md), fixed first: done, on 2026-11-10. The rule format and the rule search. E1, soft. F4, for whole-function wins | The envelope's target, by about 2027-02-09, by [decision 8 after #103](#thirteen-decisions-of-2026-11-09-after-103). Until then, deferred until chunk 1's G2 was producing lemmas | Not started. The two llama.cpp rewrites don't count toward it yet, by [decision 2 of the kernel corpus](#the-kernel-corpus-decided-on-2026-11-10) |
 | S4 | The safety bridge proved | 4 | F2, F4 | Platform, semantics, after F4 | Not started |
 | S5 | A proved win on LLVM IR exported from MLIR | 4 | S3 | After S3 | Not started |
 | S6 | A proved rewrite accepted upstream | 4 | S2 or S3 | Last of the four outside results, each patch read and owned by the maintainer, by [decision 10 after #103](#thirteen-decisions-of-2026-11-09-after-103) | Not started |
@@ -1143,7 +1153,7 @@ binding gates B0 to B5. The record of 2026-11-08 [above](#the-goal-changed-on-20
 | S8 | The results board: every proved win on the corpus, labeled by tier, with its measured speedup, reproducible from the repo | 4 | The kernel corpus, fixed. A first win | First of the four outside results | The harness and the page are built, with no wins on it ([board](board.md)) |
 | S9 | The plugin: rules from one source, and its certify mode in CI over the corpus | 4 | The rule format. S8 | Second of the four outside results | Not started |
 | E1 | Lemma store v1 | 6 | #48 | Platform, lemma engine | Done in [#60](https://github.com/phongndo/ir-lean/pull/60): 163 lemmas in `lake build` and CI, each meeting rules 1 to 3, and 16 all four ([lemma store](lemma-store.md)) |
-| E2 | Executable memory model | 6 | F4 | Platform, semantics, after F4 | Not started |
+| E2 | Executable memory model | 6 | F4 | Platform, semantics, after F4 | Exit criteria met in [#114](https://github.com/phongndo/ir-lean/pull/114), on 2026-11-11: `IRLean.ExecMem`, with each operation proved to agree with `Mem`'s and runs of blocks that agree proved to agree, on the standard axioms, and the differential harness on it, where `zlib_big` gives native code's 12 results on inputs of 128 KiB to 128.5 KiB, with none skipped. Each block's agreement is proved for two functions and argued for the rest, and proof tests and the search don't run on it yet ([memory](memory.md#whats-left-of-e2)) |
 | E3 | The store makes proofs cheaper, measured | 6 | E1. Python consolidation | Chunk 1's G2, in the order the corpus needs, by [decision 3 after #103](#thirteen-decisions-of-2026-11-09-after-103). Until then, its burn-down | Not started |
 | T1 | Tier-1 proof tests | 7 | | Proof tests, on the platform | Done in [#66](https://github.com/phongndo/ir-lean/pull/66): every injected bug it can run refuted, at a median of 9.1 ms to a counterexample the kernel checked, and `prooftest_t1` checks T1's set in CI ([proof tests](proof-tests.md#t1-measured)) |
 | T2 | Tiers 2 and 3 | 7 | T1. Python consolidation. The results board, S8. E1, soft, for tier 3 | After the results board exists, by [decision 12 after #103](#thirteen-decisions-of-2026-11-09-after-103). Until then, deferred until chunk 1's G2 was producing lemmas | Not started |
@@ -1372,7 +1382,9 @@ makes each proof cheaper than the last.
   run, with targets for peak memory on big proofs, which [Phase 8](#phase-8-speed) records.
 - **Executable memory model,** slice 15, in the platform track after F4: an executable representation of memory, proved
   to agree with `Mem`, for the differential tests, the search's refuting step, and tier-1 proof tests on code with
-  memory. `inflate`'s window is 32 KiB, so inputs under that never exercise its full distance range.
+  memory. `inflate`'s window is 32 KiB, so inputs under that never exercise its full distance range. Its exit
+  criteria were met in [#114](https://github.com/phongndo/ir-lean/pull/114), for the differential tests:
+  [executable memory](memory.md#executable-memory).
 
 **Exit criteria:**
 
@@ -1556,7 +1568,8 @@ every track that runs code with memory needs it.
 - At least 10 bound-related mutants across `inftrees.c`, `inffast.c` and `inflate.c` each break the proof,
   including, where they're in scope, reverting the fixes for CVE-2016-9840, CVE-2016-9841 and
   CVE-2022-37434.
-- The differential harness runs on inputs of at least 128 KiB, with no mismatches and none skipped, which is E2.
+- The differential harness runs on inputs of at least 128 KiB, with no mismatches and none skipped, which is E2. Met
+  in [#114](https://github.com/phongndo/ir-lean/pull/114) by `zlib_big`.
 - Cost is published: lines per IR instruction, invariant lines, check time and peak memory per module.
 
 **Risks:** the invariant is the unknown. It might not be expressible per mode, and table links may need
@@ -1706,7 +1719,7 @@ that produced it. Current values live in [status](status.md).
 
 | Metric | Measured yet | Why it matters |
 | --- | --- | --- |
-| Proved wins over `clang -O3` on the fixed corpus, and the speedup each measures | Not yet: [the kernel corpus](kernels.md) is approved and not fixed, and [the board](board.md) has no wins. On `main` are 2 wins on compiler-rt's fallbacks, which real programs on x86-64 don't call, and the two llama.cpp rewrites, which no search found, and which don't count toward S3's bar yet ([decision 2](#the-kernel-corpus-decided-on-2026-11-10)) | The headline, since [decision 6 after #103](#thirteen-decisions-of-2026-11-09-after-103) |
+| Proved wins over `clang -O3` on the fixed corpus, and the speedup each measures | Not yet: [the kernel corpus](kernels.md) is fixed, and [the board](board.md) has no wins. On `main` are 2 wins on compiler-rt's fallbacks, which real programs on x86-64 don't call, and the two llama.cpp rewrites, which no search found, and which don't count toward S3's bar yet ([decision 2](#the-kernel-corpus-decided-on-2026-11-10)) | The headline, since [decision 6 after #103](#thirteen-decisions-of-2026-11-09-after-103) |
 | Speedup on a real workload, from proved rewrites | Yes, for the two llama.cpp rewrites ([status](status.md#measured)) | Whether the goal matters to anyone |
 | Share of rewrite firings on the corpus that a proved rule covers | No. It needs the corpus, and a way to tell which rewrite fired | The supply gauge, under the headline, by [decision 3 after #103](#thirteen-decisions-of-2026-11-09-after-103) |
 | Passes counted done, of the 1,162, and each chunk's percentage at each gate | 0 done, and it stays 0 while G3 and G4 are paused. G0 and G1 are measured for InstCombine ([chunks](chunks.md)), and G2 for chunk 1, 244 of 3,174 ([rewrite proofs](rewrite-proofs.md#the-scoreboard)) | The headline from [2026-11-09](#six-decisions-of-2026-11-09-after-69) until later that day. G0 to G2 still say what the supply has |

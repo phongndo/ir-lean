@@ -150,25 +150,39 @@ def opt_tag(opt: str) -> str:
     return "O3" if opt == CORPUS_OPT else "own"
 
 
-def workloads(raw: dict[str, Any], manifest_workload: dict[str, Any] | None) -> dict[str, Workload]:
-    """A project's workloads, from harness.toml's table, with the manifest's fields over the one that runs the
-    manifest's command."""
+def workloads(raw: dict[str, Any], listed: list[dict[str, Any]] | None) -> dict[str, Workload]:
+    """A project's workloads, from harness.toml's table. One that's the manifest's, `manifest = true`, takes
+    from the manifest's workload of its name what the harness can run as the manifest says: its one command,
+    its setup, its threads and measure, and, from a check of what it prints, that its output is its result. A
+    rate's pattern and a check of known answers stay harness.toml's: the manifest names a rate's figure in
+    words, and the harness doesn't run the manifest's known-answers checks."""
+    by_name = {w.get("name"): w for w in listed or [] if isinstance(w, dict)}
     out: dict[str, Workload] = {}
     for name, w in raw.items():
         fields = dict(w)
         sources = dict.fromkeys(fields, "harness")
         if fields.pop("manifest", False):
-            if manifest_workload is None:
-                raise Refused(f"workload {name} runs the manifest's command, and the manifest has none")
-            for key in ("command", "check", "threads", "measure", "output", "rate", "setup"):
-                if key in manifest_workload:
-                    fields[key] = manifest_workload[key]
-                    sources[key] = "manifest"
             sources.pop("manifest", None)
+            m = by_name.get(name)
+            if m is None:
+                raise Refused(f"workload {name} is the manifest's, and the manifest has no workload {name}")
+            for key, ours in (("run", "command"), ("setup", "setup")):
+                if key in m:
+                    if len(m[key]) != 1:
+                        raise Refused(
+                            f"{name}: the manifest's {key} is {len(m[key])} commands, and the harness runs "
+                            "one"
+                        )
+                    fields[ours], sources[ours] = m[key][0], "manifest"
+            for key in ("threads", "measure"):
+                if key in m:
+                    fields[key], sources[key] = m[key], "manifest"
+            checks = m.get("check", [])
+            if any(
+                c.get("kind") == "output" and c.get("output") == ["stdout"] and "run" not in c for c in checks
+            ):
+                fields["output"], sources["output"] = "result", "manifest"
         check = fields.get("check")
-        if isinstance(check, dict):
-            # A check the manifest gives as a table, with its command in it.
-            check = check.get("command")
         workload = Workload(
             name=name,
             command=list(fields["command"]),

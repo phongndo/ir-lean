@@ -19,7 +19,8 @@ It measures what the code is and what the emitter does with it. It searches for 
 
 usage: bench/kernels/demand.py run [--project NAME]... [--jobs N] [--work DIR] [--out FILE]
        bench/kernels/demand.py table [FILE]        the results as the tables docs/kernels.md has
-       bench/kernels/demand.py check [--offline]   every unit compiles, and defines the kernels named
+       bench/kernels/demand.py check [--offline]   every unit compiles, and defines the kernels named, and
+                                                   every test a workload's check names is at the pin
 
 `check --offline` exits 77, which ctest takes as a skip, if a project's source isn't in the Nix store already.
 """
@@ -342,7 +343,7 @@ def kept(old: dict[str, Any] | None, keep: list[str]) -> dict[str, Any]:
 
 def run(args: argparse.Namespace) -> int:
     manifest = kernels.load()
-    if found := kernels.problems(manifest):
+    if found := kernels.validate(manifest):
         print("\n".join(f"FAIL {line}" for line in found))
         return 1
     with_units = [n for n, p in manifest["project"].items() if p.get("unit")]
@@ -392,15 +393,16 @@ def run(args: argparse.Namespace) -> int:
 
 
 def check(args: argparse.Namespace) -> int:
-    """Every unit compiles at the pin and defines the kernels the manifest names."""
+    """Every unit compiles at the pin and defines the kernels the manifest names, and every file of the
+    project's own tests that a workload's known-answers check names is in its source."""
     manifest = kernels.load()
-    if found := kernels.problems(manifest):
+    if found := kernels.validate(manifest):
         print("\n".join(f"FAIL {line}" for line in found))
         return 1
     if not EMITTER.exists() or pinned_clang() is None:
         print("skip: this needs build/ir-lean and the pinned clang")
         return SKIP
-    missing = []
+    missing, failed = [], False
     for name, project in sorted(manifest["project"].items()):
         if not project.get("unit"):
             continue
@@ -410,6 +412,17 @@ def check(args: argparse.Namespace) -> int:
             continue
         named = sum(len(u["kernels"]) for u in result["units"])
         print(f"ok   {name}: {len(result['units'])} units compile, and define the {named} kernels named")
+        src = kernels.source(name, project, args.offline)
+        tests = [
+            t for w in project.get("workload", []) for c in w.get("check", []) for t in c.get("test", [])
+        ]
+        if absent := [t for t in tests if src is None or not (src / t).is_file()]:
+            print(f"FAIL {name}: its checks name tests that aren't at the pin: {', '.join(absent)}")
+            failed = True
+        elif tests:
+            print(f"ok   {name}: the {len(tests)} files of its own tests that its checks name are at the pin")
+    if failed:
+        return 1
     if missing:
         print(
             f"skip: not in the Nix store: {', '.join(missing)}. `bench/kernels/demand.py check` fetches them"

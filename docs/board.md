@@ -9,7 +9,7 @@ This page is generated: `nix develop -c bench/kernels/board.py write` writes it 
 what that gives. Don't edit it by hand.
 
 **0 wins from 0 projects,** against S3's bar of 10 from 3.
-The corpus is approved, not fixed, so no win can count yet: decision 7 waits for libsodium's bulk-encryption driver, and then the manifest's `[lock]`.
+The corpus was fixed on 2026-11-10.
 
 ## Wins
 

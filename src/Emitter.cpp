@@ -121,9 +121,9 @@ const std::set<std::string> &reservedNames() {
         // Names emitted code uses.
         "Block", "IRLean", "Next", "Outcome", "Val", "andThen", "assume", "br", "branch", "false", "jump",
         "loop", "none", "noundef", "ret", "run", "select", "some", "step", "sw", "true", "unreachable",
-        "HasPoison", "Mem", "Ptr", "PtrVal", "initial", "m", "indirect", "Vec", "Vector", "a", "b", "Unit",
-        "Nat", "BitVec", "Array", "promised", "runPromised", "Choice", "Outcomes", "World", "Trace", "Exit",
-        "Lanes", "Event", "Answer", "Promises", "Talks", "FP", "X86", "VScale", "noundefAll",
+        "HasPoison", "Mem", "ExecMem", "Ptr", "PtrVal", "initial", "m", "indirect", "Vec", "Vector", "a", "b",
+        "Unit", "Nat", "BitVec", "Array", "promised", "runPromised", "Choice", "Outcomes", "World", "Trace",
+        "Exit", "Lanes", "Event", "Answer", "Promises", "Talks", "FP", "X86", "VScale", "noundefAll",
         // Names Lean generates for every inductive type.
         "below", "binductionOn", "brecOn", "casesOn", "ctorElim", "ctorElimType", "ctorIdx", "ibelow",
         "injEq", "noConfusion", "noConfusionType", "rec", "recOn", "sizeOf", "toCtorIdx"};

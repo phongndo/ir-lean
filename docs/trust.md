@@ -109,6 +109,8 @@ rests on crashed, ran out of something or failed, and that nothing it needs is m
 | `tools/binding.py` | Certified, for a replay and for a cache hit |
 | `tools/prooftest/prooftest.py` | Refuted, by the kernel or by `tools/verify.py` |
 | `tools/store/store.py` | Proved, for each lemma the bar admits |
+| `tools/rules/proved.py` | Proved, for each [rule](rules.md) whose theorem states its generated statement |
+| `tools/rules/certify.py` | Certified, for a chain of rule applications Lean proves again |
 | `tests/llvm.py` | Proved, for each target, and caught, for each injected bug |
 | `tests/llama.py` | Proved, for each slice, refuted, for a wrong rewrite Lean shows differs, and caught, by a theorem stopping or the native check |
 | `tests/superopt.py` | Proved, for `Rewrites.lean`, and caught, by Lean and by Alive2, for the wrong rewrite |
@@ -174,6 +176,9 @@ in the model on a run LLVM calls undefined.
 | `switch` bound its selector as `sel`, which a value of that name read in a case got instead: clang's IR for `int pick(int sel, int op)` proved `pick(5, 2) = 6` | Emitted code binds only names the emitter can't produce for a value, such as `sel'` | `pick` in [`tests/emitter.sh`](../tests/emitter.sh) |
 | `tests/check_axioms.lean` imported the module it checked, running its code, and reran a `bv_decide` axiom there, so `implemented_by` could make a false one pass | It reads the module and its imports as data, as `tools/verify_check.lean` does, requires a `bv_decide` axiom's formula and certificate to be built from constructors and literals, reruns it with only the toolchain's code, and refuses `implemented_by` and `extern` in every module but Lean's own | `must_reject` in [`tests/proofs.sh`](../tests/proofs.sh) |
 | A declaration added with `debug.skipKernelTC` passed with no axioms | `tests/proofs.sh` and `tests/llvm.py` run `leanchecker` on each proof and support module | `must_reject` in [`tests/proofs.sh`](../tests/proofs.sh) |
+| A false [rule](rules.md), proved from `False` that a module outside the rules' library added with `debug.skipKernelTC`, was proved, and an application of it certified, on the standard axioms: `leanchecker` replayed only the rules' modules, and the certificate's | Both gates replay every module the proof imports that declares something and isn't Lean's own, `IRLean`'s and `Peephole`'s included, one `leanchecker` process each | `Peephole.Hack` in [`tests/rules_test.py`](../tests/rules_test.py) `--tier live` |
+| The same rule was proved, and its application certified, when `Peephole.Hack` was swapped for one with `False` as an axiom after the checker and the audit read it and before the replay: each process found modules by name again, in directories anything still running could change. And a certificate's code, run as Lean compiled it, could rewrite the checkers the gate then ran, and leave a process running past the compile. Found by review on 2026-11-10 | Both gates' checks read one copy of the `IRLean`, `Peephole` and `Rules` libraries, with nothing else on `LEAN_PATH`, and hold it, the toolchain and the checkers until the last check ends. Certify mode copies the libraries before the certificate compiles, compiles it in a systemd scope, and errs if anything held changed. What `lake build` ran before `rules.py check` is still trusted: [rules](rules.md#gaps) | The swap, and a certificate rewriting the checkers, in [`tests/rules_test.py`](../tests/rules_test.py) `--tier live` |
+| What the rules' gates held still wasn't all they read. `rules.py check` didn't hold the checker it generated, so one written over before Lean read it, saying every rule is proved, proved a rule with no theorem. Certify mode hashed the IR only when it recorded the verdict, so IR written over after `build/ir-lean` translated it was certified and the record named that IR. And `LEAN_SYSROOT`, from the caller, made the checker and `leanchecker` look for Lean's own modules somewhere other than the toolchain the gates held. Found by review on 2026-11-10 | `check` holds the checker and its configuration by hash and `lstat` from when it writes them. Certify mode holds the IR, the generated module and the certificate by their hashes when written, records those, and errs if any differs before the verdict. Every Lean process the gates start runs from the held toolchain by its path, with `LEAN_SYSROOT` naming it. Each held directory's own `lstat` is held too. What the gates promise, and against what, is [rules](rules.md#what-the-gates-promise) | The checker written over, the IR written over and `LEAN_SYSROOT` naming an empty directory, in [`tests/rules_test.py`](../tests/rules_test.py) `--tier live` |
 | `dereferenceable(n)` on a function's or a call's result was never checked | Checked where the function returns, and again where the call does | `Runs` in [`tests/emitter.sh`](../tests/emitter.sh) |
 | The emitter didn't run LLVM's verifier, so `llvm.lifetime.start` on a constant global let a store to it succeed | It runs `verifyModule` after parsing, and refuses what fails | [`tests/emitter.sh`](../tests/emitter.sh) |
 | `tests/llvm.py` only checked that a statement mentioned the generated module, and passed when the emitter left a function out | Each function has to be translated, and its theorem has to name it, as ir-lean generated it. A constant named like the generated module's has to come from it | [`tests/llvm.py`](../tests/llvm.py), and `must_reject` in [`tests/proofs.sh`](../tests/proofs.sh) for the zlib proofs |
@@ -295,6 +300,10 @@ the same table has. An audit on 2026-11-10 found one more, a failed proof forgin
   `arcp`, `contract` and `afn` on `fcmp`, which it approximates, or `uitofp ninf`, which crashes it at the pin. The
   processor runs `fp128` and `i128` only where the backend and the host have a library for them, which x86-64 Linux
   does, and where AArch64 doesn't, as for `uitofp i128` to `bfloat`.
+- Tests with memory run on [`ExecMem`](memory.md#executable-memory), not `Mem`. Each of its operations is proved to
+  agree with `Mem`'s, and so are runs of blocks that agree, but each block's agreement is argued, not proved: the
+  emitter prints the same Lean with only the name changed, which `exec_memory` checks, and blocks reach memory only
+  through those operations. `model_memory` runs the memory-heavy inputs on `Mem` itself.
 - `tests/proofs.sh` pins x86-64 Linux, but `tests/zlib.sh` compiles for the host, so on any other host the
   differential evidence isn't about the IR the proofs are about. The flake lists three systems, while CI runs
   only on x86-64 Linux.
@@ -302,6 +311,15 @@ the same table has. An audit on 2026-11-10 found one more, a failed proof forgin
 - [The classification](ir-features.md) probes each item once, or once for each shape of an overloaded intrinsic, in
   one place. It shows the emitter refuses or translates that probe, not every way the item can appear, and 133 items
   have no probe, each listed with why, all refused but `immarg` and the `metadata` type.
+- The rules' gates, `rules.py check` and certify mode, hold what they read against anything else running as the user
+  changing it, another build in the checkout or an editor, and against a crash or a limit: neither then says
+  `proved` or `certified` about anything but the files checked. They don't hold against code running as the same user
+  that rewrites files, directories, the tools or the toolchain on purpose while they run, such as a directory above
+  the copies the checks read moved aside, replaced for the replay and put back. Nothing inside the same account can,
+  as such code could rewrite the gate itself. Nothing untrusted runs in them today: every rule's proof is a reviewed
+  lemma `lake build` compiles, and a certificate is Lean the tools write. A proof an agent proposes has to be compiled
+  in a sandbox the operating system enforces before it reaches them, which isn't built, and is a requirement before a
+  proposer's proofs are accepted. [Rules](rules.md#what-the-gates-promise) has the whole of it.
 - Mutation in CI covers the C being proved. Mutation of the GEP and promise rules was a one-off, with no script
   in the repo, and the rest of the semantics and the emitter haven't been mutated.
 - A mutant counts when its proof stops with an error that isn't a resource limit. That shows the proof depends on the

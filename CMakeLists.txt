@@ -58,6 +58,16 @@ add_test(
         ${CMAKE_SOURCE_DIR}/tests/real/heap.ll ${CMAKE_SOURCE_DIR}/tests/real/gep.ll
         ${CMAKE_SOURCE_DIR}/tests/real/promises.ll ${CMAKE_SOURCE_DIR}/tests/real/lanes.ll --strict
 )
+# The inputs above that use memory most, run on IRLean.Mem itself rather than IRLean.ExecMem, so native code
+# checks the model directly too, not only through the agreement theorems.
+add_test(
+    NAME model_memory
+    COMMAND
+        ${CMAKE_SOURCE_DIR}/tests/differential.py $<TARGET_FILE:ir-lean>
+        ${CMAKE_SOURCE_DIR}/tests/real/memory.c ${CMAKE_SOURCE_DIR}/tests/real/pointers.c
+        ${CMAKE_SOURCE_DIR}/tests/real/heap.ll ${CMAKE_SOURCE_DIR}/tests/real/gep.ll
+        ${CMAKE_SOURCE_DIR}/tests/real/promises.ll --strict --model-memory
+)
 add_test(
     NAME undefined
     COMMAND
@@ -223,16 +233,25 @@ set_tests_properties(float PROPERTIES TIMEOUT 900)
 add_test(NAME calls COMMAND ${CMAKE_SOURCE_DIR}/tests/calls.sh $<TARGET_FILE:ir-lean>)
 set_tests_properties(calls PROPERTIES TIMEOUT 900)
 # The cut lemma, on what ir-lean emits: a proof about a slice becomes a theorem about the loop that holds it,
-# llama.cpp's q5_0 bit-spreading slice among them, and a wrong cut, a wrong loop and a wrong lemma each stop a
-# proof. One Lean or Alive2 process at a time, each Lean process capped at 4 GB. See docs/refinement.md.
+# llama.cpp's q5_0 bit-spreading slice among them, and about a kernel of the corpus as clang compiled it,
+# libsodium's gh_ad_blocks, and a wrong cut, a wrong loop, a wrong lemma and a wrong operation each stop a
+# proof. One Lean or Alive2 process at a time, each Lean process capped at 4 GB, the kernel's at 8 GB. See
+# docs/refinement.md.
 add_test(NAME cut COMMAND ${CMAKE_SOURCE_DIR}/tests/cut.sh $<TARGET_FILE:ir-lean>)
-set_tests_properties(cut PROPERTIES TIMEOUT 900)
+# Alone, since the GHASH kernel's proof takes up to 8 GB, more than a CTest slot's share of a runner.
+set_tests_properties(cut PROPERTIES TIMEOUT 900 RUN_SERIAL TRUE)
 # `Refines` for functions with memory, SEM-06, on what ir-lean emits: right rewrites refine on every memory
 # the model has an answer for, wrong ones provably don't, a changed rule of the relation stops the law that
 # pins it, and Alive2 gives each case the verdict it says. One Lean or Alive2 process at a time, each Lean
 # process capped at 2 GB and 300 s. See docs/refinement.md.
 add_test(NAME memory_refine COMMAND ${CMAKE_SOURCE_DIR}/tests/memory_refine.sh $<TARGET_FILE:ir-lean>)
 set_tests_properties(memory_refine PROPERTIES TIMEOUT 900)
+# E2, the executable memory every test runs on: IRLean.ExecMem agrees with Mem on the standard axioms and
+# replays in the kernel, a wrong version of each operation stops its own theorem, and `ir-lean
+# --executable-memory` is the Lean proofs are about with only Mem renamed. One Lean process at a time, capped
+# at 2 GB and 300 s. See docs/memory.md.
+add_test(NAME exec_memory COMMAND ${CMAKE_SOURCE_DIR}/tests/exec_memory.sh $<TARGET_FILE:ir-lean>)
+set_tests_properties(exec_memory PROPERTIES TIMEOUT 900)
 add_test(NAME verify COMMAND ${CMAKE_SOURCE_DIR}/tests/verify.py $<TARGET_FILE:ir-lean>)
 # Tier-1 proof tests: the contract in Python, then tools/prooftest/prooftest.py on
 # tests/prooftest/Cases.ll, at most four cases at a time, each with at most one Lean process running.
@@ -326,18 +345,33 @@ add_test(NAME peephole_compare COMMAND ${CMAKE_SOURCE_DIR}/tests/peephole.py com
 add_test(NAME peephole_score COMMAND ${CMAKE_SOURCE_DIR}/tests/peephole.py score --check)
 add_test(NAME peephole COMMAND ${CMAKE_SOURCE_DIR}/tests/peephole_test.py --tier live)
 set_tests_properties(peephole_compare peephole_score peephole PROPERTIES TIMEOUT 900)
+# Rules and the rule search, docs/rules.md and docs/rule-search.md. `lake build` checks each rule's proof.
+# The static tier checks the format, the matcher and the IR reader in Python, under a second, with no Lean
+# or LLVM. The live tier checks that every rule is proved, that a wrong statement generator, a wrong matcher
+# and a false rule are each refused for their own reason, certify mode, and the search on
+# tests/rules/search.ll, twice, byte for byte. One Lean process at a time, each capped at 4 GB, but for
+# leanchecker, two modules at a time, or LEAN_JOBS up to four, about three and a half minutes.
+add_test(NAME rules_static COMMAND ${CMAKE_SOURCE_DIR}/tests/rules_test.py --tier static)
+add_test(NAME rules COMMAND ${CMAKE_SOURCE_DIR}/tests/rules_test.py --tier live)
+set_tests_properties(rules PROPERTIES TIMEOUT 1800)
 add_test(
     NAME zlib
     COMMAND
         ${CMAKE_SOURCE_DIR}/tests/zlib.sh $<TARGET_FILE:ir-lean> --only harness_ --runs 10 --slow
-        harness_slow=0
+        harness_slow=0 --slow harness_big=0
 )
 # These run far enough for `deflate` to slide its window, which takes the longest. Skip with `ctest -LE slow`.
 add_test(
     NAME zlib_slow
     COMMAND ${CMAKE_SOURCE_DIR}/tests/zlib.sh $<TARGET_FILE:ir-lean> --runs 1 --only harness_slow
 )
-set_tests_properties(zlib zlib_slow PROPERTIES TIMEOUT 5400)
+# E2's exit criterion: zlib on inputs of at least 128 KiB, which reach across inflate's whole 32 KiB window,
+# with no mismatch and none skipped. They run on IRLean.ExecMem, as every test does, in about a minute.
+add_test(
+    NAME zlib_big
+    COMMAND ${CMAKE_SOURCE_DIR}/tests/zlib.sh $<TARGET_FILE:ir-lean> --only harness_big --runs 3
+)
+set_tests_properties(zlib zlib_slow zlib_big PROPERTIES TIMEOUT 5400)
 # llama.cpp's q4_K rewrite. x86's dot-product intrinsics against the processor, which needs AVX-512 VNNI, so
 # it skips without it. Those and vector bitcasts against Alive2 and LLVM's constant folder, on any processor.
 # And the rewrite's proofs, which need llama.cpp's source, so they're labeled `llama`, run in
@@ -397,6 +431,7 @@ set_tests_properties(llama_bitspread PROPERTIES TIMEOUT 1800)
 set_tests_properties(
     differential
     vectors_pointers
+    model_memory
     undefined
     fuzz
     llvm
@@ -419,6 +454,7 @@ set_tests_properties(binding_2 PROPERTIES LABELS binding_2)
 set_tests_properties(proofs verify_negative PROPERTIES LABELS proofs)
 set_tests_properties(llvm llvm_closure PROPERTIES LABELS llvm)
 set_tests_properties(verify_claims PROPERTIES LABELS verify_claims)
+set_tests_properties(rules PROPERTIES LABELS rules)
 set_tests_properties(
     replay_challenge
     contracts
@@ -429,6 +465,7 @@ set_tests_properties(
     calls
     cut
     memory_refine
+    exec_memory
     generic_rewrites
     cpp_correspondence
     store

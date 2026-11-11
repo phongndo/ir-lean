@@ -1,10 +1,12 @@
 # What bench/kernels/harness.py needs to build and run a project of the kernel corpus that the manifest doesn't say:
-# how to drive the project's own build, which binaries its workloads run, and the workloads beyond the manifest's
-# one. docs/kernels.md, "The harness".
+# how to drive the project's own build, which binaries its workloads run, and each workload, as the manifest's or,
+# where the harness can't run that as it's written yet, as its own. docs/kernels.md, "The harness".
 #
 # It's apart from bench/kernels/manifest.toml so that it doesn't change the digest that fixes the corpus. A
-# workload with `manifest = true` runs the manifest's `workload.command`, and takes the manifest's `check`,
-# `threads`, `measure` and `output` wherever the manifest gives them, over what's here.
+# workload with `manifest = true` is the manifest's workload of its name: it runs that workload's one `run`
+# command, and takes its `setup`, `threads` and `measure`, and, from a check of what it prints, that its output
+# is its result, over what's here. A rate's pattern and a check of known answers stay this file's: the manifest
+# names a rate's figure in words, and the harness doesn't run the manifest's known-answers checks yet.
 #
 # Each workload:
 #   command   what's timed, with {build}, {src}, {inputs}, {input:NAME}, {work}, {out} and {threads} filled in,
@@ -32,6 +34,8 @@ manifest = true
 measure = "time"
 output = "result"
 
+# The manifest's decompress writes its stream to {out} in setup and reads it from there in run. The harness gives
+# each run an {out} of its own, emptied after it, so here the stream is in the session's {work}.
 [zlib-ng.workload.decompress]
 setup = [
   "sh",

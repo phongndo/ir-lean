@@ -447,7 +447,7 @@ def end_to_end(work: Path) -> None:
         },
     )
     found = board.problems(work / "synthetic.json", entry, kernels.load())
-    for reason in ("not fixed", "a control", "isn't by the protocol", "isn't against the baseline"):
+    for reason in ("a control", "isn't by the protocol", "isn't against the baseline"):
         expect(any(reason in p for p in found), f"the board refuses that as a win, as it's {reason}", found)
 
     by_hand(work, plans, fast, other, slow)

@@ -84,13 +84,22 @@ libsodium)
   mkdir -p "$work/b"
   (cd "$work/b" && "$src/configure" --disable-dependency-tracking >"$work/configure.log" 2>&1)
   make -C "$work/b" -j8 >"$work/build.log" 2>&1
-  # test/default/cmptest.h: with BENCHMARKS, a test runs its body ITERATIONS times and prints the time.
+  # test/default/cmptest.h: with BENCHMARKS, a test runs its body ITERATIONS times and prints the time. make
+  # doesn't see CPPFLAGS change, so tests built in checking mode are cleaned first.
   tests="aead_chacha20poly1305 aead_xchacha20poly1305 secretbox generichash pwhash_argon2id aead_aes256gcm"
+  make -C "$work/b/test/default" clean >>"$work/build.log" 2>&1
   # shellcheck disable=SC2086 # The tests are separate words.
   make -C "$work/b/test/default" -j8 CPPFLAGS="-DBENCHMARKS -DITERATIONS=200" $tests >>"$work/build.log" 2>&1
   for t in $tests; do
     (cd "$src/test/default" && profile "$t" "$work/b/test/default/$t")
   done
+  # Decision 7's bulk-encryption driver, ours, built as the manifest's secretstream workload builds it.
+  inc=$src/src/libsodium/include
+  gen=$work/b/src/libsodium/include
+  clang -O3 -I"$inc/sodium" -I"$gen/sodium" -I"$inc" -I"$gen" "$root/bench/kernels/libsodium/secretstream.c" \
+    "$work/b/src/libsodium/.libs/libsodium.a" -pthread -o "$work/b/secretstream"
+  profile secretstream "$work/b/secretstream"
+  cat "$work/secretstream.out"
   ;;
 opus)
   configure "$src" -DOPUS_BUILD_PROGRAMS=ON
