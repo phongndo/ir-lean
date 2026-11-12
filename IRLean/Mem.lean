@@ -520,9 +520,10 @@ here, since the attribute it's equivalent to gives poison and an assume's failur
   | some q => if m.addr q == 0#64 then Outcome.ub .assumeFailed else k
 
 /-- Whether an address, less `off`, is a multiple of `align` when that's a power of two, or is zero when it isn't, as
-LangRef's `"align"` bundle has it. -/
+LangRef's `"align"` bundle has it. Both cases are about the address less `off`, as Alive2 at the pin reads it. -/
 @[llvm] def alignHolds (addr align off : BitVec 64) : Bool :=
-  if align != 0#64 && align &&& (align - 1#64) == 0#64 then (addr - off).toNat % align.toNat == 0 else addr == 0#64
+  if align != 0#64 && align &&& (align - 1#64) == 0#64 then (addr - off).toNat % align.toNat == 0
+  else addr - off == 0#64
 
 /-- An `llvm.assume`'s `"align"(p, align, offset)` bundle. LangRef: it's `align(align)` on `p - offset`, "except that
 `%align` may be a non-power-of-two alignment (including a zero alignment). If `%align` is not a power of two, the

@@ -135,7 +135,7 @@ Evidence and not proof. A pass here means no disagreement was found on the input
 - **`getelementptr` flags:** 1,194 cases against Alive2, on 644 layouts. 927 are proved exact, and 267 depend on
   the layout as Alive2 confirms, with none unchecked or wrong.
 - **Random functions:** fuzzed integer functions at random optimization levels, against native code.
-- **Undefined behavior:** 51 functions LLVM calls undefined stop the model ([`ub.ll`](../tests/real/ub.ll)),
+- **Undefined behavior:** 53 functions LLVM calls undefined stop the model ([`ub.ll`](../tests/real/ub.ll)),
   including each promise being broken. 14 memory errors each stop it for their own reason
   ([`memory_errors.ll`](../tests/real/memory_errors.ll)), and `memory_errors` fails if any reason changes. 17 that LLVM doesn't call undefined stop without being called so
   ([`stops.ll`](../tests/real/stops.ll)).

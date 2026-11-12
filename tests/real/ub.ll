@@ -191,6 +191,18 @@ define i32 @assume_align_not_a_power_of_two(i32 %x) {
   ret i32 %x
 }
 
+; With an offset, it's the pointer less the offset that has to be null: null itself, less 4, isn't.
+define i32 @assume_align_not_a_power_of_two_offset(i32 %x) {
+  call void @llvm.assume(i1 true) [ "align"(ptr null, i64 3, i64 4) ]
+  ret i32 %x
+}
+
+; The same for an alignment of zero.
+define i32 @assume_align_zero_offset(i32 %x) {
+  call void @llvm.assume(i1 true) [ "align"(ptr null, i64 0, i64 4) ]
+  ret i32 %x
+}
+
 ; `noundef` on poison.
 define i32 @assume_noundef_of_poison(i32 %x) {
   call void @llvm.assume(i1 true) [ "noundef"(i32 poison) ]
