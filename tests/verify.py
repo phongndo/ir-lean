@@ -203,8 +203,25 @@ def lean(match: str, then: str) -> dict[str, str]:
     return {"lean": shim(match, f"{REAL}; {then}")}
 
 
+# A witness answer that fails, as tools/verify_check.lean prints one.
+WITNESS_FAILS = '{{"kind":"witness","index":{index},"result":"fails","instance":"x"}}'
 # An answer as tools/verify_check.lean prints one, but with a nonce that isn't the run's.
 FORGED_ANSWER = """echo 'IRLEAN_VERIFY 00 {"kind":"witness","index":0,"result":"fails","instance":"x"}'"""
+
+
+def own_answer(answer: str) -> str:
+    """Shell that prints `answer` as tools/verify_check.lean does, with the run's own nonce, read from the
+    configuration tools/verify.py gave it: an answer the nonce can't tell from a real one."""
+    read = """n=$(sed -n 's/.*"nonce": "\\([0-9a-f]*\\)".*/\\1/p' "$IRLEAN_VERIFY_CONFIG")"""
+    return f"{read}; printf 'IRLEAN_VERIFY %s %s\\n' \"$n\" '{answer}'"
+
+
+def rewritten(match: str, sed: str) -> dict[str, str]:
+    """A `lean` whose output, when its arguments name `match`, goes through `sed`: a checker answering
+    outside its contract."""
+    return {"lean": shim(match, f"{REAL} | sed '{sed}'")}
+
+
 # leanchecker, which then deletes the proof's module.
 OLEAN_GONE = shim("Small", f'{REAL} && rm "${{LEAN_PATH%%:*}}/Proof.olean"')
 
@@ -815,6 +832,50 @@ def cases() -> list[Case]:
             *refute,
             shims=lean("check/Witness.lean", FORGED_ANSWER),
         ),
+        # Review 1 of #123. A checker's answers are read only once they're its contract's: a witness that
+        # holds, answered again as failing with the run's nonce, isn't a counterexample; nor is an answer for
+        # a witness never asked.
+        Case(
+            "witness_answered_twice",
+            "error",
+            "internal_error",
+            small(statement=INC_STATEMENT, witnesses=[{"x": "1#32"}]),
+            {"Small.ll": SMALL_LL},
+            shims=lean("check/Witness.lean", own_answer(WITNESS_FAILS.format(index=0))),
+        ),
+        Case(
+            "witness_answer_not_asked",
+            "error",
+            "internal_error",
+            small(statement=INC_STATEMENT, witnesses=[{"x": "1#32"}]),
+            {"Small.ll": SMALL_LL},
+            shims=lean("check/Witness.lean", own_answer(WITNESS_FAILS.format(index=7))),
+        ),
+        # The axiom policy's `ok: false` as the string "false", and a statement's `match` left out: neither
+        # reads as a pass.
+        Case(
+            "policy_ok_not_a_bool",
+            "error",
+            "internal_error",
+            proof("axiom", "inc_two"),
+            files_for("axiom"),
+            shims=rewritten("check/Check.lean", 's/"ok":false/"ok":"false"/'),
+        ),
+        Case(
+            "statement_match_missing",
+            "error",
+            "internal_error",
+            proof("ok", "inc_ok", statement=INC_OR),
+            files_for("ok"),
+            shims=rewritten("check/Check.lean", 's/"match":"mismatch",//'),
+        ),
+        # Killed, as a memory cap or the OOM killer does, is a limit wherever it happens, through
+        # irlean.verdict.limit_of.
+        planted(
+            "proof_leanchecker_killed", "timeout", "memory_limit", {"leanchecker": "#!/bin/sh\nkill -9 $$\n"}
+        ),
+        planted("proof_lean_killed", "timeout", "memory_limit", lean("Proof.lean", "kill -9 $$")),
+        planted("generated_lean_killed", "timeout", "memory_limit", lean("lean/Small.lean", "kill -9 $$")),
     ]
 
 

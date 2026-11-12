@@ -400,6 +400,88 @@ def lean_messages(run: Run, output: str, source: str) -> list[dict[str, Any]]:
     return [m for m in messages if m["severity"] != "info"]
 
 
+def stopped_at(run: Run, name: str) -> str | None:
+    """The limit that stopped the process `name`, by irlean.verdict.limit_of, the one reader of how a process
+    ended, as a reason of REASONS: SIGKILL, from a cap or the OOM killer, is `memory_limit`."""
+    step = run.steps.get(name)
+    limit = verdict.limit_of(step) if step is not None else None
+    if limit is None:
+        return None
+    return limit if limit in REASONS and REASONS[limit][0] == "timeout" else "memory_limit"
+
+
+# What tools/verify_check.lean may answer about a statement it compared with the theorem.
+MATCHES = ("syntactic", "reducible_defeq", "mismatch")
+
+
+def contract(answer: Any) -> str | None:
+    """Why a "check" answer of tools/verify_check.lean isn't one its contract allows, or None if it is: every
+    field read has its type, each flag is exactly a bool, and a statement compared with a theorem says one of
+    MATCHES. An answer is read only after this, so a field missing or of another type can't read as a pass."""
+    flag, strings = (
+        (lambda v: type(v) is bool),
+        (lambda v: isinstance(v, list) and all(isinstance(x, str) for x in v)),
+    )
+    if not isinstance(answer, dict) or not flag(answer.get("ok")):
+        return "ok isn't a bool"
+    if not answer["ok"]:
+        return None if isinstance(answer.get("error"), str) else "an answer that isn't ok says no error"
+    theorem, statement, policy = answer.get("theorem"), answer.get("statement"), answer.get("axiom_policy")
+    if theorem is not None:
+        if not isinstance(theorem, dict) or not flag(theorem.get("found")):
+            return "theorem.found isn't a bool"
+        if theorem["found"] and not (
+            all(flag(theorem.get(k)) for k in ("is_prop", "mentions_target"))
+            and all(isinstance(theorem.get(k), str) for k in ("name", "kind"))
+            and strings(theorem.get("axioms")) and strings(theorem.get("generated_constants"))
+        ):  # fmt: skip
+            return "a theorem found lacks a field, or has one of another type"
+    if statement is not None:
+        if not isinstance(statement, dict) or not flag(statement.get("elaborated")):
+            return "statement.elaborated isn't a bool"
+        if statement["elaborated"]:
+            compared = isinstance(theorem, dict) and theorem.get("found") is True
+            if statement.get("match") not in (MATCHES if compared else (None,)):
+                return f"statement.match is {statement.get('match')!r}"
+            if not flag(statement.get("mentions_target")) or not strings(
+                statement.get("generated_constants")
+            ):
+                return "a statement elaborated lacks a field, or has one of another type"
+    if policy is not None:
+        if not isinstance(policy, dict) or not flag(policy.get("ok")):
+            return "axiom_policy.ok isn't a bool"
+        if policy["ok"] and (type(policy.get("bv_decide")) is not int):
+            return "axiom_policy.bv_decide isn't an integer"
+    return None
+
+
+def witness_answers(answers: list[Any], count: int) -> str | None:
+    """Why tools/verify_check.lean's witness answers aren't its contract's, or None if they are: one start
+    saying how many, each witness answered at most once, by an index it was given, with a result it can give,
+    at most one error, and nothing else. A second answer for one witness can't be dropped or chosen
+    between."""
+    seen: set[int] = set()
+    for a in answers:
+        kind = a.get("kind") if isinstance(a, dict) else None
+        if kind == "witness_start":
+            if a.get("count") != count or type(a.get("count")) is not int:
+                return f"it starts {a.get('count')!r} witnesses, not {count}"
+        elif kind == "witness":
+            index = a.get("index")
+            if type(index) is not int or not 0 <= index < count or index in seen:
+                return f"witness {index!r} is answered twice, or wasn't asked"
+            if a.get("result") not in ("holds", "fails", "unsupported"):
+                return f"witness {index} is {a.get('result')!r}"
+            seen.add(index)
+        elif kind != "witness_error" or not isinstance(a.get("error"), str):
+            return f"an answer of kind {kind!r}"
+    if [a.get("kind") for a in answers].count("witness_start") > 1 or [a.get("kind") for a in answers].count(
+        "witness_error"
+    ) > 1:
+        return "more than one start, or more than one error"
+    return None
+
+
 def classify_lean(ran: Ran, messages: list[dict[str, Any]]) -> str | None:
     """The resource limit a failed Lean run hit first, if it hit one before any other error. What fails
     after a limit often fails because of it, as later declarations lose what they need, so only the first
@@ -805,7 +887,7 @@ def compile_module(run: Run, source: Path, check: str, failure: str) -> bool:
             run.diagnostics.append(message)
     if ran.returncode == 0 and not ran.timed_out and olean.exists():
         return True
-    limit = classify_lean(ran, messages)
+    limit = stopped_at(run, check) or classify_lean(ran, messages)
     detail = f"lean exited with {ran.returncode} on {unmap(run, str(source))}"
     if not messages and not limit and ran.output.strip():
         run.diagnose("error", "lean", ran.output)
@@ -929,16 +1011,21 @@ def check_claim(run: Run) -> None:
     ran, answers = run_check_file(run, "check", [], "none")
     # The process that applied the axiom policy, which `proved` rests on.
     run.record("claim:check", ran)
-    checks = [a for a in answers if a.get("kind") == "check"]
+    checks = [a for a in answers if isinstance(a, dict) and a.get("kind") == "check"]
     if len(checks) != 1:
         messages = lean_messages(run, ran.output, "lean")
-        limit = classify_lean(ran, messages)
+        limit = stopped_at(run, "claim:check") or classify_lean(ran, messages)
         if limit:
             raise Stop(limit, f"reading the claim hit a limit: {limit.replace('_', ' ')}", "claim")
         run.diagnose("error", "verify", ran.output or f"exit {ran.returncode}")
         raise Stop("internal_error", "tools/verify_check.lean gave no answer", "claim")
     answer = checks[0]
-    if not answer.get("ok"):
+    why = contract(answer) or ("it answered more than once" if len(answers) != 1 else None)
+    if run.forged.get("check"):
+        why = "an answer without this run's nonce"
+    if why:
+        raise Stop("internal_error", f"tools/verify_check.lean's answer isn't its contract's: {why}", "claim")
+    if not answer["ok"]:
         raise Stop("internal_error", f"tools/verify_check.lean: {answer.get('error')}", "claim")
     run.check("claim", "pass", seconds=ran.seconds)
     theorem, statement = answer.get("theorem"), answer.get("statement")
@@ -998,13 +1085,10 @@ def kernel_replay(run: Run) -> None:
     modules = [run.request["namespace"], *run.artifacts["support_modules"], run.artifacts["proof_module"]]
     ran = run.run(["leanchecker", *modules], lean_env(run), step="kernel_replay")
     run.record("kernel_replay", ran)
-    if ran.timed_out:
-        raise Stop("time_limit", "leanchecker didn't finish in time", "kernel_replay")
+    if limit := stopped_at(run, "kernel_replay"):
+        raise Stop(limit, f"leanchecker hit a limit: {limit.replace('_', ' ')}", "kernel_replay")
     if ran.returncode != 0:
         run.diagnose("error", "leanchecker", ran.output or f"exit {ran.returncode}")
-        limit = lean.limit_of(ran.output)
-        if limit:
-            raise Stop(limit, f"leanchecker hit a limit: {limit.replace('_', ' ')}", "kernel_replay")
         run.check("kernel_replay", "fail", unmap(run, ran.output.strip())[:TRUNCATE], ran.seconds)
         return
     run.check("kernel_replay", "pass", {"modules": modules}, ran.seconds)
@@ -1050,6 +1134,12 @@ def evaluate_witnesses(run: Run) -> None:
         # whatever the proof showed stands.
         ran, answers = Ran([], -9, "", "", 0.0, True), []
     run.record("witnesses", ran)
+    if why := witness_answers(answers, len(witnesses)):
+        raise Stop(
+            "internal_error",
+            f"tools/verify_check.lean's witness answers aren't its contract's: {why}",
+            "claim",
+        )
     results = {a["index"]: a for a in answers if a.get("kind") == "witness"}
     started = any(a.get("kind") == "witness_start" for a in answers)
     trouble = next((a["error"] for a in answers if a.get("kind") == "witness_error"), None)
@@ -1071,7 +1161,7 @@ def evaluate_witnesses(run: Run) -> None:
         else:
             w["result"] = "aborted"
             w["error"] = f"evaluation stopped with exit {ran.returncode} before this witness"
-            limit = lean.limit_of(ran.output)
+            limit = stopped_at(run, "witnesses")
             if limit:
                 w["result"] = "timeout"
                 w["error"] = f"evaluation hit a limit: {limit.replace('_', ' ')}"
