@@ -72,6 +72,7 @@ build/irl verify check --c tests/real/bi_reverse.c --namespace Real --function p
 | [Refinement](docs/refinement.md) | What `IRLean.Refines` says, its laws, and what a refinement certificate says about LLVM |
 | [Source annotations](docs/source-annotations.md) | A proposal: reading `!tbaa`, `noalias` and the other annotations that only add undefined behavior as dropped, on a refinement's source only, so the superoptimizer can read default builds. Where it holds, where it breaks, and what it would buy and cost |
 | [Memory safety](docs/memory.md) | What a memory-safety theorem claims, the model of memory, and what it leaves out |
+| [Memory, next](docs/memory-next.md) | The design for calls outside the module that touch memory, `noalias`, and `!tbaa` on a refinement's source: reviewed once, with six blockers to settle, and its first pull request |
 | [irl](docs/irl.md) | The `irl` command, and the MCP server agents use: each tool it runs, and what a call answers |
 | [Verify](docs/verify.md) | Checking a claim from a script or an agent, with a JSON answer: proved, counterexample, unsupported, timeout or error |
 | [Lemma store](docs/lemma-store.md) | Checked lemmas later proofs can find and reuse, the bar each meets, and looking one up from a script or an agent |
