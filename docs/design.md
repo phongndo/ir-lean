@@ -56,6 +56,8 @@ cycle with, as `call to @g, which isn't translated` or `in a cycle with @g, whic
 checks again on a function they refused, recording each refusal and going on, and changes no line `--report` prints. An
 instruction gives one reason at most, the first it meets, and every other check is surveyed on its own, but where a step
 that makes several is refused, `partial` says the rest weren't made.
+[`bench/kernels/demand.py`](../bench/kernels/demand.py) reads it to say what lifting one kind of refusal would translate
+([kernels](kernels.md#what-lifting-one-kind-would-translate)).
 
 For large modules, `--split DIR` writes one Lean module per function, which takes far less memory to check. All
 of zlib takes about a minute of CPU one module at a time, and `inflate` about 2.5 GB. Lean that's only proved about,

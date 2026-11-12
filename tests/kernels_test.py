@@ -656,6 +656,112 @@ class Demand(unittest.TestCase):
         }.items():
             self.assertEqual(demand.reason(raw, self.KNOWN), reason)
 
+    def test_assume_bundles_and_gep_of_vectors_count_by_kind(self) -> None:
+        for raw, reason in {
+            'instruction call void @llvm.assume(i1 true) [ "align"(ptr %29, i64 16) ]': (
+                "operand bundle assume:align"
+            ),
+            "instruction %1 = getelementptr inbounds nuw [4 x i8], ptr @t, <8 x i64> %0": (
+                "instruction getelementptr of vectors"
+            ),
+            "instruction %1 = getelementptr inbounds i8, ptr %p, i64 %0": "instruction getelementptr",
+        }.items():
+            self.assertEqual(demand.reason(raw, self.KNOWN), reason)
+
+    REASONS = (
+        "ok\th\th\t(i32)->i32\t1\t1\tpure\n"
+        "unsupported\tf\tparameter attribute noalias\n"
+        "reason\tf\tparameter attribute noalias\n"
+        "reason\tf\tcall to @g, which isn't translated\n"
+        "unsupported\tg\tintrinsic llvm.memmove.p0.p0.i64\n"
+        "reason\tg\tintrinsic llvm.memmove.p0.p0.i64\n"
+        "reason\tg\tin a cycle with @k, which isn't translated\n"
+        "unsupported\tk\tin a cycle with a function that has intrinsic llvm.memmove.p0.p0.i64\n"
+        "reason\tk\tin a cycle with @g, which isn't translated\n"
+        "unsupported\tp\tmetadata !alias.scope on %v = load i32, ptr %p\n"
+        "reason\tp\tmetadata !alias.scope on %v = load i32, ptr %p\n"
+        "partial\tp\n"
+        "translated 1/5\n"
+    )
+
+    def test_reasons_are_read_by_function(self) -> None:
+        read = demand.parse_reasons(self.REASONS)
+        self.assertEqual(read["h"], {"first": "ok", "reasons": [], "partial": False})
+        self.assertEqual(read["f"]["first"], "parameter attribute noalias")
+        self.assertEqual(len(read["f"]["reasons"]), 2)
+        self.assertTrue(read["p"]["partial"])
+        self.assertFalse(read["g"]["partial"])
+
+    def test_anything_but_what_the_emitter_prints_is_an_error(self) -> None:
+        end = "translated 1/5\n"
+        for name, bad in {
+            "an unknown line": self.REASONS.replace(end, "reasons\tf\tx\n" + end),
+            "a reason for a function translated": self.REASONS.replace(end, "reason\th\tx\n" + end),
+            "a reason for no function": self.REASONS.replace(end, "reason\tq\tx\n" + end),
+            "a short line": self.REASONS.replace(end, "unsupported\tf\n" + end),
+            "no total": self.REASONS.replace(end, ""),
+            "a total that isn't last": self.REASONS.replace(end, end + "reason\tf\tx\n"),
+            "a total that disagrees": self.REASONS.replace(end, "translated 2/5\n"),
+            "a function twice": self.REASONS.replace(
+                end, "unsupported\tf\tinstruction inttoptr\nreason\tf\tinstruction inttoptr\n" + end
+            ),
+            "a function refused with no reason": self.REASONS.replace(
+                "reason\tk\tin a cycle with @g, which isn't translated\n", ""
+            ),
+            "a dependency that isn't refused here": (
+                "unsupported\tf\tcall to @missing, which isn't translated\n"
+                "reason\tf\tcall to @missing, which isn't translated\ntranslated 0/1\n"
+            ),
+            "a dependency on one that translated": self.REASONS.replace(
+                end, "reason\tf\tcall to @h, which isn't translated\n" + end
+            ),
+            "nothing": "",
+        }.items():
+            with self.subTest(name), self.assertRaises(RuntimeError):
+                demand.parse_reasons(bad)
+
+    def test_stored_results_with_a_dependency_not_refused_are_an_error(self) -> None:
+        with self.assertRaises(RuntimeError):
+            demand.loaded({"f": {"own": ["parameter attribute noalias"], "waits": ["missing"]}})
+
+    def test_lifting_counts_what_translates_through_calls_and_cycles(self) -> None:
+        blocked = demand.blockers(demand.parse_reasons(self.REASONS), self.KNOWN)
+        self.assertEqual(blocked["f"], (frozenset({"parameter attribute noalias"}), frozenset({"g"})))
+        self.assertEqual(blocked["k"], (frozenset(), frozenset({"g"})))
+        # A survey that stopped early leaves what it didn't reach, which nothing lifts.
+        self.assertEqual(blocked["p"][0], {"metadata !alias", demand.UNSURVEYED})
+        # Lifting memmove frees the cycle, g and k together. f still has its own.
+        self.assertEqual(demand.translated_with({"intrinsic llvm.memmove"}, blocked), {"g", "k"})
+        self.assertEqual(demand.translated_with({"parameter attribute noalias"}, blocked), set())
+        self.assertEqual(
+            demand.translated_with({"parameter attribute noalias", "intrinsic llvm.memmove"}, blocked),
+            {"f", "g", "k"},
+        )
+        self.assertEqual(
+            demand.translated_with({"metadata !alias", "intrinsic llvm.memmove"}, blocked), {"g", "k"}
+        )
+        self.assertEqual(
+            demand.needs("f", blocked), ["intrinsic llvm.memmove", "parameter attribute noalias"]
+        )
+        self.assertEqual(demand.needs("k", blocked), ["intrinsic llvm.memmove"])
+        self.assertEqual(demand.needs("h", blocked), [])
+        having, alone = demand.lifting(blocked)
+        self.assertEqual(having["intrinsic llvm.memmove"], 1)
+        self.assertEqual(alone, {"intrinsic llvm.memmove": 2})
+        self.assertEqual(demand.loaded(demand.stored(blocked)), blocked)
+
+    def test_the_lifting_order_takes_the_biggest_gain_first(self) -> None:
+        blocked = demand.blockers(demand.parse_reasons(self.REASONS), self.KNOWN)
+        self.assertEqual(
+            demand.lifting_order([blocked], 10),
+            [
+                ("intrinsic llvm.memmove", 2, 2),
+                ("parameter attribute noalias", 1, 3),
+                # Nothing frees p, whose checks didn't all run, so it never counts.
+                ("metadata !alias", 0, 3),
+            ],
+        )
+
     def test_a_module_is_read_as_its_functions(self) -> None:
         module = """
 define dso_local i32 @f(ptr noundef %p) #0 {

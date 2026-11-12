@@ -10,8 +10,11 @@ For each project in bench/kernels/manifest.toml that has units, this:
    flags the project builds that file with. Twice: as the project builds it, and relaxed, with
    -fno-strict-aliasing added, since the emitter refuses `!tbaa`, which a default build has on nearly every
    load, and with the project's `relax` flags, if the manifest gives any.
-4. Runs build/ir-lean --report on each, and counts the functions it translates, and what stops the rest, by
-   reason. The emitter gives a function's first reason only, so a function it refuses for one may have more.
+4. Runs build/ir-lean --reasons on each, and counts the functions it translates, and what stops the rest:
+   by first reason, by every reason the emitter's checks find, and by what lifting one kind of refusal alone
+   would translate, through the calls and cycles between functions. An instruction gives one reason at most,
+   so lifting one can uncover another behind it there, and a function whose checks stopped early counts as
+   stopped by what they didn't reach.
 5. Counts the intrinsics each unit calls, and gives each its class in tests/llvm_scope/ir-features.json:
    modeled, assumed or refused, and for a refused one, the lane that holds it.
 
@@ -55,6 +58,14 @@ RELAX = ["-fno-strict-aliasing"]
 
 DEFINE = re.compile(r'^define\b.*?@("[^"]+"|[\w.$-]+)\(')
 CALLEE = re.compile(r'@(llvm\.[\w.]+|"llvm\.[^"]+")\(')
+# A reason that's another function in the module being refused, which `--reasons` gives by its name.
+DEPENDS = re.compile(
+    r"^(?:call to|indirect call that can reach|in a cycle with) @(.+), which isn't translated$"
+)
+# What stops a function whose checks a refusal stopped before they all ran: never lifted.
+UNSURVEYED = "checks that didn't run, past a refusal"
+# Each refused function in a module: its own kinds of refusal, and the functions in the module it waits on.
+Blocked = dict[str, tuple[frozenset[str], frozenset[str]]]
 VECTOR = re.compile(r"<\d+ x [^>]+>")
 FLOAT = re.compile(r"\b(half|bfloat|float|double|fp128|x86_fp80)\b")
 X86 = "llvm.x86."
@@ -100,6 +111,10 @@ def reason(raw: str, known: dict[str, dict[str, str]]) -> str:
         return m[1]
     if raw.startswith("operand") and " asm " in raw.split('"')[0]:
         return "inline assembly"
+    if raw.startswith("instruction ") and (m := re.search(r'@llvm\.assume\(.*\[ "(\w+)"', raw)):
+        return f"operand bundle assume:{m[1]}"
+    if raw.startswith("instruction ") and re.search(r"getelementptr .*, <\d+ x i\d+> ", raw):
+        return "instruction getelementptr of vectors"
     if raw.startswith("instruction "):
         # The opcode, and the form of it the emitter names: `load volatile`, `freeze` of a vector.
         words = re.sub(r"^instruction\s+(%[\w.$-]+ = )?", "", raw).split()
@@ -152,19 +167,152 @@ def describe(body: list[str], known: dict[str, dict[str, str]]) -> dict[str, Any
     }
 
 
-def report(ll: Path) -> dict[str, str]:
-    """What build/ir-lean --report says of each function in a module: `ok`, or why it's refused."""
-    r = proc.run([EMITTER, ll, "--report"], timeout=600)
+def report(ll: Path) -> dict[str, dict[str, Any]]:
+    """What build/ir-lean --reasons says of each function in a module: `first`, `ok` or the reason --report
+    gives, every reason its checks found, and whether they stopped early."""
+    r = proc.run([EMITTER, ll, "--reasons"], timeout=600)
     if r.exit != 0:
         raise RuntimeError(f"ir-lean on {ll} exited {r.exit}\n{r.output[-2000:]}")
-    out: dict[str, str] = {}
-    for line in r.out.splitlines():
+    return parse_reasons(r.out)
+
+
+def parse_reasons(text: str) -> dict[str, dict[str, Any]]:
+    """`ir-lean --reasons`' output, by function. Anything but what the emitter prints is an error, so nothing
+    is read as less than it says: a line this doesn't know, a function twice, a reason or `partial` for one it
+    didn't refuse, a refused function with no reason, a dependency on a name that isn't a refused function in
+    the module, and a last line other than one `translated N/M` that agrees with the rest."""
+    out: dict[str, dict[str, Any]] = {}
+    lines = text.splitlines()
+    total = re.fullmatch(r"translated (\d+)/(\d+)", lines[-1]) if lines else None
+    if not total:
+        raise RuntimeError("ir-lean --reasons didn't end with `translated N/M`")
+    for line in lines[:-1]:
         fields = line.split("\t")
-        if fields[0] == "ok":
-            out[fields[1]] = "ok"
-        elif fields[0] == "unsupported":
-            out[fields[1]] = fields[2]
+        if fields[0] in ("ok", "unsupported") and len(fields) == (7 if fields[0] == "ok" else 3):
+            if fields[1] in out:
+                raise RuntimeError(f"ir-lean --reasons reported {fields[1]} twice")
+            first = "ok" if fields[0] == "ok" else fields[2]
+            out[fields[1]] = {"first": first, "reasons": [], "partial": False}
+        elif fields[0] in ("reason", "partial") and len(fields) == (3 if fields[0] == "reason" else 2):
+            if out.get(fields[1], {}).get("first", "ok") == "ok":
+                raise RuntimeError(
+                    f"ir-lean --reasons gave a {fields[0]} for {fields[1]}, which it didn't refuse"
+                )
+            if fields[0] == "reason":
+                out[fields[1]]["reasons"].append(fields[2])
+            else:
+                out[fields[1]]["partial"] = True
+        else:
+            raise RuntimeError(f"ir-lean --reasons printed a line this doesn't read: {line!r}")
+    ok = sum(1 for v in out.values() if v["first"] == "ok")
+    if (int(total[1]), int(total[2])) != (ok, len(out)):
+        raise RuntimeError(f"ir-lean --reasons said `{lines[-1]}` of {ok} translated and {len(out)} reported")
+    for name, v in out.items():
+        if v["first"] != "ok" and not v["reasons"]:
+            raise RuntimeError(f"ir-lean --reasons refused {name} and gave no reason")
+    closed({n: (frozenset(), frozenset(waits(v["reasons"]))) for n, v in out.items() if v["first"] != "ok"})
     return out
+
+
+def waits(reasons: list[str]) -> set[str]:
+    """The functions in the module that reasons say a function waits on."""
+    return {m[1] for r in reasons if (m := DEPENDS.match(r))}
+
+
+def closed(blocked: Blocked) -> Blocked:
+    """`blocked`, if every function one waits on is refused in it too. A name that isn't would drop out of
+    `translated_with` and `needs`, counting what waits on it as free."""
+    for name, (_, deps) in blocked.items():
+        if missing := sorted(deps - set(blocked)):
+            raise RuntimeError(f"{name} waits on {', '.join(missing)}, which isn't a refused function here")
+    return blocked
+
+
+def blockers(verdicts: dict[str, dict[str, Any]], known: dict[str, dict[str, str]]) -> Blocked:
+    """Each refused function's own kinds of refusal, and the functions in its module it waits on."""
+    out = {}
+    for name, v in verdicts.items():
+        if v["first"] == "ok":
+            continue
+        own, deps = set(), set()
+        for raw in v["reasons"]:
+            if m := DEPENDS.match(raw):
+                deps.add(m[1])
+            else:
+                own.add(reason(raw, known))
+        if v["partial"] or not v["reasons"]:
+            own.add(UNSURVEYED)
+        out[name] = (frozenset(own), frozenset(deps))
+    return closed(out)
+
+
+def translated_with(lifted: set[str], blocked: Blocked) -> set[str]:
+    """The refused functions that would translate with every kind of refusal in `lifted` lifted: those whose
+    own kinds are all lifted and that wait on no function still refused."""
+    stuck = {f for f, (own, _) in blocked.items() if not own <= lifted}
+    changed = True
+    while changed:
+        changed = False
+        for f, (_, deps) in blocked.items():
+            if f not in stuck and deps & stuck:
+                stuck.add(f)
+                changed = True
+    return set(blocked) - stuck
+
+
+def needs(name: str, blocked: Blocked) -> list[str]:
+    """Every kind of refusal lifted before `name` translates: its own, and those of the refused functions it
+    waits on, through calls and cycles."""
+    seen, kinds, todo = set(), set(), [name]
+    while todo:
+        f = todo.pop()
+        if f in seen or f not in blocked:
+            continue
+        seen.add(f)
+        kinds |= blocked[f][0]
+        todo.extend(blocked[f][1])
+    return sorted(kinds)
+
+
+def lifting(blocked: Blocked) -> tuple[dict[str, int], dict[str, int]]:
+    """For a module: how many refused functions have each kind of refusal, among any of their reasons, and
+    how many lifting each kind alone would translate."""
+    having: Counter[str] = Counter(k for own, _ in blocked.values() for k in own)
+    alone = {k: n for k in having if (n := len(translated_with({k}, blocked)))}
+    return order(having), order(alone)
+
+
+def stored(blocked: Blocked) -> dict[str, dict[str, list[str]]]:
+    return {f: {"own": sorted(own), "waits": sorted(deps)} for f, (own, deps) in sorted(blocked.items())}
+
+
+def loaded(record: dict[str, dict[str, list[str]]]) -> Blocked:
+    return closed({f: (frozenset(b["own"]), frozenset(b["waits"])) for f, b in record.items()})
+
+
+def lifting_order(modules: list[Blocked], steps: int) -> list[tuple[str, int, int]]:
+    """Kinds of refusal to lift one after another, each the one that then translates the most functions
+    across `modules`, or, where none translates any alone, the one most still-refused functions have: with
+    how many functions it adds, and how many lifting all of them so far translates."""
+    lifted: set[str] = set()
+    done = 0
+    out = []
+    for _ in range(steps):
+        left: Counter[str] = Counter(
+            k for m in modules for f, (own, _) in m.items() for k in own - lifted if k != UNSURVEYED
+        )
+        if not left:
+            break
+        gains = {k: sum(len(translated_with(lifted | {k}, m)) for m in modules) for k in left}
+        best = max(left, key=lambda k: (gains[k], left[k], k))
+        lifted.add(best)
+        out.append((best, gains[best] - done, gains[best]))
+        done = gains[best]
+    return out
+
+
+def order(counts: dict[str, int]) -> dict[str, int]:
+    return dict(sorted(counts.items(), key=lambda kv: (-kv[1], kv[0])))
 
 
 def places(
@@ -248,16 +396,22 @@ def measure_unit(
         if not r.ok:
             raise RuntimeError(f"{name}: {unit['source']} didn't compile\n{' '.join(argv)}\n{r.err[-3000:]}")
         bodies = functions(ll.read_text())
-        verdicts = report(ll)
-        if set(verdicts) != set(bodies):
+        surveyed = report(ll)
+        if set(surveyed) != set(bodies):
             raise RuntimeError(
                 f"{name}: {unit['source']}: ir-lean reported on other functions than the IR has"
             )
+        verdicts = {f: v["first"] for f, v in surveyed.items()}
         refused = [reason(v, known) for v in verdicts.values() if v != "ok"]
+        blocked = blockers(surveyed, known)
+        having, alone = lifting(blocked)
         record["variants"][variant] = {
             "functions": len(bodies),
             "translated": len(bodies) - len(refused),
-            "refused": dict(sorted(Counter(refused).items(), key=lambda kv: (-kv[1], kv[0]))),
+            "refused": order(Counter(refused)),
+            "having": having,
+            "alone": alone,
+            "blocked": stored(blocked),
         }
         if variant == "as-built":
             whole = describe([line for body in bodies.values() for line in body], known)
@@ -271,6 +425,7 @@ def measure_unit(
             if variant == "as-built":
                 kr.update(describe(bodies[k], known))
             kr[variant] = "ok" if verdicts[k] == "ok" else reason(verdicts[k], known)
+            kr.setdefault("needs", {})[variant] = needs(k, blocked)
     record["kernels"] = kernel_records
     return record
 
@@ -304,13 +459,14 @@ def totals(units: list[dict[str, Any]], known: dict[str, dict[str, str]]) -> dic
     """A project's units added up."""
     out: dict[str, Any] = {"units": len(units), "instructions": sum(u["instructions"] for u in units)}
     for variant in VARIANTS:
-        refused: Counter[str] = Counter()
+        added: dict[str, Counter[str]] = {key: Counter() for key in ("refused", "having", "alone")}
         for u in units:
-            refused.update(u["variants"][variant]["refused"])
+            for key, counts in added.items():
+                counts.update(u["variants"][variant][key])
         out[variant] = {
             "functions": sum(u["variants"][variant]["functions"] for u in units),
             "translated": sum(u["variants"][variant]["translated"] for u in units),
-            "refused": dict(sorted(refused.items(), key=lambda kv: (-kv[1], kv[0]))),
+            **{key: order(counts) for key, counts in added.items()},
         }
     calls: Counter[str] = Counter()
     for u in units:
@@ -485,6 +641,35 @@ def table(args: argparse.Namespace) -> int:
     for r, n in sorted(reasons.items(), key=lambda kv: (-kv[1], kv[0])):
         print(f"| {r} | {n} | {', '.join(where[r])} |")
     print()
+    print(
+        "| A kind of refusal, in the projects that aren't rejected | Functions with it, relaxed | "
+        "Lifting it alone translates, relaxed | Functions with it, as built | Lifting it alone, as built |"
+    )
+    print("| --- | ---: | ---: | ---: | ---: |")
+    having: dict[str, Counter[str]] = {v: Counter() for v in VARIANTS}
+    alone: dict[str, Counter[str]] = {v: Counter() for v in VARIANTS}
+    for p in live.values():
+        for v in VARIANTS:
+            having[v].update(p["totals"][v]["having"])
+            alone[v].update(p["totals"][v]["alone"])
+    kinds = set(having["relaxed"]) | set(having["as-built"])
+    for r in sorted(
+        kinds, key=lambda k: (-alone["relaxed"][k], -alone["as-built"][k], -having["relaxed"][k], k)
+    ):
+        print(
+            f"| {r} | {having['relaxed'][r]} | {alone['relaxed'][r]} | {having['as-built'][r]} | "
+            f"{alone['as-built'][r]} |"
+        )
+    for v in VARIANTS:
+        modules = [loaded(u["variants"][v]["blocked"]) for p in live.values() for u in p["units"]]
+        print()
+        print(
+            f"| Lifted next, {v}, the most it then translates first | Functions it adds | Translated in all |"
+        )
+        print("| --- | ---: | ---: |")
+        for kind, added, total in lifting_order(modules, 15):
+            print(f"| {kind} | {added} | {total} |")
+    print()
     print("| Intrinsic the model refuses, in the projects that aren't rejected | Calls | Lane | Projects |")
     print("| --- | ---: | --- | --- |")
     calls: Counter[str] = Counter()
@@ -499,17 +684,21 @@ def table(args: argparse.Namespace) -> int:
     for i, n in sorted(calls.items(), key=lambda kv: (-kv[1], kv[0])):
         print(f"| `{i}` | {n} | {lanes[i]} | {', '.join(users[i])} |")
     print()
-    print("| Project | Kernel | Instructions | As built | Relaxed | Intrinsics it calls |")
-    print("| --- | --- | ---: | --- | --- | --- |")
+    print(
+        "| Project | Kernel | Instructions | As built | Relaxed | Relaxed, everything it needs | "
+        "Intrinsics it calls |"
+    )
+    print("| --- | --- | ---: | --- | --- | --- | --- |")
     for name, p in record["projects"].items():
         if manifest["project"].get(name, {}).get("status") == "rejected":
             continue
         for u in p["units"]:
             for k, kr in u["kernels"].items():
                 called = ", ".join(f"`{i.removeprefix('llvm.')}` {n}" for i, n in kr["intrinsics"].items())
+                need = "; ".join(kr["needs"]["relaxed"]) or "Nothing"
                 print(
                     f"| {name} | `{k}` | {kr['instructions']:,} | {kr['as-built']} | "
-                    f"{kr['relaxed']} | {called or 'None'} |"
+                    f"{kr['relaxed']} | {need} | {called or 'None'} |"
                 )
     return 0
 
