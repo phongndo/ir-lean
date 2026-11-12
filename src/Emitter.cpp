@@ -2419,6 +2419,12 @@ bool FunctionEmitter::emitIntrinsic(const IntrinsicInst &C, std::vector<Line> &O
       reject("instruction " + printed(C));
     addMemoryUpdate(Out, "Mem.memcpy m " + Op(0) + " " + Op(1) + " " + Length(2));
     return true;
+  // The ranges may overlap: IRLean/Mem.lean's `Mem.memmove`.
+  case Intrinsic::memmove:
+    if (BoolArg(3) != "false")
+      reject("instruction " + printed(C));
+    addMemoryUpdate(Out, "Mem.memmove m " + Op(0) + " " + Op(1) + " " + Length(2));
+    return true;
   case Intrinsic::vector_reduce_add:
     return Reduce("Val.add");
   case Intrinsic::vector_reduce_mul:

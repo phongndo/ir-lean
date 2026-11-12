@@ -850,6 +850,57 @@ theorem memcpy_agrees (x : ExecMem) (dst src : PtrVal) (n : Val 64) :
                   refine Mem.write_congr _ _ _ _ fun i hi => ?_
                   simp [hi]
 
+/-- `llvm.memmove`, as `memcpy` with the ranges allowed to overlap: every byte is read before any is written. -/
+def memmove (x : ExecMem) (dst src : PtrVal) (n : Val 64) : Outcome ExecMem :=
+  match n with
+  | none => Outcome.ub .poisonPointer
+  | some k =>
+    if k == 0#64 then Outcome.ok x else
+    match x.toMem.access dst k.toNat 1, x.toMem.access src k.toNat 1 with
+    | .error e, _ => Outcome.ub e
+    | _, .error e => Outcome.ub e
+    | .ok (d, da), .ok (s, sa) =>
+      if da.readonly then Outcome.ub .writeToConstant else
+      match x.toMem.check s sa false, x.toMem.check d da true with
+      | some e, _ => some (.error e)
+      | _, some e => some (.error e)
+      | none, none =>
+        let bytes := Array.ofFn (n := k.toNat) fun j => x.toMem.visible s sa (s.offset.toNat + j)
+        Outcome.ok <| x.write d k.toNat fun i => bytes[i]?.getD .uninit
+
+theorem memmove_agrees (x : ExecMem) (dst src : PtrVal) (n : Val 64) :
+    Mem.memmove x.toMem dst src n = Outcome.map toMem (x.memmove dst src n) := by
+  simp only [Mem.memmove, memmove]
+  cases n with
+  | none => rfl
+  | some k =>
+    simp only
+    split
+    · rfl
+    · cases hd : x.toMem.access dst k.toNat 1 with
+      | error e => rfl
+      | ok r =>
+        cases hs : x.toMem.access src k.toNat 1 with
+        | error e => rfl
+        | ok r' =>
+          obtain ⟨d, da⟩ := r
+          obtain ⟨s, sa⟩ := r'
+          obtain ⟨e, he, rfl⟩ := access_ok hd
+          simp only
+          by_cases hr : e.toAlloc.readonly = true
+          · simp only [hr, ite_true]; rfl
+          · simp only [hr, Bool.false_eq_true, ite_false]
+            cases hc1 : x.toMem.check s sa false with
+            | some _ => rfl
+            | none =>
+              cases hc2 : x.toMem.check d e.toAlloc true with
+              | some _ => rfl
+              | none =>
+                simp only [Outcome.map_ok, toMem_write _ _ _ _ _ he]
+                congr 1
+                refine Mem.write_congr _ _ _ _ fun i hi => ?_
+                simp [hi]
+
 /-- `alloca`. -/
 def alloca (x : ExecMem) (size : Val 64) (dead : Bool := false) : Outcome (PtrVal × ExecMem) :=
   match size with

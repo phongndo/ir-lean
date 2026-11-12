@@ -13,7 +13,7 @@ about memory. This proves it for the rest of what the emitter translates, which 
 | `load` of a pointer | `Mem.le.loadPtr`, `Mono.loadPtr` | The same |
 | `store` of a pointer | `Mem.le.storePtr` | A pointer stored where the source stored poison leaves bytes the source's allow |
 | `getelementptr` with several indices | `Mem.le.gepSteps`, `Mono.gepSteps` | Offsets related one by one |
-| `llvm.memset`, `llvm.memcpy` | `Mem.le.memset`, `Mem.le.memcpy` | Lengths, pointers and the byte related |
+| `llvm.memset`, `llvm.memcpy`, `llvm.memmove` | `Mem.le.memset`, `Mem.le.memcpy`, `Mem.le.memmove` | Lengths, pointers and the byte related |
 | `llvm.lifetime.start` and `.end` | `Mem.le.lifetime` | **The same pointer on both sides.** On poison it does nothing, and on the pointer the target has for it, it ends that allocation's life, which the source's memory doesn't allow |
 | `malloc`, `free` | `Mem.le.malloc`, `Mem.le.free` | Related sizes and pointers |
 | `strlen` | `Mem.le.strlen` | Related pointers |
@@ -25,7 +25,7 @@ about memory. This proves it for the rest of what the emitter translates, which 
 `Mem.leData` is a stronger relation for code that stores refined values and loads them back, as a SIMD kernel's
 accumulator does: `Mem.le`, with the same running calls, and no pointer in the target's bytes that isn't in the
 source's at the same place. Under it a load keeps the relation outright, `Mem.leData.loadVec` and `loadInt`, and the
-stores, `memset` and `memcpy` keep it. A store of a pointer that the source had as poison doesn't. -/
+stores, `memset`, `memcpy` and `memmove` keep it. A store of a pointer that the source had as poison doesn't. -/
 
 namespace IRLean
 
@@ -277,6 +277,39 @@ theorem memcpy (h : Mem.le m m') {d d' s s' : PtrVal} (hd : Refine.le d d') (hs 
                     cases m.check d₀ da true with
                     | some e => trivial
                     | none => exact Outcome.Sim.ok (h.write hdle d₀ _ fun i => h.visible hsle s₀ _)
+
+/-- **`llvm.memmove` keeps the relation:** the target copies bytes the source's allow. -/
+theorem memmove (h : Mem.le m m') {d d' s s' : PtrVal} (hd : Refine.le d d') (hs : Refine.le s s')
+    {len len' : Val 64} (hn : Refine.le len len') :
+    Outcome.Sim Refine.le (m.memmove d s len) (m'.memmove d' s' len') := by
+  cases len with
+  | none => trivial
+  | some k =>
+    cases hn
+    simp only [Mem.memmove]
+    split
+    · exact Outcome.Sim.ok h
+    · cases d with
+      | none => simp only [Mem.access]; trivial
+      | some dq =>
+        cases hd
+        rcases h.access_cases (some dq) k.toNat 1 with ⟨e, he, he'⟩ | ⟨d₀, da, da', hda, hda', hdle⟩
+        · rw [he, he']; trivial
+        · cases s with
+          | none => rw [hda]; simp only [Mem.access]; trivial
+          | some sq =>
+            cases hs
+            rcases h.access_cases (some sq) k.toNat 1 with ⟨e, he, he'⟩ | ⟨s₀, sa, sa', hsa, hsa', hsle⟩
+            · rw [hda, hda', he, he']; trivial
+            · simp only [hda, hda', hsa, hsa', hdle.readonly, h.check hsle, h.check hdle]
+              split
+              · trivial
+              · cases m.check s₀ sa false with
+                | some e => trivial
+                | none =>
+                  cases m.check d₀ da true with
+                  | some e => trivial
+                  | none => exact Outcome.Sim.ok (h.write hdle d₀ _ fun i => h.visible hsle s₀ _)
 
 /-- **`llvm.lifetime.start` and `.end` keep the relation, through the same pointer.** A pointer the target has for
 the source's poison isn't enough: on poison the source does nothing, and the target would start or end the life of
@@ -856,6 +889,46 @@ theorem memcpy (h : Mem.leData m m') {d d' s s' : PtrVal} (hd : Refine.le d d') 
                       exact Outcome.Sim.ok (h.write hdle hdq hdq' _ (fun i => h.le.visible hsle s₀ _)
                         (fun i p j hp => h.visible_ptr hsle hsq hsq' _ hp))
 
+/-- **`llvm.memmove` keeps the relation of the memories' data:** a pointer the target copies, the source copies
+too. -/
+theorem memmove (h : Mem.leData m m') {d d' s s' : PtrVal} (hd : Refine.le d d') (hs : Refine.le s s')
+    {len len' : Val 64} (hn : Refine.le len len') :
+    Outcome.Sim Mem.leData (m.memmove d s len) (m'.memmove d' s' len') := by
+  cases len with
+  | none => trivial
+  | some k =>
+    cases hn
+    simp only [Mem.memmove]
+    split
+    · exact Outcome.Sim.ok h
+    · cases d with
+      | none => simp only [Mem.access]; trivial
+      | some dq =>
+        cases hd
+        rcases h.le.access_cases (some dq) k.toNat 1 with ⟨e, he, he'⟩ | ⟨d₀, da, da', hda, hda', hdle⟩
+        · rw [he, he']; trivial
+        · cases s with
+          | none => rw [hda]; simp only [Mem.access]; trivial
+          | some sq =>
+            cases hs
+            rcases h.le.access_cases (some sq) k.toNat 1 with ⟨e, he, he'⟩ | ⟨s₀, sa, sa', hsa, hsa', hsle⟩
+            · rw [hda, hda', he, he']; trivial
+            · have hdq := (Mem.access_ok_iff.1 hda).2.1
+              have hdq' := (Mem.access_ok_iff.1 hda').2.1
+              have hsq := (Mem.access_ok_iff.1 hsa).2.1
+              have hsq' := (Mem.access_ok_iff.1 hsa').2.1
+              simp only [hda, hda', hsa, hsa', hdle.readonly, h.le.check hsle, h.le.check hdle]
+              split
+              · trivial
+              · cases m.check s₀ sa false with
+                | some e => trivial
+                | none =>
+                  cases m.check d₀ da true with
+                  | some e => trivial
+                  | none =>
+                    exact Outcome.Sim.ok (h.write hdle hdq hdq' _ (fun i => h.le.visible hsle s₀ _)
+                      (fun i p j hp => h.visible_ptr hsle hsq hsq' _ hp))
+
 /-- `llvm.lifetime.start` and `.end`, through the same pointer: the bytes become uninitialized on both sides. -/
 theorem lifetime (h : Mem.leData m m') (p : PtrVal) (alive : Bool) :
     Outcome.Sim Mem.leData (m.lifetime p alive) (m'.lifetime p alive) := by
@@ -903,7 +976,7 @@ macro_rules
     | exact Forall₂.nil | refine Forall₂.cons ?_ ?_)
 
 /-- Walks two blocks' code that the emitter wrote the same way, on memories related by their data: each load, store,
-`memset`, `memcpy` and `lifetime` by `Mem.leData`'s lemma, an operation that can be undefined by its `Mono` lemma,
+`memset`, `memcpy`, `memmove` and `lifetime` by `Mem.leData`'s lemma, an operation that can be undefined by its `Mono` lemma,
 and each branch, jump and return by `Outcome.Sim`'s. What's left is for `refine_mono_simd`, on values, and for the
 proof's relation between blocks. -/
 macro "sim_mono" : tactic =>
@@ -914,6 +987,7 @@ macro "sim_mono" : tactic =>
     | refine Outcome.Sim.andThen (Mem.leData.storeInt (by assumption) ?_ ?_ _) fun _ _ _ => ?_
     | refine Outcome.Sim.andThen (Mem.leData.memset (by assumption) ?_ ?_ ?_) fun _ _ _ => ?_
     | refine Outcome.Sim.andThen (Mem.leData.memcpy (by assumption) ?_ ?_ ?_) fun _ _ _ => ?_
+    | refine Outcome.Sim.andThen (Mem.leData.memmove (by assumption) ?_ ?_ ?_) fun _ _ _ => ?_
     | refine Outcome.Sim.andThen (Mem.leData.lifetime (by assumption) _ _) fun _ _ _ => ?_
     | refine Outcome.Sim.andThen (Refine.sim_of_le (Mono.udiv ?_ ?_)) fun _ _ _ => ?_
     | refine Outcome.Sim.andThen (Refine.sim_of_le (Mono.urem ?_ ?_)) fun _ _ _ => ?_

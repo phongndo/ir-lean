@@ -395,9 +395,9 @@
  },
  "totals": {
   "items": 17046,
-  "modeled": 447,
+  "modeled": 448,
   "assumed": 262,
-  "refused": 16337,
+  "refused": 16336,
   "by_kind": {
    "instruction": {
     "modeled": 51,
@@ -409,9 +409,9 @@
     "refused": 8
    },
    "intrinsic": {
-    "modeled": 307,
+    "modeled": 308,
     "assumed": 4,
-    "refused": 16112
+    "refused": 16111
    },
    "attribute": {
     "modeled": 43,
@@ -452,7 +452,7 @@
    "external calls and globals": 63,
    "floating point": 126,
    "long tail": 1660,
-   "memory": 122
+   "memory": 121
   }
  },
  "items": [
@@ -8288,7 +8288,7 @@
   {"kind": "intrinsic", "name": "llvm.memcpy", "class": "modeled", "reason": "memory"},
   {"kind": "intrinsic", "name": "llvm.memcpy.element.unordered.atomic", "class": "refused", "lane": "memory", "reason": "memory model"},
   {"kind": "intrinsic", "name": "llvm.memcpy.inline", "class": "refused", "lane": "memory", "reason": "memory model"},
-  {"kind": "intrinsic", "name": "llvm.memmove", "class": "refused", "lane": "memory", "reason": "memory model"},
+  {"kind": "intrinsic", "name": "llvm.memmove", "class": "modeled", "reason": "memory"},
   {"kind": "intrinsic", "name": "llvm.memmove.element.unordered.atomic", "class": "refused", "lane": "memory", "reason": "memory model"},
   {"kind": "intrinsic", "name": "llvm.memset", "class": "modeled", "reason": "memory"},
   {"kind": "intrinsic", "name": "llvm.memset.element.unordered.atomic", "class": "refused", "lane": "memory", "reason": "memory model"},

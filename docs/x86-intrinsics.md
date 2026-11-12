@@ -146,7 +146,7 @@ No call in these projects: 253 families. 83 are forms on MMX's registers, none o
 | `llvm.round` | 528 | 3 |
 | `llvm.x86.avx512.mask.rndscale.ps.512` | 388 | 1 |
 | `llvm.pow` | 331 | 1 |
-| `llvm.memmove` | 300 | 8 |
+| `llvm.x86.vcvtps2ph.128` | 298 | 2 |
 <!-- x86_rank table: end -->
 
 ### What it doesn't show

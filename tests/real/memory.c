@@ -82,6 +82,24 @@ unsigned long long test_memory_intrinsics(unsigned seed, unsigned n) {
   return sum_bytes(b, sizeof b);
 }
 
+// Each byte's place counts, so a copy in the wrong direction shows.
+NOINLINE unsigned long long hash_bytes(const unsigned char *p, size_t n) {
+  unsigned long long h = 0;
+  for (size_t i = 0; i < n; i++)
+    h = h * 31 + p[i];
+  return h;
+}
+
+// Moves that overlap ahead and behind, and don't, of up to 32 bytes: llvm.memmove.
+unsigned long long test_memmove(unsigned seed, unsigned shift, unsigned n) {
+  unsigned char a[48];
+  fill(a, sizeof a, seed);
+  size_t k = n % 33, s = shift % 16;
+  __builtin_memmove(a + s, a + 8, k);
+  __builtin_memmove(a + 8, a + s, k);
+  return hash_bytes(a, sizeof a);
+}
+
 // Stores a pointer in memory and reads it back through two levels.
 NOINLINE unsigned read_through(unsigned **pp) { return **pp; }
 

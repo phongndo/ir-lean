@@ -592,6 +592,24 @@ either way. Poison does nothing. -/
         | _, some e => some (.error e)
         | none, none => Outcome.ok <| m.write d da k.toNat fun i => m.visible s sa (sOff + i)
 
+/-- `llvm.memmove`: `llvm.memcpy` where the ranges may overlap. LangRef: it "copies a block of memory from the
+source location to the destination location, which may overlap", as if through a buffer, which reading every byte
+from the memory before the write is. -/
+@[llvm] def memmove (m : Mem) (dst src : PtrVal) (n : Val 64) : Outcome Mem :=
+  match n with
+  | none => Outcome.ub .poisonPointer
+  | some k =>
+    if k == 0#64 then Outcome.ok m else
+    match m.access dst k.toNat 1, m.access src k.toNat 1 with
+    | .error e, _ => Outcome.ub e
+    | _, .error e => Outcome.ub e
+    | .ok (d, da), .ok (s, sa) =>
+      if da.readonly then Outcome.ub .writeToConstant else
+      match m.check s sa false, m.check d da true with
+      | some e, _ => some (.error e)
+      | _, some e => some (.error e)
+      | none, none => Outcome.ok <| m.write d da k.toNat fun i => m.visible s sa (s.offset.toNat + i)
+
 /-- C's `malloc`, which can fail. -/
 def malloc (size : Val 64) (m : Mem) : Outcome (PtrVal × Mem) :=
   match size with

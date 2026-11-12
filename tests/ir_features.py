@@ -571,7 +571,7 @@ INTRINSIC_RULES = [
     ),
     R("identity", "llvm.expect"),
     R("no effect", "llvm.donothing llvm.prefetch"),
-    R("memory", "llvm.memcpy llvm.memset llvm.lifetime.start llvm.lifetime.end"),
+    R("memory", "llvm.memcpy llvm.memmove llvm.memset llvm.lifetime.start llvm.lifetime.end"),
     R(
         "x86 dot product",
         "llvm.x86.ssse3.pmadd.ub.sw.128 llvm.x86.avx2.pmadd.ub.sw llvm.x86.avx512.pmaddubs.w.512 "
@@ -677,7 +677,7 @@ INTRINSIC_RULES = [
     ),
     R(
         "memory model",
-        "llvm.memmove llvm.memcpy.inline llvm.memset.inline llvm.memcpy.element.unordered.atomic "
+        "llvm.memcpy.inline llvm.memset.inline llvm.memcpy.element.unordered.atomic "
         "llvm.memmove.element.unordered.atomic llvm.memset.element.unordered.atomic "
         "llvm.experimental.memset.pattern "
         "llvm.masked.load llvm.masked.store llvm.masked.gather llvm.masked.scatter llvm.masked.expandload "

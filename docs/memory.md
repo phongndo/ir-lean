@@ -123,7 +123,7 @@ qualify.
 | Constants | Writing a constant global is undefined | `store_readonly`, and `store_to_constant` in `memory_errors.ll` |
 | Alignment | A load or store is undefined unless its address is a multiple of its alignment, in the layout `Mem.base` gives. `memset` and `memcpy` take theirs from the `align` attribute on the pointer, which makes a misaligned one poison, so it's undefined as a poison pointer, not as `misaligned` | `load_misaligned`, and `memset_misaligned` and `memcpy_misaligned` in `ub.ll` |
 | Null and poison | Null points to allocation 0, which code from the emitter never makes. Accessing through a poison pointer is undefined | `load_null`, `load_poison`, `store_poison` |
-| Copies | `memcpy` between ranges that overlap without being the same is undefined | `memcpy_overlap` |
+| Copies | `memcpy` between ranges that overlap without being the same is undefined. `memmove`'s may overlap: it reads every byte before it writes any, as LangRef's copy "which may overlap" does, since 2026-11-12 | `memcpy_overlap`, and `test_memmove` in [`memory.c`](../tests/real/memory.c) against native code |
 | Uninitialized memory | A read gives poison, which is stricter than LLVM's `undef` | [Trust](trust.md#known-gaps-in-the-model) |
 | Promises | `readonly`, `memory(...)`, `captures` and the rest, through tags on pointers and running calls | `ub.ll`, `promises.ll` |
 | The allocator's choices | Where each allocation is, `Mem.base`, and whether each `malloc` fails, `Mem.failAlloc`, are oracles, so a theorem for every `Mem` holds whatever they are | By construction |
@@ -193,7 +193,7 @@ an operation that changes memory that's a theorem, an equation:
 | --- | --- |
 | `loadInt`, `loadPtr`, `loadVec`, `gep`, `gepSteps` with its provenance, `toVal`, `addr`, `nonnull`, `aligned`, `dereferenceable`, `assumeNonnull`, `noaliasResult` | By definition: each is `Mem`'s, run on `x.toMem`. Reading that reads `x`'s arrays, so a load costs what reading its bytes does |
 | `observeAddress`, `tag`, `returnedArgument`, `returnedInt`, `spacedOut` | By definition: `Mem`'s, which don't touch memory, under the names the emitter's copy uses |
-| `storeInt`, `storePtr`, `storeVec`, `memset`, `memcpy`, `lifetime` | `storeInt_agrees`, `storePtr_agrees`, `storeVec_agrees`, `memset_agrees`, `memcpy_agrees`, `lifetime_agrees`. Each checks what `Mem`'s does with `Mem`'s own checks on `x.toMem`, bounds, alignment, constants, tags, promises and overlap, and then writes in place |
+| `storeInt`, `storePtr`, `storeVec`, `memset`, `memcpy`, `memmove`, `lifetime` | `storeInt_agrees`, `storePtr_agrees`, `storeVec_agrees`, `memset_agrees`, `memcpy_agrees`, `memmove_agrees`, `lifetime_agrees`. Each checks what `Mem`'s does with `Mem`'s own checks on `x.toMem`, bounds, alignment, constants, tags, promises and overlap, and then writes in place |
 | `alloca`, `malloc` with its failures, `free`, `strlen` | `alloca_agrees`, `malloc_agrees`, `free_agrees`, `strlen_agrees`: the same, with the pointer or the value each returns |
 | `withFrame`, which frees a function's `alloca`s, and `call`, which runs a function under its promises and clears what `initializes` covered and nothing wrote | `withFrame_agrees`, `call_agrees`: the same, for bodies that agree |
 | `empty`, `addGlobal`, `addReloc`, `reserve`, which build a module's `initial`, and `addInitializes` | `toMem_empty`, `toMem_addGlobal`, `toMem_addReloc`, `toMem_reserve`, `toMem_addInitializes` |
@@ -201,7 +201,7 @@ an operation that changes memory that's a theorem, an equation:
 
 These rest on the standard three axioms and nothing else, not even `bv_decide`'s, and the module has no
 `implemented_by` or `extern`, which [`tests/check_axioms.lean`](../tests/check_axioms.lean) checks, with `leanchecker`
-replaying it. `Mem` has no `memmove`, `calloc` or `realloc`, so neither does this.
+replaying it. `Mem` has no `calloc` or `realloc`, so neither does this.
 
 The theorems are equations, and not a looser relation between the two, because nothing called for one: an
 `ExecBytes` keeps every byte `Mem` would, including those past an allocation's end, which nothing reads, so `toMem`
@@ -300,7 +300,7 @@ E2's exit criterion: `zlib_big` runs `harness_big_default`, `_fast` and `_stored
 [`tests/exec_memory.sh`](../tests/exec_memory.sh) puts a wrong operation into a copy of `ExecMem.lean`, one at a time,
 and each has to stop its own theorem, with an error that isn't a resource limit: a store one byte short stops
 `storeInt_agrees`, and a pointer stored one byte short `storePtr_agrees`. A `memset` of the wrong value, a `memcpy` from
-a byte further on, a `free` that leaves the allocation, a `malloc` that never fails, an `alloca` writable outside its
+a byte further on, a `memmove` from a byte further on, a `free` that leaves the allocation, a `malloc` that never fails, an `alloca` writable outside its
 lifetime, `llvm.lifetime` keeping the bytes, a frame never freed, a call that leaves what `initializes` covered, poison
 stored as uninitialized, a write the running calls don't record, and a global with the wrong contents each stop theirs.
 A copy of `fill` with one branch's targets swapped stops `fill_step` in `Link.lean`, so the copy can't drift from

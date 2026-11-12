@@ -102,6 +102,8 @@ mutant 'a memset of the wrong value' memset_agrees \
           | some x => .val (x + 1#8)'
 mutant 'a memcpy from a byte further on' memcpy_agrees \
   'x.toMem.visible s sa (sOff + i)' 'x.toMem.visible s sa (sOff + i + 1)'
+mutant 'a memmove from a byte further on' memmove_agrees \
+  'x.toMem.visible s sa (s.offset.toNat + j)' 'x.toMem.visible s sa (s.offset.toNat + j + 1)'
 mutant 'a free that leaves the allocation' free_agrees \
   '| none, none => Outcome.ok ((), x.setAlloc q.block none)' '| none, none => Outcome.ok ((), x)'
 mutant 'a malloc that never fails' malloc_agrees \
