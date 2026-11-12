@@ -15,6 +15,13 @@ struct FunctionReport {
   std::string Signature;
   // Why the function was left out, or empty if it was translated.
   std::string Unsupported;
+  // With `Survey`, for a function left out: every reason the checks found, its own first, then, for each
+  // function it calls or shares a cycle with that's left out, `call to @NAME, which isn't translated`,
+  // `indirect call that can reach @NAME, which isn't translated` or `in a cycle with @NAME, which isn't
+  // translated`. An instruction gives one reason at most. `SurveyComplete` is false when a refusal in a
+  // step that makes several checks left the rest unmade.
+  std::vector<std::string> Reasons;
+  bool SurveyComplete = true;
   unsigned Blocks = 0;
   unsigned Instructions = 0;
   // Whether the Lean function takes and returns memory.
@@ -40,9 +47,9 @@ struct Emitted {
 };
 
 // With `NoCode`, Lean doesn't generate code for the output, which then checks far faster but can only
-// be proved about, not run.
+// be proved about, not run. `Survey` fills each left-out function's `Reasons`, and changes nothing else.
 Emitted emitModule(llvm::Module &M, const std::string &Namespace, const std::string &SourceName,
-                   bool NoCode = false);
+                   bool NoCode = false, bool Survey = false);
 
 // Whether Lean, or the code this emits, already uses this name.
 bool isReservedName(const std::string &Name);

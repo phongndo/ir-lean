@@ -50,6 +50,13 @@ safety](memory.md) says what of memory it covers, exactly. It doesn't cover floa
 exceptions, or calls to anything else outside the module, and the emitter leaves those functions out
 and says why.
 
+`--report` gives one line a function: what it translated, or the first reason it didn't. `--reasons` adds, for each
+function left out, every reason the checks find: its own first, then each function left out that it calls or shares a
+cycle with, as `call to @g, which isn't translated` or `in a cycle with @g, which isn't translated`. It runs the same
+checks again on a function they refused, recording each refusal and going on, and changes no line `--report` prints. An
+instruction gives one reason at most, the first it meets, and every other check is surveyed on its own, but where a step
+that makes several is refused, `partial` says the rest weren't made.
+
 For large modules, `--split DIR` writes one Lean module per function, which takes far less memory to check. All
 of zlib takes about a minute of CPU one module at a time, and `inflate` about 2.5 GB. Lean that's only proved about,
 not run, can use `--no-code`, so Lean doesn't generate code for it: `inflate` checks in 8 seconds instead of 10.

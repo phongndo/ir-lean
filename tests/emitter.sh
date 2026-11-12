@@ -1509,6 +1509,84 @@ if ! LEAN_PATH="$work/split:$LEAN_PATH" lean -R "$work/split" -o "$work/split/me
   fail 'example.ll, split, gives a namespace Lean rejects'
 fi
 
+# --reasons: every reason the checks find, the function's own first, then each refused function it waits on.
+# usage: reasons_are FUNCTION IR EXPECTED, where EXPECTED is the reasons, one to a line, as they should be.
+reasons_are() {
+  local got
+  printf '%s\n' "$2" >"$work/reasons.ll"
+  got=$("$tool" "$work/reasons.ll" --reasons | awk -F'\t' -v f="$1" '$1 == "reason" && $2 == f { print $3 }')
+  if [ "$got" == "$3" ]; then
+    printf 'ok    --reasons for @%s\n' "$1"
+  else
+    fail "--reasons for @$1: expected
+$3
+got
+$got
+in: $2"
+  fi
+}
+several='@x = global i32 0
+declare float @llvm.fmuladd.f32(float, float, float)
+define internal i32 @g(i32 %a) {
+  %p = inttoptr i32 %a to ptr
+  %v = load i32, ptr %p
+  ret i32 %v
+}
+define float @f(ptr noalias %p, float %a) "no-signed-zeros-fp-math"="true" {
+  %v = load volatile i32, ptr @x
+  %r = call i32 @g(i32 %v)
+  %m = call reassoc float @llvm.fmuladd.f32(float %a, float %a, float %a)
+  ret float %m
+}'
+reasons_are f "$several" 'function attribute "no-signed-zeros-fp-math"="true"
+fast-math flag reassoc on %m = call reassoc float @llvm.fmuladd.f32(float %a, float %a, float %a)
+instruction %v = load volatile i32, ptr @x, align 4
+call to @g, which isn'"'"'t translated
+intrinsic llvm.fmuladd.f32
+parameter attribute noalias'
+reasons_are g "$several" 'instruction %p = inttoptr i32 %a to ptr'
+# In a cycle, each member gives its own reasons, and the others it shares the cycle with.
+cycle='define i32 @f(i32 %a) {
+  %c = icmp eq i32 %a, 0
+  br i1 %c, label %done, label %more
+more:
+  %b = sub i32 %a, 1
+  %r = call i32 @g(i32 %b)
+  ret i32 %r
+done:
+  ret i32 0
+}
+define i32 @g(i32 %a) {
+  %p = inttoptr i32 %a to ptr
+  %r = call i32 @f(i32 %a)
+  ret i32 %r
+}'
+reasons_are f "$cycle" 'in a cycle with @g, which isn'"'"'t translated'
+reasons_are g "$cycle" 'instruction %p = inttoptr i32 %a to ptr
+in a cycle with @f, which isn'"'"'t translated'
+# Each parameter's attributes, and each attribute of one, are checked on their own, so one doesn't hide another.
+reasons_are f 'define void @f(ptr noalias %p, ptr byval(i8) %q) { ret void }' 'parameter attribute noalias
+parameter attribute byval(i8)'
+reasons_are f 'define void @f(ptr noalias byval(i8) %p) { ret void }' 'parameter attribute noalias
+parameter attribute byval(i8)'
+# A function that translates gives none, and --reasons doesn't change a line --report prints, on any module.
+reasons_are h 'define i32 @h(i32 %a) { ret i32 %a }' ''
+changed=()
+for ll in tests/real/*.ll tests/prooftest/*.ll; do
+  report=$("$tool" "$ll" --report 2>/dev/null)
+  surveyed=$("$tool" "$ll" --reasons 2>/dev/null)
+  [ "$report" == "$(grep -v -P '^(reason|partial)\t' <<<"$surveyed")" ] || changed+=("$ll")
+  # A function's first own reason is the one --report gives, outside a cycle.
+  awk -F'\t' '$1 == "unsupported" && $3 !~ /^in a cycle with / { first[$2] = $3 }
+    $1 == "reason" && !($2 in seen) { seen[$2] = $3 }
+    END { for (f in first) if (seen[f] != first[f]) exit 1 }' <<<"$surveyed" || changed+=("$ll, first reason")
+done
+if [ ${#changed[@]} -eq 0 ]; then
+  printf 'ok    --reasons keeps every line of --report, and its first reason\n'
+else
+  fail "--reasons changed what --report says of ${changed[*]}"
+fi
+
 # Without `alive-tv`, tests/opcheck.py has to fail, unless told not to care.
 no_alive=$(tr : '\n' <<<"$PATH" | while read -r dir; do [ -x "$dir/alive-tv" ] || printf '%s:' "$dir"; done)
 output=$(PATH=$no_alive tests/opcheck.py "$tool" 2>&1)

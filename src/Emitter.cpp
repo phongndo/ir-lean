@@ -1170,6 +1170,13 @@ bool hasValueChecks(AttributeSet Attrs) {
 }
 
 // One line of a block's body.
+// What `FunctionEmitter::survey` found. `Complete` is false when a step everything after it depends on
+// refused the function, so the checks after it didn't run.
+struct Survey {
+  std::vector<std::string> Reasons;
+  bool Complete = true;
+};
+
 struct Line {
   enum Kind {
     Let,   // let Name := Expr
@@ -1216,10 +1223,51 @@ public:
   std::string emitFunction();
   // In a promised cycle: the function callers outside the cycle see, after the `mutual` block.
   std::string emitPromisedCycleWrapper();
+  // Every reason the checks find that the function can't be translated, in the order `prepare` and the rest
+  // meet them, for a function they refused: each check that refuses records why, and the rest run anyway.
+  // What's emitted is thrown away. An instruction gives one reason at most, the first it meets.
+  Survey survey();
   unsigned blockCount() const { return Blocks.size(); }
   unsigned instructionCount() const { return Instructions; }
 
 private:
+  // Runs `Step`. In a survey, a refusal is recorded, and what follows runs anyway: only steps whose failure
+  // leaves nothing later depending on them go through here. `Step` makes one check, or one instruction's, or
+  // every other check it could make after refusing is surveyed on its own elsewhere.
+  template <typename StepFn> void attempt(StepFn &&Step) {
+    if (!Found) {
+      Step();
+      return;
+    }
+    try {
+      Step();
+    } catch (const Unsupported &U) {
+      Found->push_back(U.Why);
+    }
+  }
+  // The same for a step that makes several checks, not each surveyed on its own: a refusal leaves the rest
+  // unmade, so the survey is partial.
+  template <typename StepFn> void attemptAll(StepFn &&Step) {
+    if (!Found) {
+      Step();
+      return;
+    }
+    try {
+      Step();
+    } catch (const Unsupported &U) {
+      Found->push_back(U.Why);
+      Partial = true;
+    }
+  }
+  // `checkValueAttributes`, an attribute at a time, so a survey sees each: none of them depends on another.
+  void checkEachValueAttribute(AttributeSet Attrs, const Type *T, Position At) {
+    for (Attribute A : Attrs)
+      attempt([&] { checkValueAttributes(AttributeSet::get(F.getContext(), {A}), T, At); });
+  }
+  // Where a survey records reasons, or null outside one.
+  std::vector<std::string> *Found = nullptr;
+  // Whether a refusal in a survey left checks unmade.
+  bool Partial = false;
   void collectBlocks();
   void nameValues();
   void computeLiveness();
@@ -1493,12 +1541,16 @@ void FunctionEmitter::findPromises() {
         continue;
       Latch = true;
       if (L->getLoopID() != ID)
-        reject("llvm.loop.mustprogress on " + printed(*BB->getTerminator()) +
-               ", a latch of a loop whose latches don't all carry it");
+        attempt([&] {
+          reject("llvm.loop.mustprogress on " + printed(*BB->getTerminator()) +
+                 ", a latch of a loop whose latches don't all carry it");
+        });
     }
     if (!Latch && Irreducible)
-      reject("llvm.loop.mustprogress on " + printed(*BB->getTerminator()) +
-             ", off a loop's latch, in a function with irreducible control flow");
+      attempt([&] {
+        reject("llvm.loop.mustprogress on " + printed(*BB->getTerminator()) +
+               ", off a loop's latch, in a function with irreducible control flow");
+      });
   }
   // Tarjan's algorithm over the promised blocks, with the edges between them.
   std::vector<const BasicBlock *> Nodes;
@@ -1541,8 +1593,10 @@ void FunctionEmitter::findPromises() {
       if (marksMustProgress(L->getLoopID()) &&
           all_of(Component, [&](const BasicBlock *X) { return L->contains(X); }))
         return;
-    reject("a cycle through loops marked llvm.loop.mustprogress that leaves each of them, at block " +
-           BlockNames.lookup(BB));
+    attempt([&] {
+      reject("a cycle through loops marked llvm.loop.mustprogress that leaves each of them, at block " +
+             BlockNames.lookup(BB));
+    });
   };
   for (const BasicBlock *BB : Nodes)
     if (!Index.count(BB))
@@ -3154,7 +3208,7 @@ std::string FunctionEmitter::emitArm(const BasicBlock *BB) {
   for (const Instruction &I : *BB) {
     if (isa<PHINode>(I) || I.isTerminator())
       continue;
-    emitInstruction(I, Lines);
+    attempt([&] { emitInstruction(I, Lines); });
   }
   for (const Line &L : Lines) {
     switch (L.K) {
@@ -3173,7 +3227,9 @@ std::string FunctionEmitter::emitArm(const BasicBlock *BB) {
       break;
     }
   }
-  return Out + "    " + emitTerminator(BB) + "\n";
+  std::string Terminator;
+  attempt([&] { Terminator = emitTerminator(BB); });
+  return Out + "    " + Terminator + "\n";
 }
 
 // Fast-math flags. `nnan` and `ninf` make a result poison, and `nsz` lets a zero operand's sign flip, as a
@@ -3239,59 +3295,77 @@ void FunctionEmitter::checkFloatTarget() {
 
 void FunctionEmitter::prepare() {
   if (F.isVarArg())
-    reject("variadic function");
+    attempt([&] { reject("variadic function"); });
   if (F.hasPersonalityFn())
-    reject("exception handling");
+    attempt([&] { reject("exception handling"); });
   if (!hasExactLinkage(F) && !hasODRLinkage(F))
-    reject("linkage: this may not be the definition that runs");
+    attempt([&] { reject("linkage: this may not be the definition that runs"); });
   if (F.hasPrefixData() || F.hasPrologueData() || F.hasGC())
-    reject("function with prefix data, prologue data or a garbage collector");
-  checkFunctionAttributes(F.getAttributes().getFnAttrs(), "function", /*Library=*/false, /*GivesUp=*/false,
-                          /*Definition=*/true);
-  checkFloatTarget();
+    attempt([&] { reject("function with prefix data, prologue data or a garbage collector"); });
+  // One at a time, so a survey sees each: none of them depends on another.
+  for (Attribute A : F.getAttributes().getFnAttrs())
+    attempt([&] {
+      checkFunctionAttributes(AttributeSet::get(F.getContext(), {A}), "function", /*Library=*/false,
+                              /*GivesUp=*/false, /*Definition=*/true);
+    });
+  attempt([&] { checkFloatTarget(); });
   for (const BasicBlock &BB : F)
     for (const Instruction &I : BB)
       if (isa<FPMathOperator>(I))
-        checkFastMath(I);
+        attempt([&] { checkFastMath(I); });
   // Neither needs checking on each run: what's reachable shows they hold, or the function is refused.
   if (Recursive && F.hasFnAttribute(Attribute::NoRecurse))
-    reject("function attribute norecurse on a function in a cycle");
+    attempt([&] { reject("function attribute norecurse on a function in a cycle"); });
   // A callee outside the module may call back into this function, which `norecurse` rules out, and the model
   // doesn't see it do so.
   if (Talks && F.hasFnAttribute(Attribute::NoRecurse))
-    reject("function attribute norecurse on a function that calls outside the module");
+    attempt([&] { reject("function attribute norecurse on a function that calls outside the module"); });
   // The same for what a callee that accesses memory may do: synchronize, free, or access memory this function
   // promised it wouldn't.
   if (AccessFunctions.count(&F) && F.hasFnAttribute(Attribute::NoSync))
-    reject("function attribute nosync on a function whose calls outside the module access memory");
+    attempt([&] {
+      reject("function attribute nosync on a function whose calls outside the module access memory");
+    });
   if (EffectFunctions.count(&F) && F.hasFnAttribute(Attribute::NoFree))
-    reject("function attribute nofree on a function whose calls outside the module have effects");
+    attempt([&] {
+      reject("function attribute nofree on a function whose calls outside the module have effects");
+    });
   if (AccessFunctions.count(&F) && F.getMemoryEffects() != MemoryEffects::unknown())
-    reject("function attribute memory on a function whose calls outside the module access memory");
+    attempt([&] {
+      reject("function attribute memory on a function whose calls outside the module access memory");
+    });
   if (F.hasFnAttribute(Attribute::Speculatable) && UsesMemory)
-    reject("function attribute speculatable on a function that uses memory");
+    attempt([&] { reject("function attribute speculatable on a function that uses memory"); });
   // A call outside the module with effects is an effect of this function's too, which `speculatable` rules
   // out.
   if (F.hasFnAttribute(Attribute::Speculatable) && EffectFunctions.count(&F))
-    reject("function attribute speculatable on a function whose calls outside the module have effects");
+    attempt([&] {
+      reject("function attribute speculatable on a function whose calls outside the module have effects");
+    });
   if (F.hasFnAttribute(Attribute::NoFree) && ReachesFree.count(&F))
-    reject("function attribute nofree on a function that can reach free");
+    attempt([&] { reject("function attribute nofree on a function that can reach free"); });
+  // Everything after these depends on them, so in a survey a refusal here ends it.
   collectBlocks();
   nameValues();
   computeLiveness();
-  findPromises();
+  // Each of its checks is surveyed on its own, inside it.
+  attemptAll([&] { findPromises(); });
   // Only `step` and the flat blocks take `vscale` so far.
   if (Context.Scalable && (Recursive || Blocks.size() > MaxFlatBlocks))
-    reject("scalable vectors or vscale in a recursive function or one with more than " +
-           std::to_string(MaxFlatBlocks) + " blocks");
+    attempt([&] {
+      reject("scalable vectors or vscale in a recursive function or one with more than " +
+             std::to_string(MaxFlatBlocks) + " blocks");
+    });
   if (Recursive && Blocks.size() > MaxRecursiveBlocks)
-    reject("recursive function with more than " + std::to_string(MaxRecursiveBlocks) + " blocks");
-  RetType = leanType(F.getReturnType());
-  checkValueAttributes(F.getAttributes().getRetAttrs(), F.getReturnType(), Position::Return);
+    attempt([&] {
+      reject("recursive function with more than " + std::to_string(MaxRecursiveBlocks) + " blocks");
+    });
+  attempt([&] { RetType = leanType(F.getReturnType()); });
+  checkEachValueAttribute(F.getAttributes().getRetAttrs(), F.getReturnType(), Position::Return);
   for (const Value *V : Values)
-    leanType(V->getType());
+    attempt([&] { leanType(V->getType()); });
   if (UsesMemory && !memoryLayoutFits(Context.DL))
-    reject("data layout " + F.getParent()->getDataLayoutStr());
+    attempt([&] { reject("data layout " + F.getParent()->getDataLayoutStr()); });
   for (const BasicBlock *BB : Blocks)
     for (const Instruction &I : *BB)
       HasAlloca |= isa<AllocaInst>(I);
@@ -3310,15 +3384,50 @@ void FunctionEmitter::prepare() {
   if (count_if(F.args(), [&](const Argument &A) {
         return Attrs.getParamAttrs(A.getArgNo()).hasAttribute(Attribute::Initializes);
       }) > 1)
-    reject("more than one parameter with attribute initializes");
+    attempt([&] { reject("more than one parameter with attribute initializes"); });
   if (HasCall)
     for (const Argument &A : F.args())
       if (!A.getType()->isPointerTy() && mentionsPointer(A.getType()))
-        reject("parameter with pointers in it, in a function that promises something about memory");
+        attempt([&] {
+          reject("parameter with pointers in it, in a function that promises something about memory");
+        });
   // `Mem.withFrame` and `Mem.call` take a run that returns, and don't pass an `IRLean.Exit` through yet.
   if (Talks && (HasAlloca || HasCall))
-    reject("call to external functions in a function with a stack frame or promises about memory, which "
-           "IRLean.World doesn't wrap yet");
+    attempt([&] {
+      reject("call to external functions in a function with a stack frame or promises about memory, which "
+             "IRLean.World doesn't wrap yet");
+    });
+}
+
+Survey FunctionEmitter::survey() {
+  Survey S;
+  Found = &S.Reasons;
+  try {
+    prepare();
+    // Each block's instructions and terminator are surveyed one at a time inside these, and its constructor's
+    // types are values `prepare` surveyed, so a refusal that comes out of one is a check made nowhere else.
+    attemptAll([&] { emitBlocks(); });
+    if (Recursive)
+      attemptAll([&] { emitLoop(); });
+    attemptAll([&] { emitFunction(); });
+    if (PromisedCycle)
+      attemptAll([&] { emitPromisedCycleWrapper(); });
+  } catch (const Unsupported &U) {
+    S.Reasons.push_back(U.Why);
+    S.Complete = false;
+  } catch (const std::exception &) {
+    // Emitting past a refusal can reach a state no translated function has. The reasons so far stand.
+    S.Complete = false;
+  }
+  Found = nullptr;
+  S.Complete = S.Complete && !Partial;
+  std::vector<std::string> Unique;
+  std::set<std::string> Seen;
+  for (std::string &Why : S.Reasons)
+    if (Seen.insert(Why).second)
+      Unique.push_back(std::move(Why));
+  S.Reasons = std::move(Unique);
+  return S;
 }
 
 std::string FunctionEmitter::emitBlocks() {
@@ -3331,7 +3440,7 @@ std::string FunctionEmitter::emitBlocks() {
   if (Recursive || Blocks.size() <= MaxFlatBlocks) {
     Out += "inductive Block" + Param + " where\n";
     for (const BasicBlock *BB : Blocks)
-      Out += emitConstructor(BB);
+      attempt([&] { Out += emitConstructor(BB); });
     if (!Recursive) {
       Out += "\n" + Context.Def + "step" + Param + " : " + BlockType + " → " + NextType + "\n";
       for (const BasicBlock *BB : Blocks)
@@ -3342,7 +3451,7 @@ std::string FunctionEmitter::emitBlocks() {
     for (unsigned G = 0; G != Groups; ++G) {
       Out += "inductive G" + std::to_string(G) + " where\n";
       for (unsigned I = G * blocksPerGroup(); I != Blocks.size() && I != (G + 1) * blocksPerGroup(); ++I)
-        Out += emitConstructor(Blocks[I]);
+        attempt([&] { Out += emitConstructor(Blocks[I]); });
       Out += '\n';
     }
     Out += "inductive Block where\n";
@@ -3444,7 +3553,7 @@ std::string FunctionEmitter::emitFunction() {
            std::to_string(R.getVScaleRangeMax().value_or(0)) + vs() + " <|\n";
   for (const Argument &A : F.args()) {
     AttributeSet Param = Attrs.getParamAttrs(A.getArgNo());
-    checkValueAttributes(Param, A.getType(), Position::Parameter);
+    checkEachValueAttribute(Param, A.getType(), Position::Parameter);
     const std::string &Name = Names.at(&A);
     if (hasValueChecks(Param))
       Out += "  let " + Name + " := " + withValueChecks(Param, A.getType(), Name) + "\n";
@@ -3678,7 +3787,8 @@ const char *libraryFunction(const Function &F) {
 
 bool isReservedName(const std::string &Name) { return reservedNames().count(Name) != 0; }
 
-Emitted emitModule(Module &M, const std::string &Namespace, const std::string &SourceName, bool NoCode) {
+Emitted emitModule(Module &M, const std::string &Namespace, const std::string &SourceName, bool NoCode,
+                   bool Survey) {
   CallGraphOrder Order(M);
   ModuleContext Context(M, NoCode);
   std::set<const Function *> MemoryFunctions;
@@ -3836,6 +3946,25 @@ Emitted emitModule(Module &M, const std::string &Namespace, const std::string &S
       Reports[F] = std::move(R);
     }
     if (!Failure.empty()) {
+      // Each member again, from the start, with the other members still in `Translated`, so a call between
+      // them is no reason: that they share a cycle is. Nothing it emits is kept.
+      if (Survey) {
+        std::map<const Function *, ir_lean::Survey> Surveys;
+        for (Function *F : Component)
+          Surveys[F] =
+              FunctionEmitter(*F, LeanNames.lookup(F), Recursive, PromisedCycle, UsesMemory, Chooses, Talks,
+                              Translated, MemoryFunctions, ChoosingFunctions, TalkingFunctions,
+                              EffectFunctions, AccessFunctions, ReachFunctions, ReachesFree, Context)
+                  .survey();
+        for (Function *F : Component) {
+          FunctionReport &R = Reports[F];
+          R.Reasons = Surveys[F].Reasons;
+          R.SurveyComplete = Surveys[F].Complete;
+          for (Function *Other : Component)
+            if (Other != F)
+              R.Reasons.push_back("in a cycle with @" + Other->getName().str() + ", which isn't translated");
+        }
+      }
       for (Function *F : Component) {
         Reports[F].Unsupported =
             Component.size() > 1 ? "in a cycle with a function that has " + Failure : Failure;

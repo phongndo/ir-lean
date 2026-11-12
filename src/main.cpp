@@ -34,6 +34,11 @@ options:
   -o FILE           where to write the Lean (default: stdout)
   --namespace NAME  Lean namespace for the module (default: from the input name)
   --report          print one line per function instead of Lean
+  --reasons         --report, and after each function left out, a line for every reason the
+                    checks find, not only the first: `reason<TAB>NAME<TAB>WHY`, its own first,
+                    then each function left out that it depends on, and `partial<TAB>NAME` if a
+                    refusal kept the checks after it from running. An instruction gives one
+                    reason at most
   --split DIR       write one Lean module per function under DIR/NAME, and DIR/NAME.lean
                     importing them in dependency order
   --no-code         don't have Lean generate code, so the output checks far faster but can
@@ -95,7 +100,7 @@ std::string executableMemory(const std::string &Lean) {
 
 int main(int Argc, char **Argv) {
   std::string Input, Output, Namespace, SplitDir;
-  bool Report = false, NoCode = false, Executable = false;
+  bool Report = false, Reasons = false, NoCode = false, Executable = false;
   for (int I = 1; I < Argc; ++I) {
     StringRef A = Argv[I];
     auto Value = [&](const char *Flag) -> std::string {
@@ -111,6 +116,8 @@ int main(int Argc, char **Argv) {
       Namespace = Value("--namespace");
     } else if (A == "--report") {
       Report = true;
+    } else if (A == "--reasons") {
+      Report = Reasons = true;
     } else if (A == "--split") {
       SplitDir = Value("--split");
     } else if (A == "--no-code") {
@@ -165,7 +172,8 @@ int main(int Argc, char **Argv) {
     StripDebugInfo(*M);
   }
 
-  ir_lean::Emitted E = ir_lean::emitModule(*M, Namespace, sys::path::filename(Input).str(), NoCode);
+  ir_lean::Emitted E =
+      ir_lean::emitModule(*M, Namespace, sys::path::filename(Input).str(), NoCode, /*Survey=*/Reasons);
   if (Executable) {
     E.Lean = executableMemory(E.Lean);
     E.Globals = executableMemory(E.Globals);
@@ -185,6 +193,12 @@ int main(int Argc, char **Argv) {
                << "\t" << F.Instructions << "\t" << (F.UsesMemory ? "memory" : "pure") << "\n";
       else
         outs() << "unsupported\t" << F.LLVMName << "\t" << StringRef(F.Unsupported).split('\n').first << "\n";
+      if (!Reasons || F.Unsupported.empty())
+        continue;
+      for (const std::string &Why : F.Reasons)
+        outs() << "reason\t" << F.LLVMName << "\t" << StringRef(Why).split('\n').first << "\n";
+      if (!F.SurveyComplete)
+        outs() << "partial\t" << F.LLVMName << "\n";
     }
     outs() << "translated " << Translated << "/" << E.Functions.size() << "\n";
     return ExitOk;
