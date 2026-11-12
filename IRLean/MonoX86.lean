@@ -472,6 +472,8 @@ macro "refine_mono_simd" : tactic =>
     | refine Mono.fptouiSat ?_ | refine Mono.fptosiSat ?_ | refine Mono.uitofp ?_ | refine Mono.sitofp ?_
     | refine Mono.copysign ?_ ?_ | refine Mono.fcmp ?_ ?_ | refine Mono.fadd ?_ ?_ | refine Mono.fsub ?_ ?_
     | refine Mono.fmul ?_ ?_ | refine Mono.fdiv ?_ ?_ | refine Mono.frem ?_ ?_
+    | refine Mono.fma ?_ ?_ ?_ | refine Mono.fmuladd ?_ ?_ ?_
+    | refine Mono.lanes3 (fun _ _ _ _ _ _ _ _ _ _ => ?_) ?_ ?_ ?_
     | refine Mono.lanes1 (fun _ _ _ _ => ?_) ?_ | refine Mono.lanes2 (fun _ _ _ _ _ _ _ => ?_) ?_ ?_
     | refine Mono.reverse ?_ | refine Mono.insertSub ?_ ?_ | refine Mono.extractSub ?_ | refine Mono.splat0 ?_
     | refine Mono.X86.pternlog ?_ ?_ ?_ | refine Mono.X86.pblendvb ?_ ?_ ?_ | refine Mono.X86.pavg ?_ ?_

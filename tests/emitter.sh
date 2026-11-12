@@ -453,6 +453,27 @@ accepts 'define void @f(ptr %p) {
   call void @llvm.prefetch.p0(ptr poison, i32 0, i32 0, i32 1)
   ret void
 }'
+# `llvm.fma` and `llvm.fmuladd`, on floats and vectors of them, without fast-math flags, which are refused.
+for ty in float double '<4 x float>' half; do
+  for fn in fma fmuladd; do
+    sfx=$(sed -e 's/<4 x float>/v4f32/; s/^float$/f32/; s/^double$/f64/; s/^half$/f16/' <<<"$ty")
+    accepts "declare $ty @llvm.$fn.$sfx($ty, $ty, $ty)
+define $ty @f($ty %a, $ty %b, $ty %c) {
+  %r = call $ty @llvm.$fn.$sfx($ty %a, $ty %b, $ty %c)
+  ret $ty %r
+}"
+  done
+done
+refuses 'fast-math flag contract' 'declare float @llvm.fma.f32(float, float, float)
+define float @f(float %a, float %b, float %c) {
+  %r = call contract float @llvm.fma.f32(float %a, float %b, float %c)
+  ret float %r
+}'
+refuses 'fast-math flag nnan' 'declare float @llvm.fmuladd.f32(float, float, float)
+define float @f(float %a, float %b, float %c) {
+  %r = call nnan float @llvm.fmuladd.f32(float %a, float %b, float %c)
+  ret float %r
+}'
 # llvm.assume's bundles: the ones the model has translate, and the rest are refused.
 for bundle in '"nonnull"(ptr %p)' '"align"(ptr %p, i64 16)' '"align"(ptr %p, i32 %n, i64 4)' '"noundef"(ptr %p)' \
   '"cold"()' '"ignore"(ptr %p, i32 %n)'; do
@@ -1604,7 +1625,6 @@ reasons_are f "$several" 'function attribute "no-signed-zeros-fp-math"="true" on
 fast-math flag reassoc on %m = call reassoc float @llvm.fmuladd.f32(float %a, float %a, float %a)
 instruction %v = load volatile i32, ptr @x, align 4
 call to @g, which isn'"'"'t translated
-intrinsic llvm.fmuladd.f32
 parameter attribute noalias'
 reasons_are g "$several" 'instruction %p = inttoptr i32 %a to ptr'
 # In a cycle, each member gives its own reasons, and the others it shares the cycle with.

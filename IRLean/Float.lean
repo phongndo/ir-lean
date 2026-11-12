@@ -438,6 +438,73 @@ less than `w`. -/
 @[bv_normalize] def ofIntBits (e m : Nat) (s : Bool) (S : BitVec w) : BitVec (1 + e + m) :=
   round e m s S (bias + BitVec.ofNat _ m)
 
+/-! ### Fused multiply-add
+
+`a × b + c` rounded once. The product's significand is exact, `2 * m + 2` bits with its last place at `pe`, as
+`mulBits` has it. Of the product and `c`, the term `x` whose last place is higher goes `3 * m + 5` places up, and the
+other, `y`, meets it: exactly, shifted left, if it's at most that many places lower, and otherwise shifted right with
+what's shifted out folded into a sticky bit. A term that far below is less than `x`'s last place, so the sum's top is
+at least `3 * m + 4` places up, and it rounds at least `2 * m + 4` places above the sticky bit, which is what `round`
+needs. `5 * m + 9` bits hold either term, shifted, and their sum. -/
+
+/-- The product's exact significand. -/
+@[bv_normalize] def fP (a b : BitVec (1 + e + m)) : BitVec (5 * m + 9) :=
+  ((sig a).setWidth (2 * m + 2) * (sig b).setWidth (2 * m + 2)).setWidth _
+
+/-- The biased exponent of the product's last place. -/
+@[bv_normalize] def fPe (a b : BitVec (1 + e + m)) : BitVec (e + m + 3) := lsbExp a + lsbExp b - bias - BitVec.ofNat _ m
+
+/-- How far up `x` goes. -/
+@[bv_normalize] def fG : BitVec (e + m + 3) := BitVec.ofNat _ (3 * m + 5)
+
+@[bv_normalize] def fSwap (a b c : BitVec (1 + e + m)) : Bool := (fPe a b).slt (lsbExp c)
+@[bv_normalize] def fX (a b c : BitVec (1 + e + m)) : BitVec (5 * m + 9) :=
+  if fSwap a b c then (sig c).setWidth _ else fP a b
+@[bv_normalize] def fY (a b c : BitVec (1 + e + m)) : BitVec (5 * m + 9) :=
+  if fSwap a b c then fP a b else (sig c).setWidth _
+@[bv_normalize] def fXs (a b c : BitVec (1 + e + m)) : Bool := if fSwap a b c then c.msb else a.msb != b.msb
+@[bv_normalize] def fYs (a b c : BitVec (1 + e + m)) : Bool := if fSwap a b c then a.msb != b.msb else c.msb
+@[bv_normalize] def fXe (a b c : BitVec (1 + e + m)) : BitVec (e + m + 3) :=
+  if fSwap a b c then lsbExp c else fPe a b
+@[bv_normalize] def fYe (a b c : BitVec (1 + e + m)) : BitVec (e + m + 3) :=
+  if fSwap a b c then fPe a b else lsbExp c
+
+/-- How many places `y`'s last place is below `x`'s, which isn't negative. -/
+@[bv_normalize] def fD (a b c : BitVec (1 + e + m)) : BitVec (e + m + 3) := fXe a b c - fYe a b c
+
+/-- `y`, placed: shifted left to meet `x`, or right past it with a sticky bit, at most `5 * m + 9` places. -/
+@[bv_normalize] def fYj (a b c : BitVec (1 + e + m)) : BitVec (5 * m + 9) :=
+  if (fD a b c).ule fG then fY a b c <<< (fG - fD a b c).setWidth (5 * m + 9)
+  else
+    let s : BitVec (5 * m + 9) :=
+      if (fD a b c - fG).ult (BitVec.ofNat _ (5 * m + 9)) then (fD a b c - fG).setWidth _
+      else BitVec.ofNat _ (5 * m + 9)
+    (fY a b c >>> s) ||| (BitVec.ofBool ((fY a b c &&& ((1#_ <<< s) - 1#_)) != 0#_)).setWidth _
+
+@[bv_normalize] def fXj (a b c : BitVec (1 + e + m)) : BitVec (5 * m + 9) :=
+  fX a b c <<< (BitVec.ofNat (5 * m + 9) (3 * m + 5))
+
+@[bv_normalize] def fSum (a b c : BitVec (1 + e + m)) : BitVec (5 * m + 9) :=
+  if fXs a b c == fYs a b c then fXj a b c + fYj a b c
+  else if (fYj a b c).ule (fXj a b c) then fXj a b c - fYj a b c else fYj a b c - fXj a b c
+
+@[bv_normalize] def fSign (a b c : BitVec (1 + e + m)) : Bool :=
+  if fXs a b c == fYs a b c then fXs a b c else if (fYj a b c).ule (fXj a b c) then fXs a b c else fYs a b c
+
+/-- IEEE 754's fused multiply-add, with a NaN result as `pick` chooses among the three operands. An exact zero sum
+is `+0`, or `-0` when the product and `c` are both `-0`. -/
+@[bv_normalize] def fmaBits (pick : BitVec 8) (a b c : BitVec (1 + e + m)) : BitVec (1 + e + m) :=
+  if isNaN a || isNaN b || isNaN c || (isInf a && isZero b) || (isZero a && isInf b) ||
+      ((isInf a || isInf b) && isInf c && (a.msb != b.msb) != c.msb) then nan3 pick a b c
+  else if isInf a || isInf b then (BitVec.ofBool (a.msb != b.msb) ++ BitVec.allOnes e ++ 0#m).cast (by omega)
+  else if isInf c then c
+  else if isZero a || isZero b then
+    if isZero c then (BitVec.ofBool ((a.msb != b.msb) && c.msb) ++ 0#(e + m)).cast (by omega) else c
+  else if isZero c then
+    round e m (a.msb != b.msb) ((sig a).setWidth (2 * m + 2) * (sig b).setWidth (2 * m + 2)) (fPe a b)
+  else if fSum a b c == 0#_ then (0#1 ++ 0#(e + m)).cast (by omega)
+  else round e m (fSign a b c) (fSum a b c) (fXe a b c - fG)
+
 /-! ### The operations on values
 
 Each is poison if an operand is, and under `nnan` or `ninf` if an operand or the result is a NaN or an infinity. The
@@ -493,6 +560,24 @@ choice takes the second operand's NaN, flipping its sign first changes nothing. 
       (remBits (BitVec.ofNat 8 pick) (nszIn nsz (BitVec.ofNat 8 pick) 0 x) (nszIn nsz (BitVec.ofNat 8 pick) 1 y))
   | _, _ => none
 
+/-- `llvm.fma`: `a × b + c`, rounded once. -/
+@[llvm] def fma (e m : Nat) (pick : Nat) (a b c : Val (1 + e + m)) (nnan ninf nsz : Bool := false) :
+    Val (1 + e + m) :=
+  match a, b, c with
+  | some x, some y, some z =>
+    flagged nnan ninf [x, y, z]
+      (fmaBits (BitVec.ofNat 8 pick) (nszIn nsz (BitVec.ofNat 8 pick) 0 x) (nszIn nsz (BitVec.ofNat 8 pick) 1 y)
+        (nszIn nsz (BitVec.ofNat 8 pick) 2 z))
+  | _, _, _ => none
+
+/-- `llvm.fmuladd`. LangRef: it's "equivalent to `a * b + c`, where the result may be computed with or without fusion
+(rounding once or twice)". Bit 7 of the choice says which: clear, fused, as `fma`, and set, `fmul` and then `fadd`,
+each choosing a NaN as `pick` says. Every NaN the second gives, the first can too. -/
+@[llvm] def fmuladd (e m : Nat) (pick : Nat) (a b c : Val (1 + e + m)) (nnan ninf nsz : Bool := false) :
+    Val (1 + e + m) :=
+  if (BitVec.ofNat 8 pick).getLsbD 7 then fadd e m pick (fmul e m pick a b nnan ninf nsz) c nnan ninf nsz
+  else fma e m pick a b c nnan ninf nsz
+
 /-- `fptrunc` and `fpext`: from the format `e`, `m` to `e'`, `m'`. -/
 @[llvm] def fconv (e m e' m' : Nat) (pick : Nat) (a : Val (1 + e + m)) (nnan ninf nsz : Bool := false) :
     Val (1 + e' + m') :=
@@ -534,6 +619,11 @@ sign bit of the result is non-deterministic", which bit 4 of `pick` chooses. -/
   match a with
   | some x => flagged nnan ninf [] (nszIn nsz (BitVec.ofNat 8 pick) 0 (ofIntBits e m x.msb (if x.msb then -x else x)))
   | none => none
+
+/-- An operation on each lane of three vectors, lane `i` choosing with `c.pick i`. -/
+@[llvm] def lanes3 (c : Choice) (f : Nat → Val w → Val w → Val w → Val v) (a b d : Vector (Val w) n) :
+    Vector (Val v) n :=
+  Vector.ofFn fun i => f (c.pick i) a[i] b[i] d[i]
 
 /-- An operation on each lane of two vectors, lane `i` choosing with `c.pick i`. -/
 @[llvm] def lanes2 (c : Choice) (f : Nat → Val w → Val w → Val v) (a b : Vector (Val w) n) : Vector (Val v) n :=

@@ -21,7 +21,7 @@ the `ir_features` test.
 | --- | --- | ---: | ---: | ---: | ---: |
 | Instruction | `Instruction.def`, every opcode | 69 | 51 | 0 | 18 |
 | Type | `Type.h`, every `TypeID` | 22 | 13 | 1 | 8 |
-| Intrinsic | `Intrinsics*.td`, every `Intrinsic` record, through `llvm-tblgen` | 16,423 | 308 | 4 | 16,111 |
+| Intrinsic | `Intrinsics*.td`, every `Intrinsic` record, through `llvm-tblgen` | 16,423 | 310 | 4 | 16,109 |
 | Attribute | `Attributes.td`, each attribute at each place it can go: a function, a parameter, a return value, and each at a call | 244 | 43 | 116 | 85 |
 | String attribute | `Attributes.td`'s string attributes, the ones the emitter allows, and any other, at each place | 48 | 0 | 42 | 6 |
 | Metadata | `FixedMetadataKinds.def`, two kinds clang names by string that the emitter allows, and any other | 58 | 2 | 20 | 36 |
@@ -30,7 +30,7 @@ the `ir_features` test.
 | Constant | `Value.def`, every `HANDLE_CONSTANT` and `HANDLE_GLOBAL_VALUE` | 23 | 13 | 0 | 10 |
 | Operand bundle | `LLVMContext.cpp`'s bundle tags, and `BundleAttributes.def`'s `llvm.assume` bundles | 19 | 5 | 0 | 14 |
 | Form | Forms of these the emitter treats differently, such as `udiv` of vectors, listed in the script | 53 | 13 | 3 | 37 |
-| **Total** | | **17,046** | **453** | **262** | **16,331** |
+| **Total** | | **17,046** | **455** | **262** | **16,329** |
 
 ## The classes
 

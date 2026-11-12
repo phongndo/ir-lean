@@ -117,7 +117,6 @@ No call in these projects: 253 families. 83 are forms on MMX's registers, none o
 
 | Other refused intrinsic these files call | Calls | Projects |
 | --- | ---: | ---: |
-| `llvm.fma` | 28,643 | 2 |
 | `llvm.x86.avx.max.ps.256` | 2,624 | 3 |
 | `llvm.x86.sse.max.ps` | 2,421 | 3 |
 | `llvm.x86.sse2.cvttps2dq` | 2,126 | 1 |
@@ -126,7 +125,6 @@ No call in these projects: 253 families. 83 are forms on MMX's registers, none o
 | `llvm.masked.scatter` | 1,758 | 2 |
 | `llvm.x86.avx.min.ps.256` | 1,623 | 2 |
 | `llvm.masked.gather` | 1,459 | 2 |
-| `llvm.fmuladd` | 1,334 | 3 |
 | `llvm.x86.avx.cvtt.ps2dq.256` | 1,318 | 2 |
 | `llvm.x86.sse.min.ps` | 1,312 | 1 |
 | `llvm.experimental.noalias.scope.decl` | 1,293 | 7 |
@@ -147,6 +145,8 @@ No call in these projects: 253 families. 83 are forms on MMX's registers, none o
 | `llvm.x86.avx512.mask.rndscale.ps.512` | 388 | 1 |
 | `llvm.pow` | 331 | 1 |
 | `llvm.x86.vcvtps2ph.128` | 298 | 2 |
+| `llvm.x86.avx512.mask.gather.dpi.512` | 294 | 1 |
+| `llvm.x86.avx.blendv.ps.256` | 288 | 1 |
 <!-- x86_rank table: end -->
 
 ### What it doesn't show

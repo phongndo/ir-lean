@@ -108,8 +108,8 @@ Evidence and not proof. A pass here means no disagreement was found on the input
   window: they agree on all 12 results, with none skipped, which is E2's exit criterion. The harness reaches all but 5
   of zlib's functions, counted without optimization so nothing is inlined away: two for big-endian machines,
   `crc32_combine_gen`, `_tr_align` and `_tr_tally`.
-- **What the emitter accepts:** all 17,046 items the pinned IR can contain are classified, 453 modeled, 262
-  assumed and 16,331 refused, and a probe of each shows the emitter does what its class says, with the Lean it
+- **What the emitter accepts:** all 17,046 items the pinned IR can contain are classified, 455 modeled, 262
+  assumed and 16,329 refused, and a probe of each shows the emitter does what its class says, with the Lean it
   prints for each it translates elaborating ([IR features](ir-features.md)). Since 2026-11-09, and these counts
   since 2026-11-11.
 - **Vector forms of integer operations:** the vector forms of 16 intrinsics, vector division and remainder,
@@ -122,15 +122,16 @@ Evidence and not proof. A pass here means no disagreement was found on the input
 - **Integer operations:** against LLVM's constant folder at many widths, and Alive2 for exact poison and
   UB at small widths: 265 variants proved exact, with none unchecked.
 - **Floating point:** `fneg`, `fabs`, `copysign`, `fcmp`, `llvm.is.fpclass`, `nofpclass`, the arithmetic, `frem`
-  included, the conversions between formats and with integers, `.sat` ones included, and `select`, with `nnan`, `ninf`,
-  `nsz` and `nneg`, at `half`, `bfloat`, `float`, `double` and `fp128`: 684 variants, against the constant folder on
-  272,516 cases, the processor on 8,410,233, every operand of the one-operand operations of 16 bits among them, and
-  Alive2 on 4,704, with none wrong. Where IEEE 754 gives a NaN, in 62,728 cases, each of the model's sixteen choices
-  gives a NaN LangRef allows, and together they give all of them. Under `nsz`, in 14,568 cases, 8,668 with a zero, the
-  model's 64 choices give exactly what the operation gives with its zeros' signs flipped every way. The constant
-  folder's one fold of `fabs nsz -0.0` to `-0.0`, which LangRef's `nsz` doesn't allow, is counted apart
-  ([`fpcheck.py`](../tests/fpcheck.py), [floating point](float.md#fast-math-flags)). On z, x86-64 Linux, on 2026-11-09,
-  where the processor runs `fp128` and `i128` too.
+  included, `llvm.fma`, the conversions between formats and with integers, `.sat` ones included, and `select`, with
+  `nnan`, `ninf`, `nsz` and `nneg`, at `half`, `bfloat`, `float`, `double` and `fp128`: 689 variants, against the
+  constant folder on 274,951 cases, the processor on 8,420,468, every operand of the one-operand operations of 16 bits
+  among them, and Alive2 on 4,739, with none wrong. Where IEEE 754 gives a NaN, in 66,127 cases, each of the model's
+  sixteen choices gives a NaN LangRef allows, and together they give all of them. Under `nsz`, in 14,567 cases, 8,667
+  with a zero, the model's 64 choices give exactly what the operation gives with its zeros' signs flipped every way.
+  The constant folder's one fold of `fabs nsz -0.0` to `-0.0`, which LangRef's `nsz` doesn't allow, and one `bfloat`
+  `fma` that x86-64's backend rounds twice, through `float`, are counted apart ([`fpcheck.py`](../tests/fpcheck.py),
+  [floating point](float.md#fast-math-flags)). On z, x86-64 Linux, on 2026-11-12, where the processor runs `fp128` and
+  `i128` too.
 - **`getelementptr` flags:** 1,194 cases against Alive2, on 644 layouts. 927 are proved exact, and 267 depend on
   the layout as Alive2 confirms, with none unchecked or wrong.
 - **Random functions:** fuzzed integer functions at random optimization levels, against native code.

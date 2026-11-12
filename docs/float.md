@@ -102,6 +102,12 @@ computes its result exactly, or with a sticky bit, and rounds once:
 - **`fadd`** shifts the significand with the lower last place right to meet the other, keeping three more places and
   folding what's shifted out into a sticky bit, then adds or subtracts. That's symfpu's, and SoftFloat's, scheme.
 - **`fdiv`** normalizes both significands, divides with `m + 3` more places, and takes the remainder as the sticky bit.
+- **`llvm.fma`**, since 2026-11-12, keeps the product's significand exact, in `2m + 2` bits, places whichever of it and
+  the addend has the higher last place `3m + 5` places up, and meets it with the other, exactly where that's at most
+  as many places lower, and otherwise shifted right with a sticky bit. A term that far below is less than the other's
+  last place, so the sum rounds at least `2m + 4` places above the sticky bit, and `round` rounds it once. `5m + 9`
+  bits hold it all. **`llvm.fmuladd`** is `fma`, or `fmul` and then `fadd`, as bit 7 of the run's choice says: LangRef
+  lets it be "computed with or without fusion (rounding once or twice)". Every NaN the second gives, the first can too.
 - **`fcmp`** compares sign and magnitude, with zeros of either sign equal and anything with a NaN unordered.
 
 The circuits follow symfpu's, as fp.lean's do. The prototype is [`prototypes/float/FloatSpike.lean`](../prototypes/float/FloatSpike.lean):
@@ -389,6 +395,13 @@ every existing proof still passing, its coverage reported, and [trust](trust.md)
    translatable, 133 refused first for `nsz`, 60 for `nnan` and 17 for `ninf`, and moves 6 to a refusal for memory.
 4. **Intrinsics,** by how often InstCombine's tests use them: `fma` and `fmuladd`; `minnum`, `maxnum`, `minimum`,
    `maximum`, `minimumnum` and `maximumnum`; `sqrt` and the rounding family; `ldexp` and `frexp`; then the rest.
+   **`fma` and `fmuladd` are in the model** since 2026-11-12, scalar and lane by lane, without fast-math flags, which
+   stay refused on them. `tests/fpcheck.py` checks `fma` at every format against the constant folder, the processor
+   and Alive2, on edges against edges, random triples, and triples whose addend nearly cancels the product, with
+   every NaN choice. x86-64's backend at the pin computes a `bfloat` or `half` `fma` in `float` and rounds twice, so
+   where the processor differs there, it's counted apart, only once exact arithmetic shows the model's result is the
+   exact one rounded once and the processor's the same rounded through `float`: one case in that run. `fmuladd` is
+   `fma` or `fmul` and `fadd` by definition, each checked.
 5. **Vectors of floats,** lane by lane, as each operation lands.
 
 What stays out: the four rewrite-based flags, the environments above, `x86_fp80` and `ppc_fp128`, the functions `afn`

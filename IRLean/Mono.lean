@@ -727,6 +727,26 @@ theorem frem (ha : Refine.le a a') (hb : Refine.le b b') :
   val_map₂_mono (f := fun a b => FP.frem e m pick a b nnan ninf nsz) (fun _ => rfl) (fun a => by cases a <;> rfl)
     ha hb
 
+theorem fma {c c' : Val (1 + e + m)} (ha : Refine.le a a') (hb : Refine.le b b') (hc : Refine.le c c') :
+    Refine.le (FP.fma e m pick a b c nnan ninf nsz) (FP.fma e m pick a' b' c' nnan ninf nsz) := by
+  cases a with
+  | none => trivial
+  | some x =>
+    cases ha
+    cases b with
+    | none => trivial
+    | some y =>
+      cases hb
+      cases c with
+      | none => trivial
+      | some z => cases hc; exact Reflexive.refl _
+theorem fmuladd {c c' : Val (1 + e + m)} (ha : Refine.le a a') (hb : Refine.le b b') (hc : Refine.le c c') :
+    Refine.le (FP.fmuladd e m pick a b c nnan ninf nsz) (FP.fmuladd e m pick a' b' c' nnan ninf nsz) := by
+  unfold FP.fmuladd
+  split
+  · exact fadd (fmul ha hb) hc
+  · exact fma ha hb hc
+
 /-- A floating-point operation on each lane, with the same choices on both sides. -/
 theorem lanes1 {c : Choice} {f f' : Nat → Val w → Val v} {x x' : Vec n w}
     (hf : ∀ p y y', Refine.le y y' → Refine.le (f p y) (f' p y')) (hx : Refine.le x x') :
@@ -734,6 +754,15 @@ theorem lanes1 {c : Choice} {f f' : Nat → Val w → Val v} {x x' : Vec n w}
   show Refine.le (Vector.ofFn fun i => f (c.pick i) x[i])[i] (Vector.ofFn fun i => f' (c.pick i) x'[i])[i]
   rw [Fin.getElem_fin, Fin.getElem_fin, Vector.getElem_ofFn, Vector.getElem_ofFn]
   exact hf _ _ _ (hx i)
+
+theorem lanes3 {c : Choice} {f f' : Nat → Val w → Val w → Val w → Val v} {x x' y y' z z' : Vec n w}
+    (hf : ∀ p s s' t t' u u', Refine.le s s' → Refine.le t t' → Refine.le u u' → Refine.le (f p s t u) (f' p s' t' u'))
+    (hx : Refine.le x x') (hy : Refine.le y y') (hz : Refine.le z z') :
+    Refine.le (FP.lanes3 c f x y z) (FP.lanes3 c f' x' y' z') := fun i => by
+  show Refine.le (Vector.ofFn fun i => f (c.pick i) x[i] y[i] z[i])[i]
+    (Vector.ofFn fun i => f' (c.pick i) x'[i] y'[i] z'[i])[i]
+  rw [Fin.getElem_fin, Fin.getElem_fin, Vector.getElem_ofFn, Vector.getElem_ofFn]
+  exact hf _ _ _ _ _ _ _ (hx i) (hy i) (hz i)
 
 theorem lanes2 {c : Choice} {f f' : Nat → Val w → Val w → Val v} {x x' y y' : Vec n w}
     (hf : ∀ p z z' t t', Refine.le z z' → Refine.le t t' → Refine.le (f p z t) (f' p z' t')) (hx : Refine.le x x')

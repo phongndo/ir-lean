@@ -659,13 +659,16 @@ INTRINSIC_RULES = [
         "llvm.x86.avx512.broadcastmw.128 llvm.x86.avx512.broadcastmw.256 llvm.x86.avx512.broadcastmw.512",
     ),
     R("progress effect", "llvm.sideeffect"),
-    R("float", "llvm.copysign llvm.fabs llvm.is.fpclass llvm.fptosi.sat llvm.fptoui.sat"),
+    R(
+        "float",
+        "llvm.copysign llvm.fabs llvm.is.fpclass llvm.fptosi.sat llvm.fptoui.sat llvm.fma llvm.fmuladd",
+    ),
     R(
         "floating point",
         "llvm.acos llvm.asin llvm.atan llvm.atan2 llvm.arithmetic.fence llvm.canonicalize llvm.ceil "
         "llvm.convert.from.arbitrary.fp llvm.convert.to.arbitrary.fp llvm.cos llvm.cosh "
         "llvm.exp "
-        "llvm.exp10 llvm.exp2 llvm.floor llvm.fma llvm.fmuladd "
+        "llvm.exp10 llvm.exp2 llvm.floor "
         "llvm.fptrunc.round llvm.frexp llvm.get.fpenv llvm.get.fpmode llvm.get.rounding "
         "llvm.ldexp llvm.llrint llvm.llround llvm.log llvm.log10 llvm.log2 llvm.lrint llvm.lround "
         "llvm.maximum "

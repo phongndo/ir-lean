@@ -37,13 +37,16 @@ the processor, where the host has no library for its arithmetic, and that's said
 processor.
 """
 
+import math
 import os
 import platform
 import random
 import re
 import shutil
+import struct
 import sys
 import tempfile
+from fractions import Fraction
 
 import alive
 from differential import NATIVE, lean_output
@@ -217,6 +220,18 @@ def variants():
                         "in",
                     )
                 )
+        # Fused multiply-add, which chooses a NaN from any of its three operands. Fast-math flags on it are
+        # refused, so it has none here.
+        out.append(
+            op(
+                f"fma {ty}",
+                [f, f, f],
+                f,
+                f"%r = call {ty} @llvm.fma.{sfx}({ty} %a0, {ty} %a1, {ty} %a2)",
+                [f"declare {ty} @llvm.fma.{sfx}({ty}, {ty}, {ty})"],
+                chooses=True,
+            )
+        )
         # Conversions to and from integers.
         for w in INTS:
             for name in ["fptoui", "fptosi"]:
@@ -368,10 +383,53 @@ def cases_for(o, rand):
         )
         return [*picked, [POISON]]
     es = [edges(t) for t in ts]
+    if len(ts) == 3:
+        return [*fma_cases(ts[0][1], es[0], rand), *poisoned(es)]
     picked = [[a, b] for a in es[0] for b in es[1]] + [
         [rand.getrandbits(bits(t)) for t in ts] for _ in range(400)
     ]
     return [*picked, [POISON, es[1][3]], [es[0][3], POISON]]
+
+
+def poisoned(es):
+    """Each operand poison in turn, the others edges."""
+    return [[POISON if k == j else es[k][3] for k in range(len(es))] for j in range(len(es))]
+
+
+# The formats Python's struct packs, by its format character, to make addends that nearly cancel a product.
+STRUCT = {"half": "e", "float": "f", "double": "d"}
+
+
+def near_product(ty, a, b, rand):
+    """The bits of a value near `-(a * b)`, a little off either way, in format `ty`: where `fma` cancels most
+    of its result, which only rounding once gets right. None where `ty` isn't one struct packs, or the
+    product isn't finite."""
+    if ty not in STRUCT:
+        return None
+    w, k = fwidth(ty), STRUCT[ty]
+    x, y = (struct.unpack(f"<{k}", v.to_bytes(w // 8, "little"))[0] for v in (a, b))
+    try:
+        z = struct.unpack(f"<{k}", struct.pack(f"<{k}", -(x * y)))[0]
+    except (OverflowError, struct.error):
+        return None
+    if not math.isfinite(z):
+        return None
+    return (int.from_bytes(struct.pack(f"<{k}", z), "little") + rand.choice([-2, -1, 0, 1, 2])) % (1 << w)
+
+
+def fma_cases(ty, es, rand):
+    """Edges against edges for the product, each with an edge or a random addend, random triples, and triples
+    whose addend nearly cancels the product."""
+    w = fwidth(ty)
+    out = [[a, b, rand.choice([*es, rand.getrandbits(w)])] for a in es for b in es]
+    out += [[rand.getrandbits(w) for _ in range(3)] for _ in range(600)]
+    near = 0
+    while near < 600:
+        a, b = rand.getrandbits(w), rand.getrandbits(w)
+        if (c := near_product(ty, a, b, rand)) is not None:
+            out.append([a, b, c])
+        near += 1
+    return out
 
 
 def sh(args, **kw):
@@ -640,11 +698,67 @@ def x86_quiets(o, case):
     return o["id"].startswith("is.fpclass") and is_nan("bfloat", case[0]) and not case[0] >> (m - 1) & 1
 
 
+def exact(ty, x):
+    """A finite float's value, exactly, or None for an infinity or a NaN."""
+    e, m = FORMATS[ty]
+    exp, frac, sign = (x >> m) & ((1 << e) - 1), x & ((1 << m) - 1), -1 if x >> (e + m) & 1 else 1
+    if exp == (1 << e) - 1:
+        return None
+    bias = (1 << (e - 1)) - 1
+    if exp == 0:
+        return sign * Fraction(frac, 1 << (m + bias - 1))
+    return sign * Fraction((1 << m) | frac, 1) * Fraction(2) ** (exp - bias - m)
+
+
+def rounded(ty, q, negative=False):
+    """`q` rounded to nearest, ties to even, in format `ty`: its bits, an infinity where it's too large."""
+    e, m = FORMATS[ty]
+    bias, sign = (1 << (e - 1)) - 1, 1 << (e + m)
+    s = sign if q < 0 or (q == 0 and negative) else 0
+    q = abs(q)
+    if q == 0:
+        return s
+    t = max(q.numerator.bit_length() - q.denominator.bit_length() + bias, 1)
+    while t > 1 and q < Fraction(2) ** (t - bias):
+        t -= 1
+    while q >= Fraction(2) ** (t + 1 - bias):
+        t += 1
+    unit = Fraction(2) ** (t - bias - m)
+    n, r = divmod(q, unit)
+    n = int(n)
+    if r > unit / 2 or (r == unit / 2 and n & 1):
+        n += 1
+    bits = (t - 1) << m if t > 1 or n >> m else 0
+    bits = bits + n if t > 1 else n
+    return s | bits if bits < ((1 << e) - 1) << m else s | (((1 << e) - 1) << m)
+
+
+def x86_double_rounds(o, case, model, native):
+    """Whether this is x86-64's backend, at the pin, rounding `fma` twice: it computes `bfloat` and `half` in
+    `float`, rounds there, and rounds again, where `llvm.fma` rounds once. Only where the model gives exactly
+    `a * b + c` rounded once, and the processor the same rounded to `float` first."""
+    ty = o["result"][1] if o["result"][0] == "f" else None
+    if (
+        platform.machine() not in ("x86_64", "AMD64")
+        or not o["id"].startswith("fma ")
+        or ty not in ("bfloat", "half")
+    ):
+        return False
+    vals = [exact(ty, v) for v in case]
+    if None in vals:
+        return False
+    q = vals[0] * vals[1] + vals[2]
+    once = rounded(ty, q)
+    via = exact("float", rounded("float", q))
+    twice = rounded(ty, via) if via is not None else None
+    return once != twice and int(model) == once and int(native) == twice
+
+
 def check_native(table, results, work):
     """The processor's result on every case whose operands aren't poison, judged as `judge` says. Operations
     with an `fp128` or an `i128` in them are built apart, and only they may be skipped, on a host whose linker
     can't find a library for their arithmetic, and that's said."""
-    counts, bad, skipped = {"agree": 0, "refined": 0, "wrong": 0, "quieted": 0}, [], []
+    counts, bad, skipped = {"agree": 0, "refined": 0, "wrong": 0, "quieted": 0, "double rounded": 0}, [], []
     groups = {"fp128 and i128": [], "rest": []}
     for o in table:
         types = [*o["operands"], o["result"]]
@@ -727,6 +841,8 @@ def check_native(table, results, work):
                 if POISON in c:
                     continue
                 verdict = "quieted" if x86_quiets(o, c) else judge(o, c, results[o["name"]][ci], out[pos])
+                if verdict == "wrong" and x86_double_rounds(o, c, results[o["name"]][ci], out[pos]):
+                    verdict = "double rounded"
                 pos += 1
                 counts[verdict] += 1
                 if verdict == "wrong":
@@ -847,6 +963,12 @@ def main():
                 print(
                     f"  processor: {counts['quieted']} signaling NaNs in bfloat not compared for "
                     "llvm.is.fpclass, which x86-64's backend quiets before classifying them"
+                )
+            if counts["double rounded"]:
+                print(
+                    f"  processor: {counts['double rounded']} llvm.fma results in bfloat or half not "
+                    "compared, which x86-64's backend rounds twice, through float, where the model rounds "
+                    "once, exactly"
                 )
             for group, why in skipped:
                 print(f"  processor: skipped {group}, which this host can't build: {why}")

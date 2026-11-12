@@ -395,9 +395,9 @@
  },
  "totals": {
   "items": 17046,
-  "modeled": 453,
+  "modeled": 455,
   "assumed": 262,
-  "refused": 16331,
+  "refused": 16329,
   "by_kind": {
    "instruction": {
     "modeled": 51,
@@ -409,9 +409,9 @@
     "refused": 8
    },
    "intrinsic": {
-    "modeled": 308,
+    "modeled": 310,
     "assumed": 4,
-    "refused": 16111
+    "refused": 16109
    },
    "attribute": {
     "modeled": 43,
@@ -450,7 +450,7 @@
   },
   "refused_by_lane": {
    "external calls and globals": 63,
-   "floating point": 126,
+   "floating point": 124,
    "long tail": 1656,
    "memory": 120
   }
@@ -4563,8 +4563,8 @@
   {"kind": "intrinsic", "name": "llvm.fabs", "class": "modeled", "reason": "float"},
   {"kind": "intrinsic", "name": "llvm.fake.use", "class": "refused", "lane": "long tail", "reason": "identity gap"},
   {"kind": "intrinsic", "name": "llvm.floor", "class": "refused", "lane": "floating point", "reason": "floating point"},
-  {"kind": "intrinsic", "name": "llvm.fma", "class": "refused", "lane": "floating point", "reason": "floating point"},
-  {"kind": "intrinsic", "name": "llvm.fmuladd", "class": "refused", "lane": "floating point", "reason": "floating point"},
+  {"kind": "intrinsic", "name": "llvm.fma", "class": "modeled", "reason": "float"},
+  {"kind": "intrinsic", "name": "llvm.fmuladd", "class": "modeled", "reason": "float"},
   {"kind": "intrinsic", "name": "llvm.fptosi.sat", "class": "modeled", "reason": "float"},
   {"kind": "intrinsic", "name": "llvm.fptoui.sat", "class": "modeled", "reason": "float"},
   {"kind": "intrinsic", "name": "llvm.fptrunc.round", "class": "refused", "lane": "floating point", "reason": "floating point"},

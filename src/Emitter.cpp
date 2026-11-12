@@ -197,6 +197,10 @@ bool choosesNaN(const Instruction &I) {
   case Instruction::FPTrunc:
   case Instruction::FPExt:
     return true;
+  case Instruction::Call:
+    if (const auto *C = dyn_cast<IntrinsicInst>(&I))
+      return C->getIntrinsicID() == Intrinsic::fma || C->getIntrinsicID() == Intrinsic::fmuladd;
+    return false;
   default:
     return false;
   }
@@ -1327,8 +1331,10 @@ private:
         addLet(I, Out, Fn + Operands + Flags);
       else
         addLet(I, Out,
-               std::string(N == 1 ? "Vec.map" : "Vec.map2") + " (fun" + Params + " => " + Fn + Applied +
-                   Flags + ")" + Operands);
+               std::string(N == 1   ? "Vec.map"
+                           : N == 2 ? "Vec.map2"
+                                    : "Vec.map3") +
+                   " (fun" + Params + " => " + Fn + Applied + Flags + ")" + Operands);
       return;
     }
     std::string K = nextChooser();
@@ -1336,8 +1342,11 @@ private:
       addLet(I, Out, Fn + Operands + Flags + " (pick := c'.pick " + K + ")");
     else
       addLet(I, Out,
-             std::string(N == 1 ? "FP.lanes1" : "FP.lanes2") + " (c'.sub " + K + ") (fun p" + Params +
-                 " => " + Fn + Applied + Flags + " (pick := p))" + Operands);
+             std::string(N == 1   ? "FP.lanes1"
+                         : N == 2 ? "FP.lanes2"
+                                  : "FP.lanes3") +
+                 " (c'.sub " + K + ") (fun p" + Params + " => " + Fn + Applied + Flags + " (pick := p))" +
+                 Operands);
   }
   void checkFastMath(const Instruction &I);
   void checkFloatTarget();
@@ -2886,6 +2895,17 @@ bool FunctionEmitter::emitIntrinsic(const IntrinsicInst &C, std::vector<Line> &O
       floatLanes(C, Out, Fn, 2, {Op(0), Op(1)}, C.getType()->isVectorTy());
     else
       floatLanes(C, Out, Fn, 1, {Op(0)}, C.getType()->isVectorTy());
+    return true;
+  }
+  // `a * b + c`, rounded once, and `llvm.fmuladd`, rounded once or twice as the run chooses:
+  // IRLean/Float.lean's `FP.fma` and `FP.fmuladd`. Fast-math flags on them are refused, by `checkFastMath`.
+  case Intrinsic::fma:
+  case Intrinsic::fmuladd: {
+    if (!isModeledFloat(C.getType()->getScalarType()))
+      reject("intrinsic " + C.getCalledFunction()->getName().str());
+    std::string Fn =
+        std::string(C.getIntrinsicID() == Intrinsic::fma ? "FP.fma " : "FP.fmuladd ") + fpFormat(C.getType());
+    floatLanes(C, Out, Fn, 3, {Op(0), Op(1), Op(2)}, C.getType()->isVectorTy());
     return true;
   }
   case Intrinsic::fptoui_sat:
