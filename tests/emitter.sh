@@ -1225,7 +1225,17 @@ define <2 x float> @selz(<2 x i1> %c, <2 x float> %x) {
   %r = select nsz <2 x i1> %c, <2 x float> %x, <2 x float> zeroinitializer
   ret <2 x float> %r
 }
+define float @mad(float %a, float %b, float %c) {
+  %r = call float @llvm.fmuladd.f32(float %a, float %b, float %c)
+  ret float %r
+}
+define <2 x float> @madv(<2 x float> %a, <2 x float> %b, <2 x float> %c) {
+  %r = call <2 x float> @llvm.fmuladd.v2f32(<2 x float> %a, <2 x float> %b, <2 x float> %c)
+  ret <2 x float> %r
+}
 declare float @llvm.copysign.f32(float, float)
+declare float @llvm.fmuladd.f32(float, float, float)
+declare <2 x float> @llvm.fmuladd.v2f32(<2 x float>, <2 x float>, <2 x float>)
 IR
 cat >"$work/FChoicesCheck.lean" <<'LEAN'
 import FChoices
@@ -1257,10 +1267,19 @@ def only (p : List Nat) (n : Nat) : Choice := fun q => if q = p then n else 0
 #guard show' (negz (some 0#32) (only [2] 16)) == "3212836864"
 -- A vector `select nsz` flips each lane's zero result by its own choice.
 #guard showV (selz #v[some 0#1, some 0#1] #v[some 0#32, some 0#32] (only [1, 1] 16)) == "0 2147483648"
+-- `llvm.fmuladd` rounds once or twice, as bit 7 of its choice says. (1 + 2^-23) * (1 - 2^-23) - 1 is -2^-46,
+-- 2826960896, rounded once, and 0 rounded twice, since the product rounds to 1.0.
+#guard show' (mad (some 0x3f800001#32) (some 0x3f7ffffe#32) (some 0xbf800000#32) (fun _ => 0)) == "2826960896"
+#guard show' (mad (some 0x3f800001#32) (some 0x3f7ffffe#32) (some 0xbf800000#32) (only [1] 128)) == "0"
+-- Each lane of a vector `fmuladd` makes that choice for itself.
+#guard showV (madv #v[some 0x3f800001#32, some 0x3f800001#32] #v[some 0x3f7ffffe#32, some 0x3f7ffffe#32]
+  #v[some 0xbf800000#32, some 0xbf800000#32] (only [1, 1] 128)) == "2826960896 0"
+#guard showV (madv #v[some 0x3f800001#32, some 0x3f800001#32] #v[some 0x3f7ffffe#32, some 0x3f7ffffe#32]
+  #v[some 0xbf800000#32, some 0xbf800000#32] (only [1, 0] 128)) == "0 2826960896"
 LEAN
 if "$tool" "$work/FChoices.ll" -o "$work/FChoices.lean" --namespace FChoices &&
   lean -R "$work" -o "$work/FChoices.olean" "$work/FChoices.lean" && lean "$work/FChoicesCheck.lean"; then
-  printf 'ok    each floating-point operation, and each lane of one, chooses its NaN, and under nsz its zeros, for itself\n'
+  printf 'ok    each floating-point operation, and each lane of one, chooses its NaN, under nsz its zeros, and fmuladd whether to fuse, for itself\n'
 else
   fail 'what a floating-point operation chooses, by where it runs'
 fi
