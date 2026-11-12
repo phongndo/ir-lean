@@ -144,7 +144,8 @@ GRANTS = {
     ),
 }
 d = verdict.decide("verify.proved", verdict.Evidence(lean=..., axioms=..., replay=..., checks=..., files=...))
-status, reason, code = verdict.status(d, TABLE, "kernel_checked")  # a grant's word only from a granted Decision
+# A grant's word only from a granted Decision.
+status, reason, code = verdict.status(d, TABLE, "kernel_checked")
 ```
 
 `decide(name, evidence)` is the only function that grants, and denies by default. In order: a limit on any required
