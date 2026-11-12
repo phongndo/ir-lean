@@ -327,8 +327,9 @@ Of the kernels the profiles name:
 | zlib-ng | 10 | 0 | 7 |
 | zstd | 7 | 0 | 4 |
 
-Twenty-five of the 85 named kernels in the projects that aren't rejected translate whole in the relaxed run, 22 of
-them in the six approved projects, against 19 and 16 in the proposal's run. Those new since #107 are marked *new*:
+Thirty of the 85 named kernels in the projects that aren't rejected translate whole in the relaxed run, 25 of
+them in the six approved projects, against 19 and 16 in the proposal's run. Those new since #107 are marked *new*, and
+those new in the measurement of 2026-11-12 *newer*:
 
 - **zlib-ng:** `longest_match_avx512`, 54% of compressing, and `compress_block`, `build_tree`, `insert_string`,
   `quick_insert_string` and `zng_inflate_table`, and *new* `crc32_fold_vpclmulqdq`, with its 84 PCLMULQDQ calls.
@@ -337,11 +338,13 @@ them in the six approved projects, against 19 and 16 in the proposal's run. Thos
 - **xxHash:** `XXH64` and `XXH32`, each a quarter of `xxhsum -b`. Both are scalar.
 - **FLAC:** `FLAC__MD5Transform`, `FLAC__crc16` and `FLAC__crc16_update_words64`, all three scalar, and *new* its two
   integer residual kernels, 20% of `flac -8` between them, and `FLAC__precompute_partition_info_sums_intrin_avx2`, all
-  three AVX2, whose first reason was VZEROUPPER.
+  three AVX2, whose first reason was VZEROUPPER, and *newer* `FLAC__lpc_compute_autocorrelation_intrin_fma_lag_16` and
+  `_lag_12`, 22% of `flac -8` and 9% of `flac -5`, and `FLAC__lpc_compute_lp_coefficients`.
 - **libwebp:** `BuildHuffmanTable` and `VectorMismatch_AVX2`, and *new* `CombinedShannonEntropy_AVX2`, 37% of
   `cwebp -lossless`.
 - **zstd,** an alternate: `ZSTD_btGetAllMatches_noDict_3`, 51% of level 19, `ZSTD_insertBt1` and
-  `ZSTD_encodeSequences_bmi2`.
+  `ZSTD_encodeSequences_bmi2`, and *newer* `HIST_count_parallel_wksp`.
+- **libdeflate,** an alternate: *newer* `deflate_flush_block`.
 
 And base64's two decoders, *new*, and blake3's `blake3_hash_many_avx512`, since 2026-11-11, though both projects are
 rejected.
