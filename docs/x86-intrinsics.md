@@ -118,7 +118,6 @@ No call in these projects: 253 families. 83 are forms on MMX's registers, none o
 | Other refused intrinsic these files call | Calls | Projects |
 | --- | ---: | ---: |
 | `llvm.fma` | 28,643 | 2 |
-| `llvm.prefetch` | 2,790 | 5 |
 | `llvm.x86.avx.max.ps.256` | 2,624 | 3 |
 | `llvm.x86.sse.max.ps` | 2,421 | 3 |
 | `llvm.x86.sse2.cvttps2dq` | 2,126 | 1 |
@@ -147,6 +146,7 @@ No call in these projects: 253 families. 83 are forms on MMX's registers, none o
 | `llvm.round` | 528 | 3 |
 | `llvm.x86.avx512.mask.rndscale.ps.512` | 388 | 1 |
 | `llvm.pow` | 331 | 1 |
+| `llvm.memmove` | 300 | 8 |
 <!-- x86_rank table: end -->
 
 ### What it doesn't show

@@ -561,7 +561,7 @@ INTRINSIC_RULES = [
         "llvm.vscale llvm.stepvector llvm.vector.reverse llvm.vector.insert llvm.vector.extract",
     ),
     R("identity", "llvm.expect"),
-    R("no effect", "llvm.donothing"),
+    R("no effect", "llvm.donothing llvm.prefetch"),
     R("memory", "llvm.memcpy llvm.memset llvm.lifetime.start llvm.lifetime.end"),
     R(
         "x86 dot product",
@@ -726,7 +726,7 @@ INTRINSIC_RULES = [
         "llvm.stackguard llvm.stackprotector llvm.stacksave llvm.stackrestore llvm.get.dynamic.area.offset "
         "llvm.localaddress llvm.localescape llvm.localrecover llvm.read_register llvm.read_volatile_register "
         "llvm.write_register llvm.write_volatile_register llvm.readcyclecounter llvm.readsteadycounter "
-        "llvm.thread.pointer llvm.init.trampoline llvm.adjust.trampoline llvm.clear_cache llvm.prefetch "
+        "llvm.thread.pointer llvm.init.trampoline llvm.adjust.trampoline llvm.clear_cache "
         "llvm.pcmarker llvm.set.loop.iterations llvm.start.loop.iterations llvm.test.set.loop.iterations "
         "llvm.test.start.loop.iterations llvm.loop.decrement llvm.loop.decrement.reg "
         "llvm.swift.async.context.addr",

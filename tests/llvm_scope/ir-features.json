@@ -391,9 +391,9 @@
  },
  "totals": {
   "items": 17045,
-  "modeled": 446,
+  "modeled": 447,
   "assumed": 260,
-  "refused": 16339,
+  "refused": 16338,
   "by_kind": {
    "instruction": {
     "modeled": 51,
@@ -405,9 +405,9 @@
     "refused": 8
    },
    "intrinsic": {
-    "modeled": 306,
+    "modeled": 307,
     "assumed": 4,
-    "refused": 16113
+    "refused": 16112
    },
    "attribute": {
     "modeled": 43,
@@ -12371,7 +12371,7 @@
   {"kind": "intrinsic", "name": "llvm.ppc.xxssumudmc", "class": "refused", "reason": "other target"},
   {"kind": "intrinsic", "name": "llvm.ppc.xxssumudmcext", "class": "refused", "reason": "other target"},
   {"kind": "intrinsic", "name": "llvm.ppc.zoned2packed", "class": "refused", "reason": "other target"},
-  {"kind": "intrinsic", "name": "llvm.prefetch", "class": "refused", "reason": "machine"},
+  {"kind": "intrinsic", "name": "llvm.prefetch", "class": "modeled", "reason": "no effect"},
   {"kind": "intrinsic", "name": "llvm.preserve.array.access.index", "class": "refused", "lane": "memory", "reason": "memory model"},
   {"kind": "intrinsic", "name": "llvm.preserve.static.offset", "class": "refused", "lane": "memory", "reason": "memory model"},
   {"kind": "intrinsic", "name": "llvm.preserve.struct.access.index", "class": "refused", "lane": "memory", "reason": "memory model"},

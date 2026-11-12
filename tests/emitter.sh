@@ -410,6 +410,13 @@ done
 for attribute in noreturn sanitize_address convergent nocf_check speculatable nocallback; do
   accepts "define i32 @f(i32 %x) $attribute { ret i32 0 }"
 done
+# LangRef: "This intrinsic does not modify the behavior of the program", whatever its address.
+accepts 'define void @f(ptr %p) {
+  call void @llvm.prefetch.p0(ptr %p, i32 0, i32 3, i32 1)
+  call void @llvm.prefetch.p0(ptr null, i32 1, i32 0, i32 0)
+  call void @llvm.prefetch.p0(ptr poison, i32 0, i32 0, i32 1)
+  ret void
+}'
 # `speculatable` would rule out effects nothing checks, and makes a call undefined even where it doesn't run.
 refuses 'speculatable on a function that uses memory' 'define i32 @f(ptr %p) speculatable {
   %v = load i32, ptr %p

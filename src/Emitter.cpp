@@ -2346,6 +2346,10 @@ bool FunctionEmitter::emitIntrinsic(const IntrinsicInst &C, std::vector<Line> &O
     return true;
   // This says nothing about what the program computes.
   case Intrinsic::donothing:
+  // LangRef: "This intrinsic does not modify the behavior of the program. In particular, prefetches cannot
+  // trap and do not produce a value." Its address needn't be one the program may access, and the rest are
+  // constants that only say what kind of prefetch it is.
+  case Intrinsic::prefetch:
     return true;
   // LangRef says optimizers "must assume that it has externally observable effects", so a loop calling it
   // makes progress. The model has no observable effects, and would call that loop undefined under a promise.
