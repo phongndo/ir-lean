@@ -168,6 +168,35 @@ define i32 @assume_nonnull_of_null(i32 %x) {
   ret i32 %x
 }
 
+; So is `align`: a byte past an 8-aligned allocation isn't 8-aligned.
+define i32 @assume_align_misaligned(i32 %x) {
+  %a = alloca i64, align 8
+  %p = getelementptr inbounds i8, ptr %a, i64 1
+  call void @llvm.assume(i1 true) [ "align"(ptr %p, i64 8) ]
+  ret i32 %x
+}
+
+; With an offset, it's the pointer less the offset that has to be aligned: here that's the allocation plus 2.
+define i32 @assume_align_offset_misaligned(i32 %x) {
+  %a = alloca i64, align 8
+  %p = getelementptr inbounds i8, ptr %a, i64 4
+  call void @llvm.assume(i1 true) [ "align"(ptr %p, i64 4, i64 2) ]
+  ret i32 %x
+}
+
+; An alignment that isn't a power of two needs a null pointer.
+define i32 @assume_align_not_a_power_of_two(i32 %x) {
+  %a = alloca i64, align 8
+  call void @llvm.assume(i1 true) [ "align"(ptr %a, i64 6) ]
+  ret i32 %x
+}
+
+; `noundef` on poison.
+define i32 @assume_noundef_of_poison(i32 %x) {
+  call void @llvm.assume(i1 true) [ "noundef"(i32 poison) ]
+  ret i32 %x
+}
+
 define internal void @writes_readonly(ptr readonly %p) {
   store i32 1, ptr %p, align 4
   ret void

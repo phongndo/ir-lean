@@ -21,6 +21,7 @@ about memory. This proves it for the rest of what the emitter translates, which 
 | `returned` | `Mono.returnedInt`, `Mono.returnedArgument` | **An argument that isn't poison.** The source returning poison for a poison argument is allowed, and the target returning a value for it isn't |
 | A `noalias` result | `Mem.le.noaliasResult` | **A result that isn't poison in the source**: poison passes, and the value the target has for it might not |
 | `llvm.assume` with `nonnull` | `Mem.le.assumeNonnull` | Related pointers: poison stops the source's model |
+| `llvm.assume` with `align` | `Mem.le.assumeAlign` | Related pointers, alignments and offsets: poison stops the source's model |
 
 `Mem.leData` is a stronger relation for code that stores refined values and loads them back, as a SIMD kernel's
 accumulator does: `Mem.le`, with the same running calls, and no pointer in the target's bytes that isn't in the
@@ -489,6 +490,27 @@ theorem assumeNonnull (h : Mem.le m m') {p p' : PtrVal} (hp : Refine.le p p') {r
     split
     · trivial
     · exact hk
+
+/-- **An `llvm.assume`'s `align` bundle keeps the relation,** on related operands: poison stops the source's model,
+and otherwise both check the same address. -/
+theorem assumeAlign (h : Mem.le m m') {p p' : PtrVal} (hp : Refine.le p p') {a a' o o' : Val 64}
+    (ha : Refine.le a a') (ho : Refine.le o o') {r : α → β → Prop} {k : Outcome α} {k' : Outcome β}
+    (hk : Outcome.Sim r k k') :
+    Outcome.Sim r (m.assumeAlign p a o k) (m'.assumeAlign p' a' o' k') := by
+  cases p with
+  | none => trivial
+  | some q =>
+    cases a with
+    | none => trivial
+    | some x =>
+      cases o with
+      | none => trivial
+      | some y =>
+        cases hp; cases ha; cases ho
+        simp only [Mem.assumeAlign, h.addr]
+        split
+        · exact hk
+        · trivial
 
 /-! ### `getelementptr` with several indices -/
 
@@ -999,6 +1021,7 @@ macro "sim_mono" : tactic =>
     | refine Mono.assume ?_ ?_ | refine Mono.sw ?_ fun _ => ?_ | refine Mono.branch ?_ ?_ ?_
     | refine Mono.vscaleRange ?_
     | refine Mem.le.assumeNonnull (Mem.leData.toLe (by assumption)) ?_ ?_
+    | refine Mem.le.assumeAlign (Mem.leData.toLe (by assumption)) ?_ ?_ ?_ ?_
     | refine Mem.le.dereferenceable (Mem.leData.toLe (by assumption)) ?_ _ ?_
     | refine Outcome.Sim.br ?_ ?_ ?_
     | refine Outcome.Sim.jump ?_

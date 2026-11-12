@@ -108,8 +108,8 @@ Evidence and not proof. A pass here means no disagreement was found on the input
   window: they agree on all 12 results, with none skipped, which is E2's exit criterion. The harness reaches all but 5
   of zlib's functions, counted without optimization so nothing is inlined away: two for big-endian machines,
   `crc32_combine_gen`, `_tr_align` and `_tr_tally`.
-- **What the emitter accepts:** all 17,046 items the pinned IR can contain are classified, 448 modeled, 262
-  assumed and 16,336 refused, and a probe of each shows the emitter does what its class says, with the Lean it
+- **What the emitter accepts:** all 17,046 items the pinned IR can contain are classified, 452 modeled, 262
+  assumed and 16,332 refused, and a probe of each shows the emitter does what its class says, with the Lean it
   prints for each it translates elaborating ([IR features](ir-features.md)). Since 2026-11-09, and these counts
   since 2026-11-11.
 - **Vector forms of integer operations:** the vector forms of 16 intrinsics, vector division and remainder,
@@ -134,11 +134,11 @@ Evidence and not proof. A pass here means no disagreement was found on the input
 - **`getelementptr` flags:** 1,194 cases against Alive2, on 644 layouts. 927 are proved exact, and 267 depend on
   the layout as Alive2 confirms, with none unchecked or wrong.
 - **Random functions:** fuzzed integer functions at random optimization levels, against native code.
-- **Undefined behavior:** 47 functions LLVM calls undefined stop the model ([`ub.ll`](../tests/real/ub.ll)),
+- **Undefined behavior:** 51 functions LLVM calls undefined stop the model ([`ub.ll`](../tests/real/ub.ll)),
   including each promise being broken. 14 memory errors each stop it for their own reason
   ([`memory_errors.ll`](../tests/real/memory_errors.ll)), and `memory_errors` fails if any reason changes. 17 that LLVM doesn't call undefined stop without being called so
   ([`stops.ll`](../tests/real/stops.ll)).
-- **Promises kept:** 25 functions that keep their promises match native code with no input skipped
+- **Promises kept:** 26 functions that keep their promises match native code with no input skipped
   ([`promises.ll`](../tests/real/promises.ll)).
 - **x86 intrinsics and vector bitcasts:** all 250 x86 intrinsics the model has, at every width and for each
   immediate tried, agree with the processor on 674,668 lanes of 45,726 results, and the processor disagrees with a

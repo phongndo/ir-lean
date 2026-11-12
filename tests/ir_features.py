@@ -223,7 +223,10 @@ REASONS: dict[str, Reason] = {
         "it holds of every function translated",
     ),
     "assume": Reason(
-        "modeled", None, "llvm.assume: undefined if its condition is false, and its nonnull bundle checked"
+        "modeled",
+        None,
+        "llvm.assume: undefined if its condition is false, and its nonnull, align and noundef bundles "
+        "checked",
     ),
     "identity": Reason("modeled", None, "Returns its operand: llvm.expect's hint has no meaning for a run"),
     "no effect": Reason("modeled", None, "Does nothing, as LangRef says"),
@@ -1014,12 +1017,9 @@ CONSTANT_RULES = [
 ]
 
 BUNDLE_RULES = [
-    R("assume", "assume:nonnull"),
-    R(
-        "memory model",
-        "assume:align assume:dereferenceable assume:dereferenceable_or_null assume:separate_storage",
-    ),
-    R("metadata review", "assume:cold assume:ignore assume:noundef"),
+    R("assume", "assume:nonnull assume:align assume:noundef"),
+    R("no effect", "assume:cold assume:ignore"),
+    R("memory model", "assume:dereferenceable assume:dereferenceable_or_null assume:separate_storage"),
     R("deoptimization", "deopt"),
     R("exceptions", "funclet"),
     R("gc", "gc-transition gc-live"),

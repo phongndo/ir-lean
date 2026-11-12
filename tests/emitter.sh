@@ -453,6 +453,21 @@ accepts 'define void @f(ptr %p) {
   call void @llvm.prefetch.p0(ptr poison, i32 0, i32 0, i32 1)
   ret void
 }'
+# llvm.assume's bundles: the ones the model has translate, and the rest are refused.
+for bundle in '"nonnull"(ptr %p)' '"align"(ptr %p, i64 16)' '"align"(ptr %p, i32 %n, i64 4)' '"noundef"(ptr %p)' \
+  '"cold"()' '"ignore"(ptr %p, i32 %n)'; do
+  accepts "define void @f(ptr %p, i32 %n) {
+  call void @llvm.assume(i1 true) [ $bundle ]
+  ret void
+}"
+done
+for bundle in '"dereferenceable"(ptr %p, i64 4)' '"dereferenceable_or_null"(ptr %p, i64 4)' \
+  '"separate_storage"(ptr %p, ptr %q)'; do
+  refuses 'instruction call void @llvm.assume' "define void @f(ptr %p, ptr %q) {
+  call void @llvm.assume(i1 true) [ $bundle ]
+  ret void
+}"
+done
 # `speculatable` would rule out effects nothing checks, and makes a call undefined even where it doesn't run.
 refuses 'speculatable on a function that uses memory' 'define i32 @f(ptr %p) speculatable {
   %v = load i32, ptr %p
@@ -910,7 +925,7 @@ refuses 'metadata !alias.scope' 'define i32 @f(ptr %p) { %v = load i32, ptr %p, 
 !1 = distinct !{!1, !2}
 !2 = distinct !{!2}'
 refuses 'instruction' 'declare void @llvm.assume(i1)
-define void @f(ptr %p) { call void @llvm.assume(i1 true) [ "align"(ptr %p, i64 8) ]
+define void @f(ptr %p) { call void @llvm.assume(i1 true) [ "dereferenceable"(ptr %p, i64 8) ]
   ret void }'
 
 # `allocsize` and `allockind` make a function `malloc` or `free` to the optimizer. The model only knows the C library's.

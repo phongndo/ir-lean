@@ -2350,12 +2350,34 @@ bool FunctionEmitter::emitIntrinsic(const IntrinsicInst &C, std::vector<Line> &O
     return Width == 64 ? Op(N) : "(Val.zext 64 " + Op(N) + ")";
   };
   switch (C.getIntrinsicID()) {
+  // LangRef's assume operand bundles: "if any of the provided guarantees are violated at runtime the behavior
+  // is undefined". `cold` and `ignore` guarantee nothing a run can break. `noundef` is the attribute's check,
+  // and `nonnull` and `align` are IRLean/Mem.lean's `Mem.assumeNonnull` and `Mem.assumeAlign`.
   case Intrinsic::assume:
     for (unsigned B = 0, E = C.getNumOperandBundles(); B != E; ++B) {
       OperandBundleUse Bundle = C.getOperandBundleAt(B);
-      if (Bundle.getTagName() != "nonnull" || Bundle.Inputs.size() != 1)
+      StringRef Tag = Bundle.getTagName();
+      auto Input = [&](unsigned I) { return Bundle.Inputs[I].get(); };
+      // An alignment or an offset, as 64 bits.
+      auto Wide = [&](unsigned I) {
+        Type *T = Input(I)->getType();
+        if (!T->isIntegerTy() || T->getIntegerBitWidth() > 64)
+          reject("instruction " + printed(C));
+        return T->getIntegerBitWidth() == 64 ? operand(Input(I)) : "(Val.zext 64 " + operand(Input(I)) + ")";
+      };
+      if (Tag == "ignore" || (Tag == "cold" && Bundle.Inputs.empty()))
+        continue;
+      if (Tag == "nonnull" && Bundle.Inputs.size() == 1)
+        Out.push_back({Line::Guard, "", "Mem.assumeNonnull m " + operand(Input(0))});
+      else if (Tag == "noundef" && Bundle.Inputs.size() == 1)
+        Out.push_back({Line::Guard, "", noundefCheck(Input(0)->getType()) + operand(Input(0))});
+      else if (Tag == "align" && (Bundle.Inputs.size() == 2 || Bundle.Inputs.size() == 3) &&
+               Input(0)->getType()->isPointerTy())
+        Out.push_back({Line::Guard, "",
+                       "Mem.assumeAlign m " + operand(Input(0)) + " " + Wide(1) + " " +
+                           (Bundle.Inputs.size() == 3 ? Wide(2) : std::string("(some 0#64)"))});
+      else
         reject("instruction " + printed(C));
-      Out.push_back({Line::Guard, "", "Mem.assumeNonnull m " + operand(Bundle.Inputs[0].get())});
     }
     Out.push_back({Line::Guard, "", "assume " + Op(0)});
     return true;

@@ -28,9 +28,9 @@ the `ir_features` test.
 | Linkage | `GlobalValue.h`, every `LinkageTypes` | 11 | 5 | 0 | 6 |
 | Calling convention | `CallingConv.h`, every one it names | 76 | 0 | 76 | 0 |
 | Constant | `Value.def`, every `HANDLE_CONSTANT` and `HANDLE_GLOBAL_VALUE` | 23 | 13 | 0 | 10 |
-| Operand bundle | `LLVMContext.cpp`'s bundle tags, and `BundleAttributes.def`'s `llvm.assume` bundles | 19 | 1 | 0 | 18 |
+| Operand bundle | `LLVMContext.cpp`'s bundle tags, and `BundleAttributes.def`'s `llvm.assume` bundles | 19 | 5 | 0 | 14 |
 | Form | Forms of these the emitter treats differently, such as `udiv` of vectors, listed in the script | 53 | 12 | 3 | 38 |
-| **Total** | | **17,046** | **448** | **262** | **16,336** |
+| **Total** | | **17,046** | **452** | **262** | **16,332** |
 
 ## The classes
 

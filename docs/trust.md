@@ -346,7 +346,7 @@ calling something outside the module that promises not to return, such as an abo
 promise to progress that LangRef doesn't settle, [above](#promises-to-progress).
 So do promises LangRef defines by what's observable, or doesn't say what happens if broken: looking at an address
 `captures` left out, an access `memory(...)` lists as `none`, a `noalias` result that isn't new, a function
-returning something other than its `returned` argument, and `llvm.assume` with a `nonnull` bundle on poison. A
+returning something other than its `returned` argument, and `llvm.assume` with a `nonnull` or `align` bundle on poison. A
 proof that a function returns normally still holds in LLVM, but a proof that one of these happens says nothing
 about LLVM, and neither is a claim of undefined behavior.
 

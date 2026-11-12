@@ -210,6 +210,17 @@ define i32 @assume_nonnull_of_a_real_pointer(i32 %x) {
   ret i32 %x
 }
 
+; Every bundle the model has, kept: an alignment with and without an offset, one that isn't a power of two on null,
+; `noundef` on an argument, and the two that promise nothing.
+define i32 @assume_bundles_kept(i32 %x) {
+  %a = alloca [4 x i32], align 16
+  %p = getelementptr inbounds i8, ptr %a, i64 4
+  call void @llvm.assume(i1 true) [ "align"(ptr %p, i64 4), "align"(ptr %p, i32 16, i64 4) ]
+  call void @llvm.assume(i1 true) [ "align"(ptr null, i64 3), "align"(ptr null, i64 0) ]
+  call void @llvm.assume(i1 true) [ "noundef"(i32 %x), "cold"(), "ignore"(ptr %a, i32 %x) ]
+  ret i32 %x
+}
+
 ; A pointer through an indirect call still finds its function, even with tags on it.
 define internal i32 @target(i32 %x) {
   ret i32 %x

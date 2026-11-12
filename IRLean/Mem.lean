@@ -519,6 +519,20 @@ here, since the attribute it's equivalent to gives poison and an assume's failur
   | none => Outcome.stop .assumeOnPoison
   | some q => if m.addr q == 0#64 then Outcome.ub .assumeFailed else k
 
+/-- Whether an address, less `off`, is a multiple of `align` when that's a power of two, or is zero when it isn't, as
+LangRef's `"align"` bundle has it. -/
+@[llvm] def alignHolds (addr align off : BitVec 64) : Bool :=
+  if align != 0#64 && align &&& (align - 1#64) == 0#64 then (addr - off).toNat % align.toNat == 0 else addr == 0#64
+
+/-- An `llvm.assume`'s `"align"(p, align, offset)` bundle. LangRef: it's `align(align)` on `p - offset`, "except that
+`%align` may be a non-power-of-two alignment (including a zero alignment). If `%align` is not a power of two, the
+pointer value must be all-zero. Otherwise the behavior is undefined." Without an offset, it's 0. A poison operand stops
+the model, as `assumeNonnull`'s does: LangRef doesn't say what poison in a bundle does. -/
+@[llvm, inline] def assumeAlign (m : Mem) (p : PtrVal) (align off : Val 64) (k : Outcome α) : Outcome α :=
+  match p, align, off with
+  | some q, some a, some o => if alignHolds (m.addr q) a o then k else Outcome.ub .assumeFailed
+  | _, _, _ => Outcome.stop .assumeOnPoison
+
 /-- `alloca`: fresh, uninitialized memory in the current function's frame. `dead` is for one that
 has `llvm.lifetime.start`, which can't be written until that runs. -/
 @[llvm] def alloca (m : Mem) (size : Val 64) (dead : Bool := false) : Outcome (PtrVal × Mem) :=
@@ -762,6 +776,17 @@ theorem Mem.monotone_dereferenceable (m : Mem) (p : PtrVal) (n : Nat) (k : γ �
   split
   · exact FlatOrder.rel.refl
   · exact hk g g' h
+
+@[partial_fixpoint_monotone]
+theorem Mem.monotone_assumeAlign (m : Mem) (p : PtrVal) (align off : Val 64) (k : γ → Outcome α)
+    (hk : monotone k) : monotone fun g => Mem.assumeAlign m p align off (k g) := by
+  intro g g' h
+  simp only [Mem.assumeAlign]
+  split
+  · split
+    · exact hk g g' h
+    · exact FlatOrder.rel.refl
+  · exact FlatOrder.rel.refl
 
 @[partial_fixpoint_monotone]
 theorem Mem.monotone_assumeNonnull (m : Mem) (p : PtrVal) (k : γ → Outcome α)

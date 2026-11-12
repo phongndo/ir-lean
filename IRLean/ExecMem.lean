@@ -627,6 +627,8 @@ Each is `Mem`'s, on `x.toMem`, so it agrees with `Mem` by definition. Reading `x
 @[inline] def dereferenceable (x : ExecMem) (p : PtrVal) (n : Nat) (k : Outcome α) : Outcome α :=
   Mem.dereferenceable x.toMem p n k
 @[inline] def assumeNonnull (x : ExecMem) (p : PtrVal) (k : Outcome α) : Outcome α := Mem.assumeNonnull x.toMem p k
+@[inline] def assumeAlign (x : ExecMem) (p : PtrVal) (align off : Val 64) (k : Outcome α) : Outcome α :=
+  Mem.assumeAlign x.toMem p align off k
 @[inline] def noaliasResult (x : ExecMem) (p : PtrVal) (k : Outcome α) : Outcome α := Mem.noaliasResult x.toMem p k
 
 /-! `Mem`'s operations on pointers that don't read memory, under the names the emitter gives them. -/
@@ -1453,6 +1455,11 @@ theorem ExecMem.monotone_noaliasResult (x : ExecMem) (p : PtrVal) (k : γ → Ou
 theorem ExecMem.monotone_dereferenceable (x : ExecMem) (p : PtrVal) (n : Nat) (k : γ → Outcome α)
     (hk : monotone k) : monotone fun g => ExecMem.dereferenceable x p n (k g) :=
   Mem.monotone_dereferenceable x.toMem p n k hk
+
+@[partial_fixpoint_monotone]
+theorem ExecMem.monotone_assumeAlign (x : ExecMem) (p : PtrVal) (align off : Val 64) (k : γ → Outcome α)
+    (hk : monotone k) : monotone fun g => ExecMem.assumeAlign x p align off (k g) :=
+  Mem.monotone_assumeAlign x.toMem p align off k hk
 
 @[partial_fixpoint_monotone]
 theorem ExecMem.monotone_assumeNonnull (x : ExecMem) (p : PtrVal) (k : γ → Outcome α)

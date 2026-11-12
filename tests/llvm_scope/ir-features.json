@@ -103,7 +103,7 @@
   },
   "assume": {
    "class": "modeled",
-   "says": "llvm.assume: undefined if its condition is false, and its nonnull bundle checked"
+   "says": "llvm.assume: undefined if its condition is false, and its nonnull, align and noundef bundles checked"
   },
   "identity": {
    "class": "modeled",
@@ -395,9 +395,9 @@
  },
  "totals": {
   "items": 17046,
-  "modeled": 448,
+  "modeled": 452,
   "assumed": 262,
-  "refused": 16336,
+  "refused": 16332,
   "by_kind": {
    "instruction": {
     "modeled": 51,
@@ -439,8 +439,8 @@
     "refused": 10
    },
    "operand bundle": {
-    "modeled": 1,
-    "refused": 18
+    "modeled": 5,
+    "refused": 14
    },
    "form": {
     "modeled": 12,
@@ -451,8 +451,8 @@
   "refused_by_lane": {
    "external calls and globals": 63,
    "floating point": 126,
-   "long tail": 1660,
-   "memory": 121
+   "long tail": 1657,
+   "memory": 120
   }
  },
  "items": [
@@ -17441,13 +17441,13 @@
   {"kind": "operand bundle", "name": "kcfi", "class": "refused", "reason": "cfi"},
   {"kind": "operand bundle", "name": "convergencectrl", "class": "refused", "reason": "convergence"},
   {"kind": "operand bundle", "name": "deactivation-symbol", "class": "refused", "reason": "pointer authentication"},
-  {"kind": "operand bundle", "name": "assume:align", "class": "refused", "lane": "memory", "reason": "memory model"},
-  {"kind": "operand bundle", "name": "assume:cold", "class": "refused", "lane": "long tail", "reason": "metadata review"},
+  {"kind": "operand bundle", "name": "assume:align", "class": "modeled", "reason": "assume"},
+  {"kind": "operand bundle", "name": "assume:cold", "class": "modeled", "reason": "no effect"},
   {"kind": "operand bundle", "name": "assume:dereferenceable", "class": "refused", "lane": "memory", "reason": "memory model"},
   {"kind": "operand bundle", "name": "assume:dereferenceable_or_null", "class": "refused", "lane": "memory", "reason": "memory model"},
-  {"kind": "operand bundle", "name": "assume:ignore", "class": "refused", "lane": "long tail", "reason": "metadata review"},
+  {"kind": "operand bundle", "name": "assume:ignore", "class": "modeled", "reason": "no effect"},
   {"kind": "operand bundle", "name": "assume:nonnull", "class": "modeled", "reason": "assume"},
-  {"kind": "operand bundle", "name": "assume:noundef", "class": "refused", "lane": "long tail", "reason": "metadata review"},
+  {"kind": "operand bundle", "name": "assume:noundef", "class": "modeled", "reason": "assume"},
   {"kind": "operand bundle", "name": "assume:separate_storage", "class": "refused", "lane": "memory", "reason": "memory model"},
   {"kind": "form", "name": "sdiv-of-vectors", "class": "modeled", "reason": "vector"},
   {"kind": "form", "name": "srem-of-vectors", "class": "modeled", "reason": "vector"},
