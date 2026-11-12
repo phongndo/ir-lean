@@ -143,7 +143,8 @@ REASONS: dict[str, Reason] = {
     "freeze": Reason(
         "modeled",
         None,
-        "freeze of an integer: the value, or for poison a value the run chooses (F3, docs/refinement.md)",
+        "freeze of an integer or a float: the value, or for poison a value the run chooses (F3, "
+        "docs/refinement.md), and of a vector of them, each lane as its own",
     ),
     "memory": Reason(
         "modeled",
@@ -1034,7 +1035,8 @@ BUNDLE_RULES = [
 FORM_RULES = [
     R("vector", "udiv-of-vectors sdiv-of-vectors urem-of-vectors srem-of-vectors"),
     R("float shape", "intrinsic-lane-count-mismatch"),
-    R("vector gap", "freeze-of-a-vector integer-bitcast-nondividing vector-constant-expression"),
+    R("freeze", "freeze-of-a-vector"),
+    R("vector gap", "integer-bitcast-nondividing vector-constant-expression"),
     R("scalable", "getelementptr-over-a-scalable-type scalable-vector-in-a-recursive-function"),
     R("memory model", "load-of-a-scalable-vector"),
     R("aggregate gap", "array-value insertvalue-nested freeze-of-a-struct"),

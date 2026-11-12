@@ -51,7 +51,7 @@
   },
   "freeze": {
    "class": "modeled",
-   "says": "freeze of an integer: the value, or for poison a value the run chooses (F3, docs/refinement.md)"
+   "says": "freeze of an integer or a float: the value, or for poison a value the run chooses (F3, docs/refinement.md), and of a vector of them, each lane as its own"
   },
   "memory": {
    "class": "modeled",
@@ -395,9 +395,9 @@
  },
  "totals": {
   "items": 17046,
-  "modeled": 452,
+  "modeled": 453,
   "assumed": 262,
-  "refused": 16332,
+  "refused": 16331,
   "by_kind": {
    "instruction": {
     "modeled": 51,
@@ -443,15 +443,15 @@
     "refused": 14
    },
    "form": {
-    "modeled": 12,
+    "modeled": 13,
     "assumed": 3,
-    "refused": 38
+    "refused": 37
    }
   },
   "refused_by_lane": {
    "external calls and globals": 63,
    "floating point": 126,
-   "long tail": 1657,
+   "long tail": 1656,
    "memory": 120
   }
  },
@@ -17454,7 +17454,7 @@
   {"kind": "form", "name": "udiv-of-vectors", "class": "modeled", "reason": "vector"},
   {"kind": "form", "name": "urem-of-vectors", "class": "modeled", "reason": "vector"},
   {"kind": "form", "name": "intrinsic-lane-count-mismatch", "class": "refused", "lane": "floating point", "reason": "float shape"},
-  {"kind": "form", "name": "freeze-of-a-vector", "class": "refused", "lane": "long tail", "reason": "vector gap"},
+  {"kind": "form", "name": "freeze-of-a-vector", "class": "modeled", "reason": "freeze"},
   {"kind": "form", "name": "integer-bitcast-nondividing", "class": "refused", "lane": "long tail", "reason": "vector gap"},
   {"kind": "form", "name": "vector-constant-expression", "class": "refused", "lane": "long tail", "reason": "vector gap"},
   {"kind": "form", "name": "getelementptr-over-a-scalable-type", "class": "refused", "lane": "long tail", "reason": "scalable"},

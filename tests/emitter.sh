@@ -1064,12 +1064,16 @@ fi
 # Choices: `freeze` of poison is a value the run's `IRLean.Choice` names, and each `freeze` a run executes reads its own
 # place in it, in a loop, in a function called twice, through a pointer, at each depth of a recursion, and of memory
 # never written. Running the emitted code under chosen choices shows each place is its own, so a change to how the
-# emitter numbers them shows. Only integers are frozen: LangRef freezes a vector's lanes one by one, and a pointer to
-# one with no provenance, and neither is modeled.
+# emitter numbers them shows. Integers and floats are frozen, and vectors of them lane by lane, each lane choosing on
+# its own, as `Vec.freeze` says. LangRef freezes a pointer to one with no provenance, which isn't modeled.
 refuses 'instruction %r = freeze ptr %p' 'define ptr @f(ptr %p) { %r = freeze ptr %p
   ret ptr %r }'
-refuses 'instruction %r = freeze <2 x i8> %v' 'define <2 x i8> @f(<2 x i8> %v) { %r = freeze <2 x i8> %v
+refuses 'type <2 x ptr>' 'define <2 x ptr> @f(<2 x ptr> %v) { %r = freeze <2 x ptr> %v
+  ret <2 x ptr> %r }'
+accepts 'define <2 x i8> @f(<2 x i8> %v) { %r = freeze <2 x i8> %v
   ret <2 x i8> %r }'
+accepts 'define <4 x float> @f(<4 x float> %v) { %r = freeze <4 x float> %v
+  ret <4 x float> %r }'
 cat >"$work/Choices.ll" <<'IR'
 ; Two runs of one `freeze` in a loop choose apart: the result is how the first differs from the second.
 define i8 @loop(i8 %x) {

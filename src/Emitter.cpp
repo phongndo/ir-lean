@@ -2160,13 +2160,21 @@ void FunctionEmitter::emitInstruction(const Instruction &I, std::vector<Line> &O
                Mask + "]");
     return;
   }
-  case Instruction::Freeze:
-    // Of a vector, LangRef freezes each lane, and of a pointer it gives one with no provenance: neither is
-    // modeled. A float is its bits, so it freezes to any of them, NaNs of every kind included.
-    if (!I.getType()->isIntegerTy() && !isModeledFloat(I.getType()))
+  case Instruction::Freeze: {
+    // A float is its bits, so it freezes to any of them, NaNs of every kind included. Of a vector, LangRef
+    // freezes each lane, each with a choice of its own: `Vec.freeze`. Of a pointer it gives one with no
+    // provenance, which isn't modeled.
+    Type *Lane = I.getType()->getScalarType();
+    if (!Lane->isIntegerTy() && !isModeledFloat(Lane))
       reject("instruction " + printed(I));
-    addLet(I, Out, "Val.freeze (c'.pick " + nextChooser() + ") " + Op(0));
+    if (isa<FixedVectorType>(I.getType()))
+      addLet(I, Out, "Vec.freeze (c'.sub " + nextChooser() + ") " + Op(0));
+    else if (I.getType() == Lane)
+      addLet(I, Out, "Val.freeze (c'.pick " + nextChooser() + ") " + Op(0));
+    else
+      reject("instruction " + printed(I));
     return;
+  }
   case Instruction::ExtractValue: {
     const auto &E = cast<ExtractValueInst>(I);
     std::string Expr = Op(0);

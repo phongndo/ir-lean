@@ -108,8 +108,8 @@ Evidence and not proof. A pass here means no disagreement was found on the input
   window: they agree on all 12 results, with none skipped, which is E2's exit criterion. The harness reaches all but 5
   of zlib's functions, counted without optimization so nothing is inlined away: two for big-endian machines,
   `crc32_combine_gen`, `_tr_align` and `_tr_tally`.
-- **What the emitter accepts:** all 17,046 items the pinned IR can contain are classified, 452 modeled, 262
-  assumed and 16,332 refused, and a probe of each shows the emitter does what its class says, with the Lean it
+- **What the emitter accepts:** all 17,046 items the pinned IR can contain are classified, 453 modeled, 262
+  assumed and 16,331 refused, and a probe of each shows the emitter does what its class says, with the Lean it
   prints for each it translates elaborating ([IR features](ir-features.md)). Since 2026-11-09, and these counts
   since 2026-11-11.
 - **Vector forms of integer operations:** the vector forms of 16 intrinsics, vector division and remainder,

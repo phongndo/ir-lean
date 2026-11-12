@@ -128,8 +128,8 @@ that way, and `Refine.outcomes_det_left` and `outcomes_det_right` unfold it.
 
 - `undef`, which stays out: `undef` constants are refused, and reading uninitialized memory gives poison. See
   [trust](trust.md#known-gaps-in-the-model).
-- `freeze` of a vector, a pointer or a struct, which ir-lean refuses. LangRef freezes a vector's lanes one by one, and
-  gives a pointer with no provenance.
+- `freeze` of a pointer or a struct, which ir-lean refuses. LangRef gives a pointer with no provenance. A vector's,
+  lane by lane, is `Vec.freeze`, since 2026-11-12, and `tests/freeze.sh` proves three rewrites of one, with Alive2.
 - Running a claim that quantifies over choices. Tier-1 proof tests generate no `Choice`, and `tools/verify.py` can't
   decide `∃` over the source's choices at a witness, so both answer unknown or unsupported there, never a pass. The
   refutations are kernel-checked theorems instead, in `tests/freeze/FreezeModel.lean` and `tests/refine`.
@@ -497,7 +497,7 @@ These have no claim, or a claim that says nothing about LLVM, and stay that way 
   pointers has a claim, [guarded](#a-claim-says-where-the-source-has-an-answer);
 - `undef`, as a constant, which ir-lean refuses, or as an argument (SEM-02), which stays out of the model by the
   decision of 2026-11-09;
-- `freeze` of a vector, a pointer or a struct, which ir-lean refuses (the rest of SEM-03);
+- `freeze` of a pointer or a struct, which ir-lean refuses (the rest of SEM-03);
 - floating point's intrinsics but `llvm.fabs`, `llvm.copysign`, `llvm.is.fpclass` and the saturating
   conversions, which ir-lean refuses until SEM-05's later [slices](float.md#the-slices). A float is its bits, so
   `Refines` on one is bit for bit, as LLVM's is, and a NaN result is a choice;

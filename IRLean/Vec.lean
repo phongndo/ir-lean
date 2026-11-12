@@ -17,6 +17,11 @@ namespace Vec
 @[llvm] def map2 (f : Val w → Val u → Val v) (a : Vec n w) (b : Vec n u) : Vec n v :=
   Vector.ofFn fun i => f a[i] b[i]
 
+/-- `freeze` of a vector. LangRef: "If an aggregate value or vector is frozen, the operand is frozen element-wise." Lane
+`i` chooses `c.pick i`, so each poison lane chooses on its own: emitted code gives it the `Choice` of a chooser, as
+`c'.sub k`. -/
+@[llvm] def freeze (c : Choice) (a : Vec n w) : Vec n w := Vector.ofFn fun i => Val.freeze (c.pick i) a[i]
+
 /-- A lane, or poison if there's no such lane. -/
 @[llvm] def lane (a : Vec n w) (i : Nat) : Val w :=
   if h : i < n then a[i] else none

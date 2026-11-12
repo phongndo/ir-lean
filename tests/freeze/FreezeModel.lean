@@ -8,6 +8,9 @@ import freeze_of_condition_removed_wrong_ir
 import freeze_of_freeze_right_ir
 import freeze_of_value_removed_right_ir
 import freeze_poison_to_constant_right_ir
+import freeze_vector_poison_lane_right_ir
+import freeze_vector_lanes_apart_right_ir
+import freeze_vector_removed_wrong_ir
 
 /-! `freeze` in the model, F3: each rewrite in `tests/freeze` and each in `tests/undef_freeze/alive2` that has a `freeze`
 and no `undef`, as ir-lean emits it, with a theorem of the case's name proving its verdict. A `_right` case refines,
@@ -101,6 +104,31 @@ theorem freeze_of_condition_added_right :
       rw [run_jump _ (by rfl), run_ret _ (by rfl), run_jump _ (by rfl), run_ret _ (by rfl)]
       exact (Refine.outcome_ok_ok _ _).2 (Refine.refl_val _)
 
+/-- A vector's poison lane, frozen, to 42: the source chooses 42 for it, and the other lane keeps its 1. -/
+theorem freeze_vector_poison_lane_right :
+    Refines freeze_vector_poison_lane_right_ir.src
+      (fun x => Outcomes.det (freeze_vector_poison_lane_right_ir.tgt x)) := by
+  intro x
+  refine (Refine.outcomes_det_right _ _).2 ⟨fun _ => 42, ?_⟩
+  simp only [freeze_vector_poison_lane_right_ir.src, freeze_vector_poison_lane_right_ir.tgt]
+  rw [run_ret _ (by rfl), run_ret _ (by rfl), Refine.outcome_ok_ok, Refine.vector_iff]
+  intro ⟨i, hi⟩
+  match i, hi with
+  | 0, _ => simp [Vec.freeze, Choice.pick, Choice.sub, Val.freeze, Refine.val_some]
+  | 1, _ => simp [Vec.freeze, Choice.pick, Choice.sub, Val.freeze, Refine.val_some]
+
+/-- Two lanes of one `freeze` of poison choose apart: lane 0 chooses 0 and lane 1 chooses 1, and their difference is
+255. -/
+theorem freeze_vector_lanes_apart_right :
+    Refines freeze_vector_lanes_apart_right_ir.src
+      (fun x => Outcomes.det (freeze_vector_lanes_apart_right_ir.tgt x)) := by
+  intro x
+  refine (Refine.outcomes_det_right _ _).2 ⟨fun p => if p = [1, 1] then 1 else 0, ?_⟩
+  simp only [freeze_vector_lanes_apart_right_ir.src, freeze_vector_lanes_apart_right_ir.tgt]
+  rw [run_ret _ (by rfl), run_ret _ (by rfl), Refine.outcome_ok_ok]
+  simp [Vec.freeze, Vec.extract, Vec.lane, HasPoison.poison, Choice.pick, Choice.sub, Val.freeze, Val.sub]
+  rfl
+
 /-! ### Wrong -/
 
 /-- `freeze %x` to `%x`: at poison the source is a value, however it chooses, and the target is poison. -/
@@ -137,3 +165,14 @@ theorem freeze_of_condition_removed_wrong :
       run_ret _ (by rfl)] at hcs
     obtain ⟨_, hy, _⟩ := (Refine.outcome_ok _ _).1 hcs
     cases hy
+
+/-- `freeze %x` of a vector to `%x`: at a vector of poison, the source's lane 0 is a value, however it chooses, and
+the target's is poison. -/
+theorem freeze_vector_removed_wrong :
+    ¬ Refines freeze_vector_removed_wrong_ir.src
+      (fun x => Outcomes.det (freeze_vector_removed_wrong_ir.tgt x)) := fun h => by
+  obtain ⟨cs, hcs⟩ := (Refine.outcomes_det_right _ _).1 (h (Vector.replicate 2 none))
+  simp only [freeze_vector_removed_wrong_ir.src, freeze_vector_removed_wrong_ir.tgt] at hcs
+  rw [run_ret _ (by rfl), run_ret _ (by rfl), Refine.outcome_ok_ok, Refine.vector_iff] at hcs
+  have := hcs ⟨0, by decide⟩
+  simp [Vec.freeze, Val.freeze, Refine.val_iff] at this

@@ -170,7 +170,8 @@ Each row is one of LangRef's rules, where the model has it, and its status. "Gap
 | `freeze` of poison: arbitrary, fixed, the same for every use | `Val.freeze`, with the value the run's `IRLean.Choice` gives, since F3 | **Proved**, by `freeze_none` and `freeze_none_any`. Until F3 a model stop | `undef` never reaches it |
 | Two `freeze`s of the same poison may differ; one `freeze` used twice may not; one that runs twice may choose twice | Each `freeze` a run executes reads its own place in the `Choice`, and a `let` binds its value for every use | **Modeled**, and tested in `tests/emitter.sh`, `tests/refine.sh` and `tests/freeze.sh`, against Alive2 there | None known. See [refinement](refinement.md#runs-that-make-choices) |
 | `freeze` of a value is the value | `Val.freeze` | **Proved** | None |
-| `freeze` of a vector, lane by lane, or of a pointer | Refused | Refused | Model them when real code needs it |
+| `freeze` of a vector, lane by lane | `Vec.freeze`, each lane with a choice of its own | **Modeled**, since 2026-11-12, and tested in `tests/freeze.sh` against Alive2 | None known |
+| `freeze` of a pointer | Refused | Refused | Model it when real code needs it |
 
 ### Floating point
 
