@@ -8,7 +8,9 @@ proofs that cheat: `sorry`, an axiom, `native_decide`, a theorem about a look-al
 never checked, one that rewrites what it's checked against, and one that prints an answer of its own. None may
 come back proved, and one that fails to compile, with an error forging a counterexample, may not come back
 refuted either. A first group
-checks the decision in tools/verify.py directly, for every required check that could be missing.
+checks the decision in tools/verify.py directly, for every required check that could be missing. And for each
+thing its grants require, a case plants a fault on the public path that takes the grant away, by a program it
+runs, first on PATH, or its request or files: BREAKERS, docs/verdicts.md's invariant 3.
 
 usage: tests/verify.py path/to/ir-lean [--only NAME ...]
 """

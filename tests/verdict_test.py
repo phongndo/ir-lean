@@ -865,14 +865,14 @@ MALFORMED: dict[str, tuple[Any, dict[str, list[Any]]]] = {
     "Grant": (
         Grant("w", 0, "s"),
         {"word": [""], "exit": [False], "schema": [None], "steps": [["lean"]], "checks": [("c", 1)]}
-        | {"files": [1], "excludes": ["x.y"], "cases": [{}]},
+        | {"files": [1], "excludes": ["x.y"], "cases": [{}], "if_asked": ["statement", ("c", 1)]},
     ),
     "Evidence": (
         Evidence(),
         {"lean": [True], "replay": ["ok"], "axioms": [1], "kernel": [1], "evaluated": ["yes"]}
         | {"cached": [None], "upstream": [(True, {}), [Step("u", 0), {}]], "step": [0], "found_exit": [True]}
         | {"finding": [1], "files": [{"a": 1}, {"a": None}], "checks": [{"c": "yes"}, {1: True}]}
-        | {"steps": [{"s": None}], "plan": [("a",)], "cases": [[Step("a", 1)]]},
+        | {"steps": [{"s": None}], "plan": [("a",)], "cases": [[Step("a", 1)]], "asked": ["statement", (1,)]},
     ),
     "Decision": (
         decide("verify.proved", Evidence()),

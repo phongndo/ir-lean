@@ -107,6 +107,16 @@ REASONS: dict[str, tuple[str, str]] = {
         "Nothing was proved: no proof was given, and no witness made the statement false",
     ),
     "internal_error": ("error", "A bug in this tool"),
+    "denied": ("error", "IRLEAN_DENY_ALL is set, which takes every grant away"),
+}
+# REASONS, as irlean.verdict.status reads them: each reason, with its status and exit code.
+TABLE = {reason: (status, EXIT_CODES[status]) for reason, (status, _) in REASONS.items()}
+# What a Decision's own reason is here, where it isn't one of REASONS: a process that didn't end cleanly, by
+# its requirement's name, or an answer that isn't one, is a tool failing; and a process killed was killed at
+# its memory cap.
+RENAMED = dict.fromkeys(("lean", "axioms", "replay", "witnesses", "nonce", "literal"), "tool_failed") | {
+    "killed": "memory_limit",
+    "contradiction": "evaluation_contradicts_proof",
 }
 
 # In order. `proved` needs every one of REQUIRED to pass, and none of the others to fail.
@@ -301,6 +311,8 @@ class Run:
     # How the processes a verdict rests on ended, and the modules they wrote, for irlean.verdict.
     steps: dict[str, verdict.Step] = field(default_factory=dict)
     outputs: dict[str, Path] = field(default_factory=dict)
+    # Lines each mode of tools/verify_check.lean printed that look like an answer without the run's nonce.
+    forged: dict[str, int] = field(default_factory=dict)
 
     def check(self, name: str, result: str, detail: Any = None, seconds: float | None = None) -> None:
         entry = self.checks[name]
@@ -309,6 +321,12 @@ class Run:
             entry["detail"] = detail
         if seconds is not None:
             entry["seconds"] = round(seconds, 2)
+
+    def record(self, name: str, ran: Ran) -> None:
+        """How a process a verdict rests on ended, for irlean.verdict."""
+        self.steps[name] = verdict.Step(
+            name, ran.returncode, "time_limit" if ran.timed_out else None, ran.output
+        )
 
     def diagnose(self, severity: str, source: str, text: str, **where: Any) -> None:
         if len(self.diagnostics) < DIAGNOSTICS_KEPT:
@@ -779,10 +797,8 @@ def compile_module(run: Run, source: Path, check: str, failure: str) -> bool:
     ran = run.run(
         lean_argv(run, "-R", str(run.work / "lean"), "-o", str(olean), str(source)), lean_env(run), step=check
     )
-    run.steps[check] = verdict.Step(
-        check, ran.returncode, "time_limit" if ran.timed_out else None, ran.output
-    )
-    run.outputs[check] = olean
+    run.record(check, ran)
+    run.outputs[str(olean) if check == "compile_support" else check] = olean
     messages = lean_messages(run, ran.output, "lean")
     for message in messages:
         if len(run.diagnostics) < DIAGNOSTICS_KEPT:
@@ -891,6 +907,10 @@ def run_check_file(
         native = [f"--load-dynlib={DYLIB}", "-Dinterpreter.prefer_native=true"]
     ran = run.run(lean_argv(run, *native, str(lean)), env, step=f"claim:{mode}")
     marker = f"IRLEAN_VERIFY {nonce} "
+    lines = ran.output.splitlines()
+    run.forged[mode] = sum(
+        line.startswith("IRLEAN_VERIFY ") and not line.startswith(marker) for line in lines
+    )
     answers = []
     for line in ran.stdout.splitlines():
         if line.startswith(marker):
@@ -907,6 +927,8 @@ def check_claim(run: Run) -> None:
     """Reads the theorem and the statement in Lean, and decides the checks that depend only on them."""
     request = run.request
     ran, answers = run_check_file(run, "check", [], "none")
+    # The process that applied the axiom policy, which `proved` rests on.
+    run.record("claim:check", ran)
     checks = [a for a in answers if a.get("kind") == "check"]
     if len(checks) != 1:
         messages = lean_messages(run, ran.output, "lean")
@@ -975,9 +997,7 @@ def kernel_replay(run: Run) -> None:
     without the kernel checking it, with `debug.skipKernelTC`, and nothing else here would notice."""
     modules = [run.request["namespace"], *run.artifacts["support_modules"], run.artifacts["proof_module"]]
     ran = run.run(["leanchecker", *modules], lean_env(run), step="kernel_replay")
-    run.steps["kernel_replay"] = verdict.Step(
-        "kernel_replay", ran.returncode, "time_limit" if ran.timed_out else None, ran.output
-    )
+    run.record("kernel_replay", ran)
     if ran.timed_out:
         raise Stop("time_limit", "leanchecker didn't finish in time", "kernel_replay")
     if ran.returncode != 0:
@@ -1029,9 +1049,7 @@ def evaluate_witnesses(run: Run) -> None:
         # No time was left to start. That's the same as running out partway: the witnesses time out, and
         # whatever the proof showed stands.
         ran, answers = Ran([], -9, "", "", 0.0, True), []
-    run.steps["witnesses"] = verdict.Step(
-        "witnesses", ran.returncode, "time_limit" if ran.timed_out else None, ran.output
-    )
+    run.record("witnesses", ran)
     results = {a["index"]: a for a in answers if a.get("kind") == "witness"}
     started = any(a.get("kind") == "witness_start" for a in answers)
     trouble = next((a["error"] for a in answers if a.get("kind") == "witness_error"), None)
@@ -1093,59 +1111,75 @@ def emitter_commit() -> str:
 # Results
 
 
-def decide(run: Run) -> tuple[str, str, str]:
-    """The status, reason and a one-line detail, in this order of precedence:
+def evidence(run: Run) -> verdict.Evidence:
+    """What tools/verify.py's two grants rest on, as the run observed it: the processes that compiled the
+    proof, applied the axiom policy, replayed it in the kernel and evaluated the witnesses; each check of
+    VERIFY_CHECKS, True only if it passed, and the pinned statement's, which is required if the request
+    pinned one; the modules Lean compiled; and the first witness that makes the claim false, if one does,
+    whether every answer its process printed carried the run's nonce, and whether it's the request's own or
+    only literals bv_decide printed."""
+    witness = next((w for w in run.witnesses if w.get("result") == "fails"), None)
+    literal = witness is not None and (
+        witness.get("source") == "request" or all(map(BV_VALUE.fullmatch, witness["assignment"].values()))
+    )
+    files = {c: False for c in ("compile_generated", "compile_proof") if c not in run.outputs}
+    return verdict.Evidence(
+        lean=run.steps.get("compile_proof"),
+        axioms=run.steps.get("claim:check"),
+        replay=run.steps.get("kernel_replay"),
+        steps={"witnesses": run.steps["witnesses"]} if "witnesses" in run.steps else {},
+        files=files | {str(p): p.exists() for p in run.outputs.values()},
+        checks={c: run.checks[c]["result"] == "pass" for c in verdict.VERIFY_CHECKS}
+        | {"statement": {"pass": True, "fail": False}.get(run.checks["statement"]["result"])}
+        | {"falsified": witness is not None, "nonce": run.forged.get("witness") == 0, "literal": literal},
+        asked=("statement",) if "statement" in run.request else (),
+    )
+
+
+def said(d: verdict.Decision | None, reason: str | None, detail: str) -> tuple[str, str, int, str]:
+    """The status, reason and exit code of `d`, a Decision, or None for a refusal of this tool's own, through
+    irlean.verdict.status, with `detail`. `reason` is this tool's, or None for the Decision's own, as
+    RENAMED says it here."""
+    if reason is None and d is not None:
+        reason = RENAMED.get(d.reason, d.reason)
+    return (*verdict.status(d, TABLE, reason), detail)
+
+
+def decide(run: Run) -> tuple[str, str, int, str]:
+    """The status, reason, exit code and a one-line detail, each through `said`, in this order of precedence:
 
     1. A checked file that changed while the proof's code ran makes everything after it suspect.
     2. A run that stopped early answers with why it stopped.
-    3. A witness that makes the claim false is a counterexample, unless the proof passed every check for
-       that same statement, when one of the two is wrong and neither can be reported. It counts only if the
-       process that evaluated it ended cleanly: otherwise it's a timeout or an error.
-    4. With a proof, the first check it failed. `proved` only comes after every required check passed.
+    3. A witness that makes the claim false is a counterexample, if irlean.verdict grants it, unless it
+       grants the proof on the same evidence, when one of the two is wrong and neither can be reported. It
+       counts only if the process that evaluated it ended cleanly: otherwise it's a timeout or an error.
+    4. With a proof, the first check it failed. `proved` only comes from irlean.verdict, after every
+       required check passed.
     5. With only a statement, nothing can be proved: whatever the witnesses showed, short of a refutation.
     """
     if run.checks["artifacts_unchanged"]["result"] == "fail":
-        return "error", "artifacts_modified", f"changed: {run.checks['artifacts_unchanged'].get('detail')}"
+        return said(None, "artifacts_modified", f"changed: {run.checks['artifacts_unchanged'].get('detail')}")
     if run.stop is not None:
-        return REASONS[run.stop.reason][0], run.stop.reason, run.stop.detail
-    has_proof = "proof" in run.request
+        return said(None, run.stop.reason, run.stop.detail)
     falsified = [w for w in run.witnesses if w.get("result") == "fails"]
     if falsified:
-        # A witness only fails against a statement that names the target, which is all a refutation needs, and
-        # only counts if the process that evaluated it ended cleanly.
-        refuted = verdict.decide(
-            verdict.Verdict.REFUTED, verdict.Evidence(evaluated=True, lean=run.steps.get("witnesses"))
-        )
-        step = run.steps.get("witnesses")
-        if refuted.verdict is verdict.Verdict.UNKNOWN:
-            # Its time ran out, Lean said it ran out of something, or it was killed, as at a memory cap.
-            limit = (
-                "time_limit" if step is None or step.limit else lean.limit_of(step.output) or "memory_limit"
+        d = verdict.decide("verify.counterexample", evidence(run))
+        at = falsified[0]["assignment"]
+        if d.granted:
+            return said(d, "witness_falsifies", f"the statement is false at {at}")
+        if d.reason == "contradiction":
+            return said(
+                d,
+                None,
+                f"the kernel accepted the proof, but compiled code finds the statement false at {at}. Lean's "
+                "compiler, an implemented_by or extern, or the kernel is wrong",
             )
-            why = f"a witness made the statement false, and its evaluation didn't finish: {refuted.detail}"
-            return "timeout", limit, why
-        if not refuted.granted:
-            why = f"a witness made the statement false, and its evaluation failed: {refuted.detail}"
-            return "error", "tool_failed", why
-        proof_stands = has_proof and all(run.checks[c]["result"] == "pass" for c in REQUIRED)
-        if proof_stands and run.checks["statement"]["result"] in ("pass", "skip"):
-            return (
-                "error",
-                "evaluation_contradicts_proof",
-                "the kernel accepted the proof, but compiled code finds the statement false at "
-                f"{falsified[0]['assignment']}. Lean's compiler, an implemented_by or extern, or the kernel "
-                "is wrong",
-            )
-        return (
-            "counterexample",
-            "witness_falsifies",
-            f"the statement is false at {falsified[0]['assignment']}",
-        )
+        what = "its evaluation didn't finish" if d.verdict is verdict.Verdict.UNKNOWN else "it isn't one"
+        return said(d, None, f"a witness made the statement false, and {what}: {d.detail}")
 
-    if has_proof:
+    if "proof" in run.request:
         if run.proof_failure:
-            reason = run.proof_failure
-            return REASONS[reason][0], reason, str(run.checks["compile_proof"].get("detail", ""))
+            return said(None, run.proof_failure, str(run.checks["compile_proof"].get("detail", "")))
         statement = run.claim.get("statement") or {}
         theorem = run.claim.get("theorem") or {}
         gates = [
@@ -1160,45 +1194,28 @@ def decide(run: Run) -> tuple[str, str, str]:
         ]
         for check, reason in gates:
             if run.checks[check]["result"] == "fail":
-                return "error", reason, str(run.checks[check].get("detail", ""))
-        unmet = [c for c in REQUIRED if run.checks[c]["result"] != "pass"]
+                return said(None, reason, str(run.checks[check].get("detail", "")))
         broken = [c for c in OPTIONAL if run.checks[c]["result"] == "fail"]
-        if unmet or broken:
-            return "error", "internal_error", f"checks didn't pass: {', '.join(unmet + broken)}"
-        proved = verdict.decide(
-            verdict.Verdict.PROVED,
-            verdict.Evidence(
-                lean=run.steps.get("compile_proof"),
-                replay=run.steps.get("kernel_replay"),
-                axioms=run.checks["axioms"]["result"] == "pass",
-                files={
-                    str(run.outputs[c]) if c in run.outputs else c: c in run.outputs
-                    and run.outputs[c].exists()
-                    for c in ("compile_generated", "compile_proof")
-                },
-                checks={c: run.checks[c]["result"] == "pass" for c in REQUIRED}
-                | {c: run.checks[c]["result"] != "fail" for c in OPTIONAL},
-            ),
-        )
-        if not proved.granted:
-            return "error", "internal_error", f"every check passed, and still: {proved.detail}"
-        return "proved", "kernel_checked", f"{theorem['name']} is a kernel-checked theorem"
+        if broken:
+            return said(None, "internal_error", f"checks didn't pass: {', '.join(broken)}")
+        d = verdict.decide("verify.proved", evidence(run))
+        if d.granted:
+            return said(d, "kernel_checked", f"{theorem['name']} is a kernel-checked theorem")
+        return said(d, None, f"every check passed, and still: {d.detail}")
 
     statement = run.claim.get("statement") or {}
     if not statement.get("elaborated"):
-        return "error", "statement_invalid", str(statement.get("error", "the statement didn't elaborate"))
+        return said(None, "statement_invalid", str(statement.get("error", "the statement didn't elaborate")))
     if not statement.get("mentions_target"):
-        return "error", "statement_not_about_target", f"it doesn't name {run.target.get('lean_constant')}"
+        return said(None, "statement_not_about_target", f"it doesn't name {run.target.get('lean_constant')}")
     outcomes = [w.get("result") for w in run.witnesses]
     if "timeout" in outcomes:
-        return (
-            "timeout",
-            "time_limit",
-            "evaluating a witness didn't finish, and none made the statement false",
+        return said(
+            None, "time_limit", "evaluating a witness didn't finish, and none made the statement false"
         )
     if outcomes and all(o == "unsupported" for o in outcomes):
-        return "unsupported", "witness_unsupported", "no witness could be decided"
-    return "error", "not_proved", "no proof was given, and no witness made the statement false"
+        return said(None, "witness_unsupported", "no witness could be decided")
+    return said(None, "not_proved", "no proof was given, and no witness made the statement false")
 
 
 def assumptions(run: Run, status: str) -> list[dict[str, Any]]:
@@ -1334,7 +1351,7 @@ def assert_contract(result: dict[str, Any]) -> None:
 
 
 def build_result(run: Run) -> dict[str, Any]:
-    status, reason, detail = decide(run)
+    status, reason, code, detail = decide(run)
     falsified = next((w for w in run.witnesses if w.get("result") == "fails"), None)
     theorem = run.claim.get("theorem") if "proof" in run.request else None
     statement = run.claim.get("statement")
@@ -1360,7 +1377,7 @@ def build_result(run: Run) -> dict[str, Any]:
         "reason": reason,
         "detail": unmap(run, detail)[:TRUNCATE],
         "meaning": STATUSES[status],
-        "exit_code": EXIT_CODES[status],
+        "exit_code": code,
         "limit": limit,
         "request": run.request,
         "target": run.target,

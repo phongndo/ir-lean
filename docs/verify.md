@@ -114,12 +114,21 @@ answer in JSON, as `error`.
 | `evaluation_contradicts_proof` | `error` | The kernel accepted the proof, and compiled code refutes its statement |
 | `not_proved` | `error` | No proof was given, and no witness made the statement false |
 | `internal_error` | `error` | A bug in this tool |
+| `denied` | `error` | `IRLEAN_DENY_ALL` is set, which takes every grant away, as [the verdicts design](verdicts.md#adapters) says |
 
 ### What `proved` needs
 
 `checks` lists each of these with `pass`, `fail`, `skip`, `inconclusive` or `not_run`. `proved` needs every
-required one to pass and none of the others to fail. The decision is one function, `decide`, and a second one,
-`assert_contract`, turns any result that breaks this into `internal_error` before it's printed.
+required one to pass and none of the others to fail. The decision is one function, `decide`, which gives the
+reasons for a check that failed itself, and asks [`irlean.verdict`](trust.md#where-python-decides-a-verdict) for
+its two grants by name, `verify.proved` and `verify.counterexample`, each with what it rests on. `proved` rests on
+the Lean process that compiled the proof, the one that read the claim and applied the axiom policy, and
+`leanchecker`, each ending on its own with exit 0; on every required check; on the compiled modules being there;
+and, if the request pinned a statement, on `statement`, which [the grant](verdicts.md#grants-with-fixed-requirements)
+requires by a condition on the request, never on what ran. A process that answered and then failed or was
+killed is `tool_failed` or a `timeout`, never `proved`. Each status comes from `irlean.verdict.status`, which gives
+`proved` or `counterexample` only for its granted decision. A second function, `assert_contract`, turns any result
+that breaks this into `internal_error` before it's printed.
 
 | Check | Required | What passing means |
 | --- | --- | --- |
@@ -208,7 +217,8 @@ proof or its support modules would run the proof's own code, so a witness for a 
 - **A witness counts only if the Lean process that evaluated it ended cleanly.** All of a request's witnesses are
   evaluated in one process, so if it then runs out of time or memory, a witness it found false is `timeout`, and if
   it crashes or fails, `tool_failed`, never a counterexample. That holds since 2026-11-09, when
-  [`irlean.verdict`](trust.md#where-python-decides-a-verdict) began deciding it.
+  [`irlean.verdict`](trust.md#where-python-decides-a-verdict) began deciding it. Since stage A's third pull
+  request, it's `tool_failed` too if that process printed anything shaped like an answer without the run's nonce.
 - **A proof that passes** and a witness that fails means Lean's compiler, an `implemented_by` or `extern` in
   Lean or `IRLean`, or the kernel is wrong. That's `evaluation_contradicts_proof`, never `proved`.
 - **What can be decided:** functions without memory, in practice, whose results have `DecidableEq`. Memory
