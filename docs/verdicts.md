@@ -197,7 +197,8 @@ It imports nothing of `irlean`, for BIND-03, and gets a default-deny guard of it
 replay needs: `pin`, `anchors`, `ir_replay`, `translation_replay`, `compile_generated`, `compile_evidence`,
 `statements`, `axioms`, `unchanged` and `kernel_replay`. `complete(replay)` alone writes `replayed`: each check passed
 exactly once, and the compiles and `kernel_replay` over every planned module, the units' namespaces and the evidence's
-files. `verified` needs `complete`'s result for each evidence file the claim names, by path, and no other.
+files. `verified` needs `complete`'s result for each evidence file the claim names, by the hash of the bytes read
+once, and no other, as [evidence identity](verify-claims.md#evidence-identity) says.
 `verdict` refuses a grant's status.
 `artifacts_modified` is `error`, exit 5. It reads `IRLEAN_DENY_ALL` itself.
 
@@ -261,6 +262,7 @@ pull request rewrites. For scale, #71, which made `decide` and moved ten callers
 | --- | --- | ---: | --- |
 | 1 | The core: `GRANTS`, `steps`, `plan`, `cases`, `limit_of`, the outcomes, the switch; tests 3 to 6 | ~1,200 | 5 |
 | 2 | `verify_claims.py`'s own guard, and `artifacts_modified` as `error`; test 8 | ~400 | |
+| 2b | `verify_claims.py`'s evidence identity: each file read once, a private copy for clang, replays by hash | ~1,000 | |
 | 3 | `verify.py` on its grants, with its planted faults; test 1, with `verify.py` its first entry point | ~850 | |
 | 4 | `tools/irlean/check.py`, and `tests/cut.sh`'s decisions on it | ~800 | 1 |
 | 5 | The other 13 shell tests' decisions on `check.py`; the shell list is empty | ~1,000 | |
@@ -269,11 +271,14 @@ pull request rewrites. For scale, #71, which made `decide` and moved ten callers
 | 8 | `rules/`: `proved: true`, `certify`, the counts, `search`; `rules_test.py`'s `caught` | ~600 | |
 | 9 | `binding.py`; readers `passes.py`, `verify_negative.py`, `replay_challenge.py`, `stage1.py` | ~1,300 | |
 | 10 | `llvm.py`, `llama.py`, `superopt.py`, `cpp_correspondence.py`, the peephole scorer; old form gone | ~800 | |
+| 11 | Lint 5 made context-free: a grant's word in any form, dict, `setattr`, constant or raw JSON, outside `tools/irlean` fails, but on a reviewed list that can only shrink | ~500 | |
 
 Each leaves every tool working, as the old form of `decide` stays until PR 10. PR 1 comes first. PR 2 touches nothing
 of the others, and can go in at any time. PRs 3 to 10 each add to `GRANTS` and its snapshot, so they go in this order,
 each after the one before merges. PR 5 moves decisions only: the nine shell tests named before total 1,563 lines, too
-many to port whole in one pull request. PR 7 costs one more Lean process for each lookup.
+many to port whole in one pull request. PR 7 costs one more Lean process for each lookup. PR 2b closes what #121
+left open of class 2 in `verify_claims.py`, and touches nothing of the others. PR 11, as the maintainer decided
+on 2026-11-11, comes last.
 
 The harness, #117, is on hold. When it's cut again, it goes on top of PR 1: `GRANTS` gets `faster`, `slower` and
 `win`; `compare` puts each timed run in `cases` and `protocol_problems` in `checks`, so a comparison that isn't by the

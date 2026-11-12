@@ -40,12 +40,42 @@ It denies by default, with a guard of its own, as [stage A's design](verdicts.md
 `compile_generated`, `compile_evidence`, `statements`, `axioms`, `kernel_replay` and `unchanged`. Only `complete` gives
 `replayed`: each check of the list passed exactly once, and no other, and Lean compiled and `leanchecker` replayed each
 module the evidence plans, its units' namespaces and its own files, each once, against a plan read from the evidence
-as it was validated, before any tool ran. `complete` gives a frozen `Replayed`, which carries the path of the evidence
-file it replayed. Only `verified` gives `verified`: a `Replayed` for each evidence file the claim names, by the paths
-read before any replay, each once, and for no other. Anything else is `error`, `incomplete`, so a step skipped, or a
-replay counted in another's place, by a bug here or a caller's, can't grant, and `verdict` raises if it's asked for
-either. `IRLEAN_DENY_ALL`, set to anything but `0`, takes every grant away: what would have been granted is `error`,
-`denied`, exit 5, and `--record` writes nothing. It reads that itself, since it imports nothing of `irlean`.
+as it was validated, before any tool ran. `complete` gives a frozen `Replayed`, which carries the SHA-256 of the
+evidence bytes it replayed. Only `verified` gives `verified`: a `Replayed` for each evidence file the claim names, by
+the hash of the bytes read before any replay, each once, and for no other. Anything else is `error`, `incomplete`, so
+a step skipped, or a replay counted in another's place, by a bug here or a caller's, can't grant, and `verdict` raises
+if it's asked for either. `IRLEAN_DENY_ALL`, set to anything but `0`, takes every grant away: what would have been
+granted is `error`, `denied`, exit 5, and `--record` writes nothing. It reads that itself, since it imports nothing of
+`irlean`.
+
+### Evidence identity
+
+Each file a replay rests on is read once, by `read_once`, and every later step uses those bytes, never the path again.
+That's the evidence itself, its Lean files, its IR, and every file of the repo clang reads. Once means once for each
+path, as normalized, for the whole replay: two units that read one header by one path get the same bytes. A file
+reached by two paths, such as through a symlink, is read once by each, and each read is hashed and checked on its
+own: reading once by the file's identity, its device and inode, is a follow-up. So what's hashed and compared with the
+record is what's replayed. When recording, it's what's recorded. Normalizing a path can't change which file it names: a `..`
+after a symlink, which the kernel follows and normalizing doesn't, is refused.
+
+- **A claim's plan.** The plan is its evidence files, each read once before any replay, and known from then on by the
+  SHA-256 of those bytes. Two entries that are one file, by an alias such as `./a.json`, `x/../a.json` or a symlink,
+  or two files with the same bytes, are `refused`, `claim_invalid`, before anything is replayed.
+- **What clang reads.** `clang -M` lists the files a unit reads. The repo's go through `read_once` into a private
+  copy, with every directory the paths clang named go through, and clang compiles from that copy. Every file the
+  compile's `-MD` list names has to be in the copy, and listed before, or in the Nix store, read where the kernel
+  resolves it. Anything else is `error`, `artifacts_modified`: the trees changed in between. A header swapped for a
+  symlink, or its directory swapped, while clang runs changes nothing.
+- **llvm-project.** `LLVM_PROJECT_SRC` has to be in the Nix store and not writable, as `nix develop` gives it, else
+  it's `error`, `toolchain_missing`. Then the NAR hash the pin check compares and the files clang reads are the same
+  bytes.
+- **The work area.** It's a fresh directory, outside both the repo and llvm-project, else `error`, `work_in_tree`. The
+  checker's configuration files are in it too. No other process working in either tree reaches it.
+
+`tests/verify_claims_test.py` checks each of these. A lint fails on any read of a file's content in
+`tools/verify_claims.py` that isn't `read_once`'s, or one of the few it lists, each of a file the run wrote in its work
+area. The lint is syntactic: it sees calls and references to the primitives that read or copy files, and imports that
+would rename them.
 
 ## Evidence
 
@@ -77,15 +107,16 @@ For evidence, the first that fails decides:
 3. **Pin.** The evidence's llvm-project is the pin, and `nix hash path $LLVM_PROJECT_SRC` gives its NAR hash.
 4. **Anchors.** Before anything the evidence names runs, the toolchain, `IRLean`'s library, `ir-lean` and the
    verifier's own files are stamped with what `lstat` says of each entry, and compared at the end. clang compiles
-   each unit from its own tree, with the source named relative to it, so the IR names no
-   machine's path, and with `-MD`. The files of llvm-project it read are the unit's anchors, and they have to be
-   exactly the recorded ones, each with its recorded SHA-256. A changed header is stale, and so is one left out.
+   each unit from its own tree, llvm-project in the Nix store or the run's copy of the repo, with the source named
+   relative to it, so the IR names no machine's path, and with `-MD`. The files of llvm-project it read are the
+   unit's anchors, and the repo's its `repo_files`, and they have to be exactly the recorded ones, each with its
+   recorded SHA-256. A changed header is stale, and so is one left out.
 5. **IR.** The IR, after `llvm-extract` if the unit names functions, is the recorded bytes.
 6. **Translation.** `ir-lean` gives the recorded Lean, byte for byte, and its `--report` says which function is which
    Lean constant. A symbol a theorem is about has to be defined in exactly one unit, so which function it covers is
    plain.
-7. **Lean.** Lean compiles the generated modules, then the evidence's own modules, copied from the repo with their
-   recorded hashes, in the order their imports need. Their code runs while they compile, so first the run's directory
+7. **Lean.** Lean compiles the generated modules, then the evidence's own modules, read once from the repo, with
+   their recorded hashes, in the order their imports need. Their code runs while they compile, so first the run's directory
    is hashed.
 8. **Statements.** `tools/verify_claims_check.lean` reads each theorem's module and its imports as data, with
    `importModules (loadExts := false)`, one module to a process, so none of their code runs there. Each theorem has to
