@@ -2,8 +2,9 @@
 
 The design of stage A: one default-deny place that decides every verdict a tool gives, which closes
 [bug class 1](bug-classes.md#1-a-limit-or-a-failure-counted-as-a-pass), a limit or a failure counted as a pass. Its
-first two pull requests, the core and `tools/verify_claims.py`'s guard, are built; the rest isn't. This is its revision
-after the design review, under [the process](process.md), step 0. Facts were checked on 2026-11-11 at `9a11118`, and
+first pull requests, the core, `tools/verify_claims.py`'s guard and its evidence identity, and `tools/verify.py` on its
+grants, are built; the rest isn't. This is its revision after the design review, under [the process](process.md), step
+0. Facts were checked on 2026-11-11 at `9a11118`, and
 for the harness at `5258d5a`, the head of #117's unmerged branch.
 
 ## The claim
@@ -103,13 +104,19 @@ The review confirmed these on `main`. Each is closed by the pull request named, 
 
 ### Grants with fixed requirements
 
-`Step`, `Evidence` and `Decision` stay, and grow by three things:
+`Step`, `Evidence` and `Decision` stay, and grow by four things:
 
 - `GRANTS`, in `verdict.py` beside `UPSTREAM`: each grant a tool gives, by name, with its status word and exit code,
   the steps, checks and files it requires, the grants it excludes, and, for a run over many cases, how a case counts.
   The caller names the grant, not what's checked. A check the caller fills that the grant doesn't list is `error`,
   `internal_error`, so a typo can't add a check nothing requires. A step a request can leave out, such as `verify.py`'s
   witnesses, is required by a condition on the request, never on what ran.
+- `Grant.if_asked` and `Evidence.asked`, the smallest form of that condition, since PR 3: `if_asked` lists the checks
+  a request can leave out, and `asked`, filled from the request before anything ran, names those it asked for. One
+  asked for is required as any check is; one not asked for can only take the grant away, as `False`. A name in
+  `asked` no grant on the evidence lists is `internal_error`. `verify.proved`'s is `statement`, which a request asks
+  for by pinning one. No step needs the form yet: `verify.py`'s witnesses are always `verify.counterexample`'s step,
+  and never `verify.proved`'s.
 - `Evidence.steps`: the named processes a grant rests on, besides `lean`, `replay`, `axioms` and `step`.
 - `Evidence.plan` and `Evidence.cases`: the identities the run planned, from its request before anything ran, and the
   raw outcome of each case observed, as a `Step`, in order and unfiltered. `decide` derives every count from `cases`,
@@ -125,6 +132,7 @@ GRANTS = {
         steps=("lean", "axioms", "replay"),
         files=True,
         checks=VERIFY_CHECKS,
+        if_asked=("statement",),
         excludes=("verify.counterexample",),
     ),
     "prooftest.passed_tier1": Grant(
@@ -136,7 +144,8 @@ GRANTS = {
     ),
 }
 d = verdict.decide("verify.proved", verdict.Evidence(lean=..., axioms=..., replay=..., checks=..., files=...))
-status, reason, code = verdict.status(d, STATUSES)  # a grant's word only from a granted Decision
+# A grant's word only from a granted Decision.
+status, reason, code = verdict.status(d, TABLE, "kernel_checked")
 ```
 
 `decide(name, evidence)` is the only function that grants, and denies by default. In order: a limit on any required
@@ -168,7 +177,12 @@ fails after a limit often fails because of it. `decide`'s match anywhere in the 
 ### Adapters
 
 Each tool keeps its own tables of statuses, reasons and exit codes. `verdict.status(decision, table)` is the one way
-from a `Decision` to them, and gives a grant's word only for a granted one. A count of grants counts granted ones. A
+from a `Decision` to them, and gives a grant's word only for a granted one. As built in PR 3, it's `status(decision,
+table, reason)`: `table` maps each of the tool's reasons to its status and exit code, and a granted `Decision` gets
+its grant's word and exit with `reason`, the tool's for it, only if the table puts that reason under exactly those.
+Anything else, a `Decision` that isn't granted, or `None` for a refusal of the tool's own, gets `reason`, or the
+`Decision`'s own, as the table has it, unless that's a grant's word; whatever doesn't fit is the table's
+`internal_error`. So a tool takes every status it reports through it. A count of grants counts granted ones. A
 record nested in another, or read from another tool, is read by `schemas.check` and then `_upstream` (`verdict.py`
 173). A verdict joined from two records, as `stage1.py`'s, asks `decide` for the joined grant with both as evidence.
 `IRLEAN_DENY_ALL=1` in the environment makes `decide` deny every grant, with `error`, `denied`. It can only take a
@@ -263,7 +277,7 @@ pull request rewrites. For scale, #71, which made `decide` and moved ten callers
 | 1 | The core: `GRANTS`, `steps`, `plan`, `cases`, `limit_of`, the outcomes, the switch; tests 3 to 6 | ~1,200 | 5 |
 | 2 | `verify_claims.py`'s own guard, and `artifacts_modified` as `error`; test 8 | ~400 | |
 | 2b | `verify_claims.py`'s evidence identity: each file read once, a private copy for clang, replays by hash | ~1,000 | |
-| 3 | `verify.py` on its grants, with its planted faults; test 1, with `verify.py` its first entry point | ~850 | |
+| 3 | `verify.py` on its grants, with its planted faults; test 1, with `verify.py` its first entry point. Built | ~850 | |
 | 4 | `tools/irlean/check.py`, and `tests/cut.sh`'s decisions on it | ~800 | 1 |
 | 5 | The other 13 shell tests' decisions on `check.py`; the shell list is empty | ~1,000 | |
 | 6 | `prooftest.py` from raw cases and the harness's end; model stops in `Harness.lean`; readers | ~1,000 | 2, 3, 6 |

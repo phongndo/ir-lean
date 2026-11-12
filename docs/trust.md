@@ -91,7 +91,9 @@ Never success.
 It's asked in two forms. A grant by name, from `GRANTS`, whose requirements are fixed there and not by its caller, as
 [the verdicts design](verdicts.md) says; and the old form, one of the four claims below, whose caller picks the checks
 it passes. Each tool keeps the old form until [its pull request](verdicts.md#the-migration) moves it onto its grants.
-`IRLEAN_DENY_ALL=1` takes every grant away, in either form.
+`IRLEAN_DENY_ALL=1` takes every grant away, in either form. A tool on its grants gives every status through
+`status`, [the one adapter](verdicts.md#adapters), which gives a grant's word only for a granted decision of that
+grant: `tools/verify.py` since stage A's third pull request.
 
 | Claim | What it needs, besides every file it's about being there and every other check passing |
 | --- | --- |
@@ -111,7 +113,7 @@ rests on crashed, ran out of something or failed, and that nothing it needs is m
 
 | Where | Asks for |
 | --- | --- |
-| `tools/verify.py` | Proved, and refuted by a witness |
+| `tools/verify.py` | `verify.proved` and `verify.counterexample`, by name, through `status` |
 | `tools/binding.py` | Certified, for a replay and for a cache hit |
 | `tools/prooftest/prooftest.py` | Refuted, by the kernel or by `tools/verify.py` |
 | `tools/store/store.py` | Proved, for each lemma the bar admits |

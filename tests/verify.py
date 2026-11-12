@@ -8,7 +8,9 @@ proofs that cheat: `sorry`, an axiom, `native_decide`, a theorem about a look-al
 never checked, one that rewrites what it's checked against, and one that prints an answer of its own. None may
 come back proved, and one that fails to compile, with an error forging a counterexample, may not come back
 refuted either. A first group
-checks the decision in tools/verify.py directly, for every required check that could be missing.
+checks the decision in tools/verify.py directly, for every required check that could be missing. And for each
+thing its grants require, a case plants a fault on the public path that takes the grant away, by a program it
+runs, first on PATH, or its request or files: BREAKERS, docs/verdicts.md's invariant 3.
 
 usage: tests/verify.py path/to/ir-lean [--only NAME ...]
 """
@@ -17,6 +19,7 @@ import argparse
 import importlib.util
 import json
 import os
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -26,6 +29,7 @@ from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
+from unittest import mock
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.append(str(ROOT / "tools"))
@@ -184,6 +188,42 @@ SUPPORT_TAMPER = (
 CRASHING_TOOL = "#!/bin/sh\nkill -SEGV $$\n"
 # Answers --report with something ir-lean never prints.
 CONFUSED_TOOL = '#!/bin/sh\necho "this is not a report"\n'
+# The real program, in a shim.
+REAL = '"{real}" "$@"'
+
+
+def shim(match: str, then: str) -> str:
+    """A program put first on PATH in place of one tools/verify.py runs: the real one, `{real}`, but when its
+    arguments name `match`, `then` instead. It plants one fault on the public path."""
+    return f'#!/bin/sh\ncase "$*" in\n  *{match}*) {then} ;;\n  *) exec {REAL} ;;\nesac\n'
+
+
+def lean(match: str, then: str) -> dict[str, str]:
+    """A `lean` that runs, and when its arguments name `match`, does `then` after."""
+    return {"lean": shim(match, f"{REAL}; {then}")}
+
+
+# A witness answer that fails, as tools/verify_check.lean prints one.
+WITNESS_FAILS = '{{"kind":"witness","index":{index},"result":"fails","instance":"x"}}'
+# An answer as tools/verify_check.lean prints one, but with a nonce that isn't the run's.
+FORGED_ANSWER = """echo 'IRLEAN_VERIFY 00 {"kind":"witness","index":0,"result":"fails","instance":"x"}'"""
+
+
+def own_answer(answer: str) -> str:
+    """Shell that prints `answer` as tools/verify_check.lean does, with the run's own nonce, read from the
+    configuration tools/verify.py gave it: an answer the nonce can't tell from a real one."""
+    read = """n=$(sed -n 's/.*"nonce": "\\([0-9a-f]*\\)".*/\\1/p' "$IRLEAN_VERIFY_CONFIG")"""
+    return f"{read}; printf 'IRLEAN_VERIFY %s %s\\n' \"$n\" '{answer}'"
+
+
+def rewritten(match: str, sed: str) -> dict[str, str]:
+    """A `lean` whose output, when its arguments name `match`, goes through `sed`: a checker answering
+    outside its contract."""
+    return {"lean": shim(match, f"{REAL} | sed '{sed}'")}
+
+
+# leanchecker, which then deletes the proof's module.
+OLEAN_GONE = shim("Small", f'{REAL} && rm "${{LEAN_PATH%%:*}}/Proof.olean"')
 
 
 @dataclass
@@ -198,6 +238,23 @@ class Case:
     args: list[str] = field(default_factory=list)
     tool: str | None = None
     check: Callable[[dict[str, Any], Path], str | None] | None = None
+    # Programs put first on PATH, by name, each a script naming the real one `{real}`. One named ir-lean is
+    # the tool.
+    shims: dict[str, str] = field(default_factory=dict)
+
+
+def planted(
+    name: str,
+    status: str,
+    reason: str,
+    shims: dict[str, str] | None = None,
+    files: Any = None,
+    **request: Any,
+) -> Case:
+    """proved_ir, with one fault planted: in a program it runs, by `shims`, its `files`, `tool` or request."""
+    tool = request.pop("tool", None)
+    files = files_for("ok") if files is None else files
+    return Case(name, status, reason, proof("ok", "inc_ok", **request), files, tool=tool, shims=shims or {})
 
 
 def small(**request: Any) -> dict[str, Any]:
@@ -304,6 +361,8 @@ def cases() -> list[Case]:
         "theorem": "popcount_correct",
     }
     spin = {"input": {"ir": "Small.ll"}, "namespace": "Small", "function": "spin"}
+    ok = files_for("ok")
+    refute = (small(statement=INC_OR, witnesses=[{"x": "1#32"}]), {"Small.ll": SMALL_LL})
     return [
         # proved
         Case("proved", "proved", "kernel_checked", popcount, check=check_proved_popcount),
@@ -738,13 +797,144 @@ def cases() -> list[Case]:
             {"Small.ll": SMALL_LL, "tool": CONFUSED_TOOL},
             tool="tool",
         ),
+        # Faults planted in proved_ir, and in counterexample_statement, each taking the grant away: BREAKERS.
+        planted("proof_bad_request", "error", "invalid_request", limits={"timeout_seconds": 0}),
+        planted("proof_tool_missing", "error", "toolchain_missing", tool="nope"),
+        planted("proof_input_missing", "error", "input_not_found", files={"Small.ll": SMALL_LL}),
+        planted("proof_opt_fails", "error", "ir_invalid", {"opt": "#!/bin/sh\nexit 1\n"}),
+        planted(
+            "proof_tool_crashes", "error", "tool_failed", files={**ok, "tool": CRASHING_TOOL}, tool="tool"
+        ),
+        planted("proof_generate_fails", "error", "tool_failed", {"ir-lean": shim("--namespace", "exit 1")}),
+        planted(
+            "proof_generated_fails", "error", "generated_module_failed", lean("lean/Small.lean", "exit 1")
+        ),
+        planted("proof_lean_fails", "error", "proof_failed", lean("Proof.lean", "exit 1")),
+        # The process that read the claim and applied the axiom policy answers, then doesn't end cleanly.
+        planted("proof_check_fails", "error", "tool_failed", lean("check/Check.lean", "exit 1")),
+        planted("proof_check_killed", "timeout", "memory_limit", lean("check/Check.lean", "kill -9 $$")),
+        planted(
+            "proof_check_silent", "error", "internal_error", {"lean": shim("check/Check.lean", "exit 0")}
+        ),
+        planted(
+            "proof_leanchecker_fails", "error", "kernel_replay_failed", {"leanchecker": "#!/bin/sh\nexit 1\n"}
+        ),
+        # The proof's module, gone after leanchecker replayed it.
+        planted("proof_olean_deleted", "error", "internal_error", {"leanchecker": OLEAN_GONE}),
+        Case(
+            "witness_eval_fails", "error", "tool_failed", *refute, shims=lean("check/Witness.lean", "exit 1")
+        ),
+        # A real answer that the witness fails, and one more without the run's nonce.
+        Case(
+            "witness_answer_without_nonce",
+            "error",
+            "tool_failed",
+            *refute,
+            shims=lean("check/Witness.lean", FORGED_ANSWER),
+        ),
+        # Review 1 of #123. A checker's answers are read only once they're its contract's: a witness that
+        # holds, answered again as failing with the run's nonce, isn't a counterexample; nor is an answer for
+        # a witness never asked.
+        Case(
+            "witness_answered_twice",
+            "error",
+            "internal_error",
+            small(statement=INC_STATEMENT, witnesses=[{"x": "1#32"}]),
+            {"Small.ll": SMALL_LL},
+            shims=lean("check/Witness.lean", own_answer(WITNESS_FAILS.format(index=0))),
+        ),
+        Case(
+            "witness_answer_not_asked",
+            "error",
+            "internal_error",
+            small(statement=INC_STATEMENT, witnesses=[{"x": "1#32"}]),
+            {"Small.ll": SMALL_LL},
+            shims=lean("check/Witness.lean", own_answer(WITNESS_FAILS.format(index=7))),
+        ),
+        # The axiom policy's `ok: false` as the string "false", and a statement's `match` left out: neither
+        # reads as a pass.
+        Case(
+            "policy_ok_not_a_bool",
+            "error",
+            "internal_error",
+            proof("axiom", "inc_two"),
+            files_for("axiom"),
+            shims=rewritten("check/Check.lean", 's/"ok":false/"ok":"false"/'),
+        ),
+        Case(
+            "statement_match_missing",
+            "error",
+            "internal_error",
+            proof("ok", "inc_ok", statement=INC_OR),
+            files_for("ok"),
+            shims=rewritten("check/Check.lean", 's/"match":"mismatch",//'),
+        ),
+        # Killed, as a memory cap or the OOM killer does, is a limit wherever it happens, through
+        # irlean.verdict.limit_of.
+        planted(
+            "proof_leanchecker_killed", "timeout", "memory_limit", {"leanchecker": "#!/bin/sh\nkill -9 $$\n"}
+        ),
+        planted("proof_lean_killed", "timeout", "memory_limit", lean("Proof.lean", "kill -9 $$")),
+        planted("generated_lean_killed", "timeout", "memory_limit", lean("lean/Small.lean", "kill -9 $$")),
     ]
 
 
-def run_verify(args: list[str]) -> dict[str, Any]:
+# docs/verdicts.md's invariant 3: for each thing tools/verify.py's grants require, by grant, kind and name,
+# the cases above that plant a fault in it on the public path, each of which takes the grant away. Deleting a
+# requirement from GRANTS and its line here together still fails tests/verdict_test.py's snapshot.
+BREAKERS: dict[tuple[str, str, str], list[str]] = {
+    ("verify.proved", "step", "lean"): ["proof_lean_fails"],
+    ("verify.proved", "step", "axioms"): ["proof_check_fails", "proof_check_killed"],
+    ("verify.proved", "step", "replay"): ["proof_leanchecker_fails"],
+    ("verify.proved", "files", "files"): ["proof_olean_deleted"],
+    ("verify.proved", "check", "request"): ["proof_bad_request"],
+    ("verify.proved", "check", "toolchain"): ["proof_tool_missing"],
+    ("verify.proved", "check", "inputs"): ["proof_input_missing"],
+    ("verify.proved", "check", "ir_valid"): ["proof_opt_fails"],
+    ("verify.proved", "check", "translate"): ["proof_tool_crashes"],
+    ("verify.proved", "check", "generate"): ["proof_generate_fails"],
+    ("verify.proved", "check", "compile_generated"): ["proof_generated_fails"],
+    ("verify.proved", "check", "compile_proof"): ["proof_lean_fails", "proof_failed_witnesses_hold"],
+    ("verify.proved", "check", "claim"): ["proof_check_silent"],
+    ("verify.proved", "check", "theorem"): ["theorem_not_found", "not_a_theorem"],
+    ("verify.proved", "check", "mentions_target"): ["unrelated_theorem", "lookalike"],
+    ("verify.proved", "check", "axioms"): ["sorry", "axiom", "native_decide"],
+    ("verify.proved", "check", "kernel_replay"): ["kernel_skipped", "proof_leanchecker_fails"],
+    ("verify.proved", "check", "artifacts_unchanged"): ["tamper", "support_tamper"],
+    ("verify.proved", "if_asked", "statement"): ["statement_mismatch", "pinned_names_proof_constant"],
+    ("verify.counterexample", "step", "witnesses"): ["witness_eval_fails"],
+    ("verify.counterexample", "check", "falsified"): ["statement_only_not_proved"],
+    ("verify.counterexample", "check", "nonce"): ["witness_answer_without_nonce"],
+}
+# Those no fault on the public path reaches, and why.
+UNREACHABLE = {
+    (
+        "verify.counterexample",
+        "check",
+        "literal",
+    ): "candidates_from drops an assignment bv_decide printed with "
+    "a value that isn't a literal, so a witness that fails is the request's own or all literals. "
+    "proof_failed_forged_counterexample plants one, and no witness is taken from it",
+}
+
+
+def requirements(grants: Any, name: str) -> set[tuple[str, str, str]]:
+    """What GRANTS[name] requires, by grant, kind and name."""
+    grant = grants[name]
+    return {
+        *((name, "step", s) for s in grant.steps),
+        *((name, "check", c) for c in grant.checks),
+        *((name, "if_asked", c) for c in getattr(grant, "if_asked", ())),
+        *([(name, "files", "files")] if grant.files else []),
+    }
+
+
+def run_verify(args: list[str], env: dict[str, str] | None = None) -> dict[str, Any]:
     # Not irlean.proc.run, which kills the command's process group when it exits: that would kill anything
     # tools/verify.py left running in its own group before check_nothing_left could see it.
-    result = subprocess.run([str(VERIFY), *args], capture_output=True, text=True, check=False, cwd=ROOT)
+    result = subprocess.run(
+        [str(VERIFY), *args], capture_output=True, text=True, check=False, cwd=ROOT, env=env
+    )
     try:
         answer = json.loads(result.stdout)
     except json.JSONDecodeError as error:
@@ -767,9 +957,20 @@ def run_case(case: Case, tool: Path, scratch: Path) -> str | None:
     request = directory / "request.json"
     request.write_text(case.raw if case.raw is not None else json.dumps(case.request, ensure_ascii=False))
     chosen = tool if case.tool is None else directory / case.tool
+    env = None
+    if case.shims:
+        shims = directory / "bin"
+        shims.mkdir()
+        for program, script in case.shims.items():
+            real = tool if program == "ir-lean" else shutil.which(program)
+            (shims / program).write_text(script.replace("{real}", str(real)))
+            (shims / program).chmod(0o755)
+        env = {**os.environ, "PATH": f"{shims}{os.pathsep}{os.environ['PATH']}"}
+        chosen = shims / "ir-lean" if "ir-lean" in case.shims else chosen
     try:
         result = run_verify(
-            ["check", str(request), "--tool", str(chosen), "--work-dir", str(directory / "work"), *case.args]
+            ["check", str(request), "--tool", str(chosen), "--work-dir", str(directory / "work"), *case.args],
+            env,
         )
     except AssertionError as error:
         return str(error)
@@ -820,9 +1021,11 @@ def contract_checks() -> list[str]:
         run.claim = {"theorem": {"found": True, "name": "t", "axioms": []}, "statement": None}
         # The Lean processes irlean.verdict rests a proof on, and the modules they wrote: this file stands in.
         run.steps = {
-            name: v.verdict.Step(name, 0) for name in ("compile_proof", "kernel_replay", "witnesses")
+            name: v.verdict.Step(name, 0)
+            for name in ("compile_proof", "claim:check", "kernel_replay", "witnesses")
         }
         run.outputs = {name: Path(__file__) for name in ("compile_generated", "compile_proof")}
+        run.forged = {"check": 0, "witness": 0}
         return run
 
     if v.decide(run_with())[0] != "proved":
@@ -860,7 +1063,7 @@ def contract_checks() -> list[str]:
     if v.decide(no_proof)[0] == "proved":
         failures.append("proved without a proof")
     witness = run_with(statement="pass")
-    witness.witnesses = [{"result": "fails", "assignment": {"x": "1"}}]
+    witness.witnesses = [{"source": "request", "result": "fails", "assignment": {"x": "1"}}]
     if v.decide(witness)[1] != "evaluation_contradicts_proof":
         failures.append("a passing proof with a failing witness isn't a contradiction")
     # A witness that fails counts only if what evaluated it ended cleanly.
@@ -872,12 +1075,66 @@ def contract_checks() -> list[str]:
     ):
         crashed = run_with()
         crashed.request = {"input": {"ir": "x.ll"}, "statement": "True"}
-        crashed.witnesses = [{"result": "fails", "assignment": {"x": "1"}}]
+        crashed.witnesses = witness.witnesses
         crashed.steps["witnesses"] = ended
         if v.decide(crashed)[0] != status:
             failures.append(
                 f"a failing witness whose evaluation {ended} is {v.decide(crashed)}, not {status}"
             )
+    # A pinned statement is required, when the request pins one, as the grant's `if_asked` says.
+    pinned = run_with(statement="skip")
+    pinned.request = {**pinned.request, "statement": "True"}
+    if v.decide(pinned)[0] == "proved":
+        failures.append("proved with a pinned statement that wasn't checked")
+    # The process that applied the axiom policy has to end cleanly, as the others do.
+    for ended, said in (
+        (v.verdict.Step("claim:check", 1), ("error", "tool_failed")),
+        (v.verdict.Step("claim:check", 137), ("timeout", "memory_limit")),
+    ):
+        run = run_with()
+        run.steps["claim:check"] = ended
+        if v.decide(run)[:2] != said:
+            failures.append(f"with the axiom policy's process {ended}, {v.decide(run)[:2]}, not {said}")
+
+    # A witness answer, with another in its process's output that lacks the run's nonce, or one from a proof
+    # that isn't a literal, isn't a counterexample.
+    def refutation() -> Any:
+        run = run_with(compile_proof="skip")
+        run.request = {"input": {"ir": "x.ll"}, "statement": "True"}
+        del run.steps["compile_proof"]
+        run.witnesses = [dict(w) for w in witness.witnesses]
+        return run
+
+    refuted = refutation()
+    if v.decide(refuted)[:2] != ("counterexample", "witness_falsifies"):
+        failures.append(f"a clean refutation is {v.decide(refuted)[:2]}")
+    for change in (
+        lambda r: r.forged.update(witness=1),
+        lambda r: r.witnesses[0].update(source="bv_decide", assignment={"x": "(by exact 1)"}),
+    ):
+        run = refutation()
+        change(run)
+        if v.decide(run)[0] == "counterexample":
+            failures.append(f"a counterexample with {run.forged}, {run.witnesses}")
+    # IRLEAN_DENY_ALL takes either grant away.
+    with mock.patch.dict(os.environ, {v.verdict.DENY_ALL: "1"}):
+        for run in (run_with(), refuted):
+            if v.decide(run)[:2] != ("error", "denied"):
+                failures.append(f"under {v.verdict.DENY_ALL}, {v.decide(run)[:2]}")
+    # Each requirement of tools/verify.py's grants has a fault planted on the public path, or says why not.
+    wanted = requirements(v.verdict.GRANTS, "verify.proved") | requirements(
+        v.verdict.GRANTS, "verify.counterexample"
+    )
+    planted = set(BREAKERS) | set(UNREACHABLE)
+    if wanted != planted or set(BREAKERS) & set(UNREACHABLE):
+        failures.append(
+            f"no fault planted for {sorted(wanted - planted)}; not required: {sorted(planted - wanted)}"
+        )
+    named = {c.name: c for c in cases()}
+    for (grant, _, _), breakers in BREAKERS.items():
+        for name in breakers:
+            if name not in named or named[name].status == v.verdict.GRANTS[grant].word:
+                failures.append(f"{name} doesn't take {grant} away")
     tampered = run_with(artifacts_unchanged="fail")
     tampered.witnesses = witness.witnesses
     if v.decide(tampered)[1] != "artifacts_modified":

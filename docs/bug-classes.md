@@ -25,6 +25,8 @@ is that only clean evidence gives a positive verdict.
   - [#117](https://github.com/phongndo/ir-lean/pull/117) S9: crashed timing runs counted as faster.
   - [#118](https://github.com/phongndo/ir-lean/pull/118) S1: model stops dropped as inputs that didn't meet the
     hypotheses.
+  - Stage A's third pull request, by a fault it planted: `tools/verify.py` took the axiom policy's answer from a
+    process that then exited 1 or was killed, and said `proved`.
 - **Still open:** a hand-written proof-test property drops model stops the same way. Only the equivalence form is
   guarded.
 - **Guard now:** one function decides, `decide` in `tools/irlean/verdict.py`, since 2026-11-09, and

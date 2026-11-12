@@ -29,7 +29,8 @@ form's calls, and the count can only fall. What each claim of the old form needs
   of its own: what it found, which isn't a resource limit.
 
 `limit_of` alone says which limit stopped a process, in either form. IRLEAN_DENY_ALL takes every grant away.
-And evidence that isn't what its fields say can't be made: each raises TypeError where it's built.
+And evidence that isn't what its fields say can't be made: each raises TypeError where it's built. `status`
+is the one way from a grant's Decision to a tool's own status, reason and exit code.
 """
 
 from __future__ import annotations
@@ -138,8 +139,9 @@ class Cases:
 @dataclass(frozen=True)
 class Grant:
     """An output a reader acts on as settled, and what it needs: each of `steps` ending on its own with exit
-    0, each of `checks` exactly True, at least one file and each of them there if `files`, every case planned
-    observed once if `cases`, and none of `excludes` granted on the same evidence."""
+    0, each of `checks` exactly True, and each of `if_asked` too when the request asked for it, at least one
+    file and each of them there if `files`, every case planned observed once if `cases`, and none of
+    `excludes` granted on the same evidence."""
 
     # The status it's reported as, the exit code it ends with, and the schema of the record that says it.
     word: Name
@@ -147,6 +149,10 @@ class Grant:
     schema: Name
     steps: tuple[str, ...] = ()
     checks: tuple[str, ...] = ()
+    # Checks a request can leave out, each required by a condition on the request, never on what ran: that
+    # the evidence's `asked`, from the request, names it. Not asked for, it can still take the grant away, as
+    # False.
+    if_asked: tuple[str, ...] = ()
     files: bool = False
     excludes: tuple[str, ...] = ()
     cases: Cases | None = None
@@ -182,6 +188,8 @@ GRANTS: dict[str, Grant] = {
         schemas.VERIFY,
         steps=("lean", "axioms", "replay"),
         checks=VERIFY_CHECKS,
+        # What the request pinned, if it pinned a statement.
+        if_asked=("statement",),
         files=True,
         excludes=("verify.counterexample",),
     ),
@@ -260,6 +268,8 @@ class Evidence:
     files: Mapping[str, bool] = field(default_factory=dict)
     # Each other check the verdict needs, and whether it passed. None is not run.
     checks: Mapping[str, bool | None] = field(default_factory=dict)
+    # For a grant: the checks of its `if_asked` the request asked for, from the request, before anything ran.
+    asked: tuple[str, ...] = ()
     # For a grant: the processes it rests on besides `lean`, `replay`, `axioms` and `step`, by the names its
     # grant gives them.
     steps: Mapping[str, Step] = field(default_factory=dict)
@@ -377,6 +387,32 @@ def decide(name: Verdict | str, e: Evidence) -> Decision:
     return decision
 
 
+# The reason every tool's table has, for a bug in the tool.
+INTERNAL = "internal_error"
+
+
+def status(
+    d: Decision | None, table: Mapping[str, tuple[str, int]], reason: str | None = None
+) -> tuple[str, str, int]:
+    """The one way from a Decision to a tool's own status, reason and exit code, by `table`, the tool's: each
+    reason it gives, with the status it's under and the exit code that ends with. A Decision granted by name
+    gives its grant's word and exit code, with `reason`, which the table has to give exactly those. Anything
+    else, a Decision that isn't, or None for a refusal of the tool's own, gives `reason`, or the Decision's
+    own if none is given, as the table has it, unless that's a grant's word. Whatever doesn't fit is the
+    table's `internal_error`."""
+    if d is not None and d.granted:
+        grant = GRANTS.get(d.grant)
+        if grant is not None and reason is not None and table.get(reason) == (grant.word, grant.exit):
+            return grant.word, reason, grant.exit
+    else:
+        said = reason if reason is not None else d.reason if d is not None else INTERNAL
+        words = {g.word for g in GRANTS.values()} | {str(c) for c in CLAIMS}
+        if said in table and table[said][0] not in words:
+            return table[said][0], said, table[said][1]
+    word, code = table[INTERNAL]
+    return word, INTERNAL, code
+
+
 # Grants by name
 
 
@@ -393,11 +429,11 @@ def _crashed(step: Step) -> bool:
     return code is None or code < 0 or code >= 128
 
 
-def _listed(name: str) -> set[str]:
-    """The checks evidence for `name` can have: its own, and those of each grant it excludes, which the same
-    evidence is asked for."""
-    grant = GRANTS[name]
-    return {*grant.checks, *(c for other in grant.excludes for c in GRANTS[other].checks)}
+def _listed(name: str, *kinds: str) -> set[str]:
+    """What evidence for `name` can have of `kinds`, fields of Grant: its own, and those of each grant it
+    excludes, which the same evidence is asked for."""
+    grants = [GRANTS[name], *(GRANTS[other] for other in GRANTS[name].excludes)]
+    return {c for grant in grants for kind in kinds for c in getattr(grant, kind)}
 
 
 def _incomplete(planned: tuple[str, ...], observed: list[str]) -> str | None:
@@ -431,9 +467,15 @@ def _grant(name: str, e: Evidence, excluding: bool = True) -> Decision:
         if step.exit is not None and _crashed(step):
             return Decision(Verdict.ERROR, "tool_failed", f"{step.name} {_ended(step)}")
 
+    required = (*grant.checks, *(c for c in grant.if_asked if c in e.asked))
     absent = [r for r, s in steps if not isinstance(s, Step) or s.exit is None]
-    absent += [c for c in grant.checks if e.checks.get(c) is None]
-    absent += [f"{c}, which {name} doesn't list" for c in e.checks if c not in _listed(name)]
+    absent += [c for c in required if e.checks.get(c) is None]
+    absent += [
+        f"{c}, which {name} doesn't list" for c in e.checks if c not in _listed(name, "checks", "if_asked")
+    ]
+    absent += [
+        f"asked for {c}, which {name} doesn't list" for c in e.asked if c not in _listed(name, "if_asked")
+    ]
     if grant.files and not e.files:
         absent.append("files")
     if grant.cases:
@@ -456,9 +498,9 @@ def _grant(name: str, e: Evidence, excluding: bool = True) -> Decision:
     for r, step in steps:
         if why := _ended(step):
             return Decision(Verdict.ERROR, r, f"{step.name} {why}")
-    for c in grant.checks:
-        if e.checks[c] is not True:
-            return Decision(Verdict.ERROR, c, f"{c} is {e.checks[c]!r}, not True")
+    for c in (*grant.checks, *grant.if_asked):
+        if (said := e.checks.get(c)) is not True and (c in required or said is False):
+            return Decision(Verdict.ERROR, c, f"{c} is {said!r}, not True")
     if grant.files and (gone := sorted(f for f, there in e.files.items() if there is not True)):
         return Decision(Verdict.ERROR, "missing_file", f"not there as recorded: {', '.join(gone)}"[:500])
     reason, detail = "clean", f"each of its {len(steps)} steps and {len(grant.checks)} checks"
