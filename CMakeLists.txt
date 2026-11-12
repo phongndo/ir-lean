@@ -245,6 +245,11 @@ set_tests_properties(memory_refine PROPERTIES TIMEOUT 900)
 add_test(NAME exec_memory COMMAND ${CMAKE_SOURCE_DIR}/tests/exec_memory.sh $<TARGET_FILE:ir-lean>)
 set_tests_properties(exec_memory PROPERTIES TIMEOUT 900)
 add_test(NAME verify COMMAND ${CMAKE_SOURCE_DIR}/tests/verify.py $<TARGET_FILE:ir-lean>)
+# docs/verdicts.md's test 1, deny-all: tools/verify.py's smallest inputs that grant proved and counterexample,
+# run as a reader runs them, and again with IRLEAN_DENY_ALL=1, which leaves no grant in the exit code, the
+# output, the files written or a record nested in them. About 10 s. docs/testing.md.
+add_test(NAME deny_all COMMAND ${CMAKE_SOURCE_DIR}/tests/deny_all_test.py $<TARGET_FILE:ir-lean>)
+set_tests_properties(deny_all PROPERTIES TIMEOUT 600)
 # Tier-1 proof tests: the contract in Python, then tools/prooftest/prooftest.py on
 # tests/prooftest/Cases.ll, at most four cases at a time, each with at most one Lean process running.
 add_test(NAME prooftest COMMAND ${CMAKE_SOURCE_DIR}/tests/prooftest_test.py $<TARGET_FILE:ir-lean>)
@@ -461,7 +466,8 @@ set_tests_properties(passes PROPERTIES LABELS passes)
 set_tests_properties(binding stage1 PROPERTIES LABELS binding)
 set_tests_properties(binding_2 PROPERTIES LABELS binding_2)
 # verify_negative runs alone, after proofs, in the same job, so semantics has only one test that runs alone.
-set_tests_properties(proofs verify_negative PROPERTIES LABELS proofs)
+# deny_all runs tools/verify.py, as verify_negative does.
+set_tests_properties(proofs verify_negative deny_all PROPERTIES LABELS proofs)
 set_tests_properties(llvm llvm_closure PROPERTIES LABELS llvm)
 set_tests_properties(verify_claims PROPERTIES LABELS verify_claims)
 set_tests_properties(rules PROPERTIES LABELS rules)

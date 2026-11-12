@@ -11,6 +11,7 @@ docs/verdicts.md is the design, and these are its invariants 3 to 6:
   grant's word, or makes a Decision, but those on a list that can only shrink, each with why; and no shell
   test runs Lean and prints `ok` or exits 0 itself, but those on another.
 - The old form, `decide` asked for a claim, is counted where it's called, and the count can only fall.
+- The one adapter, `status`, gives a tool's status a grant's word only for a granted Decision of that grant.
 
 And the old form, until it goes:
 
@@ -62,6 +63,7 @@ from irlean.verdict import (  # noqa: E402
     decide,
     limit_of,
 )
+from irlean.verdict import status as to_status  # noqa: E402
 
 LIMIT_TEXT = "x.lean:3:2: error: (deterministic) timeout at `whnf`, maximum number of heartbeats (200000)"
 ERROR_TEXT = "x.lean:3:2: error: type mismatch"
@@ -422,7 +424,7 @@ class Routed(unittest.TestCase):
     """Each tool and test that decides one of these verdicts asks the core."""
 
     SITES: ClassVar[dict[str, list[str]]] = {
-        "tools/verify.py": ["Verdict.PROVED", "Verdict.REFUTED"],
+        "tools/verify.py": ['"verify.proved"', '"verify.counterexample"', "verdict.status("],
         "tools/binding.py": ["Verdict.CERTIFIED"],
         "tools/prooftest/prooftest.py": ["Verdict.REFUTED"],
         "tools/store/store.py": ["Verdict.PROVED"],
@@ -457,9 +459,18 @@ class Routed(unittest.TestCase):
         olean = Path(__file__)
         run.outputs = {"compile_generated": olean, "compile_proof": olean}
         run.steps = {"compile_proof": Step("compile_proof", 0), "kernel_replay": Step("kernel_replay", -11)}
-        self.assertEqual(verify.decide(run)[:2], ("error", "internal_error"))
+        run.steps["claim:check"] = Step("claim:check", 0)
+        self.assertEqual(verify.decide(run)[:2], ("error", "tool_failed"))
         run.steps["kernel_replay"] = Step("kernel_replay", 0)
         self.assertEqual(verify.decide(run)[:2], ("proved", "kernel_checked"))
+        # The process that applied the axiom policy answered, and then didn't end cleanly.
+        for ended, said in (
+            (Step("claim:check", 1), ("error", "tool_failed")),
+            (Step("claim:check", 137), ("timeout", "memory_limit")),
+        ):
+            self.assertEqual(
+                verify.decide(dataclasses.replace(run, steps={**run.steps, "claim:check": ended}))[:2], said
+            )
         run.outputs["compile_proof"] = Path("/nonexistent/P.olean")
         self.assertEqual(verify.decide(run)[:2], ("error", "internal_error"))
 
@@ -573,7 +584,7 @@ class Fixed(unittest.TestCase):
         for name, grant in GRANTS.items():
             self.assertIn(grant.schema, schemas.ALL, name)
             self.assertIs(type(grant.exit), int, name)
-            for what in (grant.steps, grant.checks, grant.excludes):
+            for what in (grant.steps, grant.checks + grant.if_asked, grant.excludes):
                 self.assertEqual(len(set(what)), len(what), name)
             for other in grant.excludes:
                 # Each excludes the other, so the same evidence is asked for both.
@@ -625,6 +636,29 @@ class Bounded(unittest.TestCase):
             e = evidence(clean_values(name))
             typo = dataclasses.replace(e, checks={**e.checks, "artifact_unchanged": True})
             self.assertEqual(decide(name, typo).reason, "internal_error", name)
+
+    def test_a_check_the_request_asks_for(self) -> None:
+        """A check a request can leave out, such as tools/verify.py's pinned statement, is required when the
+        request asked for it, by `asked`, as any check is, and otherwise can only take the grant away."""
+        count = 0
+        for name, grant in GRANTS.items():
+            clean = evidence(clean_values(name))
+            for c, asked in itertools.product(grant.if_asked, (False, True)):
+                for value, want in (
+                    (LEFT_OUT, (Verdict.ERROR, "internal_error") if asked else (Verdict.GRANTED, "clean")),
+                    (None, (Verdict.ERROR, "internal_error") if asked else (Verdict.GRANTED, "clean")),
+                    (False, (Verdict.ERROR, c)),
+                    (True, (Verdict.GRANTED, "clean")),
+                ):
+                    checks = {**clean.checks, **({} if value is LEFT_OUT else {c: value})}
+                    e = dataclasses.replace(clean, checks=checks, asked=(c,) if asked else ())
+                    d = decide(name, e)
+                    self.assertEqual((d.verdict, d.reason), want, (name, c, asked, value))
+                    count += 1
+            # Asked for something the grant doesn't list, which nothing would then require.
+            d = decide(name, dataclasses.replace(clean, asked=("statment",)))
+            self.assertEqual((d.verdict, d.reason), (Verdict.ERROR, "internal_error"), name)
+        self.assertGreater(count, 0)
 
     def test_an_axiom_audit_needs_its_process(self) -> None:
         e = evidence(clean_values("verify.proved"))
@@ -948,6 +982,55 @@ class DenyAll(unittest.TestCase):
                     self.assertEqual(decide(claim, broken), plain, name)
 
 
+# A tool's table, as tools/verify.py's: each reason it gives, with its status and exit code.
+TABLE = {
+    "kernel_checked": ("proved", 0),
+    "witness_falsifies": ("counterexample", 2),
+    "time_limit": ("timeout", 4),
+    "tool_failed": ("error", 1),
+    "internal_error": ("error", 1),
+    "denied": ("error", 1),
+}
+INTERNAL = ("error", "internal_error", 1)
+
+
+class Adapter(unittest.TestCase):
+    """docs/verdicts.md's adapters: `status` is the one way from a Decision to a tool's status, reason and
+    exit code, and gives a grant's word only for a granted Decision of that grant."""
+
+    def test_a_granted_decision_is_its_grants_word(self) -> None:
+        granted = {n: decide(n, evidence(clean_values(n))) for n in GRANTS}
+        said = {"verify.proved": "kernel_checked", "verify.counterexample": "witness_falsifies"}
+        for name, d in granted.items():
+            self.assertTrue(d.granted, name)
+            grant = GRANTS[name]
+            self.assertEqual(to_status(d, TABLE, said[name]), (grant.word, said[name], grant.exit))
+            # A reason the table puts under another status, or none, or no reason at all, isn't the grant's.
+            for reason in (*(r for r in TABLE if r != said[name]), "nonexistent", None):
+                self.assertEqual(to_status(d, TABLE, reason), INTERNAL, (name, reason))
+
+    def test_anything_else_is_never_a_grants_word(self) -> None:
+        unknown = decide("verify.proved", proved(lean=Step("lean", -9, limit="time_limit")))
+        error = decide("verify.proved", Evidence())
+        with mock.patch.dict(os.environ, {DENY_ALL: "1"}):
+            denied = decide("verify.proved", proved())
+        old = decide(Verdict.PROVED, Evidence(lean=Step("l", 0), replay=Step("r", 0), axioms=True))
+        self.assertEqual(
+            (unknown.reason, error.reason, denied.reason), ("time_limit", "internal_error", "denied")
+        )
+        self.assertTrue(old.granted)
+        for d in (unknown, error, denied, old, None):
+            for reason, (word, code) in TABLE.items():
+                # An old form's grant has no name in GRANTS, so no word of its own here.
+                refused = word in ("proved", "counterexample") or d is old
+                self.assertEqual(to_status(d, TABLE, reason), INTERNAL if refused else (word, reason, code))
+        # With no reason given, its own, if the table has one.
+        self.assertEqual(to_status(unknown, TABLE), ("timeout", "time_limit", 4))
+        self.assertEqual(to_status(denied, TABLE), ("error", "denied", 1))
+        self.assertEqual(to_status(decide("verify.proved", proved(lean=Step("lean", 1))), TABLE), INTERNAL)
+        self.assertEqual(to_status(None, TABLE), INTERNAL)
+
+
 # One lint: docs/verdicts.md's invariant 5.
 
 # Words a grant is reported as that GRANTS doesn't have yet, each with the pull request of docs/verdicts.md's
@@ -1058,7 +1141,6 @@ def tracked(*patterns: str) -> list[str]:
 # end of stage A only tools/verify_claims.py and the fixtures that write one tool's record to feed another are
 # left.
 EXCEPTIONS: dict[str, str] = {
-    "tools/verify.py::decide": "tools/verify.py's statuses, until it's on its grants: PR 3",
     "tools/prooftest/prooftest.py::decide": "tools/prooftest/prooftest.py's statuses: PR 6",
     "tools/store/store.py::lookup": "A lookup's `exact` and `instance`: PR 7",
     "tools/store/store.py::verdict": "A lemma's `admitted` and `candidate`: PR 7",
@@ -1203,7 +1285,6 @@ class OneLint(unittest.TestCase):
 # each tool's pull request in docs/verdicts.md's migration takes its own off, and the last, PR 10, takes the
 # old form away.
 LEGACY: dict[str, int] = {
-    "tools/verify.py": 2,
     "tools/prooftest/prooftest.py": 1,
     "tools/rules/proved.py": 1,
     "tools/rules/certify.py": 1,

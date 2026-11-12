@@ -11,6 +11,7 @@
     ],
     "exit": 2,
     "files": false,
+    "if_asked": [],
     "schema": "ir-lean.verify/1",
     "steps": [
       "witnesses"
@@ -40,6 +41,9 @@
     ],
     "exit": 0,
     "files": true,
+    "if_asked": [
+      "statement"
+    ],
     "schema": "ir-lean.verify/1",
     "steps": [
       "lean",
