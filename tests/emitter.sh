@@ -410,6 +410,42 @@ done
 for attribute in noreturn sanitize_address convergent nocf_check speculatable nocallback; do
   accepts "define i32 @f(i32 %x) $attribute { ret i32 0 }"
 done
+# Floating-point settings for the backend: nothing to act on in a function with no floating-point value, and a
+# function outside the module is answered from the world, whatever it does. Anywhere else they're refused.
+for attribute in '"no-signed-zeros-fp-math"="true"' '"less-precise-fpmad"="true"'; do
+  accepts "define i32 @f(i32 %x) $attribute { ret i32 %x }"
+  accepts "define i32 @f(ptr %p) $attribute {
+  %v = load i32, ptr %p
+  ret i32 %v
+}"
+  accepts "declare i32 @g(i32) memory(none) $attribute
+define i32 @f(i32 %x) {
+  %r = call i32 @g(i32 %x)
+  ret i32 %r
+}"
+  # And a C library function `Mem` defines is still that one.
+  accepts "declare ptr @malloc(i64) $attribute
+define ptr @f() {
+  %p = call ptr @malloc(i64 8)
+  ret ptr %p
+}"
+  refuses 'on a function with floating point' "define float @f(float %x) $attribute { ret float %x }"
+  refuses 'on a function with floating point' "define i32 @f(i32 %x) $attribute {
+  %y = bitcast i32 %x to float
+  %z = bitcast float %y to i32
+  ret i32 %z
+}"
+  refuses 'on a function with floating point' "define void @f(ptr %p) $attribute {
+  %v = load <2 x double>, ptr %p
+  store <2 x double> %v, ptr %p
+  ret void
+}"
+  refuses 'call attribute' "define internal i32 @g(i32 %x) { ret i32 %x }
+define i32 @f(i32 %x) {
+  %r = call i32 @g(i32 %x) $attribute
+  ret i32 %r
+}"
+done
 # LangRef: "This intrinsic does not modify the behavior of the program", whatever its address.
 accepts 'define void @f(ptr %p) {
   call void @llvm.prefetch.p0(ptr %p, i32 0, i32 3, i32 1)
@@ -1545,7 +1581,7 @@ define float @f(ptr noalias %p, float %a) "no-signed-zeros-fp-math"="true" {
   %m = call reassoc float @llvm.fmuladd.f32(float %a, float %a, float %a)
   ret float %m
 }'
-reasons_are f "$several" 'function attribute "no-signed-zeros-fp-math"="true"
+reasons_are f "$several" 'function attribute "no-signed-zeros-fp-math"="true" on a function with floating point
 fast-math flag reassoc on %m = call reassoc float @llvm.fmuladd.f32(float %a, float %a, float %a)
 instruction %v = load volatile i32, ptr @x, align 4
 call to @g, which isn'"'"'t translated

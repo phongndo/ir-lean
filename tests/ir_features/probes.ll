@@ -1516,6 +1516,11 @@ define ptr @probe(ptr %p, i64 %i) {
   ret ptr %q
 }
 
+; probe: form / float-setting-with-floating-point
+define float @probe(float %x) "no-signed-zeros-fp-math"="true" {
+  ret float %x
+}
+
 ; probe: form / speculatable-with-memory
 define i32 @probe(ptr %p) speculatable {
   %v = load i32, ptr %p

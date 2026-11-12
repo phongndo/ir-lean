@@ -227,6 +227,15 @@ REASONS: dict[str, Reason] = {
     ),
     "identity": Reason("modeled", None, "Returns its operand: llvm.expect's hint has no meaning for a run"),
     "no effect": Reason("modeled", None, "Does nothing, as LangRef says"),
+    "float setting": Reason(
+        "assumed",
+        None,
+        "A floating-point setting for the backend, which lets it treat the function's own floating-point "
+        "operations more loosely than IEEE 754. A function with no floating-point value gives it nothing to "
+        "act on, so the emitter accepts it there, and on a function outside the module, which is answered "
+        "from the world whatever it does. It refuses it on a function with a floating-point value, and at a "
+        "call",
+    ),
     "linkage": Reason(
         "modeled",
         None,
@@ -865,7 +874,8 @@ STRING_ATTRIBUTE_RULES = [
         at="function, call",
     ),
     R("string on a value", "any", at="parameter, return, call parameter, call return"),
-    R("floating point", "less-precise-fpmad no-signed-zeros-fp-math", at="function, call"),
+    R("float setting", "less-precise-fpmad no-signed-zeros-fp-math", at="function"),
+    R("floating point", "less-precise-fpmad no-signed-zeros-fp-math", at="call"),
     R(
         "target setting",
         "no-jump-tables no-inline-line-tables profile-sample-accurate use-sample-profile "
@@ -1042,6 +1052,7 @@ FORM_RULES = [
     R("variadic", "variadic-function"),
     R("exceptions", "personality-function"),
     R("big-endian", "big-endian-bitcast"),
+    R("floating point", "float-setting-with-floating-point"),
     R("asm", "inline-asm-call"),
     R("gc", "function-with-gc"),
     R("machine", "prefix-or-prologue-data"),

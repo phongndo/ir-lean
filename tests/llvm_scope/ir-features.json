@@ -113,6 +113,10 @@
    "class": "modeled",
    "says": "Does nothing, as LangRef says"
   },
+  "float setting": {
+   "class": "assumed",
+   "says": "A floating-point setting for the backend, which lets it treat the function's own floating-point operations more loosely than IEEE 754. A function with no floating-point value gives it nothing to act on, so the emitter accepts it there, and on a function outside the module, which is answered from the world whatever it does. It refuses it on a function with a floating-point value, and at a call"
+  },
   "linkage": {
    "class": "modeled",
    "says": "A definition that is certainly the one that runs: external, internal or private, and not one another module could replace when it's loaded"
@@ -390,10 +394,10 @@
   }
  },
  "totals": {
-  "items": 17045,
+  "items": 17046,
   "modeled": 447,
-  "assumed": 260,
-  "refused": 16338,
+  "assumed": 262,
+  "refused": 16337,
   "by_kind": {
    "instruction": {
     "modeled": 51,
@@ -415,8 +419,8 @@
     "refused": 85
    },
    "string attribute": {
-    "assumed": 40,
-    "refused": 8
+    "assumed": 42,
+    "refused": 6
    },
    "metadata": {
     "modeled": 2,
@@ -441,12 +445,12 @@
    "form": {
     "modeled": 12,
     "assumed": 3,
-    "refused": 37
+    "refused": 38
    }
   },
   "refused_by_lane": {
    "external calls and globals": 63,
-   "floating point": 127,
+   "floating point": 126,
    "long tail": 1660,
    "memory": 122
   }
@@ -17220,7 +17224,7 @@
   {"kind": "string attribute", "at": "call", "name": "frame-pointer", "class": "assumed", "reason": "target setting"},
   {"kind": "string attribute", "at": "function", "name": "instcombine-no-verify-fixpoint", "class": "assumed", "reason": "target setting"},
   {"kind": "string attribute", "at": "call", "name": "instcombine-no-verify-fixpoint", "class": "assumed", "reason": "target setting"},
-  {"kind": "string attribute", "at": "function", "name": "less-precise-fpmad", "class": "refused", "lane": "floating point", "reason": "floating point"},
+  {"kind": "string attribute", "at": "function", "name": "less-precise-fpmad", "class": "assumed", "reason": "float setting"},
   {"kind": "string attribute", "at": "call", "name": "less-precise-fpmad", "class": "refused", "lane": "floating point", "reason": "floating point"},
   {"kind": "string attribute", "at": "function", "name": "loader-replaceable", "class": "refused", "lane": "external calls and globals", "reason": "external"},
   {"kind": "string attribute", "at": "call", "name": "loader-replaceable", "class": "refused", "lane": "external calls and globals", "reason": "external"},
@@ -17234,7 +17238,7 @@
   {"kind": "string attribute", "at": "call", "name": "no-inline-line-tables", "class": "assumed", "reason": "target setting"},
   {"kind": "string attribute", "at": "function", "name": "no-jump-tables", "class": "assumed", "reason": "target setting"},
   {"kind": "string attribute", "at": "call", "name": "no-jump-tables", "class": "assumed", "reason": "target setting"},
-  {"kind": "string attribute", "at": "function", "name": "no-signed-zeros-fp-math", "class": "refused", "lane": "floating point", "reason": "floating point"},
+  {"kind": "string attribute", "at": "function", "name": "no-signed-zeros-fp-math", "class": "assumed", "reason": "float setting"},
   {"kind": "string attribute", "at": "call", "name": "no-signed-zeros-fp-math", "class": "refused", "lane": "floating point", "reason": "floating point"},
   {"kind": "string attribute", "at": "function", "name": "no-trapping-math", "class": "assumed", "reason": "target setting"},
   {"kind": "string attribute", "at": "call", "name": "no-trapping-math", "class": "assumed", "reason": "target setting"},
@@ -17480,6 +17484,7 @@
   {"kind": "form", "name": "variadic-function", "class": "refused", "reason": "variadic"},
   {"kind": "form", "name": "personality-function", "class": "refused", "lane": "long tail", "reason": "exceptions"},
   {"kind": "form", "name": "big-endian-bitcast", "class": "refused", "lane": "long tail", "reason": "big-endian"},
+  {"kind": "form", "name": "float-setting-with-floating-point", "class": "refused", "lane": "floating point", "reason": "floating point"},
   {"kind": "form", "name": "inline-asm-call", "class": "refused", "reason": "asm"},
   {"kind": "form", "name": "function-with-gc", "class": "refused", "reason": "gc"},
   {"kind": "form", "name": "prefix-or-prologue-data", "class": "refused", "reason": "machine"},

@@ -976,13 +976,25 @@ bool allowedStringAttribute(const Attribute &A) {
   return Allowed.count(A.getKindAsString().str()) != 0;
 }
 
+// Floating-point settings for the backend, which Attributes.td defines: they let it treat a zero's sign, or a
+// multiply and add, more loosely than IEEE 754 does, in the function's own floating-point operations.
+// `FunctionEmitter::prepare` refuses them on a definition with a floating-point value, and they're refused at
+// a call. On a function outside the module they say how it was compiled, and the world it's answered from
+// already has every way it can behave, and on a C library function `Mem` defines, `keepsItsPromises` drops
+// them.
+bool isFloatSetting(const Attribute &A) {
+  return A.isStringAttribute() &&
+         (A.getKindAsString() == "no-signed-zeros-fp-math" || A.getKindAsString() == "less-precise-fpmad");
+}
+
 // `Library` is for the C library functions `Mem` defines, `GivesUp` for a call to a function outside the
 // module that never returns, which stops the model, and `Definition` for a function the module defines.
 void checkFunctionAttributes(AttributeSet Attrs, const std::string &Where, bool Library = false,
                              bool GivesUp = false, bool Definition = false) {
   for (Attribute A : Attrs) {
     if (A.isStringAttribute()) {
-      if (!allowedStringAttribute(A))
+      // On a definition, `FunctionEmitter::prepare` checks it has no floating point.
+      if (!allowedStringAttribute(A) && !(Definition && isFloatSetting(A)))
         reject(Where + " attribute " + A.getAsString());
       continue;
     }
@@ -1088,11 +1100,11 @@ void checkFunctionAttributes(AttributeSet Attrs, const std::string &Where, bool 
 // Attributes on a function outside the module, or on a call to one. Each is a promise the model checks
 // against the call's answer, as IRLean/World.lean says, or only changes how code is optimized or lowered.
 // Anything else is refused: a target that added a promise the model doesn't check would be certified on a
-// callee that breaks it. See docs/calls.md.
-void checkOutsideAttributes(AttributeSet Attrs, const std::string &Where) {
+// callee that breaks it. See docs/calls.md. `Declaration` is for the function's own attributes, not a call's.
+void checkOutsideAttributes(AttributeSet Attrs, const std::string &Where, bool Declaration = false) {
   for (Attribute A : Attrs) {
     if (A.isStringAttribute()) {
-      if (!allowedStringAttribute(A))
+      if (!allowedStringAttribute(A) && !(Declaration && isFloatSetting(A)))
         reject("attribute " + A.getAsString() + " " + Where);
       continue;
     }
@@ -1264,6 +1276,9 @@ private:
     for (Attribute A : Attrs)
       attempt([&] { checkValueAttributes(AttributeSet::get(F.getContext(), {A}), T, At); });
   }
+  // The type of the first floating-point value the function has, in its signature, its instructions or
+  // their operands, or null if it has none.
+  Type *floatType() const;
   // Where a survey records reasons, or null outside one.
   std::vector<std::string> *Found = nullptr;
   // Whether a refusal in a survey left checks unmade.
@@ -3082,7 +3097,7 @@ void FunctionEmitter::emitOutsideCall(const CallBase &C, std::vector<Line> &Out)
   if (C.getCallingConv() != Callee->getCallingConv())
     reject("call to external " + Name + " with a calling convention it isn't declared with");
   checkOutsideAttributes(C.getAttributes().getFnAttrs(), "on " + printed(C));
-  checkOutsideAttributes(Callee->getAttributes().getFnAttrs(), "of external " + Name);
+  checkOutsideAttributes(Callee->getAttributes().getFnAttrs(), "of external " + Name, /*Declaration=*/true);
   AttributeSet Declared = Callee->getAttributes().getRetAttrs();
   checkValueAttributes(Declared, C.getType(), Position::CallReturn);
   checkValueAttributes(C.getAttributes().getRetAttrs(), C.getType(), Position::CallReturn);
@@ -3264,11 +3279,7 @@ void FunctionEmitter::checkFastMath(const Instruction &I) {
   Refuse(F.allowReassoc(), false, "reassoc");
 }
 
-// LangRef lets a NaN result take a payload from a "target-specific set of 'extra' possible NaN payloads",
-// which "is empty on x86 and ARM, but can be non-empty on other architectures", and says x86-32 "may convert
-// floating-point values to x86_fp80 and back". The model's set is empty, so floating point is refused for any
-// other target. A module with no target is taken as one of these, as docs/float.md and docs/trust.md say.
-void FunctionEmitter::checkFloatTarget() {
+Type *FunctionEmitter::floatType() const {
   Type *Float = firstFloat(F.getFunctionType());
   for (const BasicBlock &BB : F)
     for (const Instruction &I : BB) {
@@ -3278,6 +3289,15 @@ void FunctionEmitter::checkFloatTarget() {
         if (!Float)
           Float = firstFloat(U->getType());
     }
+  return Float;
+}
+
+// LangRef lets a NaN result take a payload from a "target-specific set of 'extra' possible NaN payloads",
+// which "is empty on x86 and ARM, but can be non-empty on other architectures", and says x86-32 "may convert
+// floating-point values to x86_fp80 and back". The model's set is empty, so floating point is refused for any
+// other target. A module with no target is taken as one of these, as docs/float.md and docs/trust.md say.
+void FunctionEmitter::checkFloatTarget() {
+  Type *Float = floatType();
   if (!Float)
     return;
   const Triple &T = F.getParent()->getTargetTriple();
@@ -3312,6 +3332,14 @@ void FunctionEmitter::prepare() {
       checkFunctionAttributes(AttributeSet::get(F.getContext(), {A}), "function", /*Library=*/false,
                               /*GivesUp=*/false, /*Definition=*/true);
     });
+  // A floating-point setting for the backend, which `checkFunctionAttributes` lets through on a definition. A
+  // function with no floating-point value gives it nothing to act on, and the model nothing to differ in.
+  // Anywhere else it would let a floating-point operation do what the model says it can't.
+  if (floatType())
+    for (Attribute A : F.getAttributes().getFnAttrs())
+      if (isFloatSetting(A))
+        attempt(
+            [&] { reject("function attribute " + A.getAsString() + " on a function with floating point"); });
   attempt([&] { checkFloatTarget(); });
   for (const BasicBlock &BB : F)
     for (const Instruction &I : BB)
@@ -3737,8 +3765,14 @@ bool keepsItsPromises(const Function &F, bool ReadsArgument, bool WritesArgument
                       bool Frees) {
   if (!hasExactLinkage(F))
     return false;
+  // A floating-point setting says how the library was compiled, which `Mem`'s version doesn't depend on: none
+  // of them has a floating-point value.
+  AttributeSet Fn = F.getAttributes().getFnAttrs();
+  for (Attribute A : F.getAttributes().getFnAttrs())
+    if (isFloatSetting(A))
+      Fn = Fn.removeAttribute(F.getContext(), A.getKindAsString());
   try {
-    checkFunctionAttributes(F.getAttributes().getFnAttrs(), "function", /*Library=*/true);
+    checkFunctionAttributes(Fn, "function", /*Library=*/true);
   } catch (const Unsupported &) {
     return false;
   }
