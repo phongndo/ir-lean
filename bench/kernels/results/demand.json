@@ -2,7 +2,7 @@
  "schema": "ir-lean.kernels.demand/1",
  "generated_by": "bench/kernels/demand.py run",
  "date": "2026-11-12",
- "commit": "c19861a4fea63529dc4e0f058abc708d97179e72",
+ "commit": "65d118d2193bfd397ca3ce0fe7184f1f83a4f3c6",
  "clang": "clang version 23.1.3",
  "opt": "-O3",
  "variants": {
@@ -304,7 +304,7 @@
    },
    "measured": {
     "date": "2026-11-12",
-    "commit": "c19861a4fea63529dc4e0f058abc708d97179e72",
+    "commit": "65d118d2193bfd397ca3ce0fe7184f1f83a4f3c6",
     "clang": "clang version 23.1.3"
    }
   },
@@ -520,7 +520,7 @@
    },
    "measured": {
     "date": "2026-11-12",
-    "commit": "c19861a4fea63529dc4e0f058abc708d97179e72",
+    "commit": "65d118d2193bfd397ca3ce0fe7184f1f83a4f3c6",
     "clang": "clang version 23.1.3"
    }
   },
@@ -542,7 +542,6 @@
         "fast-math flag arcp": 3,
         "fast-math flag nsz": 3,
         "function attribute \"no-signed-zeros-fp-math\" on a function with floating point": 3,
-        "intrinsic llvm.fmuladd": 3,
         "intrinsic llvm.vector.reduce.fadd": 3,
         "metadata !tbaa": 3
        },
@@ -553,7 +552,6 @@
           "fast-math flag arcp",
           "fast-math flag nsz",
           "function attribute \"no-signed-zeros-fp-math\" on a function with floating point",
-          "intrinsic llvm.fmuladd",
           "intrinsic llvm.vector.reduce.fadd",
           "metadata !tbaa"
          ],
@@ -564,7 +562,6 @@
           "fast-math flag arcp",
           "fast-math flag nsz",
           "function attribute \"no-signed-zeros-fp-math\" on a function with floating point",
-          "intrinsic llvm.fmuladd",
           "intrinsic llvm.vector.reduce.fadd",
           "metadata !tbaa"
          ],
@@ -575,7 +572,6 @@
           "fast-math flag arcp",
           "fast-math flag nsz",
           "function attribute \"no-signed-zeros-fp-math\" on a function with floating point",
-          "intrinsic llvm.fmuladd",
           "intrinsic llvm.vector.reduce.fadd",
           "metadata !tbaa"
          ],
@@ -585,36 +581,11 @@
       },
       "relaxed": {
        "functions": 3,
-       "translated": 0,
-       "refused": {
-        "intrinsic llvm.fmuladd": 3
-       },
-       "having": {
-        "intrinsic llvm.fmuladd": 3
-       },
-       "alone": {
-        "intrinsic llvm.fmuladd": 3
-       },
-       "blocked": {
-        "FLAC__lpc_compute_autocorrelation_intrin_fma_lag_12": {
-         "own": [
-          "intrinsic llvm.fmuladd"
-         ],
-         "waits": []
-        },
-        "FLAC__lpc_compute_autocorrelation_intrin_fma_lag_16": {
-         "own": [
-          "intrinsic llvm.fmuladd"
-         ],
-         "waits": []
-        },
-        "FLAC__lpc_compute_autocorrelation_intrin_fma_lag_8": {
-         "own": [
-          "intrinsic llvm.fmuladd"
-         ],
-         "waits": []
-        }
-       }
+       "translated": 3,
+       "refused": {},
+       "having": {},
+       "alone": {},
+       "blocked": {}
       }
      },
      "instructions": 1010,
@@ -639,15 +610,12 @@
          "fast-math flag arcp",
          "fast-math flag nsz",
          "function attribute \"no-signed-zeros-fp-math\" on a function with floating point",
-         "intrinsic llvm.fmuladd",
          "intrinsic llvm.vector.reduce.fadd",
          "metadata !tbaa"
         ],
-        "relaxed": [
-         "intrinsic llvm.fmuladd"
-        ]
+        "relaxed": []
        },
-       "relaxed": "intrinsic llvm.fmuladd"
+       "relaxed": "ok"
       },
       "FLAC__lpc_compute_autocorrelation_intrin_fma_lag_16": {
        "instructions": 464,
@@ -664,15 +632,12 @@
          "fast-math flag arcp",
          "fast-math flag nsz",
          "function attribute \"no-signed-zeros-fp-math\" on a function with floating point",
-         "intrinsic llvm.fmuladd",
          "intrinsic llvm.vector.reduce.fadd",
          "metadata !tbaa"
         ],
-        "relaxed": [
-         "intrinsic llvm.fmuladd"
-        ]
+        "relaxed": []
        },
-       "relaxed": "intrinsic llvm.fmuladd"
+       "relaxed": "ok"
       }
      }
     },
@@ -1111,7 +1076,6 @@
         "function attribute nofree on a function whose calls outside the module have effects": 3,
         "function attribute norecurse on a function that calls outside the module": 3,
         "function attribute nosync on a function whose calls outside the module access memory": 3,
-        "intrinsic llvm.fmuladd": 3,
         "call to external @_ with effects, under a promise to progress": 2,
         "intrinsic llvm.vector.reduce.fadd": 2
        },
@@ -1122,7 +1086,6 @@
           "fast-math flag arcp",
           "fast-math flag nsz",
           "function attribute \"no-signed-zeros-fp-math\" on a function with floating point",
-          "intrinsic llvm.fmuladd",
           "intrinsic llvm.vector.reduce.fadd",
           "metadata !tbaa"
          ],
@@ -1140,7 +1103,6 @@
           "function attribute nofree on a function whose calls outside the module have effects",
           "function attribute norecurse on a function that calls outside the module",
           "function attribute nosync on a function whose calls outside the module access memory",
-          "intrinsic llvm.fmuladd",
           "metadata !tbaa"
          ],
          "waits": []
@@ -1179,7 +1141,6 @@
           "fast-math flag nsz",
           "fast-math flag reassoc",
           "function attribute \"no-signed-zeros-fp-math\" on a function with floating point",
-          "intrinsic llvm.fmuladd",
           "intrinsic llvm.vector.reduce.fadd",
           "metadata !tbaa"
          ],
@@ -1307,13 +1268,12 @@
       },
       "relaxed": {
        "functions": 20,
-       "translated": 2,
+       "translated": 3,
        "refused": {
         "parameter attribute noalias": 8,
         "call to external functions in a function with a stack frame or promises about memory, which IRLean.World doesn't wrap yet": 3,
         "function attribute norecurse on a function that calls outside the module": 3,
-        "metadata !alias": 3,
-        "intrinsic llvm.fmuladd": 1
+        "metadata !alias": 3
        },
        "having": {
         "parameter attribute noalias": 10,
@@ -1324,18 +1284,15 @@
         "function attribute nofree on a function whose calls outside the module have effects": 3,
         "function attribute norecurse on a function that calls outside the module": 3,
         "function attribute nosync on a function whose calls outside the module access memory": 3,
-        "intrinsic llvm.fmuladd": 3,
         "call to external @_ with effects, under a promise to progress": 2
        },
        "alone": {
         "parameter attribute noalias": 8,
-        "metadata !alias": 2,
-        "intrinsic llvm.fmuladd": 1
+        "metadata !alias": 3
        },
        "blocked": {
         "FLAC__lpc_compute_autocorrelation": {
          "own": [
-          "intrinsic llvm.fmuladd",
           "metadata !alias"
          ],
          "waits": []
@@ -1347,8 +1304,7 @@
           "function attribute memory on a function whose calls outside the module access memory",
           "function attribute nofree on a function whose calls outside the module have effects",
           "function attribute norecurse on a function that calls outside the module",
-          "function attribute nosync on a function whose calls outside the module access memory",
-          "intrinsic llvm.fmuladd"
+          "function attribute nosync on a function whose calls outside the module access memory"
          ],
          "waits": []
         },
@@ -1369,12 +1325,6 @@
           "function attribute nofree on a function whose calls outside the module have effects",
           "function attribute norecurse on a function that calls outside the module",
           "function attribute nosync on a function whose calls outside the module access memory"
-         ],
-         "waits": []
-        },
-        "FLAC__lpc_compute_lp_coefficients": {
-         "own": [
-          "intrinsic llvm.fmuladd"
          ],
          "waits": []
         },
@@ -1520,15 +1470,12 @@
          "fast-math flag nsz",
          "fast-math flag reassoc",
          "function attribute \"no-signed-zeros-fp-math\" on a function with floating point",
-         "intrinsic llvm.fmuladd",
          "intrinsic llvm.vector.reduce.fadd",
          "metadata !tbaa"
         ],
-        "relaxed": [
-         "intrinsic llvm.fmuladd"
-        ]
+        "relaxed": []
        },
-       "relaxed": "intrinsic llvm.fmuladd"
+       "relaxed": "ok"
       }
      }
     },
@@ -1552,8 +1499,7 @@
         "llvm.loop.mustprogress off a loop's latch, in a function with irreducible control flow": 2,
         "call return attribute dereferenceable_or_null": 1,
         "function attribute memory on a function whose calls outside the module access memory": 1,
-        "function attribute nofree on a function whose calls outside the module have effects": 1,
-        "intrinsic llvm.memmove": 1
+        "function attribute nofree on a function whose calls outside the module have effects": 1
        },
        "alone": {
         "metadata !tbaa": 13
@@ -1789,7 +1735,6 @@
          "own": [
           "call to external @_, which touches memory: F4",
           "call to external functions in a function with a stack frame or promises about memory, which IRLean.World doesn't wrap yet",
-          "intrinsic llvm.memmove",
           "metadata !tbaa"
          ],
          "waits": []
@@ -1811,8 +1756,7 @@
         "llvm.loop.mustprogress off a loop's latch, in a function with irreducible control flow": 2,
         "call return attribute dereferenceable_or_null": 1,
         "function attribute memory on a function whose calls outside the module access memory": 1,
-        "function attribute nofree on a function whose calls outside the module have effects": 1,
-        "intrinsic llvm.memmove": 1
+        "function attribute nofree on a function whose calls outside the module have effects": 1
        },
        "alone": {
         "call return attribute dereferenceable_or_null": 1
@@ -1954,8 +1898,7 @@
         "bitreader_read_from_client_": {
          "own": [
           "call to external @_, which touches memory: F4",
-          "call to external functions in a function with a stack frame or promises about memory, which IRLean.World doesn't wrap yet",
-          "intrinsic llvm.memmove"
+          "call to external functions in a function with a stack frame or promises about memory, which IRLean.World doesn't wrap yet"
          ],
          "waits": []
         }
@@ -1989,14 +1932,12 @@
         "as-built": [
          "call to external @_, which touches memory: F4",
          "call to external functions in a function with a stack frame or promises about memory, which IRLean.World doesn't wrap yet",
-         "intrinsic llvm.memmove",
          "llvm.loop.mustprogress off a loop's latch, in a function with irreducible control flow",
          "metadata !tbaa"
         ],
         "relaxed": [
          "call to external @_, which touches memory: F4",
          "call to external functions in a function with a stack frame or promises about memory, which IRLean.World doesn't wrap yet",
-         "intrinsic llvm.memmove",
          "llvm.loop.mustprogress off a loop's latch, in a function with irreducible control flow"
         ]
        },
@@ -2455,7 +2396,6 @@
         "fast-math flag arcp": 2,
         "fast-math flag nsz": 2,
         "fast-math flag reassoc": 2,
-        "intrinsic llvm.memmove": 2,
         "metadata !alias": 1
        },
        "alone": {
@@ -2961,7 +2901,6 @@
          "own": [
           "call to external @_, which touches memory: F4",
           "call to external functions in a function with a stack frame or promises about memory, which IRLean.World doesn't wrap yet",
-          "intrinsic llvm.memmove",
           "metadata !tbaa"
          ],
          "waits": [
@@ -3041,7 +2980,6 @@
          "own": [
           "call to external @_, which touches memory: F4",
           "call to external functions in a function with a stack frame or promises about memory, which IRLean.World doesn't wrap yet",
-          "intrinsic llvm.memmove",
           "metadata !tbaa"
          ],
          "waits": []
@@ -3074,7 +3012,6 @@
         "call to external @_, which touches memory: F4": 23,
         "function attribute nofree on a function whose calls outside the module have effects": 5,
         "function attribute norecurse on a function that calls outside the module": 3,
-        "intrinsic llvm.memmove": 2,
         "metadata !alias": 1
        },
        "alone": {},
@@ -3271,8 +3208,7 @@
         "process_frame_thread_": {
          "own": [
           "call to external @_, which touches memory: F4",
-          "call to external functions in a function with a stack frame or promises about memory, which IRLean.World doesn't wrap yet",
-          "intrinsic llvm.memmove"
+          "call to external functions in a function with a stack frame or promises about memory, which IRLean.World doesn't wrap yet"
          ],
          "waits": [
           "process_frame_thread_inner_"
@@ -3327,8 +3263,7 @@
         "verify_write_callback_": {
          "own": [
           "call to external @_, which touches memory: F4",
-          "call to external functions in a function with a stack frame or promises about memory, which IRLean.World doesn't wrap yet",
-          "intrinsic llvm.memmove"
+          "call to external functions in a function with a stack frame or promises about memory, which IRLean.World doesn't wrap yet"
          ],
          "waits": []
         },
@@ -4726,10 +4661,8 @@
       "function attribute nosync on a function whose calls outside the module access memory": 10,
       "parameter attribute noalias": 10,
       "fast-math flag reassoc": 7,
-      "intrinsic llvm.fmuladd": 6,
       "intrinsic llvm.vector.reduce.fadd": 5,
       "call return attribute dereferenceable_or_null": 3,
-      "intrinsic llvm.memmove": 3,
       "call to external @_ with effects, under a promise to progress": 2,
       "llvm.loop.mustprogress off a loop's latch, in a function with irreducible control flow": 2,
       "call parameter attribute readonly": 1,
@@ -4741,7 +4674,7 @@
     },
     "relaxed": {
      "functions": 248,
-     "translated": 109,
+     "translated": 113,
      "refused": {
       "call to external functions in a function with a stack frame or promises about memory, which IRLean.World doesn't wrap yet": 64,
       "function attribute memory on a function whose calls outside the module access memory": 17,
@@ -4751,7 +4684,6 @@
       "metadata !alias": 7,
       "call to @_, which isn't translated": 6,
       "call to external @_, which touches memory: F4": 4,
-      "intrinsic llvm.fmuladd": 4,
       "call return attribute dereferenceable_or_null": 2,
       "indirect call that can reach @_, which isn't translated": 2,
       "llvm.loop.mustprogress off a loop's latch, in a function with irreducible control flow": 2
@@ -4765,17 +4697,14 @@
       "function attribute nosync on a function whose calls outside the module access memory": 10,
       "metadata !alias": 10,
       "parameter attribute noalias": 10,
-      "intrinsic llvm.fmuladd": 6,
       "call return attribute dereferenceable_or_null": 3,
-      "intrinsic llvm.memmove": 3,
       "call to external @_ with effects, under a promise to progress": 2,
       "llvm.loop.mustprogress off a loop's latch, in a function with irreducible control flow": 2,
       "call parameter attribute readonly": 1
      },
      "alone": {
       "parameter attribute noalias": 8,
-      "metadata !alias": 6,
-      "intrinsic llvm.fmuladd": 4,
+      "metadata !alias": 7,
       "call return attribute dereferenceable_or_null": 2,
       "call to external @_, which touches memory: F4": 1
      }
@@ -4803,8 +4732,7 @@
      },
      "llvm.fmuladd": {
       "calls": 363,
-      "class": "refused",
-      "lane": "floating point"
+      "class": "modeled"
      },
      "llvm.fshl": {
       "calls": 71,
@@ -4824,8 +4752,7 @@
      },
      "llvm.memmove": {
       "calls": 7,
-      "class": "refused",
-      "lane": "memory"
+      "class": "modeled"
      },
      "llvm.memset": {
       "calls": 55,
@@ -4892,12 +4819,12 @@
     "kernels": {
      "named": 16,
      "as-built": 0,
-     "relaxed": 6
+     "relaxed": 9
     }
    },
    "measured": {
     "date": "2026-11-12",
-    "commit": "c19861a4fea63529dc4e0f058abc708d97179e72",
+    "commit": "65d118d2193bfd397ca3ce0fe7184f1f83a4f3c6",
     "clang": "clang version 23.1.3"
    }
   },
@@ -4923,12 +4850,11 @@
         "parameter attribute noalias": 5,
         "call to external @_, which touches memory: F4": 2,
         "intrinsic llvm.experimental.noalias.scope.decl": 2,
-        "intrinsic llvm.memmove": 2,
         "metadata !noalias": 2,
         "call to external functions in a function with a stack frame or promises about memory, which IRLean.World doesn't wrap yet": 1
        },
        "alone": {
-        "metadata !tbaa": 5
+        "metadata !tbaa": 9
        },
        "blocked": {
         "deflate_compress_fastest": {
@@ -4980,7 +4906,6 @@
         },
         "deflate_compress_near_optimal": {
          "own": [
-          "intrinsic llvm.memmove",
           "metadata !tbaa",
           "parameter attribute noalias"
          ],
@@ -5038,7 +4963,6 @@
         },
         "deflate_precompute_huffman_header": {
          "own": [
-          "intrinsic llvm.memmove",
           "metadata !tbaa"
          ],
          "waits": [
@@ -5093,15 +5017,14 @@
       },
       "relaxed": {
        "functions": 19,
-       "translated": 5,
+       "translated": 8,
        "refused": {
         "call parameter attribute readonly": 4,
-        "call to @_, which isn't translated": 3,
         "intrinsic llvm.experimental.noalias.scope.decl": 2,
+        "call to @_, which isn't translated": 1,
         "call to external @_, which touches memory: F4": 1,
         "call to external functions in a function with a stack frame or promises about memory, which IRLean.World doesn't wrap yet": 1,
         "indirect call that can reach @_, which isn't translated": 1,
-        "intrinsic llvm.memmove": 1,
         "metadata !range": 1
        },
        "having": {
@@ -5111,12 +5034,10 @@
         "metadata !alias": 3,
         "call to external @_, which touches memory: F4": 2,
         "intrinsic llvm.experimental.noalias.scope.decl": 2,
-        "intrinsic llvm.memmove": 2,
         "metadata !noalias": 2,
         "call to external functions in a function with a stack frame or promises about memory, which IRLean.World doesn't wrap yet": 1
        },
        "alone": {
-        "intrinsic llvm.memmove": 3,
         "call parameter attribute readonly": 1,
         "call to external @_, which touches memory: F4": 1
        },
@@ -5127,9 +5048,7 @@
           "metadata !range",
           "parameter attribute noalias"
          ],
-         "waits": [
-          "deflate_flush_block"
-         ]
+         "waits": []
         },
         "deflate_compress_greedy": {
          "own": [
@@ -5137,9 +5056,7 @@
           "metadata !range",
           "parameter attribute noalias"
          ],
-         "waits": [
-          "deflate_flush_block"
-         ]
+         "waits": []
         },
         "deflate_compress_lazy": {
          "own": [
@@ -5150,9 +5067,7 @@
           "metadata !range",
           "parameter attribute noalias"
          ],
-         "waits": [
-          "deflate_flush_block"
-         ]
+         "waits": []
         },
         "deflate_compress_lazy2": {
          "own": [
@@ -5163,24 +5078,15 @@
           "metadata !range",
           "parameter attribute noalias"
          ],
-         "waits": [
-          "deflate_flush_block"
-         ]
+         "waits": []
         },
         "deflate_compress_near_optimal": {
          "own": [
-          "intrinsic llvm.memmove",
           "metadata !range",
           "parameter attribute noalias"
          ],
          "waits": [
           "deflate_optimize_and_flush_block"
-         ]
-        },
-        "deflate_compute_true_cost": {
-         "own": [],
-         "waits": [
-          "deflate_precompute_huffman_header"
          ]
         },
         "deflate_find_min_cost_path": {
@@ -5189,28 +5095,14 @@
          ],
          "waits": []
         },
-        "deflate_flush_block": {
-         "own": [],
-         "waits": [
-          "deflate_precompute_huffman_header"
-         ]
-        },
         "deflate_optimize_and_flush_block": {
          "own": [
           "call parameter attribute readonly",
           "metadata !alias"
          ],
          "waits": [
-          "deflate_compute_true_cost",
-          "deflate_find_min_cost_path",
-          "deflate_flush_block"
+          "deflate_find_min_cost_path"
          ]
-        },
-        "deflate_precompute_huffman_header": {
-         "own": [
-          "intrinsic llvm.memmove"
-         ],
-         "waits": []
         },
         "libdeflate_alloc_compressor": {
          "own": [],
@@ -5285,7 +5177,6 @@
        "needs": {
         "as-built": [
          "intrinsic llvm.experimental.noalias.scope.decl",
-         "intrinsic llvm.memmove",
          "metadata !noalias",
          "metadata !tbaa",
          "parameter attribute noalias"
@@ -5293,7 +5184,6 @@
         "relaxed": [
          "call parameter attribute readonly",
          "intrinsic llvm.experimental.noalias.scope.decl",
-         "intrinsic llvm.memmove",
          "metadata !alias",
          "metadata !noalias",
          "metadata !range",
@@ -5317,14 +5207,11 @@
        "as-built": "metadata !tbaa",
        "needs": {
         "as-built": [
-         "intrinsic llvm.memmove",
          "metadata !tbaa"
         ],
-        "relaxed": [
-         "intrinsic llvm.memmove"
-        ]
+        "relaxed": []
        },
-       "relaxed": "call to @_, which isn't translated"
+       "relaxed": "ok"
       }
      }
     },
@@ -5533,28 +5420,26 @@
       "parameter attribute noalias": 8,
       "call to external @_, which touches memory: F4": 3,
       "intrinsic llvm.experimental.noalias.scope.decl": 2,
-      "intrinsic llvm.memmove": 2,
       "metadata !noalias": 2,
       "call to external functions in a function with a stack frame or promises about memory, which IRLean.World doesn't wrap yet": 1,
       "metadata !callees": 1
      },
      "alone": {
-      "metadata !tbaa": 9
+      "metadata !tbaa": 13
      }
     },
     "relaxed": {
      "functions": 28,
-     "translated": 9,
+     "translated": 12,
      "refused": {
       "call parameter attribute readonly": 4,
-      "call to @_, which isn't translated": 3,
       "instruction load volatile": 3,
       "metadata !range": 3,
       "intrinsic llvm.experimental.noalias.scope.decl": 2,
+      "call to @_, which isn't translated": 1,
       "call to external @_, which touches memory: F4": 1,
       "call to external functions in a function with a stack frame or promises about memory, which IRLean.World doesn't wrap yet": 1,
-      "indirect call that can reach @_, which isn't translated": 1,
-      "intrinsic llvm.memmove": 1
+      "indirect call that can reach @_, which isn't translated": 1
      },
      "having": {
       "metadata !range": 8,
@@ -5564,14 +5449,12 @@
       "instruction load volatile": 3,
       "metadata !alias": 3,
       "intrinsic llvm.experimental.noalias.scope.decl": 2,
-      "intrinsic llvm.memmove": 2,
       "metadata !noalias": 2,
       "call to external functions in a function with a stack frame or promises about memory, which IRLean.World doesn't wrap yet": 1,
       "instruction store volatile": 1,
       "metadata !callees": 1
      },
      "alone": {
-      "intrinsic llvm.memmove": 3,
       "call parameter attribute readonly": 1,
       "call to external @_, which touches memory: F4": 1
      }
@@ -5608,8 +5491,7 @@
      },
      "llvm.memmove": {
       "calls": 3,
-      "class": "refused",
-      "lane": "memory"
+      "class": "modeled"
      },
      "llvm.memset": {
       "calls": 38,
@@ -5647,12 +5529,12 @@
     "kernels": {
      "named": 3,
      "as-built": 0,
-     "relaxed": 0
+     "relaxed": 1
     }
    },
    "measured": {
     "date": "2026-11-12",
-    "commit": "c19861a4fea63529dc4e0f058abc708d97179e72",
+    "commit": "65d118d2193bfd397ca3ce0fe7184f1f83a4f3c6",
     "clang": "clang version 23.1.3"
    }
   },
@@ -6616,7 +6498,7 @@
    },
    "measured": {
     "date": "2026-11-12",
-    "commit": "c19861a4fea63529dc4e0f058abc708d97179e72",
+    "commit": "65d118d2193bfd397ca3ce0fe7184f1f83a4f3c6",
     "clang": "clang version 23.1.3"
    }
   },
@@ -9567,7 +9449,6 @@
         "function attribute norecurse on a function that calls outside the module": 2,
         "function attribute nosync on a function whose calls outside the module access memory": 2,
         "intrinsic llvm.experimental.noalias.scope.decl": 2,
-        "intrinsic llvm.fmuladd": 2,
         "metadata !noalias": 2,
         "more than one parameter with attribute initializes": 2
        },
@@ -9612,7 +9493,6 @@
           "function attribute nofree on a function whose calls outside the module have effects",
           "function attribute norecurse on a function that calls outside the module",
           "function attribute nosync on a function whose calls outside the module access memory",
-          "intrinsic llvm.fmuladd",
           "metadata !tbaa"
          ],
          "waits": []
@@ -9625,7 +9505,6 @@
           "function attribute nofree on a function whose calls outside the module have effects",
           "function attribute norecurse on a function that calls outside the module",
           "function attribute nosync on a function whose calls outside the module access memory",
-          "intrinsic llvm.fmuladd",
           "metadata !tbaa"
          ],
          "waits": []
@@ -9873,7 +9752,6 @@
         "function attribute norecurse on a function that calls outside the module": 2,
         "function attribute nosync on a function whose calls outside the module access memory": 2,
         "intrinsic llvm.experimental.noalias.scope.decl": 2,
-        "intrinsic llvm.fmuladd": 2,
         "metadata !alias": 2,
         "metadata !noalias": 2,
         "more than one parameter with attribute initializes": 2,
@@ -9911,8 +9789,7 @@
           "function attribute memory on a function whose calls outside the module access memory",
           "function attribute nofree on a function whose calls outside the module have effects",
           "function attribute norecurse on a function that calls outside the module",
-          "function attribute nosync on a function whose calls outside the module access memory",
-          "intrinsic llvm.fmuladd"
+          "function attribute nosync on a function whose calls outside the module access memory"
          ],
          "waits": []
         },
@@ -9923,8 +9800,7 @@
           "function attribute memory on a function whose calls outside the module access memory",
           "function attribute nofree on a function whose calls outside the module have effects",
           "function attribute norecurse on a function that calls outside the module",
-          "function attribute nosync on a function whose calls outside the module access memory",
-          "intrinsic llvm.fmuladd"
+          "function attribute nosync on a function whose calls outside the module access memory"
          ],
          "waits": []
         },
@@ -10144,7 +10020,6 @@
          "function attribute norecurse on a function that calls outside the module",
          "function attribute nosync on a function whose calls outside the module access memory",
          "intrinsic llvm.experimental.noalias.scope.decl",
-         "intrinsic llvm.fmuladd",
          "metadata !noalias",
          "metadata !tbaa",
          "more than one parameter with attribute initializes",
@@ -10158,7 +10033,6 @@
          "function attribute norecurse on a function that calls outside the module",
          "function attribute nosync on a function whose calls outside the module access memory",
          "intrinsic llvm.experimental.noalias.scope.decl",
-         "intrinsic llvm.fmuladd",
          "metadata !alias",
          "metadata !noalias",
          "more than one parameter with attribute initializes",
@@ -11334,8 +11208,7 @@
         "intrinsic llvm.experimental.noalias.scope.decl": 12,
         "metadata !alias": 2,
         "call to external @_, which touches memory: F4": 1,
-        "call to external functions in a function with a stack frame or promises about memory, which IRLean.World doesn't wrap yet": 1,
-        "instruction freeze of a vector": 1
+        "call to external functions in a function with a stack frame or promises about memory, which IRLean.World doesn't wrap yet": 1
        },
        "alone": {
         "metadata !tbaa": 1
@@ -11424,7 +11297,6 @@
         },
         "Mean16x4_SSE2": {
          "own": [
-          "instruction freeze of a vector",
           "metadata !tbaa",
           "parameter attribute noalias"
          ],
@@ -11498,9 +11370,8 @@
        "refused": {
         "intrinsic llvm.experimental.noalias.scope.decl": 10,
         "metadata !alias": 4,
-        "parameter attribute noalias": 2,
-        "call to external functions in a function with a stack frame or promises about memory, which IRLean.World doesn't wrap yet": 1,
-        "instruction freeze of a vector": 1
+        "parameter attribute noalias": 3,
+        "call to external functions in a function with a stack frame or promises about memory, which IRLean.World doesn't wrap yet": 1
        },
        "having": {
         "parameter attribute noalias": 18,
@@ -11508,11 +11379,10 @@
         "intrinsic llvm.experimental.noalias.scope.decl": 12,
         "metadata !noalias": 3,
         "call to external @_, which touches memory: F4": 1,
-        "call to external functions in a function with a stack frame or promises about memory, which IRLean.World doesn't wrap yet": 1,
-        "instruction freeze of a vector": 1
+        "call to external functions in a function with a stack frame or promises about memory, which IRLean.World doesn't wrap yet": 1
        },
        "alone": {
-        "parameter attribute noalias": 2
+        "parameter attribute noalias": 3
        },
        "blocked": {
         "CollectHistogram_SSE2": {
@@ -11596,7 +11466,6 @@
         },
         "Mean16x4_SSE2": {
          "own": [
-          "instruction freeze of a vector",
           "parameter attribute noalias"
          ],
          "waits": []
@@ -11780,12 +11649,10 @@
       "function attribute norecurse on a function that calls outside the module": 3,
       "function attribute nosync on a function whose calls outside the module access memory": 3,
       "function attribute nofree on a function whose calls outside the module have effects": 2,
-      "intrinsic llvm.fmuladd": 2,
       "metadata !alias": 2,
       "more than one parameter with attribute initializes": 2,
       "call parameter attribute readonly": 1,
       "call to @_, which calls outside the module with effects, under a promise to progress": 1,
-      "instruction freeze of a vector": 1,
       "metadata !callees": 1,
       "parameter attribute dead_on_unwind": 1,
       "parameter attribute sret(%_)": 1,
@@ -11802,7 +11669,7 @@
      "translated": 68,
      "refused": {
       "call to external functions in a function with a stack frame or promises about memory, which IRLean.World doesn't wrap yet": 41,
-      "parameter attribute noalias": 28,
+      "parameter attribute noalias": 29,
       "in a cycle with a function refused for: parameter attribute noalias": 27,
       "call to external @_, which touches memory: F4": 23,
       "metadata !alias": 14,
@@ -11814,7 +11681,6 @@
       "constant ptr getelementptr inbounds nuw (i8, ptr @_, i64 16) with flags that don't plainly hold": 1,
       "constant ptr getelementptr inbounds nuw (i8, ptr @_, i64 8) with flags that don't plainly hold": 1,
       "indirect call that can reach @_, which isn't translated": 1,
-      "instruction freeze of a vector": 1,
       "parameter attribute dead_on_unwind": 1
      },
      "having": {
@@ -11832,7 +11698,6 @@
       "constant ptr getelementptr inbounds nuw (i8, ptr @_, i64 16) with flags that don't plainly hold": 2,
       "function attribute nofree on a function whose calls outside the module have effects": 2,
       "instruction store volatile": 2,
-      "intrinsic llvm.fmuladd": 2,
       "more than one parameter with attribute initializes": 2,
       "call parameter attribute readonly": 1,
       "call to @_, which calls outside the module with effects, under a promise to progress": 1,
@@ -11842,14 +11707,13 @@
       "constant ptr getelementptr inbounds nuw (i8, ptr @_, i64 48) with flags that don't plainly hold": 1,
       "constant ptr getelementptr inbounds nuw (i8, ptr @_, i64 56) with flags that don't plainly hold": 1,
       "constant ptr getelementptr inbounds nuw (i8, ptr @_, i64 8) with flags that don't plainly hold": 1,
-      "instruction freeze of a vector": 1,
       "metadata !callees": 1,
       "parameter attribute dead_on_unwind": 1,
       "parameter attribute sret(%_)": 1,
       "parameter attribute writable": 1
      },
      "alone": {
-      "parameter attribute noalias": 56,
+      "parameter attribute noalias": 57,
       "call to external @_, which touches memory: F4": 14,
       "constant ptr getelementptr inbounds nuw (i8, ptr @_, i64 16) with flags that don't plainly hold": 1
      }
@@ -11882,8 +11746,7 @@
      },
      "llvm.fmuladd": {
       "calls": 2,
-      "class": "refused",
-      "lane": "floating point"
+      "class": "modeled"
      },
      "llvm.fshl": {
       "calls": 39,
@@ -12018,7 +11881,7 @@
    },
    "measured": {
     "date": "2026-11-12",
-    "commit": "c19861a4fea63529dc4e0f058abc708d97179e72",
+    "commit": "65d118d2193bfd397ca3ce0fe7184f1f83a4f3c6",
     "clang": "clang version 23.1.3"
    }
   },
@@ -12036,17 +11899,14 @@
        "functions": 12,
        "translated": 0,
        "refused": {
-        "instruction freeze of a vector": 4,
-        "metadata !tbaa": 4,
-        "intrinsic llvm.experimental.noalias.scope.decl": 2,
+        "metadata !tbaa": 6,
+        "intrinsic llvm.experimental.noalias.scope.decl": 4,
         "type: a vector of pointers": 2
        },
        "having": {
         "metadata !tbaa": 12,
         "parameter attribute noalias": 12,
-        "intrinsic llvm.fma": 10,
         "intrinsic llvm.experimental.noalias.scope.decl": 6,
-        "instruction freeze of a vector": 5,
         "metadata !alias": 3,
         "metadata !noalias": 3,
         "instruction getelementptr of vectors": 2,
@@ -12064,7 +11924,6 @@
         "ggml_gemm_iq4_nl_8x8_q8_0": {
          "own": [
           "intrinsic llvm.experimental.noalias.scope.decl",
-          "intrinsic llvm.fma",
           "metadata !alias",
           "metadata !noalias",
           "metadata !tbaa",
@@ -12076,7 +11935,6 @@
          "own": [
           "instruction getelementptr of vectors",
           "intrinsic llvm.experimental.noalias.scope.decl",
-          "intrinsic llvm.fma",
           "intrinsic llvm.masked.load",
           "metadata !alias",
           "metadata !noalias",
@@ -12088,7 +11946,6 @@
         },
         "ggml_gemm_q2_K_8x8_q8_K": {
          "own": [
-          "intrinsic llvm.fma",
           "metadata !tbaa",
           "parameter attribute noalias"
          ],
@@ -12097,7 +11954,6 @@
         "ggml_gemm_q4_0_8x8_q8_0": {
          "own": [
           "intrinsic llvm.experimental.noalias.scope.decl",
-          "intrinsic llvm.fma",
           "metadata !alias",
           "metadata !noalias",
           "metadata !tbaa",
@@ -12107,7 +11963,6 @@
         },
         "ggml_gemm_q4_K_8x8_q8_K": {
          "own": [
-          "intrinsic llvm.fma",
           "metadata !tbaa",
           "parameter attribute noalias"
          ],
@@ -12115,9 +11970,7 @@
         },
         "ggml_gemv_iq4_nl_8x8_q8_0": {
          "own": [
-          "instruction freeze of a vector",
           "intrinsic llvm.experimental.noalias.scope.decl",
-          "intrinsic llvm.fma",
           "metadata !tbaa",
           "parameter attribute noalias"
          ],
@@ -12125,10 +11978,8 @@
         },
         "ggml_gemv_mxfp4_8x8_q8_0": {
          "own": [
-          "instruction freeze of a vector",
           "instruction getelementptr of vectors",
           "intrinsic llvm.experimental.noalias.scope.decl",
-          "intrinsic llvm.fma",
           "metadata !tbaa",
           "parameter attribute noalias",
           "type: a vector of pointers"
@@ -12137,8 +11988,6 @@
         },
         "ggml_gemv_q2_K_8x8_q8_K": {
          "own": [
-          "instruction freeze of a vector",
-          "intrinsic llvm.fma",
           "metadata !tbaa",
           "parameter attribute noalias"
          ],
@@ -12146,9 +11995,7 @@
         },
         "ggml_gemv_q4_0_8x8_q8_0": {
          "own": [
-          "instruction freeze of a vector",
           "intrinsic llvm.experimental.noalias.scope.decl",
-          "intrinsic llvm.fma",
           "metadata !tbaa",
           "parameter attribute noalias"
          ],
@@ -12156,8 +12003,6 @@
         },
         "ggml_gemv_q4_K_8x8_q8_K": {
          "own": [
-          "instruction freeze of a vector",
-          "intrinsic llvm.fma",
           "metadata !tbaa",
           "parameter attribute noalias"
          ],
@@ -12194,19 +12039,16 @@
        "functions": 12,
        "translated": 0,
        "refused": {
-        "instruction freeze of a vector": 4,
-        "intrinsic llvm.experimental.noalias.scope.decl": 2,
-        "intrinsic llvm.fma": 2,
+        "intrinsic llvm.experimental.noalias.scope.decl": 4,
+        "parameter attribute noalias": 4,
         "intrinsic llvm.x86.avx.max.ps.256": 2,
         "type: a vector of pointers": 2
        },
        "having": {
         "parameter attribute noalias": 12,
-        "intrinsic llvm.fma": 10,
         "intrinsic llvm.experimental.noalias.scope.decl": 6,
         "metadata !alias": 6,
         "metadata !noalias": 6,
-        "instruction freeze of a vector": 5,
         "instruction getelementptr of vectors": 2,
         "intrinsic llvm.x86.avx.cvt.ps2dq.256": 2,
         "intrinsic llvm.x86.avx.max.ps.256": 2,
@@ -12217,12 +12059,13 @@
         "intrinsic llvm.masked.load": 1,
         "intrinsic llvm.x86.vcvtps2ph.128": 1
        },
-       "alone": {},
+       "alone": {
+        "parameter attribute noalias": 4
+       },
        "blocked": {
         "ggml_gemm_iq4_nl_8x8_q8_0": {
          "own": [
           "intrinsic llvm.experimental.noalias.scope.decl",
-          "intrinsic llvm.fma",
           "metadata !alias",
           "metadata !noalias",
           "parameter attribute noalias"
@@ -12233,7 +12076,6 @@
          "own": [
           "instruction getelementptr of vectors",
           "intrinsic llvm.experimental.noalias.scope.decl",
-          "intrinsic llvm.fma",
           "intrinsic llvm.masked.load",
           "metadata !alias",
           "metadata !noalias",
@@ -12244,7 +12086,6 @@
         },
         "ggml_gemm_q2_K_8x8_q8_K": {
          "own": [
-          "intrinsic llvm.fma",
           "parameter attribute noalias"
          ],
          "waits": []
@@ -12252,7 +12093,6 @@
         "ggml_gemm_q4_0_8x8_q8_0": {
          "own": [
           "intrinsic llvm.experimental.noalias.scope.decl",
-          "intrinsic llvm.fma",
           "metadata !alias",
           "metadata !noalias",
           "parameter attribute noalias"
@@ -12261,16 +12101,13 @@
         },
         "ggml_gemm_q4_K_8x8_q8_K": {
          "own": [
-          "intrinsic llvm.fma",
           "parameter attribute noalias"
          ],
          "waits": []
         },
         "ggml_gemv_iq4_nl_8x8_q8_0": {
          "own": [
-          "instruction freeze of a vector",
           "intrinsic llvm.experimental.noalias.scope.decl",
-          "intrinsic llvm.fma",
           "metadata !alias",
           "metadata !noalias",
           "parameter attribute noalias"
@@ -12279,10 +12116,8 @@
         },
         "ggml_gemv_mxfp4_8x8_q8_0": {
          "own": [
-          "instruction freeze of a vector",
           "instruction getelementptr of vectors",
           "intrinsic llvm.experimental.noalias.scope.decl",
-          "intrinsic llvm.fma",
           "metadata !alias",
           "metadata !noalias",
           "parameter attribute noalias",
@@ -12292,17 +12127,13 @@
         },
         "ggml_gemv_q2_K_8x8_q8_K": {
          "own": [
-          "instruction freeze of a vector",
-          "intrinsic llvm.fma",
           "parameter attribute noalias"
          ],
          "waits": []
         },
         "ggml_gemv_q4_0_8x8_q8_0": {
          "own": [
-          "instruction freeze of a vector",
           "intrinsic llvm.experimental.noalias.scope.decl",
-          "intrinsic llvm.fma",
           "metadata !alias",
           "metadata !noalias",
           "parameter attribute noalias"
@@ -12311,8 +12142,6 @@
         },
         "ggml_gemv_q4_K_8x8_q8_K": {
          "own": [
-          "instruction freeze of a vector",
-          "intrinsic llvm.fma",
           "parameter attribute noalias"
          ],
          "waits": []
@@ -12395,16 +12224,14 @@
        "as-built": "metadata !tbaa",
        "needs": {
         "as-built": [
-         "intrinsic llvm.fma",
          "metadata !tbaa",
          "parameter attribute noalias"
         ],
         "relaxed": [
-         "intrinsic llvm.fma",
          "parameter attribute noalias"
         ]
        },
-       "relaxed": "intrinsic llvm.fma"
+       "relaxed": "parameter attribute noalias"
       },
       "ggml_gemv_q4_K_8x8_q8_K": {
        "instructions": 386,
@@ -12418,21 +12245,17 @@
         "llvm.x86.avx2.pmadd.wd": 3,
         "llvm.x86.ssse3.phadd.w.128": 1
        },
-       "as-built": "instruction freeze of a vector",
+       "as-built": "metadata !tbaa",
        "needs": {
         "as-built": [
-         "instruction freeze of a vector",
-         "intrinsic llvm.fma",
          "metadata !tbaa",
          "parameter attribute noalias"
         ],
         "relaxed": [
-         "instruction freeze of a vector",
-         "intrinsic llvm.fma",
          "parameter attribute noalias"
         ]
        },
-       "relaxed": "instruction freeze of a vector"
+       "relaxed": "parameter attribute noalias"
       }
      }
     },
@@ -12453,8 +12276,6 @@
        "having": {
         "parameter attribute noalias": 28,
         "metadata !tbaa": 27,
-        "intrinsic llvm.fma": 23,
-        "intrinsic llvm.fmuladd": 10,
         "instruction getelementptr of vectors": 7,
         "type: a vector of pointers": 7,
         "intrinsic llvm.pdep": 2,
@@ -12471,8 +12292,6 @@
         "ggml_vec_dot_iq1_m_q8_K": {
          "own": [
           "instruction getelementptr of vectors",
-          "intrinsic llvm.fma",
-          "intrinsic llvm.fmuladd",
           "intrinsic llvm.pdep",
           "metadata !tbaa",
           "parameter attribute noalias",
@@ -12483,8 +12302,6 @@
         "ggml_vec_dot_iq1_s_q8_K": {
          "own": [
           "instruction getelementptr of vectors",
-          "intrinsic llvm.fma",
-          "intrinsic llvm.fmuladd",
           "intrinsic llvm.pdep",
           "metadata !tbaa",
           "parameter attribute noalias",
@@ -12495,7 +12312,6 @@
         "ggml_vec_dot_iq2_s_q8_K": {
          "own": [
           "instruction getelementptr of vectors",
-          "intrinsic llvm.fma",
           "metadata !tbaa",
           "parameter attribute noalias",
           "type: a vector of pointers"
@@ -12505,7 +12321,6 @@
         "ggml_vec_dot_iq2_xs_q8_K": {
          "own": [
           "instruction getelementptr of vectors",
-          "intrinsic llvm.fma",
           "metadata !tbaa",
           "parameter attribute noalias",
           "type: a vector of pointers"
@@ -12515,7 +12330,6 @@
         "ggml_vec_dot_iq2_xxs_q8_K": {
          "own": [
           "instruction getelementptr of vectors",
-          "intrinsic llvm.fma",
           "metadata !tbaa",
           "parameter attribute noalias",
           "type: a vector of pointers"
@@ -12525,7 +12339,6 @@
         "ggml_vec_dot_iq3_s_q8_K": {
          "own": [
           "instruction getelementptr of vectors",
-          "intrinsic llvm.fma",
           "metadata !tbaa",
           "parameter attribute noalias",
           "type: a vector of pointers"
@@ -12535,7 +12348,6 @@
         "ggml_vec_dot_iq3_xxs_q8_K": {
          "own": [
           "instruction getelementptr of vectors",
-          "intrinsic llvm.fma",
           "metadata !tbaa",
           "parameter attribute noalias",
           "type: a vector of pointers"
@@ -12544,8 +12356,6 @@
         },
         "ggml_vec_dot_iq4_nl_q8_0": {
          "own": [
-          "intrinsic llvm.fma",
-          "intrinsic llvm.fmuladd",
           "metadata !tbaa",
           "parameter attribute noalias"
          ],
@@ -12553,7 +12363,6 @@
         },
         "ggml_vec_dot_iq4_xs_q8_K": {
          "own": [
-          "intrinsic llvm.fma",
           "metadata !tbaa",
           "parameter attribute noalias"
          ],
@@ -12561,8 +12370,6 @@
         },
         "ggml_vec_dot_mxfp4_q8_0": {
          "own": [
-          "intrinsic llvm.fma",
-          "intrinsic llvm.fmuladd",
           "metadata !tbaa",
           "parameter attribute noalias"
          ],
@@ -12570,8 +12377,6 @@
         },
         "ggml_vec_dot_nvfp4_q8_0": {
          "own": [
-          "intrinsic llvm.fma",
-          "intrinsic llvm.fmuladd",
           "metadata !tbaa",
           "parameter attribute noalias"
          ],
@@ -12579,7 +12384,6 @@
         },
         "ggml_vec_dot_q1_0_q8_0": {
          "own": [
-          "intrinsic llvm.fma",
           "metadata !tbaa",
           "parameter attribute noalias"
          ],
@@ -12587,7 +12391,6 @@
         },
         "ggml_vec_dot_q2_0_q8_0": {
          "own": [
-          "intrinsic llvm.fma",
           "metadata !tbaa",
           "parameter attribute noalias"
          ],
@@ -12595,7 +12398,6 @@
         },
         "ggml_vec_dot_q2_K_q8_K": {
          "own": [
-          "intrinsic llvm.fma",
           "metadata !tbaa",
           "parameter attribute noalias"
          ],
@@ -12603,7 +12405,6 @@
         },
         "ggml_vec_dot_q3_K_q8_K": {
          "own": [
-          "intrinsic llvm.fma",
           "metadata !tbaa",
           "parameter attribute noalias"
          ],
@@ -12611,8 +12412,6 @@
         },
         "ggml_vec_dot_q4_0_q8_0": {
          "own": [
-          "intrinsic llvm.fma",
-          "intrinsic llvm.fmuladd",
           "metadata !tbaa",
           "parameter attribute noalias"
          ],
@@ -12620,8 +12419,6 @@
         },
         "ggml_vec_dot_q4_1_q8_1": {
          "own": [
-          "intrinsic llvm.fma",
-          "intrinsic llvm.fmuladd",
           "metadata !tbaa",
           "parameter attribute noalias"
          ],
@@ -12629,7 +12426,6 @@
         },
         "ggml_vec_dot_q4_K_q8_K": {
          "own": [
-          "intrinsic llvm.fma",
           "metadata !tbaa",
           "parameter attribute noalias"
          ],
@@ -12637,7 +12433,6 @@
         },
         "ggml_vec_dot_q5_0_q8_0": {
          "own": [
-          "intrinsic llvm.fma",
           "metadata !tbaa",
           "parameter attribute noalias"
          ],
@@ -12645,8 +12440,6 @@
         },
         "ggml_vec_dot_q5_1_q8_1": {
          "own": [
-          "intrinsic llvm.fma",
-          "intrinsic llvm.fmuladd",
           "metadata !tbaa",
           "parameter attribute noalias"
          ],
@@ -12654,8 +12447,6 @@
         },
         "ggml_vec_dot_q5_K_q8_K": {
          "own": [
-          "intrinsic llvm.fma",
-          "intrinsic llvm.fmuladd",
           "metadata !tbaa",
           "parameter attribute noalias"
          ],
@@ -12663,7 +12454,6 @@
         },
         "ggml_vec_dot_q6_K_q8_K": {
          "own": [
-          "intrinsic llvm.fma",
           "metadata !tbaa",
           "parameter attribute noalias"
          ],
@@ -12671,8 +12461,6 @@
         },
         "ggml_vec_dot_q8_0_q8_0": {
          "own": [
-          "intrinsic llvm.fma",
-          "intrinsic llvm.fmuladd",
           "metadata !tbaa",
           "parameter attribute noalias"
          ],
@@ -12731,17 +12519,13 @@
        "functions": 28,
        "translated": 0,
        "refused": {
-        "intrinsic llvm.fma": 13,
+        "parameter attribute noalias": 18,
         "type: a vector of pointers": 7,
-        "intrinsic llvm.fmuladd": 3,
         "intrinsic llvm.x86.avx.max.ps.256": 2,
-        "parameter attribute noalias": 2,
         "call to external @_, which touches memory: F4": 1
        },
        "having": {
         "parameter attribute noalias": 28,
-        "intrinsic llvm.fma": 23,
-        "intrinsic llvm.fmuladd": 10,
         "instruction getelementptr of vectors": 7,
         "type: a vector of pointers": 7,
         "call parameter attribute align 8 on a vector": 6,
@@ -12756,15 +12540,13 @@
         "call to external @_, which touches memory: F4": 1
        },
        "alone": {
-        "parameter attribute noalias": 2
+        "parameter attribute noalias": 18
        },
        "blocked": {
         "ggml_vec_dot_iq1_m_q8_K": {
          "own": [
           "call parameter attribute align 8 on a vector",
           "instruction getelementptr of vectors",
-          "intrinsic llvm.fma",
-          "intrinsic llvm.fmuladd",
           "intrinsic llvm.pdep",
           "parameter attribute noalias",
           "type: a vector of pointers"
@@ -12775,8 +12557,6 @@
          "own": [
           "call parameter attribute align 8 on a vector",
           "instruction getelementptr of vectors",
-          "intrinsic llvm.fma",
-          "intrinsic llvm.fmuladd",
           "intrinsic llvm.pdep",
           "parameter attribute noalias",
           "type: a vector of pointers"
@@ -12787,7 +12567,6 @@
          "own": [
           "call parameter attribute align 8 on a vector",
           "instruction getelementptr of vectors",
-          "intrinsic llvm.fma",
           "parameter attribute noalias",
           "type: a vector of pointers"
          ],
@@ -12797,7 +12576,6 @@
          "own": [
           "call parameter attribute align 8 on a vector",
           "instruction getelementptr of vectors",
-          "intrinsic llvm.fma",
           "parameter attribute noalias",
           "type: a vector of pointers"
          ],
@@ -12807,7 +12585,6 @@
          "own": [
           "call parameter attribute align 8 on a vector",
           "instruction getelementptr of vectors",
-          "intrinsic llvm.fma",
           "parameter attribute noalias",
           "type: a vector of pointers"
          ],
@@ -12817,7 +12594,6 @@
          "own": [
           "call parameter attribute align 4 on a vector",
           "instruction getelementptr of vectors",
-          "intrinsic llvm.fma",
           "parameter attribute noalias",
           "type: a vector of pointers"
          ],
@@ -12828,7 +12604,6 @@
           "call parameter attribute align 4 on a vector",
           "call parameter attribute align 8 on a vector",
           "instruction getelementptr of vectors",
-          "intrinsic llvm.fma",
           "parameter attribute noalias",
           "type: a vector of pointers"
          ],
@@ -12836,120 +12611,96 @@
         },
         "ggml_vec_dot_iq4_nl_q8_0": {
          "own": [
-          "intrinsic llvm.fma",
-          "intrinsic llvm.fmuladd",
           "parameter attribute noalias"
          ],
          "waits": []
         },
         "ggml_vec_dot_iq4_xs_q8_K": {
          "own": [
-          "intrinsic llvm.fma",
           "parameter attribute noalias"
          ],
          "waits": []
         },
         "ggml_vec_dot_mxfp4_q8_0": {
          "own": [
-          "intrinsic llvm.fma",
-          "intrinsic llvm.fmuladd",
           "parameter attribute noalias"
          ],
          "waits": []
         },
         "ggml_vec_dot_nvfp4_q8_0": {
          "own": [
-          "intrinsic llvm.fma",
-          "intrinsic llvm.fmuladd",
           "parameter attribute noalias"
          ],
          "waits": []
         },
         "ggml_vec_dot_q1_0_q8_0": {
          "own": [
-          "intrinsic llvm.fma",
           "parameter attribute noalias"
          ],
          "waits": []
         },
         "ggml_vec_dot_q2_0_q8_0": {
          "own": [
-          "intrinsic llvm.fma",
           "parameter attribute noalias"
          ],
          "waits": []
         },
         "ggml_vec_dot_q2_K_q8_K": {
          "own": [
-          "intrinsic llvm.fma",
           "parameter attribute noalias"
          ],
          "waits": []
         },
         "ggml_vec_dot_q3_K_q8_K": {
          "own": [
-          "intrinsic llvm.fma",
           "parameter attribute noalias"
          ],
          "waits": []
         },
         "ggml_vec_dot_q4_0_q8_0": {
          "own": [
-          "intrinsic llvm.fma",
-          "intrinsic llvm.fmuladd",
           "parameter attribute noalias"
          ],
          "waits": []
         },
         "ggml_vec_dot_q4_1_q8_1": {
          "own": [
-          "intrinsic llvm.fma",
-          "intrinsic llvm.fmuladd",
           "parameter attribute noalias"
          ],
          "waits": []
         },
         "ggml_vec_dot_q4_K_q8_K": {
          "own": [
-          "intrinsic llvm.fma",
           "parameter attribute noalias"
          ],
          "waits": []
         },
         "ggml_vec_dot_q5_0_q8_0": {
          "own": [
-          "intrinsic llvm.fma",
           "parameter attribute noalias"
          ],
          "waits": []
         },
         "ggml_vec_dot_q5_1_q8_1": {
          "own": [
-          "intrinsic llvm.fma",
-          "intrinsic llvm.fmuladd",
           "parameter attribute noalias"
          ],
          "waits": []
         },
         "ggml_vec_dot_q5_K_q8_K": {
          "own": [
-          "intrinsic llvm.fma",
-          "intrinsic llvm.fmuladd",
           "parameter attribute noalias"
          ],
          "waits": []
         },
         "ggml_vec_dot_q6_K_q8_K": {
          "own": [
-          "intrinsic llvm.fma",
           "parameter attribute noalias"
          ],
          "waits": []
         },
         "ggml_vec_dot_q8_0_q8_0": {
          "own": [
-          "intrinsic llvm.fma",
-          "intrinsic llvm.fmuladd",
           "parameter attribute noalias"
          ],
          "waits": []
@@ -13046,16 +12797,14 @@
        "as-built": "metadata !tbaa",
        "needs": {
         "as-built": [
-         "intrinsic llvm.fma",
          "metadata !tbaa",
          "parameter attribute noalias"
         ],
         "relaxed": [
-         "intrinsic llvm.fma",
          "parameter attribute noalias"
         ]
        },
-       "relaxed": "intrinsic llvm.fma"
+       "relaxed": "parameter attribute noalias"
       },
       "ggml_vec_dot_q5_0_q8_0": {
        "instructions": 146,
@@ -13070,16 +12819,14 @@
        "as-built": "metadata !tbaa",
        "needs": {
         "as-built": [
-         "intrinsic llvm.fma",
          "metadata !tbaa",
          "parameter attribute noalias"
         ],
         "relaxed": [
-         "intrinsic llvm.fma",
          "parameter attribute noalias"
         ]
        },
-       "relaxed": "intrinsic llvm.fma"
+       "relaxed": "parameter attribute noalias"
       },
       "ggml_vec_dot_q6_K_q8_K": {
        "instructions": 162,
@@ -13093,16 +12840,14 @@
        "as-built": "metadata !tbaa",
        "needs": {
         "as-built": [
-         "intrinsic llvm.fma",
          "metadata !tbaa",
          "parameter attribute noalias"
         ],
         "relaxed": [
-         "intrinsic llvm.fma",
          "parameter attribute noalias"
         ]
        },
-       "relaxed": "intrinsic llvm.fma"
+       "relaxed": "parameter attribute noalias"
       }
      }
     }
@@ -13114,21 +12859,17 @@
      "functions": 40,
      "translated": 0,
      "refused": {
-      "metadata !tbaa": 24,
+      "metadata !tbaa": 26,
       "type: a vector of pointers": 9,
-      "instruction freeze of a vector": 4,
-      "intrinsic llvm.experimental.noalias.scope.decl": 2,
+      "intrinsic llvm.experimental.noalias.scope.decl": 4,
       "call to external @_, which touches memory: F4": 1
      },
      "having": {
       "parameter attribute noalias": 40,
       "metadata !tbaa": 39,
-      "intrinsic llvm.fma": 33,
-      "intrinsic llvm.fmuladd": 10,
       "instruction getelementptr of vectors": 9,
       "type: a vector of pointers": 9,
       "intrinsic llvm.experimental.noalias.scope.decl": 6,
-      "instruction freeze of a vector": 5,
       "intrinsic llvm.x86.avx.cvt.ps2dq.256": 4,
       "intrinsic llvm.x86.avx.max.ps.256": 4,
       "intrinsic llvm.x86.avx.round.ps.256": 4,
@@ -13147,26 +12888,20 @@
      "functions": 40,
      "translated": 0,
      "refused": {
-      "intrinsic llvm.fma": 15,
+      "parameter attribute noalias": 22,
       "type: a vector of pointers": 9,
-      "instruction freeze of a vector": 4,
+      "intrinsic llvm.experimental.noalias.scope.decl": 4,
       "intrinsic llvm.x86.avx.max.ps.256": 4,
-      "intrinsic llvm.fmuladd": 3,
-      "intrinsic llvm.experimental.noalias.scope.decl": 2,
-      "parameter attribute noalias": 2,
       "call to external @_, which touches memory: F4": 1
      },
      "having": {
       "parameter attribute noalias": 40,
-      "intrinsic llvm.fma": 33,
-      "intrinsic llvm.fmuladd": 10,
       "instruction getelementptr of vectors": 9,
       "type: a vector of pointers": 9,
       "call parameter attribute align 8 on a vector": 6,
       "intrinsic llvm.experimental.noalias.scope.decl": 6,
       "metadata !alias": 6,
       "metadata !noalias": 6,
-      "instruction freeze of a vector": 5,
       "intrinsic llvm.x86.avx.cvt.ps2dq.256": 4,
       "intrinsic llvm.x86.avx.max.ps.256": 4,
       "intrinsic llvm.x86.avx.round.ps.256": 4,
@@ -13179,7 +12914,7 @@
       "intrinsic llvm.masked.load": 1
      },
      "alone": {
-      "parameter attribute noalias": 2
+      "parameter attribute noalias": 22
      }
     },
     "intrinsics": {
@@ -13202,13 +12937,11 @@
      },
      "llvm.fma": {
       "calls": 172,
-      "class": "refused",
-      "lane": "floating point"
+      "class": "modeled"
      },
      "llvm.fmuladd": {
       "calls": 24,
-      "class": "refused",
-      "lane": "floating point"
+      "class": "modeled"
      },
      "llvm.lifetime.end": {
       "calls": 27,
@@ -13360,7 +13093,7 @@
    },
    "measured": {
     "date": "2026-11-12",
-    "commit": "c19861a4fea63529dc4e0f058abc708d97179e72",
+    "commit": "65d118d2193bfd397ca3ce0fe7184f1f83a4f3c6",
     "clang": "clang version 23.1.3"
    }
   },
@@ -13381,7 +13114,6 @@
         "metadata !tbaa": 1
        },
        "having": {
-        "intrinsic llvm.fmuladd": 1,
         "intrinsic llvm.x86.sse.max.ps": 1,
         "intrinsic llvm.x86.sse.rcp.ps": 1,
         "intrinsic llvm.x86.sse.rsqrt.ps": 1,
@@ -13392,7 +13124,6 @@
        "blocked": {
         "op_pvq_search_sse2": {
          "own": [
-          "intrinsic llvm.fmuladd",
           "intrinsic llvm.x86.sse.max.ps",
           "intrinsic llvm.x86.sse.rcp.ps",
           "intrinsic llvm.x86.sse.rsqrt.ps",
@@ -13410,7 +13141,6 @@
         "intrinsic llvm.x86.sse.rcp.ps": 1
        },
        "having": {
-        "intrinsic llvm.fmuladd": 1,
         "intrinsic llvm.x86.sse.max.ps": 1,
         "intrinsic llvm.x86.sse.rcp.ps": 1,
         "intrinsic llvm.x86.sse.rsqrt.ps": 1,
@@ -13420,7 +13150,6 @@
        "blocked": {
         "op_pvq_search_sse2": {
          "own": [
-          "intrinsic llvm.fmuladd",
           "intrinsic llvm.x86.sse.max.ps",
           "intrinsic llvm.x86.sse.rcp.ps",
           "intrinsic llvm.x86.sse.rsqrt.ps",
@@ -13466,7 +13195,6 @@
        "as-built": "metadata !tbaa",
        "needs": {
         "as-built": [
-         "intrinsic llvm.fmuladd",
          "intrinsic llvm.x86.sse.max.ps",
          "intrinsic llvm.x86.sse.rcp.ps",
          "intrinsic llvm.x86.sse.rsqrt.ps",
@@ -13474,7 +13202,6 @@
          "metadata !tbaa"
         ],
         "relaxed": [
-         "intrinsic llvm.fmuladd",
          "intrinsic llvm.x86.sse.max.ps",
          "intrinsic llvm.x86.sse.rcp.ps",
          "intrinsic llvm.x86.sse.rsqrt.ps",
@@ -13502,7 +13229,6 @@
         "metadata !tbaa": 6,
         "call to external @_, which touches memory: F4": 5,
         "call to external functions in a function with a stack frame or promises about memory, which IRLean.World doesn't wrap yet": 3,
-        "intrinsic llvm.fmuladd": 3,
         "intrinsic llvm.experimental.noalias.scope.decl": 2,
         "intrinsic llvm.floor": 2,
         "metadata !noalias": 2,
@@ -13545,7 +13271,6 @@
           "function attribute nofree on a function whose calls outside the module have effects",
           "function attribute norecurse on a function that calls outside the module",
           "function attribute nosync on a function whose calls outside the module access memory",
-          "intrinsic llvm.fmuladd",
           "metadata !tbaa"
          ],
          "waits": []
@@ -13553,7 +13278,6 @@
         "op_pvq_search_c": {
          "own": [
           "intrinsic llvm.floor",
-          "intrinsic llvm.fmuladd",
           "metadata !tbaa"
          ],
          "waits": []
@@ -13569,7 +13293,6 @@
          "own": [
           "call to external @_, which touches memory: F4",
           "intrinsic llvm.floor",
-          "intrinsic llvm.fmuladd",
           "metadata !tbaa"
          ],
          "waits": []
@@ -13580,17 +13303,15 @@
        "functions": 6,
        "translated": 0,
        "refused": {
+        "call to external @_, which touches memory: F4": 2,
         "call to external functions in a function with a stack frame or promises about memory, which IRLean.World doesn't wrap yet": 2,
-        "call to external @_, which touches memory: F4": 1,
         "function attribute norecurse on a function that calls outside the module": 1,
-        "intrinsic llvm.fmuladd": 1,
         "metadata !alias": 1
        },
        "having": {
         "call to external @_, which touches memory: F4": 5,
         "metadata !alias": 4,
         "call to external functions in a function with a stack frame or promises about memory, which IRLean.World doesn't wrap yet": 3,
-        "intrinsic llvm.fmuladd": 3,
         "intrinsic llvm.experimental.noalias.scope.decl": 2,
         "intrinsic llvm.floor": 2,
         "metadata !noalias": 2,
@@ -13635,7 +13356,6 @@
           "function attribute nofree on a function whose calls outside the module have effects",
           "function attribute norecurse on a function that calls outside the module",
           "function attribute nosync on a function whose calls outside the module access memory",
-          "intrinsic llvm.fmuladd",
           "metadata !alias"
          ],
          "waits": []
@@ -13643,7 +13363,6 @@
         "op_pvq_search_c": {
          "own": [
           "intrinsic llvm.floor",
-          "intrinsic llvm.fmuladd",
           "metadata !alias"
          ],
          "waits": []
@@ -13657,8 +13376,7 @@
         "stereo_itheta": {
          "own": [
           "call to external @_, which touches memory: F4",
-          "intrinsic llvm.floor",
-          "intrinsic llvm.fmuladd"
+          "intrinsic llvm.floor"
          ],
          "waits": []
         }
@@ -13694,7 +13412,6 @@
          "function attribute nofree on a function whose calls outside the module have effects",
          "function attribute norecurse on a function that calls outside the module",
          "function attribute nosync on a function whose calls outside the module access memory",
-         "intrinsic llvm.fmuladd",
          "metadata !tbaa"
         ],
         "relaxed": [
@@ -13704,7 +13421,6 @@
          "function attribute nofree on a function whose calls outside the module have effects",
          "function attribute norecurse on a function that calls outside the module",
          "function attribute nosync on a function whose calls outside the module access memory",
-         "intrinsic llvm.fmuladd",
          "metadata !alias"
         ]
        },
@@ -13725,7 +13441,6 @@
        },
        "having": {
         "metadata !tbaa": 3,
-        "intrinsic llvm.fmuladd": 1,
         "type: a vector of pointers": 1
        },
        "alone": {},
@@ -13740,7 +13455,6 @@
         },
         "opus_fft_impl": {
          "own": [
-          "intrinsic llvm.fmuladd",
           "metadata !tbaa",
           "type: a vector of pointers"
          ],
@@ -13764,7 +13478,6 @@
         "type: a vector of pointers": 1
        },
        "having": {
-        "intrinsic llvm.fmuladd": 1,
         "metadata !alias": 1,
         "type: a vector of pointers": 1
        },
@@ -13778,7 +13491,6 @@
         },
         "opus_fft_impl": {
          "own": [
-          "intrinsic llvm.fmuladd",
           "metadata !alias",
           "type: a vector of pointers"
          ],
@@ -13815,12 +13527,10 @@
        "as-built": "type: a vector of pointers",
        "needs": {
         "as-built": [
-         "intrinsic llvm.fmuladd",
          "metadata !tbaa",
          "type: a vector of pointers"
         ],
         "relaxed": [
-         "intrinsic llvm.fmuladd",
          "metadata !alias",
          "type: a vector of pointers"
         ]
@@ -13842,8 +13552,7 @@
        "having": {
         "call to external @_, which touches memory: F4": 2,
         "call to external functions in a function with a stack frame or promises about memory, which IRLean.World doesn't wrap yet": 2,
-        "metadata !tbaa": 2,
-        "intrinsic llvm.fmuladd": 1
+        "metadata !tbaa": 2
        },
        "alone": {},
        "blocked": {
@@ -13851,7 +13560,6 @@
          "own": [
           "call to external @_, which touches memory: F4",
           "call to external functions in a function with a stack frame or promises about memory, which IRLean.World doesn't wrap yet",
-          "intrinsic llvm.fmuladd",
           "metadata !tbaa"
          ],
          "waits": []
@@ -13874,16 +13582,14 @@
        },
        "having": {
         "call to external @_, which touches memory: F4": 2,
-        "call to external functions in a function with a stack frame or promises about memory, which IRLean.World doesn't wrap yet": 2,
-        "intrinsic llvm.fmuladd": 1
+        "call to external functions in a function with a stack frame or promises about memory, which IRLean.World doesn't wrap yet": 2
        },
        "alone": {},
        "blocked": {
         "decode_pulses": {
          "own": [
           "call to external @_, which touches memory: F4",
-          "call to external functions in a function with a stack frame or promises about memory, which IRLean.World doesn't wrap yet",
-          "intrinsic llvm.fmuladd"
+          "call to external functions in a function with a stack frame or promises about memory, which IRLean.World doesn't wrap yet"
          ],
          "waits": []
         },
@@ -13942,13 +13648,11 @@
         "as-built": [
          "call to external @_, which touches memory: F4",
          "call to external functions in a function with a stack frame or promises about memory, which IRLean.World doesn't wrap yet",
-         "intrinsic llvm.fmuladd",
          "metadata !tbaa"
         ],
         "relaxed": [
          "call to external @_, which touches memory: F4",
-         "call to external functions in a function with a stack frame or promises about memory, which IRLean.World doesn't wrap yet",
-         "intrinsic llvm.fmuladd"
+         "call to external functions in a function with a stack frame or promises about memory, which IRLean.World doesn't wrap yet"
         ]
        },
        "relaxed": "call to external functions in a function with a stack frame or promises about memory, which IRLean.World doesn't wrap yet"
@@ -13971,13 +13675,11 @@
         "metadata !tbaa": 14,
         "call to external @_, which touches memory: F4": 8,
         "call to external functions in a function with a stack frame or promises about memory, which IRLean.World doesn't wrap yet": 8,
-        "intrinsic llvm.fmuladd": 3,
         "intrinsic llvm.experimental.noalias.scope.decl": 2,
         "intrinsic llvm.sqrt": 2,
         "parameter attribute noalias": 2,
         "call to @_, whose calls outside the module may access this function's memory, which touches memory: F4": 1,
         "fast-math flag nnan": 1,
-        "instruction freeze of a vector": 1,
         "intrinsic llvm.stackrestore": 1,
         "intrinsic llvm.stacksave": 1,
         "metadata !alias": 1
@@ -13990,7 +13692,6 @@
          "own": [
           "call to external @_, which touches memory: F4",
           "call to external functions in a function with a stack frame or promises about memory, which IRLean.World doesn't wrap yet",
-          "instruction freeze of a vector",
           "metadata !tbaa"
          ],
          "waits": []
@@ -14008,7 +13709,6 @@
           "call to external @_, which touches memory: F4",
           "call to external functions in a function with a stack frame or promises about memory, which IRLean.World doesn't wrap yet",
           "intrinsic llvm.experimental.noalias.scope.decl",
-          "intrinsic llvm.fmuladd",
           "intrinsic llvm.sqrt",
           "metadata !tbaa"
          ],
@@ -14058,7 +13758,6 @@
          "own": [
           "call to external @_, which touches memory: F4",
           "call to external functions in a function with a stack frame or promises about memory, which IRLean.World doesn't wrap yet",
-          "intrinsic llvm.fmuladd",
           "intrinsic llvm.stackrestore",
           "intrinsic llvm.stacksave",
           "metadata !alias",
@@ -14088,7 +13787,6 @@
           "call to external @_, which touches memory: F4",
           "call to external functions in a function with a stack frame or promises about memory, which IRLean.World doesn't wrap yet",
           "intrinsic llvm.experimental.noalias.scope.decl",
-          "intrinsic llvm.fmuladd",
           "metadata !tbaa"
          ],
          "waits": [
@@ -14126,14 +13824,12 @@
        "having": {
         "call to external @_, which touches memory: F4": 8,
         "call to external functions in a function with a stack frame or promises about memory, which IRLean.World doesn't wrap yet": 8,
-        "intrinsic llvm.fmuladd": 3,
         "metadata !alias": 3,
         "intrinsic llvm.experimental.noalias.scope.decl": 2,
         "intrinsic llvm.sqrt": 2,
         "parameter attribute noalias": 2,
         "call to @_, whose calls outside the module may access this function's memory, which touches memory: F4": 1,
         "fast-math flag nnan": 1,
-        "instruction freeze of a vector": 1,
         "intrinsic llvm.stackrestore": 1,
         "intrinsic llvm.stacksave": 1,
         "metadata !noalias": 1
@@ -14145,8 +13841,7 @@
         "anti_collapse": {
          "own": [
           "call to external @_, which touches memory: F4",
-          "call to external functions in a function with a stack frame or promises about memory, which IRLean.World doesn't wrap yet",
-          "instruction freeze of a vector"
+          "call to external functions in a function with a stack frame or promises about memory, which IRLean.World doesn't wrap yet"
          ],
          "waits": []
         },
@@ -14162,7 +13857,6 @@
           "call to external @_, which touches memory: F4",
           "call to external functions in a function with a stack frame or promises about memory, which IRLean.World doesn't wrap yet",
           "intrinsic llvm.experimental.noalias.scope.decl",
-          "intrinsic llvm.fmuladd",
           "intrinsic llvm.sqrt",
           "metadata !alias",
           "metadata !noalias"
@@ -14187,7 +13881,6 @@
          "own": [
           "call to external @_, which touches memory: F4",
           "call to external functions in a function with a stack frame or promises about memory, which IRLean.World doesn't wrap yet",
-          "intrinsic llvm.fmuladd",
           "intrinsic llvm.stackrestore",
           "intrinsic llvm.stacksave",
           "metadata !alias"
@@ -14213,7 +13906,6 @@
           "call to external @_, which touches memory: F4",
           "call to external functions in a function with a stack frame or promises about memory, which IRLean.World doesn't wrap yet",
           "intrinsic llvm.experimental.noalias.scope.decl",
-          "intrinsic llvm.fmuladd",
           "metadata !alias"
          ],
          "waits": [
@@ -14272,7 +13964,6 @@
          "call to external @_, which touches memory: F4",
          "call to external functions in a function with a stack frame or promises about memory, which IRLean.World doesn't wrap yet",
          "intrinsic llvm.experimental.noalias.scope.decl",
-         "intrinsic llvm.fmuladd",
          "intrinsic llvm.sqrt",
          "metadata !tbaa"
         ],
@@ -14281,7 +13972,6 @@
          "call to external @_, which touches memory: F4",
          "call to external functions in a function with a stack frame or promises about memory, which IRLean.World doesn't wrap yet",
          "intrinsic llvm.experimental.noalias.scope.decl",
-         "intrinsic llvm.fmuladd",
          "intrinsic llvm.sqrt",
          "metadata !alias",
          "metadata !noalias"
@@ -14308,7 +13998,6 @@
        "having": {
         "call to external @_, which touches memory: F4": 1,
         "call to external functions in a function with a stack frame or promises about memory, which IRLean.World doesn't wrap yet": 1,
-        "intrinsic llvm.fma": 1,
         "intrinsic llvm.x86.avx.hadd.ps.256": 1,
         "intrinsic llvm.x86.avx.maskload.ps.256": 1,
         "metadata !tbaa": 1
@@ -14319,7 +14008,6 @@
          "own": [
           "call to external @_, which touches memory: F4",
           "call to external functions in a function with a stack frame or promises about memory, which IRLean.World doesn't wrap yet",
-          "intrinsic llvm.fma",
           "intrinsic llvm.x86.avx.hadd.ps.256",
           "intrinsic llvm.x86.avx.maskload.ps.256",
           "metadata !tbaa"
@@ -14337,7 +14025,6 @@
        "having": {
         "call to external @_, which touches memory: F4": 1,
         "call to external functions in a function with a stack frame or promises about memory, which IRLean.World doesn't wrap yet": 1,
-        "intrinsic llvm.fma": 1,
         "intrinsic llvm.x86.avx.hadd.ps.256": 1,
         "intrinsic llvm.x86.avx.maskload.ps.256": 1
        },
@@ -14347,7 +14034,6 @@
          "own": [
           "call to external @_, which touches memory: F4",
           "call to external functions in a function with a stack frame or promises about memory, which IRLean.World doesn't wrap yet",
-          "intrinsic llvm.fma",
           "intrinsic llvm.x86.avx.hadd.ps.256",
           "intrinsic llvm.x86.avx.maskload.ps.256"
          ],
@@ -14377,7 +14063,6 @@
         "as-built": [
          "call to external @_, which touches memory: F4",
          "call to external functions in a function with a stack frame or promises about memory, which IRLean.World doesn't wrap yet",
-         "intrinsic llvm.fma",
          "intrinsic llvm.x86.avx.hadd.ps.256",
          "intrinsic llvm.x86.avx.maskload.ps.256",
          "metadata !tbaa"
@@ -14385,7 +14070,6 @@
         "relaxed": [
          "call to external @_, which touches memory: F4",
          "call to external functions in a function with a stack frame or promises about memory, which IRLean.World doesn't wrap yet",
-         "intrinsic llvm.fma",
          "intrinsic llvm.x86.avx.hadd.ps.256",
          "intrinsic llvm.x86.avx.maskload.ps.256"
         ]
@@ -14413,7 +14097,6 @@
       "metadata !tbaa": 27,
       "call to external @_, which touches memory: F4": 16,
       "call to external functions in a function with a stack frame or promises about memory, which IRLean.World doesn't wrap yet": 14,
-      "intrinsic llvm.fmuladd": 9,
       "intrinsic llvm.experimental.noalias.scope.decl": 4,
       "intrinsic llvm.floor": 2,
       "intrinsic llvm.sqrt": 2,
@@ -14425,8 +14108,6 @@
       "function attribute nofree on a function whose calls outside the module have effects": 1,
       "function attribute norecurse on a function that calls outside the module": 1,
       "function attribute nosync on a function whose calls outside the module access memory": 1,
-      "instruction freeze of a vector": 1,
-      "intrinsic llvm.fma": 1,
       "intrinsic llvm.stackrestore": 1,
       "intrinsic llvm.stacksave": 1,
       "intrinsic llvm.x86.avx.hadd.ps.256": 1,
@@ -14448,10 +14129,9 @@
      "refused": {
       "call to external functions in a function with a stack frame or promises about memory, which IRLean.World doesn't wrap yet": 12,
       "call to @_, which isn't translated": 2,
-      "call to external @_, which touches memory: F4": 1,
+      "call to external @_, which touches memory: F4": 2,
       "fast-math flag nnan": 1,
       "function attribute norecurse on a function that calls outside the module": 1,
-      "intrinsic llvm.fmuladd": 1,
       "intrinsic llvm.x86.sse.rcp.ps": 1,
       "metadata !alias": 1,
       "parameter attribute noalias": 1,
@@ -14460,7 +14140,6 @@
      "having": {
       "call to external @_, which touches memory: F4": 16,
       "call to external functions in a function with a stack frame or promises about memory, which IRLean.World doesn't wrap yet": 14,
-      "intrinsic llvm.fmuladd": 9,
       "metadata !alias": 8,
       "intrinsic llvm.experimental.noalias.scope.decl": 4,
       "metadata !noalias": 3,
@@ -14473,8 +14152,6 @@
       "function attribute nofree on a function whose calls outside the module have effects": 1,
       "function attribute norecurse on a function that calls outside the module": 1,
       "function attribute nosync on a function whose calls outside the module access memory": 1,
-      "instruction freeze of a vector": 1,
-      "intrinsic llvm.fma": 1,
       "intrinsic llvm.stackrestore": 1,
       "intrinsic llvm.stacksave": 1,
       "intrinsic llvm.x86.avx.hadd.ps.256": 1,
@@ -14519,13 +14196,11 @@
      },
      "llvm.fma": {
       "calls": 16,
-      "class": "refused",
-      "lane": "floating point"
+      "class": "modeled"
      },
      "llvm.fmuladd": {
       "calls": 110,
-      "class": "refused",
-      "lane": "floating point"
+      "class": "modeled"
      },
      "llvm.lifetime.end": {
       "calls": 8,
@@ -14615,7 +14290,7 @@
    },
    "measured": {
     "date": "2026-11-12",
-    "commit": "c19861a4fea63529dc4e0f058abc708d97179e72",
+    "commit": "65d118d2193bfd397ca3ce0fe7184f1f83a4f3c6",
     "clang": "clang version 23.1.3"
    }
   },
@@ -14875,7 +14550,6 @@
        },
        "having": {
         "instruction inttoptr": 1,
-        "intrinsic llvm.fma": 1,
         "intrinsic llvm.masked.store": 1,
         "intrinsic llvm.x86.avx512.max.ps.512": 1,
         "intrinsic llvm.x86.avx512.min.ps.512": 1,
@@ -14887,7 +14561,6 @@
         "xnn_qd8_f32_qc8w_gemm_minmax_ukernel_10x16c8__avx512vnni_prfm": {
          "own": [
           "instruction inttoptr",
-          "intrinsic llvm.fma",
           "intrinsic llvm.masked.store",
           "intrinsic llvm.x86.avx512.max.ps.512",
           "intrinsic llvm.x86.avx512.min.ps.512",
@@ -14906,7 +14579,6 @@
        },
        "having": {
         "instruction inttoptr": 1,
-        "intrinsic llvm.fma": 1,
         "intrinsic llvm.masked.store": 1,
         "intrinsic llvm.x86.avx512.max.ps.512": 1,
         "intrinsic llvm.x86.avx512.min.ps.512": 1,
@@ -14917,7 +14589,6 @@
         "xnn_qd8_f32_qc8w_gemm_minmax_ukernel_10x16c8__avx512vnni_prfm": {
          "own": [
           "instruction inttoptr",
-          "intrinsic llvm.fma",
           "intrinsic llvm.masked.store",
           "intrinsic llvm.x86.avx512.max.ps.512",
           "intrinsic llvm.x86.avx512.min.ps.512",
@@ -14954,7 +14625,6 @@
        "needs": {
         "as-built": [
          "instruction inttoptr",
-         "intrinsic llvm.fma",
          "intrinsic llvm.masked.store",
          "intrinsic llvm.x86.avx512.max.ps.512",
          "intrinsic llvm.x86.avx512.min.ps.512",
@@ -14963,7 +14633,6 @@
         ],
         "relaxed": [
          "instruction inttoptr",
-         "intrinsic llvm.fma",
          "intrinsic llvm.masked.store",
          "intrinsic llvm.x86.avx512.max.ps.512",
          "intrinsic llvm.x86.avx512.min.ps.512",
@@ -15075,7 +14744,6 @@
       "call parameter attribute elementtype(<8 x i64>)": 2,
       "intrinsic llvm.x86.avx512.mask.cvtps2dq.512": 2,
       "call parameter attribute elementtype(<2 x i64>)": 1,
-      "intrinsic llvm.fma": 1,
       "intrinsic llvm.masked.load": 1,
       "intrinsic llvm.x86.avx512.max.ps.512": 1
      },
@@ -15096,7 +14764,6 @@
       "call parameter attribute elementtype(<8 x i64>)": 2,
       "intrinsic llvm.x86.avx512.mask.cvtps2dq.512": 2,
       "call parameter attribute elementtype(<2 x i64>)": 1,
-      "intrinsic llvm.fma": 1,
       "intrinsic llvm.masked.load": 1,
       "intrinsic llvm.x86.avx512.max.ps.512": 1
      },
@@ -15105,8 +14772,7 @@
     "intrinsics": {
      "llvm.fma": {
       "calls": 10,
-      "class": "refused",
-      "lane": "floating point"
+      "class": "modeled"
      },
      "llvm.lifetime.end": {
       "calls": 3,
@@ -15170,7 +14836,7 @@
    },
    "measured": {
     "date": "2026-11-12",
-    "commit": "c19861a4fea63529dc4e0f058abc708d97179e72",
+    "commit": "65d118d2193bfd397ca3ce0fe7184f1f83a4f3c6",
     "clang": "clang version 23.1.3"
    }
   },
@@ -15197,8 +14863,7 @@
         "intrinsic llvm.experimental.noalias.scope.decl": 16,
         "metadata !noalias": 15,
         "call parameter attribute captures(address)": 8,
-        "metadata !alias": 3,
-        "operand bundle assume:align": 2
+        "metadata !alias": 3
        },
        "alone": {
         "call attribute memory": 1
@@ -15456,7 +15121,6 @@
          "own": [
           "call attribute memory",
           "metadata !tbaa",
-          "operand bundle assume:align",
           "parameter attribute noalias"
          ],
          "waits": []
@@ -15474,7 +15138,6 @@
           "intrinsic llvm.experimental.noalias.scope.decl",
           "metadata !noalias",
           "metadata !tbaa",
-          "operand bundle assume:align",
           "parameter attribute noalias"
          ],
          "waits": []
@@ -15511,8 +15174,7 @@
         "call attribute memory": 20,
         "metadata !alias": 20,
         "intrinsic llvm.experimental.noalias.scope.decl": 16,
-        "call parameter attribute captures(address)": 8,
-        "operand bundle assume:align": 2
+        "call parameter attribute captures(address)": 8
        },
        "alone": {
         "call attribute memory": 2,
@@ -15765,7 +15427,6 @@
           "call attribute memory",
           "metadata !alias",
           "metadata !noalias",
-          "operand bundle assume:align",
           "parameter attribute noalias"
          ],
          "waits": []
@@ -15784,7 +15445,6 @@
           "intrinsic llvm.experimental.noalias.scope.decl",
           "metadata !alias",
           "metadata !noalias",
-          "operand bundle assume:align",
           "parameter attribute noalias"
          ],
          "waits": []
@@ -15919,7 +15579,6 @@
         "call attribute memory": 18,
         "intrinsic llvm.experimental.noalias.scope.decl": 9,
         "parameter attribute noalias": 8,
-        "operand bundle assume:align": 7,
         "metadata !noalias": 6,
         "call return attribute dereferenceable_or_null": 3,
         "metadata !alias": 1
@@ -16024,8 +15683,7 @@
         "XXH3_128bits_reset_withSeed": {
          "own": [
           "call attribute memory",
-          "metadata !tbaa",
-          "operand bundle assume:align"
+          "metadata !tbaa"
          ],
          "waits": []
         },
@@ -16101,8 +15759,7 @@
         "XXH3_64bits_reset_withSeed": {
          "own": [
           "call attribute memory",
-          "metadata !tbaa",
-          "operand bundle assume:align"
+          "metadata !tbaa"
          ],
          "waits": []
         },
@@ -16142,8 +15799,7 @@
         "XXH3_createState": {
          "own": [
           "call return attribute dereferenceable_or_null",
-          "metadata !tbaa",
-          "operand bundle assume:align"
+          "metadata !tbaa"
          ],
          "waits": []
         },
@@ -16171,8 +15827,7 @@
         "XXH3_generateSecret_fromSeed": {
          "own": [
           "call attribute memory",
-          "metadata !tbaa",
-          "operand bundle assume:align"
+          "metadata !tbaa"
          ],
          "waits": []
         },
@@ -16199,8 +15854,7 @@
           "call attribute memory",
           "intrinsic llvm.experimental.noalias.scope.decl",
           "metadata !noalias",
-          "metadata !tbaa",
-          "operand bundle assume:align"
+          "metadata !tbaa"
          ],
          "waits": []
         },
@@ -16222,7 +15876,6 @@
          "own": [
           "call attribute memory",
           "metadata !tbaa",
-          "operand bundle assume:align",
           "parameter attribute noalias"
          ],
          "waits": []
@@ -16247,8 +15900,7 @@
           "intrinsic llvm.experimental.noalias.scope.decl",
           "metadata !alias",
           "metadata !noalias",
-          "metadata !tbaa",
-          "operand bundle assume:align"
+          "metadata !tbaa"
          ],
          "waits": []
         },
@@ -16308,12 +15960,11 @@
         "metadata !noalias": 11,
         "intrinsic llvm.experimental.noalias.scope.decl": 9,
         "parameter attribute noalias": 8,
-        "operand bundle assume:align": 7,
         "call return attribute dereferenceable_or_null": 3
        },
        "alone": {
-        "call attribute memory": 2,
-        "call return attribute dereferenceable_or_null": 2,
+        "call attribute memory": 5,
+        "call return attribute dereferenceable_or_null": 3,
         "parameter attribute noalias": 1
        },
        "blocked": {
@@ -16356,8 +16007,7 @@
         },
         "XXH3_128bits_reset_withSeed": {
          "own": [
-          "call attribute memory",
-          "operand bundle assume:align"
+          "call attribute memory"
          ],
          "waits": []
         },
@@ -16410,8 +16060,7 @@
         },
         "XXH3_64bits_reset_withSeed": {
          "own": [
-          "call attribute memory",
-          "operand bundle assume:align"
+          "call attribute memory"
          ],
          "waits": []
         },
@@ -16447,8 +16096,7 @@
         },
         "XXH3_createState": {
          "own": [
-          "call return attribute dereferenceable_or_null",
-          "operand bundle assume:align"
+          "call return attribute dereferenceable_or_null"
          ],
          "waits": []
         },
@@ -16468,8 +16116,7 @@
         },
         "XXH3_generateSecret_fromSeed": {
          "own": [
-          "call attribute memory",
-          "operand bundle assume:align"
+          "call attribute memory"
          ],
          "waits": []
         },
@@ -16496,8 +16143,7 @@
           "call attribute memory",
           "intrinsic llvm.experimental.noalias.scope.decl",
           "metadata !alias",
-          "metadata !noalias",
-          "operand bundle assume:align"
+          "metadata !noalias"
          ],
          "waits": []
         },
@@ -16521,7 +16167,6 @@
           "call attribute memory",
           "metadata !alias",
           "metadata !noalias",
-          "operand bundle assume:align",
           "parameter attribute noalias"
          ],
          "waits": []
@@ -16543,8 +16188,7 @@
          "own": [
           "intrinsic llvm.experimental.noalias.scope.decl",
           "metadata !alias",
-          "metadata !noalias",
-          "operand bundle assume:align"
+          "metadata !noalias"
          ],
          "waits": []
         },
@@ -16637,7 +16281,6 @@
       "parameter attribute noalias": 29,
       "intrinsic llvm.experimental.noalias.scope.decl": 25,
       "metadata !noalias": 21,
-      "operand bundle assume:align": 9,
       "call parameter attribute captures(address)": 8,
       "metadata !alias": 4,
       "call return attribute dereferenceable_or_null": 3
@@ -16667,14 +16310,13 @@
       "metadata !alias": 31,
       "parameter attribute noalias": 29,
       "intrinsic llvm.experimental.noalias.scope.decl": 25,
-      "operand bundle assume:align": 9,
       "call parameter attribute captures(address)": 8,
       "call return attribute dereferenceable_or_null": 3
      },
      "alone": {
-      "call attribute memory": 4,
+      "call attribute memory": 7,
+      "call return attribute dereferenceable_or_null": 3,
       "call parameter attribute captures(address)": 2,
-      "call return attribute dereferenceable_or_null": 2,
       "parameter attribute noalias": 2
      }
     },
@@ -16741,7 +16383,7 @@
    },
    "measured": {
     "date": "2026-11-12",
-    "commit": "c19861a4fea63529dc4e0f058abc708d97179e72",
+    "commit": "65d118d2193bfd397ca3ce0fe7184f1f83a4f3c6",
     "clang": "clang version 23.1.3"
    }
   },
@@ -17132,8 +16774,7 @@
        "having": {
         "call parameter attribute readonly": 2,
         "intrinsic llvm.masked.store": 2,
-        "metadata !tbaa": 2,
-        "intrinsic llvm.memmove": 1
+        "metadata !tbaa": 2
        },
        "alone": {},
        "blocked": {
@@ -17141,7 +16782,6 @@
          "own": [
           "call parameter attribute readonly",
           "intrinsic llvm.masked.store",
-          "intrinsic llvm.memmove",
           "metadata !tbaa"
          ],
          "waits": []
@@ -17173,16 +16813,14 @@
        },
        "having": {
         "call parameter attribute readonly": 2,
-        "intrinsic llvm.masked.store": 2,
-        "intrinsic llvm.memmove": 1
+        "intrinsic llvm.masked.store": 2
        },
        "alone": {},
        "blocked": {
         "chunkmemset_avx512": {
          "own": [
           "call parameter attribute readonly",
-          "intrinsic llvm.masked.store",
-          "intrinsic llvm.memmove"
+          "intrinsic llvm.masked.store"
          ],
          "waits": []
         },
@@ -17239,13 +16877,11 @@
         "as-built": [
          "call parameter attribute readonly",
          "intrinsic llvm.masked.store",
-         "intrinsic llvm.memmove",
          "metadata !tbaa"
         ],
         "relaxed": [
          "call parameter attribute readonly",
-         "intrinsic llvm.masked.store",
-         "intrinsic llvm.memmove"
+         "intrinsic llvm.masked.store"
         ]
        },
        "relaxed": "call to @_, which isn't translated"
@@ -17274,13 +16910,11 @@
         "as-built": [
          "call parameter attribute readonly",
          "intrinsic llvm.masked.store",
-         "intrinsic llvm.memmove",
          "metadata !tbaa"
         ],
         "relaxed": [
          "call parameter attribute readonly",
-         "intrinsic llvm.masked.store",
-         "intrinsic llvm.memmove"
+         "intrinsic llvm.masked.store"
         ]
        },
        "relaxed": "call parameter attribute readonly"
@@ -17375,11 +17009,10 @@
         "metadata !tbaa": 5
        },
        "having": {
-        "metadata !tbaa": 5,
-        "intrinsic llvm.memmove": 1
+        "metadata !tbaa": 5
        },
        "alone": {
-        "metadata !tbaa": 4
+        "metadata !tbaa": 5
        },
        "blocked": {
         "crc32_fold_vpclmulqdq": {
@@ -17390,7 +17023,6 @@
         },
         "crc32_fold_vpclmulqdq_copy": {
          "own": [
-          "intrinsic llvm.memmove",
           "metadata !tbaa"
          ],
          "waits": []
@@ -17419,24 +17051,11 @@
       },
       "relaxed": {
        "functions": 5,
-       "translated": 4,
-       "refused": {
-        "intrinsic llvm.memmove": 1
-       },
-       "having": {
-        "intrinsic llvm.memmove": 1
-       },
-       "alone": {
-        "intrinsic llvm.memmove": 1
-       },
-       "blocked": {
-        "crc32_fold_vpclmulqdq_copy": {
-         "own": [
-          "intrinsic llvm.memmove"
-         ],
-         "waits": []
-        }
-       }
+       "translated": 5,
+       "refused": {},
+       "having": {},
+       "alone": {},
+       "blocked": {}
       }
      },
      "instructions": 1216,
@@ -17492,31 +17111,27 @@
       "metadata !tbaa": 23,
       "call parameter attribute readonly": 2,
       "intrinsic llvm.masked.store": 2,
-      "intrinsic llvm.memmove": 2,
       "call to external @_, which touches memory: F4": 1
      },
      "alone": {
-      "metadata !tbaa": 19
+      "metadata !tbaa": 20
      }
     },
     "relaxed": {
      "functions": 25,
-     "translated": 20,
+     "translated": 21,
      "refused": {
       "call to @_, which isn't translated": 2,
       "call parameter attribute readonly": 1,
-      "call to external @_, which touches memory: F4": 1,
-      "intrinsic llvm.memmove": 1
+      "call to external @_, which touches memory: F4": 1
      },
      "having": {
       "call parameter attribute readonly": 2,
       "intrinsic llvm.masked.store": 2,
-      "intrinsic llvm.memmove": 2,
       "call to external @_, which touches memory: F4": 1
      },
      "alone": {
-      "call to external @_, which touches memory: F4": 1,
-      "intrinsic llvm.memmove": 1
+      "call to external @_, which touches memory: F4": 1
      }
     },
     "intrinsics": {
@@ -17560,8 +17175,7 @@
      },
      "llvm.memmove": {
       "calls": 2,
-      "class": "refused",
-      "lane": "memory"
+      "class": "modeled"
      },
      "llvm.memset": {
       "calls": 7,
@@ -17612,7 +17226,7 @@
    },
    "measured": {
     "date": "2026-11-12",
-    "commit": "c19861a4fea63529dc4e0f058abc708d97179e72",
+    "commit": "65d118d2193bfd397ca3ce0fe7184f1f83a4f3c6",
     "clang": "clang version 23.1.3"
    }
   },
@@ -17769,7 +17383,6 @@
        },
        "having": {
         "metadata !tbaa": 20,
-        "intrinsic llvm.memmove": 9,
         "call to external functions in a function with a stack frame or promises about memory, which IRLean.World doesn't wrap yet": 6,
         "inline assembly": 4,
         "call to external @_, which touches memory: F4": 3,
@@ -17816,7 +17429,6 @@
          "own": [
           "call to external @_, which touches memory: F4",
           "instruction getelementptr of vectors",
-          "intrinsic llvm.memmove",
           "metadata !tbaa",
           "type: a vector of pointers"
          ],
@@ -17877,7 +17489,6 @@
         "ZSTD_decompressSequences": {
          "own": [
           "inline assembly",
-          "intrinsic llvm.memmove",
           "metadata !tbaa"
          ],
          "waits": [
@@ -17887,7 +17498,6 @@
         },
         "ZSTD_decompressSequencesLong": {
          "own": [
-          "intrinsic llvm.memmove",
           "metadata !tbaa"
          ],
          "waits": [
@@ -17898,7 +17508,6 @@
         },
         "ZSTD_decompressSequencesLong_bmi2": {
          "own": [
-          "intrinsic llvm.memmove",
           "metadata !tbaa"
          ],
          "waits": [
@@ -17909,7 +17518,6 @@
         "ZSTD_decompressSequencesSplitLitBuffer": {
          "own": [
           "inline assembly",
-          "intrinsic llvm.memmove",
           "metadata !tbaa"
          ],
          "waits": [
@@ -17921,7 +17529,6 @@
         "ZSTD_decompressSequencesSplitLitBuffer_bmi2": {
          "own": [
           "inline assembly",
-          "intrinsic llvm.memmove",
           "metadata !tbaa"
          ],
          "waits": [
@@ -17932,7 +17539,6 @@
         "ZSTD_decompressSequences_bmi2": {
          "own": [
           "inline assembly",
-          "intrinsic llvm.memmove",
           "metadata !tbaa"
          ],
          "waits": [
@@ -17941,7 +17547,6 @@
         },
         "ZSTD_execSequenceEnd": {
          "own": [
-          "intrinsic llvm.memmove",
           "metadata !tbaa",
           "parameter attribute byval(%_)"
          ],
@@ -17951,7 +17556,6 @@
         },
         "ZSTD_execSequenceEndSplitLitBuffer": {
          "own": [
-          "intrinsic llvm.memmove",
           "metadata !tbaa",
           "parameter attribute byval(%_)"
          ],
@@ -17980,12 +17584,11 @@
         "call to external functions in a function with a stack frame or promises about memory, which IRLean.World doesn't wrap yet": 6,
         "call to @_, which isn't translated": 3,
         "inline assembly": 2,
-        "intrinsic llvm.memmove": 2,
+        "parameter attribute byval(%_)": 2,
         "metadata !noalias": 1,
         "type: a vector of pointers": 1
        },
        "having": {
-        "intrinsic llvm.memmove": 9,
         "call to external functions in a function with a stack frame or promises about memory, which IRLean.World doesn't wrap yet": 6,
         "metadata !noalias": 6,
         "inline assembly": 4,
@@ -17997,7 +17600,9 @@
         "instruction store": 1,
         "type: a vector of pointers": 1
        },
-       "alone": {},
+       "alone": {
+        "parameter attribute byval(%_)": 2
+       },
        "blocked": {
         "ZSTD_buildSeqTable": {
          "own": [
@@ -18012,7 +17617,6 @@
           "instruction getelementptr of vectors",
           "instruction load",
           "instruction store",
-          "intrinsic llvm.memmove",
           "type: a vector of pointers"
          ],
          "waits": []
@@ -18066,7 +17670,6 @@
         "ZSTD_decompressSequences": {
          "own": [
           "inline assembly",
-          "intrinsic llvm.memmove",
           "metadata !noalias"
          ],
          "waits": [
@@ -18076,7 +17679,6 @@
         },
         "ZSTD_decompressSequencesLong": {
          "own": [
-          "intrinsic llvm.memmove",
           "metadata !noalias"
          ],
          "waits": [
@@ -18087,7 +17689,6 @@
         },
         "ZSTD_decompressSequencesLong_bmi2": {
          "own": [
-          "intrinsic llvm.memmove",
           "metadata !noalias"
          ],
          "waits": [
@@ -18098,7 +17699,6 @@
         "ZSTD_decompressSequencesSplitLitBuffer": {
          "own": [
           "inline assembly",
-          "intrinsic llvm.memmove",
           "metadata !noalias"
          ],
          "waits": [
@@ -18110,7 +17710,6 @@
         "ZSTD_decompressSequencesSplitLitBuffer_bmi2": {
          "own": [
           "inline assembly",
-          "intrinsic llvm.memmove",
           "metadata !noalias"
          ],
          "waits": [
@@ -18121,7 +17720,6 @@
         "ZSTD_decompressSequences_bmi2": {
          "own": [
           "inline assembly",
-          "intrinsic llvm.memmove",
           "metadata !noalias"
          ],
          "waits": [
@@ -18130,14 +17728,12 @@
         },
         "ZSTD_execSequenceEnd": {
          "own": [
-          "intrinsic llvm.memmove",
           "parameter attribute byval(%_)"
          ],
          "waits": []
         },
         "ZSTD_execSequenceEndSplitLitBuffer": {
          "own": [
-          "intrinsic llvm.memmove",
           "parameter attribute byval(%_)"
          ],
          "waits": []
@@ -18180,13 +17776,11 @@
        "needs": {
         "as-built": [
          "inline assembly",
-         "intrinsic llvm.memmove",
          "metadata !tbaa",
          "parameter attribute byval(%_)"
         ],
         "relaxed": [
          "inline assembly",
-         "intrinsic llvm.memmove",
          "metadata !noalias",
          "parameter attribute byval(%_)"
         ]
@@ -18325,11 +17919,10 @@
         "metadata !tbaa": 7
        },
        "having": {
-        "metadata !tbaa": 7,
-        "intrinsic llvm.memmove": 1
+        "metadata !tbaa": 7
        },
        "alone": {
-        "metadata !tbaa": 2
+        "metadata !tbaa": 7
        },
        "blocked": {
         "HIST_add": {
@@ -18364,7 +17957,6 @@
         },
         "HIST_count_parallel_wksp": {
          "own": [
-          "intrinsic llvm.memmove",
           "metadata !tbaa"
          ],
          "waits": []
@@ -18387,47 +17979,34 @@
       },
       "relaxed": {
        "functions": 8,
-       "translated": 3,
+       "translated": 5,
        "refused": {
-        "call to @_, which isn't translated": 4,
-        "intrinsic llvm.memmove": 1
+        "call parameter attribute readonly": 3
        },
        "having": {
-        "intrinsic llvm.memmove": 1
+        "call parameter attribute readonly": 3
        },
        "alone": {
-        "intrinsic llvm.memmove": 5
+        "call parameter attribute readonly": 3
        },
        "blocked": {
         "HIST_count": {
-         "own": [],
-         "waits": [
-          "HIST_count_parallel_wksp"
-         ]
+         "own": [
+          "call parameter attribute readonly"
+         ],
+         "waits": []
         },
         "HIST_countFast": {
-         "own": [],
-         "waits": [
-          "HIST_count_parallel_wksp"
-         ]
-        },
-        "HIST_countFast_wksp": {
-         "own": [],
-         "waits": [
-          "HIST_count_parallel_wksp"
-         ]
-        },
-        "HIST_count_parallel_wksp": {
          "own": [
-          "intrinsic llvm.memmove"
+          "call parameter attribute readonly"
          ],
          "waits": []
         },
         "HIST_count_wksp": {
-         "own": [],
-         "waits": [
-          "HIST_count_parallel_wksp"
-         ]
+         "own": [
+          "call parameter attribute readonly"
+         ],
+         "waits": []
         }
        }
       }
@@ -18455,14 +18034,11 @@
        "as-built": "metadata !tbaa",
        "needs": {
         "as-built": [
-         "intrinsic llvm.memmove",
          "metadata !tbaa"
         ],
-        "relaxed": [
-         "intrinsic llvm.memmove"
-        ]
+        "relaxed": []
        },
-       "relaxed": "intrinsic llvm.memmove"
+       "relaxed": "ok"
       }
      }
     },
@@ -18481,8 +18057,7 @@
         "metadata !tbaa": 21,
         "call to external functions in a function with a stack frame or promises about memory, which IRLean.World doesn't wrap yet": 10,
         "call parameter attribute readonly": 3,
-        "call to external @_, which touches memory: F4": 2,
-        "intrinsic llvm.memmove": 2
+        "call to external @_, which touches memory: F4": 2
        },
        "alone": {
         "metadata !tbaa": 17
@@ -18655,7 +18230,6 @@
          "own": [
           "call parameter attribute readonly",
           "call to external functions in a function with a stack frame or promises about memory, which IRLean.World doesn't wrap yet",
-          "intrinsic llvm.memmove",
           "metadata !tbaa"
          ],
          "waits": [
@@ -18669,7 +18243,6 @@
          "own": [
           "call parameter attribute readonly",
           "call to external functions in a function with a stack frame or promises about memory, which IRLean.World doesn't wrap yet",
-          "intrinsic llvm.memmove",
           "metadata !tbaa"
          ],
          "waits": [
@@ -18734,8 +18307,7 @@
        "having": {
         "call to external functions in a function with a stack frame or promises about memory, which IRLean.World doesn't wrap yet": 10,
         "call parameter attribute readonly": 3,
-        "call to external @_, which touches memory: F4": 2,
-        "intrinsic llvm.memmove": 2
+        "call to external @_, which touches memory: F4": 2
        },
        "alone": {},
        "blocked": {
@@ -18800,8 +18372,7 @@
         "ZSTD_compressBlock_opt0": {
          "own": [
           "call parameter attribute readonly",
-          "call to external functions in a function with a stack frame or promises about memory, which IRLean.World doesn't wrap yet",
-          "intrinsic llvm.memmove"
+          "call to external functions in a function with a stack frame or promises about memory, which IRLean.World doesn't wrap yet"
          ],
          "waits": [
           "ZSTD_rescaleFreqs"
@@ -18810,8 +18381,7 @@
         "ZSTD_compressBlock_opt2": {
          "own": [
           "call parameter attribute readonly",
-          "call to external functions in a function with a stack frame or promises about memory, which IRLean.World doesn't wrap yet",
-          "intrinsic llvm.memmove"
+          "call to external functions in a function with a stack frame or promises about memory, which IRLean.World doesn't wrap yet"
          ],
          "waits": [
           "ZSTD_rescaleFreqs"
@@ -18885,14 +18455,12 @@
          "call parameter attribute readonly",
          "call to external @_, which touches memory: F4",
          "call to external functions in a function with a stack frame or promises about memory, which IRLean.World doesn't wrap yet",
-         "intrinsic llvm.memmove",
          "metadata !tbaa"
         ],
         "relaxed": [
          "call parameter attribute readonly",
          "call to external @_, which touches memory: F4",
-         "call to external functions in a function with a stack frame or promises about memory, which IRLean.World doesn't wrap yet",
-         "intrinsic llvm.memmove"
+         "call to external functions in a function with a stack frame or promises about memory, which IRLean.World doesn't wrap yet"
         ]
        },
        "relaxed": "call to external functions in a function with a stack frame or promises about memory, which IRLean.World doesn't wrap yet"
@@ -18936,7 +18504,6 @@
      "having": {
       "metadata !tbaa": 60,
       "call to external functions in a function with a stack frame or promises about memory, which IRLean.World doesn't wrap yet": 18,
-      "intrinsic llvm.memmove": 12,
       "call to external @_, which touches memory: F4": 7,
       "inline assembly": 4,
       "call parameter attribute readonly": 3,
@@ -18947,28 +18514,28 @@
       "type: a vector of pointers": 1
      },
      "alone": {
-      "metadata !tbaa": 31
+      "metadata !tbaa": 36
      }
     },
     "relaxed": {
      "functions": 67,
-     "translated": 32,
+     "translated": 34,
      "refused": {
       "call to external functions in a function with a stack frame or promises about memory, which IRLean.World doesn't wrap yet": 18,
-      "call to @_, which isn't translated": 9,
-      "intrinsic llvm.memmove": 3,
+      "call to @_, which isn't translated": 5,
+      "call parameter attribute readonly": 3,
       "inline assembly": 2,
+      "parameter attribute byval(%_)": 2,
       "call attribute memory": 1,
       "metadata !noalias": 1,
       "type: a vector of pointers": 1
      },
      "having": {
       "call to external functions in a function with a stack frame or promises about memory, which IRLean.World doesn't wrap yet": 18,
-      "intrinsic llvm.memmove": 12,
       "call to external @_, which touches memory: F4": 7,
+      "call parameter attribute readonly": 6,
       "metadata !noalias": 6,
       "inline assembly": 4,
-      "call parameter attribute readonly": 3,
       "parameter attribute byval(%_)": 2,
       "call attribute memory": 1,
       "constant ptr inttoptr (i64 -1048577 to ptr)": 1,
@@ -18978,8 +18545,9 @@
       "type: a vector of pointers": 1
      },
      "alone": {
-      "intrinsic llvm.memmove": 5,
-      "call attribute memory": 3
+      "call attribute memory": 3,
+      "call parameter attribute readonly": 3,
+      "parameter attribute byval(%_)": 2
      }
     },
     "intrinsics": {
@@ -19009,8 +18577,7 @@
      },
      "llvm.memmove": {
       "calls": 56,
-      "class": "refused",
-      "lane": "memory"
+      "class": "modeled"
      },
      "llvm.memset": {
       "calls": 14,
@@ -19052,12 +18619,12 @@
     "kernels": {
      "named": 7,
      "as-built": 0,
-     "relaxed": 3
+     "relaxed": 4
     }
    },
    "measured": {
     "date": "2026-11-12",
-    "commit": "c19861a4fea63529dc4e0f058abc708d97179e72",
+    "commit": "65d118d2193bfd397ca3ce0fe7184f1f83a4f3c6",
     "clang": "clang version 23.1.3"
    }
   }

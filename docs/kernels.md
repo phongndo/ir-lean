@@ -289,20 +289,26 @@ zstd's `ZSTD_compressBlock_doubleFast_dictMatchState`, which a prefetch stopped.
 blake3's `blake3_hash_many_avx512`, also a prefetch's, translates relaxed, though blake3 is rejected. No function that
 translated before is refused now, and of every other function `--report` says what it said before.
 
+**Measured again on 2026-11-12,** on z, on top of `65d118d`, with `llvm.memmove`, `llvm.assume`'s `align`, `noundef`,
+`cold` and `ignore` bundles, `freeze` of a vector, and `llvm.fma` and `llvm.fmuladd` modeled. Relaxed, 290 of the 799
+functions translate, from 280, and 30 of the 85 named kernels, from 25: FLAC's two autocorrelation kernels and
+`FLAC__lpc_compute_lp_coefficients`, libdeflate's `deflate_flush_block` and zstd's `HIST_count_parallel_wksp`. As built
+it's still 39, since `!tbaa` stops the rest.
+
 | Project | Units | Instructions | Functions | Translate as built | Relaxed |
 | --- | ---: | ---: | ---: | ---: | ---: |
 | base64 | 2 | 1,528 | 4 | 0 | 2 |
 | blake3 | 2 | 8,483 | 5 | 0 | 4 |
-| flac | 12 | 39,563 | 247 | 8 | 109 |
-| libdeflate | 2 | 15,867 | 28 | 1 | 9 |
+| flac | 12 | 39,563 | 247 | 8 | 113 |
+| libdeflate | 2 | 15,867 | 28 | 1 | 12 |
 | libsodium | 6 | 10,491 | 30 | 7 | 7 |
 | libwebp | 14 | 29,633 | 234 | 8 | 68 |
 | llama.cpp | 2 | 22,170 | 40 | 0 | 0 |
 | opus | 6 | 7,716 | 30 | 3 | 8 |
 | xnnpack | 4 | 2,214 | 4 | 0 | 0 |
 | xxhash | 2 | 18,251 | 93 | 10 | 27 |
-| zlib-ng | 7 | 6,835 | 25 | 1 | 20 |
-| zstd | 5 | 37,947 | 67 | 1 | 32 |
+| zlib-ng | 7 | 6,835 | 25 | 1 | 21 |
+| zstd | 5 | 37,947 | 67 | 1 | 34 |
 
 Of the kernels the profiles name:
 
@@ -310,8 +316,8 @@ Of the kernels the profiles name:
 | --- | ---: | ---: | ---: |
 | base64 | 4 | 0 | 2 |
 | blake3 | 2 | 0 | 1 |
-| flac | 16 | 0 | 6 |
-| libdeflate | 3 | 0 | 0 |
+| flac | 16 | 0 | 9 |
+| libdeflate | 3 | 0 | 1 |
 | libsodium | 7 | 4 | 4 |
 | libwebp | 21 | 0 | 3 |
 | llama.cpp | 5 | 0 | 0 |
@@ -319,7 +325,7 @@ Of the kernels the profiles name:
 | xnnpack | 4 | 0 | 0 |
 | xxhash | 5 | 0 | 2 |
 | zlib-ng | 10 | 0 | 7 |
-| zstd | 7 | 0 | 3 |
+| zstd | 7 | 0 | 4 |
 
 Twenty-five of the 85 named kernels in the projects that aren't rejected translate whole in the relaxed run, 22 of
 them in the six approved projects, against 19 and 16 in the proposal's run. Those new since #107 are marked *new*:
@@ -348,41 +354,37 @@ Functions by first reason, relaxed, in each project:
 | --- | --- |
 | base64 | inline assembly: 1; intrinsic llvm.x86.avx512.pmultishift.qb.512: 1 |
 | blake3 | call to external @_, which touches memory: F4: 1 |
-| flac | call to external functions in a function with a stack frame or promises about memory, which IRLean.World doesn't wrap yet: 64; function attribute memory on a function whose calls outside the module access memory: 17; function attribute norecurse on a function that calls outside the module: 13; function attribute nofree on a function whose calls outside the module have effects: 10; parameter attribute noalias: 8; metadata !alias: 7; call to @_, which isn't translated: 6; call to external @_, which touches memory: F4: 4; others: 10 |
-| libdeflate | call parameter attribute readonly: 4; call to @_, which isn't translated: 3; instruction load volatile: 3; metadata !range: 3; intrinsic llvm.experimental.noalias.scope.decl: 2; call to external @_, which touches memory: F4: 1; call to external functions in a function with a stack frame or promises about memory, which IRLean.World doesn't wrap yet: 1; indirect call that can reach @_, which isn't translated: 1; others: 1 |
+| flac | call to external functions in a function with a stack frame or promises about memory, which IRLean.World doesn't wrap yet: 64; function attribute memory on a function whose calls outside the module access memory: 17; function attribute norecurse on a function that calls outside the module: 13; function attribute nofree on a function whose calls outside the module have effects: 10; parameter attribute noalias: 8; metadata !alias: 7; call to @_, which isn't translated: 6; call to external @_, which touches memory: F4: 4; others: 6 |
+| libdeflate | call parameter attribute readonly: 4; instruction load volatile: 3; metadata !range: 3; intrinsic llvm.experimental.noalias.scope.decl: 2; call to @_, which isn't translated: 1; call to external @_, which touches memory: F4: 1; call to external functions in a function with a stack frame or promises about memory, which IRLean.World doesn't wrap yet: 1; indirect call that can reach @_, which isn't translated: 1 |
 | libsodium | call to external functions in a function with a stack frame or promises about memory, which IRLean.World doesn't wrap yet: 17; call to @_, which isn't translated: 2; function attribute norecurse on a function that calls outside the module: 2; call to external @_, which may be null: 1; instruction load volatile: 1 |
-| libwebp | call to external functions in a function with a stack frame or promises about memory, which IRLean.World doesn't wrap yet: 41; parameter attribute noalias: 28; in a cycle with a function refused for: parameter attribute noalias: 27; call to external @_, which touches memory: F4: 23; metadata !alias: 14; intrinsic llvm.experimental.noalias.scope.decl: 11; in a cycle with a function refused for: call to external functions in a function with a stack frame or promises about memory, which IRLean.World doesn't wrap yet: 10; function attribute norecurse on a function that calls outside the module: 3; others: 9 |
-| llama.cpp | intrinsic llvm.fma: 15; type: a vector of pointers: 9; instruction freeze of a vector: 4; intrinsic llvm.x86.avx.max.ps.256: 4; intrinsic llvm.fmuladd: 3; intrinsic llvm.experimental.noalias.scope.decl: 2; parameter attribute noalias: 2; call to external @_, which touches memory: F4: 1 |
-| opus | call to external functions in a function with a stack frame or promises about memory, which IRLean.World doesn't wrap yet: 12; call to @_, which isn't translated: 2; call to external @_, which touches memory: F4: 1; fast-math flag nnan: 1; function attribute norecurse on a function that calls outside the module: 1; intrinsic llvm.fmuladd: 1; intrinsic llvm.x86.sse.rcp.ps: 1; metadata !alias: 1; others: 2 |
+| libwebp | call to external functions in a function with a stack frame or promises about memory, which IRLean.World doesn't wrap yet: 41; parameter attribute noalias: 29; in a cycle with a function refused for: parameter attribute noalias: 27; call to external @_, which touches memory: F4: 23; metadata !alias: 14; intrinsic llvm.experimental.noalias.scope.decl: 11; in a cycle with a function refused for: call to external functions in a function with a stack frame or promises about memory, which IRLean.World doesn't wrap yet: 10; function attribute norecurse on a function that calls outside the module: 3; others: 8 |
+| llama.cpp | parameter attribute noalias: 22; type: a vector of pointers: 9; intrinsic llvm.experimental.noalias.scope.decl: 4; intrinsic llvm.x86.avx.max.ps.256: 4; call to external @_, which touches memory: F4: 1 |
+| opus | call to external functions in a function with a stack frame or promises about memory, which IRLean.World doesn't wrap yet: 12; call to @_, which isn't translated: 2; call to external @_, which touches memory: F4: 2; fast-math flag nnan: 1; function attribute norecurse on a function that calls outside the module: 1; intrinsic llvm.x86.sse.rcp.ps: 1; metadata !alias: 1; parameter attribute noalias: 1; others: 1 |
 | xnnpack | instruction inttoptr: 3; intrinsic llvm.masked.load: 1 |
 | xxhash | intrinsic llvm.experimental.noalias.scope.decl: 24; call attribute memory: 23; metadata !noalias: 9; call return attribute dereferenceable_or_null: 3; call parameter attribute captures(address): 2; call to @_, which isn't translated: 2; parameter attribute noalias: 2; metadata !alias: 1 |
-| zlib-ng | call to @_, which isn't translated: 2; call parameter attribute readonly: 1; call to external @_, which touches memory: F4: 1; intrinsic llvm.memmove: 1 |
-| zstd | call to external functions in a function with a stack frame or promises about memory, which IRLean.World doesn't wrap yet: 18; call to @_, which isn't translated: 9; intrinsic llvm.memmove: 3; inline assembly: 2; call attribute memory: 1; metadata !noalias: 1; type: a vector of pointers: 1 |
+| zlib-ng | call to @_, which isn't translated: 2; call parameter attribute readonly: 1; call to external @_, which touches memory: F4: 1 |
+| zstd | call to external functions in a function with a stack frame or promises about memory, which IRLean.World doesn't wrap yet: 18; call to @_, which isn't translated: 5; call parameter attribute readonly: 3; inline assembly: 2; parameter attribute byval(%_): 2; call attribute memory: 1; metadata !noalias: 1; type: a vector of pointers: 1 |
 
 And added up over the ten projects that aren't rejected, which is the coverage lanes' demand:
 
 | What stops a function, relaxed, in the projects that aren't rejected | Functions | Projects |
 | --- | ---: | --- |
 | call to external functions in a function with a stack frame or promises about memory, which IRLean.World doesn't wrap yet | 153 | flac, libdeflate, libsodium, libwebp, opus, zstd |
-| parameter attribute noalias | 41 | flac, libwebp, llama.cpp, opus, xxhash |
-| intrinsic llvm.experimental.noalias.scope.decl | 39 | libdeflate, libwebp, llama.cpp, xxhash |
-| call to external @_, which touches memory: F4 | 31 | flac, libdeflate, libwebp, llama.cpp, opus, zlib-ng |
-| call to @_, which isn't translated | 28 | flac, libdeflate, libsodium, libwebp, opus, xxhash, zlib-ng, zstd |
+| parameter attribute noalias | 62 | flac, libwebp, llama.cpp, opus, xxhash |
+| intrinsic llvm.experimental.noalias.scope.decl | 41 | libdeflate, libwebp, llama.cpp, xxhash |
+| call to external @_, which touches memory: F4 | 32 | flac, libdeflate, libwebp, llama.cpp, opus, zlib-ng |
 | in a cycle with a function refused for: parameter attribute noalias | 27 | libwebp |
 | call attribute memory | 24 | xxhash, zstd |
 | metadata !alias | 23 | flac, libwebp, opus, xxhash |
+| call to @_, which isn't translated | 22 | flac, libdeflate, libsodium, libwebp, opus, xxhash, zlib-ng, zstd |
 | function attribute norecurse on a function that calls outside the module | 19 | flac, libsodium, libwebp, opus |
 | function attribute memory on a function whose calls outside the module access memory | 17 | flac |
-| intrinsic llvm.fma | 15 | llama.cpp |
 | type: a vector of pointers | 11 | llama.cpp, opus, zstd |
 | function attribute nofree on a function whose calls outside the module have effects | 10 | flac |
 | in a cycle with a function refused for: call to external functions in a function with a stack frame or promises about memory, which IRLean.World doesn't wrap yet | 10 | libwebp |
 | metadata !noalias | 10 | xxhash, zstd |
-| intrinsic llvm.fmuladd | 8 | flac, llama.cpp, opus |
-| call parameter attribute readonly | 5 | libdeflate, zlib-ng |
+| call parameter attribute readonly | 8 | libdeflate, zlib-ng, zstd |
 | call return attribute dereferenceable_or_null | 5 | flac, xxhash |
-| instruction freeze of a vector | 5 | libwebp, llama.cpp |
-| intrinsic llvm.memmove | 5 | libdeflate, zlib-ng, zstd |
 | indirect call that can reach @_, which isn't translated | 4 | flac, libdeflate, libwebp |
 | instruction load volatile | 4 | libdeflate, libsodium |
 | intrinsic llvm.x86.avx.max.ps.256 | 4 | llama.cpp |
@@ -392,6 +394,7 @@ And added up over the ten projects that aren't rejected, which is the coverage l
 | inline assembly | 2 | zstd |
 | llvm.loop.mustprogress off a loop's latch, in a function with irreducible control flow | 2 | flac |
 | more than one parameter with attribute initializes | 2 | libwebp |
+| parameter attribute byval(%_) | 2 | zstd |
 | call to external @_, which may be null | 1 | libsodium |
 | constant ptr getelementptr inbounds nuw (i8, ptr @_, i64 16) with flags that don't plainly hold | 1 | libwebp |
 | constant ptr getelementptr inbounds nuw (i8, ptr @_, i64 8) with flags that don't plainly hold | 1 | libwebp |
@@ -409,79 +412,83 @@ translate something either way are here; `demand.json` has every kind, each func
 
 | A kind of refusal, in the projects that aren't rejected | Functions with it, relaxed | Lifting it alone translates, relaxed | Functions with it, as built | Lifting it alone, as built |
 | --- | ---: | ---: | ---: | ---: |
-| parameter attribute noalias | 205 | 69 | 205 | 2 |
+| parameter attribute noalias | 205 | 90 | 205 | 2 |
 | call to external @_, which touches memory: F4 | 198 | 18 | 199 | 2 |
-| intrinsic llvm.memmove | 19 | 9 | 19 | 0 |
-| call attribute memory | 39 | 7 | 39 | 2 |
-| metadata !alias | 94 | 6 | 14 | 0 |
-| call return attribute dereferenceable_or_null | 6 | 4 | 6 | 2 |
-| intrinsic llvm.fmuladd | 27 | 4 | 27 | 0 |
+| call attribute memory | 39 | 10 | 39 | 2 |
+| metadata !alias | 94 | 7 | 14 | 0 |
+| call return attribute dereferenceable_or_null | 6 | 5 | 6 | 2 |
+| call parameter attribute readonly | 21 | 4 | 11 | 0 |
 | instruction load volatile | 7 | 2 | 1 | 2 |
 | call parameter attribute captures(address) | 8 | 2 | 8 | 0 |
+| parameter attribute byval(%_) | 2 | 2 | 2 | 0 |
 | call to external @_, which may be null | 1 | 1 | 1 | 1 |
-| call parameter attribute readonly | 18 | 1 | 11 | 0 |
 | constant ptr getelementptr inbounds nuw (i8, ptr @_, i64 16) with flags that don't plainly hold | 2 | 1 | 0 | 0 |
-| metadata !tbaa | 0 | 0 | 707 | 246 |
+| metadata !tbaa | 0 | 0 | 707 | 256 |
 
 Most functions need more than one kind lifted, so one at a time undercounts them. Lifted one after another, each the
 kind that then translates the most, or, where none translates any alone, the one most refused functions still have:
 
 | Lifted next, as-built, the most it then translates first | Functions it adds | Translated in all |
 | --- | ---: | ---: |
-| metadata !tbaa | 246 | 246 |
-| parameter attribute noalias | 88 | 334 |
-| call to external @_, which touches memory: F4 | 27 | 361 |
-| call to external functions in a function with a stack frame or promises about memory, which IRLean.World doesn't wrap yet | 70 | 431 |
-| intrinsic llvm.memmove | 27 | 458 |
-| function attribute nofree on a function whose calls outside the module have effects | 18 | 476 |
-| function attribute memory on a function whose calls outside the module access memory | 18 | 494 |
-| intrinsic llvm.experimental.noalias.scope.decl | 15 | 509 |
-| metadata !noalias | 13 | 522 |
-| call attribute memory | 26 | 548 |
-| intrinsic llvm.fma | 10 | 558 |
-| call parameter attribute readonly | 10 | 568 |
-| metadata !alias | 11 | 579 |
-| operand bundle assume:align | 12 | 591 |
-| indirect call that can reach @_, which calls outside the module | 10 | 601 |
+| metadata !tbaa | 256 | 256 |
+| parameter attribute noalias | 113 | 369 |
+| call to external @_, which touches memory: F4 | 27 | 396 |
+| call to external functions in a function with a stack frame or promises about memory, which IRLean.World doesn't wrap yet | 85 | 481 |
+| call attribute memory | 18 | 499 |
+| function attribute nofree on a function whose calls outside the module have effects | 18 | 517 |
+| function attribute memory on a function whose calls outside the module access memory | 18 | 535 |
+| intrinsic llvm.experimental.noalias.scope.decl | 17 | 552 |
+| metadata !noalias | 30 | 582 |
+| metadata !alias | 10 | 592 |
+| call parameter attribute readonly | 14 | 606 |
+| indirect call that can reach @_, which calls outside the module | 10 | 616 |
+| call parameter attribute captures(address) | 8 | 624 |
+| call return attribute dereferenceable_or_null | 8 | 632 |
+| metadata !callees | 6 | 638 |
 
 | Lifted next, relaxed, the most it then translates first | Functions it adds | Translated in all |
 | --- | ---: | ---: |
-| parameter attribute noalias | 69 | 69 |
-| call to external @_, which touches memory: F4 | 24 | 93 |
-| call to external functions in a function with a stack frame or promises about memory, which IRLean.World doesn't wrap yet | 68 | 161 |
-| metadata !alias | 23 | 184 |
-| function attribute nofree on a function whose calls outside the module have effects | 25 | 209 |
-| intrinsic llvm.memmove | 23 | 232 |
-| function attribute memory on a function whose calls outside the module access memory | 18 | 250 |
-| call parameter attribute readonly | 18 | 268 |
-| intrinsic llvm.experimental.noalias.scope.decl | 12 | 280 |
-| metadata !noalias | 25 | 305 |
-| call attribute memory | 26 | 331 |
-| intrinsic llvm.fma | 12 | 343 |
-| intrinsic llvm.fmuladd | 14 | 357 |
-| operand bundle assume:align | 12 | 369 |
-| indirect call that can reach @_, which calls outside the module | 10 | 379 |
+| parameter attribute noalias | 90 | 90 |
+| call to external @_, which touches memory: F4 | 24 | 114 |
+| call to external functions in a function with a stack frame or promises about memory, which IRLean.World doesn't wrap yet | 83 | 197 |
+| metadata !alias | 25 | 222 |
+| function attribute nofree on a function whose calls outside the module have effects | 25 | 247 |
+| call parameter attribute readonly | 20 | 267 |
+| function attribute memory on a function whose calls outside the module access memory | 19 | 286 |
+| intrinsic llvm.experimental.noalias.scope.decl | 12 | 298 |
+| metadata !noalias | 32 | 330 |
+| call attribute memory | 35 | 365 |
+| indirect call that can reach @_, which calls outside the module | 10 | 375 |
+| metadata !range | 8 | 383 |
+| call parameter attribute captures(address) | 8 | 391 |
+| call return attribute dereferenceable_or_null | 8 | 399 |
+| function attribute norecurse on a function that calls outside the module | 6 | 405 |
 
 Each count is an estimate, for the reasons [above](#what-the-emitter-does-with-them-today): lifting a kind can uncover
 a refusal behind it in the same instruction, which would make it smaller, and a function whose checks stopped early
 never counts, which would make it larger.
 
-What that asks of the lanes:
+What that asks of the lanes, measured again on 2026-11-12, once `llvm.memmove`, `llvm.assume`'s `align` bundle,
+`freeze` of a vector, `llvm.fma` and `llvm.fmuladd` were modeled:
 
-1. **`!tbaa`,** which the relaxed run sets aside. As built, it alone would translate 246 functions, six times what
-   translates now, and it's all that stops 22 of the named kernels.
-2. **`noalias`** as a parameter attribute. It's the kind that alone translates the most relaxed, 69 functions, and all
-   that stops 8 named kernels, 7 of them libwebp's, and FLAC's `FLAC__lpc_restore_signal`. It's also behind every one
-   of llama.cpp's five kernels, beside `llvm.fma`, so modeling `llvm.fma` alone translates none of them. The rest of
-   the family, `llvm.experimental.noalias.scope.decl`, `!noalias` and `!alias.scope`, comes after it in the order
-   above.
+1. **`!tbaa`,** which the relaxed run sets aside. As built, it alone would translate 256 functions, six times what
+   translates now, and it's all that stops 24 of the named kernels.
+2. **`noalias`** as a parameter attribute. It's the kind that alone translates the most relaxed, 90 functions, and all
+   that stops 13 named kernels: every one of llama.cpp's five, 7 of libwebp's, and FLAC's `FLAC__lpc_restore_signal`.
+   The rest of the family, `llvm.experimental.noalias.scope.decl`, `!noalias` and `!alias.scope`, comes after it in the
+   order above.
 3. **Calls outside the module,** F4's: one that touches memory alone translates 18 relaxed, and a function with a
    stack frame that makes one, 203 functions, translates none alone, since every one of them has another reason.
-   Lifted after `noalias` and calls that touch memory, it adds 68.
-4. **Smaller kinds,** each all that stops a named kernel or two: `llvm.memmove`, alone 9 functions, and libdeflate's
-   `deflate_flush_block` and zstd's `HIST_count_parallel_wksp`; `llvm.fmuladd`, 4, and three of FLAC's floating-point
-   kernels; `memory` on a call, 7, and zstd's `ZSTD_compressBlock_doubleFast`; and a volatile load, libsodium's
-   `poly1305_blocks`.
+   Lifted after `noalias` and calls that touch memory, it adds 83.
+4. **Smaller kinds,** each all that stops a named kernel: `memory` on a call, 10 functions alone, and zstd's
+   `ZSTD_compressBlock_doubleFast`; and a volatile load, libsodium's `poly1305_blocks`. `llvm.memmove`, `llvm.fmuladd`
+   and the rest of 2026-11-11's list are modeled now, and with them five more named kernels translate relaxed: FLAC's
+   two autocorrelation kernels and `FLAC__lpc_compute_lp_coefficients`, libdeflate's `deflate_flush_block` and zstd's
+   `HIST_count_parallel_wksp`.
+
+Lifted in that order, `!tbaa`, then the `noalias` family, then calls outside the module, would translate 87% of the
+functions as built, 695 of 798, 78% of their instructions, and 66 of the 85 named kernels. Relaxed it's 90%, 80% and
+68. Each is an estimate, as [above](#what-lifting-one-kind-would-translate) says.
 
 In the proposal's run, `llvm.x86.avx.vzeroupper` was fifth: four calls, the first reason for FLAC's two integer
 residual kernels and its partition sums. It's modeled since #107, and all three translate. `llvm.prefetch`, 299 calls,
@@ -509,12 +516,9 @@ lane's demand, with the floating-point and memory lanes' beside it:
 
 | Intrinsic the model refuses, in the projects that aren't rejected | Calls | Lane | Projects |
 | --- | ---: | --- | --- |
-| `llvm.fmuladd` | 499 | floating point | flac, libwebp, llama.cpp, opus |
 | `llvm.experimental.noalias.scope.decl` | 372 | memory | libdeflate, libwebp, llama.cpp, opus, xxhash |
-| `llvm.fma` | 198 | floating point | llama.cpp, opus, xnnpack |
 | `llvm.masked.gather` | 77 | memory | llama.cpp |
 | `llvm.vector.reduce.fadd` | 73 | floating point | flac |
-| `llvm.memmove` | 68 | memory | flac, libdeflate, zlib-ng, zstd |
 | `llvm.x86.avx.max.ps.256` | 55 | long tail | llama.cpp |
 | `llvm.x86.avx.cvt.ps2dq.256` | 40 | long tail | llama.cpp |
 | `llvm.x86.avx.round.ps.256` | 40 | long tail | llama.cpp |
@@ -555,24 +559,24 @@ saturating packs, 303 calls and nearly every libwebp kernel; the high multiplies
 
 | Project | Kernel | Instructions | As built | Relaxed | Relaxed, everything it needs | Intrinsics it calls |
 | --- | --- | ---: | --- | --- | --- | --- |
-| flac | `FLAC__lpc_compute_autocorrelation_intrin_fma_lag_12` | 338 | function attribute "no-signed-zeros-fp-math" on a function with floating point | intrinsic llvm.fmuladd | intrinsic llvm.fmuladd | `fmuladd` 50, `memset` 1, `vector.reduce.fadd` 12 |
-| flac | `FLAC__lpc_compute_autocorrelation_intrin_fma_lag_16` | 464 | function attribute "no-signed-zeros-fp-math" on a function with floating point | intrinsic llvm.fmuladd | intrinsic llvm.fmuladd | `fmuladd` 103, `memset` 1, `vector.reduce.fadd` 16 |
+| flac | `FLAC__lpc_compute_autocorrelation_intrin_fma_lag_12` | 338 | function attribute "no-signed-zeros-fp-math" on a function with floating point | ok | Nothing | `fmuladd` 50, `memset` 1, `vector.reduce.fadd` 12 |
+| flac | `FLAC__lpc_compute_autocorrelation_intrin_fma_lag_16` | 464 | function attribute "no-signed-zeros-fp-math" on a function with floating point | ok | Nothing | `fmuladd` 103, `memset` 1, `vector.reduce.fadd` 16 |
 | flac | `FLAC__lpc_compute_residual_from_qlp_coefficients_16_intrin_avx2` | 1,309 | metadata !tbaa | ok | Nothing | `vector.reduce.add` 1, `x86.avx.vzeroupper` 1, `x86.avx2.pmadd.wd` 78, `x86.avx2.psra.d` 12 |
 | flac | `FLAC__lpc_compute_residual_from_qlp_coefficients_intrin_avx2` | 963 | metadata !tbaa | ok | Nothing | `vector.reduce.add` 1, `x86.avx.vzeroupper` 1, `x86.avx2.psra.d` 12 |
 | flac | `FLAC__fixed_compute_best_predictor_wide_intrin_avx2` | 233 | function attribute "no-signed-zeros-fp-math" on a function with floating point | function attribute norecurse on a function that calls outside the module | call to external @_, which touches memory: F4; call to external functions in a function with a stack frame or promises about memory, which IRLean.World doesn't wrap yet; function attribute memory on a function whose calls outside the module access memory; function attribute nofree on a function whose calls outside the module have effects; function attribute norecurse on a function that calls outside the module; function attribute nosync on a function whose calls outside the module access memory | `abs` 5, `umin` 6, `vector.reduce.add` 5 |
 | flac | `FLAC__precompute_partition_info_sums_intrin_avx2` | 258 | metadata !tbaa | ok | Nothing | `abs` 10, `assume` 1, `ctlz` 1, `vector.reduce.add` 2, `x86.avx.vzeroupper` 1 |
 | flac | `FLAC__MD5Transform` | 542 | metadata !tbaa | ok | Nothing | `fshl` 64 |
 | flac | `FLAC__lpc_restore_signal` | 721 | metadata !tbaa | parameter attribute noalias | parameter attribute noalias | `assume` 3, `vector.reduce.add` 9 |
-| flac | `FLAC__lpc_compute_lp_coefficients` | 155 | function attribute "no-signed-zeros-fp-math" on a function with floating point | intrinsic llvm.fmuladd | intrinsic llvm.fmuladd | `fmuladd` 7, `lifetime.end` 1, `lifetime.start` 1, `umax` 1, `vector.reduce.fadd` 1 |
-| flac | `FLAC__bitreader_read_rice_signed_block_bmi2` | 205 | llvm.loop.mustprogress off a loop's latch, in a function with irreducible control flow | llvm.loop.mustprogress off a loop's latch, in a function with irreducible control flow | call to external @_, which touches memory: F4; call to external functions in a function with a stack frame or promises about memory, which IRLean.World doesn't wrap yet; intrinsic llvm.memmove; llvm.loop.mustprogress off a loop's latch, in a function with irreducible control flow | `ctlz` 2, `lifetime.end` 2, `lifetime.start` 2, `umax` 1 |
+| flac | `FLAC__lpc_compute_lp_coefficients` | 155 | function attribute "no-signed-zeros-fp-math" on a function with floating point | ok | Nothing | `fmuladd` 7, `lifetime.end` 1, `lifetime.start` 1, `umax` 1, `vector.reduce.fadd` 1 |
+| flac | `FLAC__bitreader_read_rice_signed_block_bmi2` | 205 | llvm.loop.mustprogress off a loop's latch, in a function with irreducible control flow | llvm.loop.mustprogress off a loop's latch, in a function with irreducible control flow | call to external @_, which touches memory: F4; call to external functions in a function with a stack frame or promises about memory, which IRLean.World doesn't wrap yet; llvm.loop.mustprogress off a loop's latch, in a function with irreducible control flow | `ctlz` 2, `lifetime.end` 2, `lifetime.start` 2, `umax` 1 |
 | flac | `FLAC__bitwriter_write_rice_signed_block` | 351 | function attribute memory on a function whose calls outside the module access memory | function attribute memory on a function whose calls outside the module access memory | call to external @_, which touches memory: F4; call to external functions in a function with a stack frame or promises about memory, which IRLean.World doesn't wrap yet; function attribute memory on a function whose calls outside the module access memory | `bswap` 7, `fshl` 6 |
 | flac | `find_best_partition_order_` | 307 | call to external functions in a function with a stack frame or promises about memory, which IRLean.World doesn't wrap yet | call to external functions in a function with a stack frame or promises about memory, which IRLean.World doesn't wrap yet | call to external @_, which touches memory: F4; call to external functions in a function with a stack frame or promises about memory, which IRLean.World doesn't wrap yet | `ctlz` 2, `memcpy` 2, `uadd.sat` 1, `umax` 1, `umin` 1, `vector.reduce.or` 1 |
 | flac | `read_frame_` | 1,888 | call to external functions in a function with a stack frame or promises about memory, which IRLean.World doesn't wrap yet | call to external functions in a function with a stack frame or promises about memory, which IRLean.World doesn't wrap yet | call return attribute dereferenceable_or_null; call to external @_, which touches memory: F4; call to external functions in a function with a stack frame or promises about memory, which IRLean.World doesn't wrap yet; function attribute memory on a function whose calls outside the module access memory; function attribute nofree on a function whose calls outside the module have effects | `assume` 1, `lifetime.end` 31, `lifetime.start` 15, `memcpy` 2, `memset` 2, `umax` 1, `umin` 2 |
 | flac | `FLAC__crc16_update_words64` | 54 | metadata !tbaa | ok | Nothing | None |
 | flac | `FLAC__crc16` | 117 | metadata !tbaa | ok | Nothing | None |
 | flac | `FLAC__fixed_compute_residual` | 374 | metadata !tbaa | metadata !alias | metadata !alias | `memcpy` 1 |
-| libdeflate | `deflate_compress_lazy` | 1,764 | intrinsic llvm.experimental.noalias.scope.decl | intrinsic llvm.experimental.noalias.scope.decl | call parameter attribute readonly; intrinsic llvm.experimental.noalias.scope.decl; intrinsic llvm.memmove; metadata !alias; metadata !noalias; metadata !range; parameter attribute noalias | `assume` 1, `ctlz` 2, `cttz` 4, `experimental.noalias.scope.decl` 1, `lifetime.end` 1, `lifetime.start` 1, `memset` 2, `prefetch` 8, `sadd.sat` 32, `smin` 2, `umin` 4, `vector.reduce.add` 3 |
-| libdeflate | `deflate_flush_block` | 1,506 | metadata !tbaa | call to @_, which isn't translated | intrinsic llvm.memmove | `assume` 1, `memcpy` 2, `smin` 1, `umax` 2, `umin` 2, `vector.reduce.add` 9 |
+| libdeflate | `deflate_compress_lazy` | 1,764 | intrinsic llvm.experimental.noalias.scope.decl | intrinsic llvm.experimental.noalias.scope.decl | call parameter attribute readonly; intrinsic llvm.experimental.noalias.scope.decl; metadata !alias; metadata !noalias; metadata !range; parameter attribute noalias | `assume` 1, `ctlz` 2, `cttz` 4, `experimental.noalias.scope.decl` 1, `lifetime.end` 1, `lifetime.start` 1, `memset` 2, `prefetch` 8, `sadd.sat` 32, `smin` 2, `umin` 4, `vector.reduce.add` 3 |
+| libdeflate | `deflate_flush_block` | 1,506 | metadata !tbaa | ok | Nothing | `assume` 1, `memcpy` 2, `smin` 1, `umax` 2, `umin` 2, `vector.reduce.add` 9 |
 | libdeflate | `deflate_decompress_bmi2` | 1,223 | metadata !tbaa | metadata !range | metadata !range; parameter attribute noalias | `assume` 1, `memcpy` 1, `memset` 6, `umax` 1, `umin` 2 |
 | libsodium | `chacha20_encrypt_bytes` | 1,096 | call to external functions in a function with a stack frame or promises about memory, which IRLean.World doesn't wrap yet | call to external functions in a function with a stack frame or promises about memory, which IRLean.World doesn't wrap yet | call to external @_, which touches memory: F4; call to external functions in a function with a stack frame or promises about memory, which IRLean.World doesn't wrap yet | `fshl` 40, `lifetime.end` 1, `lifetime.start` 1 |
 | libsodium | `poly1305_blocks` | 584 | instruction load volatile | instruction load volatile | instruction load volatile | `fshl` 2 |
@@ -593,7 +597,7 @@ saturating packs, 303 calls and nearly every libwebp kernel; the high multiplies
 | libwebp | `PredictorAdd12_AVX2` | 131 | in a cycle with a function refused for: metadata !tbaa | in a cycle with a function refused for: parameter attribute noalias | parameter attribute noalias | `x86.avx2.packuswb` 8 |
 | libwebp | `VP8LHashChainFill` | 373 | call to external functions in a function with a stack frame or promises about memory, which IRLean.World doesn't wrap yet | call to external functions in a function with a stack frame or promises about memory, which IRLean.World doesn't wrap yet | call to external @_, which touches memory: F4; call to external functions in a function with a stack frame or promises about memory, which IRLean.World doesn't wrap yet | `memset` 2, `smax` 2, `smin` 3, `usub.sat` 1 |
 | libwebp | `VP8LGetBackwardReferences` | 2,229 | call to external functions in a function with a stack frame or promises about memory, which IRLean.World doesn't wrap yet | call to external functions in a function with a stack frame or promises about memory, which IRLean.World doesn't wrap yet | call to external @_, which touches memory: F4; call to external functions in a function with a stack frame or promises about memory, which IRLean.World doesn't wrap yet; metadata !noalias | `assume` 2, `ctlz` 1, `lifetime.end` 19, `lifetime.start` 12, `memcpy` 11, `memset` 6, `smin` 1, `umin` 2 |
-| libwebp | `GetCombinedEntropyUnrefined_C` | 156 | more than one parameter with attribute initializes | more than one parameter with attribute initializes | call to external @_, which touches memory: F4; call to external functions in a function with a stack frame or promises about memory, which IRLean.World doesn't wrap yet; function attribute memory on a function whose calls outside the module access memory; function attribute nofree on a function whose calls outside the module have effects; function attribute norecurse on a function that calls outside the module; function attribute nosync on a function whose calls outside the module access memory; intrinsic llvm.experimental.noalias.scope.decl; intrinsic llvm.fmuladd; metadata !alias; metadata !noalias; more than one parameter with attribute initializes; parameter attribute noalias | `experimental.noalias.scope.decl` 4, `memset` 2 |
+| libwebp | `GetCombinedEntropyUnrefined_C` | 156 | more than one parameter with attribute initializes | more than one parameter with attribute initializes | call to external @_, which touches memory: F4; call to external functions in a function with a stack frame or promises about memory, which IRLean.World doesn't wrap yet; function attribute memory on a function whose calls outside the module access memory; function attribute nofree on a function whose calls outside the module have effects; function attribute norecurse on a function that calls outside the module; function attribute nosync on a function whose calls outside the module access memory; intrinsic llvm.experimental.noalias.scope.decl; metadata !alias; metadata !noalias; more than one parameter with attribute initializes; parameter attribute noalias | `experimental.noalias.scope.decl` 4, `memset` 2 |
 | libwebp | `VP8LResidualImage` | 1,082 | call to external functions in a function with a stack frame or promises about memory, which IRLean.World doesn't wrap yet | call to external functions in a function with a stack frame or promises about memory, which IRLean.World doesn't wrap yet | call parameter attribute readonly; call to external @_, which touches memory: F4; call to external functions in a function with a stack frame or promises about memory, which IRLean.World doesn't wrap yet; function attribute memory on a function whose calls outside the module access memory; function attribute norecurse on a function that calls outside the module; function attribute nosync on a function whose calls outside the module access memory | `assume` 2, `lifetime.end` 5, `lifetime.start` 3, `memcpy` 28, `memset` 2, `smax` 1, `smin` 5, `umax` 1 |
 | libwebp | `CombinedShannonEntropy_AVX2` | 118 | metadata !tbaa | ok | Nothing | `cttz` 1, `x86.avx2.packssdw` 4, `x86.avx2.packsswb` 2 |
 | libwebp | `VectorMismatch_AVX2` | 80 | metadata !tbaa | ok | Nothing | None |
@@ -602,21 +606,21 @@ saturating packs, 303 calls and nearly every libwebp kernel; the high multiplies
 | libwebp | `FTransform_SSE2` | 111 | metadata !tbaa | metadata !alias | metadata !alias; parameter attribute noalias | `x86.sse2.packssdw.128` 4, `x86.sse2.pmadd.wd` 6 |
 | libwebp | `ITransform_SSE2` | 256 | intrinsic llvm.experimental.noalias.scope.decl | intrinsic llvm.experimental.noalias.scope.decl | intrinsic llvm.experimental.noalias.scope.decl; metadata !alias; parameter attribute noalias | `experimental.noalias.scope.decl` 5, `x86.sse2.packuswb.128` 5, `x86.sse2.pmulh.w` 12 |
 | libwebp | `SSE4x4_SSE2` | 53 | metadata !tbaa | parameter attribute noalias | parameter attribute noalias | `vector.reduce.add` 1, `x86.sse2.pmadd.wd` 2 |
-| llama.cpp | `ggml_gemm_q4_K_8x8_q8_K` | 3,034 | metadata !tbaa | intrinsic llvm.fma | intrinsic llvm.fma; parameter attribute noalias | `assume` 1, `fma` 32, `lifetime.end` 6, `lifetime.start` 6, `memset` 4, `x86.avx2.pmadd.ub.sw` 128, `x86.avx2.pmadd.wd` 24, `x86.avx512.pmaddubs.w.512` 128, `x86.avx512.pmaddw.d.512` 24, `x86.ssse3.phadd.w.128` 4 |
-| llama.cpp | `ggml_gemv_q4_K_8x8_q8_K` | 386 | instruction freeze of a vector | instruction freeze of a vector | instruction freeze of a vector; intrinsic llvm.fma; parameter attribute noalias | `assume` 1, `fma` 2, `memset` 9, `x86.avx2.pmadd.ub.sw` 16, `x86.avx2.pmadd.wd` 3, `x86.ssse3.phadd.w.128` 1 |
-| llama.cpp | `ggml_vec_dot_q4_K_q8_K` | 172 | metadata !tbaa | intrinsic llvm.fma | intrinsic llvm.fma; parameter attribute noalias | `fma` 2, `x86.avx2.pmadd.ub.sw` 8, `x86.avx2.pmadd.wd` 8, `x86.sse2.pmadd.wd` 1, `x86.ssse3.phadd.w.128` 1 |
-| llama.cpp | `ggml_vec_dot_q5_0_q8_0` | 146 | metadata !tbaa | intrinsic llvm.fma | intrinsic llvm.fma; parameter attribute noalias | `assume` 1, `fma` 3, `x86.avx2.psign.b` 6, `x86.avx512.vpdpbusd.256` 3 |
-| llama.cpp | `ggml_vec_dot_q6_K_q8_K` | 162 | metadata !tbaa | intrinsic llvm.fma | intrinsic llvm.fma; parameter attribute noalias | `fma` 1, `x86.avx2.pmadd.ub.sw` 8, `x86.avx2.pmadd.wd` 9 |
-| opus | `op_pvq_search_sse2` | 335 | metadata !tbaa | intrinsic llvm.x86.sse.rcp.ps | intrinsic llvm.fmuladd; intrinsic llvm.x86.sse.max.ps; intrinsic llvm.x86.sse.rcp.ps; intrinsic llvm.x86.sse.rsqrt.ps; intrinsic llvm.x86.sse2.cvttps2dq | `assume` 3, `fabs` 3, `fmuladd` 2, `memcpy` 1, `memset` 3, `smax` 6, `vector.reduce.add` 1, `x86.sse.max.ps` 5, `x86.sse.rcp.ps` 1, `x86.sse.rsqrt.ps` 3, `x86.sse2.cvttps2dq` 1 |
-| opus | `exp_rotation` | 837 | function attribute norecurse on a function that calls outside the module | function attribute norecurse on a function that calls outside the module | call to external @_, which touches memory: F4; call to external functions in a function with a stack frame or promises about memory, which IRLean.World doesn't wrap yet; function attribute memory on a function whose calls outside the module access memory; function attribute nofree on a function whose calls outside the module have effects; function attribute norecurse on a function that calls outside the module; function attribute nosync on a function whose calls outside the module access memory; intrinsic llvm.fmuladd; metadata !alias | `assume` 4, `fmuladd` 36 |
-| opus | `opus_fft_impl` | 1,422 | type: a vector of pointers | type: a vector of pointers | intrinsic llvm.fmuladd; metadata !alias; type: a vector of pointers | `fmuladd` 30, `lifetime.end` 1, `lifetime.start` 1, `smax` 1 |
+| llama.cpp | `ggml_gemm_q4_K_8x8_q8_K` | 3,034 | metadata !tbaa | parameter attribute noalias | parameter attribute noalias | `assume` 1, `fma` 32, `lifetime.end` 6, `lifetime.start` 6, `memset` 4, `x86.avx2.pmadd.ub.sw` 128, `x86.avx2.pmadd.wd` 24, `x86.avx512.pmaddubs.w.512` 128, `x86.avx512.pmaddw.d.512` 24, `x86.ssse3.phadd.w.128` 4 |
+| llama.cpp | `ggml_gemv_q4_K_8x8_q8_K` | 386 | metadata !tbaa | parameter attribute noalias | parameter attribute noalias | `assume` 1, `fma` 2, `memset` 9, `x86.avx2.pmadd.ub.sw` 16, `x86.avx2.pmadd.wd` 3, `x86.ssse3.phadd.w.128` 1 |
+| llama.cpp | `ggml_vec_dot_q4_K_q8_K` | 172 | metadata !tbaa | parameter attribute noalias | parameter attribute noalias | `fma` 2, `x86.avx2.pmadd.ub.sw` 8, `x86.avx2.pmadd.wd` 8, `x86.sse2.pmadd.wd` 1, `x86.ssse3.phadd.w.128` 1 |
+| llama.cpp | `ggml_vec_dot_q5_0_q8_0` | 146 | metadata !tbaa | parameter attribute noalias | parameter attribute noalias | `assume` 1, `fma` 3, `x86.avx2.psign.b` 6, `x86.avx512.vpdpbusd.256` 3 |
+| llama.cpp | `ggml_vec_dot_q6_K_q8_K` | 162 | metadata !tbaa | parameter attribute noalias | parameter attribute noalias | `fma` 1, `x86.avx2.pmadd.ub.sw` 8, `x86.avx2.pmadd.wd` 9 |
+| opus | `op_pvq_search_sse2` | 335 | metadata !tbaa | intrinsic llvm.x86.sse.rcp.ps | intrinsic llvm.x86.sse.max.ps; intrinsic llvm.x86.sse.rcp.ps; intrinsic llvm.x86.sse.rsqrt.ps; intrinsic llvm.x86.sse2.cvttps2dq | `assume` 3, `fabs` 3, `fmuladd` 2, `memcpy` 1, `memset` 3, `smax` 6, `vector.reduce.add` 1, `x86.sse.max.ps` 5, `x86.sse.rcp.ps` 1, `x86.sse.rsqrt.ps` 3, `x86.sse2.cvttps2dq` 1 |
+| opus | `exp_rotation` | 837 | function attribute norecurse on a function that calls outside the module | function attribute norecurse on a function that calls outside the module | call to external @_, which touches memory: F4; call to external functions in a function with a stack frame or promises about memory, which IRLean.World doesn't wrap yet; function attribute memory on a function whose calls outside the module access memory; function attribute nofree on a function whose calls outside the module have effects; function attribute norecurse on a function that calls outside the module; function attribute nosync on a function whose calls outside the module access memory; metadata !alias | `assume` 4, `fmuladd` 36 |
+| opus | `opus_fft_impl` | 1,422 | type: a vector of pointers | type: a vector of pointers | metadata !alias; type: a vector of pointers | `fmuladd` 30, `lifetime.end` 1, `lifetime.start` 1, `smax` 1 |
 | opus | `encode_pulses` | 73 | call to external functions in a function with a stack frame or promises about memory, which IRLean.World doesn't wrap yet | call to external functions in a function with a stack frame or promises about memory, which IRLean.World doesn't wrap yet | call to external @_, which touches memory: F4; call to external functions in a function with a stack frame or promises about memory, which IRLean.World doesn't wrap yet | `abs` 2, `smax` 4, `smin` 3 |
-| opus | `decode_pulses` | 162 | call to external functions in a function with a stack frame or promises about memory, which IRLean.World doesn't wrap yet | call to external functions in a function with a stack frame or promises about memory, which IRLean.World doesn't wrap yet | call to external @_, which touches memory: F4; call to external functions in a function with a stack frame or promises about memory, which IRLean.World doesn't wrap yet; intrinsic llvm.fmuladd | `fmuladd` 4, `smax` 2, `smin` 2 |
-| opus | `quant_partition` | 491 | call to external functions in a function with a stack frame or promises about memory, which IRLean.World doesn't wrap yet | call to external functions in a function with a stack frame or promises about memory, which IRLean.World doesn't wrap yet | call to @_, whose calls outside the module may access this function's memory, which touches memory: F4; call to external @_, which touches memory: F4; call to external functions in a function with a stack frame or promises about memory, which IRLean.World doesn't wrap yet; intrinsic llvm.experimental.noalias.scope.decl; intrinsic llvm.fmuladd; intrinsic llvm.sqrt; metadata !alias; metadata !noalias | `assume` 2, `lifetime.end` 1, `lifetime.start` 1, `memset` 1, `smax` 1, `smin` 2 |
-| opus | `celt_pitch_xcorr_avx2` | 143 | call to external functions in a function with a stack frame or promises about memory, which IRLean.World doesn't wrap yet | call to external functions in a function with a stack frame or promises about memory, which IRLean.World doesn't wrap yet | call to external @_, which touches memory: F4; call to external functions in a function with a stack frame or promises about memory, which IRLean.World doesn't wrap yet; intrinsic llvm.fma; intrinsic llvm.x86.avx.hadd.ps.256; intrinsic llvm.x86.avx.maskload.ps.256 | `fma` 16, `x86.avx.hadd.ps.256` 3, `x86.avx.maskload.ps.256` 9 |
+| opus | `decode_pulses` | 162 | call to external functions in a function with a stack frame or promises about memory, which IRLean.World doesn't wrap yet | call to external functions in a function with a stack frame or promises about memory, which IRLean.World doesn't wrap yet | call to external @_, which touches memory: F4; call to external functions in a function with a stack frame or promises about memory, which IRLean.World doesn't wrap yet | `fmuladd` 4, `smax` 2, `smin` 2 |
+| opus | `quant_partition` | 491 | call to external functions in a function with a stack frame or promises about memory, which IRLean.World doesn't wrap yet | call to external functions in a function with a stack frame or promises about memory, which IRLean.World doesn't wrap yet | call to @_, whose calls outside the module may access this function's memory, which touches memory: F4; call to external @_, which touches memory: F4; call to external functions in a function with a stack frame or promises about memory, which IRLean.World doesn't wrap yet; intrinsic llvm.experimental.noalias.scope.decl; intrinsic llvm.sqrt; metadata !alias; metadata !noalias | `assume` 2, `lifetime.end` 1, `lifetime.start` 1, `memset` 1, `smax` 1, `smin` 2 |
+| opus | `celt_pitch_xcorr_avx2` | 143 | call to external functions in a function with a stack frame or promises about memory, which IRLean.World doesn't wrap yet | call to external functions in a function with a stack frame or promises about memory, which IRLean.World doesn't wrap yet | call to external @_, which touches memory: F4; call to external functions in a function with a stack frame or promises about memory, which IRLean.World doesn't wrap yet; intrinsic llvm.x86.avx.hadd.ps.256; intrinsic llvm.x86.avx.maskload.ps.256 | `fma` 16, `x86.avx.hadd.ps.256` 3, `x86.avx.maskload.ps.256` 9 |
 | xnnpack | `xnn_qs8_qc8w_igemm_minmax_fp32_ukernel_7x16c8__avx512vnni_prfm` | 623 | instruction inttoptr | instruction inttoptr | call parameter attribute elementtype(<2 x i64>); call parameter attribute elementtype(<8 x i64>); instruction inttoptr; intrinsic llvm.masked.store; intrinsic llvm.x86.avx512.mask.cvtps2dq.512; intrinsic llvm.x86.avx512.min.ps.512; parameter attribute noalias | `lifetime.end` 2, `lifetime.start` 2, `masked.store` 7, `prefetch` 6, `smax` 7, `x86.avx512.mask.cvtps2dq.512` 7, `x86.avx512.mask.pmovs.db.512` 7, `x86.avx512.min.ps.512` 7, `x86.avx512.vpdpbusd.512` 42 |
 | xnnpack | `xnn_qs8_qc8w_gemm_minmax_fp32_ukernel_7x16c8__avx512vnni_prfm` | 598 | instruction inttoptr | instruction inttoptr | call parameter attribute elementtype(<8 x i64>); instruction inttoptr; intrinsic llvm.masked.store; intrinsic llvm.x86.avx512.mask.cvtps2dq.512; intrinsic llvm.x86.avx512.min.ps.512; parameter attribute noalias | `lifetime.end` 1, `lifetime.start` 1, `masked.store` 7, `prefetch` 6, `smax` 7, `x86.avx512.mask.cvtps2dq.512` 7, `x86.avx512.mask.pmovs.db.512` 7, `x86.avx512.min.ps.512` 7, `x86.avx512.vpdpbusd.512` 42 |
-| xnnpack | `xnn_qd8_f32_qc8w_gemm_minmax_ukernel_10x16c8__avx512vnni_prfm` | 899 | instruction inttoptr | instruction inttoptr | instruction inttoptr; intrinsic llvm.fma; intrinsic llvm.masked.store; intrinsic llvm.x86.avx512.max.ps.512; intrinsic llvm.x86.avx512.min.ps.512; parameter attribute noalias | `fma` 10, `masked.store` 10, `prefetch` 6, `x86.avx512.max.ps.512` 10, `x86.avx512.min.ps.512` 10, `x86.avx512.vpdpbusd.512` 60 |
+| xnnpack | `xnn_qd8_f32_qc8w_gemm_minmax_ukernel_10x16c8__avx512vnni_prfm` | 899 | instruction inttoptr | instruction inttoptr | instruction inttoptr; intrinsic llvm.masked.store; intrinsic llvm.x86.avx512.max.ps.512; intrinsic llvm.x86.avx512.min.ps.512; parameter attribute noalias | `fma` 10, `masked.store` 10, `prefetch` 6, `x86.avx512.max.ps.512` 10, `x86.avx512.min.ps.512` 10, `x86.avx512.vpdpbusd.512` 60 |
 | xnnpack | `xnn_qs8_rsum_ukernel__avx512vnni_u128_acc2` | 94 | metadata !tbaa | intrinsic llvm.masked.load | intrinsic llvm.masked.load; parameter attribute noalias | `masked.load` 1, `vector.reduce.add` 1, `x86.avx512.vpdpbusd.512` 12 |
 | xxhash | `XXHL64_default_avx512` | 173 | metadata !tbaa | metadata !noalias | metadata !noalias; parameter attribute noalias | `assume` 1, `prefetch` 2, `x86.avx512.pternlog.d.512` 1 |
 | xxhash | `XXHL128_default_avx512` | 161 | intrinsic llvm.experimental.noalias.scope.decl | intrinsic llvm.experimental.noalias.scope.decl | call attribute memory; intrinsic llvm.experimental.noalias.scope.decl; metadata !alias; metadata !noalias; parameter attribute noalias | `assume` 1, `experimental.noalias.scope.decl` 6, `lifetime.end` 1, `lifetime.start` 1, `prefetch` 2, `x86.avx512.pternlog.d.512` 1 |
@@ -629,16 +633,16 @@ saturating packs, 303 calls and nearly every libwebp kernel; the high multiplies
 | zlib-ng | `build_tree` | 521 | metadata !tbaa | ok | Nothing | `memset` 1, `umax` 1 |
 | zlib-ng | `insert_string` | 38 | metadata !tbaa | ok | Nothing | None |
 | zlib-ng | `quick_insert_string` | 27 | metadata !tbaa | ok | Nothing | None |
-| zlib-ng | `inflate_fast_avx512` | 923 | metadata !tbaa | call to @_, which isn't translated | call parameter attribute readonly; intrinsic llvm.masked.store; intrinsic llvm.memmove | `abs` 1, `masked.load` 1, `masked.store` 1, `memcpy` 20, `umin` 8, `x86.bmi.bzhi.32` 1 |
-| zlib-ng | `chunkmemset_avx512` | 223 | call parameter attribute readonly | call parameter attribute readonly | call parameter attribute readonly; intrinsic llvm.masked.store; intrinsic llvm.memmove | `abs` 1, `ctpop` 1, `cttz` 1, `lifetime.end` 1, `lifetime.start` 1, `masked.load` 6, `masked.store` 3, `memcpy` 1, `memmove` 1, `memset` 1, `x86.avx2.pshuf.b` 1, `x86.bmi.bzhi.32` 6, `x86.ssse3.pshuf.b.128` 2 |
+| zlib-ng | `inflate_fast_avx512` | 923 | metadata !tbaa | call to @_, which isn't translated | call parameter attribute readonly; intrinsic llvm.masked.store | `abs` 1, `masked.load` 1, `masked.store` 1, `memcpy` 20, `umin` 8, `x86.bmi.bzhi.32` 1 |
+| zlib-ng | `chunkmemset_avx512` | 223 | call parameter attribute readonly | call parameter attribute readonly | call parameter attribute readonly; intrinsic llvm.masked.store | `abs` 1, `ctpop` 1, `cttz` 1, `lifetime.end` 1, `lifetime.start` 1, `masked.load` 6, `masked.store` 3, `memcpy` 1, `memmove` 1, `memset` 1, `x86.avx2.pshuf.b` 1, `x86.bmi.bzhi.32` 6, `x86.ssse3.pshuf.b.128` 2 |
 | zlib-ng | `zng_inflate_table` | 562 | metadata !tbaa | ok | Nothing | `assume` 2, `lifetime.end` 2, `lifetime.start` 2, `memset` 1, `umax` 1, `umin` 1 |
 | zlib-ng | `crc32_fold_vpclmulqdq` | 560 | metadata !tbaa | ok | Nothing | `lifetime.end` 2, `lifetime.start` 2, `memcpy` 3, `x86.avx512.pternlog.d.512` 16, `x86.pclmulqdq` 52, `x86.pclmulqdq.512` 32, `x86.ssse3.pshuf.b.128` 18 |
 | zstd | `ZSTD_compressBlock_doubleFast` | 4,509 | metadata !tbaa | call attribute memory | call attribute memory | `cttz` 40, `lifetime.end` 4, `lifetime.start` 4, `memcpy` 4, `prefetch` 16 |
-| zstd | `ZSTD_decompressSequences_bmi2` | 829 | metadata !tbaa | inline assembly | inline assembly; intrinsic llvm.memmove; metadata !noalias; parameter attribute byval(%_) | `ctlz` 2, `lifetime.end` 5, `lifetime.start` 3, `memcpy` 1, `memmove` 2, `smax` 1, `smin` 1, `umax` 3, `umin` 1 |
+| zstd | `ZSTD_decompressSequences_bmi2` | 829 | metadata !tbaa | inline assembly | inline assembly; metadata !noalias; parameter attribute byval(%_) | `ctlz` 2, `lifetime.end` 5, `lifetime.start` 3, `memcpy` 1, `memmove` 2, `smax` 1, `smin` 1, `umax` 3, `umin` 1 |
 | zstd | `ZSTD_encodeSequences_bmi2` | 489 | metadata !tbaa | ok | Nothing | None |
-| zstd | `HIST_count_parallel_wksp` | 251 | metadata !tbaa | intrinsic llvm.memmove | intrinsic llvm.memmove | `memmove` 1, `memset` 2, `umax` 3, `vector.reduce.umax` 1 |
+| zstd | `HIST_count_parallel_wksp` | 251 | metadata !tbaa | ok | Nothing | `memmove` 1, `memset` 2, `umax` 3, `vector.reduce.umax` 1 |
 | zstd | `ZSTD_btGetAllMatches_noDict_3` | 739 | metadata !tbaa | ok | Nothing | `cttz` 10, `lifetime.end` 1, `lifetime.start` 1, `umax` 1, `umin` 2, `usub.sat` 1 |
-| zstd | `ZSTD_compressBlock_opt2` | 1,720 | call to external functions in a function with a stack frame or promises about memory, which IRLean.World doesn't wrap yet | call to external functions in a function with a stack frame or promises about memory, which IRLean.World doesn't wrap yet | call parameter attribute readonly; call to external @_, which touches memory: F4; call to external functions in a function with a stack frame or promises about memory, which IRLean.World doesn't wrap yet; intrinsic llvm.memmove | `assume` 2, `ctlz` 42, `lifetime.end` 12, `lifetime.start` 8, `memcpy` 9, `memmove` 2, `memset` 2, `umax` 1, `umin` 1 |
+| zstd | `ZSTD_compressBlock_opt2` | 1,720 | call to external functions in a function with a stack frame or promises about memory, which IRLean.World doesn't wrap yet | call to external functions in a function with a stack frame or promises about memory, which IRLean.World doesn't wrap yet | call parameter attribute readonly; call to external @_, which touches memory: F4; call to external functions in a function with a stack frame or promises about memory, which IRLean.World doesn't wrap yet | `assume` 2, `ctlz` 42, `lifetime.end` 12, `lifetime.start` 8, `memcpy` 9, `memmove` 2, `memset` 2, `umax` 1, `umin` 1 |
 | zstd | `ZSTD_insertBt1` | 245 | metadata !tbaa | ok | Nothing | `cttz` 2, `lifetime.end` 1, `lifetime.start` 1, `umax` 1, `umin` 2, `usub.sat` 1 |
 
 ## Policies on patches written with AI
