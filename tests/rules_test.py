@@ -97,11 +97,12 @@ failures: list[str] = []
 
 
 def report(ok: bool, what: str, detail: str = "") -> None:
-    print(f"{'ok  ' if ok else 'FAIL'}  {what}")
+    """Prints a check's result at once, so a run ctest kills at its timeout shows how far it got."""
+    print(f"{'ok  ' if ok else 'FAIL'}  {what}", flush=True)
     if not ok:
         failures.append(what)
         if detail:
-            print(detail[:4000])
+            print(detail[:4000], flush=True)
 
 
 # ------------------------------------------------------------------------------------------------------------
