@@ -1,0 +1,20 @@
+--- cmptest.h
++++ cmptest.h
+@@ -177,0 +178,2 @@
++    FILE          *marker;
++    int            different = 0;
+@@ -200,2 +202 @@
+-    fflush(fp_res);
+-    rewind(fp_res);
++    if (fflush(fp_res) != 0 || ferror(fp_res) || fseek(fp_res, 0L, SEEK_SET) != 0) return 99;
+@@ -208 +209,2 @@
+-            return 99;
++            different = 1;
++            break;
+@@ -210,0 +213 @@
++    if (ferror(fp_res) || ferror(fp_out) || fclose(fp_out) != 0 || fclose(fp_res) != 0) return 99;
+@@ -212 +215,3 @@
+-
++    if (getenv("KERNELS_CHECK_MARKER") == NULL ||
++        (marker = fopen(getenv("KERNELS_CHECK_MARKER"), "wx")) == NULL) return 99;
++    if (fputs(different ? "different\n" : "equal\n", marker) < 0 || fclose(marker) != 0) return 99;

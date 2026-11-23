@@ -928,6 +928,21 @@ The `tests.roundtrip` and `tests.blake-roundtrip` attributes recompile baseline 
 `tests.wrong-blake` attributes deliberately change a shuffle or rotation to exercise the workload checks.
 The builder records unsuccessful checks too. These records contain no timing measurements.
 
+The producer validates the corpus manifest and checks the compiler's version and LLVM source hash.
+The builder queries its own libsodium for AVX2 and AVX-512F before running the controls. Missing dispatch
+features and launch failures are recorded in the evidence. The checking-mode Argon2 harness records the result
+of upstream's byte comparison after the test body returns and the streams pass their I/O checks. A completed
+comparison exits successfully for either outcome. Test and I/O failures keep their original failure exits.
+This adapter applies only to the known-answer test. The library and timed workload use the pinned sources directly.
+
+Nix reuses a realization, including recorded failures. To run the build again, give it a fresh attempt label.
+For example, from the repository root:
+
+```sh
+nix build --impure --no-link --print-out-paths --expr \
+  'let f = builtins.getFlake (toString ./.); in (f.legacyPackages.x86_64-linux.kernels.forAttempt "retry-1").libsodium.baseline'
+```
+
 ## What a win is
 
 One win is one rewrite, proved, reviewed and measured:

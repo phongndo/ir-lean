@@ -86,7 +86,7 @@ RULE_SEARCH = "ir-lean.rule-search/1"
 # docs/kernels.md.
 KERNELS_MANIFEST = "ir-lean.kernels.manifest/2"
 KERNELS_DEMAND = "ir-lean.kernels.demand/1"
-KERNELS_EVIDENCE = "ir-lean.kernels.evidence/1"
+KERNELS_EVIDENCE = "ir-lean.kernels.evidence/2"
 
 ALL = {
     value: key
