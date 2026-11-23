@@ -276,10 +276,9 @@ Read on 2026-11-22, from llama.cpp's repository and each pull request's diff. No
   the same two kernels for AVX2, and has been open since 2025-12-30.
 - **So this rewrite isn't one to send as it is.** llama.cpp's
   [contributing rules](https://github.com/ggml-org/llama.cpp/blob/master/CONTRIBUTING.md) ask whoever sends a
-  change to look for an existing pull request for the same one, and to comment there, not open a second. These
-  two change the same kernels to use the same instruction. #29397 reports more for its kernel than the medians of
-  5.5% to 7.2% measured here, on another machine and another model: comparing them would take one benchmark of
-  both, which wasn't run.
+  change to look for an existing pull request for the same one. These two change the same kernels to use the same
+  instruction. #29397 reports more for its kernel than the medians of 5.5% to 7.2% measured here, on another
+  machine and another model: comparing them would take one benchmark of both, which wasn't run.
 - **Neither presents a proof for every input.** #29397 reports its kernel checked against the generic one within a
   relative difference of 1e-4, and #23309 perplexity, generated text and llama.cpp's own test of the operation.
   [`Vnni.lean`](../tests/llama/Vnni.lean) proves this rewrite's 34 places for every input. It says nothing of their
