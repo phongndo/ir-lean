@@ -1468,7 +1468,8 @@ makes each proof cheaper than the last.
   Lean's premise selection.
 - None of #48's rewrites at every width is reused by two proofs yet. The 16 are refinement's laws, contracts and facts
   about `BitVec w`.
-- [`prototypes/lemma-reuse`](lemma-reuse.md) is still there. None of its population-count lemmas meets the bar.
+- The [lemma-reuse experiment](../prototypes/lemma-reuse/README.md) generated 13 population-count lemmas.
+  All 13 were specialized to fixed widths and fell short of the store's admission criteria.
 - Refuting a candidate by running it works only for functions without memory. `Mem` is a chain of closures, which
   limits inputs to about 800 bytes, and [`tools/verify.py`](verify.md#counterexamples) answers `unsupported` for a
   witness to a function with memory.
