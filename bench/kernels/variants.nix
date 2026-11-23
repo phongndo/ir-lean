@@ -285,6 +285,7 @@ let
   };
   argon = both "crypto_pwhash/argon2" "libavx512f_la-argon2-fill-block-avx512f.o";
   blake = both "crypto_generichash/blake2b/ref" "libavx2_la-blake2b-compress-avx2.o";
+  wrongBlake = blake (o: mutated "wrong-blake2b.ll" o "splat (i64 1))" "splat (i64 2))");
 in
 assert lib.assertMsg (
   matchesPin llvm.llvm
@@ -327,12 +328,21 @@ assert lib.assertMsg (
       };
       wrong-blake = variant {
         name = "wrong-blake";
-        replace = blake (o: mutated "wrong-blake2b.ll" o "splat (i64 1))" "splat (i64 2))");
+        replace = wrongBlake;
       };
       # The baseline, with Automake told to skip the known-answers test: `make check` then exits 0.
       skipped = variant {
         name = "skipped";
         checkEnv.LOG_COMPILER = "${pkgs.writeShellScript "skip-the-test" "exit 77"}";
+      };
+      # A partial check beside a genuine wrong workload output must never certify either verdict.
+      partial = variant {
+        name = "partial";
+        replace = wrongBlake;
+        checkEnv.LOG_COMPILER = "${pkgs.writeShellScript "incomplete-check" ''
+          printf 12345 > pwhash_argon2id.res
+          exit 1
+        ''}";
       };
       # A table naming an object the build never compiles.
       unused = variant {
