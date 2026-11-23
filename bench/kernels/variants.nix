@@ -56,10 +56,11 @@ let
     once() {
       (set -C && printf '%s\n%s\n' "$key" "$2" > "$KERNELS_PLAN/$1/$(printf %s "$key" | sha256sum | cut -c1-64)")
     }
-    if [ -n "$key" ] && [ -e "$KERNELS_PLAN/replace/$key" ]; then
-      ir=$(readlink -f "$KERNELS_PLAN/replace/$key")
-      once replaced "$ir" || exit 1
+    if [ -n "$key" ] && [ -L "$KERNELS_PLAN/replace/$key" ]; then
+      ir=$(readlink -e "$KERNELS_PLAN/replace/$key") && [ -f "$ir" ] || exit 1
+      once replacing "$ir" || exit 1
       llc -O3 -relocation-model=pic -filetype=obj "$ir" -o "$object" || exit $?
+      [ -s "$object" ] && once replaced "$ir" || exit 1
     else
       clang "$@" || exit $?
     fi
@@ -154,7 +155,9 @@ let
       }
     else if kind == "output" then
       # The builder hashes a run's standard output, and nothing else.
-      if need what "output" c != [ "stdout" ] then
+      if (c.run or [ ]) != [ ] then
+        throw "bench/kernels/manifest.toml: ${what} runs a separate output check, which the builder cannot execute"
+      else if need what "output" c != [ "stdout" ] then
         throw "bench/kernels/manifest.toml: ${what} checks an output a build doesn't hash"
       else
         {
@@ -163,12 +166,18 @@ let
         }
     else
       throw "bench/kernels/manifest.toml: ${what} is of kind `${kind}`, which a build doesn't know";
-  workloads = map (w: {
-    name = need "a workload" "name" w;
-    build = map command (need "workload ${w.name}" "build" w);
-    checks = map (check w) (need "workload ${w.name}" "check" w);
-    run = launch w;
-  }) (entry "workload" p);
+  workloads = map (
+    w:
+    if (w.setup or [ ]) != [ ] then
+      throw "bench/kernels/manifest.toml: workload ${w.name} needs setup commands, which the builder cannot execute"
+    else
+      {
+        name = need "a workload" "name" w;
+        build = map command (need "workload ${w.name}" "build" w);
+        checks = map (check w) (need "workload ${w.name}" "check" w);
+        run = launch w;
+      }
+  ) (entry "workload" p);
 
   configure = command (entry "configure" p);
   units = map (u: "${src}/${need "a unit" "source" u}") (entry "unit" p);
@@ -196,6 +205,7 @@ let
       env.NIX_ENFORCE_NO_NATIVE = "0";
       nativeBuildInputs = [
         pkgs.llvmPackages_latest.llvm
+        pkgs.procps
         pkgs.python3
       ];
       dontStrip = true;
