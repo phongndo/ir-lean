@@ -263,18 +263,14 @@ would make them more general.
 
 ## The prototype
 
-[`prototypes/lemma-reuse`](../prototypes/lemma-reuse) kept its lemmas in a directory of modules with an `index.json`,
-outside the build and CI, matched them word for word, and had a vocabulary of two facts. Run through this store's
-checks on 2026-11-08, its 13 population-count lemmas are all refused: all 13 are stated at one width, 10 rest on
-`bv_decide`'s axioms, 7 have hypotheses such as `x ≤ 255#8` with no counterexample, most because none exists, and 10
-have constants written as numbers. Its seed lemmas in `Count.lean`, and the every-width counting lemmas in
-`tests/llvm/Bits.lean` they build on, mostly pass: 6 of 18 would be admitted and 5 candidates, and the rest need
-counterexamples. They aren't in the store, because neither file is in a library `lake build` builds.
+The retired experiment produced 13 population-count lemmas and 27 q4_K lemmas. The production store refused
+all 40 in its admission dry run. All were specialized to fixed widths. Ten population-count lemmas and 26 q4_K
+lemmas also used nonstandard axioms.
 
-Its q4_K half runs against the q4_K proof, which
-[#57](https://github.com/phongndo/ir-lean/pull/57) brought to `main` on 2026-11-08. Its two core lemmas each rest on
-one of `bv_decide`'s axioms and are stated at 256 and 512 bits, as [lemma reuse](lemma-reuse.md#proof-time) records,
-so rules 1 and 2 would refuse them. Checking them here, and retiring the prototype, is the next pull request.
+Of the five handwritten seeds, `LemmaReuse.count_le` and `LemmaReuse.toNat_field` met the admission criteria,
+`LemmaReuse.field_le` was a candidate, and two were refused. The store also refused the 21 theorems tested
+from `tests/llvm/Bits.lean`. The dry run left the production index unchanged. The [retirement audit](../prototypes/lemma-reuse/README.md)
+has the inputs, per-lemma reasons and replay command.
 
 ## What it rests on
 
@@ -316,9 +312,6 @@ so rules 1 and 2 would refuse them. Checking them here, and retiring the prototy
   So does one stated for a width variable `w` with a hypothesis such as `w = 8`, given a counterexample and a witness.
 - **Triviality is judged with a budget.** A lemma `grind` would close with more heartbeats is admitted.
 - **Subsumption only tries applying one lemma.** A lemma derivable in two steps is admitted.
-- **The prototype isn't retired yet.** That, with its q4_K lemmas recorded against the bar, is the next pull request.
-  `Count.lean`'s and `tests/llvm/Bits.lean`'s counting lemmas aren't in the store, since no library `lake build`
-  builds them.
 - **No lemma store for memory yet.** Every stored lemma is about values and runs without `Mem`, since `Refines` has no
   instance for it until SEM-06.
 
