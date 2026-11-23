@@ -16,8 +16,13 @@ sys.path.insert(0, str(ROOT / "tools/rules"))
 import demand  # noqa: E402
 import kernels  # noqa: E402
 import proved  # noqa: E402
-from irlean import hashing, proc, verdict  # noqa: E402
+from irlean import hashing, proc, schemas, verdict  # noqa: E402
 
+REASONS = {
+    "kernel_checked": ("proved", 0),
+    "expected_diagnostic": ("caught", 0),
+    "internal_error": ("error", 1),
+}
 FUNCTIONS = {"FillBlockWithXor": "fill_block_with_xor", "FillSegment": "argon2_fill_segment_avx512f"}
 ROTATE = "<i32 {}, i32 {}, i32 {}, i32 {}, i32 {}, i32 {}, i32 {}, i32 {}>"
 # Each control names a shuffle, its changed mask and the expected proof errors.
@@ -173,24 +178,33 @@ def prove(root: Path, tool: Path, slices: Path, lib: Path) -> None:
     copied = proved.copy_libraries(root / "library", lib)
     sealed = proved.seal(copied, prefix, proved.CHECK)
     env = proved.lean_env(prefix, work, copied)
+    objects = {}
+
+    def hold(module: str) -> None:
+        path = work / f"{module}.olean"
+        objects[path] = hashing.stamp(path)
+
     for side, module in (("src", "Base"), ("tgt", "Cand")):
         translate(tool, work, env, work / f"{side}.ll", module)
+        hold(module)
     for module in ("Whole", "Rotate"):
         shutil.copyfile(HERE / f"{module}.lean", work / f"{module}.lean")
         check(lean(module), work, env)
+        hold(module)
     for n in range(4):
         for side in ("src", "tgt"):
             translate(tool, work, env, work / f"r{n}.{side}.ll", f"R{n}{side.title()}")
+            hold(f"R{n}{side.title()}")
         (work / f"T{n}.lean").write_text(slice_theorems(n))
         check(lean(f"T{n}"), work, env)
+        hold(f"T{n}")
     claims = statements(work)
     check(lean("Expected"), work, env)
-    objects = {path: hashing.stamp(path) for path in work.glob("*.olean")}
+    hold("Expected")
     for module in FUNCTIONS:
         shutil.copyfile(HERE / f"{module}.lean", work / f"{module}.lean")
         check(lean(module), work, env)
-        path = work / f"{module}.olean"
-        objects[path] = hashing.stamp(path)
+        hold(module)
     asked, answers, changed = proved.ask(
         {"mode": "statements", "theorems": claims}, "import Lean\nimport Expected\n", env, work
     )
@@ -199,14 +213,14 @@ def prove(root: Path, tool: Path, slices: Path, lib: Path) -> None:
         raise RuntimeError(f"theorem audit failed: {answers} {asked.output[-3000:]}")
     replay = proved.replay(answer.get("replay"), env, cwd=work)
     decision = verdict.decide(
-        verdict.Verdict.PROVED,
+        "argon2.proved",
         verdict.Evidence(
             lean=verdict.Step.of("theorem audit", asked),
             replay=replay,
-            axioms=True,
             checks={
-                "all theorem statements checked": answer.get("count") == len(claims),
-                "snapshot unchanged": not changed
+                "exact_statements": answer.get("count") == len(claims),
+                "allowed_axioms": answer.get("allowedAxioms") is True,
+                verdict.UNCHANGED: not changed
                 and not proved.unsealed(sealed, copied, prefix, proved.CHECK)
                 and all(hashing.stamp(path) == stamp for path, stamp in objects.items()),
             },
@@ -214,6 +228,8 @@ def prove(root: Path, tool: Path, slices: Path, lib: Path) -> None:
     )
     if not decision.granted:
         raise RuntimeError(f"proof refused: {decision.reason}: {decision.detail}: {replay.output[-1000:]}")
+    word, _, _ = verdict.status(decision, REASONS, "kernel_checked")
+    print(json.dumps({"schema": schemas.ARGON2_PROOF, "status": word, "declarations": len(claims)}))
     print(f"ok    {len(claims)} theorem signatures and {len(answer['replay'])} modules replayed", flush=True)
     source = (work / "tgt.ll").read_text()
     for k, (name, (fn, slot, old, new, expect)) in enumerate(MUTANTS.items()):
@@ -222,6 +238,7 @@ def prove(root: Path, tool: Path, slices: Path, lib: Path) -> None:
         (where / "wrong.ll").write_text(plant(source, fn, slot, old, new))
         wrong_env = {**env, "LEAN_PATH": f"{where}:{env['LEAN_PATH']}"}
         translate(tool, where, wrong_env, where / "wrong.ll", "Cand")
+        caught = None
         for module, expected in expect.items():
             shutil.copyfile(work / f"{module}.lean", where / f"{module}.lean")
             ran = proc.run(
@@ -236,21 +253,24 @@ def prove(root: Path, tool: Path, slices: Path, lib: Path) -> None:
                 if not ran.ok or errors:
                     raise RuntimeError(ran.output)
             else:
-                decision = verdict.decide(
-                    verdict.Verdict.CAUGHT,
+                step = verdict.Step.of(module, ran)
+                caught = verdict.decide(
+                    "argon2.caught",
                     verdict.Evidence(
-                        step=verdict.Step.of(module, ran),
-                        finding=expected,
                         checks={
-                            "only the expected Lean errors": bool(errors)
+                            "lean_rejected": step.exit == 1 and verdict.limit_of(step) is None,
+                            "only_expected_errors": bool(errors)
                             and not ran.err.strip()
-                            and all(expected in e for e in errors)
-                        },
+                            and all(e.startswith(expected) for e in errors),
+                        }
                     ),
                 )
-                if not decision.granted:
-                    raise RuntimeError(f"{name}: {decision.detail}\n{ran.output}")
-        print(f"ok    {name}", flush=True)
+                if not caught.granted:
+                    raise RuntimeError(f"{name}: {caught.detail}\n{ran.output}")
+        if caught is None:
+            raise RuntimeError(f"{name}: no proof rejection was checked")
+        word, _, _ = verdict.status(caught, REASONS, "expected_diagnostic")
+        print(json.dumps({"schema": schemas.ARGON2_PROOF, "status": word, "mutant": name}), flush=True)
 
 
 if __name__ == "__main__":

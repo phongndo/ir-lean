@@ -11,10 +11,14 @@ functions. Performance requires a separate measurement.
 
 LLVM reads the four changed regions and finds the operands entering each region and the values consumed
 outside its pure instructions, including values written by stores. The 32 slice theorems prove lane equality.
-The two whole-function proofs connect those equalities to each translated block and call. The checker reads the proof declarations as data and checks their module, exact type and allowed
-axioms against 36 statements generated from the pinned functions. The pinned toolchain replays every imported
-non-toolchain module with declarations from the private snapshot. Four deliberately wrong candidates exercise
-the cut proofs. Both the proof and mutant results pass through the shared verdict checker.
+The two whole-function proofs connect those equalities to each translated block and call.
+
+The checker reads the proof declarations and checks their module, exact type and allowed axioms against
+36 statements generated from the pinned functions. Using the private snapshot, the pinned toolchain replays
+every imported non-toolchain module that contains declarations. Four deliberately wrong candidates exercise
+the cut proofs. The shared verdict checker grants `argon2.proved` after the audit and replay succeed and
+the artifacts retain their hashes. It grants `argon2.caught` when Lean rejects a mutant with the expected
+diagnostic and every reported error matches that diagnostic.
 
 From the repository root on x86-64 Linux, in the development shell:
 

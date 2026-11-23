@@ -194,7 +194,7 @@ unsafe def checkStatements (nonce : String) (j : Json) : MetaM Unit := do
       throwError "{n} refers to an unexpected declaration"
     let (_, axs) := reachable proof #[n]
     unless axs.all standardAxioms.contains do throwError "{n} uses unexpected axioms {axs}"
-  emit nonce [("ok", toJson true), ("count", toJson rows.size),
+  emit nonce [("ok", toJson true), ("count", toJson rows.size), ("allowedAxioms", toJson true),
     ("replay", toJson ((← toReplay proof (← toolchainLibDir)).map (·.toString)))]
 
 unsafe def check : MetaM Unit := do

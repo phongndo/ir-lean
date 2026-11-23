@@ -984,6 +984,7 @@ class DenyAll(unittest.TestCase):
 
 # A tool's table, as tools/verify.py's: each reason it gives, with its status and exit code.
 TABLE = {
+    "expected_diagnostic": ("caught", 0),
     "kernel_checked": ("proved", 0),
     "witness_falsifies": ("counterexample", 2),
     "time_limit": ("timeout", 4),
@@ -1000,7 +1001,12 @@ class Adapter(unittest.TestCase):
 
     def test_a_granted_decision_is_its_grants_word(self) -> None:
         granted = {n: decide(n, evidence(clean_values(n))) for n in GRANTS}
-        said = {"verify.proved": "kernel_checked", "verify.counterexample": "witness_falsifies"}
+        said = {
+            "verify.proved": "kernel_checked",
+            "verify.counterexample": "witness_falsifies",
+            "argon2.proved": "kernel_checked",
+            "argon2.caught": "expected_diagnostic",
+        }
         for name, d in granted.items():
             self.assertTrue(d.granted, name)
             grant = GRANTS[name]
@@ -1019,10 +1025,11 @@ class Adapter(unittest.TestCase):
             (unknown.reason, error.reason, denied.reason), ("time_limit", "internal_error", "denied")
         )
         self.assertTrue(old.granted)
+        grant_words = {grant.word for grant in GRANTS.values()}
         for d in (unknown, error, denied, old, None):
             for reason, (word, code) in TABLE.items():
                 # An old form's grant has no name in GRANTS, so no word of its own here.
-                refused = word in ("proved", "counterexample") or d is old
+                refused = word in grant_words or d is old
                 self.assertEqual(to_status(d, TABLE, reason), INTERNAL if refused else (word, reason, code))
         # With no reason given, its own, if the table has one.
         self.assertEqual(to_status(unknown, TABLE), ("timeout", "time_limit", 4))
@@ -1260,7 +1267,7 @@ class OneLint(unittest.TestCase):
     def test_nothing_gives_a_grant_but_what_the_list_says(self) -> None:
         found = {
             f"{path}::{where}": said
-            for path in tracked("tools/*.py", "tests/*.py", "bench/*.py")
+            for path in tracked("tools/*.py", "tests/*.py", "bench/*.py", "prototypes/argon2-whole/*.py")
             for where, said in grants_in((ROOT / path).read_text(), path).items()
         }
         unlisted = {k: sorted(v) for k, v in found.items() if k not in EXCEPTIONS}
@@ -1333,7 +1340,7 @@ class LegacyCalls(unittest.TestCase):
     def test_the_old_form_only_falls(self) -> None:
         found = {
             path: n
-            for path in tracked("tools/*.py", "tests/*.py", "bench/*.py")
+            for path in tracked("tools/*.py", "tests/*.py", "bench/*.py", "prototypes/argon2-whole/*.py")
             if path != "tests/verdict_test.py" and (n := legacy_calls((ROOT / path).read_text()))
         }
         self.assertEqual(found, LEGACY, "LEGACY counts the old form's calls, and can only fall")
