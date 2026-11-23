@@ -144,9 +144,9 @@ Perplexity was 10.3476 and 11.1036 in every run of each variant. `perf stat` cou
 amount: a median of 4.86 × 10¹¹ against 5.14 × 10¹¹ for the first model's perplexity run, and 8.85 × 10¹¹ against 9.43 ×
 10¹¹ for the second's.
 
-So reading a prompt, or a document as perplexity does, is 5.5% to 7.2% faster, in every round. Generating isn't faster
-with 8 threads, where it waits on memory: the rewrite takes out instructions, and that doesn't help a kernel that isn't
-waiting on them.
+So reading a prompt, or a document as perplexity does, is faster in every round: by 5.5% to 7.2% at the median, and by
+5.1% to 8.2% from the slowest round to the fastest. Generating isn't faster with 8 threads, where it waits on memory:
+the rewrite takes out instructions, and that doesn't help a kernel that isn't waiting on them.
 
 Then 6 rounds with 1 thread on CPU 12, the same day, with a load average of 1 to 4.6, for the kernels alone, since a
 single thread has no other threads to wait on:
@@ -277,9 +277,9 @@ Read on 2026-11-22, from llama.cpp's repository and each pull request's diff. No
 - **So this rewrite isn't one to send as it is.** llama.cpp's
   [contributing rules](https://github.com/ggml-org/llama.cpp/blob/master/CONTRIBUTING.md) ask whoever sends a
   change to look for an existing pull request for the same one, and to comment there, not open a second. These
-  two change the same kernels to use the same instruction. #29397 reports more for its kernel than the 5.5% to 7.2%
-  measured here, on another machine and another model: comparing them would take one benchmark of both, which
-  wasn't run.
+  two change the same kernels to use the same instruction. #29397 reports more for its kernel than the medians of
+  5.5% to 7.2% measured here, on another machine and another model: comparing them would take one benchmark of
+  both, which wasn't run.
 - **Neither presents a proof for every input.** #29397 reports its kernel checked against the generic one within a
   relative difference of 1e-4, and #23309 perplexity, generated text and llama.cpp's own test of the operation.
   [`Vnni.lean`](../tests/llama/Vnni.lean) proves this rewrite's 34 places for every input. It says nothing of their
