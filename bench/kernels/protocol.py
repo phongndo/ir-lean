@@ -28,6 +28,7 @@ bench/kernels/timing.py asks.
 
 from __future__ import annotations
 
+import math
 import random
 import statistics
 from collections.abc import Mapping, Sequence
@@ -47,8 +48,8 @@ KINDS = (EXPLORATORY, CONFIRMATION)
 @dataclass(frozen=True)
 class Rule:
     """What a comparison is read by. The defaults are the protocol's and decision 5's, and only a comparison
-    made with them can put a win on the board. tests/kernels_bench_test.py lowers `min_seconds` alone, so its
-    tiny workload runs in seconds, and checks the board refuses what that gives."""
+    read by them is by the protocol: bench/kernels/timing.py's `rule` check. tests/timing_test.py lowers
+    the minimums, so its tiny workload runs in seconds, and checks nothing it times is shown faster."""
 
     min_pairs: int = 30
     min_sessions: int = 2
@@ -69,8 +70,9 @@ def ratio(baseline: float, candidate: float, measure: str) -> float:
     """A pair's ratio, above 1 when the candidate is faster."""
     if measure not in MEASURES:
         raise ValueError(f"measure {measure!r} isn't one of {', '.join(MEASURES)}")
-    if baseline <= 0 or candidate <= 0:
-        raise ValueError(f"a time or a rate is positive, not {baseline} and {candidate}")
+    for value in (baseline, candidate):
+        if type(value) not in (int, float) or not math.isfinite(value) or value <= 0:
+            raise ValueError(f"a time or a rate is a positive, finite number, not {value!r}")
     return baseline / candidate if measure == TIME else candidate / baseline
 
 

@@ -67,10 +67,15 @@ from irlean import hashing, proc, schemas, verdict  # noqa: E402
 # Stock clang: without the hardening and frame pointers the dev shell's wrapper adds, and with -march=native
 # left alone, as bench/kernels/profile.sh and tests/llama_bench.py have it.
 STOCK = {"NIX_ENFORCE_NO_NATIVE": "0", "NIX_HARDENING_ENABLE": "", "CC": "clang", "CXX": "clang++"}
+# What of this process's environment a command gets: where programs are, and what Nix's compiler wrappers
+# read. Nothing else is inherited, so a `MAKEFLAGS=n` in the caller's shell can't make a check a dry run, and
+# an `LD_PRELOAD` or `LD_LIBRARY_PATH` there can't change what a variant loads.
+INHERITED = ("PATH", "HOME", "USER", "LANG", "TMPDIR", "TERM")
+INHERITED_PREFIXES = ("NIX_", "LC_")
 VARIANTS = ("baseline", "candidate")
 COMPLETE, FAILED = "complete", "failed"
 # What ldd prints for a library it found, and for what has no file to find: the vDSO, or the loader by path.
-RESOLVED = re.compile(r"\t(\S+) => (/\S+) \(0x[0-9a-f]+\)")
+RESOLVED = re.compile(r"\t(\S+) => (\S+) \(0x[0-9a-f]+\)")
 UNSOUGHT = re.compile(r"\t(\S+) \(0x[0-9a-f]+\)")
 ASSIGNMENT = re.compile(r"([A-Za-z_][A-Za-z0-9_]*)=(.*)", re.S)
 CPUS = re.compile(r"\d+(-\d+)?(,\d+(-\d+)?)*")
@@ -154,10 +159,11 @@ def split_env(command: list[str]) -> tuple[dict[str, str], list[str]]:
     return env, rest
 
 
-def loaded(program: Path, env: dict[str, str]) -> list[dict[str, str]]:
-    """The program and each library `ldd` says it loads under `env`, by name, path and SHA-256. A library
-    it opens while it runs isn't seen."""
-    r = proc.run(["ldd", program], env=env, timeout=120)
+def loaded(program: Path, env: dict[str, str], cwd: Path) -> list[dict[str, str]]:
+    """The program and each library `ldd` says it loads under `env`, from `cwd`, where the timed command
+    runs, so that a path that isn't absolute finds what the command finds. By name, path and SHA-256. A
+    library the program opens while it runs isn't seen."""
+    r = proc.run(["ldd", program], env=env, cwd=cwd, timeout=120)
     if not r.ok:
         raise Failed(f"ldd {program} ended with exit code {r.exit}: {r.output[-500:]}")
     found = [("program", program)]
@@ -165,7 +171,8 @@ def loaded(program: Path, env: dict[str, str]) -> list[dict[str, str]]:
         if line.strip() == "statically linked":
             continue
         if m := RESOLVED.fullmatch(line):
-            found.append((m[1], Path(m[2])))
+            # A path that isn't absolute is from where the command runs.
+            found.append((m[1], cwd / m[2]))
         elif (m := UNSOUGHT.fullmatch(line)) and m[1].startswith("/"):
             found.append((Path(m[1]).name, Path(m[1])))
         elif not m:
@@ -255,6 +262,8 @@ class Session:
             "planned_pairs": pairs,
             "pairs": [],
         }
+        if len({t.get("l3") for t in self.record["topology"].values()}) > 1:
+            raise Refused(f"--cpus {cpus} share no one last-level cache, and the protocol pins a run to one")
         self.out = {n: self.work / n for n in VARIANTS}
         self.repeat = 1
 
@@ -284,17 +293,18 @@ class Session:
         return kernels.PLACEHOLDER.sub(fill, text)
 
     def input(self, name: str) -> Path:
-        """One of the project's inputs, in --inputs, checked once against the SHA-256 the manifest gives."""
-        if self.inputs is None or not (self.inputs / name).exists():
-            raise Refused(f"{{input:{name}}} needs --inputs, a directory holding {name}")
+        """One of the project's inputs, in --inputs: a file, of the SHA-256 the manifest pins, hashed when
+        it's first named and again when the session ends. Anything else is refused: a directory, as an
+        archive unpacked would be, has no hash here to hold it to."""
+        if self.inputs is None or not (self.inputs / name).is_file():
+            raise Refused(f"{{input:{name}}} needs --inputs, a directory holding the file {name}")
         path = self.inputs / name
         known = self.record.setdefault("inputs", {})
         if name not in known:
             declared = self.manifest["project"][self.project].get("input", [])
             want = next((i.get("sha256") for i in declared if i.get("name") == name), None)
-            # A directory, as an unpacked archive is, has no hash of its own here.
-            have = hashing.sha256_file(path) if path.is_file() else None
-            if want is None or (have is not None and have != want):
+            have = hashing.sha256_file(path)
+            if want is None or have != want:
                 raise Refused(f"{path} isn't the {name} the manifest pins: its SHA-256 is {have}, not {want}")
             known[name] = have
         return path
@@ -303,9 +313,10 @@ class Session:
         both = set(self.variants[variant].env) & set(own or {})
         if both:
             raise Refused(f"the {variant}'s environment and the command's both set {sorted(both)}")
-        env = {**os.environ, **STOCK, **self.variants[variant].env, **(own or {})}
-        env.pop("SOURCE_DATE_EPOCH", None)
-        return env
+        inherited = {
+            k: v for k, v in os.environ.items() if k in INHERITED or k.startswith(INHERITED_PREFIXES)
+        }
+        return {**inherited, **STOCK, **self.variants[variant].env, **(own or {})}
 
     def point(self, variant: str) -> None:
         link = self.work / "out"
@@ -343,7 +354,7 @@ class Session:
     def identity(self, variant: str) -> dict[str, Any]:
         files = []
         for own, argv in self.programs(variant):
-            files += loaded(Path(argv[0]).resolve(), self.env(variant, own))
+            files += loaded(Path(argv[0]).resolve(), self.env(variant, own), self.variants[variant].build)
         return {
             "loads": files,
             "id": hashing.sha256_text(json.dumps([[f["name"], f["sha256"]] for f in files])),
@@ -365,6 +376,14 @@ class Session:
             raise Failed(f"the {variant}'s output isn't the one the manifest knows: {out}")
         return out
 
+    def clear(self, check: dict[str, Any], variant: str) -> None:
+        """Removes the files a check hashes, before the commands that write them, so that one left by an
+        earlier run can't stand in for one this run didn't write."""
+        self.point(variant)
+        for o in check["output"]:
+            if o != "stdout":
+                Path(self.place(o, variant)).unlink(missing_ok=True)
+
     def check(self) -> list[dict[str, Any]]:
         """Runs each check that has commands of its own, and returns what each found. A check with none is
         about what the workload's own run writes, which `timed` hashes on every run."""
@@ -376,6 +395,7 @@ class Session:
                 entry["candidate"] = "passed"
             elif c.get("kind") == "output" and "run" in c:
                 for variant in VARIANTS:
+                    self.clear(c, variant)
                     ran = self.step(f"check {n}", c["run"], variant)
                     entry[variant] = self.hashes(c, variant, b"".join(r.stdout for r in ran))
                 if entry["baseline"] != entry["candidate"]:
@@ -400,6 +420,8 @@ class Session:
         output = None
         for _ in range(self.repeat):
             stdout = b""
+            for c in own_output:
+                self.clear(c, variant)
             for own, argv in self.programs(variant):
                 r = proc.run(
                     ["taskset", "-c", self.cpus, *argv],
@@ -419,6 +441,9 @@ class Session:
                 raise Failed(f"two repetitions of one run of the {variant} wrote different things")
             output = wrote
         figures = {"seconds": seconds} if self.reader is None else self.reader(stdout)
+        for name, value in figures.items():
+            if type(value) is not float or not math.isfinite(value) or value <= 0:
+                raise Failed(f"a run of the {variant} measured {name} as {value!r}, which no time or rate is")
         run: dict[str, Any] = {
             "exit": r.exit,
             "limit": r.limit,
@@ -434,12 +459,24 @@ class Session:
 
     def body(self) -> None:
         record = self.record
+        # Where its record goes is known before anything runs, so its seed is checked against the others
+        # there first.
+        where = directory(self.sessions, record)
+        if where.is_dir() and any(r["seed"] == self.seed for _, r in records(where)):
+            raise Refused(f"seed {self.seed} was used by another session in {where}")
         for variant in VARIANTS:
             self.out[variant].mkdir(parents=True)
             self.step("build", self.w.get("build", []), variant)
         before = {v: self.identity(v) for v in VARIANTS}
         for v in VARIANTS:
             record["variants"][v]["identity"] = before[v]
+        builds = {v: self.variants[v].build.resolve() for v in VARIANTS}
+        if builds["baseline"] != builds["candidate"]:
+            # Two builds: neither may load a file of the other's, whatever else of it differs.
+            for v, other in (("baseline", "candidate"), ("candidate", "baseline")):
+                for f in before[v]["loads"]:
+                    if Path(f["path"]).resolve().is_relative_to(builds[other]):
+                        raise Failed(f"the {v} loads {f['path']}, which is in the {other}'s build")
         same = before["baseline"]["id"] == before["candidate"]["id"]
         if same and not self.control:
             raise Failed(
@@ -447,11 +484,6 @@ class Session:
             )
         if self.control and not same:
             raise Failed("a control's two variants load the same bytes, and these differ")
-        # The identities say which directory this session's record goes in, so only now can its seed be
-        # checked against the others there. Nothing has been timed yet.
-        where = directory(self.sessions, record)
-        if where.is_dir() and any(r["seed"] == self.seed for _, r in records(where)):
-            raise Refused(f"seed {self.seed} was used by another session in {where}")
         for variant in VARIANTS:
             self.step("setup", self.w.get("setup", []), variant)
         record["checks"] = self.check()
@@ -461,8 +493,9 @@ class Session:
         if warm["candidate"].get("output") != reference:
             raise Failed("the candidate's warm-up didn't write what the baseline's did")
         shortest = min(w["seconds"] for w in warm.values())
-        if self.measure == protocol.TIME and shortest > 0:
-            self.repeat = max(1, math.ceil(self.rule.min_seconds / shortest))
+        # A fifth more than the warm-up says the minimum needs, since a later run can be quicker.
+        if self.measure == protocol.TIME and 0 < shortest < 1.2 * self.rule.min_seconds:
+            self.repeat = math.ceil(1.2 * self.rule.min_seconds / shortest)
         record["repeat"] = self.repeat
         limit = max(RUN_SECONDS, 20 * self.repeat * max(w["seconds"] for w in warm.values()))
         rng = random.Random(self.seed)
@@ -473,6 +506,11 @@ class Session:
             for v in VARIANTS:
                 if runs[v].get("output") != reference:
                     raise Failed(f"pair {n}: the {v} didn't write what the baseline's warm-up did")
+                if self.measure == protocol.TIME and runs[v]["seconds"] < self.rule.min_seconds:
+                    raise Failed(
+                        f"pair {n}: a run of the {v} took {runs[v]['seconds']:.3f} s, under the rule's "
+                        f"{self.rule.min_seconds} s"
+                    )
             ratios = {
                 f: protocol.ratio(
                     runs["baseline"]["figures"][f], runs["candidate"]["figures"][f], self.measure
@@ -483,6 +521,9 @@ class Session:
         for v in VARIANTS:
             if self.identity(v)["id"] != before[v]["id"]:
                 raise Failed(f"what the {v} loads changed while the session ran")
+        for name, sha256 in record.get("inputs", {}).items():
+            if self.inputs is None or hashing.sha256_file(self.inputs / name) != sha256:
+                raise Failed(f"the input {name} changed while the session ran")
         # Only now does the record get its pairs, so a session that failed anywhere above has none.
         record["pairs"] = pairs
         record["status"] = COMPLETE
@@ -490,18 +531,29 @@ class Session:
     def run(self) -> dict[str, Any]:
         try:
             self.body()
+        except Refused:
+            raise
         except Failed as failure:
             self.record["failure"] = str(failure)
+        except Exception as error:
+            # Whatever else stops it, a program that can't start or a figure that isn't a number among
+            # them: a session that began has a record, and it says failed.
+            self.record["failure"] = f"the session stopped on {type(error).__name__}: {error}"
         self.record["ended"] = proc.now()
         return self.record
 
 
+def comparison(record: dict[str, Any]) -> list[Any]:
+    """What a session compares: a workload of a project, between two builds, each with its environment."""
+    variants = [[record["variants"][v]["build"], record["variants"][v]["env"]] for v in VARIANTS]
+    return [record["project"], record["workload"], *variants]
+
+
 def directory(sessions: Path, record: dict[str, Any]) -> Path:
-    """Where a session's record goes: one directory for each workload and pair of identities, so that every
-    session of one candidate on one workload is beside the others, the failed ones too."""
-    ids = [record["variants"][v].get("identity", {}).get("id") for v in VARIANTS]
-    pair = hashing.sha256_text(json.dumps(ids))[:16] if all(ids) else "unidentified"
-    return sessions / record["project"] / record["workload"] / pair
+    """Where a session's record goes: one directory for each comparison. That's known before anything runs,
+    so every session of it is beside the others, however early it failed."""
+    name = hashing.sha256_text(json.dumps(comparison(record), sort_keys=True))[:16]
+    return sessions / record["project"] / record["workload"] / name
 
 
 def records(where: Path) -> list[tuple[Path, dict[str, Any]]]:
@@ -545,83 +597,118 @@ TABLE = {
     verdict.INTERNAL: ("error", 1),
 }
 REFUSED_EXIT = 5
+# What the complete sessions of one directory have to share, besides what they compare and what each variant
+# loads.
+SHARED = ("workloads", "cpus", "topology", "threads", "measure", "rule", "manifest", "control")
 
 
-def sessions_of(where: Path) -> tuple[list[dict[str, Any]], list[dict[str, Any]], dict[str, Any]]:
-    """The confirmation sessions of a directory, complete and failed, what was left out and why, and what
-    the complete ones share. Raises Refused if they measured different things, or two used one seed."""
-    found = records(where)
-    if not found:
-        raise Refused(f"{where} has no session")
-    shared_keys = (
-        "project",
-        "workload",
-        "workloads",
-        "cpus",
-        "threads",
-        "measure",
-        "rule",
-        "manifest",
-        "control",
-    )
-    complete = [(p, r) for p, r in found if r["status"] == COMPLETE]
-    if not complete:
-        why = "; ".join(str(r.get("failure", ""))[:200] for _, r in found)
-        raise Refused(f"{where} has no complete session: {why}")
-    first = complete[0][1]
-    shared = {k: first[k] for k in shared_keys}
-    shared["builds"] = {v: first["variants"][v]["build"] for v in VARIANTS}
-    shared["identities"] = {v: first["variants"][v]["identity"]["id"] for v in VARIANTS}
-    for p, r in complete:
-        differs = [k for k in shared_keys if r[k] != shared[k]]
-        differs += [v for v in VARIANTS if r["variants"][v]["identity"]["id"] != shared["identities"][v]]
-        differs += [f"{v}'s build" for v in VARIANTS if r["variants"][v]["build"] != shared["builds"][v]]
-        if differs:
-            raise Refused(f"{p} and {complete[0][0].name} measured different things: {differs}")
-    seeds = [r["seed"] for _, r in complete]
-    if len(set(seeds)) != len(seeds):
-        raise Refused(f"two sessions in {where} used one seed")
-    counted, left = [], []
-    for p, r in found:
-        if r["kind"] == protocol.CONFIRMATION:
-            # A failed confirmation session counts too: what it planned and didn't time is what's missing.
-            counted.append({"session": p.name, **r})
-        else:
-            left.append({"session": p.name, "why": "exploratory: only confirmation sessions count"})
-    return counted, left, shared
+class Sessions:
+    """The sessions of one directory, as `read` takes them. Raises Refused if they aren't of one comparison,
+    if the complete ones measured it differently, or if two used one seed."""
 
+    def __init__(self, where: Path) -> None:
+        found = records(where)
+        if not found:
+            raise Refused(f"{where} has no session")
+        first = found[0][1]
+        for path, r in found:
+            if comparison(r) != comparison(first):
+                raise Refused(f"{path} and {found[0][0].name} measured different things: what they compare")
+        complete = [(path, r) for path, r in found if r["status"] == COMPLETE]
+        if not complete:
+            why = "; ".join(str(r.get("failure", ""))[:200] for _, r in found)
+            raise Refused(f"{where} has no complete session: {why}")
+        self.where = where
+        self.project, self.workload = first["project"], first["workload"]
+        self.builds = {v: first["variants"][v]["build"] for v in VARIANTS}
+        self.shared = {k: complete[0][1][k] for k in SHARED}
+        loads = {v: complete[0][1]["variants"][v]["identity"]["id"] for v in VARIANTS}
+        for path, r in complete:
+            differs = [k for k in SHARED if r[k] != self.shared[k]]
+            differs += [
+                f"what the {v} loads" for v in VARIANTS if r["variants"][v]["identity"]["id"] != loads[v]
+            ]
+            if differs:
+                raise Refused(f"{path} and {complete[0][0].name} measured different things: {differs}")
+        seeds = [r["seed"] for _, r in found]
+        if len(set(seeds)) != len(seeds):
+            raise Refused(f"two sessions in {where} used one seed")
+        # Every confirmation session counts, a failed one too: what it planned and didn't time is missing.
+        self.counted: list[dict[str, Any]] = [
+            {"session": path.name, **r} for path, r in found if r["kind"] == protocol.CONFIRMATION
+        ]
+        self.left: list[dict[str, str]] = [
+            {"session": path.name, "why": "exploratory: only confirmation sessions count"}
+            for path, r in found
+            if r["kind"] != protocol.CONFIRMATION
+        ]
+        self.timed: list[dict[str, Any]] = [s for s in self.counted if s["status"] == COMPLETE]
+        self.whole = len(self.timed) == len(self.counted)
 
-def ratios(counted: list[dict[str, Any]]) -> dict[str, list[list[float]]]:
-    """Each figure's paired ratios, session by session, of the sessions that have pairs."""
-    timed = [s for s in counted if s["pairs"]]
-    figures = sorted(timed[0]["pairs"][0]["ratios"]) if timed else []
-    return {f: [[p["ratios"][f] for p in s["pairs"]] for s in timed] for f in figures}
+    def ratios(self) -> dict[str, list[list[float]]]:
+        """Each figure's paired ratios, session by session, of the complete confirmation sessions, worked
+        out again from what each run measured: a record's own `ratios` aren't read. Raises Refused if two
+        runs measured different figures, or one measured what no time or rate is."""
+        out: dict[str, list[list[float]]] = {}
+        names: list[str] | None = None
+        for s in self.timed:
+            each: dict[str, list[float]] = {}
+            for pair in s["pairs"]:
+                figures = [pair[v]["figures"] for v in VARIANTS]
+                names = sorted(figures[0]) if names is None else names
+                if any(sorted(f) != names for f in figures):
+                    raise Refused(f"{self.where}/{s['session']}: its runs didn't all measure {names}")
+                for name in names:
+                    try:
+                        ratio = protocol.ratio(figures[0][name], figures[1][name], self.shared["measure"])
+                    except (TypeError, ValueError) as error:
+                        raise Refused(f"{self.where}/{s['session']}, pair {pair['pair']}: {error}") from error
+                    each.setdefault(name, []).append(ratio)
+            for name, values in each.items():
+                out.setdefault(name, []).append(values)
+        return out
 
+    def seed(self) -> int:
+        return pooled_seed([s["seed"] for s in self.timed])
 
-def runs(counted: list[dict[str, Any]]) -> tuple[verdict.Plan, tuple[verdict.Step, ...]]:
-    """Every timed run the sessions planned, and each they recorded, as irlean.verdict takes cases: a run is
-    named by its session, its pair and its variant, and its exit code is its last command's."""
-    planned, observed = [], []
-    for s in counted:
-        planned += [f"{s['session']}:{n}:{v}" for n in range(1, s["planned_pairs"] + 1) for v in VARIANTS]
-        for pair in s["pairs"]:
-            for v in VARIANTS:
-                run = pair[v]
-                observed.append(verdict.Step(f"{s['session']}:{pair['pair']}:{v}", run["exit"], run["limit"]))
-    return verdict.Plan(tuple(planned), whole=True), tuple(observed)
+    def pooled(self, rule: protocol.Rule) -> dict[str, dict[str, Any]]:
+        return {
+            f: protocol.summary([r for s in each for r in s], self.seed(), rule)
+            for f, each in self.ratios().items()
+        }
+
+    def runs(self) -> tuple[list[str], list[verdict.Step]]:
+        """Every timed run the confirmation sessions planned, and each a complete one recorded, as
+        irlean.verdict takes cases: a run is named by its workload, session, pair and variant, and its exit
+        code is its last command's. A failed session's runs aren't evidence, only its plan is."""
+        planned, observed = [], []
+        for s in self.counted:
+            at = f"{self.workload}/{s['session']}"
+            planned += [f"{at}:{n}:{v}" for n in range(1, s["planned_pairs"] + 1) for v in VARIANTS]
+            if s["status"] == COMPLETE:
+                observed += [
+                    verdict.Step(f"{at}:{pair['pair']}:{v}", pair[v]["exit"], pair[v]["limit"])
+                    for pair in s["pairs"]
+                    for v in VARIANTS
+                ]
+        return planned, observed
 
 
 def read(where: Path, others: list[Path]) -> dict[str, Any]:
     """Reads one directory of sessions by the rule. `others` are the directories of the project's other
-    workloads, for the rule's fourth condition: each has to be of the same two builds. What the reading
-    comes to is irlean.verdict's to say: each timed run is a case, and the rule's conditions its checks."""
-    counted, left, shared = sessions_of(where)
+    workloads, for the rule's fourth condition, one each, of the same two builds. They're held to what the
+    workload's own are: their runs are cases too, and their manifest and rule have to be the protocol's.
+    What the reading comes to is irlean.verdict's to say."""
+    mine = Sessions(where)
+    shared = mine.shared
     rule = protocol.Rule(**shared["rule"])
     reading: dict[str, Any] = {
         "schema": schemas.KERNELS_READING,
-        **{k: shared[k] for k in ("project", "workload", "measure", "cpus", "threads", "control")},
-        "sessions": [{"session": s["session"], "status": s["status"]} for s in counted],
-        "left_out": left,
+        "project": mine.project,
+        "workload": mine.workload,
+        **{k: shared[k] for k in ("measure", "cpus", "threads", "control")},
+        "sessions": [{"session": s["session"], "status": s["status"]} for s in mine.counted],
+        "left_out": mine.left,
     }
 
     def say(decision: verdict.Decision | None, reason: str, why: str = "") -> dict[str, Any]:
@@ -630,43 +717,54 @@ def read(where: Path, others: list[Path]) -> dict[str, Any]:
             reading["why"] = why
         return reading
 
-    by_figure = ratios(counted)
+    by_figure = mine.ratios()
     if not by_figure:
-        return say(None, "not_shown", "no confirmation session with pairs")
-    seed = pooled_seed([s["seed"] for s in counted if s["pairs"]])
+        return say(None, "not_shown", "no complete confirmation session")
     if shared["control"]:
-        pooled = {
-            f: protocol.summary([r for s in each for r in s], seed, rule) for f, each in by_figure.items()
-        }
+        pooled = mine.pooled(rule)
         reading["pooled"] = pooled
-        reading["control_contains_one"] = all(
+        # A control with a confirmation session that failed isn't whole, and says nothing.
+        reading["control_contains_one"] = mine.whole and all(
             p["interval"][0] <= 1 <= p["interval"][1] for p in pooled.values()
         )
-        return say(None, "control")
-    measured: dict[str, list[float] | None] = {
-        w: None for w in shared["workloads"] if w != shared["workload"]
-    }
-    for other in others:
-        theirs, _, about = sessions_of(other)
-        if about["project"] != shared["project"] or about["builds"] != shared["builds"] or about["control"]:
-            raise Refused(f"{other} isn't sessions of the same two builds of {shared['project']}")
-        each = ratios(theirs)
-        if about["workload"] not in measured or not each:
-            raise Refused(f"{other} has no confirmation session of another workload of {shared['project']}")
-        ends = [protocol.summary([r for s in e for r in s], seed, rule)["interval"] for e in each.values()]
-        # A workload with several figures is slower if any of them is: its lowest upper end is what counts.
-        measured[about["workload"]] = min(ends, key=lambda i: i[1])
-    kinds = [s["kind"] for s in counted if s["pairs"]]
-    found = protocol.conditions(by_figure, kinds, seed, measured, rule)
-    reading["result"] = found
+        return say(None, "control", "" if mine.whole else "a confirmation session of it failed")
     live = hashing.sha256_file(kernels.MANIFEST)
-    checks = {name: c["held"] for name, c in found["conditions"].items()}
     # A comparison that isn't by the protocol is never shown faster or slower: the corpus's manifest as it
-    # is now, an approved project, and the protocol's own rule.
-    checks["corpus"] = bool(shared["manifest"]["corpus"]) and shared["manifest"]["sha256"] == live
-    checks["rule"] = rule == protocol.PROTOCOL
-    plan, cases = runs(counted)
-    evidence = verdict.Evidence(plan=plan, cases=cases, checks=checks)
+    # is now, an approved project, and the protocol's own rule, for the workload and for each of the others.
+    corpus = bool(shared["manifest"]["corpus"]) and shared["manifest"]["sha256"] == live
+    protocols = rule == protocol.PROTOCOL
+    # The project's workloads are the manifest's, where that's the corpus's as it is now. A record's own
+    # list is read only for a manifest this can't see, and then nothing is by the protocol.
+    names = shared["workloads"]
+    if corpus:
+        names = sorted(w["name"] for w in kernels.load()["project"][mine.project]["workload"])
+    measured: dict[str, list[float] | None] = {w: None for w in names if w != mine.workload}
+    planned, observed = mine.runs()
+    for other in others:
+        theirs = Sessions(other)
+        if theirs.project != mine.project or theirs.builds != mine.builds or theirs.shared["control"]:
+            raise Refused(f"{other} isn't sessions of the same two builds of {mine.project}")
+        if theirs.workload not in measured:
+            raise Refused(f"{other} has no confirmation session of another workload of {mine.project}")
+        if measured[theirs.workload] is not None:
+            raise Refused(f"{other} is a second directory of {theirs.workload}'s sessions")
+        ends = [p["interval"] for p in theirs.pooled(protocol.Rule(**theirs.shared["rule"])).values()]
+        if not ends:
+            raise Refused(f"{other} has no confirmation session of another workload of {mine.project}")
+        # A workload with several figures is slower if any of them is: its lowest upper end is what counts.
+        measured[theirs.workload] = min(ends, key=lambda i: i[1])
+        more = theirs.runs()
+        planned, observed = planned + more[0], observed + more[1]
+        corpus = corpus and theirs.shared["manifest"] == shared["manifest"]
+        protocols = protocols and theirs.shared["rule"] == shared["rule"]
+    kinds = [s["kind"] for s in mine.timed]
+    found = protocol.conditions(by_figure, kinds, mine.seed(), measured, rule)
+    reading["result"] = found
+    checks = {name: c["held"] for name, c in found["conditions"].items()}
+    checks["corpus"], checks["rule"] = corpus, protocols
+    evidence = verdict.Evidence(
+        plan=verdict.Plan(tuple(planned), whole=True), cases=tuple(observed), checks=checks
+    )
     # Asked by name, each as a literal, which tests/verdict_test.py counts: nothing here picks a grant.
     decisions = {
         "timing.faster": verdict.decide("timing.faster", evidence),

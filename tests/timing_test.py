@@ -26,6 +26,7 @@ import shutil
 import statistics
 import sys
 import tempfile
+import typing
 import unittest
 from pathlib import Path
 from typing import Any, ClassVar
@@ -67,6 +68,9 @@ int main(int argc, char **argv) {
   /* The third call fails, or prints another answer. */
   if (!strcmp(mode, "--flaky") && call(argv[2]) == 3) return 4;
   if (!strcmp(mode, "--drift") && call(argv[2]) == 3) r += 1;
+  /* Writes its file on its first call, and not again. */
+  if (!strcmp(mode, "--once") && call(argv[3]) != 1) return 0;
+  if (!strcmp(mode, "--once")) mode = "--write";
   if (!strcmp(mode, "--reads")) {
     /* Fails unless it can open its input. */
     FILE *f = fopen(argv[2], "r");
@@ -100,6 +104,10 @@ MANIFEST = (
     + '[[project.fed.input]]\nname = "data"\n'
     + 'sha256 = "6667b2d1aab6a00caa5aee5af8ad9f1465e567abf1c209d15727d57b3e8f6e5f"\n'
     + '[[project.fed.workload]]\nname = "work"\nrun = [["{build}/bench", "--reads", "{input:data}"]]\n'
+    + 'measure = "time"\n'
+    + KNOWN.replace("NAME", "fed")
+    # One that changes its input.
+    + '[[project.fed.workload]]\nname = "eats"\nrun = [["{build}/bench", "--append", "{input:data}"]]\n'
     + 'measure = "time"\n'
     + KNOWN.replace("NAME", "fed")
     + WORK.replace("NAME", "solo")
@@ -146,6 +154,22 @@ kind = "output"
 output = ["stdout"]
 
 [[project.tiny.workload]]
+name = "once"
+run = [["{build}/bench", "--once", "{out}/answer", "{out}/calls"]]
+measure = "time"
+[[project.tiny.workload.check]]
+kind = "output"
+output = ["{out}/answer"]
+
+[[project.tiny.workload]]
+name = "clean"
+run = [["{build}/bench"]]
+measure = "time"
+[[project.tiny.workload.check]]
+kind = "known-answers"
+run = [["sh", "-c", 'test -z "$MAKEFLAGS$LD_PRELOAD" && exec "$0" --check', "{build}/bench"]]
+
+[[project.tiny.workload]]
 name = "mutates"
 run = [["{build}/bench", "--append", "{build}/libwork.so"]]
 measure = "time"
@@ -181,6 +205,22 @@ measure = "time"
 )
 # The protocol's rule with its minimums lowered, so a session is seconds long. Nothing else differs.
 RULE = protocol.Rule(min_pairs=6, min_sessions=2, min_seconds=0.03, resamples=2000)
+# How long a run of each build's program is said to take. The programs really run, and the harness is told
+# these, so that nothing here depends on how fast the machine is: a run of `base` is four of any other's.
+SECONDS = {"base": 0.02, "half": 0.01}
+QUICK = 0.005
+
+
+def told(real: Any) -> Any:
+    """`proc.run`, with each timed run's time as SECONDS has it."""
+
+    def run(argv: Any, **kw: Any) -> proc.Ran:
+        r = real(argv, **kw)
+        if argv[0] == "taskset":
+            r.seconds = SECONDS.get(Path(argv[3]).parent.name, QUICK)
+        return r
+
+    return run
 
 
 def sh(*argv: Any) -> None:
@@ -189,6 +229,7 @@ def sh(*argv: Any) -> None:
         raise RuntimeError(f"{' '.join(map(str, argv))}\n{r.output}")
 
 
+@unittest.skipUnless(sys.platform.startswith("linux"), "the harness pins with taskset and reads ldd")
 class Timing(unittest.TestCase):
     root: ClassVar[Path]
     manifest: ClassVar[dict[str, Any]]
@@ -210,28 +251,22 @@ class Timing(unittest.TestCase):
         cls.build("fast", loops=10_000_000)
         cls.build("half", loops=20_000_000)
         cls.build("wrong", loops=10_000_000, wrong=1)
-        # The base again, byte for byte, in another directory: a control.
-        shutil.copytree(cls.root / "base", cls.root / "same")
         # A candidate whose program loads the base's library, as a link that kept the old path would.
         cls.build("stolen", loops=10_000_000, loads="base")
+        # One whose program is told where its library is by LD_LIBRARY_PATH, and by nothing in itself.
+        cls.build("loose", loops=10_000_000, loads="")
+        clock = mock.patch.object(proc, "run", told(proc.run))
+        clock.start()
+        cls.addClassCleanup(clock.stop)
 
     @classmethod
     def build(cls, name: str, loops: int, wrong: int = 0, loads: str | None = None) -> None:
         b = cls.root / name
         b.mkdir()
-        sh(
-            "clang",
-            "-O1",
-            "-shared",
-            "-fPIC",
-            f"-DLOOPS={loops}UL",
-            f"-DWRONG={wrong}",
-            cls.root / "work.c",
-            "-o",
-            b / "libwork.so",
-        )
-        where = cls.root / (loads or name)
-        sh("clang", "-O1", cls.root / "bench.c", f"-L{b}", "-lwork", f"-Wl,-rpath,{where}", "-o", b / "bench")
+        macros = (f"-DLOOPS={loops}UL", f"-DWRONG={wrong}")
+        sh("clang", "-O1", "-shared", "-fPIC", *macros, cls.root / "work.c", "-o", b / "libwork.so")
+        rpath = [] if loads == "" else [f"-Wl,-rpath,{cls.root / (loads or name)}"]
+        sh("clang", "-O1", cls.root / "bench.c", f"-L{b}", "-lwork", *rpath, "-o", b / "bench")
 
     def plan(self, project: str, workload: str, candidate: str, **options: Any) -> timing.Session:
         work = Path(tempfile.mkdtemp(prefix="session-", dir=self.root))
@@ -244,7 +279,7 @@ class Timing(unittest.TestCase):
             workload,
             {
                 "baseline": timing.Variant(self.root / "base"),
-                "candidate": timing.Variant(self.root / candidate),
+                "candidate": timing.Variant(self.root / candidate, options.pop("env", {})),
             },
             options.pop("cpus", self.cpu),
             pairs=options.pop("pairs", 3),
@@ -280,14 +315,16 @@ class Timing(unittest.TestCase):
         self.assertEqual(
             [p["order"] for p in record["pairs"]], [rng.sample(timing.VARIANTS, 2) for _ in range(3)]
         )
-        # A run shorter than the rule's minimum is repeated until it isn't.
-        self.assertGreater(record["repeat"], 1)
+        # A run shorter than the rule's minimum is repeated until it's a fifth over it: 0.005 s, 8 times.
+        self.assertEqual(record["repeat"], 8)
         for p in record["pairs"]:
+            self.assertAlmostEqual(p["candidate"]["seconds"], 0.04)
+            self.assertAlmostEqual(p["baseline"]["seconds"], 0.16)
+            self.assertAlmostEqual(p["ratios"]["seconds"], 4.0)
             for v in timing.VARIANTS:
-                self.assertGreaterEqual(p[v]["seconds"], RULE.min_seconds * 0.5)
+                self.assertEqual((p[v]["exit"], p[v]["limit"]), (0, None))
                 self.assertGreaterEqual(p[v]["user_s"], 0)
                 self.assertIn("load1", p[v])
-            self.assertEqual(p["ratios"], {"seconds": p["baseline"]["seconds"] / p["candidate"]["seconds"]})
         self.assertEqual(record["checks"], [{"check": 1, "kind": "known-answers", "candidate": "passed"}])
         # Each variant loads its own library, which is what tells them apart.
         ids = {v: record["variants"][v]["identity"] for v in timing.VARIANTS}
@@ -299,14 +336,15 @@ class Timing(unittest.TestCase):
         reading = timing.read(paths[0].parent, [])
         schemas.check(reading, schemas.KERNELS_READING)
         self.assertEqual([s["session"] for s in reading["sessions"]], ["001.json", "002.json"])
-        # Every condition of the rule holds: a quarter of the work is well over half a percent faster.
+        self.assertAlmostEqual(reading["result"]["figures"]["seconds"]["pooled"]["median"], 4.0)
+        # Every condition of the rule holds: a quarter of the time is well over half a percent faster.
         held = {name: c["held"] for name, c in reading["result"]["conditions"].items()}
         self.assertEqual(
             {n for n, h in held.items() if h},
             {"confirmation", "pairs", "interval_above"} | {"sessions_above", "others"},
         )
         # And it still isn't shown faster: the rule's minimums were lowered and the manifest isn't the
-        # corpus's, so the comparison isn't by the protocol, which is the first thing irlean.verdict asks.
+        # corpus's, so the comparison isn't by the protocol.
         self.assertEqual((reading["status"], reading["exit_code"]), ("inconclusive", 3))
         self.assertEqual(reading["decisions"]["timing.faster"]["reason"], "corpus")
 
@@ -314,7 +352,7 @@ class Timing(unittest.TestCase):
         path, _ = self.session("solo", "work", "fast", kind=protocol.EXPLORATORY)
         reading = timing.read(path.parent, [])
         self.assertEqual(
-            (reading["status"], reading["why"]), ("inconclusive", "no confirmation session with pairs")
+            (reading["status"], reading["why"]), ("inconclusive", "no complete confirmation session")
         )
         self.assertEqual(
             reading["left_out"],
@@ -333,16 +371,43 @@ class Timing(unittest.TestCase):
         with self.assertRaisesRegex(timing.Refused, "seed 77 was used"):
             self.session("solo", "work", "fast", seed=77)
 
+    def test_a_run_under_the_minimum_fails_the_session(self) -> None:
+        # The warm-ups are long enough that a run isn't repeated, and every run after is shorter.
+        calls: list[int] = []
+        real = proc.run
+
+        def quicker(argv: Any, **kw: Any) -> proc.Ran:
+            r = real(argv, **kw)
+            if argv[0] == "taskset":
+                calls.append(1)
+                r.seconds = 0.05 if len(calls) <= 2 else 0.02
+            return r
+
+        plan = self.plan("solo", "work", "fast")
+        with mock.patch.object(proc, "run", quicker):
+            record = plan.run()
+        self.assertEqual((record["status"], record["pairs"], record["repeat"]), (timing.FAILED, [], 1))
+        self.assertIn("took 0.020 s, under the rule's 0.03 s", record["failure"])
+
+    def test_cpus_are_of_one_cache(self) -> None:
+        two = {"0": {"l3": "0-7"}, "8": {"l3": "8-15"}}
+        with (
+            mock.patch.object(timing, "topology", return_value=two),
+            self.assertRaisesRegex(timing.Refused, "share no one last-level cache"),
+        ):
+            self.plan("solo", "work", "fast")
+
     # Failures.
 
     def test_a_run_that_fails_fails_the_session(self) -> None:
         record = self.failed("tiny", "fails", "fast")
         self.assertIn("exit code 3", record["failure"])
         self.assertNotIn("warm_up", record)
-        # The third call of each variant fails, which is its second pair: the first pair isn't kept.
-        record = self.failed("tiny", "flaky", "fast")
+        # The third call of each variant fails. With no repeating, that's its second pair: the first pair
+        # isn't kept.
+        record = self.failed("tiny", "flaky", "fast", rule=protocol.Rule(min_seconds=0.0))
         self.assertIn("exit code 4", record["failure"])
-        self.assertIn("warm_up", record)
+        self.assertEqual(record["repeat"], 1)
         where = self.root / "sessions" / self.id() / "tiny" / "flaky"
         with self.assertRaisesRegex(timing.Refused, "no complete session"):
             timing.read(next(where.iterdir()), [])
@@ -362,40 +427,101 @@ class Timing(unittest.TestCase):
         self.assertEqual((record["status"], record["pairs"]), (timing.FAILED, []))
         self.assertIn("at its time_limit", record["failure"])
 
+    def test_a_program_that_cant_start_fails_the_session(self) -> None:
+        plan = self.plan("solo", "work", "fast")
+        original = proc.run
+
+        def missing(argv: Any, **kw: Any) -> proc.Ran:
+            if argv[0] == "taskset":
+                raise FileNotFoundError("taskset")
+            return original(argv, **kw)
+
+        with mock.patch.object(proc, "run", missing):
+            path, record = timing.session(plan)
+        self.assertEqual((record["status"], record["pairs"]), (timing.FAILED, []))
+        self.assertIn("the session stopped on FileNotFoundError", record["failure"])
+        self.assertEqual(schemas.read(path, schemas.KERNELS_SESSION)["status"], timing.FAILED)
+
     def test_a_library_that_changes_fails_the_session(self) -> None:
-        shutil.copytree(self.root / "fast", self.root / "appended")
-        record = self.failed("tiny", "mutates", "appended")
-        self.assertIn("changed while the session ran", record["failure"])
+        # Each run adds a byte to its build's library, which its program loads.
+        record = self.failed("tiny", "mutates", "half")
+        self.assertRegex(
+            record["failure"], "what the (baseline|candidate) loads changed while the session ran"
+        )
+
+    def test_a_session_that_fails_early_is_beside_the_others(self) -> None:
+        # It fails before anything says what it loads, and is still a session of this comparison: the one
+        # that then completes is in the same directory, where the failed one's plan counts.
+        self.build("orphan", loops=10_000_000)
+        library = self.root / "orphan" / "libwork.so"
+        kept = library.read_bytes()
+        library.unlink()
+        first, record = self.session("solo", "work", "orphan", seed=5)
+        # ldd says "not found" on a line this reads as neither a library nor nothing, so it's an error.
+        self.assertEqual(record["status"], timing.FAILED)
+        self.assertIn("printed a line this doesn't read", record["failure"])
+        self.assertIn("not found", record["failure"])
+        library.write_bytes(kept)
+        with self.assertRaisesRegex(timing.Refused, "seed 5 was used"):
+            self.session("solo", "work", "orphan", seed=5)
+        second, record = self.session("solo", "work", "orphan")
+        self.assertEqual((record["status"], second.parent), (timing.COMPLETE, first.parent))
+        reading = timing.read(second.parent, [])
+        self.assertEqual(
+            reading["sessions"],
+            [
+                {"session": "001.json", "status": timing.FAILED},
+                {"session": "002.json", "status": timing.COMPLETE},
+            ],
+        )
+        self.assertEqual(reading["decisions"]["timing.faster"]["reason"], "incomplete")
 
     # What a candidate loads.
 
     def test_a_candidate_that_loads_the_baselines_code_is_refused(self) -> None:
         record = self.failed("solo", "work", "stolen")
-        self.assertIn("loads what the baseline loads", record["failure"])
+        self.assertIn("libwork.so, which is in the baseline's build", record["failure"])
         self.assertNotIn("warm_up", record)
 
-    def test_a_library_that_isnt_found_fails_the_session(self) -> None:
-        # ldd says "not found" on a line this reads as neither a library nor nothing, so it's an error.
-        self.build("orphan", loops=10_000_000)
-        (self.root / "orphan" / "libwork.so").unlink()
-        record = self.failed("solo", "work", "orphan")
-        self.assertIn("printed a line this doesn't read", record["failure"])
-        self.assertIn("not found", record["failure"])
+    def test_what_a_variant_loads_is_found_from_where_it_runs(self) -> None:
+        # Its library is wherever LD_LIBRARY_PATH says, and that's `.`: the build, where a timed command
+        # runs. From here, `.` holds no library at all.
+        here = Path.cwd()
+        self.addCleanup(os.chdir, here)
+        os.chdir(self.root)
+        _, record = self.session("solo", "work", "loose", env={"LD_LIBRARY_PATH": "."})
+        os.chdir(here)
+        self.assertEqual(record["status"], timing.COMPLETE, record.get("failure"))
+        loads = {f["name"]: f["path"] for f in record["variants"]["candidate"]["identity"]["loads"]}
+        self.assertEqual(Path(loads["libwork.so"]).resolve(), self.root / "loose" / "libwork.so")
 
     def test_a_control_is_declared_and_loads_the_same(self) -> None:
-        record = self.failed("solo", "work", "same")
+        elsewhere = self.root / "sessions" / "undeclared"
+        record = self.failed("solo", "work", "base", sessions=elsewhere)
         self.assertIn("this isn't a control", record["failure"])
-        record = self.failed("solo", "work", "fast", control=True)
+        record = self.failed("solo", "work", "fast", control=True, sessions=elsewhere)
         self.assertIn("these differ", record["failure"])
         for _ in range(2):
-            path, record = self.session("solo", "work", "same", control=True)
+            path, record = self.session("solo", "work", "base", control=True)
             self.assertEqual(record["status"], timing.COMPLETE)
         reading = timing.read(path.parent, [])
         # A control says whether its interval contains 1, and nothing about faster or slower.
         self.assertEqual((reading["status"], reading["exit_code"]), ("control", 4))
         self.assertNotIn("decisions", reading)
-        self.assertIn(reading["control_contains_one"], (True, False))
-        self.assertLess(abs(reading["pooled"]["seconds"]["median"] - 1), 0.5)
+        self.assertEqual(reading["pooled"]["seconds"]["interval"], [1.0, 1.0])
+        self.assertIs(reading["control_contains_one"], True)
+        # With a confirmation session of it that failed, it isn't whole, and doesn't say it contains 1.
+        failed = {
+            **record,
+            "seed": 3,
+            "status": timing.FAILED,
+            "pairs": [],
+            "failure": "a run didn't end well",
+        }
+        (path.parent / "003.json").write_text(json.dumps(failed))
+        reading = timing.read(path.parent, [])
+        self.assertIs(reading["control_contains_one"], False)
+        self.assertEqual(reading["why"], "a confirmation session of it failed")
 
     # Checks.
 
@@ -424,6 +550,23 @@ class Timing(unittest.TestCase):
             self.assertEqual(record["status"], timing.COMPLETE, record.get("failure"))
         self.assertEqual(record["checks"][0]["baseline"], record["checks"][0]["candidate"])
 
+    def test_a_file_an_earlier_run_wrote_isnt_this_runs(self) -> None:
+        # Its warm-up writes the file its check hashes, and no later call does.
+        record = self.failed("tiny", "once", "fast")
+        self.assertIn("didn't write {out}/answer", record["failure"])
+        self.assertIn("warm_up", record)
+
+    def test_a_check_gets_none_of_the_callers_environment(self) -> None:
+        # Its check passes only where MAKEFLAGS and LD_PRELOAD are unset, as a `make check` is a dry run
+        # under MAKEFLAGS=n.
+        with mock.patch.dict(os.environ, {"MAKEFLAGS": "n", "LD_PRELOAD": "", "SOURCE_DATE_EPOCH": "1"}):
+            plan = self.plan("tiny", "clean", "fast", pairs=1)
+            env = plan.env("candidate")
+            _, record = timing.session(plan)
+        self.assertEqual(record["status"], timing.COMPLETE, record.get("failure"))
+        self.assertEqual({"MAKEFLAGS", "LD_PRELOAD", "SOURCE_DATE_EPOCH"} & set(env), set())
+        self.assertIn("PATH", env)
+
     # What it won't run.
 
     def test_what_it_refuses(self) -> None:
@@ -447,11 +590,9 @@ class Timing(unittest.TestCase):
         with self.assertRaisesRegex(timing.Refused, "isn't a directory"):
             self.plan("solo", "work", "missing")
         with self.assertRaisesRegex(timing.Refused, "both set"):
-            plan = self.plan("tiny", "print", "fast")
-            plan.variants["candidate"].env["TINY"] = "2"
-            timing.session(plan)
+            self.session("tiny", "print", "fast", env={"TINY": "2"})
 
-    def test_an_input_is_the_one_the_manifest_pins(self) -> None:
+    def test_an_input_is_the_file_the_manifest_pins(self) -> None:
         inputs = self.root / "inputs"
         inputs.mkdir()
         with self.assertRaisesRegex(timing.Refused, "needs --inputs"):
@@ -467,8 +608,15 @@ class Timing(unittest.TestCase):
         _, record = self.session("fed", "work", "fast", pairs=1, inputs=Path("inputs"))
         os.chdir(here)
         self.assertEqual(record["status"], timing.COMPLETE, record.get("failure"))
-        (inputs / "data").write_text("other data\n")
+        # A run that changes it fails its session, though it was right when first named.
+        record = self.failed("fed", "eats", "fast", pairs=1, inputs=inputs)
+        self.assertIn("the input data changed while the session ran", record["failure"])
         with self.assertRaisesRegex(timing.Refused, "isn't the data the manifest pins"):
+            self.session("fed", "work", "fast", pairs=1, inputs=inputs)
+        # And a directory of that name has no hash to be held to.
+        (inputs / "data").unlink()
+        (inputs / "data").mkdir()
+        with self.assertRaisesRegex(timing.Refused, "a directory holding the file data"):
             self.session("fed", "work", "fast", pairs=1, inputs=inputs)
 
     # Pooling.
@@ -482,30 +630,32 @@ class Timing(unittest.TestCase):
         self.assertIn("print wasn't measured", others["says"])
         others = timing.read(work.parent, [printed.parent])["result"]["conditions"]["others"]
         self.assertTrue(others["held"], others)
-        # Sessions of other builds, or of this workload, aren't the project's other workload.
-        other, _ = self.session(
-            "two", "print", "wrong", pairs=1, sessions=self.root / "sessions" / "elsewhere"
-        )
-        self.assertEqual(schemas.read(other, schemas.KERNELS_SESSION)["status"], timing.FAILED)
+        # Sessions of this workload aren't the project's other workload, and nor are two directories of it.
         with self.assertRaisesRegex(timing.Refused, "no confirmation session of another workload"):
             timing.read(work.parent, [work.parent])
+        with self.assertRaisesRegex(timing.Refused, "a second directory of print's sessions"):
+            timing.read(work.parent, [printed.parent, printed.parent])
         # Nor are sessions of the other workload between other builds.
         half, record = self.session("two", "print", "half")
         self.assertEqual(record["status"], timing.COMPLETE)
+        self.assertNotEqual(half.parent, printed.parent)
         with self.assertRaisesRegex(timing.Refused, "isn't sessions of the same two builds"):
             timing.read(work.parent, [half.parent])
-        # A copy of the candidate loads the same bytes from another place, so its sessions go beside the
-        # candidate's, and reading them together is refused: one directory is sessions of two builds.
-        shutil.copytree(self.root / "fast", self.root / "fast-again")
-        again, record = self.session("two", "print", "fast-again")
-        self.assertEqual((record["status"], again.parent), (timing.COMPLETE, printed.parent))
-        with self.assertRaisesRegex(timing.Refused, "measured different things: .*candidate's build"):
-            timing.read(work.parent, [printed.parent])
 
     def test_sessions_that_measured_different_things_arent_pooled(self) -> None:
         path, _ = self.session("solo", "work", "fast")
         record = json.loads(path.read_text())
-        for key, value in (("cpus", "99"), ("threads", 9), ("control", True)):
+        variants = record["variants"]
+        elsewhere = {**variants, "candidate": {**variants["candidate"], "build": "/elsewhere"}}
+        another = {**variants, "candidate": {**variants["candidate"], "env": {"OMP_PROC_BIND": "true"}}}
+        for key, value in (
+            ("cpus", "99"),
+            ("threads", 9),
+            ("control", True),
+            ("topology", {}),
+            ("variants", elsewhere),
+            ("variants", another),
+        ):
             (path.parent / "002.json").write_text(json.dumps({**record, "seed": 5, key: value}))
             with self.assertRaisesRegex(timing.Refused, "measured different things"):
                 timing.read(path.parent, [])
@@ -569,12 +719,17 @@ class Protocol(unittest.TestCase):
 
 
 def protocol_session(where: Path, ratio: float, workload: str = "argon2id", **change: Any) -> Path:
-    """Writes the record of a complete confirmation session of 15 pairs, each of `ratio`, by the protocol,
-    as the next of the directory `where`, and returns `where`. tests/deny_all_test.py reads two of these."""
+    """Writes the record of a complete confirmation session of 15 pairs by the protocol, as the next of the
+    directory `where`, and returns `where`. Each run of the baseline took `ratio` times the candidate's 2
+    seconds. tests/deny_all_test.py reads these too."""
     variants = {
         v: {"build": f"/builds/{v}", "env": {}, "identity": {"loads": [], "id": v}} for v in timing.VARIANTS
     }
-    run = {"exit": 0, "limit": None, "figures": {"seconds": 2.0}, "seconds": 2.0}
+    ran = {"exit": 0, "limit": None}
+    runs = {
+        "baseline": {**ran, "figures": {"seconds": 2.0 * ratio}, "seconds": 2.0 * ratio},
+        "candidate": {**ran, "figures": {"seconds": 2.0}, "seconds": 2.0},
+    }
     where.mkdir(parents=True, exist_ok=True)
     number = len(list(where.iterdir())) + 1
     record = {
@@ -586,6 +741,7 @@ def protocol_session(where: Path, ratio: float, workload: str = "argon2id", **ch
         "control": False,
         "seed": number,
         "cpus": "12",
+        "topology": {"12": {"siblings": "12,28", "l3": "8-15,24-31"}},
         "threads": 1,
         "measure": "time",
         "rule": protocol.PROTOCOL.as_record(),
@@ -593,11 +749,7 @@ def protocol_session(where: Path, ratio: float, workload: str = "argon2id", **ch
         "variants": variants,
         "status": timing.COMPLETE,
         "planned_pairs": 15,
-        "pairs": [
-            {"pair": n, "order": list(timing.VARIANTS), "baseline": run, "candidate": run}
-            | {"ratios": {"seconds": ratio}}
-            for n in range(1, 16)
-        ],
+        "pairs": [{"pair": n, "order": list(timing.VARIANTS), **runs} for n in range(1, 16)],
         **change,
     }
     (where / f"{number:03d}.json").write_text(json.dumps(record))
@@ -681,6 +833,92 @@ class Reading(unittest.TestCase):
         self.assertEqual(reading["status"], "inconclusive")
         self.assertEqual(reading["decisions"]["timing.faster"]["reason"], "incomplete")
         self.assertEqual(reading["sessions"][2], {"session": "003.json", "status": timing.FAILED})
+
+    def edit(self, name: str, number: int, change: Any) -> None:
+        """Changes one record of a directory in place, as `change` does to it."""
+        path = self.root / name / f"{number:03d}.json"
+        record = json.loads(path.read_text())
+        change(record)
+        path.write_text(json.dumps(record))
+
+    def test_the_other_workload_is_held_to_what_the_workloads_own_is(self) -> None:
+        def reason() -> str:
+            reading = timing.read(self.root / "mine", [self.root / "theirs"])
+            self.assertEqual((reading["status"], reading["exit_code"]), ("inconclusive", 3))
+            return str(reading["decisions"]["timing.faster"]["reason"])
+
+        # A confirmation session of it that failed, with or without the pairs it had.
+        self.reads()
+        self.write("theirs", 1.0, workload="secretstream", status=timing.FAILED, pairs=[])
+        self.assertEqual(reason(), "incomplete")
+        self.setUp()
+        self.reads()
+        self.write("theirs", 1.0, workload="secretstream", status=timing.FAILED)
+        self.assertEqual(reason(), "incomplete")
+        # A run of it that died of a signal, or didn't exit 0.
+        for exit_code, why in ((-11, "tool_failed"), (1, "case_failed")):
+            self.setUp()
+            self.reads()
+            self.edit("theirs", 1, lambda r, code=exit_code: r["pairs"][2]["baseline"].update(exit=code))
+            self.assertEqual(reason(), why)
+        # Sessions of it under another manifest, or read by another rule.
+        loose = {**protocol.PROTOCOL.as_record(), "threshold": 1.0}
+        for change, why in (
+            ({"manifest": {"sha256": "0" * 64, "corpus": True}}, "corpus"),
+            ({"rule": loose}, "rule"),
+        ):
+            self.setUp()
+            for _ in range(2):
+                self.write("mine", 1.01)
+                self.write("theirs", 1.0, workload="secretstream", **change)
+            self.assertEqual(reason(), why)
+        # Two directories of it, one of them slower, whichever comes first.
+        self.setUp()
+        self.reads()
+        for _ in range(2):
+            slow = self.write("slow", 0.9, workload="secretstream")
+        for order in ([self.root / "theirs", slow], [slow, self.root / "theirs"]):
+            with self.assertRaisesRegex(timing.Refused, "a second directory of secretstream's sessions"):
+                timing.read(self.root / "mine", order)
+
+    def test_only_what_each_run_measured_is_read(self) -> None:
+        # A ratio a record states for itself isn't read: these runs took the same time.
+        self.reads(1.0)
+        for number in (1, 2):
+            self.edit("mine", number, lambda r: [p.update(ratios={"seconds": 1.5}) for p in r["pairs"]])
+        reading = timing.read(self.root / "mine", [self.root / "theirs"])
+        self.assertEqual(reading["status"], "inconclusive")
+        self.assertEqual(reading["result"]["figures"]["seconds"]["pooled"]["median"], 1.0)
+        # A session that says it failed has no pairs, whatever it holds.
+        self.setUp()
+        self.write("mine", 1.01)
+        self.write("mine", 1.01, status=timing.FAILED)
+        self.write("mine", 1.01, status=timing.FAILED)
+        for _ in range(2):
+            self.write("theirs", 1.0, workload="secretstream")
+        reading = timing.read(self.root / "mine", [self.root / "theirs"])
+        self.assertEqual(reading["result"]["figures"]["seconds"]["pooled"]["pairs"], 15)
+        self.assertEqual(reading["decisions"]["timing.faster"]["reason"], "incomplete")
+        # The project's other workloads are the manifest's, not what a record lists.
+        self.setUp()
+        for _ in range(2):
+            mine = self.write("mine", 1.01, workloads=["argon2id"])
+        self.assertEqual(timing.read(mine, [])["decisions"]["timing.faster"]["reason"], "others")
+        # Every run measured the same figures, each a positive, finite number.
+        for change, why in (
+            (lambda r: r["pairs"][4]["candidate"]["figures"].update(extra=1.0), "didn't all measure"),
+            (lambda r: r["pairs"][4]["candidate"]["figures"].update(seconds=float("inf")), "finite"),
+            (lambda r: r["pairs"][4]["baseline"]["figures"].update(seconds=0.0), "positive"),
+            (lambda r: r["pairs"][4]["baseline"]["figures"].update(seconds="2.0"), "positive"),
+        ):
+            self.setUp()
+            self.reads()
+            self.edit("mine", 2, change)
+            with self.assertRaisesRegex(timing.Refused, why):
+                timing.read(self.root / "mine", [self.root / "theirs"])
+        for bad in (float("inf"), float("nan"), 0.0, -1.0, True, "1"):
+            with self.assertRaises(ValueError):
+                protocol.ratio(1.0, typing.cast("float", bad), protocol.RATE)
 
     def test_deny_all_takes_faster_away(self) -> None:
         os.environ[verdict.DENY_ALL] = "1"

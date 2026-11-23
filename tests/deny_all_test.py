@@ -153,7 +153,8 @@ def run_twice(
             found.append(f"exit {ran.exit}")
         if not denied:
             record = json.loads(ran.out) if ran.out.strip().startswith("{") else {}
-            if record.get("status") != wanted or not found:
+            # As it is, it says the grant's word and ends with one of the grants' exit codes.
+            if record.get("status") != wanted or not found or ran.exit not in exits:
                 problems.append(f"didn't grant {wanted} as it is: exit {ran.exit}, {ran.out[:500]}")
         elif found:
             problems.append(f"with {verdict.DENY_ALL}=1, grants: {'; '.join(found[:10])}")
@@ -188,19 +189,33 @@ def verify(tool: Path, scratch: Path) -> list[tuple[str, list[str]]]:
 
 
 def timing(tool: Path, scratch: Path) -> list[tuple[str, list[str]]]:
-    """bench/kernels/timing.py's smallest input that's read as faster: two confirmation sessions by the
-    protocol of each of a project's two workloads, as records tests/timing_test.py makes. Nothing is timed."""
+    """bench/kernels/timing.py's smallest inputs that are read as faster and as slower: two confirmation
+    sessions by the protocol of each of a project's two workloads, as records tests/timing_test.py makes.
+    Nothing is timed. `read` writes nothing, so its directories of sessions have to be as they were after
+    each run: a grant written beside them would be one no other check here sees."""
     del tool
     exits = {g.exit for g in verdict.GRANTS.values() if g.schema == schemas.KERNELS_READING}
-    for _ in range(2):
-        mine = TIMING_TEST.protocol_session(scratch / "sessions" / "argon2id", 1.01)
-        theirs = TIMING_TEST.protocol_session(scratch / "sessions" / "secretstream", 1.0, "secretstream")
+    out = []
+    for name, wanted, ratio in (("timing_faster", "faster", 1.01), ("timing_slower", "slower", 0.98)):
+        sessions = scratch / f"{name}-sessions"
+        for _ in range(2):
+            mine = TIMING_TEST.protocol_session(sessions / "argon2id", ratio)
+            theirs = TIMING_TEST.protocol_session(sessions / "secretstream", 1.0, "secretstream")
 
-    def argv(work: Path) -> list[str]:
-        del work
-        return [str(ROOT / "bench" / "kernels" / "timing.py"), "read", str(mine), "--other", str(theirs)]
+        def held(sessions: Path = sessions) -> dict[str, bytes]:
+            files = sorted(p for p in sessions.rglob("*") if p.is_file())
+            return {str(p.relative_to(sessions)): p.read_bytes() for p in files}
 
-    return [("timing_faster", run_twice("timing_faster", argv, scratch, exits, "faster"))]
+        def argv(work: Path, mine: Path = mine, theirs: Path = theirs) -> list[str]:
+            del work
+            return [str(ROOT / "bench" / "kernels" / "timing.py"), "read", str(mine), "--other", str(theirs)]
+
+        before = held()
+        problems = run_twice(name, argv, scratch, exits, wanted)
+        if held() != before:
+            problems.append("it changed its directories of sessions, which it only reads")
+        out.append((name, problems))
+    return out
 
 
 # Each entry point on its grants, and how to run it.

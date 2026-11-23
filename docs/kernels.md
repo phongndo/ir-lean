@@ -938,17 +938,30 @@ added to what it runs, as llama.cpp's two libraries are told apart by `LD_LIBRAR
 1. **Reads the workload from the manifest,** and nowhere else: its `build`, `setup` and `run`, what's measured, its
    threads and its checks. An input is checked against the hash the manifest pins.
 2. **Says what each variant is.** It runs the workload's `build` for each, then asks `ldd`, under that variant's
-   environment, what its timed program loads, and hashes the program and each library. Two variants that load the
-   same bytes are a control, and have to be declared one. So a candidate whose program still finds the baseline's
-   library is refused. `ldd` doesn't see a library a program opens while it runs.
+   environment and from its build, where a timed command runs, what its timed program loads, and hashes the program
+   and each library. Two variants that load the same bytes are a control, and have to be declared one. And where
+   the two builds are two directories, neither may load a file of the other's. So a candidate whose program still
+   finds the baseline's library is refused, whatever else of it differs. `ldd` doesn't see a library a program
+   opens while it runs.
 3. **Checks the candidate.** The project's test against known answers runs on the candidate. A check with commands
    of its own runs on both, and what each writes is hashed and compared. A check on what the workload's own run
-   writes is made on every timed run, each repetition of it.
-4. **Warms each variant once,** which for a time also says how often a run repeats to last 2 seconds.
-5. **Times the pairs,** each in an order drawn from the seed, pinned with `taskset`. Each run records its wall
-   time, its user and system time, and the load average.
-6. **Hashes what each variant loads again,** and writes one record, numbered, beside the others of the same
-   workload and the same two identities.
+   writes is made on every timed run, each repetition of it. A file a check hashes is removed before the commands
+   that write it, so one an earlier run left can't stand in.
+4. **Warms each variant once,** which for a time also says how often a run repeats: enough to last a fifth more
+   than the rule's 2 seconds, by the warm-up.
+5. **Times the pairs,** each in an order drawn from the seed, pinned with `taskset` to cores of one last-level
+   cache. Each run records its wall time, its user and system time, and the load average. A run's repetitions are
+   launched one after another and their wall times added, which leaves the harness's own work between them out. A
+   timed run that comes out under 2 seconds fails the session.
+6. **Hashes what each variant loads again, and each input,** and writes one record, numbered, beside the others
+   of the same comparison: the workload, the two builds and their environments. That's known before anything runs,
+   so a session that fails at its first step is there too.
+
+**A command gets none of the caller's environment** but `PATH`, `HOME`, `USER`, `LANG`, `TMPDIR`, `TERM` and what
+starts `NIX_` or `LC_`, with the variant's own added. So a `MAKEFLAGS=n` in the shell it's run from can't make a
+`make check` a dry run, and an `LD_PRELOAD` there can't change what's loaded. **An input is a file,** of the hash
+the manifest pins. zlib-ng's workloads name a file inside an unpacked archive, which has no hash here to be held
+to, so they're refused for now.
 
 **A run that doesn't end well fails the session.** A crash, a signal, a time limit or a non-zero exit, in a build,
 a check, a warm-up or a pair: the record says `failed`, with why, and has no pair. No run is dropped and the rest
@@ -956,8 +969,10 @@ kept.
 
 **`read` takes a directory,** not files, so nobody picks which sessions to pool. Exploratory sessions are listed
 and left out. Every confirmation session there counts, a failed one too: what it planned and didn't time is missing,
-and the reading is `inconclusive`. Two sessions with one seed, or of different cores, threads, builds or rules, are
-refused. The bootstrap's seed is made from the sessions' own.
+and the reading is `inconclusive`. Two sessions with one seed, or of different cores, threads, builds, environments
+or rules, are refused. The bootstrap's seed is made from the sessions' own. It reads what each run measured and
+works each ratio out again: what a record says of its own ratios, or the pairs of a session that says it failed,
+aren't read, and the project's other workloads are the manifest's, not a record's list.
 
 **What sessions come to is [`irlean.verdict`](trust.md#where-python-decides-a-verdict)'s to say.** `read` asks it for
 `timing.faster` and `timing.slower`: each timed run is a case, which has to have ended on its own with exit 0, and
@@ -965,19 +980,30 @@ the rule's conditions are its checks, each figure of a rate judged by itself. Tw
 isn't by the protocol `inconclusive`: the sessions are of the corpus's manifest as it is now and an approved
 project, and were read by the protocol's own rule. `IRLEAN_DENY_ALL` takes `faster` away, as
 `tests/deny_all_test.py` checks. `faster` is the rule's "measurably faster" on one workload, with the project's
-other workloads given to `--other`. It isn't [a win](#what-a-win-is).
+other workloads given to `--other`, one directory each. They're held to what the workload's own sessions are: their
+runs are cases too, a session of theirs that failed leaves the plan short, and their manifest and rule have to be
+the protocol's. It isn't [a win](#what-a-win-is).
 
-**What it doesn't do.** It reads llama-bench's rate and no other, so xxHash's workloads are refused. It builds no
-candidate. It records the load average and nothing else about the machine: nothing stops another job from running
-beside a session.
+**What it doesn't do.** It reads llama-bench's rate and no other, so xxHash's `bench`, a rate, is refused. It builds
+no candidate, and doesn't check that the two builds it's given differ only in the rewritten functions, as the protocol
+asks: `faster` is of those two builds. It runs on Linux only, with `taskset` and `ldd`. A workload's `setup` runs with
+each variant's own build, as the manifest has it, so where setup makes the input, as zlib-ng's `decompress` does, the
+two can be timed on different bytes. And it hashes what a variant loads at a session's start and end: a library
+changed and put back in between isn't seen, which only something done on purpose does. It records the load average and
+nothing else about the machine: nothing stops another job from running beside a session.
 
 [`tests/timing_test.py`](../tests/timing_test.py) builds a tiny project and plants each fault: a run that fails in
 the warm-up or in a later pair, a candidate that loads the baseline's library, a wrong answer for each kind of
-check, an answer that goes wrong only on a later call, and a library that changes during the session. With each of
-30 guards taken out of `timing.py` in turn, as a one-off on 2026-11-22, a test fails.
+check, an answer that goes wrong only on a later call, a file an earlier run left, a library that changes during
+the session, and a check that passes only under the caller's `MAKEFLAGS`. The time each run takes is given to the
+harness, so nothing in it depends on how fast the machine is. As a one-off, 30 guards
+were taken out of `timing.py` in turn before its review and 22 more after it, the ones the review asked for:
+each fails a test. The control and the q4_K sessions below were run before the review of
+[#126](https://github.com/phongndo/ir-lean/pull/126) and what it changed, and read again after: their records
+predate the clean environment and the directory named by the comparison.
 
 **The control, on 2026-11-22.** On z, on core 12 alone, libsodium's `argon2id` between the baseline's build and
-itself, declared a control: two confirmation sessions of 15 pairs, each run about 11.6 s. Stated before it ran: it
+itself, declared a control: two confirmation sessions of 15 pairs, each run about 11.9 s. Stated before it ran: it
 passes if the pooled interval contains 1. The pooled median is 0.9997, with a 95% interval of 0.9994 to 1.0005, and
 the 30 ratios run from 0.991 to 1.011, 11 of them above 1. So the harness shows no bias between its two sides, and
 30 pairs resolve well under the rule's half a percent. The records are in
@@ -1054,11 +1080,10 @@ a rule.
 - **No timing.** Every number here is a share of cycles, or a count, but the driver's 2.4 s, which is two runs under
   `time` on a loaded machine, not a measurement by the protocol. No baseline was timed, so nothing says how noisy each
   workload is on z, which the protocol's 30 pairs assume is enough.
-- **No harness runs the protocol yet.** The manifest says what each workload runs and how it's checked, with
-  `{build}` for the project's build, and `bench/kernels/profile.sh` says how each is built. No tool yet builds a
-  baseline and a candidate, runs a workload's checks on the candidate, and times the pairs. *Since 2026-11-22
+- **No tool builds a candidate.** The manifest says what each workload runs and how it's checked, with `{build}`
+  for the project's build, and `bench/kernels/profile.sh` says how each is built. Since 2026-11-22
   [the harness](#the-harness) runs a workload's checks and times the pairs, between two builds it's given. Nothing
-  yet builds a candidate from rewritten IR.*
+  in CI yet builds a baseline, or a candidate from rewritten IR, or checks the two differ only in the rewrite.
 - **llama.cpp's workloads weren't timed from the manifest** when it was fixed, and its check ran with the 0.5B model,
   not the manifest's 1.5B, which wasn't fetched: [above](#llamacpps-check-reaches-the-kernels-it-times). Its commands
   are `tests/llama_bench.py`'s, and the build its check needs is that script's, which writes `compile_commands.json`.
