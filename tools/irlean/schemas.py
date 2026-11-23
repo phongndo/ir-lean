@@ -88,7 +88,7 @@ KERNELS_MANIFEST = "ir-lean.kernels.manifest/2"
 KERNELS_DEMAND = "ir-lean.kernels.demand/1"
 # bench/kernels/builder.py: what a build of a project saw of its checks and its runs. And
 # bench/kernels/variants.py: its answer about one build. docs/kernels.md.
-KERNELS_EVIDENCE = "ir-lean.kernels.evidence/1"
+KERNELS_EVIDENCE = "ir-lean.kernels.evidence/2"
 KERNELS_VARIANT = "ir-lean.kernels.variant/1"
 
 ALL = {

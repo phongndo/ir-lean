@@ -17,6 +17,7 @@ usage: builder.py PLAN.json, with `out` and `TMPDIR` set, as a derivation's buil
 
 from __future__ import annotations
 
+import ctypes
 import json
 import os
 import sys
@@ -44,6 +45,35 @@ def size_of(path: Path) -> int | None:
 def ended(ran: proc.Ran) -> dict[str, Any]:
     """How a command ended, as the evidence has it."""
     return {"argv": [str(a) for a in ran.argv], "exit": ran.exit, "limit": ran.limit}
+
+
+def observe(
+    argv: list[str], *, seconds: int, cwd: Path, env: dict[str, str], log: Path, capture: bool = False
+) -> proc.Ran:
+    try:
+        return proc.run(
+            argv,
+            timeout=seconds,
+            cwd=cwd,
+            env=env,
+            stdout=proc.CAPTURE if capture else log,
+            stderr=log if capture else proc.STDOUT,
+        )
+    except OSError as error:
+        # The reserved observation differs from any exit the requested program can produce.
+        log.write_text(f"{error}\n")
+        return proc.Ran(argv, 127, b"", str(error).encode(), 0.0, "launch_failed")
+
+
+def dispatch(out: Path) -> dict[str, bool]:
+    """Query the runtime selection API of this build's shared library on the builder."""
+    library = ctypes.CDLL(str(out / "src/libsodium/.libs/libsodium.so"))
+    if library.sodium_init() < 0:
+        raise RuntimeError("libsodium CPU initialization failed")
+    return {
+        "avx2": bool(library.sodium_runtime_has_avx2()),
+        "avx512f": bool(library.sodium_runtime_has_avx512f()),
+    }
 
 
 def written(directory: Path) -> dict[str, str]:
@@ -75,9 +105,7 @@ def main(plan_path: Path) -> int:
         nonlocal count
         count += 1
         log = logs / f"{count:03}.log"
-        return proc.run(
-            argv, timeout=seconds, cwd=out, env={**env, **(more or {})}, stdout=log, stderr=proc.STDOUT
-        )
+        return observe(argv, seconds=seconds, cwd=out, env={**env, **(more or {})}, log=log)
 
     # The project's make takes its jobs from MAKEFLAGS, so its words are the plan's.
     jobs = {"MAKEFLAGS": f"-j{os.environ.get('NIX_BUILD_CORES', '1')}"}
@@ -91,6 +119,8 @@ def main(plan_path: Path) -> int:
     record: dict[str, Any] = {
         "schema": schemas.KERNELS_EVIDENCE,
         "out": str(out),
+        "attempt": plan["attempt"],
+        "dispatch": {},
         "build": built,
         "replaced": {key: hashing.sha256_file(Path(ir)) for key, ir in written(work / "replaced").items()},
         "compiled": written(work / "compiled"),
@@ -98,18 +128,38 @@ def main(plan_path: Path) -> int:
         "runs": [],
     }
     whole = len(built) == len(steps) and all(b["exit"] == 0 and b["limit"] is None for b in built)
-    for workload in plan["workloads"] if whole else []:
-        for check in workload["checks"]:
-            if check["kind"] != "known-answers":
-                continue
+    if whole:
+        probe = observe(
+            [sys.executable, "-I", __file__, "--dispatch", str(out)],
+            seconds=CHECK_SECONDS,
+            cwd=out,
+            env=env,
+            log=logs / "dispatch.log",
+            capture=True,
+        )
+        record["dispatch"] = json.loads(probe.stdout) if probe.ok else {}
+        if not probe.ok:
+            (logs / "dispatch-status.json").write_text(json.dumps(ended(probe)))
+
+    runnable = whole and bool(record["dispatch"]) and all(record["dispatch"].values())
+    for workload in plan["workloads"] if runnable else []:
+        for index, check in enumerate(c for c in workload["checks"] if c["kind"] == "known-answers"):
             result = Path(check["result"])
             before = result.exists()
             result.unlink(missing_ok=True)
-            commands = [ended(logged(argv, CHECK_SECONDS, plan["check_env"])) for argv in check["run"]]
+            marker = logs / f"check-{workload['name']}-{index}.comparison"
+            marker.unlink(missing_ok=True)
+            commands = []
+            for argv in check["run"]:
+                ran = logged(argv, CHECK_SECONDS, {**plan["check_env"], "KERNELS_CHECK_MARKER": str(marker)})
+                commands.append(ended(ran))
+                if not ran.ok:
+                    break
             record["checks"].append(
                 {
                     "workload": workload["name"],
                     "commands": commands,
+                    "comparison": marker.read_text().strip() if marker.is_file() else None,
                     "expected": check["expected"],
                     "expected_sha256": sha256_of(Path(check["expected"])),
                     "expected_size": size_of(Path(check["expected"])),
@@ -119,10 +169,13 @@ def main(plan_path: Path) -> int:
                     "result_size": size_of(result),
                 }
             )
-    for workload in plan["workloads"] if whole else []:
+    for workload in plan["workloads"] if runnable else []:
         launch = workload["run"]
         log = logs / f"run-{workload['name']}.log"
-        ran = proc.run(launch["argv"], timeout=RUN_SECONDS, cwd="/", env=launch["env"], stderr=log)
+        ran = observe(
+            launch["argv"], seconds=RUN_SECONDS, cwd=Path("/"), env=launch["env"], log=log, capture=True
+        )
+        (logs / f"run-{workload['name']}.stdout").write_bytes(ran.stdout)
         record["runs"].append(
             {
                 "workload": workload["name"],
@@ -141,6 +194,9 @@ def main(plan_path: Path) -> int:
 
 
 if __name__ == "__main__":
+    if len(sys.argv) == 3 and sys.argv[1] == "--dispatch":
+        print(json.dumps(dispatch(Path(sys.argv[2]))))
+        sys.exit(0)
     if len(sys.argv) != 2:
         sys.exit(__doc__)
     sys.exit(main(Path(sys.argv[1])))
