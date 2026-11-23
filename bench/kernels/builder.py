@@ -59,7 +59,7 @@ def main(plan_path: Path) -> int:
     plan = json.loads(plan_path.read_text())
     out = Path(os.environ["out"])  # noqa: SIM112, a derivation's builder is given `out`
     work = Path(os.environ["TMPDIR"]) / "kernels-plan"
-    for name in ("replace", "replaced", "compiled"):
+    for name in ("replace", "replacing", "replaced", "compiled"):
         (work / name).mkdir(parents=True)
     for key, ir in plan["replace"].items():
         link = work / "replace" / key
