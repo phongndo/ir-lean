@@ -262,25 +262,30 @@ Read on 2026-11-22, from llama.cpp's repository and each pull request's diff. No
 
 - **The kernels are the same on `master`.** `ggml/src/ggml-cpu/arch/x86/repack.cpp` at `master`, `44d5087`, is byte
   for byte the file at the pin, so both kernels still multiply with `maddubs` there.
-- **Two open pull requests already use `vpdpbusd` in them,** each found without this work, and before it:
+- **Two open pull requests already use `vpdpbusd` in them,** each opened before this rewrite was recorded, on
+  2026-11-07. Their diffs are other implementations than this one. Whether either was found independently of the
+  other isn't something the sources say:
   - [#23309](https://github.com/ggml-org/llama.cpp/pull/23309), opened on 2026-05-19, rewrites
     `ggml_gemv_q4_K_8x8_q8_K`. Its products go through `mul_sum_us8_pairs_acc_int32x8`, the helper that's `vpdpbusd`
-    on a build with AVX-512 VNNI or AVX-VNNI. It reports generating 12% to 23% faster on two Intel cores with
-    AVX-VNNI.
+    on a build with AVX-512 VNNI and AVX-512VL, or with AVX-VNNI, and `maddubs` otherwise. It reports generating
+    12% to 23% faster on two Intel cores with AVX-VNNI.
   - [#29397](https://github.com/ggml-org/llama.cpp/pull/29397), opened on 2026-09-24, adds a path to
     `ggml_gemm_q4_K_8x8_q8_K` for AVX-512 VNNI with VBMI, which also unpacks scales with byte permutes. It reports
     reading a 512-token prompt at 568.1 tokens a second against 380.5, on Zen 5 with 16 threads.
 - **Neither has a review yet.** A third, [#18495](https://github.com/ggml-org/llama.cpp/pull/18495), restructures
   the same two kernels for AVX2, and has been open since 2025-12-30.
-- **So this rewrite isn't one to send.** llama.cpp's
-  [contributing rules](https://github.com/ggml-org/llama.cpp/blob/master/CONTRIBUTING.md) ask for a comment on an
-  existing pull request, not a second one for the same change. And what it measured here, 5.5% to 7.2% reading a
-  prompt, is less than #29397 reports for the same kernel.
-- **What this page has that they don't is a proof.** #29397 checks its kernel against the generic one within a
-  relative difference of 1e-4, and #23309 by perplexity, generated text and llama.cpp's own test of the operation.
+- **So this rewrite isn't one to send as it is.** llama.cpp's
+  [contributing rules](https://github.com/ggml-org/llama.cpp/blob/master/CONTRIBUTING.md) ask whoever sends a
+  change to look for an existing pull request for the same one, and to comment there, not open a second. These
+  two change the same kernels to use the same instruction. #29397 reports more for its kernel than the 5.5% to 7.2%
+  measured here, on another machine and another model: comparing them would take one benchmark of both, which
+  wasn't run.
+- **Neither presents a proof for every input.** #29397 reports its kernel checked against the generic one within a
+  relative difference of 1e-4, and #23309 perplexity, generated text and llama.cpp's own test of the operation.
   [`Vnni.lean`](../tests/llama/Vnni.lean) proves this rewrite's 34 places for every input. It says nothing of their
   code: each is a different rewrite of the kernel.
-- **Release builds reach it too.** llama.cpp's releases build one CPU backend for each of several processors,
-  `GGML_CPU_ALL_VARIANTS`, and at the pin the ones for Cascade Lake, Ice Lake, Cooper Lake, Zen 4 and Sapphire
-  Rapids turn AVX-512 VNNI on (`ggml/src/CMakeLists.txt`). So "a build that targets those" in
-  [what it assumes](#what-it-assumes) is more than `-march=native`.
+- **Some release builds reach it too.** Where llama.cpp is configured with `GGML_CPU_ALL_VARIANTS`, as its
+  release workflow configures the x86-64 Linux build with `GGML_NATIVE` off, it builds one CPU backend for each of
+  several processors. At the pin the ones for Cascade Lake and Ice Lake turn AVX-512 VNNI on, and so do the ones
+  for Cooper Lake, Zen 4 and Sapphire Rapids where the compiler isn't MSVC (`ggml/src/CMakeLists.txt`). So "a
+  build that targets those" in [what it assumes](#what-it-assumes) is more than `-march=native`.
