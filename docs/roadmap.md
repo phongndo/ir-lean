@@ -513,15 +513,14 @@ certify mode stay, as tools: where a step matches a rule proved for every input,
 Decision 5 stands: a tool that ships calls no model, and a proposer runs offline.
 
 **What of it existed that day,** on `main`: the emitter and the model, and for each of llama.cpp's two rewrites,
-native checks and a proof written for it. Nothing timed a candidate by the protocol, and nothing proposed one for a
-kernel of the corpus.
+native checks and a proof written for it. Nothing timed a candidate by the protocol.
 
 Why:
 
 - **The rule search hasn't found a win.** [Rule search](rule-search.md#what-it-found) measured it. Every rule it
   has is one of LLVM's own, and of the 225 rewrites it found in LLVM's InstSimplify tests, none takes fewer uOps
-  than what `opt -O3` gives. It looks into scalar integer instructions only, where the corpus's kernels are SIMD,
-  and it has never run on the corpus. That doesn't show the corpus has no scalar win: nothing has looked.
+  than what `opt -O3` gives. It looks into scalar integer instructions only, and it has never run on the corpus.
+  That doesn't show the corpus has no scalar win: nothing has looked.
 - **The wins on `main` were each proved by a proof written for it.** Neither llama.cpp rewrite came from a rule.
   [The Q5 rewrite's record](llama-q5.md) has two other candidates dropped, one of them after it was proved, so the
   order there wasn't always this one's.
