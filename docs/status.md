@@ -92,6 +92,15 @@ slice, one with memory, but not in the kernel, which hasn't been translated, so 
 it is the emitter's refusing `llvm.fma`, the kernel's floating point choosing NaNs, which the cut lemma doesn't cover
 yet, and, as built, `!tbaa`; every other operation of the kernel's has its lemma.
 
+### libsodium's Argon2 round
+
+A candidate for the AVX-512 round of libsodium's Argon2, which rotates row `A` and not row `B` to line up the
+diagonals. Lean proves each of the 32 vectors that leave the four places it changes is what clang's IR computes, for
+every input, poison included, on the standard three axioms. Cutting those places out and putting them back is
+trusted, and the proofs are a prototype outside CI. By the corpus's protocol it's measurably faster on `argon2id`:
+1.0180 over 30 pairs, with a 95% interval of 1.0175 to 1.0185. It isn't a win yet.
+[libsodium's Argon2 round](argon2.md) has what's left. Checked and measured on 2026-11-22, on z.
+
 ## Tested
 
 Evidence and not proof. A pass here means no disagreement was found on the inputs tried.

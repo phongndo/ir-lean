@@ -1,0 +1,771 @@
+{
+ "schema": "ir-lean.kernels.session/1",
+ "project": "libsodium",
+ "workload": "secretstream",
+ "workloads": [
+  "argon2id",
+  "secretstream"
+ ],
+ "kind": "confirmation",
+ "control": false,
+ "seed": 2026112214,
+ "cpus": "12",
+ "topology": {
+  "12": {
+   "siblings": "12,28",
+   "l3": "8-15,24-31"
+  }
+ },
+ "threads": 1,
+ "measure": "time",
+ "rule": {
+  "min_pairs": 30,
+  "min_sessions": 2,
+  "threshold": 1.005,
+  "resamples": 20000,
+  "confidence": 0.95,
+  "min_seconds": 2.0
+ },
+ "manifest": {
+  "sha256": "c8936c54c4f0178216107276addb4e7fd24d79fa1cc263fa32f4a1e15c3bb893",
+  "corpus": true
+ },
+ "variants": {
+  "baseline": {
+   "build": "/home/dp/code/ir-lean/build/kernels/pilot/libsodium/base",
+   "env": {},
+   "identity": {
+    "loads": [
+     {
+      "name": "program",
+      "path": "/home/dp/code/ir-lean/build/kernels/pilot/libsodium/base/secretstream",
+      "sha256": "a439be793774ad141576d6414c6a8a2bdf4f6c78f4b486e5dc6da1a818d9b165"
+     },
+     {
+      "name": "libpthread.so.0",
+      "path": "/nix/store/pqyiidz5mi73wv5f91d48s9plcqyj5bz-glibc-2.44-57/lib/libpthread.so.0",
+      "sha256": "115bd7b1b35e7eaedecdc66ae848ff8572befe21ca035c0c5b5a79c865e94678"
+     },
+     {
+      "name": "libc.so.6",
+      "path": "/nix/store/pqyiidz5mi73wv5f91d48s9plcqyj5bz-glibc-2.44-57/lib/libc.so.6",
+      "sha256": "caaa4691f54660960a577c5397dc38a7fef9c5c617bb4e248f00bd3c9acd3726"
+     },
+     {
+      "name": "/nix/store/pqyiidz5mi73wv5f91d48s9plcqyj5bz-glibc-2.44-57/lib/ld-linux-x86-64.so.2",
+      "path": "/nix/store/pqyiidz5mi73wv5f91d48s9plcqyj5bz-glibc-2.44-57/lib64/ld-linux-x86-64.so.2",
+      "sha256": "d2fbe26249c12dd8ac1cfb618c705fe37d625d5a4dd4035b27869766480c1244"
+     }
+    ],
+    "id": "613b7a8648587e6b8b9f0d13ad9493554a51dfa9d280f013296f44a7968b44b8"
+   }
+  },
+  "candidate": {
+   "build": "/home/dp/code/ir-lean/build/kernels/pilot/libsodium/c1",
+   "env": {},
+   "identity": {
+    "loads": [
+     {
+      "name": "program",
+      "path": "/home/dp/code/ir-lean/build/kernels/pilot/libsodium/c1/secretstream",
+      "sha256": "f416ca5146e1488f2eaa6292e4f2b8aa485d30b790c9b94d46b8a029871e11f6"
+     },
+     {
+      "name": "libpthread.so.0",
+      "path": "/nix/store/pqyiidz5mi73wv5f91d48s9plcqyj5bz-glibc-2.44-57/lib/libpthread.so.0",
+      "sha256": "115bd7b1b35e7eaedecdc66ae848ff8572befe21ca035c0c5b5a79c865e94678"
+     },
+     {
+      "name": "libc.so.6",
+      "path": "/nix/store/pqyiidz5mi73wv5f91d48s9plcqyj5bz-glibc-2.44-57/lib/libc.so.6",
+      "sha256": "caaa4691f54660960a577c5397dc38a7fef9c5c617bb4e248f00bd3c9acd3726"
+     },
+     {
+      "name": "/nix/store/pqyiidz5mi73wv5f91d48s9plcqyj5bz-glibc-2.44-57/lib/ld-linux-x86-64.so.2",
+      "path": "/nix/store/pqyiidz5mi73wv5f91d48s9plcqyj5bz-glibc-2.44-57/lib64/ld-linux-x86-64.so.2",
+      "sha256": "d2fbe26249c12dd8ac1cfb618c705fe37d625d5a4dd4035b27869766480c1244"
+     }
+    ],
+    "id": "4437e23a4dc68f4df95ccfdae6a35abe234116970437686f4f2c72306e4c72f6"
+   }
+  }
+ },
+ "started": "2026-11-23T06:44:33+00:00",
+ "status": "complete",
+ "planned_pairs": 15,
+ "pairs": [
+  {
+   "pair": 1,
+   "order": [
+    "candidate",
+    "baseline"
+   ],
+   "candidate": {
+    "exit": 0,
+    "limit": null,
+    "figures": {
+     "seconds": 2.3384637260460295
+    },
+    "seconds": 2.3384637260460295,
+    "user_s": 2.332808,
+    "sys_s": 0.000996,
+    "load1": 1.0,
+    "output": [
+     {
+      "stdout": "46bf47eae5ef94a179f0ab1dcd13b9d8967977fea4108ca87789159b120b436b"
+     }
+    ]
+   },
+   "baseline": {
+    "exit": 0,
+    "limit": null,
+    "figures": {
+     "seconds": 2.3387215199763887
+    },
+    "seconds": 2.3387215199763887,
+    "user_s": 2.333941,
+    "sys_s": 0.0,
+    "load1": 1.0,
+    "output": [
+     {
+      "stdout": "46bf47eae5ef94a179f0ab1dcd13b9d8967977fea4108ca87789159b120b436b"
+     }
+    ]
+   },
+   "ratios": {
+    "seconds": 1.0001102407223545
+   }
+  },
+  {
+   "pair": 2,
+   "order": [
+    "baseline",
+    "candidate"
+   ],
+   "baseline": {
+    "exit": 0,
+    "limit": null,
+    "figures": {
+     "seconds": 2.338656323030591
+    },
+    "seconds": 2.338656323030591,
+    "user_s": 2.333027,
+    "sys_s": 0.000996,
+    "load1": 1.0,
+    "output": [
+     {
+      "stdout": "46bf47eae5ef94a179f0ab1dcd13b9d8967977fea4108ca87789159b120b436b"
+     }
+    ]
+   },
+   "candidate": {
+    "exit": 0,
+    "limit": null,
+    "figures": {
+     "seconds": 2.340727942995727
+    },
+    "seconds": 2.340727942995727,
+    "user_s": 2.335002,
+    "sys_s": 0.000995,
+    "load1": 1.0,
+    "output": [
+     {
+      "stdout": "46bf47eae5ef94a179f0ab1dcd13b9d8967977fea4108ca87789159b120b436b"
+     }
+    ]
+   },
+   "ratios": {
+    "seconds": 0.9991149676444309
+   }
+  },
+  {
+   "pair": 3,
+   "order": [
+    "baseline",
+    "candidate"
+   ],
+   "baseline": {
+    "exit": 0,
+    "limit": null,
+    "figures": {
+     "seconds": 2.337483894021716
+    },
+    "seconds": 2.337483894021716,
+    "user_s": 2.332776,
+    "sys_s": 0.0,
+    "load1": 1.0,
+    "output": [
+     {
+      "stdout": "46bf47eae5ef94a179f0ab1dcd13b9d8967977fea4108ca87789159b120b436b"
+     }
+    ]
+   },
+   "candidate": {
+    "exit": 0,
+    "limit": null,
+    "figures": {
+     "seconds": 2.3381931200274266
+    },
+    "seconds": 2.3381931200274266,
+    "user_s": 2.332569,
+    "sys_s": 0.000996,
+    "load1": 1.0,
+    "output": [
+     {
+      "stdout": "46bf47eae5ef94a179f0ab1dcd13b9d8967977fea4108ca87789159b120b436b"
+     }
+    ]
+   },
+   "ratios": {
+    "seconds": 0.9996966777467456
+   }
+  },
+  {
+   "pair": 4,
+   "order": [
+    "candidate",
+    "baseline"
+   ],
+   "candidate": {
+    "exit": 0,
+    "limit": null,
+    "figures": {
+     "seconds": 2.3374125870177522
+    },
+    "seconds": 2.3374125870177522,
+    "user_s": 2.333001,
+    "sys_s": 0.0,
+    "load1": 1.0,
+    "output": [
+     {
+      "stdout": "46bf47eae5ef94a179f0ab1dcd13b9d8967977fea4108ca87789159b120b436b"
+     }
+    ]
+   },
+   "baseline": {
+    "exit": 0,
+    "limit": null,
+    "figures": {
+     "seconds": 2.3373068060027435
+    },
+    "seconds": 2.3373068060027435,
+    "user_s": 2.331879,
+    "sys_s": 0.000998,
+    "load1": 1.0,
+    "output": [
+     {
+      "stdout": "46bf47eae5ef94a179f0ab1dcd13b9d8967977fea4108ca87789159b120b436b"
+     }
+    ]
+   },
+   "ratios": {
+    "seconds": 0.9999547443974606
+   }
+  },
+  {
+   "pair": 5,
+   "order": [
+    "baseline",
+    "candidate"
+   ],
+   "baseline": {
+    "exit": 0,
+    "limit": null,
+    "figures": {
+     "seconds": 2.338438037026208
+    },
+    "seconds": 2.338438037026208,
+    "user_s": 2.332604,
+    "sys_s": 0.000997,
+    "load1": 1.0,
+    "output": [
+     {
+      "stdout": "46bf47eae5ef94a179f0ab1dcd13b9d8967977fea4108ca87789159b120b436b"
+     }
+    ]
+   },
+   "candidate": {
+    "exit": 0,
+    "limit": null,
+    "figures": {
+     "seconds": 2.337060840043705
+    },
+    "seconds": 2.337060840043705,
+    "user_s": 2.331682,
+    "sys_s": 0.000995,
+    "load1": 1.0,
+    "output": [
+     {
+      "stdout": "46bf47eae5ef94a179f0ab1dcd13b9d8967977fea4108ca87789159b120b436b"
+     }
+    ]
+   },
+   "ratios": {
+    "seconds": 1.0005892858923078
+   }
+  },
+  {
+   "pair": 6,
+   "order": [
+    "baseline",
+    "candidate"
+   ],
+   "baseline": {
+    "exit": 0,
+    "limit": null,
+    "figures": {
+     "seconds": 2.33731919398997
+    },
+    "seconds": 2.33731919398997,
+    "user_s": 2.333133,
+    "sys_s": 0.0,
+    "load1": 1.0,
+    "output": [
+     {
+      "stdout": "46bf47eae5ef94a179f0ab1dcd13b9d8967977fea4108ca87789159b120b436b"
+     }
+    ]
+   },
+   "candidate": {
+    "exit": 0,
+    "limit": null,
+    "figures": {
+     "seconds": 2.3377897029859014
+    },
+    "seconds": 2.3377897029859014,
+    "user_s": 2.3335,
+    "sys_s": 0.0,
+    "load1": 1.0,
+    "output": [
+     {
+      "stdout": "46bf47eae5ef94a179f0ab1dcd13b9d8967977fea4108ca87789159b120b436b"
+     }
+    ]
+   },
+   "ratios": {
+    "seconds": 0.9997987376728836
+   }
+  },
+  {
+   "pair": 7,
+   "order": [
+    "baseline",
+    "candidate"
+   ],
+   "baseline": {
+    "exit": 0,
+    "limit": null,
+    "figures": {
+     "seconds": 2.3419015359831974
+    },
+    "seconds": 2.3419015359831974,
+    "user_s": 2.337449,
+    "sys_s": 0.0,
+    "load1": 1.0,
+    "output": [
+     {
+      "stdout": "46bf47eae5ef94a179f0ab1dcd13b9d8967977fea4108ca87789159b120b436b"
+     }
+    ]
+   },
+   "candidate": {
+    "exit": 0,
+    "limit": null,
+    "figures": {
+     "seconds": 2.338190918962937
+    },
+    "seconds": 2.338190918962937,
+    "user_s": 2.333548,
+    "sys_s": 0.0,
+    "load1": 1.0,
+    "output": [
+     {
+      "stdout": "46bf47eae5ef94a179f0ab1dcd13b9d8967977fea4108ca87789159b120b436b"
+     }
+    ]
+   },
+   "ratios": {
+    "seconds": 1.00158696066697
+   }
+  },
+  {
+   "pair": 8,
+   "order": [
+    "baseline",
+    "candidate"
+   ],
+   "baseline": {
+    "exit": 0,
+    "limit": null,
+    "figures": {
+     "seconds": 2.3383383150212467
+    },
+    "seconds": 2.3383383150212467,
+    "user_s": 2.332806,
+    "sys_s": 0.000998,
+    "load1": 1.0,
+    "output": [
+     {
+      "stdout": "46bf47eae5ef94a179f0ab1dcd13b9d8967977fea4108ca87789159b120b436b"
+     }
+    ]
+   },
+   "candidate": {
+    "exit": 0,
+    "limit": null,
+    "figures": {
+     "seconds": 2.3382709540310316
+    },
+    "seconds": 2.3382709540310316,
+    "user_s": 2.3336259999999998,
+    "sys_s": 0.0,
+    "load1": 1.0,
+    "output": [
+     {
+      "stdout": "46bf47eae5ef94a179f0ab1dcd13b9d8967977fea4108ca87789159b120b436b"
+     }
+    ]
+   },
+   "ratios": {
+    "seconds": 1.0000288080344577
+   }
+  },
+  {
+   "pair": 9,
+   "order": [
+    "candidate",
+    "baseline"
+   ],
+   "candidate": {
+    "exit": 0,
+    "limit": null,
+    "figures": {
+     "seconds": 2.3373169580008835
+    },
+    "seconds": 2.3373169580008835,
+    "user_s": 2.332949,
+    "sys_s": 0.0,
+    "load1": 1.0,
+    "output": [
+     {
+      "stdout": "46bf47eae5ef94a179f0ab1dcd13b9d8967977fea4108ca87789159b120b436b"
+     }
+    ]
+   },
+   "baseline": {
+    "exit": 0,
+    "limit": null,
+    "figures": {
+     "seconds": 2.3386209689779207
+    },
+    "seconds": 2.3386209689779207,
+    "user_s": 2.333962,
+    "sys_s": 0.0,
+    "load1": 1.0,
+    "output": [
+     {
+      "stdout": "46bf47eae5ef94a179f0ab1dcd13b9d8967977fea4108ca87789159b120b436b"
+     }
+    ]
+   },
+   "ratios": {
+    "seconds": 1.0005579093466863
+   }
+  },
+  {
+   "pair": 10,
+   "order": [
+    "baseline",
+    "candidate"
+   ],
+   "baseline": {
+    "exit": 0,
+    "limit": null,
+    "figures": {
+     "seconds": 2.336925304029137
+    },
+    "seconds": 2.336925304029137,
+    "user_s": 2.332526,
+    "sys_s": 0.0,
+    "load1": 1.0,
+    "output": [
+     {
+      "stdout": "46bf47eae5ef94a179f0ab1dcd13b9d8967977fea4108ca87789159b120b436b"
+     }
+    ]
+   },
+   "candidate": {
+    "exit": 0,
+    "limit": null,
+    "figures": {
+     "seconds": 2.3383573929895647
+    },
+    "seconds": 2.3383573929895647,
+    "user_s": 2.333624,
+    "sys_s": 0.0,
+    "load1": 1.0,
+    "output": [
+     {
+      "stdout": "46bf47eae5ef94a179f0ab1dcd13b9d8967977fea4108ca87789159b120b436b"
+     }
+    ]
+   },
+   "ratios": {
+    "seconds": 0.9993875662613759
+   }
+  },
+  {
+   "pair": 11,
+   "order": [
+    "candidate",
+    "baseline"
+   ],
+   "candidate": {
+    "exit": 0,
+    "limit": null,
+    "figures": {
+     "seconds": 2.339276503014844
+    },
+    "seconds": 2.339276503014844,
+    "user_s": 2.333885,
+    "sys_s": 0.000998,
+    "load1": 1.0,
+    "output": [
+     {
+      "stdout": "46bf47eae5ef94a179f0ab1dcd13b9d8967977fea4108ca87789159b120b436b"
+     }
+    ]
+   },
+   "baseline": {
+    "exit": 0,
+    "limit": null,
+    "figures": {
+     "seconds": 2.337899467034731
+    },
+    "seconds": 2.337899467034731,
+    "user_s": 2.332402,
+    "sys_s": 0.000997,
+    "load1": 1.0,
+    "output": [
+     {
+      "stdout": "46bf47eae5ef94a179f0ab1dcd13b9d8967977fea4108ca87789159b120b436b"
+     }
+    ]
+   },
+   "ratios": {
+    "seconds": 0.9994113410798859
+   }
+  },
+  {
+   "pair": 12,
+   "order": [
+    "baseline",
+    "candidate"
+   ],
+   "baseline": {
+    "exit": 0,
+    "limit": null,
+    "figures": {
+     "seconds": 2.338924895040691
+    },
+    "seconds": 2.338924895040691,
+    "user_s": 2.334427,
+    "sys_s": 0.0,
+    "load1": 1.0,
+    "output": [
+     {
+      "stdout": "46bf47eae5ef94a179f0ab1dcd13b9d8967977fea4108ca87789159b120b436b"
+     }
+    ]
+   },
+   "candidate": {
+    "exit": 0,
+    "limit": null,
+    "figures": {
+     "seconds": 2.336586439050734
+    },
+    "seconds": 2.336586439050734,
+    "user_s": 2.332361,
+    "sys_s": 0.0,
+    "load1": 1.0,
+    "output": [
+     {
+      "stdout": "46bf47eae5ef94a179f0ab1dcd13b9d8967977fea4108ca87789159b120b436b"
+     }
+    ]
+   },
+   "ratios": {
+    "seconds": 1.001000800120584
+   }
+  },
+  {
+   "pair": 13,
+   "order": [
+    "candidate",
+    "baseline"
+   ],
+   "candidate": {
+    "exit": 0,
+    "limit": null,
+    "figures": {
+     "seconds": 2.3382979690213688
+    },
+    "seconds": 2.3382979690213688,
+    "user_s": 2.33361,
+    "sys_s": 0.0,
+    "load1": 1.0,
+    "output": [
+     {
+      "stdout": "46bf47eae5ef94a179f0ab1dcd13b9d8967977fea4108ca87789159b120b436b"
+     }
+    ]
+   },
+   "baseline": {
+    "exit": 0,
+    "limit": null,
+    "figures": {
+     "seconds": 2.3383755030226894
+    },
+    "seconds": 2.3383755030226894,
+    "user_s": 2.334044,
+    "sys_s": 0.0,
+    "load1": 1.0,
+    "output": [
+     {
+      "stdout": "46bf47eae5ef94a179f0ab1dcd13b9d8967977fea4108ca87789159b120b436b"
+     }
+    ]
+   },
+   "ratios": {
+    "seconds": 1.000033158306746
+   }
+  },
+  {
+   "pair": 14,
+   "order": [
+    "baseline",
+    "candidate"
+   ],
+   "baseline": {
+    "exit": 0,
+    "limit": null,
+    "figures": {
+     "seconds": 2.338457772973925
+    },
+    "seconds": 2.338457772973925,
+    "user_s": 2.3329459999999997,
+    "sys_s": 0.000998,
+    "load1": 1.0,
+    "output": [
+     {
+      "stdout": "46bf47eae5ef94a179f0ab1dcd13b9d8967977fea4108ca87789159b120b436b"
+     }
+    ]
+   },
+   "candidate": {
+    "exit": 0,
+    "limit": null,
+    "figures": {
+     "seconds": 2.3384288220549934
+    },
+    "seconds": 2.3384288220549934,
+    "user_s": 2.33293,
+    "sys_s": 0.000998,
+    "load1": 1.0,
+    "output": [
+     {
+      "stdout": "46bf47eae5ef94a179f0ab1dcd13b9d8967977fea4108ca87789159b120b436b"
+     }
+    ]
+   },
+   "ratios": {
+    "seconds": 1.0000123805003849
+   }
+  },
+  {
+   "pair": 15,
+   "order": [
+    "candidate",
+    "baseline"
+   ],
+   "candidate": {
+    "exit": 0,
+    "limit": null,
+    "figures": {
+     "seconds": 2.338485974003561
+    },
+    "seconds": 2.338485974003561,
+    "user_s": 2.332919,
+    "sys_s": 0.000996,
+    "load1": 1.0,
+    "output": [
+     {
+      "stdout": "46bf47eae5ef94a179f0ab1dcd13b9d8967977fea4108ca87789159b120b436b"
+     }
+    ]
+   },
+   "baseline": {
+    "exit": 0,
+    "limit": null,
+    "figures": {
+     "seconds": 2.3391815529903397
+    },
+    "seconds": 2.3391815529903397,
+    "user_s": 2.334585,
+    "sys_s": 0.0,
+    "load1": 1.0,
+    "output": [
+     {
+      "stdout": "46bf47eae5ef94a179f0ab1dcd13b9d8967977fea4108ca87789159b120b436b"
+     }
+    ]
+   },
+   "ratios": {
+    "seconds": 1.0002974484322384
+   }
+  }
+ ],
+ "checks": [
+  {
+   "check": 1,
+   "kind": "output",
+   "on": "every timed run"
+  }
+ ],
+ "warm_up": {
+  "baseline": {
+   "exit": 0,
+   "limit": null,
+   "figures": {
+    "seconds": 2.3379080619779415
+   },
+   "seconds": 2.3379080619779415,
+   "user_s": 2.333331,
+   "sys_s": 0.0,
+   "load1": 1.0,
+   "output": [
+    {
+     "stdout": "46bf47eae5ef94a179f0ab1dcd13b9d8967977fea4108ca87789159b120b436b"
+    }
+   ]
+  },
+  "candidate": {
+   "exit": 0,
+   "limit": null,
+   "figures": {
+    "seconds": 2.340643598989118
+   },
+   "seconds": 2.340643598989118,
+   "user_s": 2.335881,
+   "sys_s": 0.0,
+   "load1": 1.0,
+   "output": [
+    {
+     "stdout": "46bf47eae5ef94a179f0ab1dcd13b9d8967977fea4108ca87789159b120b436b"
+    }
+   ]
+  }
+ },
+ "repeat": 1,
+ "ended": "2026-11-23T06:45:48+00:00"
+}

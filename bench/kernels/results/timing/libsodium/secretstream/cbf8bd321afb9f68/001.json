@@ -1,0 +1,771 @@
+{
+ "schema": "ir-lean.kernels.session/1",
+ "project": "libsodium",
+ "workload": "secretstream",
+ "workloads": [
+  "argon2id",
+  "secretstream"
+ ],
+ "kind": "confirmation",
+ "control": false,
+ "seed": 2026112213,
+ "cpus": "12",
+ "topology": {
+  "12": {
+   "siblings": "12,28",
+   "l3": "8-15,24-31"
+  }
+ },
+ "threads": 1,
+ "measure": "time",
+ "rule": {
+  "min_pairs": 30,
+  "min_sessions": 2,
+  "threshold": 1.005,
+  "resamples": 20000,
+  "confidence": 0.95,
+  "min_seconds": 2.0
+ },
+ "manifest": {
+  "sha256": "c8936c54c4f0178216107276addb4e7fd24d79fa1cc263fa32f4a1e15c3bb893",
+  "corpus": true
+ },
+ "variants": {
+  "baseline": {
+   "build": "/home/dp/code/ir-lean/build/kernels/pilot/libsodium/base",
+   "env": {},
+   "identity": {
+    "loads": [
+     {
+      "name": "program",
+      "path": "/home/dp/code/ir-lean/build/kernels/pilot/libsodium/base/secretstream",
+      "sha256": "a439be793774ad141576d6414c6a8a2bdf4f6c78f4b486e5dc6da1a818d9b165"
+     },
+     {
+      "name": "libpthread.so.0",
+      "path": "/nix/store/pqyiidz5mi73wv5f91d48s9plcqyj5bz-glibc-2.44-57/lib/libpthread.so.0",
+      "sha256": "115bd7b1b35e7eaedecdc66ae848ff8572befe21ca035c0c5b5a79c865e94678"
+     },
+     {
+      "name": "libc.so.6",
+      "path": "/nix/store/pqyiidz5mi73wv5f91d48s9plcqyj5bz-glibc-2.44-57/lib/libc.so.6",
+      "sha256": "caaa4691f54660960a577c5397dc38a7fef9c5c617bb4e248f00bd3c9acd3726"
+     },
+     {
+      "name": "/nix/store/pqyiidz5mi73wv5f91d48s9plcqyj5bz-glibc-2.44-57/lib/ld-linux-x86-64.so.2",
+      "path": "/nix/store/pqyiidz5mi73wv5f91d48s9plcqyj5bz-glibc-2.44-57/lib64/ld-linux-x86-64.so.2",
+      "sha256": "d2fbe26249c12dd8ac1cfb618c705fe37d625d5a4dd4035b27869766480c1244"
+     }
+    ],
+    "id": "613b7a8648587e6b8b9f0d13ad9493554a51dfa9d280f013296f44a7968b44b8"
+   }
+  },
+  "candidate": {
+   "build": "/home/dp/code/ir-lean/build/kernels/pilot/libsodium/c1",
+   "env": {},
+   "identity": {
+    "loads": [
+     {
+      "name": "program",
+      "path": "/home/dp/code/ir-lean/build/kernels/pilot/libsodium/c1/secretstream",
+      "sha256": "f416ca5146e1488f2eaa6292e4f2b8aa485d30b790c9b94d46b8a029871e11f6"
+     },
+     {
+      "name": "libpthread.so.0",
+      "path": "/nix/store/pqyiidz5mi73wv5f91d48s9plcqyj5bz-glibc-2.44-57/lib/libpthread.so.0",
+      "sha256": "115bd7b1b35e7eaedecdc66ae848ff8572befe21ca035c0c5b5a79c865e94678"
+     },
+     {
+      "name": "libc.so.6",
+      "path": "/nix/store/pqyiidz5mi73wv5f91d48s9plcqyj5bz-glibc-2.44-57/lib/libc.so.6",
+      "sha256": "caaa4691f54660960a577c5397dc38a7fef9c5c617bb4e248f00bd3c9acd3726"
+     },
+     {
+      "name": "/nix/store/pqyiidz5mi73wv5f91d48s9plcqyj5bz-glibc-2.44-57/lib/ld-linux-x86-64.so.2",
+      "path": "/nix/store/pqyiidz5mi73wv5f91d48s9plcqyj5bz-glibc-2.44-57/lib64/ld-linux-x86-64.so.2",
+      "sha256": "d2fbe26249c12dd8ac1cfb618c705fe37d625d5a4dd4035b27869766480c1244"
+     }
+    ],
+    "id": "4437e23a4dc68f4df95ccfdae6a35abe234116970437686f4f2c72306e4c72f6"
+   }
+  }
+ },
+ "started": "2026-11-23T06:43:18+00:00",
+ "status": "complete",
+ "planned_pairs": 15,
+ "pairs": [
+  {
+   "pair": 1,
+   "order": [
+    "candidate",
+    "baseline"
+   ],
+   "candidate": {
+    "exit": 0,
+    "limit": null,
+    "figures": {
+     "seconds": 2.3374533519963734
+    },
+    "seconds": 2.3374533519963734,
+    "user_s": 2.331701,
+    "sys_s": 0.000998,
+    "load1": 1.00146484375,
+    "output": [
+     {
+      "stdout": "46bf47eae5ef94a179f0ab1dcd13b9d8967977fea4108ca87789159b120b436b"
+     }
+    ]
+   },
+   "baseline": {
+    "exit": 0,
+    "limit": null,
+    "figures": {
+     "seconds": 2.3381153650116175
+    },
+    "seconds": 2.3381153650116175,
+    "user_s": 2.332409,
+    "sys_s": 0.000997,
+    "load1": 1.00146484375,
+    "output": [
+     {
+      "stdout": "46bf47eae5ef94a179f0ab1dcd13b9d8967977fea4108ca87789159b120b436b"
+     }
+    ]
+   },
+   "ratios": {
+    "seconds": 1.000283219776206
+   }
+  },
+  {
+   "pair": 2,
+   "order": [
+    "baseline",
+    "candidate"
+   ],
+   "baseline": {
+    "exit": 0,
+    "limit": null,
+    "figures": {
+     "seconds": 2.337711911997758
+    },
+    "seconds": 2.337711911997758,
+    "user_s": 2.333109,
+    "sys_s": 0.0,
+    "load1": 1.0009765625,
+    "output": [
+     {
+      "stdout": "46bf47eae5ef94a179f0ab1dcd13b9d8967977fea4108ca87789159b120b436b"
+     }
+    ]
+   },
+   "candidate": {
+    "exit": 0,
+    "limit": null,
+    "figures": {
+     "seconds": 2.3373256060294807
+    },
+    "seconds": 2.3373256060294807,
+    "user_s": 2.332956,
+    "sys_s": 0.0,
+    "load1": 1.0009765625,
+    "output": [
+     {
+      "stdout": "46bf47eae5ef94a179f0ab1dcd13b9d8967977fea4108ca87789159b120b436b"
+     }
+    ]
+   },
+   "ratios": {
+    "seconds": 1.0001652769161817
+   }
+  },
+  {
+   "pair": 3,
+   "order": [
+    "baseline",
+    "candidate"
+   ],
+   "baseline": {
+    "exit": 0,
+    "limit": null,
+    "figures": {
+     "seconds": 2.339805565017741
+    },
+    "seconds": 2.339805565017741,
+    "user_s": 2.3350049999999998,
+    "sys_s": 0.0,
+    "load1": 1.0009765625,
+    "output": [
+     {
+      "stdout": "46bf47eae5ef94a179f0ab1dcd13b9d8967977fea4108ca87789159b120b436b"
+     }
+    ]
+   },
+   "candidate": {
+    "exit": 0,
+    "limit": null,
+    "figures": {
+     "seconds": 2.3385366380098276
+    },
+    "seconds": 2.3385366380098276,
+    "user_s": 2.333923,
+    "sys_s": 0.0,
+    "load1": 1.00048828125,
+    "output": [
+     {
+      "stdout": "46bf47eae5ef94a179f0ab1dcd13b9d8967977fea4108ca87789159b120b436b"
+     }
+    ]
+   },
+   "ratios": {
+    "seconds": 1.000542615833889
+   }
+  },
+  {
+   "pair": 4,
+   "order": [
+    "baseline",
+    "candidate"
+   ],
+   "baseline": {
+    "exit": 0,
+    "limit": null,
+    "figures": {
+     "seconds": 2.339025591034442
+    },
+    "seconds": 2.339025591034442,
+    "user_s": 2.334374,
+    "sys_s": 0.0,
+    "load1": 1.00048828125,
+    "output": [
+     {
+      "stdout": "46bf47eae5ef94a179f0ab1dcd13b9d8967977fea4108ca87789159b120b436b"
+     }
+    ]
+   },
+   "candidate": {
+    "exit": 0,
+    "limit": null,
+    "figures": {
+     "seconds": 2.3387305609649047
+    },
+    "seconds": 2.3387305609649047,
+    "user_s": 2.333123,
+    "sys_s": 0.000998,
+    "load1": 1.0,
+    "output": [
+     {
+      "stdout": "46bf47eae5ef94a179f0ab1dcd13b9d8967977fea4108ca87789159b120b436b"
+     }
+    ]
+   },
+   "ratios": {
+    "seconds": 1.0001261496618985
+   }
+  },
+  {
+   "pair": 5,
+   "order": [
+    "baseline",
+    "candidate"
+   ],
+   "baseline": {
+    "exit": 0,
+    "limit": null,
+    "figures": {
+     "seconds": 2.3383674490032718
+    },
+    "seconds": 2.3383674490032718,
+    "user_s": 2.332823,
+    "sys_s": 0.000997,
+    "load1": 1.0,
+    "output": [
+     {
+      "stdout": "46bf47eae5ef94a179f0ab1dcd13b9d8967977fea4108ca87789159b120b436b"
+     }
+    ]
+   },
+   "candidate": {
+    "exit": 0,
+    "limit": null,
+    "figures": {
+     "seconds": 2.339298123959452
+    },
+    "seconds": 2.339298123959452,
+    "user_s": 2.334839,
+    "sys_s": 0.0,
+    "load1": 1.0,
+    "output": [
+     {
+      "stdout": "46bf47eae5ef94a179f0ab1dcd13b9d8967977fea4108ca87789159b120b436b"
+     }
+    ]
+   },
+   "ratios": {
+    "seconds": 0.9996021563277258
+   }
+  },
+  {
+   "pair": 6,
+   "order": [
+    "candidate",
+    "baseline"
+   ],
+   "candidate": {
+    "exit": 0,
+    "limit": null,
+    "figures": {
+     "seconds": 2.3400760359945707
+    },
+    "seconds": 2.3400760359945707,
+    "user_s": 2.3354179999999998,
+    "sys_s": 0.0,
+    "load1": 1.0,
+    "output": [
+     {
+      "stdout": "46bf47eae5ef94a179f0ab1dcd13b9d8967977fea4108ca87789159b120b436b"
+     }
+    ]
+   },
+   "baseline": {
+    "exit": 0,
+    "limit": null,
+    "figures": {
+     "seconds": 2.3402462429949082
+    },
+    "seconds": 2.3402462429949082,
+    "user_s": 2.335596,
+    "sys_s": 0.0,
+    "load1": 1.0,
+    "output": [
+     {
+      "stdout": "46bf47eae5ef94a179f0ab1dcd13b9d8967977fea4108ca87789159b120b436b"
+     }
+    ]
+   },
+   "ratios": {
+    "seconds": 1.0000727356708583
+   }
+  },
+  {
+   "pair": 7,
+   "order": [
+    "baseline",
+    "candidate"
+   ],
+   "baseline": {
+    "exit": 0,
+    "limit": null,
+    "figures": {
+     "seconds": 2.3380797800491564
+    },
+    "seconds": 2.3380797800491564,
+    "user_s": 2.333528,
+    "sys_s": 0.0,
+    "load1": 1.0,
+    "output": [
+     {
+      "stdout": "46bf47eae5ef94a179f0ab1dcd13b9d8967977fea4108ca87789159b120b436b"
+     }
+    ]
+   },
+   "candidate": {
+    "exit": 0,
+    "limit": null,
+    "figures": {
+     "seconds": 2.3386517129838467
+    },
+    "seconds": 2.3386517129838467,
+    "user_s": 2.333046,
+    "sys_s": 0.000997,
+    "load1": 1.0,
+    "output": [
+     {
+      "stdout": "46bf47eae5ef94a179f0ab1dcd13b9d8967977fea4108ca87789159b120b436b"
+     }
+    ]
+   },
+   "ratios": {
+    "seconds": 0.9997554433045694
+   }
+  },
+  {
+   "pair": 8,
+   "order": [
+    "candidate",
+    "baseline"
+   ],
+   "candidate": {
+    "exit": 0,
+    "limit": null,
+    "figures": {
+     "seconds": 2.340370116988197
+    },
+    "seconds": 2.340370116988197,
+    "user_s": 2.335695,
+    "sys_s": 0.0,
+    "load1": 1.0,
+    "output": [
+     {
+      "stdout": "46bf47eae5ef94a179f0ab1dcd13b9d8967977fea4108ca87789159b120b436b"
+     }
+    ]
+   },
+   "baseline": {
+    "exit": 0,
+    "limit": null,
+    "figures": {
+     "seconds": 2.3399490829906426
+    },
+    "seconds": 2.3399490829906426,
+    "user_s": 2.335559,
+    "sys_s": 0.0,
+    "load1": 1.0,
+    "output": [
+     {
+      "stdout": "46bf47eae5ef94a179f0ab1dcd13b9d8967977fea4108ca87789159b120b436b"
+     }
+    ]
+   },
+   "ratios": {
+    "seconds": 0.9998200993960322
+   }
+  },
+  {
+   "pair": 9,
+   "order": [
+    "baseline",
+    "candidate"
+   ],
+   "baseline": {
+    "exit": 0,
+    "limit": null,
+    "figures": {
+     "seconds": 2.3410152069991454
+    },
+    "seconds": 2.3410152069991454,
+    "user_s": 2.335406,
+    "sys_s": 0.000996,
+    "load1": 1.0,
+    "output": [
+     {
+      "stdout": "46bf47eae5ef94a179f0ab1dcd13b9d8967977fea4108ca87789159b120b436b"
+     }
+    ]
+   },
+   "candidate": {
+    "exit": 0,
+    "limit": null,
+    "figures": {
+     "seconds": 2.340445273963269
+    },
+    "seconds": 2.340445273963269,
+    "user_s": 2.335749,
+    "sys_s": 0.0,
+    "load1": 1.0,
+    "output": [
+     {
+      "stdout": "46bf47eae5ef94a179f0ab1dcd13b9d8967977fea4108ca87789159b120b436b"
+     }
+    ]
+   },
+   "ratios": {
+    "seconds": 1.0002435147884965
+   }
+  },
+  {
+   "pair": 10,
+   "order": [
+    "candidate",
+    "baseline"
+   ],
+   "candidate": {
+    "exit": 0,
+    "limit": null,
+    "figures": {
+     "seconds": 2.337796382023953
+    },
+    "seconds": 2.337796382023953,
+    "user_s": 2.33315,
+    "sys_s": 0.0,
+    "load1": 1.0,
+    "output": [
+     {
+      "stdout": "46bf47eae5ef94a179f0ab1dcd13b9d8967977fea4108ca87789159b120b436b"
+     }
+    ]
+   },
+   "baseline": {
+    "exit": 0,
+    "limit": null,
+    "figures": {
+     "seconds": 2.33942151395604
+    },
+    "seconds": 2.33942151395604,
+    "user_s": 2.334758,
+    "sys_s": 0.0,
+    "load1": 1.0,
+    "output": [
+     {
+      "stdout": "46bf47eae5ef94a179f0ab1dcd13b9d8967977fea4108ca87789159b120b436b"
+     }
+    ]
+   },
+   "ratios": {
+    "seconds": 1.000695155465456
+   }
+  },
+  {
+   "pair": 11,
+   "order": [
+    "baseline",
+    "candidate"
+   ],
+   "baseline": {
+    "exit": 0,
+    "limit": null,
+    "figures": {
+     "seconds": 2.3373347059823573
+    },
+    "seconds": 2.3373347059823573,
+    "user_s": 2.332902,
+    "sys_s": 0.0,
+    "load1": 1.0,
+    "output": [
+     {
+      "stdout": "46bf47eae5ef94a179f0ab1dcd13b9d8967977fea4108ca87789159b120b436b"
+     }
+    ]
+   },
+   "candidate": {
+    "exit": 0,
+    "limit": null,
+    "figures": {
+     "seconds": 2.338674061000347
+    },
+    "seconds": 2.338674061000347,
+    "user_s": 2.3341089999999998,
+    "sys_s": 0.0,
+    "load1": 1.0,
+    "output": [
+     {
+      "stdout": "46bf47eae5ef94a179f0ab1dcd13b9d8967977fea4108ca87789159b120b436b"
+     }
+    ]
+   },
+   "ratios": {
+    "seconds": 0.9994273015464938
+   }
+  },
+  {
+   "pair": 12,
+   "order": [
+    "baseline",
+    "candidate"
+   ],
+   "baseline": {
+    "exit": 0,
+    "limit": null,
+    "figures": {
+     "seconds": 2.3396393000148237
+    },
+    "seconds": 2.3396393000148237,
+    "user_s": 2.334874,
+    "sys_s": 0.0,
+    "load1": 1.0,
+    "output": [
+     {
+      "stdout": "46bf47eae5ef94a179f0ab1dcd13b9d8967977fea4108ca87789159b120b436b"
+     }
+    ]
+   },
+   "candidate": {
+    "exit": 0,
+    "limit": null,
+    "figures": {
+     "seconds": 2.3385562780313194
+    },
+    "seconds": 2.3385562780313194,
+    "user_s": 2.333855,
+    "sys_s": 0.0,
+    "load1": 1.0,
+    "output": [
+     {
+      "stdout": "46bf47eae5ef94a179f0ab1dcd13b9d8967977fea4108ca87789159b120b436b"
+     }
+    ]
+   },
+   "ratios": {
+    "seconds": 1.0004631156383441
+   }
+  },
+  {
+   "pair": 13,
+   "order": [
+    "candidate",
+    "baseline"
+   ],
+   "candidate": {
+    "exit": 0,
+    "limit": null,
+    "figures": {
+     "seconds": 2.33695088501554
+    },
+    "seconds": 2.33695088501554,
+    "user_s": 2.33254,
+    "sys_s": 0.0,
+    "load1": 1.0,
+    "output": [
+     {
+      "stdout": "46bf47eae5ef94a179f0ab1dcd13b9d8967977fea4108ca87789159b120b436b"
+     }
+    ]
+   },
+   "baseline": {
+    "exit": 0,
+    "limit": null,
+    "figures": {
+     "seconds": 2.3371492059668526
+    },
+    "seconds": 2.3371492059668526,
+    "user_s": 2.332842,
+    "sys_s": 0.0,
+    "load1": 1.0,
+    "output": [
+     {
+      "stdout": "46bf47eae5ef94a179f0ab1dcd13b9d8967977fea4108ca87789159b120b436b"
+     }
+    ]
+   },
+   "ratios": {
+    "seconds": 1.0000848631233905
+   }
+  },
+  {
+   "pair": 14,
+   "order": [
+    "candidate",
+    "baseline"
+   ],
+   "candidate": {
+    "exit": 0,
+    "limit": null,
+    "figures": {
+     "seconds": 2.3385168010136113
+    },
+    "seconds": 2.3385168010136113,
+    "user_s": 2.333838,
+    "sys_s": 0.0,
+    "load1": 1.0,
+    "output": [
+     {
+      "stdout": "46bf47eae5ef94a179f0ab1dcd13b9d8967977fea4108ca87789159b120b436b"
+     }
+    ]
+   },
+   "baseline": {
+    "exit": 0,
+    "limit": null,
+    "figures": {
+     "seconds": 2.3400876349769533
+    },
+    "seconds": 2.3400876349769533,
+    "user_s": 2.334215,
+    "sys_s": 0.0009989999999999999,
+    "load1": 1.0,
+    "output": [
+     {
+      "stdout": "46bf47eae5ef94a179f0ab1dcd13b9d8967977fea4108ca87789159b120b436b"
+     }
+    ]
+   },
+   "ratios": {
+    "seconds": 1.0006717223338575
+   }
+  },
+  {
+   "pair": 15,
+   "order": [
+    "candidate",
+    "baseline"
+   ],
+   "candidate": {
+    "exit": 0,
+    "limit": null,
+    "figures": {
+     "seconds": 2.342380526009947
+    },
+    "seconds": 2.342380526009947,
+    "user_s": 2.337492,
+    "sys_s": 0.0,
+    "load1": 1.0,
+    "output": [
+     {
+      "stdout": "46bf47eae5ef94a179f0ab1dcd13b9d8967977fea4108ca87789159b120b436b"
+     }
+    ]
+   },
+   "baseline": {
+    "exit": 0,
+    "limit": null,
+    "figures": {
+     "seconds": 2.3393458299688064
+    },
+    "seconds": 2.3393458299688064,
+    "user_s": 2.334925,
+    "sys_s": 0.0,
+    "load1": 1.0,
+    "output": [
+     {
+      "stdout": "46bf47eae5ef94a179f0ab1dcd13b9d8967977fea4108ca87789159b120b436b"
+     }
+    ]
+   },
+   "ratios": {
+    "seconds": 0.9987044393481574
+   }
+  }
+ ],
+ "checks": [
+  {
+   "check": 1,
+   "kind": "output",
+   "on": "every timed run"
+  }
+ ],
+ "warm_up": {
+  "baseline": {
+   "exit": 0,
+   "limit": null,
+   "figures": {
+    "seconds": 2.339263437956106
+   },
+   "seconds": 2.339263437956106,
+   "user_s": 2.334184,
+   "sys_s": 0.0,
+   "load1": 1.001953125,
+   "output": [
+    {
+     "stdout": "46bf47eae5ef94a179f0ab1dcd13b9d8967977fea4108ca87789159b120b436b"
+    }
+   ]
+  },
+  "candidate": {
+   "exit": 0,
+   "limit": null,
+   "figures": {
+    "seconds": 2.3380826450302266
+   },
+   "seconds": 2.3380826450302266,
+   "user_s": 2.333356,
+   "sys_s": 0.0,
+   "load1": 1.001953125,
+   "output": [
+    {
+     "stdout": "46bf47eae5ef94a179f0ab1dcd13b9d8967977fea4108ca87789159b120b436b"
+    }
+   ]
+  }
+ },
+ "repeat": 1,
+ "ended": "2026-11-23T06:44:33+00:00"
+}

@@ -82,6 +82,7 @@ build/irl verify check --c tests/real/bi_reverse.c --namespace Real --function p
 | [LLVM's own code](docs/llvm.md) | What's proved about llvm-project, how to reproduce it, and what it assumes |
 | [llama.cpp](docs/llama.md) | A proved rewrite of the q4_K kernels that `clang -O3` misses, and what it does to real inference |
 | [llama.cpp's Q5](docs/llama-q5.md) | A proved Q5 bit-unpacking rewrite, real CPU generation measurements, and the reproducer |
+| [libsodium's Argon2 round](docs/argon2.md) | The first pilot outside llama.cpp: a candidate for Argon2's AVX-512 round, measurably faster by the corpus's protocol, with its slices proved. Not a win yet, and what's left |
 | [Design](docs/design.md) | What gets emitted, what the model covers, and why |
 | [Testing](docs/testing.md) | How to run the tests and linters, and what each one checks |
 | [Python](docs/python.md) | What the Python is for, the library every script shares, and the rules that keep it small |
@@ -100,12 +101,13 @@ request, with a link to the test or run that shows it.
 `ir-lean` is under the [Apache License, Version 2.0](LICENSE). Copyright 2026 the `ir-lean` authors.
 Contributions are under the same license unless they say otherwise, as section 5 of the license puts it.
 
-Two committed files come from other projects, and keep those projects' licenses:
+Three committed files come from other projects, and keep those projects' licenses:
 
 | File | From | License |
 | --- | --- | --- |
 | `bi_reverse` in [`tests/real/bi_reverse.c`](tests/real/bi_reverse.c) | zlib 1.3.2's `bi_reverse` in `trees.c`, altered: no longer `local`, and two `__builtin_assume` lines added. Copyright (C) 1995-2026 Jean-loup Gailly and Mark Adler | [zlib](https://zlib.net/zlib_license.html) |
 | [`tests/real/llama_q5_bitspread.ll`](tests/real/llama_q5_bitspread.ll) | LLVM IR generated from llama.cpp's Q5 bit-unpacking code, at release `b12189` | [MIT](https://github.com/ggml-org/llama.cpp/blob/b12189/LICENSE) |
+| [`prototypes/argon2-rotate/rotate-a.patch`](prototypes/argon2-rotate/rotate-a.patch) | A patch to libsodium 1.0.22's `src/libsodium/crypto_pwhash/argon2/blamka-round-avx512f.h`, with the lines of it that it changes. Copyright (c) 2013-2026 Frank Denis | [ISC](https://github.com/jedisct1/libsodium/blob/1.0.22-RELEASE/LICENSE) |
 
 The toolchains, libraries and programs the dev shell fetches, such as LLVM, Lean, zlib, llama.cpp and Alive2, aren't
 in this repository, and each keeps its own license.
