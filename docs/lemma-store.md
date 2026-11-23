@@ -264,13 +264,14 @@ would make them more general.
 ## The prototype
 
 The retired experiment produced 13 population-count lemmas and 27 q4_K lemmas. The production store refused
-all 40 in its admission dry run. All were specialized to fixed widths. Ten population-count lemmas and 26 q4_K
-lemmas also used nonstandard axioms.
+all 40 in its admission dry run. All were specialized to fixed widths. The checker also recorded
+`nonstandard_axiom` for ten population-count lemmas and 26 q4_K lemmas.
 
-Of the five handwritten seeds, `LemmaReuse.count_le` and `LemmaReuse.toNat_field` met the admission criteria,
-`LemmaReuse.field_le` was a candidate, and two were refused. The store also refused the 21 theorems tested
-from `tests/llvm/Bits.lean`. The dry run left the production index unchanged. The [retirement audit](../prototypes/lemma-reuse/README.md)
-has the inputs, per-lemma reasons and replay command.
+The dry run compiled the archived `Count.lean` and classified two of its five handwritten seeds as admitted.
+Both `count_le` and `toNat_field` had two consumers in that file, `field_le` and `toNat_fieldSum`.
+The checker classified `field_le` as a candidate and refused the other two seeds. The production index contains
+none of these five seeds. The [retirement audit](../prototypes/lemma-reuse/README.md) explains the module-wide
+axiom refusal for all 21 theorems in `Bits.lean` and gives the per-lemma results and replay command.
 
 ## What it rests on
 

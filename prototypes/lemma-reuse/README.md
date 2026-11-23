@@ -5,6 +5,10 @@ lemmas and all 27 generated q4_K lemmas. The [per-lemma record](against-store.js
 for those lemmas, the five handwritten seeds in [Count.lean](Count.lean), and the 21 theorems from
 [Bits.lean](../../tests/llvm/Bits.lean).
 
+The store checks axioms for the whole module. In `Bits.lean`, `fold16`, `fold8`, `fold4` and `fold4Small`
+call `bv_decide`. The other 17 theorems inherited the module's `nonstandard_axiom` refusal. Across all four
+groups, the 19 entries marked `hypotheses_unsatisfiable` were missing the required `.sat` witness.
+
 From a checkout with the archived commit in its Git history, run:
 
 ```sh
