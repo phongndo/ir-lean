@@ -21,6 +21,9 @@ and the speedup each measures. The board doesn't exist yet. On `main` today are 
 neither found by a search ([status](status.md#llamacpp)). The target, within an envelope of about three months, is at
 least 10 proved wins from at least 3 projects, with a checkpoint a third of the way in.
 
+*Since [#129](https://github.com/phongndo/ir-lean/pull/129) the checkpoint is by about 2026-12-22, later than a third of
+the way in: [decision 7 of the seven proposed on 2026-11-23](#seven-decisions-proposed-on-2026-11-23).*
+
 *Since 2026-11-22 the engine's core is a proposer, whose candidates are checked, timed and proved one at a time,
 and not that search:
 [the engine, changed on 2026-11-22](#the-engine-changed-on-2026-11-22). Passages here written before that day
@@ -345,7 +348,9 @@ no new hardware.
   stored rules, with no rule written by hand for its site. If there's none, the engine's core becomes an agent
   proposer: an agent proposes a faster version of each hot sequence, Alive2 filters, and Lean proves each instance.
   That changes the engine, not the goal. *Taken early, on 2026-11-22, and the checkpoint reads differently since:
-  [the engine, changed on 2026-11-22](#the-engine-changed-on-2026-11-22).*
+  [the engine, changed on 2026-11-22](#the-engine-changed-on-2026-11-22). Since
+  [#129](https://github.com/phongndo/ir-lean/pull/129) it's by about 2026-12-22:
+  [decision 7 of the seven proposed on 2026-11-23](#seven-decisions-proposed-on-2026-11-23).*
 
 This is the one exception to [decision 6 after #69](#six-decisions-of-2026-11-09-after-69), no calendar estimates: the
 envelope and the checkpoint have dates, and every other gate stays without one. Not decided: whether the two llama.cpp
@@ -533,8 +538,8 @@ Why:
 **The checkpoint, S7, as it reads now.** By about 2026-12-09: at least one new proved win on real code of the kernel
 corpus, outside llama.cpp, that a proposer found, measured by the corpus's protocol. It's outside llama.cpp because
 both wins in hand are llama.cpp's, and others have proposed the first one's instruction for the same kernels.
-*Since 2026-11-23 it's by about 2026-12-22, and asks what it asked:
-[decision 7 of that day](#seven-decisions-of-2026-11-23).*
+*Since [#129](https://github.com/phongndo/ir-lean/pull/129) it's by about 2026-12-22, and asks what it asked:
+[decision 7 of the seven proposed on 2026-11-23](#seven-decisions-proposed-on-2026-11-23).*
 
 **What it waited on, that day.** A harness that times a candidate by the protocol, since
 [#117](https://github.com/phongndo/ir-lean/pull/117)'s was scrapped on 2026-11-12, and a first pilot, on a kernel
@@ -546,7 +551,8 @@ written.
 
 1. **The date.** 2026-12-09 is the target as it stands. It was set for the rule search, and the harness and the
    pilot started on 2026-11-22, 17 days before it. It can be moved, here, with its reason, before it passes.
-   *Moved on 2026-11-23, to about 2026-12-22: [decision 7 of that day](#seven-decisions-of-2026-11-23).*
+   *Moved by [#129](https://github.com/phongndo/ir-lean/pull/129), to about 2026-12-22:
+   [decision 7 of the seven proposed on 2026-11-23](#seven-decisions-proposed-on-2026-11-23).*
 2. **What missing it means.** Decision 8's answer, a change of engine, is spent, so as it stands missing it has
    no consequence, and by decision 13 doesn't reopen the goal. The review's proposal: if it's missed, the results
    board stops being the headline, and the semantics and its proofs are what the project is for. That changes the
@@ -557,39 +563,67 @@ written.
    measured again by the protocol. So neither counts, and with the rule search no longer the engine's core,
    nothing is working toward the condition it sets.
 
-### Seven decisions of 2026-11-23
+### Seven decisions, proposed on 2026-11-23
 
 On 2026-11-23 [#126](https://github.com/phongndo/ir-lean/pull/126), the harness, and
 [#127](https://github.com/phongndo/ir-lean/pull/127), the pilot, were closed, not merged, and a design for the
 harness again and one for the pilot's proof alone were each rejected before any code. Each pull request's
-description lists what a next design waits on that's the maintainer's to say. That day the maintainer settled seven
-things, each as it was recommended, in the pull request that records this. None changes the goal, which stays
-frozen, as decision 13 after #103 has it.
+description lists what a next design waits on that's the maintainer's to say. These seven were proposed that day,
+each an answer to one of those questions or to
+[the date left open on 2026-11-22](#the-engine-changed-on-2026-11-22), and they're the maintainer's decisions from
+the merge of the pull request that records them, [#129](https://github.com/phongndo/ir-lean/pull/129). None changes the
+goal, which stays frozen, as decision 13 after #103 has it.
 
-1. **The harness makes both builds itself, from pinned inputs, and is given no directory.** Each variant is a Nix
-   derivation, built in place in its store path by the manifest's own commands, where that holds for the project.
-   Why: #126's description says of its harness and #117's that both "let the caller choose what a verdict then
-   rested on", build directories among them, and the reviewer of the design that followed asked for "private
-   bytes", and for "what ran, not a probe of it". On z, the user who runs the harness can't write to the Nix store.
-   This answers #126's first question, whether the harness takes builds it's given or stages and builds them.
-2. **A run shorter than 2 seconds is refused, at first.** This amends
+1. **The harness makes both variants itself, and is never given a build.** It's given a project of the corpus and,
+   for a candidate, the IR of each object the candidate replaces. Each variant is a Nix derivation, built in place
+   in its store path from the project's source at its pin: the baseline by the project's own build, with the
+   manifest's `configure` and the workload's `build` and checks, and the candidate the same, with those objects made
+   from its IR by `llc` and the library linked again by the build's own link command, as
+   [what's compared](kernels.md#the-benchmark-protocol) has it. A project is measured only once a change has shown
+   its builds go this way, and libsodium's are the first (decision 3). Why: #126's description says of its harness
+   and #117's that both "let the caller choose what a verdict then rested on", build directories among them, and
+   among what it lists the reviewer of the design that followed as asking are "Private bytes" and "What ran, not a
+   probe of it". On z, the user who runs the harness can't write to the Nix store. This answers #126's first
+   question, whether the harness takes builds it's given or stages and builds them.
+2. **A run shorter than 2 seconds is refused, at first.** A workload whose warm-up run, of either variant, is
+   shorter isn't measured: its session fails before a pair is timed. A timed run that's shorter fails its session
+   too, as one that crashes does, and no pair is dropped to keep the rest. This amends
    [the protocol](kernels.md#the-benchmark-protocol), which has such a run "repeated inside one timed command until
-   it isn't". Why: #126 launched the command several times and summed, which isn't the protocol's letter, and what
-   repeating means for a run of several commands isn't settled. A workload this refuses waits for that rule.
+   it isn't". Why: #126 launched the command several times and summed, which isn't the protocol's letter, and
+   neither what repeating means nor what one run of several commands is has been settled. So a workload whose
+   `run` is more than one command waits too. Each of libsodium's two runs one command, and each of libwebp's four
+   runs five.
 3. **The first workloads are libsodium's two, `argon2id` and `secretstream`.** Both measure a time. A rate, as
    xxHash's `bench` and llama.cpp's `pp512` and `tg128` measure, and the other five projects come after a first
-   win is counted. Why: the harness has failed review three times, and each workload it takes on is more for a
-   review to find wrong.
-4. **A failed confirmation invalidates the batch it's in.** A new batch is planned, with new seeds, and the failed
-   one is kept beside it. Why: a failure dropped from what a pass is counted over is
-   [bug class](bug-classes.md) 1, and this is how #126's reviewer read it.
-5. **`slower` starts where the pooled interval ends below 1.** Why:
-   [measurably faster](kernels.md#measurably-faster)'s rule 4 already reads so, "each one's pooled interval reaches
-   1 or above", and #126's `protocol.py` had 1/1.005, a second definition of the same word.
-6. **A win's proof is tried on the whole function first, through [the cut lemma](refinement.md#the-cut-lemma),
-   within a time box, and otherwise on slices, cut through LLVM's API and not by lines of text.** Why: a
-   whole-function theorem leaves no cut to trust, and the design for #127's proof was rejected over its cut, which
-   left out the values a region's stores write, and over its audit of the statements. A slice-proved win still
+   win is counted. Why: review has stopped the harness three times, #117's at its third round, #126's at its
+   second review, and the design that followed at its first, and each workload it takes on is more for a review to
+   find wrong.
+4. **A confirmation that fails invalidates its batch, for every workload of the project.** A batch is the
+   confirmation sessions planned together for one candidate, before any of them runs: for each, every workload of
+   the project, and its cores, threads, seeds and pairs. A confirmation fails when anything it planned didn't end
+   cleanly: a build, a check, a warm-up or a timed run that failed, was killed, ran out of time or was too short,
+   by decision 2. Then no reading is taken from that batch, for any workload: where `secretstream`'s session
+   failed, `argon2id`'s of the same batch gives none. Measuring again is a new batch, planned again, with new
+   seeds, and the failed batch's records are kept beside it. A batch that ends cleanly and reads inconclusive
+   hasn't failed, and whether another batch may follow it isn't decided here. Why: a failure dropped from what a
+   pass is counted over is [bug class](bug-classes.md) 1, and #126's description has its reviewer reading that
+   class "as invalidating the batch it's in, and allowing a new batch planned with new seeds, with the failed one
+   kept".
+5. **`slower`, of the workload a candidate is measured on, is measurably faster's mirror, with 1 for its
+   threshold:** at least 30 pairs in at least 2 confirmation sessions, the pooled interval's upper end below 1, and
+   every session's median below 1. Of another workload, for
+   [measurably faster](kernels.md#measurably-faster)'s rule 4, it's a pooled interval that ends below 1, as that
+   rule reads: "each one's pooled interval reaches 1 or above". What's neither is inconclusive. Why: rule 4
+   already put it at 1, and #126's `protocol.py` had 1/1.005, a second place for the same line.
+6. **A win's proof is tried on the whole function first, and on slices otherwise.** For each function a rewrite changes,
+   a theorem that the function with the rewrite refines the function without it is tried first, through [the cut
+   lemma](refinement.md#the-cut-lemma). Where the lemma [doesn't cover](refinement.md#what-it-doesnt-cover) the
+   function, or the attempt outlasts the time the change's design gave it, that function is proved on slices. A rewrite
+   of several functions can have some of each, and then, of the two values [what a win is](kernels.md#what-a-win-is)
+   gives the label "what's proved", the win's is a slice. A slice is cut through LLVM's API, and not by lines of text,
+   and its outputs are every value its region defines that's read outside the region or that a store inside it writes.
+   Why: a whole-function theorem leaves no cut to trust, and the design for #127's proof was rejected over its cut,
+   which left out the values a region's stores write, and over its audit of the statements. A slice-proved win still
    counts, by decision 9 after #103, so the checkpoint doesn't wait for a whole-function proof.
 7. **The checkpoint, S7, is by about 2026-12-22.** It was by about 2026-12-09, set on 2026-11-09 for the rule
    search, 30 days out. The engine changed on 2026-11-22, and this is the same 30 days from that day. What it asks
@@ -740,7 +774,9 @@ spend no effort on them until these work.
 Since the [thirteen decisions after #103](#thirteen-decisions-of-2026-11-09-after-103). *The Superoptimization
 column is as it read until 2026-11-22. Since then a harness that times a candidate by the protocol and a first
 proposer's pilot come before the rule search on the corpus, and the checkpoint asks for a proposer's win:
-[the engine, changed on 2026-11-22](#the-engine-changed-on-2026-11-22).*
+[the engine, changed on 2026-11-22](#the-engine-changed-on-2026-11-22). Since
+[#129](https://github.com/phongndo/ir-lean/pull/129) the checkpoint is by about 2026-12-22, and not 2026-12-09 as the
+table has it: [decision 7 of the seven proposed on 2026-11-23](#seven-decisions-proposed-on-2026-11-23).*
 
 | Horizon | Platform track | Superoptimization | Supply: LLVM's rewrites |
 | --- | --- | --- | --- |
@@ -1289,7 +1325,7 @@ binding gates B0 to B5. The record of 2026-11-08 [above](#the-goal-changed-on-20
 | S4 | The safety bridge proved | 4 | F2, F4 | Platform, semantics, after F4 | Not started |
 | S5 | A proved win on LLVM IR exported from MLIR | 4 | S3 | After S3 | Not started |
 | S6 | A proved rewrite accepted upstream | 4 | S2 or S3 | Last of the four outside results, each patch read and owned by the maintainer, by [decision 10 after #103](#thirteen-decisions-of-2026-11-09-after-103) | Not started |
-| S7 | The checkpoint: one new proved win on real code of the kernel corpus, outside llama.cpp, that a proposer found, measured by the corpus's protocol. Until 2026-11-22: one that the rule search found from stored rules, with no rule written by hand for its site | 4 | The kernel corpus, fixed. A harness that times a candidate by the protocol. Until 2026-11-22: the rule format and the rule search | By about 2026-12-09, by decision 8 after #103. Until 2026-11-22: if it's missed, the engine's core becomes an agent proposer. Since then that's taken, and what missing it means is [open](#the-engine-changed-on-2026-11-22). Since 2026-11-23, by about 2026-12-22: [decision 7 of that day](#seven-decisions-of-2026-11-23) | Not started |
+| S7 | The checkpoint: one new proved win on real code of the kernel corpus, outside llama.cpp, that a proposer found, measured by the corpus's protocol. Until 2026-11-22: one that the rule search found from stored rules, with no rule written by hand for its site | 4 | The kernel corpus, fixed. A harness that times a candidate by the protocol. Until 2026-11-22: the rule format and the rule search | By about 2026-12-09, by decision 8 after #103. Until 2026-11-22: if it's missed, the engine's core becomes an agent proposer. Since then that's taken, and what missing it means is [open](#the-engine-changed-on-2026-11-22). Since [#129](https://github.com/phongndo/ir-lean/pull/129), by about 2026-12-22: [decision 7 of the seven proposed on 2026-11-23](#seven-decisions-proposed-on-2026-11-23) | Not started |
 | S8 | The results board: every proved win on the corpus, labeled by tier, with its measured speedup, reproducible from the repo | 4 | The kernel corpus, fixed. A first win | First of the four outside results | Not started |
 | S9 | The plugin: rules from one source, and its certify mode in CI over the corpus | 4 | The rule format. S8 | Second of the four outside results | Not started |
 | E1 | Lemma store v1 | 6 | #48 | Platform, lemma engine | Done in [#60](https://github.com/phongndo/ir-lean/pull/60): 163 lemmas in `lake build` and CI, each meeting rules 1 to 3, and 16 all four ([lemma store](lemma-store.md)) |
@@ -1464,7 +1500,9 @@ theorem carried across.
 - S6: at least one proved rewrite accepted upstream, by LLVM or by the project whose code it speeds up.
 - S7, the checkpoint, by about 2026-12-09: at least one new proved win on real code of the kernel corpus, outside
   llama.cpp, that a proposer found, measured by the corpus's protocol. What missing it means is open:
-  [the engine, changed on 2026-11-22](#the-engine-changed-on-2026-11-22). Until 2026-11-22: one that the rule
+  [the engine, changed on 2026-11-22](#the-engine-changed-on-2026-11-22). Since
+  [#129](https://github.com/phongndo/ir-lean/pull/129), by about 2026-12-22:
+  [decision 7 of the seven proposed on 2026-11-23](#seven-decisions-proposed-on-2026-11-23). Until 2026-11-22: one that the rule
   search found from stored rules, with no rule written by hand for its site, and if it was missed, the engine's
   core became an agent proposer.
 - S8: the results board is reproducible from the repo, with every proved win on the corpus labeled as slice or whole
