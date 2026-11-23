@@ -462,8 +462,11 @@ def main() -> int:
             snapshot, path = archive(ROOT, commit)
             if not snapshot.ok or path is None:
                 raise stopped_or(snapshot, "snapshot_failed", f"nix flake archive ended with {snapshot.exit}")
+            entry = path / "bench" / "kernels" / "variants.py"
+            if not entry.is_file() or not os.access(entry, os.R_OK):
+                raise Refused("snapshot_failed", f"{commit} has no readable bench/kernels/variants.py")
             again = [
-                str(path / "bench" / "kernels" / "variants.py"),
+                str(entry),
                 *sys.argv[1:],
                 "--repo",
                 str(ROOT),
@@ -471,11 +474,14 @@ def main() -> int:
                 commit,
             ]
             # Isolated: no PYTHONPATH, user site or current directory, so every module is the copy's.
-            os.execve(
-                sys.executable,
-                [sys.executable, "-I", *again],
-                {k: v for k, v in os.environ.items() if not k.startswith("PYTHON")},
-            )
+            try:
+                os.execve(
+                    sys.executable,
+                    [sys.executable, "-I", *again],
+                    {k: v for k, v in os.environ.items() if not k.startswith("PYTHON")},
+                )
+            except OSError as error:
+                raise Refused("snapshot_failed", f"could not launch {entry}: {error}") from error
         answer = realize(args.name, args.repo, args.commit)
     except Refused as refused:
         answer = said(None, refused.reason, refused.detail, name=args.name)

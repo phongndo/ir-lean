@@ -430,6 +430,16 @@ class Snapshot(unittest.TestCase):
             self.assertFalse(ran.ok)
             self.assertIsNone(path)
 
+            # A copy of the command in the checkout can be absent from both archived commits.
+            scripts = repo / "bench" / "kernels"
+            scripts.mkdir(parents=True)
+            script = scripts / "variants.py"
+            script.write_bytes((HERE / "variants.py").read_bytes())
+            (scripts / "kernels.py").symlink_to(HERE / "kernels.py")
+            (repo / "tools").symlink_to(ROOT / "tools")
+            ran = proc.run([sys.executable, script, "realize", "baseline"], timeout=60)
+            self.assertEqual((ran.exit, json.loads(ran.out)["reason"]), (1, "snapshot_failed"))
+
 
 def evaluates(manifest: str) -> proc.Ran:
     """Evaluates bench/kernels/variants.nix's plan for the baseline, of a repository with this manifest."""
@@ -457,7 +467,19 @@ class Manifest(unittest.TestCase):
         start = text.index(answers) + len(answers)
         self.assertEqual((text.count(run_line), text.count(answers)), (1, 1))
         self.assertTrue(text[start:].startswith("run = [\n"))
+        output_check = '[[project.libsodium.workload.check]]\nkind = "output"'
+        self.assertEqual(text.count(output_check), 1)
         for what, broken, says in (
+            (
+                "a workload with setup",
+                text.replace(run_line, 'setup = [["false"]]\n' + run_line),
+                "needs setup commands",
+            ),
+            (
+                "a separate output check",
+                text.replace(output_check, output_check + '\nrun = [["false"]]'),
+                "runs a separate output check",
+            ),
             (
                 "two commands",
                 text.replace(run_line, 'run = [["{build}/secretstream"], ["{build}/secretstream"]]\n'),
