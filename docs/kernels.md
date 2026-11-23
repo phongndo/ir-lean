@@ -919,6 +919,86 @@ and the run has to reach the code the workload times:
   in one output can be rounded away before it reaches a logit. The check is evidence a candidate computes what the
   baseline does. The proof is what says it.
 
+## What a variant is
+
+For libsodium, the protocol's two builds are derivations, and no tool here is given a build made somewhere else.
+[`bench/kernels/variants.nix`](../bench/kernels/variants.nix) defines them, and
+[`bench/kernels/variants.py`](../bench/kernels/variants.py) `realize NAME` builds one and answers in JSON,
+`ir-lean.kernels.variant/1`. Its status is `variant`, with the build's store path and `narHash`, only where
+`irlean.verdict.decide` grants `kernels.variant`. Nothing measures a variant yet: this is the builds alone, and
+[the roadmap](roadmap.md#the-engine-changed-on-2026-11-22) has what the harness still waits on.
+
+How one is built:
+
+- **From one commit.** `realize` refuses a checkout whose tracked files differ from `HEAD`, archives `HEAD`'s commit
+  to the Nix store, and runs itself again from that copy, where the manifest has to pass `kernels.validate`. Nothing
+  is read from the checkout after that.
+- **In place, by the manifest's commands.** The derivation builds libsodium's source at the manifest's pin in its
+  own store path, which is `{build}`: the manifest's `configure`, the project's `make`, and each workload's `build`.
+  The compiler is the dev shell's clang, without the hardening flags Nix's wrapper adds, as
+  `bench/kernels/profile.sh` builds.
+- **A candidate is a table from objects to IR files.** The compiler the build is given makes each object the table
+  names from its IR, with `llc`, when the build first asks for that object, and runs `clang` for every other. So
+  there's one build, and no link runs before a candidate's object is there. The baseline's table is empty. For
+  each object the build compiles from one of the manifest's units, the IR `clang` gives with the same words is
+  kept under `ir/`.
+- **The build writes down what it saw,** as `evidence/evidence.json`, `ir-lean.kernels.evidence/1`, and decides
+  nothing: for each known-answers check, how each of its commands ended, whether its result was there before, and
+  the SHA-256 of the result and of the expected file; for each workload's `run`, which runs once in the build's
+  sandbox with no environment but what the command sets, how it ended and its output's SHA-256; each object made
+  from IR; and each object compiled from a unit, with the unit. Only `configure`, `make` or a workload's `build`
+  failing fails the build.
+
+What `kernels.variant` needs, with archiving, evaluating and realizing each ending cleanly:
+
+| Check | What it says |
+| --- | --- |
+| `replaced_once` | The objects made from IR are the table's, each once |
+| `units_whole` | Every object the build compiled from a unit the table touches is in the table |
+| `checks_completed` | Each known-answers check the manifest gives wrote its result afresh |
+| `runs_completed` | Each workload's `run` ran to an exit |
+| `answers_match` | Each result's bytes are the expected file's, and each of the check's commands exited 0 |
+| `outputs_match` | Each run exited 0, and its output has the SHA-256 the manifest gives, where it gives one |
+
+A build that passes the first four, where a result or an output is another one, is `wrong_answer`: the grant
+`kernels.rejected`, a named negative that excludes the variant. A check's command or a run that was stopped is
+`unknown`. Anything else is an `error` that names what failed, and only a variant's answer has a path.
+
+What it doesn't show:
+
+- **That a check runs a replaced unit's code,** for any unit but the two a wrong candidate is shown rejected for,
+  below. libsodium picks an implementation when it runs, by the processor. A change that proposes a candidate for
+  another unit shows a wrong one rejected first, on the machine it's measured on.
+- **Any machine but z.** `realize` builds wherever it's run, and on another processor its checks may not run the
+  units a table replaces.
+- **That a candidate's IR differs from the baseline's only in the functions a rewrite names.** That's a comparison
+  of two modules, which belongs to the change that brings the first candidate. No candidate of the corpus is
+  defined yet: the only tables are the tests'.
+- **What a timed run may load.** Here a workload runs once, in the build's sandbox.
+- **Any project but libsodium,** a rate, an input fetched for a workload, a `setup`, or a `run` of several commands.
+  `variants.nix` doesn't evaluate for a `run` that isn't one command of a program under `{build}`, for a
+  placeholder a build doesn't fill in, or for a check without what it needs.
+- **Two builds of one derivation giving different bytes,** or root changing the store. A variant is the path Nix
+  registered, with its `narHash`.
+
+Two tests check it. `variants` runs `variants.py` on evidence written for the test, with nothing built.
+`variants_builds` realizes the baseline and seven builds under `tests`, each of whose tables takes its IR from the
+baseline's own `ir/`, so no IR is committed:
+
+| Build | Its table | What it comes to |
+| --- | --- | --- |
+| `baseline` | Empty | A variant |
+| `tests.roundtrip` | The Argon2 AVX-512 unit's two objects, from clang's own IR | A variant. It differs from the baseline in those two objects and no other, and their `.text`, `.rodata` and `.rela.text` are the baseline's |
+| `tests.blake-roundtrip` | The BLAKE2b AVX2 unit's two objects, the same way | A variant, differing in those two objects and no other |
+| `tests.wrong-argon` | The Argon2 unit's, with a row of the round rotated wrongly | `wrong_answer`: libsodium's own test's result isn't the expected one |
+| `tests.wrong-blake` | The BLAKE2b unit's, with its last rotation wrong | `wrong_answer`: so is the test's result, and the output of `secretstream`, which is linked statically |
+| `tests.skipped` | Empty, with Automake told to skip the known-answers test | An error, `checks_completed`: `make check` exits 0 and writes no result |
+| `tests.unused` | An object the build never compiles | An error, `replaced_once` |
+| `tests.half` | One of the Argon2 unit's two objects | An error, `units_whole` |
+
+It also checks that the Argon2id benchmark's launch fails to start without the variable its command sets, and that
+no variant's store path refers to another's. On z on 2026-11-23 every check of both tests passed.
+
 ## What a win is
 
 One win is one rewrite, proved, reviewed and measured:
@@ -984,8 +1064,9 @@ a rule.
   `time` on a loaded machine, not a measurement by the protocol. No baseline was timed, so nothing says how noisy each
   workload is on z, which the protocol's 30 pairs assume is enough.
 - **No harness runs the protocol yet.** The manifest says what each workload runs and how it's checked, with
-  `{build}` for the project's build, and `bench/kernels/profile.sh` says how each is built. No tool yet builds a
-  baseline and a candidate, runs a workload's checks on the candidate, and times the pairs.
+  `{build}` for the project's build, and `bench/kernels/profile.sh` says how each is built. For libsodium,
+  [a variant](#what-a-variant-is) is a baseline or a candidate, built with its checks run. No tool yet does that
+  for another project, or times the pairs.
 - **llama.cpp's workloads weren't timed from the manifest** when it was fixed, and its check ran with the 0.5B model,
   not the manifest's 1.5B, which wasn't fetched: [above](#llamacpps-check-reaches-the-kernels-it-times). Its commands
   are `tests/llama_bench.py`'s, and the build its check needs is that script's, which writes `compile_commands.json`.

@@ -986,6 +986,8 @@ class DenyAll(unittest.TestCase):
 TABLE = {
     "kernel_checked": ("proved", 0),
     "witness_falsifies": ("counterexample", 2),
+    "built_and_checked": ("variant", 0),
+    "answer_differs": ("wrong_answer", 2),
     "time_limit": ("timeout", 4),
     "tool_failed": ("error", 1),
     "internal_error": ("error", 1),
@@ -1000,7 +1002,12 @@ class Adapter(unittest.TestCase):
 
     def test_a_granted_decision_is_its_grants_word(self) -> None:
         granted = {n: decide(n, evidence(clean_values(n))) for n in GRANTS}
-        said = {"verify.proved": "kernel_checked", "verify.counterexample": "witness_falsifies"}
+        said = {
+            "verify.proved": "kernel_checked",
+            "verify.counterexample": "witness_falsifies",
+            "kernels.variant": "built_and_checked",
+            "kernels.rejected": "answer_differs",
+        }
         for name, d in granted.items():
             self.assertTrue(d.granted, name)
             grant = GRANTS[name]
@@ -1022,7 +1029,7 @@ class Adapter(unittest.TestCase):
         for d in (unknown, error, denied, old, None):
             for reason, (word, code) in TABLE.items():
                 # An old form's grant has no name in GRANTS, so no word of its own here.
-                refused = word in ("proved", "counterexample") or d is old
+                refused = word in {g.word for g in GRANTS.values()} or d is old
                 self.assertEqual(to_status(d, TABLE, reason), INTERNAL if refused else (word, reason, code))
         # With no reason given, its own, if the table has one.
         self.assertEqual(to_status(unknown, TABLE), ("timeout", "time_limit", 4))

@@ -62,6 +62,7 @@ ALL = {
     "the smallest shell test",
     "#117's compare",
     "#117's board",
+    "bench/kernels/variants.py realize",
 }
 # Those not on their grants yet, each with the pull request of docs/verdicts.md's migration that moves it, and
 # adds it to ENTRY_POINTS. It can only shrink.
@@ -187,8 +188,25 @@ def verify(tool: Path, scratch: Path) -> list[tuple[str, list[str]]]:
     return out
 
 
+def kernel_variant(tool: Path, scratch: Path) -> list[tuple[str, list[str]]]:
+    """bench/kernels/variants.py's smallest input that grants: libsodium's baseline, which it builds. On a
+    processor tests/variants_builds.py builds nothing on, neither does this, and it says so: no `ok`."""
+    del tool
+    script = ROOT / "bench" / "kernels" / "variants.py"
+    if missing := load("variants_under_test", script).missing_features():
+        print(f"skip  bench/kernels/variants.py realize: this processor lacks {', '.join(missing)}")
+        return []
+    exits = {g.exit for g in verdict.GRANTS.values() if g.schema == schemas.KERNELS_VARIANT}
+
+    def argv(work: Path) -> list[str]:
+        work.mkdir()
+        return [str(script), "realize", "baseline"]
+
+    return [("kernels_variant", run_twice("kernels_variant", argv, scratch, exits, "variant"))]
+
+
 # Each entry point on its grants, and how to run it.
-ENTRY_POINTS = {"tools/verify.py check": verify}
+ENTRY_POINTS = {"tools/verify.py check": verify, "bench/kernels/variants.py realize": kernel_variant}
 
 
 def main() -> int:
