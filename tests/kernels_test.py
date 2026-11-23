@@ -353,8 +353,8 @@ class Locked(unittest.TestCase):
             "which isn't a heading of docs/roadmap.md": lambda m: m["lock"].update(
                 approved_in="docs/roadmap.md#a"
             ),
-            "isn't in docs/roadmap.md#the-flywheel": lambda m: m["lock"].update(
-                approved_in="docs/roadmap.md#the-flywheel"
+            "isn't in docs/roadmap.md#checkpoint": lambda m: m["lock"].update(
+                approved_in="docs/roadmap.md#checkpoint"
             ),
         }.items():
             found = kernels.recorded(changed(MANIFEST, change))

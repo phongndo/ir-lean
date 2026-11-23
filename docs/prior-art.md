@@ -14,7 +14,7 @@ The goals it reads against are the ones set on 2026-11-08:
 - **Guarantees** carried across optimization by `Safe src → Refines src tgt → Safe tgt`.
 - **Speed** of the tool and the dev cycle.
 
-It also answers the gate in [Phase 4](roadmap.md#phase-4-certified-translation-validation-and-superoptimization):
+It also answers the gate in [Phase 4](roadmap-history.md#phase-4-certified-translation-validation-and-superoptimization):
 whether Trivet or Lean-MLIR already cover integer stage 1.
 
 Researched on 2026-11-08, on top of commit `0330cd7`. LLVM is cited at `llvmorg-23.1.3`, the dev shell's

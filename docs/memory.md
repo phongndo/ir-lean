@@ -14,7 +14,7 @@ What a memory-safety theorem from `ir-lean` claims, the model of memory it's abo
 `updatewindow` copies what `inflate` just wrote into the sliding window that later back-references read. At `-O2` it's
 11 blocks and 83 IR instructions, with three `memcpy`s, and each is safe only if the state is: `wnext` inside the window,
 the window as big as `wsize` says, and `copy` bytes of output behind `end`.
-[Phase 1](roadmap.md#phase-1-zlib-inflate-memory-safety) needs it as a contract, since `inflate` calls it, though this
+[Phase 1](roadmap-history.md#phase-1-zlib-inflate-memory-safety) needs it as a contract, since `inflate` calls it, though this
 one covers only calls after the window is allocated, through a `strm` that carries no promises.
 
 ```lean
@@ -34,7 +34,7 @@ many bytes at the start of the window, and bytes 60 to 72 of the state, which ho
 
 Since `Stream` holds again afterwards, `updates_safe` follows: for any list of calls, each with its own output and
 `copy` that meet `Output`, every call returns, and the whole sequence changes only `Touched`. That's the shape of the
-claim [Phase 1](roadmap.md#phase-1-zlib-inflate-memory-safety) wants for `inflate`, for one of the functions it calls.
+claim [Phase 1](roadmap-history.md#phase-1-zlib-inflate-memory-safety) wants for `inflate`, for one of the functions it calls.
 
 ### The preconditions
 
@@ -167,7 +167,7 @@ behavior than LLVM is conservative for safety and for a target, and wrong for a 
 ## Executable memory
 
 Tests run code with memory on `ExecMem`, in [`ExecMem.lean`](../IRLean/ExecMem.lean), and not on `Mem`. This is E2,
-slice 15 of [Phase 6](roadmap.md#phase-6-the-engine-and-the-lemma-store). `Mem` stays what every theorem is about, and
+slice 15 of [Phase 6](roadmap-history.md#phase-6-the-engine-and-the-lemma-store). `Mem` stays what every theorem is about, and
 nothing in it changed.
 
 `Mem` holds an allocation's bytes as a function, and a store wraps that function in another, so a load walks back

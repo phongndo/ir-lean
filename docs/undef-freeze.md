@@ -5,7 +5,7 @@ semantics for LLVM's `undef` and `freeze`, with its tests. `IRLean.lean` doesn't
 targets it. No certificate, scorer, status row or `IRLean.Refines` claim rests on it.
 
 **Since F3, on 2026-11-09, the model has its `freeze`, without `undef`.** The maintainer
-[decided](roadmap.md#three-decisions-of-2026-11-09) that day that `undef` stays out of the model, refused as a
+[decided](roadmap-history.md#three-decisions-of-2026-11-09) that day that `undef` stays out of the model, refused as a
 constant, and that `freeze` goes in as this prototype defines it. The model's `freeze` of poison is a value each run
 chooses, through `IRLean.Choice`, and `IRLean.Refines` puts the two sides' choices in this prototype's order.
 [Refinement](refinement.md#runs-that-make-choices) has the design, and `model_freeze`, below, proves the two `freeze`s
@@ -150,7 +150,7 @@ These are unsupported, not modeled as something else:
   runs that never end, and combining the two is the next step, below.
 - **Vectors, memory, pointers and the byte type.** LangRef freezes vectors element-wise and bytes per bit, and
   uninitialized memory isn't modeled. `freeze` of a pointer gives a non-dereferenceable one.
-- **Floating point.** Nothing, as in the model.
+- **Floating point.** The prototype covers integers. See [floating-point semantics](float.md) for the production model.
 
 ## What F3 took into the model
 
@@ -166,8 +166,8 @@ F3, on 2026-11-09, took the `freeze` half, and left `undef` out, as the maintain
    and the source's after them, as here. `tools/binding_check.lean` lifts a side whose run makes no choices with
    `Outcomes.det`, so a certificate can relate the two.
 
-What's left out: `undef`, `freeze` of vectors, pointers and structs, which ir-lean refuses, and running a claim that
-quantifies over choices, which tier-1 proof tests and `tools/verify.py` answer unknown or unsupported.
+What's left out: `undef`, `freeze` of pointers and structs, which ir-lean refuses, and running a claim that
+quantifies over choices, which tier-1 proof tests and `tools/verify.py` answer unknown or unsupported. See [vector coverage](ir-features.md#vector-freeze).
 
 ## Files
 

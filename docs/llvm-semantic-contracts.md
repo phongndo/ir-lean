@@ -163,32 +163,20 @@ Each row is one of LangRef's rules, where the model has it, and its status. "Gap
 
 | Rule | Model | Status | Gap |
 | --- | --- | --- | --- |
-| `undef` constants: each use may see a different value | Refused | Refused | Kept out of the model, by the maintainer's [decision](roadmap.md#three-decisions-of-2026-11-09) of 2026-11-09 |
+| `undef` constants: each use may see a different value | Refused | Refused | Kept out of the model, by the maintainer's [decision](roadmap-history.md#three-decisions-of-2026-11-09) of 2026-11-09 |
 | `select` on an `undef` condition: each use picks either arm | `undef` never reaches it | Refused | Same |
 | Uninitialized memory reads as `undef` | Reads as poison | **Stricter** | Same. Already in [trust](trust.md#known-gaps-in-the-model) |
 | Shuffle of an `undef` lane is `undef` | `undef` never reaches it | Refused | Same |
 | `freeze` of poison: arbitrary, fixed, the same for every use | `Val.freeze`, with the value the run's `IRLean.Choice` gives, since F3 | **Proved**, by `freeze_none` and `freeze_none_any`. Until F3 a model stop | `undef` never reaches it |
 | Two `freeze`s of the same poison may differ; one `freeze` used twice may not; one that runs twice may choose twice | Each `freeze` a run executes reads its own place in the `Choice`, and a `let` binds its value for every use | **Modeled**, and tested in `tests/emitter.sh`, `tests/refine.sh` and `tests/freeze.sh`, against Alive2 there | None known. See [refinement](refinement.md#runs-that-make-choices) |
 | `freeze` of a value is the value | `Val.freeze` | **Proved** | None |
-| `freeze` of a vector, lane by lane | `Vec.freeze`, each lane with a choice of its own | **Modeled**, since 2026-11-12, and tested in `tests/freeze.sh` against Alive2 | None known |
+| [`freeze` of a supported vector](ir-features.md#vector-freeze), lane by lane | `Vec.freeze`, each lane with a choice of its own | **Modeled**, since 2026-11-12, and tested in `tests/freeze.sh` against Alive2 | None known |
 | `freeze` of a pointer | Refused | Refused | Model it when real code needs it |
 
 ### Floating point
 
-Every floating-point type is refused, by `leanType`. There's no model, no contract and no test. Before any can exist, a
-decision is needed on each of these, and none is made here:
-
-- **IEEE 754 arithmetic.** Lean's core has no IEEE 754 binary formats. Options are a bit-level model proved against
-  a reference such as Flocq, or one trusted and differentially tested.
-- **NaN.** LangRef's "Behavior of Floating-Point NaN values" makes the payload of a NaN result nondeterministic, within
-  rules. That needs a run to make choices, as `freeze` does since F3 through `IRLean.Choice`.
-- **Fast-math flags.** `nnan` and `ninf` are poison-generating, so `OnlyPoisons` fits them. `nsz`, `arcp`, `contract`,
-  `afn` and `reassoc` allow a different value, not poison, so they need a semantics with sets of results.
-- **Floating-point environment and denormals.** LangRef assumes the default environment outside constrained
-  intrinsics, and `denormal-fp-math` changes results.
-- **Targets.** `x86_fp80` and `ppc_fp128` are target formats.
-
-Floating point is where most of the gap between "every optimization" and today's model is.
+The [floating-point model](float.md) covers formats, NaN choices, supported flags and the default environment.
+Its [test suite](../tests/float.sh) checks the emitted operations and refinement examples.
 
 ### A model stop is not a result
 
@@ -273,7 +261,7 @@ These are the exact dependencies, each a decision this lane doesn't make silentl
    so a refinement can't count them as undefined.
 4. **Memory.** Every row marked Stricter in memory is wrong for a source. Refinement with memory needs those fixed
    first, or a separate source semantics.
-5. **Floating point.** Nothing exists.
+5. **Floating point.** The [SEM-05 design and implementation](float.md) record coverage.
 
 ## What this slice trusts and doesn't claim
 
@@ -295,7 +283,7 @@ Not claimed:
   an independent spec.
 - **Coverage.** Proved: the poison and undefined-behavior rules of the 4 divisions, and the poison and flag rules of
   the scalar operations the 33 `*_strict`, 33 `*_noPoison` and 13 `*_onlyPoisons` theorems name. Not proved: vectors,
-  memory, control flow, attributes, metadata. Unsupported: floating point, `undef`, atomics, the byte type, `inttoptr`, and every
+  memory, control flow, attributes, metadata. Unsupported at the time of this inventory: `undef`, atomics, the byte type, `inttoptr`, and every
   other target.
 
 ## Files this lane owns

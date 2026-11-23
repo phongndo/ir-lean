@@ -126,7 +126,7 @@ Three different things that are easy to run together.
 | Direction | What it is | Status |
 | --- | --- | --- |
 | **LLVM IR to generated Lean** | The C++ emitter prints one Lean module of shallow definitions. All proofs today go through this | Works, and is the priority |
-| **Lean to LLVM IR, for IR itself** | An IR syntax tree as Lean data, with a printer to `.ll` | Planned, only for [Phase 4](roadmap.md#phase-4-certified-translation-validation-and-superoptimization) |
+| **Lean to LLVM IR, for IR itself** | An IR syntax tree as Lean data, with a printer to `.ll` | Planned, only for [Phase 4](roadmap-history.md#phase-4-certified-translation-validation-and-superoptimization) |
 | **General Lean 4 programs to LLVM IR** | A compiler for the Lean language, with its runtime, closures and reference counting | **Non-goal.** Lean has its own compiler, and this wouldn't help verify anything here |
 
 The second direction, if we get there, is built in steps. A step only counts when its check runs in CI.
@@ -147,8 +147,8 @@ checked.
 | Level | Claim | Status |
 | --- | --- | --- |
 | L0 | This IR, this triple and data layout | Today. The proofs compile for x86-64 Linux on every host, while `tests/zlib.sh` compiles for the host |
-| L1 | The same theorem, with its target and data layout recorded in a manifest | [Phase 0](roadmap.md#phase-0-semantic-fidelity-and-trust-infrastructure) |
-| L2 | One spec and one proof script checked separately against each target's own IR, for `x86_64-linux-gnu` and `aarch64-linux-gnu` | [Phase 2](roadmap.md#phase-2-reusable-contracts-and-frame-reasoning) |
+| L1 | The same theorem, with its target and data layout recorded in a manifest | [Phase 0](roadmap-history.md#phase-0-semantic-fidelity-and-trust-infrastructure) |
+| L2 | One spec and one proof script checked separately against each target's own IR, for `x86_64-linux-gnu` and `aarch64-linux-gnu` | [Phase 2](roadmap-history.md#phase-2-reusable-contracts-and-frame-reasoning) |
 | L3 | Other pointer widths or big-endian | Refused for functions using memory, because `Mem` is 64-bit little-endian. No plan until someone needs it |
 
 A one-off probe shows why L2 means separate IR. Compiling freestanding zlib for both targets gives the

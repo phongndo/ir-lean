@@ -2,10 +2,11 @@
 
 Everything the pinned LLVM IR can contain, each item modeled, refused or assumed, and a test that the emitter does
 what each item's class says. This is SEM-08 in the [task list](llvm-verification-tasks.md), and the first half of
-[Phase 0B](roadmap.md#phase-0-semantic-fidelity-and-trust-infrastructure)'s exit criterion. For what any theorem
+[Phase 0B](roadmap-history.md#phase-0-semantic-fidelity-and-trust-infrastructure)'s exit criterion. For what any theorem
 means, read [trust](trust.md) first. Facts here were checked on 2026-11-09 at LLVM `llvmorg-23.1.3`, and the counts
-again on 2026-11-10, once the model had [more of x86's intrinsics](x86-intrinsics.md), and on 2026-11-11, once
-`llvm.prefetch` and the floating-point settings on a function without floating point were accepted.
+again on 2026-11-10, once the model had [more of x86's intrinsics](x86-intrinsics.md), on 2026-11-11, once
+`llvm.prefetch` and the floating-point settings on a function without floating point were accepted, and on
+2026-11-12, once `llvm.memmove`, `llvm.assume`'s `align`, `noundef`, `cold` and `ignore` bundles, [vector `freeze`](#vector-freeze), `llvm.fma` and `llvm.fmuladd` were modeled.
 
 **This is a map, not a semantics.** A modeled item has a meaning in `IRLean`; how well that meaning matches LLVM is
 what the rest of the tests are for. The classification says what the emitter does with each item, and checks it.
@@ -46,11 +47,16 @@ A refused item is refused whatever it means, so refusing is always sound. What i
 
 | Lane | Refused items | Such as |
 | --- | ---: | --- |
-| Floating point (SEM-05) | 127 | `x86_fp80`, `llvm.sqrt`, `llvm.fma`, `denormal_fpenv`, `!fpmath` |
+| Floating point (SEM-05) | 124 | `x86_fp80`, `llvm.sqrt`, `llvm.floor`, `denormal_fpenv`, `!fpmath` |
 | External calls and globals | 63 | `call` attributes such as `memory(...)` on calls to the module's own functions, `weak` linkage, `ptrtoint` constant expressions. A call to a declaration is modeled since [calls](calls.md) slice 2, and an external global since slice 3 |
-| Memory (F4, SEM-06) | 122 | `!tbaa`, `noalias` parameters, `byval`, `inttoptr`, masked loads, `llvm.objectsize`, pointers in another address space or in a vector, a layout whose pointers aren't what `Mem` assumes |
-| Long tail | 1,660 | 1,429 x86 intrinsics, which [x86 intrinsics](x86-intrinsics.md) ranks by how often real kernels call them, the scalable intrinsics but five, exception handling, `freeze` of a vector, `nocreateundeforpoison` |
-| None | 14,367 | 14,207 intrinsics of other targets, coroutines, garbage collection, sanitizers, atomics |
+| Memory (F4, SEM-06) | 120 | `!tbaa`, `noalias` parameters, `byval`, `inttoptr`, masked loads, `llvm.objectsize`, pointers in another address space or in a vector, a layout whose pointers aren't what `Mem` assumes |
+| Long tail | 1,656 | 1,429 x86 intrinsics, of which [x86 intrinsics](x86-intrinsics.md) ranks those found in its survey, the scalable intrinsics but five, exception handling, `freeze` of a struct, `nocreateundeforpoison` |
+| None | 14,366 | 14,204 intrinsics of other targets, coroutines, garbage collection, sanitizers, atomics |
+
+## Vector freeze
+
+`freeze` on a fixed-width vector of integers or supported floats chooses independently for each lane.
+The emitter refuses scalable vectors for this operation. [Regression tests](../tests/freeze.sh)
 
 ## What the check does
 

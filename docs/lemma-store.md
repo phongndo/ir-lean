@@ -1,7 +1,7 @@
 # Lemma store
 
 Checked, reusable lemmas that later proofs, the superoptimizer and proof tests can find and use. This is lemma store
-v1, milestone E1 of [Phase 6](roadmap.md#phase-6-the-engine-and-the-lemma-store): the store is built by `lake build`,
+v1, milestone E1 of [Phase 6](roadmap-history.md#phase-6-the-engine-and-the-lemma-store): the store is built by `lake build`,
 checked again in CI by the `store` test, and holds [#48](https://github.com/phongndo/ir-lean/pull/48)'s rewrites at
 every width, the laws of `IRLean.Refines` and LangRef's integer contracts. For what any theorem means, read
 [trust](trust.md) first: a stored lemma is a theorem about IRLean's model, like any other.
@@ -74,7 +74,7 @@ them, and `lake build` builds them as part of it.
 
 ## The bar
 
-The [roadmap](roadmap.md#the-flywheel)'s four rules, and how each is checked:
+The [roadmap](roadmap-history.md#the-flywheel)'s four rules, and how each is checked:
 
 | Rule | Checked by | Refused as | Test that a lemma breaking it is refused |
 | --- | --- | --- | --- |
