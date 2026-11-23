@@ -89,8 +89,10 @@ substituting its result are trusted, as for q4_K. [llama.cpp's Q5](llama-q5.md) 
 2026-11-07, and the proof checked again on 2026-11-08 with the q4_K rewrite and `main` at `0330cd7`. Since
 2026-11-10 [the cut lemma](refinement.md#the-cut-lemma) proves substituting it right in two loops written to hold the
 slice, one with memory, but not in the kernel, which hasn't been translated, so there it's still trusted. What stops
-it is the emitter's refusing `llvm.fma`, the kernel's floating point choosing NaNs, which the cut lemma doesn't cover
-yet, and, as built, `!tbaa`; every other operation of the kernel's has its lemma.
+it is the emitter's refusing `noalias` on the kernel's parameters and, as built, `!tbaa`
+([each kernel](kernels.md#each-kernel)), and the kernel's floating point choosing NaNs, which the cut lemma doesn't
+cover yet; every operation of the kernel's that the emitter translates has its lemma. `llvm.fma`, which stopped it
+too, is modeled since 2026-11-12.
 
 ## Tested
 
@@ -111,7 +113,7 @@ Evidence and not proof. A pass here means no disagreement was found on the input
 - **What the emitter accepts:** all 17,046 items the pinned IR can contain are classified, 455 modeled, 262
   assumed and 16,329 refused, and a probe of each shows the emitter does what its class says, with the Lean it
   prints for each it translates elaborating ([IR features](ir-features.md)). Since 2026-11-09, and these counts
-  since 2026-11-11.
+  since 2026-11-12.
 - **Vector forms of integer operations:** the vector forms of 16 intrinsics, vector division and remainder,
   `noundef` and `range` on vectors and structs, and x86's VPTERNLOG, PSHUFB and shifts agree with Alive2 both ways,
   undefined behavior included, and with LLVM's constant folder, on 3,972 inputs to 195 operations, with a wrong

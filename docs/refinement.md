@@ -382,10 +382,10 @@ It isn't a theorem about `ggml_vec_dot_q5_0_q8_0`: the fixtures have the kernel'
 without its loads, and not its floating point or its vector loads, and
 [the Q5 rewrite](llama-q5.md#what-is-proved-and-checked) says what that leaves trusted. Every operation of the kernel's the
 emitter translates now has its lemma, the vector loads, VPDPBUSD, PSIGN and the conversions between integers and
-floats included. Three things still stop a theorem about the kernel itself: the emitter refuses `llvm.fma`, which the
-kernel's `_mm256_fmadd_ps` is, and every llama.cpp kernel of the corpus has, since the model has no fused
-multiply-add; its floating point chooses NaNs, so its run returns `Outcomes`, which the cut lemma doesn't cover yet;
-and as built, without `-fno-strict-aliasing`, its `!tbaa`.
+floats included, and since 2026-11-12 `llvm.fma`, which the kernel's `_mm256_fmadd_ps` is and the emitter refused
+until then. Three things still stop a theorem about the kernel itself: the emitter refuses `noalias` on its
+parameters ([each kernel](kernels.md#each-kernel)); its floating point chooses NaNs, so its run returns `Outcomes`,
+which the cut lemma doesn't cover yet; and as built, without `-fno-strict-aliasing`, its `!tbaa`.
 `drop_nuw_loop_converse` proves the lemma is one-way: from 253 the loop with `add nuw` returns poison where the one
 with `add` returns 0.
 

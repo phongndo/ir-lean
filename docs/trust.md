@@ -383,7 +383,7 @@ the design, and why every way each `freeze` can choose is some `Choice`.
 - **`Refines` is for every way the target chooses, some way the source does,** with the source's choices after the
   target's, as the prototype in [`undef` and `freeze`](undef-freeze.md) settled. A source undefined for some way of
   choosing allows anything there.
-- **Not covered:** `undef`, which stays out, and `freeze` of anything but an integer, which is refused, both in
+- **Not covered:** `undef`, which stays out, and `freeze` of a pointer or a struct, which is refused, both in
   [known gaps](#known-gaps-in-the-model).
 
 ## Rules for every proof

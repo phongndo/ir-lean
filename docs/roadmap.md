@@ -537,8 +537,12 @@ both wins in hand are llama.cpp's, and others have proposed the first one's inst
 **What it waited on, that day.** A harness that times a candidate by the protocol, since
 [#117](https://github.com/phongndo/ir-lean/pull/117)'s was scrapped on 2026-11-12, and a first pilot, on a kernel
 that translates as built and has a workload of its own. [#126](https://github.com/phongndo/ir-lean/pull/126) and
-[#127](https://github.com/phongndo/ir-lean/pull/127) were opened for those, and neither is on `main` as this is
-written.
+[#127](https://github.com/phongndo/ir-lean/pull/127) were opened for those. Both were closed on 2026-11-23, not
+merged: #126 after its second review found findings of the first still open, where [the process](process.md) stops
+the fixing, and #127 because its measurement was read by #126's harness. A design for the harness again, and one
+for #127's proof alone, were reviewed that day, before any code, and both were rejected. Each pull request's
+description has what its reviews found. So neither is on `main`, and nothing on `main` times a candidate by the
+protocol.
 
 **Left open, for the maintainer.** None of these is decided here:
 

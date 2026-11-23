@@ -9,8 +9,9 @@ produced.
 ## Status
 
 All 88 functions in zlib's core library translate at `-O2 -fno-strict-aliasing`, and agree with native code on all
-117 results of a test harness, on inputs of about 800 bytes. Three functions, as clang compiles them that way for
-x86-64 Linux, are proved correct for every input, with no undefined behavior, poison or broken promises:
+117 results of a test harness, on inputs of about 800 bytes, and on all 12 results of a second test, on inputs of
+128 KiB. Three functions, as clang compiles them that way for x86-64 Linux, are proved correct for every input, with
+no undefined behavior, poison or broken promises:
 
 | Proof | Source | Against |
 | --- | --- | --- |

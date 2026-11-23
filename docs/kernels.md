@@ -547,7 +547,8 @@ lane's demand, with the floating-point and memory lanes' beside it:
 Read by what a kernel needs, not by count:
 
 - **Every `llvm.x86.*` intrinsic left is on floating-point values:** 14 of them, 241 calls, in llama.cpp, Opus and
-  XNNPACK, and only llama.cpp is approved. They wait for the floating-point lane, as `llvm.fma` and `llvm.fmuladd` do.
+  XNNPACK, and only llama.cpp is approved. They wait for the floating-point lane. `llvm.fma` and `llvm.fmuladd`,
+  which waited with them, are modeled since 2026-11-12.
 - **`llvm.pdep`,** 36 calls in llama.cpp. At this pin it reaches IR as a generic intrinsic, not as `llvm.x86.*`.
 - **`chunkmemset_avx512`,** in front of `inflate_fast_avx512`, 90% of zlib-ng's decompressing, now stops at `call
   parameter attribute readonly`, the first reason behind BZHI.
