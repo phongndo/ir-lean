@@ -144,9 +144,9 @@ Perplexity was 10.3476 and 11.1036 in every run of each variant. `perf stat` cou
 amount: a median of 4.86 × 10¹¹ against 5.14 × 10¹¹ for the first model's perplexity run, and 8.85 × 10¹¹ against 9.43 ×
 10¹¹ for the second's.
 
-So reading a prompt, or a document as perplexity does, is 5.5% to 7.2% faster, in every round. Generating isn't faster
-with 8 threads, where it waits on memory: the rewrite takes out instructions, and that doesn't help a kernel that isn't
-waiting on them.
+So reading a prompt, or a document as perplexity does, is faster in every round: by 5.5% to 7.2% at the median, and by
+5.1% to 8.2% from the slowest round to the fastest. Generating isn't faster with 8 threads, where it waits on memory:
+the rewrite takes out instructions, and that doesn't help a kernel that isn't waiting on them.
 
 Then 6 rounds with 1 thread on CPU 12, the same day, with a load average of 1 to 4.6, for the kernels alone, since a
 single thread has no other threads to wait on:
@@ -253,5 +253,38 @@ C++ source or the machine code. On top of that:
   rewritten.
 - Generating is limited by memory at 8 threads, so this rewrite doesn't change it there. On one core it's faster for
   one model, and the two speeds the rewritten library settles at aren't explained.
-- The same rewrite could go into llama.cpp's source, or into LLVM as a combine on x86 intrinsics, if it knew the
-  range of each lane.
+- The same rewrite could go into LLVM as a combine on x86 intrinsics, if it knew the range of each lane. For
+  llama.cpp's source, others got there first: [below](#upstream).
+
+## Upstream
+
+Read on 2026-11-22, from llama.cpp's repository and each pull request's diff. None of it was run here.
+
+- **The kernels are the same on `master`.** `ggml/src/ggml-cpu/arch/x86/repack.cpp` at `master`, `44d5087`, is byte
+  for byte the file at the pin, so both kernels still multiply with `maddubs` there.
+- **Two open pull requests already use `vpdpbusd` in them,** each opened before this rewrite was recorded, on
+  2026-11-07. Their diffs are other implementations than this one. Whether either was found independently of the
+  other isn't something the sources say:
+  - [#23309](https://github.com/ggml-org/llama.cpp/pull/23309), opened on 2026-05-19, rewrites
+    `ggml_gemv_q4_K_8x8_q8_K`. Its products go through `mul_sum_us8_pairs_acc_int32x8`, the helper that's `vpdpbusd`
+    on a build with AVX-512 VNNI and AVX-512VL, or with AVX-VNNI, and `maddubs` otherwise. It reports generating
+    12% to 23% faster on two Intel cores with AVX-VNNI.
+  - [#29397](https://github.com/ggml-org/llama.cpp/pull/29397), opened on 2026-09-24, adds a path to
+    `ggml_gemm_q4_K_8x8_q8_K` for AVX-512 VNNI with VBMI, which also unpacks scales with byte permutes. It reports
+    reading a 512-token prompt at 568.1 tokens a second against 380.5, on Zen 5 with 16 threads.
+- **Neither has a review yet.** A third, [#18495](https://github.com/ggml-org/llama.cpp/pull/18495), restructures
+  the same two kernels for AVX2, and has been open since 2025-12-30.
+- **So this rewrite isn't one to send as it is.** llama.cpp's
+  [contributing rules](https://github.com/ggml-org/llama.cpp/blob/master/CONTRIBUTING.md) ask whoever sends a
+  change to look for an existing pull request for the same one. These two change the same kernels to use the same
+  instruction. #29397 reports more for its kernel than the medians of 5.5% to 7.2% measured here, on another
+  machine and another model: comparing them would take one benchmark of both, which wasn't run.
+- **Neither presents a proof for every input.** #29397 reports its kernel checked against the generic one within a
+  relative difference of 1e-4, and #23309 perplexity, generated text and llama.cpp's own test of the operation.
+  [`Vnni.lean`](../tests/llama/Vnni.lean) proves this rewrite's 34 places for every input. It says nothing of their
+  code: each is a different rewrite of the kernel.
+- **Some release builds reach it too.** Where llama.cpp is configured with `GGML_CPU_ALL_VARIANTS`, as its
+  release workflow configures the x86-64 Linux build with `GGML_NATIVE` off, it builds one CPU backend for each of
+  several processors. At the pin the ones for Cascade Lake and Ice Lake turn AVX-512 VNNI on, and so do the ones
+  for Cooper Lake, Zen 4 and Sapphire Rapids where the compiler isn't MSVC (`ggml/src/CMakeLists.txt`). So "a
+  build that targets those" in [what it assumes](#what-it-assumes) is more than `-march=native`.

@@ -174,10 +174,9 @@ and `inflate` on 128 KiB takes 6.4 s, where on `Mem` 8 KiB took 313 s, and each 
 The tests' own inputs run 2.2 and 12 times faster. [Memory](memory.md#what-it-costs) has the tables and the commands.
 Measured on 2026-11-11 on z.
 
-The q4_K rewrite makes reading a prompt with llama.cpp 5.5% to 7.2% faster on two models, on a Ryzen 9 9950X with 8
-threads, in every round, and generating isn't faster with 8 threads. [llama.cpp](llama.md#measured) has the tables, the
-spread and the raw rows. Measured on 2026-11-07 on top of `6293d34`, and not since, as it needs models that aren't in
-the repo.
+The q4_K rewrite makes reading a prompt with llama.cpp faster in every round, on two models, on a Ryzen 9 9950X with 8
+threads, and generating isn't faster with 8 threads. [llama.cpp](llama.md#measured) has the tables, the spread and the
+raw rows. Measured on 2026-11-07 on top of `6293d34`, and not since, as it needs models that aren't in the repo.
 
 The Q5 rewrite makes generating with one thread about 5% faster, on Qwen2.5-0.5B-Instruct `Q4_K_M`: a median
 inference speedup of 1.049x over 30 pairs, with a 95% interval of 1.029x to 1.057x. With eight threads it's

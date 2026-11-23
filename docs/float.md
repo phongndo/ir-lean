@@ -211,6 +211,13 @@ reads `nsz` as reaching the result's sign. LangRef 23.1.3's text lets it flip on
 zero is `0.0`, so the model refutes the fold, and Alive2 does too. It shows only where the constant folder leaves the
 `fabs`, as it does for `fp128`. `tests/float` has it as a wrong rewrite, and `tests/fpcheck.py` counts the folds apart.
 
+Upstream reads it as the model does, as its issues stood on 2026-11-22. LLVM's
+[#202453](https://github.com/llvm/llvm-project/issues/202453), closed on 2026-06-09, asks whether LangRef means that
+`fabs nsz -0.0` is `0.0`, quotes this fold, and answers that it does, citing the pull request that settled `nsz`,
+[#180906](https://github.com/llvm/llvm-project/pull/180906). [#217505](https://github.com/llvm/llvm-project/issues/217505),
+still open, says the fold was fixed for `float`, `double` and `half`, and is still made for `fp128`, `bfloat`,
+`x86_fp80` and `ppc_fp128`. So the fold is LLVM's bug, already reported, and there's nothing to ask upstream.
+
 ## The environment
 
 The model is the default environment: round to nearest, ties to even, no traps, flags nobody reads, and subnormals kept.
