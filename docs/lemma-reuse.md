@@ -1,8 +1,12 @@
 # Lemma reuse
 
+This is the historical experiment. Its [retirement audit](../prototypes/lemma-reuse/README.md) records the
+production store's decision for every generated lemma. To run the historical commands below, use a checkout of
+`b0b8b1d4158dec7afd4e578d35da97d915edc245`.
+
 Whether a hard optimization proof can be cut into lemmas that a tool states, checks and keeps, so that the original
 proof goes on from them and the next proof starts with some of them. This is a research note on a prototype, in
-[`prototypes/lemma-reuse`](../prototypes/lemma-reuse), which is outside the library, the build and CI. It changes
+[`prototypes/lemma-reuse`](https://github.com/phongndo/ir-lean/tree/b0b8b1d4158dec7afd4e578d35da97d915edc245/prototypes/lemma-reuse), which is outside the library, the build and CI. It changes
 nothing `ir-lean` claims: [status](status.md) and [trust](trust.md) still say what's true.
 
 It's tried on two proofs. The main one is this quarter's q4_K proof: that a VNNI rewrite of llama.cpp's q4_K matrix
@@ -13,8 +17,8 @@ can't finish the proof.
 
 Measured on 2026-11-07 on top of `28c2364`, and of `531650a` for the q4_K branch, on an Apple M4 Max with 16 cores
 and 64 GB, with Lean 4.35.0, clang 23.1.3 and Alive2 built on the same LLVM, in the dev shell, while other work kept
-the load average between 4 and 7. [`check-q4k.sh`](../prototypes/lemma-reuse/check-q4k.sh) and
-[`check.sh`](../prototypes/lemma-reuse/check.sh) reproduce everything here but the longer limits, which have their
+the load average between 4 and 7. [`check-q4k.sh`](https://github.com/phongndo/ir-lean/blob/b0b8b1d4158dec7afd4e578d35da97d915edc245/prototypes/lemma-reuse/check-q4k.sh) and
+[`check.sh`](https://github.com/phongndo/ir-lean/blob/b0b8b1d4158dec7afd4e578d35da97d915edc245/prototypes/lemma-reuse/check.sh) reproduce everything here but the longer limits, which have their
 commands [below](#reproducing). Their last runs are in [`q4k/report.json`](../prototypes/lemma-reuse/q4k/report.json)
 and [`report.json`](../prototypes/lemma-reuse/report.json).
 
@@ -59,7 +63,7 @@ out after 10 minutes on the first slice of `gemv`, [llama.cpp](llama.md#checked-
 
 ### How it splits a place
 
-[`q4k.py`](../prototypes/lemma-reuse/q4k.py) compiles the kernels from the pinned llama.cpp, rewrites them and cuts
+[`q4k.py`](https://github.com/phongndo/ir-lean/blob/b0b8b1d4158dec7afd4e578d35da97d915edc245/prototypes/lemma-reuse/q4k.py) compiles the kernels from the pinned llama.cpp, rewrites them and cuts
 out the 34 places with `tests/llama.py`'s own scripts, and checks each slice against its manifest. Then,
 for each place, it reads both slices' Lean, which is a list of `let`s:
 
@@ -73,7 +77,7 @@ for each place, it reads both slices' Lean, which is a list of `let`s:
    again.
 3. **The core.** What the rewrite and clang's code compute from the frontier, as a lemma about any values there, with
    the facts that held as hypotheses, proved by what `vnni_slice` does after running both slices. Shortened from
-   how it's [saved](../prototypes/lemma-reuse/q4k/store/Lemma_core_01920f5ad1.lean):
+   how it's [saved](https://github.com/phongndo/ir-lean/blob/b0b8b1d4158dec7afd4e578d35da97d915edc245/prototypes/lemma-reuse/q4k/store/Lemma_core_01920f5ad1.lean):
 
    ```lean
    theorem core_01920f5ad1 (x0 : Vec 32 8) (x1 : Vec 32 8) ... (x16 : Vec 16 16)
@@ -87,7 +91,7 @@ for each place, it reads both slices' Lean, which is a list of `let`s:
    order, so the same lemma from any place has the same name. It's checked only if the store doesn't have it.
 5. **The original theorem, continued.** The statement is the one `tests/llama.py` writes. The proof runs both slices
    as `vnni_slice` does, then applies the core lemma to the facts, as in
-   [`Splits04.lean`](../prototypes/lemma-reuse/q4k/proofs/Splits04.lean):
+   [`Splits04.lean`](https://github.com/phongndo/ir-lean/blob/b0b8b1d4158dec7afd4e578d35da97d915edc245/prototypes/lemma-reuse/q4k/proofs/Splits04.lean):
 
    ```lean
      unfold S04Tgt.s04_tgt S04Src.s04_src
@@ -99,7 +103,7 @@ for each place, it reads both slices' Lean, which is a list of `let`s:
 
 ### What's saved, and when it's reused
 
-[`q4k/store`](../prototypes/lemma-reuse/q4k/store) has the 27 lemmas, and its `index.json` says what each states,
+[`q4k/store`](https://github.com/phongndo/ir-lean/tree/b0b8b1d4158dec7afd4e578d35da97d915edc245/prototypes/lemma-reuse/q4k/store) has the 27 lemmas, and its `index.json` says what each states,
 which place saved it, which places used it, and the 12 facts that didn't hold.
 
 | Lemma | What it says | Saved by | Places using it |
@@ -156,7 +160,7 @@ side is undefined or poison, so each refines the other. clang's code is compiler
 
 The 32-bit goal is no challenge for one call. It's here to show reuse on a theorem the project already has, the
 rewrite in [`tests/llvm/rewrites`](../tests/llvm/rewrites). The other two are in
-[`rewrites`](../prototypes/lemma-reuse/rewrites), and `lemmas.py rewrite` checks that the search still finds them. It
+[`rewrites`](https://github.com/phongndo/ir-lean/tree/b0b8b1d4158dec7afd4e578d35da97d915edc245/prototypes/lemma-reuse/rewrites), and `lemmas.py rewrite` checks that the search still finds them. It
 runs `superopt.py`'s own `search`, on the IR as `lemmas.py` simulates it, since `ctypes` has no 128-bit integers, and
 adds the truncation that the search's grammar can't express.
 
@@ -175,7 +179,7 @@ theorem popcountdi2_same (a : BitVec 64) :
 
 The first three steps take 0.6 s, even at 128 bits. They leave `BitVec.setWidth 32 a.cpop` on one side and clang's 18
 instructions on the other: two very different ways of adding up 64 bits, which is where the solver runs out of time.
-[`lemmas.py`](../prototypes/lemma-reuse/lemmas.py) keeps the first three steps, and replaces the last:
+[`lemmas.py`](https://github.com/phongndo/ir-lean/blob/b0b8b1d4158dec7afd4e578d35da97d915edc245/prototypes/lemma-reuse/lemmas.py) keeps the first three steps, and replaces the last:
 
 1. **It finds cut points by running clang's code.** On a few hundred inputs, it looks for values that hold, in each
    `k`-bit field, the count of the input's set bits in that field. In `__popcountdi2` those are `%sub`, with 2-bit
@@ -187,7 +191,7 @@ instructions on the other: two very different ways of adding up 64 bits, which i
    `bv_decide`. The rewrite's side becomes a sum of the fields' counts, by an instance of `cpop_fieldSum`, which
    [`Count.lean`](../prototypes/lemma-reuse/Count.lean) proves once, by induction, for every width. Each step after
    the first cut is a lemma about fresh variables, proved by `bv_decide`, such as this one, shortened from
-   how it's [saved](../prototypes/lemma-reuse/store/Lemma_step_6934d83747.lean):
+   how it's [saved](https://github.com/phongndo/ir-lean/blob/b0b8b1d4158dec7afd4e578d35da97d915edc245/prototypes/lemma-reuse/store/Lemma_step_6934d83747.lean):
 
    ```lean
    theorem step_6934d83747 {x0 x1 x2 x3 x4 x5 x6 x7 : BitVec 8} (_h0 : x0 ≤ 127#8) ... (_h7 : x7 ≤ 127#8) :
@@ -202,7 +206,7 @@ instructions on the other: two very different ways of adding up 64 bits, which i
 4. **It continues the original proof.** It rewrites the first cut and the population count, introduces a variable
    for each 8-bit field's count with `field_le`'s bound on it, rewrites each step with the fields it has there,
    leaving each bound to `bv_decide`, and ends with `ac_rfl`, since both sides are then sums of the same variables.
-   The [finished proofs](../prototypes/lemma-reuse/proofs) are what Lean checked.
+   The [finished proofs](https://github.com/phongndo/ir-lean/tree/b0b8b1d4158dec7afd4e578d35da97d915edc245/prototypes/lemma-reuse/proofs) are what Lean checked.
 
 That's the cut the hand-written `popcountdi2_correct` in [`Popcountdi2.lean`](../tests/llvm/Popcountdi2.lean) makes,
 at bytes, with `fold8` and `fold4Small` from [`Bits.lean`](../tests/llvm/Bits.lean) as its steps. Here the tool finds
@@ -214,7 +218,7 @@ theorem. No goal here needs it.
 
 ### What's saved, and when it's reused
 
-The [store](../prototypes/lemma-reuse/store) is a directory of Lean modules, a lemma each, and `index.json`, which
+The [store](https://github.com/phongndo/ir-lean/tree/b0b8b1d4158dec7afd4e578d35da97d915edc245/prototypes/lemma-reuse/store) is a directory of Lean modules, a lemma each, and `index.json`, which
 says what each lemma states, the bound it was proved for and the one its first goal needed, how long it took to
 check, which goal saved it and which goals used it. A lemma's name is a hash of its statement with the bound left
 out, so the same step, from any goal, has the same name. A goal takes a lemma from the store if it says the same,
@@ -241,7 +245,7 @@ uses come from a shared library, and 4 of the 7 the 32-bit one uses. Phase 2 of 
 
 ### Proof time
 
-From an empty store, in the order of [`goals.toml`](../prototypes/lemma-reuse/goals.toml), leaving out Alive2 and
+From an empty store, in the order of [`goals.toml`](https://github.com/phongndo/ir-lean/blob/b0b8b1d4158dec7afd4e578d35da97d915edc245/prototypes/lemma-reuse/goals.toml), leaving out Alive2 and
 the one-call attempt, which `check.sh` also runs:
 
 | Goal | Lemmas | Checking them, in parallel | Continued proof | Axioms and kernel replay | From start to end |
@@ -352,7 +356,7 @@ nix develop .#llama -c prototypes/lemma-reuse/check-q4k.sh .
 ```
 
 That proves the 34 places from an empty store, and again from what that saved, checking each lemma again, and
-compares what was saved with [`q4k/store`](../prototypes/lemma-reuse/q4k/store) and its proofs. On 2026-11-08, with
+compares what was saved with [`q4k/store`](https://github.com/phongndo/ir-lean/tree/b0b8b1d4158dec7afd4e578d35da97d915edc245/prototypes/lemma-reuse/q4k/store) and its proofs. On 2026-11-08, with
 the q4_K proof merged with `main` at `0330cd7`, on the Ryzen 9 9950X its measurements are from, it proved the 34
 places, matched all 68 slices to the manifest, and saved the same lemmas and proofs as the store here, in 1 minute 43
 seconds with 6 Lean jobs.

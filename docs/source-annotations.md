@@ -51,11 +51,11 @@ a proposal's numbers, and the [estimate](#what-it-would-buy) built on them is ma
 
 | # | Decision | Recommendation | The alternative, and what it costs |
 | --- | --- | --- | --- |
-| 1 | Whether to adopt the reading at all | **Yes, with the rules here, built with or after F4.** It gives whole-function wins on the IR a project ships, without modeling type-based and scoped aliasing | Model them instead, which the roadmap's [open questions](roadmap.md#open-questions) leave open and which needs a tag on every byte for `!tbaa` ([trust](trust.md#known-gaps-in-the-model)). Or prove only on IR compiled with `-fno-strict-aliasing`, as the kernel corpus proposes, about a different IR from the one that ships |
+| 1 | Whether to adopt the reading at all | **Yes, with the rules here, built with or after F4.** It gives whole-function wins on the IR a project ships, without modeling type-based and scoped aliasing | Model them instead, which the roadmap's [open questions](roadmap-history.md#open-questions) leave open and which needs a tag on every byte for `!tbaa` ([trust](trust.md#known-gaps-in-the-model)). Or prove only on IR compiled with `-fno-strict-aliasing`, as the kernel corpus proposes, about a different IR from the one that ships |
 | 2 | What the target keeps | **Nothing in scope, in the rewritten function and every function it can call in the module: each drops every one, and their `noalias` arguments go from their definitions and from every call to them in the module** | Keep them on instructions the rewrite didn't touch. That rests on an argument about LLVM the model can't check, and it fails as stated for scope declarations and `noalias` arguments ([below](#a-rewrite-of-part-of-a-function)). Or drop them in the rewritten function alone, which leaves it unsupported on the target wherever it calls a function that keeps one: 4 of the 15 kernels the estimate counts ([what it calls](#what-it-calls)) |
 | 3 | Value metadata: `!range`, `!nonnull`, `!align`, `!dereferenceable` and `!dereferenceable_or_null` on a load, and `!range` on a call | **Model them**, as their attribute forms are. Then the target may keep them, and the search may use them | Drop them with the rest. Sound, and the search loses facts it could have used |
 | 4 | How a win proved this way is labeled | **A third value for the source IR, "as built, read with its annotations dropped"**, beside the kernel corpus's "as built" and "relaxed", with the kinds dropped and the drop-only control's result on the board | Count it as "as built". That hides that the theorem rests on LangRef's rule for dropping, and that the target lost alias facts |
-| 5 | What callers promise about a call | **F4's refinement for memory also requires two things, on every run the source doesn't make undefined. Every byte the target reads, the source reads or writes, and every byte it writes, the source writes, through a pointer based on the same argument, by LangRef's *based on* or the model's provenance, whichever F4 says. And every byte whose value the target changes during the call, even for a moment, the source changes too. Volatile and atomic accesses stay refused.** Before any whole-function win with memory counts, in this mode or not. The first keeps every caller's promise about the call, and the second every `!invariant.load` in the program. Both allow dropping, repeating and reordering accesses, so dead-store elimination passes. It refuses a rewrite that adds an access, such as a load speculated where `dereferenceable` allows it, which LLVM's own passes make | Drop every such promise before installing a rewrite: scoped metadata and access groups on every call that can reach the function, `noalias` on every function that can, and `!invariant.load` on every load that can read a byte the function writes, which can be in a function that never calls it. That works only where nothing outside the module can reach the function or read what it writes, and costs the module those facts. Or leave it as a stated assumption on each win, which the roadmap calls "the last resort, and doesn't work for refinement" ([Phase 0](roadmap.md#phase-0-semantic-fidelity-and-trust-infrastructure)) |
+| 5 | What callers promise about a call | **F4's refinement for memory also requires two things, on every run the source doesn't make undefined. Every byte the target reads, the source reads or writes, and every byte it writes, the source writes, through a pointer based on the same argument, by LangRef's *based on* or the model's provenance, whichever F4 says. And every byte whose value the target changes during the call, even for a moment, the source changes too. Volatile and atomic accesses stay refused.** Before any whole-function win with memory counts, in this mode or not. The first keeps every caller's promise about the call, and the second every `!invariant.load` in the program. Both allow dropping, repeating and reordering accesses, so dead-store elimination passes. It refuses a rewrite that adds an access, such as a load speculated where `dereferenceable` allows it, which LLVM's own passes make | Drop every such promise before installing a rewrite: scoped metadata and access groups on every call that can reach the function, `noalias` on every function that can, and `!invariant.load` on every load that can read a byte the function writes, which can be in a function that never calls it. That works only where nothing outside the module can reach the function or read what it writes, and costs the module those facts. Or leave it as a stated assumption on each win, which the roadmap calls "the last resort, and doesn't work for refinement" ([Phase 0](roadmap-history.md#phase-0-semantic-fidelity-and-trust-infrastructure)) |
 
 ## The claim
 
@@ -195,7 +195,7 @@ accesses a scope covers, and `noalias` on an argument isn't about tagged accesse
 So the rule is the whole function. The source is the whole function read with the mode, and the target is the whole
 function with every annotation in scope dropped, and so is every function it calls ([next](#what-it-calls)). Where a
 proof is about a region of it, the lemma that a refined cut gives a refined function, which goes with F4 by
-[decision 9](roadmap.md#thirteen-decisions-of-2026-11-09-after-103), turns it into this whole-function claim. Keeping
+[decision 9](roadmap-history.md#thirteen-decisions-of-2026-11-09-after-103), turns it into this whole-function claim. Keeping
 tags outside the region is a later decision, worth taking only if the drop-only control [below](#what-it-costs) shows a
 cost, and only with that argument checked somehow.
 
@@ -302,7 +302,7 @@ refused in this mode.
 
 ### Safety, proof tests and claims about the source
 
-[msc](roadmap.md#names-and-languages-decided-on-2026-11-10) needs every undefined behavior LLVM has: "For safety proofs,
+[msc](roadmap-history.md#names-and-languages-decided-on-2026-11-10) needs every undefined behavior LLVM has: "For safety proofs,
 more UB than LLVM is conservative and less is unsound" ([trust](trust.md#known-gaps-in-the-model)). A source read with
 the mode has less. A proof test's property, or a `verify` claim that a function returns, is about `drop(src)` the same
 way. So each refuses the mode, and a module generated with it.
@@ -312,7 +312,7 @@ emitted without the annotations, since that target is what LLVM runs. Nothing ne
 
 ### Inside a pipeline
 
-The plugin of [decision 10](roadmap.md#thirteen-decisions-of-2026-11-09-after-103) applies a rewrite where `clang` or
+The plugin of [decision 10](roadmap-history.md#thirteen-decisions-of-2026-11-09-after-103) applies a rewrite where `clang` or
 `opt` runs it. Every pass after it, and code generation, sees the rewritten function without its alias facts: LICM, GVN,
 DSE and the vectorizers in the middle, and in code generation the alias queries that read the same metadata from memory
 operands: `MachineInstr::mayAlias`, and the DAG combiner, whose `-combiner-use-tbaa` is on by default. That's a cost,
@@ -377,7 +377,7 @@ None of this is written. It's what it would take.
 
 ### Labels
 
-[Decision 9](roadmap.md#thirteen-decisions-of-2026-11-09-after-103) labels a win by what's proved and what the proof
+[Decision 9](roadmap-history.md#thirteen-decisions-of-2026-11-09-after-103) labels a win by what's proved and what the proof
 rests on, and the kernel corpus proposes a third label, the source IR, "as built" or "relaxed with
 `-fno-strict-aliasing`". This adds a value to it: **as built, read with its annotations dropped.** The board shows the
 kinds dropped in the rewritten function and what it calls, and the drop-only control's result.

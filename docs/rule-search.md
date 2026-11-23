@@ -3,7 +3,7 @@
 A deterministic search that rewrites real LLVM IR using only [rules](rules.md) already proved for every input, so what
 it finds carries its proof: a chain of proved rules, composed by `IRLean.Refines.trans`. It calls no model. It was the
 engine's core until 2026-11-22, by decision 4 of the
-[thirteen decisions after #103](roadmap.md#thirteen-decisions-of-2026-11-09-after-103), whose numbers this page uses.
+[thirteen decisions after #103](roadmap-history.md#thirteen-decisions-of-2026-11-09-after-103), whose numbers this page uses.
 Since then it's a tool of an engine whose core is a proposer:
 [the engine, changed on 2026-11-22](roadmap.md#the-engine-changed-on-2026-11-22).
 This page is what it does, what it found on the fixtures it was built on, what each part costs, and what it can't do.
@@ -18,13 +18,13 @@ changed what the emitter refuses.
 ## What it found
 
 - **Nothing that counts as a win, and nothing here is counted toward S3's bar or the checkpoint, of
-  [decision 8](roadmap.md#thirteen-decisions-of-2026-11-09-after-103), as it read until 2026-11-22.** The search was run
+  [decision 8](roadmap-history.md#thirteen-decisions-of-2026-11-09-after-103), as it read until 2026-11-22.** The search was run
   only on small files in the repo and on LLVM's own regression tests, never on the corpus, on
   zlib, on llama.cpp or on any outside project.
 - **Against `opt -O3`, `llvm-mca` kept none of what it found.** Every rule it has today was cut from InstSimplify's
   proofs, so `opt -O3` makes the same rewrites itself: on all 225 rewrites found in LLVM's InstSimplify tests, both
   sides come out of `opt -O3` and `llc -O3` with the same uOps. That's
-  [decision 3](roadmap.md#thirteen-decisions-of-2026-11-09-after-103)'s point, measured: LLVM's rewrites are the base a
+  [decision 3](roadmap-history.md#thirteen-decisions-of-2026-11-09-after-103)'s point, measured: LLVM's rewrites are the base a
   search starts from, not its wins. A win needs a rule LLVM doesn't have.
 - **Everything it found was certified.** On LLVM's 190 InstSimplify test files, with every candidate kept, the search
   found 225 rewrites that aren't part of another, using 115 of the 144 rules it can apply, and Lean proved each
@@ -58,7 +58,7 @@ changed what the emitter refuses.
    `llvm-mca`, for `--mcpu`, `x86-64-v3` by default, and a candidate is kept only if it takes fewer uOps. So a rewrite
    `opt -O3` makes itself is dropped. `--baseline none` leaves `opt -O3` out, and `--keep all` keeps every candidate,
    labeled with what `llvm-mca` said. uOps only filter: a claim of speed needs wall time on the real workload, as
-   [decision 6](roadmap.md#thirteen-decisions-of-2026-11-09-after-103) says, which nothing here measures.
+   [decision 6](roadmap-history.md#thirteen-decisions-of-2026-11-09-after-103) says, which nothing here measures.
 6. **Certifies each kept rewrite,** in [certify mode](rules.md#how-the-matcher-and-the-statement-are-tied): the
    chain's states as IR, the rules' names, and a certificate the kernel checks.
 
@@ -82,7 +82,7 @@ instruction counts, `llvm-mca`'s uOps, and each certificate's status, claim, axi
 
 ### Tiers
 
-By [decision 9](roadmap.md#thirteen-decisions-of-2026-11-09-after-103), each result says what's proved and what the
+By [decision 9](roadmap-history.md#thirteen-decisions-of-2026-11-09-after-103), each result says what's proved and what the
 proof rests on:
 
 | Tier | When | What's proved | What's trusted beyond [the usual](rules.md#whats-trusted) |
@@ -170,12 +170,12 @@ would share that cost, and isn't done.
 
 - **Find a win over `clang -O3`.** With only LLVM's own rewrites as rules, it finds what `opt -O3` finds. Rules from
   elsewhere, an agent's or Minotaur's, each proved once and stored, are what
-  [decision 4](roadmap.md#thirteen-decisions-of-2026-11-09-after-103) expects to feed it, and none exists yet.
+  [decision 4](roadmap-history.md#thirteen-decisions-of-2026-11-09-after-103) expects to feed it, and none exists yet.
 - **Divisions.** `udiv`, `sdiv`, `urem` and `srem` can be undefined, so they aren't values, and a cut stops at one.
   38 of the 182 rules have a division in their pattern: each is proved, and none is applied. Following a division
   takes a congruence lemma for runs that can be undefined, which isn't written.
 - **Vectors, floating point, memory, calls, `freeze` and `phi`.** Each is a leaf. So nothing here rewrites SIMD code,
-  which is where [decision 7](roadmap.md#thirteen-decisions-of-2026-11-09-after-103)'s corpus is. Vector rules need
+  which is where [decision 7](roadmap-history.md#thirteen-decisions-of-2026-11-09-after-103)'s corpus is. Vector rules need
   lane-wise statements and congruence, and the x86 intrinsics another lane is adding.
 - **Whole functions of more than one block, or with memory.** Slices only, until F4's cut lemma and memory in
   `Refines`.

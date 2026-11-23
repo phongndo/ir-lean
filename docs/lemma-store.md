@@ -1,7 +1,7 @@
 # Lemma store
 
 Checked, reusable lemmas that later proofs, the superoptimizer and proof tests can find and use. This is lemma store
-v1, milestone E1 of [Phase 6](roadmap.md#phase-6-the-engine-and-the-lemma-store): the store is built by `lake build`,
+v1, milestone E1 of [Phase 6](roadmap-history.md#phase-6-the-engine-and-the-lemma-store): the store is built by `lake build`,
 checked again in CI by the `store` test, and holds [#48](https://github.com/phongndo/ir-lean/pull/48)'s rewrites at
 every width, the laws of `IRLean.Refines` and LangRef's integer contracts. For what any theorem means, read
 [trust](trust.md) first: a stored lemma is a theorem about IRLean's model, like any other.
@@ -74,7 +74,7 @@ them, and `lake build` builds them as part of it.
 
 ## The bar
 
-The [roadmap](roadmap.md#the-flywheel)'s four rules, and how each is checked:
+The [roadmap](roadmap-history.md#the-flywheel)'s four rules, and how each is checked:
 
 | Rule | Checked by | Refused as | Test that a lemma breaking it is refused |
 | --- | --- | --- | --- |
@@ -263,18 +263,15 @@ would make them more general.
 
 ## The prototype
 
-[`prototypes/lemma-reuse`](../prototypes/lemma-reuse) kept its lemmas in a directory of modules with an `index.json`,
-outside the build and CI, matched them word for word, and had a vocabulary of two facts. Run through this store's
-checks on 2026-11-08, its 13 population-count lemmas are all refused: all 13 are stated at one width, 10 rest on
-`bv_decide`'s axioms, 7 have hypotheses such as `x ≤ 255#8` with no counterexample, most because none exists, and 10
-have constants written as numbers. Its seed lemmas in `Count.lean`, and the every-width counting lemmas in
-`tests/llvm/Bits.lean` they build on, mostly pass: 6 of 18 would be admitted and 5 candidates, and the rest need
-counterexamples. They aren't in the store, because neither file is in a library `lake build` builds.
+The retired experiment produced 13 population-count lemmas and 27 q4_K lemmas. The production store refused
+all 40 in its admission dry run. All were specialized to fixed widths. The checker also recorded
+`nonstandard_axiom` for ten population-count lemmas and 26 q4_K lemmas.
 
-Its q4_K half runs against the q4_K proof, which
-[#57](https://github.com/phongndo/ir-lean/pull/57) brought to `main` on 2026-11-08. Its two core lemmas each rest on
-one of `bv_decide`'s axioms and are stated at 256 and 512 bits, as [lemma reuse](lemma-reuse.md#proof-time) records,
-so rules 1 and 2 would refuse them. Checking them here, and retiring the prototype, is the next pull request.
+The dry run compiled the archived `Count.lean` and classified two of its five handwritten seeds as admitted.
+Both `count_le` and `toNat_field` had two consumers in that file, `field_le` and `toNat_fieldSum`.
+The checker classified `field_le` as a candidate and refused the other two seeds. The production index contains
+none of these five seeds. The [retirement audit](../prototypes/lemma-reuse/README.md) explains the module-wide
+axiom refusal for all 21 theorems in `Bits.lean` and gives the per-lemma results and replay command.
 
 ## What it rests on
 
@@ -316,9 +313,6 @@ so rules 1 and 2 would refuse them. Checking them here, and retiring the prototy
   So does one stated for a width variable `w` with a hypothesis such as `w = 8`, given a counterexample and a witness.
 - **Triviality is judged with a budget.** A lemma `grind` would close with more heartbeats is admitted.
 - **Subsumption only tries applying one lemma.** A lemma derivable in two steps is admitted.
-- **The prototype isn't retired yet.** That, with its q4_K lemmas recorded against the bar, is the next pull request.
-  `Count.lean`'s and `tests/llvm/Bits.lean`'s counting lemmas aren't in the store, since no library `lake build`
-  builds them.
 - **No lemma store for memory yet.** Every stored lemma is about values and runs without `Mem`, since `Refines` has no
   instance for it until SEM-06.
 

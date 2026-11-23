@@ -22,7 +22,7 @@ arguments, terminal, signals and exit code:
 
 Two more have names and no command yet: `irl sopt`, the superoptimizer, whose rule search is `tools/rules/rules.py`
 for now ([rule search](rule-search.md)), and `irl msc`, the memory-safety checker. Each says so and exits 1.
-[The roadmap](roadmap.md#names-and-languages-decided-on-2026-11-10) has where the names come from.
+[The roadmap](roadmap-history.md#names-and-languages-decided-on-2026-11-10) has where the names come from.
 
 ```console
 $ build/irl verify check --c tests/real/bi_reverse.c --namespace Real --function popcount \
@@ -66,7 +66,7 @@ relative to the directory the server started in, which is the agent's.
 - **An error is only a failed request or tool.** `isError` is true when the answer's status is `error`, its reason
   `invalid_request` or `internal_error`, or the tool printed no JSON. A counterexample, `unsupported`, `timeout` or
   `unknown` is an answer, and only `proved` says a claim holds. The server's instructions say so to the agent.
-- **It never calls a model,** as [decision 5 after #103](roadmap.md#thirteen-decisions-of-2026-11-09-after-103)
+- **It never calls a model,** as [decision 5 after #103](roadmap-history.md#thirteen-decisions-of-2026-11-09-after-103)
   requires of every tool that ships.
 - **Every answer reproduces from a terminal.** A verify answer's `reproduce.command` reruns it, and the same request
   is `irl verify check request.json`.
@@ -89,7 +89,7 @@ relative to the directory the server started in, which is the agent's.
 MCP 2025-11-25, 2025-06-18, 2025-03-26 and 2024-11-05: it answers a client with the version it asks for, or the
 newest. It serves tools only: no resources, prompts or sampling, and the list of tools doesn't change.
 
-It's Go with only its standard library, as [the decision](roadmap.md#names-and-languages-decided-on-2026-11-10) has
+It's Go with only its standard library, as [the decision](roadmap-history.md#names-and-languages-decided-on-2026-11-10) has
 it. The dev shell's Go builds it, and nothing is downloaded.
 
 ## What it doesn't do yet

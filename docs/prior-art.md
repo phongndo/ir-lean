@@ -14,7 +14,7 @@ The goals it reads against are the ones set on 2026-11-08:
 - **Guarantees** carried across optimization by `Safe src → Refines src tgt → Safe tgt`.
 - **Speed** of the tool and the dev cycle.
 
-It also answers the gate in [Phase 4](roadmap.md#phase-4-certified-translation-validation-and-superoptimization):
+It also answers the gate in [Phase 4](roadmap-history.md#phase-4-certified-translation-validation-and-superoptimization):
 whether Trivet or Lean-MLIR already cover integer stage 1.
 
 Researched on 2026-11-08, on top of commit `0330cd7`. LLVM is cited at `llvmorg-23.1.3`, the dev shell's
@@ -291,8 +291,8 @@ These take up the gaps [lemma reuse](lemma-reuse.md#gaps) lists, among others.
 
 **Normalize, so one meaning has one key.**
 
-- **Hash the elaborated statement, not its text.** Today the key is a SHA-256 of the statement's text with whitespace
-  collapsed (`prototypes/lemma-reuse/lemmas.py`, line 435). Lean's `Expr` equality is up to alpha-equivalence, and its
+- **Hash the elaborated statement, not its text.** The [archived generator](https://github.com/phongndo/ir-lean/blob/b0b8b1d4158dec7afd4e578d35da97d915edc245/prototypes/lemma-reuse/lemmas.py#L435)
+  hashed the statement's text with SHA-256 after collapsing whitespace. Lean's `Expr` equality is up to alpha-equivalence, and its
   hash ignores binder names (`src/Lean/Expr.lean`, lines 488–497 and 804). For a stable name, hash a fully explicit
   printing, as LeanHammer serializes premises with no notation and full names (§3.2.1).
 - **Fix operand order** with core's `ac_nf`, on the stored statement and on the goal. That's "the same step, written

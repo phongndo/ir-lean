@@ -2,8 +2,8 @@
 
 A proof test states a property of compiled code once, and escalates: tier 1 runs it on generated inputs for a
 counterexample, tier 2 proves it within a bound, and tier 3 proves it outright, from stored lemmas. It never reports a
-pass it hasn't earned. That's the second product in the [roadmap](roadmap.md#one-engine-two-products), next to
-proved superoptimization, and [Phase 7](roadmap.md#phase-7-proof-tests) has its milestones.
+pass it hasn't earned. That's the second product in the [roadmap](roadmap-history.md#one-engine-two-products), next to
+proved superoptimization, and [Phase 7](roadmap-history.md#phase-7-proof-tests) has its milestones.
 
 This page has tier 1, which is built, in [`tools/prooftest/`](../tools/prooftest), what it measured against milestone
 T1, and the design of tiers 2 and 3, which aren't built. Since 2026-11-10 tier 1 runs functions that take memory,
@@ -375,13 +375,13 @@ IR says, are outside this, as [trust](trust.md#what-a-theorem-covers) says.
   stated with core's, such as `BitVec.cpop`, or it comes back `unknown/statement_invalid`.
 - **Setup costs about 2 s** a property: verify's setup, about 1.2 s, and starting the harness, which imports `Lean`,
   about 0.9 s. The search itself takes milliseconds. Keeping one harness for many properties of one module would cut
-  most of that, for [C2](roadmap.md#phase-8-speed).
+  most of that, for [C2](roadmap-history.md#phase-8-speed).
 - **Integer binders only,** of literal widths. A width-generic statement, `∀ w`, isn't tier 1's, and neither is an
   `IRLean.Choice`, which a function with a `freeze` takes since F3.
 
 ## T1, measured
 
-Milestone T1 in the [roadmap](roadmap.md#phase-7-proof-tests): for the bugs injected into the C that each make a proof
+Milestone T1 in the [roadmap](roadmap-history.md#phase-7-proof-tests): for the bugs injected into the C that each make a proof
 stop checking, and the negative corpus's wrong rewrites, tier 1 finds a counterexample to each it can run, at a median
 under 100 ms, each one it can't run comes back unknown, and a test shows a timeout, an unsupported function and a
 resource limit each come back unknown, never as a pass.
@@ -686,15 +686,15 @@ contract:
 None of these says the statement is false. Only tiers 1 and 2 can say that, with a counterexample.
 
 **Feeding the store.** A tier-3 proof is cut into lemmas, as [lemma reuse](lemma-reuse.md) prototypes, and offered to
-`store.py add`, which admits each one or keeps it as a candidate under the [bar](roadmap.md#the-flywheel). That's the
+`store.py add`, which admits each one or keeps it as a candidate under the [bar](roadmap-history.md#the-flywheel). That's the
 flywheel: each proof test that reaches tier 3 makes the next one cheaper.
 
 ## What's next
 
 After T1. Since later on 2026-11-09, tiers 2 and 3 wait until the results board exists, by
-[decision 12 after #103](roadmap.md#thirteen-decisions-of-2026-11-09-after-103): until then proof tests get the
+[decision 12 after #103](roadmap-history.md#thirteen-decisions-of-2026-11-09-after-103): until then proof tests get the
 platform work the search also needs, and tier 1 stays green in CI. Before that decision they waited until chunk 1's G2
-was producing lemmas. The waves are replaced by the roadmap's [platform track and chunks](roadmap.md#next-steps):
+was producing lemmas. The waves are replaced by the roadmap's [platform track and chunks](roadmap-history.md#next-steps):
 
 - **Tiers 2 and 3,** milestone T2, as designed above. Tier 2's exhaustive kernel proof and unrolling need nothing new
   in `IRLean`. Tier 3 needs `llvm_exec` where a proof test can import it, and the store, which is in.

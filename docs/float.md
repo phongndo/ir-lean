@@ -412,9 +412,9 @@ every existing proof still passing, its coverage reported, and [trust](trust.md)
 5. **Vectors of floats,** lane by lane, as each operation lands.
 
 What stays out: the four rewrite-based flags, the environments above, `x86_fp80` and `ppc_fp128`, the functions `afn`
-approximates (`sin`, `pow` and the rest, which LangRef leaves to the library). Scalable vectors of floats are in, since
-the long-tail lane's scalable vectors, [#95](https://github.com/phongndo/ir-lean/pull/95), landed first, and slice 1
-wired them up: what applies to a vector of floats applies to a scalable one, lane by lane.
+approximates (`sin`, `pow` and the rest, which LangRef leaves to the library). The emitter supports lane-wise floating-point operations on
+[scalable vectors](scalable-vectors.md#whats-modeled). Vector `freeze` requires a
+[fixed-width vector](ir-features.md#vector-freeze).
 
 ## What it rests on
 

@@ -89,8 +89,10 @@ substituting its result are trusted, as for q4_K. [llama.cpp's Q5](llama-q5.md) 
 2026-11-07, and the proof checked again on 2026-11-08 with the q4_K rewrite and `main` at `0330cd7`. Since
 2026-11-10 [the cut lemma](refinement.md#the-cut-lemma) proves substituting it right in two loops written to hold the
 slice, one with memory, but not in the kernel, which hasn't been translated, so there it's still trusted. What stops
-it is the emitter's refusing `llvm.fma`, the kernel's floating point choosing NaNs, which the cut lemma doesn't cover
-yet, and, as built, `!tbaa`; every other operation of the kernel's has its lemma.
+it is the emitter's refusing `noalias` on the kernel's parameters and, as built, `!tbaa`
+([each kernel](kernels.md#each-kernel)), and the kernel's floating point choosing NaNs, which the cut lemma doesn't
+cover yet; every operation of the kernel's that the emitter translates has its lemma. `llvm.fma`, which stopped it
+too, is modeled since 2026-11-12.
 
 ## Tested
 
@@ -104,14 +106,14 @@ Evidence and not proof. A pass here means no disagreement was found on the input
   headers and damaged streams. Lean and native code agree on all 117 results, with none skipped. Those inputs are of
   at most about 800 bytes, because `Mem` is slow to run: each memory access walks back through earlier writes. Since
   2026-11-11 the tests run on [executable memory](memory.md#executable-memory), whose operations are proved to agree
-  with `Mem`'s, and `zlib_big` adds inputs of 128 KiB to 128.5 KiB, which reach across `inflate`'s whole 32 KiB
+  with `Mem`'s, and `zlib_big` adds inputs up to 128.5 KiB, which reach across `inflate`'s whole 32 KiB
   window: they agree on all 12 results, with none skipped, which is E2's exit criterion. The harness reaches all but 5
   of zlib's functions, counted without optimization so nothing is inlined away: two for big-endian machines,
   `crc32_combine_gen`, `_tr_align` and `_tr_tally`.
 - **What the emitter accepts:** all 17,046 items the pinned IR can contain are classified, 455 modeled, 262
-  assumed and 16,329 refused, and a probe of each shows the emitter does what its class says, with the Lean it
+  assumed and 16,329 refused, and the available probes show the emitter does what its class says, with the Lean it
   prints for each it translates elaborating ([IR features](ir-features.md)). Since 2026-11-09, and these counts
-  since 2026-11-11.
+  since 2026-11-12.
 - **Vector forms of integer operations:** the vector forms of 16 intrinsics, vector division and remainder,
   `noundef` and `range` on vectors and structs, and x86's VPTERNLOG, PSHUFB and shifts agree with Alive2 both ways,
   undefined behavior included, and with LLVM's constant folder, on 3,972 inputs to 195 operations, with a wrong
@@ -266,7 +268,7 @@ the four support modules together.
 
 ### Probes for later phases
 
-Small one-off experiments, not in CI, to size the work. They are not progress on [Phase 3](roadmap.md#phase-3-c-and-rust-demonstrations).
+Small one-off experiments, not in CI, to size the work. They are not progress on [Phase 3](roadmap-history.md#phase-3-c-and-rust-demonstrations).
 They predate the allow-lists and the promise model, which refuse more, such as calls to `linkonce_odr` functions and
 `noalias` on arguments, so expect fewer to translate now.
 
@@ -279,7 +281,7 @@ They predate the allow-lists and the promise model, which refuse more, such as c
 | Rust `no_std` slices, `rustc` 1.95.0 | `-O -C panic=abort` | 3 of 5 | `undef` in a `phi`, and call to external `panic_bounds_check` |
 
 The Rust compiler's LLVM was 21.1.8, while the emitter links LLVM 23.1.3 and so upgrades the IR as it
-reads it. That difference is itself a thing [Phase 3](roadmap.md#phase-3-c-and-rust-demonstrations) has to deal with.
+reads it. That difference is itself a thing [Phase 3](roadmap-history.md#phase-3-c-and-rust-demonstrations) has to deal with.
 
 ## What's been built
 
@@ -293,7 +295,7 @@ reads it. That difference is itself a thing [Phase 3](roadmap.md#phase-3-c-and-r
 8. `crc32`. Done.
 9. Promises the optimizer leaves, checked or refused. Done, with `mustprogress`, `willreturn` and
    `llvm.loop.mustprogress` [since SEM-07](trust.md#promises-to-progress).
-10. `inflate`: [measured](#measured). Its next step is [its invariant](roadmap.md#phase-1-zlib-inflate-memory-safety).
+10. `inflate`: [measured](#measured). Its next step is [its invariant](roadmap-history.md#phase-1-zlib-inflate-memory-safety).
 11. A [lemma store](lemma-store.md): 437 checked lemmas from #42, #46, #48, F3 and #103 that later proofs can find, in
     `lake build` and CI, 75 of them used by two proofs. Done in [#60](https://github.com/phongndo/ir-lean/pull/60).
 12. Tier-1 proof tests, which run a property on generated inputs and have the kernel, or `tools/verify.py`, confirm

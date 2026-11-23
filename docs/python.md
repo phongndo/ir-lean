@@ -9,7 +9,7 @@ it.
 The project is a Lean semantics, a C++ emitter and proofs. Python runs them: it starts `opt`, `clang`, the emitter,
 Lean and Alive2, compares what they print, and writes results as JSON. It stays the glue, and nothing more. Anything in
 it that shows a memory or speed problem moves to C++. Since
-[2026-11-10](roadmap.md#names-and-languages-decided-on-2026-11-10), most work is C++, and the command line and MCP
+[2026-11-10](roadmap-history.md#names-and-languages-decided-on-2026-11-10), most work is C++, and the command line and MCP
 server agents use, [irl](irl.md), are Go.
 
 It had grown past that. It was 1,534 lines in 5 files at `70bfcb3`, the last commit before 2026-11-07 UTC, 5,401 in 12 at

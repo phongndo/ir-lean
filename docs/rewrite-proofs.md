@@ -302,7 +302,7 @@ held 175 lemmas: 21 admitted and 154 candidates, up from 17 and 147.
 
 ## E3 so far
 
-E3, in [Phase 6](roadmap.md#phase-6-the-engine-and-the-lemma-store), asks that over 20 proofs at least half use a
+E3, in [Phase 6](roadmap-history.md#phase-6-the-engine-and-the-lemma-store), asks that over 20 proofs at least half use a
 stored lemma, at least 10 lemmas meet all four rules, and a proof using the store checks faster, at the median, than
 the same proof without it. `measure` counts the proofs in order, registries by name and each one's sites as it lists
 them. These were measured while `L605` was still listed, so there are 8; there are 7 now.
@@ -378,7 +378,7 @@ Each module, elaborated alone by `lean -M 4096` with what it imports already bui
 
 A file that only imports `Peephole.IS.Add`, or only `Peephole.Oracle`, peaks at 652 MiB, so each module's own
 definitions and proofs add 17 to 73 MiB to what importing costs. Proposed, for the library and
-[Phase 8](roadmap.md#phase-8-speed):
+[Phase 8](roadmap-history.md#phase-8-speed):
 
 - **Each module of the library at most 1.25 GB,** one and a half times the largest peak measured, rounded up to
   256 MB. A family's module above it most likely has a proof that should be cut into lemmas.

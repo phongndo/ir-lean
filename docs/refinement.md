@@ -51,7 +51,7 @@ becomes refinement.
 ## Runs that make choices
 
 Since F3, on 2026-11-09, `freeze` of poison is a value, and no longer stops the model. `undef` stays out, by the
-[maintainer's decision](roadmap.md#three-decisions-of-2026-11-09) of the same day.
+[maintainer's decision](roadmap-history.md#three-decisions-of-2026-11-09) of the same day.
 
 ### What LangRef asks
 
@@ -128,8 +128,7 @@ that way, and `Refine.outcomes_det_left` and `outcomes_det_right` unfold it.
 
 - `undef`, which stays out: `undef` constants are refused, and reading uninitialized memory gives poison. See
   [trust](trust.md#known-gaps-in-the-model).
-- `freeze` of a pointer or a struct, which ir-lean refuses. LangRef gives a pointer with no provenance. A vector's,
-  lane by lane, is `Vec.freeze`, since 2026-11-12, and `tests/freeze.sh` proves three rewrites of one, with Alive2.
+- `freeze` of a pointer or a struct, which ir-lean refuses. LangRef gives a pointer with no provenance. The [IR feature inventory](ir-features.md#vector-freeze) gives the supported vector types.
 - Running a claim that quantifies over choices. Tier-1 proof tests generate no `Choice`, and `tools/verify.py` can't
   decide `∃` over the source's choices at a witness, so both answer unknown or unsupported there, never a pass. The
   refutations are kernel-checked theorems instead, in `tests/freeze/FreezeModel.lean` and `tests/refine`.
@@ -382,10 +381,10 @@ It isn't a theorem about `ggml_vec_dot_q5_0_q8_0`: the fixtures have the kernel'
 without its loads, and not its floating point or its vector loads, and
 [the Q5 rewrite](llama-q5.md#what-is-proved-and-checked) says what that leaves trusted. Every operation of the kernel's the
 emitter translates now has its lemma, the vector loads, VPDPBUSD, PSIGN and the conversions between integers and
-floats included. Three things still stop a theorem about the kernel itself: the emitter refuses `llvm.fma`, which the
-kernel's `_mm256_fmadd_ps` is, and every llama.cpp kernel of the corpus has, since the model has no fused
-multiply-add; its floating point chooses NaNs, so its run returns `Outcomes`, which the cut lemma doesn't cover yet;
-and as built, without `-fno-strict-aliasing`, its `!tbaa`.
+floats included, and since 2026-11-12 `llvm.fma`, which the kernel's `_mm256_fmadd_ps` is and the emitter refused
+until then. Three things still stop a theorem about the kernel itself: the emitter refuses `noalias` on its
+parameters ([each kernel](kernels.md#each-kernel)); its floating point chooses NaNs, so its run returns `Outcomes`,
+which the cut lemma doesn't cover yet; and as built, without `-fno-strict-aliasing`, its `!tbaa`.
 `drop_nuw_loop_converse` proves the lemma is one-way: from 253 the loop with `add nuw` returns poison where the one
 with `add` returns 0.
 
@@ -498,9 +497,10 @@ These have no claim, or a claim that says nothing about LLVM, and stay that way 
 - `undef`, as a constant, which ir-lean refuses, or as an argument (SEM-02), which stays out of the model by the
   decision of 2026-11-09;
 - `freeze` of a pointer or a struct, which ir-lean refuses (the rest of SEM-03);
-- floating point's intrinsics but `llvm.fabs`, `llvm.copysign`, `llvm.is.fpclass` and the saturating
-  conversions, which ir-lean refuses until SEM-05's later [slices](float.md#the-slices). A float is its bits, so
-  `Refines` on one is bit for bit, as LLVM's is, and a NaN result is a choice;
+- floating point's intrinsics but `llvm.fabs`, `llvm.copysign`, `llvm.is.fpclass`, the saturating conversions and,
+  since 2026-11-12, `llvm.fma` and `llvm.fmuladd`, which ir-lean refuses until SEM-05's later
+  [slices](float.md#the-slices). A float is its bits, so `Refines` on one is bit for bit, as LLVM's is, and a NaN
+  result is a choice;
 - a run under a promise to progress that LangRef doesn't settle, which stops the model: a recursive function's, so
   deleting infinite recursion can't be certified, and one waiting on a promised callee that waits itself
   ([trust](trust.md#promises-to-progress)).
