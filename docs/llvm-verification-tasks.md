@@ -1,11 +1,11 @@
 # Proving every optimization in LLVM: tasks
 
-**The main program, since 2026-11-09.** Proving every optimization in a pinned LLVM was parked on 2026-11-08, and the
-maintainer made it the main program again on 2026-11-09, organized as nine [chunks](chunks.md) of passes, each taken
-through five gates, with a platform track under them all
-([roadmap](roadmap.md#six-decisions-of-2026-11-09-after-69)). Proved superoptimization and proof tests ride on the
-same platform. This page is the program's plan: the inventory of the pinned LLVM's passes, the rules for what counts
-as done, and the tasks, with their statuses kept true and checked by `tests/llvm_scope.py`.
+The 2026-11-09 plan divided a pinned LLVM into nine chunks and five gates. Later that day the maintainer
+made proved superoptimization the lead. Chunks 1–6 continue through G2, G3 and G4 are paused, and chunks
+7–9 are out of scope. The [chunk plan](chunks.md#what-changed-later-on-2026-11-09) defines the active work.
+
+This page keeps the full inventory, the criteria for proving a pass and the task statuses checked by
+`tests/llvm_scope.py`.
 [`tests/llvm_scope/chunks.json`](../tests/llvm_scope/chunks.json) puts each pass in one chunk, and the `chunks` test
 checks it against this page's inventory.
 
@@ -23,23 +23,21 @@ what any theorem means, see [trust](trust.md).
 
 ## What the roadmap keeps
 
-*Since 2026-11-09 every task here is the main program's, and [chunks](chunks.md) says which chunk and gate each one
-serves. From 2026-11-08 to then, the roadmap kept only the tasks below, as tools for superoptimization or its fidelity
-work, and the rest waited with the parked program, binding proofs to LLVM's C++, BIND-02 to BIND-05, among them. The
-table is that record, and what it says each task does is still true.*
+The table records the tasks retained for superoptimization and fidelity work on 2026-11-08.
+The [chunk plan](chunks.md#what-changed-later-on-2026-11-09) records the subsequent scope decision.
 
 | Task | Status | In the roadmap |
 | --- | --- | --- |
 | INV-01 to INV-03, NEG-01 | Complete | The inventory and its checks, kept as a reference and run in CI |
-| SEM-01 | Complete | `IRLean.Refines`, the statement every certificate proves, in [Phase 4](roadmap.md#phase-4-certified-translation-validation-and-superoptimization) |
+| SEM-01 | Complete | `IRLean.Refines`, the statement every certificate proves, in [Phase 4](roadmap-history.md#phase-4-certified-translation-validation-and-superoptimization) |
 | SEM-07 | Complete | Milestone F2, reached in [#62](https://github.com/phongndo/ir-lean/pull/62). The safety bridge waits on F4 now |
-| SEM-03 | Complete | Milestone F3, `freeze` in the model, with `undef` kept out, as the maintainer [decided](roadmap.md#three-decisions-of-2026-11-09) on 2026-11-09. Done in [#72](https://github.com/phongndo/ir-lean/pull/72) |
+| SEM-03 | Complete | Milestone F3, `freeze` in the model, with `undef` kept out, as the maintainer [decided](roadmap-history.md#three-decisions-of-2026-11-09) on 2026-11-09. Done in [#72](https://github.com/phongndo/ir-lean/pull/72) |
 | SEM-02 | Blocked | Kept out of the model by the same decision: `undef` constants stay refused, and uninitialized memory reads as poison |
 | SEM-06 | In progress | Milestone F4: stages 1, 2 and 4 of six done, 5 partly, 3 and 6 not started, as [refinement](refinement.md#functions-with-memory) lists. Superoptimizer v2's memory candidates and the safety bridge need it |
-| SEM-08 | Complete | [Phase 0](roadmap.md#phase-0-semantic-fidelity-and-trust-infrastructure)'s classification of everything the pinned IR can contain, [IR features](ir-features.md) |
-| SEM-04, SEM-10 | Not started | [Phase 0](roadmap.md#phase-0-semantic-fidelity-and-trust-infrastructure)'s fidelity work |
+| SEM-08 | Complete | [Phase 0](roadmap-history.md#phase-0-semantic-fidelity-and-trust-infrastructure)'s classification of everything the pinned IR can contain, [IR features](ir-features.md) |
+| SEM-04, SEM-10 | Not started | [Phase 0](roadmap-history.md#phase-0-semantic-fidelity-and-trust-infrastructure)'s fidelity work |
 | AUTO-01 | In progress | A tactic the engine can try for `Refines` |
-| AUTO-02 | In progress | The [lemma store](roadmap.md#phase-6-the-engine-and-the-lemma-store), linked to the rewrites whose proofs use each lemma, with E3 measured over them |
+| AUTO-02 | In progress | The [lemma store](roadmap-history.md#phase-6-the-engine-and-the-lemma-store), linked to the rewrites whose proofs use each lemma, with E3 measured over them |
 | AUTO-03 | In progress | Rewrites at every width, the lemma store's seed |
 | NEG-02, NEG-06 | Not started | The gates that keep wrong and unknown results from counting |
 | NEG-03, NEG-05, NEG-07 | Not started | Phase 0: mutation, which is the roadmap's slice 12, determinism, and the hermetic pin |
@@ -296,19 +294,19 @@ when they land.
 - **Owns:** `IRLean/Basic.lean`
 - **Acceptance:** `undef` constants translate. Each use is a fresh choice, as LangRef says. Alive2 agrees, run without `--disable-undef-input`.
 - **Trust gaps:** Alive2 runs with undef inputs off today.
-- **Status:** blocked: on 2026-11-09 the maintainer decided `undef` stays out of the model, following LLVM's move to remove it ([roadmap](roadmap.md#three-decisions-of-2026-11-09)). It comes back only by a change written down there
+- **Status:** blocked: on 2026-11-09 the maintainer decided `undef` stays out of the model, following LLVM's move to remove it ([roadmap](roadmap-history.md#three-decisions-of-2026-11-09)). It comes back only by a change written down there
 - **Evidence:** None. #49's [prototype](undef-freeze.md) settles what a semantics with `undef` has to say, outside the model.
 
 ### SEM-03: Poison and freeze
 
 - **Lane:** SEM
-- **Scope:** `freeze` of poison is a model stop today. Refinement needs it to choose any value, and the same one at every use.
+- **Scope:** `freeze` of poison was a model stop until F3, on 2026-11-09. Refinement needs it to choose any value, and the same one at every use.
 - **Depends on:** SEM-01
 - **Owns:** `IRLean/Vec.lean`
 - **Acceptance:** `freeze` agrees with Alive2 on every integer and vector width the opcheck covers, and a rewrite that duplicates a `freeze` fails to certify.
-- **Trust gaps:** None beyond SEM-01's. `freeze` of a vector, a pointer or a struct is refused, and `opcheck` has no vector operations, so its vector widths are none. Its Alive2 tables take values only, as for every operation, so `freeze` of poison is checked against Alive2 by `tests/freeze.sh`, at `i1` and `i8`.
+- **Trust gaps:** None beyond SEM-01's. `freeze` of a pointer, a struct, a scalable vector or a vector of pointers is refused. A fixed-width vector of integers or of floats the model has is modeled since 2026-11-12, lane by lane. `opcheck` has no vector operations, so its vector widths are none. Its Alive2 tables take values only, as for every operation, so `freeze` of poison is checked against Alive2 by `tests/freeze.sh`, at `i1` and `i8`.
 - **Status:** complete: milestone F3, on 2026-11-09. `freeze` of poison is a value each run chooses, through `IRLean.Choice`, and `IRLean.Refines` quantifies over each side's choices ([refinement](refinement.md#runs-that-make-choices))
-- **Evidence:** `Val.freeze` in `IRLean/Int.lean`, `Choice` and `Outcomes` in `IRLean/Basic.lean`, and their refinement in `IRLean/Refine.lean`. `tests/opcheck.py` runs `freeze` against Alive2 and the constant folder. `tests/freeze.sh` proves ten rewrites' verdicts on emitted code, Alive2 agreeing, including `freeze_duplicated_wrong`, and `tests/refine.sh` proves `freezeDuplicated`. `tests/binding.py` binds four real `instcombine` runs on `freeze`.
+- **Evidence:** `Val.freeze` in `IRLean/Int.lean`, `Choice` and `Outcomes` in `IRLean/Basic.lean`, and their refinement in `IRLean/Refine.lean`. `tests/opcheck.py` runs `freeze` against Alive2 and the constant folder. `tests/freeze.sh` proves the rewrites' verdicts on emitted code, Alive2 agreeing, including `freeze_duplicated_wrong`, and `tests/refine.sh` proves `freezeDuplicated`. `tests/binding.py` binds four real `instcombine` runs on `freeze`.
 
 ### SEM-04: Integer and vector operations for every width
 
@@ -324,12 +322,12 @@ when they land.
 ### SEM-05: Floating point
 
 - **Lane:** SEM
-- **Scope:** Refused today. IEEE formats, NaN payloads as a choice, denormal modes, fast-math flags as poison, constrained intrinsics and rounding modes.
+- **Scope:** Refused when this task was written. IEEE formats, NaN payloads as a choice, denormal modes, fast-math flags as poison, constrained intrinsics and rounding modes.
 - **Depends on:** SEM-01
 - **Owns:** `IRLean/Float.lean`
 - **Acceptance:** Each floating-point instruction and intrinsic is modeled or refused, checked against Alive2 and native code.
 - **Trust gaps:** LangRef leaves NaN payloads open, so the model has to keep that choice.
-- **Status:** in progress: [floating point](float.md) is the design, in five slices, and the first three, the bit-level operations, the arithmetic and conversions, and the fast-math flags, are in the model. Flags on `phi` and calls, and the intrinsics but `fabs`, `copysign`, `is.fpclass` and the `.sat` conversions, are still refused
+- **Status:** in progress: [floating point](float.md) is the design, in five slices, and the first three, the bit-level operations, the arithmetic and conversions, and the fast-math flags, are in the model. Flags on `phi` and calls, and the intrinsics but `fabs`, `copysign`, `is.fpclass`, the `.sat` conversions and, since 2026-11-12, `fma` and `fmuladd`, are still refused
 - **Evidence:** `IRLean/Float.lean`, with `fneg`, `fabs`, `copysign`, `fcmp`, `llvm.is.fpclass` and `nofpclass`, `fadd`, `fsub`, `fmul`, `fdiv` and `frem`, `fptrunc` and `fpext`, `fptoui`, `fptosi`, `uitofp` and `sitofp` and their `.sat` forms, on every format the model has, `nnan`, `ninf` and `nneg` where they apply, `nsz` as a choice of a zero's sign, flags on `select` applied to the selected value, NaN results as a choice through `IRLean.Choice`, and floats as bits through `bitcast`, `select`, `phi`, `freeze`, vectors and memory. `tests/fpcheck.py` checks each against the constant folder, the processor and Alive2, every NaN choice against LangRef's set, and every `nsz` choice against the operation on its zeros flipped, and `tests/float.sh` proves the verdicts of 40 rewrites on what ir-lean emits, Alive2 agreeing.
 
 ### SEM-06: Memory for refinement
@@ -337,7 +335,7 @@ when they land.
 - **Lane:** SEM
 - **Scope:** A relation between source and target memories, since a target may allocate differently. Also provenance and exposure for `ptrtoint` and `inttoptr`, bytes that are poison or `undef`, lifetimes, and dead stack objects, which are more UB than LLVM today and so wrong for a source.
 - **Depends on:** SEM-01, SEM-03. Until 2026-11-09, SEM-02, which the maintainer's decision kept out of the model
-- **Gate waiver:** SEM-02 is blocked for good, by the maintainer's [decision](roadmap.md#three-decisions-of-2026-11-09) of 2026-11-09: `undef` stays out of the model, and F4 depends on F3, SEM-03, in its place. So this starts without it, and what `undef` would have changed is a trust gap below: a read of uninitialized memory is poison.
+- **Gate waiver:** SEM-02 is blocked for good, by the maintainer's [decision](roadmap-history.md#three-decisions-of-2026-11-09) of 2026-11-09: `undef` stays out of the model, and F4 depends on F3, SEM-03, in its place. So this starts without it, and what `undef` would have changed is a trust gap below: a read of uninitialized memory is poison.
 - **Owns:** `IRLean/Mem.lean`, `IRLean/Safety.lean`
 - **Acceptance:** `Refines` has an instance for functions with memory, and the known gaps in [trust](trust.md#known-gaps-in-the-model) each have a side: no more UB than LLVM on the source, no less on the target.
 - **Trust gaps:** `tbaa` and scoped `noalias` are refused, and stay refused until modeled. A claim about memory is guarded by `Outcome.answered`, since a source that touches memory stops the model on some memory, and rests on four gaps not arising on the side each is wrong for: [refinement](refinement.md#memorys-gaps-each-with-its-side).

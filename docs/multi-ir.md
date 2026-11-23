@@ -137,7 +137,7 @@ model with no less.
 
 | Relation | What it is | Obligation if a claim crosses it |
 | --- | --- | --- |
-| MLIR lowered and exported to LLVM IR | A lowering | None for a theorem about the `.ll`. A claim about the MLIR program needs a model of each dialect used, and a per-run `Refines` certificate as in [Phase 4](roadmap.md#phase-4-certified-translation-validation-and-superoptimization). Not proposed |
+| MLIR lowered and exported to LLVM IR | A lowering | None for a theorem about the `.ll`. A claim about the MLIR program needs a model of each dialect used, and a per-run `Refines` certificate as in [Phase 4](roadmap-history.md#phase-4-certified-translation-validation-and-superoptimization). Not proposed |
 | LLVM IR imported into MLIR and back | Should be the identity | Not met at 23.1.3. Don't use it |
 | GCC's GIMPLE and clang's LLVM IR for the same C | Siblings: neither lowers to the other | None between them. Either both meet one spec, or one refines the other wherever it's defined, as `clang_does_what_gcc_does` does |
 | GIMPLE before and after a GCC pass | A lowering | smtgcc's job, not this project's |
@@ -160,7 +160,7 @@ refinement. That choice is *inferred*, and no source settles it.
 
 - **Specs carry across unchanged.** The prototype proves GCC's `popcount` against the `pop` that
   `tests/proofs/Popcount.lean` proves clang's against, copied since that file imports generated code. A spec
-  library, as [Phase 2](roadmap.md#phase-2-reusable-contracts-and-frame-reasoning) plans, would let both import one.
+  library, as [Phase 2](roadmap-history.md#phase-2-reusable-contracts-and-frame-reasoning) plans, would let both import one.
 - **Theorem statements differ by IR.** Clang's is `popcount (some x) = Outcome.ok (some (pop x))`, and GCC's has
   no `some`, since there's no poison. A per-IR wrapper that states "implements this spec" can come later, once
   there are two of them.
@@ -191,7 +191,7 @@ Each step is opened only by the one before it. Each has a way to stop.
 | **MIR-4** | Clang and GCC differential: both models on the zlib harness | Every disagreement explained, as a model bug, a compiler difference or UB in the source | — |
 
 MIR-2 is where the cost is. A plugin is the robust reader, but it must be GPL-compatible. This repository is under
-Apache-2.0 since 2026-11-08 ([Phase 5](roadmap.md#phase-5-public-api-adoption-and-publication)), which the FSF
+Apache-2.0 since 2026-11-08 ([Phase 5](roadmap-history.md#phase-5-public-api-adoption-and-publication)), which the FSF
 [lists](https://www.gnu.org/licenses/license-list.html#apache2) as compatible with GPLv3, GCC's license, though not
 with GPLv2. The GCC Runtime Library
 Exception's "Eligible Compilation Process" is about tools that change what GCC compiles, and a read-only export
@@ -208,7 +208,7 @@ dump parser avoids the license question, but adds a trusted parser of a format G
   is [Lean-MLIR](https://github.com/opencompl/lean-mlir), with the same `PoisonOr (BitVec w)` integers. On its
   `main`, `udiv?` in `LeanMLIR/LeanMLIR/Dialects/LLVM/Semantics.lean` says "Division by zero is undefined
   behavior", but returns poison. So sharing semantics would mean reconciling UB first, as the
-  [roadmap](roadmap.md#phase-4-certified-translation-validation-and-superoptimization) already plans for Phase 4.
+  [roadmap](roadmap-history.md#phase-4-certified-translation-validation-and-superoptimization) already plans for Phase 4.
 - **GIMPLE** adds a second compiler's view of the same C. That's useful as differential evidence and as a check
   on the specs. But it's a second semantics with no reference document, maintained against a yearly C++ API.
   [libgccjit](https://gcc.gnu.org/onlinedocs/jit/) is stable, but it only builds code. It can't read what GCC

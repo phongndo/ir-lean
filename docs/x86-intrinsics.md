@@ -1,7 +1,7 @@
 # x86 intrinsics
 
 Which of x86's integer SIMD intrinsics real kernels need, ranked, and what the model has of them. This is decision 7
-of the thirteen the [roadmap](roadmap.md) records for 2026-11-09: the corpus is hot numeric kernels with SIMD, on
+of the thirteen the [roadmap history](roadmap-history.md#thirteen-decisions-of-2026-11-09-after-103) records for 2026-11-09: the corpus is hot numeric kernels with SIMD, on
 x86-64 first, each intrinsic is written from Intel's pseudo-code and checked against the processor, and a rule may
 use one only once it has been. For what a theorem that uses one rests on, read [trust](trust.md#trust-boundaries)
 first. Facts here were checked on 2026-11-10, at LLVM `llvmorg-23.1.3`, on z, a Ryzen 9 9950X.
@@ -302,7 +302,7 @@ lane measures, the functions each refusal stands in front of, is the better orde
 
 ## What's next
 
-By the ranking, and whatever the corpus turns out to need once it's [fixed](roadmap.md#now-next-later):
+By the ranking, and whatever the corpus turns out to need once it's [fixed](roadmap-history.md#now-next-later):
 
 - **What the corpus lane's projects still call:** VPERMB, `llvm.x86.avx512.permvar.qi.512`, and VPMULTISHIFTQB,
   `llvm.x86.avx512.pmultishift.qb.512`, in base64's AVX-512 codec, and `llvm.pdep` in llama.cpp, a generic intrinsic
@@ -313,5 +313,6 @@ By the ranking, and whatever the corpus turns out to need once it's [fixed](road
 - **No call in these projects, and likely in others:** PMOVMSKB where InstCombine can't fold it, the permutes VPERMD,
   VPERMW and VPERMI2, VPMADD52 for big-number arithmetic, SHA-NI, the multi-word adds ADDCARRY and SUBBORROW, and
   VZEROALL, which is VZEROUPPER's argument again.
-- **Floating point waits:** `llvm.fma` and the `max.ps` and `min.ps` forms lead the last table of the ranking.
+- **Floating point waits:** `llvm.x86.avx.max.ps.256` and `llvm.x86.sse.max.ps` lead the last table of the ranking.
+  `llvm.fma`, which was in it, is modeled since 2026-11-12.
 - **AArch64's NEON waits** until the results board exists.

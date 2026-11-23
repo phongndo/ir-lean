@@ -7,7 +7,7 @@ rewrites are rules now. [Rule search](rule-search.md) is the search that uses th
 read [trust](trust.md) first.
 
 It's the rule format and certify mode of decision 10, and the rules of decision 4, of the
-[thirteen decisions after #103](roadmap.md#thirteen-decisions-of-2026-11-09-after-103). The plugin that will generate
+[thirteen decisions after #103](roadmap-history.md#thirteen-decisions-of-2026-11-09-after-103). The plugin that will generate
 its C++ matcher from the same source isn't built: [below](#the-plugin) says how the format allows it.
 Decision 4 was superseded on 2026-11-22, and the rules and certify mode stay, as tools:
 [the engine, changed on 2026-11-22](roadmap.md#the-engine-changed-on-2026-11-22).
@@ -273,7 +273,7 @@ replay, then put back, leaves everything the gates hold as it was. That's outsid
 Nothing untrusted runs in them today. Every rule's proof is a reviewed lemma in the repo, which `lake build`
 compiles, and the build is trusted, as [what's trusted](#whats-trusted) says. A certificate is Lean the tools write
 from the IR. That changes with the rules agents will propose, by
-[decision 4 after #103](roadmap.md#thirteen-decisions-of-2026-11-09-after-103): a proof from an untrusted author has
+[decision 4 after #103](roadmap-history.md#thirteen-decisions-of-2026-11-09-after-103): a proof from an untrusted author has
 to be compiled in a sandbox the operating system enforces before anything it built reaches these gates. That isn't
 built, and it's a requirement before a proposer's proofs are accepted.
 
@@ -313,7 +313,7 @@ slice out of the functions it ran on, which the search does for its own rewrites
 - **Certify mode needs every state.** Given only the function before and after a chain, it doesn't find the states
   between.
 - **The second agent's review of each statement,** by
-  [decision 11](roadmap.md#thirteen-decisions-of-2026-11-09-after-103), hasn't happened for these 182.
+  [decision 11](roadmap-history.md#thirteen-decisions-of-2026-11-09-after-103), hasn't happened for these 182.
 - **`rules.py check` reads the library `lake` built.** It checks `lake` has nothing left to build, and doesn't build.
   A rule's proof runs code as `lake` compiles it, before the check starts, and that code can rewrite any file the user
   can, an `IRLean` module or `Rules.Statements` among them. The check holds what it read from when it copies it, and

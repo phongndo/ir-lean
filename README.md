@@ -8,9 +8,10 @@ produced.
 
 ## Status
 
-All 88 functions in zlib's core library translate at `-O2 -fno-strict-aliasing`, and agree with native code on all
-117 results of a test harness, on inputs of about 800 bytes. Three functions, as clang compiles them that way for
-x86-64 Linux, are proved correct for every input, with no undefined behavior, poison or broken promises:
+All 88 functions in zlib's core library translate at `-O2 -fno-strict-aliasing`. The native and translated
+implementations agree in both [zlib harnesses](docs/status.md#tested). Three functions also have correctness
+proofs for the x86-64 Linux IR. Popcount holds for every input word. Adler32 and CRC32 require the buffer
+and layout hypotheses listed with the [theorem statements](docs/status.md#proved).
 
 | Proof | Source | Against |
 | --- | --- | --- |
@@ -18,7 +19,7 @@ x86-64 Linux, are proved correct for every input, with no undefined behavior, po
 | [`Adler32.lean`](tests/proofs/Adler32.lean) | zlib's `adler32_z` | RFC 1950 |
 | [`Crc32.lean`](tests/proofs/Crc32.lean) | zlib's `crc32_z` | RFC 1952 |
 
-So are [87 functions from LLVM itself](docs/llvm.md), at the flags upstream builds them with as far as the emitter allows:
+The project also has [proofs for 87 functions from LLVM itself](docs/llvm.md), at the flags upstream builds them with as far as the emitter allows:
 46 from `compiler-rt`, 29 from LLVM Support and 12 from `llvm-libc`, including `__udivmoddi4`, `llvm::crc32`,
 `llvm::decodeULEB128`, `llvm::APInt::tcAdd`, and `llvm::xxh3_64bits` for inputs of at most 16 bytes. A search found
 rewrites of `__clzsi2` and `__ctzsi2` that are faster than `clang -O3`'s output, and Lean proves they do the same.

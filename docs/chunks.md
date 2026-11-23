@@ -2,9 +2,9 @@
 
 How `ir-lean` proves LLVM's rewrites: the pinned LLVM's 1,162 registered pass names in nine chunks, the five gates a
 chunk was set to go through, how each gate's percentage is measured, and where each chunk stands. For part of
-2026-11-09 this was the main program, and the [roadmap](roadmap.md#six-decisions-of-2026-11-09-after-69) has that
+2026-11-09 this was the main program, and the [roadmap](roadmap-history.md#six-decisions-of-2026-11-09-after-69) has that
 decision and its reasons. Since later that day it supplies proved superoptimization with coverage and rules, and stops
-at G2, as [below](#what-changed-later-on-2026-11-09). The [platform track](roadmap.md#the-platform-track) is what the
+at G2, as [below](#what-changed-later-on-2026-11-09). The [platform track](roadmap-history.md#the-platform-track) is what the
 chunks pull from. The [task list](llvm-verification-tasks.md)
 defines what done means, and holds the inventory and the tasks. For what any theorem means, see [trust](trust.md).
 
@@ -14,7 +14,7 @@ Facts here were checked on 2026-11-09 on top of `dbfd710`, against the inventory
 
 ## What changed later on 2026-11-09
 
-The roadmap's [thirteen decisions after #103](roadmap.md#thirteen-decisions-of-2026-11-09-after-103) made proved
+The roadmap's [thirteen decisions after #103](roadmap-history.md#thirteen-decisions-of-2026-11-09-after-103) made proved
 superoptimization the lead, and the chunks its supplier. For this page:
 
 - **G0, G1 and G2 go on.** They give a search coverage of real code, and rules proved for every input.
@@ -96,7 +96,7 @@ Under that, each chunk's percentage at each gate:
   permitted input, at every width as [AUTO-03](llvm-verification-tasks.md#auto-03-from-instances-to-every-width) asks,
   over the inputs [INV-05](llvm-verification-tasks.md#inv-05-permitted-inputs-and-options) sets, checked by the
   kernel with only the standard axioms, and its lemmas are in the [lemma store](lemma-store.md) meeting the first three
-  rules of the [bar](roadmap.md#the-flywheel), as `tools/store/store.py check` checks. A rewrite proved only at some
+  rules of the [bar](roadmap-history.md#the-flywheel), as `tools/store/store.py check` checks. A rewrite proved only at some
   widths, or only on G1's pairs, doesn't count.
 - **G3.** The units are the functions in the closure
   [BIND-02](llvm-verification-tasks.md#bind-02-implementation-closure) finds for the chunk's passes, at the pinned
@@ -140,7 +140,7 @@ checks the counts in this table against it and the inventory:
 the passes `llc` runs for any of its 48 target names at any level, on the inventory's two probe modules, as the
 [task list](llvm-verification-tasks.md#the-measured-scope) measures them.
 
-What each chunk needs from the [platform track](roadmap.md#the-platform-track), as decided:
+What each chunk needs from the [platform track](roadmap-history.md#the-platform-track), as decided:
 
 | # | Chunk | The passes the decision names | Needs from the platform |
 | --- | --- | --- | --- |

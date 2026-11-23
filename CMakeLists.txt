@@ -380,8 +380,8 @@ add_test(
     NAME zlib_slow
     COMMAND ${CMAKE_SOURCE_DIR}/tests/zlib.sh $<TARGET_FILE:ir-lean> --runs 1 --only harness_slow
 )
-# E2's exit criterion: zlib on inputs of at least 128 KiB, which reach across inflate's whole 32 KiB window,
-# with no mismatch and none skipped. They run on IRLean.ExecMem, as every test does, in about a minute.
+# E2 compares all four harness_big cases with native zlib on IRLean.ExecMem. See docs/memory.md for the
+# input sizes of the three large cases and the variable-size case. All 12 runs must match.
 add_test(
     NAME zlib_big
     COMMAND ${CMAKE_SOURCE_DIR}/tests/zlib.sh $<TARGET_FILE:ir-lean> --only harness_big --runs 3

@@ -298,7 +298,7 @@ input's directory, so the IR names no path.
 ## Limits
 
 - One theorem about one function at a time, from one module. Contracts between functions are
-  [Phase 2](roadmap.md#phase-2-reusable-contracts-and-frame-reasoning).
+  [Phase 2](roadmap-history.md#phase-2-reusable-contracts-and-frame-reasoning).
 - The emitter is trusted. A bug that changes what a function means, and still type-checks, makes a proof about
   the wrong function, and nothing here can see it.
 - Statements are checked for naming the target directly. One that only reaches it through a definition is

@@ -1,7 +1,7 @@
 # The kernel corpus
 
 The fixed list of real projects the superoptimizer is judged on. It serves decisions 6, 7 and 8 of the thirteen
-decisions of 2026-11-09, after #103, in the [roadmap](roadmap.md): the headline is proved speedup over `clang -O3`, in
+decisions of 2026-11-09, after #103, in the [roadmap history](roadmap-history.md#thirteen-decisions-of-2026-11-09-after-103): the headline is proved speedup over `clang -O3`, in
 wall time on a real workload, on a corpus fixed before the search runs, and the bar is at least 10 proved wins from at
 least 3 projects.
 
@@ -290,7 +290,7 @@ blake3's `blake3_hash_many_avx512`, also a prefetch's, translates relaxed, thoug
 translated before is refused now, and of every other function `--report` says what it said before.
 
 **Measured again on 2026-11-12,** on z, on top of `65d118d`, with `llvm.memmove`, `llvm.assume`'s `align`, `noundef`,
-`cold` and `ignore` bundles, `freeze` of a vector, and `llvm.fma` and `llvm.fmuladd` modeled. Relaxed, 290 of the 799
+`cold` and `ignore` bundles, [vector `freeze`](ir-features.md#vector-freeze), and `llvm.fma` and `llvm.fmuladd` modeled. Relaxed, 290 of the 799
 functions translate, from 280, and 30 of the 85 named kernels, from 25: FLAC's two autocorrelation kernels and
 `FLAC__lpc_compute_lp_coefficients`, libdeflate's `deflate_flush_block` and zstd's `HIST_count_parallel_wksp`. As built
 it's still 39, since `!tbaa` stops the rest.
@@ -471,8 +471,7 @@ Each count is an estimate, for the reasons [above](#what-the-emitter-does-with-t
 a refusal behind it in the same instruction, which would make it smaller, and a function whose checks stopped early
 never counts, which would make it larger.
 
-What that asks of the lanes, measured again on 2026-11-12, once `llvm.memmove`, `llvm.assume`'s `align` bundle,
-`freeze` of a vector, `llvm.fma` and `llvm.fmuladd` were modeled:
+The [2026-11-12 measurement](#what-the-emitter-does-with-them-today) identifies the following priorities.
 
 1. **`!tbaa`,** which the relaxed run sets aside. As built, it alone would translate 256 functions, six times what
    translates now, and it's all that stops 24 of the named kernels.
@@ -547,7 +546,8 @@ lane's demand, with the floating-point and memory lanes' beside it:
 Read by what a kernel needs, not by count:
 
 - **Every `llvm.x86.*` intrinsic left is on floating-point values:** 14 of them, 241 calls, in llama.cpp, Opus and
-  XNNPACK, and only llama.cpp is approved. They wait for the floating-point lane, as `llvm.fma` and `llvm.fmuladd` do.
+  XNNPACK, and only llama.cpp is approved. They wait for the floating-point lane. `llvm.fma` and `llvm.fmuladd`,
+  which waited with them, are modeled since 2026-11-12.
 - **`llvm.pdep`,** 36 calls in llama.cpp. At this pin it reaches IR as a generic intrinsic, not as `llvm.x86.*`.
 - **`chunkmemset_avx512`,** in front of `inflate_fast_avx512`, 90% of zlib-ng's decompressing, now stops at `call
   parameter attribute readonly`, the first reason behind BZHI.
@@ -669,8 +669,7 @@ and the rest on 2026-11-10 at 06:26 PST. For each repository these paths were as
 
 The roadmap's note on llama.cpp, from a mirror, was wrong: it accepts AI-generated code, with disclosure and a human
 who understands every line, and bans AI-written descriptions and automated submissions. Its note on LLVM matches the
-live page. The roadmap has said what llama.cpp's live page does since #104
-([below](#what-other-docs-should-change)), and the policies here are as read before that.
+live page. The table records the policies as read on the date above.
 
 ## Risks, by project
 
@@ -790,7 +789,9 @@ rule for every win.
 
 **What's compared.** Two builds of the project that differ only in the rewritten functions:
 
-- **The baseline** is the project's own build, with the pinned clang, its own flags, and `-O3`.
+- **The baseline** uses the pinned clang with the project's own flags and `-O3`. Where the project ships
+  at `-O2`, as zlib-ng does, also compare the candidate against the project's `-O2` build. A win must pass
+  the confirmation rule separately against each required baseline.
 - **The candidate** is that build with the rewritten unit's object replaced, and the library linked again by the
   build's own link command.
 - **Checked before timing:** the two differ in the rewritten functions and nothing else, and `llc` on the unchanged
@@ -820,6 +821,11 @@ is the measure. The load average and the cores are recorded with each run.
 - A session that picks among candidates is exploratory. Only confirmation sessions count: run after the candidate, its
   workload, its thread count and its cores are written down, with a new seed.
 
+Before timing, record one batch per candidate, workload and required baseline, including all planned sessions,
+warm-ups and pairs. Retain every attempt. A missing or failed warm-up, run or correctness check makes that batch
+ineligible for a win. Report the comparison as inconclusive and record the missing result or failure. Classify a
+complete batch by the rule below. In either case the single batch determines the final verdict for that comparison.
+
 ### Measurably faster
 
 A candidate is measurably faster when all of these hold:
@@ -829,10 +835,13 @@ A candidate is measurably faster when all of these hold:
 3. **Every session's median is above 1.**
 4. **No other workload of the project is slower:** each one's pooled interval reaches 1 or above.
 
-Otherwise it's inconclusive, or slower, and the board says which. By this rule the Q5 rewrite, at 1.049 with an
-interval of 1.029 to 1.057 over 30 pairs in 2 sessions, is measurably faster on one thread. Its eight-thread trial, at
-1.004 with an interval of 0.979 to 1.351, isn't. The q4_K rewrite was measured in rounds, without pairs or an
-interval, so it would be measured again.
+For a complete batch, report `slower` when its pooled interval lies entirely below 1. Report `faster` when the
+win criteria hold and `inconclusive` otherwise.
+
+The historical Q5 measurements illustrate the statistics. At one thread the median was 1.049 (95% interval
+1.029–1.057 over 30 pairs in two sessions). At eight threads it was 1.004 (0.979–1.351). The corpus specifies
+eight threads and clang 23.1.3, and the Q5 study used clang 23.1.5. The earlier q4_K study reported rounds
+without paired intervals. Both rewrites require new corpus measurements to count.
 
 ### Each workload's check
 
@@ -1000,24 +1009,3 @@ a rule.
 - **The whole-unit counts cover the units named,** 64 of them. A project's other files weren't compiled.
 - **On another host.** Everything ran on z. A C unit is compiled with `PROOF_CFLAGS`, so its IR should be the same on
   a Mac, and that wasn't tried. A C++ unit takes the host's headers, as `tests/llama.py` does.
-
-## What other docs should change
-
-The proposal listed these for the lane that holds them. With the approval, this pull request makes them, and what was
-done elsewhere first says where:
-
-- **`docs/roadmap.md`, decision 10,** the sentences on llama.cpp's policy: `main` already says what llama.cpp's live
-  page does, since #104.
-- **`docs/roadmap.md`, decisions 7 and 8 after #103:** each links to
-  [the kernel corpus, decided on 2026-11-10](roadmap.md#the-kernel-corpus-decided-on-2026-11-10), the seven decisions
-  with a reason for each, and decision 8's open question says how it was decided. "Now, next, later", the dependency
-  on the corpus, S3, S7, S8 and "How we measure" name the kernel corpus as fixed on 2026-11-10.
-- **`docs/roadmap.md`, "The flywheel",** "the [corpus](corpus.md) of `opt`'s rewrites": unchanged.
-- **`README.md`, the Docs table:** a row for the kernel corpus.
-- **`docs/status.md`, [llama.cpp](llama.md) and [llama.cpp's Q5](llama-q5.md):** nothing. None of them says whether
-  the two rewrites count toward S3's bar, so none needs decision 2. With the list fixed, `docs/status.md` has a line
-  under "What's been built".
-- **`docs/x86-intrinsics.md`:** its comparison with this page's demand calls the projects approved.
-- **`docs/testing.md`:** two rows in its Tests table, `kernels` and `kernels_demand`, which say what they check of
-  the fixed corpus.
-- **`docs/chunks.md`:** nothing.

@@ -3,14 +3,14 @@
 How a proof about an LLVM pass would be tied to the C++ that implements it: the options, the evidence for each, and one
 choice. This is [BIND-01](llvm-verification-tasks.md#bind-01-what-binding-to-the-implementation-means). It changes
 nothing `ir-lean` claims. It says what a `code-binding` claim's evidence is, and whether "every pass, done" is reachable
-on that evidence. When it was written, proving every optimization in LLVM was
-[parked](roadmap.md#whats-parked-and-what-stays) as an end goal. Since 2026-11-09 it's the main program, in
-[chunks](chunks.md), and this note's gates are its binding track: a chunk's G3 is binding by the rule below. For
+on that evidence. On 2026-11-09 the roadmap briefly made proving every LLVM optimization the main program.
+The [current chunk scope](chunks.md#what-changed-later-on-2026-11-09) pauses G3 (binding) and G4 for every chunk.
+BIND-02 finishes the B2 measurement. Gates B3 through B5 are paused. For
 binding a certificate to one run of a pass, which is a different thing, see [binding](llvm-proof-binding.md). For what
 any theorem means, see [trust](trust.md).
 
 The share of InstCombine's own test transformations `ir-lean` can certify, which S1 measures, was the parked goal's
-progress metric, and is chunk 1's G1 since [2026-11-09](roadmap.md#six-decisions-of-2026-11-09-after-69). That's
+progress metric, and is chunk 1's G1 since [2026-11-09](roadmap-history.md#six-decisions-of-2026-11-09-after-69). That's
 translation validation, the kind of evidence [candidate 2](#2-certifying-passes) gives: it measures progress, and under
 the rule below it never makes a pass done. This note is about what would.
 
@@ -86,7 +86,7 @@ the next, so this is a floor on the work, not a list of it.
 | A call to a function outside the module | 665 | [BIND-02](llvm-verification-tasks.md#bind-02-implementation-closure)'s closure, linked in |
 | `!nonnull` or `!range` on a load | 602 | The emitter, [BIND-05](llvm-verification-tasks.md#bind-05-translating-llvms-own-c): each is poison when broken, as `noundef` and attributes already are |
 | `memory(...)` on a call | 301 | BIND-05: the callee's promise has to be checked, or the callee translated with it |
-| A call to an inline or template copy, `linkonce_odr` | 260 | BIND-05: a policy for the one-definition rule, which [Phase 3](roadmap.md#phase-3-c-and-rust-demonstrations) left open |
+| A call to an inline or template copy, `linkonce_odr` | 260 | BIND-05: a policy for the one-definition rule, which [Phase 3](roadmap-history.md#phase-3-c-and-rust-demonstrations) left open |
 | A call to a function that was itself refused | 191 | Follows the rest |
 | `!alias.scope` or `!noalias` | 176 | [SEM-06](llvm-verification-tasks.md#sem-06-memory-for-refinement)'s scoped `noalias`, refused until modelled |
 | A type: vectors of pointers, `double` | 82 | BIND-05, and SEM-05 for `double` |
@@ -288,7 +288,7 @@ it needs their closure through the emitter, B2 and B3.
 Switch to the fallback, and say so in the task list, if any of these holds:
 
 - Lines of proof per IR instruction for theorem 2 don't fall from B0 to B3, as lemmas about the heap get reused. The
-  roadmap asks the same of [proof cost](roadmap.md#when-to-stop-or-change-course).
+  roadmap asks the same of [proof cost](roadmap-history.md#when-to-stop-or-change-course).
 - B2 can't be passed without the emitter trusting something it refuses today, such as the one-definition rule, without
   a stated reason the maintainer accepts.
 - A function the closure needs can't be checked by Lean's kernel within its memory limit, as already happens for

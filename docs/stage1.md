@@ -1,6 +1,6 @@
 # Stage 1: InstCombine's rewrites, certified and compared with Alive2
 
-Stage 1 of [proved superoptimization](roadmap.md#phase-4-certified-translation-validation-and-superoptimization), as
+Stage 1 of [proved superoptimization](roadmap-history.md#phase-4-certified-translation-validation-and-superoptimization), as
 [the gate](prior-art.md#the-gate) narrowed it: InstCombine's own regression tests read through the emitter, each rewrite
 certified with `bv_decide` at fixed widths, every verdict compared with Alive2's, and a corpus of known miscompilations
 that must never get a certificate. The harness is [`bench/instcombine/stage1.py`](../bench/instcombine/stage1.py). For
