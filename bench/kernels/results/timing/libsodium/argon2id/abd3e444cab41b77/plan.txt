@@ -1,0 +1,9 @@
+349e3be38ebca2e69c163f139c18c2ef23e853d2621c47c8a0ea632210d5700a  c1.pic.ll
+af3250f480399b5cfdb3939194e52b6eca7a58834d629abc69431d7d6a918e19  c1.pie.ll
+f1953d585edd042a9f890417a40dc325a805db55fe91b6374efe37dcf2a99eea  argon2.ll
+07e550162791e203d88b22aca98417c9c6f190e215890f1c0ac0e7629afbd67e  c1/src/libsodium/.libs/libsodium.so.26.4.0
+Confirmation plan, written at 2026-11-23T06:30:39Z, before any confirmation session:
+candidate c1 (rotate row A, not B, to diagonalize), the tree build/kernels/pilot/libsodium/c1 as hashed above
+workload argon2id: 2 sessions of 15 pairs, seeds 2026112211 and 2026112212, cpu 12, 1 thread
+workload secretstream: 2 sessions of 15 pairs, seeds 2026112213 and 2026112214, cpu 12, 1 thread
+exploratory, before this: 1 session of 5 pairs, seed 101, median 1.0190

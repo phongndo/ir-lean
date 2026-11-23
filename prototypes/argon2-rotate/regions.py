@@ -59,6 +59,10 @@ for n, r in enumerate(regions):
         # The lines that define a value are the slice. A store among them writes one of its outputs.
         body = [line for line in whole if DEF.match(line)]
         assert all(line.lstrip().startswith("store ") for line in whole if line not in body), n
+        # And each is the same line in both versions: the argument from equal outputs to an equal function
+        # rests on that.
+        rest = [[x for x in V[first : last + 1] if not DEF.match(x)] for V in (A, B)]
+        assert rest[0] == rest[1], n
         defined = [m[1] for line in body if (m := DEF.match(line))]
         used = [u for line in body for u in USE.findall(DEF.sub("", line))]
         params = sorted({u for u in used if u not in defined}, key=lambda s: int(s[1:]))

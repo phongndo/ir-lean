@@ -968,7 +968,10 @@ project, and were read by the protocol's own rule. `IRLEAN_DENY_ALL` takes `fast
 other workloads given to `--other`. It isn't [a win](#what-a-win-is).
 
 **What it doesn't do.** It reads llama-bench's rate and no other, so xxHash's workloads are refused. It builds no
-candidate. It records the load average and nothing else about the machine: nothing stops another job from running
+candidate. `read` sees the sessions under one `--sessions` directory: a session written under another isn't there to
+count or to leave out, so that nobody picks holds for one directory, and the corpus's is
+`bench/kernels/results/timing`. And a confirmation session that fails before it times anything, on a mistake in how
+it was run, counts as one that failed: whether it should is open. It records the load average and nothing else about the machine: nothing stops another job from running
 beside a session.
 
 [`tests/timing_test.py`](../tests/timing_test.py) builds a tiny project and plants each fault: a run that fails in

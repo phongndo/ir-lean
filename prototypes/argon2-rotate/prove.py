@@ -102,17 +102,22 @@ def main(where: Path) -> int:
         )
         axioms = sorted(set(re.findall(r"depends on axioms: \[(.*?)\]", said)))
         count = len(region["outputs"])
+        # leanchecker replays the theorems' module through the kernel, which catches a declaration added
+        # without it.
+        replayed, replay = sh("leanchecker", f"T{n}", cwd=work, env=env) if code == 0 else (1, "not replayed")
         if (
             code != 0
+            or replayed != 0
             or said.count("depends on axioms") != count
             or axioms != ["propext, Classical.choice, Quot.sound"]
         ):
             failed = True
-            print(f"FAIL  region {n}: exit {code}, axioms {axioms}\n{said[:1500]}")
+            print(f"FAIL  region {n}: exit {code}, replay {replayed}, axioms {axioms}")
+            print(said[:1500] + replay[:500])
         else:
             print(
                 f"ok    region {n}, lines {region['lines'][0]} to {region['lines'][1]}: "
-                f"{count} theorems, on {axioms[0]}"
+                f"{count} theorems, on {axioms[0]}, replayed by leanchecker"
             )
     target = (where / "r0.tgt.ll").read_text()
     for name, (old, new, each) in MUTANTS.items():

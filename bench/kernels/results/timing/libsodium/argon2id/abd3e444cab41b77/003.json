@@ -1,0 +1,301 @@
+{
+ "schema": "ir-lean.kernels.session/1",
+ "project": "libsodium",
+ "workload": "argon2id",
+ "workloads": [
+  "argon2id",
+  "secretstream"
+ ],
+ "kind": "exploratory",
+ "control": false,
+ "seed": 101,
+ "cpus": "12",
+ "topology": {
+  "12": {
+   "siblings": "12,28",
+   "l3": "8-15,24-31"
+  }
+ },
+ "threads": 1,
+ "measure": "time",
+ "rule": {
+  "min_pairs": 30,
+  "min_sessions": 2,
+  "threshold": 1.005,
+  "resamples": 20000,
+  "confidence": 0.95,
+  "min_seconds": 2.0
+ },
+ "manifest": {
+  "sha256": "c8936c54c4f0178216107276addb4e7fd24d79fa1cc263fa32f4a1e15c3bb893",
+  "corpus": true
+ },
+ "variants": {
+  "baseline": {
+   "build": "/home/dp/code/ir-lean/build/kernels/pilot/libsodium/base",
+   "env": {},
+   "identity": {
+    "loads": [
+     {
+      "name": "program",
+      "path": "/home/dp/code/ir-lean/build/kernels/pilot/libsodium/base/pwhash_argon2id-benchmark",
+      "sha256": "64155175992167b4a6abdde102327e08c1c193ee76e9ef8d97dcecc61256df9f"
+     },
+     {
+      "name": "libsodium.so.26",
+      "path": "/home/dp/code/ir-lean/build/kernels/pilot/libsodium/base/src/libsodium/.libs/libsodium.so.26",
+      "sha256": "caf599b21603054facecf9dc864841bc2108c9be0c25831606e61a5b2b0ab808"
+     },
+     {
+      "name": "libpthread.so.0",
+      "path": "/nix/store/pqyiidz5mi73wv5f91d48s9plcqyj5bz-glibc-2.44-57/lib/libpthread.so.0",
+      "sha256": "115bd7b1b35e7eaedecdc66ae848ff8572befe21ca035c0c5b5a79c865e94678"
+     },
+     {
+      "name": "libc.so.6",
+      "path": "/nix/store/pqyiidz5mi73wv5f91d48s9plcqyj5bz-glibc-2.44-57/lib/libc.so.6",
+      "sha256": "caaa4691f54660960a577c5397dc38a7fef9c5c617bb4e248f00bd3c9acd3726"
+     },
+     {
+      "name": "/nix/store/pqyiidz5mi73wv5f91d48s9plcqyj5bz-glibc-2.44-57/lib/ld-linux-x86-64.so.2",
+      "path": "/nix/store/pqyiidz5mi73wv5f91d48s9plcqyj5bz-glibc-2.44-57/lib64/ld-linux-x86-64.so.2",
+      "sha256": "d2fbe26249c12dd8ac1cfb618c705fe37d625d5a4dd4035b27869766480c1244"
+     }
+    ],
+    "id": "adac6055be8171a94bd6d5bd2dcb655a6dc61f99a3ba70eb11d95d6f7915d0a2"
+   }
+  },
+  "candidate": {
+   "build": "/home/dp/code/ir-lean/build/kernels/pilot/libsodium/c1",
+   "env": {},
+   "identity": {
+    "loads": [
+     {
+      "name": "program",
+      "path": "/home/dp/code/ir-lean/build/kernels/pilot/libsodium/c1/pwhash_argon2id-benchmark",
+      "sha256": "64155175992167b4a6abdde102327e08c1c193ee76e9ef8d97dcecc61256df9f"
+     },
+     {
+      "name": "libsodium.so.26",
+      "path": "/home/dp/code/ir-lean/build/kernels/pilot/libsodium/c1/src/libsodium/.libs/libsodium.so.26",
+      "sha256": "07e550162791e203d88b22aca98417c9c6f190e215890f1c0ac0e7629afbd67e"
+     },
+     {
+      "name": "libpthread.so.0",
+      "path": "/nix/store/pqyiidz5mi73wv5f91d48s9plcqyj5bz-glibc-2.44-57/lib/libpthread.so.0",
+      "sha256": "115bd7b1b35e7eaedecdc66ae848ff8572befe21ca035c0c5b5a79c865e94678"
+     },
+     {
+      "name": "libc.so.6",
+      "path": "/nix/store/pqyiidz5mi73wv5f91d48s9plcqyj5bz-glibc-2.44-57/lib/libc.so.6",
+      "sha256": "caaa4691f54660960a577c5397dc38a7fef9c5c617bb4e248f00bd3c9acd3726"
+     },
+     {
+      "name": "/nix/store/pqyiidz5mi73wv5f91d48s9plcqyj5bz-glibc-2.44-57/lib/ld-linux-x86-64.so.2",
+      "path": "/nix/store/pqyiidz5mi73wv5f91d48s9plcqyj5bz-glibc-2.44-57/lib64/ld-linux-x86-64.so.2",
+      "sha256": "d2fbe26249c12dd8ac1cfb618c705fe37d625d5a4dd4035b27869766480c1244"
+     }
+    ],
+    "id": "e9e9779b2c5d45c59d4bc75a288c78a1cf34de637b4c66551d49bd41f8a810ea"
+   }
+  }
+ },
+ "started": "2026-11-23T06:27:22+00:00",
+ "status": "complete",
+ "planned_pairs": 5,
+ "pairs": [
+  {
+   "pair": 1,
+   "order": [
+    "baseline",
+    "candidate"
+   ],
+   "baseline": {
+    "exit": 0,
+    "limit": null,
+    "figures": {
+     "seconds": 11.870320676011033
+    },
+    "seconds": 11.870320676011033,
+    "user_s": 8.923259,
+    "sys_s": 2.90899,
+    "load1": 0.712890625
+   },
+   "candidate": {
+    "exit": 0,
+    "limit": null,
+    "figures": {
+     "seconds": 11.653376317990478
+    },
+    "seconds": 11.653376317990478,
+    "user_s": 8.730241,
+    "sys_s": 2.883638,
+    "load1": 0.7578125
+   },
+   "ratios": {
+    "seconds": 1.01861643802626
+   }
+  },
+  {
+   "pair": 2,
+   "order": [
+    "candidate",
+    "baseline"
+   ],
+   "candidate": {
+    "exit": 0,
+    "limit": null,
+    "figures": {
+     "seconds": 11.647398281027563
+    },
+    "seconds": 11.647398281027563,
+    "user_s": 8.734499,
+    "sys_s": 2.874095,
+    "load1": 0.81201171875
+   },
+   "baseline": {
+    "exit": 0,
+    "limit": null,
+    "figures": {
+     "seconds": 11.8617112810025
+    },
+    "seconds": 11.8617112810025,
+    "user_s": 8.954003,
+    "sys_s": 2.869447,
+    "load1": 0.84130859375
+   },
+   "ratios": {
+    "seconds": 1.0184000748325084
+   }
+  },
+  {
+   "pair": 3,
+   "order": [
+    "baseline",
+    "candidate"
+   ],
+   "baseline": {
+    "exit": 0,
+    "limit": null,
+    "figures": {
+     "seconds": 11.886301520979032
+    },
+    "seconds": 11.886301520979032,
+    "user_s": 8.903393,
+    "sys_s": 2.943803,
+    "load1": 0.876953125
+   },
+   "candidate": {
+    "exit": 0,
+    "limit": null,
+    "figures": {
+     "seconds": 11.66464467102196
+    },
+    "seconds": 11.66464467102196,
+    "user_s": 8.741658,
+    "sys_s": 2.884962,
+    "load1": 0.896484375
+   },
+   "ratios": {
+    "seconds": 1.0190024519570429
+   }
+  },
+  {
+   "pair": 4,
+   "order": [
+    "candidate",
+    "baseline"
+   ],
+   "candidate": {
+    "exit": 0,
+    "limit": null,
+    "figures": {
+     "seconds": 11.673778035969008
+    },
+    "seconds": 11.673778035969008,
+    "user_s": 8.724968,
+    "sys_s": 2.912287,
+    "load1": 0.91259765625
+   },
+   "baseline": {
+    "exit": 0,
+    "limit": null,
+    "figures": {
+     "seconds": 11.895505255030002
+    },
+    "seconds": 11.895505255030002,
+    "user_s": 8.992071,
+    "sys_s": 2.866423,
+    "load1": 0.93310546875
+   },
+   "ratios": {
+    "seconds": 1.0189936127257013
+   }
+  },
+  {
+   "pair": 5,
+   "order": [
+    "baseline",
+    "candidate"
+   ],
+   "baseline": {
+    "exit": 0,
+    "limit": null,
+    "figures": {
+     "seconds": 11.909177439985797
+    },
+    "seconds": 11.909177439985797,
+    "user_s": 8.973558,
+    "sys_s": 2.8966469999999997,
+    "load1": 0.94384765625
+   },
+   "candidate": {
+    "exit": 0,
+    "limit": null,
+    "figures": {
+     "seconds": 11.622264826961327
+    },
+    "seconds": 11.622264826961327,
+    "user_s": 8.753486,
+    "sys_s": 2.833443,
+    "load1": 0.953125
+   },
+   "ratios": {
+    "seconds": 1.024686463206284
+   }
+  }
+ ],
+ "checks": [
+  {
+   "check": 1,
+   "kind": "known-answers",
+   "candidate": "passed"
+  }
+ ],
+ "warm_up": {
+  "baseline": {
+   "exit": 0,
+   "limit": null,
+   "figures": {
+    "seconds": 11.861900268995669
+   },
+   "seconds": 11.861900268995669,
+   "user_s": 8.957249,
+   "sys_s": 2.866236,
+   "load1": 0.56298828125
+  },
+  "candidate": {
+   "exit": 0,
+   "limit": null,
+   "figures": {
+    "seconds": 11.669271519989707
+   },
+   "seconds": 11.669271519989707,
+   "user_s": 8.759592,
+   "sys_s": 2.872137,
+   "load1": 0.66015625
+  }
+ },
+ "repeat": 1,
+ "ended": "2026-11-23T06:29:44+00:00"
+}

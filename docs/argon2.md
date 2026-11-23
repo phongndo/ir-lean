@@ -61,12 +61,13 @@ with new seeds.
 | `argon2id` | 2 | 30 | 1.0180 | 1.0175 to 1.0185 | 1.011 to 1.026, all above 1 | `faster` |
 | `secretstream` | 2 | 30 | 1.0001 | 0.9999 to 1.0003 | | Not slower |
 
-So it's measurably faster by the rule: `timing.py read` gives `faster`, through `irlean.verdict`, with every
-condition held, and each session's median is 1.0180. A run of the baseline is about 11.9 s, of which about 2.9 s is
-spent in the kernel, which the candidate doesn't change: in the exploratory session the time in user
-code fell from about 8.94 s to 8.73 s. The confirmation sessions' records are in
-[`bench/kernels/results/timing/libsodium`](../bench/kernels/results/timing/libsodium), with the hashes of what
-each variant loaded.
+So it's measurably faster by the rule: `timing.py read` gives `faster`, through `irlean.verdict`, with every condition
+held, and each session's median is 1.0180. The plan is `plan.txt` beside the records, and the exploratory session is
+there too, as `003.json`, which `read` lists and leaves out. A run of the baseline is about 11.9 s, of which about 2.9
+s is spent in the kernel, which the candidate doesn't change: in the exploratory session the time in user code fell
+from about 8.94 s to 8.73 s. The confirmation sessions' records are in
+[`bench/kernels/results/timing/libsodium`](../bench/kernels/results/timing/libsodium), with the hashes of what each
+variant loaded.
 
 Each session ran libsodium's own test of Argon2id against its known answers on the candidate first, as the
 manifest's check has it, and it passed every time. `secretstream` spends no time in Argon2. It's measured because
@@ -92,7 +93,9 @@ versions of a region take the same parameters and give the same outputs.
 [`Rotate.lean`](../prototypes/argon2-rotate/Rotate.lean) has the proof, which is the same for all 32: lane by
 lane, both sides come to the same expression of the parameters' lanes. It needs no fact about the arithmetic, only
 what `shufflevector` and an operation on each lane do to a lane, so each theorem rests on the standard three
-axioms, with nothing from `bv_decide`, and all 32 check in under 4 seconds.
+axioms, with nothing from `bv_decide`, and all 32 check in under 4 seconds. `leanchecker` replays each of the four
+modules through the kernel. The project's own axiom audit, `tests/check_axioms.lean`, which reads a module as data,
+wasn't run on them: the axioms are what `#print axioms` says.
 
 A wrong rewrite doesn't pass. [`prove.py`](../prototypes/argon2-rotate/prove.py) plants two in the first place:
 row `A` rotated the other way, which stops all 8 of its theorems, and two lanes of one row swapped, which stops 4.
@@ -105,16 +108,18 @@ is unverified. On top of that:
 
 - **From the slices to the functions is an argument, not a theorem.** Outside the four regions the two IRs are the
   same text, but for the module's name and `uselistorder` lines, which say in what order a value's uses are listed.
-  Inside one, the lines that aren't in a slice are `store`s, of the outputs, the same lines in both. So equal outputs
-  give the same stores of the same values in the same order. No proof says that here. Both functions translate as
-  built, and the Lean for them elaborates, so [the cut lemma](refinement.md#the-cut-lemma) could say it. That isn't
-  done.
+  Inside one, the lines that aren't in a slice are `store`s, of the outputs, the same lines in both, which
+  `regions.py` checks. So equal outputs give the same stores of the same values in the same order. No proof says that
+  here. Both functions translate as built, and the Lean for them elaborates, so [the cut
+  lemma](refinement.md#the-cut-lemma) could say it. That isn't done.
 - **The static archive's object wasn't sliced.** libtool compiles the unit twice. The proofs are about the IR of the
   object the shared library links, which `argon2id` runs. `secretstream` links the archive, whose object comes from
   the same patched source with `-fPIE`, and runs none of it.
 - **One processor.** The timings are z's, a Zen 5. Where a permute costs less, the candidate gains less.
-- **The patch isn't upstream.** libsodium's `master`, at `7614ada` on 2026-11-18, has the header the pin has. Nothing
-  was sent, and nothing should be without the maintainer's own reading of it.
+- **The patch isn't upstream, as far as was looked.** libsodium's `master`, at `7614ada` on 2026-11-18, has the header
+  the pin has, and so does the Argon2 reference implementation's `blamka-round-opt.h`, which rotates `B` too. Searches
+  of both repositories' open pull requests for `argon2` and `blamka` found none that changes it. That's a search, not
+  a reading of every pull request. Nothing was sent, and nothing should be without the maintainer's own reading of it.
 
 ## What's left
 
