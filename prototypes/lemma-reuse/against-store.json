@@ -1,0 +1,585 @@
+{
+  "schema": "ir-lean.lemma-reuse.against-store/1",
+  "groups": {
+    "population-counts": {
+      "counts": {
+        "fixed_width": 13,
+        "hypotheses_unsatisfiable": 7,
+        "hypothesis_unwitnessed": 7,
+        "nonstandard_axiom": 10,
+        "not_normal": 10,
+        "refused": 13,
+        "unlifted_constant": 10
+      },
+      "lemmas": {
+        "LemmaReuse.Store.layer_0ff6fe9e15": {
+          "status": "refused",
+          "reasons": [
+            "fixed_width",
+            "nonstandard_axiom",
+            "not_normal",
+            "unlifted_constant"
+          ]
+        },
+        "LemmaReuse.Store.layer_15cdd830e1": {
+          "status": "refused",
+          "reasons": [
+            "fixed_width",
+            "nonstandard_axiom",
+            "not_normal",
+            "unlifted_constant"
+          ]
+        },
+        "LemmaReuse.Store.layer_d9d842756f": {
+          "status": "refused",
+          "reasons": [
+            "fixed_width",
+            "nonstandard_axiom",
+            "not_normal",
+            "unlifted_constant"
+          ]
+        },
+        "LemmaReuse.Store.split_66a2d682f9": {
+          "status": "refused",
+          "reasons": [
+            "fixed_width"
+          ]
+        },
+        "LemmaReuse.Store.split_91f21dc64e": {
+          "status": "refused",
+          "reasons": [
+            "fixed_width"
+          ]
+        },
+        "LemmaReuse.Store.split_b78ac5f9a3": {
+          "status": "refused",
+          "reasons": [
+            "fixed_width"
+          ]
+        },
+        "LemmaReuse.Store.step_344daa4124": {
+          "status": "refused",
+          "reasons": [
+            "fixed_width",
+            "hypotheses_unsatisfiable",
+            "hypothesis_unwitnessed",
+            "nonstandard_axiom",
+            "not_normal",
+            "unlifted_constant"
+          ]
+        },
+        "LemmaReuse.Store.step_3d395ad3fc": {
+          "status": "refused",
+          "reasons": [
+            "fixed_width",
+            "hypotheses_unsatisfiable",
+            "hypothesis_unwitnessed",
+            "nonstandard_axiom",
+            "not_normal",
+            "unlifted_constant"
+          ]
+        },
+        "LemmaReuse.Store.step_6934d83747": {
+          "status": "refused",
+          "reasons": [
+            "fixed_width",
+            "hypotheses_unsatisfiable",
+            "hypothesis_unwitnessed",
+            "nonstandard_axiom",
+            "not_normal",
+            "unlifted_constant"
+          ]
+        },
+        "LemmaReuse.Store.step_81f8a11ca6": {
+          "status": "refused",
+          "reasons": [
+            "fixed_width",
+            "hypotheses_unsatisfiable",
+            "hypothesis_unwitnessed",
+            "nonstandard_axiom",
+            "not_normal",
+            "unlifted_constant"
+          ]
+        },
+        "LemmaReuse.Store.step_b4f1aa7047": {
+          "status": "refused",
+          "reasons": [
+            "fixed_width",
+            "hypotheses_unsatisfiable",
+            "hypothesis_unwitnessed",
+            "nonstandard_axiom",
+            "not_normal",
+            "unlifted_constant"
+          ]
+        },
+        "LemmaReuse.Store.step_b7ebfec089": {
+          "status": "refused",
+          "reasons": [
+            "fixed_width",
+            "hypotheses_unsatisfiable",
+            "hypothesis_unwitnessed",
+            "nonstandard_axiom",
+            "not_normal",
+            "unlifted_constant"
+          ]
+        },
+        "LemmaReuse.Store.step_baa1347fcb": {
+          "status": "refused",
+          "reasons": [
+            "fixed_width",
+            "hypotheses_unsatisfiable",
+            "hypothesis_unwitnessed",
+            "nonstandard_axiom",
+            "not_normal",
+            "unlifted_constant"
+          ]
+        }
+      }
+    },
+    "seed-lemmas": {
+      "counts": {
+        "admitted": 2,
+        "candidate": 1,
+        "hypotheses_unsatisfiable": 2,
+        "hypothesis_unwitnessed": 2,
+        "refused": 2
+      },
+      "lemmas": {
+        "LemmaReuse.count_le": {
+          "status": "admitted",
+          "reasons": []
+        },
+        "LemmaReuse.cpop_fieldSum": {
+          "status": "refused",
+          "reasons": [
+            "hypotheses_unsatisfiable",
+            "hypothesis_unwitnessed"
+          ]
+        },
+        "LemmaReuse.field_le": {
+          "status": "candidate",
+          "reasons": []
+        },
+        "LemmaReuse.toNat_field": {
+          "status": "admitted",
+          "reasons": []
+        },
+        "LemmaReuse.toNat_fieldSum": {
+          "status": "refused",
+          "reasons": [
+            "hypotheses_unsatisfiable",
+            "hypothesis_unwitnessed"
+          ]
+        }
+      }
+    },
+    "bits": {
+      "counts": {
+        "fixed_width": 10,
+        "hypotheses_unsatisfiable": 8,
+        "hypothesis_unwitnessed": 8,
+        "nonstandard_axiom": 21,
+        "not_normal": 5,
+        "refused": 21,
+        "trivial": 1,
+        "unlifted_constant": 5
+      },
+      "lemmas": {
+        "Llvm.Bits.byte_le": {
+          "status": "refused",
+          "reasons": [
+            "fixed_width",
+            "nonstandard_axiom",
+            "unlifted_constant"
+          ]
+        },
+        "Llvm.Bits.count_add": {
+          "status": "refused",
+          "reasons": [
+            "nonstandard_axiom"
+          ]
+        },
+        "Llvm.Bits.count_extract": {
+          "status": "refused",
+          "reasons": [
+            "hypotheses_unsatisfiable",
+            "hypothesis_unwitnessed",
+            "nonstandard_axiom"
+          ]
+        },
+        "Llvm.Bits.count_split": {
+          "status": "refused",
+          "reasons": [
+            "nonstandard_axiom"
+          ]
+        },
+        "Llvm.Bits.count_xor": {
+          "status": "refused",
+          "reasons": [
+            "nonstandard_axiom"
+          ]
+        },
+        "Llvm.Bits.cpopNatRec_eq_count": {
+          "status": "refused",
+          "reasons": [
+            "nonstandard_axiom"
+          ]
+        },
+        "Llvm.Bits.cpop_eq_bytes128": {
+          "status": "refused",
+          "reasons": [
+            "fixed_width",
+            "nonstandard_axiom"
+          ]
+        },
+        "Llvm.Bits.cpop_eq_bytes64": {
+          "status": "refused",
+          "reasons": [
+            "fixed_width",
+            "nonstandard_axiom"
+          ]
+        },
+        "Llvm.Bits.fold16": {
+          "status": "refused",
+          "reasons": [
+            "fixed_width",
+            "hypotheses_unsatisfiable",
+            "hypothesis_unwitnessed",
+            "nonstandard_axiom",
+            "not_normal",
+            "unlifted_constant"
+          ]
+        },
+        "Llvm.Bits.fold4": {
+          "status": "refused",
+          "reasons": [
+            "fixed_width",
+            "hypotheses_unsatisfiable",
+            "hypothesis_unwitnessed",
+            "nonstandard_axiom",
+            "not_normal",
+            "unlifted_constant"
+          ]
+        },
+        "Llvm.Bits.fold4Small": {
+          "status": "refused",
+          "reasons": [
+            "fixed_width",
+            "hypotheses_unsatisfiable",
+            "hypothesis_unwitnessed",
+            "nonstandard_axiom",
+            "not_normal",
+            "unlifted_constant"
+          ]
+        },
+        "Llvm.Bits.fold8": {
+          "status": "refused",
+          "reasons": [
+            "fixed_width",
+            "hypotheses_unsatisfiable",
+            "hypothesis_unwitnessed",
+            "nonstandard_axiom",
+            "not_normal",
+            "unlifted_constant"
+          ]
+        },
+        "Llvm.Bits.parity_fold": {
+          "status": "refused",
+          "reasons": [
+            "hypotheses_unsatisfiable",
+            "hypothesis_unwitnessed",
+            "nonstandard_axiom",
+            "not_normal"
+          ]
+        },
+        "Llvm.Bits.parity_setWidth": {
+          "status": "refused",
+          "reasons": [
+            "fixed_width",
+            "hypotheses_unsatisfiable",
+            "hypothesis_unwitnessed",
+            "nonstandard_axiom",
+            "trivial"
+          ]
+        },
+        "Llvm.Bits.parity_xor": {
+          "status": "refused",
+          "reasons": [
+            "nonstandard_axiom"
+          ]
+        },
+        "Llvm.Bits.toNat_byte": {
+          "status": "refused",
+          "reasons": [
+            "nonstandard_axiom"
+          ]
+        },
+        "Llvm.Bits.toNat_byte_le": {
+          "status": "refused",
+          "reasons": [
+            "nonstandard_axiom"
+          ]
+        },
+        "Llvm.Bits.toNat_cpop_bytes128": {
+          "status": "refused",
+          "reasons": [
+            "fixed_width",
+            "nonstandard_axiom"
+          ]
+        },
+        "Llvm.Bits.toNat_cpop_bytes64": {
+          "status": "refused",
+          "reasons": [
+            "fixed_width",
+            "nonstandard_axiom"
+          ]
+        },
+        "Llvm.Bits.toNat_cpop_eq": {
+          "status": "refused",
+          "reasons": [
+            "nonstandard_axiom"
+          ]
+        },
+        "Llvm.Bits.toNat_cpop_split": {
+          "status": "refused",
+          "reasons": [
+            "hypotheses_unsatisfiable",
+            "hypothesis_unwitnessed",
+            "nonstandard_axiom"
+          ]
+        }
+      }
+    },
+    "q4k": {
+      "counts": {
+        "fixed_width": 27,
+        "hypotheses_unsatisfiable": 2,
+        "hypothesis_unwitnessed": 2,
+        "nonstandard_axiom": 26,
+        "refused": 27,
+        "unlifted_constant": 27
+      },
+      "lemmas": {
+        "LemmaReuse.Store.core_01920f5ad1": {
+          "status": "refused",
+          "reasons": [
+            "fixed_width",
+            "hypotheses_unsatisfiable",
+            "hypothesis_unwitnessed",
+            "nonstandard_axiom",
+            "unlifted_constant"
+          ]
+        },
+        "LemmaReuse.Store.core_25cc0c39f5": {
+          "status": "refused",
+          "reasons": [
+            "fixed_width",
+            "hypotheses_unsatisfiable",
+            "hypothesis_unwitnessed",
+            "nonstandard_axiom",
+            "unlifted_constant"
+          ]
+        },
+        "LemmaReuse.Store.fact_0f634a210e": {
+          "status": "refused",
+          "reasons": [
+            "fixed_width",
+            "nonstandard_axiom",
+            "unlifted_constant"
+          ]
+        },
+        "LemmaReuse.Store.fact_167b0d9f10": {
+          "status": "refused",
+          "reasons": [
+            "fixed_width",
+            "nonstandard_axiom",
+            "unlifted_constant"
+          ]
+        },
+        "LemmaReuse.Store.fact_198e6e01d7": {
+          "status": "refused",
+          "reasons": [
+            "fixed_width",
+            "nonstandard_axiom",
+            "unlifted_constant"
+          ]
+        },
+        "LemmaReuse.Store.fact_1de73dfe1c": {
+          "status": "refused",
+          "reasons": [
+            "fixed_width",
+            "nonstandard_axiom",
+            "unlifted_constant"
+          ]
+        },
+        "LemmaReuse.Store.fact_20341234a9": {
+          "status": "refused",
+          "reasons": [
+            "fixed_width",
+            "nonstandard_axiom",
+            "unlifted_constant"
+          ]
+        },
+        "LemmaReuse.Store.fact_2de38c123b": {
+          "status": "refused",
+          "reasons": [
+            "fixed_width",
+            "nonstandard_axiom",
+            "unlifted_constant"
+          ]
+        },
+        "LemmaReuse.Store.fact_2f9dda90a0": {
+          "status": "refused",
+          "reasons": [
+            "fixed_width",
+            "nonstandard_axiom",
+            "unlifted_constant"
+          ]
+        },
+        "LemmaReuse.Store.fact_3355f82c98": {
+          "status": "refused",
+          "reasons": [
+            "fixed_width",
+            "nonstandard_axiom",
+            "unlifted_constant"
+          ]
+        },
+        "LemmaReuse.Store.fact_4502eec962": {
+          "status": "refused",
+          "reasons": [
+            "fixed_width",
+            "nonstandard_axiom",
+            "unlifted_constant"
+          ]
+        },
+        "LemmaReuse.Store.fact_45defd144e": {
+          "status": "refused",
+          "reasons": [
+            "fixed_width",
+            "nonstandard_axiom",
+            "unlifted_constant"
+          ]
+        },
+        "LemmaReuse.Store.fact_4ff0e38a51": {
+          "status": "refused",
+          "reasons": [
+            "fixed_width",
+            "unlifted_constant"
+          ]
+        },
+        "LemmaReuse.Store.fact_5e8d79da5d": {
+          "status": "refused",
+          "reasons": [
+            "fixed_width",
+            "nonstandard_axiom",
+            "unlifted_constant"
+          ]
+        },
+        "LemmaReuse.Store.fact_60cbe19736": {
+          "status": "refused",
+          "reasons": [
+            "fixed_width",
+            "nonstandard_axiom",
+            "unlifted_constant"
+          ]
+        },
+        "LemmaReuse.Store.fact_72c7558303": {
+          "status": "refused",
+          "reasons": [
+            "fixed_width",
+            "nonstandard_axiom",
+            "unlifted_constant"
+          ]
+        },
+        "LemmaReuse.Store.fact_739babaa5b": {
+          "status": "refused",
+          "reasons": [
+            "fixed_width",
+            "nonstandard_axiom",
+            "unlifted_constant"
+          ]
+        },
+        "LemmaReuse.Store.fact_746b247f44": {
+          "status": "refused",
+          "reasons": [
+            "fixed_width",
+            "nonstandard_axiom",
+            "unlifted_constant"
+          ]
+        },
+        "LemmaReuse.Store.fact_98a683bf5c": {
+          "status": "refused",
+          "reasons": [
+            "fixed_width",
+            "nonstandard_axiom",
+            "unlifted_constant"
+          ]
+        },
+        "LemmaReuse.Store.fact_a9fed6a78f": {
+          "status": "refused",
+          "reasons": [
+            "fixed_width",
+            "nonstandard_axiom",
+            "unlifted_constant"
+          ]
+        },
+        "LemmaReuse.Store.fact_b67399b328": {
+          "status": "refused",
+          "reasons": [
+            "fixed_width",
+            "nonstandard_axiom",
+            "unlifted_constant"
+          ]
+        },
+        "LemmaReuse.Store.fact_be126601dd": {
+          "status": "refused",
+          "reasons": [
+            "fixed_width",
+            "nonstandard_axiom",
+            "unlifted_constant"
+          ]
+        },
+        "LemmaReuse.Store.fact_c01b84b1da": {
+          "status": "refused",
+          "reasons": [
+            "fixed_width",
+            "nonstandard_axiom",
+            "unlifted_constant"
+          ]
+        },
+        "LemmaReuse.Store.fact_cfa7dec569": {
+          "status": "refused",
+          "reasons": [
+            "fixed_width",
+            "nonstandard_axiom",
+            "unlifted_constant"
+          ]
+        },
+        "LemmaReuse.Store.fact_d3a6f314cf": {
+          "status": "refused",
+          "reasons": [
+            "fixed_width",
+            "nonstandard_axiom",
+            "unlifted_constant"
+          ]
+        },
+        "LemmaReuse.Store.fact_e5537fed30": {
+          "status": "refused",
+          "reasons": [
+            "fixed_width",
+            "nonstandard_axiom",
+            "unlifted_constant"
+          ]
+        },
+        "LemmaReuse.Store.fact_fcc9b34b1f": {
+          "status": "refused",
+          "reasons": [
+            "fixed_width",
+            "nonstandard_axiom",
+            "unlifted_constant"
+          ]
+        }
+      }
+    }
+  }
+}

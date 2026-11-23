@@ -470,9 +470,9 @@ when they land.
 ### AUTO-02: Reusing lemmas across rewrites
 
 - **Lane:** AUTO
-- **Scope:** Extend the [lemma store](lemma-reuse.md) to refinement proofs, so a rewrite shape proved once is reused.
+- **Scope:** Extend the [lemma store](lemma-store.md) to refinement proofs, so a rewrite shape proved once is reused.
 - **Depends on:** AUTO-01
-- **Owns:** `prototypes/lemma-reuse/`
+- **Owns:** `tools/store/` and the [lemma store](lemma-store.md). The [prototype](lemma-reuse.md) is archived.
 - **Acceptance:** Over InstSimplify's rewrites, most proofs reuse a stored lemma, measured.
 - **Trust gaps:** None.
 - **Status:** in progress
