@@ -2,12 +2,15 @@
 """Writes the whole-function proof for one function of the Argon2 round's rewrite: README.md. A prototype,
 outside CI.
 
-It reads the two translations, `Base.lean` and `Cand.lean`, which are the same text but in the regions, and the
-regions' index, and writes a Lean file that proves the candidate's function refines the baseline's from the
-slices' theorems, `rN_oK_same`, with `Whole.lean`'s tactics. Nothing in what it writes is about the function but
-its blocks' names and fields, and which blocks hold a region.
+It reads the baseline's translation, `Base.lean`, the baseline's IR and the regions' index, and writes a Lean file
+that proves the candidate's function does what the baseline's does from the slices' theorems, `rN_oK_same`, with
+`Whole.lean`'s tactics. It doesn't read the candidate: what it writes is the proof for any candidate with those
+regions, and Lean decides whether a candidate is one. Nothing in what it writes is about the function but its blocks'
+names and fields, which blocks hold a region and where it starts, and which call a function that has a proof of its
+own.
 
-usage: gen.py BASE.lean CAND.lean BASE.ll regions.json FUNCTION NAMESPACE > OUT.lean
+usage: gen.py BASE.lean BASE.ll regions.json FUNCTION NAMESPACE MAIN.lean [CALLEE=THEOREM:MODULE ...]
+MAIN.lean holds the function's own theorem, about its attributes, and is appended as it is. Writes to stdout.
 """
 
 import json
@@ -15,12 +18,14 @@ import re
 import sys
 from pathlib import Path
 
-base_lean, cand_lean, base_ll, regions_json, fn, namespace = sys.argv[1:7]
+base_lean, base_ll, regions_json, fn, namespace, main = sys.argv[1:7]
+callees = {}
+for arg in sys.argv[7:]:
+    callee, proof = arg.split("=")
+    callees[callee] = tuple(proof.split(":"))
 A = Path(base_lean).read_text().splitlines()
-B = Path(cand_lean).read_text().splitlines()
 IR = Path(base_ll).read_text().splitlines()
 regions = json.loads(Path(regions_json).read_text())
-assert len(A) == len(B)
 
 # The function's namespace in the translation: its blocks, its `step`, its `promise`.
 lo = A.index(f"namespace {fn}")
@@ -50,50 +55,74 @@ else:
     blocks = [("", c) for c in constructors(inductives["Block"])]
 
 
-def pattern(group: str, name: str, fields: list[str], where: str = "") -> str:
+def pattern(group: str, name: str, fields: list[str]) -> str:
     """The block `name` of `group` with `fields`, as a term of `Block`."""
     inner = f".{name} {' '.join(fields)}".rstrip()
     return f"(.g{group[1:]} ({inner}))" if group else f"({inner})"
 
 
-# The lines of each block's code, to find the blocks that hold a region.
+# The lines of each block's code.
 STEP = re.compile(r"^  \| \.(\w+)\b.* =>$")
-block_of_line: dict[int, str] = {}
+lines_of: dict[str, list[int]] = {}
 current = None
 for i in range(lo, hi):
     m = STEP.match(A[i])
     if m:
         current = m.group(1)
-    elif A[i].startswith("noncomputable def") or A[i].startswith("def "):
+        lines_of[current] = []
+    elif A[i].startswith(("noncomputable def", "def ", "/--")) or not A[i].strip():
         current = None
-    if current:
-        block_of_line[i] = current
-differs = [i for i in range(lo, hi) if A[i] != B[i]]
-cut_blocks: list[str] = []
-for i in differs:
-    assert i in block_of_line, f"line {i + 1} differs outside a block's code"
-    if block_of_line[i] not in cut_blocks:
-        cut_blocks.append(block_of_line[i])
-
-# The function's regions, in the IR's order, are its cut blocks', in the translation's.
+    elif current:
+        lines_of[current].append(i)
+# The function's regions. A region is in one block: the IR's blocks are the translation's, in the same order. A value's
+# number in the translation is the IR's, less the block labels before it, which the IR numbers too.
 define = next(i for i, line in enumerate(IR) if line.startswith("define") and f"@{fn}(" in line)
 end = next(i for i in range(define, len(IR)) if IR[i] == "}")
-mine = [r for r in regions if define < r["lines"][0] - 1 < end]
-assert len(mine) == len(cut_blocks), (len(mine), cut_blocks)
-cuts = {}
-for region, block in zip(mine, cut_blocks, strict=True):
-    # A value's number in the translation is the IR's, less the block labels before it, which the IR numbers too.
-    labels = 1 + sum(1 for line in IR[define : region["lines"][0] - 1] if re.match(r"^\d+:", line))
-    cuts[block] = (region["region"], [f"v{int(p[1:]) - labels}" for p in region["params"]], len(region["outputs"]))
+order = list(lines_of)
+cuts: dict[str, tuple[dict, int]] = {}
+for region in regions:
+    first = region["lines"][0] - 1
+    if define < first < end:
+        labels = 1 + sum(1 for line in IR[define:first] if re.match(r"^\d+:", line))
+        assert order[labels - 1] not in cuts, "two regions in one block"
+        cuts[order[labels - 1]] = (region, labels)
+CALL = re.compile(r"^\s*andThen \((\w+) ")
+script: dict[str, list[str]] = {}
+modules = ["Whole", "Base", "Cand"]
+for name, ls in lines_of.items():
+    steps = ["sim_unfold", "sim_same"]
+    start = None
+    if name in cuts:
+        region, labels = cuts[name]
+        start = "v" + str(int(re.match(r"^\s*%(\d+) = ", IR[region["lines"][0] - 1]).group(1)) - labels)
+    cut = False
+    for i in ls:
+        m = CALL.match(A[i])
+        if m and m.group(1) in callees:
+            assert not cut, f"line {i + 1}: a call after a region's start, in its block"
+            theorem, module = callees[m.group(1)]
+            modules.append(module)
+            steps += [f"call_same {theorem}", "sim_same"]
+        elif start and re.match(rf"^\s*let {start} :=", A[i]):
+            cut = True
+            n = region["region"]
+            modules.append(f"T{n}")
+            p = " ".join(f"v{int(p[1:]) - labels}" for p in region["params"])
+            steps.append(f"sim_at {start}")
+            for k in range(len(region["outputs"])):
+                steps.append(
+                    f"cut_store (r{n}_o{k}_same {p}) (R{n}Src.r{n}_o{k}_src.step (.bb1 {p}))"
+                    f" (R{n}Tgt.r{n}_o{k}_tgt.step (.bb1 {p}))"
+                )
+            steps.append("sim_same")
+    assert cut == (name in cuts), f"{name}: its region's first value isn't in its code"
+    script[name] = [*steps, "sim_end"]
 
 src = f"Base.{fn}"
 tgt = f"Cand.{fn}"
 rel = "(Next.Rel (fun b b' => same b = b') Eq)"
 out = [
-    "import Whole",
-    "import Base",
-    "import Cand",
-    *[f"import T{n}" for n, _, _ in cuts.values()],
+    *[f"import {m}" for m in dict.fromkeys(modules)],
     "",
     "open IRLean IRLean.Whole",
     "",
@@ -115,50 +144,35 @@ for group, (name, binders, fields) in blocks:
         f"theorem step_{name} {binders} :".replace("  :", " :"),
         f"    Outcome.Sim {rel} ({src}.{step} {inner})",
         f"      ({tgt}.{step} {inner}) := by",
-        "  sim_unfold",
-        "  sim_same",
+        *[f"  {s}" for s in script[name]],
+        "",
     ]
-    if name in cuts:
-        n, params, outputs = cuts[name]
-        p = " ".join(params)
-        for k in range(outputs):
-            out.append(
-                f"  cut_store (r{n}_o{k}_same {p}) (R{n}Src.r{n}_o{k}_src.step (.bb1 {p}))"
-                f" (R{n}Tgt.r{n}_o{k}_tgt.step (.bb1 {p}))"
-            )
-        out.append("  sim_same")
-    out += ["  sim_end", ""]
 
 out += [
     "/-- Blocks that are the same block step to the same block, or return the same result and memory. -/",
     f"theorem step_sim (b : {src}.Block) (b' : {tgt}.Block) (h : same b = b') :",
     f"    Outcome.Sim {rel} ({src}.step b) ({tgt}.step b') := by",
     "  subst h",
+    "  cases b with",
 ]
-if groups:
-    out.append("  cases b with")
-    for g in groups:
-        out.append(f"  | g{g[1:]} b =>")
-        out.append("    cases b with")
-        for group, (name, _, fields) in blocks:
-            if group == g:
-                out.append(f"    | {name} {' '.join(fields)} => exact step_{name} {' '.join(fields)}".rstrip())
-else:
-    out.append("  cases b with")
-    for _, (name, _, fields) in blocks:
-        out.append(f"  | {name} {' '.join(fields)} => exact step_{name} {' '.join(fields)}".rstrip())
+indent = "  "
+for g in groups or [""]:
+    if g:
+        out += [f"  | g{g[1:]} b =>", "    cases b with"]
+        indent = "    "
+    for group, (name, _, fields) in blocks:
+        if group == g:
+            out.append(f"{indent}| {name} {' '.join(fields)} => exact step_{name} {' '.join(fields)}".rstrip())
 out += [
     "",
     "/-- They're under the loops' promise together. -/",
     f"theorem promise_eq (b : {src}.Block) (b' : {tgt}.Block) (h : same b = b') :",
     f"    {tgt}.promise b' = {src}.promise b := by",
     "  subst h",
-    "  cases b with" if not groups else "  rcases b with b | b | b <;> cases b <;> rfl",
+    f"  rcases b with {' | '.join('b' for _ in groups)} <;> cases b <;> rfl" if groups else "  cases b <;> rfl",
+    "",
+    Path(main).read_text().rstrip(),
+    "",
+    f"end {namespace}",
 ]
-if not groups:
-    out[-1] = "  cases b <;> rfl"
 print("\n".join(out))
-print()
-print(Path(sys.argv[7]).read_text().rstrip() if len(sys.argv) > 7 else "")
-print()
-print(f"end {namespace}")
