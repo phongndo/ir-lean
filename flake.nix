@@ -4,13 +4,19 @@
   inputs.nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
 
   outputs =
-    { nixpkgs, ... }:
+    { self, nixpkgs, ... }:
     let
       forAllSystems =
         f: nixpkgs.lib.genAttrs (import ./nix/systems.nix) (system: f nixpkgs.legacyPackages.${system});
     in
     {
       formatter = forAllSystems (pkgs: pkgs.nixfmt);
+      # The kernel corpus's builds, documented in docs/kernels.md.
+      # The corpus is measured on x86-64 Linux.
+      legacyPackages.x86_64-linux.kernels = import ./bench/kernels/variants.nix {
+        pkgs = nixpkgs.legacyPackages.x86_64-linux;
+        repo = self;
+      };
       devShells = forAllSystems (
         pkgs:
         let

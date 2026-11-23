@@ -919,6 +919,15 @@ and the run has to reach the code the workload times:
   in one output can be rounded away before it reaches a logit. The check is evidence a candidate computes what the
   baseline does. The proof is what says it.
 
+## Building libsodium variants
+
+On x86-64 Linux, build the pinned baseline with
+`nix build --no-link --print-out-paths .#kernels.libsodium.baseline`. The output contains the compiled libraries
+and `evidence/evidence.json`, with the commands, exits and output hashes for Argon2id and secretstream.
+The `tests.roundtrip` and `tests.blake-roundtrip` attributes recompile baseline IR. The `tests.wrong-argon` and
+`tests.wrong-blake` attributes deliberately change a shuffle or rotation to exercise the workload checks.
+The builder records unsuccessful checks too. These records contain no timing measurements.
+
 ## What a win is
 
 One win is one rewrite, proved, reviewed and measured:
