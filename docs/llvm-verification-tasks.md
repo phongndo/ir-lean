@@ -302,11 +302,11 @@ when they land.
 ### SEM-03: Poison and freeze
 
 - **Lane:** SEM
-- **Scope:** `freeze` of poison is a model stop today. Refinement needs it to choose any value, and the same one at every use.
+- **Scope:** `freeze` of poison was a model stop until F3, on 2026-11-09. Refinement needs it to choose any value, and the same one at every use.
 - **Depends on:** SEM-01
 - **Owns:** `IRLean/Vec.lean`
 - **Acceptance:** `freeze` agrees with Alive2 on every integer and vector width the opcheck covers, and a rewrite that duplicates a `freeze` fails to certify.
-- **Trust gaps:** None beyond SEM-01's. `freeze` of a pointer or a struct is refused, a vector's is modeled since 2026-11-12, lane by lane, and `opcheck` has no vector operations, so its vector widths are none. Its Alive2 tables take values only, as for every operation, so `freeze` of poison is checked against Alive2 by `tests/freeze.sh`, at `i1` and `i8`.
+- **Trust gaps:** None beyond SEM-01's. `freeze` of a pointer, a struct, a scalable vector or a vector of pointers is refused. A fixed-width vector of integers or of floats the model has is modeled since 2026-11-12, lane by lane. `opcheck` has no vector operations, so its vector widths are none. Its Alive2 tables take values only, as for every operation, so `freeze` of poison is checked against Alive2 by `tests/freeze.sh`, at `i1` and `i8`.
 - **Status:** complete: milestone F3, on 2026-11-09. `freeze` of poison is a value each run chooses, through `IRLean.Choice`, and `IRLean.Refines` quantifies over each side's choices ([refinement](refinement.md#runs-that-make-choices))
 - **Evidence:** `Val.freeze` in `IRLean/Int.lean`, `Choice` and `Outcomes` in `IRLean/Basic.lean`, and their refinement in `IRLean/Refine.lean`. `tests/opcheck.py` runs `freeze` against Alive2 and the constant folder. `tests/freeze.sh` proves ten rewrites' verdicts on emitted code, Alive2 agreeing, including `freeze_duplicated_wrong`, and `tests/refine.sh` proves `freezeDuplicated`. `tests/binding.py` binds four real `instcombine` runs on `freeze`.
 
@@ -324,12 +324,12 @@ when they land.
 ### SEM-05: Floating point
 
 - **Lane:** SEM
-- **Scope:** Refused today. IEEE formats, NaN payloads as a choice, denormal modes, fast-math flags as poison, constrained intrinsics and rounding modes.
+- **Scope:** Refused when this task was written. IEEE formats, NaN payloads as a choice, denormal modes, fast-math flags as poison, constrained intrinsics and rounding modes.
 - **Depends on:** SEM-01
 - **Owns:** `IRLean/Float.lean`
 - **Acceptance:** Each floating-point instruction and intrinsic is modeled or refused, checked against Alive2 and native code.
 - **Trust gaps:** LangRef leaves NaN payloads open, so the model has to keep that choice.
-- **Status:** in progress: [floating point](float.md) is the design, in five slices, and the first three, the bit-level operations, the arithmetic and conversions, and the fast-math flags, are in the model. Flags on `phi` and calls, and the intrinsics but `fabs`, `copysign`, `is.fpclass` and the `.sat` conversions, are still refused
+- **Status:** in progress: [floating point](float.md) is the design, in five slices, and the first three, the bit-level operations, the arithmetic and conversions, and the fast-math flags, are in the model. Flags on `phi` and calls, and the intrinsics but `fabs`, `copysign`, `is.fpclass`, the `.sat` conversions and, since 2026-11-12, `fma` and `fmuladd`, are still refused
 - **Evidence:** `IRLean/Float.lean`, with `fneg`, `fabs`, `copysign`, `fcmp`, `llvm.is.fpclass` and `nofpclass`, `fadd`, `fsub`, `fmul`, `fdiv` and `frem`, `fptrunc` and `fpext`, `fptoui`, `fptosi`, `uitofp` and `sitofp` and their `.sat` forms, on every format the model has, `nnan`, `ninf` and `nneg` where they apply, `nsz` as a choice of a zero's sign, flags on `select` applied to the selected value, NaN results as a choice through `IRLean.Choice`, and floats as bits through `bitcast`, `select`, `phi`, `freeze`, vectors and memory. `tests/fpcheck.py` checks each against the constant folder, the processor and Alive2, every NaN choice against LangRef's set, and every `nsz` choice against the operation on its zeros flipped, and `tests/float.sh` proves the verdicts of 40 rewrites on what ir-lean emits, Alive2 agreeing.
 
 ### SEM-06: Memory for refinement

@@ -498,9 +498,10 @@ These have no claim, or a claim that says nothing about LLVM, and stay that way 
 - `undef`, as a constant, which ir-lean refuses, or as an argument (SEM-02), which stays out of the model by the
   decision of 2026-11-09;
 - `freeze` of a pointer or a struct, which ir-lean refuses (the rest of SEM-03);
-- floating point's intrinsics but `llvm.fabs`, `llvm.copysign`, `llvm.is.fpclass` and the saturating
-  conversions, which ir-lean refuses until SEM-05's later [slices](float.md#the-slices). A float is its bits, so
-  `Refines` on one is bit for bit, as LLVM's is, and a NaN result is a choice;
+- floating point's intrinsics but `llvm.fabs`, `llvm.copysign`, `llvm.is.fpclass`, the saturating conversions and,
+  since 2026-11-12, `llvm.fma` and `llvm.fmuladd`, which ir-lean refuses until SEM-05's later
+  [slices](float.md#the-slices). A float is its bits, so `Refines` on one is bit for bit, as LLVM's is, and a NaN
+  result is a choice;
 - a run under a promise to progress that LangRef doesn't settle, which stops the model: a recursive function's, so
   deleting infinite recursion can't be certified, and one waiting on a promised callee that waits itself
   ([trust](trust.md#promises-to-progress)).

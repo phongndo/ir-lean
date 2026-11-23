@@ -166,8 +166,10 @@ F3, on 2026-11-09, took the `freeze` half, and left `undef` out, as the maintain
    and the source's after them, as here. `tools/binding_check.lean` lifts a side whose run makes no choices with
    `Outcomes.det`, so a certificate can relate the two.
 
-What's left out: `undef`, `freeze` of vectors, pointers and structs, which ir-lean refuses, and running a claim that
-quantifies over choices, which tier-1 proof tests and `tools/verify.py` answer unknown or unsupported.
+What's left out: `undef`, `freeze` of pointers and structs, which ir-lean refuses, and running a claim that
+quantifies over choices, which tier-1 proof tests and `tools/verify.py` answer unknown or unsupported. `freeze` of a
+vector was left out too, until 2026-11-12: a fixed-width one of integers or of floats the model has is modeled since,
+lane by lane.
 
 ## Files
 

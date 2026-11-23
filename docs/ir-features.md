@@ -6,8 +6,8 @@ what each item's class says. This is SEM-08 in the [task list](llvm-verification
 means, read [trust](trust.md) first. Facts here were checked on 2026-11-09 at LLVM `llvmorg-23.1.3`, and the counts
 again on 2026-11-10, once the model had [more of x86's intrinsics](x86-intrinsics.md), on 2026-11-11, once
 `llvm.prefetch` and the floating-point settings on a function without floating point were accepted, and on
-2026-11-12, once `llvm.memmove`, `llvm.assume`'s bundles, `freeze` of a vector, `llvm.fma` and `llvm.fmuladd` were
-modeled.
+2026-11-12, once `llvm.memmove`, `llvm.assume`'s `align`, `noundef`, `cold` and `ignore` bundles, `freeze` of a
+fixed-width vector of integers or of floats the model has, `llvm.fma` and `llvm.fmuladd` were modeled.
 
 **This is a map, not a semantics.** A modeled item has a meaning in `IRLean`; how well that meaning matches LLVM is
 what the rest of the tests are for. The classification says what the emitter does with each item, and checks it.
