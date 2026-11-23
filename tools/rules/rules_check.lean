@@ -177,6 +177,26 @@ unsafe def checkCert (nonce : String) (j : Json) : MetaM Unit := do
     ("axioms", toJson (axioms.map (·.toString)).qsort.toList), ("rules", toJson rules.toList),
     ("replay", toJson ((← toReplay proof toolchainDir).map (·.toString)))]
 
+/-- Check a batch of theorem statements against Prop definitions generated independently in Expected.
+Read proof declarations as data; replay every non-toolchain module that contributes declarations. -/
+unsafe def checkStatements (nonce : String) (j : Json) : MetaM Unit := do
+  let rows ← IO.ofExcept (j.getObjValAs? (Array (String × String)) "theorems")
+  let modules := (rows.map (fun row => row.1.toName)).toList.eraseDups.toArray
+  let proof ← importModules (modules.map fun m => { module := m }) {} (loadExts := false)
+  let here ← getEnv
+  for (mod, name) in rows do
+    let n := name.toName
+    let some (.defnInfo want) := here.find? (`Expected ++ n) | throwError "missing statement for {n}"
+    let some (.thmInfo thm) := proof.find? n | throwError "{n} is not a theorem"
+    unless moduleIn proof n == some mod.toName && thm.levelParams.isEmpty && thm.type == want.value do
+      throwError "{n} has the wrong module or type"
+    unless thm.type.getUsedConstants.all (sameIn here proof) do
+      throwError "{n} refers to an unexpected declaration"
+    let (_, axs) := reachable proof #[n]
+    unless axs.all standardAxioms.contains do throwError "{n} uses unexpected axioms {axs}"
+  emit nonce [("ok", toJson true), ("count", toJson rows.size),
+    ("replay", toJson ((← toReplay proof (← toolchainLibDir)).map (·.toString)))]
+
 unsafe def check : MetaM Unit := do
   let some path ← IO.getEnv "IRLEAN_RULES_CONFIG" | throwError "IRLEAN_RULES_CONFIG isn't set"
   let j ← IO.ofExcept (Json.parse (← IO.FS.readFile path))
@@ -185,6 +205,7 @@ unsafe def check : MetaM Unit := do
     match ← IO.ofExcept (j.getObjValAs? String "mode") with
     | "rules" => checkRules nonce j
     | "cert" => checkCert nonce j
+    | "statements" => checkStatements nonce j
     | m => throwError "no mode {m}"
   catch ex =>
     emit nonce [("ok", toJson false), ("reason", toJson "checker_error"),

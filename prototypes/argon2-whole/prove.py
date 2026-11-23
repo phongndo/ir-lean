@@ -2,7 +2,6 @@
 """Compile the pinned libsodium Argon2 rewrite and replay its whole-function proofs."""
 
 import json
-import os
 import re
 import shutil
 import sys
@@ -13,11 +12,12 @@ HERE = Path(__file__).resolve().parent
 ROOT = HERE.parent.parent
 sys.path.insert(0, str(ROOT / "bench/kernels"))
 sys.path.insert(0, str(ROOT / "tools"))
+sys.path.insert(0, str(ROOT / "tools/rules"))
 import demand  # noqa: E402
 import kernels  # noqa: E402
-from irlean import proc  # noqa: E402
+import proved  # noqa: E402
+from irlean import hashing, proc, verdict  # noqa: E402
 
-AXIOMS = "propext, Classical.choice, Quot.sound"
 FUNCTIONS = {"FillBlockWithXor": "fill_block_with_xor", "FillSegment": "argon2_fill_segment_avx512f"}
 ROTATE = "<i32 {}, i32 {}, i32 {}, i32 {}, i32 {}, i32 {}, i32 {}, i32 {}>"
 # Each control names a shuffle, its changed mask and the expected proof errors.
@@ -60,6 +60,8 @@ MUTANTS = {
 
 
 def check(argv: list[str], work: Path, env: dict[str, str]) -> str:
+    if argv[0] == "lean":
+        argv = [proved.binary(env, "lean"), *argv[1:]]
     ran = proc.run(argv, cwd=work, env=env, timeout=900)
     if not ran.ok:
         raise RuntimeError(f"{argv[0]} exited {ran.exit}, {ran.limit}\n{ran.output[-3000:]}")
@@ -106,7 +108,6 @@ def slice_theorems(n: int) -> str:
             f"    R{n}Tgt.{name}_tgt {params} = R{n}Src.{name}_src {params} := by",
             f"  rotate_slice R{n}Tgt.{name}_tgt R{n}Src.{name}_src "
             f"R{n}Tgt.{name}_tgt.step R{n}Src.{name}_src.step",
-            f"#print axioms {name}_same",
         ]
     return "\n".join(lines) + "\n"
 
@@ -129,10 +130,30 @@ def translate(tool: Path, work: Path, env: dict[str, str], ir: Path, module: str
     check(lean(module), work, env)
 
 
-def audit(output: str, names: set[str]) -> None:
-    found = re.findall(r"'([^']+)' depends on axioms: \[(.*?)\]", output)
-    if sorted(found) != sorted((n, AXIOMS) for n in names):
-        raise ValueError(f"unexpected theorem audit: {found}")
+def statements(work: Path) -> list[tuple[str, str]]:
+    """Write the expected types from the emitted functions without importing any proof module."""
+    imports = ["Base", "Cand", *(f"R{n}{side}" for n in range(4) for side in ("Src", "Tgt"))]
+    lines = [*(f"import {module}" for module in imports), "open IRLean", "namespace Expected"]
+    claims = []
+    xs = " ".join(f"x{k}" for k in range(8))
+    for n in range(4):
+        for k in range(8):
+            fn = f"r{n}_o{k}"
+            claims.append((f"T{n}", f"{fn}_same"))
+            lines.append(
+                f"def {fn}_same : Prop := ∀ ({xs} : Vec 8 64), R{n}Tgt.{fn}_tgt {xs} = R{n}Src.{fn}_src {xs}"
+            )
+    for module, fn in FUNCTIONS.items():
+        args = "(a0 a1 a2 : PtrVal)" if module == "FillBlockWithXor" else "(a0 : PtrVal) (a1 a2 : Val 64)"
+        name = f"{module}.{fn}"
+        base, cand = f"Base.{fn} a0 a1 a2 m", f"Cand.{fn} a0 a1 a2 m"
+        lines += [
+            f"def {name}_same : Prop := ∀ {args} (m : Mem), Outcome.Sim Eq ({base}) ({cand})",
+            f"def {name} : Prop := Refines (fun a0 a1 a2 m => ({base}).answered) Cand.{fn}",
+        ]
+        claims.extend([(module, name), (module, name + "_same")])
+    (work / "Expected.lean").write_text("\n".join([*lines, "end Expected", ""]))
+    return claims
 
 
 def plant(source: str, function: str, slot: int, old: str, new: str) -> str:
@@ -144,13 +165,14 @@ def plant(source: str, function: str, slot: int, old: str, new: str) -> str:
     return result
 
 
-def prove(work: Path, tool: Path, slices: Path, lib: Path) -> None:
+def prove(root: Path, tool: Path, slices: Path, lib: Path) -> None:
+    work = root / "modules"
+    work.mkdir()
     compile_inputs(work, slices)
-    env = {
-        **os.environ,
-        "ELAN_TOOLCHAIN": (ROOT / "lean-toolchain").read_text().strip(),
-        "LEAN_PATH": os.pathsep.join(map(str, (work, lib))),
-    }
+    prefix = proved.toolchain()
+    copied = proved.copy_libraries(root / "library", lib)
+    sealed = proved.seal(copied, prefix, proved.CHECK)
+    env = proved.lean_env(prefix, work, copied)
     for side, module in (("src", "Base"), ("tgt", "Cand")):
         translate(tool, work, env, work / f"{side}.ll", module)
     for module in ("Whole", "Rotate"):
@@ -160,12 +182,39 @@ def prove(work: Path, tool: Path, slices: Path, lib: Path) -> None:
         for side in ("src", "tgt"):
             translate(tool, work, env, work / f"r{n}.{side}.ll", f"R{n}{side.title()}")
         (work / f"T{n}.lean").write_text(slice_theorems(n))
-        audit(check(lean(f"T{n}"), work, env), {f"r{n}_o{k}_same" for k in range(8)})
-    for module, fn in FUNCTIONS.items():
+        check(lean(f"T{n}"), work, env)
+    claims = statements(work)
+    check(lean("Expected"), work, env)
+    objects = {path: hashing.stamp(path) for path in work.glob("*.olean")}
+    for module in FUNCTIONS:
         shutil.copyfile(HERE / f"{module}.lean", work / f"{module}.lean")
-        audit(check(lean(module), work, env), {f"{module}.{fn}", f"{module}.{fn}_same"})
-        check(["leanchecker", module], work, env)
-        print(f"ok    {fn}: whole-function proof replayed", flush=True)
+        check(lean(module), work, env)
+        path = work / f"{module}.olean"
+        objects[path] = hashing.stamp(path)
+    asked, answers, changed = proved.ask(
+        {"mode": "statements", "theorems": claims}, "import Lean\nimport Expected\n", env, work
+    )
+    answer = answers[0] if len(answers) == 1 else {}
+    if not isinstance(answer, dict) or answer.get("ok") is not True:
+        raise RuntimeError(f"theorem audit failed: {answers} {asked.output[-3000:]}")
+    replay = proved.replay(answer.get("replay"), env, cwd=work)
+    decision = verdict.decide(
+        verdict.Verdict.PROVED,
+        verdict.Evidence(
+            lean=verdict.Step.of("theorem audit", asked),
+            replay=replay,
+            axioms=True,
+            checks={
+                "all theorem statements checked": answer.get("count") == len(claims),
+                "snapshot unchanged": not changed
+                and not proved.unsealed(sealed, copied, prefix, proved.CHECK)
+                and all(hashing.stamp(path) == stamp for path, stamp in objects.items()),
+            },
+        ),
+    )
+    if not decision.granted:
+        raise RuntimeError(f"proof refused: {decision.reason}: {decision.detail}: {replay.output[-1000:]}")
+    print(f"ok    {len(claims)} theorem signatures and {len(answer['replay'])} modules replayed", flush=True)
     source = (work / "tgt.ll").read_text()
     for k, (name, (fn, slot, old, new, expect)) in enumerate(MUTANTS.items()):
         where = work / f"mutant{k}"
@@ -175,20 +224,32 @@ def prove(work: Path, tool: Path, slices: Path, lib: Path) -> None:
         translate(tool, where, wrong_env, where / "wrong.ll", "Cand")
         for module, expected in expect.items():
             shutil.copyfile(work / f"{module}.lean", where / f"{module}.lean")
-            ran = proc.run(lean(module, "--json"), cwd=where, timeout=900, env=wrong_env)
+            ran = proc.run(
+                [proved.binary(env, "lean"), *lean(module, "--json")[1:]],
+                cwd=where,
+                timeout=900,
+                env=wrong_env,
+            )
             diagnostics = (json.loads(line) for line in ran.out.splitlines())
             errors = [message["data"] for message in diagnostics if message["severity"] == "error"]
             if expected is None:
                 if not ran.ok or errors:
                     raise RuntimeError(ran.output)
-            elif (
-                ran.exit != 1
-                or ran.limit
-                or ran.err.strip()
-                or not errors
-                or any(expected not in e for e in errors)
-            ):
-                raise RuntimeError(f"{name}: unexpected result {ran.exit}, {ran.limit}\n{ran.output}")
+            else:
+                decision = verdict.decide(
+                    verdict.Verdict.CAUGHT,
+                    verdict.Evidence(
+                        step=verdict.Step.of(module, ran),
+                        finding=expected,
+                        checks={
+                            "only the expected Lean errors": bool(errors)
+                            and not ran.err.strip()
+                            and all(expected in e for e in errors)
+                        },
+                    ),
+                )
+                if not decision.granted:
+                    raise RuntimeError(f"{name}: {decision.detail}\n{ran.output}")
         print(f"ok    {name}", flush=True)
 
 
