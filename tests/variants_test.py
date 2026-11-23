@@ -20,6 +20,7 @@ import copy
 import importlib.util
 import json
 import os
+import shutil
 import sys
 import tempfile
 import unittest
@@ -542,6 +543,26 @@ class Snapshot(unittest.TestCase):
             (repo / "tools").symlink_to(ROOT / "tools")
             ran = proc.run([sys.executable, script, "realize", "baseline"], timeout=60)
             self.assertEqual((ran.exit, json.loads(ran.out)["reason"]), (1, "snapshot_failed"))
+
+            path = repo / "bin"
+            path.mkdir()
+            for missing in ("git", "nix"):
+                with self.subTest(missing=missing):
+                    if missing == "nix":
+                        git_path = shutil.which("git")
+                        assert git_path is not None
+                        (path / "git").symlink_to(git_path)
+                    ran = proc.run(
+                        [sys.executable, script, "realize", "baseline"],
+                        env={**os.environ, "PATH": str(path)},
+                        timeout=60,
+                    )
+                    answer = json.loads(ran.out)
+                    self.assertEqual(
+                        (ran.exit, answer["status"], answer["reason"]), (1, "error", "tool_failed")
+                    )
+                    self.assertIn(missing, answer["detail"])
+                    self.assertEqual(ran.err, "")
 
 
 def evaluates(manifest: str) -> proc.Ran:

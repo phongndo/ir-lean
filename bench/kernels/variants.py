@@ -565,6 +565,8 @@ def main() -> int:
         answer = realize(args.name, args.repo, args.commit, args.attempt)
     except Refused as refused:
         answer = said(None, refused.reason, refused.detail, name=args.name)
+    except OSError as error:
+        answer = said(None, "tool_failed", str(error), name=args.name)
     print(json.dumps(answer, indent=2 if args.pretty else None, sort_keys=True))
     return answer["exit_code"]
 
