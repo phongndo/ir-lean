@@ -23,7 +23,9 @@ least 10 proved wins from at least 3 projects, with a checkpoint a third of the 
 
 *Since 2026-11-22 the engine's core is a proposer, whose candidates are checked, timed and proved one at a time,
 and not that search:
-[the engine, changed on 2026-11-22](#the-engine-changed-on-2026-11-22).*
+[the engine, changed on 2026-11-22](#the-engine-changed-on-2026-11-22). Passages here written before that day
+still have the search lead, start or come first. Each is as it read then, and where one differs from that section,
+the section is what holds.*
 
 **Proving LLVM's rewrites supplies it.** The pinned LLVM's passes stay in [chunks](chunks.md), and a chunk's rewrites go
 through three gates: the model can express them, their test transformations are certified, and each is proved for every
@@ -510,23 +512,21 @@ decision 4, that the engine's core is a rule search. [The rule search](rule-sear
 certify mode stay, as tools: where a step matches a rule proved for every input, that's still its cheapest proof.
 Decision 5 stands: a tool that ships calls no model, and a proposer runs offline.
 
-**What of it existed that day,** on `main`: the emitter, the model and `irl verify`, which any proof uses, and for
-llama.cpp's two rewrites alone, the native checks of step 2 and the proofs of step 4, each written for its rewrite.
-Nothing timed a candidate by the protocol, and nothing proposed.
+**What of it existed that day,** on `main`: the emitter and the model, and for each of llama.cpp's two rewrites,
+native checks and a proof written for it. Nothing timed a candidate by the protocol, and nothing proposed one for a
+kernel of the corpus.
 
 Why:
 
-- **The rule search hasn't found a win, and what it has can't find the corpus's.**
-  [Rule search](rule-search.md#what-it-found) measured it. Every rule it has is one of LLVM's own, and of the 225
-  rewrites it found in LLVM's InstSimplify tests, none takes fewer uOps than what `opt -O3` gives. It looks into
-  scalar integer instructions only, where the corpus's kernels are SIMD, and it has never run on the corpus. So a
-  win from it there needs a rule LLVM doesn't have, and for vector code a format that can say vectors, and neither
-  was started. That doesn't show the corpus has no scalar win: nothing has looked.
+- **The rule search hasn't found a win.** [Rule search](rule-search.md#what-it-found) measured it. Every rule it
+  has is one of LLVM's own, and of the 225 rewrites it found in LLVM's InstSimplify tests, none takes fewer uOps
+  than what `opt -O3` gives. It looks into scalar integer instructions only, where the corpus's kernels are SIMD,
+  and it has never run on the corpus. That doesn't show the corpus has no scalar win: nothing has looked.
 - **The wins on `main` were each proved by a proof written for it.** Neither llama.cpp rewrite came from a rule.
   [The Q5 rewrite's record](llama-q5.md) has two other candidates dropped, one of them after it was proved, so the
   order there wasn't always this one's.
-- **Where candidates exist, nobody proves them.** On 2026-11-22 llama.cpp had two open pull requests that use
-  `vpdpbusd` in the q4_K kernels, [#23309](https://github.com/ggml-org/llama.cpp/pull/23309) and
+- **Two candidates were open upstream, and neither presents a proof.** On 2026-11-22 llama.cpp had two open pull requests
+  that use `vpdpbusd` in the q4_K kernels, [#23309](https://github.com/ggml-org/llama.cpp/pull/23309) and
   [#29397](https://github.com/ggml-org/llama.cpp/pull/29397), opened before this project's rewrite was recorded, and
   neither presents a proof for every input ([llama.cpp](llama.md)). That's two candidates for two kernels of one
   project. It says nothing of how many there are for the corpus's other five.
@@ -578,8 +578,7 @@ in the store, where they make the next proof shorter and tell the next search wh
 
 *Since 2026-11-22 a proposer's candidates come first, each is timed before it's proved, and Alive2 is a filter where it
 knows the instructions and not a step each takes:
-[the engine, changed on 2026-11-22](#the-engine-changed-on-2026-11-22). The drawing is the rule search's loop, which
-stays as a tool.*
+[the engine, changed on 2026-11-22](#the-engine-changed-on-2026-11-22).*
 
 The store isn't trusted: a lemma is checked again wherever it's used. The bar is about whether it's worth keeping.
 
@@ -727,7 +726,7 @@ when its own [hard dependencies](#dependencies) have landed. The [waves](#waves-
 are history.
 
 Since the [thirteen decisions after #103](#thirteen-decisions-of-2026-11-09-after-103), the search leads and the chunks
-supply it:
+supply it, which is how it read until 2026-11-22, as the note under the drawing says:
 
 ```mermaid
 flowchart LR
@@ -1095,11 +1094,11 @@ the table below no longer hold:
 | F4, and the lemma that a refined cut gives a refined function | A whole-function win | Decision 9. A slice-proved win counts without them |
 | An intrinsic checked against the processor | A rule that uses it | Decision 7: each is trusted semantics |
 
-- **Since 2026-11-22:** the table's first row is as it read until then. The corpus stays fixed first, and what runs on
-  it first is a proposer's candidates, timed by the protocol:
-  [the engine, changed on 2026-11-22](#the-engine-changed-on-2026-11-22).
 - **Dropped:** chunk 1's G2 producing lemmas, before superoptimizer v2. The search starts now, by decision 4.
   Proof-test tiers 2 and 3 wait for the results board instead, by decision 12.
+- **Since 2026-11-22:** the table's first row, and "the search starts now" just above, are as they read until then.
+  The corpus stays fixed first, and what runs on it first is a proposer's candidates, timed by the protocol:
+  [the engine, changed on 2026-11-22](#the-engine-changed-on-2026-11-22).
 - **Paused, or out of the program:** the rows for a pass's G4, BIND-03, a chunk's G3, and chunks 7, 8 and 9, by
   decision 2.
 

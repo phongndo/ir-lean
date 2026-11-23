@@ -19,7 +19,7 @@ changed what the emitter refuses.
 
 - **Nothing that counts as a win, and nothing here is counted toward S3's bar or the checkpoint, of
   [decision 8](roadmap.md#thirteen-decisions-of-2026-11-09-after-103), as it read until 2026-11-22.** The search was run
-  only on small files in the repo and on LLVM's own regression tests, never on the corpus, which isn't fixed yet, on
+  only on small files in the repo and on LLVM's own regression tests, never on the corpus, on
   zlib, on llama.cpp or on any outside project.
 - **Against `opt -O3`, `llvm-mca` kept none of what it found.** Every rule it has today was cut from InstSimplify's
   proofs, so `opt -O3` makes the same rewrites itself: on all 225 rewrites found in LLVM's InstSimplify tests, both

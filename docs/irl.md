@@ -97,7 +97,9 @@ it. The dev shell's Go builds it, and nothing is downloaded.
 - **`emit` isn't an MCP tool.** It prints Lean, not a JSON answer, and `verify_check` already says when the emitter
   refuses a function, with the emitter's reason, as `unsupported`.
 - **The store's other commands aren't MCP tools.** `store_add` comes with sopt's proposer, which is what will add
-  rules.
+  rules. That's the proposer of rules that decision 4 of the roadmap had. Since 2026-11-22 a proposer proposes
+  candidates, and nothing was decided then about one that adds rules:
+  [the engine, changed on 2026-11-22](roadmap.md#the-engine-changed-on-2026-11-22).
 - **It isn't packaged.** `build/irl` needs its checkout, built, and the dev shell. A flake app that carries the
   toolchain is open.
 - **Lean starts again for each call.** Starting it is most of a short check's time. Keeping it loaded between calls,
