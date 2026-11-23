@@ -65,6 +65,8 @@ def planned() -> dict[str, Any]:
         {
             "out": PLACEHOLDER,
             "table": [PIC, OTHER],
+            "replace": {PIC: "/ir/pic", OTHER: "/ir/other"},
+            "attempt": "default",
             "build": BUILD,
             "workloads": [
                 {
@@ -99,6 +101,8 @@ def evidence() -> dict[str, Any]:
         {
             "schema": schemas.KERNELS_EVIDENCE,
             "out": OUT,
+            "attempt": "default",
+            "dispatch": {"avx2": True, "avx512f": True},
             "build": [{"argv": argv, "exit": 0, "limit": None} for argv in BUILD],
             "replaced": {PIC: sha("1"), OTHER: sha("2")},
             "compiled": {
@@ -109,6 +113,7 @@ def evidence() -> dict[str, Any]:
             "checks": [
                 {
                     "workload": "argon2id",
+                    "comparison": "equal",
                     "commands": [{"argv": argv, "exit": 0, "limit": None} for argv in CHECK],
                     "expected": "/nix/store/s-source/x.exp",
                     "expected_sha256": sha("a"),
@@ -148,9 +153,12 @@ def evidence() -> dict[str, Any]:
 def said(e: Any = None, p: Any = None, steps: Any = None) -> tuple[str, str]:
     """The status and reason of a build with this evidence, plan and steps, each as above unless given."""
     try:
-        answer, _ = variants.answer_of(
-            planned() if p is None else p, evidence() if e is None else e, STEPS if steps is None else steps
-        )
+        with mock.patch.object(variants, "verify_artifacts", return_value=True):
+            answer, _ = variants.answer_of(
+                planned() if p is None else p,
+                evidence() if e is None else e,
+                STEPS if steps is None else steps,
+            )
     except variants.Refused as refused:
         answer = variants.said(None, refused.reason, refused.detail)
     return answer["status"], answer["reason"]
@@ -183,7 +191,8 @@ FIXED = [(), ("build", 0), ("checks", 0), ("checks", 0, "commands", 0), ("runs",
 
 class Shape(unittest.TestCase):
     def test_evidence_that_is_whole_and_right_is_a_variant(self) -> None:
-        answer, granted = variants.answer_of(planned(), evidence(), STEPS)
+        with mock.patch.object(variants, "verify_artifacts", return_value=True):
+            answer, granted = variants.answer_of(planned(), evidence(), STEPS)
         self.assertEqual(
             (answer["status"], answer["reason"], answer["exit_code"]), ("variant", "built_and_checked", 0)
         )
@@ -195,6 +204,7 @@ class Shape(unittest.TestCase):
         for path in nodes(evidence())[1:]:
             for other in OTHER_TYPES[type(at(evidence(), path))]:
                 if other is None and path[-1] in (
+                    "comparison",
                     "expected_sha256",
                     "result_sha256",
                     "expected_size",
@@ -236,10 +246,14 @@ def change(path: tuple[Any, ...], value: Any, e: dict[str, Any] | None = None) -
 RESULT, OUTPUT = ("checks", 0, "result_sha256"), ("runs", 1, "stdout_sha256")
 # Evidence with one thing changed, and what it comes to.
 CHANGED: list[tuple[str, dict[str, Any], tuple[str, str]]] = [
-    ("a result that's another", change(RESULT, sha("f")), ("wrong_answer", "answer_differs")),
+    (
+        "a result that's another",
+        change(("checks", 0, "comparison"), "different", change(RESULT, sha("f"))),
+        ("wrong_answer", "answer_differs"),
+    ),
     (
         "an expected file that's another",
-        change(("checks", 0, "expected_sha256"), sha("f")),
+        change(("checks", 0, "comparison"), "different", change(("checks", 0, "expected_sha256"), sha("f"))),
         ("wrong_answer", "answer_differs"),
     ),
     ("an output that's another", change(OUTPUT, sha("f")), ("wrong_answer", "answer_differs")),
@@ -251,7 +265,7 @@ CHANGED: list[tuple[str, dict[str, Any], tuple[str, str]]] = [
     (
         "a check's command that failed",
         change(("checks", 0, "commands", 1, "exit"), 2),
-        ("error", "answers_match"),
+        ("error", "checks_completed"),
     ),
     ("a run that failed", change(("runs", 0, "exit"), 1), ("error", "runs_completed")),
     (
@@ -275,7 +289,7 @@ CHANGED: list[tuple[str, dict[str, Any], tuple[str, str]]] = [
             change(("runs", 1, "stdout_size"), 0, change(("runs", 1, "exit"), code)),
             ("error", "runs_completed"),
         )
-        for code in (2, 124, 137, 139)
+        for code in (2, 7)
     ],
     ("a run exiting 0 with no output", change(("runs", 1, "stdout_size"), 0), ("error", "runs_completed")),
     ("an empty result", change(("checks", 0, "result_size"), 0), ("error", "checks_completed")),
@@ -340,15 +354,15 @@ class Decided(unittest.TestCase):
             self.assertEqual(said(e), want, what)
 
     def test_a_unit_is_replaced_whole(self) -> None:
-        half = {**planned(), "table": [OTHER]}
+        half = {**planned(), "table": [OTHER], "replace": {OTHER: "/ir/other"}}
         self.assertEqual(said(change(("replaced",), {OTHER: sha("2")}), half), ("error", "units_whole"))
-        unused = {**planned(), "table": ["src/no/such.o"]}
+        unused = {**planned(), "table": ["src/no/such.o"], "replace": {"src/no/such.o": "/ir/no"}}
         self.assertEqual(said(change(("replaced",), {}), unused), ("error", "replaced_once"))
-        none = {**planned(), "table": []}
+        none = {**planned(), "table": [], "replace": {}}
         self.assertEqual(said(change(("replaced",), {}), none), ("variant", "built_and_checked"))
 
     def test_a_wrong_answer_needs_the_build_whole_and_every_check_and_run_completed(self) -> None:
-        wrong = change(RESULT, sha("f"))
+        wrong = change(("checks", 0, "comparison"), "different", change(RESULT, sha("f")))
         self.assertEqual(said(wrong), ("wrong_answer", "answer_differs"))
         for what, path, value, reason in (
             ("a result that was there before", ("checks", 0, "result_before"), True, "checks_completed"),
@@ -369,8 +383,27 @@ class Decided(unittest.TestCase):
     def test_deny_all_takes_both_grants_away(self) -> None:
         with mock.patch.dict(os.environ, {DENY_ALL: "1"}):
             self.assertEqual(said(), ("error", "denied"))
-            self.assertEqual(said(change(RESULT, sha("f"))), ("error", "denied"))
+            self.assertEqual(
+                said(change(("checks", 0, "comparison"), "different", change(RESULT, sha("f")))),
+                ("error", "denied"),
+            )
             self.assertEqual(said(change(("runs", 0, "exit"), 1)), ("error", "runs_completed"))
+
+    def test_incomplete_controls_never_grant_a_negative(self) -> None:
+        mismatch = change(OUTPUT, sha("f"))
+        for idx in (0, 1):
+            for code in (1, 2, 99, 124, 137, -9):
+                status, _ = said(change(("checks", 0, "commands", idx, "exit"), code, mismatch))
+                self.assertIn(status, {"unknown", "error"}, (idx, code))
+        self.assertEqual(
+            said(change(("checks", 0, "comparison"), None, mismatch)), ("error", "checks_completed")
+        )
+        self.assertEqual(
+            said(change(("dispatch", "avx512f"), False, mismatch)), ("unknown", "missing_features")
+        )
+        self.assertEqual(
+            said(change(("runs", 1, "limit"), "launch_failed", mismatch)), ("error", "launch_failed")
+        )
 
     def test_a_key_given_twice_is_refused(self) -> None:
         with self.assertRaises(variants.Refused) as refused:
@@ -398,6 +431,76 @@ def run(*argv: str | Path, cwd: Path | None = None) -> proc.Ran:
     ran = proc.run([str(a) for a in argv], timeout=600, cwd=cwd)
     assert ran.ok, (argv, ran.output[-2000:])
     return ran
+
+
+class StoredArtifacts(unittest.TestCase):
+    def test_reader_binds_the_plan_to_bytes_and_native_completion(self) -> None:
+        with tempfile.TemporaryDirectory() as scratch:
+            out = Path(scratch) / "build"
+            logs = out / "logs"
+            logs.mkdir(parents=True)
+            plan, record = planned(), evidence()
+            record["out"] = str(out)
+            expected = Path(scratch) / "known.exp"
+            result = out / "x.res"
+            expected.write_bytes(b"a" * 310 + b"\nOK\n")
+            result.write_bytes(expected.read_bytes())
+            check = record["checks"][0]
+            plan["workloads"][0]["checks"][0]["expected"] = check["expected"] = str(expected)
+            check["result"] = str(result)
+            marker = logs / "check-argon2id-0.comparison"
+            marker.write_text("equal\n")
+            for key in plan["table"]:
+                ir = Path(scratch) / Path(key).parent.name
+                ir.write_bytes(key.encode())
+                plan["replace"][key] = str(ir)
+                record["replaced"][key] = variants.hashing.sha256_file(ir)
+            for launch in record["runs"]:
+                program = out / Path(launch["program"]).name
+                program.touch()
+                launch.update(program=str(program), argv=[str(program)])
+                launch["env"] = {k: v.replace(OUT, str(out)) for k, v in launch["env"].items()}
+                stdout = logs / f"run-{launch['workload']}.stdout"
+                stdout.write_bytes(b"ok\n")
+                launch.update(stdout_size=3, stdout_sha256=variants.hashing.sha256_file(stdout))
+            plan["workloads"][1]["outputs"] = [record["runs"][1]["stdout_sha256"]]
+
+            def observe() -> None:
+                for field, path in (("expected", expected), ("result", result)):
+                    check[field + "_size"] = path.stat().st_size
+                    check[field + "_sha256"] = variants.hashing.sha256_file(path)
+
+            def answer() -> str:
+                return variants.answer_of(plan, record, STEPS)[0]["status"]
+
+            observe()
+            self.assertEqual(answer(), "variant")
+            for path, forged in (
+                (("checks", 0, "expected_sha256"), sha("c")),
+                (("checks", 0, "result_size"), 1),
+                (("replaced", PIC), sha("d")),
+                (("runs", 0, "program"), str(out) + "/../outside"),
+                (("runs", 1, "stdout_sha256"), sha("f")),
+            ):
+                bad = change(path, forged, record)
+                with self.assertRaises(variants.Refused, msg=str(path)):
+                    variants.answer_of(plan, bad, STEPS)
+            result.write_bytes(b"f" * 310 + b"\nadditional diagnostic\nOK\n")
+            check["comparison"] = "different"
+            marker.write_text("different\n")
+            observe()
+            self.assertEqual(answer(), "wrong_answer")
+            result.write_bytes(b"[tv] pwhash failure (maybe intentional): [0]\nOK\n")
+            observe()
+            self.assertEqual(answer(), "error")
+            marker.unlink()
+            check["comparison"] = None
+            result.write_bytes(b"12345")
+            observe()
+            # Even alongside an independently wrong workload, preparation failure/partial output cannot grant.
+            plan["workloads"][1]["outputs"] = [sha("e")]
+            check["commands"][0]["exit"] = 2
+            self.assertEqual(answer(), "error")
 
 
 class Snapshot(unittest.TestCase):

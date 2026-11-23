@@ -966,7 +966,7 @@ How one is built:
   there's one build, and no link runs before a candidate's object is there. The baseline's table is empty. For
   each object the build compiles from one of the manifest's units, the IR `clang` gives with the same words is
   kept under `ir/`.
-- **The build writes down what it saw,** as `evidence/evidence.json`, `ir-lean.kernels.evidence/1`, and decides
+- **The build writes down what it saw,** as `evidence/evidence.json`, `ir-lean.kernels.evidence/2`, and decides
   nothing: how each step of the build ended, `configure`, `make` and each workload's `build`, up to the first that
   failed; for each known-answers check, how each of its commands ended, whether its result was there before, and
   the SHA-256 and size of the result and of the expected file; for each workload's `run`, which runs once in the
@@ -985,9 +985,9 @@ What `kernels.variant` needs, with archiving, evaluating and realizing each endi
 | --- | --- |
 | `replaced_once` | The objects made from IR are the table's, each once |
 | `units_whole` | Every object the build compiled from a unit the table touches is in the table |
-| `checks_completed` | Each known-answers check wrote its result afresh, and the result and the expected file each have bytes |
+| `checks_completed` | Every preparation and check completed successfully, the native comparison marker matches the two files, and both files contain bytes |
 | `runs_completed` | Each workload's `run` exited 0, with output where the manifest gives its output's SHA-256 |
-| `answers_match` | Each result's bytes are the expected file's, and each of the check's commands exited 0 |
+| `answers_match` | Each result has the same bytes as the pinned expected file |
 | `outputs_match` | Each run's output has the SHA-256 the manifest gives, where it gives one |
 
 A build that passes the first four, where a result or an output is another one, is `wrong_answer`: the grant
@@ -996,17 +996,20 @@ nothing, is never a wrong answer. A step, a check's command or a run that was st
 realizing stopped by a limit or a signal, is `unknown`. Anything else is an `error` that names what failed, and
 only a variant's answer has a path.
 
-One thing it can't tell apart: a known-answers test that crashes after writing part of its result, which reads as
-a wrong answer. libsodium's tests write their result as they go.
+The reader verifies hashes and sizes against the immutable check files and saved workload output, the
+program's real path against the planned executable, and each replacement digest against its planned IR.
+For a differing Argon2 result it also requires different, fully encoded 155-byte hashes for the first
+pinned test vector. Resource failures can produce diagnostic text in a complete result. A difference confined
+to such text or later vectors is inconclusive here. A result left by an interrupted test has no completed
+comparison and cannot establish a wrong answer. Use `realize NAME --attempt LABEL` for a new realization.
 
 What it doesn't show:
 
 - **That a check runs a replaced unit's code,** for any unit but the two a wrong candidate is shown rejected for,
   below. libsodium picks an implementation when it runs, by the processor. A change that proposes a candidate for
   another unit shows a wrong one rejected first, on the machine it's measured on.
-- **Any machine but z.** `realize` builds wherever it's run, and on another processor its checks may not run the
-  units a table replaces. `variants_builds` skips where `/proc/cpuinfo` doesn't list AVX2 and AVX-512F, or
-  isn't there.
+- **Other builders.** A build without positive AVX2 and AVX-512F observations from its libsodium returns
+  `unknown`. A failed dispatch probe returns an error. Corpus timing still uses z.
 - **That a candidate's IR differs from the baseline's only in the functions a rewrite names.** That's a comparison
   of two modules, which belongs to the change that brings the first candidate. No candidate of the corpus is
   defined yet: the only tables are the tests'.

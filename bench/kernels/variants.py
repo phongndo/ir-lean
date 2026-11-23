@@ -57,6 +57,9 @@ REASONS: dict[str, tuple[str, str]] = {
     ),
     "time_limit": ("unknown", "A command ran out of time"),
     "resource_limit": ("unknown", "A command ran past a limit on memory"),
+    "missing_features": ("unknown", "The builder could not dispatch to both corpus implementations"),
+    "dispatch_failed": ("error", "The builder could not query the compiled library"),
+    "launch_failed": ("error", "A planned executable could not be started"),
     "killed": ("unknown", "A command was killed"),
     "invalid_request": ("error", "The command line isn't this tool's, or NAME isn't a build's name"),
     "not_the_plan": ("error", "What the build wrote down doesn't follow what variants.nix planned"),
@@ -91,6 +94,8 @@ ENDED = {"argv": [str], "exit": int, "limit": (str, None)}
 EVIDENCE = {
     "schema": str,
     "out": str,
+    "attempt": str,
+    "dispatch": {str: bool},
     "build": [ENDED],
     "replaced": {str: str},
     "compiled": {str: str},
@@ -98,6 +103,7 @@ EVIDENCE = {
         {
             "workload": str,
             "commands": [ENDED],
+            "comparison": (str, None),
             "expected": str,
             "expected_sha256": (str, None),
             "expected_size": (int, None),
@@ -122,6 +128,8 @@ LAUNCH = {"env": {str: str}, "argv": [str]}
 PLANNED = {
     "out": str,
     "table": [str],
+    "replace": {str: str},
+    "attempt": str,
     "build": [[str]],
     "workloads": [
         {
@@ -244,11 +252,6 @@ def nar_hash(path: Path) -> str:
     return found["narHash"]
 
 
-def exited(ran: dict[str, Any]) -> bool:
-    """Whether a command the build wrote down ran to an exit of its own."""
-    return ran["limit"] is None and ran["exit"] >= 0
-
-
 def filled(planned: Any, out: str, path: str) -> Any:
     """`planned` with the output's placeholder, `out`, made the path realized."""
     if isinstance(planned, str):
@@ -258,9 +261,61 @@ def filled(planned: Any, out: str, path: str) -> Any:
     return {k: filled(v, out, path) for k, v in planned.items()} if isinstance(planned, dict) else planned
 
 
-def stop(ran: dict[str, Any]) -> Refused:
-    limit = ran["limit"]
-    return Refused(limit if limit in REASONS else "killed", f"{' '.join(ran['argv'][:3])} was stopped")
+def require_exit(ran: dict[str, Any]) -> None:
+    step = Step(str(ran["argv"][:3]), ran["exit"], ran["limit"])
+    reason = verdict.limit_of(step)
+    if reason or not 0 <= ran["exit"] < 128:
+        raise Refused(
+            reason if reason in REASONS else "killed", f"{step.name} was stopped: {step.exit}, {step.limit}"
+        )
+
+
+def verify_file(path: Path, digest: str | None, size: int | None) -> None:
+    if digest is None or size is None:
+        if path.exists() or digest is not None or size is not None:
+            raise Refused("evidence_malformed", f"inconsistent file observation for {path}")
+    elif not path.is_file() or path.stat().st_size != size or hashing.sha256_file(path) != digest:
+        raise Refused("evidence_malformed", f"size or digest differs from {path}")
+
+
+def verify_artifacts(plan: dict[str, Any], e: dict[str, Any]) -> bool:
+    """Re-read immutable files. A differing Argon2 result needs a computed known-answer vector."""
+    out = Path(e["out"])
+    logs = out / "logs"
+    for key, digest in e["replaced"].items():
+        if key in plan["replace"] and hashing.sha256_file(Path(plan["replace"][key])) != digest:
+            raise Refused("evidence_malformed", f"replacement differs from the planned IR for {key}")
+    for run in e["runs"]:
+        program = Path(run["argv"][0]).resolve(strict=True)
+        if not program.is_relative_to(out) or program != Path(run["program"]) or not program.is_file():
+            raise Refused("not_the_plan", f"workload program differs from {program}")
+        verify_file(logs / f"run-{run['workload']}.stdout", run["stdout_sha256"], run["stdout_size"])
+    index: dict[str, int] = {}
+    witnessed = True
+    for check in e["checks"]:
+        expected, result = Path(check["expected"]), Path(check["result"])
+        for path, kind in ((expected, "expected"), (result, "result")):
+            verify_file(path, check[f"{kind}_sha256"], check[f"{kind}_size"])
+        name = check["workload"]
+        i = index.get(name, 0)
+        index[name] = i + 1
+        marker = logs / f"check-{name}-{i}.comparison"
+        recorded = marker.read_text().strip() if marker.is_file() else None
+        if recorded != check["comparison"]:
+            raise Refused("evidence_malformed", "comparison differs from the native test's observation")
+        if recorded == "different":
+            # The pinned test's first line is tv[0]: one hex encoding on success, an error message on failure.
+            # Even if the test ran to completion, a resource-dependent diagnostic is not a computed answer.
+            with expected.open("rb") as want, result.open("rb") as got:
+                reference, actual = want.readline().rstrip(b"\n"), got.readline().rstrip(b"\n")
+            witnessed &= bool(
+                name == "argon2id"
+                and len(reference) == len(actual) == 310
+                and re.fullmatch(b"[0-9a-f]+", reference)
+                and re.fullmatch(b"[0-9a-f]+", actual)
+                and reference != actual
+            )
+    return witnessed
 
 
 def judge(planned: dict[str, Any], e: dict[str, Any]) -> dict[str, bool]:
@@ -280,10 +335,17 @@ def judge(planned: dict[str, Any], e: dict[str, Any]) -> dict[str, bool]:
     if built != plan["build"][: len(built)]:
         raise Refused("not_the_plan", "the build's steps aren't the plan's")
     for b in e["build"]:
-        if not exited(b):
-            raise stop(b)
+        require_exit(b)
     if built != plan["build"] or any(b["exit"] != 0 for b in e["build"]):
         raise Refused("build_failed", "The observed build steps were incomplete or failed")
+    if plan["attempt"] != e["attempt"] or sorted(plan["table"]) != sorted(plan["replace"]):
+        raise Refused("not_the_plan", "attempt or replacement plan differs")
+    if set(e["dispatch"]) != set(FEATURES):
+        raise Refused("dispatch_failed", "missing runtime feature observations")
+    if not all(e["dispatch"].values()):
+        raise Refused("missing_features", str(e["dispatch"]))
+    for observed in [k for c in e["checks"] for k in c["commands"]] + e["runs"]:
+        require_exit(observed)
     # Each check and run as planned, in the plan's order, each once.
     want = [(w["name"], c["run"], c["expected"], c["result"]) for w in plan["workloads"] for c in w["checks"]]
     got = [
@@ -294,15 +356,18 @@ def judge(planned: dict[str, Any], e: dict[str, Any]) -> dict[str, bool]:
         raise Refused("not_the_plan", "a check's commands or files, or a run's launch, aren't the plan's")
     if outside := [r["program"] for r in e["runs"] if not r["program"].startswith(e["out"] + "/")]:
         raise Refused("not_the_plan", f"a run's program leads outside the build: {outside[0][:120]}")
-    for stopped in [k for c in e["checks"] for k in c["commands"]] + e["runs"]:
-        if not exited(stopped):
-            raise stop(stopped)
+    try:
+        witnessed = verify_artifacts(plan, e)
+    except (OSError, UnicodeError) as error:
+        raise Refused("evidence_malformed", str(error)) from error
     table = sorted(planned["table"])
     outputs = {w["name"]: w["outputs"] for w in plan["workloads"]}
     touched = {e["compiled"].get(key) for key in table}
     # A result is an answer only if it's fresh and has bytes, and so is what it's compared with.
-    completed = all(
-        c["result_before"] is False
+    completed = witnessed and all(
+        all(k["exit"] == 0 for k in c["commands"])
+        and c["comparison"] == ("equal" if c["expected_sha256"] == c["result_sha256"] else "different")
+        and c["result_before"] is False
         and None not in (c["result_sha256"], c["expected_sha256"])
         and (c["result_size"] or 0) > 0
         and (c["expected_size"] or 0) > 0
@@ -319,7 +384,7 @@ def judge(planned: dict[str, Any], e: dict[str, Any]) -> dict[str, bool]:
         and all(key in table for key, unit in e["compiled"].items() if unit in touched),
         "checks_completed": completed,
         "runs_completed": each_ran,
-        "answers_match": all(answers) and all(k["exit"] == 0 for c in e["checks"] for k in c["commands"]),
+        "answers_match": all(answers),
         "outputs_match": all(matched),
         "an_answer_differs": completed and each_ran and not all([*answers, *matched]),
     }
@@ -358,7 +423,7 @@ def answer_of(
     return said(refusal, None, refusal.detail, **more), False
 
 
-def realize(name: str, repo: Path, commit: str) -> dict[str, Any]:
+def realize(name: str, repo: Path, commit: str, attempt: str = "default") -> dict[str, Any]:
     """The answer about one build, from the archive of `repo` at `commit`, which this has to run from."""
     if not NAME.fullmatch(name):
         raise Refused("invalid_request", f"{name!r} isn't a build's name")
@@ -371,12 +436,23 @@ def realize(name: str, repo: Path, commit: str) -> dict[str, Any]:
         )
     if problems := kernels.validate(kernels.load(HERE / "manifest.toml")):
         raise Refused("manifest_invalid", "; ".join(problems)[:500])
+    if not re.fullmatch(r"[a-zA-Z0-9_-]+", attempt):
+        raise Refused("invalid_request", "invalid attempt label")
     attribute = f"path:{ROOT}#kernels.{PROJECT}.{name}"
+    target = [attribute]
+    plan = [f"{attribute}.planned"]
+    if attempt != "default":
+        expression = (
+            f'let f = builtins.getFlake "path:{ROOT}"; '
+            f'in (f.legacyPackages.x86_64-linux.kernels.forAttempt "{attempt}").{PROJECT}.{name}'
+        )
+        target = ["--impure", "--expr", expression]
+        plan = ["--impure", "--expr", f"({expression}).planned"]
     flags = ["--json", "--no-update-lock-file"]
-    evaluate = proc.run(["nix", "eval", *flags, f"{attribute}.planned"], timeout=QUERY_SECONDS)
+    evaluate = proc.run(["nix", "eval", *flags, *plan], timeout=QUERY_SECONDS)
     if not evaluate.ok:
         raise stopped_or(evaluate, "evaluation_failed", evaluate.err[-600:])
-    build = proc.run(["nix", "build", *flags, "--no-link", attribute], timeout=BUILD_SECONDS)
+    build = proc.run(["nix", "build", *flags, "--no-link", *target], timeout=BUILD_SECONDS)
     if not build.ok:
         raise stopped_or(build, "build_failed", build.err[-600:])
     built = parsed(build.out, "nix build's answer")
@@ -390,6 +466,8 @@ def realize(name: str, repo: Path, commit: str) -> dict[str, Any]:
     evidence = parsed(text, "the evidence", "evidence_malformed")
     if not isinstance(evidence, dict) or evidence.get("schema") != schemas.KERNELS_EVIDENCE:
         raise Refused("evidence_malformed", f"the evidence isn't {schemas.KERNELS_EVIDENCE}")
+    if evidence.get("attempt") != attempt:
+        raise Refused("not_the_plan", "evidence belongs to another attempt")
     if evidence.get("out") != out:
         raise Refused("not_the_plan", f"the evidence is of {str(evidence.get('out'))[:80]}, not {out}")
     ended = (("snapshot", snapshot), ("evaluate", evaluate), ("realize", build))
@@ -398,6 +476,7 @@ def realize(name: str, repo: Path, commit: str) -> dict[str, Any]:
         evidence,
         {step: Step(step, ran.exit, ran.limit) for step, ran in ended},
         name=name,
+        attempt=attempt,
         commit=commit,
         snapshot={"path": str(ROOT), "nar_hash": nar_hash(ROOT)},
     )
@@ -451,6 +530,7 @@ def main() -> int:
     parser = Parser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("command", choices=["realize"])
     parser.add_argument("name")
+    parser.add_argument("--attempt", default="default", help="Nix cache identity for this evidence attempt")
     parser.add_argument("--pretty", action="store_true")
     # This tool's own, for when it runs itself again from the archive.
     parser.add_argument("--repo", type=Path, help=argparse.SUPPRESS)
@@ -482,7 +562,7 @@ def main() -> int:
                 )
             except OSError as error:
                 raise Refused("snapshot_failed", f"could not launch {entry}: {error}") from error
-        answer = realize(args.name, args.repo, args.commit)
+        answer = realize(args.name, args.repo, args.commit, args.attempt)
     except Refused as refused:
         answer = said(None, refused.reason, refused.detail, name=args.name)
     print(json.dumps(answer, indent=2 if args.pretty else None, sort_keys=True))

@@ -53,6 +53,7 @@ BUILDS = {
     "tests.blake-roundtrip": ("variant", "built_and_checked"),
     "tests.wrong-argon": ("wrong_answer", "answer_differs"),
     "tests.wrong-blake": ("wrong_answer", "answer_differs"),
+    "tests.partial": ("error", "checks_completed"),
     "tests.skipped": ("error", "checks_completed"),
     "tests.unused": ("error", "replaced_once"),
     "tests.half": ("error", "units_whole"),
