@@ -939,7 +939,7 @@ Each win carries four labels, and every combination counts toward the bar:
 | What's proved | A slice, with cutting it out and putting its result back trusted, or the whole function | Decision 9 |
 | What the proof rests on | The standard three axioms, or those and `bv_decide`'s | Decision 9 |
 | The source IR | As built, or relaxed with `-fno-strict-aliasing` | [Decision 4](#what-the-maintainer-decided-on-2026-11-10) here |
-| How it was found | By the rule search from stored rules, by the search with a rule written for its site, or by an agent proposer | Decision 8: only the first meets the checkpoint, S7, until 2026-11-22. Since then a proposer's win meets it: [the engine, changed on 2026-11-22](roadmap.md#the-engine-changed-on-2026-11-22) |
+| How it was found | By the rule search from stored rules, by the search with a rule written for its site, or by an agent proposer | Decision 8: only the first meets the checkpoint, S7, until 2026-11-22. Since then the checkpoint asks for one a proposer found, whoever or whatever proposed it, and that's one of its conditions: it's also new, proved, outside llama.cpp, and measured by the protocol ([the engine, changed on 2026-11-22](roadmap.md#the-engine-changed-on-2026-11-22)) |
 
 ## The two llama.cpp rewrites
 

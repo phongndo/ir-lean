@@ -1,9 +1,11 @@
 # Rule search
 
 A deterministic search that rewrites real LLVM IR using only [rules](rules.md) already proved for every input, so what
-it finds carries its proof: a chain of proved rules, composed by `IRLean.Refines.trans`. It calls no model. It's the
-engine's core, by decision 4 of the
+it finds carries its proof: a chain of proved rules, composed by `IRLean.Refines.trans`. It calls no model. It was the
+engine's core until 2026-11-22, by decision 4 of the
 [thirteen decisions after #103](roadmap.md#thirteen-decisions-of-2026-11-09-after-103), whose numbers this page uses.
+Since then it's a tool of an engine whose core is a proposer:
+[the engine, changed on 2026-11-22](roadmap.md#the-engine-changed-on-2026-11-22).
 This page is what it does, what it found on the fixtures it was built on, what each part costs, and what it can't do.
 For what any theorem here means, read [trust](trust.md) first.
 
@@ -16,9 +18,9 @@ changed what the emitter refuses.
 ## What it found
 
 - **Nothing that counts as a win, and nothing here is counted toward S3's bar or the checkpoint, of
-  [decision 8](roadmap.md#thirteen-decisions-of-2026-11-09-after-103).** The search was run only on small files in the
-  repo and on LLVM's own regression tests, never on the corpus, which isn't fixed yet, on zlib, on llama.cpp or on any
-  outside project.
+  [decision 8](roadmap.md#thirteen-decisions-of-2026-11-09-after-103), as it read until 2026-11-22.** The search was run
+  only on small files in the repo and on LLVM's own regression tests, never on the corpus, which isn't fixed yet, on
+  zlib, on llama.cpp or on any outside project.
 - **Against `opt -O3`, `llvm-mca` kept none of what it found.** Every rule it has today was cut from InstSimplify's
   proofs, so `opt -O3` makes the same rewrites itself: on all 225 rewrites found in LLVM's InstSimplify tests, both
   sides come out of `opt -O3` and `llc -O3` with the same uOps. That's
