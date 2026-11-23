@@ -237,8 +237,9 @@ Each pull request adds its tests before its code. "Fails on main" marks those th
    output, the files it writes and the records nested in them hold no grant, in any form of the inventory. The entry
    points are `verify.py`; `prooftest.py run` and `tools/prooftest/bench.py`; `rules.py`'s `proved`, `certify` and
    `search`; `store.py`'s `add`, `check` and `lookup`; `binding.py`; `stage1.py`; `pairs.py --check`; the peephole
-   scorer; `check.py` and the smallest shell test; and, on #117, `compare` and the board. `verify_claims.py` runs
-   under its own switch. One not migrated yet is on a list that can only shrink.
+   scorer; `check.py` and the smallest shell test; and, on #117, `compare` and the board. `verify_claims.py` runs under
+   its own switch. `bench/kernels/variants.py realize`, which isn't stage A's, is one more since it was built. One not
+   migrated yet is on a list that can only shrink.
 2. **The plan against the cases**, through each public entry point that plans: a case filtered out after it ran, a
    check skipped, an input dropped, and a case observed twice each give no grant. Each tool's plan is its request's,
    by a test. Fails on main for `prooftest.py`, `pairs.py` and the shell tests.
