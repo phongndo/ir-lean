@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Compile the pinned libsodium Argon2 rewrite and replay its whole-function proofs."""
 
+import json
 import os
 import re
 import shutil
@@ -110,8 +111,17 @@ def slice_theorems(n: int) -> str:
     return "\n".join(lines) + "\n"
 
 
-def lean(module: str) -> list[str]:
-    return ["lean", "-M", "8000", "-DwarningAsError=true", "-o", f"{module}.olean", f"{module}.lean"]
+def lean(module: str, *options: str) -> list[str]:
+    return [
+        "lean",
+        *options,
+        "-M",
+        "8000",
+        "-DwarningAsError=true",
+        "-o",
+        f"{module}.olean",
+        f"{module}.lean",
+    ]
 
 
 def translate(tool: Path, work: Path, env: dict[str, str], ir: Path, module: str) -> None:
@@ -165,12 +175,19 @@ def prove(work: Path, tool: Path, slices: Path, lib: Path) -> None:
         translate(tool, where, wrong_env, where / "wrong.ll", "Cand")
         for module, expected in expect.items():
             shutil.copyfile(work / f"{module}.lean", where / f"{module}.lean")
-            ran = proc.run(lean(module), cwd=where, timeout=900, env=wrong_env)
-            errors = re.findall(r"error: (.*)", ran.output)
+            ran = proc.run(lean(module, "--json"), cwd=where, timeout=900, env=wrong_env)
+            diagnostics = (json.loads(line) for line in ran.out.splitlines())
+            errors = [message["data"] for message in diagnostics if message["severity"] == "error"]
             if expected is None:
-                if not ran.ok:
+                if not ran.ok or errors:
                     raise RuntimeError(ran.output)
-            elif ran.exit != 1 or ran.limit or not errors or any(expected not in e for e in errors):
+            elif (
+                ran.exit != 1
+                or ran.limit
+                or ran.err.strip()
+                or not errors
+                or any(expected not in e for e in errors)
+            ):
                 raise RuntimeError(f"{name}: unexpected result {ran.exit}, {ran.limit}\n{ran.output}")
         print(f"ok    {name}", flush=True)
 

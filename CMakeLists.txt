@@ -52,7 +52,7 @@ add_test(
         ${CMAKE_SOURCE_DIR}/prototypes/argon2-whole/prove.py $<TARGET_FILE:ir-lean>
         $<TARGET_FILE:argon2-slices> ${CMAKE_SOURCE_DIR}/.lake/build/lib/lean
 )
-set_tests_properties(argon2_whole PROPERTIES LABELS slow TIMEOUT 900)
+set_tests_properties(argon2_whole PROPERTIES LABELS proofs TIMEOUT 900)
 add_test(NAME opcheck COMMAND ${CMAKE_SOURCE_DIR}/tests/opcheck.py $<TARGET_FILE:ir-lean>)
 add_test(NAME gepcheck COMMAND ${CMAKE_SOURCE_DIR}/tests/gepcheck.py $<TARGET_FILE:ir-lean>)
 add_test(
