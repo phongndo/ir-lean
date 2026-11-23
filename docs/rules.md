@@ -9,6 +9,8 @@ read [trust](trust.md) first.
 It's the rule format and certify mode of decision 10, and the rules of decision 4, of the
 [thirteen decisions after #103](roadmap.md#thirteen-decisions-of-2026-11-09-after-103). The plugin that will generate
 its C++ matcher from the same source isn't built: [below](#the-plugin) says how the format allows it.
+Decision 4 was superseded on 2026-11-22, and the rules and certify mode stay, as tools:
+[the engine, changed on 2026-11-22](roadmap.md#the-engine-changed-on-2026-11-22).
 
 Facts here were checked on 2026-11-10 on top of `df3e997`, on z, x86-64 Linux, in the dev shell, with Lean 4.35.0 and
 LLVM 23.1.3. On top of `c0d070c`, the importer's counts, `rules.py check`, certify mode's example and the tests were

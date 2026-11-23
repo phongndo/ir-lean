@@ -27,6 +27,9 @@ superoptimization the lead, and the chunks its supplier. For this page:
   project's headline. The headline is the roadmap's results board, of proved wins over `clang -O3`.
 - **Within G2, the order is by demand.** Chunk 1's rewrites are proved in the order the corpus fires them, and when the
   search asks for one. Chunks 2 to 6 start when the search needs their rewrites.
+  The search here is the rule search, which since 2026-11-22 is a tool and not the engine's core
+  ([the engine, changed on 2026-11-22](roadmap.md#the-engine-changed-on-2026-11-22)). The chunks' order wasn't
+  decided again then.
 - **The supply gauge** is the share of rewrite firings on the corpus that a proved rule covers. It isn't measured yet:
   it needs the corpus, and a way to tell which of INV-04's rewrites fired.
 
