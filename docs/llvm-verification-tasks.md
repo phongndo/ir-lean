@@ -1,11 +1,11 @@
 # Proving every optimization in LLVM: tasks
 
-**The main program, since 2026-11-09.** Proving every optimization in a pinned LLVM was parked on 2026-11-08, and the
-maintainer made it the main program again on 2026-11-09, organized as nine [chunks](chunks.md) of passes, each taken
-through five gates, with a platform track under them all
-([roadmap](roadmap-history.md#six-decisions-of-2026-11-09-after-69)). Proved superoptimization and proof tests ride on the
-same platform. This page is the program's plan: the inventory of the pinned LLVM's passes, the rules for what counts
-as done, and the tasks, with their statuses kept true and checked by `tests/llvm_scope.py`.
+The 2026-11-09 plan divided a pinned LLVM into nine chunks and five gates. Later that day the maintainer
+made proved superoptimization the lead. Chunks 1–6 continue through G2, G3 and G4 are paused, and chunks
+7–9 are out of scope. The [chunk plan](chunks.md#what-changed-later-on-2026-11-09) defines the active work.
+
+This page keeps the full inventory, the criteria for proving a pass and the task statuses checked by
+`tests/llvm_scope.py`.
 [`tests/llvm_scope/chunks.json`](../tests/llvm_scope/chunks.json) puts each pass in one chunk, and the `chunks` test
 checks it against this page's inventory.
 
@@ -23,10 +23,8 @@ what any theorem means, see [trust](trust.md).
 
 ## What the roadmap keeps
 
-*Since 2026-11-09 every task here is the main program's, and [chunks](chunks.md) says which chunk and gate each one
-serves. From 2026-11-08 to then, the roadmap kept only the tasks below, as tools for superoptimization or its fidelity
-work, and the rest waited with the parked program, binding proofs to LLVM's C++, BIND-02 to BIND-05, among them. The
-table is that record, and what it says each task does is still true.*
+The table records the tasks retained for superoptimization and fidelity work on 2026-11-08.
+The [chunk plan](chunks.md#what-changed-later-on-2026-11-09) records the subsequent scope decision.
 
 | Task | Status | In the roadmap |
 | --- | --- | --- |

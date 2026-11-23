@@ -69,7 +69,7 @@ func run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 		return execTool(root, c, rest, stderr)
 	}
 	if c, ok := findCommand(planned, name); ok {
-		fmt.Fprintf(stderr, "irl: %s, %s, isn't built yet. docs/roadmap.md says where it stands\n", c.name, c.what)
+		fmt.Fprintf(stderr, "irl: %s, %s, isn't built yet. See the command table in docs/irl.md\n", c.name, c.what)
 		return 1
 	}
 	switch name {

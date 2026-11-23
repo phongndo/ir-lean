@@ -1,7 +1,7 @@
 # x86 intrinsics
 
 Which of x86's integer SIMD intrinsics real kernels need, ranked, and what the model has of them. This is decision 7
-of the thirteen the [roadmap](roadmap.md) records for 2026-11-09: the corpus is hot numeric kernels with SIMD, on
+of the thirteen the [roadmap history](roadmap-history.md#thirteen-decisions-of-2026-11-09-after-103) records for 2026-11-09: the corpus is hot numeric kernels with SIMD, on
 x86-64 first, each intrinsic is written from Intel's pseudo-code and checked against the processor, and a rule may
 use one only once it has been. For what a theorem that uses one rests on, read [trust](trust.md#trust-boundaries)
 first. Facts here were checked on 2026-11-10, at LLVM `llvmorg-23.1.3`, on z, a Ryzen 9 9950X.

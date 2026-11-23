@@ -1,7 +1,7 @@
 # IR features
 
-Everything the pinned LLVM IR can contain, each item modeled, refused or assumed, and a test that the emitter does
-what each item's class says. This is SEM-08 in the [task list](llvm-verification-tasks.md), and the first half of
+The inventory classifies each item in the pinned LLVM IR as modeled, refused or assumed. The test probes
+16,912 items and records why the [other 134](#what-it-doesnt-show) have no probe. This is SEM-08 in the [task list](llvm-verification-tasks.md), and the first half of
 [Phase 0B](roadmap-history.md#phase-0-semantic-fidelity-and-trust-infrastructure)'s exit criterion. For what any theorem
 means, read [trust](trust.md) first. Facts here were checked on 2026-11-09 at LLVM `llvmorg-23.1.3`, and the counts
 again on 2026-11-10, once the model had [more of x86's intrinsics](x86-intrinsics.md), on 2026-11-11, once

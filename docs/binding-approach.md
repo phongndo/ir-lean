@@ -3,9 +3,9 @@
 How a proof about an LLVM pass would be tied to the C++ that implements it: the options, the evidence for each, and one
 choice. This is [BIND-01](llvm-verification-tasks.md#bind-01-what-binding-to-the-implementation-means). It changes
 nothing `ir-lean` claims. It says what a `code-binding` claim's evidence is, and whether "every pass, done" is reachable
-on that evidence. When it was written, proving every optimization in LLVM was
-[parked](roadmap-history.md#whats-parked-and-what-stays) as an end goal. Since 2026-11-09 it's the main program, in
-[chunks](chunks.md), and this note's gates are its binding track: a chunk's G3 is binding by the rule below. For
+on that evidence. On 2026-11-09 the roadmap briefly made proving every LLVM optimization the main program.
+The [current chunk scope](chunks.md#what-changed-later-on-2026-11-09) pauses G3 (binding) and G4 for every chunk.
+BIND-02 finishes the B2 measurement. Gates B3 through B5 are paused. For
 binding a certificate to one run of a pass, which is a different thing, see [binding](llvm-proof-binding.md). For what
 any theorem means, see [trust](trust.md).
 

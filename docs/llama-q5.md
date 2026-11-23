@@ -127,8 +127,8 @@ nothing else about the slice. [`q5_kernel_memory`](../tests/cut/Q5KernelMemory.l
 another, and the claim is for every memory the model has an answer for. Neither loop is `ggml_vec_dot_q5_0_q8_0`. The
 kernel also computes in floating point on vectors and loads vectors, and it hasn't been translated, so for the
 kernel itself extraction and substitution stay trusted. What a theorem about it still needs is in
-[refinement](refinement.md#what-it-doesnt-cover): the kernel translating, and lemmas that its floating-point and x86
-operations and its vector loads keep refinement. What clang wraps a function in is covered: the lemma is used on
+[the Q5 blocker summary](refinement.md#its-uses). The operation lemmas are in place. The remaining blockers
+are `noalias`, as-built `!tbaa` metadata and a cut lemma that covers runs with floating-point choices. What clang wraps a function in is covered: the lemma is used on
 [a loop as clang compiled it](refinement.md#with-memory), with its attributes and its promise to progress.
 
 ## Performance and variance

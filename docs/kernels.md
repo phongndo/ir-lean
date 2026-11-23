@@ -1,7 +1,7 @@
 # The kernel corpus
 
 The fixed list of real projects the superoptimizer is judged on. It serves decisions 6, 7 and 8 of the thirteen
-decisions of 2026-11-09, after #103, in the [roadmap](roadmap.md): the headline is proved speedup over `clang -O3`, in
+decisions of 2026-11-09, after #103, in the [roadmap history](roadmap-history.md#thirteen-decisions-of-2026-11-09-after-103): the headline is proved speedup over `clang -O3`, in
 wall time on a real workload, on a corpus fixed before the search runs, and the bar is at least 10 proved wins from at
 least 3 projects.
 
@@ -789,7 +789,9 @@ rule for every win.
 
 **What's compared.** Two builds of the project that differ only in the rewritten functions:
 
-- **The baseline** is the project's own build, with the pinned clang, its own flags, and `-O3`.
+- **The baseline** uses the pinned clang with the project's own flags and `-O3`. Where the project ships
+  at `-O2`, as zlib-ng does, also compare the candidate against the project's `-O2` build. A win must pass
+  the confirmation rule separately against each required baseline.
 - **The candidate** is that build with the rewritten unit's object replaced, and the library linked again by the
   build's own link command.
 - **Checked before timing:** the two differ in the rewritten functions and nothing else, and `llc` on the unchanged
@@ -819,9 +821,10 @@ is the measure. The load average and the cores are recorded with each run.
 - A session that picks among candidates is exploratory. Only confirmation sessions count: run after the candidate, its
   workload, its thread count and its cores are written down, with a new seed.
 
-Plan one batch of confirmations per comparison before timing begins. Retain every planned attempt. A clean batch
-that misses the threshold concludes that comparison as inconclusive. Additional batches cannot turn that
-comparison into a win.
+Before timing, record one batch per candidate, workload and required baseline, including all planned sessions,
+warm-ups and pairs. Retain every attempt. A missing or failed warm-up, run or correctness check makes that batch
+ineligible for a win. Report the comparison as inconclusive and record the missing result or failure. Classify a
+complete batch by the rule below. In either case the single batch determines the final verdict for that comparison.
 
 ### Measurably faster
 
@@ -832,10 +835,13 @@ A candidate is measurably faster when all of these hold:
 3. **Every session's median is above 1.**
 4. **No other workload of the project is slower:** each one's pooled interval reaches 1 or above.
 
-Otherwise it's inconclusive, or slower, and the board says which. By this rule the Q5 rewrite, at 1.049 with an
-interval of 1.029 to 1.057 over 30 pairs in 2 sessions, is measurably faster on one thread. Its eight-thread trial, at
-1.004 with an interval of 0.979 to 1.351, isn't. The q4_K rewrite was measured in rounds, without pairs or an
-interval, so it would be measured again.
+For a complete batch, report `slower` when its pooled interval lies entirely below 1. Report `faster` when the
+win criteria hold and `inconclusive` otherwise.
+
+The historical Q5 measurements illustrate the statistics. At one thread the median was 1.049 (95% interval
+1.029–1.057 over 30 pairs in two sessions). At eight threads it was 1.004 (0.979–1.351). The corpus specifies
+eight threads and clang 23.1.3, and the Q5 study used clang 23.1.5. The earlier q4_K study reported rounds
+without paired intervals. Both rewrites require new corpus measurements to count.
 
 ### Each workload's check
 

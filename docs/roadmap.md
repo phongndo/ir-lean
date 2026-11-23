@@ -1,7 +1,9 @@
 # Roadmap
 
 The goal is to find faster code in real hot kernels and prove in Lean that it refines what the compiler produced.
-The target is ten measured, proved wins across at least three projects in the fixed corpus.
+By about **2027-02-09**, the board must show at least ten measured, proved wins across at least three projects
+in the fixed corpus, with zero wrong candidates certified. Missing that gate reopens the goal.
+[Decisions 8 and 13](roadmap-history.md#thirteen-decisions-of-2026-11-09-after-103)
 
 ## The engine, changed on 2026-11-22
 
@@ -16,8 +18,10 @@ describes the boundary between a theorem about translated IR and a result about 
 ## Checkpoint
 
 By about **2026-12-09**, obtain one new proposer-found, measured and proved win in the corpus outside llama.cpp.
-The two [llama.cpp case studies](status.md#llamacpp) are existing results. The consequence of missing the
-checkpoint and the conditions under which those earlier rewrites count toward the ten remain open.
+Under the [approved counting rule](kernels.md#what-the-maintainer-decided-on-2026-11-10), either existing
+[llama.cpp rewrite](status.md#llamacpp) counts toward the ten only after rule search rediscovers it on the fixed
+corpus and it is measured again by the protocol, with its site-specific rule disclosed. Whether to change that
+rule and what to do if the December checkpoint is missed remain open.
 
 ## Near-term pull requests
 

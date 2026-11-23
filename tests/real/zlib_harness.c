@@ -316,8 +316,8 @@ unsigned harness_misc(unsigned x, unsigned y) {
          (unsigned)crc32_combine_op(x, y, crc32_combine_gen(x));
 }
 
-// At least 128 KiB, which E2 in docs/roadmap.md asks for: inflate's window is 32 KiB, so anything smaller
-// never reaches back across all of it.
+// Base size for the three large E2 cases. harness_big_sized varies the length by seed.
+// See docs/memory.md for the tested ranges.
 #define HARNESS_BIG 131072
 
 // Letters, where after the first `period` bytes, 63 of 64 repeat the byte `period` back. That's 32,000
