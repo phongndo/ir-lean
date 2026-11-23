@@ -41,6 +41,7 @@ def load(name: str, path: Path) -> Any:
 # inputs.
 WORDS: set[str] = load("verdict_under_test", ROOT / "tests" / "verdict_test.py").words()
 VERIFY_TEST = load("verify_cases", ROOT / "tests" / "verify.py")
+TIMING_TEST = load("timing_cases", ROOT / "tests" / "timing_test.py")
 OK_LINE = re.compile(r"^\s*ok\b", re.M)
 
 # Each entry point docs/verdicts.md's test 1 names.
@@ -60,8 +61,8 @@ ALL = {
     "tests/peephole.py, the scorer",
     "tools/irlean/check.py",
     "the smallest shell test",
-    "#117's compare",
-    "#117's board",
+    "bench/kernels/timing.py read",
+    "the results board",
 }
 # Those not on their grants yet, each with the pull request of docs/verdicts.md's migration that moves it, and
 # adds it to ENTRY_POINTS. It can only shrink.
@@ -80,8 +81,7 @@ PENDING = {
     "tests/peephole.py, the scorer": "PR 10",
     "tools/irlean/check.py": "PR 4",
     "the smallest shell test": "PR 4",
-    "#117's compare": "#117, cut again on PR 1",
-    "#117's board": "#117, cut again on PR 1",
+    "the results board": "once it's built on bench/kernels/timing.py",
 }
 
 
@@ -187,8 +187,24 @@ def verify(tool: Path, scratch: Path) -> list[tuple[str, list[str]]]:
     return out
 
 
+def timing(tool: Path, scratch: Path) -> list[tuple[str, list[str]]]:
+    """bench/kernels/timing.py's smallest input that's read as faster: two confirmation sessions by the
+    protocol of each of a project's two workloads, as records tests/timing_test.py makes. Nothing is timed."""
+    del tool
+    exits = {g.exit for g in verdict.GRANTS.values() if g.schema == schemas.KERNELS_READING}
+    for _ in range(2):
+        mine = TIMING_TEST.protocol_session(scratch / "sessions" / "argon2id", 1.01)
+        theirs = TIMING_TEST.protocol_session(scratch / "sessions" / "secretstream", 1.0, "secretstream")
+
+    def argv(work: Path) -> list[str]:
+        del work
+        return [str(ROOT / "bench" / "kernels" / "timing.py"), "read", str(mine), "--other", str(theirs)]
+
+    return [("timing_faster", run_twice("timing_faster", argv, scratch, exits, "faster"))]
+
+
 # Each entry point on its grants, and how to run it.
-ENTRY_POINTS = {"tools/verify.py check": verify}
+ENTRY_POINTS = {"tools/verify.py check": verify, "bench/kernels/timing.py read": timing}
 
 
 def main() -> int:

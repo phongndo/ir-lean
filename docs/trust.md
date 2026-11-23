@@ -126,6 +126,7 @@ rests on crashed, ran out of something or failed, and that nothing it needs is m
 | `tests/verify_negative.py` | Certified, for a result the gate passes |
 | `bench/instcombine/stage1.py` | Proved, for a pair `tools/verify.py` proves and the negative-verification gate passes, certified, for a bundle `tools/binding.py` binds, and refuted, for a witness `tools/verify.py` decides false |
 | `tests/cpp_correspondence.py` | Proved, for the model, and caught, for each broken model |
+| `bench/kernels/timing.py read` | `timing.faster` and `timing.slower`, by name, through `status`: each timed run a case, and the benchmark protocol's conditions its checks. Not a win |
 
 One tool decides a verdict without asking it, on purpose: [`tools/verify_claims.py`](verify-claims.md), BIND-03's
 verifier, which has to share no code with the scorer it checks. Its verdicts, `replayed` and `verified`, aren't the

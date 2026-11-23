@@ -520,8 +520,9 @@ def clean_values(name: str) -> Values:
     return {r: CLEAN[r[0]] for r in requirements(GRANTS[name])}
 
 
-def evidence(values: Values) -> Evidence:
-    """Evidence with each requirement as `values` says."""
+def evidence(values: Values, grant: str | None = None) -> Evidence:
+    """Evidence with each requirement as `values` says, for `grant` if it's given: a grant over cases
+    gets a plan of one case, the whole domain, which holds. ManyCases has what its cases can do."""
     own: dict[str, Any] = {}
     steps: dict[str, Step] = {}
     checks: dict[str, Any] = {}
@@ -538,7 +539,11 @@ def evidence(values: Values) -> Evidence:
             checks[name] = CHECK_VALUES[value]
         elif kind == "files":
             files = FILE_VALUES[value]
-    return Evidence(**own, steps=steps, checks=checks, files=files)
+    cases = GRANTS[grant].cases if grant is not None else None
+    if cases is None:
+        return Evidence(**own, steps=steps, checks=checks, files=files)
+    planned: dict[str, Any] = {"plan": Plan(("a",), whole=True), "cases": (Step("a", cases.holds[0]),)}
+    return Evidence(**own, steps=steps, checks=checks, files=files, **planned)
 
 
 def category(kind: str, value: str) -> tuple[str, str | None]:
@@ -549,7 +554,7 @@ def category(kind: str, value: str) -> tuple[str, str | None]:
     return clean_or_absent.get(value, "unclean"), None
 
 
-def expected(values: Values) -> tuple[Verdict, str]:
+def expected(values: Values, name: str | None = None) -> tuple[Verdict, str]:
     """What docs/verdicts.md's outcome table says of `values`, a grant's requirements in its order: the first
     limit, then a crash, then something absent, then the first that isn't clean, the check that files didn't
     change before the rest."""
@@ -566,7 +571,8 @@ def expected(values: Values) -> tuple[Verdict, str]:
     if unclean:
         kind, name = unclean[0]
         return Verdict.ERROR, "missing_file" if kind == "files" else name
-    return Verdict.GRANTED, "clean"
+    over_cases = name is not None and GRANTS[name].cases is not None
+    return Verdict.GRANTED, "exhaustive" if over_cases else "clean"
 
 
 class Fixed(unittest.TestCase):
@@ -596,8 +602,8 @@ class Bounded(unittest.TestCase):
     with the rest clean, each requirement left out, and every pair at one value of each failure category."""
 
     def check(self, name: str, values: Values) -> None:
-        d = decide(name, evidence(values))
-        want = expected(values)
+        d = decide(name, evidence(values, name))
+        want = expected(values, name)
         self.assertEqual((d.verdict, d.reason), want, (name, values, d))
         self.assertEqual(d.granted, want[0] is Verdict.GRANTED)
         self.assertEqual(d.grant, name if d.granted else "")
@@ -618,7 +624,7 @@ class Bounded(unittest.TestCase):
             clean = clean_values(name)
             for r in clean:
                 out = {**clean, r: "absent" if r[0] == "step" else "left_out"}
-                d = decide(name, evidence(out))
+                d = decide(name, evidence(out, name))
                 self.assertEqual((d.verdict, d.reason), (Verdict.ERROR, "internal_error"), (name, r))
 
     def test_every_pair(self) -> None:
@@ -633,7 +639,7 @@ class Bounded(unittest.TestCase):
 
     def test_a_check_no_grant_lists_is_an_internal_error(self) -> None:
         for name in GRANTS:
-            e = evidence(clean_values(name))
+            e = evidence(clean_values(name), name)
             typo = dataclasses.replace(e, checks={**e.checks, "artifact_unchanged": True})
             self.assertEqual(decide(name, typo).reason, "internal_error", name)
 
@@ -642,7 +648,7 @@ class Bounded(unittest.TestCase):
         request asked for it, by `asked`, as any check is, and otherwise can only take the grant away."""
         count = 0
         for name, grant in GRANTS.items():
-            clean = evidence(clean_values(name))
+            clean = evidence(clean_values(name), name)
             for c, asked in itertools.product(grant.if_asked, (False, True)):
                 for value, want in (
                     (LEFT_OUT, (Verdict.ERROR, "internal_error") if asked else (Verdict.GRANTED, "clean")),
@@ -963,7 +969,7 @@ class DenyAll(unittest.TestCase):
     """IRLEAN_DENY_ALL takes every grant away, and nothing else."""
 
     def test_it_takes_every_grant_away(self) -> None:
-        granted: list[tuple[Any, Evidence]] = [*GRANTED, *((n, evidence(clean_values(n))) for n in GRANTS)]
+        granted: list[tuple[Any, Evidence]] = [*GRANTED, *((n, evidence(clean_values(n), n)) for n in GRANTS)]
         for claim, e in granted:
             self.assertTrue(decide(claim, e).granted, claim)
             for value in ("1", "yes", "true"):
@@ -986,6 +992,9 @@ class DenyAll(unittest.TestCase):
 TABLE = {
     "kernel_checked": ("proved", 0),
     "witness_falsifies": ("counterexample", 2),
+    # bench/kernels/timing.py's, which names each grant's reason after the grant.
+    "timing.faster": ("faster", 0),
+    "timing.slower": ("slower", 2),
     "time_limit": ("timeout", 4),
     "tool_failed": ("error", 1),
     "internal_error": ("error", 1),
@@ -999,8 +1008,9 @@ class Adapter(unittest.TestCase):
     exit code, and gives a grant's word only for a granted Decision of that grant."""
 
     def test_a_granted_decision_is_its_grants_word(self) -> None:
-        granted = {n: decide(n, evidence(clean_values(n))) for n in GRANTS}
+        granted = {n: decide(n, evidence(clean_values(n), n)) for n in GRANTS}
         said = {"verify.proved": "kernel_checked", "verify.counterexample": "witness_falsifies"}
+        said |= {name: name for name in ("timing.faster", "timing.slower")}
         for name, d in granted.items():
             self.assertTrue(d.granted, name)
             grant = GRANTS[name]
@@ -1022,7 +1032,7 @@ class Adapter(unittest.TestCase):
         for d in (unknown, error, denied, old, None):
             for reason, (word, code) in TABLE.items():
                 # An old form's grant has no name in GRANTS, so no word of its own here.
-                refused = word in ("proved", "counterexample") or d is old
+                refused = word in {g.word for g in GRANTS.values()} or d is old
                 self.assertEqual(to_status(d, TABLE, reason), INTERNAL if refused else (word, reason, code))
         # With no reason given, its own, if the table has one.
         self.assertEqual(to_status(unknown, TABLE), ("timeout", "time_limit", 4))
@@ -1043,9 +1053,7 @@ PENDING = {
     "admitted": "PR 7, tools/store/store.py",
     "candidate": "PR 7, tools/store/store.py",
     "counted": "PR 10, the peephole scorer",
-    "faster": "#117, cut again on PR 1",
-    "slower": "#117, cut again on PR 1",
-    "win": "#117, cut again on PR 1",
+    "win": "the results board, once it's built on bench/kernels/timing.py",
 }
 # tools/verify_claims.py's verdicts, which it decides itself, on purpose: BIND-03 shares no code with the
 # scorer it checks.

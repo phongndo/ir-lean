@@ -1,0 +1,750 @@
+{
+ "schema": "ir-lean.kernels.session/1",
+ "project": "llama.cpp",
+ "workload": "pp512",
+ "workloads": [
+  "pp512",
+  "ppl",
+  "tg128"
+ ],
+ "kind": "confirmation",
+ "control": false,
+ "seed": 2026112223,
+ "cpus": "8-15",
+ "topology": {
+  "8": {
+   "siblings": "8,24",
+   "l3": "8-15,24-31"
+  },
+  "9": {
+   "siblings": "9,25",
+   "l3": "8-15,24-31"
+  },
+  "10": {
+   "siblings": "10,26",
+   "l3": "8-15,24-31"
+  },
+  "11": {
+   "siblings": "11,27",
+   "l3": "8-15,24-31"
+  },
+  "12": {
+   "siblings": "12,28",
+   "l3": "8-15,24-31"
+  },
+  "13": {
+   "siblings": "13,29",
+   "l3": "8-15,24-31"
+  },
+  "14": {
+   "siblings": "14,30",
+   "l3": "8-15,24-31"
+  },
+  "15": {
+   "siblings": "15,31",
+   "l3": "8-15,24-31"
+  }
+ },
+ "threads": 8,
+ "measure": "rate",
+ "rule": {
+  "min_pairs": 30,
+  "min_sessions": 2,
+  "threshold": 1.005,
+  "resamples": 20000,
+  "confidence": 0.95,
+  "min_seconds": 2.0
+ },
+ "manifest": {
+  "sha256": "c8936c54c4f0178216107276addb4e7fd24d79fa1cc263fa32f4a1e15c3bb893",
+  "corpus": true
+ },
+ "variants": {
+  "baseline": {
+   "build": "/home/dp/code/ir-lean/build/kernels/timing-llama/build",
+   "env": {
+    "LD_LIBRARY_PATH": "/home/dp/code/ir-lean/build/kernels/timing-llama/libs/base:/home/dp/code/ir-lean/build/kernels/timing-llama/build/bin"
+   },
+   "identity": {
+    "loads": [
+     {
+      "name": "program",
+      "path": "/home/dp/code/ir-lean/build/kernels/timing-llama/build/bin/llama-bench",
+      "sha256": "60d6786df6ddcf2573c6ddb2a805160d5b045036044f120f46c33d6e65201213"
+     },
+     {
+      "name": "libllama-bench-impl.so",
+      "path": "/home/dp/code/ir-lean/build/kernels/timing-llama/build/bin/libllama-bench-impl.so",
+      "sha256": "0f2b6d20dcd7fd12797e921c09fa3f2936901031a9f59195b28136b5ccf67387"
+     },
+     {
+      "name": "libllama-common.so.0",
+      "path": "/home/dp/code/ir-lean/build/kernels/timing-llama/build/bin/libllama-common.so.0",
+      "sha256": "75be4cb055ec107a6f6be5234d3ae828c771d4836819f7feeb08451dd7d31081"
+     },
+     {
+      "name": "libllama.so.0",
+      "path": "/home/dp/code/ir-lean/build/kernels/timing-llama/build/bin/libllama.so.0",
+      "sha256": "c19c8dd988b94d9f74c89d58c5b3feb9a5a1a64fbde55319178b33391f4e2fa7"
+     },
+     {
+      "name": "libggml.so.0",
+      "path": "/home/dp/code/ir-lean/build/kernels/timing-llama/build/bin/libggml.so.0",
+      "sha256": "504ae69fcb5f1d22df4da1565fdf2d213f96d0906149ea3c8fa7b75e9193e711"
+     },
+     {
+      "name": "libggml-cpu.so.0",
+      "path": "/home/dp/code/ir-lean/build/kernels/timing-llama/libs/base/libggml-cpu.so.0",
+      "sha256": "a578ac2ed93516ae8e4f5c72805a28e0e65f614c52e446c4991f731aee96cea6"
+     },
+     {
+      "name": "libggml-base.so.0",
+      "path": "/home/dp/code/ir-lean/build/kernels/timing-llama/build/bin/libggml-base.so.0",
+      "sha256": "89ac4c86613c9502a1bd9da8ae750141e3ac3e104be79914335ceae6e5952c71"
+     },
+     {
+      "name": "libstdc++.so.6",
+      "path": "/nix/store/7a2cjhcgzyym5zaz6m4fksw47qvm150w-gcc-16.2.0-lib/lib/libstdc++.so.6",
+      "sha256": "eb21fd9ecfa584d60166f3f9c53765ed8d6b42d6d7827ede04a8ee414423937a"
+     },
+     {
+      "name": "libm.so.6",
+      "path": "/nix/store/pqyiidz5mi73wv5f91d48s9plcqyj5bz-glibc-2.44-57/lib/libm.so.6",
+      "sha256": "1dcff2bf21bcc45bc903ba1cfe8743503b0008d7afa79ddb1df90788d62bfff3"
+     },
+     {
+      "name": "libgcc_s.so.1",
+      "path": "/nix/store/7a2cjhcgzyym5zaz6m4fksw47qvm150w-gcc-16.2.0-lib/lib/libgcc_s.so.1",
+      "sha256": "e80a9d87e1a0b8249700f459767b257b01969c79bee3c8fb15e35e1e9c4da055"
+     },
+     {
+      "name": "libc.so.6",
+      "path": "/nix/store/pqyiidz5mi73wv5f91d48s9plcqyj5bz-glibc-2.44-57/lib/libc.so.6",
+      "sha256": "caaa4691f54660960a577c5397dc38a7fef9c5c617bb4e248f00bd3c9acd3726"
+     },
+     {
+      "name": "libdl.so.2",
+      "path": "/nix/store/pqyiidz5mi73wv5f91d48s9plcqyj5bz-glibc-2.44-57/lib/libdl.so.2",
+      "sha256": "e0447a849c6f53e87b190ef66e8d850e44a675d88cc73203bfcfabec8ed5aa6a"
+     },
+     {
+      "name": "/nix/store/pqyiidz5mi73wv5f91d48s9plcqyj5bz-glibc-2.44-57/lib/ld-linux-x86-64.so.2",
+      "path": "/nix/store/pqyiidz5mi73wv5f91d48s9plcqyj5bz-glibc-2.44-57/lib64/ld-linux-x86-64.so.2",
+      "sha256": "d2fbe26249c12dd8ac1cfb618c705fe37d625d5a4dd4035b27869766480c1244"
+     }
+    ],
+    "id": "e3a5b605654841a75b10a430e655f705f66e45f15a817a8416eb3c6fd9e5050d"
+   }
+  },
+  "candidate": {
+   "build": "/home/dp/code/ir-lean/build/kernels/timing-llama/build",
+   "env": {
+    "LD_LIBRARY_PATH": "/home/dp/code/ir-lean/build/kernels/timing-llama/libs/rw:/home/dp/code/ir-lean/build/kernels/timing-llama/build/bin"
+   },
+   "identity": {
+    "loads": [
+     {
+      "name": "program",
+      "path": "/home/dp/code/ir-lean/build/kernels/timing-llama/build/bin/llama-bench",
+      "sha256": "60d6786df6ddcf2573c6ddb2a805160d5b045036044f120f46c33d6e65201213"
+     },
+     {
+      "name": "libllama-bench-impl.so",
+      "path": "/home/dp/code/ir-lean/build/kernels/timing-llama/build/bin/libllama-bench-impl.so",
+      "sha256": "0f2b6d20dcd7fd12797e921c09fa3f2936901031a9f59195b28136b5ccf67387"
+     },
+     {
+      "name": "libllama-common.so.0",
+      "path": "/home/dp/code/ir-lean/build/kernels/timing-llama/build/bin/libllama-common.so.0",
+      "sha256": "75be4cb055ec107a6f6be5234d3ae828c771d4836819f7feeb08451dd7d31081"
+     },
+     {
+      "name": "libllama.so.0",
+      "path": "/home/dp/code/ir-lean/build/kernels/timing-llama/build/bin/libllama.so.0",
+      "sha256": "c19c8dd988b94d9f74c89d58c5b3feb9a5a1a64fbde55319178b33391f4e2fa7"
+     },
+     {
+      "name": "libggml.so.0",
+      "path": "/home/dp/code/ir-lean/build/kernels/timing-llama/build/bin/libggml.so.0",
+      "sha256": "504ae69fcb5f1d22df4da1565fdf2d213f96d0906149ea3c8fa7b75e9193e711"
+     },
+     {
+      "name": "libggml-cpu.so.0",
+      "path": "/home/dp/code/ir-lean/build/kernels/timing-llama/libs/rw/libggml-cpu.so.0",
+      "sha256": "1f9bbea0849f688381e7b58abb44b415c07c5fc7e6b76ef9d9276be1094ee32f"
+     },
+     {
+      "name": "libggml-base.so.0",
+      "path": "/home/dp/code/ir-lean/build/kernels/timing-llama/build/bin/libggml-base.so.0",
+      "sha256": "89ac4c86613c9502a1bd9da8ae750141e3ac3e104be79914335ceae6e5952c71"
+     },
+     {
+      "name": "libstdc++.so.6",
+      "path": "/nix/store/7a2cjhcgzyym5zaz6m4fksw47qvm150w-gcc-16.2.0-lib/lib/libstdc++.so.6",
+      "sha256": "eb21fd9ecfa584d60166f3f9c53765ed8d6b42d6d7827ede04a8ee414423937a"
+     },
+     {
+      "name": "libm.so.6",
+      "path": "/nix/store/pqyiidz5mi73wv5f91d48s9plcqyj5bz-glibc-2.44-57/lib/libm.so.6",
+      "sha256": "1dcff2bf21bcc45bc903ba1cfe8743503b0008d7afa79ddb1df90788d62bfff3"
+     },
+     {
+      "name": "libgcc_s.so.1",
+      "path": "/nix/store/7a2cjhcgzyym5zaz6m4fksw47qvm150w-gcc-16.2.0-lib/lib/libgcc_s.so.1",
+      "sha256": "e80a9d87e1a0b8249700f459767b257b01969c79bee3c8fb15e35e1e9c4da055"
+     },
+     {
+      "name": "libc.so.6",
+      "path": "/nix/store/pqyiidz5mi73wv5f91d48s9plcqyj5bz-glibc-2.44-57/lib/libc.so.6",
+      "sha256": "caaa4691f54660960a577c5397dc38a7fef9c5c617bb4e248f00bd3c9acd3726"
+     },
+     {
+      "name": "libdl.so.2",
+      "path": "/nix/store/pqyiidz5mi73wv5f91d48s9plcqyj5bz-glibc-2.44-57/lib/libdl.so.2",
+      "sha256": "e0447a849c6f53e87b190ef66e8d850e44a675d88cc73203bfcfabec8ed5aa6a"
+     },
+     {
+      "name": "/nix/store/pqyiidz5mi73wv5f91d48s9plcqyj5bz-glibc-2.44-57/lib/ld-linux-x86-64.so.2",
+      "path": "/nix/store/pqyiidz5mi73wv5f91d48s9plcqyj5bz-glibc-2.44-57/lib64/ld-linux-x86-64.so.2",
+      "sha256": "d2fbe26249c12dd8ac1cfb618c705fe37d625d5a4dd4035b27869766480c1244"
+     }
+    ],
+    "id": "feabde09f932cb80b9a313cac35cd558e27cb17310f85c411eaa54b8e5ae3c0f"
+   }
+  }
+ },
+ "started": "2026-11-23T06:51:07+00:00",
+ "status": "complete",
+ "planned_pairs": 15,
+ "pairs": [
+  {
+   "pair": 1,
+   "order": [
+    "candidate",
+    "baseline"
+   ],
+   "candidate": {
+    "exit": 0,
+    "limit": null,
+    "figures": {
+     "avg_ts": 1194.966298
+    },
+    "seconds": 2.065641081018839,
+    "user_s": 13.886499,
+    "sys_s": 0.172508,
+    "load1": 2.45947265625
+   },
+   "baseline": {
+    "exit": 0,
+    "limit": null,
+    "figures": {
+     "avg_ts": 1119.888894
+    },
+    "seconds": 2.1725320600089617,
+    "user_s": 14.801289,
+    "sys_s": 0.165523,
+    "load1": 2.45947265625
+   },
+   "ratios": {
+    "avg_ts": 1.0670400469209405
+   }
+  },
+  {
+   "pair": 2,
+   "order": [
+    "candidate",
+    "baseline"
+   ],
+   "candidate": {
+    "exit": 0,
+    "limit": null,
+    "figures": {
+     "avg_ts": 1198.060584
+    },
+    "seconds": 2.0566090290085413,
+    "user_s": 13.850601,
+    "sys_s": 0.173476,
+    "load1": 2.34228515625
+   },
+   "baseline": {
+    "exit": 0,
+    "limit": null,
+    "figures": {
+     "avg_ts": 1118.519635
+    },
+    "seconds": 2.176831726974342,
+    "user_s": 14.818275,
+    "sys_s": 0.167607,
+    "load1": 2.34228515625
+   },
+   "ratios": {
+    "avg_ts": 1.0711126979903218
+   }
+  },
+  {
+   "pair": 3,
+   "order": [
+    "baseline",
+    "candidate"
+   ],
+   "baseline": {
+    "exit": 0,
+    "limit": null,
+    "figures": {
+     "avg_ts": 1120.652408
+    },
+    "seconds": 2.1736758609768003,
+    "user_s": 14.786839,
+    "sys_s": 0.176477,
+    "load1": 2.79541015625
+   },
+   "candidate": {
+    "exit": 0,
+    "limit": null,
+    "figures": {
+     "avg_ts": 1194.528649
+    },
+    "seconds": 2.0678553099860437,
+    "user_s": 13.886723,
+    "sys_s": 0.181368,
+    "load1": 2.79541015625
+   },
+   "ratios": {
+    "avg_ts": 1.0659225291201981
+   }
+  },
+  {
+   "pair": 4,
+   "order": [
+    "baseline",
+    "candidate"
+   ],
+   "baseline": {
+    "exit": 0,
+    "limit": null,
+    "figures": {
+     "avg_ts": 1123.464432
+    },
+    "seconds": 2.168381903960835,
+    "user_s": 14.750471,
+    "sys_s": 0.179469,
+    "load1": 3.21240234375
+   },
+   "candidate": {
+    "exit": 0,
+    "limit": null,
+    "figures": {
+     "avg_ts": 1194.849259
+    },
+    "seconds": 2.060314862988889,
+    "user_s": 13.855226,
+    "sys_s": 0.197317,
+    "load1": 3.21240234375
+   },
+   "ratios": {
+    "avg_ts": 1.0635399083110448
+   }
+  },
+  {
+   "pair": 5,
+   "order": [
+    "baseline",
+    "candidate"
+   ],
+   "baseline": {
+    "exit": 0,
+    "limit": null,
+    "figures": {
+     "avg_ts": 1121.890959
+    },
+    "seconds": 2.175075948005542,
+    "user_s": 14.773155,
+    "sys_s": 0.17244299999999999,
+    "load1": 3.21240234375
+   },
+   "candidate": {
+    "exit": 0,
+    "limit": null,
+    "figures": {
+     "avg_ts": 1195.400321
+    },
+    "seconds": 2.063999773003161,
+    "user_s": 13.87224,
+    "sys_s": 0.18135199999999999,
+    "load1": 3.03515625
+   },
+   "ratios": {
+    "avg_ts": 1.065522733212435
+   }
+  },
+  {
+   "pair": 6,
+   "order": [
+    "candidate",
+    "baseline"
+   ],
+   "candidate": {
+    "exit": 0,
+    "limit": null,
+    "figures": {
+     "avg_ts": 1191.633407
+    },
+    "seconds": 2.0678293489618227,
+    "user_s": 13.932259,
+    "sys_s": 0.169371,
+    "load1": 3.03515625
+   },
+   "baseline": {
+    "exit": 0,
+    "limit": null,
+    "figures": {
+     "avg_ts": 1120.564577
+    },
+    "seconds": 2.1778013660223223,
+    "user_s": 14.789852,
+    "sys_s": 0.184504,
+    "load1": 3.43310546875
+   },
+   "ratios": {
+    "avg_ts": 1.0634223421467301
+   }
+  },
+  {
+   "pair": 7,
+   "order": [
+    "candidate",
+    "baseline"
+   ],
+   "candidate": {
+    "exit": 0,
+    "limit": null,
+    "figures": {
+     "avg_ts": 1187.595195
+    },
+    "seconds": 2.0749939249944873,
+    "user_s": 13.955825,
+    "sys_s": 0.185465,
+    "load1": 3.43310546875
+   },
+   "baseline": {
+    "exit": 0,
+    "limit": null,
+    "figures": {
+     "avg_ts": 1118.183177
+    },
+    "seconds": 2.1760375380399637,
+    "user_s": 14.830644,
+    "sys_s": 0.166592,
+    "load1": 3.798828125
+   },
+   "ratios": {
+    "avg_ts": 1.0620757130206764
+   }
+  },
+  {
+   "pair": 8,
+   "order": [
+    "baseline",
+    "candidate"
+   ],
+   "baseline": {
+    "exit": 0,
+    "limit": null,
+    "figures": {
+     "avg_ts": 1119.741999
+    },
+    "seconds": 2.175102273002267,
+    "user_s": 14.781077,
+    "sys_s": 0.19153599999999998,
+    "load1": 3.798828125
+   },
+   "candidate": {
+    "exit": 0,
+    "limit": null,
+    "figures": {
+     "avg_ts": 1194.609729
+    },
+    "seconds": 2.0621971630025655,
+    "user_s": 13.889833,
+    "sys_s": 0.17052499999999998,
+    "load1": 3.798828125
+   },
+   "ratios": {
+    "avg_ts": 1.066861589604446
+   }
+  },
+  {
+   "pair": 9,
+   "order": [
+    "candidate",
+    "baseline"
+   ],
+   "candidate": {
+    "exit": 0,
+    "limit": null,
+    "figures": {
+     "avg_ts": 1196.44947
+    },
+    "seconds": 2.071238917997107,
+    "user_s": 13.957467,
+    "sys_s": 0.16860699999999998,
+    "load1": 4.13525390625
+   },
+   "baseline": {
+    "exit": 0,
+    "limit": null,
+    "figures": {
+     "avg_ts": 1119.716466
+    },
+    "seconds": 2.1739055379875936,
+    "user_s": 14.782585,
+    "sys_s": 0.19431099999999998,
+    "load1": 4.13525390625
+   },
+   "ratios": {
+    "avg_ts": 1.0685289591874234
+   }
+  },
+  {
+   "pair": 10,
+   "order": [
+    "candidate",
+    "baseline"
+   ],
+   "candidate": {
+    "exit": 0,
+    "limit": null,
+    "figures": {
+     "avg_ts": 1194.086606
+    },
+    "seconds": 2.0610932049457915,
+    "user_s": 13.893072,
+    "sys_s": 0.173623,
+    "load1": 4.44482421875
+   },
+   "baseline": {
+    "exit": 0,
+    "limit": null,
+    "figures": {
+     "avg_ts": 1119.327091
+    },
+    "seconds": 2.179601290030405,
+    "user_s": 14.802876,
+    "sys_s": 0.18146199999999998,
+    "load1": 4.44482421875
+   },
+   "ratios": {
+    "avg_ts": 1.0667896949882723
+   }
+  },
+  {
+   "pair": 11,
+   "order": [
+    "baseline",
+    "candidate"
+   ],
+   "baseline": {
+    "exit": 0,
+    "limit": null,
+    "figures": {
+     "avg_ts": 1118.528648
+    },
+    "seconds": 2.1848639710224234,
+    "user_s": 14.798605,
+    "sys_s": 0.198658,
+    "load1": 4.72998046875
+   },
+   "candidate": {
+    "exit": 0,
+    "limit": null,
+    "figures": {
+     "avg_ts": 1195.879556
+    },
+    "seconds": 2.0656161200022325,
+    "user_s": 13.905715,
+    "sys_s": 0.162465,
+    "load1": 4.72998046875
+   },
+   "ratios": {
+    "avg_ts": 1.0691541590269578
+   }
+  },
+  {
+   "pair": 12,
+   "order": [
+    "candidate",
+    "baseline"
+   ],
+   "candidate": {
+    "exit": 0,
+    "limit": null,
+    "figures": {
+     "avg_ts": 1192.203132
+    },
+    "seconds": 2.0855148009723052,
+    "user_s": 14.033232,
+    "sys_s": 0.177531,
+    "load1": 4.72998046875
+   },
+   "baseline": {
+    "exit": 0,
+    "limit": null,
+    "figures": {
+     "avg_ts": 1120.193357
+    },
+    "seconds": 2.1839499099878594,
+    "user_s": 14.839795,
+    "sys_s": 0.18653999999999998,
+    "load1": 4.9921875
+   },
+   "ratios": {
+    "avg_ts": 1.064283344076285
+   }
+  },
+  {
+   "pair": 13,
+   "order": [
+    "candidate",
+    "baseline"
+   ],
+   "candidate": {
+    "exit": 0,
+    "limit": null,
+    "figures": {
+     "avg_ts": 1193.410537
+    },
+    "seconds": 2.069342599948868,
+    "user_s": 13.93099,
+    "sys_s": 0.172585,
+    "load1": 4.9921875
+   },
+   "baseline": {
+    "exit": 0,
+    "limit": null,
+    "figures": {
+     "avg_ts": 1119.677925
+    },
+    "seconds": 2.2151761099812575,
+    "user_s": 15.020171,
+    "sys_s": 0.173585,
+    "load1": 5.2333984375
+   },
+   "ratios": {
+    "avg_ts": 1.0658516260379074
+   }
+  },
+  {
+   "pair": 14,
+   "order": [
+    "baseline",
+    "candidate"
+   ],
+   "baseline": {
+    "exit": 0,
+    "limit": null,
+    "figures": {
+     "avg_ts": 1119.438681
+    },
+    "seconds": 2.197670493973419,
+    "user_s": 14.931073,
+    "sys_s": 0.181589,
+    "load1": 5.2333984375
+   },
+   "candidate": {
+    "exit": 0,
+    "limit": null,
+    "figures": {
+     "avg_ts": 1173.377792
+    },
+    "seconds": 2.097523664997425,
+    "user_s": 14.149676,
+    "sys_s": 0.17349199999999998,
+    "load1": 5.455078125
+   },
+   "ratios": {
+    "avg_ts": 1.048184069315718
+   }
+  },
+  {
+   "pair": 15,
+   "order": [
+    "baseline",
+    "candidate"
+   ],
+   "baseline": {
+    "exit": 0,
+    "limit": null,
+    "figures": {
+     "avg_ts": 1118.330254
+    },
+    "seconds": 2.1835800019907765,
+    "user_s": 14.846228,
+    "sys_s": 0.17263099999999998,
+    "load1": 5.455078125
+   },
+   "candidate": {
+    "exit": 0,
+    "limit": null,
+    "figures": {
+     "avg_ts": 1166.848527
+    },
+    "seconds": 2.1272035259753466,
+    "user_s": 14.311168,
+    "sys_s": 0.200618,
+    "load1": 5.455078125
+   },
+   "ratios": {
+    "avg_ts": 1.0433845662553274
+   }
+  }
+ ],
+ "inputs": {
+  "qwen2.5-1.5b-instruct-q4_k_m.gguf": "6a1a2eb6d15622bf3c96857206351ba97e1af16c30d7a74ee38970e434e9407e"
+ },
+ "checks": [
+  {
+   "check": 1,
+   "kind": "output",
+   "baseline": {
+    "{out}/decode.prompt.i32": "9fff6c4b6c44f7c013aeb1429484207fdbed567e45b39d7bd2d42a4b59a18ccc",
+    "{out}/decode.logits.f32": "9626483dd2b9fc3bc6c7337a4d7e4285a2065cce8a5eb0144600d1bb5eb3b464",
+    "{out}/decode.tokens.i32": "958b88f6aec84ade9ee2916653465e30eab1d5a6b15d818a909d04add39638e3",
+    "{out}/decode.positions.i32": "8f4c4b285cc9048dcd541f75e6b3d94dce6a5ad9299b25bd026da4b267b541cc",
+    "{out}/decode.json": "8ac8e03e409c7d2804e7ff690be9387756f5e7b44092c681ce48231dcacd7bcd"
+   },
+   "candidate": {
+    "{out}/decode.prompt.i32": "9fff6c4b6c44f7c013aeb1429484207fdbed567e45b39d7bd2d42a4b59a18ccc",
+    "{out}/decode.logits.f32": "9626483dd2b9fc3bc6c7337a4d7e4285a2065cce8a5eb0144600d1bb5eb3b464",
+    "{out}/decode.tokens.i32": "958b88f6aec84ade9ee2916653465e30eab1d5a6b15d818a909d04add39638e3",
+    "{out}/decode.positions.i32": "8f4c4b285cc9048dcd541f75e6b3d94dce6a5ad9299b25bd026da4b267b541cc",
+    "{out}/decode.json": "8ac8e03e409c7d2804e7ff690be9387756f5e7b44092c681ce48231dcacd7bcd"
+   }
+  }
+ ],
+ "warm_up": {
+  "baseline": {
+   "exit": 0,
+   "limit": null,
+   "figures": {
+    "avg_ts": 1119.926348
+   },
+   "seconds": 2.1678960159770213,
+   "user_s": 14.78716,
+   "sys_s": 0.171649,
+   "load1": 1.97705078125
+  },
+  "candidate": {
+   "exit": 0,
+   "limit": null,
+   "figures": {
+    "avg_ts": 1192.900213
+   },
+   "seconds": 2.0652858890243806,
+   "user_s": 13.910715,
+   "sys_s": 0.169434,
+   "load1": 2.45947265625
+  }
+ },
+ "repeat": 1,
+ "ended": "2026-11-23T06:52:25+00:00"
+}

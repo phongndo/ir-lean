@@ -238,7 +238,8 @@ Each pull request adds its tests before its code. "Fails on main" marks those th
    points are `verify.py`; `prooftest.py run` and `tools/prooftest/bench.py`; `rules.py`'s `proved`, `certify` and
    `search`; `store.py`'s `add`, `check` and `lookup`; `binding.py`; `stage1.py`; `pairs.py --check`; the peephole
    scorer; `check.py` and the smallest shell test; and, on #117, `compare` and the board. `verify_claims.py` runs
-   under its own switch. One not migrated yet is on a list that can only shrink.
+   under its own switch. One not migrated yet is on a list that can only shrink. Since 2026-11-22 `compare` is
+   `bench/kernels/timing.py read`, which is on its grants, and the board, which isn't built, is still on the list.
 2. **The plan against the cases**, through each public entry point that plans: a case filtered out after it ran, a
    check skipped, an input dropped, and a case observed twice each give no grant. Each tool's plan is its request's,
    by a test. Fails on main for `prooftest.py`, `pairs.py` and the shell tests.
@@ -298,6 +299,13 @@ The harness, #117, is on hold. When it's cut again, it goes on top of PR 1: `GRA
 `win`; `compare` puts each timed run in `cases` and `protocol_problems` in `checks`, so a comparison that isn't by the
 protocol is `inconclusive`; and the board asks for `win`, with each comparison and the proof's record as upstream.
 Until it merges and passes test 1, class 1 isn't closed over the harness.
+
+Cut again on 2026-11-22, as [`bench/kernels/timing.py`](../bench/kernels/timing.py), without the board:
+[the harness](kernels.md#the-harness). `GRANTS` has `timing.faster` and `timing.slower`. `timing.py read` puts each
+timed run of each confirmation session in `cases`, planned by its session, so a session that failed leaves the plan
+short and nothing is granted. Its checks are the rule's conditions, and `corpus` and `rule`: the corpus's manifest
+as it is now, an approved project, and the protocol's own rule. It passes test 1, on records of sessions
+`tests/timing_test.py` makes. `win` waits for the board.
 
 The JSON stays compatible, and no schema is bumped: status words, reason codes, exit codes and meanings stay, and the
 new reasons, `incomplete` and `denied`, go at the end of their status. Some answers become `unknown` or `error`, none a

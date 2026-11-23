@@ -1,4 +1,59 @@
 {
+  "timing.faster": {
+    "cases": {
+      "at_least": null,
+      "discards": [],
+      "holds": [
+        0
+      ],
+      "stops": []
+    },
+    "checks": [
+      "corpus",
+      "rule",
+      "confirmation",
+      "pairs",
+      "interval_above",
+      "sessions_above",
+      "others"
+    ],
+    "excludes": [
+      "timing.slower"
+    ],
+    "exit": 0,
+    "files": false,
+    "if_asked": [],
+    "schema": "ir-lean.kernels.reading/1",
+    "steps": [],
+    "word": "faster"
+  },
+  "timing.slower": {
+    "cases": {
+      "at_least": null,
+      "discards": [],
+      "holds": [
+        0
+      ],
+      "stops": []
+    },
+    "checks": [
+      "corpus",
+      "rule",
+      "confirmation",
+      "pairs",
+      "interval_below",
+      "sessions_below"
+    ],
+    "excludes": [
+      "timing.faster"
+    ],
+    "exit": 2,
+    "files": false,
+    "if_asked": [],
+    "schema": "ir-lean.kernels.reading/1",
+    "steps": [],
+    "word": "slower"
+  },
   "verify.counterexample": {
     "cases": null,
     "checks": [

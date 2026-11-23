@@ -179,6 +179,9 @@ VERIFY_CHECKS = (
     "kernel_replay",
     UNCHANGED,
 )
+# bench/kernels/timing.py's checks that both of its grants need: the sessions are of the corpus's manifest and
+# an approved project, read by the protocol's own rule, every one a confirmation session, with enough pairs.
+TIMING_CHECKS = ("corpus", "rule", "confirmation", "pairs")
 # Each grant a tool asks for by name, and what it requires. tests/verdict/grants.json is a copy, so a change
 # here is one a reviewer sees. Each tool's pull request in docs/verdicts.md's migration adds its own.
 GRANTS: dict[str, Grant] = {
@@ -202,6 +205,25 @@ GRANTS: dict[str, Grant] = {
         steps=("witnesses",),
         checks=("falsified", "nonce", "literal"),
         excludes=("verify.proved",),
+    ),
+    # bench/kernels/timing.py, the harness cut again: each timed run of each confirmation session is a case,
+    # planned by its session and ended on its own with exit 0, and docs/kernels.md's "Measurably faster" is
+    # the checks, with `corpus` and `rule` for a comparison that isn't by the protocol.
+    "timing.faster": Grant(
+        "faster",
+        0,
+        schemas.KERNELS_READING,
+        checks=(*TIMING_CHECKS, "interval_above", "sessions_above", "others"),
+        excludes=("timing.slower",),
+        cases=Cases(holds=(0,)),
+    ),
+    "timing.slower": Grant(
+        "slower",
+        2,
+        schemas.KERNELS_READING,
+        checks=(*TIMING_CHECKS, "interval_below", "sessions_below"),
+        excludes=("timing.faster",),
+        cases=Cases(holds=(0,)),
     ),
 }
 

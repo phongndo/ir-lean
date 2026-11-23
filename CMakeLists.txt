@@ -178,6 +178,10 @@ add_test(NAME corpus COMMAND ${CMAKE_SOURCE_DIR}/tests/corpus_test.py)
 # The kernel corpus, docs/kernels.md: its manifest meets its rules, and once it's fixed, nothing approved
 # changes without an amendment. Python only.
 add_test(NAME kernels COMMAND ${CMAKE_SOURCE_DIR}/tests/kernels_test.py)
+# The harness that times a candidate by the corpus's protocol, docs/kernels.md: on a tiny project it builds,
+# a failed run fails its session, a candidate that loads the baseline's code is refused, and what sessions
+# come to is irlean.verdict's to say. Python and clang only, on whichever cpu it's allowed.
+add_test(NAME timing COMMAND ${CMAKE_SOURCE_DIR}/tests/timing_test.py)
 # Every unit the manifest names compiles at the pin and defines the kernels it names. It fetches nothing, and
 # skips where the Nix store doesn't hold the sources, as in CI: `bench/kernels/demand.py check` fetches them.
 add_test(NAME kernels_demand COMMAND ${CMAKE_SOURCE_DIR}/bench/kernels/demand.py check --offline)

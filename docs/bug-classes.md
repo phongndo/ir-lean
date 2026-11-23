@@ -36,7 +36,9 @@ is that only clean evidence gives a positive verdict.
   `tests/alive.py` decide on their own, each with its own tests. The bugs since were in what reached `decide`, or in
   what doesn't go through it:
   - a tool that filtered its evidence before `decide` saw it: #118 dropped model stops as unmet hypotheses;
-  - a harness that decides a win on its own, in #117, still open: S9 counted crashed runs, and S11 averaged rates;
+  - a harness that decides a win on its own, in #117: S9 counted crashed runs, and S11 averaged rates. #117 was
+    scrapped on 2026-11-12. Its successor, `bench/kernels/timing.py`, asks `decide` for `faster` and `slower`, a
+    failed run fails its whole session, and each figure is judged alone;
   - a test that decides in shell: #115's `tests/cut.sh`.
 - **Guard planned:** stage A. Every observation a verdict rests on reaches `decide` unfiltered, and the shell tests'
   decisions move to it. A test runs every combination of evidence that isn't clean through every tool's mapping,
@@ -54,7 +56,7 @@ audited aren't the files replayed, or the IR certified isn't the IR translated.
     - the generated checker could be replaced before Lean read it;
     - an editor could change the IR during translation, then undo;
     - an inherited `LEAN_SYSROOT` pointed the replay at another toolchain.
-  - #117 S5, in a pull request still open: a session run again under a copied plan.
+  - #117 S5, scrapped since: a session run again under a copied plan.
   - [#121](https://github.com/phongndo/ir-lean/pull/121): `tools/verify_claims.py` hashed an evidence file, then read
     it again, and counted a claim's replays by path, so an alias or a file named twice could stand in.
 - **Guard now:** certify works in a private directory, with each file bound by its hash and `lstat` as it's written,
@@ -106,8 +108,10 @@ A correctness check passes whatever the code under test does, because it builds 
   - #117 S1: xxHash's `make check` rebuilt with its own flags.
   - #117 S12: xxHash's dispatch test compiled its own copy of the rewritten unit.
 - **Guard now:** on `main`, #116's check of llama.cpp fails on a GEMV made to add 1.0, which passed the old check.
-  Its Argon2id fix was shown by running the check and the timed run in both orders. #117's fixes, in a pull request
-  still open: the check that rebuilt is refused, and a flipped bit in `XXHL128_default_avx512` fails the new one.
+  Its Argon2id fix was shown by running the check and the timed run in both orders. #117's fixes went with it when
+  it was scrapped on 2026-11-12, so they aren't on `main`: there the check that rebuilt was refused, and a flipped
+  bit in `XXHL128_default_avx512` failed the new one. Its successor, `bench/kernels/timing.py`, hasn't been run on
+  xxHash. It refuses a candidate that loads what the baseline loads, which `tests/timing_test.py` plants.
 - **Guard planned:** a rule. A check counts only once a planted bug in the code it checks is shown to fail it, and
   that test stays.
 
@@ -120,7 +124,8 @@ A figure made of parts, or a count made of kinds, is judged as a whole, and one 
   - #118 S1: model stops counted among the inputs discarded.
   - #116 S2: perplexity's output, rounded and clipped before it was compared.
 - **Guard now:** each case fixed on its own. On `main`, #118 counts model stops apart from discards, and #116 compares
-  raw logits. #117, still open, judges each hash by itself.
+  raw logits. #117, scrapped since, judged each hash by itself, and `bench/kernels/timing.py` judges each figure by
+  itself.
 - **Guard planned:** a rule. Each part is judged on its own, and every input or run left out is counted by why.
 
 ## 7. An answer that changes from run to run

@@ -919,6 +919,81 @@ and the run has to reach the code the workload times:
   in one output can be rounded away before it reaches a logit. The check is evidence a candidate computes what the
   baseline does. The proof is what says it.
 
+### The harness
+
+[`bench/kernels/timing.py`](../bench/kernels/timing.py) times one candidate against the baseline on one workload, by
+the protocol above, since 2026-11-22. It takes the place of [#117](https://github.com/phongndo/ir-lean/pull/117)'s,
+which was scrapped on 2026-11-12, and is a fraction of its size: it times two builds it's given, and doesn't make a
+candidate from rewritten IR, which comes with the first pilot, or keep a board.
+
+```console
+bench/kernels/timing.py session libsodium argon2id --baseline BUILD --candidate BUILD --cpus 12 --seed N \
+  --kind confirmation --sessions bench/kernels/results/timing
+bench/kernels/timing.py read bench/kernels/results/timing/libsodium/argon2id/PAIR
+```
+
+A variant is a build of the project: a directory, which fills the manifest's `{build}`, and environment variables
+added to what it runs, as llama.cpp's two libraries are told apart by `LD_LIBRARY_PATH`. **A session:**
+
+1. **Reads the workload from the manifest,** and nowhere else: its `build`, `setup` and `run`, what's measured, its
+   threads and its checks. An input is checked against the hash the manifest pins.
+2. **Says what each variant is.** It runs the workload's `build` for each, then asks `ldd`, under that variant's
+   environment, what its timed program loads, and hashes the program and each library. Two variants that load the
+   same bytes are a control, and have to be declared one. So a candidate whose program still finds the baseline's
+   library is refused. `ldd` doesn't see a library a program opens while it runs.
+3. **Checks the candidate.** The project's test against known answers runs on the candidate. A check with commands
+   of its own runs on both, and what each writes is hashed and compared. A check on what the workload's own run
+   writes is made on every timed run, each repetition of it.
+4. **Warms each variant once,** which for a time also says how often a run repeats to last 2 seconds.
+5. **Times the pairs,** each in an order drawn from the seed, pinned with `taskset`. Each run records its wall
+   time, its user and system time, and the load average.
+6. **Hashes what each variant loads again,** and writes one record, numbered, beside the others of the same
+   workload and the same two identities.
+
+**A run that doesn't end well fails the session.** A crash, a signal, a time limit or a non-zero exit, in a build,
+a check, a warm-up or a pair: the record says `failed`, with why, and has no pair. No run is dropped and the rest
+kept.
+
+**`read` takes a directory,** not files, so nobody picks which sessions to pool. Exploratory sessions are listed
+and left out. Every confirmation session there counts, a failed one too: what it planned and didn't time is missing,
+and the reading is `inconclusive`. Two sessions with one seed, or of different cores, threads, builds or rules, are
+refused. The bootstrap's seed is made from the sessions' own.
+
+**What sessions come to is [`irlean.verdict`](trust.md#where-python-decides-a-verdict)'s to say.** `read` asks it for
+`timing.faster` and `timing.slower`: each timed run is a case, which has to have ended on its own with exit 0, and
+the rule's conditions are its checks, each figure of a rate judged by itself. Two more checks make a comparison that
+isn't by the protocol `inconclusive`: the sessions are of the corpus's manifest as it is now and an approved
+project, and were read by the protocol's own rule. `IRLEAN_DENY_ALL` takes `faster` away, as
+`tests/deny_all_test.py` checks. `faster` is the rule's "measurably faster" on one workload, with the project's
+other workloads given to `--other`. It isn't [a win](#what-a-win-is).
+
+**What it doesn't do.** It reads llama-bench's rate and no other, so xxHash's workloads are refused. It builds no
+candidate. It records the load average and nothing else about the machine: nothing stops another job from running
+beside a session.
+
+[`tests/timing_test.py`](../tests/timing_test.py) builds a tiny project and plants each fault: a run that fails in
+the warm-up or in a later pair, a candidate that loads the baseline's library, a wrong answer for each kind of
+check, an answer that goes wrong only on a later call, and a library that changes during the session. With each of
+30 guards taken out of `timing.py` in turn, as a one-off on 2026-11-22, a test fails.
+
+**The control, on 2026-11-22.** On z, on core 12 alone, libsodium's `argon2id` between the baseline's build and
+itself, declared a control: two confirmation sessions of 15 pairs, each run about 11.6 s. Stated before it ran: it
+passes if the pooled interval contains 1. The pooled median is 0.9997, with a 95% interval of 0.9994 to 1.0005, and
+the 30 ratios run from 0.991 to 1.011, 11 of them above 1. So the harness shows no bias between its two sides, and
+30 pairs resolve well under the rule's half a percent. The records are in
+[`bench/kernels/results/timing`](../bench/kernels/results/timing/libsodium/argon2id).
+
+**The q4_K rewrite, through it, on 2026-11-22.** [llama.cpp's q4_K rewrite](llama.md) on `pp512`, the two
+libraries `tests/llama_bench.py` builds told apart by `LD_LIBRARY_PATH`, 8 threads on cores 8 to 15, with the
+manifest's 1.5B model. Stated before it ran: the pooled median falls between 1.04 and 1.08, `llama.md`'s being
+1.064, and the reading is `inconclusive`, since `tg128` and `ppl` aren't measured. Two confirmation sessions of 15
+pairs give a pooled median of 1.0658, with a 95% interval of 1.0644 to 1.0668, every pair faster, and a baseline of
+1,117 to 1,123 tokens a second. Each session's check passed first: the raw logits of 128 steps, the same for both
+libraries. The reading is `inconclusive`, for the reason stated and for one more: the first two sessions failed
+before timing anything, on an inputs directory given as a relative path, which `timing.py` now makes absolute.
+They're confirmation sessions that planned 30 runs and timed none, so the directory's plan is incomplete, as the
+rule above has it. It doesn't count toward the ten.
+
 ## What a win is
 
 One win is one rewrite, proved, reviewed and measured:
@@ -981,7 +1056,9 @@ a rule.
   workload is on z, which the protocol's 30 pairs assume is enough.
 - **No harness runs the protocol yet.** The manifest says what each workload runs and how it's checked, with
   `{build}` for the project's build, and `bench/kernels/profile.sh` says how each is built. No tool yet builds a
-  baseline and a candidate, runs a workload's checks on the candidate, and times the pairs.
+  baseline and a candidate, runs a workload's checks on the candidate, and times the pairs. *Since 2026-11-22
+  [the harness](#the-harness) runs a workload's checks and times the pairs, between two builds it's given. Nothing
+  yet builds a candidate from rewritten IR.*
 - **llama.cpp's workloads weren't timed from the manifest** when it was fixed, and its check ran with the 0.5B model,
   not the manifest's 1.5B, which wasn't fetched: [above](#llamacpps-check-reaches-the-kernels-it-times). Its commands
   are `tests/llama_bench.py`'s, and the build its check needs is that script's, which writes `compile_commands.json`.

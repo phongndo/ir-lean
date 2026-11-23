@@ -86,6 +86,10 @@ RULE_SEARCH = "ir-lean.rule-search/1"
 # docs/kernels.md.
 KERNELS_MANIFEST = "ir-lean.kernels.manifest/2"
 KERNELS_DEMAND = "ir-lean.kernels.demand/1"
+# bench/kernels/timing.py: one session of paired runs on a workload, and what a candidate's sessions come to
+# by the protocol's rule. docs/kernels.md.
+KERNELS_SESSION = "ir-lean.kernels.session/1"
+KERNELS_READING = "ir-lean.kernels.reading/1"
 
 ALL = {
     value: key
