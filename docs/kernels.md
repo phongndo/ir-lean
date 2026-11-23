@@ -810,6 +810,9 @@ the thread count the manifest gives, one unless the workload says otherwise. A r
 inside one timed command until it isn't. Where a benchmark runs for a fixed time, as `xxhsum -b` does, its own figure
 is the measure. The load average and the cores are recorded with each run.
 
+*Since 2026-11-23 a run shorter than 2 seconds is refused, and not repeated, until what repeating means is decided:
+[decision 2 of that day](roadmap.md#seven-decisions-of-2026-11-23).*
+
 **How variance is handled.**
 
 - Runs come in pairs, baseline and candidate back to back, in an order drawn from a recorded seed.
@@ -829,10 +832,11 @@ A candidate is measurably faster when all of these hold:
 3. **Every session's median is above 1.**
 4. **No other workload of the project is slower:** each one's pooled interval reaches 1 or above.
 
-Otherwise it's inconclusive, or slower, and the board says which. By this rule the Q5 rewrite, at 1.049 with an
-interval of 1.029 to 1.057 over 30 pairs in 2 sessions, is measurably faster on one thread. Its eight-thread trial, at
-1.004 with an interval of 0.979 to 1.351, isn't. The q4_K rewrite was measured in rounds, without pairs or an
-interval, so it would be measured again.
+Otherwise it's inconclusive, or slower, and the board says which. Slower is a pooled interval that ends below 1, as rule
+4 has it, since [decision 5 of 2026-11-23](roadmap.md#seven-decisions-of-2026-11-23). By this rule the Q5 rewrite, at
+1.049 with an interval of 1.029 to 1.057 over 30 pairs in 2 sessions, is measurably faster on one thread. Its
+eight-thread trial, at 1.004 with an interval of 0.979 to 1.351, isn't. The q4_K rewrite was measured in rounds, without
+pairs or an interval, so it would be measured again.
 
 ### Each workload's check
 
