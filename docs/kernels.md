@@ -928,6 +928,30 @@ and the run has to reach the code the workload times:
   in one output can be rounded away before it reaches a logit. The check is evidence a candidate computes what the
   baseline does. The proof is what says it.
 
+## Building libsodium variants
+
+On x86-64 Linux, build the pinned baseline with
+`nix build --no-link --print-out-paths .#kernels.libsodium.baseline`. The output contains the compiled libraries
+and `evidence/evidence.json`, with the commands, exits and output hashes for Argon2id and secretstream.
+The `tests.roundtrip` and `tests.blake-roundtrip` attributes recompile baseline IR. The `tests.wrong-argon` and
+`tests.wrong-blake` attributes deliberately change a shuffle or rotation to exercise the workload checks.
+The builder records unsuccessful checks too. These records contain no timing measurements.
+
+The producer validates the corpus manifest and checks the compiler's version and LLVM source hash.
+The builder queries its own libsodium for AVX2 and AVX-512F before running the controls. Missing dispatch
+features and launch failures are recorded in the evidence. The checking-mode Argon2 harness records the result
+of upstream's byte comparison after the test body returns and the streams pass their I/O checks. A completed
+comparison exits successfully for either outcome. Test and I/O failures keep their original failure exits.
+This adapter applies only to the known-answer test. The library and timed workload use the pinned sources directly.
+
+Nix reuses a realization, including recorded failures. To run the build again, give it a fresh attempt label.
+For example, from the repository root:
+
+```sh
+nix build --impure --no-link --print-out-paths --expr \
+  'let f = builtins.getFlake (toString ./.); in (f.legacyPackages.x86_64-linux.kernels.forAttempt "retry-1").libsodium.baseline'
+```
+
 ## What a win is
 
 One win is one rewrite, proved, reviewed and measured:
