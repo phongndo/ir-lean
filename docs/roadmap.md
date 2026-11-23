@@ -21,6 +21,9 @@ and the speedup each measures. The board doesn't exist yet. On `main` today are 
 neither found by a search ([status](status.md#llamacpp)). The target, within an envelope of about three months, is at
 least 10 proved wins from at least 3 projects, with a checkpoint a third of the way in.
 
+*Since 2026-11-22 the engine's core is a proposer, whose candidates Lean proves one at a time, and not that search:
+[the engine, changed on 2026-11-22](#the-engine-changed-on-2026-11-22).*
+
 **Proving LLVM's rewrites supplies it.** The pinned LLVM's passes stay in [chunks](chunks.md), and a chunk's rewrites go
 through three gates: the model can express them, their test transformations are certified, and each is proved for every
 input and stored as a rule. They're proved in the order the corpus needs them. It stops there: binding a proof to
@@ -285,7 +288,11 @@ Why:
 - **So the gauge may stay small,** and the share of LLVM's rewrites proved may stop growing. The maintainer accepts
   that: by decision 13 it doesn't reopen the goal.
 
-**4. The engine's core is a rule search.** It rewrites real IR using only rules already proved for every input, so what
+**4. The engine's core is a rule search.** *Superseded on 2026-11-22, by
+[the engine, changed on 2026-11-22](#the-engine-changed-on-2026-11-22): the engine's core is a proposer, and the rule
+search stays as a tool. What follows is the record of 2026-11-09.*
+
+It rewrites real IR using only rules already proved for every input, so what
 it finds carries its proof: a chain of proved rules, which `Refines`' transitivity composes. It's deterministic. Agents
 and other untrusted sources, Minotaur run offline among them, propose new rules offline, and each is generalized, proved
 once and stored. The search starts now: it doesn't wait for chunk 1's G2, as
@@ -332,7 +339,8 @@ no new hardware.
 - **By about 2026-12-09, the checkpoint, S7:** at least one new proved win on real code that the rule search found from
   stored rules, with no rule written by hand for its site. If there's none, the engine's core becomes an agent
   proposer: an agent proposes a faster version of each hot sequence, Alive2 filters, and Lean proves each instance.
-  That changes the engine, not the goal.
+  That changes the engine, not the goal. *Taken early, on 2026-11-22, and the checkpoint reads differently since:
+  [the engine, changed on 2026-11-22](#the-engine-changed-on-2026-11-22).*
 
 This is the one exception to [decision 6 after #69](#six-decisions-of-2026-11-09-after-69), no calendar estimates: the
 envelope and the checkpoint have dates, and every other gate stays without one. Not decided: whether the two llama.cpp
@@ -471,6 +479,62 @@ change without changing this record of a reviewed decision.
    of its own, and without one ChaCha20-Poly1305 and BLAKE2b have no workload a win could be measured on. Done:
    [the driver](kernels.md#libsodiums-bulk-encryption-driver) encrypts a gibibyte, and spends its time in BLAKE2b,
    ChaCha20 and Poly1305.
+
+### The engine, changed on 2026-11-22
+
+On 2026-11-22, after a review of the project with `main` at `525e758`, the maintainer took
+[decision 8 after #103](#thirteen-decisions-of-2026-11-09-after-103)'s fallback early: the engine's core is a
+proposer, and not the rule search. That decision says this "changes the engine, not the goal", and the goal stays
+frozen, as decision 13 has it.
+
+**What the engine is now.** Propose, refute, prove:
+
+1. **Propose.** A faster version of a hot piece of a kernel comes from anywhere, untrusted: an agent, a person,
+   another tool, or a pull request open upstream.
+2. **Refute.** Both versions run natively on many inputs, and through the project's own check of the functions
+   changed. A candidate that differs is dropped.
+3. **Measure.** What's left is timed against the baseline by [the corpus's protocol](kernels.md#the-benchmark-protocol).
+4. **Prove.** Lean proves each one that's faster, by itself: the piece that changed is cut out and proved to refine
+   what it replaced, or the whole function is, where the model translates it.
+
+So a proof is written for a win, after the win is found, where the rule search's came with the rule. This supersedes
+decision 4, that the engine's core is a rule search. [The rule search](rule-search.md), [its rules](rules.md) and
+certify mode stay, as tools: where a step matches a rule proved for every input, that's still its cheapest proof.
+Decision 5 stands: a tool that ships calls no model, and a proposer runs offline.
+
+Why:
+
+- **The rule search can't reach the checkpoint as built.** [Rule search](rule-search.md#what-it-found) measured it.
+  Every rule it has is one of LLVM's own, so of the 225 rewrites it found in LLVM's InstSimplify tests, `llvm-mca`
+  kept none against `opt -O3`. It looks into scalar integer instructions only, where the corpus is SIMD, and it has
+  never run on the corpus. A win needs a rule LLVM doesn't have and a format that can say vectors, and neither was
+  started.
+- **The fallback is how the wins on `main` were made.** Both llama.cpp rewrites were proved after they were found,
+  each by a proof written for it, and [the Q5 rewrite's record](llama-q5.md) has two other candidates, tried and
+  dropped.
+- **Candidates aren't what's scarce.** On 2026-11-22 llama.cpp had two open pull requests that use `vpdpbusd` in the
+  q4_K kernels, [#23309](https://github.com/ggml-org/llama.cpp/pull/23309) and
+  [#29397](https://github.com/ggml-org/llama.cpp/pull/29397), found without this work and before it, and checked by
+  tests alone. A proof for every input is what this project has that they don't.
+
+**The checkpoint, S7, as it reads now.** By about 2026-12-09: at least one new proved win on real code of the kernel
+corpus, outside llama.cpp, that a proposer found, measured by the corpus's protocol. It's outside llama.cpp because
+both wins in hand are llama.cpp's, and the first of them isn't one only this project found.
+
+**What it waits on.** A harness that times a candidate by the protocol, which doesn't exist:
+[#117](https://github.com/phongndo/ir-lean/pull/117)'s was scrapped on 2026-11-12. And a first pilot, on a kernel
+that translates as built and has a workload of its own.
+
+**Left open, for the maintainer.** None of these is decided here:
+
+1. **The date.** 2026-12-09 was set for the rule search. The harness and the pilot started on 2026-11-22, which
+   leaves them 17 days. It stays 2026-12-09 unless it's changed here, with its reason, before it passes.
+2. **What missing it means.** Decision 8's answer, a change of engine, is spent. The review's proposal: if the
+   checkpoint is missed, the results board stops being the headline, and the semantics and its proofs are what the
+   project is for. That reopens the goal, so by decision 13 it's the maintainer's call.
+3. **When the two llama.cpp rewrites count.**
+   [Decision 2 of the kernel corpus](#the-kernel-corpus-decided-on-2026-11-10) says each counts "once the rule search
+   finds it again". With no rule search at the core, that needs saying again. Until it is, neither counts.
 
 ### The flywheel
 
@@ -1147,7 +1211,7 @@ binding gates B0 to B5. The record of 2026-11-08 [above](#the-goal-changed-on-20
 | S4 | The safety bridge proved | 4 | F2, F4 | Platform, semantics, after F4 | Not started |
 | S5 | A proved win on LLVM IR exported from MLIR | 4 | S3 | After S3 | Not started |
 | S6 | A proved rewrite accepted upstream | 4 | S2 or S3 | Last of the four outside results, each patch read and owned by the maintainer, by [decision 10 after #103](#thirteen-decisions-of-2026-11-09-after-103) | Not started |
-| S7 | The checkpoint: one new proved win on real code that the rule search found from stored rules, with no rule written by hand for its site | 4 | The kernel corpus, fixed. The rule format and the rule search | By about 2026-12-09, by decision 8 after #103. If it's missed, the engine's core becomes an agent proposer | Not started |
+| S7 | The checkpoint: one new proved win on real code of the kernel corpus, outside llama.cpp, that a proposer found, measured by the corpus's protocol. Until 2026-11-22: one that the rule search found from stored rules, with no rule written by hand for its site | 4 | The kernel corpus, fixed. A harness that times a candidate by the protocol. Until 2026-11-22: the rule format and the rule search | By about 2026-12-09, by decision 8 after #103. Until 2026-11-22: if it's missed, the engine's core becomes an agent proposer. Since then that's taken, and what missing it means is [open](#the-engine-changed-on-2026-11-22) | Not started |
 | S8 | The results board: every proved win on the corpus, labeled by tier, with its measured speedup, reproducible from the repo | 4 | The kernel corpus, fixed. A first win | First of the four outside results | Not started |
 | S9 | The plugin: rules from one source, and its certify mode in CI over the corpus | 4 | The rule format. S8 | Second of the four outside results | Not started |
 | E1 | Lemma store v1 | 6 | #48 | Platform, lemma engine | Done in [#60](https://github.com/phongndo/ir-lean/pull/60): 163 lemmas in `lake build` and CI, each meeting rules 1 to 3, and 16 all four ([lemma store](lemma-store.md)) |
