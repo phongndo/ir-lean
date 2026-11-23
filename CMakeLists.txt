@@ -25,6 +25,12 @@ target_compile_definitions(ir-lean-probe PRIVATE ${LLVM_DEFINITIONS_LIST})
 target_compile_options(ir-lean-probe PRIVATE -Wall -Wextra -fno-rtti)
 llvm_config(ir-lean-probe USE_SHARED core support)
 
+add_executable(argon2-slices prototypes/argon2-whole/Slices.cpp)
+target_include_directories(argon2-slices SYSTEM PRIVATE ${LLVM_INCLUDE_DIRS})
+target_compile_definitions(argon2-slices PRIVATE ${LLVM_DEFINITIONS_LIST})
+target_compile_options(argon2-slices PRIVATE -Wall -Wextra -fno-rtti)
+llvm_config(argon2-slices USE_SHARED core irreader support)
+
 # irl, the command line and MCP server, in Go with only its standard library: build/irl. docs/irl.md.
 find_program(GO_EXECUTABLE go REQUIRED)
 file(GLOB IRL_SOURCES CONFIGURE_DEPENDS ${CMAKE_SOURCE_DIR}/irl/*.go ${CMAKE_SOURCE_DIR}/irl/go.mod)
@@ -40,6 +46,13 @@ add_custom_target(irl-command ALL DEPENDS ${CMAKE_BINARY_DIR}/irl)
 
 # Tests need the Lean library: run `lake build` first.
 enable_testing()
+add_test(
+    NAME argon2_whole
+    COMMAND
+        ${CMAKE_SOURCE_DIR}/prototypes/argon2-whole/prove.py $<TARGET_FILE:ir-lean>
+        $<TARGET_FILE:argon2-slices> ${CMAKE_SOURCE_DIR}/.lake/build/lib/lean
+)
+set_tests_properties(argon2_whole PROPERTIES LABELS slow TIMEOUT 900)
 add_test(NAME opcheck COMMAND ${CMAKE_SOURCE_DIR}/tests/opcheck.py $<TARGET_FILE:ir-lean>)
 add_test(NAME gepcheck COMMAND ${CMAKE_SOURCE_DIR}/tests/gepcheck.py $<TARGET_FILE:ir-lean>)
 add_test(

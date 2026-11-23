@@ -1,0 +1,32 @@
+--- a/src/libsodium/crypto_pwhash/argon2/blamka-round-avx512f.h
++++ b/src/libsodium/crypto_pwhash/argon2/blamka-round-avx512f.h
+@@ -61,2 +61,2 @@
+-        B0 = _mm512_permutex_epi64(B0, _MM_SHUFFLE(0, 3, 2, 1)); \
+-        B1 = _mm512_permutex_epi64(B1, _MM_SHUFFLE(0, 3, 2, 1)); \
++        A0 = _mm512_permutex_epi64(A0, _MM_SHUFFLE(2, 1, 0, 3)); \
++        A1 = _mm512_permutex_epi64(A1, _MM_SHUFFLE(2, 1, 0, 3)); \
+@@ -64,2 +64,2 @@
+-        C0 = _mm512_permutex_epi64(C0, _MM_SHUFFLE(1, 0, 3, 2)); \
+-        C1 = _mm512_permutex_epi64(C1, _MM_SHUFFLE(1, 0, 3, 2)); \
++        C0 = _mm512_permutex_epi64(C0, _MM_SHUFFLE(0, 3, 2, 1)); \
++        C1 = _mm512_permutex_epi64(C1, _MM_SHUFFLE(0, 3, 2, 1)); \
+@@ -67,2 +67,2 @@
+-        D0 = _mm512_permutex_epi64(D0, _MM_SHUFFLE(2, 1, 0, 3)); \
+-        D1 = _mm512_permutex_epi64(D1, _MM_SHUFFLE(2, 1, 0, 3)); \
++        D0 = _mm512_permutex_epi64(D0, _MM_SHUFFLE(1, 0, 3, 2)); \
++        D1 = _mm512_permutex_epi64(D1, _MM_SHUFFLE(1, 0, 3, 2)); \
+@@ -73,2 +73,2 @@
+-        B0 = _mm512_permutex_epi64(B0, _MM_SHUFFLE(2, 1, 0, 3)); \
+-        B1 = _mm512_permutex_epi64(B1, _MM_SHUFFLE(2, 1, 0, 3)); \
++        A0 = _mm512_permutex_epi64(A0, _MM_SHUFFLE(0, 3, 2, 1)); \
++        A1 = _mm512_permutex_epi64(A1, _MM_SHUFFLE(0, 3, 2, 1)); \
+@@ -76,2 +76,2 @@
+-        C0 = _mm512_permutex_epi64(C0, _MM_SHUFFLE(1, 0, 3, 2)); \
+-        C1 = _mm512_permutex_epi64(C1, _MM_SHUFFLE(1, 0, 3, 2)); \
++        C0 = _mm512_permutex_epi64(C0, _MM_SHUFFLE(2, 1, 0, 3)); \
++        C1 = _mm512_permutex_epi64(C1, _MM_SHUFFLE(2, 1, 0, 3)); \
+@@ -79,2 +79,2 @@
+-        D0 = _mm512_permutex_epi64(D0, _MM_SHUFFLE(0, 3, 2, 1)); \
+-        D1 = _mm512_permutex_epi64(D1, _MM_SHUFFLE(0, 3, 2, 1)); \
++        D0 = _mm512_permutex_epi64(D0, _MM_SHUFFLE(1, 0, 3, 2)); \
++        D1 = _mm512_permutex_epi64(D1, _MM_SHUFFLE(1, 0, 3, 2)); \
