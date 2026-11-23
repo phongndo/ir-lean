@@ -186,6 +186,16 @@ KERNELS_WHOLE = ("replaced_once", "units_whole", "checks_completed", "runs_compl
 # Each grant a tool asks for by name, and what it requires. tests/verdict/grants.json is a copy, so a change
 # here is one a reviewer sees. Each tool's pull request in docs/verdicts.md's migration adds its own.
 GRANTS: dict[str, Grant] = {
+    "argon2.proved": Grant(
+        "proved",
+        0,
+        schemas.ARGON2_PROOF,
+        steps=("lean", "replay"),
+        checks=("exact_statements", "allowed_axioms", UNCHANGED),
+    ),
+    "argon2.caught": Grant(
+        "caught", 0, schemas.ARGON2_PROOF, checks=("lean_rejected", "only_expected_errors")
+    ),
     "verify.proved": Grant(
         "proved",
         0,

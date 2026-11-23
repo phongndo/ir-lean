@@ -1,4 +1,36 @@
 {
+  "argon2.caught": {
+    "cases": null,
+    "checks": [
+      "lean_rejected",
+      "only_expected_errors"
+    ],
+    "excludes": [],
+    "exit": 0,
+    "files": false,
+    "if_asked": [],
+    "schema": "ir-lean.argon2.proof/1",
+    "steps": [],
+    "word": "caught"
+  },
+  "argon2.proved": {
+    "cases": null,
+    "checks": [
+      "exact_statements",
+      "allowed_axioms",
+      "artifacts_unchanged"
+    ],
+    "excludes": [],
+    "exit": 0,
+    "files": false,
+    "if_asked": [],
+    "schema": "ir-lean.argon2.proof/1",
+    "steps": [
+      "lean",
+      "replay"
+    ],
+    "word": "proved"
+  },
   "kernels.rejected": {
     "cases": null,
     "checks": [
