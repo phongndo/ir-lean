@@ -93,7 +93,7 @@ It's asked in two forms. A grant by name, from `GRANTS`, whose requirements are 
 it passes. Each tool keeps the old form until [its pull request](verdicts.md#the-migration) moves it onto its grants.
 `IRLEAN_DENY_ALL=1` takes every grant away, in either form. A tool on its grants gives every status through
 `status`, [the one adapter](verdicts.md#adapters), which gives a grant's word only for a granted decision of that
-grant: `tools/verify.py` since stage A's third pull request.
+grant: `tools/verify.py` since stage A's third pull request, and `bench/kernels/variants.py`.
 
 | Claim | What it needs, besides every file it's about being there and every other check passing |
 | --- | --- |
@@ -114,6 +114,7 @@ rests on crashed, ran out of something or failed, and that nothing it needs is m
 | Where | Asks for |
 | --- | --- |
 | `tools/verify.py` | `verify.proved` and `verify.counterexample`, by name, through `status` |
+| `bench/kernels/variants.py` | `kernels.variant` and `kernels.rejected`, by name, through `status`: [what a variant is](kernels.md#what-a-variant-is) |
 | `tools/binding.py` | Certified, for a replay and for a cache hit |
 | `tools/prooftest/prooftest.py` | Refuted, by the kernel or by `tools/verify.py` |
 | `tools/store/store.py` | Proved, for each lemma the bar admits |

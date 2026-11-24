@@ -179,6 +179,10 @@ VERIFY_CHECKS = (
     "kernel_replay",
     UNCHANGED,
 )
+# bench/kernels/variants.py's processes, and the checks that say a build ended whole, which both its grants
+# need.
+KERNELS_STEPS = ("snapshot", "evaluate", "realize")
+KERNELS_WHOLE = ("replaced_once", "units_whole", "checks_completed", "runs_completed")
 # Each grant a tool asks for by name, and what it requires. tests/verdict/grants.json is a copy, so a change
 # here is one a reviewer sees. Each tool's pull request in docs/verdicts.md's migration adds its own.
 GRANTS: dict[str, Grant] = {
@@ -212,6 +216,30 @@ GRANTS: dict[str, Grant] = {
         steps=("witnesses",),
         checks=("falsified", "nonce", "literal"),
         excludes=("verify.proved",),
+    ),
+    # bench/kernels/variants.py, docs/kernels.md: a build of a project of the kernel corpus that may be
+    # measured. The repository was archived at a commit, the derivation evaluated and was realized, each
+    # object its table names was made from its IR once, every object of a unit it touches is in the table,
+    # each known-answers check wrote its result afresh and each run ended, and the results and outputs are
+    # the expected ones.
+    "kernels.variant": Grant(
+        "variant",
+        0,
+        schemas.KERNELS_VARIANT,
+        steps=KERNELS_STEPS,
+        checks=(*KERNELS_WHOLE, "answers_match", "outputs_match"),
+        excludes=("kernels.rejected",),
+    ),
+    # A build as whole as a variant's, where a result or an output is another one: a wrong candidate, by a
+    # check that ran. A build that failed, or a check that didn't run, is never this.
+    "kernels.rejected": Grant(
+        # Not `rejected`, which the manifest says of a project the corpus left out.
+        "wrong_answer",
+        2,
+        schemas.KERNELS_VARIANT,
+        steps=KERNELS_STEPS,
+        checks=(*KERNELS_WHOLE, "an_answer_differs"),
+        excludes=("kernels.variant",),
     ),
 }
 

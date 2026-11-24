@@ -31,6 +31,53 @@
     ],
     "word": "proved"
   },
+  "kernels.rejected": {
+    "cases": null,
+    "checks": [
+      "replaced_once",
+      "units_whole",
+      "checks_completed",
+      "runs_completed",
+      "an_answer_differs"
+    ],
+    "excludes": [
+      "kernels.variant"
+    ],
+    "exit": 2,
+    "files": false,
+    "if_asked": [],
+    "schema": "ir-lean.kernels.variant/1",
+    "steps": [
+      "snapshot",
+      "evaluate",
+      "realize"
+    ],
+    "word": "wrong_answer"
+  },
+  "kernels.variant": {
+    "cases": null,
+    "checks": [
+      "replaced_once",
+      "units_whole",
+      "checks_completed",
+      "runs_completed",
+      "answers_match",
+      "outputs_match"
+    ],
+    "excludes": [
+      "kernels.rejected"
+    ],
+    "exit": 0,
+    "files": false,
+    "if_asked": [],
+    "schema": "ir-lean.kernels.variant/1",
+    "steps": [
+      "snapshot",
+      "evaluate",
+      "realize"
+    ],
+    "word": "variant"
+  },
   "verify.counterexample": {
     "cases": null,
     "checks": [

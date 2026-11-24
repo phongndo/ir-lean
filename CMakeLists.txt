@@ -195,6 +195,14 @@ add_test(NAME kernels COMMAND ${CMAKE_SOURCE_DIR}/tests/kernels_test.py)
 # skips where the Nix store doesn't hold the sources, as in CI: `bench/kernels/demand.py check` fetches them.
 add_test(NAME kernels_demand COMMAND ${CMAKE_SOURCE_DIR}/bench/kernels/demand.py check --offline)
 set_tests_properties(kernels_demand PROPERTIES SKIP_RETURN_CODE 77 TIMEOUT 1800)
+# What a variant of the kernel corpus is, docs/kernels.md: bench/kernels/variants.py on evidence written for
+# the test, the archive of a commit, a manifest a build can't follow, and an empty section. About a second,
+# with git and Nix, and nothing built.
+add_test(NAME variants COMMAND ${CMAKE_SOURCE_DIR}/tests/variants_test.py)
+# The same on libsodium's builds: the baseline and seven more, each realized at HEAD's commit. It skips on a
+# processor without AVX2 or AVX-512F, where libsodium wouldn't run the units the builds replace.
+add_test(NAME variants_builds COMMAND ${CMAKE_SOURCE_DIR}/tests/variants_builds.py)
+set_tests_properties(variants_builds PROPERTIES SKIP_RETURN_CODE 77 TIMEOUT 7200)
 # tools/irlean, the shared Python library, and tools/measure.py on it: about 3 s, and no Lean or LLVM.
 # docs/python.md.
 add_test(NAME irlean COMMAND ${CMAKE_SOURCE_DIR}/tests/irlean_test.py)
@@ -470,7 +478,7 @@ set_tests_properties(
 # .github/needs-tests.py, which lets a pull request that only adds or edits documents no test reads skip CI's
 # test jobs: in a scratch git repo, and against the documents tests here read. About a second, and only git.
 add_test(NAME needs_tests COMMAND ${CMAKE_SOURCE_DIR}/tests/needs_tests_test.py ${CMAKE_BINARY_DIR})
-set_tests_properties(zlib_slow PROPERTIES LABELS slow)
+set_tests_properties(zlib_slow variants_builds PROPERTIES LABELS slow)
 # CI's test jobs: the longest tests apart, so they don't wait for each other. Each job is named after its
 # label and runs the tests with it, and a test with none of these runs in the job for the rest. See
 # docs/testing.md.

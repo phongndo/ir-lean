@@ -987,6 +987,8 @@ TABLE = {
     "expected_diagnostic": ("caught", 0),
     "kernel_checked": ("proved", 0),
     "witness_falsifies": ("counterexample", 2),
+    "built_and_checked": ("variant", 0),
+    "answer_differs": ("wrong_answer", 2),
     "time_limit": ("timeout", 4),
     "tool_failed": ("error", 1),
     "internal_error": ("error", 1),
@@ -1006,6 +1008,8 @@ class Adapter(unittest.TestCase):
             "verify.counterexample": "witness_falsifies",
             "argon2.proved": "kernel_checked",
             "argon2.caught": "expected_diagnostic",
+            "kernels.variant": "built_and_checked",
+            "kernels.rejected": "answer_differs",
         }
         for name, d in granted.items():
             self.assertTrue(d.granted, name)
